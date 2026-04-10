@@ -153,6 +153,7 @@ model Equipment {
   code        String   @unique
   name        String
   serviceTags String[]
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   reportServices ReportService[]
@@ -173,6 +174,7 @@ model Manometer {
   calibrationCertCode String
   calibratedAt        DateTime
   expiresAt           DateTime
+  isActive            Boolean  @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
@@ -183,6 +185,7 @@ model ParticleCounter {
   serialNumber String
   calibratedAt DateTime
   expiresAt    DateTime
+  isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }

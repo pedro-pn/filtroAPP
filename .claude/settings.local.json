@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"isActive\\\\|ativo\" \"/c/Users/relat/Área de Trabalho/NewRDO/backend/src/routes/resources/\"*.js)"
+    ]
+  }
+}

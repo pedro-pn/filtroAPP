@@ -356,7 +356,7 @@ textarea{resize:none;min-height:72px}
     <div class="nav-tab" onclick="switchGestorTab('projetos',this)">Projetos</div>
     <div class="nav-tab" onclick="switchGestorTab('arquivados',this)">Arquivados</div>
     <div class="nav-tab" onclick="switchGestorTab('equipe',this)">Equipe</div>
-    <div class="nav-tab" onclick="switchGestorTab('equipamentos',this)">Equipamentos</div>
+    <div class="nav-tab" onclick="switchGestorTab('equipamentos',this)">Unidades</div>
     <div class="nav-tab" onclick="switchGestorTab('manometros',this)">Manômetros</div>
     <div class="nav-tab" onclick="switchGestorTab('contadores',this)">Contadores</div>
   </div>
@@ -513,7 +513,7 @@ function toLocalDb(payload){
     return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj,contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
   });
   local.equipamentos=(payload.equipment||[]).map(function(e){
-    return {id:e.id,code:e.code,codigo:e.code,nome:e.name,tipos:e.serviceTags||[]};
+    return {id:e.id,code:e.code,codigo:e.code,nome:e.name,tipos:e.serviceTags||[],ativo:e.isActive!==false};
   });
   local.unidades={filtragem:[],flushing:[],limpezaQuimica:[],desidratacao:[],uth:[],outras:[]};
   (payload.units||[]).forEach(function(u){
@@ -522,10 +522,10 @@ function toLocalDb(payload){
     local.unidades[key].push({id:u.id,code:u.code,codigo:u.code});
   });
   local.manometros=(payload.manometers||[]).map(function(m){
-    return {id:m.id,code:m.code,codigo:m.code,escala:m.scale,certificado:m.calibrationCertCode,calibracao:fmtDateOnly(m.calibratedAt),vencimento:fmtDateOnly(m.expiresAt)};
+    return {id:m.id,code:m.code,codigo:m.code,escala:m.scale,certificado:m.calibrationCertCode,calibracao:fmtDateOnly(m.calibratedAt),vencimento:fmtDateOnly(m.expiresAt),ativo:m.isActive!==false};
   });
   local.contadores=(payload.counters||[]).map(function(c){
-    return {id:c.id,code:c.code,codigo:c.code,serial:c.serialNumber,calibracao:fmtDateOnly(c.calibratedAt),vencimento:fmtDateOnly(c.expiresAt)};
+    return {id:c.id,code:c.code,codigo:c.code,serial:c.serialNumber,calibracao:fmtDateOnly(c.calibratedAt),vencimento:fmtDateOnly(c.expiresAt),ativo:c.isActive!==false};
   });
   return local;
 }
@@ -673,7 +673,7 @@ function refreshServiceCollaboratorOptions(){
   });
 }
 function equipamentoOptions(tipo){
-  return db.equipamentos.filter(function(e){return !e.tipos || e.tipos.indexOf(tipo)>=0;}).map(function(e){
+  return db.equipamentos.filter(function(e){return e.ativo!==false && (!e.tipos || e.tipos.indexOf(tipo)>=0);}).map(function(e){
     return {value:e.id,label:e.codigo+' — '+e.nome};
   });
 }
@@ -853,7 +853,7 @@ function volField(lbl,required){
 /* ── PARTÍCULAS e DESIDRATAÇÃO corrigidos ── */
 function particulasBlock(n,prefix){
   var pid='part-'+n+prefix;
-  var contadorOpts=db.contadores.map(function(c){return {value:c.id,label:c.codigo+' — '+c.serial};});
+  var contadorOpts=db.contadores.filter(function(c){return c.ativo!==false;}).map(function(c){return {value:c.id,label:c.codigo+' — '+c.serial};});
   return '<div class="fg"><label>Houve contagem de partículas?</label>'+
     '<div class="rtag-grp">'+
     '<div class="rtag" onclick="selectRad(this,true);showSec(\''+pid+'\',true)">Sim</div>'+
@@ -927,7 +927,7 @@ function bodyPressao(n,p,isPre){
     '</div><div id="foleo-'+n+'" class="sub-card" style="display:none">'+
     '<div class="fg" style="margin:0"><label>Qual óleo?</label><input type="text" placeholder="Especificar óleo..."></div></div></div>'+
     '<div class="fg"><label>Manômetros utilizados <span class="req">*</span></label><div class="chk-grp" data-required-group="checkbox" data-label="Manômetros utilizados">'+
-    db.manometros.map(function(m){return '<label class="chk-item"><input type="checkbox" value="'+m.id+'"><span>'+m.codigo+'</span></label>';}).join('')+
+    db.manometros.filter(function(m){return m.ativo!==false;}).map(function(m){return '<label class="chk-item"><input type="checkbox" value="'+m.id+'"><span>'+m.codigo+'</span></label>';}).join('')+
     '</div></div>'+uploadField('Fotos do manômetro')+uploadField('Fotos do sistema')+desenhoObs();
 }
 function bodyFlushing(n,p,isPre){
@@ -1315,24 +1315,6 @@ function renderEquipe(){
         '</div>';
     }).join('');
 }
-function renderEquipamentos(){
-  var cards=[];
-  cards.push('<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div class="sec" style="margin:0">Equipamentos</div><button class="mini-btn" onclick="addEquipamento()">+ Novo</button></div><div class="admin-list">'+
-    db.equipamentos.map(function(e){return '<div class="admin-item"><div class="admin-item-title">'+e.codigo+' — '+e.nome+'</div><div class="admin-item-sub">'+(e.tipos||[]).join(', ')+'</div><div class="admin-actions"><button class="mini-btn alt" onclick="editEquipamento(\''+e.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeEquipamento(\''+e.id+'\')">Remover</button></div></div>';}).join('')+'</div></div>');
-  Object.keys(db.unidades).forEach(function(cat){
-    cards.push('<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div class="sec" style="margin:0">'+cat+'</div><button class="mini-btn" onclick="addUnidade(\''+cat+'\')">+ Nova unidade</button></div><div class="admin-list">'+
-      db.unidades[cat].map(function(u){return '<div class="admin-item"><div class="admin-item-title">'+u.codigo+'</div><div class="admin-actions"><button class="mini-btn alt" onclick="editUnidade(\''+cat+'\',\''+u.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeUnidade(\''+cat+'\',\''+u.id+'\')">Remover</button></div></div>';}).join('')+'</div></div>');
-  });
-  return cards.join('');
-}
-function renderManometros(){
-  return '<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="mini-btn" onclick="addManometro()">+ Novo manômetro</button></div>'+
-    db.manometros.map(function(m){return '<div class="card" style="margin-bottom:10px"><div class="admin-item-title">'+m.codigo+' · '+m.escala+'</div><div class="admin-item-sub">Certificado '+m.certificado+' · calibração '+m.calibracao+' · vence '+m.vencimento+'</div><div class="admin-actions"><button class="mini-btn alt" onclick="editManometro(\''+m.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeManometro(\''+m.id+'\')">Remover</button></div></div>';}).join('');
-}
-function renderContadores(){
-  return '<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="mini-btn" onclick="addContador()">+ Novo contador</button></div>'+
-    db.contadores.map(function(c){return '<div class="card" style="margin-bottom:10px"><div class="admin-item-title">'+c.codigo+' · '+c.serial+'</div><div class="admin-item-sub">calibração '+c.calibracao+' · vence '+c.vencimento+'</div><div class="admin-actions"><button class="mini-btn alt" onclick="editContador(\''+c.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeContador(\''+c.id+'\')">Remover</button></div></div>';}).join('');
-}
 function parseSequenciais(txt){
   var out={};REPORT_TYPES.forEach(function(t){out[t]=0;});
   String(txt||'').split(',').forEach(function(part){
@@ -1450,10 +1432,6 @@ function editContador(id){
   var c=db.contadores.find(function(x){return x.id===id;}); if(!c)return;
   c.codigo=prompt('Código:',c.codigo)||c.codigo; c.serial=prompt('Serial:',c.serial)||''; c.calibracao=prompt('Data de calibração:',c.calibracao)||''; c.vencimento=prompt('Data de vencimento:',c.vencimento)||''; saveDb();renderGestor();
 }
-function removeContador(id){
-  if(!confirm('Remover este contador?'))return;
-  db.contadores=db.contadores.filter(function(c){return c.id!==id;}); saveDb();renderGestor();
-}
 var gestorEditors={projetos:null,equipe:null,equipamentos:null,manometros:null,contadores:null};
 function sequenciaisText(obj){
   return REPORT_TYPES.map(function(t){return t+':'+Number((obj&&obj[t])||0);}).join(',');
@@ -1492,7 +1470,7 @@ function editorEquipe(){
     '<div class="fg"><label>Nome</label><input type="text" id="ed-col-nome" value="'+escapeHtml(c.nome||'')+'"></div>'+
     '<div class="fg"><label>Cargo</label><input type="text" id="ed-col-cargo" value="'+escapeHtml(c.cargo||'')+'"></div>'+
     '<div class="fg"><label>E-mail</label><input type="text" id="ed-col-email" value="'+escapeHtml(c.email||'')+'"></div>'+
-    '<div class="fg full"><label>Assinatura</label><input type="hidden" id="ed-col-assinatura" value="'+escapeHtml(c.assinatura||'')+'"><input type="hidden" id="ed-col-assinatura-dataurl" value=""><input type="hidden" id="ed-col-assinatura-name" value=""><input type="hidden" id="ed-col-assinatura-mime" value=""><div id="ed-col-assinatura-preview" style="border:1px solid var(--br);border-radius:var(--rs);padding:10px;background:#fff;display:flex;align-items:center;justify-content:center;min-height:92px">'+(c.assinatura?'<img src="'+escapeHtml(c.assinatura)+'" style="max-width:100px;max-height:72px;display:block">':'<span style="font-size:12px;color:var(--mu)">Nenhuma imagem carregada</span>')+'</div><div style="display:flex;gap:8px;margin-top:8px"><label class="mini-btn" style="display:inline-flex;align-items:center;justify-content:center"><input type="file" accept="image/*" id="ed-col-assinatura-file" style="display:none" onchange="handleCollaboratorSignatureInput(this)">Carregar imagem</label><button type="button" class="mini-btn alt" onclick="removeCollaboratorSignature()">Remover</button></div><div style="font-size:11px;color:var(--mu);margin-top:6px">Aceita apenas uma imagem.</div></div>'+
+    '<div class="fg full"><label>Assinatura</label><input type="hidden" id="ed-col-assinatura" value="'+escapeHtml(c.assinatura||'')+'"><input type="hidden" id="ed-col-assinatura-dataurl" value=""><input type="hidden" id="ed-col-assinatura-name" value=""><input type="hidden" id="ed-col-assinatura-mime" value=""><div id="ed-col-assinatura-preview" style="border:1px solid var(--br);border-radius:var(--rs);padding:10px;background:#fff;display:flex;align-items:center;justify-content:center;min-height:92px">'+(c.assinatura?'<img src="'+escapeHtml(c.assinatura)+'" style="max-width:100px;max-height:72px;display:block">':'<span style="font-size:12px;color:var(--mu)">Nenhuma imagem carregada</span>')+'</div><div style="display:flex;gap:8px;margin-top:8px"><input type="file" accept="image/*" id="ed-col-assinatura-file" style="display:none" onchange="handleCollaboratorSignatureInput(this)"><button type="button" class="mini-btn" onclick="document.getElementById(\'ed-col-assinatura-file\').click()">Carregar imagem</button><button type="button" class="mini-btn alt" onclick="removeCollaboratorSignature()">Remover</button></div><div style="font-size:11px;color:var(--mu);margin-top:6px">Aceita apenas uma imagem.</div></div>'+
     '<div class="fg"><label>Status</label><select id="ed-col-ativo"><option value="true"'+(c.ativo?' selected':'')+'>Ativo</option><option value="false"'+(!c.ativo?' selected':'')+'>Inativo</option></select></div>'+
     '<div class="admin-actions full"><button class="mini-btn" onclick="saveColaboradorEditor(\''+st.type+'\')">Salvar</button></div></div></div>';
 }
@@ -1537,13 +1515,12 @@ function renderProjetos(){
 }
 function renderEquipe(){
   return '<div class="admin-toolbar"><div class="sec">Equipe</div><button class="mini-btn" onclick="openEditor(\'equipe\',\'new\')">+ Novo colaborador</button></div>'+editorEquipe()+
-    db.colaboradores.map(function(e){
-      return '<div class="card admin-card" style="display:flex;align-items:center;gap:12px"><div style="width:42px;height:42px;border-radius:50%;background:var(--g);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">'+initials(e.nome)+'</div><div style="flex:1"><div style="font-size:13px;font-weight:600">'+e.nome+'</div><div style="font-size:11px;color:var(--mu)">'+e.cargo+(e.email?' · '+e.email:'')+'</div></div><span class="badge '+(e.ativo?'badge-ok':'badge-rej')+'">'+(e.ativo?'Ativo':'Inativo')+'</span><button class="mini-btn alt" onclick="openEditor(\'equipe\',\'edit\',\''+e.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeColaborador(\''+e.id+'\')">Remover</button></div>';
+    db.colaboradores.filter(function(e){return e.ativo!==false;}).map(function(e){
+      return '<div class="card admin-card" style="display:flex;align-items:center;gap:12px"><div style="width:42px;height:42px;border-radius:50%;background:var(--g);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">'+initials(e.nome)+'</div><div style="flex:1"><div style="font-size:13px;font-weight:600">'+e.nome+'</div><div style="font-size:11px;color:var(--mu)">'+e.cargo+(e.email?' · '+e.email:'')+'</div></div><button class="mini-btn alt" onclick="openEditor(\'equipe\',\'edit\',\''+e.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeColaborador(\''+e.id+'\')">Remover</button></div>';
     }).join('');
 }
 function renderEquipamentos(){
-  var cards='<div class="admin-toolbar"><div class="sec">Equipamentos e Unidades</div><button class="mini-btn" onclick="openEditor(\'equipamentos\',\'new\')">+ Novo equipamento</button></div>'+(gestorEditors.equipamentos&&!gestorEditors.equipamentos.extra?editorEquipamento():'');
-  cards+='<div class="card admin-card"><div class="sec">Equipamentos</div><div class="admin-list">'+db.equipamentos.map(function(e){return '<div class="admin-item"><div class="admin-item-title">'+e.codigo+' — '+e.nome+'</div><div class="admin-item-sub">'+(e.tipos||[]).join(', ')+'</div><div class="admin-actions"><button class="mini-btn alt" onclick="openEditor(\'equipamentos\',\'edit\',\''+e.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeEquipamento(\''+e.id+'\')">Remover</button></div></div>';}).join('')+'</div></div>';
+  var cards='';
   Object.keys(db.unidades).forEach(function(cat){
     cards+='<div class="card admin-card"><div class="admin-toolbar"><div class="sec">'+cat+'</div><button class="mini-btn" onclick="openEditor(\'equipamentos\',\'new\',\'\',\''+cat+'\')">+ Nova unidade</button></div>'+(gestorEditors.equipamentos&&gestorEditors.equipamentos.extra===cat?editorEquipamento():'')+'<div class="admin-list">'+db.unidades[cat].map(function(u){return '<div class="admin-item"><div class="admin-item-title">'+u.codigo+'</div><div class="admin-actions"><button class="mini-btn alt" onclick="openEditor(\'equipamentos\',\'edit\',\''+u.id+'\',\''+cat+'\')">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeUnidade(\''+cat+'\',\''+u.id+'\')">Remover</button></div></div>';}).join('')+'</div></div>';
   });
@@ -1551,11 +1528,11 @@ function renderEquipamentos(){
 }
 function renderManometros(){
   return '<div class="admin-toolbar"><div class="sec">Manômetros</div><button class="mini-btn" onclick="openEditor(\'manometros\',\'new\')">+ Novo manômetro</button></div>'+editorManometro()+
-    db.manometros.map(function(m){return '<div class="card admin-card"><div class="admin-item-title">'+m.codigo+' · '+m.escala+'</div><div class="admin-item-sub">Certificado '+m.certificado+' · calibração '+m.calibracao+' · vence '+m.vencimento+'</div><div class="admin-actions"><button class="mini-btn alt" onclick="openEditor(\'manometros\',\'edit\',\''+m.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeManometro(\''+m.id+'\')">Remover</button></div></div>';}).join('');
+    db.manometros.filter(function(m){return m.ativo!==false;}).map(function(m){return '<div class="card admin-card"><div class="admin-item-title">'+m.codigo+' · '+m.escala+'</div><div class="admin-item-sub">Certificado '+m.certificado+' · calibração '+m.calibracao+' · vence '+m.vencimento+'</div><div class="admin-actions"><button class="mini-btn alt" onclick="openEditor(\'manometros\',\'edit\',\''+m.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeManometro(\''+m.id+'\')">Remover</button></div></div>';}).join('');
 }
 function renderContadores(){
   return '<div class="admin-toolbar"><div class="sec">Contadores</div><button class="mini-btn" onclick="openEditor(\'contadores\',\'new\')">+ Novo contador</button></div>'+editorContador()+
-    db.contadores.map(function(c){return '<div class="card admin-card"><div class="admin-item-title">'+c.codigo+' · '+c.serial+'</div><div class="admin-item-sub">calibração '+c.calibracao+' · vence '+c.vencimento+'</div><div class="admin-actions"><button class="mini-btn alt" onclick="openEditor(\'contadores\',\'edit\',\''+c.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeContador(\''+c.id+'\')">Remover</button></div></div>';}).join('');
+    db.contadores.filter(function(c){return c.ativo!==false;}).map(function(c){return '<div class="card admin-card"><div class="admin-item-title">'+c.codigo+' · '+c.serial+'</div><div class="admin-item-sub">calibração '+c.calibracao+' · vence '+c.vencimento+'</div><div class="admin-actions"><button class="mini-btn alt" onclick="openEditor(\'contadores\',\'edit\',\''+c.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeContador(\''+c.id+'\')">Remover</button></div></div>';}).join('');
 }
 async function saveProjetoEditor(mode){
   var id=document.getElementById('ed-proj-id').value.trim(), nome=document.getElementById('ed-proj-nome').value.trim();

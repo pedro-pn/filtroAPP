@@ -23,12 +23,16 @@ router.get('/', asyncHandler(async (_req, res) => {
 
 router.post('/', asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
+  const existing = await prisma.manometer.findUnique({ where: { code: data.code } });
+  if (existing && !existing.isActive) {
+    const item = await prisma.manometer.update({
+      where: { id: existing.id },
+      data: { ...data, isActive: true, calibratedAt: new Date(data.calibratedAt), expiresAt: new Date(data.expiresAt) }
+    });
+    return res.status(200).json(item);
+  }
   const item = await prisma.manometer.create({
-    data: {
-      ...data,
-      calibratedAt: new Date(data.calibratedAt),
-      expiresAt: new Date(data.expiresAt)
-    }
+    data: { ...data, calibratedAt: new Date(data.calibratedAt), expiresAt: new Date(data.expiresAt) }
   });
   res.status(201).json(item);
 }));
@@ -45,7 +49,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
 }));
 
 router.delete('/:id', asyncHandler(async (req, res) => {
-  await prisma.manometer.delete({ where: { id: req.params.id } });
+  await prisma.manometer.update({ where: { id: req.params.id }, data: { isActive: false } });
   res.status(204).end();
 }));
 
