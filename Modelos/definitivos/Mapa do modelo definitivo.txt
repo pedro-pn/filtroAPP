@@ -103,7 +103,7 @@ Inibição
 {{infostatement}} - não tem
 {{info}} - não tem
 
-
+{{photos}} - adicionar as fotos adicionadas no final do relatório
 os campos de serviço do tipo statement e info, quando não tiver, deixar tudo em branco.
 
 
