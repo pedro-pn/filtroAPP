@@ -5,8 +5,8 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { saveReportDocx } from '../../lib/report-docx.js';
+import { saveReportPdf } from '../../lib/report-pdf-from-docx.js';
 import { calculateReportOvertime } from '../../lib/overtime.js';
-import { buildReportPdf } from '../../lib/report-pdf.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
 
@@ -214,16 +214,10 @@ router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
   }
 
-  const bytes = await buildReportPdf(item, prisma);
-  const paddedSequence = typeof item.sequenceNumber === 'number'
-    ? String(item.sequenceNumber).padStart(3, '0')
-    : '---';
-  const fileDate = new Date(item.reportDate).toLocaleDateString('pt-BR').replace(/\//g, '-');
-  const fileName = `${item.project.code} - ${item.project.name} - ${item.reportType} ${paddedSequence} - ${fileDate}.pdf`;
-
+  const saved = await saveReportPdf(item);
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', contentDisposition(fileName));
-  res.send(Buffer.from(bytes));
+  res.setHeader('Content-Disposition', contentDisposition(saved.fileName));
+  res.send(await fs.readFile(saved.targetPath));
 }));
 
 router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {

@@ -10,6 +10,7 @@ const router = Router();
 const schema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
+  isActive: z.boolean().default(true),
   clientName: z.string().min(1),
   clientCnpj: z.string().min(1),
   contractCode: z.string().min(1),
@@ -26,7 +27,13 @@ const schema = z.object({
 });
 
 router.get('/', asyncHandler(async (_req, res) => {
+  const activeParam = _req.query.active;
+  const where = {};
+  if (activeParam === 'true') where.isActive = true;
+  if (activeParam === 'false') where.isActive = false;
+
   const items = await prisma.project.findMany({
+    where,
     include: {
       operator: true,
       reportSequences: true

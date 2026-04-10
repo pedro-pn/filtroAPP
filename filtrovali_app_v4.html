@@ -7,7 +7,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .screen{display:none;flex-direction:column;flex:1}.screen.active{display:flex}
 .topbar{background:var(--g);color:#fff;padding:14px 16px 12px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .tb-title{font-size:18px;font-weight:700}.tb-sub{font-size:11px;opacity:.75}
-.tb-step{margin-left:auto;background:rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600}
+.tb-step{margin-left:auto;background:rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;transition:background .15s,color .15s,transform .15s}
+.tb-step:hover{background:rgba(255,255,255,.28);color:#fff;transform:translateY(-1px)}
 .pbar{height:3px;background:rgba(255,255,255,.25)}.pfill{height:100%;background:#fff;border-radius:2px;transition:width .3s}
 .scroll{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
 .card{background:var(--wh);border-radius:var(--r);border:.5px solid var(--br);padding:14px}
@@ -95,9 +96,12 @@ textarea{resize:none;min-height:72px}
 .ha.prim .ha-title{font-size:15px}.ha.prim .ha-sub{color:rgba(255,255,255,.75)}
 
 /* ── PAINEL GESTOR ── */
-.nav-tabs{display:flex;gap:2px;background:#fff;border-bottom:.5px solid var(--br);overflow-x:auto;white-space:nowrap;padding:0 6px}
-.nav-tab{flex:0 0 auto;min-width:max-content;padding:12px 10px;text-align:center;font-size:12px;font-weight:500;color:var(--mu);cursor:pointer;border-bottom:2px solid transparent;transition:.15s}
-.nav-tab.active{color:var(--g);border-bottom-color:var(--g);font-weight:600}
+.nav-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;background:#fff;border-bottom:.5px solid var(--br);padding:10px 12px}
+.nav-tab{min-width:0;padding:11px 8px;text-align:center;font-size:12px;font-weight:600;color:var(--mu);cursor:pointer;border:1px solid #d7dfda;border-radius:10px;background:#f9fbfa;transition:background .15s,color .15s,border-color .15s,transform .15s}
+.nav-tab:hover{background:#eef5f0;color:var(--g);border-color:#b7cdbd;transform:translateY(-1px)}
+.nav-tab.active{color:#fff;border-color:var(--g);background:var(--g);font-weight:700}
+.logout-chip{background:rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;margin-left:8px;transition:background .15s,color .15s,transform .15s}
+.logout-chip:hover{background:rgba(255,255,255,.28);color:#fff;transform:translateY(-1px)}
 .badge{display:inline-flex;align-items:center;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600}
 .badge-pen{background:#fef3c7;color:#92400e}
 .badge-rev{background:#dbeafe;color:#1e40af}
@@ -148,6 +152,10 @@ textarea{resize:none;min-height:72px}
 .app-toast{position:fixed;top:14px;left:50%;transform:translate(-50%,-12px);min-width:220px;max-width:calc(100vw - 32px);background:rgba(36,61,44,.96);color:#fff;padding:12px 14px;border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.18);font-size:13px;font-weight:600;line-height:1.35;z-index:500;opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease}
 .app-toast.show{opacity:1;transform:translate(-50%,0)}
 .app-toast.error{background:rgba(200,21,25,.96)}
+.ongoing-proj{display:flex;flex-direction:column;gap:8px}
+.ongoing-actions{display:flex;align-items:center;gap:8px}
+.ongoing-delete{border:1px solid #ef9a9a;background:#fff4f4;color:#b42318;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.ongoing-delete:hover{background:#ffe9e9}
 </style>
 
 <div id="app-toast" class="app-toast"></div>
@@ -174,6 +182,16 @@ textarea{resize:none;min-height:72px}
   </div>
 </div>
 </div>
+<script>
+(function(){
+  var login=document.getElementById('s-login');
+  if(!login)return;
+  var panel=login.querySelector('.login-wrap > div:last-child');
+  if(!panel)return;
+  panel.dataset.loginPatched='true';
+  panel.innerHTML='<div class="fg"><label>Usuário</label><input type="text" id="login-user" list="login-user-history" placeholder="Ex.: carlos ou gestor"><datalist id="login-user-history"></datalist></div><div class="fg"><label>Senha</label><input type="password" id="login-password" placeholder="Digite a senha" autocomplete="current-password"></div><div id="login-memory-box" style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--mu)"><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-user" style="width:auto">Lembrar usuário</label><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-pass" style="width:auto">Lembrar senha</label></div><div id="login-seed-help" style="font-size:11px;color:var(--mu);line-height:1.5">Acesso inicial: gestor / gestor123, carlos / colab123, joao / colab123.</div><div id="login-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><button type="button" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px" onclick="fazerLogin()">Entrar</button>';
+})();
+</script>
 
 <!-- HOME COLABORADOR -->
 <div class="screen" id="s-home">
@@ -192,7 +210,7 @@ textarea{resize:none;min-height:72px}
         <div><div class="ha-title">Novo relatório</div><div class="ha-sub">Registrar serviços do dia</div></div>
       </div>
       <div class="ha"><div class="ha-icon">📁</div><div class="ha-title">Meus relatórios</div><div class="ha-sub">Histórico</div></div>
-      <div class="ha"><div class="ha-icon">⏳</div><div class="ha-title">Em andamento</div><div class="ha-sub">2 serviços ativos</div></div>
+      <div class="ha"><div class="ha-icon">⏳</div><div class="ha-title">Em andamento</div><div class="ha-sub" id="home-ongoing-sub">0 serviços ativos</div></div>
     </div>
   </div>
 </div>
@@ -330,12 +348,13 @@ textarea{resize:none;min-height:72px}
   <div class="topbar">
     <div><div class="tb-title">Painel Gestor</div><div class="tb-sub">Filtrovali</div></div>
     <div class="gestor-badge">Admin</div>
-    <div style="background:rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;margin-left:8px" onclick="go('s-login')">Sair</div>
+    <div class="logout-chip" onclick="go('s-login')">Sair</div>
   </div>
   <div class="nav-tabs">
     <div class="nav-tab active" onclick="switchGestorTab('pendentes',this)">Pendentes <span id="cnt-pen" style="background:#f59e0b;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px">3</span></div>
     <div class="nav-tab" onclick="switchGestorTab('aprovados',this)">Aprovados</div>
     <div class="nav-tab" onclick="switchGestorTab('projetos',this)">Projetos</div>
+    <div class="nav-tab" onclick="switchGestorTab('arquivados',this)">Arquivados</div>
     <div class="nav-tab" onclick="switchGestorTab('equipe',this)">Equipe</div>
     <div class="nav-tab" onclick="switchGestorTab('equipamentos',this)">Equipamentos</div>
     <div class="nav-tab" onclick="switchGestorTab('manometros',this)">Manômetros</div>
@@ -491,7 +510,7 @@ function toLocalDb(payload){
   local.projetos=(payload.projects||[]).map(function(p){
     var seq={};REPORT_TYPES.forEach(function(t){seq[t]=0;});
     (p.reportSequences||[]).forEach(function(s){seq[s.reportType]=s.nextNumber;});
-    return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj,contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,sequenciais:seq,ongoing:[]};
+    return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj,contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
   });
   local.equipamentos=(payload.equipment||[]).map(function(e){
     return {id:e.id,code:e.code,codigo:e.code,nome:e.name,tipos:e.serviceTags||[]};
@@ -1806,9 +1825,15 @@ function setupRuntimeUi(){
   var qtdField=document.getElementById('hdr-qtd-colab');
   if(qtdField&&qtdField.parentElement)qtdField.parentElement.remove();
   var homeExit=document.querySelector('#s-home .tb-step');
-  if(homeExit)homeExit.setAttribute('onclick','logoutApp()');
+  if(homeExit){
+    homeExit.setAttribute('onclick','logoutApp()');
+    homeExit.classList.add('logout-chip');
+  }
   var gestorExit=document.querySelector('#s-gestor .topbar div[onclick]');
-  if(gestorExit)gestorExit.setAttribute('onclick','logoutApp()');
+  if(gestorExit){
+    gestorExit.setAttribute('onclick','logoutApp()');
+    gestorExit.classList.add('logout-chip');
+  }
   var homeSub=document.querySelector('#s-home .tb-sub');
   if(homeSub)homeSub.id='home-user-name';
   var headerBlock=document.querySelector('#s-home [style*="padding:4px 0"]');
@@ -1818,6 +1843,14 @@ function setupRuntimeUi(){
   if(newCard)newCard.setAttribute('onclick','startNewReport()');
   var cards=document.querySelectorAll('.home-actions .ha');
   if(cards[1])cards[1].setAttribute('onclick','openMyReports()');
+  if(cards[2])cards[2].setAttribute('onclick','openOngoingServices()');
+  if(!document.getElementById('s-andamento')){
+    var ongoingScreen=document.createElement('div');
+    ongoingScreen.className='screen';
+    ongoingScreen.id='s-andamento';
+    ongoingScreen.innerHTML='<div class="topbar"><div style="cursor:pointer;font-size:18px;margin-right:4px" onclick="go(\'s-home\')">←</div><div><div class="tb-title">Serviços em andamento</div><div class="tb-sub">Organizados por projeto</div></div></div><div class="scroll" id="ongoing-services-content"></div>';
+    document.querySelector('.shell').insertBefore(ongoingScreen,document.getElementById('s-cabecalho'));
+  }
   if(!document.getElementById('s-meus-relatorios')){
     var screen=document.createElement('div');
     screen.className='screen';
@@ -1894,6 +1927,7 @@ async function refreshReportsCache(){
   if(!currentUser)return [];
   var path=currentUser.role==='MANAGER'?'/reports':'/reports?mine=true';
   reportsCache=await apiFetch(path);
+  updateHomeOngoingSummary();
   return reportsCache;
 }
 async function refreshUsersCache(){
@@ -4118,9 +4152,1083 @@ async function saveManagerDetail(id,action){
   }
   showToast('Alterações salvas.');
 }
+function activeProjects(){
+  return (db.projetos||[]).filter(function(p){return p.ativo!==false;});
+}
+function archivedProjects(){
+  return (db.projetos||[]).filter(function(p){return p.ativo===false;});
+}
+function projectSelectOptions(selectedId,includeInactiveSelected){
+  var items=activeProjects().slice();
+  if(includeInactiveSelected&&selectedId){
+    var selected=getProjetoById(selectedId);
+    if(selected&&selected.ativo===false&&!items.some(function(p){return p.id===selected.id;}))items.unshift(selected);
+  }
+  return items.map(function(p){
+    var suffix=p.ativo===false?' (arquivado)':'';
+    return '<option value="'+p.id+'"'+(p.id===selectedId?' selected':'')+'>'+escapeHtml((p.code||'')+' - '+p.nome+suffix)+'</option>';
+  }).join('');
+}
+function renderHeaderSources(){
+  var projSel=document.getElementById('proj-sel');
+  if(projSel){
+    projSel.innerHTML='<option value="">Selecionar projeto...</option>'+projectSelectOptions(projAtual,true);
+    if(projAtual)projSel.value=projAtual;
+  }
+  var addSel=document.getElementById('cadd-sel');
+  if(addSel){
+    addSel.innerHTML='<option value="">Adicionar...</option>'+db.colaboradores.filter(function(c){return c.ativo!==false;}).map(function(c){return '<option value="'+c.id+'">'+c.nome+'</option>';}).join('');
+  }
+  var noturnoSel=document.getElementById('nadd-sel');
+  if(noturnoSel){
+    noturnoSel.innerHTML='<option value="">Adicionar...</option>'+db.colaboradores.filter(function(c){return c.ativo!==false;}).map(function(c){return '<option value="'+c.id+'">'+c.nome+'</option>';}).join('');
+  }
+}
+function renderProjetos(){
+  var list=activeProjects();
+  return '<div class="admin-toolbar"><div class="sec">Projetos ativos</div><button class="mini-btn" onclick="openEditor(\'projetos\',\'new\')">+ Novo projeto</button></div>'+editorProjeto()+
+    (list.length?list.map(function(p){
+      var operador=getColaboradorById(p.operadorResponsavelId);
+      var totalSeq=REPORT_TYPES.reduce(function(acc,t){return acc+Number((p.sequenciais&&p.sequenciais[t])||0);},0);
+      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrão')+'</span></div><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'—')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'—')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'—')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')" style="margin-left:8px">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
+    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto ativo.</div></div>');
+}
+function renderProjetosArquivados(){
+  var list=archivedProjects();
+  return '<div class="admin-toolbar"><div class="sec">Projetos arquivados</div></div>'+
+    (list.length?list.map(function(p){
+      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge badge-rev">Arquivado</span></div><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'—')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'—')+'</span></div><div class="det-row"><span class="det-label">Local</span><span class="det-val">'+escapeHtml(p.local||'—')+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="unarchiveProjeto(\''+p.id+'\')">Desarquivar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
+    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto arquivado.</div></div>');
+}
+async function saveProjetoEditor(mode){
+  var id=document.getElementById('ed-proj-id').value.trim(), nome=document.getElementById('ed-proj-nome').value.trim();
+  if(!id||!nome){alert('Preencha Número da missão e nome do projeto.');return;}
+  var existing=mode==='edit'?db.projetos.find(function(p){return p.id===gestorEditors.projetos.id;}):null;
+  var body={
+    code:id,
+    name:nome,
+    isActive: existing?existing.ativo!==false:true,
+    clientName:document.getElementById('ed-proj-cliente').value.trim(),
+    clientCnpj:document.getElementById('ed-proj-cnpj').value.trim(),
+    contractCode:document.getElementById('ed-proj-contrato').value.trim(),
+    location:document.getElementById('ed-proj-local').value.trim(),
+    operatorId:document.getElementById('ed-proj-operador').value||null,
+    workdayHours:document.getElementById('ed-proj-jornada').value.trim()||'09:00',
+    weekendWorkdayHours:document.getElementById('ed-proj-fds').value.trim()||'08:00',
+    includesSaturday:document.getElementById('ed-proj-sab').value==='true',
+    includesSunday:document.getElementById('ed-proj-dom').value==='true',
+    reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number(parseSequenciais(document.getElementById('ed-proj-seq').value)[t]||0)};})
+  };
+  try{
+    if(mode==='edit') await apiFetch('/projects/'+gestorEditors.projetos.id,{method:'PUT',body:JSON.stringify(body)});
+    else await apiFetch('/projects',{method:'POST',body:JSON.stringify(body)});
+    closeEditor('projetos');
+    await refreshDbFromApi();
+  }catch(err){alert('Erro ao salvar projeto: '+err.message);}
+}
+async function archiveProjeto(id){
+  if(!confirm('Arquivar este projeto?'))return;
+  var p=getProjetoById(id);
+  if(!p)return;
+  try{
+    await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:false,clientName:p.cliente||'',clientCnpj:p.cnpj||'',contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
+    if(projAtual===id)projAtual='';
+    await refreshDbFromApi();
+    renderGestor();
+  }catch(err){alert('Erro ao arquivar projeto: '+err.message);}
+}
+async function unarchiveProjeto(id){
+  var p=getProjetoById(id);
+  if(!p)return;
+  try{
+    await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:true,clientName:p.cliente||'',clientCnpj:p.cnpj||'',contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
+    await refreshDbFromApi();
+    renderGestor();
+  }catch(err){alert('Erro ao desarquivar projeto: '+err.message);}
+}
+async function removeProjeto(id){
+  if(!confirm('Remover este projeto?'))return;
+  try{
+    await apiFetch('/projects/'+id,{method:'DELETE'});
+    if(projAtual===id)projAtual='';
+    await refreshDbFromApi();
+  }catch(err){alert('Erro ao remover projeto: '+err.message);}
+}
+function renderGestor(){
+  var c=document.getElementById('gestor-content');if(!c)return;
+  var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED';});
+  var approved=reportsCache.filter(function(r){return r.status==='APPROVED';});
+  var pen=document.getElementById('cnt-pen');if(pen)pen.textContent=pending.length;
+  if(gestorTab==='pendentes'){
+    c.innerHTML='<div class="stat-grid"><div class="stat-card"><div class="stat-num">'+pending.length+'</div><div class="stat-lbl">Pendentes/devolvidos</div></div><div class="stat-card"><div class="stat-num">'+approved.length+'</div><div class="stat-lbl">Aprovados</div></div></div>'+groupedReportHtml(pending,'gestor','Nenhum relatório pendente.');
+  }else if(gestorTab==='aprovados'){
+    c.innerHTML=groupedReportHtml(approved,'gestor','Nenhum relatório aprovado.');
+  }else if(gestorTab==='usuarios'){
+    c.innerHTML=renderUsuarios();
+  }else if(gestorTab==='projetos'){
+    c.innerHTML=renderProjetos();
+  }else if(gestorTab==='arquivados'){
+    c.innerHTML=renderProjetosArquivados();
+  }else if(gestorTab==='equipe'){
+    c.innerHTML=renderEquipe();
+  }else if(gestorTab==='equipamentos'){
+    c.innerHTML=renderEquipamentos();
+  }else if(gestorTab==='manometros'){
+    c.innerHTML=renderManometros();
+  }else if(gestorTab==='contadores'){
+    c.innerHTML=renderContadores();
+  }
+  enhanceUploadZones(c);
+}
+function reportToEditablePayload(report, servicesOverride){
+  return {
+    projectId: report.projectId,
+    reportType: report.reportType,
+    reportDate: String(report.reportDate).slice(0,10),
+    arrivalTime: report.arrivalTime,
+    departureTime: report.departureTime,
+    lunchBreak: report.lunchBreak,
+    daytimeCount: (report.collaborators||[]).length,
+    overtimeReason: report.overtimeReason || null,
+    dailyDescription: report.dailyDescription || null,
+    specialConditions: report.specialConditions || {},
+    collaboratorIds: (report.collaborators||[]).map(function(link){return link.collaboratorId;}).filter(Boolean),
+    services: (servicesOverride || report.services || []).map(function(service){
+      return {serviceType:service.serviceType,equipmentId:null,system:service.system||null,material:service.material||null,startTime:service.startTime||null,endTime:service.endTime||null,finalized:typeof service.finalized==='boolean'?service.finalized:null,extraData:service.extraData||{}};
+    })
+  };
+}
+function serviceEquipmentName(service){
+  var fields=(service&&service.extraData)||{};
+  return fields['Equipamento'] || fields['ID da embarcação'] || fields['ID da embarcaÃ§Ã£o'] || fields['ID da embarcaÃƒÂ§ÃƒÂ£o'] || 'â€”';
+}
+function serviceSystemName(service){
+  var fields=(service&&service.extraData)||{};
+  return service.system || fields['Sistema'] || 'â€”';
+}
+function serviceOngoingKey(report,service){
+  return [
+    report.projectId || '',
+    service.serviceType || '',
+    String(serviceEquipmentName(service)||'').trim().toLowerCase(),
+    String(serviceSystemName(service)||'').trim().toLowerCase()
+  ].join('||');
+}
+function collectResolvedOngoingServices(projectId){
+  var items=new Map();
+  var ordered=(reportsCache||[]).slice().sort(function(a,b){
+    var da=new Date(a.reportDate||a.createdAt||0).getTime();
+    var dbb=new Date(b.reportDate||b.createdAt||0).getTime();
+    if(da!==dbb)return da-dbb;
+    return new Date(a.createdAt||0).getTime()-new Date(b.createdAt||0).getTime();
+  });
+  ordered.forEach(function(report){
+    if(projectId && report.projectId!==projectId)return;
+    (report.services||[]).forEach(function(service){
+      var key=serviceOngoingKey(report,service);
+      if(service.finalized===true){
+        items.delete(key);
+        return;
+      }
+      items.set(key,{reportId:report.id,reportDate:report.reportDate,project:report.project,service:service});
+    });
+  });
+  return Array.from(items.values());
+}
+function renderOngoingServices(){
+  var root=document.getElementById('ongoing-services-content');
+  if(!root)return;
+  var reports=(reportsCache||[]).filter(function(report){return report.status!=='APPROVED';});
+  var groups={};
+  reports.forEach(function(report){
+    var projectName=(report.project&&report.project.name)||'Sem projeto';
+    var projectCode=(report.project&&report.project.code)||'---';
+    var ongoing=(report.services||[]).filter(function(service){return service.finalized!==true;});
+    if(!ongoing.length)return;
+    if(!groups[projectName])groups[projectName]={code:projectCode,items:[]};
+    ongoing.forEach(function(service){
+      var fields=service.extraData||{};
+      var equipamento=fields['Equipamento'] || fields['ID da embarcação'] || fields['ID da embarcaÃ§Ã£o'] || '—';
+      groups[projectName].items.push({reportId:report.id,serviceId:service.id,type:service.serviceType,equipment:equipamento,system:service.system||fields['Sistema']||'—'});
+    });
+  });
+  var keys=Object.keys(groups).sort();
+  root.innerHTML=keys.length?keys.map(function(projectName){
+    var group=groups[projectName];
+    return '<div class="card"><div class="sec">'+escapeHtml((group.code||'')+' - '+projectName)+'</div><div class="ongoing-proj">'+group.items.map(function(item){
+      return '<div class="ongoing-item"><div><div class="ongoing-item-name">'+escapeHtml(serviceNames[item.type]||item.type)+'</div><div class="ongoing-item-sub">'+escapeHtml(item.equipment)+' · '+escapeHtml(item.system)+'</div></div><div class="ongoing-actions"><button class="ongoing-delete" type="button" onclick="removeOngoingService(\''+item.reportId+'\',\''+item.serviceId+'\')">Excluir</button></div></div>';
+    }).join('')+'</div></div>';
+  }).join(''):'<div class="card"><div style="font-size:13px;color:var(--mu)">Nenhum serviço em andamento.</div></div>';
+}
+async function openOngoingServices(){
+  await refreshReportsCache();
+  renderOngoingServices();
+  go('s-andamento');
+}
+async function removeOngoingService(reportId,serviceId){
+  if(!confirm('Excluir este serviço em andamento?'))return;
+  var report=reportsCache.find(function(item){return item.id===reportId;}) || await apiFetch('/reports/'+reportId);
+  var remaining=(report.services||[]).filter(function(service){return service.id!==serviceId;});
+  await apiFetch('/reports/'+reportId,{method:'PUT',body:JSON.stringify(reportToEditablePayload(report,remaining))});
+  await refreshReportsCache();
+  renderOngoingServices();
+  renderMyReports();
+  showToast('Serviço removido do relatório.');
+}
+function getProjectPendingServices(){
+  var project=getProjetoAtual();
+  if(!project)return [];
+  var items=[];
+  (reportsCache||[]).forEach(function(report){
+    if(report.projectId!==project.id)return;
+    if(report.status==='APPROVED')return;
+    (report.services||[]).forEach(function(service){
+      if(service.finalized===true)return;
+      items.push({reportId:report.id,reportDate:report.reportDate,service:service});
+    });
+  });
+  return items;
+}
+async function goServicos(){
+  var err=validateScope(document.getElementById('s-cabecalho'));
+  if(err){focusValidation(err,'s-cabecalho');return;}
+  var p=getProjetoAtual();
+  document.getElementById('svc-sub').textContent=p?p.nome:'—';
+  document.getElementById('final-sub').textContent=p?p.nome:'—';
+  try{ if(currentUser) await refreshReportsCache(); }catch(e){}
+  renderOngoing();
+  go('s-servicos');
+}
+function renderOngoing(){
+  var blk=document.getElementById('ongoing-blk');
+  if(!blk)return;
+  var pending=getProjectPendingServices();
+  if(!pending.length){blk.innerHTML='';return;}
+  blk.innerHTML='<div class="ongoing-blk"><div class="ongoing-title">⚠ Serviços em andamento neste projeto</div>'+
+    pending.map(function(item){
+      var service=item.service||{};
+      var fields=service.extraData||{};
+      var nomeEq=fields['Equipamento'] || fields['ID da embarcação'] || fields['ID da embarcaÃ§Ã£o'] || '—';
+      var sistema=service.system || fields['Sistema'] || '—';
+      var dataInicio=formatReportDate(item.reportDate);
+      return '<div class="ongoing-item" onclick="continuar(\''+item.reportId+'\',\''+service.id+'\')">'+
+        '<div><div class="ongoing-item-name">'+escapeHtml(serviceIcons[service.serviceType]||'')+' '+escapeHtml(serviceNames[service.serviceType]||service.serviceType)+' — '+escapeHtml(nomeEq)+'</div>'+
+        '<div class="ongoing-item-sub">'+escapeHtml(sistema)+' · iniciado '+escapeHtml(dataInicio||'—')+'</div></div>'+
+        '<div class="ongoing-badge">Continuar</div></div>';
+    }).join('')+'</div>';
+}
+function continuar(reportId,serviceId){
+  var report=(reportsCache||[]).find(function(item){return item.id===reportId;});
+  if(!report)return;
+  var service=(report.services||[]).find(function(item){return item.id===serviceId;});
+  if(!service)return;
+  addSvc(service.serviceType,false,{});
+  var cards=document.querySelectorAll('#svc-cards .svc-card');
+  var card=cards[cards.length-1];
+  if(card){
+    card.dataset.sourceReportId=reportId;
+    card.dataset.sourceServiceId=serviceId;
+    fillServiceCardFromReport(card,service);
+    card.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+}
+var pdfLoadingMap={};
+function setPdfButtonsLoading(id,isLoading){
+  Array.from(document.querySelectorAll('button')).forEach(function(btn){
+    var handler=btn.getAttribute('onclick')||'';
+    if(handler.indexOf("gerarPDF('"+id+"')")>=0 || handler.indexOf('gerarPDF('+id+')')>=0){
+      if(isLoading){
+        btn.dataset.originalText=btn.textContent;
+        btn.disabled=true;
+        btn.style.opacity='0.7';
+        btn.style.cursor='wait';
+        btn.textContent='Gerando PDF...';
+      }else{
+        btn.disabled=false;
+        btn.style.opacity='';
+        btn.style.cursor='';
+        btn.textContent=btn.dataset.originalText||'Gerar PDF';
+      }
+    }
+  });
+}
+async function gerarPDF(id){
+  if(pdfLoadingMap[id])return;
+  if(!authState.token){alert('Faça login novamente para gerar o PDF.');go('s-login');return;}
+  pdfLoadingMap[id]=true;
+  setPdfButtonsLoading(id,true);
+  showToast('Gerando PDF...');
+  try{
+    var response=await fetch(API_BASE+'/reports/'+id+'/pdf',{
+      headers:{Authorization:'Bearer '+authState.token}
+    });
+    if(!response.ok){
+      var message='Falha ao gerar PDF.';
+      try{
+        var err=await response.json();
+        message=err.error||message;
+      }catch(e){
+        try{
+          var text=await response.text();
+          if(text)message=text;
+        }catch(e2){}
+      }
+      if(response.status===404)message='A rota de PDF ainda não está ativa no backend. Reinicie o servidor.';
+      alert(message);
+      return;
+    }
+    var blob=await response.blob();
+    var url=URL.createObjectURL(blob);
+    var disposition=response.headers.get('Content-Disposition')||'';
+    var name=fileNameFromDisposition(disposition,'relatorio-'+id+'.pdf');
+    var a=document.createElement('a');
+    a.href=url;
+    a.download=name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);},1500);
+    showToast('PDF gerado com sucesso.');
+  } finally {
+    delete pdfLoadingMap[id];
+    setPdfButtonsLoading(id,false);
+  }
+}
+function renderManagerDetail(report){
+  var special=report.specialConditions||{};
+  var standbyDetails=special.standbyDetails||{};
+  var noturnoDetails=special.noturnoDetails||{};
+  var finalUploads=special.generalUploads||[];
+  document.getElementById('det-body').innerHTML=
+    '<div class="card"><div class="sec">Cabeçalho</div><div class="admin-inline-grid">'+
+    '<div class="fg"><label>Projeto</label><select id="mgr-project-id">'+projectSelectOptions(report.projectId,true)+'</select></div>'+
+    '<div class="fg"><label>Data do relatório</label><input type="date" id="mgr-report-date" value="'+escapeHtml(String(report.reportDate).slice(0,10))+'"></div>'+
+    '<div class="fg"><label>Chegada</label><input type="time" id="mgr-arrival" value="'+escapeHtml(report.arrivalTime||'')+'"></div>'+
+    '<div class="fg"><label>Saída</label><input type="time" id="mgr-departure" value="'+escapeHtml(report.departureTime||'')+'"></div>'+
+    '<div class="fg"><label>Intervalo de almoço</label><input type="text" id="mgr-lunch" value="'+escapeHtml(report.lunchBreak||'')+'"></div>'+
+    '</div></div>'+
+    '<div class="card"><div class="sec">Equipe diurna</div><div id="mgr-colab-list"></div><div class="cadd"><select id="mgr-cadd-sel"></select><button type="button" class="cadd-btn" onclick="addManagerColab()">+ Add</button></div></div>'+
+    '<div class="card"><div class="sec">Condições especiais</div>'+
+    '<div class="tog-row"><span class="tog-lbl">Houve standby?</span><label class="tog"><input type="checkbox" id="mgr-standby-toggle" onchange="toggleManagerCollapse(\'mgr-standby\',this.checked)"'+(special.standby?' checked':'')+'><span class="tog-sl"></span></label></div>'+
+    '<div id="mgr-standby" class="collapse'+(special.standby?' open':'')+'"><div class="r2"><div class="fg"><label>Tempo total</label><input type="time" step="60" min="00:00" max="23:59" id="mgr-standby-total" value="'+escapeHtml(standbyDetails.total||'')+'"></div><div class="fg"><label>Motivo</label><input type="text" id="mgr-standby-motivo" value="'+escapeHtml(standbyDetails.motivo||'')+'"></div></div></div>'+
+    '<div class="tog-row"><span class="tog-lbl">Houve turno noturno?</span><label class="tog"><input type="checkbox" id="mgr-noturno-toggle" onchange="toggleManagerCollapse(\'mgr-noturno\',this.checked)"'+(special.noturno?' checked':'')+'><span class="tog-sl"></span></label></div>'+
+    '<div id="mgr-noturno" class="collapse'+(special.noturno?' open':'')+'"><div class="r2"><div class="fg"><label>Início</label><input type="time" id="mgr-noturno-inicio" value="'+escapeHtml(noturnoDetails.inicio||'')+'"></div><div class="fg"><label>Término</label><input type="time" id="mgr-noturno-termino" value="'+escapeHtml(noturnoDetails.termino||'')+'"></div></div><div class="fg" style="margin-top:10px"><label>Colaboradores noturnos</label><div id="mgr-noturno-colab-list"></div><div class="cadd" style="margin-top:8px"><select id="mgr-nadd-sel"></select><button type="button" class="cadd-btn" onclick="addManagerNightColab()">+ Add</button></div></div></div>'+
+    '</div>'+
+    '<div class="card"><div class="sec">Serviços</div><div class="cadd" style="margin-bottom:8px"><select id="mgr-add-service-type">'+managerServiceTypeOptions()+'</select><button type="button" class="cadd-btn" onclick="addManagerServiceFromSelect()">+ Add</button></div><div id="mgr-services-root"></div></div>'+
+    '<div class="card"><div class="sec">Finalização</div><div class="fg"><label>Justificativa</label><textarea id="mgr-overtime">'+escapeHtml(report.overtimeReason||'')+'</textarea></div><div class="fg"><label>Descrição geral</label><textarea id="mgr-description" style="min-height:100px">'+escapeHtml(report.dailyDescription||'')+'</textarea></div><div class="fg"><label>Fotos de registro</label><div class="upload-z" id="mgr-final-uploads"><div class="upload-z-icon">📷</div><div class="upload-z-text">Toque para adicionar</div><div class="upload-z-btn">Selecionar</div></div></div></div>'+
+    '<div class="card"><div class="sec">Notas do gestor</div><textarea id="det-review-notes">'+escapeHtml(report.reviewNotes||'')+'</textarea></div>';
+  var list=document.getElementById('mgr-colab-list');
+  list.innerHTML='';
+  (report.collaborators||[]).forEach(function(link){
+    var col=getColaboradorById(link.collaboratorId); if(!col)return;
+    var d=document.createElement('div');
+    d.className='colab-tag';
+    d.dataset.colabId=col.id;
+    d.innerHTML='<span class="colab-name">'+col.nome+'</span><span class="colab-rm" onclick="this.parentElement.remove();renderManagerCollaboratorOptions()">×</span>';
+    list.appendChild(d);
+  });
+  renderManagerCollaboratorOptions();
+  var nightList=document.getElementById('mgr-noturno-colab-list');
+  if(nightList){
+    nightList.innerHTML='';
+    (((noturnoDetails.collaboratorIds)||[])).forEach(function(id){
+      var col=getColaboradorById(id); if(!col)return;
+      var d=document.createElement('div');
+      d.className='colab-tag';
+      d.dataset.colabId=col.id;
+      d.innerHTML='<span class="colab-name">'+col.nome+'</span><span class="colab-rm" onclick="this.parentElement.remove();renderManagerNightCollaboratorOptions()">×</span>';
+      nightList.appendChild(d);
+    });
+  }
+  renderManagerNightCollaboratorOptions();
+  var root=document.getElementById('mgr-services-root');
+  (report.services||[]).forEach(function(service){
+    addManagerServiceCard(service.serviceType,{});
+    var wrap=root.lastElementChild;
+    var card=wrap.querySelector('.svc-card');
+    if(card){
+      card.dataset.serviceId=service.id;
+      fillServiceCardFromReport(card,service);
+      var removeBtn=card.querySelector('.svc-remove');
+      if(removeBtn)removeBtn.style.display='';
+    }
+  });
+  enhanceUploadZones(document.getElementById('det-body'));
+  var finalZone=document.getElementById('mgr-final-uploads');
+  if(finalZone)setUploads(finalZone,finalUploads);
+  document.getElementById('det-actions').innerHTML=report.status==='APPROVED'
+    ? '<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'save\')">Salvar</button><button class="btn-pdf" onclick="gerarDOCX(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
+    : '<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'save\')">Salvar</button><button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'approve\')">Salvar e aprovar</button><button class="btn-reject" onclick="saveManagerDetail(\''+report.id+'\',\'return\')">Salvar e devolver</button>';
+}
+function renderOngoingServices(){
+  var root=document.getElementById('ongoing-services-content');
+  if(!root)return;
+  var groups={};
+  collectResolvedOngoingServices().forEach(function(item){
+    var reportProject=item.project||{};
+    var projectName=reportProject.name||'Sem projeto';
+    var projectCode=reportProject.code||'---';
+    var service=item.service||{};
+    if(!groups[projectName])groups[projectName]={code:projectCode,items:[]};
+    groups[projectName].items.push({reportId:item.reportId,serviceId:service.id,type:service.serviceType,equipment:serviceEquipmentName(service),system:serviceSystemName(service)});
+  });
+  var keys=Object.keys(groups).sort();
+  root.innerHTML=keys.length?keys.map(function(projectName){
+    var group=groups[projectName];
+    return '<div class="card"><div class="sec">'+escapeHtml((group.code||'')+' - '+projectName)+'</div><div class="ongoing-proj">'+group.items.map(function(item){
+      return '<div class="ongoing-item"><div><div class="ongoing-item-name">'+escapeHtml(serviceNames[item.type]||item.type)+'</div><div class="ongoing-item-sub">'+escapeHtml(item.equipment)+' · '+escapeHtml(item.system)+'</div></div><div class="ongoing-actions"><button class="ongoing-delete" type="button" onclick="removeOngoingService(\''+item.reportId+'\',\''+item.serviceId+'\')">Excluir</button></div></div>';
+    }).join('')+'</div></div>';
+  }).join(''):'<div class="card"><div style="font-size:13px;color:var(--mu)">Nenhum serviço em andamento.</div></div>';
+}
+function getProjectPendingServices(){
+  var project=getProjetoAtual();
+  if(!project)return [];
+  return collectResolvedOngoingServices(project.id);
+}
+function renderOngoing(){
+  var blk=document.getElementById('ongoing-blk');
+  if(!blk)return;
+  var pending=getProjectPendingServices();
+  if(!pending.length){blk.innerHTML='';return;}
+  blk.innerHTML='<div class="ongoing-blk"><div class="ongoing-title">⚠ Serviços em andamento neste projeto</div>'+
+    pending.map(function(item){
+      var service=item.service||{};
+      var nomeEq=serviceEquipmentName(service);
+      var sistema=serviceSystemName(service);
+      var dataInicio=formatReportDate(item.reportDate);
+      return '<div class="ongoing-item" onclick="continuar(\''+item.reportId+'\',\''+service.id+'\')">'+
+        '<div><div class="ongoing-item-name">'+escapeHtml(serviceIcons[service.serviceType]||'')+' '+escapeHtml(serviceNames[service.serviceType]||service.serviceType)+' — '+escapeHtml(nomeEq)+'</div>'+
+        '<div class="ongoing-item-sub">'+escapeHtml(sistema)+' · iniciado '+escapeHtml(dataInicio||'—')+'</div></div>'+
+        '<div class="ongoing-badge">Continuar</div></div>';
+    }).join('')+'</div>';
+}
+function continuar(reportId,serviceId){
+  var report=(reportsCache||[]).find(function(item){return item.id===reportId;});
+  if(!report)return;
+  var service=(report.services||[]).find(function(item){return item.id===serviceId;});
+  if(!service)return;
+  addSvc(service.serviceType,false,{});
+  var cards=document.querySelectorAll('#svc-cards .svc-card');
+  var card=cards[cards.length-1];
+  if(card){
+    card.dataset.sourceReportId=reportId;
+    card.dataset.sourceServiceId=serviceId;
+    fillServiceCardFromReport(card,sanitizeContinuationService(service));
+    card.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+}
+function sanitizeContinuationService(service){
+  var fields=Object.assign({},(service&&service.extraData)||{});
+  var resetMap={
+    pressao:['Hora de início','Hora de término/pausa','Serviço finalizado?','Etapas realizadas no dia','Observações'],
+    limpeza:['Serviço finalizado?','Hora de início','Hora de término/pausa','Etapas realizadas no dia','Observações'],
+    flushing:['Serviço finalizado?','Hora de início','Hora de término/pausa','Etapas realizadas no dia','Houve contagem de partículas?','Houve desidratação?','Observações'],
+    filtragem:['Serviço finalizado?','Hora de início','Hora de término/pausa','Etapas realizadas no dia','Houve contagem de partículas?','Houve desidratação?','Observações'],
+    mecanica:['Serviço finalizado?','Hora de início','Hora de término/pausa','Etapas realizadas no dia','Observações'],
+    inibicao:['Etapas realizadas no dia','Serviço finalizado?','Hora de início','Hora de término/pausa','Observações']
+  };
+  var extraResets=[
+    'Hora de inÃ­cio','Hora de tÃ©rmino/pausa','ServiÃ§o finalizado?','Etapas realizadas no dia','ObservaÃ§Ãµes',
+    'Houve contagem de partÃ­culas?','Houve desidrataÃ§Ã£o?',
+    'Contador utilizado','Contagem inicial NAS','Contagem final NAS','Contagem inicial ISO','Contagem final ISO',
+    'Equipamento de desidratação','Equipamento de desidrataÃ§Ã£o','Houve análise de umidade?','Houve anÃ¡lise de umidade?',
+    'Umidade inicial (ppm)','Umidade final (ppm)','Foto do laudo do contador','Foto laudo do contador',
+    'Foto análise inicial','Foto anÃ¡lise inicial','Foto análise final','Foto anÃ¡lise final','Foto do óleo (antes)','Foto do Ã³leo (antes)','Foto do óleo (depois)','Foto do Ã³leo (depois)'
+  ];
+  (resetMap[service.serviceType]||[]).concat(extraResets).forEach(function(key){ delete fields[key]; });
+  return {
+    serviceType: service.serviceType,
+    extraData: fields
+  };
+}
+var DRAFTS_KEY='filtrovali_report_drafts_v1';
+var currentDraftId='';
+function loadDrafts(){
+  try{return JSON.parse(localStorage.getItem(DRAFTS_KEY)||'[]');}catch(e){return [];}
+}
+function saveDrafts(items){
+  localStorage.setItem(DRAFTS_KEY,JSON.stringify(items||[]));
+}
+function currentReportDraftSnapshot(){
+  var hasProject=!!projAtual;
+  var hasServices=document.querySelectorAll('#svc-cards .svc-card').length>0;
+  var hasDescription=!!((document.getElementById('final-description')||{}).value||'').trim();
+  var hasTeam=getSelectedCollaboratorIds().length>0;
+  if(!hasProject&&!hasServices&&!hasDescription&&!hasTeam)return null;
+  return {
+    id: currentDraftId||('draft_'+Date.now()),
+    savedAt: new Date().toISOString(),
+    projectId: projAtual||'',
+    reportDate: (document.getElementById('hdr-data')||{}).value||'',
+    title: (function(){var p=getProjetoAtual(); return p?((p.code||'')+' - '+p.nome):'Relatório sem projeto';})(),
+    arrivalTime: (document.getElementById('hdr-chegada')||{}).value||'',
+    departureTime: (document.getElementById('hdr-saida')||{}).value||'',
+    lunchBreak: (document.getElementById('hdr-intervalo')||{}).value||'1 hora',
+    collaboratorIds: getSelectedCollaboratorIds(),
+    nightCollaboratorIds: getSelectedNightCollaboratorIds(),
+    specialConditions: collectSpecialConditions(),
+    overtimeReason: ((document.getElementById('final-overtime')||{}).value||'').trim(),
+    dailyDescription: ((document.getElementById('final-description')||{}).value||'').trim(),
+    services: Array.from(document.querySelectorAll('.svc-card')).map(function(card){
+      return {
+        serviceType: card.dataset.svcType,
+        sourceReportId: card.dataset.sourceReportId||'',
+        sourceServiceId: card.dataset.sourceServiceId||'',
+        ongoingKey: card.dataset.ongoingKey||'',
+        extraData: collectServiceFields(card)
+      };
+    })
+  };
+}
+function persistCurrentDraft(){
+  if(editingReportId)return;
+  var draft=currentReportDraftSnapshot();
+  var drafts=loadDrafts();
+  if(!draft){
+    if(currentDraftId){
+      saveDrafts(drafts.filter(function(item){return item.id!==currentDraftId;}));
+      currentDraftId='';
+      renderDraftHome();
+    }
+    return;
+  }
+  currentDraftId=draft.id;
+  var next=drafts.filter(function(item){return item.id!==draft.id;});
+  next.unshift(draft);
+  saveDrafts(next.slice(0,20));
+  renderDraftHome();
+}
+function discardCurrentDraft(){
+  if(!currentDraftId)return;
+  saveDrafts(loadDrafts().filter(function(item){return item.id!==currentDraftId;}));
+  currentDraftId='';
+  renderDraftHome();
+}
+function renderDraftHome(){
+  var root=document.getElementById('home-drafts');
+  if(!root)return;
+  var drafts=loadDrafts();
+  root.innerHTML=drafts.length?'<div class="card"><div class="sec">Relatórios em andamento</div><div class="admin-list">'+drafts.map(function(draft){
+    var date=draft.reportDate?formatReportDate(draft.reportDate):'Sem data';
+    return '<div class="rel-item" style="cursor:default"><div class="rel-icon">📝</div><div class="rel-info"><div class="rel-name">'+escapeHtml(draft.title||'Relatório em andamento')+'</div><div class="rel-meta">'+escapeHtml(date)+'<br>'+escapeHtml((draft.services||[]).length+' serviço(s) preenchido(s)')+'</div></div><button class="mini-btn alt" type="button" onclick="resumeDraft(\''+draft.id+'\')">Continuar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" type="button" onclick="removeDraft(\''+draft.id+'\')">Excluir</button></div>';
+  }).join('')+'</div></div>':'';
+  updateHomeOngoingSummary();
+}
+function updateHomeOngoingSummary(){
+  var el=document.getElementById('home-ongoing-sub');
+  if(!el)return;
+  var count=collectResolvedOngoingServices().length;
+  el.textContent=count===1?'1 serviço ativo':count+' serviços ativos';
+}
+function removeDraft(id){
+  if(!confirm('Excluir este relatório em andamento?'))return;
+  saveDrafts(loadDrafts().filter(function(item){return item.id!==id;}));
+  if(currentDraftId===id)currentDraftId='';
+  renderDraftHome();
+}
+function hydrateDraft(draft){
+  resetReportForm();
+  currentDraftId=draft.id;
+  projAtual=draft.projectId||'';
+  renderHeaderSources();
+  if(document.getElementById('proj-sel'))document.getElementById('proj-sel').value=projAtual||'';
+  if(document.getElementById('hdr-data'))document.getElementById('hdr-data').value=draft.reportDate||new Date().toISOString().slice(0,10);
+  if(document.getElementById('hdr-chegada'))document.getElementById('hdr-chegada').value=draft.arrivalTime||'';
+  if(document.getElementById('hdr-saida'))document.getElementById('hdr-saida').value=draft.departureTime||'';
+  if(document.getElementById('hdr-intervalo'))document.getElementById('hdr-intervalo').value=draft.lunchBreak||'1 hora';
+  document.getElementById('colab-list').innerHTML='';
+  (draft.collaboratorIds||[]).forEach(function(id){ var col=getColaboradorById(id); if(col)document.getElementById('colab-list').appendChild(buildColabTag({id:col.id,nome:col.nome})); });
+  var special=draft.specialConditions||{};
+  var standbyToggle=document.querySelector('input[onchange*="standby"]');
+  if(standbyToggle){standbyToggle.checked=!!special.standby;tog('standby',standbyToggle);}
+  var noturnoToggle=document.querySelector('input[onchange*="noturno"]');
+  if(noturnoToggle){noturnoToggle.checked=!!special.noturno;tog('noturno',noturnoToggle);}
+  var standbyInputs=document.querySelectorAll('#standby .fg input');
+  if(standbyInputs[0])standbyInputs[0].value=((special.standbyDetails||{}).total)||'';
+  if(standbyInputs[1])standbyInputs[1].value=((special.standbyDetails||{}).motivo)||'';
+  if(document.getElementById('noturno-inicio'))document.getElementById('noturno-inicio').value=((special.noturnoDetails||{}).inicio)||'';
+  if(document.getElementById('noturno-termino'))document.getElementById('noturno-termino').value=((special.noturnoDetails||{}).termino)||'';
+  if(document.getElementById('noturno-intervalo'))document.getElementById('noturno-intervalo').value=((special.noturnoDetails||{}).intervalo)||'1 hora';
+  var nightList=document.getElementById('noturno-colab-list'); if(nightList)nightList.innerHTML='';
+  (draft.nightCollaboratorIds||[]).forEach(function(id){ var col=getColaboradorById(id); if(col&&nightList)nightList.appendChild(buildColabTag({id:col.id,nome:col.nome})); });
+  document.getElementById('svc-cards').innerHTML=''; svcCount=0;
+  (draft.services||[]).forEach(function(service){
+    addSvc(service.serviceType,false,{});
+    var card=document.querySelectorAll('#svc-cards .svc-card')[document.querySelectorAll('#svc-cards .svc-card').length-1];
+    if(card){
+      card.dataset.sourceReportId=service.sourceReportId||'';
+      card.dataset.sourceServiceId=service.sourceServiceId||'';
+      card.dataset.ongoingKey=service.ongoingKey||'';
+      fillServiceCardFromReport(card,{serviceType:service.serviceType,extraData:service.extraData||{}});
+    }
+  });
+  if(document.getElementById('final-overtime'))document.getElementById('final-overtime').value=draft.overtimeReason||'';
+  if(document.getElementById('final-description'))document.getElementById('final-description').value=draft.dailyDescription||'';
+  updateOvertimeUi();
+}
+function resumeDraft(id){
+  var draft=loadDrafts().find(function(item){return item.id===id;});
+  if(!draft)return;
+  hydrateDraft(draft);
+  go('s-cabecalho');
+}
+function ensureDraftHomeBlock(){
+  if(document.getElementById('home-drafts'))return;
+  var homeScroll=document.querySelector('#s-home > div[style*="overflow-y:auto"]');
+  if(!homeScroll)return;
+  var block=document.createElement('div');
+  block.id='home-drafts';
+  homeScroll.appendChild(block);
+}
+function startNewReport(){
+  currentDraftId='draft_'+Date.now();
+  resetReportForm();
+  go('s-cabecalho');
+}
+function resetReportForm(){
+  editingReportId='';
+  projAtual='';
+  renderHeaderSources();
+  document.getElementById('proj-sel').value='';
+  document.getElementById('hdr-data').value=new Date().toISOString().slice(0,10);
+  document.getElementById('hdr-chegada').value='';
+  document.getElementById('hdr-saida').value='';
+  document.getElementById('hdr-intervalo').value='1 hora';
+  document.getElementById('colab-list').innerHTML='';
+  var noturnoList=document.getElementById('noturno-colab-list'); if(noturnoList)noturnoList.innerHTML='';
+  var noturnoInicio=document.getElementById('noturno-inicio'); if(noturnoInicio)noturnoInicio.value='';
+  var noturnoTermino=document.getElementById('noturno-termino'); if(noturnoTermino)noturnoTermino.value='';
+  var noturnoIntervalo=document.getElementById('noturno-intervalo'); if(noturnoIntervalo)noturnoIntervalo.value='1 hora';
+  var standbyToggle=document.querySelector('input[onchange*="standby"]'); if(standbyToggle){standbyToggle.checked=false;tog('standby',standbyToggle);}
+  var noturnoToggle=document.querySelector('input[onchange*="noturno"]'); if(noturnoToggle){noturnoToggle.checked=false;tog('noturno',noturnoToggle);}
+  document.getElementById('svc-cards').innerHTML='';
+  svcCount=0;
+  if(document.getElementById('final-overtime'))document.getElementById('final-overtime').value='';
+  if(document.getElementById('final-description'))document.getElementById('final-description').value='';
+  document.querySelectorAll('#s-cabecalho .upload-z,#s-servicos .upload-z,#s-final .upload-z').forEach(function(zone){zone.dataset.uploads='[]';updateUploadZone(zone);});
+  updateOvertimeUi();
+}
+function collectServices(){
+  return Array.from(document.querySelectorAll('.svc-card')).map(function(card){
+    var fields=collectServiceFields(card);
+    if(card.dataset.ongoingKey){
+      fields.__ongoingKey=card.dataset.ongoingKey;
+    }
+    return {
+      serviceType: card.dataset.svcType,
+      equipmentId: null,
+      system: fields['Sistema'] || fields['Sistema'] || null,
+      material: fields['Material da tubulação'] || fields['Material da tubulaÃ§Ã£o'] || fields['Material do equipamento'] || null,
+      startTime: fields['Hora de início'] || fields['Hora de inÃ­cio'] || null,
+      endTime: fields['Hora de término/pausa'] || fields['Hora de tÃ©rmino/pausa'] || null,
+      finalized: finalizedFromFields(fields),
+      extraData: fields
+    };
+  });
+}
+function collectResolvedOngoingServices(projectId){
+  var items=new Map();
+  var ordered=(reportsCache||[]).slice().sort(function(a,b){
+    var da=new Date(a.reportDate||a.createdAt||0).getTime();
+    var dbb=new Date(b.reportDate||b.createdAt||0).getTime();
+    if(da!==dbb)return da-dbb;
+    return new Date(a.createdAt||0).getTime()-new Date(b.createdAt||0).getTime();
+  });
+  ordered.forEach(function(report){
+    if(projectId && report.projectId!==projectId)return;
+    (report.services||[]).forEach(function(service){
+      var inherited=((service.extraData||{}).__ongoingKey)||'';
+      var key=inherited || serviceOngoingKey(report,service);
+      if(service.finalized===true){
+        items.delete(key);
+        return;
+      }
+      items.set(key,{reportId:report.id,reportDate:report.reportDate,project:report.project,service:service});
+    });
+  });
+  return Array.from(items.values());
+}
+function continuar(reportId,serviceId){
+  var report=(reportsCache||[]).find(function(item){return item.id===reportId;});
+  if(!report)return;
+  var service=(report.services||[]).find(function(item){return item.id===serviceId;});
+  if(!service)return;
+  addSvc(service.serviceType,false,{});
+  var cards=document.querySelectorAll('#svc-cards .svc-card');
+  var card=cards[cards.length-1];
+  if(card){
+    card.dataset.sourceReportId=reportId;
+    card.dataset.sourceServiceId=serviceId;
+    card.dataset.ongoingKey=((service.extraData||{}).__ongoingKey)||serviceOngoingKey(report,service);
+    fillServiceCardFromReport(card,sanitizeContinuationService(service));
+    card.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+}
+async function enviar(){
+  var err=validateScope(document.getElementById('s-cabecalho'));
+  if(err){focusValidation(err,'s-cabecalho');return;}
+  err=validateScope(document.getElementById('s-servicos'));
+  if(err){focusValidation(err,'s-servicos');return;}
+  try{await syncDbBeforeSubmit();}catch(syncErr){alert('Erro ao enviar relatório: '+syncErr.message);return;}
+  var projeto=getProjetoAtual();
+  if(!projeto){alert('Selecione um projeto.');go('s-cabecalho');return;}
+  if(!currentUser){alert('Faça login novamente.');go('s-login');return;}
+  var overtimeSummary=updateOvertimeUi();
+  var overtimeReasonField=document.getElementById('final-overtime');
+  var overtimeReason=overtimeSummary.totalOvertimeMinutes>0?(overtimeReasonField.value.trim()||null):null;
+  var payload={
+    projectId: projeto.id,
+    createdByUserId: currentUser.id,
+    reportType: 'RDO',
+    status: 'PENDING',
+    reportDate: document.getElementById('hdr-data').value,
+    arrivalTime: document.getElementById('hdr-chegada').value,
+    departureTime: document.getElementById('hdr-saida').value,
+    lunchBreak: document.getElementById('hdr-intervalo').value,
+    daytimeCount: getSelectedCollaboratorIds().length,
+    overtimeReason: overtimeReason,
+    dailyDescription: document.getElementById('final-description').value.trim() || null,
+    specialConditions: collectSpecialConditions(),
+    collaboratorIds: getSelectedCollaboratorIds(),
+    services: collectServices()
+  };
+  try{
+    if(editingReportId)await apiFetch('/reports/'+editingReportId,{method:'PUT',body:JSON.stringify(payload)});
+    else await apiFetch('/reports',{method:'POST',body:JSON.stringify(payload)});
+    discardCurrentDraft();
+    var wasEditing=!!editingReportId;
+    resetReportForm();
+    await refreshReportsCache();
+    renderMyReports();
+    if(currentUser.role==='MANAGER')renderGestor();
+    go('s-home');
+    setTimeout(function(){alert(wasEditing?'✓ Relatório atualizado com sucesso.':'✓ Relatório enviado com sucesso.');},200);
+  }catch(sendErr){
+    alert('Erro ao enviar relatório: '+sendErr.message);
+  }
+}
+ensureDraftHomeBlock();
+renderDraftHome();
+updateHomeOngoingSummary();
+window.addEventListener('beforeunload',persistCurrentDraft);
+['input','change'].forEach(function(evt){
+  document.addEventListener(evt,function(e){
+    if(!e.target)return;
+    if(e.target.closest('#s-cabecalho')||e.target.closest('#s-servicos')||e.target.closest('#s-final')){
+      setTimeout(persistCurrentDraft,50);
+    }
+  },true);
+});
+var draftsCache=[];
+async function refreshDraftsCache(){
+  if(!currentUser){draftsCache=[];renderDraftHome();return [];}
+  try{draftsCache=await apiFetch('/drafts');}catch(err){draftsCache=[];}
+  renderDraftHome();
+  return draftsCache;
+}
+function loadDrafts(){ return (draftsCache||[]).slice(); }
+function saveDrafts(items){ draftsCache=(items||[]).slice(); }
+async function upsertDraft(draft){
+  if(!currentUser)return;
+  var payload={projectId:draft.projectId||null,title:draft.title||null,reportDate:draft.reportDate||null,payload:draft};
+  try{
+    var saved;
+    if(draft.id && !String(draft.id).startsWith('draft_')) saved=await apiFetch('/drafts/'+draft.id,{method:'PUT',body:JSON.stringify(payload)});
+    else saved=await apiFetch('/drafts',{method:'POST',body:JSON.stringify(payload)});
+    currentDraftId=saved.id;
+    draftsCache=[saved].concat(draftsCache.filter(function(item){return item.id!==saved.id;}));
+    renderDraftHome();
+  }catch(err){}
+}
+function persistCurrentDraft(){
+  if(editingReportId)return;
+  var draft=currentReportDraftSnapshot();
+  if(!draft){
+    if(currentDraftId)removeDraft(currentDraftId,true);
+    return;
+  }
+  if(currentDraftId && !String(currentDraftId).startsWith('draft_'))draft.id=currentDraftId;
+  upsertDraft(draft);
+}
+function discardCurrentDraft(){
+  if(!currentDraftId)return;
+  removeDraft(currentDraftId,true);
+}
+function renderDraftHome(){
+  var root=document.getElementById('home-drafts');
+  if(!root)return;
+  var drafts=loadDrafts();
+  root.innerHTML=drafts.length?'<div class="card"><div class="sec">Relatórios em andamento</div><div class="admin-list">'+drafts.map(function(draft){
+    var payload=draft.payload||draft;
+    var date=(draft.reportDate||payload.reportDate)?formatReportDate(draft.reportDate||payload.reportDate):'Sem data';
+    return '<div class="rel-item" style="cursor:default"><div class="rel-icon">📝</div><div class="rel-info"><div class="rel-name">'+escapeHtml(draft.title||payload.title||'Relatório em andamento')+'</div><div class="rel-meta">'+escapeHtml(date)+'<br>'+escapeHtml((((payload.services||[]).length)||0)+' serviço(s) preenchido(s)')+'</div></div><button class="mini-btn alt" type="button" onclick="resumeDraft(\''+draft.id+'\')">Continuar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" type="button" onclick="removeDraft(\''+draft.id+'\')">Excluir</button></div>';
+  }).join('')+'</div></div>':'';
+  updateHomeOngoingSummary();
+}
+async function removeDraft(id,silent){
+  if(!silent && !confirm('Excluir este relatório em andamento?'))return;
+  try{ if(currentUser) await apiFetch('/drafts/'+id,{method:'DELETE'}); }catch(err){}
+  draftsCache=draftsCache.filter(function(item){return item.id!==id;});
+  if(currentDraftId===id)currentDraftId='';
+  renderDraftHome();
+}
+function hydrateDraft(draft){
+  var data=draft.payload||draft;
+  resetReportForm();
+  currentDraftId=draft.id;
+  projAtual=draft.projectId||data.projectId||'';
+  renderHeaderSources();
+  if(document.getElementById('proj-sel'))document.getElementById('proj-sel').value=projAtual||'';
+  if(document.getElementById('hdr-data'))document.getElementById('hdr-data').value=data.reportDate||new Date().toISOString().slice(0,10);
+  if(document.getElementById('hdr-chegada'))document.getElementById('hdr-chegada').value=data.arrivalTime||'';
+  if(document.getElementById('hdr-saida'))document.getElementById('hdr-saida').value=data.departureTime||'';
+  if(document.getElementById('hdr-intervalo'))document.getElementById('hdr-intervalo').value=data.lunchBreak||'1 hora';
+  document.getElementById('colab-list').innerHTML='';
+  (data.collaboratorIds||[]).forEach(function(id){ var col=getColaboradorById(id); if(col)document.getElementById('colab-list').appendChild(buildColabTag({id:col.id,nome:col.nome})); });
+  var special=data.specialConditions||{};
+  var standbyToggle=document.querySelector('input[onchange*="standby"]');
+  if(standbyToggle){standbyToggle.checked=!!special.standby;tog('standby',standbyToggle);}
+  var noturnoToggle=document.querySelector('input[onchange*="noturno"]');
+  if(noturnoToggle){noturnoToggle.checked=!!special.noturno;tog('noturno',noturnoToggle);}
+  var standbyInputs=document.querySelectorAll('#standby .fg input');
+  if(standbyInputs[0])standbyInputs[0].value=((special.standbyDetails||{}).total)||'';
+  if(standbyInputs[1])standbyInputs[1].value=((special.standbyDetails||{}).motivo)||'';
+  if(document.getElementById('noturno-inicio'))document.getElementById('noturno-inicio').value=((special.noturnoDetails||{}).inicio)||'';
+  if(document.getElementById('noturno-termino'))document.getElementById('noturno-termino').value=((special.noturnoDetails||{}).termino)||'';
+  if(document.getElementById('noturno-intervalo'))document.getElementById('noturno-intervalo').value=((special.noturnoDetails||{}).intervalo)||'1 hora';
+  var nightList=document.getElementById('noturno-colab-list'); if(nightList)nightList.innerHTML='';
+  (data.nightCollaboratorIds||[]).forEach(function(id){ var col=getColaboradorById(id); if(col&&nightList)nightList.appendChild(buildColabTag({id:col.id,nome:col.nome})); });
+  document.getElementById('svc-cards').innerHTML=''; svcCount=0;
+  (data.services||[]).forEach(function(service){
+    addSvc(service.serviceType,false,{});
+    var card=document.querySelectorAll('#svc-cards .svc-card')[document.querySelectorAll('#svc-cards .svc-card').length-1];
+    if(card){
+      card.dataset.sourceReportId=service.sourceReportId||'';
+      card.dataset.sourceServiceId=service.sourceServiceId||'';
+      card.dataset.ongoingKey=service.ongoingKey||'';
+      fillServiceCardFromReport(card,{serviceType:service.serviceType,extraData:service.extraData||{}});
+    }
+  });
+  if(document.getElementById('final-overtime'))document.getElementById('final-overtime').value=data.overtimeReason||'';
+  if(document.getElementById('final-description'))document.getElementById('final-description').value=data.dailyDescription||'';
+  updateOvertimeUi();
+}
+function resumeDraft(id){
+  var draft=draftsCache.find(function(item){return item.id===id;});
+  if(!draft)return;
+  hydrateDraft(draft);
+  go('s-cabecalho');
+}
+function startNewReport(){
+  currentDraftId='';
+  resetReportForm();
+  go('s-cabecalho');
+}
+function collectServices(){
+  return Array.from(document.querySelectorAll('.svc-card')).map(function(card){
+    var fields=collectServiceFields(card);
+    if(card.dataset.ongoingKey)fields.__ongoingKey=card.dataset.ongoingKey;
+    return {
+      serviceType: card.dataset.svcType,
+      equipmentId: null,
+      system: fields['Sistema'] || null,
+      material: fields['Material da tubulação'] || fields['Material da tubulaÃ§Ã£o'] || fields['Material do equipamento'] || null,
+      startTime: fields['Hora de início'] || fields['Hora de inÃ­cio'] || null,
+      endTime: fields['Hora de término/pausa'] || fields['Hora de tÃ©rmino/pausa'] || null,
+      finalized: finalizedFromFields(fields),
+      extraData: fields
+    };
+  });
+}
+function collectResolvedOngoingServices(projectId){
+  var items=new Map();
+  var ordered=(reportsCache||[]).slice().sort(function(a,b){
+    var da=new Date(a.reportDate||a.createdAt||0).getTime();
+    var dbb=new Date(b.reportDate||b.createdAt||0).getTime();
+    if(da!==dbb)return da-dbb;
+    return new Date(a.createdAt||0).getTime()-new Date(b.createdAt||0).getTime();
+  });
+  ordered.forEach(function(report){
+    if(projectId && report.projectId!==projectId)return;
+    (report.services||[]).forEach(function(service){
+      var inherited=((service.extraData||{}).__ongoingKey)||'';
+      var key=inherited || serviceOngoingKey(report,service);
+      if(service.finalized===true){
+        items.delete(key);
+        return;
+      }
+      items.set(key,{reportId:report.id,reportDate:report.reportDate,project:report.project,service:service});
+    });
+  });
+  return Array.from(items.values());
+}
+function continuar(reportId,serviceId){
+  var report=(reportsCache||[]).find(function(item){return item.id===reportId;});
+  if(!report)return;
+  var service=(report.services||[]).find(function(item){return item.id===serviceId;});
+  if(!service)return;
+  addSvc(service.serviceType,false,{});
+  var cards=document.querySelectorAll('#svc-cards .svc-card');
+  var card=cards[cards.length-1];
+  if(card){
+    card.dataset.sourceReportId=reportId;
+    card.dataset.sourceServiceId=serviceId;
+    card.dataset.ongoingKey=((service.extraData||{}).__ongoingKey)||serviceOngoingKey(report,service);
+    fillServiceCardFromReport(card,sanitizeContinuationService(service));
+    card.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+}
+async function enviar(){
+  var err=validateScope(document.getElementById('s-cabecalho'));
+  if(err){focusValidation(err,'s-cabecalho');return;}
+  err=validateScope(document.getElementById('s-servicos'));
+  if(err){focusValidation(err,'s-servicos');return;}
+  try{await syncDbBeforeSubmit();}catch(syncErr){alert('Erro ao enviar relatório: '+syncErr.message);return;}
+  var projeto=getProjetoAtual();
+  if(!projeto){alert('Selecione um projeto.');go('s-cabecalho');return;}
+  if(!currentUser){alert('Faça login novamente.');go('s-login');return;}
+  var overtimeSummary=updateOvertimeUi();
+  var overtimeReasonField=document.getElementById('final-overtime');
+  var overtimeReason=overtimeSummary.totalOvertimeMinutes>0?(overtimeReasonField.value.trim()||null):null;
+  var payload={projectId: projeto.id,createdByUserId: currentUser.id,reportType:'RDO',status:'PENDING',reportDate: document.getElementById('hdr-data').value,arrivalTime: document.getElementById('hdr-chegada').value,departureTime: document.getElementById('hdr-saida').value,lunchBreak: document.getElementById('hdr-intervalo').value,daytimeCount: getSelectedCollaboratorIds().length,overtimeReason: overtimeReason,dailyDescription: document.getElementById('final-description').value.trim() || null,specialConditions: collectSpecialConditions(),collaboratorIds: getSelectedCollaboratorIds(),services: collectServices()};
+  try{
+    if(editingReportId)await apiFetch('/reports/'+editingReportId,{method:'PUT',body:JSON.stringify(payload)});
+    else await apiFetch('/reports',{method:'POST',body:JSON.stringify(payload)});
+    await removeDraft(currentDraftId,true);
+    var wasEditing=!!editingReportId;
+    resetReportForm();
+    await refreshReportsCache();
+    await refreshDraftsCache();
+    renderMyReports();
+    if(currentUser.role==='MANAGER')renderGestor();
+    go('s-home');
+    setTimeout(function(){alert(wasEditing?'✓ Relatório atualizado com sucesso.':'✓ Relatório enviado com sucesso.');},200);
+  }catch(sendErr){
+    alert('Erro ao enviar relatório: '+sendErr.message);
+  }
+}
+var _origRefreshReportsCache=refreshReportsCache;
+refreshReportsCache=async function(){
+  var result=await _origRefreshReportsCache();
+  updateHomeOngoingSummary();
+  return result;
+};
+async function bootstrapAfterLogin(){
+  updateUserLabels();
+  try{ await refreshDbFromApi(); }catch(err){ console.warn('Falha ao carregar base após login.',err); }
+  try{ await refreshReportsCache(); }catch(err){ console.warn('Falha ao carregar relatórios após login.',err); }
+  try{ await refreshDraftsCache(); }catch(err){ console.warn('Falha ao carregar rascunhos após login.',err); }
+  if(currentUser && currentUser.role==='MANAGER'){
+    try{ await refreshUsersCache(); }catch(err){ console.warn('Falha ao carregar usuários após login.',err); }
+    renderGestor();
+    go('s-gestor');
+    return;
+  }
+  renderMyReports();
+  go('s-home');
+}
+async function fazerLogin(){
+  var username=(document.getElementById('login-user').value||'').trim();
+  var password=(document.getElementById('login-password').value||'');
+  setLoginMessage('',false);
+  if(!username||!password){
+    setLoginMessage('Informe usuário e senha.',true);
+    return;
+  }
+  try{
+    var auth=await apiFetch('/auth/login',{method:'POST',body:JSON.stringify({username:username,password:password})});
+    saveAuthState(auth);
+    persistLoginPrefs(username,password);
+    setLoginMessage('',false);
+    await bootstrapAfterLogin();
+  }catch(err){
+    setLoginMessage('Erro no login: '+err.message,true);
+  }
+}
+window.fazerLogin = fazerLogin;
+async function hydrateSession(){
+  if(!authState.token)return;
+  try{
+    var me=await apiFetch('/auth/me');
+    saveAuthState({token:authState.token,user:me.user});
+    await bootstrapAfterLogin();
+  }catch(err){
+    console.warn('Sessão inválida, limpando autenticação.',err);
+    clearAuthState();
+    applyRememberedLogin();
+    setLoginMessage('',false);
+    go('s-login');
+  }
+}
+function enforceLoginUi(){
+  var loginScreen=document.getElementById('s-login');
+  if(!loginScreen)return;
+  var panel=loginScreen.querySelector('.login-wrap > div:last-child');
+  if(panel && panel.dataset.loginPatched!=='true'){
+    panel.dataset.loginPatched='true';
+    panel.innerHTML='<div class="fg"><label>Usuário</label><input type="text" id="login-user" list="login-user-history" placeholder="Ex.: carlos ou gestor"><datalist id="login-user-history"></datalist></div><div class="fg"><label>Senha</label><input type="password" id="login-password" placeholder="Digite a senha" autocomplete="current-password"></div><div id="login-memory-box" style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--mu)"><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-user" style="width:auto">Lembrar usuário</label><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-pass" style="width:auto">Lembrar senha</label></div><div id="login-seed-help" style="font-size:11px;color:var(--mu);line-height:1.5">Acesso inicial: gestor / gestor123, carlos / colab123, joao / colab123.</div><div id="login-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><button type="button" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px" onclick="fazerLogin()">Entrar</button>';
+  }
+  var btn=loginScreen.querySelector('button');
+  if(btn){
+    btn.setAttribute('type','button');
+    btn.onclick=function(){ fazerLogin(); };
+  }
+  var submit=document.getElementById('login-submit-btn');
+  if(submit){
+    submit.setAttribute('type','button');
+    submit.onclick=function(){ fazerLogin(); };
+  }
+  ['login-user','login-password'].forEach(function(id){
+    var input=document.getElementById(id);
+    if(input){
+      input.addEventListener('keydown',function(ev){
+        if(ev.key==='Enter'){
+          ev.preventDefault();
+          fazerLogin();
+        }
+      });
+    }
+  });
+  var loginUser=document.getElementById('login-user');
+  if(loginUser&&loginUser.dataset.historyReady!=='true'){
+    loginUser.dataset.historyReady='true';
+    loginUser.addEventListener('change',syncLoginRememberByUser);
+    loginUser.addEventListener('input',function(){
+      if(!this.value){
+        var pass=document.getElementById('login-password');
+        if(pass)pass.value='';
+      }
+    });
+  }
+  updateLoginHistoryOptions();
+  applyRememberedLogin();
+  var passwordInput=document.getElementById('login-password');
+  if(passwordInput)passwordInput.setAttribute('type','password');
+}
+ensureDraftHomeBlock();
+renderDraftHome();
+refreshDraftsCache();
 initServiceCollaboratorSync();
 initMojibakeRepair();
 setupRuntimeUi();
+enforceLoginUi();
+document.addEventListener('click',function(ev){
+  var btn=ev.target && ev.target.closest ? ev.target.closest('#login-submit-btn') : null;
+  if(!btn)return;
+  ev.preventDefault();
+  if(typeof window.fazerLogin==='function')window.fazerLogin();
+});
+document.addEventListener('keydown',function(ev){
+  var target=ev.target;
+  if(!target)return;
+  if((target.id==='login-user' || target.id==='login-password') && ev.key==='Enter'){
+    ev.preventDefault();
+    if(typeof window.fazerLogin==='function')window.fazerLogin();
+  }
+});
+setTimeout(enforceLoginUi,50);
+setTimeout(enforceLoginUi,300);
+setTimeout(enforceLoginUi,800);
 ensureNightIntervalField();
 initOvertimeUi();
 updateUserLabels();
