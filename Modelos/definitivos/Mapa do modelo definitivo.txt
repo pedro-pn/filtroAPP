@@ -49,16 +49,16 @@ Tabela dos serviços:
 
 Teste de pressão:
 
-{{statementone}} - Pressão de trabalho
+{{statementone}} - Pressão de trabalho:
 {{statementdataone}} - A pressão de trabalho preenchida
-{{statementtwo}} - Pressão de teste
+{{statementtwo}} - Pressão de teste:
 {{statementdatatwo}} - a pressão de teste preenchida
-{{infostatement}} - Fluido
+{{infostatement}} - Fluido:
 {{info}} - fluido preenchido
 
 Limpeza química
 
-{{statementone}} - Material da tubulação
+{{statementone}} - Material da tubulação:
 {{statementdataone}} - material preenchido
 {{statementtwo}} - não tem
 {{statementdatatwo}} - não tem
@@ -67,20 +67,20 @@ Limpeza química
 
 Flushing
 
-{{statementone}} - Análise inicial
+{{statementone}} - Análise inicial:
 {{statementdataone}} - contagem de partícula inicial
-{{statementtwo}} - Análise final
+{{statementtwo}} - Análise final:
 {{statementdatatwo}} - Contagem de partícula final
-{{infostatement}} - Óleo
+{{infostatement}} - Óleo:
 {{info}} - óleo preenchido
 
 Filtragem
 
-{{statementone}} - Análise inicial
+{{statementone}} - Análise inicial:
 {{statementdataone}} - contagem de partícula inicial
-{{statementtwo}} - Análise final
+{{statementtwo}} - Análise final:
 {{statementdatatwo}} - Contagem de partícula final
-{{infostatement}} - Volume de óleo
+{{infostatement}} - Volume de óleo:
 {{info}} - volume preenchido
 
 Limpeza mecânica
@@ -96,7 +96,7 @@ Inibição
 
 {{servicename}} - caso especial, deve aparecer Flushing/inibição
 {{equipament}} - caso especial, deve aparecer Embarcação
-{{statementdataone}} - Material da tubulação
+{{statementdataone}} - Material da tubulação:
 {{statementdataone}} - material preenchido
 {{statementtwo}} - não tem
 {{statementdatatwo}} - não tem

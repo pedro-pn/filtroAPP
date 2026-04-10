@@ -413,6 +413,10 @@ function nextRelationshipId(relsDoc) {
 
 async function getSignatureAsset(report) {
   const source = report.createdBy?.collaborator?.signatureImage;
+  return getUploadAsset(source);
+}
+
+async function getUploadAsset(source) {
   if (!source) return null;
   try {
     let fileName = source;
@@ -466,6 +470,39 @@ function buildSignatureDrawingXml(relId, cx, cy) {
   `;
 }
 
+function buildInlineImageDrawingXml(relId, cx, cy, name) {
+  return `
+    <w:r xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+      <w:drawing>
+        <wp:inline distT="0" distB="0" distL="0" distR="0">
+          <wp:extent cx="${cx}" cy="${cy}"/>
+          <wp:effectExtent l="0" t="0" r="0" b="0"/>
+          <wp:docPr id="5001" name="${safeText(name || 'Foto')}"/>
+          <wp:cNvGraphicFramePr/>
+          <a:graphic>
+            <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+              <pic:pic>
+                <pic:nvPicPr>
+                  <pic:cNvPr id="0" name="${safeText(name || 'Foto')}"/>
+                  <pic:cNvPicPr/>
+                </pic:nvPicPr>
+                <pic:blipFill>
+                  <a:blip r:embed="${relId}"/>
+                  <a:stretch><a:fillRect/></a:stretch>
+                </pic:blipFill>
+                <pic:spPr>
+                  <a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>
+                  <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+                </pic:spPr>
+              </pic:pic>
+            </a:graphicData>
+          </a:graphic>
+        </wp:inline>
+      </w:drawing>
+    </w:r>
+  `;
+}
+
 function embedSignature(zip, doc, asset) {
   if (!asset) return;
   const targetParagraph = findFirstByText(doc, 'w:p', '{{sign}}');
@@ -493,6 +530,85 @@ function embedSignature(zip, doc, asset) {
   const heightEmu = Math.max(1, Math.round(widthEmu * (asset.height / asset.width)));
   const drawingDoc = new DOMParser().parseFromString(buildSignatureDrawingXml(relId, widthEmu, heightEmu), 'text/xml');
   targetParagraph.appendChild(drawingDoc.documentElement);
+}
+
+function createImageRelationship(zip, relsDoc, asset, prefix = 'image') {
+  const relId = nextRelationshipId(relsDoc);
+  const mediaName = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${asset.extension}`;
+  const mediaPath = `word/media/${mediaName}`;
+
+  zip.addFile(mediaPath, asset.bytes);
+  ensureContentType(zip, asset.extension, asset.mimeType);
+
+  const relNode = relsDoc.createElement('Relationship');
+  relNode.setAttribute('Id', relId);
+  relNode.setAttribute('Type', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image');
+  relNode.setAttribute('Target', `media/${mediaName}`);
+  relsDoc.documentElement.appendChild(relNode);
+  return relId;
+}
+
+async function getGeneralPhotoAssets(report) {
+  const uploads = (((report.specialConditions || {}).generalUploads) || []).filter(Boolean);
+  const assets = [];
+  for (const upload of uploads) {
+    const source = upload?.url || upload?.storagePath || upload?.fileName;
+    const asset = await getUploadAsset(source);
+    if (asset) assets.push({ ...asset, label: upload?.label || upload?.fileName || 'Foto' });
+  }
+  return assets;
+}
+
+function embedGeneralPhotos(zip, doc, assets) {
+  const table = findFirstByText(doc, 'w:tbl', '{{photos}}');
+  if (!table) return;
+  if (!assets.length) {
+    removeNode(table);
+    return;
+  }
+
+  const targetParagraph = findFirstByText(table, 'w:p', '{{photos}}');
+  if (!targetParagraph) return;
+  const cell = targetParagraph.parentNode;
+  if (!cell) return;
+
+  const relsEntry = zip.getEntry('word/_rels/document.xml.rels');
+  if (!relsEntry) return;
+  const relsDoc = new DOMParser().parseFromString(zip.readAsText(relsEntry), 'text/xml');
+
+  while (cell.firstChild) cell.removeChild(cell.firstChild);
+
+  const maxWidthEmu = 2857500;
+  for (let i = 0; i < assets.length; i += 2) {
+    const group = assets.slice(i, i + 2);
+    const paragraph = doc.createElement('w:p');
+    const pPr = doc.createElement('w:pPr');
+    const jc = doc.createElement('w:jc');
+    jc.setAttribute('w:val', 'center');
+    pPr.appendChild(jc);
+    paragraph.appendChild(pPr);
+
+    group.forEach((asset, index) => {
+      const relId = createImageRelationship(zip, relsDoc, asset, 'report-photo');
+      const heightEmu = Math.max(1, Math.round(maxWidthEmu * (asset.height / asset.width)));
+      const drawingDoc = new DOMParser().parseFromString(
+        buildInlineImageDrawingXml(relId, maxWidthEmu, heightEmu, asset.label),
+        'text/xml'
+      );
+      paragraph.appendChild(drawingDoc.documentElement);
+      if (index < group.length - 1) {
+        const spacerRun = doc.createElement('w:r');
+        const spacerText = doc.createElement('w:t');
+        spacerText.appendChild(doc.createTextNode('   '));
+        spacerRun.appendChild(spacerText);
+        paragraph.appendChild(spacerRun);
+      }
+    });
+
+    cell.appendChild(paragraph);
+  }
+
+  zip.updateFile('word/_rels/document.xml.rels', Buffer.from(new XMLSerializer().serializeToString(relsDoc), 'utf8'));
 }
 
 function expandCollaborators(doc, report) {
@@ -523,7 +639,13 @@ function expandCollaborators(doc, report) {
 function expandServices(doc, report) {
   const templateTable = findFirstByText(doc, 'w:tbl', '{{servicecount}}');
   if (!templateTable) return;
-  const services = (report.services || []).map((service, index) => serviceTemplateData(service, index));
+  const services = (report.services || []).map((service, index) => {
+    const item = serviceTemplateData(service, index);
+    ['statementone', 'statementtwo', 'infostatement'].forEach(key => {
+      if (item[key] && !String(item[key]).trim().endsWith(':')) item[key] = `${item[key]}:`;
+    });
+    return item;
+  });
 
   if (!services.length) {
     replacePlaceholders(templateTable, serviceTemplateData({ serviceType: '', finalized: null, extraData: {} }, 0));
@@ -563,6 +685,7 @@ export async function buildReportDocx(report) {
   const zip = await buildTemplateZip();
   const baseData = buildDocxData(report);
   const signatureAsset = await getSignatureAsset(report);
+  const generalPhotoAssets = await getGeneralPhotoAssets(report);
   const headerEntries = zip.getEntries()
     .map(entry => entry.entryName)
     .filter(name => /^word\/header\d+\.xml$/i.test(name));
@@ -578,6 +701,7 @@ export async function buildReportDocx(report) {
     expandCollaborators(doc, report);
     expandServices(doc, report);
     replacePlaceholders(doc, baseData);
+    embedGeneralPhotos(zip, doc, generalPhotoAssets);
     embedSignature(zip, doc, signatureAsset);
   });
 

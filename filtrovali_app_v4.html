@@ -2615,6 +2615,28 @@ function collectManagerDetailPayload(report){
     services: services
   };
 }
+function managerServiceTypeOptions(){
+  return ['limpeza','pressao','flushing','filtragem','mecanica','inibicao'].map(function(type){
+    return '<option value="'+type+'">'+escapeHtml(serviceNames[type]||type)+'</option>';
+  }).join('');
+}
+function addManagerServiceCard(type,prefill){
+  if(!type)return;
+  var root=document.getElementById('mgr-services-root');
+  if(!root)return;
+  var index=root.querySelectorAll('.svc-card').length+1;
+  var wrap=document.createElement('div');
+  wrap.className='card';
+  wrap.style.marginBottom='10px';
+  wrap.innerHTML=buildSvc(type,index,prefill||{});
+  root.appendChild(wrap);
+  enhanceUploadZones(wrap);
+}
+function addManagerServiceFromSelect(){
+  var sel=document.getElementById('mgr-add-service-type');
+  if(!sel||!sel.value)return;
+  addManagerServiceCard(sel.value,{});
+}
 async function saveManagerDetail(id,action){
   var report=reportsCache.find(function(r){return r.id===id;})||await apiFetch('/reports/'+id);
   var payload=collectManagerDetailPayload(report);
@@ -2748,6 +2770,7 @@ function renderManagerDetail(report){
   var special=report.specialConditions||{};
   var standbyDetails=special.standbyDetails||{};
   var noturnoDetails=special.noturnoDetails||{};
+  var finalUploads=special.generalUploads||[];
   document.getElementById('det-body').innerHTML=
     '<div class="card"><div class="sec">Cabeçalho</div><div class="admin-inline-grid">'+
     '<div class="fg"><label>Projeto</label><select id="mgr-project-id">'+db.projetos.map(function(p){return '<option value="'+p.id+'"'+(p.id===report.projectId?' selected':'')+'>'+escapeHtml((p.code||'')+' - '+p.nome)+'</option>';}).join('')+'</select></div>'+
@@ -2763,8 +2786,9 @@ function renderManagerDetail(report){
     '<div class="tog-row"><span class="tog-lbl">Houve turno noturno?</span><label class="tog"><input type="checkbox" id="mgr-noturno-toggle" onchange="toggleManagerCollapse(\'mgr-noturno\',this.checked)"'+(special.noturno?' checked':'')+'><span class="tog-sl"></span></label></div>'+
     '<div id="mgr-noturno" class="collapse'+(special.noturno?' open':'')+'"><div class="r2"><div class="fg"><label>Início</label><input type="time" id="mgr-noturno-inicio" value="'+escapeHtml(noturnoDetails.inicio||'')+'"></div><div class="fg"><label>Término</label><input type="time" id="mgr-noturno-termino" value="'+escapeHtml(noturnoDetails.termino||'')+'"></div></div><div class="fg" style="margin-top:10px"><label>Colaboradores noturnos</label><input type="text" id="mgr-noturno-colabs" value="'+escapeHtml((noturnoDetails.colaboradores||[]).join(', '))+'" placeholder="Separe por vírgula"></div></div>'+
     '</div>'+
-    '<div id="mgr-services-root"></div>'+
+    '<div class="card"><div class="sec">ServiÃƒÂ§os</div><div class="cadd" style="margin-bottom:8px"><select id="mgr-add-service-type">'+managerServiceTypeOptions()+'</select><button type="button" class="cadd-btn" onclick="addManagerServiceFromSelect()">+ Add</button></div><div id="mgr-services-root"></div></div>'+
     '<div class="card"><div class="sec">Finalização</div><div class="fg"><label>Justificativa</label><textarea id="mgr-overtime">'+escapeHtml(report.overtimeReason||'')+'</textarea></div><div class="fg"><label>Descrição geral</label><textarea id="mgr-description" style="min-height:100px">'+escapeHtml(report.dailyDescription||'')+'</textarea></div></div>'+
+    '<div class="card"><div class="sec">Fotos de registro</div><div class="fg"><label>Fotos finais do relatório</label><div class="upload-z" id="mgr-final-uploads"><div class="upload-z-icon">ðŸ“·</div><div class="upload-z-text">Toque para adicionar</div><div class="upload-z-btn">Selecionar</div></div></div></div>'+
     '<div class="card"><div class="sec">Notas do gestor</div><textarea id="det-review-notes">'+escapeHtml(report.reviewNotes||'')+'</textarea></div>';
   var list=document.getElementById('mgr-colab-list');
   list.innerHTML='';
@@ -2779,20 +2803,19 @@ function renderManagerDetail(report){
   renderManagerCollaboratorOptions();
   var root=document.getElementById('mgr-services-root');
   (report.services||[]).forEach(function(service,index){
-    var wrap=document.createElement('div');
-    wrap.className='card';
-    wrap.style.marginBottom='10px';
-    wrap.innerHTML=buildSvc(service.serviceType,index+1,{});
-    root.appendChild(wrap);
+    addManagerServiceCard(service.serviceType,{});
+    var wrap=root.lastElementChild;
     var card=wrap.querySelector('.svc-card');
     if(card){
       card.dataset.serviceId=service.id;
       fillServiceCardFromReport(card,service);
       var removeBtn=card.querySelector('.svc-remove');
-      if(removeBtn)removeBtn.style.display='none';
+      if(removeBtn)removeBtn.style.display='';
     }
   });
-  enhanceUploadZones(root);
+  enhanceUploadZones(document.getElementById('det-body'));
+  var finalZone=document.getElementById('mgr-final-uploads');
+  if(finalZone)setUploads(finalZone,finalUploads);
   document.getElementById('det-actions').innerHTML='<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'save\')">Salvar</button>'+(report.status==='APPROVED'?'<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>':'<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'approve\')">Salvar e aprovar</button><button class="btn-reject" onclick="saveManagerDetail(\''+report.id+'\',\'return\')">Salvar e devolver</button>');
 }
 function collectManagerDetailPayload(report){
@@ -2950,6 +2973,7 @@ function collectManagerDetailPayload(report){
   specialConditions.noturno=document.getElementById('mgr-noturno-toggle').checked;
   specialConditions.standbyDetails={total:document.getElementById('mgr-standby-total').value||'',motivo:document.getElementById('mgr-standby-motivo').value||''};
   specialConditions.noturnoDetails={inicio:document.getElementById('mgr-noturno-inicio').value||'',termino:document.getElementById('mgr-noturno-termino').value||'',collaboratorIds:managerSelectedNightCollaboratorIds(),colaboradores:managerSelectedNightCollaboratorIds().map(function(id){var col=getColaboradorById(id);return col?col.nome:id;})};
+  specialConditions.generalUploads=(document.getElementById('mgr-final-uploads')?getUploads(document.getElementById('mgr-final-uploads')):((specialConditions.generalUploads)||[]));
   return {
     projectId: document.getElementById('mgr-project-id').value,
     reportType: report.reportType,
@@ -3002,7 +3026,7 @@ function fillServiceCardFromReport(card,service){
 async function saveManagerDetail(id,action){
   var report=reportsCache.find(function(r){return r.id===id;})||await apiFetch('/reports/'+id);
   var payload=collectManagerDetailPayload(report);
-  await apiFetch('/reports/'+id,{method:'PUT',body:JSON.stringify(payload)});
+  var updated=await apiFetch('/reports/'+id,{method:'PUT',body:JSON.stringify(payload)});
   if(action==='approve'){
     await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'APPROVED',reviewNotes:document.getElementById('det-review-notes').value.trim()||null})});
   }else if(action==='return'){
@@ -3010,11 +3034,17 @@ async function saveManagerDetail(id,action){
   }
   await refreshReportsCache();
   renderGestor();
-  if(action==='approve' || action==='return'){
+  if(action==='return'){
+    showToast('Relatório devolvido para correção.');
     go('s-gestor');
     return;
   }
-  await openReportDetail(id,'gestor');
+  await openReportDetail((updated&&updated.id)||id,'gestor');
+  if(action==='approve'){
+    showToast('Relatório aprovado com sucesso.');
+    return;
+  }
+  showToast('Alterações salvas.');
 }
 function getDirectFieldValue(fg){
   if(!fg)return null;
@@ -3922,6 +3952,171 @@ function initOvertimeUi(){
     new MutationObserver(updateOvertimeUi).observe(el,{childList:true,subtree:true});
   });
   updateOvertimeUi();
+}
+function managerServiceTypeOptions(){
+  return ['limpeza','pressao','flushing','filtragem','mecanica','inibicao'].map(function(type){
+    return '<option value="'+type+'">'+escapeHtml(serviceNames[type]||type)+'</option>';
+  }).join('');
+}
+function addManagerServiceCard(type,prefill){
+  if(!type)return;
+  var root=document.getElementById('mgr-services-root');
+  if(!root)return;
+  var index=root.querySelectorAll('.svc-card').length+1;
+  var wrap=document.createElement('div');
+  wrap.className='card';
+  wrap.style.marginBottom='10px';
+  wrap.innerHTML=buildSvc(type,index,prefill||{});
+  root.appendChild(wrap);
+  var card=wrap.querySelector('.svc-card');
+  if(card){
+    var removeBtn=card.querySelector('.svc-remove');
+    if(removeBtn){
+      removeBtn.onclick=function(){
+        if(!confirm('Remover este serviço?'))return;
+        wrap.remove();
+      };
+      removeBtn.style.display='';
+    }
+    if(prefill)fillServiceCardFromReport(card,{serviceType:type,extraData:prefill||{}});
+  }
+  enhanceUploadZones(wrap);
+  wrap.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function addManagerServiceFromSelect(){
+  var sel=document.getElementById('mgr-add-service-type');
+  if(!sel||!sel.value)return;
+  addManagerServiceCard(sel.value,{});
+}
+function renderManagerDetail(report){
+  var special=report.specialConditions||{};
+  var standbyDetails=special.standbyDetails||{};
+  var noturnoDetails=special.noturnoDetails||{};
+  var finalUploads=special.generalUploads||[];
+  document.getElementById('det-body').innerHTML=
+    '<div class="card"><div class="sec">Cabeçalho</div><div class="admin-inline-grid">'+
+    '<div class="fg"><label>Projeto</label><select id="mgr-project-id">'+db.projetos.map(function(p){return '<option value="'+p.id+'"'+(p.id===report.projectId?' selected':'')+'>'+escapeHtml((p.code||'')+' - '+p.nome)+'</option>';}).join('')+'</select></div>'+
+    '<div class="fg"><label>Data do relatório</label><input type="date" id="mgr-report-date" value="'+escapeHtml(String(report.reportDate).slice(0,10))+'"></div>'+
+    '<div class="fg"><label>Chegada</label><input type="time" id="mgr-arrival" value="'+escapeHtml(report.arrivalTime||'')+'"></div>'+
+    '<div class="fg"><label>Saída</label><input type="time" id="mgr-departure" value="'+escapeHtml(report.departureTime||'')+'"></div>'+
+    '<div class="fg"><label>Intervalo de almoço</label><input type="text" id="mgr-lunch" value="'+escapeHtml(report.lunchBreak||'')+'"></div>'+
+    '</div></div>'+
+    '<div class="card"><div class="sec">Equipe diurna</div><div id="mgr-colab-list"></div><div class="cadd"><select id="mgr-cadd-sel"></select><button type="button" class="cadd-btn" onclick="addManagerColab()">+ Add</button></div></div>'+
+    '<div class="card"><div class="sec">Condições especiais</div>'+
+    '<div class="tog-row"><span class="tog-lbl">Houve standby?</span><label class="tog"><input type="checkbox" id="mgr-standby-toggle" onchange="toggleManagerCollapse(\'mgr-standby\',this.checked)"'+(special.standby?' checked':'')+'><span class="tog-sl"></span></label></div>'+
+    '<div id="mgr-standby" class="collapse'+(special.standby?' open':'')+'"><div class="r2"><div class="fg"><label>Tempo total</label><input type="time" step="60" min="00:00" max="23:59" id="mgr-standby-total" value="'+escapeHtml(standbyDetails.total||'')+'"></div><div class="fg"><label>Motivo</label><input type="text" id="mgr-standby-motivo" value="'+escapeHtml(standbyDetails.motivo||'')+'"></div></div></div>'+
+    '<div class="tog-row"><span class="tog-lbl">Houve turno noturno?</span><label class="tog"><input type="checkbox" id="mgr-noturno-toggle" onchange="toggleManagerCollapse(\'mgr-noturno\',this.checked)"'+(special.noturno?' checked':'')+'><span class="tog-sl"></span></label></div>'+
+    '<div id="mgr-noturno" class="collapse'+(special.noturno?' open':'')+'"><div class="r2"><div class="fg"><label>Início</label><input type="time" id="mgr-noturno-inicio" value="'+escapeHtml(noturnoDetails.inicio||'')+'"></div><div class="fg"><label>Término</label><input type="time" id="mgr-noturno-termino" value="'+escapeHtml(noturnoDetails.termino||'')+'"></div></div><div class="fg" style="margin-top:10px"><label>Colaboradores noturnos</label><div id="mgr-noturno-colab-list"></div><div class="cadd" style="margin-top:8px"><select id="mgr-nadd-sel"></select><button type="button" class="cadd-btn" onclick="addManagerNightColab()">+ Add</button></div></div></div>'+
+    '</div>'+
+    '<div class="card"><div class="sec">Serviços</div><div class="cadd" style="margin-bottom:8px"><select id="mgr-add-service-type">'+managerServiceTypeOptions()+'</select><button type="button" class="cadd-btn" onclick="addManagerServiceFromSelect()">+ Add</button></div><div id="mgr-services-root"></div></div>'+
+    '<div class="card"><div class="sec">Finalização</div><div class="fg"><label>Justificativa</label><textarea id="mgr-overtime">'+escapeHtml(report.overtimeReason||'')+'</textarea></div><div class="fg"><label>Descrição geral</label><textarea id="mgr-description" style="min-height:100px">'+escapeHtml(report.dailyDescription||'')+'</textarea></div><div class="fg"><label>Fotos de registro</label><div class="upload-z" id="mgr-final-uploads"><div class="upload-z-icon">📷</div><div class="upload-z-text">Toque para adicionar</div><div class="upload-z-btn">Selecionar</div></div></div></div>'+
+    '<div class="card"><div class="sec">Notas do gestor</div><textarea id="det-review-notes">'+escapeHtml(report.reviewNotes||'')+'</textarea></div>';
+
+  var list=document.getElementById('mgr-colab-list');
+  list.innerHTML='';
+  (report.collaborators||[]).forEach(function(link){
+    var col=getColaboradorById(link.collaboratorId); if(!col)return;
+    var d=document.createElement('div');
+    d.className='colab-tag';
+    d.dataset.colabId=col.id;
+    d.innerHTML='<span class="colab-name">'+col.nome+'</span><span class="colab-rm" onclick="this.parentElement.remove();renderManagerCollaboratorOptions()">×</span>';
+    list.appendChild(d);
+  });
+  renderManagerCollaboratorOptions();
+
+  var nightList=document.getElementById('mgr-noturno-colab-list');
+  if(nightList){
+    nightList.innerHTML='';
+    (((noturnoDetails.collaboratorIds)||[])).forEach(function(id){
+      var col=getColaboradorById(id); if(!col)return;
+      var d=document.createElement('div');
+      d.className='colab-tag';
+      d.dataset.colabId=col.id;
+      d.innerHTML='<span class="colab-name">'+col.nome+'</span><span class="colab-rm" onclick="this.parentElement.remove();renderManagerNightCollaboratorOptions()">×</span>';
+      nightList.appendChild(d);
+    });
+  }
+  renderManagerNightCollaboratorOptions();
+
+  var root=document.getElementById('mgr-services-root');
+  (report.services||[]).forEach(function(service){
+    addManagerServiceCard(service.serviceType,{});
+    var wrap=root.lastElementChild;
+    var card=wrap.querySelector('.svc-card');
+    if(card){
+      card.dataset.serviceId=service.id;
+      fillServiceCardFromReport(card,service);
+      var removeBtn=card.querySelector('.svc-remove');
+      if(removeBtn)removeBtn.style.display='';
+    }
+  });
+
+  enhanceUploadZones(document.getElementById('det-body'));
+  var finalZone=document.getElementById('mgr-final-uploads');
+  if(finalZone)setUploads(finalZone,finalUploads);
+
+  document.getElementById('det-actions').innerHTML=report.status==='APPROVED'
+    ? '<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'save\')">Salvar</button><button class="btn-pdf" onclick="gerarDOCX(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
+    : '<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'save\')">Salvar</button><button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'approve\')">Salvar e aprovar</button><button class="btn-reject" onclick="saveManagerDetail(\''+report.id+'\',\'return\')">Salvar e devolver</button>';
+}
+function collectManagerServices(){
+  return Array.from(document.querySelectorAll('#mgr-services-root .svc-card')).map(function(card){
+    var fields=collectServiceFields(card);
+    return {
+      serviceType: card.dataset.svcType,
+      equipmentId: null,
+      system: fields['Sistema'] || null,
+      material: fields['Material da tubulação'] || fields['Material do equipamento'] || fields['Material da tubulaÃ§Ã£o'] || fields['Material da tubulaÃƒÂ§ÃƒÂ£o'] || null,
+      startTime: fields['Hora de início'] || fields['Hora de inÃ­cio'] || fields['Hora de inÃƒÂ­cio'] || null,
+      endTime: fields['Hora de término/pausa'] || fields['Hora de tÃ©rmino/pausa'] || fields['Hora de tÃƒÂ©rmino/pausa'] || null,
+      finalized: finalizedFromFields(fields),
+      extraData: fields
+    };
+  });
+}
+async function saveManagerDetail(id,action){
+  var report=await apiFetch('/reports/'+id);
+  var specialConditions=Object.assign({},report.specialConditions||{});
+  specialConditions.standby=document.getElementById('mgr-standby-toggle').checked;
+  specialConditions.noturno=document.getElementById('mgr-noturno-toggle').checked;
+  specialConditions.standbyDetails={total:normalizeDurationText(document.getElementById('mgr-standby-total').value||''),motivo:document.getElementById('mgr-standby-motivo').value||''};
+  specialConditions.noturnoDetails={inicio:document.getElementById('mgr-noturno-inicio').value||'',termino:document.getElementById('mgr-noturno-termino').value||'',intervalo:(specialConditions.noturnoDetails||{}).intervalo||'1 hora',collaboratorIds:managerSelectedNightCollaboratorIds(),colaboradores:managerSelectedNightCollaboratorIds().map(function(cid){var col=getColaboradorById(cid);return col?col.nome:cid;})};
+  specialConditions.generalUploads=(document.getElementById('mgr-final-uploads')?getUploads(document.getElementById('mgr-final-uploads')):((report.specialConditions||{}).generalUploads||[]));
+  var payload={
+    projectId: document.getElementById('mgr-project-id').value,
+    reportType: report.reportType,
+    reportDate: document.getElementById('mgr-report-date').value,
+    arrivalTime: document.getElementById('mgr-arrival').value,
+    departureTime: document.getElementById('mgr-departure').value,
+    lunchBreak: document.getElementById('mgr-lunch').value,
+    daytimeCount: managerSelectedCollaboratorIds().length,
+    overtimeReason: document.getElementById('mgr-overtime').value.trim() || null,
+    dailyDescription: document.getElementById('mgr-description').value.trim() || null,
+    specialConditions: specialConditions,
+    collaboratorIds: managerSelectedCollaboratorIds(),
+    services: collectManagerServices()
+  };
+  var updated=await apiFetch('/reports/'+id,{method:'PUT',body:JSON.stringify(payload)});
+  if(action==='approve'){
+    await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'APPROVED',reviewNotes:null})});
+  }else if(action==='return'){
+    var motivo=prompt('Motivo da devolução:');
+    if(motivo===null)return;
+    await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'RETURNED',reviewNotes:motivo||null})});
+  }
+  await refreshReportsCache();
+  renderGestor();
+  if(action==='return'){
+    showToast('Relatório devolvido para correção.');
+    go('s-gestor');
+    return;
+  }
+  await openReportDetail((updated&&updated.id)||id,'gestor');
+  if(action==='approve'){
+    showToast('Relatório aprovado com sucesso.');
+    return;
+  }
+  showToast('Alterações salvas.');
 }
 initServiceCollaboratorSync();
 initMojibakeRepair();
