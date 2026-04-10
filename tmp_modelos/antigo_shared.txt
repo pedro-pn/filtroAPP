@@ -1,0 +1,44 @@
+Departamento Técnico - Setor Operacional
+RDO nº:
+Data:
+Cliente:
+CNPJ:
+Contrato/Proposta:
+Local do serviço:
+Entrada:
+< Diurno
+< Noturno
+Intervalo de almoço:
+Nº colaboradores (diurno):
+Saída:
+Intervalo de Janta:
+Nº colaboradores (noturno):
+Atividades/Obs.:
+Item 01
+Serviço:
+Início:
+Sistema:
+Status:
+Etapas:
+OBS.:
+Item 02
+Item 03
+Item 04
+Item 05
+Item 06
+Item 07
+Item 08
+Item 09
+Observações do cliente:
+Horas extras (diurno):
+Stand-by:
+Horas extras (noturno):
+Coment.
+Motivo:
+System.Xml.XmlElement
+Responsável:
+System.Xml.XmlElement
+Cargo:
+Ass.:
+Ver 2.0 - 05/24
+Registros fotográficos

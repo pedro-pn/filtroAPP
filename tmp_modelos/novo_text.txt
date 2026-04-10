@@ -1,0 +1,104 @@
+JORNADA DE TRABALHO
+Turno Diurno
+Turno Noturno
+Entrada: 
+08:00
+Intervalo de almoço: 
+01:00:00
+Entrada: 
+19:00
+Intervalo do jantar: 
+01:00:00
+Saída: 
+23:00
+Nº colaboradores: 
+3
+Saída: 
+06:00
+Nº colaboradores: 
+1
+Horas extras (diurno): 
+05:00
+Stand-by: 
+05:00:00
+Horas extras (noturno): 
+01:00
+Motivo: 
+Eles estavam loucos
+Comentário:  
+Hora extra por conta nossa.
+COLABORADORES
+Nome
+Função
+Turno
+Leandro Luiz Correa Paul
+Gerente de operações/Operations Manager
+Diurno
+Messias Fortunato
+Supervisor de operações
+Diurno
+Nicolas Luiz Mafra
+Operador
+Diurno
+Messias Fortunato
+Supervisor de operações
+Noturno
+ATIVIDADES/OBS:
+Um singelo teste para ver se tudo vai bem
+SERVIÇOS REALIZADOS
+Item 1
+Serviço: 
+Teste de pressão
+Início: 
+15:00
+Término: 
+17:00
+Equipamento: 
+Espresso
+Pressão de trabalho: 
+300 bar
+Pressão de teste: 
+250 bar
+Sistema: 
+Bico
+Status: 
+Finalizado
+Fluido: 
+Água
+Colaboradores: 
+Etapas: 
+Montagem do sistema, Execução do teste, Desmontagem do sistema
+OBS.: 
+O teste ocorreu perfeitamente perfeito.
+Item 2
+Serviço: 
+Flushing Secundário
+Início: 
+18:08
+Término: 
+10:20
+Equipamento: 
+Equipamento de teste
+Análise final: 
+'NAS 12
+Análise inicial: 
+'NAS 6
+Sistema: 
+Sistema de teste
+Status: 
+Finalizado
+Óleo: 
+VG 68
+Colaboradores: 
+Etapas: 
+Abastecimento de óleo, Montagem do sistema, Realização do flushing, Desmontagem do sistema, Drenagem de óleo
+OBS.: 
+Flushing concluido com sucesso
+       ASSINATURAS
+_________________
+Líder:
+ Messias Fortunato
+Cargo: 
+Supervisor de operações
+Cliente:
+Cargo: 

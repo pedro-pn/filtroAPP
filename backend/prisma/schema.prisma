@@ -1,0 +1,224 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UnitCategory {
+  FILTRAGEM
+  FLUSHING
+  LIMPEZA_QUIMICA
+  DESIDRATACAO
+  UTH
+  OUTRA
+}
+
+enum ReportType {
+  RDO
+  RTP
+  RLQ
+  RCP
+  RLM
+  RLF
+  RLI
+}
+
+enum ReportStatus {
+  PENDING
+  APPROVED
+  RETURNED
+}
+
+enum UserRole {
+  COLLABORATOR
+  MANAGER
+}
+
+model Collaborator {
+  id               String    @id @default(cuid())
+  code             String    @unique
+  name             String
+  role             String
+  email            String?
+  signatureImage   String?
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  projectsLed      Project[] @relation("ProjectOperator")
+  reportLinks      ReportCollaborator[]
+  user             User?
+}
+
+model Project {
+  id                    String            @id @default(cuid())
+  code                  String            @unique
+  name                  String
+  clientName            String
+  clientCnpj            String
+  contractCode          String
+  location              String
+  workdayHours          String            @default("09:00")
+  weekendWorkdayHours   String            @default("08:00")
+  includesSaturday      Boolean           @default(false)
+  includesSunday        Boolean           @default(false)
+  operatorId            String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  operator              Collaborator?     @relation("ProjectOperator", fields: [operatorId], references: [id], onDelete: SetNull)
+  reportSequences       ProjectReportSeq[]
+  reports               Report[]
+}
+
+model ProjectReportSeq {
+  id         String     @id @default(cuid())
+  projectId  String
+  reportType ReportType
+  nextNumber Int        @default(0)
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, reportType])
+}
+
+model Report {
+  id              String               @id @default(cuid())
+  projectId       String
+  createdByUserId String?
+  reviewedByUserId String?
+  reportType      ReportType           @default(RDO)
+  sequenceNumber  Int?
+  status          ReportStatus         @default(PENDING)
+  reportDate      DateTime
+  arrivalTime     String
+  departureTime   String
+  lunchBreak      String
+  daytimeCount    Int
+  daytimeWorkedMinutes Int            @default(0)
+  nighttimeWorkedMinutes Int          @default(0)
+  daytimeOvertimeMinutes Int          @default(0)
+  nighttimeOvertimeMinutes Int        @default(0)
+  totalOvertimeMinutes Int            @default(0)
+  overtimeReason  String?
+  dailyDescription String?
+  reviewNotes     String?
+  specialConditions Json?
+  pendingDerivedTypes Json?
+  approvedAt      DateTime?
+  returnedAt      DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  project         Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy       User?                @relation("ReportCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedBy      User?                @relation("ReportReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  collaborators   ReportCollaborator[]
+  services        ReportService[]
+  attachments     ReportAttachment[]
+
+  @@unique([projectId, reportType, sequenceNumber])
+}
+
+model ReportCollaborator {
+  reportId       String
+  collaboratorId String
+  report         Report        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  collaborator   Collaborator  @relation(fields: [collaboratorId], references: [id], onDelete: Restrict)
+
+  @@id([reportId, collaboratorId])
+}
+
+model ReportService {
+  id            String   @id @default(cuid())
+  reportId      String
+  serviceType   String
+  equipmentId   String?
+  system        String?
+  material      String?
+  startTime     String?
+  endTime       String?
+  finalized     Boolean?
+  extraData     Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  report        Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  equipment     Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  attachments   ReportAttachment[]
+}
+
+model Equipment {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  serviceTags String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  reportServices ReportService[]
+}
+
+model Unit {
+  id         String       @id @default(cuid())
+  code       String       @unique
+  category   UnitCategory
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
+model Manometer {
+  id                  String   @id @default(cuid())
+  code                String   @unique
+  scale               String
+  calibrationCertCode String
+  calibratedAt        DateTime
+  expiresAt           DateTime
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model ParticleCounter {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  serialNumber String
+  calibratedAt DateTime
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model User {
+  id              String        @id @default(cuid())
+  username        String        @unique
+  name            String
+  passwordHash    String
+  role            UserRole
+  isActive        Boolean       @default(true)
+  collaboratorId  String?       @unique
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  collaborator    Collaborator? @relation(fields: [collaboratorId], references: [id], onDelete: SetNull)
+  sessions        UserSession[]
+  createdReports  Report[]      @relation("ReportCreator")
+  reviewedReports Report[]      @relation("ReportReviewer")
+}
+
+model UserSession {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  userId     String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ReportAttachment {
+  id              String        @id @default(cuid())
+  reportId        String?
+  reportServiceId String?
+  label           String
+  fileName        String
+  mimeType        String
+  storagePath     String
+  createdAt       DateTime      @default(now())
+  report          Report?       @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  reportService   ReportService? @relation(fields: [reportServiceId], references: [id], onDelete: Cascade)
+}

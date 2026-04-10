@@ -1,0 +1,109 @@
+{{missiontitle}} - deve ser substituido por "Missão [numero da missao] - [nome da missao]"
+{{client}} - cliente do projeto
+{{cnpj}} - CNPJ do projeto
+{{local}} - local do projeto
+{{proposal}} - contrato do projeto
+{{rdo}} - número rdo
+{{date}} - data do rdo
+
+{{daystarttime}} - horário de entrada turno diurno
+{{dayexittime}} - horário de saída do turno diurno
+{{lunchinterval}} - intervalo de almoço
+{{daycollaboratorscount}} - quantidade de colaboradores no turno diurno
+{{nightstarttime}} - horário de entrada do turno noturno
+{{nightexittime}} - horário de saída turno noturno
+{{dinnerinterval}} - intervalo de janta
+{{nightcollaboratoscount}} - quantidade de colaboradores turno noturno
+
+{{dayovertime}} - horas extras do turno diurno
+{{nightovertime}} - horas extras do turno noturno
+{{standby}} - horas em standby
+{{overtimecomment}} - comentário sobre a hora extra
+{{standbymotive}} - comentário sobre o standby
+
+{{collaboratorname}} - nome do colaborador
+{{collaboratorposition}} - cargo do colaborador
+{{collaboratorshift}} - turno em que aquele colaborador trabalhou
+
+{{servicecount}} - numero do serviço, segue sequencial de 1 até o que for adicionado
+{{servicename}} - nome do serviço (Teste de pressão, limpeza química, etc.)
+{{equipament}} - equipamento que está sendo realizado o serviço
+{{system}} - sistema que está sendo realizado o serviço
+{{starttime}} - horário de inicio do serviço
+{{endtime}} - horário de pausa/término do serviço
+{{statementone}} - muda conforme o serviço, ver tabela abaixo para cada tipo de serviço
+{{statementdataone}} - informação preenchida referente ao campo do serviço (tabelado)
+{{statementtwo}} - muda conforme o serviço, ver tabela abaixo para cada tipo de serviço
+{{statementdatatwo}} - muda conforme o serviço, ver tabela abaixo
+{{status}} - se foi finalizado ou ainda está em andamento
+{{infostatement}} - muda conforme o serviço, ver tabela
+{{info}} - muda conforme o serviço ver tabela
+{{steps}} - etapas realizadas, pode separar por vírgula
+{{obs}} - observações do serviço
+
+{{sign}} - imagem da assinatura do líder
+{{leadername}} - nome do líder
+{{leaderposition}} - cargo do líder.
+
+Tabela dos serviços:
+
+Teste de pressão:
+
+{{statementone}} - Pressão de trabalho
+{{statementdataone}} - A pressão de trabalho preenchida
+{{statementtwo}} - Pressão de teste
+{{statementdatatwo}} - a pressão de teste preenchida
+{{infostatement}} - Fluido
+{{info}} - fluido preenchido
+
+Limpeza química
+
+{{statementone}} - Material da tubulação
+{{statementdataone}} - material preenchido
+{{statementtwo}} - não tem
+{{statementdatatwo}} - não tem
+{{infostatement}} - não tem
+{{info}} - não tem
+
+Flushing
+
+{{statementone}} - Análise inicial
+{{statementdataone}} - contagem de partícula inicial
+{{statementtwo}} - Análise final
+{{statementdatatwo}} - Contagem de partícula final
+{{infostatement}} - Óleo
+{{info}} - óleo preenchido
+
+Filtragem
+
+{{statementone}} - Análise inicial
+{{statementdataone}} - contagem de partícula inicial
+{{statementtwo}} - Análise final
+{{statementdatatwo}} - Contagem de partícula final
+{{infostatement}} - Volume de óleo
+{{info}} - volume preenchido
+
+Limpeza mecânica
+
+{{statementone}} - Material do equipamento
+{{statementdataone}} - material preenchido
+{{statementtwo}} - não tem
+{{statementdatatwo}} - não tem
+{{infostatement}} - não tem
+{{info}} - não tem
+
+Inibição
+
+{{servicename}} - caso especial, deve aparecer Flushing/inibição
+{{equipament}} - caso especial, deve aparecer Embarcação
+{{statementdataone}} - Material da tubulação
+{{statementdataone}} - material preenchido
+{{statementtwo}} - não tem
+{{statementdatatwo}} - não tem
+{{infostatement}} - não tem
+{{info}} - não tem
+
+
+os campos de serviço do tipo statement e info, quando não tiver, deixar tudo em branco.
+
+
