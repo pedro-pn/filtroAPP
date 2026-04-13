@@ -46,16 +46,14 @@ try {
 
 export async function saveReportPdf(report) {
   const docx = await saveReportDocx(report);
-  const dir = path.join(env.uploadDir, 'generated-pdf');
-  await fs.mkdir(dir, { recursive: true });
   const pdfFileName = pdfNameFromDocx(docx.fileName);
-  const pdfPath = path.join(dir, pdfFileName);
+  const pdfPath = path.join(path.dirname(docx.targetPath), pdfFileName);
 
   await convertWithWord(docx.targetPath, pdfPath);
 
   return {
     fileName: pdfFileName,
     targetPath: pdfPath,
-    publicUrl: `/uploads/generated-pdf/${encodeURIComponent(pdfFileName)}`
+    publicUrl: docx.publicUrl.replace(/\.docx$/i, '.pdf')
   };
 }

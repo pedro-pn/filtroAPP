@@ -47,7 +47,13 @@ const include = {
 };
 
 function canAccessReport(auth, report) {
-  return auth.user.role === 'MANAGER' || report.createdByUserId === auth.user.id;
+  if (auth.user.role === 'MANAGER') return true;
+  if (report.createdByUserId === auth.user.id) return true;
+  const collabId = auth.rawUser?.collaboratorId;
+  if (collabId && Array.isArray(report.collaborators)) {
+    return report.collaborators.some(rc => rc.collaboratorId === collabId);
+  }
+  return false;
 }
 
 const serviceSchema = z.object({
@@ -180,7 +186,19 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
   }
 
   if (req.query.mine === 'true') {
-    where.createdByUserId = req.auth.user.id;
+    const me = await prisma.user.findUnique({
+      where: { id: req.auth.user.id },
+      select: { collaboratorId: true }
+    });
+    const collabId = me?.collaboratorId;
+    if (collabId) {
+      where.OR = [
+        { createdByUserId: req.auth.user.id },
+        { collaborators: { some: { collaboratorId: collabId } } }
+      ];
+    } else {
+      where.createdByUserId = req.auth.user.id;
+    }
   }
 
   const items = await prisma.report.findMany({

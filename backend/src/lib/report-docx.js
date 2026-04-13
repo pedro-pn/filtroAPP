@@ -21,9 +21,23 @@ const SERVICE_NAMES = {
   inibicao: 'Flushing/Inibição'
 };
 
+function toYMD(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    const y = value.getUTCFullYear();
+    const m = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(value.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(value).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
 function weekdayNamePt(value) {
-  if (!value) return '';
-  return new Date(value).toLocaleDateString('pt-BR', { weekday: 'long' });
+  const ymd = toYMD(value);
+  if (!ymd) return '';
+  const [y, m, d] = ymd.split('-');
+  return new Date(`${y}-${m}-${d}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long' });
 }
 
 function safeText(value) {
@@ -31,9 +45,15 @@ function safeText(value) {
   return String(value);
 }
 
+function safePath(value) {
+  return safeText(value).replace(/[<>:"/\\|?*\n\r]/g, '_').trim();
+}
+
 function formatDatePt(value) {
-  if (!value) return '';
-  return new Date(value).toLocaleDateString('pt-BR');
+  const ymd = toYMD(value);
+  if (!ymd) return '';
+  const [y, m, d] = ymd.split('-');
+  return `${d}/${m}/${y}`;
 }
 
 function formatMinutes(total) {
@@ -648,7 +668,17 @@ function expandServices(doc, report) {
   });
 
   if (!services.length) {
-    replacePlaceholders(templateTable, serviceTemplateData({ serviceType: '', finalized: null, extraData: {} }, 0));
+    const parent = templateTable.parentNode;
+    if (parent) {
+      const para = doc.createElement('w:p');
+      const run = doc.createElement('w:r');
+      const text = doc.createElement('w:t');
+      text.appendChild(doc.createTextNode('Não há serviços adicionados.'));
+      run.appendChild(text);
+      para.appendChild(run);
+      parent.insertBefore(para, templateTable);
+    }
+    removeNode(templateTable);
     return;
   }
 
@@ -714,18 +744,73 @@ export async function buildReportDocx(report) {
   return zip.toBuffer();
 }
 
+function resolveUploadSourcePath(source) {
+  if (!source) return null;
+  let fileName = source;
+  try {
+    if (/^https?:\/\//i.test(source)) {
+      fileName = decodeURIComponent(new URL(source).pathname.split('/').pop() || '');
+    } else if (source.startsWith('/uploads/')) {
+      fileName = decodeURIComponent(source.split('/').pop() || '');
+    }
+  } catch {
+    return null;
+  }
+  if (!fileName) return null;
+  const targetPath = path.join(env.uploadDir, fileName);
+  return fsSync.existsSync(targetPath) ? targetPath : null;
+}
+
+async function organizePhotos(report, projectFolderName) {
+  const dateStr = formatDatePt(report.reportDate).replace(/\//g, '-');
+  const rdoNum = reportNumber(report);
+  const reportType = report.reportType;
+  const photosDir = path.join(env.uploadDir, projectFolderName, 'Registros fotográficos', reportType);
+  await fs.mkdir(photosDir, { recursive: true });
+
+  // General uploads (RDO photos)
+  const generalUploads = (((report.specialConditions || {}).generalUploads) || []).filter(Boolean);
+  let count = 1;
+  for (const upload of generalUploads) {
+    const source = upload?.url || upload?.storagePath || upload?.fileName;
+    const srcPath = resolveUploadSourcePath(source);
+    if (!srcPath) continue;
+    const ext = path.extname(srcPath) || '.jpg';
+    const destName = `${reportType} ${rdoNum} - ${dateStr} - foto ${count}${ext}`;
+    try { await fs.copyFile(srcPath, path.join(photosDir, destName)); count++; } catch { /* skip missing */ }
+  }
+
+  // Service attachment photos
+  for (const service of (report.services || [])) {
+    const fields = service.extraData || {};
+    const equipment = safePath(stringify(getField(fields, ['Equipamento', 'ID da embarcação'])) || 'Equipamento');
+    const system = safePath(service.system || stringify(getField(fields, ['Sistema'])) || 'Sistema');
+    let svcCount = 1;
+    for (const attachment of (service.attachments || [])) {
+      const source = attachment?.url || attachment?.storagePath || attachment?.fileName;
+      const srcPath = resolveUploadSourcePath(source);
+      if (!srcPath) continue;
+      const ext = path.extname(srcPath) || '.jpg';
+      const destName = `${equipment} - ${system} - ${dateStr} - foto ${svcCount}${ext}`;
+      try { await fs.copyFile(srcPath, path.join(photosDir, destName)); svcCount++; } catch { /* skip missing */ }
+    }
+  }
+}
+
 export async function saveReportDocx(report) {
   const bytes = await buildReportDocx(report);
-  const dir = path.join(env.uploadDir, 'generated-docx');
+  const projectFolderName = safePath(`Missão ${report.project.code} - ${report.project.name}`);
+  const dir = path.join(env.uploadDir, projectFolderName, report.reportType);
   await fs.mkdir(dir, { recursive: true });
-  const iso = new Date(report.reportDate).toLocaleDateString('pt-BR').replace(/\//g, '-');
+  const iso = formatDatePt(report.reportDate).replace(/\//g, '-');
   const weekday = weekdayNamePt(report.reportDate);
   const fileName = `Missão ${report.project.code} - ${report.project.name} - ${report.reportType} ${reportNumber(report)} - ${iso} - ${weekday}.docx`;
   const targetPath = path.join(dir, fileName);
   await fs.writeFile(targetPath, bytes);
+  await organizePhotos(report, projectFolderName);
   return {
     fileName,
     targetPath,
-    publicUrl: `/uploads/generated-docx/${encodeURIComponent(fileName)}`
+    publicUrl: `/uploads/${encodeURIComponent(projectFolderName)}/${report.reportType}/${encodeURIComponent(fileName)}`
   };
 }

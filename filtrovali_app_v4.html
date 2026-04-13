@@ -218,7 +218,7 @@ textarea{resize:none;min-height:72px}
 <!-- CABEÇALHO -->
 <div class="screen" id="s-cabecalho">
   <div class="topbar">
-    <div style="cursor:pointer;font-size:18px;margin-right:4px" onclick="go('s-home')">←</div>
+    <div style="cursor:pointer;font-size:18px;margin-right:4px" onclick="voltarDoRelatorio()">←</div>
     <div><div class="tb-title">Novo relatório</div><div class="tb-sub">Cabeçalho</div></div>
     <div class="tb-step">1 / 3</div>
   </div>
@@ -234,7 +234,7 @@ textarea{resize:none;min-height:72px}
           <option value="petroquimica">Petroquímica Alpha</option>
         </select>
       </div>
-      <div class="fg"><label>Data do relatório <span class="req">*</span></label><input type="date" id="hdr-data" value="2026-04-08" data-required="true" data-label="Data do relatório"></div>
+      <div class="fg"><label>Data do relatório <span class="req">*</span></label><input type="date" id="hdr-data" data-required="true" data-label="Data do relatório"></div>
     </div>
     <div class="card">
       <div class="sec">Horários</div>
@@ -286,7 +286,7 @@ textarea{resize:none;min-height:72px}
     </div>
   </div>
   <div class="bbar">
-    <button class="btns" onclick="go('s-home')">Cancelar</button>
+    <button class="btns" onclick="voltarDoRelatorio()">Cancelar</button>
     <button class="btnp" onclick="goServicos()">Próximo →</button>
   </div>
 </div>
@@ -346,7 +346,7 @@ textarea{resize:none;min-height:72px}
 <!-- ══ PAINEL GESTOR ══ -->
 <div class="screen" id="s-gestor">
   <div class="topbar">
-    <div><div class="tb-title">Painel Gestor</div><div class="tb-sub">Filtrovali</div></div>
+    <div><div class="tb-title">Painel Gestor</div><div class="tb-sub" id="gestor-greeting-sub">Filtrovali</div></div>
     <div class="gestor-badge">Admin</div>
     <div class="logout-chip" onclick="go('s-login')">Sair</div>
   </div>
@@ -892,10 +892,7 @@ function desidratacaoBlock(n,prefix){
     '<div class="fg"><label>Umidade inicial (ppm)</label><input type="number" placeholder="0"></div>'+
     '<div class="fg"><label>Umidade final (ppm)</label><input type="number" placeholder="0"></div>'+
     '</div>'+
-    uploadField('Foto análise inicial')+
-    uploadField('Foto análise final')+
-    uploadField('Foto do óleo (antes)')+
-    uploadField('Foto do óleo (depois)')+
+    uploadField('Fotos da desidratação')+
     '</div></div></div>';
 }
 
@@ -1854,12 +1851,15 @@ function setupRuntimeUi(){
 }
 function updateUserLabels(){
   var nome=currentUser?currentUser.name:'Colaborador';
+  var firstName=nome.split(' ')[0]||nome;
   var homeName=document.getElementById('home-user-name');
   if(homeName)homeName.textContent=nome;
   var badge=document.getElementById('gestor-user-badge');
   if(badge&&currentUser&&currentUser.role==='MANAGER')badge.textContent=nome;
   var greet=document.getElementById('home-greeting');
-  if(greet)greet.textContent='Bom dia, '+(nome.split(' ')[0]||nome);
+  if(greet)greet.textContent='Bom dia, '+firstName;
+  var gestorSub=document.getElementById('gestor-greeting-sub');
+  if(gestorSub&&currentUser&&currentUser.role==='MANAGER')gestorSub.textContent='Olá, '+firstName;
   var d=new Date();
   var dateLbl=document.getElementById('home-date');
   if(dateLbl)dateLbl.textContent=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
@@ -1873,7 +1873,9 @@ function reportStatusMeta(report){
   return statusMeta(report&&report.status);
 }
 function formatReportDate(v){
-  return v?new Date(v).toLocaleDateString('pt-BR'):'—';
+  if(!v)return '—';
+  var s=String(v).slice(0,10),p=s.split('-');
+  return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:new Date(v).toLocaleDateString('pt-BR');
 }
 function summarizeServices(report){
   return (report.services||[]).map(function(s){return serviceNames[s.serviceType]||s.serviceType;}).join(', ');
@@ -2198,6 +2200,23 @@ function fileToDataUrl(file){
     reader.readAsDataURL(file);
   });
 }
+function resizeImageDataUrl(dataUrl,mimeType){
+  return new Promise(function(resolve){
+    var img=new Image();
+    img.onload=function(){
+      var w=img.width,h=img.height,maxSide=Math.max(w,h);
+      if(maxSide<=1600){resolve(dataUrl);return;}
+      var scale=1600/maxSide;
+      var nw=Math.round(w*scale),nh=Math.round(h*scale);
+      var canvas=document.createElement('canvas');
+      canvas.width=nw;canvas.height=nh;
+      canvas.getContext('2d').drawImage(img,0,0,nw,nh);
+      resolve(canvas.toDataURL(mimeType||'image/jpeg',0.92));
+    };
+    img.onerror=function(){resolve(dataUrl);};
+    img.src=dataUrl;
+  });
+}
 function renderCollaboratorSignaturePreview(url){
   var wrap=document.getElementById('ed-col-assinatura-preview');
   if(!wrap)return;
@@ -2237,7 +2256,9 @@ async function handleUploadInput(input){
   var existing=JSON.parse(zone.dataset.uploads||'[]');
   for(var i=0;i<input.files.length;i++){
     var file=input.files[i];
-    var uploaded=await apiFetch('/uploads',{method:'POST',body:JSON.stringify({label:label,fileName:file.name,mimeType:file.type||'image/jpeg',dataUrl:await fileToDataUrl(file)})});
+    var rawDataUrl=await fileToDataUrl(file);
+    var resizedDataUrl=await resizeImageDataUrl(rawDataUrl,file.type||'image/jpeg');
+    var uploaded=await apiFetch('/uploads',{method:'POST',body:JSON.stringify({label:label,fileName:file.name,mimeType:file.type||'image/jpeg',dataUrl:resizedDataUrl})});
     uploaded.url=apiHost()+uploaded.url;
     existing.push(uploaded);
   }
@@ -4231,13 +4252,34 @@ async function removeProjeto(id){
     await refreshDbFromApi();
   }catch(err){alert('Erro ao remover projeto: '+err.message);}
 }
+function gestorCriarRelatorio(){
+  currentDraftId='';
+  resetReportForm();
+  go('s-cabecalho');
+}
+function voltarDoRelatorio(){
+  if(currentUser&&currentUser.role==='MANAGER'){go('s-gestor');}else{go('s-home');}
+}
+var _gestorPollInterval=null;
+function startGestorPolling(){
+  if(_gestorPollInterval)return;
+  _gestorPollInterval=setInterval(async function(){
+    if(!currentUser||currentUser.role!=='MANAGER')return;
+    var sc=document.getElementById('s-gestor');
+    if(!sc||!sc.classList.contains('active'))return;
+    await refreshReportsCache();
+    renderGestor();
+  },30000);
+}
 function renderGestor(){
   var c=document.getElementById('gestor-content');if(!c)return;
   var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED';});
   var approved=reportsCache.filter(function(r){return r.status==='APPROVED';});
   var pen=document.getElementById('cnt-pen');if(pen)pen.textContent=pending.length;
   if(gestorTab==='pendentes'){
-    c.innerHTML='<div class="stat-grid"><div class="stat-card"><div class="stat-num">'+pending.length+'</div><div class="stat-lbl">Pendentes/devolvidos</div></div><div class="stat-card"><div class="stat-num">'+approved.length+'</div><div class="stat-lbl">Aprovados</div></div></div>'+groupedReportHtml(pending,'gestor','Nenhum relatório pendente.');
+    var draftsHtml='';
+    if(draftsCache&&draftsCache.length){draftsHtml='<div class="card" style="margin-bottom:12px"><div class="sec">Relatórios em andamento</div><div class="admin-list">'+draftsCache.map(function(draft){var payload=draft.payload||draft;var date=(draft.reportDate||payload.reportDate)?formatReportDate(draft.reportDate||payload.reportDate):'Sem data';return '<div class="rel-item" style="cursor:default"><div class="rel-icon">📝</div><div class="rel-info"><div class="rel-name">'+escapeHtml(draft.title||payload.title||'Relatório em andamento')+'</div><div class="rel-meta">'+escapeHtml(date)+'</div></div><button class="mini-btn alt" type="button" onclick="resumeDraft(\''+draft.id+'\')">Continuar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" type="button" onclick="removeDraft(\''+draft.id+'\')">Excluir</button></div>';}).join('')+'</div></div>';}
+    c.innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="mini-btn" onclick="gestorCriarRelatorio()">+ Criar Relatório</button></div>'+draftsHtml+'<div class="stat-grid"><div class="stat-card"><div class="stat-num">'+pending.length+'</div><div class="stat-lbl">Pendentes/devolvidos</div></div><div class="stat-card"><div class="stat-num">'+approved.length+'</div><div class="stat-lbl">Aprovados</div></div></div>'+groupedReportHtml(pending,'gestor','Nenhum relatório pendente.');
   }else if(gestorTab==='aprovados'){
     c.innerHTML=groupedReportHtml(approved,'gestor','Nenhum relatório aprovado.');
   }else if(gestorTab==='usuarios'){
@@ -4620,6 +4662,7 @@ function sanitizeContinuationService(service){
 }
 var DRAFTS_KEY='filtrovali_report_drafts_v1';
 var currentDraftId='';
+var _isSubmitting=false;
 function loadDrafts(){
   try{return JSON.parse(localStorage.getItem(DRAFTS_KEY)||'[]');}catch(e){return [];}
 }
@@ -4709,7 +4752,7 @@ function hydrateDraft(draft){
   projAtual=draft.projectId||'';
   renderHeaderSources();
   if(document.getElementById('proj-sel'))document.getElementById('proj-sel').value=projAtual||'';
-  if(document.getElementById('hdr-data'))document.getElementById('hdr-data').value=draft.reportDate||new Date().toISOString().slice(0,10);
+  if(document.getElementById('hdr-data'))document.getElementById('hdr-data').value=draft.reportDate||'';
   if(document.getElementById('hdr-chegada'))document.getElementById('hdr-chegada').value=draft.arrivalTime||'';
   if(document.getElementById('hdr-saida'))document.getElementById('hdr-saida').value=draft.departureTime||'';
   if(document.getElementById('hdr-intervalo'))document.getElementById('hdr-intervalo').value=draft.lunchBreak||'1 hora';
@@ -4778,6 +4821,7 @@ function resetReportForm(){
   var noturnoIntervalo=document.getElementById('noturno-intervalo'); if(noturnoIntervalo)noturnoIntervalo.value='1 hora';
   var standbyToggle=document.querySelector('input[onchange*="standby"]'); if(standbyToggle){standbyToggle.checked=false;tog('standby',standbyToggle);}
   var noturnoToggle=document.querySelector('input[onchange*="noturno"]'); if(noturnoToggle){noturnoToggle.checked=false;tog('noturno',noturnoToggle);}
+  document.getElementById('hdr-data').value='';
   document.getElementById('svc-cards').innerHTML='';
   svcCount=0;
   if(document.getElementById('final-overtime'))document.getElementById('final-overtime').value='';
@@ -4918,13 +4962,21 @@ async function upsertDraft(draft){
   }catch(err){}
 }
 function persistCurrentDraft(){
-  if(editingReportId)return;
+  if(editingReportId||_isSubmitting)return;
   var draft=currentReportDraftSnapshot();
-  if(!draft){
-    if(currentDraftId)removeDraft(currentDraftId,true);
-    return;
+  if(!draft||!draft.projectId||!draft.reportDate)return;
+  var key=(draft.projectId||'')+'|'+(draft.reportDate||'').slice(0,10);
+  var existing=draftsCache.find(function(item){
+    var d=item.payload||item;
+    return item.id!==currentDraftId&&((item.projectId||d.projectId||'')+'|'+(item.reportDate||d.reportDate||'').slice(0,10))===key;
+  });
+  if(existing){
+    if(currentDraftId&&currentDraftId!==existing.id)draftsCache=draftsCache.filter(function(item){return item.id!==currentDraftId;});
+    currentDraftId=existing.id;
+    draft.id=existing.id;
+  }else if(currentDraftId&&!String(currentDraftId).startsWith('draft_')){
+    draft.id=currentDraftId;
   }
-  if(currentDraftId && !String(currentDraftId).startsWith('draft_'))draft.id=currentDraftId;
   upsertDraft(draft);
 }
 function discardCurrentDraft(){
@@ -4956,7 +5008,7 @@ function hydrateDraft(draft){
   projAtual=draft.projectId||data.projectId||'';
   renderHeaderSources();
   if(document.getElementById('proj-sel'))document.getElementById('proj-sel').value=projAtual||'';
-  if(document.getElementById('hdr-data'))document.getElementById('hdr-data').value=data.reportDate||new Date().toISOString().slice(0,10);
+  if(document.getElementById('hdr-data'))document.getElementById('hdr-data').value=data.reportDate||'';
   if(document.getElementById('hdr-chegada'))document.getElementById('hdr-chegada').value=data.arrivalTime||'';
   if(document.getElementById('hdr-saida'))document.getElementById('hdr-saida').value=data.departureTime||'';
   if(document.getElementById('hdr-intervalo'))document.getElementById('hdr-intervalo').value=data.lunchBreak||'1 hora';
@@ -5067,21 +5119,30 @@ async function enviar(){
   var overtimeSummary=updateOvertimeUi();
   var overtimeReasonField=document.getElementById('final-overtime');
   var overtimeReason=overtimeSummary.totalOvertimeMinutes>0?(overtimeReasonField.value.trim()||null):null;
-  var payload={projectId: projeto.id,createdByUserId: currentUser.id,reportType:'RDO',status:'PENDING',reportDate: document.getElementById('hdr-data').value,arrivalTime: document.getElementById('hdr-chegada').value,departureTime: document.getElementById('hdr-saida').value,lunchBreak: document.getElementById('hdr-intervalo').value,daytimeCount: getSelectedCollaboratorIds().length,overtimeReason: overtimeReason,dailyDescription: document.getElementById('final-description').value.trim() || null,specialConditions: collectSpecialConditions(),collaboratorIds: getSelectedCollaboratorIds(),services: collectServices()};
+  var isManager=currentUser.role==='MANAGER';
+  var payload={projectId: projeto.id,createdByUserId: currentUser.id,reportType:'RDO',status:isManager?'APPROVED':'PENDING',reportDate: document.getElementById('hdr-data').value,arrivalTime: document.getElementById('hdr-chegada').value,departureTime: document.getElementById('hdr-saida').value,lunchBreak: document.getElementById('hdr-intervalo').value,daytimeCount: getSelectedCollaboratorIds().length,overtimeReason: overtimeReason,dailyDescription: document.getElementById('final-description').value.trim() || null,specialConditions: collectSpecialConditions(),collaboratorIds: getSelectedCollaboratorIds(),services: collectServices()};
+  _isSubmitting=true;
   try{
     if(editingReportId)await apiFetch('/reports/'+editingReportId,{method:'PUT',body:JSON.stringify(payload)});
     else await apiFetch('/reports',{method:'POST',body:JSON.stringify(payload)});
-    await removeDraft(currentDraftId,true);
+    var matchKey=(projeto.id||'')+'|'+(payload.reportDate||'').slice(0,10);
+    var toDelete=(draftsCache||[]).filter(function(item){
+      var d=item.payload||item;
+      return ((item.projectId||d.projectId||'')+'|'+(item.reportDate||d.reportDate||'').slice(0,10))===matchKey;
+    }).map(function(item){return item.id;});
+    if(currentDraftId&&toDelete.indexOf(currentDraftId)<0)toDelete.push(currentDraftId);
+    for(var di=0;di<toDelete.length;di++)await removeDraft(toDelete[di],true);
     var wasEditing=!!editingReportId;
     resetReportForm();
     await refreshReportsCache();
     await refreshDraftsCache();
     renderMyReports();
-    if(currentUser.role==='MANAGER')renderGestor();
-    go('s-home');
-    setTimeout(function(){alert(wasEditing?'✓ Relatório atualizado com sucesso.':'✓ Relatório enviado com sucesso.');},200);
+    if(isManager){renderGestor();go('s-gestor');}else{go('s-home');}
+    setTimeout(function(){alert(wasEditing?'✓ Relatório atualizado com sucesso.':(isManager?'✓ Relatório criado e aprovado automaticamente.':'✓ Relatório enviado com sucesso.'));},200);
   }catch(sendErr){
     alert('Erro ao enviar relatório: '+sendErr.message);
+  }finally{
+    _isSubmitting=false;
   }
 }
 var _origRefreshReportsCache=refreshReportsCache;
@@ -5097,6 +5158,7 @@ async function bootstrapAfterLogin(){
   try{ await refreshDraftsCache(); }catch(err){ console.warn('Falha ao carregar rascunhos após login.',err); }
   if(currentUser && currentUser.role==='MANAGER'){
     try{ await refreshUsersCache(); }catch(err){ console.warn('Falha ao carregar usuários após login.',err); }
+    startGestorPolling();
     renderGestor();
     go('s-gestor');
     return;
