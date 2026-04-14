@@ -656,7 +656,7 @@ function getSelectedNightCollaboratorIds(){
 }
 function getAvailableServiceCollaborators(){
   var seen=new Set();var result=[];
-  Array.from(document.querySelectorAll('#colab-list .colab-tag, #noturno-colab-list .colab-tag')).forEach(function(el){
+  Array.from(document.querySelectorAll('#colab-list .colab-tag, #noturno-colab-list .colab-tag, #mgr-colab-list .colab-tag, #mgr-noturno-colab-list .colab-tag')).forEach(function(el){
     var id=el.dataset.colabId;
     var name=((el.querySelector('.colab-name')||{}).textContent||'').trim();
     if(id&&!seen.has(id)){seen.add(id);result.push({id:id,nome:name});}
@@ -2954,6 +2954,7 @@ function addManagerColab(){
   document.getElementById('mgr-colab-list').appendChild(d);
   sel.value='';
   renderManagerCollaboratorOptions();
+  refreshServiceCollaboratorOptions();
 }
 function addManagerNightColab(){
   var sel=document.getElementById('mgr-nadd-sel');
@@ -2966,6 +2967,7 @@ function addManagerNightColab(){
   document.getElementById('mgr-noturno-colab-list').appendChild(d);
   sel.value='';
   renderManagerNightCollaboratorOptions();
+  refreshServiceCollaboratorOptions();
 }
 function toggleManagerCollapse(id,checked){
   var el=document.getElementById(id);
@@ -3222,6 +3224,7 @@ function forceServiceToggle(card,labelText,isYes){
 }
 function fillServiceCardFromReport(card,service){
   var fields=Object.assign({},service.extraData||{});
+  fields['Colaboradores do serviço']=fields['Colaboradores do serviço']||fields['Colaboradores do serviÃ§o']||fields['Colaboradores do servico']||fields.colaboradoresServico||[];
   fields['Equipamento']=fields['Equipamento']||'';
   fields['Sistema']=service.system||fields['Sistema']||'';
   fields['Material da tubulaÃ§Ã£o']=service.material||fields['Material da tubulaÃ§Ã£o']||'';
@@ -4065,6 +4068,7 @@ async function startEditReport(id){
   (((special.noturnoDetails||{}).collaboratorIds)||[]).forEach(function(idNight){ var col=getColaboradorById(idNight); if(col)document.getElementById('noturno-colab-list').appendChild(buildColabTag({id:col.id,nome:col.nome})); });
   document.getElementById('svc-cards').innerHTML=''; svcCount=0;
   (report.services||[]).forEach(function(service){ addSvc(service.serviceType,service.extraData||{}); var card=document.querySelectorAll('.svc-card')[document.querySelectorAll('.svc-card').length-1]; if(card)setServiceCardData(card,service); });
+  refreshServiceCollaboratorOptions();
   if(document.getElementById('final-overtime'))document.getElementById('final-overtime').value=report.overtimeReason||'';
   if(document.getElementById('final-description'))document.getElementById('final-description').value=report.dailyDescription||'';
   var finalZone=document.querySelector('#s-final .upload-z'); if(finalZone)setUploads(finalZone,((report.specialConditions||{}).generalUploads)||[]);
@@ -4159,6 +4163,7 @@ async function saveManagerDetail(id,action){
 function collectManagerServices(){
   return Array.from(document.querySelectorAll('#mgr-services-root .svc-card')).map(function(card){
     var fields=collectServiceFields(card);
+    fields.__serviceLinkKey=card.dataset.sourceServiceId||card.dataset.serviceId||fields.__serviceLinkKey||('svc_'+Date.now()+'_'+Math.random().toString(36).slice(2,8));
     return {
       serviceType: card.dataset.svcType,
       equipmentId: null,
@@ -4172,6 +4177,10 @@ function collectManagerServices(){
   });
 }
 function setServiceCardData(card,service){
+  if(card&&service){
+    card.dataset.serviceId=service.id||card.dataset.serviceId||'';
+    card.dataset.sourceServiceId=(service.extraData&&service.extraData.__serviceLinkKey)||service.id||card.dataset.sourceServiceId||'';
+  }
   fillServiceCardFromReport(card,service);
 }
 function renderRtpDetail(report){
@@ -4358,12 +4367,12 @@ function renderManagerDetail(report){
     var wrap=root.lastElementChild;
     var card=wrap.querySelector('.svc-card');
     if(card){
-      card.dataset.serviceId=service.id;
-      fillServiceCardFromReport(card,service);
+      setServiceCardData(card,service);
       var removeBtn=card.querySelector('.svc-remove');
       if(removeBtn)removeBtn.style.display='';
     }
   });
+  refreshServiceCollaboratorOptions();
 
   enhanceUploadZones(document.getElementById('det-body'));
   var finalZone=document.getElementById('mgr-final-uploads');
@@ -4376,6 +4385,7 @@ function renderManagerDetail(report){
 function collectManagerServices(){
   return Array.from(document.querySelectorAll('#mgr-services-root .svc-card')).map(function(card){
     var fields=collectServiceFields(card);
+    fields.__serviceLinkKey=card.dataset.sourceServiceId || card.dataset.serviceId || fields.__serviceLinkKey || ('svc_'+Date.now()+'_'+Math.random().toString(36).slice(2,8));
     return {
       serviceType: card.dataset.svcType,
       equipmentId: null,
@@ -4761,6 +4771,34 @@ async function downloadDocx(id){
     btns.forEach(function(b){b.disabled=false;b.style.opacity='';b.textContent=b.dataset.originalText||'Baixar DOCX';});
   }
 }
+async function deleteReport(id){
+  if(!authState.token){alert('Faça login novamente.');go('s-login');return;}
+  if(!confirm('Excluir este relatório? Se for um RDO, os relatórios de serviço vinculados a ele também serão removidos.'))return;
+  try{
+    var response=await fetch(API_BASE+'/reports/'+id,{
+      method:'DELETE',
+      headers:{Authorization:'Bearer '+authState.token}
+    });
+    if(!response.ok){
+      var msg='Falha ao excluir relatório.';
+      try{ var err=await response.json(); msg=err.error||msg; }catch(e){}
+      alert(msg);
+      return;
+    }
+    await refreshReportsCache();
+    await refreshDraftsCache();
+    renderMyReports();
+    if(currentUser&&currentUser.role==='MANAGER'){
+      renderGestor();
+      go('s-gestor');
+    }else{
+      go('s-home');
+    }
+    showToast('Relatório excluído com sucesso.');
+  }catch(err){
+    alert('Erro ao excluir relatório: '+err.message);
+  }
+}
 function setPdfButtonsLoading(id,isLoading){
   Array.from(document.querySelectorAll('button')).forEach(function(btn){
     var handler=btn.getAttribute('onclick')||'';
@@ -4875,18 +4913,18 @@ function renderManagerDetail(report){
     var wrap=root.lastElementChild;
     var card=wrap.querySelector('.svc-card');
     if(card){
-      card.dataset.serviceId=service.id;
-      fillServiceCardFromReport(card,service);
+      setServiceCardData(card,service);
       var removeBtn=card.querySelector('.svc-remove');
       if(removeBtn)removeBtn.style.display='';
     }
   });
+  refreshServiceCollaboratorOptions();
   enhanceUploadZones(document.getElementById('det-body'));
   var finalZone=document.getElementById('mgr-final-uploads');
   if(finalZone)setUploads(finalZone,finalUploads);
   document.getElementById('det-actions').innerHTML=report.status==='APPROVED'
-    ? '<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'save\')">Salvar</button><button class="btn-pdf" onclick="gerarDOCX(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
-    : '<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'save\')">Salvar</button><button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'approve\')">Salvar e aprovar</button><button class="btn-reject" onclick="saveManagerDetail(\''+report.id+'\',\'return\')">Salvar e devolver</button>';
+    ? '<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'save\')">Salvar</button><button class="btn-pdf" onclick="gerarDOCX(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button><button class="btn-reject" onclick="deleteReport(\''+report.id+'\')">Excluir</button>'
+    : '<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'save\')">Salvar</button><button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'approve\')">Salvar e aprovar</button><button class="btn-reject" onclick="saveManagerDetail(\''+report.id+'\',\'return\')">Salvar e devolver</button><button class="btn-reject" onclick="deleteReport(\''+report.id+'\')">Excluir</button>';
 }
 function renderOngoingServices(){
   var root=document.getElementById('ongoing-services-content');
@@ -5784,27 +5822,33 @@ function reportCard(report,origin){
   var subtitle;
   if(isRtp){
     var svc=(report.services||[])[0];
-    var equip=svc?((svc.extraData&&svc.extraData['Equipamento(s)'])?stringify2(svc.extraData['Equipamento(s)']):(svc.extraData&&svc.extraData['Equipamento'])||'&#8212;'):'&#8212;';
-    var sys=svc?(svc.system||((svc.extraData||{})['Sistema'])||'&#8212;'):'&#8212;';
+    var svcData=(svc&&svc.extraData)||(((report.specialConditions||{}).serviceData)||{});
+    var equip=svc?(svcData['Equipamento(s)']?stringify2(svcData['Equipamento(s)']):(svcData['Equipamento'])||'&#8212;'):(svcData['Equipamento(s)']?stringify2(svcData['Equipamento(s)']):(svcData['Equipamento'])||'&#8212;');
+    var sys=svc?((svc.system||svcData['Sistema'])||'&#8212;'):((report.system||svcData['Sistema'])||'&#8212;');
     subtitle=escapeHtml(equip)+' &middot; '+escapeHtml(sys);
   }else{
-    subtitle=escapeHtml(summarizeServices(report)||'Sem servi&ccedil;os');
+    subtitle=escapeHtml(summarizeServices(report)||('Sem servi'+String.fromCharCode(231)+'os'));
   }
   var actions='';
-  if(isRtp&&report.status==='APPROVED'){
+  if(report.status==='APPROVED'){
     actions=currentUser&&currentUser.role==='MANAGER'
-      ?'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn" type="button" onclick="event.stopPropagation();downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="mini-btn alt" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">Gerar PDF</button></div>'
-      :'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn alt" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">Gerar PDF</button></div>';
+      ?'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();downloadDocx(\''+report.id+'\')">DOCX</button><button class="mini-btn alt" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">PDF</button></div>'
+      :'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn alt" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">PDF</button></div>';
   }
+  var deleteAction=currentUser&&currentUser.role==='MANAGER'
+    ?'<button title="Excluir relatório" aria-label="Excluir relatório" type="button" onclick="event.stopPropagation();deleteReport(\''+report.id+'\')" style="margin-top:2px;align-self:flex-end;width:28px;height:28px;border:none;border-radius:999px;background:#f3f4f6;color:#b42318;cursor:pointer;font-size:14px;line-height:1">&#128465;</button>'
+    :'';
   return '<div class="rel-item" onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')" style="align-items:flex-start;gap:12px">'+
     '<div class="rel-icon">&#128203;</div>'+
     '<div class="rel-info"><div class="rel-name">'+escapeHtml(reportDisplayLabel(report))+' &middot; '+escapeHtml(report.project.name)+'</div><div class="rel-meta">'+escapeHtml(owner)+' &middot; '+formatReportDate(report.reportDate)+'<br>'+subtitle+'</div></div>'+
-    '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-left:auto"><span class="badge '+meta.cls+'">'+meta.txt+'</span>'+actions+'</div>'+
+    '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:auto"><span class="badge '+meta.cls+'">'+meta.txt+'</span>'+actions+deleteAction+'</div>'+
     '</div>';
 }
 function switchProjectReportTab(projectKey,type,btn){
   var root=document.getElementById(projectKey);
   if(!root)return;
+  var scrollHost=root.closest('.scroll')||document.scrollingElement||document.documentElement;
+  var previousScrollTop=scrollHost&&typeof scrollHost.scrollTop==='number'?scrollHost.scrollTop:0;
   var wasOpen=btn&&btn.dataset&&btn.dataset.open==='true';
   root.querySelectorAll('[data-report-panel]').forEach(function(panel){
     var sameType=panel.getAttribute('data-report-panel')===type;
@@ -5820,6 +5864,8 @@ function switchProjectReportTab(projectKey,type,btn){
     var chev=row.querySelector('.project-report-chevron');
     if(chev)chev.innerHTML=active?'&#9662;':'&#9656;';
   });
+  if(btn&&typeof btn.blur==='function')btn.blur();
+  if(scrollHost&&typeof scrollHost.scrollTop==='number')scrollHost.scrollTop=previousScrollTop;
 }
 function groupedReportHtml(items,origin,emptyText){
   if(!items.length)return '<div style="text-align:center;color:var(--mu);padding:32px;font-size:13px">'+emptyText+'</div>';
@@ -5839,7 +5885,7 @@ function groupedReportHtml(items,origin,emptyText){
     byType.RTP.sort(function(a,b){
       return (Number(a.sequenceNumber)||0)-(Number(b.sequenceNumber)||0) || String(a.reportDate||'').localeCompare(String(b.reportDate||''));
     });
-    var projectKey='proj_reports_'+projectName.replace(/[^a-z0-9]/gi,'_');
+    var projectKey='proj_reports_'+String(origin||'default').replace(/[^a-z0-9]/gi,'_')+'_'+projectName.replace(/[^a-z0-9]/gi,'_');
     if(isGestorPending){
       if(!byType.RDO.length)return;
       html+='<div class="card" id="'+projectKey+'"><div class="sec">'+escapeHtml(projectName)+'</div><div style="margin-top:10px">'+byType.RDO.map(function(r){return reportCard(r,origin);}).join('')+'</div></div>';
@@ -5848,14 +5894,14 @@ function groupedReportHtml(items,origin,emptyText){
     var sections='';
     ['RDO','RTP'].forEach(function(type,index){
       if(!byType[type].length)return;
-      sections+='<div style="margin-top:'+(index===0?'0':'8px')+'">'+
-        '<button type="button" class="project-report-row" data-type="'+type+'" data-open="'+(index===0?'true':'false')+'" onclick="switchProjectReportTab(\''+projectKey+'\',\''+type+'\',this)" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;padding:12px 14px;border:1px solid '+(index===0?'var(--pri)':'#e1e8e2')+';background:'+(index===0?'#eef3ef':'#f7faf7')+';border-radius:12px;cursor:pointer;font-size:13px;font-weight:700;color:var(--tx)">'+
+      sections+='<div style="margin-top:'+(index===0?'0':'8px')+';width:100%">'+
+        '<button type="button" class="project-report-row" data-type="'+type+'" data-open="'+(index===0?'true':'false')+'" onclick="switchProjectReportTab(\''+projectKey+'\',\''+type+'\',this)" style="width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;padding:12px 14px;border:1px solid '+(index===0?'var(--pri)':'#e1e8e2')+';background:'+(index===0?'#eef3ef':'#f7faf7')+';border-radius:12px;cursor:pointer;font-size:13px;font-weight:700;color:var(--tx)">'+
           '<span>'+type+'</span><span style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;color:var(--mu);font-weight:600">'+byType[type].length+' relat&oacute;rio'+(byType[type].length!==1?'s':'')+'</span><span class="project-report-chevron">'+(index===0?'&#9662;':'&#9656;')+'</span></span></button>'+
         '<div data-report-panel="'+type+'" data-open="'+(index===0?'true':'false')+'" style="display:'+(index===0?'':'none')+';padding-top:10px">'+
           byType[type].map(function(r){return reportCard(r,origin);}).join('')+
         '</div></div>';
     });
-    html+='<div class="card" id="'+projectKey+'"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap"><div class="sec" style="margin:0">'+escapeHtml(projectName)+'</div><div style="display:flex;gap:8px;flex-wrap:wrap;min-width:min(100%,320px)">'+sections+'</div></div></div>';
+    html+='<div class="card" id="'+projectKey+'"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap"><div class="sec" style="margin:0">'+escapeHtml(projectName)+'</div><div style="display:flex;gap:8px;flex-wrap:wrap;width:min(100%,380px);flex:0 0 min(100%,380px)">'+sections+'</div></div></div>';
   });
   return html;
 }
@@ -5947,6 +5993,7 @@ async function removeDraft(id,silent){
 function collectServices(){
   return Array.from(document.querySelectorAll('#svc-cards .svc-card')).map(function(card){
     var fields=collectServiceFields(card);
+    fields.__serviceLinkKey=card.dataset.sourceServiceId||card.dataset.serviceId||fields.__serviceLinkKey||('svc_'+Date.now()+'_'+Math.random().toString(36).slice(2,8));
     if(card.dataset.ongoingKey)fields.__ongoingKey=card.dataset.ongoingKey;
     return {
       serviceType: card.dataset.svcType,
@@ -6109,6 +6156,7 @@ async function removeDraft(id,silent){
 function collectServices(){
   return Array.from(document.querySelectorAll('#svc-cards .svc-card')).map(function(card){
     var fields=collectServiceFields(card);
+    fields.__serviceLinkKey=card.dataset.sourceServiceId||card.dataset.serviceId||fields.__serviceLinkKey||('svc_'+Date.now()+'_'+Math.random().toString(36).slice(2,8));
     if(card.dataset.ongoingKey)fields.__ongoingKey=card.dataset.ongoingKey;
     return {
       serviceType: card.dataset.svcType,
@@ -6239,6 +6287,17 @@ apiFetch=async function(path,options){
     opts.headers=Object.assign({'Cache-Control':'no-cache'},opts.headers||{});
   }
   return _origApiFetchFinal(path,opts);
+};
+var _origRefreshReportsCacheFinal=refreshReportsCache;
+refreshReportsCache=async function(){
+  var result=await _origRefreshReportsCacheFinal();
+  renderMyReports();
+  var gestorScreen=document.getElementById('s-gestor');
+  var gestorContent=document.getElementById('gestor-content');
+  if(gestorScreen && gestorContent && gestorScreen.classList.contains('active')){
+    renderGestor();
+  }
+  return result;
 };
 function renderDraftHome(){
   ensureDraftHomeBlock();

@@ -576,7 +576,8 @@ export async function buildReportPdf(report, prisma) {
     drawText('ASSINATURAS', MARGIN.left + 8, y - 8, 11, bold, COLORS.black);
     drawText('Cliente', MARGIN.left + leftWidth + 26, y - 8, 11, bold, COLORS.black);
 
-    const signatureSource = report.createdBy?.collaborator?.signatureImage || null;
+    const leader = report.project?.operator || report.createdBy?.collaborator || {};
+    const signatureSource = leader.signatureImage || report.createdBy?.collaborator?.signatureImage || null;
     const signatureBytes = await loadImageBytes(signatureSource);
     if (signatureBytes) {
       try {
@@ -610,8 +611,8 @@ export async function buildReportPdf(report, prisma) {
       color: COLORS.black
     });
 
-    drawText(`Líder: ${report.createdBy?.collaborator?.name || report.createdBy?.name || '—'}`, MARGIN.left + 12, y - 102, 10, bold, COLORS.blue);
-    drawText(`Cargo: ${report.createdBy?.collaborator?.role || '—'}`, MARGIN.left + 12, y - 118, 10, bold, COLORS.blue);
+    drawText(`Líder: ${leader.name || report.createdBy?.name || '—'}`, MARGIN.left + 12, y - 102, 10, bold, COLORS.blue);
+    drawText(`Cargo: ${leader.role || '—'}`, MARGIN.left + 12, y - 118, 10, bold, COLORS.blue);
     drawText('Cliente:', MARGIN.left + leftWidth + 30, y - 102, 10, bold, COLORS.black);
     drawText('Cargo:', MARGIN.left + leftWidth + 30, y - 118, 10, bold, COLORS.black);
     y -= boxHeight + 6;
@@ -637,4 +638,3 @@ export async function buildReportPdf(report, prisma) {
 
   return pdf.save();
 }
-

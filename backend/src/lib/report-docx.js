@@ -340,6 +340,9 @@ function buildDocxData(report) {
   const night = special.noturnoDetails || {};
   const standby = special.standbyDetails || {};
   const hasNight = !!special.noturno;
+  const primaryService = (report.services || [])[0] || null;
+  const primaryFields = (primaryService && primaryService.extraData) || {};
+  const projectLeader = report.project?.operator || {};
   return {
     missiontitle: `Missão ${report.project.code} - ${report.project.name}`,
     client: report.project.clientName || '',
@@ -363,8 +366,9 @@ function buildDocxData(report) {
     overtimecomment: report.overtimeReason || '',
     standbymotive: standby.motivo || '',
     activities: report.dailyDescription || '',
-    leadername: report.createdBy?.collaborator?.name || report.createdBy?.name || '',
-    leaderposition: report.createdBy?.collaborator?.role || ''
+    system: stringify(getField(primaryFields, ['Sistema'])) || primaryService?.system || '',
+    leadername: projectLeader.name || report.createdBy?.collaborator?.name || report.createdBy?.name || '',
+    leaderposition: projectLeader.role || report.createdBy?.collaborator?.role || ''
   };
 }
 
@@ -434,7 +438,7 @@ function nextRelationshipId(relsDoc) {
 }
 
 async function getSignatureAsset(report) {
-  const source = report.createdBy?.collaborator?.signatureImage;
+  const source = report.project?.operator?.signatureImage || report.createdBy?.collaborator?.signatureImage;
   return getUploadAsset(source);
 }
 

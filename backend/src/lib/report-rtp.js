@@ -343,8 +343,8 @@ function buildRtpBaseData(report) {
     endtime: stringify(getField(sd, ['Hora de término/pausa', 'Hora de termino/pausa'])),
     status,
     obs: stringify(getField(sd, ['Observações', 'Observacoes'])),
-    leadername: safeText(report.createdBy?.collaborator?.name || report.createdBy?.name),
-    leaderposition: safeText(report.createdBy?.collaborator?.role)
+    leadername: safeText(report.project?.operator?.name || report.createdBy?.collaborator?.name || report.createdBy?.name),
+    leaderposition: safeText(report.project?.operator?.role || report.createdBy?.collaborator?.role)
   };
 }
 
@@ -464,7 +464,7 @@ export async function buildRtpDocx(report) {
   const manos = sc.resolvedManometers || [];
 
   const baseData = buildRtpBaseDataResolved(report);
-  const signatureAsset = await getUploadAsset(report.createdBy?.collaborator?.signatureImage);
+  const signatureAsset = await getUploadAsset(report.project?.operator?.signatureImage || report.createdBy?.collaborator?.signatureImage);
 
   const manoUploads = (() => { const v = getField(sd, ['Fotos do manômetro', 'Fotos do manometro']); return Array.isArray(v) ? v : []; })();
   const sysUploads = (() => { const v = getField(sd, ['Fotos do sistema']); return Array.isArray(v) ? v : []; })();

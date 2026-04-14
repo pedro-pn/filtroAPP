@@ -171,6 +171,178 @@ async function reserveSequence(tx, projectId, reportType) {
   return sequenceNumber;
 }
 
+async function syncApprovedRtpReports(tx, report) {
+  if (!report || report.reportType !== ReportType.RDO || report.status !== ReportStatus.APPROVED) {
+    return;
+  }
+
+  const pressaoServices = (report.services || []).filter(
+    service => service.serviceType === 'pressao' && service.finalized === true
+  );
+
+  if (!pressaoServices.length) {
+    return;
+  }
+
+  const existingRtps = await tx.report.findMany({
+    where: {
+      projectId: report.projectId,
+      reportType: ReportType.RTP
+    },
+    select: {
+      id: true,
+      sequenceNumber: true,
+      specialConditions: true
+    }
+  });
+
+  const existingByLinkKey = new Map();
+  existingRtps.forEach(item => {
+    const special = item.specialConditions || {};
+    if (special.parentRdoId !== report.id) {
+      return;
+    }
+    const linkKey = String(special.serviceLinkKey || special.serviceId || '').trim();
+    if (linkKey) {
+      existingByLinkKey.set(linkKey, item);
+    }
+  });
+
+  for (const service of pressaoServices) {
+    const fields = service.extraData || {};
+    const serviceLinkKey = String(
+      fields.__serviceLinkKey ||
+      fields.__sourceServiceId ||
+      service.id ||
+      ''
+    ).trim();
+
+    const collabField =
+      fields['Colaboradores do serviço'] ||
+      fields['Colaboradores do serviÃ§o'] ||
+      fields['Colaboradores do servico'];
+    const collabIds = Array.isArray(collabField?.ids) ? collabField.ids.filter(Boolean) : [];
+
+    const manoField =
+      fields['Manômetros utilizados'] ||
+      fields['ManÃ´metros utilizados'] ||
+      fields['Manometros utilizados'];
+    const manoIds = Array.isArray(manoField?.ids) ? manoField.ids.filter(Boolean) : [];
+
+    const uthField = fields['Unidade de Teste HidrostÃ¡tico (UTH)'] ||
+      fields['Unidade de Teste Hidrostatico (UTH)'];
+    const uthIds = Array.isArray(uthField?.ids) ? uthField.ids.filter(Boolean)
+      : (uthField && typeof uthField === 'string' ? [uthField] : []);
+
+    const [collaborators, manometers, uthUnits] = await Promise.all([
+      collabIds.length ? tx.collaborator.findMany({ where: { id: { in: collabIds } } }) : Promise.resolve([]),
+      manoIds.length ? tx.manometer.findMany({ where: { id: { in: manoIds } } }) : Promise.resolve([]),
+      uthIds.length ? tx.unit.findMany({ where: { id: { in: uthIds } } }) : Promise.resolve([])
+    ]);
+
+    const daytimeIds = new Set((report.collaborators || []).map(link => link.collaboratorId).filter(Boolean));
+    const nighttimeIds = new Set(
+      (((report.specialConditions || {}).noturnoDetails || {}).collaboratorIds || []).filter(Boolean)
+    );
+    const resolvedCollaborators = collaborators.map(c => {
+      const inDay = daytimeIds.has(c.id);
+      const inNight = nighttimeIds.has(c.id);
+      const shift = inDay && inNight ? 'Diurno e Noturno' : (inNight ? 'Noturno' : 'Diurno');
+      return { id: c.id, name: c.name, role: c.role, shift };
+    });
+    const resolvedManometers = manometers.map(m => ({
+      id: m.id,
+      code: m.code,
+      scale: m.scale,
+      certCode: m.calibrationCertCode,
+      calibratedAt: m.calibratedAt ? m.calibratedAt.toISOString().slice(0, 10) : '',
+      expiresAt: m.expiresAt ? m.expiresAt.toISOString().slice(0, 10) : ''
+    }));
+    const resolvedUnits = uthUnits.map(u => u.code);
+
+    const rtpPayload = {
+      projectId: report.projectId,
+      createdByUserId: report.createdByUserId,
+      reviewedByUserId: report.reviewedByUserId,
+      reportType: ReportType.RTP,
+      status: ReportStatus.APPROVED,
+      reportDate: report.reportDate,
+      arrivalTime: service.startTime || report.arrivalTime,
+      departureTime: service.endTime || report.departureTime,
+      lunchBreak: report.lunchBreak,
+      daytimeCount: resolvedCollaborators.length || report.daytimeCount,
+      daytimeWorkedMinutes: 0,
+      nighttimeWorkedMinutes: 0,
+      daytimeOvertimeMinutes: 0,
+      nighttimeOvertimeMinutes: 0,
+      totalOvertimeMinutes: 0,
+      approvedAt: report.approvedAt || new Date(),
+      specialConditions: {
+        parentRdoId: report.id,
+        serviceId: service.id,
+        serviceLinkKey: serviceLinkKey || String(service.id),
+        serviceData: fields,
+        resolvedCollaborators,
+        resolvedManometers,
+        resolvedUnits
+      }
+    };
+
+    const existingRtp = serviceLinkKey ? existingByLinkKey.get(serviceLinkKey) : null;
+
+    if (existingRtp) {
+      await tx.reportCollaborator.deleteMany({ where: { reportId: existingRtp.id } });
+      await tx.reportService.deleteMany({ where: { reportId: existingRtp.id } });
+      await tx.report.update({
+        where: { id: existingRtp.id },
+        data: {
+          ...rtpPayload,
+          collaborators: {
+            create: collabIds.map(id => ({ collaboratorId: id }))
+          },
+          services: {
+            create: [{
+              serviceType: service.serviceType,
+              equipmentId: service.equipmentId || null,
+              system: service.system || null,
+              material: service.material || null,
+              startTime: service.startTime || null,
+              endTime: service.endTime || null,
+              finalized: true,
+              extraData: fields
+            }]
+          }
+        }
+      });
+      continue;
+    }
+
+    const rtpSeq = await reserveSequence(tx, report.projectId, ReportType.RTP);
+
+    await tx.report.create({
+      data: {
+        ...rtpPayload,
+        sequenceNumber: rtpSeq,
+        collaborators: {
+          create: collabIds.map(id => ({ collaboratorId: id }))
+        },
+        services: {
+          create: [{
+            serviceType: service.serviceType,
+            equipmentId: service.equipmentId || null,
+            system: service.system || null,
+            material: service.material || null,
+            startTime: service.startTime || null,
+            endTime: service.endTime || null,
+            finalized: true,
+            extraData: fields
+          }]
+        }
+      }
+    });
+  }
+}
+
 router.get('/', requireAuth, asyncHandler(async (req, res) => {
   const where = {};
 
@@ -270,7 +442,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
     const sequenceNumber = await reserveSequence(tx, data.projectId, data.reportType);
     const overtime = calculateReportOvertime(project, data);
 
-    return tx.report.create({
+    const created = await tx.report.create({
       data: {
         projectId: data.projectId,
         createdByUserId: data.createdByUserId,
@@ -289,6 +461,8 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
         totalOvertimeMinutes: overtime.totalOvertimeMinutes,
         overtimeReason: data.overtimeReason || null,
         dailyDescription: data.dailyDescription || null,
+        reviewedByUserId: data.status === ReportStatus.APPROVED ? req.auth.user.id : null,
+        approvedAt: data.status === ReportStatus.APPROVED ? new Date() : null,
         specialConditions: {
           ...(data.specialConditions || {}),
           overtimeSummary: overtime
@@ -312,6 +486,9 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
       },
       include
     });
+
+    await syncApprovedRtpReports(tx, created);
+    return created;
   });
   res.status(201).json(item);
 }));
@@ -335,7 +512,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     await tx.reportCollaborator.deleteMany({ where: { reportId: req.params.id } });
     await tx.reportService.deleteMany({ where: { reportId: req.params.id } });
 
-    return tx.report.update({
+    const updated = await tx.report.update({
       where: { id: req.params.id },
       data: {
         projectId: data.projectId,
@@ -380,9 +557,60 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       },
       include
     });
+
+    await syncApprovedRtpReports(tx, updated);
+    return updated;
   });
 
   res.json(item);
+}));
+
+router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth.user.role !== 'MANAGER') {
+    return res.status(403).json({ error: 'Apenas o gestor pode excluir relatorios.' });
+  }
+
+  const item = await prisma.report.findUniqueOrThrow({
+    where: { id: req.params.id },
+    select: {
+      id: true,
+      projectId: true,
+      reportType: true,
+      specialConditions: true
+    }
+  });
+
+  await prisma.$transaction(async tx => {
+    const idsToDelete = [item.id];
+
+    if (item.reportType === ReportType.RDO) {
+      const derivedReports = await tx.report.findMany({
+        where: {
+          projectId: item.projectId,
+          reportType: ReportType.RTP
+        },
+        select: {
+          id: true,
+          specialConditions: true
+        }
+      });
+
+      derivedReports.forEach(report => {
+        const special = report.specialConditions || {};
+        if (special.parentRdoId === item.id) {
+          idsToDelete.push(report.id);
+        }
+      });
+    }
+
+    await tx.report.deleteMany({
+      where: {
+        id: { in: Array.from(new Set(idsToDelete)) }
+      }
+    });
+  });
+
+  res.status(204).end();
 }));
 
 router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
@@ -407,88 +635,10 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
       include
     });
 
-    // Auto-create RTP records for finalized pressao services when approving an RDO for the first time
-    if (
-      data.status === ReportStatus.APPROVED &&
-      previous?.status !== ReportStatus.APPROVED &&
-      updated.reportType === 'RDO'
-    ) {
-      const pressaoServices = (updated.services || []).filter(
-        s => s.serviceType === 'pressao' && s.finalized === true
-      );
+    
 
-      for (const service of pressaoServices) {
-        const fields = service.extraData || {};
-
-        const collabField = fields['Colaboradores do serviço'] || fields['Colaboradores do servico'];
-        const collabIds = Array.isArray(collabField?.ids) ? collabField.ids.filter(Boolean) : [];
-
-        const manoField = fields['Manômetros utilizados'] || fields['Manometros utilizados'];
-        const manoIds = Array.isArray(manoField?.ids) ? manoField.ids.filter(Boolean) : [];
-
-        const uthField = fields['Unidade de Teste Hidrostático (UTH)'] ||
-                         fields['Unidade de Teste Hidrostatico (UTH)'];
-        const uthIds = Array.isArray(uthField?.ids) ? uthField.ids.filter(Boolean)
-                     : (uthField && typeof uthField === 'string' ? [uthField] : []);
-
-        const [collaborators, manometers, uthUnits] = await Promise.all([
-          collabIds.length ? tx.collaborator.findMany({ where: { id: { in: collabIds } } }) : Promise.resolve([]),
-          manoIds.length ? tx.manometer.findMany({ where: { id: { in: manoIds } } }) : Promise.resolve([]),
-          uthIds.length ? tx.unit.findMany({ where: { id: { in: uthIds } } }) : Promise.resolve([])
-        ]);
-
-        const daytimeIds = new Set((updated.collaborators || []).map(link => link.collaboratorId).filter(Boolean));
-        const nighttimeIds = new Set(
-          (((updated.specialConditions || {}).noturnoDetails || {}).collaboratorIds || []).filter(Boolean)
-        );
-        const resolvedCollaborators = collaborators.map(c => {
-          const inDay = daytimeIds.has(c.id);
-          const inNight = nighttimeIds.has(c.id);
-          const shift = inDay && inNight ? 'Diurno e Noturno' : (inNight ? 'Noturno' : 'Diurno');
-          return { id: c.id, name: c.name, role: c.role, shift };
-        });
-        const resolvedManometers = manometers.map(m => ({
-          id: m.id, code: m.code, scale: m.scale,
-          certCode: m.calibrationCertCode,
-          calibratedAt: m.calibratedAt ? m.calibratedAt.toISOString().slice(0, 10) : '',
-          expiresAt: m.expiresAt ? m.expiresAt.toISOString().slice(0, 10) : ''
-        }));
-        const resolvedUnits = uthUnits.map(u => u.code);
-
-        const rtpSeq = await reserveSequence(tx, updated.projectId, 'RTP');
-
-        await tx.report.create({
-          data: {
-            projectId: updated.projectId,
-            createdByUserId: updated.createdByUserId,
-            reportType: 'RTP',
-            sequenceNumber: rtpSeq,
-            status: ReportStatus.APPROVED,
-            reportDate: updated.reportDate,
-            arrivalTime: service.startTime || updated.arrivalTime,
-            departureTime: service.endTime || updated.departureTime,
-            lunchBreak: updated.lunchBreak,
-            daytimeCount: resolvedCollaborators.length || updated.daytimeCount,
-            daytimeWorkedMinutes: 0,
-            nighttimeWorkedMinutes: 0,
-            daytimeOvertimeMinutes: 0,
-            nighttimeOvertimeMinutes: 0,
-            totalOvertimeMinutes: 0,
-            approvedAt: new Date(),
-            specialConditions: {
-              parentRdoId: updated.id,
-              serviceId: service.id,
-              serviceData: fields,
-              resolvedCollaborators,
-              resolvedManometers,
-              resolvedUnits
-            },
-            ...(collabIds.length ? {
-              collaborators: { create: collabIds.map(id => ({ collaboratorId: id })) }
-            } : {})
-          }
-        });
-      }
+    if (data.status === ReportStatus.APPROVED && previous?.status !== ReportStatus.APPROVED) {
+      await syncApprovedRtpReports(tx, updated);
     }
 
     return updated;
