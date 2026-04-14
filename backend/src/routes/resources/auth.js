@@ -17,8 +17,8 @@ const loginSchema = z.object({
 router.post('/login', asyncHandler(async (req, res) => {
   const data = loginSchema.parse(req.body);
 
-  const user = await prisma.user.findUnique({
-    where: { username: data.username },
+  const user = await prisma.user.findFirst({
+    where: { username: { equals: data.username, mode: 'insensitive' } },
     include: { collaborator: true }
   });
 

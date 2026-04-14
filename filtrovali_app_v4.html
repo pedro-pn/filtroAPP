@@ -1,4 +1,14 @@
-
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Filtrovali RDO</title>
+</head>
+<body>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--g:#30503a;--gl:#3d6449;--gd:#243d2c;--bl:#11437e;--rd:#c81519;--pu:#9b93a8;--bg:#f4f5f4;--wh:#fff;--tx:#1a1a1a;--mu:#6b7280;--br:#d1d5db;--r:10px;--rs:6px}
@@ -420,7 +430,7 @@ var projetos={
 
 /* ── dados mock para o painel ── */
 var DB_KEY='filtrovali-db-v1';
-var API_BASE='http://localhost:4000/api';
+var API_BASE=window.location.protocol==='file:'?'http://localhost:4000/api':(window.location.protocol+'//'+window.location.hostname+':4000/api');
 var REPORT_TYPES=['RDO','RTP','RLQ','RCP','RLM','RLF','RLI'];
 var serviceIcons={limpeza:'🧪',pressao:'🔴',filtragem:'🔵',flushing:'💧',mecanica:'⚙️',inibicao:'🛡️'};
 var serviceNames={limpeza:'Limpeza química',pressao:'Teste de pressão',filtragem:'Filtragem',flushing:'Flushing',mecanica:'Limpeza mecânica',inibicao:'Inibição'};
@@ -6374,3 +6384,5 @@ refreshDbFromApi().then(function(){
 });
 hydrateSession();
 </script>
+</body>
+</html>
