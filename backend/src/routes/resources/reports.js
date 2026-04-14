@@ -437,9 +437,16 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
           uthIds.length ? tx.unit.findMany({ where: { id: { in: uthIds } } }) : Promise.resolve([])
         ]);
 
-        const resolvedCollaborators = collaborators.map(c => ({
-          id: c.id, name: c.name, role: c.role, shift: 'Diurno'
-        }));
+        const daytimeIds = new Set((updated.collaborators || []).map(link => link.collaboratorId).filter(Boolean));
+        const nighttimeIds = new Set(
+          (((updated.specialConditions || {}).noturnoDetails || {}).collaboratorIds || []).filter(Boolean)
+        );
+        const resolvedCollaborators = collaborators.map(c => {
+          const inDay = daytimeIds.has(c.id);
+          const inNight = nighttimeIds.has(c.id);
+          const shift = inDay && inNight ? 'Diurno e Noturno' : (inNight ? 'Noturno' : 'Diurno');
+          return { id: c.id, name: c.name, role: c.role, shift };
+        });
         const resolvedManometers = manometers.map(m => ({
           id: m.id, code: m.code, scale: m.scale,
           certCode: m.calibrationCertCode,

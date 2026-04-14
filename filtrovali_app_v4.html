@@ -1180,7 +1180,7 @@ function finalizedFromFields(fields){
   return null;
 }
 function collectServices(){
-  return Array.from(document.querySelectorAll('.svc-card')).map(function(card){
+  return Array.from(document.querySelectorAll('#svc-cards .svc-card')).map(function(card){
     var fields=collectServiceFields(card);
     return {
       serviceType: card.dataset.svcType,
@@ -4998,7 +4998,7 @@ function currentReportDraftSnapshot(){
     specialConditions: collectSpecialConditions(),
     overtimeReason: ((document.getElementById('final-overtime')||{}).value||'').trim(),
     dailyDescription: ((document.getElementById('final-description')||{}).value||'').trim(),
-    services: Array.from(document.querySelectorAll('.svc-card')).map(function(card){
+     services: Array.from(document.querySelectorAll('#svc-cards .svc-card')).map(function(card){
       return {
         serviceType: card.dataset.svcType,
         sourceReportId: card.dataset.sourceReportId||'',
@@ -5273,7 +5273,11 @@ async function upsertDraft(draft){
 function persistCurrentDraft(){
   if(editingReportId||_isSubmitting)return;
   var draft=currentReportDraftSnapshot();
-  if(!draft||!draft.projectId||!draft.reportDate)return;
+  if(!draft||!draft.projectId||!draft.reportDate){
+    if(currentDraftId&&!String(currentDraftId).startsWith('draft_'))removeDraft(currentDraftId,true);
+    currentDraftId='';
+    return;
+  }
   var key=(draft.projectId||'')+'|'+(draft.reportDate||'').slice(0,10);
   var existing=draftsCache.find(function(item){
     var d=item.payload||item;
@@ -5883,8 +5887,396 @@ function renderGestor(){
   }
   enhanceUploadZones(c);
 }
+function renderDraftHome(){
+  var root=document.getElementById('home-drafts');
+  if(!root)return;
+  var drafts=(loadDrafts()||[]).filter(function(draft){
+    var payload=draft.payload||draft;
+    return !!((draft.projectId||payload.projectId)&&(draft.reportDate||payload.reportDate));
+  });
+  root.innerHTML=drafts.length?'<div class="card"><div class="sec">Relatórios em andamento</div><div class="admin-list">'+drafts.map(function(draft){
+    var payload=draft.payload||draft;
+    var date=(draft.reportDate||payload.reportDate)?formatReportDate(draft.reportDate||payload.reportDate):'Sem data';
+    return '<div class="rel-item" style="cursor:default"><div class="rel-icon">&#128203;</div><div class="rel-info"><div class="rel-name">'+escapeHtml(draft.title||payload.title||'Relatório em andamento')+'</div><div class="rel-meta">'+escapeHtml(date)+'<br>'+escapeHtml((((payload.services||[]).length)||0)+' serviço(s) preenchido(s)')+'</div></div><button class="mini-btn alt" type="button" onclick="resumeDraft(\''+draft.id+'\')">Continuar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" type="button" onclick="removeDraft(\''+draft.id+'\')">Excluir</button></div>';
+  }).join('')+'</div></div>':'';
+  updateHomeOngoingSummary();
+}
+function renderGestor(){
+  var c=document.getElementById('gestor-content');if(!c)return;
+  var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED';});
+  var approved=reportsCache.filter(function(r){return r.status==='APPROVED';});
+  var pen=document.getElementById('cnt-pen');if(pen)pen.textContent=pending.length;
+  if(gestorTab==='pendentes'){
+    var drafts=(draftsCache||[]).filter(function(draft){
+      var payload=draft.payload||draft;
+      return !!((draft.projectId||payload.projectId)&&(draft.reportDate||payload.reportDate));
+    });
+    var draftsHtml='';
+    if(drafts.length){draftsHtml='<div class="card" style="margin-bottom:12px"><div class="sec">Relatórios em andamento</div><div class="admin-list">'+drafts.map(function(draft){var payload=draft.payload||draft;var date=(draft.reportDate||payload.reportDate)?formatReportDate(draft.reportDate||payload.reportDate):'Sem data';return '<div class="rel-item" style="cursor:default"><div class="rel-icon">&#128203;</div><div class="rel-info"><div class="rel-name">'+escapeHtml(draft.title||payload.title||'Relatório em andamento')+'</div><div class="rel-meta">'+escapeHtml(date)+'</div></div><button class="mini-btn alt" type="button" onclick="resumeDraft(\''+draft.id+'\')">Continuar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" type="button" onclick="removeDraft(\''+draft.id+'\')">Excluir</button></div>';}).join('')+'</div></div>';}
+    c.innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="mini-btn" onclick="gestorCriarRelatorio()">+ Criar Relatório</button></div>'+draftsHtml+'<div class="stat-grid"><div class="stat-card"><div class="stat-num">'+pending.length+'</div><div class="stat-lbl">Pendentes/devolvidos</div></div><div class="stat-card"><div class="stat-num">'+approved.length+'</div><div class="stat-lbl">Aprovados</div></div></div>'+groupedReportHtml(pending,'gestor-pendentes','Nenhum relatório pendente.');
+  }else if(gestorTab==='aprovados'){
+    c.innerHTML=groupedReportHtml(approved,'gestor','Nenhum relatório aprovado.');
+  }else if(gestorTab==='usuarios'){
+    c.innerHTML=renderUsuarios();
+  }else if(gestorTab==='projetos'){
+    c.innerHTML=renderProjetos();
+  }else if(gestorTab==='arquivados'){
+    c.innerHTML=renderProjetosArquivados();
+  }else if(gestorTab==='equipe'){
+    c.innerHTML=renderEquipe();
+  }else if(gestorTab==='equipamentos'){
+    c.innerHTML=renderEquipamentos();
+  }else if(gestorTab==='manometros'){
+    c.innerHTML=renderManometros();
+  }else if(gestorTab==='contadores'){
+    c.innerHTML=renderContadores();
+  }
+  enhanceUploadZones(c);
+}
+async function removeDraft(id,silent){
+  if(!silent && !confirm('Excluir este relatório em andamento?'))return;
+  draftsCache=(draftsCache||[]).filter(function(item){return item.id!==id;});
+  if(currentDraftId===id)currentDraftId='';
+  renderDraftHome();
+  try{
+    if(currentUser && id && !String(id).startsWith('draft_')){
+      await apiFetch('/drafts/'+id,{method:'DELETE'});
+    }
+  }catch(err){}
+}
+function collectServices(){
+  return Array.from(document.querySelectorAll('#svc-cards .svc-card')).map(function(card){
+    var fields=collectServiceFields(card);
+    if(card.dataset.ongoingKey)fields.__ongoingKey=card.dataset.ongoingKey;
+    return {
+      serviceType: card.dataset.svcType,
+      equipmentId: null,
+      system: fields['Sistema'] || null,
+      material: fields['Material da tubulação'] || fields['Material da tubulaÃ§Ã£o'] || fields['Material da tubulaÃƒÂ§ÃƒÂ£o'] || fields['Material do equipamento'] || null,
+      startTime: fields['Hora de início'] || fields['Hora de inÃ­cio'] || fields['Hora de inÃƒÂ­cio'] || null,
+      endTime: fields['Hora de término/pausa'] || fields['Hora de tÃ©rmino/pausa'] || fields['Hora de tÃƒÂ©rmino/pausa'] || null,
+      finalized: finalizedFromFields(fields),
+      extraData: fields
+    };
+  });
+}
+async function enviar(){
+  var err=validateScope(document.getElementById('s-cabecalho'));
+  if(err){focusValidation(err,'s-cabecalho');return;}
+  err=validateScope(document.getElementById('s-servicos'));
+  if(err){focusValidation(err,'s-servicos');return;}
+  try{await syncDbBeforeSubmit();}catch(syncErr){alert('Erro ao enviar relatório: '+syncErr.message);return;}
+  var projeto=getProjetoAtual();
+  if(!projeto){alert('Selecione um projeto.');go('s-cabecalho');return;}
+  if(!currentUser){alert('Faça login novamente.');go('s-login');return;}
+  var overtimeSummary=updateOvertimeUi();
+  var overtimeReasonField=document.getElementById('final-overtime');
+  var overtimeReason=overtimeSummary.totalOvertimeMinutes>0?(overtimeReasonField.value.trim()||null):null;
+  var isManager=currentUser.role==='MANAGER';
+  var payload={projectId: projeto.id,createdByUserId: currentUser.id,reportType:'RDO',status:isManager?'APPROVED':'PENDING',reportDate: document.getElementById('hdr-data').value,arrivalTime: document.getElementById('hdr-chegada').value,departureTime: document.getElementById('hdr-saida').value,lunchBreak: document.getElementById('hdr-intervalo').value,daytimeCount: getSelectedCollaboratorIds().length,overtimeReason: overtimeReason,dailyDescription: document.getElementById('final-description').value.trim() || null,specialConditions: collectSpecialConditions(),collaboratorIds: getSelectedCollaboratorIds(),services: collectServices()};
+  _isSubmitting=true;
+  try{
+    if(editingReportId)await apiFetch('/reports/'+editingReportId,{method:'PUT',body:JSON.stringify(payload)});
+    else await apiFetch('/reports',{method:'POST',body:JSON.stringify(payload)});
+    var matchKey=(projeto.id||'')+'|'+(payload.reportDate||'').slice(0,10);
+    var toDelete=(draftsCache||[]).filter(function(item){
+      var d=item.payload||item;
+      return ((item.projectId||d.projectId||'')+'|'+(item.reportDate||d.reportDate||'').slice(0,10))===matchKey;
+    }).map(function(item){return item.id;});
+    if(currentDraftId&&toDelete.indexOf(currentDraftId)<0)toDelete.push(currentDraftId);
+    for(var di=0;di<toDelete.length;di++)await removeDraft(toDelete[di],true);
+    draftsCache=(draftsCache||[]).filter(function(item){
+      var d=item.payload||item;
+      return ((item.projectId||d.projectId||'')+'|'+(item.reportDate||d.reportDate||'').slice(0,10))!==matchKey;
+    });
+    currentDraftId='';
+    renderDraftHome();
+    var wasEditing=!!editingReportId;
+    resetReportForm();
+    await refreshReportsCache();
+    await refreshDraftsCache();
+    renderMyReports();
+    if(isManager){renderGestor();go('s-gestor');}else{go('s-home');}
+    setTimeout(function(){alert(wasEditing?'✓ Relatório atualizado com sucesso.':(isManager?'✓ Relatório criado e aprovado automaticamente.':'✓ Relatório enviado com sucesso.'));},200);
+  }catch(sendErr){
+    alert('Erro ao enviar relatório: '+sendErr.message);
+  }finally{
+    _isSubmitting=false;
+  }
+}
+var _draftPersistTimer=null;
+var _draftPersistInFlight=false;
+var _draftQueuedSnapshot=null;
+function draftProjectDateKey(item){
+  var data=item&&item.payload?item.payload:item||{};
+  var projectId=(item&&item.projectId)||data.projectId||'';
+  var reportDate=((item&&item.reportDate)||data.reportDate||'').slice(0,10);
+  return projectId&&reportDate?(projectId+'|'+reportDate):'';
+}
+function uniqueDraftsByProjectDate(items){
+  var out=[];var seen=new Set();
+  (items||[]).forEach(function(item){
+    var key=draftProjectDateKey(item);
+    if(!key){out.push(item);return;}
+    if(seen.has(key))return;
+    seen.add(key);
+    out.push(item);
+  });
+  return out;
+}
+async function upsertDraft(draft){
+  if(!currentUser)return null;
+  var key=draftProjectDateKey(draft);
+  var payload={projectId:draft.projectId||null,title:draft.title||null,reportDate:draft.reportDate||null,payload:draft};
+  var existing=uniqueDraftsByProjectDate(draftsCache).find(function(item){return draftProjectDateKey(item)===key;});
+  try{
+    var targetId=(currentDraftId && !String(currentDraftId).startsWith('draft_'))?currentDraftId:(existing&&existing.id&&!String(existing.id).startsWith('draft_')?existing.id:'');
+    var saved=targetId
+      ? await apiFetch('/drafts/'+targetId,{method:'PUT',body:JSON.stringify(payload)})
+      : await apiFetch('/drafts',{method:'POST',body:JSON.stringify(payload)});
+    currentDraftId=saved.id;
+    draftsCache=[saved].concat((draftsCache||[]).filter(function(item){
+      return item.id!==saved.id && draftProjectDateKey(item)!==key;
+    }));
+    draftsCache=uniqueDraftsByProjectDate(draftsCache);
+    renderDraftHome();
+    return saved;
+  }catch(err){
+    return null;
+  }
+}
+async function flushDraftPersist(snapshot){
+  if(!snapshot)return;
+  if(_draftPersistInFlight){_draftQueuedSnapshot=snapshot;return;}
+  _draftPersistInFlight=true;
+  try{
+    await upsertDraft(snapshot);
+  }finally{
+    _draftPersistInFlight=false;
+    if(_draftQueuedSnapshot){
+      var next=_draftQueuedSnapshot;
+      _draftQueuedSnapshot=null;
+      await flushDraftPersist(next);
+    }
+  }
+}
+function persistCurrentDraft(){
+  if(editingReportId||_isSubmitting)return;
+  var draft=currentReportDraftSnapshot();
+  if(!draft||!draft.projectId||!draft.reportDate){
+    if(_draftPersistTimer)clearTimeout(_draftPersistTimer);
+    if(currentDraftId&&!String(currentDraftId).startsWith('draft_'))removeDraft(currentDraftId,true);
+    currentDraftId='';
+    return;
+  }
+  if(_draftPersistTimer)clearTimeout(_draftPersistTimer);
+  _draftPersistTimer=setTimeout(function(){flushDraftPersist(draft);},150);
+}
+function renderDraftHome(){
+  var root=document.getElementById('home-drafts');
+  if(!root)return;
+  var drafts=uniqueDraftsByProjectDate((loadDrafts()||[]).filter(function(draft){
+    var payload=draft.payload||draft;
+    return !!((draft.projectId||payload.projectId)&&(draft.reportDate||payload.reportDate));
+  }));
+  root.innerHTML=drafts.length?'<div class="card"><div class="sec">Relatórios em andamento</div><div class="admin-list">'+drafts.map(function(draft){
+    var payload=draft.payload||draft;
+    var date=(draft.reportDate||payload.reportDate)?formatReportDate(draft.reportDate||payload.reportDate):'Sem data';
+    return '<div class="rel-item" style="cursor:default"><div class="rel-icon">&#128203;</div><div class="rel-info"><div class="rel-name">'+escapeHtml(draft.title||payload.title||'Relatório em andamento')+'</div><div class="rel-meta">'+escapeHtml(date)+'<br>'+escapeHtml((((payload.services||[]).length)||0)+' serviço(s) preenchido(s)')+'</div></div><button class="mini-btn alt" type="button" onclick="resumeDraft(\''+draft.id+'\')">Continuar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" type="button" onclick="removeDraft(\''+draft.id+'\')">Excluir</button></div>';
+  }).join('')+'</div></div>':'';
+  updateHomeOngoingSummary();
+}
+async function removeDraft(id,silent){
+  if(!silent && !confirm('Excluir este relatório em andamento?'))return;
+  var wantedId=String(id||'');
+  var selected=(draftsCache||[]).find(function(item){return String(item.id||'')===wantedId;});
+  var selectedKey=draftProjectDateKey(selected||{id:id});
+  var idsToRemove=(draftsCache||[]).filter(function(item){
+    return selectedKey ? draftProjectDateKey(item)===selectedKey : String(item.id||'')===wantedId;
+  }).map(function(item){return String(item.id||'');});
+  draftsCache=(draftsCache||[]).filter(function(item){return idsToRemove.indexOf(String(item.id||''))<0;});
+  if(idsToRemove.indexOf(String(currentDraftId||''))>=0)currentDraftId='';
+  renderDraftHome();
+  for(var i=0;i<idsToRemove.length;i++){
+    try{
+      if(currentUser && idsToRemove[i] && !String(idsToRemove[i]).startsWith('draft_')){
+        await apiFetch('/drafts/'+idsToRemove[i],{method:'DELETE'});
+      }
+    }catch(err){}
+  }
+  try{ await refreshDraftsCache(); }catch(err){}
+}
+function collectServices(){
+  return Array.from(document.querySelectorAll('#svc-cards .svc-card')).map(function(card){
+    var fields=collectServiceFields(card);
+    if(card.dataset.ongoingKey)fields.__ongoingKey=card.dataset.ongoingKey;
+    return {
+      serviceType: card.dataset.svcType,
+      equipmentId: null,
+      system: fields['Sistema'] || null,
+      material: fields['Material da tubulação'] || fields['Material da tubulaÃ§Ã£o'] || fields['Material da tubulaÃƒÂ§ÃƒÂ£o'] || fields['Material do equipamento'] || null,
+      startTime: fields['Hora de início'] || fields['Hora de inÃ­cio'] || fields['Hora de inÃƒÂ­cio'] || null,
+      endTime: fields['Hora de término/pausa'] || fields['Hora de tÃ©rmino/pausa'] || fields['Hora de tÃƒÂ©rmino/pausa'] || null,
+      finalized: finalizedFromFields(fields),
+      extraData: fields
+    };
+  });
+}
+async function enviar(){
+  var err=validateScope(document.getElementById('s-cabecalho'));
+  if(err){focusValidation(err,'s-cabecalho');return;}
+  err=validateScope(document.getElementById('s-servicos'));
+  if(err){focusValidation(err,'s-servicos');return;}
+  try{await syncDbBeforeSubmit();}catch(syncErr){alert('Erro ao enviar relatório: '+syncErr.message);return;}
+  var projeto=getProjetoAtual();
+  if(!projeto){alert('Selecione um projeto.');go('s-cabecalho');return;}
+  if(!currentUser){alert('Faça login novamente.');go('s-login');return;}
+  var overtimeSummary=updateOvertimeUi();
+  var overtimeReasonField=document.getElementById('final-overtime');
+  var overtimeReason=overtimeSummary.totalOvertimeMinutes>0?(overtimeReasonField.value.trim()||null):null;
+  var isManager=currentUser.role==='MANAGER';
+  var payload={projectId: projeto.id,createdByUserId: currentUser.id,reportType:'RDO',status:isManager?'APPROVED':'PENDING',reportDate: document.getElementById('hdr-data').value,arrivalTime: document.getElementById('hdr-chegada').value,departureTime: document.getElementById('hdr-saida').value,lunchBreak: document.getElementById('hdr-intervalo').value,daytimeCount: getSelectedCollaboratorIds().length,overtimeReason: overtimeReason,dailyDescription: document.getElementById('final-description').value.trim() || null,specialConditions: collectSpecialConditions(),collaboratorIds: getSelectedCollaboratorIds(),services: collectServices()};
+  _isSubmitting=true;
+  try{
+    if(editingReportId)await apiFetch('/reports/'+editingReportId,{method:'PUT',body:JSON.stringify(payload)});
+    else await apiFetch('/reports',{method:'POST',body:JSON.stringify(payload)});
+    var matchKey=(projeto.id||'')+'|'+(payload.reportDate||'').slice(0,10);
+    var toDelete=uniqueDraftsByProjectDate(draftsCache).filter(function(item){return draftProjectDateKey(item)===matchKey;}).map(function(item){return String(item.id||'');});
+    if(currentDraftId&&toDelete.indexOf(String(currentDraftId))<0)toDelete.push(String(currentDraftId));
+    for(var di=0;di<toDelete.length;di++)await removeDraft(toDelete[di],true);
+    draftsCache=(draftsCache||[]).filter(function(item){return draftProjectDateKey(item)!==matchKey;});
+    currentDraftId='';
+    renderDraftHome();
+    var wasEditing=!!editingReportId;
+    resetReportForm();
+    await refreshReportsCache();
+    await refreshDraftsCache();
+    renderMyReports();
+    if(isManager){renderGestor();go('s-gestor');}else{go('s-home');}
+    setTimeout(function(){alert(wasEditing?'✓ Relatório atualizado com sucesso.':(isManager?'✓ Relatório criado e aprovado automaticamente.':'✓ Relatório enviado com sucesso.'));},200);
+  }catch(sendErr){
+    alert('Erro ao enviar relatório: '+sendErr.message);
+  }finally{
+    _isSubmitting=false;
+  }
+}
+function renderGestor(){
+  var c=document.getElementById('gestor-content');if(!c)return;
+  var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED';});
+  var approved=reportsCache.filter(function(r){return r.status==='APPROVED';});
+  var pen=document.getElementById('cnt-pen');if(pen)pen.textContent=pending.length;
+  if(gestorTab==='pendentes'){
+    var drafts=uniqueDraftsByProjectDate((draftsCache||[]).filter(function(draft){
+      var payload=draft.payload||draft;
+      return !!((draft.projectId||payload.projectId)&&(draft.reportDate||payload.reportDate));
+    }));
+    var draftsHtml='';
+    if(drafts.length){draftsHtml='<div class="card" style="margin-bottom:12px"><div class="sec">Relatórios em andamento</div><div class="admin-list">'+drafts.map(function(draft){var payload=draft.payload||draft;var date=(draft.reportDate||payload.reportDate)?formatReportDate(draft.reportDate||payload.reportDate):'Sem data';return '<div class="rel-item" style="cursor:default"><div class="rel-icon">&#128203;</div><div class="rel-info"><div class="rel-name">'+escapeHtml(draft.title||payload.title||'Relatório em andamento')+'</div><div class="rel-meta">'+escapeHtml(date)+'</div></div><button class="mini-btn alt" type="button" onclick="resumeDraft(\''+draft.id+'\')">Continuar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" type="button" onclick="removeDraft(\''+draft.id+'\')">Excluir</button></div>';}).join('')+'</div></div>';}
+    c.innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="mini-btn" onclick="gestorCriarRelatorio()">+ Criar Relatório</button></div>'+draftsHtml+'<div class="stat-grid"><div class="stat-card"><div class="stat-num">'+pending.length+'</div><div class="stat-lbl">Pendentes/devolvidos</div></div><div class="stat-card"><div class="stat-num">'+approved.length+'</div><div class="stat-lbl">Aprovados</div></div></div>'+groupedReportHtml(pending,'gestor-pendentes','Nenhum relatório pendente.');
+  }else if(gestorTab==='aprovados'){
+    c.innerHTML=groupedReportHtml(approved,'gestor','Nenhum relatório aprovado.');
+  }else if(gestorTab==='usuarios'){
+    c.innerHTML=renderUsuarios();
+  }else if(gestorTab==='projetos'){
+    c.innerHTML=renderProjetos();
+  }else if(gestorTab==='arquivados'){
+    c.innerHTML=renderProjetosArquivados();
+  }else if(gestorTab==='equipe'){
+    c.innerHTML=renderEquipe();
+  }else if(gestorTab==='equipamentos'){
+    c.innerHTML=renderEquipamentos();
+  }else if(gestorTab==='manometros'){
+    c.innerHTML=renderManometros();
+  }else if(gestorTab==='contadores'){
+    c.innerHTML=renderContadores();
+  }
+  enhanceUploadZones(c);
+}
+var _draftRefreshToken=0;
+var _origRefreshDraftsCacheFinal=refreshDraftsCache;
+function renderDraftViews(){
+  renderDraftHome();
+  var gestorScreen=document.getElementById('s-gestor');
+  var gestorContent=document.getElementById('gestor-content');
+  if(gestorScreen && gestorContent && gestorScreen.classList.contains('active')){
+    renderGestor();
+  }
+}
+refreshDraftsCache=async function(){
+  var token=++_draftRefreshToken;
+  var result=await _origRefreshDraftsCacheFinal();
+  if(token!==_draftRefreshToken)return draftsCache;
+  draftsCache=uniqueDraftsByProjectDate(draftsCache||[]);
+  renderDraftViews();
+  return draftsCache;
+};
+var _origUpsertDraftFinal=upsertDraft;
+upsertDraft=async function(draft){
+  var result=await _origUpsertDraftFinal(draft);
+  renderDraftViews();
+  return result;
+};
+var _origRemoveDraftFinal=removeDraft;
+removeDraft=async function(id,silent){
+  var result=await _origRemoveDraftFinal(id,silent);
+  renderDraftViews();
+  return result;
+};
+var _origGoFinal=go;
+go=function(id){
+  _origGoFinal(id);
+  if(id==='s-home'){
+    renderDraftViews();
+  }else if(id==='s-gestor'){
+    renderGestor();
+  }
+};
+var _origApiFetchFinal=apiFetch;
+apiFetch=async function(path,options){
+  var opts=Object.assign({},options||{});
+  if(!opts.method || String(opts.method).toUpperCase()==='GET'){
+    opts.cache='no-store';
+    opts.headers=Object.assign({'Cache-Control':'no-cache'},opts.headers||{});
+  }
+  return _origApiFetchFinal(path,opts);
+};
+function renderDraftHome(){
+  ensureDraftHomeBlock();
+  var roots=Array.from(document.querySelectorAll('[id="home-drafts"]'));
+  if(!roots.length)return;
+  var drafts=uniqueDraftsByProjectDate((loadDrafts()||[]).filter(function(draft){
+    var payload=draft.payload||draft;
+    return !!((draft.projectId||payload.projectId)&&(draft.reportDate||payload.reportDate));
+  }));
+  var html=drafts.length?'<div class="card"><div class="sec">Relatórios em andamento</div><div class="admin-list">'+drafts.map(function(draft){
+    var payload=draft.payload||draft;
+    var date=(draft.reportDate||payload.reportDate)?formatReportDate(draft.reportDate||payload.reportDate):'Sem data';
+    return '<div class="rel-item" style="cursor:default"><div class="rel-icon">&#128203;</div><div class="rel-info"><div class="rel-name">'+escapeHtml(draft.title||payload.title||'Relatório em andamento')+'</div><div class="rel-meta">'+escapeHtml(date)+'<br>'+escapeHtml((((payload.services||[]).length)||0)+' serviço(s) preenchido(s)')+'</div></div><button class="mini-btn alt" type="button" onclick="resumeDraft(\''+draft.id+'\')">Continuar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" type="button" onclick="removeDraft(\''+draft.id+'\')">Excluir</button></div>';
+  }).join('')+'</div></div>':'';
+  roots.forEach(function(root){root.innerHTML=html;});
+  updateHomeOngoingSummary();
+}
+async function removeDraft(id,silent){
+  if(!silent && !confirm('Excluir este relatório em andamento?'))return;
+  var selected=(draftsCache||[]).find(function(item){return item.id===id;});
+  var selectedKey=draftProjectDateKey(selected||{id:id});
+  var idsToRemove=(draftsCache||[]).filter(function(item){
+    return selectedKey ? draftProjectDateKey(item)===selectedKey : item.id===id;
+  }).map(function(item){return item.id;});
+  draftsCache=(draftsCache||[]).filter(function(item){return idsToRemove.indexOf(item.id)<0;});
+  if(idsToRemove.indexOf(currentDraftId)>=0)currentDraftId='';
+  renderDraftHome();
+  for(var i=0;i<idsToRemove.length;i++){
+    try{
+      if(currentUser && idsToRemove[i] && !String(idsToRemove[i]).startsWith('draft_')){
+        await apiFetch('/drafts/'+idsToRemove[i],{method:'DELETE'});
+      }
+    }catch(err){}
+  }
+  renderDraftHome();
+}
 ensureDraftHomeBlock();
-renderDraftHome();
+renderDraftViews();
 refreshDraftsCache();
 initServiceCollaboratorSync();
 initMojibakeRepair();

@@ -348,6 +348,17 @@ function buildRtpBaseData(report) {
   };
 }
 
+function buildRtpBaseDataResolved(report) {
+  const base = buildRtpBaseData(report);
+  const sd = (report.specialConditions || {}).serviceData || {};
+  const testPressure = stringify(getField(sd, ['PressÃ£o de teste', 'Pressao de teste']));
+  return {
+    ...base,
+    testpressure: testPressure,
+    testepressure: testPressure
+  };
+}
+
 function expandTubeRows(doc, sd) {
   const templateRow = findFirstByText(doc, 'w:tr', '{{diameter}}');
   if (!templateRow) return;
@@ -452,7 +463,7 @@ export async function buildRtpDocx(report) {
   const collabs = sc.resolvedCollaborators || [];
   const manos = sc.resolvedManometers || [];
 
-  const baseData = buildRtpBaseData(report);
+  const baseData = buildRtpBaseDataResolved(report);
   const signatureAsset = await getUploadAsset(report.createdBy?.collaborator?.signatureImage);
 
   const manoUploads = (() => { const v = getField(sd, ['Fotos do manômetro', 'Fotos do manometro']); return Array.isArray(v) ? v : []; })();
