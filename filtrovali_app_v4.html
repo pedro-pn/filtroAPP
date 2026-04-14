@@ -712,8 +712,7 @@ function equipMultiField(tipo,n,val,isPre){
     '</div>';
   }).join('');
   return '<div class="fg"><label>Equipamento(s) <span class="req">*</span>'+(isPre&&val?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
-    '<div data-multifield="equips" id="equips-'+n+'">'+rows+'</div>'+
-    '<div class="tube-add" onclick="addEquip('+n+')">＋ Adicionar equipamento</div></div>';
+    '<div data-multifield="equips" id="equips-'+n+'">'+rows+'</div></div>';
 }
 function removeEquipRow(btn){
   var row=btn.closest('.equip-row');if(!row)return;
@@ -4559,6 +4558,8 @@ function startGestorPolling(){
     if(!currentUser||currentUser.role!=='MANAGER')return;
     var sc=document.getElementById('s-gestor');
     if(!sc||!sc.classList.contains('active'))return;
+    var hasOpenEditor=Object.values(gestorEditors).some(function(v){return v!==null;});
+    if(hasOpenEditor)return;
     await refreshReportsCache();
     renderGestor();
   },30000);
