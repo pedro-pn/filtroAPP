@@ -447,9 +447,9 @@ async function getUploadAsset(source) {
   try {
     let fileName = source;
     if (/^https?:\/\//i.test(source)) {
-      fileName = decodeURIComponent(new URL(source).pathname.split('/').pop() || '');
+      fileName = decodeURIComponent(new URL(source).pathname.slice('/uploads/'.length));
     } else if (source.startsWith('/uploads/')) {
-      fileName = decodeURIComponent(source.split('/').pop() || '');
+      fileName = decodeURIComponent(source.slice('/uploads/'.length));
     }
     if (!fileName) return null;
     const targetPath = path.join(env.uploadDir, fileName);
@@ -755,9 +755,9 @@ function resolveUploadSourcePath(source) {
   let fileName = source;
   try {
     if (/^https?:\/\//i.test(source)) {
-      fileName = decodeURIComponent(new URL(source).pathname.split('/').pop() || '');
+      fileName = decodeURIComponent(new URL(source).pathname.slice('/uploads/'.length));
     } else if (source.startsWith('/uploads/')) {
-      fileName = decodeURIComponent(source.split('/').pop() || '');
+      fileName = decodeURIComponent(source.slice('/uploads/'.length));
     }
   } catch {
     return null;
@@ -767,11 +767,25 @@ function resolveUploadSourcePath(source) {
   return fsSync.existsSync(targetPath) ? targetPath : null;
 }
 
-async function organizePhotos(report, projectFolderName) {
+function extractUrlBase(source) {
+  try {
+    if (source && /^https?:\/\//i.test(source)) return new URL(source).origin;
+  } catch {}
+  return '';
+}
+
+function buildPhotoUrl(urlBase, projectFolder, subfolder, destName) {
+  const encoded = [projectFolder, 'Registros Fotográficos', subfolder, destName]
+    .map(s => encodeURIComponent(s)).join('/');
+  return (urlBase || '') + '/uploads/' + encoded;
+}
+
+export async function organizePhotos(report, projectFolderName) {
+  const urlMap = new Map();
   const dateStr = formatDatePt(report.reportDate).replace(/\//g, '-');
   const rdoNum = reportNumber(report);
   const reportType = report.reportType;
-  const photosDir = path.join(env.uploadDir, projectFolderName, 'Registros fotográficos', reportType);
+  const photosDir = path.join(env.uploadDir, projectFolderName, 'Registros Fotográficos', reportType);
   await fs.mkdir(photosDir, { recursive: true });
 
   // General uploads (RDO photos)
@@ -783,7 +797,12 @@ async function organizePhotos(report, projectFolderName) {
     if (!srcPath) continue;
     const ext = path.extname(srcPath) || '.jpg';
     const destName = `${reportType} ${rdoNum} - ${dateStr} - foto ${count}${ext}`;
-    try { await fs.copyFile(srcPath, path.join(photosDir, destName)); count++; } catch { /* skip missing */ }
+    try {
+      await fs.rename(srcPath, path.join(photosDir, destName));
+      const newUrl = buildPhotoUrl(extractUrlBase(source), projectFolderName, reportType, destName);
+      if (source) urlMap.set(source, newUrl);
+      count++;
+    } catch { /* skip missing */ }
   }
 
   // Service attachment photos
@@ -798,9 +817,16 @@ async function organizePhotos(report, projectFolderName) {
       if (!srcPath) continue;
       const ext = path.extname(srcPath) || '.jpg';
       const destName = `${equipment} - ${system} - ${dateStr} - foto ${svcCount}${ext}`;
-      try { await fs.copyFile(srcPath, path.join(photosDir, destName)); svcCount++; } catch { /* skip missing */ }
+      try {
+        await fs.rename(srcPath, path.join(photosDir, destName));
+        const newUrl = buildPhotoUrl(extractUrlBase(source), projectFolderName, reportType, destName);
+        if (source) urlMap.set(source, newUrl);
+        svcCount++;
+      } catch { /* skip missing */ }
     }
   }
+
+  return urlMap;
 }
 
 export async function saveReportDocx(report) {
@@ -813,7 +839,6 @@ export async function saveReportDocx(report) {
   const fileName = `Missão ${report.project.code} - ${report.project.name} - ${report.reportType} ${reportNumber(report)} - ${iso} - ${weekday}.docx`;
   const targetPath = path.join(dir, fileName);
   await fs.writeFile(targetPath, bytes);
-  await organizePhotos(report, projectFolderName);
   return {
     fileName,
     targetPath,

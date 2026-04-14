@@ -225,9 +225,9 @@ async function getUploadAsset(source) {
   try {
     let fileName = source;
     if (/^https?:\/\//i.test(source)) {
-      fileName = decodeURIComponent(new URL(source).pathname.split('/').pop() || '');
+      fileName = decodeURIComponent(new URL(source).pathname.slice('/uploads/'.length));
     } else if (source.startsWith('/uploads/')) {
-      fileName = decodeURIComponent(source.split('/').pop() || '');
+      fileName = decodeURIComponent(source.slice('/uploads/'.length));
     }
     if (!fileName) return null;
     const targetPath = path.join(env.uploadDir, fileName);
@@ -455,6 +455,67 @@ try {
   }
 }
 
+// ── File organization ──
+
+function resolveUploadFilePath(source) {
+  if (!source) return null;
+  let fileName = source;
+  try {
+    if (/^https?:\/\//i.test(source)) {
+      fileName = decodeURIComponent(new URL(source).pathname.slice('/uploads/'.length));
+    } else if (source.startsWith('/uploads/')) {
+      fileName = decodeURIComponent(source.slice('/uploads/'.length));
+    }
+  } catch { return null; }
+  if (!fileName) return null;
+  const targetPath = path.join(env.uploadDir, fileName);
+  return fsSync.existsSync(targetPath) ? targetPath : null;
+}
+
+function extractUrlBase(source) {
+  try {
+    if (source && /^https?:\/\//i.test(source)) return new URL(source).origin;
+  } catch {}
+  return '';
+}
+
+function buildPhotoUrl(urlBase, projectFolder, subfolder, destName) {
+  const encoded = [projectFolder, 'Registros Fotográficos', subfolder, destName]
+    .map(s => encodeURIComponent(s)).join('/');
+  return (urlBase || '') + '/uploads/' + encoded;
+}
+
+export async function organizeRtpPhotos(report, projectFolderName) {
+  const urlMap = new Map();
+  const sc = report.specialConditions || {};
+  const sd = sc.serviceData || {};
+  const equip = safePath(stringify(getField(sd, ['Equipamento(s)', 'Equipamento'])) || 'Equipamento');
+  const sys = safePath(stringify(getField(sd, ['Sistema'])) || 'Sistema');
+  const photosDir = path.join(env.uploadDir, projectFolderName, 'Registros Fotográficos', 'RTP');
+  await fs.mkdir(photosDir, { recursive: true });
+
+  const manoUploads = (() => { const v = getField(sd, ['Fotos do manômetro', 'Fotos do manometro']); return Array.isArray(v) ? v : []; })();
+  const sysUploads = (() => { const v = getField(sd, ['Fotos do sistema']); return Array.isArray(v) ? v : []; })();
+
+  let count = 1;
+  for (const upload of [...manoUploads, ...sysUploads]) {
+    const source = upload?.url || upload?.storagePath || upload?.fileName;
+    const srcPath = resolveUploadFilePath(source);
+    if (!srcPath) continue;
+    const ext = path.extname(srcPath) || '.jpg';
+    const destName = `${equip} - ${sys} - foto ${count}${ext}`;
+    try {
+      await fs.rename(srcPath, path.join(photosDir, destName));
+      const newUrl = buildPhotoUrl(extractUrlBase(source), projectFolderName, 'RTP', destName);
+      if (source) urlMap.set(source, newUrl);
+      count++;
+    } catch { /* skip missing */ }
+  }
+
+  return urlMap;
+}
+
+
 // ── Main exports ──
 
 export async function buildRtpDocx(report) {
@@ -528,6 +589,6 @@ export async function saveRtpPdf(report) {
   return {
     fileName: pdfFileName,
     targetPath: pdfPath,
-    publicUrl: docx.publicUrl.replace(/\.docx$/i, '.pdf')
+    publicUrl: docx.publicUrl.replace(/\.docx$/i, '.pdf'),
   };
 }

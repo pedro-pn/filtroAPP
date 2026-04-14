@@ -13,7 +13,9 @@
       "Bash(find \"C:\\\\Users\\\\relat\\\\Área de Trabalho\\\\NewRDO\\\\backend\" -name \"schema.prisma\" -exec grep -n \"ReportType\\\\|RTP\\\\|RDO\" {} \\\\;)",
       "Bash(node -e \"import\\('./src/lib/report-rtp.js'\\).then\\(m=>console.log\\('OK',Object.keys\\(m\\)\\)\\).catch\\(e=>console.error\\('ERR',e.message\\)\\)\")",
       "Bash(node -e \"import\\('./src/routes/resources/reports.js'\\).then\\(\\(\\)=>console.log\\('OK'\\)\\).catch\\(e=>console.error\\('ERR',e.message\\)\\)\")",
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "mcp__code-review-graph__semantic_search_nodes_tool",
+      "mcp__code-review-graph__query_graph_tool"
     ]
   },
   "enableAllProjectMcpServers": true,

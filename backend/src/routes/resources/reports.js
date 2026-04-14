@@ -4,9 +4,9 @@ import { ReportStatus, ReportType } from '@prisma/client';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
-import { saveReportDocx } from '../../lib/report-docx.js';
+import { saveReportDocx, organizePhotos } from '../../lib/report-docx.js';
 import { saveReportPdf } from '../../lib/report-pdf-from-docx.js';
-import { saveRtpDocx, saveRtpPdf } from '../../lib/report-rtp.js';
+import { saveRtpDocx, saveRtpPdf, organizeRtpPhotos } from '../../lib/report-rtp.js';
 import { calculateReportOvertime } from '../../lib/overtime.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
@@ -97,6 +97,32 @@ const statusSchema = z.object({
 
 function uniqueIds(values) {
   return Array.from(new Set((values || []).filter(Boolean)));
+}
+
+function safePathLocal(value) {
+  return String(value ?? '').replace(/[<>:"/\\|?*\n\r]/g, '_').trim();
+}
+
+function applyUrlMap(obj, urlMap) {
+  if (!urlMap || !urlMap.size) return obj;
+  let json = JSON.stringify(obj);
+  for (const [oldUrl, newUrl] of urlMap.entries()) {
+    const escapedOld = JSON.stringify(oldUrl).slice(1, -1);
+    const escapedNew = JSON.stringify(newUrl).slice(1, -1);
+    json = json.split(escapedOld).join(escapedNew);
+  }
+  try { return JSON.parse(json); } catch { return obj; }
+}
+
+async function organizeAndPersist(report) {
+  const projectFolderName = safePathLocal(`Missão ${report.project.code} - ${report.project.name}`);
+  const urlMap = report.reportType === 'RTP'
+    ? await organizeRtpPhotos(report, projectFolderName)
+    : await organizePhotos(report, projectFolderName);
+  if (urlMap && urlMap.size > 0) {
+    const newSC = applyUrlMap(report.specialConditions, urlMap);
+    await prisma.report.update({ where: { id: report.id }, data: { specialConditions: newSC } });
+  }
 }
 
 function collectPendingDerivedTypes(services) {
@@ -490,6 +516,13 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
     await syncApprovedRtpReports(tx, created);
     return created;
   });
+  await organizeAndPersist(item);
+  if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
+    const rtps = await prisma.report.findMany({ where: { projectId: item.projectId, reportType: ReportType.RTP }, include });
+    for (const rtp of rtps) {
+      if (rtp.specialConditions?.parentRdoId === item.id) await organizeAndPersist(rtp);
+    }
+  }
   res.status(201).json(item);
 }));
 
@@ -562,6 +595,13 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     return updated;
   });
 
+  await organizeAndPersist(item);
+  if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
+    const rtps = await prisma.report.findMany({ where: { projectId: item.projectId, reportType: ReportType.RTP }, include });
+    for (const rtp of rtps) {
+      if (rtp.specialConditions?.parentRdoId === item.id) await organizeAndPersist(rtp);
+    }
+  }
   res.json(item);
 }));
 
@@ -644,6 +684,12 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
     return updated;
   });
 
+  if (data.status === ReportStatus.APPROVED) {
+    const rtps = await prisma.report.findMany({ where: { projectId: item.projectId, reportType: ReportType.RTP }, include });
+    for (const rtp of rtps) {
+      if (rtp.specialConditions?.parentRdoId === item.id) await organizeAndPersist(rtp);
+    }
+  }
   res.json(item);
 }));
 
