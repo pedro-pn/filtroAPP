@@ -6,6 +6,7 @@ import { z } from 'zod';
 import asyncHandler from '../../lib/async-handler.js';
 import { saveReportDocx } from '../../lib/report-docx.js';
 import { saveReportPdf } from '../../lib/report-pdf-from-docx.js';
+import { saveRtpDocx, saveRtpPdf } from '../../lib/report-rtp.js';
 import { calculateReportOvertime } from '../../lib/overtime.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
@@ -232,7 +233,7 @@ router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
   }
 
-  const saved = await saveReportPdf(item);
+  const saved = item.reportType === 'RTP' ? await saveRtpPdf(item) : await saveReportPdf(item);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', contentDisposition(saved.fileName));
   res.send(await fs.readFile(saved.targetPath));
@@ -248,7 +249,11 @@ router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
   }
 
-  const saved = await saveReportDocx(item);
+  if (req.auth.user.role !== 'MANAGER') {
+    return res.status(403).json({ error: 'Apenas o gestor pode baixar o DOCX.' });
+  }
+
+  const saved = item.reportType === 'RTP' ? await saveRtpDocx(item) : await saveReportDocx(item);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   res.setHeader('Content-Disposition', contentDisposition(saved.fileName));
   res.send(await fs.readFile(saved.targetPath));
@@ -386,16 +391,100 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
   }
 
   const data = statusSchema.parse(req.body);
-  const item = await prisma.report.update({
-    where: { id: req.params.id },
-    data: {
-      status: data.status,
-      reviewNotes: data.reviewNotes || null,
-      reviewedByUserId: req.auth.user.id,
-      approvedAt: data.status === ReportStatus.APPROVED ? new Date() : null,
-      returnedAt: data.status === ReportStatus.RETURNED ? new Date() : null
-    },
-    include
+
+  const item = await prisma.$transaction(async tx => {
+    const previous = await tx.report.findUnique({ where: { id: req.params.id }, select: { status: true } });
+
+    const updated = await tx.report.update({
+      where: { id: req.params.id },
+      data: {
+        status: data.status,
+        reviewNotes: data.reviewNotes || null,
+        reviewedByUserId: req.auth.user.id,
+        approvedAt: data.status === ReportStatus.APPROVED ? new Date() : null,
+        returnedAt: data.status === ReportStatus.RETURNED ? new Date() : null
+      },
+      include
+    });
+
+    // Auto-create RTP records for finalized pressao services when approving an RDO for the first time
+    if (
+      data.status === ReportStatus.APPROVED &&
+      previous?.status !== ReportStatus.APPROVED &&
+      updated.reportType === 'RDO'
+    ) {
+      const pressaoServices = (updated.services || []).filter(
+        s => s.serviceType === 'pressao' && s.finalized === true
+      );
+
+      for (const service of pressaoServices) {
+        const fields = service.extraData || {};
+
+        const collabField = fields['Colaboradores do serviço'] || fields['Colaboradores do servico'];
+        const collabIds = Array.isArray(collabField?.ids) ? collabField.ids.filter(Boolean) : [];
+
+        const manoField = fields['Manômetros utilizados'] || fields['Manometros utilizados'];
+        const manoIds = Array.isArray(manoField?.ids) ? manoField.ids.filter(Boolean) : [];
+
+        const uthField = fields['Unidade de Teste Hidrostático (UTH)'] ||
+                         fields['Unidade de Teste Hidrostatico (UTH)'];
+        const uthIds = Array.isArray(uthField?.ids) ? uthField.ids.filter(Boolean)
+                     : (uthField && typeof uthField === 'string' ? [uthField] : []);
+
+        const [collaborators, manometers, uthUnits] = await Promise.all([
+          collabIds.length ? tx.collaborator.findMany({ where: { id: { in: collabIds } } }) : Promise.resolve([]),
+          manoIds.length ? tx.manometer.findMany({ where: { id: { in: manoIds } } }) : Promise.resolve([]),
+          uthIds.length ? tx.unit.findMany({ where: { id: { in: uthIds } } }) : Promise.resolve([])
+        ]);
+
+        const resolvedCollaborators = collaborators.map(c => ({
+          id: c.id, name: c.name, role: c.role, shift: 'Diurno'
+        }));
+        const resolvedManometers = manometers.map(m => ({
+          id: m.id, code: m.code, scale: m.scale,
+          certCode: m.calibrationCertCode,
+          calibratedAt: m.calibratedAt ? m.calibratedAt.toISOString().slice(0, 10) : '',
+          expiresAt: m.expiresAt ? m.expiresAt.toISOString().slice(0, 10) : ''
+        }));
+        const resolvedUnits = uthUnits.map(u => u.code);
+
+        const rtpSeq = await reserveSequence(tx, updated.projectId, 'RTP');
+
+        await tx.report.create({
+          data: {
+            projectId: updated.projectId,
+            createdByUserId: updated.createdByUserId,
+            reportType: 'RTP',
+            sequenceNumber: rtpSeq,
+            status: ReportStatus.APPROVED,
+            reportDate: updated.reportDate,
+            arrivalTime: service.startTime || updated.arrivalTime,
+            departureTime: service.endTime || updated.departureTime,
+            lunchBreak: updated.lunchBreak,
+            daytimeCount: resolvedCollaborators.length || updated.daytimeCount,
+            daytimeWorkedMinutes: 0,
+            nighttimeWorkedMinutes: 0,
+            daytimeOvertimeMinutes: 0,
+            nighttimeOvertimeMinutes: 0,
+            totalOvertimeMinutes: 0,
+            approvedAt: new Date(),
+            specialConditions: {
+              parentRdoId: updated.id,
+              serviceId: service.id,
+              serviceData: fields,
+              resolvedCollaborators,
+              resolvedManometers,
+              resolvedUnits
+            },
+            ...(collabIds.length ? {
+              collaborators: { create: collabIds.map(id => ({ collaboratorId: id })) }
+            } : {})
+          }
+        });
+      }
+    }
+
+    return updated;
   });
 
   res.json(item);

@@ -7,3 +7,5 @@ backend/node_modules/
 backend/.env
 backend/prisma/dev.db
 backend/prisma/dev.db-journal
+# Added by code-review-graph
+.code-review-graph/

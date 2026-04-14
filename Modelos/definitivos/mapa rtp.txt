@@ -1,0 +1,57 @@
+MAPA DO MODELO DE TESTE DE PRESSÃO
+
+{{missiontitle}} - deve ser substituido por "Missão [numero da missao] - [nome da missao]"
+{{client}} - cliente do projeto
+{{cnpj}} - CNPJ do projeto
+{{local}} - local do projeto
+{{proposal}} - contrato do projeto
+{{rtp}} - número rdo
+{{date}} - data do rdo
+
+Informações do serviço
+{{missiontitle}} - deve ser substituido por "Missão [numero da missao] - [nome da missao]"
+{{equipament}} - nome do equipamento do cliente que está sendo feito o serviço
+{{sistema}} - nome do sistema do cliente que está sendo feito o serviço
+{{fluid}} - fluido de teste: se for água, fica escrito "Água", se for óleo, fica escrito Óleo - [nome do óleo preenchido]
+{{testunit}} - Unidade de teste de pressão (UTHs) selecionadas separadas por vírgula
+{{projectpressure}} - pressão de projeto
+{{testpressure}} - pressão de teste (com a unidade de medida ao lado)
+{{starttime}} - horário de início do serviço (com a unidade de medida ao lado)
+{{endtime}} - horário de término do serviço
+{{status}} - Indicar se o serviço foi  "APROVADO" ou "REPROVADO" conforme preenchido pelo colaborador
+
+TUBULAÇÕES
+
+{{diameter}} - diametro da tubulação na seguinte formatação [diametro] [unidade] (geralmente polegadas)
+{{length}} - comprimento da tubulação, exemplo: "5 metros"
+
+COLABORADORES
+
+{{collaboratorname}} - nome do colaborador
+{{collaboratorposition}} - cargo do colaborador
+{{collaboratorshift}} - turno em que aquele colaborador trabalhou
+
+MANOMETROS
+
+{{manometerscale}} - escala do manômetro conforme cadastrado o manometro selecionado
+{{manometercert}} - número do certificado do manômetro conforme cadastrado
+{{manometercalibration}} - data de calibração do manometro conforme cadastrado
+{{manometerexpiring}} - data de validade da calibração conforme cadastrada
+
+FOTOS DO MANOMETRO
+
+{{manometerphotos}} - fotos adicionadas no campo fotos do manometro
+
+FOTOS DO SISTEMA
+
+{{systemphotos}} - fotos adicionadas no campo do sistema
+
+observações
+
+{{obs}} - observações escritas no final do serviço
+
+final
+
+{{sign}} - imagem da assinatura do líder
+{{leadername}} - nome do líder
+{{leaderposition}} - cargo do líder.

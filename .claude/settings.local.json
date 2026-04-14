@@ -1,7 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep -n \"isActive\\\\|ativo\" \"/c/Users/relat/Área de Trabalho/NewRDO/backend/src/routes/resources/\"*.js)"
+      "Bash(grep -n \"isActive\\\\|ativo\" \"/c/Users/relat/Área de Trabalho/NewRDO/backend/src/routes/resources/\"*.js)",
+      "Bash(cd /tmp)",
+      "Bash(unzip -q \"/c/Users/relat/Área de Trabalho/NewRDO/Modelos/definitivos/Modelo - RTP.docx\" -d modelo_rtp_extract)",
+      "Bash(python3:*)",
+      "Bash(node --input-type=module --eval \"import './src/lib/report-rtp.js'\")",
+      "Bash(node --input-type=module --eval \"import './src/routes/resources/reports.js'\")",
+      "mcp__code-review-graph__build_or_update_graph_tool",
+      "Bash(node --input-type=module)",
+      "Bash(node -e \"import\\('./src/routes/resources/reports.js'\\).catch\\(e=>console.error\\(e.message\\)\\)\")",
+      "Bash(find \"C:\\\\Users\\\\relat\\\\Área de Trabalho\\\\NewRDO\\\\backend\" -name \"schema.prisma\" -exec grep -n \"ReportType\\\\|RTP\\\\|RDO\" {} \\\\;)",
+      "Bash(node -e \"import\\('./src/lib/report-rtp.js'\\).then\\(m=>console.log\\('OK',Object.keys\\(m\\)\\)\\).catch\\(e=>console.error\\('ERR',e.message\\)\\)\")",
+      "Bash(node -e \"import\\('./src/routes/resources/reports.js'\\).then\\(\\(\\)=>console.log\\('OK'\\)\\).catch\\(e=>console.error\\('ERR',e.message\\)\\)\")",
+      "Bash(npx prisma:*)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "code-review-graph"
+  ]
 }

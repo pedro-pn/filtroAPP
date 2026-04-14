@@ -84,6 +84,7 @@ function normalizeLabel(value) {
     'Hora de término/pausa': 'Hora de término/pausa',
     'Colaboradores do serviÃ§o': 'Colaboradores do serviço',
     'Colaboradores do serviço': 'Colaboradores do serviço',
+    'Equipamento(s)': 'Equipamento(s)',
     'ServiÃ§o finalizado?': 'Serviço finalizado?',
     'Serviço finalizado?': 'Serviço finalizado?',
     'Tipo de Ã³leo': 'Tipo de óleo',
@@ -131,6 +132,7 @@ function stringify(value) {
   if (value == null) return '';
   if (Array.isArray(value)) return value.filter(Boolean).join(', ');
   if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
+  if (typeof value === 'object' && value.labels) return Array.isArray(value.labels) ? value.labels.filter(Boolean).join(', ') : '';
   return String(value);
 }
 
@@ -177,7 +179,7 @@ function serviceTemplateData(service, index) {
   const common = {
     servicecount: String(index + 1),
     servicename: SERVICE_NAMES[service.serviceType] || service.serviceType,
-    equipament: stringify(getField(fields, ['Equipamento', 'ID da embarcação'])),
+    equipament: stringify(getField(fields, ['Equipamento(s)', 'Equipamento', 'ID da embarcação'])),
     system: stringify(getField(fields, ['Sistema'])),
     starttime: stringify(getField(fields, ['Hora de início'])),
     endtime: stringify(getField(fields, ['Hora de término/pausa'])),
@@ -783,7 +785,7 @@ async function organizePhotos(report, projectFolderName) {
   // Service attachment photos
   for (const service of (report.services || [])) {
     const fields = service.extraData || {};
-    const equipment = safePath(stringify(getField(fields, ['Equipamento', 'ID da embarcação'])) || 'Equipamento');
+    const equipment = safePath(stringify(getField(fields, ['Equipamento(s)', 'Equipamento', 'ID da embarcação'])) || 'Equipamento');
     const system = safePath(service.system || stringify(getField(fields, ['Sistema'])) || 'Sistema');
     let svcCount = 1;
     for (const attachment of (service.attachments || [])) {

@@ -127,6 +127,17 @@ textarea{resize:none;min-height:72px}
 .admin-inline-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .admin-inline-grid .full{grid-column:1/-1}
 .rel-icon{width:40px;height:40px;border-radius:var(--rs);background:#f0f7f2;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.report-type-group{margin-bottom:4px}
+.report-type-header{display:flex;align-items:center;gap:8px;padding:8px 2px 6px 2px;cursor:pointer;user-select:none;border-bottom:.5px solid #e5e7eb}
+.report-type-header:hover .rtype-count{color:var(--g)}
+.rtype-badge{display:inline-flex;align-items:center;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;letter-spacing:.5px}
+.rtype-RDO{background:#d1fae5;color:#065f46}
+.rtype-RTP{background:#fee2e2;color:#991b1b}
+.rtype-RLQ,.rtype-RCP,.rtype-RLM,.rtype-RLI,.rtype-RLF{background:#dbeafe;color:#1e40af}
+.rtype-count{font-size:12px;color:var(--mu);flex:1}
+.rtype-chevron{font-size:12px;color:var(--mu)}
+.report-type-list{display:flex;flex-direction:column;gap:8px;padding-top:8px}
+.equip-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .rel-info{flex:1;min-width:0}
 .rel-name{font-size:13px;font-weight:600}
 .rel-meta{font-size:11px;color:var(--mu);margin-top:3px;line-height:1.5}
@@ -643,32 +654,40 @@ function getSelectedCollaboratorIds(){
 function getSelectedNightCollaboratorIds(){
   return Array.from(new Set(Array.from(document.querySelectorAll('#noturno-colab-list .colab-tag')).map(function(el){return el.dataset.colabId;}).filter(Boolean)));
 }
+function getAvailableServiceCollaborators(){
+  var seen=new Set();var result=[];
+  Array.from(document.querySelectorAll('#colab-list .colab-tag, #noturno-colab-list .colab-tag')).forEach(function(el){
+    var id=el.dataset.colabId;
+    var name=((el.querySelector('.colab-name')||{}).textContent||'').trim();
+    if(id&&!seen.has(id)){seen.add(id);result.push({id:id,nome:name});}
+  });
+  return result;
+}
 function getAvailableServiceCollaboratorNames(){
-  return Array.from(new Set(
-    Array.from(document.querySelectorAll('#colab-list .colab-tag .colab-name, #noturno-colab-list .colab-tag .colab-name'))
-      .map(function(el){return (el.textContent||'').trim();})
-      .filter(Boolean)
-  ));
+  return getAvailableServiceCollaborators().map(function(c){return c.nome;});
 }
 function serviceCollaboratorsField(selected,isPre){
-  var names=getAvailableServiceCollaboratorNames();
-  var chosen=Array.isArray(selected)?selected:[selected].filter(Boolean);
+  var collabs=getAvailableServiceCollaborators();
+  var selIds=[],selNames=[];
+  if(selected&&!Array.isArray(selected)&&selected.ids){selIds=selected.ids||[];selNames=selected.labels||[];}
+  else if(Array.isArray(selected)){selNames=selected.filter(Boolean);}
   return '<div class="fg"><label>Colaboradores do serviço</label><div class="chk-grp svc-team-options">'+
-    (names.length?names.map(function(name){
-      var checked=chosen.indexOf(name)>=0;
-      return '<label class="chk-item '+(isPre&&checked?'pre':'')+'"><input type="checkbox"'+(checked?' checked':'')+'><span>'+escapeHtml(name)+'</span></label>';
+    (collabs.length?collabs.map(function(c){
+      var checked=selIds.indexOf(c.id)>=0||selNames.indexOf(c.nome)>=0;
+      return '<label class="chk-item '+(isPre&&checked?'pre':'')+'"><input type="checkbox" value="'+escapeHtml(c.id)+'"'+(checked?' checked':'')+'><span>'+escapeHtml(c.nome)+'</span></label>';
     }).join(''):'<div style="font-size:12px;color:var(--mu)">Adicione colaboradores no cabeçalho para selecionar aqui.</div>')+
     '</div></div>';
 }
 function refreshServiceCollaboratorOptions(){
-  var names=getAvailableServiceCollaboratorNames();
+  var collabs=getAvailableServiceCollaborators();
   document.querySelectorAll('.svc-card .svc-team-options').forEach(function(group){
-    var selected=Array.from(group.querySelectorAll('input:checked')).map(function(input){
-      return ((input.parentElement.querySelector('span')||{}).textContent||'').trim();
+    var selIds=Array.from(group.querySelectorAll('input:checked')).map(function(inp){return inp.value;}).filter(Boolean);
+    var selNames=Array.from(group.querySelectorAll('input:checked')).map(function(inp){
+      return ((inp.parentElement.querySelector('span')||{}).textContent||'').trim();
     }).filter(Boolean);
-    group.innerHTML=names.length?names.map(function(name){
-      var checked=selected.indexOf(name)>=0;
-      return '<label class="chk-item"><input type="checkbox"'+(checked?' checked':'')+'><span>'+escapeHtml(name)+'</span></label>';
+    group.innerHTML=collabs.length?collabs.map(function(c){
+      var checked=selIds.indexOf(c.id)>=0||selNames.indexOf(c.nome)>=0;
+      return '<label class="chk-item"><input type="checkbox" value="'+escapeHtml(c.id)+'"'+(checked?' checked':'')+'><span>'+escapeHtml(c.nome)+'</span></label>';
     }).join(''):'<div style="font-size:12px;color:var(--mu)">Adicione colaboradores no cabeçalho para selecionar aqui.</div>';
   });
 }
@@ -684,13 +703,66 @@ function selectOptions(opts,selected,placeholder){
   var html=placeholder?'<option value="">'+placeholder+'</option>':'';
   return html+opts.map(function(o){return '<option value="'+escapeHtml(o.value)+'"'+(o.value===selected?' selected':'')+'>'+escapeHtml(o.label)+'</option>';}).join('');
 }
-function equipField(tipo,n,val,isPre){
-  return '<div class="fg"><label>Equipamento <span class="req">*</span>'+(isPre&&val?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
-    '<input type="text" value="'+escapeHtml(val||'')+'" placeholder="Informar equipamento do cliente..." data-required="true" data-label="Equipamento"></div>';
+function equipMultiField(tipo,n,val,isPre){
+  var vals=Array.isArray(val)?(val.length?val:['']):(val?[val]:['']);
+  var rows=vals.map(function(v,i){
+    return '<div class="equip-row">'+
+      '<input type="text" value="'+escapeHtml(v||'')+'" placeholder="Informar equipamento do cliente..."'+(i===0?' data-required="true" data-label="Equipamento(s)"':'')+' class="'+(isPre&&v?'pre':'')+'" data-equip-input style="flex:1">'+
+      '<div style="color:#9ca3af;cursor:pointer;font-size:18px;line-height:1;flex-shrink:0" onclick="removeEquipRow(this)">×</div>'+
+    '</div>';
+  }).join('');
+  return '<div class="fg"><label>Equipamento(s) <span class="req">*</span>'+(isPre&&val?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
+    '<div data-multifield="equips" id="equips-'+n+'">'+rows+'</div>'+
+    '<div class="tube-add" onclick="addEquip('+n+')">＋ Adicionar equipamento</div></div>';
+}
+function removeEquipRow(btn){
+  var row=btn.closest('.equip-row');if(!row)return;
+  var container=row.parentElement;
+  if(container.querySelectorAll('.equip-row').length>1)row.remove();
+}
+function addEquip(n){
+  var c=document.getElementById('equips-'+n);if(!c)return;
+  var d=document.createElement('div');d.className='equip-row';
+  d.innerHTML='<input type="text" placeholder="Informar equipamento do cliente..." data-equip-input style="flex:1">'+
+    '<div style="color:#9ca3af;cursor:pointer;font-size:18px;line-height:1;flex-shrink:0" onclick="removeEquipRow(this)">×</div>';
+  c.appendChild(d);
 }
 function unitField(label,tipo,val,required){
   return '<div class="fg"><label>'+label+(required?' <span class="req">*</span>':'')+'</label>'+
     '<select'+(required?' data-required="true" data-label="'+label+'"':'')+'>'+selectOptions(unitOptions(tipo),val,'Selecionar...')+'</select></div>';
+}
+function unitMultiField(label,tipo,n,vals,required,isPre){
+  var opts=unitOptions(tipo);
+  var arr=Array.isArray(vals)?(vals.length?vals:['']):(vals?[vals]:['']);
+  var cid='units-'+n+'-'+tipo;
+  var rows=arr.map(function(v,i){
+    return '<div class="unit-row" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+      '<select'+(i===0&&required?' data-required="true" data-label="'+label+'"':'')+' class="'+(isPre&&v?'pre':'')+'" data-unit-select style="flex:1">'+
+      '<option value="">Selecionar...</option>'+
+      opts.map(function(o){return '<option value="'+escapeHtml(o.value)+'"'+(o.value===v?' selected':'')+'>'+escapeHtml(o.label)+'</option>';}).join('')+
+      '</select>'+
+      '<div style="color:#9ca3af;cursor:pointer;font-size:18px;line-height:1;flex-shrink:0" onclick="removeUnitRow(this)">×</div>'+
+    '</div>';
+  }).join('');
+  return '<div class="fg"><label>'+label+(required?' <span class="req">*</span>':'')+(isPre&&arr.filter(Boolean).length?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
+    '<div data-multifield="units" data-unit-tipo="'+tipo+'" id="'+cid+'">'+rows+'</div>'+
+    '<div class="tube-add" onclick="addUnit(\''+cid+'\',\''+tipo+'\')">＋ Adicionar unidade</div></div>';
+}
+function removeUnitRow(btn){
+  var row=btn.closest('.unit-row');if(!row)return;
+  var container=row.parentElement;
+  if(container.querySelectorAll('.unit-row').length>1)row.remove();
+}
+function addUnit(cid,tipo){
+  var opts=unitOptions(tipo);
+  var c=document.getElementById(cid);if(!c)return;
+  var d=document.createElement('div');d.className='unit-row';
+  d.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:6px';
+  d.innerHTML='<select data-unit-select style="flex:1"><option value="">Selecionar...</option>'+
+    opts.map(function(o){return '<option value="'+escapeHtml(o.value)+'">'+escapeHtml(o.label)+'</option>';}).join('')+
+    '</select>'+
+    '<div style="color:#9ca3af;cursor:pointer;font-size:18px;line-height:1;flex-shrink:0" onclick="removeUnitRow(this)">×</div>';
+  c.appendChild(d);
 }
 
 function setProjeto(v){projAtual=v;}
@@ -793,14 +865,19 @@ function fgPre(label,id,val,isPre,ph){
     '<input type="text" id="'+id+'" class="'+c+'" value="'+val+'" placeholder="'+(ph||'')+'" data-required="true" data-label="'+label+'"></div>';
 }
 function tubesBlock(n,tubes,isPre){
-  var rows=(tubes&&tubes.length?tubes:[{d:'',c:''}]).map(function(t){
-    return '<div class="r3">'+
-      '<div class="fg" style="margin:0"><label style="font-size:10px">Diâmetro (pol)</label><input type="text" class="'+(isPre&&t.d?'pre':'')+'" value="'+t.d+'" placeholder=\'2"\'></div>'+
-      '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento (m)</label><input type="text" class="'+(isPre&&t.c?'pre':'')+'" value="'+t.c+'" placeholder="45"></div>'+
-      '<div style="color:#9ca3af;cursor:pointer;font-size:18px;align-self:flex-end;padding-bottom:8px" onclick="this.parentElement.remove()">×</div></div>';
+  var rows=(tubes&&tubes.length?tubes:[{d:'',unit:'pol',c:''}]).map(function(t){
+    var unit=t.unit||'pol';
+    return '<div class="r3 tube-row">'+
+      '<div class="fg" style="margin:0"><label style="font-size:10px">Diâmetro</label>'+
+      '<div class="num-unit" style="margin-top:4px">'+
+      '<input type="text" class="'+(isPre&&t.d?'pre':'')+'" value="'+escapeHtml(t.d||'')+'" placeholder=\'2"\' style="flex:1.5">'+
+      '<select style="flex:0.8"><option value="pol"'+(unit==='pol'?' selected':'')+'>pol</option><option value="mm"'+(unit==='mm'?' selected':'')+'>mm</option></select>'+
+      '</div></div>'+
+      '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento (m)</label><input type="text" class="'+(isPre&&t.c?'pre':'')+'" value="'+escapeHtml(t.c||'')+'" placeholder="45"></div>'+
+      '<div style="color:#9ca3af;cursor:pointer;font-size:18px;align-self:flex-end;padding-bottom:8px" onclick="this.closest(\'.tube-row\').remove()">×</div></div>';
   }).join('');
   return '<div class="fg"><label>Diâmetros e comprimentos'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
-    '<div id="tubes-'+n+'">'+rows+'</div>'+
+    '<div id="tubes-'+n+'" data-multifield="tubes">'+rows+'</div>'+
     '<div class="tube-add" onclick="addTube('+n+')">＋ Adicionar tubulação</div></div>';
 }
 function materialField(n,val,isPre,lbl){
@@ -998,10 +1075,15 @@ function toggleMat(selId,outroId){
   if(s&&o)o.style.display=s.value==='Outro'?'block':'none';
 }
 function addTube(n){
-  var c=document.getElementById('tubes-'+n);var d=document.createElement('div');d.className='r3';
-  d.innerHTML='<div class="fg" style="margin:0"><label style="font-size:10px">Diâmetro (pol)</label><input type="text" placeholder=\'2"\'></div>'+
+  var c=document.getElementById('tubes-'+n);if(!c)return;
+  var d=document.createElement('div');d.className='r3 tube-row';
+  d.innerHTML='<div class="fg" style="margin:0"><label style="font-size:10px">Diâmetro</label>'+
+    '<div class="num-unit" style="margin-top:4px">'+
+    '<input type="text" placeholder=\'2"\' style="flex:1.5">'+
+    '<select style="flex:0.8"><option value="pol">pol</option><option value="mm">mm</option></select>'+
+    '</div></div>'+
     '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento (m)</label><input type="text" placeholder="45"></div>'+
-    '<div style="color:#9ca3af;cursor:pointer;font-size:18px;align-self:flex-end;padding-bottom:8px" onclick="this.parentElement.remove()">×</div>';
+    '<div style="color:#9ca3af;cursor:pointer;font-size:18px;align-self:flex-end;padding-bottom:8px" onclick="this.closest(\'.tube-row\').remove()">×</div>';
   c.appendChild(d);
 }
 function addEtapa(n){
@@ -1060,9 +1142,25 @@ function fgValue(fg){
   var tags=fg.querySelector('.tag-list');
   if(tags)return Array.from(tags.querySelectorAll('.tag.sel')).map(function(el){return el.textContent.trim();});
   var chk=fg.querySelector('.chk-grp');
-  if(chk)return Array.from(chk.querySelectorAll('input:checked')).map(function(el){return (el.parentElement.querySelector('span')||{}).textContent||'';}).map(function(v){return v.trim();}).filter(Boolean);
+  if(chk){
+    var checked=Array.from(chk.querySelectorAll('input:checked'));
+    var hasVals=checked.some(function(inp){return inp.value&&inp.value!=='on';});
+    if(hasVals)return {ids:checked.map(function(inp){return inp.value;}).filter(Boolean),labels:checked.map(function(inp){return ((inp.parentElement.querySelector('span')||{}).textContent||'').trim();}).filter(Boolean)};
+    return checked.map(function(inp){return ((inp.parentElement.querySelector('span')||{}).textContent||'').trim();}).filter(Boolean);
+  }
   var rtag=fg.querySelector('.rtag-grp');
   if(rtag)return Array.from(rtag.querySelectorAll('.rtag.yes,.rtag.no')).map(function(el){return el.textContent.trim();});
+  var equips=fg.querySelector('[data-multifield="equips"]');
+  if(equips)return Array.from(equips.querySelectorAll('[data-equip-input]')).map(function(i){return i.value.trim();}).filter(Boolean);
+  var tubes=fg.querySelector('[data-multifield="tubes"]');
+  if(tubes)return Array.from(tubes.querySelectorAll('.tube-row')).map(function(row){
+    var inputs=row.querySelectorAll('input');var sel=row.querySelector('select');
+    return {d:(inputs[0]?inputs[0].value.trim():''),unit:(sel?sel.value:'pol'),c:(inputs[1]?inputs[1].value.trim():'')};
+  }).filter(function(t){return t.d||t.c;});
+  var units=fg.querySelector('[data-multifield="units"]');
+  if(units){var usels=Array.from(units.querySelectorAll('[data-unit-select]'));var uids=usels.map(function(s){return s.value;}).filter(Boolean);var ulabels=usels.filter(function(s){return s.value;}).map(function(s){return s.options[s.selectedIndex]?s.options[s.selectedIndex].text:'';}).filter(Boolean);return {ids:uids,labels:ulabels};}
+  var zone=fg.querySelector('.upload-z');
+  if(zone)return JSON.parse(zone.dataset.uploads||'[]');
   var control=fg.querySelector('input,select,textarea');
   if(!control)return null;
   return control.value;
@@ -1894,11 +1992,36 @@ function reportCard(report,origin){
   var owner=(report.createdBy&&report.createdBy.name)||'—';
   return '<div class="rel-item" onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')"><div class="rel-icon">📋</div><div class="rel-info"><div class="rel-name">'+escapeHtml(report.project.name)+'</div><div class="rel-meta">'+escapeHtml(owner)+' · '+formatReportDate(report.reportDate)+'<br>'+escapeHtml(summarizeServices(report)||'Sem serviços')+'</div></div><span class="badge '+meta.cls+'">'+meta.txt+'</span></div>';
 }
+function toggleTypeGroup(uid){
+  var el=document.getElementById(uid);var chev=document.getElementById('chev-'+uid);
+  if(!el)return;
+  var open=el.style.display!=='none';
+  el.style.display=open?'none':'';
+  if(chev)chev.textContent=open?'▸':'▾';
+}
 function groupedReportHtml(items,origin,emptyText){
   if(!items.length)return '<div style="text-align:center;color:var(--mu);padding:32px;font-size:13px">'+emptyText+'</div>';
-  var groups=groupReportsByProject(items), html='';
+  var groups=groupReportsByProject(items),html='';
+  var typeOrder=['RDO','RTP','RLQ','RCP','RLM','RLI','RLF'];
   Object.keys(groups).sort().forEach(function(projectName){
-    html+='<div class="card"><div class="sec">'+escapeHtml(projectName)+'</div><div class="admin-list">'+groups[projectName].map(function(r){return reportCard(r,origin);}).join('')+'</div></div>';
+    var byType={};
+    groups[projectName].forEach(function(r){var t=r.reportType||'RDO';if(!byType[t])byType[t]=[];byType[t].push(r);});
+    var typeHtml='';
+    var allTypes=typeOrder.concat(Object.keys(byType).filter(function(t){return typeOrder.indexOf(t)<0;}));
+    allTypes.forEach(function(type){
+      if(!byType[type]||!byType[type].length)return;
+      var uid='rtype_'+projectName.replace(/[^a-z0-9]/gi,'_')+'_'+type;
+      typeHtml+='<div class="report-type-group">'+
+        '<div class="report-type-header" onclick="toggleTypeGroup(\''+uid+'\')">'+
+        '<span class="rtype-badge rtype-'+type+'">'+type+'</span>'+
+        '<span class="rtype-count">'+byType[type].length+' relatório'+(byType[type].length!==1?'s':'')+'</span>'+
+        '<span class="rtype-chevron" id="chev-'+uid+'">▾</span>'+
+        '</div>'+
+        '<div class="report-type-list" id="'+uid+'">'+
+        byType[type].map(function(r){return reportCard(r,origin);}).join('')+
+        '</div></div>';
+    });
+    html+='<div class="card"><div class="sec">'+escapeHtml(projectName)+'</div>'+typeHtml+'</div>';
   });
   return html;
 }
@@ -2025,10 +2148,13 @@ function setFgStoredValue(fg,val){
   }
   var chk=fg.querySelector('.chk-grp');
   if(chk){
-    var arr2=Array.isArray(val)?val:[val];
+    var selIds2=[],arr2=[];
+    if(val&&!Array.isArray(val)&&val.ids){selIds2=val.ids||[];arr2=val.labels||[];}
+    else{arr2=Array.isArray(val)?val:[val];}
     chk.querySelectorAll('.chk-item').forEach(function(item){
       var span=item.querySelector('span'); var input=item.querySelector('input');
-      input.checked=arr2.indexOf((span&&span.textContent||'').trim())>=0;
+      var label=(span&&span.textContent||'').trim();
+      input.checked=arr2.indexOf(label)>=0||(input.value&&selIds2.indexOf(input.value)>=0);
     });
     return;
   }
@@ -2074,6 +2200,53 @@ function setFgStoredValue(fg,val){
         if(opt.value===match[2]||opt.textContent.trim()===match[2])select.value=opt.value;
       });
     }
+    return;
+  }
+  var equipsC=fg.querySelector('[data-multifield="equips"]');
+  if(equipsC){
+    var equipsArr=Array.isArray(val)?(val.length?val:['']):(val?[val]:['']);
+    var existRows=equipsC.querySelectorAll('.equip-row');
+    equipsArr.forEach(function(v,i){
+      if(i<existRows.length){var inp=existRows[i].querySelector('[data-equip-input]');if(inp)inp.value=String(v||'');}
+      else{
+        var id=equipsC.id.replace('equips-','');addEquip(id);
+        var allR=equipsC.querySelectorAll('.equip-row');
+        var inp2=allR[allR.length-1].querySelector('[data-equip-input]');if(inp2)inp2.value=String(v||'');
+      }
+    });
+    return;
+  }
+  var tubesC=fg.querySelector('[data-multifield="tubes"]');
+  if(tubesC&&Array.isArray(val)&&val.length){
+    tubesC.innerHTML='';
+    val.forEach(function(t){
+      if(!t||(!t.d&&!t.c))return;
+      var unit=t.unit||'pol';
+      var d=document.createElement('div');d.className='r3 tube-row';
+      d.innerHTML='<div class="fg" style="margin:0"><label style="font-size:10px">Diâmetro</label>'+
+        '<div class="num-unit" style="margin-top:4px">'+
+        '<input type="text" value="'+escapeHtml(String(t.d||''))+'" placeholder=\'2"\' style="flex:1.5">'+
+        '<select style="flex:0.8"><option value="pol"'+(unit==='pol'?' selected':'')+'>pol</option><option value="mm"'+(unit==='mm'?' selected':'')+'>mm</option></select>'+
+        '</div></div>'+
+        '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento (m)</label><input type="text" value="'+escapeHtml(String(t.c||''))+'" placeholder="45"></div>'+
+        '<div style="color:#9ca3af;cursor:pointer;font-size:18px;align-self:flex-end;padding-bottom:8px" onclick="this.closest(\'.tube-row\').remove()">×</div>';
+      tubesC.appendChild(d);
+    });
+    return;
+  }
+  var unitsC=fg.querySelector('[data-multifield="units"]');
+  if(unitsC){
+    var ucid=unitsC.id;var utipo=unitsC.dataset.unitTipo||'';
+    var uids=[];
+    if(val&&!Array.isArray(val)&&val.ids)uids=val.ids;
+    else if(Array.isArray(val))uids=val;
+    else if(val)uids=[String(val)];
+    uids=uids.filter(Boolean);
+    var urows=Array.from(unitsC.querySelectorAll('.unit-row'));
+    uids.forEach(function(id,i){
+      if(i<urows.length){var sel=urows[i].querySelector('[data-unit-select]');if(sel)sel.value=id;}
+      else{addUnit(ucid,utipo);var allR=unitsC.querySelectorAll('.unit-row');var sel2=allR[allR.length-1].querySelector('[data-unit-select]');if(sel2)sel2.value=id;}
+    });
     return;
   }
   var control=fg.querySelector('input,select,textarea');
@@ -2931,7 +3104,21 @@ function reportDisplayLabel(report){
 function reportCard(report,origin){
   var meta=reportStatusMeta(report);
   var owner=(report.createdBy&&report.createdBy.name)||'—';
-  return '<div class="rel-item" onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')"><div class="rel-icon">📋</div><div class="rel-info"><div class="rel-name">'+escapeHtml(reportDisplayLabel(report))+' · '+escapeHtml(report.project.name)+'</div><div class="rel-meta">'+escapeHtml(owner)+' · '+formatReportDate(report.reportDate)+'<br>'+escapeHtml(summarizeServices(report)||'Sem serviços')+'</div></div><span class="badge '+meta.cls+'">'+meta.txt+'</span></div>';
+  var isRtp=report.reportType&&report.reportType!=='RDO';
+  var icon=isRtp?'🔴':'📋';
+  var subtitle;
+  if(isRtp){
+    var svc=(report.services||[])[0];
+    var equip=svc?((svc.extraData&&svc.extraData['Equipamento(s)'])?stringify2(svc.extraData['Equipamento(s)']):(svc.extraData&&svc.extraData['Equipamento'])||'—'):'—';
+    var sys=svc?(svc.system||((svc.extraData||{})['Sistema'])||'—'):'—';
+    subtitle=escapeHtml(equip)+' · '+escapeHtml(sys);
+  }else{subtitle=escapeHtml(summarizeServices(report)||'Sem serviços');}
+  return '<div class="rel-item" onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')"><div class="rel-icon">'+icon+'</div><div class="rel-info"><div class="rel-name">'+escapeHtml(reportDisplayLabel(report))+' · '+escapeHtml(report.project.name)+'</div><div class="rel-meta">'+escapeHtml(owner)+' · '+formatReportDate(report.reportDate)+'<br>'+subtitle+'</div></div><span class="badge '+meta.cls+'">'+meta.txt+'</span></div>';
+}
+function stringify2(v){
+  if(!v)return '—';
+  if(Array.isArray(v))return v.filter(Boolean).join(', ')||'—';
+  return String(v)||'—';
 }
 function renderManagerDetail(report){
   var special=report.specialConditions||{};
@@ -3084,9 +3271,16 @@ function getDirectFieldValue(fg){
   var tagList=children.find(function(el){return el.classList&&el.classList.contains('tag-list');});
   if(tagList)return Array.from(tagList.querySelectorAll('.tag.sel')).map(function(el){return el.textContent.trim();});
   var chk=children.find(function(el){return el.classList&&el.classList.contains('chk-grp');});
-  if(chk)return Array.from(chk.querySelectorAll('input:checked')).map(function(el){return (el.parentElement.querySelector('span')||{}).textContent||'';}).map(function(v){return v.trim();}).filter(Boolean);
+  if(chk){
+    var checked=Array.from(chk.querySelectorAll('input:checked'));
+    var hasVals=checked.some(function(inp){return inp.value&&inp.value!=='on';});
+    if(hasVals)return {ids:checked.map(function(inp){return inp.value;}).filter(Boolean),labels:checked.map(function(inp){return ((inp.parentElement.querySelector('span')||{}).textContent||'').trim();}).filter(Boolean)};
+    return checked.map(function(inp){return ((inp.parentElement.querySelector('span')||{}).textContent||'').trim();}).filter(Boolean);
+  }
   var rtag=children.find(function(el){return el.classList&&el.classList.contains('rtag-grp');});
   if(rtag)return Array.from(rtag.querySelectorAll('.rtag.yes,.rtag.no')).map(function(el){return el.textContent.trim();});
+  var unitsEl=children.find(function(el){return el.dataset&&el.dataset.multifield==='units';});
+  if(unitsEl){var usels=Array.from(unitsEl.querySelectorAll('[data-unit-select]'));var uids=usels.map(function(s){return s.value;}).filter(Boolean);var ulabels=usels.filter(function(s){return s.value;}).map(function(s){return s.options[s.selectedIndex]?s.options[s.selectedIndex].text:'';}).filter(Boolean);return {ids:uids,labels:ulabels};}
   var zone=children.find(function(el){return el.classList&&el.classList.contains('upload-z');});
   if(zone)return JSON.parse(zone.dataset.uploads||'[]');
   for(var i=0;i<children.length;i++){
@@ -3108,7 +3302,20 @@ function collectServiceFields(card){
   card.querySelectorAll('.fg').forEach(function(fg){
     var label=fg.querySelector(':scope > label')||fg.querySelector('label');
     if(!label)return;
-    out[cleanLabelText(label.textContent)]=getDirectFieldValue(fg);
+    var key=cleanLabelText(label.textContent);
+    // multi-equip container
+    var equips=fg.querySelector('[data-multifield="equips"]');
+    if(equips){out[key]=Array.from(equips.querySelectorAll('[data-equip-input]')).map(function(i){return i.value.trim();}).filter(Boolean);return;}
+    // multi-tube container
+    var tubes=fg.querySelector('[data-multifield="tubes"]');
+    if(tubes){out[key]=Array.from(tubes.querySelectorAll('.tube-row')).map(function(row){
+      var inputs=row.querySelectorAll('input');var sel=row.querySelector('select');
+      return {d:(inputs[0]?inputs[0].value.trim():''),unit:(sel?sel.value:'pol'),c:(inputs[1]?inputs[1].value.trim():'')};
+    }).filter(function(t){return t.d||t.c;});return;}
+    // multi-unit container
+    var unitsEl=fg.querySelector('[data-multifield="units"]');
+    if(unitsEl){var usels=Array.from(unitsEl.querySelectorAll('[data-unit-select]'));var uids=usels.map(function(s){return s.value;}).filter(Boolean);var ulabels=usels.filter(function(s){return s.value;}).map(function(s){return s.options[s.selectedIndex]?s.options[s.selectedIndex].text:'';}).filter(Boolean);out[key]={ids:uids,labels:ulabels};return;}
+    out[key]=getDirectFieldValue(fg);
   });
   out.__uploads__=[];
   card.querySelectorAll('.fg').forEach(function(fg){
@@ -3171,6 +3378,8 @@ function fillServiceCardFromReport(card,service){
   var dehydrationValue=fields['Houve desidrataÃ§Ã£o?'];
   var particleText=String((Array.isArray(particleValue)?particleValue[0]:particleValue)||'').toLowerCase();
   var dehydrationText=String((Array.isArray(dehydrationValue)?dehydrationValue[0]:dehydrationValue)||'').toLowerCase();
+  if(!fields['Equipamento(s)']){fields['Equipamento(s)']=[fields['Equipamento']].filter(Boolean);}
+  else if(!Array.isArray(fields['Equipamento(s)'])){fields['Equipamento(s)']=[fields['Equipamento(s)']].filter(Boolean);}
   var hadParticleData=!!(fields['Contador utilizado']||fields['Contagem inicial NAS']||fields['Contagem final NAS']||fields['Contagem inicial ISO']||fields['Contagem final ISO']||((fields['Foto do laudo do contador']||[]).length));
   var hadDehydrationData=!!(fields['Equipamento de desidrataÃ§Ã£o']||fields['Houve anÃ¡lise de umidade?']||fields['Umidade inicial (ppm)']||fields['Umidade final (ppm)']||((fields['Foto anÃ¡lise inicial']||[]).length)||((fields['Foto anÃ¡lise final']||[]).length)||((fields['Foto do Ã³leo (antes)']||[]).length)||((fields['Foto do Ã³leo (depois)']||[]).length));
   if(hadParticleData || particleText.indexOf('sim')>=0)forceServiceToggle(card,'Houve contagem de partÃ­culas?',true);
@@ -3266,7 +3475,8 @@ async function openReportDetail(id,origin){
   document.getElementById('det-title').textContent=reportDisplayLabel(report)+' · '+report.project.name;
   document.getElementById('det-sub').textContent=((report.createdBy&&report.createdBy.name)||'—')+' · '+formatReportDate(report.reportDate);
   document.getElementById('det-badge-top').textContent=statusMeta(report.status).txt;
-  if(currentUser&&currentUser.role==='MANAGER'){
+  var isRtp=report.reportType&&report.reportType!=='RDO';
+  if(currentUser&&currentUser.role==='MANAGER'&&!isRtp){
     renderManagerDetail(report);
     go('s-detalhe');
     return;
@@ -3277,9 +3487,23 @@ async function openReportDetail(id,origin){
     return '<div class="svc-mini"><div class="svc-mini-hdr">Serviço '+(i+1)+' — '+escapeHtml(serviceNames[s.serviceType]||s.serviceType)+'</div><div class="svc-mini-body"><div class="det-section">'+renderKeyValueRows(fields)+'</div></div></div>';
   }).join('');
   document.getElementById('det-body').innerHTML='<div class="card"><div class="sec">Informações gerais</div><div class="det-section"><div class="det-row"><span class="det-label">Projeto</span><span class="det-val">'+escapeHtml(report.project.name)+'</span></div><div class="det-row"><span class="det-label">Data</span><span class="det-val">'+formatReportDate(report.reportDate)+'</span></div><div class="det-row"><span class="det-label">Horário</span><span class="det-val">'+escapeHtml(report.arrivalTime+' - '+report.departureTime)+'</span></div><div class="det-row"><span class="det-label">Equipe</span><span class="det-val">'+escapeHtml((report.collaborators||[]).map(function(link){return link.collaborator?link.collaborator.name:'';}).filter(Boolean).join(', ')||'—')+'</span></div></div></div><div class="card"><div class="sec">Condições especiais</div><div class="det-section">'+(specialRows||'<div style="font-size:12px;color:var(--mu)">Sem condições especiais registradas.</div>')+'</div></div><div class="card"><div class="sec">Serviços registrados</div>'+(servicesHtml||'<div style="font-size:13px;color:var(--mu)">Sem serviços.</div>')+'</div>';
-  document.getElementById('det-actions').innerHTML=report.status==='APPROVED'
-    ? '<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar e reenviar</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
-    : '<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar relatório</button>';
+  var actions='';
+  if(currentUser&&currentUser.role==='MANAGER'){
+    if(report.status==='APPROVED'){
+      actions='<button class="btn-pdf" onclick="gerarDOCX(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else{
+      actions='<button class="btn-approve" onclick="aprovar(\''+report.id+'\')">Aprovar</button><button class="btn-reject" onclick="rejeitar(\''+report.id+'\')">Devolver</button>';
+    }
+  }else{
+    if(report.status==='APPROVED'){
+      actions=isRtp
+        ?'<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
+        :'<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar e reenviar</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else if(!isRtp){
+      actions='<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar relatório</button>';
+    }
+  }
+  document.getElementById('det-actions').innerHTML=actions;
   go('s-detalhe');
 }
 function printValue(value){
@@ -3451,27 +3675,38 @@ function bodyInibicao(n,p,isPre){
   return equipField('inibicao',n,p.equipId||'',isPre)+'<div class="fg"><label>ID da embarcaÃ§Ã£o</label>'+'<select><option>Selecionar...</option><option>EMB-001 â€” Navio Cisterna Alpha</option><option>EMB-002 â€” Corveta Beta</option><option>EMB-003 â€” Fragata Gama</option></select></div>'+'<div class="fg"><label>Sistema</label>'+'<select><option>Selecionar...</option><option>Sistema de resfriamento</option><option>Sistema de combustÃ­vel</option><option>Sistema hidrÃ¡ulico</option></select></div>'+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+'<div class="fg"><label>Linhas</label><input type="text" placeholder="Campo livre..."></div>'+'<div class="fg"><label>Steps</label><textarea placeholder="Campo livre..."></textarea></div>'+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+'<div class="fg"><label>Tipo de relatÃ³rio</label><div class="rtag-grp">'+'<div class="rtag yes" onclick="toggleReportTag(this)">RLI</div>'+'<div class="rtag" onclick="toggleReportTag(this)">RLF</div>'+'</div></div>'+uploadField('Fotos do filtro')+uploadField('Fotos das plaquetas')+'<div class="fg"><label>ObservaÃ§Ãµes</label><textarea placeholder="ObservaÃ§Ãµes adicionais..."></textarea></div>';
 }
 function bodyLimpeza(n,p,isPre){
+  var equips=p['Equipamento(s)']||p.equipId||[];
   var etapas=['Montagem do sistema','Teste de estanqueidade','Desengraxe','Fase ácida','Fase sequestrante','Fase neutralizante','Fase passivante','Secagem','Desmontagem do sistema','Inspeção por boroscopia'];
-  return equipField('limpeza',n,p.equipId||'',isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Resfriamento')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+'<div class="fg"><label>Método de limpeza <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label><div class="chk-grp" data-required-group="checkbox" data-label="Método de limpeza">'+['Circulação pressurizada','Pulverização','Enchimento e imersão'].map(function(m){var c=p.metodos&&p.metodos.indexOf(m)>=0;return '<label class="chk-item '+(isPre&&c?'pre':'')+'"><input type="checkbox"'+(c?' checked':'')+'><span>'+m+'</span></label>';}).join('')+'</div></div>'+unitField('Unidade de Limpeza Química','limpezaQuimica',p.ulq||'',true)+'<div class="fg"><label>Local de limpeza <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label><div class="tag-list" data-required-group="tag" data-label="Local de limpeza">'+['Interna','Externa'].map(function(l){var s=p.local&&p.local.indexOf(l)>=0;return '<span class="tag'+(s?' sel':'')+'" onclick="this.classList.toggle(\'sel\')">'+l+'</span>';}).join('')+'</div></div>'+tubesBlock(n,p.tubes,isPre)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+'<div class="fg"><label>Tipo de inspeção</label><div class="tag-list">'+['Visual','Corpo de prova','Vídeo boroscopia'].map(function(t){return '<span class="tag" onclick="this.classList.toggle(\'sel\')">'+t+'</span>';}).join('')+'</div></div>'+uploadField('Imagens — corpo de prova')+uploadField('Imagens — tubulação')+desenhoObs();
+  var ulqVals=(p['Unidade de Limpeza Química']||p['Unidade de Limpeza Quimica']||{});var ulqIds=Array.isArray(ulqVals)?ulqVals:(ulqVals.ids||[]);
+  return equipMultiField('limpeza',n,equips,isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Resfriamento')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+'<div class="fg"><label>Método de limpeza <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label><div class="chk-grp" data-required-group="checkbox" data-label="Método de limpeza">'+['Circulação pressurizada','Pulverização','Enchimento e imersão'].map(function(m){var c=p.metodos&&p.metodos.indexOf(m)>=0;return '<label class="chk-item '+(isPre&&c?'pre':'')+'"><input type="checkbox"'+(c?' checked':'')+'><span>'+m+'</span></label>';}).join('')+'</div></div>'+unitMultiField('Unidade de Limpeza Química','limpezaQuimica',n,ulqIds,true,isPre)+'<div class="fg"><label>Local de limpeza <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label><div class="tag-list" data-required-group="tag" data-label="Local de limpeza">'+['Interna','Externa'].map(function(l){var s=p.local&&p.local.indexOf(l)>=0;return '<span class="tag'+(s?' sel':'')+'" onclick="this.classList.toggle(\'sel\')">'+l+'</span>';}).join('')+'</div></div>'+tubesBlock(n,p.tubes,isPre)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+'<div class="fg"><label>Tipo de inspeção</label><div class="tag-list">'+['Visual','Corpo de prova','Vídeo boroscopia'].map(function(t){return '<span class="tag" onclick="this.classList.toggle(\'sel\')">'+t+'</span>';}).join('')+'</div></div>'+uploadField('Imagens — corpo de prova')+uploadField('Imagens — tubulação')+desenhoObs();
 }
 function bodyPressao(n,p,isPre){
-  return equipField('pressao',n,p.equipId||'',isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Vapor HP')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+tubesBlock(n,p.tubes,isPre)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,['Montagem do sistema','Execução do teste','Desmontagem do sistema'])+unitField('Unidade de Teste Hidrostático (UTH)','uth',p.uth||'',true)+pressaoField('Pressão de trabalho')+pressaoField('Pressão de teste')+'<div class="fg"><label>Fluido de teste</label><div class="rtag-grp"><div class="rtag yes" onclick="selectRad(this,true);showSec(\'foleo-'+n+'\',false)">Água</div><div class="rtag" onclick="selectRad(this,false);showSec(\'foleo-'+n+'\',true)">Óleo</div></div><div id="foleo-'+n+'" class="sub-card" style="display:none"><div class="fg" style="margin:0"><label>Qual óleo?</label><input type="text" placeholder="Especificar óleo..."></div></div></div><div class="fg"><label>Manômetros utilizados <span class="req">*</span></label><div class="chk-grp" data-required-group="checkbox" data-label="Manômetros utilizados">'+db.manometros.map(function(m){return '<label class="chk-item"><input type="checkbox" value="'+m.id+'"><span>'+m.codigo+'</span></label>';}).join('')+'</div></div>'+uploadField('Fotos do manômetro')+uploadField('Fotos do sistema')+desenhoObs();
+  var equips=p['Equipamento(s)']||p.equipId||[];
+  var uthVals=(p['Unidade de Teste Hidrostático (UTH)']||p['Unidade de Teste Hidrostatico (UTH)']||{});
+  var uthIds=Array.isArray(uthVals)?uthVals:(uthVals.ids||[]);
+  return equipMultiField('pressao',n,equips,isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Vapor HP')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+tubesBlock(n,p.tubes,isPre)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,['Montagem do sistema','Execução do teste','Desmontagem do sistema'])+unitMultiField('Unidade de Teste Hidrostático (UTH)','uth',n,uthIds,true,isPre)+pressaoField('Pressão de trabalho')+pressaoField('Pressão de teste')+'<div class="fg"><label>Fluido de teste</label><div class="rtag-grp"><div class="rtag yes" onclick="selectRad(this,true);showSec(\'foleo-'+n+'\',false)">Água</div><div class="rtag" onclick="selectRad(this,false);showSec(\'foleo-'+n+'\',true)">Óleo</div></div><div id="foleo-'+n+'" class="sub-card" style="display:none"><div class="fg" style="margin:0"><label>Qual óleo?</label><input type="text" placeholder="Especificar óleo..."></div></div></div><div class="fg"><label>Manômetros utilizados <span class="req">*</span></label><div class="chk-grp" data-required-group="checkbox" data-label="Manômetros utilizados">'+db.manometros.map(function(m){return '<label class="chk-item"><input type="checkbox" value="'+m.id+'"><span>'+m.codigo+'</span></label>';}).join('')+'</div></div>'+uploadField('Fotos do manômetro')+uploadField('Fotos do sistema')+desenhoObs();
 }
 function bodyFlushing(n,p,isPre){
+  var equips=p['Equipamento(s)']||p.equipId||[];
   var etapas=['Abastecimento de óleo','Montagem do sistema','Realização do flushing','Desidratação com centrífuga','Desidratação com termovácuo','Desmontagem do sistema','Drenagem do óleo','Coleta de amostra'];
-  return equipField('flushing',n,p.equipId||'',isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Hidráulico')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+tubesBlock(n,p.tubes,isPre)+'<div class="fg"><label>Tipo de óleo <span class="req">*</span></label><input type="text" placeholder="Marca/modelo do óleo..." data-required="true" data-label="Tipo de óleo"></div>'+volField('Volume de óleo',true)+'<div class="fg"><label>Tipo de flushing</label><div class="rtag-grp"><div class="rtag yes" onclick="selectRad(this,true)">Primário</div><div class="rtag" onclick="selectRad(this,false)">Secundário</div></div></div>'+unitField('Unidade de Flushing','flushing',p.uf||'',false)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+particulasBlock(n,'fl')+desidratacaoBlock(n,'fl')+desenhoObs();
+  var ufVals=(p['Unidade de Flushing']||{});var ufIds=Array.isArray(ufVals)?ufVals:(ufVals.ids||[]);
+  return equipMultiField('flushing',n,equips,isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Hidráulico')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+tubesBlock(n,p.tubes,isPre)+'<div class="fg"><label>Tipo de óleo <span class="req">*</span></label><input type="text" placeholder="Marca/modelo do óleo..." data-required="true" data-label="Tipo de óleo"></div>'+volField('Volume de óleo',true)+'<div class="fg"><label>Tipo de flushing</label><div class="rtag-grp"><div class="rtag yes" onclick="selectRad(this,true)">Primário</div><div class="rtag" onclick="selectRad(this,false)">Secundário</div></div></div>'+unitMultiField('Unidade de Flushing','flushing',n,ufIds,false,isPre)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+particulasBlock(n,'fl')+desidratacaoBlock(n,'fl')+desenhoObs();
 }
 function bodyFiltragem(n,p,isPre){
+  var equips=p['Equipamento(s)']||p.equipId||[];
   var etapas=['Abastecimento de óleo','Montagem do sistema','Realização da filtragem','Desidratação com centrífuga','Desidratação com termovácuo','Desmontagem do sistema','Drenagem do óleo','Coleta de amostra'];
-  return equipField('filtragem',n,p.equipId||'',isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Lubrificação')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+'<div class="fg"><label>Tipo de óleo <span class="req">*</span></label><input type="text" placeholder="Marca/modelo do óleo..." data-required="true" data-label="Tipo de óleo"></div>'+volField('Volume de óleo',true)+unitField('Unidade de filtragem','filtragem',p.ufg||'',false)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+particulasBlock(n,'fg')+desidratacaoBlock(n,'fg')+desenhoObs();
+  var ufgVals=(p['Unidade de filtragem']||{});var ufgIds=Array.isArray(ufgVals)?ufgVals:(ufgVals.ids||[]);
+  return equipMultiField('filtragem',n,equips,isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Lubrificação')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+'<div class="fg"><label>Tipo de óleo <span class="req">*</span></label><input type="text" placeholder="Marca/modelo do óleo..." data-required="true" data-label="Tipo de óleo"></div>'+volField('Volume de óleo',true)+unitMultiField('Unidade de filtragem','filtragem',n,ufgIds,false,isPre)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+particulasBlock(n,'fg')+desidratacaoBlock(n,'fg')+desenhoObs();
 }
 function bodyMecanica(n,p,isPre){
+  var equips=p['Equipamento(s)']||p.equipId||[];
   var etapas=['Inspeção inicial','Drenagem de fluidos e resíduos','Raspagem mecânica','Sucção de resíduos','Hidrojateamento de alta pressão','Jateamento abrasivo','Limpeza mecânica','Desengraxe','Secagem','Inspeção final'];
-  return equipField('mecanica',n,p.equipId||'',isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Armazenamento')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre,'Material do equipamento')+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+uploadField('Imagens da limpeza')+'<div class="fg"><label>Observações</label><textarea placeholder="Observações adicionais..."></textarea></div>';
+  return equipMultiField('mecanica',n,equips,isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Armazenamento')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre,'Material do equipamento')+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+uploadField('Imagens da limpeza')+'<div class="fg"><label>Observações</label><textarea placeholder="Observações adicionais..."></textarea></div>';
 }
 function bodyInibicao(n,p,isPre){
+  var equips=p['Equipamento(s)']||p.equipId||[];
   var etapas=['Montagem do sistema','Teste de estanqueidade','Desengraxe','Flushing','Circulação do inibidor','Lavagem','Drenagem do sistema','Desmontagem do sistema','Coleta de amostra'];
-  return equipField('inibicao',n,p.equipId||'',isPre)+'<div class="fg"><label>ID da embarcação</label><select><option>Selecionar...</option><option>EMB-001 — Navio Cisterna Alpha</option><option>EMB-002 — Corveta Beta</option><option>EMB-003 — Fragata Gama</option></select></div><div class="fg"><label>Sistema</label><select><option>Selecionar...</option><option>Sistema de resfriamento</option><option>Sistema de combustível</option><option>Sistema hidráulico</option></select></div>'+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+'<div class="fg"><label>Linhas</label><input type="text" placeholder="Campo livre..."></div><div class="fg"><label>Steps</label><textarea placeholder="Campo livre..."></textarea></div>'+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+'<div class="fg"><label>Tipo de relatório</label><div class="rtag-grp"><div class="rtag yes" onclick="toggleReportTag(this)">RLI</div><div class="rtag" onclick="toggleReportTag(this)">RLF</div></div></div>'+uploadField('Fotos do filtro')+uploadField('Fotos das plaquetas')+'<div class="fg"><label>Observações</label><textarea placeholder="Observações adicionais..."></textarea></div>';
+  return equipMultiField('inibicao',n,equips,isPre)+'<div class="fg"><label>ID da embarcação</label><select><option>Selecionar...</option><option>EMB-001 — Navio Cisterna Alpha</option><option>EMB-002 — Corveta Beta</option><option>EMB-003 — Fragata Gama</option></select></div><div class="fg"><label>Sistema</label><select><option>Selecionar...</option><option>Sistema de resfriamento</option><option>Sistema de combustível</option><option>Sistema hidráulico</option></select></div>'+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+'<div class="fg"><label>Linhas</label><input type="text" placeholder="Campo livre..."></div><div class="fg"><label>Steps</label><textarea placeholder="Campo livre..."></textarea></div>'+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+'<div class="fg"><label>Tipo de relatório</label><div class="rtag-grp"><div class="rtag yes" onclick="toggleReportTag(this)">RLI</div><div class="rtag" onclick="toggleReportTag(this)">RLF</div></div></div>'+uploadField('Fotos do filtro')+uploadField('Fotos das plaquetas')+'<div class="fg"><label>Observações</label><textarea placeholder="Observações adicionais..."></textarea></div>';
 }
 function initServiceCollaboratorSync(){
   ['colab-list','noturno-colab-list'].forEach(function(id){
@@ -3939,6 +4174,36 @@ function collectManagerServices(){
 function setServiceCardData(card,service){
   fillServiceCardFromReport(card,service);
 }
+function renderRtpDetail(report){
+  var sc=report.specialConditions||{};
+  var sd=sc.serviceData||{};
+  var collabs=sc.resolvedCollaborators||[];
+  var manos=sc.resolvedManometers||[];
+  var units=(sc.resolvedUnits||[]).join(', ')||'—';
+  function fv(v){if(!v)return '—';if(Array.isArray(v))return v.filter(Boolean).join(', ')||'—';if(typeof v==='object'&&v.labels)return (v.labels||[]).filter(Boolean).join(', ')||'—';return String(v)||'—';}
+  function row(lbl,val){return '<div class="det-row"><span class="det-label">'+lbl+'</span><span class="det-val">'+escapeHtml(fv(val))+'</span></div>';}
+  var colHtml=collabs.length?collabs.map(function(c){return '<div class="det-row"><span class="det-label">'+escapeHtml(c.name||'—')+'</span><span class="det-val">'+escapeHtml(c.role||'—')+' · '+escapeHtml(c.shift||'Diurno')+'</span></div>';}).join(''):'<div style="font-size:12px;color:var(--mu)">—</div>';
+  var manoHtml=manos.length?manos.map(function(m){return '<div class="det-row"><span class="det-label">'+escapeHtml(m.scale||'—')+'</span><span class="det-val">Cert: '+escapeHtml(m.certCode||'—')+' · Cal: '+escapeHtml(m.calibratedAt||'—')+' · Val: '+escapeHtml(m.expiresAt||'—')+'</span></div>';}).join(''):'<div style="font-size:12px;color:var(--mu)">—</div>';
+  var tubesRaw=sd['Diâmetros e comprimentos']||sd['Diametros e comprimentos']||[];
+  var tubeHtml=Array.isArray(tubesRaw)&&tubesRaw.length?tubesRaw.map(function(t){return '<div class="det-row"><span class="det-label">Ø '+escapeHtml(t.d||'—')+' '+(t.unit||'pol')+'</span><span class="det-val">'+escapeHtml(t.c||'—')+' m</span></div>';}).join(''):'<div style="font-size:12px;color:var(--mu)">—</div>';
+  document.getElementById('det-body').innerHTML=
+    '<div class="card"><div class="sec">Informações do serviço</div><div class="det-section">'+
+    row('Missão','Missão '+report.project.code+' - '+report.project.name)+
+    row('Equipamento',sd['Equipamento(s)']||sd['Equipamento'])+
+    row('Sistema',sd['Sistema'])+
+    row('Fluido de teste',sd['Fluido de teste'])+
+    row('UTH',units)+
+    row('Pressão de trabalho',sd['Pressão de trabalho']||sd['Pressao de trabalho'])+
+    row('Pressão de teste',sd['Pressão de teste']||sd['Pressao de teste'])+
+    row('Horário de início',sd['Hora de início']||sd['Hora de inicio'])+
+    row('Horário de término',sd['Hora de término/pausa']||sd['Hora de termino/pausa'])+
+    row('Status',sd['Aprovado pelo cliente?'])+
+    '</div></div>'+
+    '<div class="card"><div class="sec">Tubulações</div><div class="det-section">'+tubeHtml+'</div></div>'+
+    '<div class="card"><div class="sec">Colaboradores</div><div class="det-section">'+colHtml+'</div></div>'+
+    '<div class="card"><div class="sec">Manômetros</div><div class="det-section">'+manoHtml+'</div></div>'+
+    (sd['Observações']||sd['Observacoes']?'<div class="card"><div class="sec">Observações</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(fv(sd['Observações']||sd['Observacoes']))+'</div></div>':'');
+}
 async function openReportDetail(id,origin){
   var report=reportsCache.find(function(r){return r.id===id;})||await apiFetch('/reports/'+id);
   currentDetailReport=report;
@@ -3946,8 +4211,25 @@ async function openReportDetail(id,origin){
   document.getElementById('det-title').textContent=reportDisplayLabel(report)+' · '+report.project.name;
   document.getElementById('det-sub').textContent=((report.createdBy&&report.createdBy.name)||'—')+' · '+formatReportDate(report.reportDate);
   document.getElementById('det-badge-top').textContent=statusMeta(report.status).txt;
+  var isRtp=report.reportType&&report.reportType!=='RDO';
   if(currentUser&&currentUser.role==='MANAGER'){
-    renderManagerDetail(report);
+    if(isRtp){
+      renderRtpDetail(report);
+      document.getElementById('det-actions').innerHTML=
+        '<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button>'+
+        '<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else{
+      renderManagerDetail(report);
+    }
+    go('s-detalhe');
+    return;
+  }
+  if(isRtp){
+    renderRtpDetail(report);
+    document.getElementById('det-actions').innerHTML=
+      report.status==='APPROVED'
+        ?'<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
+        :'';
     go('s-detalhe');
     return;
   }
@@ -4452,6 +4734,33 @@ function continuar(reportId,serviceId){
   }
 }
 var pdfLoadingMap={};
+var docxLoadingMap={};
+async function downloadDocx(id){
+  if(docxLoadingMap[id])return;
+  if(!authState.token){alert('Faça login novamente.');go('s-login');return;}
+  docxLoadingMap[id]=true;
+  var btns=Array.from(document.querySelectorAll('button')).filter(function(b){return (b.getAttribute('onclick')||'').indexOf("downloadDocx('"+id+"')")>=0;});
+  btns.forEach(function(b){b.disabled=true;b.dataset.originalText=b.textContent;b.textContent='Baixando...';b.style.opacity='0.7';});
+  showToast('Gerando DOCX...');
+  try{
+    var response=await fetch(API_BASE+'/reports/'+id+'/docx',{headers:{Authorization:'Bearer '+authState.token}});
+    if(!response.ok){
+      var msg='Falha ao gerar DOCX.';
+      try{var e=await response.json();msg=e.error||msg;}catch(ex){}
+      alert(msg);return;
+    }
+    var blob=await response.blob();
+    var url=URL.createObjectURL(blob);
+    var disposition=response.headers.get('Content-Disposition')||'';
+    var name=fileNameFromDisposition(disposition,'relatorio-'+id+'.docx');
+    var a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);},1500);
+    showToast('DOCX baixado com sucesso.');
+  }finally{
+    delete docxLoadingMap[id];
+    btns.forEach(function(b){b.disabled=false;b.style.opacity='';b.textContent=b.dataset.originalText||'Baixar DOCX';});
+  }
+}
 function setPdfButtonsLoading(id,isLoading){
   Array.from(document.querySelectorAll('button')).forEach(function(btn){
     var handler=btn.getAttribute('onclick')||'';
@@ -5243,6 +5552,336 @@ function enforceLoginUi(){
   applyRememberedLogin();
   var passwordInput=document.getElementById('login-password');
   if(passwordInput)passwordInput.setAttribute('type','password');
+}
+function reportCard(report,origin){
+  var meta=reportStatusMeta(report);
+  var owner=(report.createdBy&&report.createdBy.name)||'—';
+  var isRtp=report.reportType&&report.reportType!=='RDO';
+  var icon=isRtp?'🔴':'📋';
+  var subtitle;
+  if(isRtp){
+    var svc=(report.services||[])[0];
+    var equip=svc?((svc.extraData&&svc.extraData['Equipamento(s)'])?stringify2(svc.extraData['Equipamento(s)']):(svc.extraData&&svc.extraData['Equipamento'])||'—'):'—';
+    var sys=svc?(svc.system||((svc.extraData||{})['Sistema'])||'—'):'—';
+    subtitle=escapeHtml(equip)+' · '+escapeHtml(sys);
+  }else{
+    subtitle=escapeHtml(summarizeServices(report)||'Sem serviços');
+  }
+  var actions='';
+  if(report.status==='APPROVED'){
+    var docxBtn=currentUser&&currentUser.role==='MANAGER'
+      ?'<button class="mini-btn" type="button" onclick="event.stopPropagation();downloadDocx(\''+report.id+'\')">Baixar DOCX</button>'
+      :'';
+    var pdfBtn='<button class="mini-btn alt" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    actions='<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">'+docxBtn+pdfBtn+'</div>';
+  }
+  return '<div class="rel-item" onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')" style="align-items:flex-start;gap:12px">'+
+    '<div class="rel-icon">'+icon+'</div>'+
+    '<div class="rel-info"><div class="rel-name">'+escapeHtml(reportDisplayLabel(report))+' · '+escapeHtml(report.project.name)+'</div><div class="rel-meta">'+escapeHtml(owner)+' · '+formatReportDate(report.reportDate)+'<br>'+subtitle+'</div></div>'+
+    '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-left:auto"><span class="badge '+meta.cls+'">'+meta.txt+'</span>'+actions+'</div>'+
+    '</div>';
+}
+function switchProjectReportTab(projectKey,type,btn){
+  var root=document.getElementById(projectKey);
+  if(!root)return;
+  root.querySelectorAll('[data-report-panel]').forEach(function(panel){
+    panel.style.display=panel.getAttribute('data-report-panel')===type?'':'none';
+  });
+  root.querySelectorAll('.project-report-tab').forEach(function(tab){
+    var active=tab===btn;
+    tab.style.background=active?'var(--pri)':'#eef3ef';
+    tab.style.color=active?'#fff':'var(--tx)';
+    tab.style.borderColor=active?'var(--pri)':'#d7e0d9';
+  });
+}
+function groupedReportHtml(items,origin,emptyText){
+  if(!items.length)return '<div style="text-align:center;color:var(--mu);padding:32px;font-size:13px">'+emptyText+'</div>';
+  var groups=groupReportsByProject(items),html='';
+  var typeOrder=['RDO','RTP','RLQ','RCP','RLM','RLI','RLF'];
+  Object.keys(groups).sort().forEach(function(projectName){
+    var byType={};
+    groups[projectName].forEach(function(r){
+      var t=r.reportType||'RDO';
+      if(!byType[t])byType[t]=[];
+      byType[t].push(r);
+    });
+    var availableTypes=typeOrder.filter(function(t){return byType[t]&&byType[t].length;});
+    if(!availableTypes.length){
+      availableTypes=Object.keys(byType);
+    }
+    var defaultType=availableTypes[0]||'RDO';
+    var projectKey='proj_reports_'+projectName.replace(/[^a-z0-9]/gi,'_');
+    var tabs=availableTypes.map(function(type,index){
+      var active=index===0;
+      return '<button type="button" class="project-report-tab" onclick="switchProjectReportTab(\''+projectKey+'\',\''+type+'\',this)" style="border:1px solid '+(active?'var(--pri)':'#d7e0d9')+';background:'+(active?'var(--pri)':'#eef3ef')+';color:'+(active?'#fff':'var(--tx)')+';padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer">'+
+        type+' <span style="opacity:.8">'+byType[type].length+'</span></button>';
+    }).join('');
+    var panels=availableTypes.map(function(type){
+      return '<div data-report-panel="'+type+'" style="display:'+(type===defaultType?'':'none')+';margin-top:12px">'+
+        byType[type].map(function(r){return reportCard(r,origin);}).join('')+
+        '</div>';
+    }).join('');
+    html+='<div class="card" id="'+projectKey+'">'+
+      '<div class="sec">'+escapeHtml(projectName)+'</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'+tabs+'</div>'+
+      panels+
+      '</div>';
+  });
+  return html;
+}
+function reportCard(report,origin){
+  var meta=reportStatusMeta(report);
+  var owner=(report.createdBy&&report.createdBy.name)||'â€”';
+  var isRtp=report.reportType==='RTP';
+  var icon=isRtp?'ðŸ”´':'ðŸ“‹';
+  var subtitle;
+  if(isRtp){
+    var svc=(report.services||[])[0];
+    var equip=svc?((svc.extraData&&svc.extraData['Equipamento(s)'])?stringify2(svc.extraData['Equipamento(s)']):(svc.extraData&&svc.extraData['Equipamento'])||'â€”'):'â€”';
+    var sys=svc?(svc.system||((svc.extraData||{})['Sistema'])||'â€”'):'â€”';
+    subtitle=escapeHtml(equip)+' Â· '+escapeHtml(sys);
+  }else{
+    subtitle=escapeHtml(summarizeServices(report)||'Sem serviÃ§os');
+  }
+  var actions='';
+  if(isRtp&&report.status==='APPROVED'){
+    if(currentUser&&currentUser.role==='MANAGER'){
+      actions='<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">'+
+        '<button class="mini-btn" type="button" onclick="event.stopPropagation();downloadDocx(\''+report.id+'\')">Baixar DOCX</button>'+
+        '<button class="mini-btn alt" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">Gerar PDF</button>'+
+        '</div>';
+    }else{
+      actions='<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">'+
+        '<button class="mini-btn alt" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">Gerar PDF</button>'+
+        '</div>';
+    }
+  }
+  return '<div class="rel-item" onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')" style="align-items:flex-start;gap:12px">'+
+    '<div class="rel-icon">'+icon+'</div>'+
+    '<div class="rel-info"><div class="rel-name">'+escapeHtml(reportDisplayLabel(report))+' Â· '+escapeHtml(report.project.name)+'</div><div class="rel-meta">'+escapeHtml(owner)+' Â· '+formatReportDate(report.reportDate)+'<br>'+subtitle+'</div></div>'+
+    '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-left:auto"><span class="badge '+meta.cls+'">'+meta.txt+'</span>'+actions+'</div>'+
+    '</div>';
+}
+function groupedReportHtml(items,origin,emptyText){
+  if(!items.length)return '<div style="text-align:center;color:var(--mu);padding:32px;font-size:13px">'+emptyText+'</div>';
+  var groups=groupReportsByProject(items),html='';
+  Object.keys(groups).sort().forEach(function(projectName){
+    var projectReports=groups[projectName].slice();
+    var byType={RDO:[],RTP:[]};
+    projectReports.forEach(function(r){
+      var type=(r.reportType||'RDO').toUpperCase();
+      if(type==='RTP')byType.RTP.push(r);
+      else if(type==='RDO')byType.RDO.push(r);
+    });
+    byType.RDO.sort(function(a,b){
+      return (Number(b.sequenceNumber)||0)-(Number(a.sequenceNumber)||0) || String(b.reportDate||'').localeCompare(String(a.reportDate||''));
+    });
+    byType.RTP.sort(function(a,b){
+      return (Number(a.sequenceNumber)||0)-(Number(b.sequenceNumber)||0) || String(a.reportDate||'').localeCompare(String(b.reportDate||''));
+    });
+    var projectKey='proj_reports_'+projectName.replace(/[^a-z0-9]/gi,'_');
+    var hasRdo=byType.RDO.length>0;
+    var hasRtp=byType.RTP.length>0;
+    var defaultType=hasRdo?'RDO':'RTP';
+    var tabs=
+      '<button type="button" class="project-report-tab" onclick="switchProjectReportTab(\''+projectKey+'\',\'RDO\',this)" style="border:1px solid '+(defaultType==='RDO'?'var(--pri)':'#d7e0d9')+';background:'+(defaultType==='RDO'?'var(--pri)':'#eef3ef')+';color:'+(defaultType==='RDO'?'#fff':'var(--tx)')+';padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer">RDO <span style="opacity:.8">'+byType.RDO.length+'</span></button>'+
+      '<button type="button" class="project-report-tab" onclick="switchProjectReportTab(\''+projectKey+'\',\'RTP\',this)" style="border:1px solid '+(defaultType==='RTP'?'var(--pri)':'#d7e0d9')+';background:'+(defaultType==='RTP'?'var(--pri)':'#eef3ef')+';color:'+(defaultType==='RTP'?'#fff':'var(--tx)')+';padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer">RTP <span style="opacity:.8">'+byType.RTP.length+'</span></button>';
+    var rdoPanel='<div data-report-panel="RDO" style="display:'+(defaultType==='RDO'?'':'none')+';margin-top:12px">'+
+      (byType.RDO.length?byType.RDO.map(function(r){return reportCard(r,origin);}).join(''):'<div style="font-size:12px;color:var(--mu);padding:12px 4px">Nenhum RDO neste projeto.</div>')+
+      '</div>';
+    var rtpPanel='<div data-report-panel="RTP" style="display:'+(defaultType==='RTP'?'':'none')+';margin-top:12px">'+
+      (byType.RTP.length?byType.RTP.map(function(r){return reportCard(r,origin);}).join(''):'<div style="font-size:12px;color:var(--mu);padding:12px 4px">Nenhum RTP neste projeto.</div>')+
+      '</div>';
+    html+='<div class="card" id="'+projectKey+'">'+
+      '<div class="sec">'+escapeHtml(projectName)+'</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'+tabs+'</div>'+
+      rdoPanel+rtpPanel+
+      '</div>';
+  });
+  return html;
+}
+function reportCard(report,origin){
+  var meta=reportStatusMeta(report);
+  var owner=(report.createdBy&&report.createdBy.name)||'â€”';
+  var subtitle;
+  if((report.reportType||'RDO').toUpperCase()==='RTP'){
+    var svc=(report.services||[])[0];
+    var equip=svc?((svc.extraData&&svc.extraData['Equipamento(s)'])?stringify2(svc.extraData['Equipamento(s)']):(svc.extraData&&svc.extraData['Equipamento'])||'â€”'):'â€”';
+    var sys=svc?(svc.system||((svc.extraData||{})['Sistema'])||'â€”'):'â€”';
+    subtitle=escapeHtml(equip)+' Â· '+escapeHtml(sys);
+  }else{
+    subtitle=escapeHtml(summarizeServices(report)||'Sem serviÃ§os');
+  }
+  var actions='';
+  if((report.reportType||'RDO').toUpperCase()==='RTP'&&report.status==='APPROVED'){
+    actions=currentUser&&currentUser.role==='MANAGER'
+      ?'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn" type="button" onclick="event.stopPropagation();downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="mini-btn alt" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">Gerar PDF</button></div>'
+      :'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn alt" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">Gerar PDF</button></div>';
+  }
+  return '<div class="rel-item" onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')" style="align-items:flex-start;gap:12px">'+
+    '<div class="rel-icon">ðŸ“‹</div>'+
+    '<div class="rel-info"><div class="rel-name">'+escapeHtml(reportDisplayLabel(report))+' Â· '+escapeHtml(report.project.name)+'</div><div class="rel-meta">'+escapeHtml(owner)+' Â· '+formatReportDate(report.reportDate)+'<br>'+subtitle+'</div></div>'+
+    '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-left:auto"><span class="badge '+meta.cls+'">'+meta.txt+'</span>'+actions+'</div>'+
+    '</div>';
+}
+function switchProjectReportTab(projectKey,type,btn){
+  var root=document.getElementById(projectKey);
+  if(!root)return;
+  root.querySelectorAll('[data-report-panel]').forEach(function(panel){
+    panel.style.display=panel.getAttribute('data-report-panel')===type && panel.style.display==='none' ? '' : (panel.getAttribute('data-report-panel')===type ? (panel.dataset.open==='true'?'none':'') : 'none');
+    panel.dataset.open=panel.style.display==='none'?'false':'true';
+  });
+  root.querySelectorAll('.project-report-row').forEach(function(row){
+    var active=row===btn && row.getAttribute('data-type')===type && row.dataset.open==='false';
+    row.style.background=active?'#eef3ef':'#f7faf7';
+    row.style.borderColor=active?'var(--pri)':'#e1e8e2';
+    row.dataset.open=active?'true':'false';
+    var chev=row.querySelector('.project-report-chevron');
+    if(chev)chev.textContent=active?'â–¾':'â–¸';
+  });
+}
+function groupedReportHtml(items,origin,emptyText){
+  if(!items.length)return '<div style="text-align:center;color:var(--mu);padding:32px;font-size:13px">'+emptyText+'</div>';
+  var groups=groupReportsByProject(items),html='';
+  var isGestorPending=origin==='gestor-pendentes';
+  Object.keys(groups).sort().forEach(function(projectName){
+    var projectReports=groups[projectName].slice();
+    var byType={RDO:[],RTP:[]};
+    projectReports.forEach(function(r){
+      var type=(r.reportType||'RDO').toUpperCase();
+      if(type==='RTP')byType.RTP.push(r);
+      else if(type==='RDO')byType.RDO.push(r);
+    });
+    byType.RDO.sort(function(a,b){
+      return (Number(b.sequenceNumber)||0)-(Number(a.sequenceNumber)||0) || String(b.reportDate||'').localeCompare(String(a.reportDate||''));
+    });
+    byType.RTP.sort(function(a,b){
+      return (Number(a.sequenceNumber)||0)-(Number(b.sequenceNumber)||0) || String(a.reportDate||'').localeCompare(String(b.reportDate||''));
+    });
+    var projectKey='proj_reports_'+projectName.replace(/[^a-z0-9]/gi,'_');
+    var sections='';
+    ['RDO','RTP'].forEach(function(type,index){
+      if(!byType[type].length)return;
+      sections+='<div style="margin-top:'+(index===0?'10px':'8px')+'">'+
+        '<button type="button" class="project-report-row" data-type="'+type+'" data-open="'+(index===0?'true':'false')+'" onclick="switchProjectReportTab(\''+projectKey+'\',\''+type+'\',this)" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;padding:12px 14px;border:1px solid '+(index===0?'var(--pri)':'#e1e8e2')+';background:'+(index===0?'#eef3ef':'#f7faf7')+';border-radius:12px;cursor:pointer;font-size:13px;font-weight:700;color:var(--tx)">'+
+          '<span>'+type+'</span><span style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;color:var(--mu);font-weight:600">'+byType[type].length+' relatÃ³rio'+(byType[type].length!==1?'s':'')+'</span><span class="project-report-chevron">'+(index===0?'â–¾':'â–¸')+'</span></span></button>'+
+        '<div data-report-panel="'+type+'" data-open="'+(index===0?'true':'false')+'" style="display:'+(index===0?'':'none')+';padding-top:10px">'+
+          byType[type].map(function(r){return reportCard(r,origin);}).join('')+
+        '</div></div>';
+    });
+    html+='<div class="card" id="'+projectKey+'"><div class="sec">'+escapeHtml(projectName)+'</div>'+sections+'</div>';
+  });
+  return html;
+}
+function reportCard(report,origin){
+  var meta=reportStatusMeta(report);
+  var owner=(report.createdBy&&report.createdBy.name)||'&#8212;';
+  var isRtp=(report.reportType||'RDO').toUpperCase()==='RTP';
+  var subtitle;
+  if(isRtp){
+    var svc=(report.services||[])[0];
+    var equip=svc?((svc.extraData&&svc.extraData['Equipamento(s)'])?stringify2(svc.extraData['Equipamento(s)']):(svc.extraData&&svc.extraData['Equipamento'])||'&#8212;'):'&#8212;';
+    var sys=svc?(svc.system||((svc.extraData||{})['Sistema'])||'&#8212;'):'&#8212;';
+    subtitle=escapeHtml(equip)+' &middot; '+escapeHtml(sys);
+  }else{
+    subtitle=escapeHtml(summarizeServices(report)||'Sem servi&ccedil;os');
+  }
+  var actions='';
+  if(isRtp&&report.status==='APPROVED'){
+    actions=currentUser&&currentUser.role==='MANAGER'
+      ?'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn" type="button" onclick="event.stopPropagation();downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="mini-btn alt" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">Gerar PDF</button></div>'
+      :'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn alt" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">Gerar PDF</button></div>';
+  }
+  return '<div class="rel-item" onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')" style="align-items:flex-start;gap:12px">'+
+    '<div class="rel-icon">&#128203;</div>'+
+    '<div class="rel-info"><div class="rel-name">'+escapeHtml(reportDisplayLabel(report))+' &middot; '+escapeHtml(report.project.name)+'</div><div class="rel-meta">'+escapeHtml(owner)+' &middot; '+formatReportDate(report.reportDate)+'<br>'+subtitle+'</div></div>'+
+    '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-left:auto"><span class="badge '+meta.cls+'">'+meta.txt+'</span>'+actions+'</div>'+
+    '</div>';
+}
+function switchProjectReportTab(projectKey,type,btn){
+  var root=document.getElementById(projectKey);
+  if(!root)return;
+  var wasOpen=btn&&btn.dataset&&btn.dataset.open==='true';
+  root.querySelectorAll('[data-report-panel]').forEach(function(panel){
+    var sameType=panel.getAttribute('data-report-panel')===type;
+    var shouldOpen=sameType && !wasOpen;
+    panel.style.display=shouldOpen?'':'none';
+    panel.dataset.open=shouldOpen?'true':'false';
+  });
+  root.querySelectorAll('.project-report-row').forEach(function(row){
+    var active=row===btn && !wasOpen;
+    row.style.background=active?'#eef3ef':'#f7faf7';
+    row.style.borderColor=active?'var(--pri)':'#e1e8e2';
+    row.dataset.open=active?'true':'false';
+    var chev=row.querySelector('.project-report-chevron');
+    if(chev)chev.innerHTML=active?'&#9662;':'&#9656;';
+  });
+}
+function groupedReportHtml(items,origin,emptyText){
+  if(!items.length)return '<div style="text-align:center;color:var(--mu);padding:32px;font-size:13px">'+emptyText+'</div>';
+  var groups=groupReportsByProject(items),html='';
+  var isGestorPending=origin==='gestor-pendentes';
+  Object.keys(groups).sort().forEach(function(projectName){
+    var projectReports=groups[projectName].slice();
+    var byType={RDO:[],RTP:[]};
+    projectReports.forEach(function(r){
+      var type=(r.reportType||'RDO').toUpperCase();
+      if(type==='RTP')byType.RTP.push(r);
+      else if(type==='RDO')byType.RDO.push(r);
+    });
+    byType.RDO.sort(function(a,b){
+      return (Number(b.sequenceNumber)||0)-(Number(a.sequenceNumber)||0) || String(b.reportDate||'').localeCompare(String(a.reportDate||''));
+    });
+    byType.RTP.sort(function(a,b){
+      return (Number(a.sequenceNumber)||0)-(Number(b.sequenceNumber)||0) || String(a.reportDate||'').localeCompare(String(b.reportDate||''));
+    });
+    var projectKey='proj_reports_'+projectName.replace(/[^a-z0-9]/gi,'_');
+    if(isGestorPending){
+      if(!byType.RDO.length)return;
+      html+='<div class="card" id="'+projectKey+'"><div class="sec">'+escapeHtml(projectName)+'</div><div style="margin-top:10px">'+byType.RDO.map(function(r){return reportCard(r,origin);}).join('')+'</div></div>';
+      return;
+    }
+    var sections='';
+    ['RDO','RTP'].forEach(function(type,index){
+      if(!byType[type].length)return;
+      sections+='<div style="margin-top:'+(index===0?'0':'8px')+'">'+
+        '<button type="button" class="project-report-row" data-type="'+type+'" data-open="'+(index===0?'true':'false')+'" onclick="switchProjectReportTab(\''+projectKey+'\',\''+type+'\',this)" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;padding:12px 14px;border:1px solid '+(index===0?'var(--pri)':'#e1e8e2')+';background:'+(index===0?'#eef3ef':'#f7faf7')+';border-radius:12px;cursor:pointer;font-size:13px;font-weight:700;color:var(--tx)">'+
+          '<span>'+type+'</span><span style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;color:var(--mu);font-weight:600">'+byType[type].length+' relat&oacute;rio'+(byType[type].length!==1?'s':'')+'</span><span class="project-report-chevron">'+(index===0?'&#9662;':'&#9656;')+'</span></span></button>'+
+        '<div data-report-panel="'+type+'" data-open="'+(index===0?'true':'false')+'" style="display:'+(index===0?'':'none')+';padding-top:10px">'+
+          byType[type].map(function(r){return reportCard(r,origin);}).join('')+
+        '</div></div>';
+    });
+    html+='<div class="card" id="'+projectKey+'"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap"><div class="sec" style="margin:0">'+escapeHtml(projectName)+'</div><div style="display:flex;gap:8px;flex-wrap:wrap;min-width:min(100%,320px)">'+sections+'</div></div></div>';
+  });
+  return html;
+}
+function renderGestor(){
+  var c=document.getElementById('gestor-content');if(!c)return;
+  var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED';});
+  var approved=reportsCache.filter(function(r){return r.status==='APPROVED';});
+  var pen=document.getElementById('cnt-pen');if(pen)pen.textContent=pending.length;
+  if(gestorTab==='pendentes'){
+    var draftsHtml='';
+    if(draftsCache&&draftsCache.length){draftsHtml='<div class="card" style="margin-bottom:12px"><div class="sec">RelatÃ³rios em andamento</div><div class="admin-list">'+draftsCache.map(function(draft){var payload=draft.payload||draft;var date=(draft.reportDate||payload.reportDate)?formatReportDate(draft.reportDate||payload.reportDate):'Sem data';return '<div class="rel-item" style="cursor:default"><div class="rel-icon">ðŸ“</div><div class="rel-info"><div class="rel-name">'+escapeHtml(draft.title||payload.title||'RelatÃ³rio em andamento')+'</div><div class="rel-meta">'+escapeHtml(date)+'</div></div><button class="mini-btn alt" type="button" onclick="resumeDraft(\''+draft.id+'\')">Continuar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" type="button" onclick="removeDraft(\''+draft.id+'\')">Excluir</button></div>';}).join('')+'</div></div>';}
+    c.innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="mini-btn" onclick="gestorCriarRelatorio()">+ Criar RelatÃ³rio</button></div>'+draftsHtml+'<div class="stat-grid"><div class="stat-card"><div class="stat-num">'+pending.length+'</div><div class="stat-lbl">Pendentes/devolvidos</div></div><div class="stat-card"><div class="stat-num">'+approved.length+'</div><div class="stat-lbl">Aprovados</div></div></div>'+groupedReportHtml(pending,'gestor-pendentes','Nenhum relatÃ³rio pendente.');
+  }else if(gestorTab==='aprovados'){
+    c.innerHTML=groupedReportHtml(approved,'gestor','Nenhum relatÃ³rio aprovado.');
+  }else if(gestorTab==='usuarios'){
+    c.innerHTML=renderUsuarios();
+  }else if(gestorTab==='projetos'){
+    c.innerHTML=renderProjetos();
+  }else if(gestorTab==='arquivados'){
+    c.innerHTML=renderProjetosArquivados();
+  }else if(gestorTab==='equipe'){
+    c.innerHTML=renderEquipe();
+  }else if(gestorTab==='equipamentos'){
+    c.innerHTML=renderEquipamentos();
+  }else if(gestorTab==='manometros'){
+    c.innerHTML=renderManometros();
+  }else if(gestorTab==='contadores'){
+    c.innerHTML=renderContadores();
+  }
+  enhanceUploadZones(c);
 }
 ensureDraftHomeBlock();
 renderDraftHome();
