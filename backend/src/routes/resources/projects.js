@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import prisma from '../../lib/prisma.js';
+import { requireAuth, requireManager } from '../../middleware/auth.js';
 
 const router = Router();
 
@@ -11,6 +12,7 @@ const schema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
   isActive: z.boolean().default(true),
+  visibleToCollaborators: z.boolean().default(true),
   clientName: z.string().min(1),
   clientCnpj: z.string().min(1),
   contractCode: z.string().min(1),
@@ -26,11 +28,18 @@ const schema = z.object({
   })).default([])
 });
 
-router.get('/', asyncHandler(async (_req, res) => {
-  const activeParam = _req.query.active;
+router.get('/', requireAuth, asyncHandler(async (req, res) => {
+  const activeParam = req.query.active;
   const where = {};
-  if (activeParam === 'true') where.isActive = true;
-  if (activeParam === 'false') where.isActive = false;
+  if (req.auth.user.role === 'MANAGER') {
+    if (activeParam === 'true') where.isActive = true;
+    if (activeParam === 'false') where.isActive = false;
+  } else {
+    const collaboratorId = req.auth.user.collaboratorId;
+    where.isActive = true;
+    where.visibleToCollaborators = true;
+    where.operatorId = collaboratorId || '__NO_MATCH__';
+  }
 
   const items = await prisma.project.findMany({
     where,
@@ -43,7 +52,7 @@ router.get('/', asyncHandler(async (_req, res) => {
   res.json(items);
 }));
 
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', requireAuth, requireManager, asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
   const { reportSequences, ...projectData } = data;
   const item = await prisma.project.create({
@@ -61,7 +70,7 @@ router.post('/', asyncHandler(async (req, res) => {
   res.status(201).json(item);
 }));
 
-router.put('/:id', asyncHandler(async (req, res) => {
+router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) => {
   const data = schema.partial().parse(req.body);
   const { reportSequences, ...projectData } = data;
 
@@ -92,7 +101,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.delete('/:id', asyncHandler(async (req, res) => {
+router.delete('/:id', requireAuth, requireManager, asyncHandler(async (req, res) => {
   await prisma.project.delete({ where: { id: req.params.id } });
   res.status(204).end();
 }));

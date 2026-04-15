@@ -226,7 +226,7 @@ textarea{resize:none;min-height:72px}
       <div style="font-size:13px;color:var(--mu);margin-top:2px">Quarta-feira, 8 de abril de 2026</div>
     </div>
     <div class="home-actions">
-      <div class="ha prim" onclick="go('s-cabecalho')">
+      <div class="ha prim" onclick="startNewReport()">
         <div class="ha-icon">📋</div>
         <div><div class="ha-title">Novo relatório</div><div class="ha-sub">Registrar serviços do dia</div></div>
       </div>
@@ -442,9 +442,9 @@ var defaultDb={
     {id:'COL-004',nome:'Pedro Lima',cargo:'Auxiliar',email:'',assinatura:'assinatura-pedro.png',ativo:false}
   ],
   projetos:[
-    {id:'refinaria',nome:'Refinaria XPTO — Fase 2',cliente:'XPTO Energia',cnpj:'12.345.678/0001-90',contrato:'CT-2026-014',local:'Macaé/RJ',operadorResponsavelId:'COL-001',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:true,incluiDomingo:false,sequenciais:{RDO:14,RTP:3,RLQ:8,RCPU:2,RLM:5,RLF:7,RLI:11},ongoing:[{tipo:'limpeza',equipId:'EQ-001',sistema:'Resfriamento',material:'Inox',data:'07/04'},{tipo:'flushing',equipId:'EQ-004',sistema:'Hidráulico',material:'Aço carbono',data:'06/04'}]},
-    {id:'plataforma',nome:'Plataforma P-52',cliente:'Offshore Brasil',cnpj:'22.456.789/0001-44',contrato:'P52-UTIL-88',local:'Bacia de Campos',operadorResponsavelId:'COL-002',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:true,incluiDomingo:true,sequenciais:{RDO:7,RTP:12,RLQ:2,RCPU:1,RLM:2,RLF:4,RLI:6},ongoing:[{tipo:'pressao',equipId:'EQ-002',sistema:'Vapor HP',material:'Inox',data:'07/04'}]},
-    {id:'petroquimica',nome:'Petroquímica Alpha',cliente:'Alpha Química',cnpj:'98.765.432/0001-10',contrato:'ALPHA-2026-03',local:'Camaçari/BA',operadorResponsavelId:'COL-003',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,sequenciais:{RDO:4,RTP:1,RLQ:4,RCPU:0,RLM:1,RLF:2,RLI:1},ongoing:[]}
+    {id:'refinaria',nome:'Refinaria XPTO — Fase 2',cliente:'XPTO Energia',cnpj:'12.345.678/0001-90',contrato:'CT-2026-014',local:'Macaé/RJ',operadorResponsavelId:'COL-001',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:true,incluiDomingo:false,visivelColaboradores:true,sequenciais:{RDO:14,RTP:3,RLQ:8,RCPU:2,RLM:5,RLF:7,RLI:11},ongoing:[{tipo:'limpeza',equipId:'EQ-001',sistema:'Resfriamento',material:'Inox',data:'07/04'},{tipo:'flushing',equipId:'EQ-004',sistema:'Hidráulico',material:'Aço carbono',data:'06/04'}]},
+    {id:'plataforma',nome:'Plataforma P-52',cliente:'Offshore Brasil',cnpj:'22.456.789/0001-44',contrato:'P52-UTIL-88',local:'Bacia de Campos',operadorResponsavelId:'COL-002',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:true,incluiDomingo:true,visivelColaboradores:true,sequenciais:{RDO:7,RTP:12,RLQ:2,RCPU:1,RLM:2,RLF:4,RLI:6},ongoing:[{tipo:'pressao',equipId:'EQ-002',sistema:'Vapor HP',material:'Inox',data:'07/04'}]},
+    {id:'petroquimica',nome:'Petroquímica Alpha',cliente:'Alpha Química',cnpj:'98.765.432/0001-10',contrato:'ALPHA-2026-03',local:'Camaçari/BA',operadorResponsavelId:'COL-003',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,visivelColaboradores:true,sequenciais:{RDO:4,RTP:1,RLQ:4,RCPU:0,RLM:1,RLF:2,RLI:1},ongoing:[]}
   ],
   equipamentos:[
     {id:'EQ-001',codigo:'EQ-001',nome:'Trocador T-101',tipos:['limpeza','mecanica']},
@@ -531,7 +531,7 @@ function toLocalDb(payload){
   local.projetos=(payload.projects||[]).map(function(p){
     var seq={};REPORT_TYPES.forEach(function(t){seq[t]=0;});
     (p.reportSequences||[]).forEach(function(s){seq[s.reportType]=s.nextNumber;});
-    return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj,contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
+    return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj,contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,visivelColaboradores:p.visibleToCollaborators!==false,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
   });
   local.equipamentos=(payload.equipment||[]).map(function(e){
     return {id:e.id,code:e.code,codigo:e.code,nome:e.name,tipos:e.serviceTags||[],ativo:e.isActive!==false};
@@ -1554,7 +1554,7 @@ function closeEditor(tab){
 }
 function editorProjeto(){
   var st=gestorEditors.projetos;if(!st)return '';
-  var p=st.type==='edit'?getProjetoById(st.id):{id:'',code:'',nome:'',cliente:'',cnpj:'',contrato:'',local:'',operadorResponsavelId:'',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,sequenciais:{}};
+  var p=st.type==='edit'?getProjetoById(st.id):{id:'',code:'',nome:'',cliente:'',cnpj:'',contrato:'',local:'',operadorResponsavelId:'',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,visivelColaboradores:true,sequenciais:{}};
   return '<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(st.type==='edit'?'Editar projeto':'Novo projeto')+'</div><button class="mini-btn alt" onclick="closeEditor(\'projetos\')">Cancelar</button></div><div class="admin-inline-grid">'+
     '<div class="fg"><label>Número da missão</label><input type="text" id="ed-proj-id" value="'+escapeHtml(p.code||'')+'" '+(st.type==='edit'?'readonly':'')+'></div>'+
     '<div class="fg"><label>Nome</label><input type="text" id="ed-proj-nome" value="'+escapeHtml(p.nome||'')+'"></div>'+
@@ -1563,6 +1563,7 @@ function editorProjeto(){
     '<div class="fg"><label>Contrato</label><input type="text" id="ed-proj-contrato" value="'+escapeHtml(p.contrato||'')+'"></div>'+
     '<div class="fg"><label>Local</label><input type="text" id="ed-proj-local" value="'+escapeHtml(p.local||'')+'"></div>'+
     '<div class="fg"><label>Operador responsável</label><select id="ed-proj-operador">'+selectOptions(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};}),p.operadorResponsavelId||'','Selecionar...')+'</select></div>'+
+    '<div class="fg"><label>Exibir para colaboradores</label><select id="ed-proj-visible-collab"><option value="true"'+(p.visivelColaboradores!==false?' selected':'')+'>Sim</option><option value="false"'+(p.visivelColaboradores===false?' selected':'')+'>Não</option></select></div>'+
     '<div class="fg"><label>Jornada padrão</label><input type="text" id="ed-proj-jornada" value="'+escapeHtml(p.jornada||'09:00')+'"></div>'+
     '<div class="fg"><label>Jornada fim de semana</label><input type="text" id="ed-proj-fds" value="'+escapeHtml(p.jornadaFimSemana||'08:00')+'"></div>'+
     '<div class="fg"><label>Inclui sábado</label><select id="ed-proj-sab"><option value="true"'+(p.incluiSabado?' selected':'')+'>Sim</option><option value="false"'+(!p.incluiSabado?' selected':'')+'>Não</option></select></div>'+
@@ -1981,8 +1982,11 @@ function statusMeta(status){
   return map[status]||{txt:status,cls:'badge-rev'};
 }
 function reportStatusMeta(report){
-  if(report&&report.status==='PENDING'&&report.reviewNotes==='Editado pelo colaborador')return statusMeta('EDITED');
+  if(report&&report.status==='PENDING'&&((((report.specialConditions||{}).__editOriginalSnapshot))||report.reviewNotes==='Editado pelo colaborador'))return statusMeta('EDITED');
   return statusMeta(report&&report.status);
+}
+function isPendingEditReport(report){
+  return !!(report && ((report.specialConditions||{}).__editOriginalSnapshot));
 }
 function formatReportDate(v){
   if(!v)return '—';
@@ -3124,6 +3128,8 @@ function normalizeReportType(type){
   return normalized==='RCP'?'RCPU':normalized;
 }
 function getProjectLeaderName(report){
+  var snap=report&&report.specialConditions&&report.specialConditions.__leaderSnapshot;
+  if(snap&&snap.name)return snap.name;
   return (report&&report.project&&report.project.operator&&report.project.operator.name)
     || (report&&report.project&&report.project.operator&&report.project.operator.code)
     || (report&&report.createdBy&&report.createdBy.collaborator&&report.createdBy.collaborator.name)
@@ -3406,8 +3412,17 @@ function findManometerById(id){
 function displayStoredValue(key,value){
   if(Array.isArray(value))return value.map(function(item){return displayStoredValue(key,item);}).filter(Boolean).join(', ');
   if(value&&typeof value==='object'){
+    if(Array.isArray(value.labels)&&value.labels.length)return value.labels.filter(Boolean).join(', ');
+    if(Array.isArray(value.files)&&value.files.length)return value.files.map(function(file){
+      return (file&&typeof file==='object')?(file.fileName||file.name||file.url||''):String(file||'');
+    }).filter(Boolean).join(', ');
     if(value.fileName)return value.fileName;
-    return JSON.stringify(value);
+    if(value.name)return value.name;
+    if(value.label)return value.label;
+    if(Array.isArray(value.ids)&&value.ids.length)return value.ids.map(function(item){return displayStoredValue(key,item);}).filter(Boolean).join(', ');
+    return Object.keys(value).map(function(childKey){
+      return displayStoredValue(childKey,value[childKey]);
+    }).filter(function(item){return item && item!=='Ã¢â‚¬â€';}).join(', ')||'Ã¢â‚¬â€';
   }
   if(value==null||value==='')return 'â€”';
   if(key==='Contador utilizado'){
@@ -3529,12 +3544,129 @@ function renderSpecialConditionsPreview(special){
 }
 function renderKeyValueRows(obj){
   return Object.keys(obj||{}).filter(function(key){
-    return key!=='__uploads__' && key!=='generalUploads' && key!=='standby' && key!=='noturno' && key!=='standbyDetails' && key!=='noturnoDetails';
+    return key!=='__uploads__' && key!=='generalUploads' && key!=='standby' && key!=='noturno' && key!=='standbyDetails' && key!=='noturnoDetails' && String(key).indexOf('__')!==0;
   }).filter(function(key){
     return !isPreviewEmptyValue(obj[key]);
   }).map(function(key){
     return '<div class="det-row"><span class="det-label">'+escapeHtml(normalizePreviewLabel(key))+'</span><span class="det-val">'+escapeHtml(displayStoredValue(normalizePreviewLabel(key),obj[key]))+'</span></div>';
   }).join('');
+}
+function getPendingEditSnapshot(report){
+  return (((report||{}).specialConditions||{}).__editOriginalSnapshot)||null;
+}
+function buildServicePreviewMap(service,index){
+  var out={};
+  if(!service)return out;
+  var prefix='Serviço '+(index+1)+' / ';
+  out[prefix+'Tipo']=serviceNames[service.serviceType]||service.serviceType||'—';
+  if(service.system)out[prefix+'Sistema']=service.system;
+  if(service.material)out[prefix+'Material']=service.material;
+  if(service.startTime)out[prefix+'Hora de início']=service.startTime;
+  if(service.endTime)out[prefix+'Hora de término']=service.endTime;
+  if(typeof service.finalized==='boolean')out[prefix+'Finalizado']=service.finalized?'Sim':'Não';
+  Object.keys(service.extraData||{}).forEach(function(key){
+    if(key==='__uploads__' || String(key).indexOf('__')===0 || isPreviewEmptyValue((service.extraData||{})[key]))return;
+    out[prefix+normalizePreviewLabel(key)]=displayStoredValue(normalizePreviewLabel(key),(service.extraData||{})[key]);
+  });
+  return out;
+}
+function buildReportPreviewMap(report){
+  var out={};
+  if(!report)return out;
+  out['Projeto']=(report.project&&report.project.name)?(('Missão '+(report.project.code||'')+' - '+report.project.name).trim()):String(report.projectId||'—');
+  if(report.reportDate)out['Data']=formatReportDate(report.reportDate);
+  out['Chegada']=report.arrivalTime||'—';
+  out['Saída']=report.departureTime||'—';
+  out['Intervalo de almoço']=report.lunchBreak||'—';
+  out['Equipe']=(report.collaborators||[]).map(function(link){return link.collaborator?link.collaborator.name:(link.name||'');}).filter(Boolean).join(', ')||'—';
+  if(report.overtimeReason)out['Justificativa']=report.overtimeReason;
+  if(report.dailyDescription)out['Descrição geral']=report.dailyDescription;
+  Object.keys(report.specialConditions||{}).forEach(function(key){
+    if(key==='standby' || key==='noturno' || key==='standbyDetails' || key==='noturnoDetails' || key==='generalUploads' || key==='overtimeSummary' || String(key).indexOf('__')===0)return;
+    if(isPreviewEmptyValue((report.specialConditions||{})[key]))return;
+    out['Condições / '+normalizePreviewLabel(key)]=displayStoredValue(normalizePreviewLabel(key),(report.specialConditions||{})[key]);
+  });
+  if((report.specialConditions||{}).standby){
+    out['Condições / Houve standby?']='Sim';
+    if(((report.specialConditions||{}).standbyDetails||{}).total)out['Condições / Tempo total de standby']=report.specialConditions.standbyDetails.total;
+    if(((report.specialConditions||{}).standbyDetails||{}).motivo)out['Condições / Motivo do standby']=report.specialConditions.standbyDetails.motivo;
+  }
+  if((report.specialConditions||{}).noturno){
+    out['Condições / Houve turno noturno?']='Sim';
+    if(((report.specialConditions||{}).noturnoDetails||{}).inicio)out['Condições / Início do turno noturno']=report.specialConditions.noturnoDetails.inicio;
+    if(((report.specialConditions||{}).noturnoDetails||{}).termino)out['Condições / Término do turno noturno']=report.specialConditions.noturnoDetails.termino;
+    if((((report.specialConditions||{}).noturnoDetails||{}).colaboradores||[]).length)out['Condições / Colaboradores noturnos']=displayStoredValue('Colaboradores noturnos',report.specialConditions.noturnoDetails.colaboradores);
+  }
+  (report.services||[]).forEach(function(service,index){
+    var serviceMap=buildServicePreviewMap(service,index);
+    Object.keys(serviceMap).forEach(function(key){out[key]=serviceMap[key];});
+  });
+  return out;
+}
+function buildSnapshotPreviewMap(snapshot,report){
+  if(!snapshot)return {};
+  return buildReportPreviewMap({
+    projectId: snapshot.projectId,
+    project: report.project,
+    reportDate: snapshot.reportDate,
+    arrivalTime: snapshot.arrivalTime,
+    departureTime: snapshot.departureTime,
+    lunchBreak: snapshot.lunchBreak,
+    overtimeReason: snapshot.overtimeReason,
+    dailyDescription: snapshot.dailyDescription,
+    specialConditions: snapshot.specialConditions||{},
+    collaborators: (snapshot.collaborators||[]).map(function(item){return {name:item.name||'',collaborator:{name:item.name||''}};}),
+    services: snapshot.services||[]
+  });
+}
+function renderPendingEditChanges(report){
+  var snapshot=getPendingEditSnapshot(report);
+  if(!snapshot)return '';
+  var beforeMap=buildSnapshotPreviewMap(snapshot,report);
+  var afterMap=buildReportPreviewMap(report);
+  var order=Object.keys(beforeMap).concat(Object.keys(afterMap).filter(function(key){return !beforeMap.hasOwnProperty(key);}));
+  var rows=order.filter(function(key){
+    return String(beforeMap[key]||'—')!==String(afterMap[key]||'—');
+  }).map(function(key){
+    return '<div class="det-row"><span class="det-label">'+escapeHtml(key)+'</span><span class="det-val"><div><strong>Antes:</strong> '+escapeHtml(String(beforeMap[key]||'—'))+'</div><div style="margin-top:4px"><strong>Agora:</strong> '+escapeHtml(String(afterMap[key]||'—'))+'</div></span></div>';
+  }).join('');
+  return '<div class="card"><div class="sec">O que foi alterado</div><div class="det-section">'+(rows||'<div style="font-size:12px;color:var(--mu)">Nenhuma diferença detectada.</div>')+'</div></div>';
+}
+function renderReadonlyRdoDetail(report){
+  var specialRows=renderSpecialConditionsPreview(report.specialConditions||{});
+  var servicesHtml=(report.services||[]).map(function(s,i){
+    var fields=s.extraData||{};
+    return '<div class="svc-mini"><div class="svc-mini-hdr">Serviço '+(i+1)+' — '+escapeHtml(serviceNames[s.serviceType]||s.serviceType)+'</div><div class="svc-mini-body"><div class="det-section">'+renderKeyValueRows(fields)+'</div></div></div>';
+  }).join('');
+  return '<div class="card"><div class="sec">Informações gerais</div><div class="det-section"><div class="det-row"><span class="det-label">Projeto</span><span class="det-val">'+escapeHtml(report.project.name)+'</span></div><div class="det-row"><span class="det-label">Data</span><span class="det-val">'+formatReportDate(report.reportDate)+'</span></div><div class="det-row"><span class="det-label">Horário</span><span class="det-val">'+escapeHtml(report.arrivalTime+' - '+report.departureTime)+'</span></div><div class="det-row"><span class="det-label">Equipe</span><span class="det-val">'+escapeHtml((report.collaborators||[]).map(function(link){return link.collaborator?link.collaborator.name:'';}).filter(Boolean).join(', ')||'—')+'</span></div></div></div><div class="card"><div class="sec">Condições especiais</div><div class="det-section">'+(specialRows||'<div style="font-size:12px;color:var(--mu)">Sem condições especiais registradas.</div>')+'</div></div><div class="card"><div class="sec">Serviços registrados</div>'+(servicesHtml||'<div style="font-size:13px;color:var(--mu)">Sem serviços.</div>')+'</div>';
+}
+async function enterManagerEditMode(id){
+  var report=reportsCache.find(function(r){return r.id===id;})||await apiFetch('/reports/'+id);
+  renderManagerDetail(report);
+  go('s-detalhe');
+}
+async function cancelPendingEdit(id){
+  if(!confirm('Desfazer esta edição pendente e restaurar a versão anterior do relatório?'))return;
+  try{
+    await apiFetch('/reports/'+id+'/cancel-edit',{method:'POST'});
+    await refreshReportsCache();
+    renderMyReports();
+    await openReportDetail(id,'meus');
+  }catch(err){
+    alert('Erro ao desfazer edição: '+err.message);
+  }
+}
+async function discardPendingEditByManager(id){
+  if(!confirm('Descartar esta edição pendente e restaurar a versão aprovada anterior do relatório?'))return;
+  try{
+    await apiFetch('/reports/'+id+'/discard-edit',{method:'POST'});
+    await refreshReportsCache();
+    await refreshDraftsCache();
+    renderGestor();
+    await openReportDetail(id,'gestor');
+  }catch(err){
+    alert('Erro ao descartar edição: '+err.message);
+  }
 }
 async function openReportDetail(id,origin){
   var report=reportsCache.find(function(r){return r.id===id;})||await apiFetch('/reports/'+id);
@@ -4365,6 +4497,15 @@ async function openReportDetail(id,origin){
       document.getElementById('det-actions').innerHTML=
         '<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button>'+
         '<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else if(report.status!=='APPROVED' && getPendingEditSnapshot(report)){
+      document.getElementById('det-body').innerHTML=
+        '<div class="card"><div class="sec">Edição pendente</div><div style="font-size:13px;line-height:1.6">O colaborador reenviou este relatório com alterações. Revise abaixo o que mudou antes de entrar no modo de edição.</div></div>'+
+        renderPendingEditChanges(report)+
+        renderReadonlyRdoDetail(report);
+      document.getElementById('det-actions').innerHTML=
+        '<button class="btn-approve" onclick="enterManagerEditMode(\''+report.id+'\')">Entrar no modo edição</button>'+
+        '<button class="btn-approve" onclick="aprovar(\''+report.id+'\')">Aprovar</button>'+
+        '<button class="btn-reject" onclick="rejeitar(\''+report.id+'\')">Devolver</button>';
     }else{
       renderManagerDetail(report);
     }
@@ -4391,6 +4532,94 @@ async function openReportDetail(id,origin){
   document.getElementById('det-actions').innerHTML=report.status==='APPROVED'
     ? '<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
     : '<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar</button>';
+  go('s-detalhe');
+}
+async function openReportDetail(id,origin){
+  var report=reportsCache.find(function(r){return r.id===id;})||await apiFetch('/reports/'+id);
+  currentDetailReport=report;
+  currentDetailBack=origin==='meus'?'s-meus-relatorios':'s-gestor';
+  document.getElementById('det-title').textContent=reportDisplayLabel(report)+' · '+report.project.name;
+  document.getElementById('det-sub').textContent=((report.createdBy&&report.createdBy.name)||'—')+' · '+formatReportDate(report.reportDate);
+  document.getElementById('det-badge-top').textContent=statusMeta(report.status).txt;
+  var reportType=normalizeReportType(report.reportType||'RDO');
+  var isDerived=reportType!=='RDO';
+  if(currentUser&&currentUser.role==='MANAGER'){
+    if(reportType==='RLQ'){
+      renderRlqDetail(report);
+      document.getElementById('det-actions').innerHTML='<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else if(reportType==='RCPU'){
+      renderRcpuDetail(report);
+      document.getElementById('det-actions').innerHTML='<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else if(isDerived){
+      renderRtpDetail(report);
+      document.getElementById('det-actions').innerHTML='<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else if(report.status!=='APPROVED' && getPendingEditSnapshot(report)){
+      document.getElementById('det-body').innerHTML='<div class="card"><div class="sec">Edição pendente</div><div style="font-size:13px;line-height:1.6">O colaborador reenviou este relatório com alterações. Revise abaixo o que mudou antes de entrar no modo de edição.</div></div>'+renderPendingEditChanges(report)+renderReadonlyRdoDetail(report);
+      document.getElementById('det-actions').innerHTML='<button class="btn-approve" onclick="enterManagerEditMode(\''+report.id+'\')">Entrar no modo edição</button><button class="btn-approve" onclick="aprovar(\''+report.id+'\')">Aprovar</button><button class="btn-reject" onclick="rejeitar(\''+report.id+'\')">Devolver</button><button class="btn-reject" onclick="discardPendingEditByManager(\''+report.id+'\')">Descartar edição</button>';
+    }else{
+      renderManagerDetail(report);
+    }
+    go('s-detalhe');
+    return;
+  }
+  if(isDerived){
+    if(reportType==='RLQ') renderRlqDetail(report);
+    else if(reportType==='RCPU') renderRcpuDetail(report);
+    else renderRtpDetail(report);
+    document.getElementById('det-actions').innerHTML=report.status==='APPROVED'?'<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>':'';
+    go('s-detalhe');
+    return;
+  }
+  document.getElementById('det-body').innerHTML=(getPendingEditSnapshot(report)&&report.status!=='APPROVED'
+    ? '<div class="card"><div class="sec">Edição pendente</div><div style="font-size:13px;line-height:1.6">Este relatório foi editado e reenviado para aprovação do gestor. Confira abaixo o que mudou em relação à versão anterior.</div></div>'+renderPendingEditChanges(report)
+    : '')+renderReadonlyRdoDetail(report);
+  document.getElementById('det-actions').innerHTML=report.status==='APPROVED'
+    ? '<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
+    : '<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar</button>'+(getPendingEditSnapshot(report)?'<button class="btn-reject" onclick="cancelPendingEdit(\''+report.id+'\')">Desfazer edição</button>':'');
+  go('s-detalhe');
+}
+async function openReportDetail(id,origin){
+  var report=reportsCache.find(function(r){return r.id===id;})||await apiFetch('/reports/'+id);
+  currentDetailReport=report;
+  currentDetailBack=origin==='meus'?'s-meus-relatorios':'s-gestor';
+  document.getElementById('det-title').textContent=reportDisplayLabel(report)+' · '+report.project.name;
+  document.getElementById('det-sub').textContent=((report.createdBy&&report.createdBy.name)||'—')+' · '+formatReportDate(report.reportDate);
+  document.getElementById('det-badge-top').textContent=reportStatusMeta(report).txt;
+  var reportType=normalizeReportType(report.reportType||'RDO');
+  var isDerived=reportType!=='RDO';
+  if(currentUser&&currentUser.role==='MANAGER'){
+    if(reportType==='RLQ'){
+      renderRlqDetail(report);
+      document.getElementById('det-actions').innerHTML='<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else if(reportType==='RCPU'){
+      renderRcpuDetail(report);
+      document.getElementById('det-actions').innerHTML='<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else if(isDerived){
+      renderRtpDetail(report);
+      document.getElementById('det-actions').innerHTML='<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else if(report.status!=='APPROVED' && getPendingEditSnapshot(report)){
+      document.getElementById('det-body').innerHTML='<div class="card"><div class="sec">'+(report.status==='RETURNED'?'Edição devolvida':'Edição pendente')+'</div><div style="font-size:13px;line-height:1.6">'+(report.status==='RETURNED'?'A edição foi devolvida pelo gestor. Revise as alterações e a justificativa antes de decidir o próximo passo.':'O colaborador reenviou este relatório com alterações. Revise abaixo o que mudou antes de entrar no modo de edição.')+'</div></div>'+renderPendingEditChanges(report)+renderReadonlyRdoDetail(report)+(report.reviewNotes?'<div class="card"><div class="sec">Justificativa do gestor</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(report.reviewNotes)+'</div></div>':'');
+      document.getElementById('det-actions').innerHTML='<button class="btn-approve" onclick="enterManagerEditMode(\''+report.id+'\')">Entrar no modo edição</button><button class="btn-approve" onclick="aprovar(\''+report.id+'\')">Aprovar</button><button class="btn-reject" onclick="rejeitar(\''+report.id+'\')">Devolver</button><button class="btn-reject" onclick="discardPendingEditByManager(\''+report.id+'\')">Descartar edição</button>';
+    }else{
+      renderManagerDetail(report);
+    }
+    go('s-detalhe');
+    return;
+  }
+  if(isDerived){
+    if(reportType==='RLQ') renderRlqDetail(report);
+    else if(reportType==='RCPU') renderRcpuDetail(report);
+    else renderRtpDetail(report);
+    document.getElementById('det-actions').innerHTML=report.status==='APPROVED'?'<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>':'';
+    go('s-detalhe');
+    return;
+  }
+  document.getElementById('det-body').innerHTML=(getPendingEditSnapshot(report)&&report.status!=='APPROVED'
+    ? '<div class="card"><div class="sec">'+(report.status==='RETURNED'?'Edição devolvida':'Edição pendente')+'</div><div style="font-size:13px;line-height:1.6">'+(report.status==='RETURNED'?'O gestor devolveu esta edição. Confira a justificativa e decida se deseja editar novamente ou descartar a edição atual.':'Este relatório foi editado e reenviado para aprovação do gestor. Confira abaixo o que mudou em relação à versão anterior.')+'</div></div>'+renderPendingEditChanges(report)
+    : '')+renderReadonlyRdoDetail(report)+(report.status==='RETURNED'&&report.reviewNotes?'<div class="card"><div class="sec">Justificativa do gestor</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(report.reviewNotes)+'</div></div>':'');
+  document.getElementById('det-actions').innerHTML=report.status==='APPROVED'
+    ? '<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
+    : '<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar</button>'+(getPendingEditSnapshot(report)?'<button class="btn-reject" onclick="cancelPendingEdit(\''+report.id+'\')">Descartar edição atual</button>':'');
   go('s-detalhe');
 }
 function initOvertimeUi(){
@@ -4588,11 +4817,25 @@ function activeProjects(){
 function archivedProjects(){
   return (db.projetos||[]).filter(function(p){return p.ativo===false;});
 }
+function currentUserCollaboratorId(){
+  return (currentUser&&((currentUser.collaborator&&currentUser.collaborator.id)||currentUser.collaboratorId))||'';
+}
+function canSelectProjectForCurrentUser(project){
+  if(!project||project.ativo===false)return false;
+  if(!currentUser||currentUser.role==='MANAGER')return true;
+  var collaboratorId=currentUserCollaboratorId();
+  if(!collaboratorId)return false;
+  if(project.visivelColaboradores===false)return false;
+  return project.operadorResponsavelId===collaboratorId;
+}
 function projectSelectOptions(selectedId,includeInactiveSelected){
-  var items=activeProjects().slice();
+  var items=activeProjects().filter(canSelectProjectForCurrentUser);
   if(includeInactiveSelected&&selectedId){
     var selected=getProjetoById(selectedId);
-    if(selected&&selected.ativo===false&&!items.some(function(p){return p.id===selected.id;}))items.unshift(selected);
+    var canKeepSelected=currentUser&&currentUser.role==='MANAGER'
+      ? selected&&selected.ativo===false
+      : canSelectProjectForCurrentUser(selected);
+    if(canKeepSelected&&selected&&!items.some(function(p){return p.id===selected.id;}))items.unshift(selected);
   }
   return items.map(function(p){
     var suffix=p.ativo===false?' (arquivado)':'';
@@ -4620,7 +4863,7 @@ function renderProjetos(){
     (list.length?list.map(function(p){
       var operador=getColaboradorById(p.operadorResponsavelId);
       var totalSeq=REPORT_TYPES.reduce(function(acc,t){return acc+Number((p.sequenciais&&p.sequenciais[t])||0);},0);
-      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrão')+'</span></div><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'—')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'—')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'—')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')" style="margin-left:8px">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
+      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrão')+'</span></div><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'—')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'—')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'—')+'</span></div><div class="det-row"><span class="det-label">Visível aos colaboradores</span><span class="det-val">'+(p.visivelColaboradores===false?'Não':'Sim')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')" style="margin-left:8px">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
     }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto ativo.</div></div>');
 }
 function renderProjetosArquivados(){
@@ -4643,6 +4886,7 @@ async function saveProjetoEditor(mode){
     contractCode:document.getElementById('ed-proj-contrato').value.trim(),
     location:document.getElementById('ed-proj-local').value.trim(),
     operatorId:document.getElementById('ed-proj-operador').value||null,
+    visibleToCollaborators:document.getElementById('ed-proj-visible-collab').value==='true',
     workdayHours:document.getElementById('ed-proj-jornada').value.trim()||'09:00',
     weekendWorkdayHours:document.getElementById('ed-proj-fds').value.trim()||'08:00',
     includesSaturday:document.getElementById('ed-proj-sab').value==='true',
@@ -4661,7 +4905,7 @@ async function archiveProjeto(id){
   var p=getProjetoById(id);
   if(!p)return;
   try{
-    await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:false,clientName:p.cliente||'',clientCnpj:p.cnpj||'',contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
+    await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:false,clientName:p.cliente||'',clientCnpj:p.cnpj||'',contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
     if(projAtual===id)projAtual='';
     await refreshDbFromApi();
     renderGestor();
@@ -4671,7 +4915,7 @@ async function unarchiveProjeto(id){
   var p=getProjetoById(id);
   if(!p)return;
   try{
-    await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:true,clientName:p.cliente||'',clientCnpj:p.cnpj||'',contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
+    await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:true,clientName:p.cliente||'',clientCnpj:p.cnpj||'',contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
     await refreshDbFromApi();
     renderGestor();
   }catch(err){alert('Erro ao desarquivar projeto: '+err.message);}
@@ -4685,9 +4929,7 @@ async function removeProjeto(id){
   }catch(err){alert('Erro ao remover projeto: '+err.message);}
 }
 function gestorCriarRelatorio(){
-  currentDraftId='';
-  resetReportForm();
-  go('s-cabecalho');
+  return openFreshReportForm('');
 }
 function voltarDoRelatorio(){
   if(currentUser&&currentUser.role==='MANAGER'){go('s-gestor');}else{go('s-home');}
@@ -5066,7 +5308,7 @@ function renderManagerDetail(report){
   if(finalZone)setUploads(finalZone,finalUploads);
   document.getElementById('det-actions').innerHTML=report.status==='APPROVED'
     ? '<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'save\')">Salvar</button><button class="btn-pdf" onclick="gerarDOCX(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button><button class="btn-reject" onclick="deleteReport(\''+report.id+'\')">Excluir</button>'
-    : '<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'save\')">Salvar</button><button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'approve\')">Salvar e aprovar</button><button class="btn-reject" onclick="saveManagerDetail(\''+report.id+'\',\'return\')">Salvar e devolver</button><button class="btn-reject" onclick="deleteReport(\''+report.id+'\')">Excluir</button>';
+    : '<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'save\')">Salvar</button><button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'approve\')">Salvar e aprovar</button><button class="btn-reject" onclick="saveManagerDetail(\''+report.id+'\',\'return\')">Salvar e devolver</button><button class="btn-reject" onclick="'+(isPendingEditReport(report)?'discardPendingEditByManager':'deleteReport')+'(\''+report.id+'\')">'+(isPendingEditReport(report)?'Descartar edição':'Excluir')+'</button>';
 }
 function renderOngoingServices(){
   var root=document.getElementById('ongoing-services-content');
@@ -5289,10 +5531,18 @@ function ensureDraftHomeBlock(){
   block.id='home-drafts';
   homeScroll.appendChild(block);
 }
-function startNewReport(){
-  currentDraftId='draft_'+Date.now();
+async function openFreshReportForm(draftId){
+  try{
+    await refreshDbFromApi();
+  }catch(err){
+    console.warn('Falha ao atualizar projetos antes de abrir o formulário.',err);
+  }
+  currentDraftId=draftId||'';
   resetReportForm();
   go('s-cabecalho');
+}
+function startNewReport(){
+  return openFreshReportForm('draft_'+Date.now());
 }
 function resetReportForm(){
   editingReportId='';
@@ -5542,9 +5792,7 @@ function resumeDraft(id){
   go('s-cabecalho');
 }
 function startNewReport(){
-  currentDraftId='';
-  resetReportForm();
-  go('s-cabecalho');
+  return openFreshReportForm('draft_'+Date.now());
 }
 function collectServices(){
   return Array.from(document.querySelectorAll('.svc-card')).map(function(card){
@@ -5763,6 +6011,35 @@ function reportCard(report,origin){
     '<div class="rel-icon">'+icon+'</div>'+
     '<div class="rel-info"><div class="rel-name">'+escapeHtml(reportDisplayLabel(report))+' · '+escapeHtml(report.project.name)+'</div><div class="rel-meta">'+escapeHtml(owner)+' · '+formatReportDate(report.reportDate)+'<br>'+subtitle+'</div></div>'+
     '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-left:auto"><span class="badge '+meta.cls+'">'+meta.txt+'</span>'+actions+'</div>'+
+    '</div>';
+}
+function reportCard(report,origin){
+  var meta=reportStatusMeta(report);
+  var owner=(report.createdBy&&report.createdBy.name)||'—';
+  var normalizedType=normalizeReportType(report.reportType||'RDO');
+  var subtitle;
+  if(normalizedType==='RTP'){
+    var svc=(report.services||[])[0];
+    var svcData=(svc&&svc.extraData)||(((report.specialConditions||{}).serviceData)||{});
+    var equip=svcData['Equipamento(s)']?stringify2(svcData['Equipamento(s)']):(svcData['Equipamento'])||'—';
+    var sys=svc?((svc.system||svcData['Sistema'])||'—'):((report.system||svcData['Sistema'])||'—');
+    subtitle=escapeHtml(equip)+' · '+escapeHtml(sys);
+  }else{
+    subtitle=escapeHtml(summarizeServices(report)||('Sem servi'+String.fromCharCode(231)+'os'));
+  }
+  var actions='';
+  if(report.status==='APPROVED'){
+    actions=currentUser&&currentUser.role==='MANAGER'
+      ?'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();downloadDocx(\''+report.id+'\')">DOCX</button><button class="mini-btn alt" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">PDF</button></div>'
+      :'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn alt" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">PDF</button></div>';
+  }
+  var deleteAction=currentUser&&currentUser.role==='MANAGER'
+    ?'<button title="'+(isPendingEditReport(report)?'Descartar edição':'Excluir relatório')+'" aria-label="'+(isPendingEditReport(report)?'Descartar edição':'Excluir relatório')+'" type="button" onclick="event.stopPropagation();'+(isPendingEditReport(report)?'discardPendingEditByManager':'deleteReport')+'(\''+report.id+'\')" style="margin-top:2px;align-self:flex-end;width:28px;height:28px;border:none;border-radius:999px;background:#f3f4f6;color:#b42318;cursor:pointer;font-size:14px;line-height:1">'+(isPendingEditReport(report)?'🧾':'&#128465;')+'</button>'
+    :'';
+  return '<div class="rel-item" onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')" style="align-items:flex-start;gap:12px">'+
+    '<div class="rel-icon">'+((isPendingEditReport(report)&&normalizedType==='RDO')?'🧾':'&#128203;')+'</div>'+
+    '<div class="rel-info"><div class="rel-name">'+escapeHtml(getReportCardTitle(report))+'</div><div class="rel-meta">'+escapeHtml(owner)+' · '+formatReportDate(report.reportDate)+'<br>'+subtitle+'</div></div>'+
+    '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:auto"><span class="badge '+meta.cls+'">'+meta.txt+'</span>'+actions+deleteAction+'</div>'+
     '</div>';
 }
 function switchProjectReportTab(projectKey,type,btn){
@@ -6485,9 +6762,241 @@ async function removeDraft(id,silent){
   }
   renderDraftHome();
 }
+async function deleteReport(id){
+  if(!authState.token){alert('Faca login novamente.');go('s-login');return;}
+  var report=(reportsCache||[]).find(function(item){return item.id===id;});
+  if(currentUser&&currentUser.role==='MANAGER'&&isPendingEditReport(report)&&report.status!=='APPROVED'){
+    alert('Nao e permitido excluir o relatorio a partir de uma edicao pendente. Use "Descartar edicao".');
+    return;
+  }
+  if(!confirm('Excluir este relatorio? Se for um RDO, os relatorios de servico vinculados a ele tambem serao removidos.'))return;
+  try{
+    var response=await fetch(API_BASE+'/reports/'+id,{
+      method:'DELETE',
+      headers:{Authorization:'Bearer '+authState.token}
+    });
+    if(!response.ok){
+      var msg='Falha ao excluir relatorio.';
+      try{ var err=await response.json(); msg=err.error||msg; }catch(e){}
+      alert(msg);
+      return;
+    }
+    await refreshReportsCache();
+    await refreshDraftsCache();
+    renderMyReports();
+    if(currentUser&&currentUser.role==='MANAGER'){
+      renderGestor();
+      go('s-gestor');
+    }else{
+      go('s-home');
+    }
+    showToast('Relatorio excluido com sucesso.');
+  }catch(err){
+    alert('Erro ao excluir relatorio: '+err.message);
+  }
+}
+async function rejeitar(id){
+  var motivo=prompt('Motivo da devolucao:');
+  if(motivo===null)return;
+  await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'RETURNED',reviewNotes:motivo||null})});
+  await refreshReportsCache();
+  renderGestor();
+  showToast('Edicao devolvida para correcao.');
+  await openReportDetail(id,'gestor');
+}
+function reportCard(report,origin){
+  var meta=reportStatusMeta(report);
+  var owner=getProjectLeaderName(report);
+  var rtype=normalizeReportType(report.reportType||'RDO');
+  var isDerived=rtype!=='RDO';
+  var pendingEdit=isPendingEditReport(report)&&report.status!=='APPROVED';
+  var subtitle;
+  if(isDerived){
+    var svc=(report.services||[])[0];
+    var svcData=(svc&&svc.extraData)||(((report.specialConditions||{}).serviceData)||{});
+    var equip=svcData['Equipamento(s)']?stringify2(svcData['Equipamento(s)']):(svcData['Equipamento'])||'&#8212;';
+    var sys=svc?((svc.system||svcData['Sistema'])||'&#8212;'):((report.system||svcData['Sistema'])||'&#8212;');
+    subtitle=escapeHtml(equip)+' &middot; '+escapeHtml(sys);
+  }else{
+    subtitle=escapeHtml(summarizeServices(report)||('Sem servicos'));
+  }
+  var actions='';
+  if(report.status==='APPROVED'){
+    actions=currentUser&&currentUser.role==='MANAGER'
+      ?'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();downloadDocx(\''+report.id+'\')">DOCX</button><button class="mini-btn alt" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">PDF</button></div>'
+      :'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn alt" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">PDF</button></div>';
+  }
+  var deleteAction=currentUser&&currentUser.role==='MANAGER'
+    ?'<button title="'+(pendingEdit?'Descartar edicao':'Excluir relatorio')+'" aria-label="'+(pendingEdit?'Descartar edicao':'Excluir relatorio')+'" type="button" onclick="event.stopPropagation();'+(pendingEdit?'discardPendingEditByManager':'deleteReport')+'(\''+report.id+'\')" style="margin-top:2px;align-self:flex-end;width:28px;height:28px;border:none;border-radius:999px;background:#f3f4f6;color:#b42318;cursor:pointer;font-size:14px;line-height:1">'+(pendingEdit?'🧾':'&#128465;')+'</button>'
+    :'';
+  return '<div class="rel-item" onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')" style="align-items:flex-start;gap:12px">'+
+    '<div class="rel-icon">'+(pendingEdit?'🧾':'&#128203;')+'</div>'+
+    '<div class="rel-info"><div class="rel-name">'+escapeHtml(getReportCardTitle(report))+'</div><div class="rel-meta">'+escapeHtml(owner)+' &middot; '+formatReportDate(report.reportDate)+'<br>'+subtitle+'</div></div>'+
+    '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:auto"><span class="badge '+meta.cls+'">'+meta.txt+'</span>'+actions+deleteAction+'</div>'+
+    '</div>';
+}
+async function openReportDetail(id,origin){
+  var report=reportsCache.find(function(r){return r.id===id;})||await apiFetch('/reports/'+id);
+  var hasPendingEdit=isPendingEditReport(report)&&report.status!=='APPROVED';
+  currentDetailReport=report;
+  currentDetailBack=origin==='meus'?'s-meus-relatorios':'s-gestor';
+  document.getElementById('det-title').textContent=reportDisplayLabel(report)+' · '+report.project.name;
+  document.getElementById('det-sub').textContent=((report.createdBy&&report.createdBy.name)||'—')+' · '+formatReportDate(report.reportDate);
+  document.getElementById('det-badge-top').textContent=reportStatusMeta(report).txt;
+  var reportType=normalizeReportType(report.reportType||'RDO');
+  var isDerived=reportType!=='RDO';
+  if(currentUser&&currentUser.role==='MANAGER'){
+    if(reportType==='RLQ'){
+      renderRlqDetail(report);
+      document.getElementById('det-actions').innerHTML='<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else if(reportType==='RCPU'){
+      renderRcpuDetail(report);
+      document.getElementById('det-actions').innerHTML='<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else if(isDerived){
+      renderRtpDetail(report);
+      document.getElementById('det-actions').innerHTML='<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else if(hasPendingEdit){
+      document.getElementById('det-body').innerHTML=
+        '<div class="card"><div class="sec">'+(report.status==='RETURNED'?'Edicao devolvida':'Edicao pendente')+'</div><div style="font-size:13px;line-height:1.6">'+(report.status==='RETURNED'?'A edicao foi devolvida pelo gestor. Revise as alteracoes e a justificativa antes de decidir o proximo passo.':'O colaborador reenviou este relatorio com alteracoes. Revise abaixo o que mudou antes de entrar no modo de edicao.')+'</div></div>'+
+        renderPendingEditChanges(report)+
+        renderReadonlyRdoDetail(report)+
+        (report.reviewNotes?'<div class="card"><div class="sec">Justificativa do gestor</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(report.reviewNotes)+'</div></div>':'');
+      document.getElementById('det-actions').innerHTML='<button class="btn-approve" onclick="enterManagerEditMode(\''+report.id+'\')">Entrar no modo edicao</button><button class="btn-approve" onclick="aprovar(\''+report.id+'\')">Aprovar</button><button class="btn-reject" onclick="rejeitar(\''+report.id+'\')">Devolver</button><button class="btn-reject" onclick="discardPendingEditByManager(\''+report.id+'\')">Descartar edicao</button>';
+    }else{
+      renderManagerDetail(report);
+    }
+    go('s-detalhe');
+    return;
+  }
+  if(isDerived){
+    if(reportType==='RLQ') renderRlqDetail(report);
+    else if(reportType==='RCPU') renderRcpuDetail(report);
+    else renderRtpDetail(report);
+    document.getElementById('det-actions').innerHTML=report.status==='APPROVED'?'<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>':'';
+    go('s-detalhe');
+    return;
+  }
+  document.getElementById('det-body').innerHTML=
+    (hasPendingEdit
+      ? '<div class="card"><div class="sec">'+(report.status==='RETURNED'?'Edicao devolvida':'Edicao pendente')+'</div><div style="font-size:13px;line-height:1.6">'+(report.status==='RETURNED'?'O gestor devolveu esta edicao. Confira a justificativa e decida se deseja editar novamente ou descartar a edicao atual.':'Este relatorio foi editado e reenviado para aprovacao do gestor. Confira abaixo o que mudou em relacao a versao anterior.')+'</div></div>'+renderPendingEditChanges(report)
+      : '')+
+    renderReadonlyRdoDetail(report)+
+    (report.status==='RETURNED'&&report.reviewNotes?'<div class="card"><div class="sec">Justificativa do gestor</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(report.reviewNotes)+'</div></div>':'');
+  document.getElementById('det-actions').innerHTML=report.status==='APPROVED'
+    ? '<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
+    : '<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar</button>'+(hasPendingEdit?'<button class="btn-reject" onclick="cancelPendingEdit(\''+report.id+'\')">Descartar edicao atual</button>':'');
+  go('s-detalhe');
+}
 ensureDraftHomeBlock();
 renderDraftViews();
 refreshDraftsCache();
+function formatReportDate(v){
+  if(!v)return '—';
+  if(v instanceof Date && !isNaN(v.getTime())){
+    var dd=String(v.getDate()).padStart(2,'0');
+    var mm=String(v.getMonth()+1).padStart(2,'0');
+    var yy=String(v.getFullYear());
+    return dd+'/'+mm+'/'+yy;
+  }
+  var raw=String(v).trim();
+  if(!raw)return '—';
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(raw))return raw;
+  if(/^\d{4}-\d{2}-\d{2}/.test(raw)){
+    var iso=raw.slice(0,10).split('-');
+    return iso[2]+'/'+iso[1]+'/'+iso[0];
+  }
+  var parsed=new Date(raw);
+  if(isNaN(parsed.getTime()))return '—';
+  var d=String(parsed.getDate()).padStart(2,'0');
+  var m=String(parsed.getMonth()+1).padStart(2,'0');
+  var y=String(parsed.getFullYear());
+  return d+'/'+m+'/'+y;
+}
+function reportStatusMeta(report){
+  if(report&&report.status==='PENDING'&&isPendingEditReport(report))return statusMeta('EDITED');
+  return statusMeta(report&&report.status);
+}
+function buildSnapshotPreviewMap(snapshot,report){
+  if(!snapshot)return {};
+  var projectRef=(report&&report.project&&String(report.project.id||'')===String(snapshot.projectId||''))?report.project:((report&&report.project)||{id:snapshot.projectId,name:'',code:''});
+  return buildReportPreviewMap({
+    projectId: snapshot.projectId,
+    project: projectRef,
+    reportDate: snapshot.reportDate||null,
+    arrivalTime: snapshot.arrivalTime,
+    departureTime: snapshot.departureTime,
+    lunchBreak: snapshot.lunchBreak,
+    overtimeReason: snapshot.overtimeReason,
+    dailyDescription: snapshot.dailyDescription,
+    specialConditions: snapshot.specialConditions||{},
+    collaborators: (snapshot.collaborators||[]).map(function(item){return {name:item.name||'',collaborator:{name:item.name||''}};}),
+    services: snapshot.services||[]
+  });
+}
+async function discardPendingEditByManager(id){
+  if(!confirm('Descartar esta edicao pendente e restaurar a versao aprovada anterior do relatorio?'))return;
+  try{
+    await apiFetch('/reports/'+id+'/discard-edit',{method:'POST'});
+    await refreshReportsCache();
+    await refreshDraftsCache();
+    renderGestor();
+    go('s-gestor');
+    showToast('Edicao descartada. O relatorio voltou para a versao aprovada.');
+  }catch(err){
+    alert('Erro ao descartar edicao: '+err.message);
+  }
+}
+function renderHomeAlerts(){
+  if(currentUser&&currentUser.role==='MANAGER')return '';
+  var actionable=(reportsCache||[]).filter(function(report){
+    return report&&report.status&&(report.status==='PENDING'||report.status==='RETURNED');
+  }).sort(function(a,b){
+    return String(b.reportDate||'').localeCompare(String(a.reportDate||'')) || String(b.updatedAt||'').localeCompare(String(a.updatedAt||''));
+  });
+  if(!actionable.length)return '';
+  return '<div class="card" style="margin-bottom:12px"><div class="sec">Relatorios aguardando acao</div><div class="admin-list">'+
+    actionable.map(function(report){return reportCard(report,'meus');}).join('')+
+    '</div></div>';
+}
+function renderDraftHome(){
+  ensureDraftHomeBlock();
+  var roots=Array.from(document.querySelectorAll('[id="home-drafts"]'));
+  if(!roots.length)return;
+  var drafts=uniqueDraftsByProjectDate((loadDrafts()||[]).filter(function(draft){
+    var payload=draft.payload||draft;
+    return !!((draft.projectId||payload.projectId)&&(draft.reportDate||payload.reportDate));
+  }));
+  var alertsHtml=renderHomeAlerts();
+  var draftsHtml=drafts.length?'<div class="card"><div class="sec">Relatorios em andamento</div><div class="admin-list">'+drafts.map(function(draft){
+    var payload=draft.payload||draft;
+    var date=(draft.reportDate||payload.reportDate)?formatReportDate(draft.reportDate||payload.reportDate):'Sem data';
+    return '<div class="rel-item" style="cursor:default"><div class="rel-icon">&#128203;</div><div class="rel-info"><div class="rel-name">'+escapeHtml(draft.title||payload.title||'Relatorio em andamento')+'</div><div class="rel-meta">'+escapeHtml(date)+'<br>'+escapeHtml((((payload.services||[]).length)||0)+' servico(s) preenchido(s)')+'</div></div><button class="mini-btn alt" type="button" onclick="resumeDraft(\''+draft.id+'\')">Continuar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" type="button" onclick="removeDraft(\''+draft.id+'\')">Excluir</button></div>';
+  }).join('')+'</div></div>':'';
+  roots.forEach(function(root){root.innerHTML=alertsHtml+draftsHtml;});
+  updateHomeOngoingSummary();
+}
+var _origRefreshReportsCacheHomeFinal=refreshReportsCache;
+refreshReportsCache=async function(){
+  var result=await _origRefreshReportsCacheHomeFinal();
+  renderDraftHome();
+  return result;
+};
+function renderPendingEditChanges(report){
+  var snapshot=getPendingEditSnapshot(report);
+  if(!snapshot)return '';
+  var beforeMap=buildSnapshotPreviewMap(snapshot,report);
+  var afterMap=buildReportPreviewMap(report);
+  var order=Object.keys(beforeMap).concat(Object.keys(afterMap).filter(function(key){return !beforeMap.hasOwnProperty(key);}));
+  var rows=order.filter(function(key){
+    var beforeVal=String(beforeMap[key]||'—');
+    var afterVal=String(afterMap[key]||'—');
+    if(key==='Data' && beforeVal===afterVal)return false;
+    return beforeVal!==afterVal;
+  }).map(function(key){
+    return '<div class="det-row"><span class="det-label">'+escapeHtml(key)+'</span><span class="det-val"><div><strong>Antes:</strong> '+escapeHtml(String(beforeMap[key]||'—'))+'</div><div style="margin-top:4px"><strong>Agora:</strong> '+escapeHtml(String(afterMap[key]||'—'))+'</div></span></div>';
+  }).join('');
+  return '<div class="card"><div class="sec">O que foi alterado</div><div class="det-section">'+(rows||'<div style="font-size:12px;color:var(--mu)">Nenhuma diferenca detectada.</div>')+'</div></div>';
+}
 initServiceCollaboratorSync();
 initMojibakeRepair();
 setupRuntimeUi();

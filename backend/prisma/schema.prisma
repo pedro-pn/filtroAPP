@@ -57,6 +57,7 @@ model Project {
   code                  String            @unique
   name                  String
   isActive              Boolean           @default(true)
+  visibleToCollaborators Boolean          @default(true)
   clientName            String
   clientCnpj            String
   contractCode          String

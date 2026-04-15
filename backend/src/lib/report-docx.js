@@ -357,7 +357,8 @@ function buildDocxData(report) {
   const hasNight = !!special.noturno;
   const primaryService = (report.services || [])[0] || null;
   const primaryFields = (primaryService && primaryService.extraData) || {};
-  const projectLeader = report.project?.operator || {};
+  const leaderSnapshot = report.specialConditions?.__leaderSnapshot || null;
+  const projectLeader = leaderSnapshot || report.project?.operator || {};
   return {
     missiontitle: `Missão ${report.project.code} - ${report.project.name}`,
     client: report.project.clientName || '',
@@ -453,7 +454,9 @@ function nextRelationshipId(relsDoc) {
 }
 
 async function getSignatureAsset(report) {
-  const source = report.project?.operator?.signatureImage || report.createdBy?.collaborator?.signatureImage;
+  const source = report.specialConditions?.__leaderSnapshot?.signatureImage
+    || report.project?.operator?.signatureImage
+    || report.createdBy?.collaborator?.signatureImage;
   return getUploadAsset(source);
 }
 

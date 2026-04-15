@@ -14,6 +14,7 @@ import prisma from '../../lib/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
+const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
 
 function contentDisposition(fileName) {
   const ascii = fileName
@@ -99,6 +100,135 @@ const statusSchema = z.object({
 
 function uniqueIds(values) {
   return Array.from(new Set((values || []).filter(Boolean)));
+}
+
+function cloneJson(value) {
+  if (value == null) return value;
+  return JSON.parse(JSON.stringify(value));
+}
+
+function stripInternalEditState(specialConditions) {
+  if (!specialConditions || typeof specialConditions !== 'object' || Array.isArray(specialConditions)) {
+    return specialConditions || {};
+  }
+
+  const cleaned = cloneJson(specialConditions) || {};
+  delete cleaned.__editOriginalSnapshot;
+  delete cleaned.__editMeta;
+  return cleaned;
+}
+
+function extractInternalEditState(specialConditions) {
+  if (!specialConditions || typeof specialConditions !== 'object' || Array.isArray(specialConditions)) {
+    return {};
+  }
+
+  const state = {};
+  if (specialConditions.__editOriginalSnapshot) state.__editOriginalSnapshot = cloneJson(specialConditions.__editOriginalSnapshot);
+  if (specialConditions.__editMeta) state.__editMeta = cloneJson(specialConditions.__editMeta);
+  return state;
+}
+
+function buildReportSnapshot(report) {
+  return {
+    projectId: report.projectId,
+    createdByUserId: report.createdByUserId || null,
+    reportType: report.reportType,
+    status: report.status,
+    reportDate: report.reportDate ? new Date(report.reportDate).toISOString().slice(0, 10) : null,
+    arrivalTime: report.arrivalTime,
+    departureTime: report.departureTime,
+    lunchBreak: report.lunchBreak,
+    daytimeCount: report.daytimeCount,
+    overtimeReason: report.overtimeReason || null,
+    dailyDescription: report.dailyDescription || null,
+    reviewNotes: report.reviewNotes || null,
+    reviewedByUserId: report.reviewedByUserId || null,
+    approvedAt: report.approvedAt ? new Date(report.approvedAt).toISOString() : null,
+    returnedAt: report.returnedAt ? new Date(report.returnedAt).toISOString() : null,
+    specialConditions: stripInternalEditState(report.specialConditions || {}),
+    collaboratorIds: (report.collaborators || []).map(link => link.collaboratorId).filter(Boolean),
+    collaborators: (report.collaborators || []).map(link => ({
+      collaboratorId: link.collaboratorId,
+      name: link.collaborator?.name || null,
+      role: link.collaborator?.role || null
+    })),
+    services: (report.services || []).map(service => ({
+      serviceType: service.serviceType,
+      equipmentId: service.equipmentId || null,
+      system: service.system || null,
+      material: service.material || null,
+      startTime: service.startTime || null,
+      endTime: service.endTime || null,
+      finalized: typeof service.finalized === 'boolean' ? service.finalized : null,
+      extraData: cloneJson(service.extraData || {})
+    }))
+  };
+}
+
+function buildReportUpdateFromSnapshot(project, snapshot) {
+  const overtime = calculateReportOvertime(project, snapshot);
+  return {
+    projectId: snapshot.projectId,
+    reportType: snapshot.reportType,
+    status: snapshot.status || ReportStatus.APPROVED,
+    reportDate: new Date(snapshot.reportDate),
+    arrivalTime: snapshot.arrivalTime,
+    departureTime: snapshot.departureTime,
+    lunchBreak: snapshot.lunchBreak,
+    daytimeCount: snapshot.daytimeCount,
+    daytimeWorkedMinutes: overtime.daytimeWorkedMinutes,
+    nighttimeWorkedMinutes: overtime.nighttimeWorkedMinutes,
+    daytimeOvertimeMinutes: overtime.daytimeOvertimeMinutes,
+    nighttimeOvertimeMinutes: overtime.nighttimeOvertimeMinutes,
+    totalOvertimeMinutes: overtime.totalOvertimeMinutes,
+    overtimeReason: snapshot.overtimeReason || null,
+    dailyDescription: snapshot.dailyDescription || null,
+    reviewNotes: snapshot.reviewNotes || null,
+    reviewedByUserId: snapshot.reviewedByUserId || null,
+    approvedAt: snapshot.approvedAt ? new Date(snapshot.approvedAt) : null,
+    returnedAt: snapshot.returnedAt ? new Date(snapshot.returnedAt) : null,
+    specialConditions: {
+      ...(stripInternalEditState(snapshot.specialConditions || {})),
+      overtimeSummary: overtime
+    },
+    pendingDerivedTypes: collectPendingDerivedTypes(snapshot.services || []),
+    collaborators: {
+      create: uniqueIds(snapshot.collaboratorIds).map(collaboratorId => ({ collaboratorId }))
+    },
+    services: {
+      create: (snapshot.services || []).map(service => ({
+        serviceType: service.serviceType,
+        equipmentId: null,
+        system: service.system || null,
+        material: service.material || null,
+        startTime: service.startTime || null,
+        endTime: service.endTime || null,
+        finalized: typeof service.finalized === 'boolean' ? service.finalized : null,
+        extraData: service.extraData || {}
+      }))
+    }
+  };
+}
+
+async function restoreReportFromSnapshot(tx, reportId, originalSnapshot) {
+  const project = await tx.project.findUniqueOrThrow({
+    where: { id: originalSnapshot.projectId }
+  });
+
+  await tx.reportCollaborator.deleteMany({ where: { reportId } });
+  await tx.reportService.deleteMany({ where: { reportId } });
+
+  const restored = await tx.report.update({
+    where: { id: reportId },
+    data: buildReportUpdateFromSnapshot(project, originalSnapshot),
+    include
+  });
+
+  await syncApprovedRtpReports(tx, restored);
+  await syncApprovedRlqReports(tx, restored);
+  await syncApprovedRcpReports(tx, restored);
+  return restored;
 }
 
 function resolveCollaboratorsByShift(report, collaborators) {
@@ -345,7 +475,8 @@ async function syncApprovedRtpReports(tx, report) {
         serviceData: fields,
         resolvedCollaborators,
         resolvedManometers,
-        resolvedUnits
+        resolvedUnits,
+        __leaderSnapshot: report.specialConditions?.__leaderSnapshot || null
       }
     };
 
@@ -490,7 +621,8 @@ async function syncApprovedRlqReports(tx, report) {
         serviceLinkKey: serviceLinkKey || String(service.id),
         serviceData: fields,
         resolvedCollaborators,
-        resolvedUnits
+        resolvedUnits,
+        __leaderSnapshot: report.specialConditions?.__leaderSnapshot || null
       }
     };
 
@@ -669,7 +801,8 @@ async function syncApprovedRcpReports(tx, report) {
         resolvedUnits,
         resolvedThermoUnit,
         resolvedCounter,
-        totalMinutes
+        totalMinutes,
+        __leaderSnapshot: report.specialConditions?.__leaderSnapshot || null
       }
     };
 
@@ -829,10 +962,16 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
   const pendingDerivedTypes = collectPendingDerivedTypes(data.services);
   const item = await prisma.$transaction(async tx => {
     const project = await tx.project.findUniqueOrThrow({
-      where: { id: data.projectId }
+      where: { id: data.projectId },
+      include: { operator: true }
     });
     const sequenceNumber = await reserveSequence(tx, data.projectId, data.reportType);
     const overtime = calculateReportOvertime(project, data);
+    const leaderSnapshot = project.operator ? {
+      name: project.operator.name || null,
+      role: project.operator.role || null,
+      signatureImage: project.operator.signatureImage || null
+    } : null;
 
     const created = await tx.report.create({
       data: {
@@ -857,7 +996,8 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
         approvedAt: data.status === ReportStatus.APPROVED ? new Date() : null,
         specialConditions: {
           ...(data.specialConditions || {}),
-          overtimeSummary: overtime
+          overtimeSummary: overtime,
+          ...(leaderSnapshot ? { __leaderSnapshot: leaderSnapshot } : {})
         },
         pendingDerivedTypes,
         collaborators: {
@@ -901,18 +1041,28 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   const data = updateSchema.parse(req.body);
   const collaboratorIds = uniqueIds(data.collaboratorIds);
   const existing = await prisma.report.findUniqueOrThrow({
-    where: { id: req.params.id }
+    where: { id: req.params.id },
+    include
   });
-
-  if (req.auth.user.role !== 'MANAGER' && existing.createdByUserId !== req.auth.user.id) {
-    return res.status(403).json({ error: 'Voce so pode editar relatorios criados por voce.' });
-  }
+  const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);
 
   const item = await prisma.$transaction(async tx => {
     const project = await tx.project.findUniqueOrThrow({
       where: { id: data.projectId }
     });
     const overtime = calculateReportOvertime(project, data);
+    const internalEditState = req.auth.user.role === 'MANAGER'
+      ? extractInternalEditState(existing.specialConditions)
+      : (hasApprovedVersion
+          ? {
+              __editOriginalSnapshot: cloneJson(existing.specialConditions?.__editOriginalSnapshot) || buildReportSnapshot(existing),
+              __editMeta: {
+                editedByUserId: req.auth.user.id,
+                editedAt: new Date().toISOString(),
+                previousStatus: existing.status
+              }
+            }
+          : {});
     await tx.reportCollaborator.deleteMany({ where: { reportId: req.params.id } });
     await tx.reportService.deleteMany({ where: { reportId: req.params.id } });
 
@@ -934,12 +1084,18 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
         overtimeReason: data.overtimeReason || null,
         dailyDescription: data.dailyDescription || null,
         specialConditions: {
-          ...(data.specialConditions || {}),
-          overtimeSummary: overtime
+          ...(stripInternalEditState(data.specialConditions || {})),
+          overtimeSummary: overtime,
+          ...internalEditState,
+          ...(existing.specialConditions?.__leaderSnapshot
+            ? { __leaderSnapshot: existing.specialConditions.__leaderSnapshot }
+            : {})
         },
         pendingDerivedTypes: collectPendingDerivedTypes(data.services),
         status: req.auth.user.role === 'MANAGER' ? existing.status : ReportStatus.PENDING,
-        reviewNotes: req.auth.user.role === 'MANAGER' ? existing.reviewNotes : 'Editado pelo colaborador',
+        reviewNotes: req.auth.user.role === 'MANAGER'
+          ? existing.reviewNotes
+          : (hasApprovedVersion ? COLLABORATOR_EDIT_NOTE : null),
         reviewedByUserId: req.auth.user.role === 'MANAGER' ? existing.reviewedByUserId : null,
         returnedAt: req.auth.user.role === 'MANAGER' ? existing.returnedAt : null,
         approvedAt: req.auth.user.role === 'MANAGER' ? existing.approvedAt : null,
@@ -981,6 +1137,72 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
+router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth.user.role === 'MANAGER') {
+    return res.status(403).json({ error: 'Apenas o colaborador pode desfazer a propria edicao pendente.' });
+  }
+
+  const existing = await prisma.report.findUniqueOrThrow({
+    where: { id: req.params.id },
+    include
+  });
+
+  if (!canAccessReport(req.auth, existing)) {
+    return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+  }
+
+  const originalSnapshot = cloneJson(existing.specialConditions?.__editOriginalSnapshot);
+  if (!originalSnapshot) {
+    return res.status(400).json({ error: 'Este relatorio nao possui uma edicao pendente para desfazer.' });
+  }
+
+  const item = await prisma.$transaction(async tx => restoreReportFromSnapshot(tx, req.params.id, originalSnapshot));
+
+  await organizeAndPersist(item);
+  if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
+    const derived = await prisma.report.findMany({
+      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU] } },
+      include
+    });
+    for (const d of derived) {
+      if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
+    }
+  }
+
+  res.json(item);
+}));
+
+router.post('/:id/discard-edit', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth.user.role !== 'MANAGER') {
+    return res.status(403).json({ error: 'Apenas o gestor pode descartar uma edicao pendente.' });
+  }
+
+  const existing = await prisma.report.findUniqueOrThrow({
+    where: { id: req.params.id },
+    include
+  });
+
+  const originalSnapshot = cloneJson(existing.specialConditions?.__editOriginalSnapshot);
+  if (!originalSnapshot) {
+    return res.status(400).json({ error: 'Este relatorio nao possui uma edicao pendente para descartar.' });
+  }
+
+  const item = await prisma.$transaction(async tx => restoreReportFromSnapshot(tx, req.params.id, originalSnapshot));
+
+  await organizeAndPersist(item);
+  if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
+    const derived = await prisma.report.findMany({
+      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU] } },
+      include
+    });
+    for (const d of derived) {
+      if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
+    }
+  }
+
+  res.json(item);
+}));
+
 router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode excluir relatorios.' });
@@ -988,13 +1210,15 @@ router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
 
   const item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
-    select: {
-      id: true,
-      projectId: true,
-      reportType: true,
-      specialConditions: true
-    }
+    include
   });
+
+  const originalSnapshot = cloneJson(item.specialConditions?.__editOriginalSnapshot);
+  if (originalSnapshot && item.status !== ReportStatus.APPROVED) {
+    return res.status(409).json({
+      error: 'Nao e permitido excluir o relatorio a partir de uma edicao pendente. Use a opcao de descartar edicao.'
+    });
+  }
 
   await prisma.$transaction(async tx => {
     const idsToDelete = [item.id];
@@ -1037,7 +1261,13 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
   const data = statusSchema.parse(req.body);
 
   const item = await prisma.$transaction(async tx => {
-    const previous = await tx.report.findUnique({ where: { id: req.params.id }, select: { status: true } });
+    const previous = await tx.report.findUnique({
+      where: { id: req.params.id },
+      select: { status: true, specialConditions: true }
+    });
+    const nextSpecialConditions = data.status === ReportStatus.APPROVED
+      ? stripInternalEditState(previous?.specialConditions || {})
+      : previous?.specialConditions;
 
     const updated = await tx.report.update({
       where: { id: req.params.id },
@@ -1046,7 +1276,8 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
         reviewNotes: data.reviewNotes || null,
         reviewedByUserId: req.auth.user.id,
         approvedAt: data.status === ReportStatus.APPROVED ? new Date() : null,
-        returnedAt: data.status === ReportStatus.RETURNED ? new Date() : null
+        returnedAt: data.status === ReportStatus.RETURNED ? new Date() : null,
+        ...(nextSpecialConditions !== undefined ? { specialConditions: nextSpecialConditions } : {})
       },
       include
     });
