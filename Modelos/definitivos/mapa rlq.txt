@@ -5,17 +5,17 @@ MAPA DO MODELO DE TESTE DE PRESSÃO
 {{cnpj}} - CNPJ do projeto
 {{local}} - local do projeto
 {{proposal}} - contrato do projeto
-{{rtp}} - número rtp
+{{rlq}} - número rlq
 {{date}} - data do rdo
 
 Informações do serviço
 {{missiontitle}} - deve ser substituido por "Missão [numero da missao] - [nome da missao]"
 {{equipament}} - nome do equipamento do cliente que está sendo feito o serviço
 {{system}} - nome do sistema do cliente que está sendo feito o serviço
-{{fluid}} - fluido de teste: se for água, fica escrito "Água", se for óleo, fica escrito Óleo - [nome do óleo preenchido]
-{{testunit}} - Unidade de teste de pressão (UTHs) selecionadas separadas por vírgula
-{{projectpressure}} - pressão de projeto
-{{testpressure}} - pressão de teste (com a unidade de medida ao lado)
+{{material}} - material da tubulação
+{{cleaningunit}} - Unidade de limpeza química (ULQs) selecionadas separadas por vírgula
+{{inspectiontype}} - tipos de inspeção selecionadas separadas por vírgula
+{{cleaningmethods}} - métodos de limpeza selecionados separados por vírgula
 {{starttime}} - horário de início do serviço (com a unidade de medida ao lado)
 {{endtime}} - horário de término do serviço
 {{status}} - Indicar se o serviço foi  "APROVADO" ou "REPROVADO" conforme preenchido pelo colaborador
@@ -30,16 +30,19 @@ COLABORADORES
 {{collaboratorname}} - nome do colaborador
 {{collaboratorposition}} - cargo do colaborador
 
-MANOMETROS
+PRODUTOS UTILIZADOS
 
-{{manometerscale}} - escala do manômetro conforme cadastrado o manometro selecionado
-{{manometercert}} - número do certificado do manômetro conforme cadastrado
-{{manometercalibration}} - data de calibração do manometro conforme cadastrado
-{{manometerexpiring}} - data de validade da calibração conforme cadastrada
+{{steps}} (etapas) e {{products}} (produtos) - Estes dois são adicionados juntos por linha da tabela. Para cada etapa, um produto relacionado é adicionado. Aqui usamos a seguinte tática, os produtos são preenchidos de acordo com as etapas da seguinte forma:
+Desengraxe: hidróxido de sódio, metassilicato de sódio e tripolifosfato de sódio
+Fase ácida: Ácido cítrico (se o material selecionado for aço carbono); ácido nítrico e ácido fluorídrico (se for inox).
+Fase neutralizante/sequestrante: carbonato de cálcio
+Fase passivante: nitrito de sódio. Se for inox, não adicionar nenhum produto.
+Ou seja, para cada fase, é adicionado uma linha contendo o nome da fase e o(s) produto utilizado.
+As demais etapas o produto fica vazio.
 
-FOTOS DO MANOMETRO
+FOTOS DO CORPO DE PROVA
 
-{{manometerphotos}} - fotos adicionadas no campo fotos do manometro
+{{testbodyphotos}} - fotos adicionadas no campo fotos do corpo de prova
 
 FOTOS DO SISTEMA
 

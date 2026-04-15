@@ -8,6 +8,7 @@ import { z } from 'zod';
 import env from '../../config/env.js';
 import asyncHandler from '../../lib/async-handler.js';
 import { requireAuth } from '../../middleware/auth.js';
+import prisma from '../../lib/prisma.js';
 
 const router = Router();
 
@@ -15,8 +16,13 @@ const schema = z.object({
   fileName: z.string().min(1),
   mimeType: z.string().min(1),
   dataUrl: z.string().min(1),
-  label: z.string().min(1)
+  label: z.string().min(1),
+  projectId: z.string().optional().nullable()
 });
+
+function safePathLocal(value) {
+  return String(value ?? '').replace(/[<>:"/\\|?*\n\r]/g, '_').trim();
+}
 
 router.use(requireAuth);
 
@@ -29,15 +35,38 @@ router.post('/', asyncHandler(async (req, res) => {
 
   const ext = path.extname(data.fileName) || '';
   const safeName = `${Date.now()}-${randomUUID()}${ext}`;
-  const targetPath = path.join(env.uploadDir, safeName);
 
+  let targetDir = env.uploadDir;
+
+  // Se o projectId for informado, salva direto na pasta do projeto
+  if (data.projectId) {
+    try {
+      const project = await prisma.project.findUnique({
+        where: { id: data.projectId },
+        select: { code: true, name: true }
+      });
+      if (project) {
+        const folderName = safePathLocal(`Missão ${project.code} - ${project.name}`);
+        targetDir = path.join(env.uploadDir, folderName);
+        await fs.mkdir(targetDir, { recursive: true });
+      }
+    } catch { /* fallback para pasta raiz */ }
+  }
+
+  const targetPath = path.join(targetDir, safeName);
   await fs.writeFile(targetPath, Buffer.from(match[2], 'base64'));
+
+  // URL relativa ao uploadDir
+  const relativePath = path.relative(env.uploadDir, targetPath)
+    .split(path.sep)
+    .map(encodeURIComponent)
+    .join('/');
 
   res.status(201).json({
     label: data.label,
     fileName: data.fileName,
     mimeType: data.mimeType,
-    url: `/uploads/${safeName}`
+    url: `/uploads/${relativePath}`
   });
 }));
 

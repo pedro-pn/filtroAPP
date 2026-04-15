@@ -2440,7 +2440,7 @@ async function handleUploadInput(input){
     var file=input.files[i];
     var rawDataUrl=await fileToDataUrl(file);
     var resizedDataUrl=await resizeImageDataUrl(rawDataUrl,file.type||'image/jpeg');
-    var uploaded=await apiFetch('/uploads',{method:'POST',body:JSON.stringify({label:label,fileName:file.name,mimeType:file.type||'image/jpeg',dataUrl:resizedDataUrl})});
+    var uploaded=await apiFetch('/uploads',{method:'POST',body:JSON.stringify({label:label,fileName:file.name,mimeType:file.type||'image/jpeg',dataUrl:resizedDataUrl,projectId:projAtual||null})});
     uploaded.url=apiHost()+uploaded.url;
     existing.push(uploaded);
   }
@@ -4222,6 +4222,33 @@ function renderRtpDetail(report){
     '<div class="card"><div class="sec">Manômetros</div><div class="det-section">'+manoHtml+'</div></div>'+
     (sd['Observações']||sd['Observacoes']?'<div class="card"><div class="sec">Observações</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(fv(sd['Observações']||sd['Observacoes']))+'</div></div>':'');
 }
+function renderRlqDetail(report){
+  var sc=report.specialConditions||{};
+  var sd=sc.serviceData||{};
+  var collabs=sc.resolvedCollaborators||[];
+  var units=(sc.resolvedUnits||[]).join(', ')||'—';
+  function fv(v){if(!v)return '—';if(Array.isArray(v))return v.filter(Boolean).join(', ')||'—';if(typeof v==='object'&&v.labels)return (v.labels||[]).filter(Boolean).join(', ')||'—';return String(v)||'—';}
+  function row(lbl,val){return '<div class="det-row"><span class="det-label">'+lbl+'</span><span class="det-val">'+escapeHtml(fv(val))+'</span></div>';}
+  var colHtml=collabs.length?collabs.map(function(c){return '<div class="det-row"><span class="det-label">'+escapeHtml(c.name||'—')+'</span><span class="det-val">'+escapeHtml(c.role||'—')+'</span></div>';}).join(''):'<div style="font-size:12px;color:var(--mu)">—</div>';
+  var tubesRaw=sd['Diâmetros e comprimentos']||sd['Diametros e comprimentos']||[];
+  var tubeHtml=Array.isArray(tubesRaw)&&tubesRaw.length?tubesRaw.map(function(t){return '<div class="det-row"><span class="det-label">Ø '+escapeHtml(t.d||'—')+' '+(t.unit||'pol')+'</span><span class="det-val">'+escapeHtml(t.c||'—')+' m</span></div>';}).join(''):'<div style="font-size:12px;color:var(--mu)">—</div>';
+  document.getElementById('det-body').innerHTML=
+    '<div class="card"><div class="sec">Informações do serviço</div><div class="det-section">'+
+    row('Missão','Missão '+report.project.code+' - '+report.project.name)+
+    row('Equipamento',sd['Equipamento(s)']||sd['Equipamento'])+
+    row('Sistema',sd['Sistema'])+
+    row('Material',sd['Material da tubulação']||sd['Material do equipamento'])+
+    row('ULQ',units)+
+    row('Método de limpeza',sd['Método de limpeza']||sd['Metodo de limpeza'])+
+    row('Tipo de inspeção',sd['Tipo de inspeção']||sd['Tipo de inspecao'])+
+    row('Horário de início',sd['Hora de início']||sd['Hora de inicio'])+
+    row('Horário de término',sd['Hora de término/pausa']||sd['Hora de termino/pausa'])+
+    row('Status',sd['Aprovado pelo cliente?'])+
+    '</div></div>'+
+    '<div class="card"><div class="sec">Tubulações</div><div class="det-section">'+tubeHtml+'</div></div>'+
+    '<div class="card"><div class="sec">Colaboradores</div><div class="det-section">'+colHtml+'</div></div>'+
+    (sd['Observações']||sd['Observacoes']?'<div class="card"><div class="sec">Observações</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(fv(sd['Observações']||sd['Observacoes']))+'</div></div>':'');
+}
 async function openReportDetail(id,origin){
   var report=reportsCache.find(function(r){return r.id===id;})||await apiFetch('/reports/'+id);
   currentDetailReport=report;
@@ -4229,9 +4256,15 @@ async function openReportDetail(id,origin){
   document.getElementById('det-title').textContent=reportDisplayLabel(report)+' · '+report.project.name;
   document.getElementById('det-sub').textContent=((report.createdBy&&report.createdBy.name)||'—')+' · '+formatReportDate(report.reportDate);
   document.getElementById('det-badge-top').textContent=statusMeta(report.status).txt;
-  var isRtp=report.reportType&&report.reportType!=='RDO';
+  var reportType=(report.reportType||'RDO').toUpperCase();
+  var isDerived=reportType!=='RDO';
   if(currentUser&&currentUser.role==='MANAGER'){
-    if(isRtp){
+    if(reportType==='RLQ'){
+      renderRlqDetail(report);
+      document.getElementById('det-actions').innerHTML=
+        '<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button>'+
+        '<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else if(isDerived){
       renderRtpDetail(report);
       document.getElementById('det-actions').innerHTML=
         '<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button>'+
@@ -4242,8 +4275,8 @@ async function openReportDetail(id,origin){
     go('s-detalhe');
     return;
   }
-  if(isRtp){
-    renderRtpDetail(report);
+  if(isDerived){
+    if(reportType==='RLQ') renderRlqDetail(report); else renderRtpDetail(report);
     document.getElementById('det-actions').innerHTML=
       report.status==='APPROVED'
         ?'<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
@@ -5829,12 +5862,13 @@ function groupedReportHtml(items,origin,emptyText){
 function reportCard(report,origin){
   var meta=reportStatusMeta(report);
   var owner=(report.createdBy&&report.createdBy.name)||'&#8212;';
-  var isRtp=(report.reportType||'RDO').toUpperCase()==='RTP';
+  var rtype=(report.reportType||'RDO').toUpperCase();
+  var isDerived=rtype!=='RDO';
   var subtitle;
-  if(isRtp){
+  if(isDerived){
     var svc=(report.services||[])[0];
     var svcData=(svc&&svc.extraData)||(((report.specialConditions||{}).serviceData)||{});
-    var equip=svc?(svcData['Equipamento(s)']?stringify2(svcData['Equipamento(s)']):(svcData['Equipamento'])||'&#8212;'):(svcData['Equipamento(s)']?stringify2(svcData['Equipamento(s)']):(svcData['Equipamento'])||'&#8212;');
+    var equip=svcData['Equipamento(s)']?stringify2(svcData['Equipamento(s)']):(svcData['Equipamento'])||'&#8212;';
     var sys=svc?((svc.system||svcData['Sistema'])||'&#8212;'):((report.system||svcData['Sistema'])||'&#8212;');
     subtitle=escapeHtml(equip)+' &middot; '+escapeHtml(sys);
   }else{
@@ -5884,16 +5918,20 @@ function groupedReportHtml(items,origin,emptyText){
   var isGestorPending=origin==='gestor-pendentes';
   Object.keys(groups).sort().forEach(function(projectName){
     var projectReports=groups[projectName].slice();
-    var byType={RDO:[],RTP:[]};
+    var byType={RDO:[],RTP:[],RLQ:[]};
     projectReports.forEach(function(r){
       var type=(r.reportType||'RDO').toUpperCase();
       if(type==='RTP')byType.RTP.push(r);
+      else if(type==='RLQ')byType.RLQ.push(r);
       else if(type==='RDO')byType.RDO.push(r);
     });
     byType.RDO.sort(function(a,b){
       return (Number(b.sequenceNumber)||0)-(Number(a.sequenceNumber)||0) || String(b.reportDate||'').localeCompare(String(a.reportDate||''));
     });
     byType.RTP.sort(function(a,b){
+      return (Number(a.sequenceNumber)||0)-(Number(b.sequenceNumber)||0) || String(a.reportDate||'').localeCompare(String(b.reportDate||''));
+    });
+    byType.RLQ.sort(function(a,b){
       return (Number(a.sequenceNumber)||0)-(Number(b.sequenceNumber)||0) || String(a.reportDate||'').localeCompare(String(b.reportDate||''));
     });
     var projectKey='proj_reports_'+String(origin||'default').replace(/[^a-z0-9]/gi,'_')+'_'+projectName.replace(/[^a-z0-9]/gi,'_');
@@ -5903,7 +5941,7 @@ function groupedReportHtml(items,origin,emptyText){
       return;
     }
     var sections='';
-    ['RDO','RTP'].forEach(function(type,index){
+    ['RDO','RTP','RLQ'].forEach(function(type,index){
       if(!byType[type].length)return;
       sections+='<div style="margin-top:'+(index===0?'0':'8px')+';width:100%">'+
         '<button type="button" class="project-report-row" data-type="'+type+'" data-open="'+(index===0?'true':'false')+'" onclick="switchProjectReportTab(\''+projectKey+'\',\''+type+'\',this)" style="width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;padding:12px 14px;border:1px solid '+(index===0?'var(--pri)':'#e1e8e2')+';background:'+(index===0?'#eef3ef':'#f7faf7')+';border-radius:12px;cursor:pointer;font-size:13px;font-weight:700;color:var(--tx)">'+

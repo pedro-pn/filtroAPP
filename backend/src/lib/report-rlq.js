@@ -12,7 +12,7 @@ import env from '../config/env.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const rtpTemplatePath = path.resolve(__dirname, '../../../Modelos/definitivos/Modelo - RTP.docx');
+const rlqTemplatePath = path.resolve(__dirname, '../../../Modelos/definitivos/Modelo - RLQ.docx');
 const execFileAsync = promisify(execFile);
 
 // ── Shared helpers ──
@@ -270,7 +270,7 @@ function embedPhotos(zip, doc, placeholder, assets) {
     const jc = doc.createElement('w:jc'); jc.setAttribute('w:val', 'center');
     pPr.appendChild(jc); paragraph.appendChild(pPr);
     group.forEach((asset, idx) => {
-      const relId = addImageRel(zip, relsDoc, asset, 'rtp-photo');
+      const relId = addImageRel(zip, relsDoc, asset, 'rlq-photo');
       const heightEmu = Math.max(1, Math.round(maxWidthEmu * (asset.height / asset.width)));
       const drawingDoc = new DOMParser().parseFromString(inlineImageXml(relId, maxWidthEmu, heightEmu, asset.label), 'text/xml');
       paragraph.appendChild(drawingDoc.documentElement);
@@ -294,7 +294,7 @@ function embedSignature(zip, doc, asset) {
   if (!relsEntry) return;
   const relsDoc = new DOMParser().parseFromString(zip.readAsText(relsEntry), 'text/xml');
   const relId = nextRelId(relsDoc);
-  const mediaName = `signature-rtp-${Date.now()}.${asset.extension}`;
+  const mediaName = `signature-rlq-${Date.now()}.${asset.extension}`;
   zip.addFile(`word/media/${mediaName}`, asset.bytes);
   ensureContentType(zip, asset.extension, asset.mimeType);
   const rel = relsDoc.createElement('Relationship');
@@ -310,20 +310,28 @@ function embedSignature(zip, doc, asset) {
   targetParagraph.appendChild(drawingDoc.documentElement);
 }
 
-// ── RTP data building ──
+// ── RLQ data building ──
 
-function buildRtpBaseData(report) {
+function getProductForStep(stepName, material) {
+  const s = String(stepName || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const isInox = /inox/i.test(material || '');
+  if (s.includes('desengraxe')) return 'Hidróxido de sódio, Metassilicato de sódio e Tripolifosfato de sódio';
+  if (s.includes('fase acida')) return isInox ? 'Ácido nítrico e Ácido fluorídrico' : 'Ácido cítrico';
+  if (s.includes('fase sequestrant') || s.includes('fase neutralizant')) return 'Carbonato de cálcio';
+  if (s.includes('fase passivant')) return isInox ? '' : 'Nitrito de sódio';
+  return '';
+}
+
+function buildRlqBaseData(report) {
   const sc = report.specialConditions || {};
   const sd = sc.serviceData || {};
   const units = sc.resolvedUnits || [];
 
-  const fluidRaw = stringify(getField(sd, ['Fluido de teste']));
-  const isOleo = /[oó]leo/i.test(fluidRaw);
-  const oilName = isOleo ? stringify(getField(sd, ['Qual óleo?', 'Qual oleo?'])) : '';
-  const fluid = isOleo ? `Óleo${oilName ? ' - ' + oilName : ''}` : (fluidRaw || '');
-
   const approvedRaw = stringify(getField(sd, ['Aprovado pelo cliente?']));
   const status = /sim/i.test(approvedRaw) ? 'APROVADO' : (/n[ãa]o/i.test(approvedRaw) ? 'REPROVADO' : '');
+
+  const cleaningMethodsRaw = getField(sd, ['Método de limpeza', 'Metodo de limpeza']);
+  const inspectionTypeRaw = getField(sd, ['Tipo de inspeção', 'Tipo de inspecao']);
 
   return {
     missiontitle: `Missão ${report.project.code} - ${report.project.name}`,
@@ -331,31 +339,20 @@ function buildRtpBaseData(report) {
     cnpj: safeText(report.project.clientCnpj),
     local: safeText(report.project.location),
     proposal: safeText(report.project.contractCode),
-    rtp: reportNumber(report),
+    rlq: reportNumber(report),
     date: formatDatePt(report.reportDate),
     equipament: stringify(getField(sd, ['Equipamento(s)', 'Equipamento'])),
     system: stringify(getField(sd, ['Sistema'])),
-    fluid,
-    testunit: units.join(', '),
-    projectpressure: stringify(getField(sd, ['Pressão de trabalho', 'Pressao de trabalho'])),
-    testpressure: stringify(getField(sd, ['Pressão de teste', 'Pressao de teste'])),
+    material: stringify(getField(sd, ['Material da tubulação', 'Material da tubulacao', 'Material do equipamento'])),
+    cleaningunit: units.join(', '),
+    inspectiontype: stringify(inspectionTypeRaw),
+    cleaningmethods: stringify(cleaningMethodsRaw),
     starttime: stringify(getField(sd, ['Hora de início', 'Hora de inicio'])),
     endtime: stringify(getField(sd, ['Hora de término/pausa', 'Hora de termino/pausa'])),
     status,
     obs: stringify(getField(sd, ['Observações', 'Observacoes'])),
     leadername: safeText(report.project?.operator?.name || report.createdBy?.collaborator?.name || report.createdBy?.name),
     leaderposition: safeText(report.project?.operator?.role || report.createdBy?.collaborator?.role)
-  };
-}
-
-function buildRtpBaseDataResolved(report) {
-  const base = buildRtpBaseData(report);
-  const sd = (report.specialConditions || {}).serviceData || {};
-  const testPressure = stringify(getField(sd, ['PressÃ£o de teste', 'Pressao de teste']));
-  return {
-    ...base,
-    testpressure: testPressure,
-    testepressure: testPressure
   };
 }
 
@@ -381,19 +378,18 @@ function expandTubeRows(doc, sd) {
   removeNode(templateRow);
 }
 
-function expandRtpCollaborators(doc, collaborators) {
+function expandRlqCollaborators(doc, collaborators) {
   const templateRow = findFirstByText(doc, 'w:tr', '{{collaboratorname}}');
   if (!templateRow) return;
   if (!collaborators.length) {
-    replacePlaceholders(templateRow, { collaboratorname: '', collaboratorposition: '', collaboratorshift: '' });
+    replacePlaceholders(templateRow, { collaboratorname: '', collaboratorposition: '' });
     return;
   }
   const clones = collaborators.map(c => {
     const clone = templateRow.cloneNode(true);
     replacePlaceholders(clone, {
       collaboratorname: c.name || '',
-      collaboratorposition: c.role || '',
-      collaboratorshift: c.shift || 'Diurno'
+      collaboratorposition: c.role || ''
     });
     return clone;
   });
@@ -401,20 +397,24 @@ function expandRtpCollaborators(doc, collaborators) {
   removeNode(templateRow);
 }
 
-function expandManometerRows(doc, manometers) {
-  const templateRow = findFirstByText(doc, 'w:tr', '{{manometerscale}}');
+function expandProductRows(doc, sd) {
+  const templateRow = findFirstByText(doc, 'w:tr', '{{steps}}');
   if (!templateRow) return;
-  if (!manometers.length) {
-    replacePlaceholders(templateRow, { manometerscale: '', manometercert: '', manometercalibration: '', manometerexpiring: '' });
+
+  const etapasRaw = getField(sd, ['Etapas realizadas no dia']);
+  const etapas = Array.isArray(etapasRaw) ? etapasRaw.filter(Boolean) : (etapasRaw ? [String(etapasRaw)] : []);
+  const material = stringify(getField(sd, ['Material da tubulação', 'Material da tubulacao', 'Material do equipamento']));
+
+  if (!etapas.length) {
+    replacePlaceholders(templateRow, { steps: '', products: '' });
     return;
   }
-  const clones = manometers.map(m => {
+
+  const clones = etapas.map(etapa => {
     const clone = templateRow.cloneNode(true);
     replacePlaceholders(clone, {
-      manometerscale: m.scale || '',
-      manometercert: m.certCode || '',
-      manometercalibration: m.calibratedAt ? formatDatePt(m.calibratedAt) : '',
-      manometerexpiring: m.expiresAt ? formatDatePt(m.expiresAt) : ''
+      steps: etapa,
+      products: getProductForStep(etapa, material)
     });
     return clone;
   });
@@ -442,7 +442,7 @@ try {
   if($word -ne $null){ $word.Quit() }
 }
 `;
-  const scriptPath = path.join(env.uploadDir, `tmp-rtp-pdf-${Date.now()}.ps1`);
+  const scriptPath = path.join(env.uploadDir, `tmp-rlq-pdf-${Date.now()}.ps1`);
   await fs.writeFile(scriptPath, script, 'utf8');
   try {
     await execFileAsync(
@@ -485,20 +485,26 @@ function buildPhotoUrl(urlBase, projectFolder, subfolder, destName) {
   return (urlBase || '') + '/uploads/' + encoded;
 }
 
-export async function organizeRtpPhotos(report, projectFolderName) {
+export async function organizeRlqPhotos(report, projectFolderName) {
   const urlMap = new Map();
   const sc = report.specialConditions || {};
   const sd = sc.serviceData || {};
   const equip = safePath(stringify(getField(sd, ['Equipamento(s)', 'Equipamento'])) || 'Equipamento');
   const sys = safePath(stringify(getField(sd, ['Sistema'])) || 'Sistema');
-  const photosDir = path.join(env.uploadDir, projectFolderName, 'Registros Fotográficos', 'RTP');
+  const photosDir = path.join(env.uploadDir, projectFolderName, 'Registros Fotográficos', 'RLQ');
   await fs.mkdir(photosDir, { recursive: true });
 
-  const manoUploads = (() => { const v = getField(sd, ['Fotos do manômetro', 'Fotos do manometro']); return Array.isArray(v) ? v : []; })();
-  const sysUploads = (() => { const v = getField(sd, ['Fotos do sistema']); return Array.isArray(v) ? v : []; })();
+  const corpoUploads = (() => {
+    const v = getField(sd, ['Imagens — corpo de prova', 'Imagens - corpo de prova', 'Imagens â€" corpo de prova']);
+    return Array.isArray(v) ? v : [];
+  })();
+  const tubUploads = (() => {
+    const v = getField(sd, ['Imagens — tubulação', 'Imagens - tubulacao', 'Imagens â€" tubulaÃ§Ã£o', 'Imagens — tubulação']);
+    return Array.isArray(v) ? v : [];
+  })();
 
   let count = 1;
-  for (const upload of [...manoUploads, ...sysUploads]) {
+  for (const upload of [...corpoUploads, ...tubUploads]) {
     const source = upload?.url || upload?.storagePath || upload?.fileName;
     const srcPath = resolveUploadFilePath(source);
     if (!srcPath) continue;
@@ -509,7 +515,7 @@ export async function organizeRtpPhotos(report, projectFolderName) {
     if (path.resolve(srcPath) === path.resolve(destPath)) { count++; continue; }
     try {
       await fs.rename(srcPath, destPath);
-      const newUrl = buildPhotoUrl(extractUrlBase(source), projectFolderName, 'RTP', destName);
+      const newUrl = buildPhotoUrl(extractUrlBase(source), projectFolderName, 'RLQ', destName);
       if (source) urlMap.set(source, newUrl);
       count++;
     } catch { /* skip missing */ }
@@ -518,24 +524,28 @@ export async function organizeRtpPhotos(report, projectFolderName) {
   return urlMap;
 }
 
-
 // ── Main exports ──
 
-export async function buildRtpDocx(report) {
+export async function buildRlqDocx(report) {
   const sc = report.specialConditions || {};
   const sd = sc.serviceData || {};
   const collabs = sc.resolvedCollaborators || [];
-  const manos = sc.resolvedManometers || [];
 
-  const baseData = buildRtpBaseDataResolved(report);
+  const baseData = buildRlqBaseData(report);
   const signatureAsset = await getUploadAsset(report.project?.operator?.signatureImage || report.createdBy?.collaborator?.signatureImage);
 
-  const manoUploads = (() => { const v = getField(sd, ['Fotos do manômetro', 'Fotos do manometro']); return Array.isArray(v) ? v : []; })();
-  const sysUploads = (() => { const v = getField(sd, ['Fotos do sistema']); return Array.isArray(v) ? v : []; })();
-  const manoAssets = await resolvePhotoAssets(manoUploads);
-  const sysAssets = await resolvePhotoAssets(sysUploads);
+  const corpoUploads = (() => {
+    const v = getField(sd, ['Imagens — corpo de prova', 'Imagens - corpo de prova', 'Imagens â€" corpo de prova']);
+    return Array.isArray(v) ? v : [];
+  })();
+  const tubUploads = (() => {
+    const v = getField(sd, ['Imagens — tubulação', 'Imagens - tubulacao', 'Imagens â€" tubulaÃ§Ã£o', 'Imagens — tubulação']);
+    return Array.isArray(v) ? v : [];
+  })();
+  const corpoAssets = await resolvePhotoAssets(corpoUploads);
+  const tubAssets = await resolvePhotoAssets(tubUploads);
 
-  const bytes = await fs.readFile(rtpTemplatePath);
+  const bytes = await fs.readFile(rlqTemplatePath);
   const zip = new AdmZip(bytes);
 
   const headerEntries = zip.getEntries()
@@ -549,10 +559,10 @@ export async function buildRtpDocx(report) {
   updateXmlEntry(zip, 'word/document.xml', doc => {
     replacePlaceholders(doc, baseData);
     expandTubeRows(doc, sd);
-    expandRtpCollaborators(doc, collabs);
-    expandManometerRows(doc, manos);
-    embedPhotos(zip, doc, '{{manometerphotos}}', manoAssets);
-    embedPhotos(zip, doc, '{{systemphotos}}', sysAssets);
+    expandRlqCollaborators(doc, collabs);
+    expandProductRows(doc, sd);
+    embedPhotos(zip, doc, '{{testbodyphotos}}', corpoAssets);
+    embedPhotos(zip, doc, '{{systemphotos}}', tubAssets);
     embedSignature(zip, doc, signatureAsset);
   });
 
@@ -565,27 +575,27 @@ export async function buildRtpDocx(report) {
   return zip.toBuffer();
 }
 
-export async function saveRtpDocx(report) {
-  const bytes = await buildRtpDocx(report);
+export async function saveRlqDocx(report) {
+  const bytes = await buildRlqDocx(report);
   const sc = report.specialConditions || {};
   const sd = sc.serviceData || {};
   const equip = safePath(stringify(getField(sd, ['Equipamento(s)', 'Equipamento'])) || 'Equipamento');
   const sys = safePath(stringify(getField(sd, ['Sistema'])) || 'Sistema');
   const projectFolderName = safePath(`Missão ${report.project.code} - ${report.project.name}`);
-  const dir = path.join(env.uploadDir, projectFolderName, 'RTP');
+  const dir = path.join(env.uploadDir, projectFolderName, 'RLQ');
   await fs.mkdir(dir, { recursive: true });
-  const fileName = safePath(`Missão ${report.project.code} - ${report.project.name} - RTP ${reportNumber(report)} - ${equip} - ${sys}.docx`);
+  const fileName = safePath(`Missão ${report.project.code} - ${report.project.name} - RLQ ${reportNumber(report)} - ${equip} - ${sys}.docx`);
   const targetPath = path.join(dir, fileName);
   await fs.writeFile(targetPath, bytes);
   return {
     fileName,
     targetPath,
-    publicUrl: `/uploads/${encodeURIComponent(projectFolderName)}/RTP/${encodeURIComponent(fileName)}`
+    publicUrl: `/uploads/${encodeURIComponent(projectFolderName)}/RLQ/${encodeURIComponent(fileName)}`
   };
 }
 
-export async function saveRtpPdf(report) {
-  const docx = await saveRtpDocx(report);
+export async function saveRlqPdf(report) {
+  const docx = await saveRlqDocx(report);
   const pdfFileName = docx.fileName.replace(/\.docx$/i, '.pdf');
   const pdfPath = path.join(path.dirname(docx.targetPath), pdfFileName);
   await convertWithWord(docx.targetPath, pdfPath);
