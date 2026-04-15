@@ -1,0 +1,38 @@
+MAPA DO MODELO DE LIMPEZA MECÂNICA
+
+{{missiontitle}} - deve ser substituido por "Missão [numero da missao] - [nome da missao]"
+{{client}} - cliente do projeto
+{{cnpj}} - CNPJ do projeto
+{{local}} - local do projeto
+{{proposal}} - contrato do projeto
+{{rlm}} - número rlm
+{{date}} - data do rdo
+
+Informações do serviço
+{{equipament}} - nome do equipamento do cliente que está sendo feito o serviço
+{{system}} - nome do sistema do cliente que está sendo feito o serviço
+{{material}} - Material selecionado
+{{starttime}} - horário de início do serviço (com a unidade de medida ao lado)
+{{endtime}} - horário de término do serviço
+{{status}} - Indicar se o serviço foi  "APROVADO" ou "REPROVADO" conforme preenchido pelo colaborador
+{{steps}} - etapas separadas por vírgula.
+
+COLABORADORES
+
+{{collaboratorname}} - nome do colaborador
+{{collaboratorposition}} - cargo do colaborador
+
+
+REGISTRO FOTOGRÁFICOS
+
+{{cleaningphotos}} - fotos adicionadas no campo de fotos de laudo da contagem de partículas
+
+OBSERVAÇÕES
+
+{{obs}} - observações escritas no final do serviço
+
+final
+
+{{sign}} - imagem da assinatura do líder
+{{leadername}} - nome do líder
+{{leaderposition}} - cargo do líder.

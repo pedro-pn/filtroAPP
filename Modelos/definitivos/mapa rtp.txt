@@ -9,7 +9,6 @@ MAPA DO MODELO DE TESTE DE PRESSÃO
 {{date}} - data do rdo
 
 Informações do serviço
-{{missiontitle}} - deve ser substituido por "Missão [numero da missao] - [nome da missao]"
 {{equipament}} - nome do equipamento do cliente que está sendo feito o serviço
 {{system}} - nome do sistema do cliente que está sendo feito o serviço
 {{fluid}} - fluido de teste: se for água, fica escrito "Água", se for óleo, fica escrito Óleo - [nome do óleo preenchido]

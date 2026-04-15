@@ -20,7 +20,8 @@
       "Bash(echo \"exit:$?\")",
       "Bash(node --input-type=module --eval \"import\\('./src/lib/report-rlq.js'\\).then\\(\\(\\)=>console.log\\('OK'\\)\\).catch\\(e=>console.error\\(e.message\\)\\)\")",
       "Bash(node --input-type=module --eval \"import\\('./src/routes/resources/reports.js'\\).then\\(\\(\\)=>console.log\\('OK'\\)\\).catch\\(e=>console.error\\(e.message,e.stack\\)\\)\")",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(node --input-type=module --check)"
     ]
   },
   "enableAllProjectMcpServers": true,
