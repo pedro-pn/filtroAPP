@@ -7,5 +7,7 @@ backend/node_modules/
 backend/.env
 backend/prisma/dev.db
 backend/prisma/dev.db-journal
+# Arquivos de upload em runtime — não versionar dados de usuários
+backend/uploads/
 # Added by code-review-graph
 .code-review-graph/
