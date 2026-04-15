@@ -140,6 +140,21 @@ function emptyWhenZero(value) {
   return value === '0' ? '' : value;
 }
 
+function particleAnalysisText(fields, stage) {
+  const nas = stringify(getField(fields, [`Contagem ${stage} NAS`]));
+  const iso = stringify(getField(fields, [`Contagem ${stage} ISO`]));
+  const combined = [
+    nas ? `NAS ${nas}` : '',
+    iso ? `ISO ${iso}` : ''
+  ].filter(Boolean).join(' | ');
+
+  if (combined) return combined;
+
+  return stringify(getField(fields, stage === 'inicial'
+    ? ['Contagem inicial', 'Classe ISO inicial', 'NAS inicial']
+    : ['Contagem final', 'Classe ISO final', 'NAS final']));
+}
+
 function buildCollaboratorRows(report) {
   const byName = new Map();
   (report.collaborators || []).forEach(link => {
@@ -214,9 +229,9 @@ function serviceTemplateData(service, index) {
       return {
         ...common,
         statementone: 'Análise inicial',
-        statementdataone: stringify(getField(fields, ['Contagem inicial', 'Classe ISO inicial', 'NAS inicial'])),
+        statementdataone: particleAnalysisText(fields, 'inicial'),
         statementtwo: 'Análise final',
-        statementdatatwo: stringify(getField(fields, ['Contagem final', 'Classe ISO final', 'NAS final'])),
+        statementdatatwo: particleAnalysisText(fields, 'final'),
         infostatement: 'Óleo',
         info: stringify(getField(fields, ['Tipo de óleo'])),
       };
@@ -224,9 +239,9 @@ function serviceTemplateData(service, index) {
       return {
         ...common,
         statementone: 'Análise inicial',
-        statementdataone: stringify(getField(fields, ['Contagem inicial', 'Classe ISO inicial', 'NAS inicial'])),
+        statementdataone: particleAnalysisText(fields, 'inicial'),
         statementtwo: 'Análise final',
-        statementdatatwo: stringify(getField(fields, ['Contagem final', 'Classe ISO final', 'NAS final'])),
+        statementdatatwo: particleAnalysisText(fields, 'final'),
         infostatement: 'Volume de óleo',
         info: stringify(getField(fields, ['Volume de óleo'])),
       };

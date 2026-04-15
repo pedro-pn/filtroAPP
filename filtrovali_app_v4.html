@@ -143,7 +143,7 @@ textarea{resize:none;min-height:72px}
 .rtype-badge{display:inline-flex;align-items:center;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;letter-spacing:.5px}
 .rtype-RDO{background:#d1fae5;color:#065f46}
 .rtype-RTP{background:#fee2e2;color:#991b1b}
-.rtype-RLQ,.rtype-RCP,.rtype-RLM,.rtype-RLI,.rtype-RLF{background:#dbeafe;color:#1e40af}
+.rtype-RLQ,.rtype-RCP,.rtype-RCPU,.rtype-RLM,.rtype-RLI,.rtype-RLF{background:#dbeafe;color:#1e40af}
 .rtype-count{font-size:12px;color:var(--mu);flex:1}
 .rtype-chevron{font-size:12px;color:var(--mu)}
 .report-type-list{display:flex;flex-direction:column;gap:8px;padding-top:8px}
@@ -431,7 +431,7 @@ var projetos={
 /* ── dados mock para o painel ── */
 var DB_KEY='filtrovali-db-v1';
 var API_BASE=window.location.protocol==='file:'?'http://localhost:4000/api':(window.location.protocol+'//'+window.location.hostname+':4000/api');
-var REPORT_TYPES=['RDO','RTP','RLQ','RCP','RLM','RLF','RLI'];
+var REPORT_TYPES=['RDO','RTP','RLQ','RCPU','RLM','RLF','RLI'];
 var serviceIcons={limpeza:'🧪',pressao:'🔴',filtragem:'🔵',flushing:'💧',mecanica:'⚙️',inibicao:'🛡️'};
 var serviceNames={limpeza:'Limpeza química',pressao:'Teste de pressão',filtragem:'Filtragem',flushing:'Flushing',mecanica:'Limpeza mecânica',inibicao:'Inibição'};
 var defaultDb={
@@ -442,9 +442,9 @@ var defaultDb={
     {id:'COL-004',nome:'Pedro Lima',cargo:'Auxiliar',email:'',assinatura:'assinatura-pedro.png',ativo:false}
   ],
   projetos:[
-    {id:'refinaria',nome:'Refinaria XPTO — Fase 2',cliente:'XPTO Energia',cnpj:'12.345.678/0001-90',contrato:'CT-2026-014',local:'Macaé/RJ',operadorResponsavelId:'COL-001',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:true,incluiDomingo:false,sequenciais:{RDO:14,RTP:3,RLQ:8,RCP:2,RLM:5,RLF:7,RLI:11},ongoing:[{tipo:'limpeza',equipId:'EQ-001',sistema:'Resfriamento',material:'Inox',data:'07/04'},{tipo:'flushing',equipId:'EQ-004',sistema:'Hidráulico',material:'Aço carbono',data:'06/04'}]},
-    {id:'plataforma',nome:'Plataforma P-52',cliente:'Offshore Brasil',cnpj:'22.456.789/0001-44',contrato:'P52-UTIL-88',local:'Bacia de Campos',operadorResponsavelId:'COL-002',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:true,incluiDomingo:true,sequenciais:{RDO:7,RTP:12,RLQ:2,RCP:1,RLM:2,RLF:4,RLI:6},ongoing:[{tipo:'pressao',equipId:'EQ-002',sistema:'Vapor HP',material:'Inox',data:'07/04'}]},
-    {id:'petroquimica',nome:'Petroquímica Alpha',cliente:'Alpha Química',cnpj:'98.765.432/0001-10',contrato:'ALPHA-2026-03',local:'Camaçari/BA',operadorResponsavelId:'COL-003',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,sequenciais:{RDO:4,RTP:1,RLQ:4,RCP:0,RLM:1,RLF:2,RLI:1},ongoing:[]}
+    {id:'refinaria',nome:'Refinaria XPTO — Fase 2',cliente:'XPTO Energia',cnpj:'12.345.678/0001-90',contrato:'CT-2026-014',local:'Macaé/RJ',operadorResponsavelId:'COL-001',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:true,incluiDomingo:false,sequenciais:{RDO:14,RTP:3,RLQ:8,RCPU:2,RLM:5,RLF:7,RLI:11},ongoing:[{tipo:'limpeza',equipId:'EQ-001',sistema:'Resfriamento',material:'Inox',data:'07/04'},{tipo:'flushing',equipId:'EQ-004',sistema:'Hidráulico',material:'Aço carbono',data:'06/04'}]},
+    {id:'plataforma',nome:'Plataforma P-52',cliente:'Offshore Brasil',cnpj:'22.456.789/0001-44',contrato:'P52-UTIL-88',local:'Bacia de Campos',operadorResponsavelId:'COL-002',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:true,incluiDomingo:true,sequenciais:{RDO:7,RTP:12,RLQ:2,RCPU:1,RLM:2,RLF:4,RLI:6},ongoing:[{tipo:'pressao',equipId:'EQ-002',sistema:'Vapor HP',material:'Inox',data:'07/04'}]},
+    {id:'petroquimica',nome:'Petroquímica Alpha',cliente:'Alpha Química',cnpj:'98.765.432/0001-10',contrato:'ALPHA-2026-03',local:'Camaçari/BA',operadorResponsavelId:'COL-003',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,sequenciais:{RDO:4,RTP:1,RLQ:4,RCPU:0,RLM:1,RLF:2,RLI:1},ongoing:[]}
   ],
   equipamentos:[
     {id:'EQ-001',codigo:'EQ-001',nome:'Trocador T-101',tipos:['limpeza','mecanica']},
@@ -707,7 +707,11 @@ function equipamentoOptions(tipo){
   });
 }
 function unitOptions(tipo){
-  return (db.unidades[tipo]||[]).map(function(u){return {value:u.id,label:u.codigo};});
+  var tipos=String(tipo||'').split(',').map(function(t){return t.trim();}).filter(Boolean);
+  if(tipos.length===1)return (db.unidades[tipos[0]]||[]).map(function(u){return {value:u.id,label:u.codigo};});
+  var seen={};var opts=[];
+  tipos.forEach(function(t){(db.unidades[t]||[]).forEach(function(u){if(!seen[u.id]){seen[u.id]=true;opts.push({value:u.id,label:u.codigo});}});});
+  return opts;
 }
 function selectOptions(opts,selected,placeholder){
   var html=placeholder?'<option value="">'+placeholder+'</option>':'';
@@ -1024,7 +1028,7 @@ function bodyFlushing(n,p,isPre){
     '<div class="rtag yes" onclick="selectRad(this,true)">Primário</div>'+
     '<div class="rtag" onclick="selectRad(this,false)">Secundário</div>'+
     '</div></div>'+
-    unitField('Unidade de Flushing','flushing',p.uf||'',false)+
+    unitField('Unidade de Flushing','flushing,filtragem',p.uf||'',false)+
     finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+
     particulasBlock(n,'fl')+desidratacaoBlock(n,'fl')+desenhoObs();
 }
@@ -1439,7 +1443,7 @@ function addProjeto(){
   var jornadaFimSemana=prompt('Jornada fim de semana (HH:MM):','08:00')||'08:00';
   var incluiSabado=confirm('Inclui sábado?');
   var incluiDomingo=confirm('Inclui domingo?');
-  var sequenciais=parseSequenciais(prompt('Sequenciais no formato RDO:0,RTP:0,...','RDO:0,RTP:0,RLQ:0,RCP:0,RLM:0,RLF:0,RLI:0'));
+  var sequenciais=parseSequenciais(prompt('Sequenciais no formato RDO:0,RTP:0,...','RDO:0,RTP:0,RLQ:0,RCPU:0,RLM:0,RLF:0,RLI:0'));
   db.projetos.push({id:id,nome:nome,cliente:cliente||'',cnpj:cnpj||'',contrato:contrato||'',local:local||'',operadorResponsavelId:operador||'',jornada:jornada,jornadaFimSemana:jornadaFimSemana,incluiSabado:incluiSabado,incluiDomingo:incluiDomingo,sequenciais:sequenciais,ongoing:[]});
   saveDb();renderHeaderSources();renderGestor();
 }
@@ -2012,7 +2016,7 @@ function toggleTypeGroup(uid){
 function groupedReportHtml(items,origin,emptyText){
   if(!items.length)return '<div style="text-align:center;color:var(--mu);padding:32px;font-size:13px">'+emptyText+'</div>';
   var groups=groupReportsByProject(items),html='';
-  var typeOrder=['RDO','RTP','RLQ','RCP','RLM','RLI','RLF'];
+  var typeOrder=['RDO','RTP','RLQ','RCPU','RLM','RLI','RLF'];
   Object.keys(groups).sort().forEach(function(projectName){
     var byType={};
     groups[projectName].forEach(function(r){var t=r.reportType||'RDO';if(!byType[t])byType[t]=[];byType[t].push(r);});
@@ -3111,7 +3115,44 @@ async function openReportDetail(id,origin){
 function reportDisplayLabel(report){
   var seq=report&&report.sequenceNumber;
   var padded=(typeof seq==='number'&&seq>0)?String(seq).padStart(3,'0'):'---';
-  return (report&&report.reportType?report.reportType:'REL')+' '+padded;
+  var type=(report&&report.reportType?String(report.reportType).toUpperCase():'REL');
+  if(type==='RCP')type='RCPU';
+  return type+' '+padded;
+}
+function normalizeReportType(type){
+  var normalized=String(type||'RDO').toUpperCase();
+  return normalized==='RCP'?'RCPU':normalized;
+}
+function getProjectLeaderName(report){
+  return (report&&report.project&&report.project.operator&&report.project.operator.name)
+    || (report&&report.project&&report.project.operator&&report.project.operator.code)
+    || (report&&report.createdBy&&report.createdBy.collaborator&&report.createdBy.collaborator.name)
+    || (report&&report.createdBy&&report.createdBy.name)
+    || '—';
+}
+function getProjectCardTitle(report){
+  var project=(report&&report.project)||{};
+  return 'Missão '+(project.code||'---')+' - '+(project.name||'Sem projeto');
+}
+function getServiceTypeLabel(serviceType){
+  var type=String(serviceType||'').toLowerCase();
+  var map={
+    limpeza:'Limpeza química',
+    pressao:'Teste de pressão',
+    filtragem:'Filtragem',
+    flushing:'Flushing',
+    mecanica:'Limpeza mecânica',
+    inibicao:'Inibição'
+  };
+  return map[type]||type||'Serviço';
+}
+function getReportCardTitle(report){
+  var rtype=normalizeReportType(report&&report.reportType||'RDO');
+  if(rtype==='RDO') return reportDisplayLabel(report);
+  var svc=(report&&report.services&&report.services[0])||{};
+  var sc=(report&&report.specialConditions)||{};
+  var serviceType=(sc.serviceType||svc.serviceType||'');
+  return reportDisplayLabel(report)+' · '+getServiceTypeLabel(serviceType);
 }
 function reportCard(report,origin){
   var meta=reportStatusMeta(report);
@@ -3237,7 +3278,14 @@ function fillServiceCardFromReport(card,service){
   fields['Colaboradores do serviço']=fields['Colaboradores do serviço']||fields['Colaboradores do serviÃ§o']||fields['Colaboradores do servico']||fields.colaboradoresServico||[];
   fields['Equipamento']=fields['Equipamento']||'';
   fields['Sistema']=service.system||fields['Sistema']||'';
-  fields['Material da tubulaÃ§Ã£o']=service.material||fields['Material da tubulaÃ§Ã£o']||'';
+  if(service.serviceType==='flushing'){
+    delete fields['Material da tubulação'];
+    delete fields['Material da tubulaÃ§Ã£o'];
+    delete fields['Material da tubulaÃƒÂ§ÃƒÂ£o'];
+    delete fields['Material da tubulaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o'];
+  }else{
+    fields['Material da tubulaÃ§Ã£o']=service.material||fields['Material da tubulaÃ§Ã£o']||'';
+  }
   fields['Material do equipamento']=service.material||fields['Material do equipamento']||'';
   card.querySelectorAll('.fg').forEach(function(fg){
     var label=fg.querySelector('label'); if(!label)return;
@@ -3385,7 +3433,14 @@ function fillServiceCardFromReport(card,service){
   var fields=Object.assign({},service.extraData||{});
   fields['Equipamento']=fields['Equipamento']||'';
   fields['Sistema']=service.system||fields['Sistema']||'';
-  fields['Material da tubulaÃ§Ã£o']=service.material||fields['Material da tubulaÃ§Ã£o']||'';
+  if(service.serviceType==='flushing'){
+    delete fields['Material da tubulação'];
+    delete fields['Material da tubulaÃ§Ã£o'];
+    delete fields['Material da tubulaÃƒÂ§ÃƒÂ£o'];
+    delete fields['Material da tubulaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o'];
+  }else{
+    fields['Material da tubulaÃ§Ã£o']=service.material||fields['Material da tubulaÃ§Ã£o']||'';
+  }
   fields['Material do equipamento']=service.material||fields['Material do equipamento']||'';
   var particleValue=fields['Houve contagem de partÃ­culas?'];
   var dehydrationValue=fields['Houve desidrataÃ§Ã£o?'];
@@ -3673,7 +3728,7 @@ function bodyPressao(n,p,isPre){
 }
 function bodyFlushing(n,p,isPre){
   var etapas=['Abastecimento de Ã³leo','Montagem do sistema','RealizaÃ§Ã£o do flushing','DesidrataÃ§Ã£o com centrÃ­fuga','DesidrataÃ§Ã£o com termovÃ¡cuo','Desmontagem do sistema','Drenagem do Ã³leo','Coleta de amostra'];
-  return equipField('flushing',n,p.equipId||'',isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: HidrÃ¡ulico')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+tubesBlock(n,p.tubes,isPre)+'<div class="fg"><label>Tipo de Ã³leo <span class="req">*</span></label><input type="text" placeholder="Marca/modelo do Ã³leo..." data-required="true" data-label="Tipo de Ã³leo"></div>'+volField('Volume de Ã³leo',true)+'<div class="fg"><label>Tipo de flushing</label><div class="rtag-grp">'+'<div class="rtag yes" onclick="selectRad(this,true)">PrimÃ¡rio</div>'+'<div class="rtag" onclick="selectRad(this,false)">SecundÃ¡rio</div>'+'</div></div>'+unitField('Unidade de Flushing','flushing',p.uf||'',false)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+particulasBlock(n,'fl')+desidratacaoBlock(n,'fl')+desenhoObs();
+  return equipField('flushing',n,p.equipId||'',isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: HidrÃ¡ulico')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+tubesBlock(n,p.tubes,isPre)+'<div class="fg"><label>Tipo de Ã³leo <span class="req">*</span></label><input type="text" placeholder="Marca/modelo do Ã³leo..." data-required="true" data-label="Tipo de Ã³leo"></div>'+volField('Volume de Ã³leo',true)+'<div class="fg"><label>Tipo de flushing</label><div class="rtag-grp">'+'<div class="rtag yes" onclick="selectRad(this,true)">PrimÃ¡rio</div>'+'<div class="rtag" onclick="selectRad(this,false)">SecundÃ¡rio</div>'+'</div></div>'+unitField('Unidade de Flushing','flushing,filtragem',p.uf||'',false)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+particulasBlock(n,'fl')+desidratacaoBlock(n,'fl')+desenhoObs();
 }
 function bodyFiltragem(n,p,isPre){
   var etapas=['Abastecimento de Ã³leo','Montagem do sistema','RealizaÃ§Ã£o da filtragem','DesidrataÃ§Ã£o com centrÃ­fuga','DesidrataÃ§Ã£o com termovÃ¡cuo','Desmontagem do sistema','Drenagem do Ã³leo','Coleta de amostra'];
@@ -3703,7 +3758,7 @@ function bodyFlushing(n,p,isPre){
   var equips=p['Equipamento(s)']||p.equipId||[];
   var etapas=['Abastecimento de óleo','Montagem do sistema','Realização do flushing','Desidratação com centrífuga','Desidratação com termovácuo','Desmontagem do sistema','Drenagem do óleo','Coleta de amostra'];
   var ufVals=(p['Unidade de Flushing']||{});var ufIds=Array.isArray(ufVals)?ufVals:(ufVals.ids||[]);
-  return equipMultiField('flushing',n,equips,isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Hidráulico')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+tubesBlock(n,p.tubes,isPre)+'<div class="fg"><label>Tipo de óleo <span class="req">*</span></label><input type="text" placeholder="Marca/modelo do óleo..." data-required="true" data-label="Tipo de óleo"></div>'+volField('Volume de óleo',true)+'<div class="fg"><label>Tipo de flushing</label><div class="rtag-grp"><div class="rtag yes" onclick="selectRad(this,true)">Primário</div><div class="rtag" onclick="selectRad(this,false)">Secundário</div></div></div>'+unitMultiField('Unidade de Flushing','flushing',n,ufIds,false,isPre)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+particulasBlock(n,'fl')+desidratacaoBlock(n,'fl')+desenhoObs();
+  return equipMultiField('flushing',n,equips,isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Hidráulico')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+tubesBlock(n,p.tubes,isPre)+'<div class="fg"><label>Tipo de óleo <span class="req">*</span></label><input type="text" placeholder="Marca/modelo do óleo..." data-required="true" data-label="Tipo de óleo"></div>'+volField('Volume de óleo',true)+'<div class="fg"><label>Tipo de flushing</label><div class="rtag-grp"><div class="rtag yes" onclick="selectRad(this,true)">Primário</div><div class="rtag" onclick="selectRad(this,false)">Secundário</div></div></div>'+unitMultiField('Unidade de Flushing','flushing',n,ufIds,false,isPre)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+particulasBlock(n,'fl')+desidratacaoBlock(n,'fl')+desenhoObs();
 }
 function bodyFiltragem(n,p,isPre){
   var equips=p['Equipamento(s)']||p.equipId||[];
@@ -4250,6 +4305,41 @@ function renderRlqDetail(report){
     '<div class="card"><div class="sec">Colaboradores</div><div class="det-section">'+colHtml+'</div></div>'+
     (sd['Observações']||sd['Observacoes']?'<div class="card"><div class="sec">Observações</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(fv(sd['Observações']||sd['Observacoes']))+'</div></div>':'');
 }
+function renderRcpuDetail(report){
+  var sc=report.specialConditions||{};
+  var sd=sc.serviceData||{};
+  var collabs=sc.resolvedCollaborators||[];
+  var units=(sc.resolvedUnits||[]).join(', ')||'—';
+  var thermo=sc.resolvedThermoUnit||'—';
+  var counter=sc.resolvedCounter?(String(sc.resolvedCounter.code||'')+(sc.resolvedCounter.serialNumber?' - '+sc.resolvedCounter.serialNumber:'')):'—';
+  function fv(v){if(!v)return '—';if(Array.isArray(v))return v.filter(Boolean).join(', ')||'—';if(typeof v==='object'&&v.labels)return (v.labels||[]).filter(Boolean).join(', ')||'—';return String(v)||'—';}
+  function row(lbl,val){return '<div class="det-row"><span class="det-label">'+lbl+'</span><span class="det-val">'+escapeHtml(fv(val))+'</span></div>';}
+  var colHtml=collabs.length?collabs.map(function(c){return '<div class="det-row"><span class="det-label">'+escapeHtml(c.name||'—')+'</span><span class="det-val">'+escapeHtml(c.role||'—')+' · '+escapeHtml(c.shift||'Diurno')+'</span></div>';}).join(''):'<div style="font-size:12px;color:var(--mu)">—</div>';
+  document.getElementById('det-body').innerHTML=
+    '<div class="card"><div class="sec">Informações do serviço</div><div class="det-section">'+
+    row('Missão','Missão '+report.project.code+' - '+report.project.name)+
+    row('Serviço',sc.serviceType==='filtragem'?'Filtragem':'Flushing')+
+    row('Equipamento',sd['Equipamento(s)']||sd['Equipamento'])+
+    row('Sistema',sd['Sistema'])+
+    row('Tipo de óleo',sd['Tipo de óleo']||sd['Tipo de oleo'])+
+    row('Volume de óleo',sd['Volume de óleo']||sd['Volume de oleo'])+
+    row('Unidade',units)+
+    row('Tipo de flushing',sd['Tipo de flushing'])+
+    row('Equip. desidratação',thermo)+
+    row('Contador de partículas',counter)+
+    row('NAS inicial',sd['Contagem inicial NAS'])+
+    row('NAS final',sd['Contagem final NAS'])+
+    row('ISO inicial',sd['Contagem inicial ISO'])+
+    row('ISO final',sd['Contagem final ISO'])+
+    row('Umidade inicial (ppm)',sd['Umidade inicial (ppm)'])+
+    row('Umidade final (ppm)',sd['Umidade final (ppm)'])+
+    row('Horário de início',sd['Hora de início']||sd['Hora de inicio'])+
+    row('Horário de término',sd['Hora de término/pausa']||sd['Hora de termino/pausa'])+
+    row('Status',sd['Aprovado pelo cliente?'])+
+    '</div></div>'+
+    '<div class="card"><div class="sec">Colaboradores</div><div class="det-section">'+colHtml+'</div></div>'+
+    (sd['Observações']||sd['Observacoes']?'<div class="card"><div class="sec">Observações</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(fv(sd['Observações']||sd['Observacoes']))+'</div></div>':'');
+}
 async function openReportDetail(id,origin){
   var report=reportsCache.find(function(r){return r.id===id;})||await apiFetch('/reports/'+id);
   currentDetailReport=report;
@@ -4257,11 +4347,16 @@ async function openReportDetail(id,origin){
   document.getElementById('det-title').textContent=reportDisplayLabel(report)+' · '+report.project.name;
   document.getElementById('det-sub').textContent=((report.createdBy&&report.createdBy.name)||'—')+' · '+formatReportDate(report.reportDate);
   document.getElementById('det-badge-top').textContent=statusMeta(report.status).txt;
-  var reportType=(report.reportType||'RDO').toUpperCase();
+  var reportType=normalizeReportType(report.reportType||'RDO');
   var isDerived=reportType!=='RDO';
   if(currentUser&&currentUser.role==='MANAGER'){
     if(reportType==='RLQ'){
       renderRlqDetail(report);
+      document.getElementById('det-actions').innerHTML=
+        '<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button>'+
+        '<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+    }else if(reportType==='RCPU'){
+      renderRcpuDetail(report);
       document.getElementById('det-actions').innerHTML=
         '<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button>'+
         '<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
@@ -4277,7 +4372,9 @@ async function openReportDetail(id,origin){
     return;
   }
   if(isDerived){
-    if(reportType==='RLQ') renderRlqDetail(report); else renderRtpDetail(report);
+    if(reportType==='RLQ') renderRlqDetail(report);
+    else if(reportType==='RCPU') renderRcpuDetail(report);
+    else renderRtpDetail(report);
     document.getElementById('det-actions').innerHTML=
       report.status==='APPROVED'
         ?'<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
@@ -4433,7 +4530,7 @@ function collectManagerServices(){
       serviceType: card.dataset.svcType,
       equipmentId: null,
       system: fields['Sistema'] || null,
-      material: fields['Material da tubulação'] || fields['Material do equipamento'] || fields['Material da tubulaÃ§Ã£o'] || fields['Material da tubulaÃƒÂ§ÃƒÂ£o'] || null,
+      material: card.dataset.svcType==='flushing' ? null : (fields['Material da tubulação'] || fields['Material do equipamento'] || fields['Material da tubulaÃ§Ã£o'] || fields['Material da tubulaÃƒÂ§ÃƒÂ£o'] || null),
       startTime: fields['Hora de início'] || fields['Hora de inÃ­cio'] || fields['Hora de inÃƒÂ­cio'] || null,
       endTime: fields['Hora de término/pausa'] || fields['Hora de tÃ©rmino/pausa'] || fields['Hora de tÃƒÂ©rmino/pausa'] || null,
       finalized: finalizedFromFields(fields),
@@ -5684,7 +5781,7 @@ function switchProjectReportTab(projectKey,type,btn){
 function groupedReportHtml(items,origin,emptyText){
   if(!items.length)return '<div style="text-align:center;color:var(--mu);padding:32px;font-size:13px">'+emptyText+'</div>';
   var groups=groupReportsByProject(items),html='';
-  var typeOrder=['RDO','RTP','RLQ','RCP','RLM','RLI','RLF'];
+  var typeOrder=['RDO','RTP','RLQ','RCPU','RLM','RLI','RLF'];
   Object.keys(groups).sort().forEach(function(projectName){
     var byType={};
     groups[projectName].forEach(function(r){
@@ -5756,7 +5853,7 @@ function groupedReportHtml(items,origin,emptyText){
     var projectReports=groups[projectName].slice();
     var byType={RDO:[],RTP:[]};
     projectReports.forEach(function(r){
-      var type=(r.reportType||'RDO').toUpperCase();
+      var type=normalizeReportType(r.reportType||'RDO');
       if(type==='RTP')byType.RTP.push(r);
       else if(type==='RDO')byType.RDO.push(r);
     });
@@ -5791,7 +5888,7 @@ function reportCard(report,origin){
   var meta=reportStatusMeta(report);
   var owner=(report.createdBy&&report.createdBy.name)||'â€”';
   var subtitle;
-  if((report.reportType||'RDO').toUpperCase()==='RTP'){
+  if(normalizeReportType(report.reportType||'RDO')==='RTP'){
     var svc=(report.services||[])[0];
     var equip=svc?((svc.extraData&&svc.extraData['Equipamento(s)'])?stringify2(svc.extraData['Equipamento(s)']):(svc.extraData&&svc.extraData['Equipamento'])||'â€”'):'â€”';
     var sys=svc?(svc.system||((svc.extraData||{})['Sistema'])||'â€”'):'â€”';
@@ -5800,7 +5897,7 @@ function reportCard(report,origin){
     subtitle=escapeHtml(summarizeServices(report)||'Sem serviÃ§os');
   }
   var actions='';
-  if((report.reportType||'RDO').toUpperCase()==='RTP'&&report.status==='APPROVED'){
+  if(normalizeReportType(report.reportType||'RDO')==='RTP'&&report.status==='APPROVED'){
     actions=currentUser&&currentUser.role==='MANAGER'
       ?'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn" type="button" onclick="event.stopPropagation();downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="mini-btn alt" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">Gerar PDF</button></div>'
       :'<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn alt" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">Gerar PDF</button></div>';
@@ -5835,7 +5932,7 @@ function groupedReportHtml(items,origin,emptyText){
     var projectReports=groups[projectName].slice();
     var byType={RDO:[],RTP:[]};
     projectReports.forEach(function(r){
-      var type=(r.reportType||'RDO').toUpperCase();
+      var type=normalizeReportType(r.reportType||'RDO');
       if(type==='RTP')byType.RTP.push(r);
       else if(type==='RDO')byType.RDO.push(r);
     });
@@ -5856,14 +5953,14 @@ function groupedReportHtml(items,origin,emptyText){
           byType[type].map(function(r){return reportCard(r,origin);}).join('')+
         '</div></div>';
     });
-    html+='<div class="card" id="'+projectKey+'"><div class="sec">'+escapeHtml(projectName)+'</div>'+sections+'</div>';
+    html+='<div class="card" id="'+projectKey+'"><div class="sec">'+escapeHtml(getProjectCardTitle(projectReports[0]))+'</div>'+sections+'</div>';
   });
   return html;
 }
 function reportCard(report,origin){
   var meta=reportStatusMeta(report);
-  var owner=(report.createdBy&&report.createdBy.name)||'&#8212;';
-  var rtype=(report.reportType||'RDO').toUpperCase();
+  var owner=getProjectLeaderName(report);
+  var rtype=normalizeReportType(report.reportType||'RDO');
   var isDerived=rtype!=='RDO';
   var subtitle;
   if(isDerived){
@@ -5886,7 +5983,7 @@ function reportCard(report,origin){
     :'';
   return '<div class="rel-item" onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')" style="align-items:flex-start;gap:12px">'+
     '<div class="rel-icon">&#128203;</div>'+
-    '<div class="rel-info"><div class="rel-name">'+escapeHtml(reportDisplayLabel(report))+' &middot; '+escapeHtml(report.project.name)+'</div><div class="rel-meta">'+escapeHtml(owner)+' &middot; '+formatReportDate(report.reportDate)+'<br>'+subtitle+'</div></div>'+
+    '<div class="rel-info"><div class="rel-name">'+escapeHtml(getReportCardTitle(report))+'</div><div class="rel-meta">'+escapeHtml(owner)+' &middot; '+formatReportDate(report.reportDate)+'<br>'+subtitle+'</div></div>'+
     '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:auto"><span class="badge '+meta.cls+'">'+meta.txt+'</span>'+actions+deleteAction+'</div>'+
     '</div>';
 }
@@ -5919,11 +6016,12 @@ function groupedReportHtml(items,origin,emptyText){
   var isGestorPending=origin==='gestor-pendentes';
   Object.keys(groups).sort().forEach(function(projectName){
     var projectReports=groups[projectName].slice();
-    var byType={RDO:[],RTP:[],RLQ:[]};
+    var byType={RDO:[],RTP:[],RLQ:[],RCPU:[]};
     projectReports.forEach(function(r){
-      var type=(r.reportType||'RDO').toUpperCase();
+      var type=normalizeReportType(r.reportType||'RDO');
       if(type==='RTP')byType.RTP.push(r);
       else if(type==='RLQ')byType.RLQ.push(r);
+      else if(type==='RCPU')byType.RCPU.push(r);
       else if(type==='RDO')byType.RDO.push(r);
     });
     byType.RDO.sort(function(a,b){
@@ -5935,14 +6033,17 @@ function groupedReportHtml(items,origin,emptyText){
     byType.RLQ.sort(function(a,b){
       return (Number(a.sequenceNumber)||0)-(Number(b.sequenceNumber)||0) || String(a.reportDate||'').localeCompare(String(b.reportDate||''));
     });
+    byType.RCPU.sort(function(a,b){
+      return (Number(a.sequenceNumber)||0)-(Number(b.sequenceNumber)||0) || String(a.reportDate||'').localeCompare(String(b.reportDate||''));
+    });
     var projectKey='proj_reports_'+String(origin||'default').replace(/[^a-z0-9]/gi,'_')+'_'+projectName.replace(/[^a-z0-9]/gi,'_');
     if(isGestorPending){
       if(!byType.RDO.length)return;
-      html+='<div class="card" id="'+projectKey+'"><div class="sec">'+escapeHtml(projectName)+'</div><div style="margin-top:10px">'+byType.RDO.map(function(r){return reportCard(r,origin);}).join('')+'</div></div>';
+      html+='<div class="card" id="'+projectKey+'"><div class="sec">'+escapeHtml(getProjectCardTitle(projectReports[0]))+'</div><div style="margin-top:10px">'+byType.RDO.map(function(r){return reportCard(r,origin);}).join('')+'</div></div>';
       return;
     }
     var sections='';
-    ['RDO','RTP','RLQ'].forEach(function(type,index){
+    ['RDO','RTP','RLQ','RCPU'].forEach(function(type,index){
       if(!byType[type].length)return;
       sections+='<div style="margin-top:'+(index===0?'0':'8px')+';width:100%">'+
         '<button type="button" class="project-report-row" data-type="'+type+'" data-open="'+(index===0?'true':'false')+'" onclick="switchProjectReportTab(\''+projectKey+'\',\''+type+'\',this)" style="width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;padding:12px 14px;border:1px solid '+(index===0?'var(--pri)':'#e1e8e2')+';background:'+(index===0?'#eef3ef':'#f7faf7')+';border-radius:12px;cursor:pointer;font-size:13px;font-weight:700;color:var(--tx)">'+
@@ -5951,7 +6052,7 @@ function groupedReportHtml(items,origin,emptyText){
           byType[type].map(function(r){return reportCard(r,origin);}).join('')+
         '</div></div>';
     });
-    html+='<div class="card" id="'+projectKey+'"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap"><div class="sec" style="margin:0">'+escapeHtml(projectName)+'</div><div style="display:flex;gap:8px;flex-wrap:wrap;width:min(100%,380px);flex:0 0 min(100%,380px)">'+sections+'</div></div></div>';
+    html+='<div class="card" id="'+projectKey+'"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap"><div class="sec" style="margin:0">'+escapeHtml(getProjectCardTitle(projectReports[0]))+'</div><div style="display:flex;gap:8px;flex-wrap:wrap;width:min(100%,380px);flex:0 0 min(100%,380px)">'+sections+'</div></div></div>';
   });
   return html;
 }
@@ -6049,7 +6150,7 @@ function collectServices(){
       serviceType: card.dataset.svcType,
       equipmentId: null,
       system: fields['Sistema'] || null,
-      material: fields['Material da tubulação'] || fields['Material da tubulaÃ§Ã£o'] || fields['Material da tubulaÃƒÂ§ÃƒÂ£o'] || fields['Material do equipamento'] || null,
+      material: card.dataset.svcType==='flushing' ? null : (fields['Material da tubulação'] || fields['Material da tubulaÃ§Ã£o'] || fields['Material da tubulaÃƒÂ§ÃƒÂ£o'] || fields['Material do equipamento'] || null),
       startTime: fields['Hora de início'] || fields['Hora de inÃ­cio'] || fields['Hora de inÃƒÂ­cio'] || null,
       endTime: fields['Hora de término/pausa'] || fields['Hora de tÃ©rmino/pausa'] || fields['Hora de tÃƒÂ©rmino/pausa'] || null,
       finalized: finalizedFromFields(fields),
@@ -6212,7 +6313,7 @@ function collectServices(){
       serviceType: card.dataset.svcType,
       equipmentId: null,
       system: fields['Sistema'] || null,
-      material: fields['Material da tubulação'] || fields['Material da tubulaÃ§Ã£o'] || fields['Material da tubulaÃƒÂ§ÃƒÂ£o'] || fields['Material do equipamento'] || null,
+      material: card.dataset.svcType==='flushing' ? null : (fields['Material da tubulação'] || fields['Material da tubulaÃ§Ã£o'] || fields['Material da tubulaÃƒÂ§ÃƒÂ£o'] || fields['Material do equipamento'] || null),
       startTime: fields['Hora de início'] || fields['Hora de inÃ­cio'] || fields['Hora de inÃƒÂ­cio'] || null,
       endTime: fields['Hora de término/pausa'] || fields['Hora de tÃ©rmino/pausa'] || fields['Hora de tÃƒÂ©rmino/pausa'] || null,
       finalized: finalizedFromFields(fields),

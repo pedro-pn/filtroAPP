@@ -19,6 +19,7 @@ Informações do serviço
 {{starttime}} - horário de início do serviço (com a unidade de medida ao lado)
 {{endtime}} - horário de término do serviço
 {{status}} - Indicar se o serviço foi  "APROVADO" ou "REPROVADO" conforme preenchido pelo colaborador
+{{tags}} - tags de tubulações caso adicionadas
 
 TUBULAÇÕES
 

@@ -1,0 +1,1 @@
+ALTER TYPE "ReportType" RENAME VALUE 'RCP' TO 'RCPU';

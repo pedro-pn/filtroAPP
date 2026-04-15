@@ -20,7 +20,7 @@ enum ReportType {
   RDO
   RTP
   RLQ
-  RCP
+  RCPU
   RLM
   RLF
   RLI

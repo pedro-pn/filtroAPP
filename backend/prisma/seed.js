@@ -101,7 +101,7 @@ async function main() {
       includesSaturday: true,
       includesSunday: false,
       operatorId: carlos.id,
-      reportSequences: { RDO: 14, RTP: 3, RLQ: 8, RCP: 2, RLM: 5, RLF: 7, RLI: 11 }
+      reportSequences: { RDO: 14, RTP: 3, RLQ: 8, RCPU: 2, RLM: 5, RLF: 7, RLI: 11 }
     },
     {
       code: 'plataforma',
@@ -115,7 +115,7 @@ async function main() {
       includesSaturday: true,
       includesSunday: true,
       operatorId: joao.id,
-      reportSequences: { RDO: 7, RTP: 12, RLQ: 2, RCP: 1, RLM: 2, RLF: 4, RLI: 6 }
+      reportSequences: { RDO: 7, RTP: 12, RLQ: 2, RCPU: 1, RLM: 2, RLF: 4, RLI: 6 }
     }
   ];
 

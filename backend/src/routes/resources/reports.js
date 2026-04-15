@@ -8,6 +8,7 @@ import { saveReportDocx, organizePhotos } from '../../lib/report-docx.js';
 import { saveReportPdf } from '../../lib/report-pdf-from-docx.js';
 import { saveRtpDocx, saveRtpPdf, organizeRtpPhotos } from '../../lib/report-rtp.js';
 import { saveRlqDocx, saveRlqPdf, organizeRlqPhotos } from '../../lib/report-rlq.js';
+import { saveRcpDocx, saveRcpPdf, organizeRcpPhotos, calcServiceMinutes } from '../../lib/report-rcp.js';
 import { calculateReportOvertime } from '../../lib/overtime.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
@@ -100,6 +101,21 @@ function uniqueIds(values) {
   return Array.from(new Set((values || []).filter(Boolean)));
 }
 
+function resolveCollaboratorsByShift(report, collaborators) {
+  const daytimeIds = new Set((report.collaborators || []).map(link => link.collaboratorId).filter(Boolean));
+  const nighttimeIds = new Set(
+    (((report.specialConditions || {}).noturnoDetails || {}).collaboratorIds || []).filter(Boolean)
+  );
+
+  return collaborators.flatMap(c => {
+    const inDay = daytimeIds.has(c.id);
+    const inNight = nighttimeIds.has(c.id);
+    if (!inDay && !inNight) return [];
+    const shift = inDay && inNight ? 'Diurno e Noturno' : (inNight ? 'Noturno' : 'Diurno');
+    return [{ id: c.id, name: c.name, role: c.role, shift }];
+  });
+}
+
 function safePathLocal(value) {
   return String(value ?? '').replace(/[<>:"/\\|?*\n\r]/g, '_').trim();
 }
@@ -122,6 +138,8 @@ async function organizeAndPersist(report) {
     urlMap = await organizeRtpPhotos(report, projectFolderName);
   } else if (report.reportType === 'RLQ') {
     urlMap = await organizeRlqPhotos(report, projectFolderName);
+  } else if (report.reportType === 'RCPU') {
+    urlMap = await organizeRcpPhotos(report, projectFolderName);
   } else {
     urlMap = await organizePhotos(report, projectFolderName);
   }
@@ -132,7 +150,7 @@ async function organizeAndPersist(report) {
     // Para RTP/RLQ, também atualiza o extraData do serviço-fonte do RDO para que
     // re-edições do RDO não percam as URLs organizadas das fotos.
     const sourceServiceId = report.specialConditions?.serviceId;
-    if (sourceServiceId && (report.reportType === 'RTP' || report.reportType === 'RLQ')) {
+    if (sourceServiceId && (report.reportType === 'RTP' || report.reportType === 'RLQ' || report.reportType === 'RCPU')) {
       try {
         const sourceService = await prisma.reportService.findUnique({
           where: { id: sourceServiceId },
@@ -164,10 +182,10 @@ function collectPendingDerivedTypes(services) {
         derived.add(ReportType.RTP);
         break;
       case 'filtragem':
-        derived.add(ReportType.RCP);
+        derived.add(ReportType.RCPU);
         break;
       case 'flushing':
-        derived.add(ReportType.RCP);
+        derived.add(ReportType.RCPU);
         break;
       case 'mecanica':
         derived.add(ReportType.RLM);
@@ -292,16 +310,7 @@ async function syncApprovedRtpReports(tx, report) {
       uthIds.length ? tx.unit.findMany({ where: { id: { in: uthIds } } }) : Promise.resolve([])
     ]);
 
-    const daytimeIds = new Set((report.collaborators || []).map(link => link.collaboratorId).filter(Boolean));
-    const nighttimeIds = new Set(
-      (((report.specialConditions || {}).noturnoDetails || {}).collaboratorIds || []).filter(Boolean)
-    );
-    const resolvedCollaborators = collaborators.map(c => {
-      const inDay = daytimeIds.has(c.id);
-      const inNight = nighttimeIds.has(c.id);
-      const shift = inDay && inNight ? 'Diurno e Noturno' : (inNight ? 'Noturno' : 'Diurno');
-      return { id: c.id, name: c.name, role: c.role, shift };
-    });
+    const resolvedCollaborators = resolveCollaboratorsByShift(report, collaborators);
     const resolvedManometers = manometers.map(m => ({
       id: m.id,
       code: m.code,
@@ -455,16 +464,7 @@ async function syncApprovedRlqReports(tx, report) {
       ulqIds.length ? tx.unit.findMany({ where: { id: { in: ulqIds } } }) : Promise.resolve([])
     ]);
 
-    const daytimeIds = new Set((report.collaborators || []).map(link => link.collaboratorId).filter(Boolean));
-    const nighttimeIds = new Set(
-      (((report.specialConditions || {}).noturnoDetails || {}).collaboratorIds || []).filter(Boolean)
-    );
-    const resolvedCollaborators = collaborators.map(c => {
-      const inDay = daytimeIds.has(c.id);
-      const inNight = nighttimeIds.has(c.id);
-      const shift = inDay && inNight ? 'Diurno e Noturno' : (inNight ? 'Noturno' : 'Diurno');
-      return { id: c.id, name: c.name, role: c.role, shift };
-    });
+    const resolvedCollaborators = resolveCollaboratorsByShift(report, collaborators);
     const resolvedUnits = ulqUnits.map(u => u.code);
 
     const rlqPayload = {
@@ -529,6 +529,184 @@ async function syncApprovedRlqReports(tx, report) {
       data: {
         ...rlqPayload,
         sequenceNumber: rlqSeq,
+        collaborators: {
+          create: collabIds.map(id => ({ collaboratorId: id }))
+        },
+        services: {
+          create: [{
+            serviceType: service.serviceType,
+            equipmentId: service.equipmentId || null,
+            system: service.system || null,
+            material: service.material || null,
+            startTime: service.startTime || null,
+            endTime: service.endTime || null,
+            finalized: true,
+            extraData: fields
+          }]
+        }
+      }
+    });
+  }
+}
+
+async function syncApprovedRcpReports(tx, report) {
+  if (!report || report.reportType !== ReportType.RDO || report.status !== ReportStatus.APPROVED) {
+    return;
+  }
+
+  const rcpServices = (report.services || []).filter(
+    s => (s.serviceType === 'flushing' || s.serviceType === 'filtragem') && s.finalized === true
+  );
+
+  if (!rcpServices.length) {
+    return;
+  }
+
+  // For RCPU, one report per serviceLinkKey for the whole project (not per parentRdoId).
+  const existingRcps = await tx.report.findMany({
+    where: { projectId: report.projectId, reportType: ReportType.RCPU },
+    select: { id: true, sequenceNumber: true, specialConditions: true }
+  });
+
+  const existingByLinkKey = new Map();
+  existingRcps.forEach(item => {
+    const special = item.specialConditions || {};
+    const linkKey = String(special.serviceLinkKey || '').trim();
+    if (linkKey) existingByLinkKey.set(linkKey, item);
+  });
+
+  // Fetch all approved RDOs once for totalMinutes calculation.
+  const allApprovedRdos = await tx.report.findMany({
+    where: { projectId: report.projectId, reportType: ReportType.RDO, status: ReportStatus.APPROVED },
+    select: {
+      services: {
+        select: { serviceType: true, startTime: true, endTime: true, extraData: true }
+      }
+    }
+  });
+
+  for (const service of rcpServices) {
+    const fields = service.extraData || {};
+    const serviceLinkKey = String(
+      fields.__serviceLinkKey ||
+      fields.__sourceServiceId ||
+      service.id ||
+      ''
+    ).trim();
+
+    const collabField =
+      fields['Colaboradores do serviço'] ||
+      fields['Colaboradores do serviÃ§o'] ||
+      fields['Colaboradores do servico'];
+    const collabIds = Array.isArray(collabField?.ids) ? collabField.ids.filter(Boolean) : [];
+
+    const unitFieldVal = service.serviceType === 'filtragem'
+      ? (fields['Unidade de filtragem'] || fields['Unidade de Filtragem'])
+      : (fields['Unidade de Flushing'] || fields['Unidade de flushing']);
+    const unitIds = Array.isArray(unitFieldVal?.ids) ? unitFieldVal.ids.filter(Boolean)
+      : (unitFieldVal && typeof unitFieldVal === 'string' ? [unitFieldVal] : []);
+
+    const thermoFieldVal =
+      fields['Equipamento de desidratação'] ||
+      fields['Equipamento de desidrataÃ§Ã£o'] ||
+      fields['Equipamento de desidratacao'];
+    const thermoIds = Array.isArray(thermoFieldVal?.ids) ? thermoFieldVal.ids.filter(Boolean)
+      : (thermoFieldVal && typeof thermoFieldVal === 'string' ? [thermoFieldVal] : []);
+
+    const counterRaw = fields['Contador utilizado'];
+    const counterId = counterRaw && typeof counterRaw === 'string' ? counterRaw
+      : (counterRaw?.id || null);
+
+    const [collaborators, units, thermoUnits, counter] = await Promise.all([
+      collabIds.length ? tx.collaborator.findMany({ where: { id: { in: collabIds } } }) : Promise.resolve([]),
+      unitIds.length ? tx.unit.findMany({ where: { id: { in: unitIds } } }) : Promise.resolve([]),
+      thermoIds.length ? tx.unit.findMany({ where: { id: { in: thermoIds } } }) : Promise.resolve([]),
+      counterId ? tx.particleCounter.findUnique({ where: { id: counterId } }) : Promise.resolve(null)
+    ]);
+
+    const resolvedCollaborators = resolveCollaboratorsByShift(report, collaborators);
+    const resolvedUnits = units.map(u => u.code);
+    const resolvedThermoUnit = thermoUnits.length ? thermoUnits[0].code : '';
+    const resolvedCounter = counter ? { code: counter.code, serialNumber: counter.serialNumber } : null;
+
+    // Sum minutes across all approved RDOs with the same service linkKey.
+    let totalMinutes = 0;
+    for (const rdo of allApprovedRdos) {
+      for (const svc of rdo.services || []) {
+        if (svc.serviceType !== service.serviceType) continue;
+        const svcFields = svc.extraData || {};
+        const svcLinkKey = String(svcFields.__serviceLinkKey || svcFields.__sourceServiceId || '').trim();
+        if (svcLinkKey && svcLinkKey === serviceLinkKey) {
+          totalMinutes += calcServiceMinutes(svc.startTime, svc.endTime);
+        }
+      }
+    }
+
+    const rcpPayload = {
+      projectId: report.projectId,
+      createdByUserId: report.createdByUserId,
+      reviewedByUserId: report.reviewedByUserId,
+      reportType: ReportType.RCPU,
+      status: ReportStatus.APPROVED,
+      reportDate: report.reportDate,
+      arrivalTime: service.startTime || report.arrivalTime,
+      departureTime: service.endTime || report.departureTime,
+      lunchBreak: report.lunchBreak,
+      daytimeCount: resolvedCollaborators.length || report.daytimeCount,
+      daytimeWorkedMinutes: 0,
+      nighttimeWorkedMinutes: 0,
+      daytimeOvertimeMinutes: 0,
+      nighttimeOvertimeMinutes: 0,
+      totalOvertimeMinutes: 0,
+      approvedAt: report.approvedAt || new Date(),
+      specialConditions: {
+        parentRdoId: report.id,
+        serviceId: service.id,
+        serviceLinkKey: serviceLinkKey || String(service.id),
+        serviceType: service.serviceType,
+        serviceData: fields,
+        resolvedCollaborators,
+        resolvedUnits,
+        resolvedThermoUnit,
+        resolvedCounter,
+        totalMinutes
+      }
+    };
+
+    const existingRcp = serviceLinkKey ? existingByLinkKey.get(serviceLinkKey) : null;
+
+    if (existingRcp) {
+      await tx.reportCollaborator.deleteMany({ where: { reportId: existingRcp.id } });
+      await tx.reportService.deleteMany({ where: { reportId: existingRcp.id } });
+      await tx.report.update({
+        where: { id: existingRcp.id },
+        data: {
+          ...rcpPayload,
+          collaborators: {
+            create: collabIds.map(id => ({ collaboratorId: id }))
+          },
+          services: {
+            create: [{
+              serviceType: service.serviceType,
+              equipmentId: service.equipmentId || null,
+              system: service.system || null,
+              material: service.material || null,
+              startTime: service.startTime || null,
+              endTime: service.endTime || null,
+              finalized: true,
+              extraData: fields
+            }]
+          }
+        }
+      });
+      continue;
+    }
+
+    const rcpSeq = await reserveSequence(tx, report.projectId, ReportType.RCPU);
+    await tx.report.create({
+      data: {
+        ...rcpPayload,
+        sequenceNumber: rcpSeq,
         collaborators: {
           create: collabIds.map(id => ({ collaboratorId: id }))
         },
@@ -614,6 +792,7 @@ router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
   let saved;
   if (item.reportType === 'RTP') saved = await saveRtpPdf(item);
   else if (item.reportType === 'RLQ') saved = await saveRlqPdf(item);
+  else if (item.reportType === 'RCPU') saved = await saveRcpPdf(item);
   else saved = await saveReportPdf(item);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', contentDisposition(saved.fileName));
@@ -637,6 +816,7 @@ router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
   let saved;
   if (item.reportType === 'RTP') saved = await saveRtpDocx(item);
   else if (item.reportType === 'RLQ') saved = await saveRlqDocx(item);
+  else if (item.reportType === 'RCPU') saved = await saveRcpDocx(item);
   else saved = await saveReportDocx(item);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   res.setHeader('Content-Disposition', contentDisposition(saved.fileName));
@@ -701,12 +881,13 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
 
     await syncApprovedRtpReports(tx, created);
     await syncApprovedRlqReports(tx, created);
+    await syncApprovedRcpReports(tx, created);
     return created;
   });
   await organizeAndPersist(item);
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ] } },
+      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU] } },
       include
     });
     for (const d of derived) {
@@ -783,13 +964,14 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
 
     await syncApprovedRtpReports(tx, updated);
     await syncApprovedRlqReports(tx, updated);
+    await syncApprovedRcpReports(tx, updated);
     return updated;
   });
 
   await organizeAndPersist(item);
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ] } },
+      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU] } },
       include
     });
     for (const d of derived) {
@@ -821,7 +1003,7 @@ router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
       const derivedReports = await tx.report.findMany({
         where: {
           projectId: item.projectId,
-          reportType: { in: [ReportType.RTP, ReportType.RLQ] }
+          reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU] }
         },
         select: {
           id: true,
@@ -874,6 +1056,7 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
     if (data.status === ReportStatus.APPROVED && previous?.status !== ReportStatus.APPROVED) {
       await syncApprovedRtpReports(tx, updated);
       await syncApprovedRlqReports(tx, updated);
+      await syncApprovedRcpReports(tx, updated);
     }
 
     return updated;
@@ -881,7 +1064,7 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
 
   if (data.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ] } },
+      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU] } },
       include
     });
     for (const d of derived) {

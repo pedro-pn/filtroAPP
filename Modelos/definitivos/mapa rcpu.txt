@@ -1,0 +1,67 @@
+MAPA DO MODELO DE FLUSHING E FILTRAGEM (RCPU)
+
+{{missiontitle}} - deve ser substituido por "Missão [numero da missao] - [nome da missao]"
+{{client}} - cliente do projeto
+{{cnpj}} - CNPJ do projeto
+{{local}} - local do projeto
+{{proposal}} - contrato do projeto
+{{rcpu}} - número rcpu
+{{date}} - data do rdo
+
+Informações do serviço
+{{service}} - Como o RCPU vale para flushing e filtragem, este campo reflete qual o serviço o relatório se refere: Flushing ou Filtragem
+{{missiontitle}} - deve ser substituido por "Missão [numero da missao] - [nome da missao]"
+{{equipament}} - nome do equipamento do cliente que está sendo feito o serviço
+{{system}} - nome do sistema do cliente que está sendo feito o serviço
+{{oil}} - tipo/nome do óleo preenchido
+{{volume}} - Volume do óleo com a unidade de medida
+{{flushingunit}} - Unidade de flushing (UFP) ou Unidade de filtragem (UFI) selecionadas separadas por vírgula
+{{servicelist}} - Serviços realizados: aqui entra um detalhe; para flushing, deve aparecer, separado por vírgula, se foi Flushing Primário ou Flushing Secundário, se houve desidratação, também aparece.
+Por exemplo, em um flushing secundário que houve desidratação, esse campo vai ser preenchido como "Flushing secundário e desidratação". Na filtragem, aparece somente "Filtragem absoluta". A regra de desidratação também vale para a filtragem.
+{{thermounit}} - se foi selecionado desidrataçõa de óleo, adicionar a unidade de desidratação utilizada.
+{{particlecounterserial}} - Código e serial do contador de partícula selecionado, da seguinte forma: "[código do contador] - [serial]"
+{{starttime}} - horário de início do serviço (com a unidade de medida ao lado)
+{{endtime}} - horário de término do serviço
+{{status}} - Indicar se o serviço foi  "APROVADO" ou "REPROVADO" conforme preenchido pelo colaborador
+{{tags}} - tags de tubulações caso adicionadas
+
+TUBULAÇÕES
+
+{{diameter}} - diametro da tubulação na seguinte formatação [diametro] [unidade] (geralmente polegadas)
+{{length}} - comprimento da tubulação, exemplo: "5 metros"
+
+COLABORADORES
+
+{{collaboratorname}} - nome do colaborador
+{{collaboratorposition}} - cargo do colaborador
+
+Contagem de partículas e Análise de umidade
+
+{{startnas}} - valor inserido de NAS inicial
+{{endnas}} - valor inserido de NAS final
+{{startiso}} - valor inserido em iso inicial
+{{endiso}} - valor inserido em iso final
+{{totaltime}} - Este campo deve ser preenchido com o tempo total que o serviço foi executado. Aqui vai um detalhe importante: como o serviço pode ter começado em dias anteriores,
+deve-se considerar o cálculo total desde o primeiro dia que o serviço aparece. Por exemplo: digamos que num dia o serviço de filtragem começou as 15h e pausou as 17h. Logo, temos 2h já armazenada no banco de dados. Ai no outro dia,
+o serviço continua as 09h e termina as 11h. Temos mais duas horas. O totaltime no relatório deve ser preenchido com 04:00:00.
+{{startppm}} - análise inicial de umidade com a unidade
+{{endppm}} - análise final de umidade com a unidade
+
+
+REGISTRO DA CONTAGEM DE PARTÍCULAS
+
+{{countphotos}} - fotos adicionadas no campo de fotos de laudo da contagem de partículas
+
+REGISTRO DA ANÁLISE DE umidade
+
+{{humidityphotos}} - fotos adicionadas no campo de fotos da análise de umidade.
+
+OBSERVAÇÕES
+
+{{obs}} - observações escritas no final do serviço
+
+final
+
+{{sign}} - imagem da assinatura do líder
+{{leadername}} - nome do líder
+{{leaderposition}} - cargo do líder.

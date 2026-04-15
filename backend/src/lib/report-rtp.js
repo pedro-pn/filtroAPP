@@ -342,6 +342,7 @@ function buildRtpBaseData(report) {
     starttime: stringify(getField(sd, ['Hora de início', 'Hora de inicio'])),
     endtime: stringify(getField(sd, ['Hora de término/pausa', 'Hora de termino/pausa'])),
     status,
+    tags: stringify(getField(sd, ['Desenhos / TAGs', 'Desenhos / Tags'])),
     obs: stringify(getField(sd, ['Observações', 'Observacoes'])),
     leadername: safeText(report.project?.operator?.name || report.createdBy?.collaborator?.name || report.createdBy?.name),
     leaderposition: safeText(report.project?.operator?.role || report.createdBy?.collaborator?.role)

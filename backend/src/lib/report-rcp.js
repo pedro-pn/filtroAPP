@@ -12,7 +12,12 @@ import env from '../config/env.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const rlqTemplatePath = path.resolve(__dirname, '../../../Modelos/definitivos/Modelo - RLQ.docx');
+const rcpTemplatePath = (() => {
+  const rcpuPath = path.resolve(__dirname, '../../../Modelos/definitivos/Modelo - RCPU.docx');
+  return fsSync.existsSync(rcpuPath)
+    ? rcpuPath
+    : path.resolve(__dirname, '../../../Modelos/definitivos/Modelo - RCP.docx');
+})();
 const execFileAsync = promisify(execFile);
 
 // ── Shared helpers ──
@@ -129,6 +134,15 @@ function findFirstByText(root, tagName, token) {
 
 function removeNode(node) {
   if (node && node.parentNode) node.parentNode.removeChild(node);
+}
+
+function findAncestor(node, tagName) {
+  let current = node;
+  while (current) {
+    if (current.tagName === tagName) return current;
+    current = current.parentNode;
+  }
+  return null;
 }
 
 function cloneBefore(node, clones) {
@@ -270,7 +284,7 @@ function embedPhotos(zip, doc, placeholder, assets) {
     const jc = doc.createElement('w:jc'); jc.setAttribute('w:val', 'center');
     pPr.appendChild(jc); paragraph.appendChild(pPr);
     group.forEach((asset, idx) => {
-      const relId = addImageRel(zip, relsDoc, asset, 'rlq-photo');
+      const relId = addImageRel(zip, relsDoc, asset, 'rcp-photo');
       const heightEmu = Math.max(1, Math.round(maxWidthEmu * (asset.height / asset.width)));
       const drawingDoc = new DOMParser().parseFromString(inlineImageXml(relId, maxWidthEmu, heightEmu, asset.label), 'text/xml');
       paragraph.appendChild(drawingDoc.documentElement);
@@ -294,7 +308,7 @@ function embedSignature(zip, doc, asset) {
   if (!relsEntry) return;
   const relsDoc = new DOMParser().parseFromString(zip.readAsText(relsEntry), 'text/xml');
   const relId = nextRelId(relsDoc);
-  const mediaName = `signature-rlq-${Date.now()}.${asset.extension}`;
+  const mediaName = `signature-rcp-${Date.now()}.${asset.extension}`;
   zip.addFile(`word/media/${mediaName}`, asset.bytes);
   ensureContentType(zip, asset.extension, asset.mimeType);
   const rel = relsDoc.createElement('Relationship');
@@ -310,28 +324,73 @@ function embedSignature(zip, doc, asset) {
   targetParagraph.appendChild(drawingDoc.documentElement);
 }
 
-// ── RLQ data building ──
+// ── Helpers de tempo ──
 
-function getProductForStep(stepName, material) {
-  const s = String(stepName || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const isInox = /inox/i.test(material || '');
-  if (s.includes('desengraxe')) return 'Hidróxido de sódio, Metassilicato de sódio e Tripolifosfato de sódio';
-  if (s.includes('fase acida')) return isInox ? 'Ácido nítrico e Ácido fluorídrico' : 'Ácido cítrico';
-  if (s.includes('fase sequestrant') || s.includes('fase neutralizant')) return 'Carbonato de cálcio';
-  if (s.includes('fase passivant')) return isInox ? '' : 'Nitrito de sódio';
-  return '';
+export function calcServiceMinutes(startTime, endTime) {
+  if (!startTime || !endTime) return 0;
+  const parseHHMM = s => {
+    const parts = String(s).split(':').map(Number);
+    return !isNaN(parts[0]) && !isNaN(parts[1]) ? parts[0] * 60 + parts[1] : null;
+  };
+  const start = parseHHMM(startTime);
+  const end = parseHHMM(endTime);
+  if (start === null || end === null) return 0;
+  let diff = end - start;
+  if (diff < 0) diff += 24 * 60; // serviço passou da meia-noite
+  return diff;
 }
 
-function buildRlqBaseData(report) {
+function minutesToHHMMSS(totalMinutes) {
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+}
+
+// ── RCPU data building ──
+
+function buildRcpBaseData(report) {
   const sc = report.specialConditions || {};
   const sd = sc.serviceData || {};
-  const units = sc.resolvedUnits || [];
+  const serviceType = sc.serviceType || 'flushing';
+  const resolvedUnits = sc.resolvedUnits || [];
+  const resolvedThermoUnit = sc.resolvedThermoUnit || '';
+  const resolvedCounter = sc.resolvedCounter || null;
+  const totalMinutes = sc.totalMinutes || 0;
 
+  // {{service}}
+  const service = serviceType === 'filtragem' ? 'Filtragem' : 'Flushing';
+
+  // {{servicelist}}
+  const tipoFlushing = stringify(getField(sd, ['Tipo de flushing']));
+  const houveDesidratacao = /sim/i.test(stringify(getField(sd, ['Houve desidratação?', 'Houve desidratacao?'])));
+  let servicelist;
+  if (serviceType === 'filtragem') {
+    servicelist = houveDesidratacao ? 'Filtragem absoluta e desidratação' : 'Filtragem absoluta';
+  } else {
+    const tipoStr = /secund/i.test(tipoFlushing) ? 'Flushing secundário' : 'Flushing primário';
+    servicelist = houveDesidratacao ? `${tipoStr} e desidratação` : tipoStr;
+  }
+
+  // {{status}}
   const approvedRaw = stringify(getField(sd, ['Aprovado pelo cliente?']));
   const status = /sim/i.test(approvedRaw) ? 'APROVADO' : (/n[ãa]o/i.test(approvedRaw) ? 'REPROVADO' : '');
 
-  const cleaningMethodsRaw = getField(sd, ['Método de limpeza', 'Metodo de limpeza']);
-  const inspectionTypeRaw = getField(sd, ['Tipo de inspeção', 'Tipo de inspecao']);
+  // {{particlecounterserial}}
+  const particlecounterserial = resolvedCounter
+    ? `${resolvedCounter.code} - ${resolvedCounter.serialNumber}`
+    : '';
+
+  // Contagem de partículas
+  const houvePart = /sim/i.test(stringify(getField(sd, ['Houve contagem de partículas?', 'Houve contagem de particulas?'])));
+  const startnas  = houvePart ? stringify(getField(sd, ['Contagem inicial NAS'])) : '';
+  const endnas    = houvePart ? stringify(getField(sd, ['Contagem final NAS'])) : '';
+  const startiso  = houvePart ? stringify(getField(sd, ['Contagem inicial ISO'])) : '';
+  const endiso    = houvePart ? stringify(getField(sd, ['Contagem final ISO'])) : '';
+
+  // Análise de umidade
+  const houveUmid = /sim/i.test(stringify(getField(sd, ['Houve análise de umidade?', 'Houve analise de umidade?'])));
+  const startppm  = houveUmid ? `${stringify(getField(sd, ['Umidade inicial (ppm)']))} ppm` : '';
+  const endppm    = houveUmid ? `${stringify(getField(sd, ['Umidade final (ppm)']))} ppm` : '';
 
   return {
     missiontitle: `Missão ${report.project.code} - ${report.project.name}`,
@@ -339,27 +398,41 @@ function buildRlqBaseData(report) {
     cnpj: safeText(report.project.clientCnpj),
     local: safeText(report.project.location),
     proposal: safeText(report.project.contractCode),
-    rlq: reportNumber(report),
+    rcpu: reportNumber(report),
     date: formatDatePt(report.reportDate),
+    service,
     equipament: stringify(getField(sd, ['Equipamento(s)', 'Equipamento'])),
     system: stringify(getField(sd, ['Sistema'])),
-    material: stringify(getField(sd, ['Material da tubulação', 'Material da tubulacao', 'Material do equipamento'])),
-    cleaningunit: units.join(', '),
-    inspectiontype: stringify(inspectionTypeRaw),
-    cleaningmethods: stringify(cleaningMethodsRaw),
+    oil: stringify(getField(sd, ['Tipo de óleo', 'Tipo de oleo'])),
+    volume: stringify(getField(sd, ['Volume de óleo', 'Volume de oleo'])),
+    flushingunit: resolvedUnits.join(', '),
+    servicelist,
+    thermounit: resolvedThermoUnit,
+    particlecounterserial,
     starttime: stringify(getField(sd, ['Hora de início', 'Hora de inicio'])),
     endtime: stringify(getField(sd, ['Hora de término/pausa', 'Hora de termino/pausa'])),
     status,
     tags: stringify(getField(sd, ['Desenhos / TAGs', 'Desenhos / Tags'])),
     obs: stringify(getField(sd, ['Observações', 'Observacoes'])),
+    startnas,
+    endnas,
+    startiso,
+    endiso,
+    totaltime: minutesToHHMMSS(totalMinutes),
+    startppm,
+    endppm,
     leadername: safeText(report.project?.operator?.name || report.createdBy?.collaborator?.name || report.createdBy?.name),
     leaderposition: safeText(report.project?.operator?.role || report.createdBy?.collaborator?.role)
   };
 }
 
-function expandTubeRows(doc, sd) {
+function expandTubeRows(doc, sd, serviceType) {
   const templateRow = findFirstByText(doc, 'w:tr', '{{diameter}}');
   if (!templateRow) return;
+  if (serviceType === 'filtragem') {
+    removeNode(findAncestor(templateRow, 'w:tbl') || templateRow);
+    return;
+  }
   const tubesRaw = getField(sd, ['Diâmetros e comprimentos', 'Diametros e comprimentos']);
   const tubes = Array.isArray(tubesRaw) ? tubesRaw.filter(t => t && (t.d || t.c)) : [];
   if (!tubes.length) {
@@ -379,7 +452,7 @@ function expandTubeRows(doc, sd) {
   removeNode(templateRow);
 }
 
-function expandRlqCollaborators(doc, collaborators) {
+function expandRcpCollaborators(doc, collaborators) {
   const templateRow = findFirstByText(doc, 'w:tr', '{{collaboratorname}}');
   if (!templateRow) return;
   if (!collaborators.length) {
@@ -391,31 +464,6 @@ function expandRlqCollaborators(doc, collaborators) {
     replacePlaceholders(clone, {
       collaboratorname: c.name || '',
       collaboratorposition: c.role || ''
-    });
-    return clone;
-  });
-  cloneBefore(templateRow, clones);
-  removeNode(templateRow);
-}
-
-function expandProductRows(doc, sd) {
-  const templateRow = findFirstByText(doc, 'w:tr', '{{steps}}');
-  if (!templateRow) return;
-
-  const etapasRaw = getField(sd, ['Etapas realizadas no dia']);
-  const etapas = Array.isArray(etapasRaw) ? etapasRaw.filter(Boolean) : (etapasRaw ? [String(etapasRaw)] : []);
-  const material = stringify(getField(sd, ['Material da tubulação', 'Material da tubulacao', 'Material do equipamento']));
-
-  if (!etapas.length) {
-    replacePlaceholders(templateRow, { steps: '', products: '' });
-    return;
-  }
-
-  const clones = etapas.map(etapa => {
-    const clone = templateRow.cloneNode(true);
-    replacePlaceholders(clone, {
-      steps: etapa,
-      products: getProductForStep(etapa, material)
     });
     return clone;
   });
@@ -443,7 +491,7 @@ try {
   if($word -ne $null){ $word.Quit() }
 }
 `;
-  const scriptPath = path.join(env.uploadDir, `tmp-rlq-pdf-${Date.now()}.ps1`);
+  const scriptPath = path.join(env.uploadDir, `tmp-rcpu-pdf-${Date.now()}.ps1`);
   await fs.writeFile(scriptPath, script, 'utf8');
   try {
     await execFileAsync(
@@ -486,37 +534,36 @@ function buildPhotoUrl(urlBase, projectFolder, subfolder, destName) {
   return (urlBase || '') + '/uploads/' + encoded;
 }
 
-export async function organizeRlqPhotos(report, projectFolderName) {
+export async function organizeRcpPhotos(report, projectFolderName) {
   const urlMap = new Map();
   const sc = report.specialConditions || {};
   const sd = sc.serviceData || {};
   const equip = safePath(stringify(getField(sd, ['Equipamento(s)', 'Equipamento'])) || 'Equipamento');
   const sys = safePath(stringify(getField(sd, ['Sistema'])) || 'Sistema');
-  const photosDir = path.join(env.uploadDir, projectFolderName, 'Registros Fotográficos', 'RLQ');
+  const photosDir = path.join(env.uploadDir, projectFolderName, 'Registros Fotográficos', 'RCPU');
   await fs.mkdir(photosDir, { recursive: true });
 
-  const corpoUploads = (() => {
-    const v = getField(sd, ['Imagens — corpo de prova', 'Imagens - corpo de prova', 'Imagens â€" corpo de prova']);
+  const countUploads = (() => {
+    const v = getField(sd, ['Foto do laudo do contador']);
     return Array.isArray(v) ? v : [];
   })();
-  const tubUploads = (() => {
-    const v = getField(sd, ['Imagens — tubulação', 'Imagens - tubulacao', 'Imagens â€" tubulaÃ§Ã£o', 'Imagens — tubulação']);
+  const humidUploads = (() => {
+    const v = getField(sd, ['Fotos da desidratação', 'Fotos da desidratacao']);
     return Array.isArray(v) ? v : [];
   })();
 
   let count = 1;
-  for (const upload of [...corpoUploads, ...tubUploads]) {
+  for (const upload of [...countUploads, ...humidUploads]) {
     const source = upload?.url || upload?.storagePath || upload?.fileName;
     const srcPath = resolveUploadFilePath(source);
     if (!srcPath) continue;
     const ext = path.extname(srcPath) || '.jpg';
     const destName = `${equip} - ${sys} - foto ${count}${ext}`;
     const destPath = path.join(photosDir, destName);
-    // Se já está no destino final, não move (evita referências inválidas em re-edições)
     if (path.resolve(srcPath) === path.resolve(destPath)) { count++; continue; }
     try {
       await fs.rename(srcPath, destPath);
-      const newUrl = buildPhotoUrl(extractUrlBase(source), projectFolderName, 'RLQ', destName);
+      const newUrl = buildPhotoUrl(extractUrlBase(source), projectFolderName, 'RCPU', destName);
       if (source) urlMap.set(source, newUrl);
       count++;
     } catch { /* skip missing */ }
@@ -527,26 +574,27 @@ export async function organizeRlqPhotos(report, projectFolderName) {
 
 // ── Main exports ──
 
-export async function buildRlqDocx(report) {
+export async function buildRcpDocx(report) {
   const sc = report.specialConditions || {};
   const sd = sc.serviceData || {};
+  const serviceType = sc.serviceType || '';
   const collabs = sc.resolvedCollaborators || [];
 
-  const baseData = buildRlqBaseData(report);
+  const baseData = buildRcpBaseData(report);
   const signatureAsset = await getUploadAsset(report.project?.operator?.signatureImage || report.createdBy?.collaborator?.signatureImage);
 
-  const corpoUploads = (() => {
-    const v = getField(sd, ['Imagens — corpo de prova', 'Imagens - corpo de prova', 'Imagens â€" corpo de prova']);
+  const countUploads = (() => {
+    const v = getField(sd, ['Foto do laudo do contador']);
     return Array.isArray(v) ? v : [];
   })();
-  const tubUploads = (() => {
-    const v = getField(sd, ['Imagens — tubulação', 'Imagens - tubulacao', 'Imagens â€" tubulaÃ§Ã£o', 'Imagens — tubulação']);
+  const humidUploads = (() => {
+    const v = getField(sd, ['Fotos da desidratação', 'Fotos da desidratacao']);
     return Array.isArray(v) ? v : [];
   })();
-  const corpoAssets = await resolvePhotoAssets(corpoUploads);
-  const tubAssets = await resolvePhotoAssets(tubUploads);
+  const countAssets = await resolvePhotoAssets(countUploads);
+  const humidAssets = await resolvePhotoAssets(humidUploads);
 
-  const bytes = await fs.readFile(rlqTemplatePath);
+  const bytes = await fs.readFile(rcpTemplatePath);
   const zip = new AdmZip(bytes);
 
   const headerEntries = zip.getEntries()
@@ -559,11 +607,10 @@ export async function buildRlqDocx(report) {
 
   updateXmlEntry(zip, 'word/document.xml', doc => {
     replacePlaceholders(doc, baseData);
-    expandTubeRows(doc, sd);
-    expandRlqCollaborators(doc, collabs);
-    expandProductRows(doc, sd);
-    embedPhotos(zip, doc, '{{testbodyphotos}}', corpoAssets);
-    embedPhotos(zip, doc, '{{systemphotos}}', tubAssets);
+    expandTubeRows(doc, sd, serviceType);
+    expandRcpCollaborators(doc, collabs);
+    embedPhotos(zip, doc, '{{countphotos}}', countAssets);
+    embedPhotos(zip, doc, '{{humidityphotos}}', humidAssets);
     embedSignature(zip, doc, signatureAsset);
   });
 
@@ -576,27 +623,28 @@ export async function buildRlqDocx(report) {
   return zip.toBuffer();
 }
 
-export async function saveRlqDocx(report) {
-  const bytes = await buildRlqDocx(report);
+export async function saveRcpDocx(report) {
+  const bytes = await buildRcpDocx(report);
   const sc = report.specialConditions || {};
   const sd = sc.serviceData || {};
   const equip = safePath(stringify(getField(sd, ['Equipamento(s)', 'Equipamento'])) || 'Equipamento');
   const sys = safePath(stringify(getField(sd, ['Sistema'])) || 'Sistema');
+  const serviceLabel = sc.serviceType === 'filtragem' ? 'Filtragem' : 'Flushing';
   const projectFolderName = safePath(`Missão ${report.project.code} - ${report.project.name}`);
-  const dir = path.join(env.uploadDir, projectFolderName, 'RLQ');
+  const dir = path.join(env.uploadDir, projectFolderName, 'RCPU');
   await fs.mkdir(dir, { recursive: true });
-  const fileName = safePath(`Missão ${report.project.code} - ${report.project.name} - RLQ ${reportNumber(report)} - ${equip} - ${sys}.docx`);
+  const fileName = safePath(`Missão ${report.project.code} - ${report.project.name} - RCPU ${reportNumber(report)} - ${serviceLabel} - ${equip} - ${sys}.docx`);
   const targetPath = path.join(dir, fileName);
   await fs.writeFile(targetPath, bytes);
   return {
     fileName,
     targetPath,
-    publicUrl: `/uploads/${encodeURIComponent(projectFolderName)}/RLQ/${encodeURIComponent(fileName)}`
+    publicUrl: `/uploads/${encodeURIComponent(projectFolderName)}/RCPU/${encodeURIComponent(fileName)}`
   };
 }
 
-export async function saveRlqPdf(report) {
-  const docx = await saveRlqDocx(report);
+export async function saveRcpPdf(report) {
+  const docx = await saveRcpDocx(report);
   const pdfFileName = docx.fileName.replace(/\.docx$/i, '.pdf');
   const pdfPath = path.join(path.dirname(docx.targetPath), pdfFileName);
   await convertWithWord(docx.targetPath, pdfPath);

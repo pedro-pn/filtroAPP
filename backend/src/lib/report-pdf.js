@@ -131,6 +131,25 @@ function stringifyValue(key, value, lookups) {
   return String(value);
 }
 
+function particleAnalysisText(fields, stage, lookups) {
+  const nas = stringifyValue(`Contagem ${stage} NAS`, getField(fields, [`Contagem ${stage} NAS`]), lookups);
+  const iso = stringifyValue(`Contagem ${stage} ISO`, getField(fields, [`Contagem ${stage} ISO`]), lookups);
+  const combined = [
+    nas ? `NAS ${nas}` : '',
+    iso ? `ISO ${iso}` : ''
+  ].filter(Boolean).join(' | ');
+
+  if (combined) return combined;
+
+  return stringifyValue(
+    `Contagem ${stage}`,
+    getField(fields, stage === 'inicial'
+      ? ['Contagem inicial', 'Classe ISO inicial', 'NAS inicial']
+      : ['Contagem final', 'Classe ISO final', 'NAS final']),
+    lookups
+  );
+}
+
 function collectLookupIds(report) {
   const bag = { unitIds: [], counterIds: [], manometerIds: [] };
   for (const service of report.services || []) {
@@ -205,9 +224,9 @@ function getServiceSummary(service, lookups) {
       return {
         ...common,
         statementOne: 'Análise inicial',
-        statementDataOne: stringifyValue('Contagem inicial', getField(fields, ['Contagem inicial', 'Classe ISO inicial', 'NAS inicial']), lookups),
+        statementDataOne: particleAnalysisText(fields, 'inicial', lookups),
         statementTwo: 'Análise final',
-        statementDataTwo: stringifyValue('Contagem final', getField(fields, ['Contagem final', 'Classe ISO final', 'NAS final']), lookups),
+        statementDataTwo: particleAnalysisText(fields, 'final', lookups),
         infoStatement: 'Óleo',
         info: stringifyValue('Tipo de óleo', getField(fields, ['Tipo de óleo']), lookups)
       };
@@ -215,9 +234,9 @@ function getServiceSummary(service, lookups) {
       return {
         ...common,
         statementOne: 'Análise inicial',
-        statementDataOne: stringifyValue('Contagem inicial', getField(fields, ['Contagem inicial', 'Classe ISO inicial', 'NAS inicial']), lookups),
+        statementDataOne: particleAnalysisText(fields, 'inicial', lookups),
         statementTwo: 'Análise final',
-        statementDataTwo: stringifyValue('Contagem final', getField(fields, ['Contagem final', 'Classe ISO final', 'NAS final']), lookups),
+        statementDataTwo: particleAnalysisText(fields, 'final', lookups),
         infoStatement: 'Volume de óleo',
         info: stringifyValue('Volume de óleo', getField(fields, ['Volume de óleo']), lookups)
       };

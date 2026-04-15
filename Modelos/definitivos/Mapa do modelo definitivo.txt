@@ -68,18 +68,26 @@ Limpeza química
 Flushing
 
 {{statementone}} - Análise inicial:
-{{statementdataone}} - contagem de partícula inicial
+{{statementdataone}} - Análise inicial em NAS e ISO, separadas da seguinte forma:
+NAS: [valor NAS inicial]
+ISO: [Valor ISO inicial]
 {{statementtwo}} - Análise final:
-{{statementdatatwo}} - Contagem de partícula final
+{{statementdatatwo}} - Análise final em NAS e ISO, separadas da seguinte forma:
+NAS: [valor NAS final]
+ISO: [Valor ISO final]
 {{infostatement}} - Óleo:
 {{info}} - óleo preenchido
 
 Filtragem
 
 {{statementone}} - Análise inicial:
-{{statementdataone}} - contagem de partícula inicial
+{{statementdataone}} - Análise inicial em NAS e ISO, separadas da seguinte forma:
+NAS: [valor NAS inicial]
+ISO: [Valor ISO inicial]
 {{statementtwo}} - Análise final:
-{{statementdatatwo}} - Contagem de partícula final
+{{statementdatatwo}} - Análise final em NAS e ISO, separadas da seguinte forma:
+NAS: [valor NAS final]
+ISO: [Valor ISO final]
 {{infostatement}} - Volume de óleo:
 {{info}} - volume preenchido
 
