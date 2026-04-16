@@ -36,7 +36,7 @@ router.post('/', asyncHandler(async (req, res) => {
   const ext = path.extname(data.fileName) || '';
   const safeName = `${Date.now()}-${randomUUID()}${ext}`;
 
-  let targetDir = env.uploadDir;
+  let targetDir = env.reportsDir;
 
   // Se o projectId for informado, salva direto na pasta do projeto
   if (data.projectId) {
@@ -47,7 +47,7 @@ router.post('/', asyncHandler(async (req, res) => {
       });
       if (project) {
         const folderName = safePathLocal(`Missão ${project.code} - ${project.name}`);
-        targetDir = path.join(env.uploadDir, folderName);
+        targetDir = path.join(env.reportsDir, folderName);
         await fs.mkdir(targetDir, { recursive: true });
       }
     } catch { /* fallback para pasta raiz */ }
@@ -56,8 +56,8 @@ router.post('/', asyncHandler(async (req, res) => {
   const targetPath = path.join(targetDir, safeName);
   await fs.writeFile(targetPath, Buffer.from(match[2], 'base64'));
 
-  // URL relativa ao uploadDir
-  const relativePath = path.relative(env.uploadDir, targetPath)
+  // URL relativa ao diretório de relatórios
+  const relativePath = path.relative(env.reportsDir, targetPath)
     .split(path.sep)
     .map(encodeURIComponent)
     .join('/');
@@ -66,7 +66,7 @@ router.post('/', asyncHandler(async (req, res) => {
     label: data.label,
     fileName: data.fileName,
     mimeType: data.mimeType,
-    url: `/uploads/${relativePath}`
+    url: `/relatorios/${relativePath}`
   });
 }));
 

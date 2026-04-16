@@ -239,7 +239,11 @@ async function getUploadAsset(source) {
   try {
     let fileName = source;
     if (/^https?:\/\//i.test(source)) {
-      fileName = decodeURIComponent(new URL(source).pathname.slice('/uploads/'.length));
+      const pathname = new URL(source).pathname;
+      if (pathname.startsWith('/relatorios/')) fileName = decodeURIComponent(pathname.slice('/relatorios/'.length));
+      else if (pathname.startsWith('/uploads/')) fileName = decodeURIComponent(pathname.slice('/uploads/'.length));
+    } else if (source.startsWith('/relatorios/')) {
+      fileName = decodeURIComponent(source.slice('/relatorios/'.length));
     } else if (source.startsWith('/uploads/')) {
       fileName = decodeURIComponent(source.slice('/uploads/'.length));
     }
@@ -511,7 +515,11 @@ function resolveUploadFilePath(source) {
   let fileName = source;
   try {
     if (/^https?:\/\//i.test(source)) {
-      fileName = decodeURIComponent(new URL(source).pathname.slice('/uploads/'.length));
+      const pathname = new URL(source).pathname;
+      if (pathname.startsWith('/relatorios/')) fileName = decodeURIComponent(pathname.slice('/relatorios/'.length));
+      else if (pathname.startsWith('/uploads/')) fileName = decodeURIComponent(pathname.slice('/uploads/'.length));
+    } else if (source.startsWith('/relatorios/')) {
+      fileName = decodeURIComponent(source.slice('/relatorios/'.length));
     } else if (source.startsWith('/uploads/')) {
       fileName = decodeURIComponent(source.slice('/uploads/'.length));
     }
@@ -531,7 +539,7 @@ function extractUrlBase(source) {
 function buildPhotoUrl(urlBase, projectFolder, subfolder, destName) {
   const encoded = [projectFolder, 'Registros Fotográficos', subfolder, destName]
     .map(s => encodeURIComponent(s)).join('/');
-  return (urlBase || '') + '/uploads/' + encoded;
+  return (urlBase || '') + '/relatorios/' + encoded;
 }
 
 export async function organizeRcpPhotos(report, projectFolderName) {
@@ -639,7 +647,7 @@ export async function saveRcpDocx(report) {
   return {
     fileName,
     targetPath,
-    publicUrl: `/uploads/${encodeURIComponent(projectFolderName)}/RCPU/${encodeURIComponent(fileName)}`
+    publicUrl: `/relatorios/${encodeURIComponent(projectFolderName)}/RCPU/${encodeURIComponent(fileName)}`
   };
 }
 

@@ -18,7 +18,8 @@ const appHtmlPath = path.resolve(__dirname, '../..', 'filtrovali_app_v4.html');
 
 const app = express();
 
-fs.mkdirSync(env.uploadDir, { recursive: true });
+fs.mkdirSync(env.assetsDir, { recursive: true });
+fs.mkdirSync(env.reportsDir, { recursive: true });
 
 app.use(cors({
   exposedHeaders: ['Content-Disposition']
@@ -27,7 +28,7 @@ app.use(express.json({ limit: '25mb' }));
 app.use(morgan('dev'));
 
 // Assinaturas exigem autenticação (token via header Bearer ou query param ?t=)
-app.use('/uploads/Assinaturas', async (req, res, next) => {
+const protectedSignatures = async (req, res, next) => {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim()
     || String(req.query.t || '');
   if (!token) return res.status(401).json({ error: 'Acesso negado.' });
@@ -43,9 +44,13 @@ app.use('/uploads/Assinaturas', async (req, res, next) => {
     return res.status(500).json({ error: 'Erro ao verificar sessao.' });
   }
   next();
-}, express.static(path.join(env.uploadDir, 'Assinaturas')));
+};
 
-app.use('/uploads', express.static(env.uploadDir));
+app.use('/assets', express.static(env.assetsDir));
+app.use('/relatorios/Assinaturas', protectedSignatures, express.static(path.join(env.reportsDir, 'Assinaturas')));
+app.use('/uploads/Assinaturas', protectedSignatures, express.static(path.join(env.reportsDir, 'Assinaturas')));
+app.use('/relatorios', express.static(env.reportsDir));
+app.use('/uploads', express.static(env.reportsDir));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true });

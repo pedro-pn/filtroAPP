@@ -23,25 +23,29 @@ async function moveSignatureFile(signatureImage, name) {
     if (/^https?:\/\//i.test(signatureImage)) {
       const u = new URL(signatureImage);
       // Já está em Assinaturas/ — nada a fazer
-      if (u.pathname.startsWith('/uploads/Assinaturas/')) return null;
+      if (u.pathname.startsWith('/relatorios/Assinaturas/') || u.pathname.startsWith('/uploads/Assinaturas/')) return null;
       urlBase = u.origin;
-      fileName = decodeURIComponent(u.pathname.slice('/uploads/'.length));
+      if (u.pathname.startsWith('/relatorios/')) fileName = decodeURIComponent(u.pathname.slice('/relatorios/'.length));
+      else if (u.pathname.startsWith('/uploads/')) fileName = decodeURIComponent(u.pathname.slice('/uploads/'.length));
+    } else if (signatureImage.startsWith('/relatorios/')) {
+      if (signatureImage.startsWith('/relatorios/Assinaturas/')) return null;
+      fileName = decodeURIComponent(signatureImage.slice('/relatorios/'.length));
     } else if (signatureImage.startsWith('/uploads/')) {
       if (signatureImage.startsWith('/uploads/Assinaturas/')) return null;
       fileName = decodeURIComponent(signatureImage.slice('/uploads/'.length));
     }
   } catch { return null; }
   if (!fileName) return null;
-  const srcPath = path.join(env.uploadDir, fileName);
+  const srcPath = path.join(env.reportsDir, fileName);
   if (!fsSync.existsSync(srcPath)) return null;
   const ext = path.extname(srcPath) || '.png';
   const destName = `Assinatura - ${safePath(name)}${ext}`;
-  const sigDir = path.join(env.uploadDir, 'Assinaturas');
+  const sigDir = path.join(env.reportsDir, 'Assinaturas');
   await fs.mkdir(sigDir, { recursive: true });
   const destPath = path.join(sigDir, destName);
   try {
     await fs.rename(srcPath, destPath);
-    const relPath = `/uploads/Assinaturas/${encodeURIComponent(destName)}`;
+    const relPath = `/relatorios/Assinaturas/${encodeURIComponent(destName)}`;
     return urlBase ? `${urlBase}${relPath}` : relPath;
   } catch { return null; }
 }
