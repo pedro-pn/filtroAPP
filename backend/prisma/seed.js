@@ -1,6 +1,7 @@
 import prismaPkg from '@prisma/client';
 
 import { hashPassword } from '../src/lib/password.js';
+import { normalizeCnpj } from '../src/lib/cnpj.js';
 
 const { PrismaClient, ReportType, UnitCategory, UserRole } = prismaPkg;
 
@@ -93,7 +94,9 @@ async function main() {
       code: 'refinaria',
       name: 'Refinaria XPTO - Fase 2',
       clientName: 'XPTO Energia',
-      clientCnpj: '12.345.678/0001-90',
+      clientCnpj: normalizeCnpj('12.345.678/0001-90'),
+      clientEmailPrimary: 'cliente.xpto@filtrovali.com',
+      clientEmailCc: ['obras.xpto@filtrovali.com'],
       contractCode: 'CT-2026-014',
       location: 'Macae/RJ',
       workdayHours: '09:00',
@@ -107,7 +110,9 @@ async function main() {
       code: 'plataforma',
       name: 'Plataforma P-52',
       clientName: 'Offshore Brasil',
-      clientCnpj: '22.456.789/0001-44',
+      clientCnpj: normalizeCnpj('22.456.789/0001-44'),
+      clientEmailPrimary: 'contato@offshorebrasil.com',
+      clientEmailCc: ['fiscal@offshorebrasil.com'],
       contractCode: 'P52-UTIL-88',
       location: 'Bacia de Campos',
       workdayHours: '09:00',
@@ -152,6 +157,7 @@ async function main() {
       name: 'Admin Gestor',
       role: UserRole.MANAGER,
       collaboratorId: null,
+      email: 'gestor@filtrovali.com',
       password: 'gestor123'
     },
     {
@@ -159,6 +165,7 @@ async function main() {
       name: 'Carlos Mendes',
       role: UserRole.COLLABORATOR,
       collaboratorId: carlos.id,
+      email: 'carlos@filtrovali.com',
       password: 'colab123'
     },
     {
@@ -166,7 +173,24 @@ async function main() {
       name: 'Joao Pereira',
       role: UserRole.COLLABORATOR,
       collaboratorId: joao.id,
+      email: 'joao@filtrovali.com',
       password: 'colab123'
+    },
+    {
+      username: normalizeCnpj('12.345.678/0001-90'),
+      name: 'XPTO Energia',
+      role: 'CLIENT',
+      collaboratorId: null,
+      email: 'cliente.xpto@filtrovali.com',
+      password: '123456'
+    },
+    {
+      username: normalizeCnpj('22.456.789/0001-44'),
+      name: 'Offshore Brasil',
+      role: 'CLIENT',
+      collaboratorId: null,
+      email: 'contato@offshorebrasil.com',
+      password: '123456'
     }
   ];
 
@@ -178,6 +202,7 @@ async function main() {
         name: user.name,
         role: user.role,
         collaboratorId: user.collaboratorId,
+        email: user.email,
         passwordHash,
         isActive: true
       },
@@ -186,6 +211,7 @@ async function main() {
         name: user.name,
         role: user.role,
         collaboratorId: user.collaboratorId,
+        email: user.email,
         passwordHash,
         isActive: true
       }

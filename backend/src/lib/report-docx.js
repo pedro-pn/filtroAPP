@@ -7,6 +7,7 @@ import AdmZip from 'adm-zip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import env from '../config/env.js';
+import { formatCnpj } from './cnpj.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -362,7 +363,7 @@ function buildDocxData(report) {
   return {
     missiontitle: `Missão ${report.project.code} - ${report.project.name}`,
     client: report.project.clientName || '',
-    cnpj: report.project.clientCnpj || '',
+    cnpj: formatCnpj(report.project.clientCnpj) || '',
     local: report.project.location || '',
     proposal: report.project.contractCode || '',
     rdo: reportNumber(report),

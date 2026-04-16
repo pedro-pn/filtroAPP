@@ -8,6 +8,7 @@ import { z } from 'zod';
 import asyncHandler from '../../lib/async-handler.js';
 import prisma from '../../lib/prisma.js';
 import env from '../../config/env.js';
+import { requireAuth, requireInternalUser, requireManager } from '../../middleware/auth.js';
 
 function safePath(value) {
   return String(value ?? '').replace(/[<>:"/\\|?*\n\r]/g, '_').trim();
@@ -51,6 +52,7 @@ async function moveSignatureFile(signatureImage, name) {
 }
 
 const router = Router();
+router.use(requireAuth);
 
 const schema = z.object({
   code: z.string().min(1),
@@ -61,12 +63,12 @@ const schema = z.object({
   isActive: z.boolean().default(true)
 });
 
-router.get('/', asyncHandler(async (_req, res) => {
+router.get('/', requireInternalUser, asyncHandler(async (_req, res) => {
   const items = await prisma.collaborator.findMany({ orderBy: { name: 'asc' } });
   res.json(items);
 }));
 
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', requireManager, asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
   const existing = await prisma.collaborator.findUnique({ where: { code: data.code } });
   if (existing && !existing.isActive) {
@@ -81,7 +83,7 @@ router.post('/', asyncHandler(async (req, res) => {
   res.status(201).json(item);
 }));
 
-router.put('/:id', asyncHandler(async (req, res) => {
+router.put('/:id', requireManager, asyncHandler(async (req, res) => {
   const data = schema.partial().parse(req.body);
   let item = await prisma.collaborator.update({ where: { id: req.params.id }, data });
   if (data.signatureImage !== undefined) {
@@ -91,7 +93,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.delete('/:id', asyncHandler(async (req, res) => {
+router.delete('/:id', requireManager, asyncHandler(async (req, res) => {
   await prisma.collaborator.update({ where: { id: req.params.id }, data: { isActive: false } });
   res.status(204).end();
 }));

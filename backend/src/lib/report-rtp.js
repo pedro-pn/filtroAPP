@@ -9,6 +9,7 @@ import AdmZip from 'adm-zip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import env from '../config/env.js';
+import { formatCnpj } from './cnpj.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -332,7 +333,7 @@ function buildRtpBaseData(report) {
   return {
     missiontitle: `Missão ${report.project.code} - ${report.project.name}`,
     client: safeText(report.project.clientName),
-    cnpj: safeText(report.project.clientCnpj),
+    cnpj: safeText(formatCnpj(report.project.clientCnpj)),
     local: safeText(report.project.location),
     proposal: safeText(report.project.contractCode),
     rtp: reportNumber(report),

@@ -21,7 +21,9 @@
       "Bash(node --input-type=module --eval \"import\\('./src/lib/report-rlq.js'\\).then\\(\\(\\)=>console.log\\('OK'\\)\\).catch\\(e=>console.error\\(e.message\\)\\)\")",
       "Bash(node --input-type=module --eval \"import\\('./src/routes/resources/reports.js'\\).then\\(\\(\\)=>console.log\\('OK'\\)\\).catch\\(e=>console.error\\(e.message,e.stack\\)\\)\")",
       "Bash(git rm *)",
-      "Bash(node --input-type=module --check)"
+      "Bash(node --input-type=module --check)",
+      "mcp__code-review-graph__get_architecture_overview_tool",
+      "mcp__code-review-graph__detect_changes_tool"
     ]
   },
   "enableAllProjectMcpServers": true,

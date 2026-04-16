@@ -46,3 +46,11 @@ export function requireManager(req, res, next) {
 
   next();
 }
+
+export function requireInternalUser(req, res, next) {
+  if (!req.auth || (req.auth.user.role !== 'MANAGER' && req.auth.user.role !== 'COLLABORATOR')) {
+    return res.status(403).json({ error: 'Acesso restrito a usuarios internos.' });
+  }
+
+  next();
+}

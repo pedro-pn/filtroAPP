@@ -60,6 +60,10 @@ app.get('/', (_req, res) => {
   res.sendFile(appHtmlPath);
 });
 
+app.get('/reset-password', (_req, res) => {
+  res.sendFile(appHtmlPath);
+});
+
 app.use('/api', apiRouter);
 
 app.use((err, _req, res, _next) => {

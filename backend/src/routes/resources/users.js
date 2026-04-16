@@ -3,7 +3,10 @@ import { UserRole } from '@prisma/client';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
+import env from '../../config/env.js';
 import { publicUser } from '../../lib/auth.js';
+import { buildClientAccessReminderEmailTemplate } from '../../lib/email-templates.js';
+import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { hashPassword } from '../../lib/password.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth, requireManager } from '../../middleware/auth.js';
@@ -13,6 +16,7 @@ const router = Router();
 const schema = z.object({
   username: z.string().min(1),
   name: z.string().min(1),
+  email: z.union([z.string().trim().email(), z.literal(''), z.null()]).optional(),
   password: z.string().min(6).optional(),
   role: z.nativeEnum(UserRole),
   isActive: z.boolean().default(true),
@@ -21,13 +25,46 @@ const schema = z.object({
 
 router.use(requireAuth, requireManager);
 
-router.get('/', asyncHandler(async (_req, res) => {
+router.get('/', asyncHandler(async (req, res) => {
+  const group = String(req.query.group || '').trim().toLowerCase();
+  const where = {};
+  if (group === 'internal') {
+    where.role = { in: [UserRole.MANAGER, UserRole.COLLABORATOR] };
+  } else if (group === 'client') {
+    where.role = UserRole.CLIENT;
+  }
+
   const users = await prisma.user.findMany({
+    where,
     include: { collaborator: true },
     orderBy: [{ role: 'asc' }, { name: 'asc' }]
   });
 
-  res.json(users.map(publicUser));
+  const clientUsers = users.filter(user => user.role === UserRole.CLIENT);
+  const linkedProjects = clientUsers.length
+    ? await prisma.project.findMany({
+        where: { clientCnpj: { in: clientUsers.map(user => user.username) } },
+        orderBy: [{ name: 'asc' }],
+        select: {
+          clientCnpj: true,
+          code: true,
+          name: true,
+          contractCode: true,
+          isActive: true
+        }
+      })
+    : [];
+
+  const projectsByCnpj = linkedProjects.reduce((acc, project) => {
+    if (!acc[project.clientCnpj]) acc[project.clientCnpj] = [];
+    acc[project.clientCnpj].push(project);
+    return acc;
+  }, {});
+
+  res.json(users.map(user => ({
+    ...publicUser(user),
+    linkedProjects: projectsByCnpj[user.username] || []
+  })));
 }));
 
 router.post('/', asyncHandler(async (req, res) => {
@@ -41,6 +78,7 @@ router.post('/', asyncHandler(async (req, res) => {
     data: {
       username: data.username,
       name: data.name,
+      email: data.email || null,
       passwordHash,
       role: data.role,
       isActive: data.isActive,
@@ -57,6 +95,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
   const payload = {
     ...(data.username !== undefined ? { username: data.username } : {}),
     ...(data.name !== undefined ? { name: data.name } : {}),
+    ...(data.email !== undefined ? { email: data.email || null } : {}),
     ...(data.role !== undefined ? { role: data.role } : {}),
     ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
     ...(data.collaboratorId !== undefined ? { collaboratorId: data.collaboratorId || null } : {}),
@@ -75,6 +114,45 @@ router.put('/:id', asyncHandler(async (req, res) => {
 router.delete('/:id', asyncHandler(async (req, res) => {
   await prisma.user.delete({ where: { id: req.params.id } });
   res.status(204).end();
+}));
+
+router.post('/:id/resend-client-access', asyncHandler(async (req, res) => {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: req.params.id }
+  });
+
+  if (user.role !== UserRole.CLIENT) {
+    return res.status(400).json({ error: 'Esta acao e exclusiva para contas CLIENT.' });
+  }
+
+  if (!user.email) {
+    return res.status(400).json({ error: 'A conta CLIENT nao possui e-mail principal cadastrado.' });
+  }
+
+  const projects = await prisma.project.findMany({
+    where: { clientCnpj: user.username },
+    orderBy: [{ name: 'asc' }],
+    select: { code: true, name: true, contractCode: true }
+  });
+
+  const missingMailerConfig = getMissingMailerConfig();
+  if (missingMailerConfig.length) {
+    return res.status(400).json({ error: `Configuracao SMTP ausente: ${missingMailerConfig.join(', ')}` });
+  }
+
+  const template = buildClientAccessReminderEmailTemplate({
+    clientName: user.name,
+    cnpj: user.username,
+    appUrl: env.appUrl,
+    projectCount: projects.length
+  });
+
+  await sendMail({
+    to: user.email,
+    ...template
+  });
+
+  res.json({ ok: true });
 }));
 
 export default router;

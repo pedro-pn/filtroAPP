@@ -3,10 +3,13 @@ import { ReportType } from '@prisma/client';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
+import { ensureClientAccountForProject } from '../../lib/client-account.js';
+import { normalizeCnpj } from '../../lib/cnpj.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth, requireManager } from '../../middleware/auth.js';
 
 const router = Router();
+const emailSchema = z.string().trim().email();
 
 const schema = z.object({
   code: z.string().min(1),
@@ -15,6 +18,8 @@ const schema = z.object({
   visibleToCollaborators: z.boolean().default(true),
   clientName: z.string().min(1),
   clientCnpj: z.string().min(1),
+  clientEmailPrimary: z.union([emailSchema, z.literal('')]).default(''),
+  clientEmailCc: z.array(emailSchema).default([]),
   contractCode: z.string().min(1),
   location: z.string().min(1),
   workdayHours: z.string().min(1).default('09:00'),
@@ -28,12 +33,39 @@ const schema = z.object({
   })).default([])
 });
 
+function normalizeProjectInput(data) {
+  const normalizedCnpj = normalizeCnpj(data.clientCnpj);
+  if (!normalizedCnpj || normalizedCnpj.length !== 14) {
+    throw new z.ZodError([{
+      code: z.ZodIssueCode.custom,
+      path: ['clientCnpj'],
+      message: 'CNPJ invalido. Informe 14 digitos.'
+    }]);
+  }
+
+  const primary = String(data.clientEmailPrimary || '').trim().toLowerCase();
+  const clientEmailCc = Array.from(new Set((data.clientEmailCc || [])
+    .map(email => String(email || '').trim().toLowerCase())
+    .filter(Boolean)
+    .filter(email => email !== primary)));
+
+  return {
+    ...data,
+    clientCnpj: normalizedCnpj,
+    clientEmailPrimary: primary,
+    clientEmailCc
+  };
+}
+
 router.get('/', requireAuth, asyncHandler(async (req, res) => {
   const activeParam = req.query.active;
   const where = {};
   if (req.auth.user.role === 'MANAGER') {
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
+  } else if (req.auth.user.role === 'CLIENT') {
+    where.isActive = true;
+    where.clientCnpj = req.auth.user.username;
   } else {
     const collaboratorId = req.auth.user.collaboratorId;
     where.isActive = true;
@@ -53,33 +85,61 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 router.post('/', requireAuth, requireManager, asyncHandler(async (req, res) => {
-  const data = schema.parse(req.body);
+  const data = normalizeProjectInput(schema.parse(req.body));
   const { reportSequences, ...projectData } = data;
-  const item = await prisma.project.create({
-    data: {
-      ...projectData,
-      reportSequences: {
-        create: reportSequences
+  const item = await prisma.$transaction(async tx => {
+    const created = await tx.project.create({
+      data: {
+        ...projectData,
+        reportSequences: {
+          create: reportSequences
+        }
+      },
+      include: {
+        operator: true,
+        reportSequences: true
       }
-    },
-    include: {
-      operator: true,
-      reportSequences: true
-    }
+    });
+    await ensureClientAccountForProject(tx, created);
+    return created;
   });
   res.status(201).json(item);
 }));
 
 router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) => {
-  const data = schema.partial().parse(req.body);
+  const parsed = schema.partial().parse(req.body);
+  let data = parsed;
+  if (parsed.clientCnpj !== undefined || parsed.clientEmailPrimary !== undefined || parsed.clientEmailCc !== undefined) {
+    const existingProject = await prisma.project.findUniqueOrThrow({
+      where: { id: req.params.id },
+      select: {
+        clientCnpj: true,
+        clientEmailPrimary: true,
+        clientEmailCc: true
+      }
+    });
+    data = normalizeProjectInput({
+      ...parsed,
+      clientCnpj: parsed.clientCnpj ?? existingProject.clientCnpj,
+      clientEmailPrimary: parsed.clientEmailPrimary ?? existingProject.clientEmailPrimary,
+      clientEmailCc: parsed.clientEmailCc ?? existingProject.clientEmailCc
+    });
+  }
   const { reportSequences, ...projectData } = data;
 
   const item = await prisma.$transaction(async tx => {
+    const previousProject = await tx.project.findUniqueOrThrow({
+      where: { id: req.params.id },
+      select: {
+        clientCnpj: true,
+        clientEmailPrimary: true
+      }
+    });
     if (reportSequences) {
       await tx.projectReportSeq.deleteMany({ where: { projectId: req.params.id } });
     }
 
-    return tx.project.update({
+    const updated = await tx.project.update({
       where: { id: req.params.id },
       data: {
         ...projectData,
@@ -96,6 +156,8 @@ router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) =>
         reportSequences: true
       }
     });
+    await ensureClientAccountForProject(tx, updated, { previousProject });
+    return updated;
   });
 
   res.json(item);

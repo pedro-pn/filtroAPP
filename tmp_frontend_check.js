@@ -1,439 +1,4 @@
-<!doctype html>
-<html lang="pt-BR">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<title>Filtrovali RDO</title>
-</head>
-<body>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{--g:#30503a;--gl:#3d6449;--gd:#243d2c;--bl:#11437e;--rd:#c81519;--pu:#9b93a8;--bg:#f4f5f4;--wh:#fff;--tx:#1a1a1a;--mu:#6b7280;--br:#d1d5db;--r:10px;--rs:6px}
-body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px}
-.shell{max-width:420px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;background:var(--bg)}
-.screen{display:none;flex-direction:column;flex:1}.screen.active{display:flex}
-.topbar{background:var(--g);color:#fff;padding:14px 16px 12px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
-.topbar-brand{display:flex;flex-direction:column;gap:2px}
-.topbar-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
-.tb-title{font-size:18px;font-weight:700}.tb-sub{font-size:11px;opacity:.75}
-.tb-step{margin-left:auto;background:rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;transition:background .15s,color .15s,transform .15s}
-.tb-step:hover{background:rgba(255,255,255,.28);color:#fff;transform:translateY(-1px)}
-.pbar{height:3px;background:rgba(255,255,255,.25)}.pfill{height:100%;background:#fff;border-radius:2px;transition:width .3s}
-.scroll{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
-.card{background:var(--wh);border-radius:var(--r);border:.5px solid var(--br);padding:14px}
-.sec{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--g);margin-bottom:12px;display:flex;align-items:center;gap:6px}
-.sec::before{content:'';display:inline-block;width:3px;height:13px;background:var(--g);border-radius:2px}
-.fg{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}.fg:last-child{margin-bottom:0}
-label{font-size:12px;font-weight:500;color:var(--mu)}
-input[type=text],input[type=date],input[type=time],input[type=number],select,textarea{width:100%;border:1px solid var(--br);border-radius:var(--rs);padding:9px 11px;font-size:14px;background:#fafafa;color:var(--tx);outline:none;transition:border .15s}
-input:focus,select:focus,textarea:focus{border-color:var(--g);background:#fff}
-textarea{resize:none;min-height:72px}
-.r2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.r3{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}
-.tog-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:.5px solid var(--bg)}.tog-row:last-child{border-bottom:none}
-.tog-lbl{font-size:13px;font-weight:500}
-.tog{position:relative;width:40px;height:22px}.tog input{opacity:0;width:0;height:0}
-.tog-sl{position:absolute;inset:0;background:#cbd5e1;border-radius:22px;cursor:pointer;transition:.2s}
-.tog-sl::after{content:'';position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:3px;left:3px;transition:.2s}
-.tog input:checked+.tog-sl{background:var(--g)}.tog input:checked+.tog-sl::after{transform:translateX(18px)}
-.collapse{display:none;border-radius:var(--rs);padding:12px;margin-top:10px;border:1px solid #d4e4d8;background:#f8faf8}.collapse.open{display:block}
-.sub-card{background:#f4f9f5;border:1px solid #c8dece;border-radius:var(--rs);padding:12px;margin-top:8px;display:flex;flex-direction:column;gap:10px}
-.rtag-grp{display:flex;gap:8px}
-.rtag{flex:1;text-align:center;padding:9px 8px;border:1.5px solid var(--br);border-radius:var(--rs);font-size:13px;font-weight:500;cursor:pointer;transition:.15s;background:#fafafa;color:var(--mu);user-select:none}
-.rtag.yes{border-color:var(--g);background:#f0f7f2;color:var(--gd);font-weight:600}
-.rtag.no{border-color:var(--rd);background:#fff0f0;color:var(--rd);font-weight:600}
-.chk-grp{display:flex;flex-direction:column;gap:8px}
-.chk-item{display:flex;align-items:center;gap:8px;cursor:pointer;padding:7px 10px;border-radius:var(--rs);border:1px solid var(--br);background:#fafafa;transition:.15s}
-.chk-item:has(input:checked){border-color:var(--g);background:#f0f7f2}
-.chk-item input{accent-color:var(--g);width:15px;height:15px;flex-shrink:0}.chk-item span{font-size:13px}
-.tag-list{display:flex;flex-wrap:wrap;gap:6px}
-.tag{background:#f0f7f2;border:1px solid #c3ddc9;color:var(--gd);border-radius:20px;padding:4px 11px;font-size:12px;cursor:pointer;transition:.15s}
-.tag.sel{background:var(--g);color:#fff;border-color:var(--g)}
-.tube-add{display:flex;align-items:center;gap:6px;color:var(--g);font-size:12px;font-weight:600;cursor:pointer;padding:6px 0}
-.svc-card{background:#fff;border-radius:var(--r);border:1.5px solid var(--br);overflow:hidden}
-.svc-hdr{background:var(--g);color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
-.svc-title{font-size:13px;font-weight:600}
-.svc-badge{background:rgba(255,255,255,.2);border-radius:20px;padding:2px 9px;font-size:11px}
-.svc-remove{background:rgba(200,21,25,.7);color:#fff;border:none;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer}
-.svc-remove:hover{background:var(--rd)}
-.svc-body{padding:14px;display:flex;flex-direction:column;gap:12px}
-.ongoing-blk{background:#fffbeb;border:1.5px solid #f59e0b;border-radius:var(--r);padding:14px}
-.ongoing-title{font-size:12px;font-weight:700;color:#92400e;margin-bottom:10px}
-.ongoing-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#fff;border-radius:var(--rs);border:1px solid #fcd34d;margin-bottom:8px;cursor:pointer}
-.ongoing-item:last-child{margin-bottom:0}
-.ongoing-item-name{font-size:13px;font-weight:600}.ongoing-item-sub{font-size:11px;color:var(--mu);margin-top:2px}
-.ongoing-badge{background:#f59e0b;color:#fff;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;white-space:nowrap}
-.add-svc-btn{display:flex;align-items:center;justify-content:center;gap:8px;background:var(--wh);border:1.5px dashed var(--g);border-radius:var(--r);padding:14px;color:var(--g);font-weight:600;font-size:14px;cursor:pointer;width:100%}
-.add-svc-btn:hover{background:#f0f7f2}
-.stype-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.stype-btn{background:#fff;border:1.5px solid var(--br);border-radius:var(--r);padding:14px 12px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;transition:.15s;text-align:center}
-.stype-btn:hover{border-color:var(--g);background:#f0f7f2}
-.stype-icon{font-size:22px}.stype-name{font-size:12px;font-weight:600}
-.modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center}
-.modal-ov.open{display:flex}
-.modal-sh{background:#fff;border-radius:18px 18px 0 0;padding:20px 16px 32px;width:100%;max-width:420px;max-height:85vh;overflow-y:auto}
-.modal-handle{width:36px;height:4px;background:var(--br);border-radius:2px;margin:0 auto 16px}
-.modal-title{font-size:16px;font-weight:700;margin-bottom:16px;color:var(--g)}
-.upload-z{border:1.5px dashed var(--br);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;background:#fafafa}
-.upload-z-icon{font-size:22px}.upload-z-text{font-size:12px;color:var(--mu);text-align:center}.upload-z-btn{font-size:12px;font-weight:600;color:var(--g)}
-.bbar{background:#fff;border-top:.5px solid var(--br);padding:12px 16px;display:flex;gap:10px}
-.btnp{flex:1;background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:13px;font-size:14px;font-weight:600;cursor:pointer}
-.btnp:hover{background:var(--gd)}
-.btns{flex:1;background:#fff;color:var(--tx);border:1px solid var(--br);border-radius:var(--r);padding:13px;font-size:14px;font-weight:500;cursor:pointer}
-.colab-tag{display:flex;align-items:center;justify-content:space-between;padding:9px 11px;background:#f0f7f2;border-radius:var(--rs);border:1px solid #c3ddc9;margin-bottom:6px}
-.colab-name{font-size:13px;font-weight:500;color:var(--gd)}.colab-rm{color:var(--rd);font-size:16px;cursor:pointer;line-height:1}
-.cadd{display:flex;gap:8px;margin-top:8px}.cadd select{flex:1}
-.cadd-btn{background:var(--g);color:#fff;border:none;border-radius:var(--rs);padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
-.etapa-add-row{display:flex;gap:8px;margin-top:6px}.etapa-add-row input{flex:1}
-.etapa-add-btn{background:var(--g);color:#fff;border:none;border-radius:var(--rs);padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
-.etapa-custom{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--rs);border:1px solid var(--g);background:#f0f7f2}
-.etapa-custom span{font-size:13px;flex:1;color:var(--gd)}.etapa-custom-rm{color:var(--rd);font-size:15px;cursor:pointer}
-.pre{background:#fffde7!important;border-color:#f59e0b!important}
-.pre-badge{display:inline-block;background:#fef3c7;color:#92400e;border-radius:20px;padding:1px 8px;font-size:10px;font-weight:600;margin-left:6px}
-.num-unit{display:flex;gap:8px}.num-unit input{flex:2}.num-unit select{flex:1}
-.req{color:var(--rd);font-weight:700}
-.field-invalid{border-color:var(--rd)!important;background:#fff5f5!important}
-.invalid-group .tag-list,.invalid-group .chk-grp,.invalid-group .rtag-grp,#colab-list.field-invalid{border:1px solid #f3b3b5;border-radius:var(--rs);padding:8px;background:#fff5f5}
-.login-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:32px 24px;gap:24px}
-.login-circle{width:220px;max-width:100%;display:flex;align-items:center;justify-content:center;overflow:visible;padding:0;background:transparent;border-radius:0}
-.login-logo{width:100%;height:auto;display:block}
-.header-logo{height:28px;width:auto;max-width:180px;display:block;object-fit:contain}
-.home-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 16px}
-.ha{background:#fff;border-radius:var(--r);border:.5px solid var(--br);padding:16px 14px;display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:.15s}
-.ha:hover{border-color:var(--g)}
-.ha.prim{background:var(--g);color:#fff;grid-column:1/-1;flex-direction:row;align-items:center}
-.ha-icon{font-size:24px}.ha-title{font-size:13px;font-weight:600}.ha-sub{font-size:11px;color:var(--mu)}
-.ha.prim .ha-title{font-size:15px}.ha.prim .ha-sub{color:rgba(255,255,255,.75)}
 
-/* ── PAINEL GESTOR ── */
-.nav-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;background:#fff;border-bottom:.5px solid var(--br);padding:10px 12px}
-.nav-tab{min-width:0;padding:11px 8px;text-align:center;font-size:12px;font-weight:600;color:var(--mu);cursor:pointer;border:1px solid #d7dfda;border-radius:10px;background:#f9fbfa;transition:background .15s,color .15s,border-color .15s,transform .15s}
-.nav-tab:hover{background:#eef5f0;color:var(--g);border-color:#b7cdbd;transform:translateY(-1px)}
-.nav-tab.active{color:#fff;border-color:var(--g);background:var(--g);font-weight:700}
-.logout-chip{background:rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;margin-left:auto;transition:background .15s,color .15s,transform .15s}
-.logout-chip:hover{background:rgba(255,255,255,.28);color:#fff;transform:translateY(-1px)}
-.badge{display:inline-flex;align-items:center;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600}
-.badge-pen{background:#fef3c7;color:#92400e}
-.badge-rev{background:#dbeafe;color:#1e40af}
-.badge-ok{background:#d1fae5;color:#065f46}
-.badge-rej{background:#fee2e2;color:#991b1b}
-.rel-item{background:#fff;border-radius:var(--r);border:.5px solid var(--br);padding:12px 14px;display:flex;align-items:flex-start;gap:12px;cursor:pointer;transition:.15s}
-.rel-item:hover{border-color:var(--g)}
-.admin-grid{display:grid;grid-template-columns:1fr;gap:12px}
-.admin-form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.admin-form .fg{margin-bottom:0}
-.admin-form .full{grid-column:1/-1}
-.admin-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-.admin-item{background:#f8faf8;border:1px solid #d4e4d8;border-radius:var(--rs);padding:10px 12px}
-.admin-item-title{font-size:13px;font-weight:600;color:var(--g)}
-.admin-item-sub{font-size:11px;color:var(--mu);line-height:1.5;margin-top:3px}
-.admin-actions{display:flex;justify-content:flex-end;margin-top:8px}
-.mini-btn{background:var(--g);color:#fff;border:none;border-radius:var(--rs);padding:9px 12px;font-size:12px;font-weight:600;cursor:pointer}
-.mini-btn.alt{background:#fff;color:var(--tx);border:1px solid var(--br)}
-.admin-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
-.admin-toolbar .sec{margin-bottom:0}
-.admin-card{margin-bottom:10px}
-.admin-inline-form{background:#f8faf8;border:1px solid #d4e4d8;border-radius:var(--rs);padding:12px;margin-bottom:12px}
-.admin-inline-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.admin-inline-grid .full{grid-column:1/-1}
-.rel-icon{width:40px;height:40px;border-radius:var(--rs);background:#f0f7f2;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
-.report-type-group{margin-bottom:4px}
-.report-type-header{display:flex;align-items:center;gap:8px;padding:8px 2px 6px 2px;cursor:pointer;user-select:none;border-bottom:.5px solid #e5e7eb}
-.report-type-header:hover .rtype-count{color:var(--g)}
-.rtype-badge{display:inline-flex;align-items:center;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;letter-spacing:.5px}
-.rtype-RDO{background:#d1fae5;color:#065f46}
-.rtype-RTP{background:#fee2e2;color:#991b1b}
-.rtype-RLQ,.rtype-RCP,.rtype-RCPU,.rtype-RLM,.rtype-RLI,.rtype-RLF{background:#dbeafe;color:#1e40af}
-.rtype-count{font-size:12px;color:var(--mu);flex:1}
-.rtype-chevron{font-size:12px;color:var(--mu)}
-.report-type-list{display:flex;flex-direction:column;gap:8px;padding-top:8px}
-.equip-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.rel-info{flex:1;min-width:0}
-.rel-name{font-size:13px;font-weight:600}
-.rel-meta{font-size:11px;color:var(--mu);margin-top:3px;line-height:1.5}
-.det-section{background:#f8faf8;border-radius:var(--rs);border:1px solid #d4e4d8;padding:12px;margin-top:8px}
-.det-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:.5px solid #e5e7eb;font-size:13px}
-.det-row:last-child{border-bottom:none}
-.det-label{color:var(--mu);font-size:12px}
-.det-val{font-weight:500;text-align:right;max-width:60%}
-.action-bar{display:flex;gap:8px;margin-top:14px}
-.btn-approve{flex:1;background:var(--g);color:#fff;border:none;border-radius:var(--rs);padding:11px;font-size:13px;font-weight:600;cursor:pointer}
-.btn-reject{flex:1;background:#fff;color:var(--rd);border:1.5px solid var(--rd);border-radius:var(--rs);padding:11px;font-size:13px;font-weight:600;cursor:pointer}
-.btn-pdf{flex:1;background:var(--bl);color:#fff;border:none;border-radius:var(--rs);padding:11px;font-size:13px;font-weight:600;cursor:pointer}
-.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-.stat-card{background:#fff;border-radius:var(--r);border:.5px solid var(--br);padding:12px 14px;text-align:center}
-.stat-num{font-size:24px;font-weight:700;color:var(--g)}
-.stat-lbl{font-size:11px;color:var(--mu);margin-top:3px}
-.gestor-badge{background:rgba(255,255,255,.2);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600}
-.detail-screen-content{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
-.svc-mini{background:#fff;border-radius:var(--rs);border:.5px solid var(--br);overflow:hidden;margin-bottom:8px}
-.svc-mini-hdr{background:var(--g);color:#fff;padding:8px 12px;font-size:12px;font-weight:600}
-.svc-mini-body{padding:10px 12px;font-size:12px;color:var(--mu);line-height:1.7}
-.reject-input{width:100%;border:1px solid var(--rd);border-radius:var(--rs);padding:9px 11px;font-size:13px;color:var(--tx);background:#fff9f9;outline:none;resize:none;min-height:72px;margin-top:8px;display:none}
-.app-toast{position:fixed;top:14px;left:50%;transform:translate(-50%,-12px);min-width:220px;max-width:calc(100vw - 32px);background:rgba(36,61,44,.96);color:#fff;padding:12px 14px;border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.18);font-size:13px;font-weight:600;line-height:1.35;z-index:500;opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease}
-.app-toast.show{opacity:1;transform:translate(-50%,0)}
-.app-toast.error{background:rgba(200,21,25,.96)}
-.ongoing-proj{display:flex;flex-direction:column;gap:8px}
-.ongoing-actions{display:flex;align-items:center;gap:8px}
-.ongoing-delete{border:1px solid #ef9a9a;background:#fff4f4;color:#b42318;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
-.ongoing-delete:hover{background:#ffe9e9}
-</style>
-
-<div id="app-toast" class="app-toast"></div>
-<div class="shell">
-
-<!-- LOGIN -->
-<div class="screen active" id="s-login">
-<div class="login-wrap">
-  <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
-    <div class="login-circle"><img class="login-logo" id="login-logo-img" alt="Filtrovali"></div>
-    <div style="font-size:13px;color:var(--mu);text-align:center">Sistema de relatórios de serviços</div>
-  </div>
-  <div style="width:100%;display:flex;flex-direction:column;gap:12px">
-    <div class="fg"><label>Usuário</label>
-      <select id="login-user">
-        <option value="">Selecionar...</option>
-        <option value="colab">Carlos Mendes (colaborador)</option>
-        <option value="gestor">Admin — Gestor</option>
-      </select>
-    </div>
-    <div class="fg"><label>Senha</label><input type="text" value="••••••"></div>
-    <button style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px" onclick="fazerLogin()">Entrar</button>
-  </div>
-</div>
-</div>
-<script>
-(function(){
-  function applyBrandLogos(){
-    var loginLogo=document.getElementById('login-logo-img');
-    if(loginLogo){
-      loginLogo.src=(location.protocol==='file:'?'backend/assets/Logo/LOGO_LOGIN.png':'/assets/Logo/LOGO_LOGIN.png');
-    }
-    var headerLogoSrc=(location.protocol==='file:'?'backend/assets/Logo/LOGO_HEADER.png':'/assets/Logo/LOGO_HEADER.png');
-    ['home-header-logo','gestor-header-logo'].forEach(function(id){
-      var img=document.getElementById(id);
-      if(img) img.src=headerLogoSrc;
-    });
-  }
-  applyBrandLogos();
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded', applyBrandLogos, {once:true});
-  }
-  var login=document.getElementById('s-login');
-  if(!login)return;
-  var panel=login.querySelector('.login-wrap > div:last-child');
-  if(!panel)return;
-  panel.dataset.loginPatched='true';
-  panel.innerHTML='<div class="fg"><label>Usuário</label><input type="text" id="login-user" list="login-user-history" placeholder="Ex.: carlos ou gestor"><datalist id="login-user-history"></datalist></div><div class="fg"><label>Senha</label><input type="password" id="login-password" placeholder="Digite a senha" autocomplete="current-password"></div><div id="login-memory-box" style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--mu)"><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-user" style="width:auto">Lembrar usuário</label><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-pass" style="width:auto">Lembrar senha</label></div><div id="login-seed-help" style="font-size:11px;color:var(--mu);line-height:1.5">Acesso inicial: gestor / gestor123, carlos / colab123, joao / colab123.</div><div id="login-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><button type="button" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px" onclick="fazerLogin()">Entrar</button>';
-})();
-</script>
-
-<!-- HOME COLABORADOR -->
-<div class="screen" id="s-home">
-  <div class="topbar">
-    <div class="topbar-brand"><img class="header-logo" id="home-header-logo" alt="Filtrovali"><div class="tb-sub">Carlos Mendes</div></div>
-    <div class="logout-chip" onclick="go('s-login')">Sair</div>
-  </div>
-  <div style="padding:16px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:14px">
-    <div style="padding:4px 0">
-      <div style="font-size:20px;font-weight:700;color:var(--g)">Bom dia, Carlos 👋</div>
-      <div style="font-size:13px;color:var(--mu);margin-top:2px">Quarta-feira, 8 de abril de 2026</div>
-    </div>
-    <div class="home-actions">
-      <div class="ha prim" onclick="startNewReport()">
-        <div class="ha-icon">📋</div>
-        <div><div class="ha-title">Novo relatório</div><div class="ha-sub">Registrar serviços do dia</div></div>
-      </div>
-      <div class="ha"><div class="ha-icon">📁</div><div class="ha-title">Meus relatórios</div><div class="ha-sub">Histórico</div></div>
-      <div class="ha"><div class="ha-icon">⏳</div><div class="ha-title">Em andamento</div><div class="ha-sub" id="home-ongoing-sub">0 serviços ativos</div></div>
-    </div>
-  </div>
-</div>
-
-<!-- CABEÇALHO -->
-<div class="screen" id="s-cabecalho">
-  <div class="topbar">
-    <div style="cursor:pointer;font-size:18px;margin-right:4px" onclick="voltarDoRelatorio()">←</div>
-    <div><div class="tb-title">Novo relatório</div><div class="tb-sub">Cabeçalho</div></div>
-    <div class="tb-step">1 / 3</div>
-  </div>
-  <div class="pbar"><div class="pfill" style="width:33%"></div></div>
-  <div class="scroll">
-    <div class="card">
-      <div class="sec">Identificação</div>
-      <div class="fg"><label>Projeto <span class="req">*</span></label>
-        <select id="proj-sel" data-required="true" data-label="Projeto" onchange="setProjeto(this.value)">
-          <option value="">Selecionar projeto...</option>
-          <option value="refinaria">Refinaria XPTO — Fase 2</option>
-          <option value="plataforma">Plataforma P-52</option>
-          <option value="petroquimica">Petroquímica Alpha</option>
-        </select>
-      </div>
-      <div class="fg"><label>Data do relatório <span class="req">*</span></label><input type="date" id="hdr-data" data-required="true" data-label="Data do relatório"></div>
-    </div>
-    <div class="card">
-      <div class="sec">Horários</div>
-      <div class="r2">
-        <div class="fg"><label>Chegada <span class="req">*</span></label><input type="time" id="hdr-chegada" value="07:30" data-required="true" data-label="Chegada"></div>
-        <div class="fg"><label>Saída <span class="req">*</span></label><input type="time" id="hdr-saida" value="17:30" data-required="true" data-label="Saída"></div>
-      </div>
-      <div class="fg"><label>Intervalo de almoço <span class="req">*</span></label>
-        <select id="hdr-intervalo" data-required="true" data-label="Intervalo de almoço"><option>Sem intervalo</option><option>30 min</option><option selected>1 hora</option><option>1h30</option><option>2 horas</option></select>
-      </div>
-    </div>
-    <div class="card">
-      <div class="sec">Equipe diurna</div>
-      <div class="fg"><label>Número de colaboradores <span class="req">*</span></label><input type="number" id="hdr-qtd-colab" value="3" min="1" data-required="true" data-label="Número de colaboradores"></div>
-      <div class="fg"><label>Colaboradores <span class="req">*</span></label>
-        <div id="colab-list" data-required-group="list" data-label="Colaboradores">
-          <div class="colab-tag"><span class="colab-name">Carlos Mendes</span><span class="colab-rm" onclick="this.parentElement.remove()">×</span></div>
-          <div class="colab-tag"><span class="colab-name">João Pereira</span><span class="colab-rm" onclick="this.parentElement.remove()">×</span></div>
-        </div>
-        <div class="cadd">
-          <select id="cadd-sel"><option>Adicionar...</option><option>Ana Souza</option><option>Pedro Lima</option><option>Marcos Silva</option></select>
-          <button class="cadd-btn" onclick="addColab()">+ Add</button>
-        </div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="sec">Condições especiais</div>
-      <div class="tog-row"><span class="tog-lbl">Houve standby?</span>
-        <label class="tog"><input type="checkbox" onchange="tog('standby',this)"><span class="tog-sl"></span></label>
-      </div>
-      <div id="standby" class="collapse">
-        <div class="r2">
-          <div class="fg"><label>Tempo total</label><input type="time" step="60" min="00:00" max="23:59" placeholder="02:00"></div>
-          <div class="fg"><label>Motivo</label><input type="text" placeholder="Motivo..."></div>
-        </div>
-      </div>
-      <div class="tog-row"><span class="tog-lbl">Houve turno noturno?</span>
-        <label class="tog"><input type="checkbox" onchange="tog('noturno',this)"><span class="tog-sl"></span></label>
-      </div>
-      <div id="noturno" class="collapse">
-        <div class="r2">
-          <div class="fg"><label>Início</label><input type="time"></div>
-          <div class="fg"><label>Término</label><input type="time"></div>
-        </div>
-        <div class="fg" style="margin-top:10px"><label>Colaboradores noturnos</label>
-          <select><option>Selecionar...</option><option>Ana Souza</option><option>Pedro Lima</option></select>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="bbar">
-    <button class="btns" onclick="voltarDoRelatorio()">Cancelar</button>
-    <button class="btnp" onclick="goServicos()">Próximo →</button>
-  </div>
-</div>
-
-<!-- SERVIÇOS -->
-<div class="screen" id="s-servicos">
-  <div class="topbar">
-    <div style="cursor:pointer;font-size:18px;margin-right:4px" onclick="go('s-cabecalho')">←</div>
-    <div><div class="tb-title">Serviços</div><div class="tb-sub" id="svc-sub">—</div></div>
-    <div class="tb-step">2 / 3</div>
-  </div>
-  <div class="pbar"><div class="pfill" style="width:66%"></div></div>
-  <div class="scroll">
-    <div id="ongoing-blk"></div>
-    <div id="svc-cards"></div>
-    <button class="add-svc-btn" onclick="openModal()">＋ Adicionar serviço</button>
-  </div>
-  <div class="bbar">
-    <button class="btns" onclick="go('s-cabecalho')">← Voltar</button>
-    <button class="btnp" onclick="goFinal()">Próximo →</button>
-  </div>
-</div>
-
-<!-- FINAL -->
-<div class="screen" id="s-final">
-  <div class="topbar">
-    <div style="cursor:pointer;font-size:18px;margin-right:4px" onclick="go('s-servicos')">←</div>
-    <div><div class="tb-title">Finalização</div><div class="tb-sub" id="final-sub">—</div></div>
-    <div class="tb-step">3 / 3</div>
-  </div>
-  <div class="pbar"><div class="pfill" style="width:100%"></div></div>
-  <div class="scroll">
-    <div class="card">
-      <div class="sec">Horas extras</div>
-      <div id="overtime-summary" style="font-size:12px;color:var(--mu);line-height:1.7;margin-bottom:10px">Nenhuma hora extra identificada.</div>
-      <div class="fg" id="final-overtime-wrap" style="display:none"><label>Justificativa</label><textarea id="final-overtime" placeholder="Descreva o motivo das horas extras..."></textarea></div>
-    </div>
-    <div class="card">
-      <div class="sec">Atividades do dia</div>
-      <div class="fg"><label>Descrição geral</label><textarea id="final-description" style="min-height:100px" placeholder="Descreva as atividades realizadas..."></textarea></div>
-    </div>
-    <div class="card">
-      <div class="sec">Fotos de registro</div>
-      <div class="upload-z"><div class="upload-z-icon">📷</div><div class="upload-z-text">Fotos gerais do dia</div><div class="upload-z-btn">Adicionar fotos</div></div>
-    </div>
-    <div class="card" style="background:#f0f7f2;border-color:#c3ddc9">
-      <div style="font-size:13px;font-weight:600;color:var(--g);margin-bottom:6px">Resumo</div>
-      <div style="font-size:12px;color:var(--mu);line-height:1.8" id="resumo-txt">—</div>
-    </div>
-  </div>
-  <div class="bbar">
-    <button class="btns" onclick="go('s-servicos')">← Voltar</button>
-    <button class="btnp" onclick="enviar()">Enviar relatório ✓</button>
-  </div>
-</div>
-
-<!-- ══ PAINEL GESTOR ══ -->
-<div class="screen" id="s-gestor">
-  <div class="topbar">
-    <div class="topbar-brand"><img class="header-logo" id="gestor-header-logo" alt="Filtrovali"><div class="tb-sub" id="gestor-greeting-sub">Filtrovali</div></div>
-    <div class="topbar-actions">
-      <div class="gestor-badge">Admin</div>
-      <div class="logout-chip" onclick="go('s-login')">Sair</div>
-    </div>
-  </div>
-  <div class="nav-tabs">
-    <div class="nav-tab active" onclick="switchGestorTab('pendentes',this)">Pendentes <span id="cnt-pen" style="background:#f59e0b;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px">3</span></div>
-    <div class="nav-tab" onclick="switchGestorTab('aprovados',this)">Aprovados</div>
-    <div class="nav-tab" onclick="switchGestorTab('projetos',this)">Projetos</div>
-    <div class="nav-tab" onclick="switchGestorTab('arquivados',this)">Arquivados</div>
-    <div class="nav-tab" onclick="switchGestorTab('equipe',this)">Equipe</div>
-    <div class="nav-tab" onclick="switchGestorTab('equipamentos',this)">Unidades</div>
-    <div class="nav-tab" onclick="switchGestorTab('manometros',this)">Manômetros</div>
-    <div class="nav-tab" onclick="switchGestorTab('contadores',this)">Contadores</div>
-  </div>
-  <div class="scroll" id="gestor-content">
-  </div>
-</div>
-
-<!-- DETALHE RELATÓRIO (gestor) -->
-<div class="screen" id="s-detalhe">
-  <div class="topbar">
-    <div style="cursor:pointer;font-size:18px;margin-right:4px" onclick="go('s-gestor')">←</div>
-    <div><div class="tb-title" id="det-title">Relatório</div><div class="tb-sub" id="det-sub">—</div></div>
-    <div class="tb-step" id="det-badge-top">—</div>
-  </div>
-  <div class="detail-screen-content" id="det-body"></div>
-  <div class="bbar" id="det-actions"></div>
-</div>
-
-</div><!-- end shell -->
-
-<!-- MODAL tipo de serviço -->
-<div class="modal-ov" id="modal">
-  <div class="modal-sh">
-    <div class="modal-handle"></div>
-    <div class="modal-title">Tipo de serviço</div>
-    <div class="stype-grid">
-      <div class="stype-btn" onclick="addSvc('limpeza')"><div class="stype-icon">🧪</div><div class="stype-name">Limpeza química</div></div>
-      <div class="stype-btn" onclick="addSvc('pressao')"><div class="stype-icon">🔴</div><div class="stype-name">Teste de pressão</div></div>
-      <div class="stype-btn" onclick="addSvc('filtragem')"><div class="stype-icon">🔵</div><div class="stype-name">Filtragem</div></div>
-      <div class="stype-btn" onclick="addSvc('flushing')"><div class="stype-icon">💧</div><div class="stype-name">Flushing</div></div>
-      <div class="stype-btn" onclick="addSvc('mecanica')"><div class="stype-icon">⚙️</div><div class="stype-name">Limpeza mecânica</div></div>
-      <div class="stype-btn" onclick="addSvc('inibicao')"><div class="stype-icon">🛡️</div><div class="stype-name">Inibição</div></div>
-    </div>
-  </div>
-</div>
-
-<script>
 var svcCount=0,projAtual='';
 
 var projetos={
@@ -550,7 +115,7 @@ function toLocalDb(payload){
   local.projetos=(payload.projects||[]).map(function(p){
     var seq={};REPORT_TYPES.forEach(function(t){seq[t]=0;});
     (p.reportSequences||[]).forEach(function(s){seq[s.reportType]=s.nextNumber;});
-    return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj,contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,visivelColaboradores:p.visibleToCollaborators!==false,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
+    return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj||'',emailPrincipal:p.clientEmailPrimary||'',emailsCopia:p.clientEmailCc||[],contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,visivelColaboradores:p.visibleToCollaborators!==false,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
   });
   local.equipamentos=(payload.equipment||[]).map(function(e){
     return {id:e.id,code:e.code,codigo:e.code,nome:e.name,tipos:e.serviceTags||[],ativo:e.isActive!==false};
@@ -590,18 +155,34 @@ async function apiFetch(path,options){
   return res.json();
 }
 async function refreshDbFromApi(){
-  var results=await Promise.all([
-    apiFetch('/collaborators'),
-    apiFetch('/projects'),
-    apiFetch('/equipment'),
-    apiFetch('/units'),
-    apiFetch('/manometers'),
-    apiFetch('/particle-counters')
-  ]);
+  if(!currentUser){
+    db=toLocalDb({collaborators:[],projects:[],equipment:[],units:[],manometers:[],counters:[]});
+    saveDb();
+    renderHeaderSources();
+    return db;
+  }
+  var results=currentUser.role==='CLIENT'
+    ? await Promise.all([
+        Promise.resolve([]),
+        apiFetch('/projects'),
+        Promise.resolve([]),
+        Promise.resolve([]),
+        Promise.resolve([]),
+        Promise.resolve([])
+      ])
+    : await Promise.all([
+        apiFetch('/collaborators'),
+        apiFetch('/projects'),
+        apiFetch('/equipment'),
+        apiFetch('/units'),
+        apiFetch('/manometers'),
+        apiFetch('/particle-counters')
+      ]);
   db=toLocalDb({collaborators:results[0],projects:results[1],equipment:results[2],units:results[3],manometers:results[4],counters:results[5]});
   saveDb();
   renderHeaderSources();
-  renderGestor();
+  if(currentUser.role==='MANAGER')renderGestor();
+  return db;
 }
 function snapshotHeaderSelections(){
   var projeto=getProjetoAtual();
@@ -661,6 +242,67 @@ function initials(nome){
 }
 function escapeHtml(txt){
   return String(txt||'').replace(/[&<>"]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];});
+}
+function normalizeCnpjDigits(value){
+  return String(value||'').replace(/\D/g,'').slice(0,14);
+}
+function formatCnpj(value){
+  var digits=normalizeCnpjDigits(value);
+  if(digits.length!==14)return digits;
+  return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
+}
+function parseEmailList(value){
+  var parts=Array.isArray(value)?value:String(value||'').split(/[,\n;]+/);
+  var seen={};var out=[];
+  parts.forEach(function(item){
+    var email=String(item||'').trim().toLowerCase();
+    if(!email||seen[email])return;
+    seen[email]=true;
+    out.push(email);
+  });
+  return out;
+}
+function handleProjectCnpjInput(input){
+  if(!input)return;
+  input.value=formatCnpj(input.value);
+}
+function getProjectEmailCcValues(){
+  var hidden=document.getElementById('ed-proj-email-cc-values');
+  if(!hidden)return [];
+  try{return parseEmailList(JSON.parse(hidden.value||'[]'));}catch(_){return parseEmailList(hidden.value||'');}
+}
+function setProjectEmailCcValues(values){
+  var hidden=document.getElementById('ed-proj-email-cc-values');
+  if(!hidden)return;
+  hidden.value=JSON.stringify(parseEmailList(values));
+  renderProjectEmailCcTags();
+}
+function renderProjectEmailCcTags(){
+  var root=document.getElementById('ed-proj-email-cc-tags');
+  var input=document.getElementById('ed-proj-email-cc-input');
+  if(!root||!input)return;
+  var values=getProjectEmailCcValues();
+  root.innerHTML=values.length?values.map(function(email){
+    return '<span class="email-chip">'+escapeHtml(email)+'<span class="email-chip-rm" onclick="removeProjectEmailCc(\''+escapeHtml(email)+'\')">×</span></span>';
+  }).join(''):'<span class="email-tags-empty">Nenhum e-mail em cópia.</span>';
+  root.appendChild(input);
+}
+function removeProjectEmailCc(email){
+  setProjectEmailCcValues(getProjectEmailCcValues().filter(function(item){return item!==String(email||'').toLowerCase();}));
+}
+function commitProjectEmailCcInput(){
+  var input=document.getElementById('ed-proj-email-cc-input');
+  if(!input)return;
+  var next=parseEmailList(input.value);
+  input.value='';
+  if(!next.length){renderProjectEmailCcTags();return;}
+  setProjectEmailCcValues(getProjectEmailCcValues().concat(next));
+}
+function handleProjectEmailCcKeydown(event){
+  if(event.key==='Enter' || event.key===',' || event.key===';'){
+    event.preventDefault();
+    commitProjectEmailCcInput();
+  }
 }
 function renderHeaderSources(){
   var projSel=document.getElementById('proj-sel');
@@ -1566,6 +1208,10 @@ function sequenciaisText(obj){
 function openEditor(tab,type,id,extra){
   gestorEditors[tab]={type:type,id:id||'',extra:extra||''};
   renderGestor();
+  if(tab==='projetos')setTimeout(function(){
+    handleProjectCnpjInput(document.getElementById('ed-proj-cnpj'));
+    renderProjectEmailCcTags();
+  },0);
 }
 function closeEditor(tab){
   gestorEditors[tab]=null;
@@ -1573,12 +1219,14 @@ function closeEditor(tab){
 }
 function editorProjeto(){
   var st=gestorEditors.projetos;if(!st)return '';
-  var p=st.type==='edit'?getProjetoById(st.id):{id:'',code:'',nome:'',cliente:'',cnpj:'',contrato:'',local:'',operadorResponsavelId:'',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,visivelColaboradores:true,sequenciais:{}};
+  var p=st.type==='edit'?getProjetoById(st.id):{id:'',code:'',nome:'',cliente:'',cnpj:'',emailPrincipal:'',emailsCopia:[],contrato:'',local:'',operadorResponsavelId:'',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,visivelColaboradores:true,sequenciais:{}};
   return '<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(st.type==='edit'?'Editar projeto':'Novo projeto')+'</div><button class="mini-btn alt" onclick="closeEditor(\'projetos\')">Cancelar</button></div><div class="admin-inline-grid">'+
     '<div class="fg"><label>Número da missão</label><input type="text" id="ed-proj-id" value="'+escapeHtml(p.code||'')+'" '+(st.type==='edit'?'readonly':'')+'></div>'+
     '<div class="fg"><label>Nome</label><input type="text" id="ed-proj-nome" value="'+escapeHtml(p.nome||'')+'"></div>'+
     '<div class="fg"><label>Cliente</label><input type="text" id="ed-proj-cliente" value="'+escapeHtml(p.cliente||'')+'"></div>'+
-    '<div class="fg"><label>CNPJ</label><input type="text" id="ed-proj-cnpj" value="'+escapeHtml(p.cnpj||'')+'"></div>'+
+    '<div class="fg"><label>CNPJ</label><input type="text" id="ed-proj-cnpj" value="'+escapeHtml(formatCnpj(p.cnpj||''))+'" oninput="handleProjectCnpjInput(this)"></div>'+
+    '<div class="fg"><label>E-mail principal do cliente</label><input type="text" id="ed-proj-email-primary" value="'+escapeHtml(p.emailPrincipal||'')+'" placeholder="cliente@empresa.com.br"></div>'+
+    '<div class="fg full"><label>E-mails em cópia</label><input type="hidden" id="ed-proj-email-cc-values" value="'+escapeHtml(JSON.stringify(parseEmailList(p.emailsCopia||[])))+'"><div class="email-tags" id="ed-proj-email-cc-tags"><input type="text" id="ed-proj-email-cc-input" placeholder="Digite um e-mail e pressione Enter" onkeydown="handleProjectEmailCcKeydown(event)" onblur="commitProjectEmailCcInput()"></div></div>'+
     '<div class="fg"><label>Contrato</label><input type="text" id="ed-proj-contrato" value="'+escapeHtml(p.contrato||'')+'"></div>'+
     '<div class="fg"><label>Local</label><input type="text" id="ed-proj-local" value="'+escapeHtml(p.local||'')+'"></div>'+
     '<div class="fg"><label>Operador responsável</label><select id="ed-proj-operador">'+selectOptions(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};}),p.operadorResponsavelId||'','Selecionar...')+'</select></div>'+
@@ -1840,6 +1488,8 @@ function saveAuthState(state){
 }
 function clearAuthState(){
   authState={};currentUser=null;localStorage.removeItem(AUTH_KEY);
+  db=toLocalDb({collaborators:[],projects:[],equipment:[],units:[],manometers:[],counters:[]});
+  saveDb();
 }
 function setLoginMessage(message,isError){
   var box=document.getElementById('login-feedback');
@@ -1849,6 +1499,52 @@ function setLoginMessage(message,isError){
   box.style.background=isError?'#fff5f5':'#f0f7f2';
   box.style.border='1px solid '+(isError?'#f3b3b5':'#c3ddc9');
   box.style.color=isError?'#991b1b':'#243d2c';
+}
+function openForgotPassword(){
+  var identifier=prompt('Informe o usuario, e-mail ou CNPJ para recuperar a senha:','');
+  if(identifier===null)return;
+  identifier=String(identifier||'').trim();
+  if(!identifier){setLoginMessage('Informe um usuario, e-mail ou CNPJ para recuperar a senha.',true);return;}
+  apiFetch('/auth/forgot-password',{method:'POST',body:JSON.stringify({identifier:identifier})})
+    .then(function(resp){ setLoginMessage((resp&&resp.message)||'Se houver uma conta correspondente, o link sera enviado.',false); })
+    .catch(function(err){ setLoginMessage('Erro ao solicitar recuperacao: '+err.message,true); });
+}
+async function openChangePassword(){
+  if(!authState.token){showToast('Faca login novamente.','error');go('s-login');return;}
+  var currentPassword=prompt('Informe a senha atual:','');
+  if(currentPassword===null)return;
+  var newPassword=prompt('Informe a nova senha (minimo 6 caracteres):','');
+  if(newPassword===null)return;
+  var confirmPassword=prompt('Confirme a nova senha:','');
+  if(confirmPassword===null)return;
+  if(newPassword.length<6){showToast('A nova senha deve ter ao menos 6 caracteres.','error');return;}
+  if(newPassword!==confirmPassword){showToast('A confirmacao da senha nao confere.','error');return;}
+  try{
+    await apiFetch('/auth/change-password',{method:'POST',body:JSON.stringify({currentPassword:currentPassword,newPassword:newPassword})});
+    showToast('Senha alterada com sucesso.');
+  }catch(err){
+    showToast('Erro ao alterar senha: '+err.message,'error');
+  }
+}
+async function processPasswordResetFromUrl(){
+  var params=new URLSearchParams(location.search||'');
+  var token=params.get('token')||params.get('resetToken')||'';
+  if(!token)return;
+  if((location.pathname||'').toLowerCase().indexOf('/reset-password')<0 && !params.get('resetToken'))return;
+  var newPassword=prompt('Defina a nova senha (minimo 6 caracteres):','');
+  if(newPassword===null)return;
+  var confirmPassword=prompt('Confirme a nova senha:','');
+  if(confirmPassword===null)return;
+  if(newPassword.length<6){setLoginMessage('A nova senha deve ter ao menos 6 caracteres.',true);return;}
+  if(newPassword!==confirmPassword){setLoginMessage('A confirmacao da senha nao confere.',true);return;}
+  try{
+    await apiFetch('/auth/reset-password',{method:'POST',body:JSON.stringify({token:token,password:newPassword})});
+    if(history&&history.replaceState)history.replaceState({},document.title,'/');
+    go('s-login');
+    setLoginMessage('Senha redefinida com sucesso. Faca login com a nova senha.',false);
+  }catch(err){
+    setLoginMessage('Erro ao redefinir senha: '+err.message,true);
+  }
 }
 function apiHost(){return API_BASE.replace(/\/api$/,'');}
 function signedUrl(url){if(!url||!authState.token)return url||'';if(!url.includes('/relatorios/Assinaturas')&&!url.includes('/uploads/Assinaturas'))return url;return url+(url.includes('?')?'&':'?')+'t='+encodeURIComponent(authState.token);}
@@ -1895,7 +1591,7 @@ function setupRuntimeUi(){
     var help=document.createElement('div');
     help.id='login-seed-help';
     help.style.cssText='font-size:11px;color:var(--mu);line-height:1.5';
-    help.textContent='Acesso inicial: gestor / gestor123, carlos / colab123, joao / colab123.';
+    help.innerHTML='Acesso inicial: gestor / gestor123, carlos / colab123, joao / colab123.<br><a href="#" onclick="openForgotPassword();return false;" style="color:var(--g);font-weight:700;text-decoration:none">Esqueci minha senha</a>';
     btn.parentElement.insertBefore(help,btn);
   }
   if(!document.getElementById('login-feedback')){
@@ -1930,16 +1626,11 @@ function setupRuntimeUi(){
   applyRememberedLogin();
   var qtdField=document.getElementById('hdr-qtd-colab');
   if(qtdField&&qtdField.parentElement)qtdField.parentElement.remove();
-  var homeExit=document.querySelector('#s-home .tb-step');
-  if(homeExit){
-    homeExit.setAttribute('onclick','logoutApp()');
-    homeExit.classList.add('logout-chip');
-  }
-  var gestorExit=document.querySelector('#s-gestor .topbar div[onclick]');
-  if(gestorExit){
-    gestorExit.setAttribute('onclick','logoutApp()');
-    gestorExit.classList.add('logout-chip');
-  }
+  var homeExit=document.querySelector('#s-home .logout-chip');
+  if(homeExit)homeExit.setAttribute('onclick','logoutApp()');
+  var gestorExit=document.querySelector('#s-gestor .topbar-actions .logout-chip');
+  if(gestorExit)gestorExit.setAttribute('onclick','logoutApp()');
+
   var homeSub=document.querySelector('#s-home .tb-sub');
   if(homeSub)homeSub.id='home-user-name';
   var headerBlock=document.querySelector('#s-home [style*="padding:4px 0"]');
@@ -1982,19 +1673,34 @@ function setupRuntimeUi(){
   enhanceUploadZones(document);
 }
 function updateUserLabels(){
-  var nome=currentUser?currentUser.name:'Colaborador';
+  var nome=currentUser?currentUser.name:'Usuario';
   var firstName=nome.split(' ')[0]||nome;
   var homeName=document.getElementById('home-user-name');
   if(homeName)homeName.textContent=nome;
   var badge=document.getElementById('gestor-user-badge');
-  if(badge&&currentUser&&currentUser.role==='MANAGER')badge.textContent=nome;
+  if(badge)badge.textContent=currentUser&&currentUser.role==='MANAGER'?nome:'Gestor';
   var greet=document.getElementById('home-greeting');
   if(greet)greet.textContent='Bom dia, '+firstName;
   var gestorSub=document.getElementById('gestor-greeting-sub');
-  if(gestorSub&&currentUser&&currentUser.role==='MANAGER')gestorSub.textContent='Olá, '+firstName;
+  if(gestorSub)gestorSub.textContent=currentUser&&currentUser.role==='MANAGER'?'Olá, '+firstName:'Painel do gestor';
   var d=new Date();
   var dateLbl=document.getElementById('home-date');
   if(dateLbl)dateLbl.textContent=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+}
+function ensureAccountActionButtons(){
+  [{screen:'#s-home',anchorSelector:'.logout-chip'},{screen:'#s-gestor',anchorSelector:'.topbar-actions'}].forEach(function(cfg){
+    var topbar=document.querySelector(cfg.screen+' .topbar');
+    if(!topbar||topbar.querySelector('.change-pass-chip'))return;
+    var btn=document.createElement('div');
+    btn.className='logout-chip change-pass-chip';
+    btn.style.marginLeft='8px';
+    btn.textContent='Senha';
+    btn.onclick=function(){ openChangePassword(); };
+    var anchor=topbar.querySelector(cfg.anchorSelector);
+    if(anchor&&anchor.parentElement===topbar)topbar.insertBefore(btn,anchor);
+    else if(anchor&&anchor.parentElement)anchor.parentElement.insertBefore(btn,anchor);
+    else topbar.appendChild(btn);
+  });
 }
 function statusMeta(status){
   var map={PENDING:{txt:'Pendente',cls:'badge-pen'},APPROVED:{txt:'Aprovado',cls:'badge-ok'},RETURNED:{txt:'Devolvido',cls:'badge-rej'},EDITED:{txt:'Editado',cls:'badge-rev'}};
@@ -2516,7 +2222,8 @@ async function enviar(){
   }
 }
 async function fazerLogin(){
-  var username=(document.getElementById('login-user').value||'').trim();
+  var rawUsername=(document.getElementById('login-user').value||'').trim();
+  var username=normalizeCnpjDigits(rawUsername).length===14?normalizeCnpjDigits(rawUsername):rawUsername;
   var password=(document.getElementById('login-password').value||'');
   if(!username||!password){alert('Informe usuário e senha.');return;}
   try{
@@ -2571,8 +2278,14 @@ async function removeUser(id){
 }
 function gerarPDF(id){alert('Geração de PDF fica para a próxima etapa. O relatório '+id+' já está persistido no banco.');}
 function go(id){
+  var target=document.getElementById(id);
+  if(!target){
+    console.warn('Tela nao encontrada para navegacao.',id);
+    return false;
+  }
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
-  var target=document.getElementById(id); if(target)target.classList.add('active');
+  target.classList.add('active');
+  return true;
 }
 async function hydrateSession(){
   if(!authState.token)return;
@@ -3817,7 +3530,7 @@ function buildRdoPdfHtml(report){
     '.pdf-page{padding:18px 22px 26px}.pdf-header{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;padding:18px;border:1px solid #c8d6e2;border-radius:18px;background:linear-gradient(135deg,#173042 0%,#235a7d 100%);color:#fff}.pdf-brand{display:flex;flex-direction:column;gap:8px}.pdf-brand-kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.75}.pdf-brand-title{font-size:28px;font-weight:800;line-height:1.05}.pdf-brand-sub{font-size:13px;line-height:1.5;opacity:.92}.pdf-idbox{display:grid;gap:8px;align-content:start}.pdf-idrow{display:grid;grid-template-columns:110px 1fr;gap:8px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.12)}.pdf-idrow span:first-child{font-size:11px;text-transform:uppercase;letter-spacing:.08em;opacity:.72}.pdf-idrow span:last-child{font-size:14px;font-weight:700}'+
     '.pdf-section{margin-top:16px}.pdf-block{border:1px solid #d6e0e8;border-radius:16px;padding:14px;background:#fff;margin-top:14px}.pdf-block-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#527188;margin-bottom:12px}.pdf-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.pdf-meta .pdf-kv,.pdf-grid .pdf-kv{border:1px solid #e3ebf1;border-radius:12px;padding:10px 12px;background:#f9fbfc}.pdf-k{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#68859a;margin-bottom:6px}.pdf-v{font-size:13px;line-height:1.45;color:#173042;white-space:pre-wrap}.pdf-dual{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.pdf-table{width:100%;border-collapse:collapse}.pdf-table th,.pdf-table td{border-bottom:1px solid #e2eaf0;padding:9px 8px;text-align:left;font-size:12px;vertical-align:top}.pdf-table th{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#68859a}.pdf-notes{min-height:96px;border:1px solid #e3ebf1;border-radius:12px;padding:12px 14px;background:#fbfdfe;font-size:13px;line-height:1.6}.pdf-service{border:1px solid #d6e0e8;border-radius:16px;padding:14px;background:#fbfdfe;margin-top:12px}.pdf-service-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}.pdf-service-index{padding:5px 10px;border-radius:999px;background:#173042;color:#fff;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.pdf-service-title{font-size:18px;font-weight:800;color:#173042}.pdf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.pdf-signatures{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:14px}.pdf-sign{padding-top:40px;border-top:1.5px solid #95a9b9}.pdf-sign .role{font-size:11px;color:#68859a;text-transform:uppercase;letter-spacing:.08em}.pdf-sign .name{font-size:14px;font-weight:700;margin-top:5px}.pdf-photos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.pdf-photo{margin:0;border:1px solid #d8e2ea;border-radius:12px;overflow:hidden;background:#fff}.pdf-photo img{display:block;width:100%;height:145px;object-fit:cover;background:#edf2f6}.pdf-photo figcaption{padding:8px 10px;font-size:11px;color:#516f84}.pdf-empty{font-size:12px;color:#6a8092}.pdf-list{margin:0;padding-left:18px}.pdf-list li{margin:4px 0;font-size:13px;line-height:1.45}@media print{body{background:#fff}.pdf-toolbar{display:none}.pdf-page{padding:0}.pdf-block,.pdf-service,.pdf-header{break-inside:avoid}.pdf-photos{grid-template-columns:repeat(2,minmax(0,1fr))}}'+
     '</style></head><body><div class="pdf-shell"><div class="pdf-toolbar"><button class="close" onclick="window.close()">Fechar</button><button class="print" onclick="window.print()">Salvar em PDF</button></div><div class="pdf-page">'+
-    '<header class="pdf-header"><div class="pdf-brand"><div class="pdf-brand-kicker">Relatório Diário de Obra</div><div class="pdf-brand-title">'+escapeHtml(reportDisplayLabel(report))+'</div><div class="pdf-brand-sub">'+escapeHtml((project.code||'—')+' · '+(project.name||'Sem projeto'))+'<br>'+escapeHtml(project.clientName||'—')+' · '+escapeHtml(project.location||'—')+'</div></div><div class="pdf-idbox"><div class="pdf-idrow"><span>Data</span><span>'+escapeHtml(formatReportDate(report.reportDate))+'</span></div><div class="pdf-idrow"><span>Dia da semana</span><span>'+escapeHtml(weekday)+'</span></div><div class="pdf-idrow"><span>Cliente</span><span>'+escapeHtml(project.clientName||'—')+'</span></div><div class="pdf-idrow"><span>CNPJ</span><span>'+escapeHtml(project.clientCnpj||'—')+'</span></div><div class="pdf-idrow"><span>Contrato</span><span>'+escapeHtml(project.contractCode||'—')+'</span></div><div class="pdf-idrow"><span>Local</span><span>'+escapeHtml(project.location||'—')+'</span></div></div></header>'+
+    '<header class="pdf-header"><div class="pdf-brand"><div class="pdf-brand-kicker">Relatório Diário de Obra</div><div class="pdf-brand-title">'+escapeHtml(reportDisplayLabel(report))+'</div><div class="pdf-brand-sub">'+escapeHtml((project.code||'—')+' · '+(project.name||'Sem projeto'))+'<br>'+escapeHtml(project.clientName||'—')+' · '+escapeHtml(project.location||'—')+'</div></div><div class="pdf-idbox"><div class="pdf-idrow"><span>Data</span><span>'+escapeHtml(formatReportDate(report.reportDate))+'</span></div><div class="pdf-idrow"><span>Dia da semana</span><span>'+escapeHtml(weekday)+'</span></div><div class="pdf-idrow"><span>Cliente</span><span>'+escapeHtml(project.clientName||'—')+'</span></div><div class="pdf-idrow"><span>CNPJ</span><span>'+escapeHtml(formatCnpj(project.clientCnpj||'')||'—')+'</span></div><div class="pdf-idrow"><span>Contrato</span><span>'+escapeHtml(project.contractCode||'—')+'</span></div><div class="pdf-idrow"><span>Local</span><span>'+escapeHtml(project.location||'—')+'</span></div></div></header>'+
     '<section class="pdf-section pdf-dual"><div class="pdf-block"><div class="pdf-block-title">Jornada Diurna</div><div class="pdf-meta"><div class="pdf-kv"><div class="pdf-k">Entrada</div><div class="pdf-v">'+escapeHtml(printValue(report.arrivalTime))+'</div></div><div class="pdf-kv"><div class="pdf-k">Saída</div><div class="pdf-v">'+escapeHtml(printValue(report.departureTime))+'</div></div><div class="pdf-kv"><div class="pdf-k">Intervalo de almoço</div><div class="pdf-v">'+escapeHtml(printValue(report.lunchBreak))+'</div></div><div class="pdf-kv"><div class="pdf-k">Nº colaboradores</div><div class="pdf-v">'+escapeHtml(String(daytimeNames.length||report.daytimeCount||0))+'</div></div></div></div><div class="pdf-block"><div class="pdf-block-title">Condições Especiais</div><div class="pdf-meta"><div class="pdf-kv"><div class="pdf-k">Stand-by</div><div class="pdf-v">'+escapeHtml(special.standby?'Sim':'Não')+'</div></div><div class="pdf-kv"><div class="pdf-k">Tempo de stand-by</div><div class="pdf-v">'+escapeHtml(printValue(standby.total))+'</div></div><div class="pdf-kv"><div class="pdf-k">Turno noturno</div><div class="pdf-v">'+escapeHtml(special.noturno?'Sim':'Não')+'</div></div><div class="pdf-kv"><div class="pdf-k">Colaboradores noturnos</div><div class="pdf-v">'+escapeHtml(nightNames.length?nightNames.join(', '):'—')+'</div></div><div class="pdf-kv"><div class="pdf-k">Início noturno</div><div class="pdf-v">'+escapeHtml(printValue(noturno.inicio))+'</div></div><div class="pdf-kv"><div class="pdf-k">Término noturno</div><div class="pdf-v">'+escapeHtml(printValue(noturno.termino))+'</div></div></div></div></section>'+
     '<section class="pdf-block"><div class="pdf-block-title">Equipe</div><table class="pdf-table"><thead><tr><th>Nome</th><th>Função</th><th>Turno</th></tr></thead><tbody>'+daytimeNames.map(function(name){ var link=(report.collaborators||[]).find(function(item){return item.collaborator&&item.collaborator.name===name;}); return '<tr><td>'+escapeHtml(name)+'</td><td>'+escapeHtml(link&&link.collaborator?link.collaborator.role:'—')+'</td><td>Diurno</td></tr>'; }).join('')+nightNames.map(function(name){ return '<tr><td>'+escapeHtml(name)+'</td><td>—</td><td>Noturno</td></tr>'; }).join('')+'</tbody></table></section>'+
     '<section class="pdf-block"><div class="pdf-block-title">Atividades / Observações</div><div class="pdf-notes">'+(uniqueActivities.length?'<ul class="pdf-list">'+uniqueActivities.map(function(item){return '<li>'+escapeHtml(item)+'</li>';}).join('')+'</ul>':'<div class="pdf-empty">Sem atividades listadas.</div>')+(report.dailyDescription?'<div style="margin-top:10px">'+escapeHtml(report.dailyDescription)+'</div>':'')+'</div></section>'+
@@ -4913,14 +4626,14 @@ function renderProjetos(){
     (list.length?list.map(function(p){
       var operador=getColaboradorById(p.operadorResponsavelId);
       var totalSeq=REPORT_TYPES.reduce(function(acc,t){return acc+Number((p.sequenciais&&p.sequenciais[t])||0);},0);
-      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrão')+'</span></div><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'—')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'—')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'—')+'</span></div><div class="det-row"><span class="det-label">Visível aos colaboradores</span><span class="det-val">'+(p.visivelColaboradores===false?'Não':'Sim')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')" style="margin-left:8px">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
+      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrão')+'</span></div><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'—')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'—')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'—')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'—')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'—')+'</span></div><div class="det-row"><span class="det-label">Visível aos colaboradores</span><span class="det-val">'+(p.visivelColaboradores===false?'Não':'Sim')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')" style="margin-left:8px">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
     }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto ativo.</div></div>');
 }
 function renderProjetosArquivados(){
   var list=archivedProjects();
   return '<div class="admin-toolbar"><div class="sec">Projetos arquivados</div></div>'+
     (list.length?list.map(function(p){
-      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge badge-rev">Arquivado</span></div><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'—')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'—')+'</span></div><div class="det-row"><span class="det-label">Local</span><span class="det-val">'+escapeHtml(p.local||'—')+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="unarchiveProjeto(\''+p.id+'\')">Desarquivar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
+      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge badge-rev">Arquivado</span></div><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'—')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'—')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'—')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'—')+'</span></div><div class="det-row"><span class="det-label">Local</span><span class="det-val">'+escapeHtml(p.local||'—')+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="unarchiveProjeto(\''+p.id+'\')">Desarquivar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
     }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto arquivado.</div></div>');
 }
 async function saveProjetoEditor(mode){
@@ -4932,7 +4645,9 @@ async function saveProjetoEditor(mode){
     name:nome,
     isActive: existing?existing.ativo!==false:true,
     clientName:document.getElementById('ed-proj-cliente').value.trim(),
-    clientCnpj:document.getElementById('ed-proj-cnpj').value.trim(),
+    clientCnpj:normalizeCnpjDigits(document.getElementById('ed-proj-cnpj').value),
+    clientEmailPrimary:document.getElementById('ed-proj-email-primary').value.trim(),
+    clientEmailCc:getProjectEmailCcValues(),
     contractCode:document.getElementById('ed-proj-contrato').value.trim(),
     location:document.getElementById('ed-proj-local').value.trim(),
     operatorId:document.getElementById('ed-proj-operador').value||null,
@@ -4955,7 +4670,7 @@ async function archiveProjeto(id){
   var p=getProjetoById(id);
   if(!p)return;
   try{
-    await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:false,clientName:p.cliente||'',clientCnpj:p.cnpj||'',contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
+    await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:false,clientName:p.cliente||'',clientCnpj:normalizeCnpjDigits(p.cnpj||''),clientEmailPrimary:p.emailPrincipal||'',clientEmailCc:p.emailsCopia||[],contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
     if(projAtual===id)projAtual='';
     await refreshDbFromApi();
     renderGestor();
@@ -4965,7 +4680,7 @@ async function unarchiveProjeto(id){
   var p=getProjetoById(id);
   if(!p)return;
   try{
-    await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:true,clientName:p.cliente||'',clientCnpj:p.cnpj||'',contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
+    await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:true,clientName:p.cliente||'',clientCnpj:normalizeCnpjDigits(p.cnpj||''),clientEmailPrimary:p.emailPrincipal||'',clientEmailCc:p.emailsCopia||[],contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
     await refreshDbFromApi();
     renderGestor();
   }catch(err){alert('Erro ao desarquivar projeto: '+err.message);}
@@ -7048,10 +6763,1184 @@ function renderPendingEditChanges(report){
   }).join('');
   return '<div class="card"><div class="sec">O que foi alterado</div><div class="det-section">'+(rows||'<div style="font-size:12px;color:var(--mu)">Nenhuma diferenca detectada.</div>')+'</div></div>';
 }
+function renderUsuarios(){
+  var editor='';
+  if(userEditorState){
+    var u=userEditorState.mode==='edit'?(usersCache.find(function(x){return x.id===userEditorState.id;})||{}):{username:'',name:'',email:'',role:'COLLABORATOR',isActive:true,collaboratorId:''};
+    editor='<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(userEditorState.mode==='edit'?'Editar usuário':'Novo usuário')+'</div><button class="mini-btn alt" onclick="closeUserEditor()">Cancelar</button></div><div class="admin-inline-grid"><div class="fg"><label>Usuário</label><input type="text" id="ed-user-username" value="'+escapeHtml(u.username||'')+'" '+(userEditorState.mode==='edit'?'readonly':'')+'></div><div class="fg"><label>Nome</label><input type="text" id="ed-user-name" value="'+escapeHtml(u.name||'')+'"></div><div class="fg"><label>E-mail</label><input type="email" id="ed-user-email" value="'+escapeHtml(u.email||'')+'" placeholder="email@empresa.com"></div><div class="fg"><label>Perfil</label><select id="ed-user-role"><option value="COLLABORATOR"'+((u.role||'')==='COLLABORATOR'?' selected':'')+'>Colaborador</option><option value="MANAGER"'+((u.role||'')==='MANAGER'?' selected':'')+'>Gestor</option></select></div><div class="fg"><label>Status</label><select id="ed-user-active"><option value="true"'+(u.isActive!==false?' selected':'')+'>Ativo</option><option value="false"'+(u.isActive===false?' selected':'')+'>Inativo</option></select></div><div class="fg full"><label>Vincular colaborador</label><select id="ed-user-col">'+selectOptions([{value:'',label:'Sem vínculo'}].concat(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};})),u.collaboratorId||'','Selecionar...')+'</select></div><div class="fg full"><label>Senha'+(userEditorState.mode==='edit'?' (opcional)':'')+'</label><input type="password" id="ed-user-pass" value=""></div><div class="admin-actions full"><button class="mini-btn" onclick="saveUserEditor(\''+userEditorState.mode+'\')">Salvar</button></div></div></div>';
+  }
+  return '<div class="admin-toolbar"><div class="sec">Usuários</div><button class="mini-btn" onclick="openUserEditor(\'new\')">+ Novo usuário</button></div>'+editor+usersCache.map(function(u){return '<div class="card" style="margin-bottom:10px"><div class="admin-item-title">'+escapeHtml(u.name)+' · '+escapeHtml(u.username)+'</div><div class="admin-item-sub">'+(u.role==='MANAGER'?'Gestor':'Colaborador')+(u.email?' · '+escapeHtml(u.email):'')+(u.collaborator&&u.collaborator.name?' · '+escapeHtml(u.collaborator.name):'')+'</div><div class="admin-actions"><button class="mini-btn alt" onclick="openUserEditor(\'edit\',\''+u.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';}).join('');
+}
+async function saveUserEditor(mode){
+  var body={username:document.getElementById('ed-user-username').value.trim(),name:document.getElementById('ed-user-name').value.trim(),email:document.getElementById('ed-user-email').value.trim(),role:document.getElementById('ed-user-role').value,isActive:document.getElementById('ed-user-active').value==='true',collaboratorId:document.getElementById('ed-user-col').value||null};
+  var pass=document.getElementById('ed-user-pass').value;
+  if(pass)body.password=pass;
+  if(mode==='edit')await apiFetch('/users/'+userEditorState.id,{method:'PUT',body:JSON.stringify(body)});
+  else await apiFetch('/users',{method:'POST',body:JSON.stringify(body)});
+  await refreshUsersCache();
+  closeUserEditor();
+}
+function enforceLoginUi(){
+  var loginScreen=document.getElementById('s-login');
+  if(!loginScreen)return;
+  var panel=loginScreen.querySelector('.login-wrap > div:last-child');
+  var help=panel?panel.querySelector('#login-seed-help'):null;
+  var missingForgotLink=!help || help.innerHTML.indexOf('openForgotPassword')<0;
+  if(panel && (panel.dataset.loginPatched!=='true' || missingForgotLink)){
+    panel.dataset.loginPatched='true';
+    panel.innerHTML='<div class="fg"><label>Usuário</label><input type="text" id="login-user" list="login-user-history" placeholder="Ex.: carlos, gestor, email ou CNPJ"><datalist id="login-user-history"></datalist></div><div class="fg"><label>Senha</label><input type="password" id="login-password" placeholder="Digite a senha" autocomplete="current-password"></div><div id="login-memory-box" style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--mu)"><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-user" style="width:auto">Lembrar usuário</label><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-pass" style="width:auto">Lembrar senha</label></div><div id="login-seed-help" style="font-size:11px;color:var(--mu);line-height:1.5">Acesso inicial: gestor / gestor123, carlos / colab123, joao / colab123.<br><a href="#" onclick="openForgotPassword();return false;" style="color:var(--g);font-weight:700;text-decoration:none">Esqueci minha senha</a></div><div id="login-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><button type="button" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px" onclick="fazerLogin()">Entrar</button>';
+  }
+  var btn=loginScreen.querySelector('button');
+  if(btn){
+    btn.setAttribute('type','button');
+    btn.onclick=function(){ fazerLogin(); };
+  }
+  var submit=document.getElementById('login-submit-btn');
+  if(submit){
+    submit.setAttribute('type','button');
+    submit.onclick=function(){ fazerLogin(); };
+  }
+  ['login-user','login-password'].forEach(function(id){
+    var input=document.getElementById(id);
+    if(input){
+      input.addEventListener('keydown',function(ev){
+        if(ev.key==='Enter'){
+          ev.preventDefault();
+          fazerLogin();
+        }
+      });
+    }
+  });
+  var loginUser=document.getElementById('login-user');
+  if(loginUser&&loginUser.dataset.historyReady!=='true'){
+    loginUser.dataset.historyReady='true';
+    loginUser.addEventListener('change',syncLoginRememberByUser);
+    loginUser.addEventListener('input',function(){
+      if(!this.value){
+        var pass=document.getElementById('login-password');
+        if(pass)pass.value='';
+      }
+    });
+  }
+  updateLoginHistoryOptions();
+  applyRememberedLogin();
+  var passwordInput=document.getElementById('login-password');
+  if(passwordInput)passwordInput.setAttribute('type','password');
+  ensureAccountActionButtons();
+  processPasswordResetFromUrl();
+}
+function authCardLogoHtml(id){
+  return '<div style="display:flex;flex-direction:column;align-items:center;gap:10px"><div class="login-circle"><img class="login-logo" id="'+id+'" alt="Filtrovali"></div><div style="font-size:13px;color:var(--mu);text-align:center">Sistema de relatórios de serviços</div></div>';
+}
+function setPanelMessage(id,message,isError){
+  var box=document.getElementById(id);
+  if(!box)return;
+  box.textContent=message||'';
+  box.style.display=message?'block':'none';
+  box.style.background=isError?'#fff5f5':'#f0f7f2';
+  box.style.border='1px solid '+(isError?'#f3b3b5':'#c3ddc9');
+  box.style.color=isError?'#991b1b':'#1f5132';
+}
+function syncAuthScreenLogos(){
+  var src='';
+  var loginLogo=document.getElementById('login-logo-img');
+  if(loginLogo&&loginLogo.src)src=loginLogo.src;
+  ['forgot-logo-img','reset-logo-img'].forEach(function(id){
+    var img=document.getElementById(id);
+    if(img&&src)img.src=src;
+  });
+}
+function ensureUtilityScreens(){
+  var host=document.querySelector('.shell')||document.body;
+  if(!document.getElementById('s-client')){
+    host.insertAdjacentHTML('beforeend',
+      '<div class="screen" id="s-client">'+
+        '<div class="topbar">'+
+          '<div class="topbar-brand"><img class="header-logo" id="client-header-logo" alt="Filtrovali"><div class="tb-sub" id="client-header-sub">Portal do cliente</div></div>'+
+          '<div class="topbar-actions">'+
+            '<div class="logout-chip" style="margin-left:0" onclick="openAccountSettings()">Conta</div>'+
+            '<div class="logout-chip" style="margin-left:0" onclick="logoutApp()">Sair</div>'+
+          '</div>'+
+        '</div>'+
+        '<div class="scroll">'+
+          '<div class="card"><div class="sec">Bem-vindo</div><div style="font-size:22px;font-weight:700;color:var(--g);margin-bottom:8px" id="client-welcome-name">Cliente</div><div style="font-size:13px;color:var(--mu);line-height:1.7">Seu acesso foi liberado. O painel completo do cliente entra na próxima fase; por enquanto, a conta já pode ser gerenciada por aqui.</div></div>'+
+          '<div class="card"><div class="sec">Conta atual</div><div class="det-section"><div class="det-row"><span class="det-label">Usuário</span><span class="det-val" id="client-username">—</span></div><div class="det-row"><span class="det-label">E-mail</span><span class="det-val" id="client-email">—</span></div><div class="det-row"><span class="det-label">Projetos vinculados</span><span class="det-val" id="client-project-count">0</span></div></div></div>'+
+        '</div>'+
+      '</div>'
+    );
+  }
+  if(!document.getElementById('s-forgot-password')){
+    host.insertAdjacentHTML('beforeend',
+      '<div class="screen" id="s-forgot-password">'+
+        '<div class="login-wrap">'+
+          authCardLogoHtml('forgot-logo-img')+
+          '<div style="width:100%;display:flex;flex-direction:column;gap:12px">'+
+            '<div class="sec" style="margin-bottom:0">Recuperar senha</div>'+
+            '<div style="font-size:13px;color:var(--mu);line-height:1.5">Informe o e-mail cadastrado para receber o link de recuperação.</div>'+
+            '<div class="fg"><label>E-mail</label><input type="email" id="forgot-identifier" placeholder="Digite seu e-mail"></div>'+
+            '<div id="forgot-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div>'+
+            '<button type="button" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer" onclick="submitForgotPassword()">Enviar link</button>'+
+            '<button type="button" class="mini-btn alt" style="align-self:center" onclick="go(\'s-login\')">Voltar ao login</button>'+
+          '</div>'+
+        '</div>'+
+      '</div>'
+    );
+  }
+  if(!document.getElementById('s-reset-password')){
+    host.insertAdjacentHTML('beforeend',
+      '<div class="screen" id="s-reset-password">'+
+        '<div class="login-wrap">'+
+          authCardLogoHtml('reset-logo-img')+
+          '<div style="width:100%;display:flex;flex-direction:column;gap:12px">'+
+            '<div class="sec" style="margin-bottom:0">Redefinir senha</div>'+
+            '<div style="font-size:13px;color:var(--mu);line-height:1.5">Defina a nova senha da conta.</div>'+
+            '<div class="fg"><label>Nova senha</label><input type="password" id="reset-password-new" autocomplete="new-password"></div>'+
+            '<div class="fg"><label>Confirmar nova senha</label><input type="password" id="reset-password-confirm" autocomplete="new-password"></div>'+
+            '<div id="reset-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div>'+
+            '<button type="button" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer" onclick="submitResetPasswordScreen()">Salvar nova senha</button>'+
+            '<button type="button" class="mini-btn alt" style="align-self:center" onclick="go(\'s-login\')">Voltar ao login</button>'+
+          '</div>'+
+        '</div>'+
+      '</div>'
+    );
+  }
+  if(!document.getElementById('s-account')){
+    host.insertAdjacentHTML('beforeend',
+      '<div class="screen" id="s-account">'+
+        '<div class="topbar">'+
+          '<div class="topbar-brand"><div class="tb-title">Conta</div><div class="tb-sub" id="account-subtitle">Configurações da conta</div></div>'+
+          '<div class="topbar-actions">'+
+            '<div class="logout-chip" style="margin-left:0" onclick="closeAccountSettings()">Voltar</div>'+
+            '<div class="logout-chip" style="margin-left:0" onclick="logoutApp()">Sair</div>'+
+          '</div>'+
+        '</div>'+
+        '<div class="scroll">'+
+          '<div class="card">'+
+            '<div class="sec">E-mail</div>'+
+            '<div class="admin-inline-grid">'+
+              '<div class="fg full"><label>E-mail cadastrado</label><input type="email" id="account-email" placeholder="email@empresa.com"></div>'+
+              '<div id="account-email-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div>'+
+              '<div class="admin-actions full"><button class="mini-btn" type="button" onclick="saveAccountEmail()">Salvar e-mail</button></div>'+
+            '</div>'+
+          '</div>'+
+          '<div class="card">'+
+            '<div class="sec">Alterar senha</div>'+
+            '<div class="admin-inline-grid">'+
+              '<div class="fg full"><label>Senha atual</label><input type="password" id="account-current-password" autocomplete="current-password"></div>'+
+              '<div class="fg"><label>Nova senha</label><input type="password" id="account-new-password" autocomplete="new-password"></div>'+
+              '<div class="fg"><label>Confirmar nova senha</label><input type="password" id="account-confirm-password" autocomplete="new-password"></div>'+
+              '<div id="account-password-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div>'+
+              '<div class="admin-actions full"><button class="mini-btn" type="button" onclick="saveAccountPassword()">Alterar senha</button></div>'+
+            '</div>'+
+          '</div>'+
+        '</div>'+
+      '</div>'
+    );
+  }
+  ['s-client','s-forgot-password','s-reset-password','s-account'].forEach(function(id){
+    var screen=document.getElementById(id);
+    if(screen&&screen.parentElement!==host)host.appendChild(screen);
+  });
+  syncAuthScreenLogos();
+}
+function accountBackTarget(){
+  if(currentUser&&currentUser.role==='MANAGER')return 's-gestor';
+  if(currentUser&&currentUser.role==='CLIENT')return 's-client';
+  return 's-home';
+}
+function closeAccountSettings(){
+  go(accountBackTarget());
+}
+function syncAccountEntryPoints(){
+  document.querySelectorAll('.change-pass-chip').forEach(function(node){node.remove();});
+  var homeTopbar=document.querySelector('#s-home .topbar');
+  var homeLogout=homeTopbar?Array.from(homeTopbar.querySelectorAll('.logout-chip')).find(function(node){ return (node.textContent||'').trim()==='Sair'; }):null;
+  if(homeTopbar&&homeLogout){
+    var actions=homeTopbar.querySelector('.account-topbar-actions');
+    if(currentUser&&currentUser.role==='COLLABORATOR'){
+      if(!actions){
+        actions=document.createElement('div');
+        actions.className='topbar-actions account-topbar-actions';
+        homeTopbar.appendChild(actions);
+      }
+      var accountBtn=actions.querySelector('.account-chip');
+      if(!accountBtn){
+        accountBtn=document.createElement('div');
+        accountBtn.className='logout-chip account-chip';
+        accountBtn.textContent='Conta';
+        actions.appendChild(accountBtn);
+      }
+      accountBtn.style.marginLeft='0';
+      accountBtn.onclick=function(){ openAccountSettings(); };
+      if(homeLogout.parentElement!==actions)actions.appendChild(homeLogout);
+      homeLogout.style.marginLeft='0';
+      if(accountBtn.nextSibling!==homeLogout)actions.insertBefore(accountBtn,homeLogout);
+    }else if(actions){
+      actions.remove();
+      homeLogout.style.marginLeft='auto';
+      homeTopbar.appendChild(homeLogout);
+    }
+  }
+  var gestorBadge=document.querySelector('#s-gestor .gestor-badge');
+  if(gestorBadge){
+    gestorBadge.style.cursor='pointer';
+    gestorBadge.title='Abrir configuração da conta';
+    gestorBadge.onclick=function(){ openAccountSettings(); };
+  }
+}
+function ensureAccountActionButtons(){
+  syncAccountEntryPoints();
+}
+var baseUpdateUserLabels=updateUserLabels;
+updateUserLabels=function(){
+  baseUpdateUserLabels();
+  syncAccountEntryPoints();
+  syncAuthScreenLogos();
+  var accountEmail=document.getElementById('account-email');
+  if(accountEmail&&document.activeElement!==accountEmail)accountEmail.value=(currentUser&&currentUser.email)||'';
+  var subtitle=document.getElementById('account-subtitle');
+  if(subtitle&&currentUser)subtitle.textContent=(currentUser.name||currentUser.username||'Conta')+' · '+(currentUser.role==='MANAGER'?'Gestor':(currentUser.role==='CLIENT'?'Cliente':'Colaborador'));
+  var clientHeaderSub=document.getElementById('client-header-sub');
+  if(clientHeaderSub&&currentUser&&currentUser.role==='CLIENT')clientHeaderSub.textContent='Cliente · '+(currentUser.email||currentUser.username||'');
+  var clientWelcomeName=document.getElementById('client-welcome-name');
+  if(clientWelcomeName&&currentUser&&currentUser.role==='CLIENT')clientWelcomeName.textContent=currentUser.name||'Cliente';
+  var clientUsername=document.getElementById('client-username');
+  if(clientUsername&&currentUser&&currentUser.role==='CLIENT')clientUsername.textContent=currentUser.username||'—';
+  var clientEmail=document.getElementById('client-email');
+  if(clientEmail&&currentUser&&currentUser.role==='CLIENT')clientEmail.textContent=currentUser.email||'—';
+  var clientProjectCount=document.getElementById('client-project-count');
+  if(clientProjectCount&&currentUser&&currentUser.role==='CLIENT')clientProjectCount.textContent=String((db.projetos||[]).length||0);
+  var clientLogo=document.getElementById('client-header-logo');
+  var homeLogo=document.getElementById('home-header-logo');
+  if(clientLogo&&homeLogo&&homeLogo.src)clientLogo.src=homeLogo.src;
+};
+function openForgotPassword(){
+  ensureUtilityScreens();
+  var loginUser=document.getElementById('login-user');
+  var input=document.getElementById('forgot-identifier');
+  if(input){
+    var preset=loginUser&&loginUser.value&&String(loginUser.value).indexOf('@')>=0?loginUser.value.trim():'';
+    input.value=preset;
+    setTimeout(function(){ input.focus(); },30);
+  }
+  setPanelMessage('forgot-feedback','',false);
+  go('s-forgot-password');
+}
+async function submitForgotPassword(){
+  var input=document.getElementById('forgot-identifier');
+  var identifier=String(input&&input.value||'').trim();
+  if(!identifier){
+    setPanelMessage('forgot-feedback','Informe o e-mail cadastrado da conta.',true);
+    return;
+  }
+  if(identifier.indexOf('@')<0){
+    setPanelMessage('forgot-feedback','Informe um e-mail válido.',true);
+    return;
+  }
+  try{
+    var resp=await apiFetch('/auth/forgot-password',{method:'POST',body:JSON.stringify({identifier:identifier})});
+    setPanelMessage('forgot-feedback',(resp&&resp.message)||'Se houver uma conta correspondente, o link será enviado.',false);
+  }catch(err){
+    setPanelMessage('forgot-feedback','Erro ao solicitar recuperação: '+err.message,true);
+  }
+}
+function openAccountSettings(){
+  if(!authState.token){go('s-login');return;}
+  ensureUtilityScreens();
+  var emailInput=document.getElementById('account-email');
+  if(emailInput)emailInput.value=(currentUser&&currentUser.email)||'';
+  ['account-current-password','account-new-password','account-confirm-password'].forEach(function(id){
+    var field=document.getElementById(id);
+    if(field)field.value='';
+  });
+  setPanelMessage('account-email-feedback','',false);
+  setPanelMessage('account-password-feedback','',false);
+  updateUserLabels();
+  go('s-account');
+}
+async function saveAccountEmail(){
+  var emailInput=document.getElementById('account-email');
+  var email=String(emailInput&&emailInput.value||'').trim();
+  try{
+    var resp=await apiFetch('/auth/account',{method:'PUT',body:JSON.stringify({email:email})});
+    if(resp&&resp.user){
+      saveAuthState({token:authState.token,user:resp.user});
+      updateUserLabels();
+      if(currentUser&&currentUser.role==='MANAGER'){
+        try{await refreshUsersCache();renderGestor();}catch(err){}
+      }
+    }
+    setPanelMessage('account-email-feedback','E-mail atualizado com sucesso.',false);
+  }catch(err){
+    setPanelMessage('account-email-feedback','Erro ao salvar e-mail: '+err.message,true);
+  }
+}
+async function saveAccountPassword(){
+  var currentPassword=String((document.getElementById('account-current-password')||{}).value||'');
+  var newPassword=String((document.getElementById('account-new-password')||{}).value||'');
+  var confirmPassword=String((document.getElementById('account-confirm-password')||{}).value||'');
+  if(!currentPassword){
+    setPanelMessage('account-password-feedback','Informe a senha atual.',true);
+    return;
+  }
+  if(newPassword.length<6){
+    setPanelMessage('account-password-feedback','A nova senha deve ter ao menos 6 caracteres.',true);
+    return;
+  }
+  if(newPassword!==confirmPassword){
+    setPanelMessage('account-password-feedback','A confirmação da nova senha não confere.',true);
+    return;
+  }
+  try{
+    await apiFetch('/auth/change-password',{method:'POST',body:JSON.stringify({currentPassword:currentPassword,newPassword:newPassword})});
+    ['account-current-password','account-new-password','account-confirm-password'].forEach(function(id){
+      var field=document.getElementById(id);
+      if(field)field.value='';
+    });
+    setPanelMessage('account-password-feedback','Senha alterada com sucesso.',false);
+  }catch(err){
+    setPanelMessage('account-password-feedback','Erro ao alterar senha: '+err.message,true);
+  }
+}
+async function processPasswordResetFromUrl(){
+  ensureUtilityScreens();
+  var params=new URLSearchParams(location.search||'');
+  var token=params.get('token')||params.get('resetToken')||'';
+  if(!token)return;
+  if((location.pathname||'').toLowerCase().indexOf('/reset-password')<0 && !params.get('resetToken'))return;
+  var screen=document.getElementById('s-reset-password');
+  if(screen)screen.dataset.resetToken=token;
+  setPanelMessage('reset-feedback','Digite a nova senha para concluir a recuperação.',false);
+  go('s-reset-password');
+}
+async function submitResetPasswordScreen(){
+  var screen=document.getElementById('s-reset-password');
+  var token=screen&&screen.dataset?screen.dataset.resetToken:'';
+  var newPassword=String((document.getElementById('reset-password-new')||{}).value||'');
+  var confirmPassword=String((document.getElementById('reset-password-confirm')||{}).value||'');
+  if(!token){
+    setPanelMessage('reset-feedback','Token de redefinição ausente.',true);
+    return;
+  }
+  if(newPassword.length<6){
+    setPanelMessage('reset-feedback','A nova senha deve ter ao menos 6 caracteres.',true);
+    return;
+  }
+  if(newPassword!==confirmPassword){
+    setPanelMessage('reset-feedback','A confirmação da senha não confere.',true);
+    return;
+  }
+  try{
+    await apiFetch('/auth/reset-password',{method:'POST',body:JSON.stringify({token:token,password:newPassword})});
+    if(history&&history.replaceState)history.replaceState({},document.title,'/');
+    if(screen&&screen.dataset)screen.dataset.resetToken='';
+    go('s-login');
+    setLoginMessage('Senha redefinida com sucesso. Faça login com a nova senha.',false);
+  }catch(err){
+    setPanelMessage('reset-feedback','Erro ao redefinir senha: '+err.message,true);
+  }
+}
+openChangePassword=function(){
+  openAccountSettings();
+};
+var userAdminGroup='internal';
+var clientProjectTab='';
+function switchUserAdminGroup(group){
+  userAdminGroup=group==='client'?'client':'internal';
+  userEditorState=null;
+  renderGestor();
+}
+function renderInternalUsersList(items){
+  var editor='';
+  if(userEditorState){
+    var u=userEditorState.mode==='edit'?(items.find(function(x){return x.id===userEditorState.id;})||{}):{username:'',name:'',email:'',role:'COLLABORATOR',isActive:true,collaboratorId:''};
+    editor='<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(userEditorState.mode==='edit'?'Editar usuário':'Novo usuário')+'</div><button class="mini-btn alt" onclick="closeUserEditor()">Cancelar</button></div><div class="admin-inline-grid"><div class="fg"><label>Usuário</label><input type="text" id="ed-user-username" value="'+escapeHtml(u.username||'')+'" '+(userEditorState.mode==='edit'?'readonly':'')+'></div><div class="fg"><label>Nome</label><input type="text" id="ed-user-name" value="'+escapeHtml(u.name||'')+'"></div><div class="fg"><label>E-mail</label><input type="email" id="ed-user-email" value="'+escapeHtml(u.email||'')+'" placeholder="email@empresa.com"></div><div class="fg"><label>Perfil</label><select id="ed-user-role"><option value="COLLABORATOR"'+((u.role||'')==='COLLABORATOR'?' selected':'')+'>Colaborador</option><option value="MANAGER"'+((u.role||'')==='MANAGER'?' selected':'')+'>Gestor</option></select></div><div class="fg"><label>Status</label><select id="ed-user-active"><option value="true"'+(u.isActive!==false?' selected':'')+'>Ativo</option><option value="false"'+(u.isActive===false?' selected':'')+'>Inativo</option></select></div><div class="fg full"><label>Vincular colaborador</label><select id="ed-user-col">'+selectOptions([{value:'',label:'Sem vínculo'}].concat(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};})),u.collaboratorId||'','Selecionar...')+'</select></div><div class="fg full"><label>Senha'+(userEditorState.mode==='edit'?' (opcional)':'')+'</label><input type="password" id="ed-user-pass" value=""></div><div class="admin-actions full"><button class="mini-btn" onclick="saveUserEditor(\''+userEditorState.mode+'\')">Salvar</button></div></div></div>';
+  }
+  return '<div class="admin-toolbar"><div class="sec">Usuários internos</div><button class="mini-btn" onclick="openUserEditor(\'new\')">+ Novo usuário</button></div>'+editor+(items.length?items.map(function(u){return '<div class="card" style="margin-bottom:10px"><div class="admin-item-title">'+escapeHtml(u.name)+' · '+escapeHtml(u.username)+'</div><div class="admin-item-sub">'+(u.role==='MANAGER'?'Gestor':'Colaborador')+(u.email?' · '+escapeHtml(u.email):'')+(u.collaborator&&u.collaborator.name?' · '+escapeHtml(u.collaborator.name):'')+'</div><div class="admin-actions"><button class="mini-btn alt" onclick="openUserEditor(\'edit\',\''+u.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';}).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum usuário interno cadastrado.</div></div>');
+}
+function renderClientUsersList(items){
+  return '<div class="admin-toolbar"><div class="sec">Clientes</div><div style="font-size:12px;color:var(--mu)">Contas criadas automaticamente a partir dos projetos.</div></div>'+(items.length?items.map(function(u){
+    var linked=(u.linkedProjects||[]);
+    var projectList=linked.length?linked.map(function(p){ return escapeHtml((p.contractCode||'---')+' — Missão '+(p.code||'---')+' — '+(p.name||'Sem nome')); }).join('<br>'):'Nenhum projeto vinculado.';
+    return '<div class="card admin-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><div class="admin-item-title">'+escapeHtml(u.name||'Cliente')+' · '+escapeHtml(formatCnpj(u.username||'')||u.username||'')+'</div><div class="admin-item-sub">'+(u.email?escapeHtml(u.email):'Sem e-mail principal')+' · '+(u.isActive===false?'Inativo':'Ativo')+'</div></div><span class="badge '+(u.isActive===false?'badge-rev':'badge-ok')+'">'+(u.isActive===false?'Inativo':'Ativo')+'</span></div><div class="det-section" style="margin-top:10px"><div class="det-row"><span class="det-label">Projetos</span><span class="det-val">'+linked.length+'</span></div><div class="det-row"><span class="det-label">Vínculos</span><span class="det-val">'+projectList+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="resendClientAccess(\''+u.id+'\')">Reenviar acesso</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';
+  }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum cliente provisionado.</div></div>');
+}
+function renderUsuarios(){
+  var groups='<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"><button class="mini-btn'+(userAdminGroup==='internal'?'':' alt')+'" onclick="switchUserAdminGroup(\'internal\')">Internos</button><button class="mini-btn'+(userAdminGroup==='client'?'':' alt')+'" onclick="switchUserAdminGroup(\'client\')">Clientes</button></div>';
+  var internalUsers=(usersCache||[]).filter(function(u){return u.role==='MANAGER'||u.role==='COLLABORATOR';});
+  var clientUsers=(usersCache||[]).filter(function(u){return u.role==='CLIENT';});
+  return groups+(userAdminGroup==='client'?renderClientUsersList(clientUsers):renderInternalUsersList(internalUsers));
+}
+async function saveUserEditor(mode){
+  var body={username:document.getElementById('ed-user-username').value.trim(),name:document.getElementById('ed-user-name').value.trim(),email:document.getElementById('ed-user-email').value.trim(),role:document.getElementById('ed-user-role').value,isActive:document.getElementById('ed-user-active').value==='true',collaboratorId:document.getElementById('ed-user-col').value||null};
+  var pass=document.getElementById('ed-user-pass').value;
+  if(pass)body.password=pass;
+  if(mode==='edit')await apiFetch('/users/'+userEditorState.id,{method:'PUT',body:JSON.stringify(body)});
+  else await apiFetch('/users',{method:'POST',body:JSON.stringify(body)});
+  await refreshUsersCache();
+  closeUserEditor();
+}
+async function removeUser(id){
+  if(!confirm('Remover este usuário?'))return;
+  await apiFetch('/users/'+id,{method:'DELETE'});
+  await refreshUsersCache();
+  renderGestor();
+}
+async function resendClientAccess(id){
+  try{
+    await apiFetch('/users/'+id+'/resend-client-access',{method:'POST'});
+    showToast('E-mail de acesso reenviado.');
+  }catch(err){
+    alert('Erro ao reenviar acesso: '+err.message);
+  }
+}
+var baseStatusMeta=statusMeta;
+statusMeta=function(status){
+  if(status==='SIGNED')return {txt:'Assinado',cls:'badge-ok'};
+  return baseStatusMeta(status);
+};
+function clientStatusMeta(report){
+  if(report&&report.status==='SIGNED')return {txt:'Assinado',cls:'badge-ok'};
+  if(report&&report.status==='APPROVED')return {txt:'Aprovado',cls:'badge-pen'};
+  if(report&&report.status==='RETURNED')return {txt:'Reprovado',cls:'badge-rej'};
+  return {txt:report&&report.status?report.status:'Pendente',cls:'badge-rev'};
+}
+function clientProjectTitle(project){
+  if(!project)return 'Projeto';
+  return (project.contrato||'---')+' — Missão '+(project.code||project.codigo||'---')+' — '+(project.nome||project.name||'Sem nome');
+}
+function getClientProjects(){
+  var items=(db.projetos||[]).filter(function(project){
+    if(!currentUser||currentUser.role!=='CLIENT')return true;
+    return normalizeCnpjDigits(project.cnpj||'')===normalizeCnpjDigits(currentUser.username||'');
+  });
+  return items.slice().sort(function(a,b){
+    return clientProjectTitle(a).localeCompare(clientProjectTitle(b),'pt-BR');
+  });
+}
+function switchClientProjectTab(projectId){
+  clientProjectTab=projectId||'';
+  renderClientPanel();
+}
+function renderClientReportCard(report){
+  var meta=clientStatusMeta(report);
+  var isRdo=(report.reportType||'RDO')==='RDO';
+  var canReview=isRdo&&report.status==='APPROVED';
+  var commentId='client-review-comment-'+report.id;
+  var leader=(report.createdBy&&report.createdBy.name)||'—';
+  var subtitle=isRdo?'RDO pronto para conferência do cliente':'Relatório de serviço liberado após assinatura do RDO';
+  var actions='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="mini-btn alt" type="button" onclick="gerarPDF(\''+report.id+'\')">Baixar PDF</button></div>';
+  if(canReview){
+    actions+='<div style="margin-top:10px" class="fg"><label>Comentário do cliente</label><textarea id="'+commentId+'" rows="3" placeholder="Comentário opcional"></textarea></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="mini-btn" type="button" onclick="submitClientReview(\''+report.id+'\',\'APPROVED\')">Aprovar e assinar</button><button class="mini-btn alt" type="button" onclick="submitClientReview(\''+report.id+'\',\'REJECTED\')">Reprovar</button></div>';
+  }
+  var reviews=(report.clientReviews||[]).length?'<div class="det-section" style="margin-top:10px">'+(report.clientReviews||[]).slice(0,3).map(function(item){ return '<div class="det-row"><span class="det-label">'+(item.action==='APPROVED'?'Aprovado':'Reprovado')+'</span><span class="det-val">'+escapeHtml(item.comment||'Sem comentário')+'</span></div>'; }).join('')+'</div>':'';
+  return '<div class="card admin-card" style="margin-bottom:10px"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><div class="admin-item-title">'+escapeHtml(reportDisplayLabel(report))+' · '+escapeHtml(formatReportDate(report.reportDate))+'</div><div class="admin-item-sub">'+escapeHtml(leader)+' · '+escapeHtml(subtitle)+'</div></div><span class="badge '+meta.cls+'">'+meta.txt+'</span></div>'+actions+reviews+'</div>';
+}
+function renderClientPanel(){
+  var screen=document.getElementById('s-client');
+  if(!screen)return;
+  var scroll=screen.querySelector('.scroll');
+  if(!scroll)return;
+  var projects=getClientProjects();
+  if(!clientProjectTab&&projects.length)clientProjectTab=projects[0].id;
+  if(projects.length&&projects.every(function(project){return project.id!==clientProjectTab;}))clientProjectTab=projects[0].id;
+  var tabs=projects.map(function(project){
+    var active=project.id===clientProjectTab;
+    return '<button class="mini-btn'+(active?'':' alt')+'" type="button" onclick="switchClientProjectTab(\''+project.id+'\')">'+escapeHtml(clientProjectTitle(project))+'</button>';
+  }).join('');
+  var currentProject=projects.find(function(project){return project.id===clientProjectTab;})||null;
+  var reports=(reportsCache||[]).filter(function(report){return currentProject&&report.projectId===currentProject.id;}).sort(function(a,b){
+    return String(b.reportDate||'').localeCompare(String(a.reportDate||'')) || String(b.createdAt||'').localeCompare(String(a.createdAt||''));
+  });
+  var content='';
+  if(currentProject){
+    content='<div class="card"><div class="sec">Projeto atual</div><div class="det-section"><div class="det-row"><span class="det-label">Projeto</span><span class="det-val">'+escapeHtml(clientProjectTitle(currentProject))+'</span></div><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(currentProject.cliente||currentUser&&currentUser.name||'—')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(currentUser&&currentUser.username||'')||'—')+'</span></div><div class="det-row"><span class="det-label">Relatórios visíveis</span><span class="det-val">'+reports.length+'</span></div></div></div>';
+    content+='<div class="card"><div class="sec">Relatórios</div>'+(reports.length?reports.map(renderClientReportCard).join(''):'<div style="font-size:13px;color:var(--mu)">Nenhum relatório disponível para este projeto no momento.</div>')+'</div>';
+  }else{
+    content='<div class="card"><div class="sec">Projetos</div><div style="font-size:13px;color:var(--mu)">Nenhum projeto associado ao seu CNPJ.</div></div>';
+  }
+  scroll.innerHTML='<div class="card"><div class="sec">Projetos vinculados</div><div style="display:flex;gap:8px;flex-wrap:wrap">'+(tabs||'<div style="font-size:13px;color:var(--mu)">Nenhum projeto associado.</div>')+'</div></div>'+content;
+  updateUserLabels();
+}
+async function submitClientReview(reportId,action){
+  var report=(reportsCache||[]).find(function(item){return item.id===reportId;});
+  if(!report)return;
+  var commentField=document.getElementById('client-review-comment-'+reportId);
+  var comment=commentField?commentField.value.trim():'';
+  if(action==='APPROVED'){
+    var confirmText='Eu, '+((currentUser&&currentUser.name)||'Cliente')+', CNPJ '+(formatCnpj((currentUser&&currentUser.username)||'')||'')+', declaro que li e aprovo o '+(report.reportType||'RDO')+' nº '+(report.sequenceNumber!=null?String(report.sequenceNumber).padStart(3,'0'):'---')+' referente ao projeto '+((report.project&&report.project.name)||'')+'.';
+    if(!confirm(confirmText))return;
+  }else{
+    if(!confirm('Confirmar reprovação deste relatório?'))return;
+  }
+  try{
+    await apiFetch('/reports/'+reportId+'/client-review',{method:'POST',body:JSON.stringify({action:action,comment:comment||null})});
+    await refreshReportsCache();
+    renderClientPanel();
+    showToast(action==='APPROVED'?'Relatório assinado com sucesso.':'Reprovação registrada.');
+  }catch(err){
+    alert('Erro ao registrar ação do cliente: '+err.message);
+  }
+}
+clientReportTypeTabs=clientReportTypeTabs||{};
+function switchClientProjectTab(projectId){
+  clientProjectTab=projectId||'';
+  renderClientPanel();
+}
+function switchClientReportTypeTab(projectId,reportType){
+  if(!projectId)return;
+  clientReportTypeTabs[projectId]=reportType||'RDO';
+  renderClientPanel();
+}
+function clientReportTypesForProject(reports){
+  var ordered=['RDO','RLQ','RTP','RCPU','RLM'];
+  return ordered.filter(function(type){
+    return (reports||[]).some(function(report){return (report.reportType||'RDO')===type;});
+  });
+}
+function renderClientPanel(){
+  var screen=document.getElementById('s-client');
+  if(!screen)return;
+  var scroll=screen.querySelector('.scroll');
+  if(!scroll)return;
+  var projects=getClientProjects();
+  if(!clientProjectTab&&projects.length)clientProjectTab=projects[0].id;
+  if(projects.length&&projects.every(function(project){return project.id!==clientProjectTab;}))clientProjectTab=projects[0].id;
+  var projectTabs=projects.map(function(project){
+    var active=project.id===clientProjectTab;
+    return '<button class="mini-btn'+(active?'':' alt')+'" type="button" onclick="switchClientProjectTab(\''+project.id+'\')">'+escapeHtml(clientProjectTitle(project))+'</button>';
+  }).join('');
+  var currentProject=projects.find(function(project){return project.id===clientProjectTab;})||null;
+  var reports=(reportsCache||[]).filter(function(report){return currentProject&&report.projectId===currentProject.id;}).sort(function(a,b){
+    return String(b.reportDate||'').localeCompare(String(a.reportDate||'')) || String(b.createdAt||'').localeCompare(String(a.createdAt||''));
+  });
+  var content='';
+  if(currentProject){
+    var reportTypes=clientReportTypesForProject(reports);
+    var activeType=clientReportTypeTabs[currentProject.id]||'RDO';
+    if(reportTypes.length&&reportTypes.indexOf(activeType)<0)activeType=reportTypes[0];
+    if(!reportTypes.length)activeType='RDO';
+    clientReportTypeTabs[currentProject.id]=activeType;
+    var typeTabs=reportTypes.map(function(type){
+      var active=type===activeType;
+      var count=reports.filter(function(report){return (report.reportType||'RDO')===type;}).length;
+      return '<button class="mini-btn'+(active?'':' alt')+'" type="button" onclick="switchClientReportTypeTab(\''+currentProject.id+'\',\''+type+'\')">'+type+' ('+count+')</button>';
+    }).join('');
+    var filteredReports=reports.filter(function(report){return (report.reportType||'RDO')===activeType;});
+    content='<div class="card"><div class="sec">Projeto atual</div><div class="det-section"><div class="det-row"><span class="det-label">Projeto</span><span class="det-val">'+escapeHtml(clientProjectTitle(currentProject))+'</span></div><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(currentProject.cliente||currentUser&&currentUser.name||'â€”')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(currentUser&&currentUser.username||'')||'â€”')+'</span></div><div class="det-row"><span class="det-label">RelatÃ³rios visÃ­veis</span><span class="det-val">'+reports.length+'</span></div></div></div>';
+    content+='<div class="card"><div class="sec">RelatÃ³rios</div>'+(typeTabs?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+typeTabs+'</div>':'')+(filteredReports.length?filteredReports.map(renderClientReportCard).join(''):'<div style="font-size:13px;color:var(--mu)">Nenhum relatÃ³rio disponÃ­vel nesta aba no momento.</div>')+'</div>';
+  }else{
+    content='<div class="card"><div class="sec">Projetos</div><div style="font-size:13px;color:var(--mu)">Nenhum projeto associado ao seu CNPJ.</div></div>';
+  }
+  scroll.innerHTML='<div class="card"><div class="sec">Projetos vinculados</div><div style="display:flex;gap:8px;flex-wrap:wrap">'+(projectTabs||'<div style="font-size:13px;color:var(--mu)">Nenhum projeto associado.</div>')+'</div></div>'+content;
+  updateUserLabels();
+}
+function postAuthNavigation(){
+  updateUserLabels();
+  if(currentUser && currentUser.role==='MANAGER'){
+    renderGestor();
+    go('s-gestor');
+    return;
+  }
+  if(currentUser && currentUser.role==='CLIENT'){
+    renderClientPanel();
+    go('s-client');
+    return;
+  }
+  renderMyReports();
+  go('s-home');
+}
+var baseGo=go;
+go=function(id){
+  if(currentUser&&currentUser.role==='CLIENT'&&id==='s-home')id='s-client';
+  return baseGo(id);
+};
+var baseRenderMyReports=renderMyReports;
+renderMyReports=function(){
+  if(currentUser&&currentUser.role==='CLIENT'){
+    renderClientPanel();
+    return;
+  }
+  return baseRenderMyReports();
+};
+fazerLogin=async function(){
+  var username=(document.getElementById('login-user').value||'').trim();
+  var password=(document.getElementById('login-password').value||'');
+  setLoginMessage('',false);
+  if(!username||!password){setLoginMessage('Informe usuário e senha.',true);return;}
+  try{
+    var data=await apiFetch('/auth/login',{method:'POST',body:JSON.stringify({username:username,password:password})});
+    saveAuthState({token:data.token,user:data.user});
+    await bootstrapAfterLogin();
+  }catch(err){
+    setLoginMessage('Erro no login: '+err.message,true);
+  }
+};
+hydrateSession=async function(){
+  if(!authState.token)return;
+  try{
+    var me=await apiFetch('/auth/me');
+    saveAuthState({token:authState.token,user:me.user});
+    await refreshDbFromApi();
+    await refreshReportsCache();
+    if(currentUser && currentUser.role==='MANAGER'){
+      await refreshUsersCache();
+    }
+    postAuthNavigation();
+  }catch(err){
+    clearAuthState();
+    go('s-login');
+  }
+};
+function ensureManagerUsersTab(){
+  var nav=document.querySelector('#s-gestor .nav-tabs');
+  if(!nav)return;
+  var tabs=Array.from(nav.querySelectorAll('.nav-tab'));
+  var existing=tabs.find(function(tab){
+    return (tab.textContent||'').trim().toLowerCase().indexOf('usu')===0;
+  });
+  if(!existing){
+    existing=document.createElement('div');
+    existing.className='nav-tab';
+    existing.textContent='Usuarios';
+    existing.setAttribute('onclick',"switchGestorTab('usuarios',this)");
+    nav.appendChild(existing);
+  }
+  existing.setAttribute('onclick',"switchGestorTab('usuarios',this)");
+  if(gestorTab==='usuarios'){
+    tabs.concat(existing).forEach(function(tab){ tab.classList.remove('active'); });
+    existing.classList.add('active');
+  }
+}
+function syncCollaboratorHomeActions(){
+  var cards=document.querySelectorAll('#s-home .home-actions .ha');
+  if(cards[0])cards[0].setAttribute('onclick','startNewReport()');
+  if(cards[1])cards[1].setAttribute('onclick','openMyReports()');
+  if(cards[2])cards[2].setAttribute('onclick','openOngoingServices()');
+}
+var _isStabilizingFrontend=false;
+function ensureCollaboratorSupportScreens(){
+  var shell=document.querySelector('.shell');
+  var cabecalho=document.getElementById('s-cabecalho');
+  if(!shell||!cabecalho)return;
+  if(!document.getElementById('s-andamento')){
+    var ongoingScreen=document.createElement('div');
+    ongoingScreen.className='screen';
+    ongoingScreen.id='s-andamento';
+    ongoingScreen.innerHTML='<div class="topbar"><div style="cursor:pointer;font-size:18px;margin-right:4px" onclick="go(\'s-home\')">&#8592;</div><div><div class="tb-title">Servicos em andamento</div><div class="tb-sub">Organizados por projeto</div></div></div><div class="scroll" id="ongoing-services-content"></div>';
+    shell.insertBefore(ongoingScreen,cabecalho);
+  }
+  if(!document.getElementById('s-meus-relatorios')){
+    var reportsScreen=document.createElement('div');
+    reportsScreen.className='screen';
+    reportsScreen.id='s-meus-relatorios';
+    reportsScreen.innerHTML='<div class="topbar"><div style="cursor:pointer;font-size:18px;margin-right:4px" onclick="go(\'s-home\')">&#8592;</div><div><div class="tb-title">Meus relatorios</div><div class="tb-sub" id="my-reports-sub">Historico por projeto</div></div></div><div class="scroll" id="my-reports-content"></div>';
+    shell.insertBefore(reportsScreen,cabecalho);
+  }
+}
+function stabilizeFrontendByRole(){
+  if(_isStabilizingFrontend)return;
+  _isStabilizingFrontend=true;
+  try{
+    ensureUtilityScreens();
+    ensureCollaboratorSupportScreens();
+    ensureManagerUsersTab();
+    syncCollaboratorHomeActions();
+    syncAccountEntryPoints();
+    if(!currentUser)return;
+    if(currentUser.role==='CLIENT'){
+      var active=document.querySelector('.screen.active');
+      var clientAllowed=['s-client','s-account','s-forgot-password','s-reset-password'];
+      if(!active||clientAllowed.indexOf(active.id)<0){
+        baseGo('s-client');
+        renderClientPanel();
+      }
+    }
+  }finally{
+    _isStabilizingFrontend=false;
+  }
+}
+var _frontendStableRenderGestor=renderGestor;
+renderGestor=function(){
+  var result=_frontendStableRenderGestor();
+  ensureManagerUsersTab();
+  return result;
+};
+var _frontendStableUpdateUserLabels=updateUserLabels;
+updateUserLabels=function(){
+  var result=_frontendStableUpdateUserLabels();
+  stabilizeFrontendByRole();
+  return result;
+};
+var _frontendStablePostAuthNavigation=postAuthNavigation;
+postAuthNavigation=function(){
+  var result=_frontendStablePostAuthNavigation();
+  stabilizeFrontendByRole();
+  return result;
+};
+var _frontendStableOpenMyReports=openMyReports;
+openMyReports=async function(){
+  if(currentUser&&currentUser.role==='CLIENT'){
+    renderClientPanel();
+    go('s-client');
+    return;
+  }
+  ensureCollaboratorSupportScreens();
+  syncCollaboratorHomeActions();
+  try{
+    return await _frontendStableOpenMyReports();
+  }catch(err){
+    console.warn('Falha ao abrir Meus Relatorios.',err);
+    renderMyReports();
+    go('s-meus-relatorios');
+  }
+};
+var _frontendStableOpenOngoingServices=openOngoingServices;
+openOngoingServices=async function(){
+  if(currentUser&&currentUser.role==='CLIENT'){
+    renderClientPanel();
+    go('s-client');
+    return;
+  }
+  ensureCollaboratorSupportScreens();
+  syncCollaboratorHomeActions();
+  try{
+    return await _frontendStableOpenOngoingServices();
+  }catch(err){
+    console.warn('Falha ao abrir Servicos em andamento.',err);
+    renderOngoingServices();
+    go('s-andamento');
+  }
+};
+var _frontendStableStartNewReport=startNewReport;
+startNewReport=function(){
+  if(currentUser&&currentUser.role==='CLIENT'){
+    renderClientPanel();
+    go('s-client');
+    return;
+  }
+  syncCollaboratorHomeActions();
+  return _frontendStableStartNewReport();
+};
+var _frontendStableGo=go;
+go=function(id){
+  if(id==='s-meus-relatorios'||id==='s-andamento')ensureCollaboratorSupportScreens();
+  if(currentUser&&currentUser.role==='CLIENT'&&['s-home','s-meus-relatorios','s-andamento','s-cabecalho','s-servicos','s-finalizar'].indexOf(id)>=0){
+    id='s-client';
+  }
+  var result=_frontendStableGo(id);
+  stabilizeFrontendByRole();
+  return result;
+};
+function renderCurrentRoleHome(){
+  if(!currentUser)return;
+  if(currentUser.role==='MANAGER'){
+    renderGestor();
+    go('s-gestor');
+    return;
+  }
+  if(currentUser.role==='CLIENT'){
+    renderClientPanel();
+    go('s-client');
+    return;
+  }
+  renderMyReports();
+  go('s-home');
+}
+var _frontendStableSwitchGestorTab=switchGestorTab;
+switchGestorTab=function(tab,el){
+  gestorTab=tab;
+  var tabs=document.querySelectorAll('#s-gestor .nav-tab');
+  tabs.forEach(function(node){ node.classList.remove('active'); });
+  if(!el){
+    el=Array.from(tabs).find(function(node){
+      var text=(node.textContent||'').trim().toLowerCase();
+      if(tab==='usuarios')return text.indexOf('usu')===0;
+      return node.getAttribute('onclick')===("switchGestorTab('"+tab+"',this)");
+    })||null;
+  }
+  if(el)el.classList.add('active');
+  renderGestor();
+  ensureManagerUsersTab();
+};
+var _frontendStableRefreshReportsCache=refreshReportsCache;
+refreshReportsCache=async function(){
+  var result=await _frontendStableRefreshReportsCache();
+  if(currentUser){
+    if(currentUser.role==='MANAGER'){
+      var gestorScreen=document.getElementById('s-gestor');
+      if(gestorScreen&&gestorScreen.classList.contains('active'))renderGestor();
+    }else if(currentUser.role==='CLIENT'){
+      renderClientPanel();
+    }else{
+      renderMyReports();
+      renderDraftViews();
+    }
+  }
+  syncCollaboratorHomeActions();
+  ensureManagerUsersTab();
+  return result;
+};
+bootstrapAfterLogin=async function(){
+  updateUserLabels();
+  try{ await refreshDbFromApi(); }catch(err){ console.warn('Falha ao carregar base apos login.',err); }
+  try{ await refreshReportsCache(); }catch(err){ console.warn('Falha ao carregar relatorios apos login.',err); }
+  try{ await refreshDraftsCache(); }catch(err){ console.warn('Falha ao carregar rascunhos apos login.',err); }
+  if(currentUser&&currentUser.role==='MANAGER'){
+    try{ await refreshUsersCache(); }catch(err){ console.warn('Falha ao carregar usuarios apos login.',err); }
+    startGestorPolling();
+  }
+  renderCurrentRoleHome();
+};
+hydrateSession=async function(){
+  if(!authState.token)return;
+  try{
+    var me=await apiFetch('/auth/me');
+    saveAuthState({token:authState.token,user:me.user});
+    await bootstrapAfterLogin();
+  }catch(err){
+    console.warn('Sessao invalida, limpando autenticacao.',err);
+    clearAuthState();
+    applyRememberedLogin();
+    setLoginMessage('',false);
+    go('s-login');
+  }
+};
+function recoverFrontendState(){
+  ensureUtilityScreens();
+  ensureManagerUsersTab();
+  syncCollaboratorHomeActions();
+  if(!currentUser)return;
+  var active=document.querySelector('.screen.active');
+  var clientAllowed=['s-client','s-account','s-forgot-password','s-reset-password'];
+  if(currentUser.role==='CLIENT'){
+    if(!active||clientAllowed.indexOf(active.id)<0){
+      renderCurrentRoleHome();
+    }
+    return;
+  }
+  if(currentUser.role==='MANAGER'){
+    ensureManagerUsersTab();
+    return;
+  }
+  if(active && active.id==='s-client'){
+    renderCurrentRoleHome();
+  }
+}
+function canonicalLoginPanelMarkup(){
+  return '<div class="fg"><label>Usuário</label><input type="text" id="login-user" list="login-user-history" placeholder="Ex.: carlos, gestor, email ou CNPJ"><datalist id="login-user-history"></datalist></div><div class="fg"><label>Senha</label><input type="password" id="login-password" placeholder="Digite a senha" autocomplete="current-password"></div><div id="login-memory-box" style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--mu)"><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-user" style="width:auto">Lembrar usuário</label><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-pass" style="width:auto">Lembrar senha</label></div><div id="login-seed-help" style="font-size:11px;color:var(--mu);line-height:1.5">Acesso inicial: gestor / gestor123, carlos / colab123, joao / colab123.<br><a href="#" onclick="openForgotPassword();return false;" style="color:var(--g);font-weight:700;text-decoration:none">Esqueci minha senha</a></div><div id="login-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><button type="button" id="login-submit-btn" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px">Entrar</button>';
+}
+function bindCanonicalLoginUi(){
+  var loginUser=document.getElementById('login-user');
+  var loginPassword=document.getElementById('login-password');
+  var submit=document.getElementById('login-submit-btn');
+  if(submit)submit.onclick=function(){ if(typeof window.fazerLogin==='function')window.fazerLogin(); };
+  [loginUser,loginPassword].forEach(function(input){
+    if(!input||input.dataset.loginEnterReady==='true')return;
+    input.dataset.loginEnterReady='true';
+    input.addEventListener('keydown',function(ev){
+      if(ev.key==='Enter'){
+        ev.preventDefault();
+        if(typeof window.fazerLogin==='function')window.fazerLogin();
+      }
+    });
+  });
+  if(loginUser&&loginUser.dataset.historyReady!=='true'){
+    loginUser.dataset.historyReady='true';
+    loginUser.addEventListener('change',syncLoginRememberByUser);
+    loginUser.addEventListener('input',function(){
+      var raw=String(this.value||'');
+      var digits=normalizeCnpjDigits(raw);
+      if(digits.length>=11&&digits.length<=14&&raw.indexOf('@')<0)this.value=formatCnpj(digits);
+      if(!this.value&&loginPassword)loginPassword.value='';
+    });
+  }
+  updateLoginHistoryOptions();
+  applyRememberedLogin();
+}
+setupRuntimeUi=function(){
+  var loginScreen=document.getElementById('s-login');
+  if(!loginScreen)return;
+  var panel=loginScreen.querySelector('.login-wrap > div:last-child');
+  if(panel)panel.innerHTML=canonicalLoginPanelMarkup();
+  var homeExit=document.querySelector('#s-home .logout-chip');
+  if(homeExit)homeExit.setAttribute('onclick','logoutApp()');
+  var gestorExit=document.querySelector('#s-gestor .topbar-actions .logout-chip');
+  if(gestorExit)gestorExit.setAttribute('onclick','logoutApp()');
+  var homeSub=document.querySelector('#s-home .tb-sub');
+  if(homeSub)homeSub.id='home-user-name';
+  var headerBlock=document.querySelector('#s-home [style*="padding:4px 0"]');
+  if(headerBlock&&headerBlock.children[0])headerBlock.children[0].id='home-greeting';
+  if(headerBlock&&headerBlock.children[1])headerBlock.children[1].id='home-date';
+  bindCanonicalLoginUi();
+  ensureAccountActionButtons();
+  processPasswordResetFromUrl();
+};
+enforceLoginUi=function(){
+  var loginScreen=document.getElementById('s-login');
+  if(!loginScreen)return;
+  var panel=loginScreen.querySelector('.login-wrap > div:last-child');
+  if(panel&&panel.innerHTML!==canonicalLoginPanelMarkup())panel.innerHTML=canonicalLoginPanelMarkup();
+  bindCanonicalLoginUi();
+};
+function sanitizeInitialUserChrome(){
+  var homeName=document.getElementById('home-user-name')||document.querySelector('#s-home .tb-sub');
+  if(homeName&&!currentUser)homeName.textContent='Usuário';
+  var greeting=document.getElementById('home-greeting')||document.querySelector('#s-home div[style*="font-size:20px"]');
+  if(greeting&&!currentUser)greeting.textContent='Bom dia, Usuário';
+}
+var _canonicalClearAuthState=clearAuthState;
+clearAuthState=function(){
+  _canonicalClearAuthState();
+  sanitizeInitialUserChrome();
+};
+var _canonicalUpdateUserLabels=updateUserLabels;
+updateUserLabels=function(){
+  sanitizeInitialUserChrome();
+  return _canonicalUpdateUserLabels();
+};
+function countClientProjectsForCurrentUser(){
+  if(!currentUser||currentUser.role!=='CLIENT')return 0;
+  return getClientProjects().length;
+}
+function normalizeClientShell(){
+  ensureUtilityScreens();
+  var clientScroll=document.querySelector('#s-client .scroll');
+  if(clientScroll&&!clientScroll.dataset.clientShellNormalized){
+    clientScroll.innerHTML='';
+    clientScroll.dataset.clientShellNormalized='true';
+  }
+}
+function normalizeForgotPasswordUi(){
+  ensureUtilityScreens();
+  var forgotInput=document.getElementById('forgot-identifier');
+  if(forgotInput){
+    forgotInput.type='text';
+    forgotInput.placeholder='Digite seu usuário, e-mail ou CNPJ';
+  }
+  var forgotLabel=document.querySelector('#s-forgot-password label');
+  if(forgotLabel)forgotLabel.textContent='Usuário, e-mail ou CNPJ';
+  var forgotIntro=document.querySelector('#s-forgot-password .login-wrap > div:last-child > div:nth-child(2)');
+  if(forgotIntro)forgotIntro.textContent='Informe usuário, e-mail ou CNPJ para receber o link de recuperação.';
+  normalizeClientShell();
+}
+openForgotPassword=function(){
+  normalizeForgotPasswordUi();
+  var input=document.getElementById('forgot-identifier');
+  var loginUser=document.getElementById('login-user');
+  if(input){
+    input.value=loginUser&&loginUser.value?String(loginUser.value).trim():'';
+    setTimeout(function(){ input.focus(); },30);
+  }
+  setPanelMessage('forgot-feedback','',false);
+  return go('s-forgot-password');
+};
+submitForgotPassword=async function(){
+  normalizeForgotPasswordUi();
+  var input=document.getElementById('forgot-identifier');
+  var identifier=String(input&&input.value||'').trim();
+  if(!identifier){
+    setPanelMessage('forgot-feedback','Informe usuário, e-mail ou CNPJ da conta.',true);
+    return;
+  }
+  try{
+    var resp=await apiFetch('/auth/forgot-password',{method:'POST',body:JSON.stringify({identifier:identifier})});
+    setPanelMessage('forgot-feedback',(resp&&resp.message)||'Se houver uma conta correspondente, o link será enviado.',false);
+  }catch(err){
+    setPanelMessage('forgot-feedback','Erro ao solicitar recuperação: '+err.message,true);
+  }
+};
+var _canonicalUpdateUserLabelsWithClientCount=updateUserLabels;
+updateUserLabels=function(){
+  var result=_canonicalUpdateUserLabelsWithClientCount();
+  normalizeForgotPasswordUi();
+  var clientProjectCount=document.getElementById('client-project-count');
+  if(clientProjectCount&&currentUser&&currentUser.role==='CLIENT'){
+    clientProjectCount.textContent=String(countClientProjectsForCurrentUser());
+  }
+  return result;
+};
+var _canonicalRenderMyReportsBase=renderMyReports;
+renderMyReports=function(){
+  if(currentUser&&currentUser.role==='CLIENT'){
+    renderClientPanel();
+    return;
+  }
+  return _canonicalRenderMyReportsBase();
+};
+var _canonicalGoBase=go;
+go=function(id){
+  ensureUtilityScreens();
+  ensureCollaboratorSupportScreens();
+  if(currentUser&&currentUser.role==='CLIENT'&&['s-home','s-meus-relatorios','s-andamento','s-cabecalho','s-servicos','s-finalizar'].indexOf(id)>=0){
+    id='s-client';
+  }
+  var target=document.getElementById(id);
+  if(!target){
+    console.warn('Tela nao encontrada para navegacao.',id);
+    return false;
+  }
+  var result=_canonicalGoBase(id);
+  stabilizeFrontendByRole();
+  return result;
+};
+renderCurrentRoleHome=function(){
+  if(!currentUser){
+    sanitizeInitialUserChrome();
+    go('s-login');
+    return;
+  }
+  if(currentUser.role==='MANAGER'){
+    renderGestor();
+    go('s-gestor');
+    return;
+  }
+  if(currentUser.role==='CLIENT'){
+    normalizeClientShell();
+    renderClientPanel();
+    go('s-client');
+    return;
+  }
+  renderMyReports();
+  go('s-home');
+};
+postAuthNavigation=function(){
+  updateUserLabels();
+  renderCurrentRoleHome();
+};
+bootstrapAfterLogin=async function(){
+  updateUserLabels();
+  try{ await refreshDbFromApi(); }catch(err){ console.warn('Falha ao carregar base apos login.',err); }
+  try{ await refreshReportsCache(); }catch(err){ console.warn('Falha ao carregar relatorios apos login.',err); }
+  if(currentUser&&currentUser.role!=='CLIENT'){
+    try{ await refreshDraftsCache(); }catch(err){ console.warn('Falha ao carregar rascunhos apos login.',err); }
+  }
+  if(currentUser&&currentUser.role==='MANAGER'){
+    try{ await refreshUsersCache(); }catch(err){ console.warn('Falha ao carregar usuarios apos login.',err); }
+    startGestorPolling();
+  }
+  renderCurrentRoleHome();
+};
+fazerLogin=async function(){
+  var rawUsername=(document.getElementById('login-user').value||'').trim();
+  var username=normalizeCnpjDigits(rawUsername).length===14?normalizeCnpjDigits(rawUsername):rawUsername;
+  var password=(document.getElementById('login-password').value||'');
+  setLoginMessage('',false);
+  if(!username||!password){setLoginMessage('Informe usuário e senha.',true);return;}
+  try{
+    var data=await apiFetch('/auth/login',{method:'POST',body:JSON.stringify({username:username,password:password})});
+    saveAuthState({token:data.token,user:data.user});
+    await bootstrapAfterLogin();
+  }catch(err){
+    setLoginMessage('Erro no login: '+err.message,true);
+  }
+};
+hydrateSession=async function(){
+  if(!authState.token){
+    sanitizeInitialUserChrome();
+    return;
+  }
+  try{
+    var me=await apiFetch('/auth/me');
+    saveAuthState({token:authState.token,user:me.user});
+    await bootstrapAfterLogin();
+  }catch(err){
+    var message=String(err&&err.message||'');
+    if(message.indexOf('Sessao invalida')>=0 || message.indexOf('Sessao ausente')>=0 || message.indexOf('Sessao expirada')>=0){
+      console.warn('Sessao invalida, limpando autenticacao.',err);
+      clearAuthState();
+      applyRememberedLogin();
+      setLoginMessage('',false);
+      go('s-login');
+      return;
+    }
+    console.warn('Falha ao validar sessao; mantendo estado local enquanto a API nao responde.',err);
+    renderCurrentRoleHome();
+  }
+};
+openMyReports=async function(){
+  if(!currentUser)return go('s-login');
+  if(currentUser.role==='CLIENT'){
+    normalizeClientShell();
+    renderClientPanel();
+    return go('s-client');
+  }
+  ensureCollaboratorSupportScreens();
+  try{
+    await refreshReportsCache();
+  }catch(err){
+    console.warn('Falha ao atualizar relatorios antes de abrir Meus Relatorios.',err);
+  }
+  renderMyReports();
+  return go('s-meus-relatorios');
+};
+openOngoingServices=async function(){
+  if(!currentUser)return go('s-login');
+  if(currentUser.role==='CLIENT'){
+    normalizeClientShell();
+    renderClientPanel();
+    return go('s-client');
+  }
+  ensureCollaboratorSupportScreens();
+  try{
+    await refreshReportsCache();
+  }catch(err){
+    console.warn('Falha ao atualizar relatorios antes de abrir Servicos em andamento.',err);
+  }
+  renderOngoingServices();
+  return go('s-andamento');
+};
+stabilizeFrontendByRole=function(){
+  ensureUtilityScreens();
+  ensureCollaboratorSupportScreens();
+  ensureManagerUsersTab();
+  syncCollaboratorHomeActions();
+  syncAccountEntryPoints();
+  if(!currentUser){
+    sanitizeInitialUserChrome();
+    return;
+  }
+  var active=document.querySelector('.screen.active');
+  if(currentUser.role==='CLIENT'){
+    var clientAllowed=['s-client','s-account','s-forgot-password','s-reset-password'];
+    if(!active||clientAllowed.indexOf(active.id)<0){
+      normalizeClientShell();
+      renderClientPanel();
+      _canonicalGoBase('s-client');
+    }
+    return;
+  }
+  if(currentUser.role==='MANAGER')return;
+  if(active&&active.id==='s-client'){
+    renderCurrentRoleHome();
+  }
+};
+function restoreOptimisticSessionUi(){
+  if(!authState.token||!currentUser)return;
+  try{
+    updateUserLabels();
+    renderCurrentRoleHome();
+  }catch(err){
+    console.warn('Falha ao restaurar estado local da sessao.',err);
+  }
+}
 initServiceCollaboratorSync();
 initMojibakeRepair();
 setupRuntimeUi();
+ensureUtilityScreens();
+ensureCollaboratorSupportScreens();
 enforceLoginUi();
+restoreOptimisticSessionUi();
+var loginUserInput=document.getElementById('login-user');
+if(loginUserInput)loginUserInput.placeholder='Ex.: carlos, gestor, email ou CNPJ';
+if(loginUserInput&&loginUserInput.dataset.cnpjMaskReady!=='true'){
+  loginUserInput.dataset.cnpjMaskReady='true';
+  loginUserInput.addEventListener('input',function(){
+    var digits=normalizeCnpjDigits(this.value||'');
+    if(digits.length<11)return;
+    if(digits.length<=14&&String(this.value||'').indexOf('@')<0)this.value=formatCnpj(digits);
+  });
+}
 document.addEventListener('click',function(ev){
   var btn=ev.target && ev.target.closest ? ev.target.closest('#login-submit-btn') : null;
   if(!btn)return;
@@ -7072,571 +7961,12 @@ setTimeout(enforceLoginUi,800);
 ensureNightIntervalField();
 initOvertimeUi();
 updateUserLabels();
+stabilizeFrontendByRole();
 renderHeaderSources();
-renderGestor();
-refreshDbFromApi().then(function(){
-  if(currentUser)return refreshReportsCache().then(function(){
-    if(currentUser.role==='MANAGER')return refreshUsersCache().then(renderGestor);
-    renderMyReports();
-  });
-}).catch(function(err){
-  console.warn('Falha ao carregar API, usando cache local.',err);
-});
-/* Frontend recovery layer for backend modules added after the rollback */
-(function(){
-  function authCardLogoHtml(id){
-    return '<div style="display:flex;flex-direction:column;align-items:center;gap:10px"><div class="login-circle"><img class="login-logo" id="'+id+'" alt="Filtrovali"></div><div style="font-size:13px;color:var(--mu);text-align:center">Sistema de relatorios de servicos</div></div>';
-  }
-  function setPanelMessage(id,message,isError){
-    var box=document.getElementById(id);
-    if(!box)return;
-    box.textContent=message||'';
-    box.style.display=message?'block':'none';
-    box.style.background=isError?'#fff5f5':'#f0f7f2';
-    box.style.border='1px solid '+(isError?'#f3b3b5':'#c3ddc9');
-    box.style.color=isError?'#991b1b':'#1f5132';
-  }
-  function syncAuthScreenLogos(){
-    var loginLogo=document.getElementById('login-logo-img');
-    var src=loginLogo&&loginLogo.src?loginLogo.src:'';
-    ['forgot-logo-img','reset-logo-img'].forEach(function(id){
-      var img=document.getElementById(id);
-      if(img&&src)img.src=src;
-    });
-  }
-  function normalizeCnpjDigits(value){
-    return String(value||'').replace(/\D/g,'').slice(0,14);
-  }
-  function formatCnpj(value){
-    var digits=normalizeCnpjDigits(value);
-    if(digits.length!==14)return digits;
-    return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
-  }
-  function parseEmailList(value){
-    var parts=Array.isArray(value)?value:String(value||'').split(/[,\n;]+/);
-    var seen={}; var out=[];
-    parts.forEach(function(item){
-      var email=String(item||'').trim().toLowerCase();
-      if(!email||seen[email])return;
-      seen[email]=true;
-      out.push(email);
-    });
-    return out;
-  }
-  function ensureRecoveryStyles(){
-    if(document.getElementById('frontend-recovery-style'))return;
-    var style=document.createElement('style');
-    style.id='frontend-recovery-style';
-    style.textContent='.email-tags{display:flex;flex-wrap:wrap;gap:8px;min-height:42px;padding:8px 10px;border:1px solid var(--br);border-radius:var(--rs);background:#fafafa}.email-tags input{border:none;background:transparent;outline:none;min-width:180px;flex:1;padding:4px 0}.email-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#eef5f0;border:1px solid #c3ddc9;color:var(--gd);font-size:12px}.email-chip-rm{cursor:pointer;color:var(--rd);font-weight:700}.email-tags-empty{font-size:12px;color:var(--mu)}';
-    document.head.appendChild(style);
-  }
-  function handleProjectCnpjInput(input){
-    if(input)input.value=formatCnpj(input.value);
-  }
-  window.handleProjectCnpjInput=handleProjectCnpjInput;
-  function getProjectEmailCcValues(){
-    var hidden=document.getElementById('ed-proj-email-cc-values');
-    if(!hidden)return [];
-    try{return parseEmailList(JSON.parse(hidden.value||'[]'));}catch(_){return parseEmailList(hidden.value||'');}
-  }
-  function setProjectEmailCcValues(values){
-    var hidden=document.getElementById('ed-proj-email-cc-values');
-    if(!hidden)return;
-    hidden.value=JSON.stringify(parseEmailList(values));
-    renderProjectEmailCcTags();
-  }
-  function renderProjectEmailCcTags(){
-    var root=document.getElementById('ed-proj-email-cc-tags');
-    var input=document.getElementById('ed-proj-email-cc-input');
-    if(!root||!input)return;
-    var values=getProjectEmailCcValues();
-    root.innerHTML=values.length?values.map(function(email){
-      return '<span class="email-chip">'+escapeHtml(email)+'<span class="email-chip-rm" onclick="removeProjectEmailCc(\''+escapeHtml(email)+'\')">x</span></span>';
-    }).join(''):'<span class="email-tags-empty">Nenhum e-mail em copia.</span>';
-    root.appendChild(input);
-  }
-  function removeProjectEmailCc(email){
-    setProjectEmailCcValues(getProjectEmailCcValues().filter(function(item){return item!==String(email||'').toLowerCase();}));
-  }
-  function commitProjectEmailCcInput(){
-    var input=document.getElementById('ed-proj-email-cc-input');
-    if(!input)return;
-    var next=parseEmailList(input.value);
-    input.value='';
-    if(!next.length){renderProjectEmailCcTags();return;}
-    setProjectEmailCcValues(getProjectEmailCcValues().concat(next));
-  }
-  function handleProjectEmailCcKeydown(event){
-    if(event.key==='Enter' || event.key===',' || event.key===';'){
-      event.preventDefault();
-      commitProjectEmailCcInput();
-    }
-  }
-  window.getProjectEmailCcValues=getProjectEmailCcValues;
-  window.removeProjectEmailCc=removeProjectEmailCc;
-  window.commitProjectEmailCcInput=commitProjectEmailCcInput;
-  window.handleProjectEmailCcKeydown=handleProjectEmailCcKeydown;
-
-  var baseToLocalDb=toLocalDb;
-  toLocalDb=function(payload){
-    var local=baseToLocalDb(payload);
-    local.projetos=(payload.projects||[]).map(function(p){
-      var seq={}; REPORT_TYPES.forEach(function(t){seq[t]=0;});
-      (p.reportSequences||[]).forEach(function(s){seq[s.reportType]=s.nextNumber;});
-      return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj||'',emailPrincipal:p.clientEmailPrimary||'',emailsCopia:p.clientEmailCc||[],contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,visivelColaboradores:p.visibleToCollaborators!==false,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
-    });
-    return local;
-  };
-
-  editorProjeto=function(){
-    var st=gestorEditors.projetos;if(!st)return '';
-    var p=st.type==='edit'?getProjetoById(st.id):{id:'',code:'',nome:'',cliente:'',cnpj:'',emailPrincipal:'',emailsCopia:[],contrato:'',local:'',operadorResponsavelId:'',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,visivelColaboradores:true,sequenciais:{}};
-    return '<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(st.type==='edit'?'Editar projeto':'Novo projeto')+'</div><button class="mini-btn alt" onclick="closeEditor(\'projetos\')">Cancelar</button></div><div class="admin-inline-grid">'+
-      '<div class="fg"><label>Numero da missao</label><input type="text" id="ed-proj-id" value="'+escapeHtml(p.code||'')+'" '+(st.type==='edit'?'readonly':'')+'></div>'+
-      '<div class="fg"><label>Nome</label><input type="text" id="ed-proj-nome" value="'+escapeHtml(p.nome||'')+'"></div>'+
-      '<div class="fg"><label>Cliente</label><input type="text" id="ed-proj-cliente" value="'+escapeHtml(p.cliente||'')+'"></div>'+
-      '<div class="fg"><label>CNPJ</label><input type="text" id="ed-proj-cnpj" value="'+escapeHtml(formatCnpj(p.cnpj||''))+'" oninput="handleProjectCnpjInput(this)"></div>'+
-      '<div class="fg"><label>E-mail principal do cliente</label><input type="email" id="ed-proj-email-primary" value="'+escapeHtml(p.emailPrincipal||'')+'" placeholder="cliente@empresa.com.br"></div>'+
-      '<div class="fg full"><label>E-mails em copia</label><input type="hidden" id="ed-proj-email-cc-values" value="'+escapeHtml(JSON.stringify(parseEmailList(p.emailsCopia||[])))+'"><div class="email-tags" id="ed-proj-email-cc-tags"><input type="text" id="ed-proj-email-cc-input" placeholder="Digite um e-mail e pressione Enter" onkeydown="handleProjectEmailCcKeydown(event)" onblur="commitProjectEmailCcInput()"></div></div>'+
-      '<div class="fg"><label>Contrato</label><input type="text" id="ed-proj-contrato" value="'+escapeHtml(p.contrato||'')+'"></div>'+
-      '<div class="fg"><label>Local</label><input type="text" id="ed-proj-local" value="'+escapeHtml(p.local||'')+'"></div>'+
-      '<div class="fg"><label>Operador responsavel</label><select id="ed-proj-operador">'+selectOptions(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};}),p.operadorResponsavelId||'','Selecionar...')+'</select></div>'+
-      '<div class="fg"><label>Exibir para colaboradores</label><select id="ed-proj-visible-collab"><option value="true"'+(p.visivelColaboradores!==false?' selected':'')+'>Sim</option><option value="false"'+(p.visivelColaboradores===false?' selected':'')+'>Nao</option></select></div>'+
-      '<div class="fg"><label>Jornada padrao</label><input type="text" id="ed-proj-jornada" value="'+escapeHtml(p.jornada||'09:00')+'"></div>'+
-      '<div class="fg"><label>Jornada fim de semana</label><input type="text" id="ed-proj-fds" value="'+escapeHtml(p.jornadaFimSemana||'08:00')+'"></div>'+
-      '<div class="fg"><label>Inclui sabado</label><select id="ed-proj-sab"><option value="true"'+(p.incluiSabado?' selected':'')+'>Sim</option><option value="false"'+(!p.incluiSabado?' selected':'')+'>Nao</option></select></div>'+
-      '<div class="fg"><label>Inclui domingo</label><select id="ed-proj-dom"><option value="true"'+(p.incluiDomingo?' selected':'')+'>Sim</option><option value="false"'+(!p.incluiDomingo?' selected':'')+'>Nao</option></select></div>'+
-      '<div class="fg full"><label>Sequenciais</label><input type="text" id="ed-proj-seq" value="'+escapeHtml(sequenciaisText(p.sequenciais))+'"></div>'+
-      '<div class="admin-actions full"><button class="mini-btn" onclick="saveProjetoEditor(\''+st.type+'\')">Salvar</button></div></div></div>';
-  };
-  var baseOpenEditor=openEditor;
-  openEditor=function(tab,type,id,extra){
-    baseOpenEditor(tab,type,id,extra);
-    if(tab==='projetos')setTimeout(renderProjectEmailCcTags,0);
-  };
-  renderProjetos=function(){
-    var list=activeProjects();
-    return '<div class="admin-toolbar"><div class="sec">Projetos ativos</div><button class="mini-btn" onclick="openEditor(\'projetos\',\'new\')">+ Novo projeto</button></div>'+editorProjeto()+
-      (list.length?list.map(function(p){
-        var operador=getColaboradorById(p.operadorResponsavelId);
-        var totalSeq=REPORT_TYPES.reduce(function(acc,t){return acc+Number((p.sequenciais&&p.sequenciais[t])||0);},0);
-        return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrao')+'</span></div><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">E-mails em copia</span><span class="det-val">'+escapeHtml((p.emailsCopia||[]).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'-')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')" style="margin-left:8px">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
-      }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto ativo.</div></div>');
-  };
-  renderProjetosArquivados=function(){
-    var list=archivedProjects();
-    return '<div class="admin-toolbar"><div class="sec">Projetos arquivados</div></div>'+
-      (list.length?list.map(function(p){
-        return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge badge-rev">Arquivado</span></div><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Local</span><span class="det-val">'+escapeHtml(p.local||'-')+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="unarchiveProjeto(\''+p.id+'\')">Desarquivar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
-      }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto arquivado.</div></div>');
-  };
-  saveProjetoEditor=async function(mode){
-    var id=document.getElementById('ed-proj-id').value.trim(), nome=document.getElementById('ed-proj-nome').value.trim();
-    if(!id||!nome){alert('Preencha numero da missao e nome do projeto.');return;}
-    var existing=mode==='edit'?db.projetos.find(function(p){return p.id===gestorEditors.projetos.id;}):null;
-    var body={code:id,name:nome,isActive:existing?existing.ativo!==false:true,clientName:document.getElementById('ed-proj-cliente').value.trim(),clientCnpj:normalizeCnpjDigits(document.getElementById('ed-proj-cnpj').value),clientEmailPrimary:document.getElementById('ed-proj-email-primary').value.trim(),clientEmailCc:getProjectEmailCcValues(),contractCode:document.getElementById('ed-proj-contrato').value.trim(),location:document.getElementById('ed-proj-local').value.trim(),operatorId:document.getElementById('ed-proj-operador').value||null,visibleToCollaborators:document.getElementById('ed-proj-visible-collab').value==='true',workdayHours:document.getElementById('ed-proj-jornada').value.trim()||'09:00',weekendWorkdayHours:document.getElementById('ed-proj-fds').value.trim()||'08:00',includesSaturday:document.getElementById('ed-proj-sab').value==='true',includesSunday:document.getElementById('ed-proj-dom').value==='true',reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number(parseSequenciais(document.getElementById('ed-proj-seq').value)[t]||0)};})};
-    try{
-      if(mode==='edit') await apiFetch('/projects/'+gestorEditors.projetos.id,{method:'PUT',body:JSON.stringify(body)});
-      else await apiFetch('/projects',{method:'POST',body:JSON.stringify(body)});
-      closeEditor('projetos');
-      await refreshDbFromApi();
-    }catch(err){alert('Erro ao salvar projeto: '+err.message);}
-  };
-  archiveProjeto=async function(id){
-    if(!confirm('Arquivar este projeto?'))return;
-    var p=getProjetoById(id); if(!p)return;
-    try{
-      await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:false,clientName:p.cliente||'',clientCnpj:normalizeCnpjDigits(p.cnpj||''),clientEmailPrimary:p.emailPrincipal||'',clientEmailCc:p.emailsCopia||[],contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
-      if(projAtual===id)projAtual='';
-      await refreshDbFromApi(); renderGestor();
-    }catch(err){alert('Erro ao arquivar projeto: '+err.message);}
-  };
-  unarchiveProjeto=async function(id){
-    var p=getProjetoById(id); if(!p)return;
-    try{
-      await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:true,clientName:p.cliente||'',clientCnpj:normalizeCnpjDigits(p.cnpj||''),clientEmailPrimary:p.emailPrincipal||'',clientEmailCc:p.emailsCopia||[],contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
-      await refreshDbFromApi(); renderGestor();
-    }catch(err){alert('Erro ao desarquivar projeto: '+err.message);}
-  };
-
-  var userAdminGroup='internal';
-  function switchUserAdminGroup(group){ userAdminGroup=group==='client'?'client':'internal'; userEditorState=null; renderGestor(); }
-  window.switchUserAdminGroup=switchUserAdminGroup;
-  function renderInternalUsersList(items){
-    var editor='';
-    if(userEditorState){
-      var u=userEditorState.mode==='edit'?(items.find(function(x){return x.id===userEditorState.id;})||{}):{username:'',name:'',email:'',role:'COLLABORATOR',isActive:true,collaboratorId:''};
-      editor='<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(userEditorState.mode==='edit'?'Editar usuario':'Novo usuario')+'</div><button class="mini-btn alt" onclick="closeUserEditor()">Cancelar</button></div><div class="admin-inline-grid"><div class="fg"><label>Usuario</label><input type="text" id="ed-user-username" value="'+escapeHtml(u.username||'')+'" '+(userEditorState.mode==='edit'?'readonly':'')+'></div><div class="fg"><label>Nome</label><input type="text" id="ed-user-name" value="'+escapeHtml(u.name||'')+'"></div><div class="fg"><label>E-mail</label><input type="email" id="ed-user-email" value="'+escapeHtml(u.email||'')+'" placeholder="email@empresa.com"></div><div class="fg"><label>Perfil</label><select id="ed-user-role"><option value="COLLABORATOR"'+((u.role||'')==='COLLABORATOR'?' selected':'')+'>Colaborador</option><option value="MANAGER"'+((u.role||'')==='MANAGER'?' selected':'')+'>Gestor</option></select></div><div class="fg"><label>Status</label><select id="ed-user-active"><option value="true"'+(u.isActive!==false?' selected':'')+'>Ativo</option><option value="false"'+(u.isActive===false?' selected':'')+'>Inativo</option></select></div><div class="fg full"><label>Vincular colaborador</label><select id="ed-user-col">'+selectOptions([{value:'',label:'Sem vinculo'}].concat(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};})),u.collaboratorId||'','Selecionar...')+'</select></div><div class="fg full"><label>Senha'+(userEditorState.mode==='edit'?' (opcional)':'')+'</label><input type="password" id="ed-user-pass" value=""></div><div class="admin-actions full"><button class="mini-btn" onclick="saveUserEditor(\''+userEditorState.mode+'\')">Salvar</button></div></div></div>';
-    }
-    return '<div class="admin-toolbar"><div class="sec">Usuarios internos</div><button class="mini-btn" onclick="openUserEditor(\'new\')">+ Novo usuario</button></div>'+editor+(items.length?items.map(function(u){return '<div class="card" style="margin-bottom:10px"><div class="admin-item-title">'+escapeHtml(u.name)+' - '+escapeHtml(u.username)+'</div><div class="admin-item-sub">'+(u.role==='MANAGER'?'Gestor':'Colaborador')+(u.email?' - '+escapeHtml(u.email):'')+(u.collaborator&&u.collaborator.name?' - '+escapeHtml(u.collaborator.name):'')+'</div><div class="admin-actions"><button class="mini-btn alt" onclick="openUserEditor(\'edit\',\''+u.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';}).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum usuario interno cadastrado.</div></div>');
-  }
-  function renderClientUsersList(items){
-    return '<div class="admin-toolbar"><div class="sec">Clientes</div><div style="font-size:12px;color:var(--mu)">Contas criadas automaticamente a partir dos projetos.</div></div>'+(items.length?items.map(function(u){
-      var linked=(u.linkedProjects||[]);
-      var projectList=linked.length?linked.map(function(p){ return escapeHtml((p.contractCode||'---')+' - Missao '+(p.code||'---')+' - '+(p.name||'Sem nome')); }).join('<br>'):'Nenhum projeto vinculado.';
-      return '<div class="card admin-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><div class="admin-item-title">'+escapeHtml(u.name||'Cliente')+' - '+escapeHtml(formatCnpj(u.username||'')||u.username||'')+'</div><div class="admin-item-sub">'+(u.email?escapeHtml(u.email):'Sem e-mail principal')+' - '+(u.isActive===false?'Inativo':'Ativo')+'</div></div><span class="badge '+(u.isActive===false?'badge-rev':'badge-ok')+'">'+(u.isActive===false?'Inativo':'Ativo')+'</span></div><div class="det-section" style="margin-top:10px"><div class="det-row"><span class="det-label">Projetos</span><span class="det-val">'+linked.length+'</span></div><div class="det-row"><span class="det-label">Vinculos</span><span class="det-val">'+projectList+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="resendClientAccess(\''+u.id+'\')">Reenviar acesso</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';
-    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum cliente provisionado.</div></div>');
-  }
-  renderUsuarios=function(){
-    var groups='<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"><button class="mini-btn'+(userAdminGroup==='internal'?'':' alt')+'" onclick="switchUserAdminGroup(\'internal\')">Internos</button><button class="mini-btn'+(userAdminGroup==='client'?'':' alt')+'" onclick="switchUserAdminGroup(\'client\')">Clientes</button></div>';
-    var internalUsers=(usersCache||[]).filter(function(u){return u.role==='MANAGER'||u.role==='COLLABORATOR';});
-    var clientUsers=(usersCache||[]).filter(function(u){return u.role==='CLIENT';});
-    return groups+(userAdminGroup==='client'?renderClientUsersList(clientUsers):renderInternalUsersList(internalUsers));
-  };
-  saveUserEditor=async function(mode){
-    var body={username:document.getElementById('ed-user-username').value.trim(),name:document.getElementById('ed-user-name').value.trim(),email:document.getElementById('ed-user-email').value.trim(),role:document.getElementById('ed-user-role').value,isActive:document.getElementById('ed-user-active').value==='true',collaboratorId:document.getElementById('ed-user-col').value||null};
-    var pass=document.getElementById('ed-user-pass').value; if(pass)body.password=pass;
-    if(mode==='edit')await apiFetch('/users/'+userEditorState.id,{method:'PUT',body:JSON.stringify(body)});
-    else await apiFetch('/users',{method:'POST',body:JSON.stringify(body)});
-    await refreshUsersCache(); closeUserEditor();
-  };
-  removeUser=async function(id){
-    if(!confirm('Remover este usuario?'))return;
-    await apiFetch('/users/'+id,{method:'DELETE'});
-    await refreshUsersCache(); renderGestor();
-  };
-  resendClientAccess=async function(id){
-    try{ await apiFetch('/users/'+id+'/resend-client-access',{method:'POST'}); showToast('E-mail de acesso reenviado.'); }
-    catch(err){ alert('Erro ao reenviar acesso: '+err.message); }
-  };
-
-  var baseStatusMeta=statusMeta;
-  statusMeta=function(status){
-    if(status==='SIGNED')return {txt:'Assinado',cls:'badge-ok'};
-    return baseStatusMeta(status);
-  };
-  reportStatusMeta=function(report){
-    if(report&&report.status==='PENDING'&&isPendingEditReport(report))return statusMeta('EDITED');
-    return statusMeta(report&&report.status);
-  };
-
-  function ensureUtilityScreens(){
-    ensureRecoveryStyles();
-    var host=document.querySelector('.shell')||document.body;
-    if(!document.getElementById('s-client')){
-      host.insertAdjacentHTML('beforeend','<div class="screen" id="s-client"><div class="topbar"><div class="topbar-brand"><img class="header-logo" id="client-header-logo" alt="Filtrovali"><div class="tb-sub" id="client-header-sub">Portal do cliente</div></div><div class="topbar-actions"><div class="logout-chip" style="margin-left:0" onclick="openAccountSettings()">Conta</div><div class="logout-chip" style="margin-left:0" onclick="logoutApp()">Sair</div></div></div><div class="scroll"><div class="card"><div class="sec">Bem-vindo</div><div style="font-size:22px;font-weight:700;color:var(--g);margin-bottom:8px" id="client-welcome-name">Cliente</div><div style="font-size:13px;color:var(--mu);line-height:1.7">Acompanhe os relatorios liberados e registre a aprovacao do cliente.</div></div><div class="card"><div class="sec">Conta atual</div><div class="det-section"><div class="det-row"><span class="det-label">Usuario</span><span class="det-val" id="client-username">-</span></div><div class="det-row"><span class="det-label">E-mail</span><span class="det-val" id="client-email">-</span></div><div class="det-row"><span class="det-label">Projetos vinculados</span><span class="det-val" id="client-project-count">0</span></div></div></div></div></div>');
-    }
-    if(!document.getElementById('s-forgot-password')){
-      host.insertAdjacentHTML('beforeend','<div class="screen" id="s-forgot-password"><div class="login-wrap">'+authCardLogoHtml('forgot-logo-img')+'<div style="width:100%;display:flex;flex-direction:column;gap:12px"><div class="sec" style="margin-bottom:0">Recuperar senha</div><div style="font-size:13px;color:var(--mu);line-height:1.5">Informe usuario, e-mail interno ou CNPJ do cliente.</div><div class="fg"><label>Identificador</label><input type="text" id="forgot-identifier" placeholder="usuario, email ou CNPJ"></div><div id="forgot-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><button type="button" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer" onclick="submitForgotPassword()">Enviar link</button><button type="button" class="mini-btn alt" style="align-self:center" onclick="go(\'s-login\')">Voltar ao login</button></div></div></div>');
-    }
-    if(!document.getElementById('s-reset-password')){
-      host.insertAdjacentHTML('beforeend','<div class="screen" id="s-reset-password"><div class="login-wrap">'+authCardLogoHtml('reset-logo-img')+'<div style="width:100%;display:flex;flex-direction:column;gap:12px"><div class="sec" style="margin-bottom:0">Redefinir senha</div><div style="font-size:13px;color:var(--mu);line-height:1.5">Defina a nova senha da conta.</div><div class="fg"><label>Nova senha</label><input type="password" id="reset-password-new" autocomplete="new-password"></div><div class="fg"><label>Confirmar nova senha</label><input type="password" id="reset-password-confirm" autocomplete="new-password"></div><div id="reset-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><button type="button" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer" onclick="submitResetPasswordScreen()">Salvar nova senha</button><button type="button" class="mini-btn alt" style="align-self:center" onclick="go(\'s-login\')">Voltar ao login</button></div></div></div>');
-    }
-    if(!document.getElementById('s-account')){
-      host.insertAdjacentHTML('beforeend','<div class="screen" id="s-account"><div class="topbar"><div class="topbar-brand"><div class="tb-title">Conta</div><div class="tb-sub" id="account-subtitle">Configuracoes da conta</div></div><div class="topbar-actions"><div class="logout-chip" style="margin-left:0" onclick="closeAccountSettings()">Voltar</div><div class="logout-chip" style="margin-left:0" onclick="logoutApp()">Sair</div></div></div><div class="scroll"><div class="card"><div class="sec">E-mail</div><div class="admin-inline-grid"><div class="fg full"><label>E-mail cadastrado</label><input type="email" id="account-email" placeholder="email@empresa.com"></div><div id="account-email-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><div class="admin-actions full"><button class="mini-btn" type="button" onclick="saveAccountEmail()">Salvar e-mail</button></div></div></div><div class="card"><div class="sec">Alterar senha</div><div class="admin-inline-grid"><div class="fg full"><label>Senha atual</label><input type="password" id="account-current-password" autocomplete="current-password"></div><div class="fg"><label>Nova senha</label><input type="password" id="account-new-password" autocomplete="new-password"></div><div class="fg"><label>Confirmar nova senha</label><input type="password" id="account-confirm-password" autocomplete="new-password"></div><div id="account-password-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><div class="admin-actions full"><button class="mini-btn" type="button" onclick="saveAccountPassword()">Alterar senha</button></div></div></div></div></div>');
-    }
-    syncAuthScreenLogos();
-  }
-  function accountBackTarget(){
-    if(currentUser&&currentUser.role==='MANAGER')return 's-gestor';
-    if(currentUser&&currentUser.role==='CLIENT')return 's-client';
-    return 's-home';
-  }
-  function closeAccountSettings(){ go(accountBackTarget()); }
-  window.closeAccountSettings=closeAccountSettings;
-  function syncAccountEntryPoints(){
-    var homeTopbar=document.querySelector('#s-home .topbar');
-    var homeLogout=homeTopbar?Array.from(homeTopbar.querySelectorAll('.logout-chip')).find(function(node){ return (node.textContent||'').trim()==='Sair'; }):null;
-    if(homeTopbar&&homeLogout&&currentUser&&currentUser.role==='COLLABORATOR'){
-      var actions=homeTopbar.querySelector('.account-topbar-actions');
-      if(!actions){ actions=document.createElement('div'); actions.className='topbar-actions account-topbar-actions'; homeTopbar.appendChild(actions); }
-      if(!actions.querySelector('.account-chip')){
-        var accountBtn=document.createElement('div');
-        accountBtn.className='logout-chip account-chip';
-        accountBtn.textContent='Conta';
-        accountBtn.onclick=function(){ openAccountSettings(); };
-        actions.appendChild(accountBtn);
-      }
-      homeLogout.style.marginLeft='0';
-      if(homeLogout.parentElement!==actions)actions.appendChild(homeLogout);
-    }
-    var gestorBadge=document.querySelector('#s-gestor .gestor-badge');
-    if(gestorBadge){ gestorBadge.style.cursor='pointer'; gestorBadge.title='Abrir configuracao da conta'; gestorBadge.onclick=function(){ openAccountSettings(); }; }
-  }
-  var baseUpdateUserLabels=updateUserLabels;
-  updateUserLabels=function(){
-    baseUpdateUserLabels();
-    syncAccountEntryPoints();
-    syncAuthScreenLogos();
-    var accountEmail=document.getElementById('account-email');
-    if(accountEmail&&document.activeElement!==accountEmail)accountEmail.value=(currentUser&&currentUser.email)||'';
-    var subtitle=document.getElementById('account-subtitle');
-    if(subtitle&&currentUser)subtitle.textContent=(currentUser.name||currentUser.username||'Conta')+' - '+(currentUser.role==='MANAGER'?'Gestor':(currentUser.role==='CLIENT'?'Cliente':'Colaborador'));
-    var clientHeaderSub=document.getElementById('client-header-sub');
-    if(clientHeaderSub&&currentUser&&currentUser.role==='CLIENT')clientHeaderSub.textContent='Cliente - '+(currentUser.email||currentUser.username||'');
-    var clientWelcomeName=document.getElementById('client-welcome-name');
-    if(clientWelcomeName&&currentUser&&currentUser.role==='CLIENT')clientWelcomeName.textContent=currentUser.name||'Cliente';
-    var clientUsername=document.getElementById('client-username');
-    if(clientUsername&&currentUser&&currentUser.role==='CLIENT')clientUsername.textContent=currentUser.username||'-';
-    var clientEmail=document.getElementById('client-email');
-    if(clientEmail&&currentUser&&currentUser.role==='CLIENT')clientEmail.textContent=currentUser.email||'-';
-    var clientProjectCount=document.getElementById('client-project-count');
-    if(clientProjectCount&&currentUser&&currentUser.role==='CLIENT')clientProjectCount.textContent=String((db.projetos||[]).length||0);
-    var clientLogo=document.getElementById('client-header-logo');
-    var homeLogo=document.getElementById('home-header-logo');
-    if(clientLogo&&homeLogo&&homeLogo.src)clientLogo.src=homeLogo.src;
-  };
-  function patchLoginPanel(){
-    var login=document.getElementById('s-login');
-    var panel=login&&login.querySelector('.login-wrap > div:last-child');
-    if(!panel)return;
-    var help=document.getElementById('login-seed-help');
-    if(help&&help.dataset.recoveryPatched!=='true'){
-      help.dataset.recoveryPatched='true';
-      help.innerHTML='Acesso inicial: gestor / gestor123, carlos / colab123, joao / colab123.<br><a href="#" onclick="openForgotPassword();return false;" style="color:var(--g);font-weight:700;text-decoration:none">Esqueci minha senha</a>';
-    }
-    var userInput=document.getElementById('login-user');
-    if(userInput)userInput.placeholder='Ex.: carlos, gestor, email ou CNPJ';
-  }
-  if(typeof enforceLoginUi==='function'){
-    var baseEnforceLoginUi=enforceLoginUi;
-    enforceLoginUi=function(){ var result=baseEnforceLoginUi.apply(this,arguments); patchLoginPanel(); return result; };
-  }
-  function openForgotPassword(){
-    ensureUtilityScreens();
-    var input=document.getElementById('forgot-identifier');
-    var loginUser=document.getElementById('login-user');
-    if(input){
-      input.value=loginUser&&loginUser.value?loginUser.value.trim():'';
-      setTimeout(function(){ input.focus(); },30);
-    }
-    setPanelMessage('forgot-feedback','',false);
-    go('s-forgot-password');
-  }
-  async function submitForgotPassword(){
-    var identifier=String((document.getElementById('forgot-identifier')||{}).value||'').trim();
-    if(!identifier){ setPanelMessage('forgot-feedback','Informe usuario, e-mail ou CNPJ.',true); return; }
-    try{
-      var resp=await apiFetch('/auth/forgot-password',{method:'POST',body:JSON.stringify({identifier:identifier})});
-      setPanelMessage('forgot-feedback',(resp&&resp.message)||'Se houver uma conta correspondente, o link sera enviado.',false);
-    }catch(err){
-      setPanelMessage('forgot-feedback','Erro ao solicitar recuperacao: '+err.message,true);
-    }
-  }
-  async function processPasswordResetFromUrl(){
-    ensureUtilityScreens();
-    var params=new URLSearchParams(location.search||'');
-    var token=params.get('token')||params.get('resetToken')||'';
-    if(!token)return;
-    if((location.pathname||'').toLowerCase().indexOf('/reset-password')<0 && !params.get('resetToken'))return;
-    var screen=document.getElementById('s-reset-password');
-    if(screen)screen.dataset.resetToken=token;
-    setPanelMessage('reset-feedback','Digite a nova senha para concluir a recuperacao.',false);
-    go('s-reset-password');
-  }
-  async function submitResetPasswordScreen(){
-    var screen=document.getElementById('s-reset-password');
-    var token=screen&&screen.dataset?screen.dataset.resetToken:'';
-    var newPassword=String((document.getElementById('reset-password-new')||{}).value||'');
-    var confirmPassword=String((document.getElementById('reset-password-confirm')||{}).value||'');
-    if(!token){ setPanelMessage('reset-feedback','Token de redefinicao ausente.',true); return; }
-    if(newPassword.length<6){ setPanelMessage('reset-feedback','A nova senha deve ter ao menos 6 caracteres.',true); return; }
-    if(newPassword!==confirmPassword){ setPanelMessage('reset-feedback','A confirmacao da senha nao confere.',true); return; }
-    try{
-      await apiFetch('/auth/reset-password',{method:'POST',body:JSON.stringify({token:token,password:newPassword})});
-      if(history&&history.replaceState)history.replaceState({},document.title,'/');
-      if(screen&&screen.dataset)screen.dataset.resetToken='';
-      go('s-login');
-      setLoginMessage('Senha redefinida com sucesso. Faca login com a nova senha.',false);
-    }catch(err){
-      setPanelMessage('reset-feedback','Erro ao redefinir senha: '+err.message,true);
-    }
-  }
-  function openAccountSettings(){
-    if(!authState.token){go('s-login');return;}
-    ensureUtilityScreens();
-    var emailInput=document.getElementById('account-email');
-    if(emailInput)emailInput.value=(currentUser&&currentUser.email)||'';
-    ['account-current-password','account-new-password','account-confirm-password'].forEach(function(id){
-      var field=document.getElementById(id); if(field)field.value='';
-    });
-    setPanelMessage('account-email-feedback','',false);
-    setPanelMessage('account-password-feedback','',false);
-    updateUserLabels();
-    go('s-account');
-  }
-  async function saveAccountEmail(){
-    var email=String((document.getElementById('account-email')||{}).value||'').trim();
-    try{
-      var resp=await apiFetch('/auth/account',{method:'PUT',body:JSON.stringify({email:email})});
-      if(resp&&resp.user)saveAuthState({token:authState.token,user:resp.user});
-      updateUserLabels();
-      if(currentUser&&currentUser.role==='MANAGER'){ try{ await refreshUsersCache(); renderGestor(); }catch(_){} }
-      setPanelMessage('account-email-feedback','E-mail atualizado com sucesso.',false);
-    }catch(err){
-      setPanelMessage('account-email-feedback','Erro ao salvar e-mail: '+err.message,true);
-    }
-  }
-  async function saveAccountPassword(){
-    var currentPassword=String((document.getElementById('account-current-password')||{}).value||'');
-    var newPassword=String((document.getElementById('account-new-password')||{}).value||'');
-    var confirmPassword=String((document.getElementById('account-confirm-password')||{}).value||'');
-    if(!currentPassword){ setPanelMessage('account-password-feedback','Informe a senha atual.',true); return; }
-    if(newPassword.length<6){ setPanelMessage('account-password-feedback','A nova senha deve ter ao menos 6 caracteres.',true); return; }
-    if(newPassword!==confirmPassword){ setPanelMessage('account-password-feedback','A confirmacao da nova senha nao confere.',true); return; }
-    try{
-      await apiFetch('/auth/change-password',{method:'POST',body:JSON.stringify({currentPassword:currentPassword,newPassword:newPassword})});
-      ['account-current-password','account-new-password','account-confirm-password'].forEach(function(id){ var field=document.getElementById(id); if(field)field.value=''; });
-      setPanelMessage('account-password-feedback','Senha alterada com sucesso.',false);
-    }catch(err){
-      setPanelMessage('account-password-feedback','Erro ao alterar senha: '+err.message,true);
-    }
-  }
-  window.openForgotPassword=openForgotPassword;
-  window.submitForgotPassword=submitForgotPassword;
-  window.submitResetPasswordScreen=submitResetPasswordScreen;
-  window.openAccountSettings=openAccountSettings;
-  window.saveAccountEmail=saveAccountEmail;
-  window.saveAccountPassword=saveAccountPassword;
-
-  function clientProjectTitle(project){
-    if(!project)return 'Projeto';
-    return (project.contrato||'---')+' - Missao '+(project.code||project.codigo||'---')+' - '+(project.nome||project.name||'Sem nome');
-  }
-  function getClientProjects(){
-    return (db.projetos||[]).filter(function(project){
-      return !currentUser||currentUser.role!=='CLIENT' || normalizeCnpjDigits(project.cnpj||'')===normalizeCnpjDigits(currentUser.username||'');
-    }).slice().sort(function(a,b){ return clientProjectTitle(a).localeCompare(clientProjectTitle(b),'pt-BR'); });
-  }
-  var clientProjectTab='';
-  var clientReportTypeTabs={};
-  function clientStatusMeta(report){
-    if(report&&report.status==='SIGNED')return {txt:'Assinado',cls:'badge-ok'};
-    if(report&&report.status==='APPROVED')return {txt:'Aprovado',cls:'badge-pen'};
-    if(report&&report.status==='RETURNED')return {txt:'Reprovado',cls:'badge-rej'};
-    return {txt:report&&report.status?report.status:'Pendente',cls:'badge-rev'};
-  }
-  function renderClientReportCard(report){
-    var meta=clientStatusMeta(report);
-    var isRdo=(report.reportType||'RDO')==='RDO';
-    var canReview=isRdo&&report.status==='APPROVED';
-    var commentId='client-review-comment-'+report.id;
-    var leader=(report.createdBy&&report.createdBy.name)||'-';
-    var subtitle=isRdo?'RDO pronto para conferencia do cliente':'Relatorio de servico liberado apos assinatura do RDO';
-    var actions='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="mini-btn alt" type="button" onclick="gerarPDF(\''+report.id+'\')">Baixar PDF</button></div>';
-    if(canReview){
-      actions+='<div style="margin-top:10px" class="fg"><label>Comentario do cliente</label><textarea id="'+commentId+'" rows="3" placeholder="Comentario opcional"></textarea></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="mini-btn" type="button" onclick="submitClientReview(\''+report.id+'\',\'APPROVED\')">Aprovar e assinar</button><button class="mini-btn alt" type="button" onclick="submitClientReview(\''+report.id+'\',\'REJECTED\')">Reprovar</button></div>';
-    }
-    var reviews=(report.clientReviews||[]).length?'<div class="det-section" style="margin-top:10px">'+(report.clientReviews||[]).slice(0,3).map(function(item){ return '<div class="det-row"><span class="det-label">'+(item.action==='APPROVED'?'Aprovado':'Reprovado')+'</span><span class="det-val">'+escapeHtml(item.comment||'Sem comentario')+'</span></div>'; }).join('')+'</div>':'';
-    return '<div class="card admin-card" style="margin-bottom:10px"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><div class="admin-item-title">'+escapeHtml(reportDisplayLabel(report))+' - '+escapeHtml(formatReportDate(report.reportDate))+'</div><div class="admin-item-sub">'+escapeHtml(leader)+' - '+escapeHtml(subtitle)+'</div></div><span class="badge '+meta.cls+'">'+meta.txt+'</span></div>'+actions+reviews+'</div>';
-  }
-  function switchClientProjectTab(projectId){ clientProjectTab=projectId||''; renderClientPanel(); }
-  function switchClientReportTypeTab(projectId,reportType){ if(!projectId)return; clientReportTypeTabs[projectId]=reportType||'RDO'; renderClientPanel(); }
-  function clientReportTypesForProject(reports){
-    var ordered=['RDO','RLQ','RTP','RCPU','RLM'];
-    return ordered.filter(function(type){ return (reports||[]).some(function(report){return (report.reportType||'RDO')===type;}); });
-  }
-  function renderClientPanel(){
-    var screen=document.getElementById('s-client'); if(!screen)return;
-    var scroll=screen.querySelector('.scroll'); if(!scroll)return;
-    var projects=getClientProjects();
-    if(!clientProjectTab&&projects.length)clientProjectTab=projects[0].id;
-    if(projects.length&&projects.every(function(project){return project.id!==clientProjectTab;}))clientProjectTab=projects[0].id;
-    var projectTabs=projects.map(function(project){
-      var active=project.id===clientProjectTab;
-      return '<button class="mini-btn'+(active?'':' alt')+'" type="button" onclick="switchClientProjectTab(\''+project.id+'\')">'+escapeHtml(clientProjectTitle(project))+'</button>';
-    }).join('');
-    var currentProject=projects.find(function(project){return project.id===clientProjectTab;})||null;
-    var reports=(reportsCache||[]).filter(function(report){return currentProject&&report.projectId===currentProject.id;}).sort(function(a,b){
-      return String(b.reportDate||'').localeCompare(String(a.reportDate||'')) || String(b.createdAt||'').localeCompare(String(a.createdAt||''));
-    });
-    var content='';
-    if(currentProject){
-      var reportTypes=clientReportTypesForProject(reports);
-      var activeType=clientReportTypeTabs[currentProject.id]||'RDO';
-      if(reportTypes.length&&reportTypes.indexOf(activeType)<0)activeType=reportTypes[0];
-      clientReportTypeTabs[currentProject.id]=activeType;
-      var typeTabs=reportTypes.map(function(type){
-        var active=type===activeType;
-        var count=reports.filter(function(report){return (report.reportType||'RDO')===type;}).length;
-        return '<button class="mini-btn'+(active?'':' alt')+'" type="button" onclick="switchClientReportTypeTab(\''+currentProject.id+'\',\''+type+'\')">'+type+' ('+count+')</button>';
-      }).join('');
-      var filteredReports=reports.filter(function(report){return (report.reportType||'RDO')===activeType;});
-      content='<div class="card"><div class="sec">Projeto atual</div><div class="det-section"><div class="det-row"><span class="det-label">Projeto</span><span class="det-val">'+escapeHtml(clientProjectTitle(currentProject))+'</span></div><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(currentProject.cliente||currentUser&&currentUser.name||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(currentUser&&currentUser.username||'')||'-')+'</span></div><div class="det-row"><span class="det-label">Relatorios visiveis</span><span class="det-val">'+reports.length+'</span></div></div></div>';
-      content+='<div class="card"><div class="sec">Relatorios</div>'+(typeTabs?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+typeTabs+'</div>':'')+(filteredReports.length?filteredReports.map(renderClientReportCard).join(''):'<div style="font-size:13px;color:var(--mu)">Nenhum relatorio disponivel nesta aba no momento.</div>')+'</div>';
-    }else{
-      content='<div class="card"><div class="sec">Projetos</div><div style="font-size:13px;color:var(--mu)">Nenhum projeto associado ao seu CNPJ.</div></div>';
-    }
-    scroll.innerHTML='<div class="card"><div class="sec">Projetos vinculados</div><div style="display:flex;gap:8px;flex-wrap:wrap">'+(projectTabs||'<div style="font-size:13px;color:var(--mu)">Nenhum projeto associado.</div>')+'</div></div>'+content;
-    updateUserLabels();
-  }
-  async function submitClientReview(reportId,action){
-    var report=(reportsCache||[]).find(function(item){return item.id===reportId;});
-    if(!report)return;
-    var commentField=document.getElementById('client-review-comment-'+reportId);
-    var comment=commentField?commentField.value.trim():'';
-    if(action==='APPROVED'){
-      var confirmText='Eu, '+((currentUser&&currentUser.name)||'Cliente')+', CNPJ '+(formatCnpj((currentUser&&currentUser.username)||'')||'')+', declaro que li e aprovo o '+(report.reportType||'RDO')+' n '+(report.sequenceNumber!=null?String(report.sequenceNumber).padStart(3,'0'):'---')+' referente ao projeto '+((report.project&&report.project.name)||'')+'.';
-      if(!confirm(confirmText))return;
-    }else if(!confirm('Confirmar reprovacao deste relatorio?'))return;
-    try{
-      await apiFetch('/reports/'+reportId+'/client-review',{method:'POST',body:JSON.stringify({action:action,comment:comment||null})});
-      await refreshReportsCache(); renderClientPanel();
-      showToast(action==='APPROVED'?'Relatorio assinado com sucesso.':'Reprovacao registrada.');
-    }catch(err){ alert('Erro ao registrar acao do cliente: '+err.message); }
-  }
-  window.switchClientProjectTab=switchClientProjectTab;
-  window.switchClientReportTypeTab=switchClientReportTypeTab;
-  window.submitClientReview=submitClientReview;
-
-  function postAuthNavigation(){
-    updateUserLabels();
-    if(currentUser&&currentUser.role==='MANAGER'){ renderGestor(); go('s-gestor'); return; }
-    if(currentUser&&currentUser.role==='CLIENT'){ renderClientPanel(); go('s-client'); return; }
-    renderMyReports(); go('s-home');
-  }
-  go=(function(baseGo){
-    return function(id){
-      if(currentUser&&currentUser.role==='CLIENT'&&id==='s-home')id='s-client';
-      return baseGo(id);
-    };
-  })(go);
-  renderMyReports=(function(baseRenderMyReports){
-    return function(){
-      if(currentUser&&currentUser.role==='CLIENT'){ renderClientPanel(); return; }
-      return baseRenderMyReports();
-    };
-  })(renderMyReports);
-  async function bootstrapAfterLogin(){
-    updateUserLabels();
-    try{ await refreshDbFromApi(); }catch(err){ console.warn('Falha ao carregar base apos login.',err); }
-    try{ await refreshReportsCache(); }catch(err){ console.warn('Falha ao carregar relatorios apos login.',err); }
-    try{ await refreshDraftsCache(); }catch(err){ console.warn('Falha ao carregar rascunhos apos login.',err); }
-    if(currentUser&&currentUser.role==='MANAGER'){
-      try{ await refreshUsersCache(); }catch(err){ console.warn('Falha ao carregar usuarios apos login.',err); }
-    }
-    postAuthNavigation();
-  }
-  fazerLogin=async function(){
-    var username=(document.getElementById('login-user').value||'').trim();
-    var password=(document.getElementById('login-password').value||'');
-    setLoginMessage('',false);
-    if(!username||!password){ setLoginMessage('Informe usuario e senha.',true); return; }
-    try{
-      var data=await apiFetch('/auth/login',{method:'POST',body:JSON.stringify({username:username,password:password})});
-      saveAuthState({token:data.token,user:data.user});
-      await bootstrapAfterLogin();
-    }catch(err){
-      setLoginMessage('Erro no login: '+err.message,true);
-    }
-  };
-  hydrateSession=async function(){
-    if(!authState.token)return;
-    try{
-      var me=await apiFetch('/auth/me');
-      saveAuthState({token:authState.token,user:me.user});
-      await refreshDbFromApi();
-      await refreshReportsCache();
-      if(currentUser&&currentUser.role==='MANAGER')await refreshUsersCache();
-      postAuthNavigation();
-    }catch(err){ clearAuthState(); }
-  };
-
-  ensureUtilityScreens();
-  patchLoginPanel();
-  processPasswordResetFromUrl();
-})();
+if(currentUser&&currentUser.role==='MANAGER')renderGestor();
+window.fazerLogin=fazerLogin;
 hydrateSession();
-</script>
-</body>
-</html>
+setTimeout(recoverFrontendState,150);
+setTimeout(recoverFrontendState,600);
+setTimeout(recoverFrontendState,1500);
+

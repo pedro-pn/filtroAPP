@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { formatCnpj } from './cnpj.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -414,7 +415,7 @@ export async function buildReportPdf(report, prisma) {
     y -= 22;
     tableRow([
       { text: 'CNPJ', bold: true, color: COLORS.gray },
-      { text: report.project.clientCnpj || '—' },
+      { text: formatCnpj(report.project.clientCnpj) || '—' },
       { text: 'Data', bold: true, color: COLORS.gray },
       { text: formatDatePt(report.reportDate) }
     ], widths, y, 22, { fill: COLORS.white });

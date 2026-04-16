@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import fs from 'node:fs/promises';
-import { ReportStatus, ReportType } from '@prisma/client';
+import { ClientReviewAction, ReportStatus, ReportType } from '@prisma/client';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
+import env from '../../config/env.js';
+import { buildReportApprovedEmailTemplate } from '../../lib/email-templates.js';
+import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { saveReportDocx, organizePhotos } from '../../lib/report-docx.js';
 import { saveReportPdf } from '../../lib/report-pdf-from-docx.js';
 import { saveRtpDocx, saveRtpPdf, organizeRtpPhotos } from '../../lib/report-rtp.js';
@@ -16,6 +19,55 @@ import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
 const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
+
+function formatDatePtBr(date) {
+  return new Date(date).toLocaleDateString('pt-BR');
+}
+
+function reportNumberLabel(report) {
+  if (report.sequenceNumber == null) return '';
+  return String(report.sequenceNumber).padStart(3, '0');
+}
+
+function queueApprovedReportNotification(report) {
+  const primary = String(report.project?.clientEmailPrimary || '').trim().toLowerCase();
+  const cc = Array.from(new Set((report.project?.clientEmailCc || [])
+    .map(email => String(email || '').trim().toLowerCase())
+    .filter(Boolean)
+    .filter(email => email !== primary)));
+  const recipients = [primary, ...cc].filter(Boolean);
+  if (!recipients.length) return;
+
+  const missingMailerConfig = getMissingMailerConfig();
+  if (missingMailerConfig.length) {
+    console.warn('SMTP nao configurado; notificacao de aprovacao nao enviada.', missingMailerConfig.join(', '));
+    return;
+  }
+
+  const template = buildReportApprovedEmailTemplate({
+    projectCode: report.project?.code || '---',
+    projectName: report.project?.name || 'Sem projeto',
+    clientName: report.project?.clientName || 'Cliente',
+    reportType: report.reportType,
+    reportNumber: reportNumberLabel(report),
+    reportDate: formatDatePtBr(report.reportDate),
+    appUrl: env.appUrl || ''
+  });
+
+  setImmediate(() => {
+    sendMail({
+      to: primary,
+      ...(cc.length ? { cc } : {}),
+      ...template
+    }).catch(error => {
+      console.error('Falha ao enviar notificacao de aprovacao do relatorio.', {
+        reportId: report.id,
+        projectId: report.projectId,
+        error: error?.message || error
+      });
+    });
+  });
+}
 
 function contentDisposition(fileName) {
   const ascii = fileName
@@ -48,17 +100,47 @@ const include = {
       attachments: true
     }
   },
-  attachments: true
+  attachments: true,
+  clientReviews: {
+    orderBy: { createdAt: 'desc' }
+  }
 };
 
 function canAccessReport(auth, report) {
   if (auth.user.role === 'MANAGER') return true;
+  if (auth.user.role === 'CLIENT') {
+    return report.project?.clientCnpj === auth.user.username;
+  }
   if (report.createdByUserId === auth.user.id) return true;
   const collabId = auth.rawUser?.collaboratorId;
   if (collabId && Array.isArray(report.collaborators)) {
     return report.collaborators.some(rc => rc.collaboratorId === collabId);
   }
   return false;
+}
+
+function canClientSeeReport(report, allReportsById) {
+  if (!report || !report.project?.clientCnpj) return false;
+  if (report.reportType === ReportType.RDO) {
+    return report.status === ReportStatus.APPROVED || report.status === ReportStatus.SIGNED;
+  }
+  const parentId = report.specialConditions?.parentRdoId;
+  if (!parentId) return false;
+  const parent = allReportsById.get(parentId);
+  return !!(parent && parent.status === ReportStatus.SIGNED);
+}
+
+function assertReportMutable(report) {
+  if (report.status === ReportStatus.SIGNED) {
+    const error = new Error('Relatorio assinado nao pode mais ser alterado.');
+    error.statusCode = 409;
+    throw error;
+  }
+}
+
+function clientIp(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return forwarded || req.ip || null;
 }
 
 const serviceSchema = z.object({
@@ -97,6 +179,10 @@ const updateSchema = schema.omit({
 const statusSchema = z.object({
   status: z.nativeEnum(ReportStatus),
   reviewNotes: z.string().nullable().optional()
+});
+const clientReviewSchema = z.object({
+  action: z.enum(['APPROVED', 'REJECTED']),
+  comment: z.string().trim().max(4000).optional().nullable()
 });
 
 function uniqueIds(values) {
@@ -1007,7 +1093,9 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     where.createdByUserId = String(req.query.createdByUserId);
   }
 
-  if (req.query.mine === 'true') {
+  if (req.auth.user.role === 'CLIENT') {
+    where.project = { clientCnpj: req.auth.user.username };
+  } else if (req.query.mine === 'true') {
     const me = await prisma.user.findUnique({
       where: { id: req.auth.user.id },
       select: { collaboratorId: true }
@@ -1028,6 +1116,10 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     include,
     orderBy: [{ reportDate: 'desc' }, { createdAt: 'desc' }]
   });
+  if (req.auth.user.role === 'CLIENT') {
+    const byId = new Map(items.map(item => [item.id, item]));
+    return res.json(items.filter(item => canClientSeeReport(item, byId)));
+  }
   res.json(items);
 }));
 
@@ -1039,6 +1131,16 @@ router.get('/:id', requireAuth, asyncHandler(async (req, res) => {
 
   if (!canAccessReport(req.auth, item)) {
     return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+  }
+  if (req.auth.user.role === 'CLIENT') {
+    const projectReports = await prisma.report.findMany({
+      where: { projectId: item.projectId },
+      include
+    });
+    const byId = new Map(projectReports.map(report => [report.id, report]));
+    if (!canClientSeeReport(item, byId)) {
+      return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+    }
   }
 
   res.json(item);
@@ -1052,6 +1154,16 @@ router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
 
   if (!canAccessReport(req.auth, item)) {
     return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+  }
+  if (req.auth.user.role === 'CLIENT') {
+    const projectReports = await prisma.report.findMany({
+      where: { projectId: item.projectId },
+      include
+    });
+    const byId = new Map(projectReports.map(report => [report.id, report]));
+    if (!canClientSeeReport(item, byId)) {
+      return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+    }
   }
 
   let saved;
@@ -1091,6 +1203,9 @@ router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 router.post('/', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth.user.role === 'CLIENT') {
+    return res.status(403).json({ error: 'A conta CLIENT nao pode criar relatorios.' });
+  }
   const data = schema.parse(req.body);
   const collaboratorIds = uniqueIds(data.collaboratorIds);
   const pendingDerivedTypes = collectPendingDerivedTypes(data.services);
@@ -1169,16 +1284,21 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
       if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
     }
   }
+  if (item.status === ReportStatus.APPROVED) queueApprovedReportNotification(item);
   res.status(201).json(item);
 }));
 
 router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth.user.role === 'CLIENT') {
+    return res.status(403).json({ error: 'A conta CLIENT nao pode editar relatorios.' });
+  }
   const data = updateSchema.parse(req.body);
   const collaboratorIds = uniqueIds(data.collaboratorIds);
   const existing = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
   });
+  assertReportMutable(existing);
   const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);
 
   const item = await prisma.$transaction(async tx => {
@@ -1274,6 +1394,9 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth.user.role === 'CLIENT') {
+    return res.status(403).json({ error: 'A conta CLIENT nao pode desfazer edicoes de relatorios.' });
+  }
   if (req.auth.user.role === 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o colaborador pode desfazer a propria edicao pendente.' });
   }
@@ -1282,6 +1405,7 @@ router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  assertReportMutable(existing);
 
   if (!canAccessReport(req.auth, existing)) {
     return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
@@ -1317,6 +1441,7 @@ router.post('/:id/discard-edit', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  assertReportMutable(existing);
 
   const originalSnapshot = cloneJson(existing.specialConditions?.__editOriginalSnapshot);
   if (!originalSnapshot) {
@@ -1348,6 +1473,7 @@ router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  assertReportMutable(item);
 
   const originalSnapshot = cloneJson(item.specialConditions?.__editOriginalSnapshot);
   if (originalSnapshot && item.status !== ReportStatus.APPROVED) {
@@ -1395,12 +1521,16 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
   }
 
   const data = statusSchema.parse(req.body);
+  let approvedTransition = false;
+  const previous = await prisma.report.findUnique({
+    where: { id: req.params.id },
+    select: { status: true, specialConditions: true }
+  });
+  if (previous?.status === ReportStatus.SIGNED) {
+    return res.status(409).json({ error: 'Relatorio assinado nao pode mais ser alterado.' });
+  }
 
   const item = await prisma.$transaction(async tx => {
-    const previous = await tx.report.findUnique({
-      where: { id: req.params.id },
-      select: { status: true, specialConditions: true }
-    });
     const nextSpecialConditions = data.status === ReportStatus.APPROVED
       ? stripInternalEditState(previous?.specialConditions || {})
       : previous?.specialConditions;
@@ -1421,6 +1551,7 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
     
 
     if (data.status === ReportStatus.APPROVED && previous?.status !== ReportStatus.APPROVED) {
+      approvedTransition = true;
       await syncApprovedRtpReports(tx, updated);
       await syncApprovedRlqReports(tx, updated);
       await syncApprovedRcpReports(tx, updated);
@@ -1438,7 +1569,56 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
     for (const d of derived) {
       if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
     }
+    if (approvedTransition) queueApprovedReportNotification(item);
   }
+  res.json(item);
+}));
+
+router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth.user.role !== 'CLIENT') {
+    return res.status(403).json({ error: 'Apenas o cliente pode registrar esta acao.' });
+  }
+
+  const data = clientReviewSchema.parse(req.body);
+  const existing = await prisma.report.findUniqueOrThrow({
+    where: { id: req.params.id },
+    include
+  });
+
+  if (!canAccessReport(req.auth, existing)) {
+    return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+  }
+  if (existing.reportType !== ReportType.RDO) {
+    return res.status(400).json({ error: 'Apenas RDO pode receber assinatura do cliente.' });
+  }
+  if (existing.status === ReportStatus.SIGNED) {
+    return res.status(409).json({ error: 'Relatorio ja esta assinado.' });
+  }
+  if (existing.status !== ReportStatus.APPROVED) {
+    return res.status(409).json({ error: 'Somente relatorios aprovados pelo gestor podem ser avaliados pelo cliente.' });
+  }
+
+  const item = await prisma.$transaction(async tx => {
+    await tx.clientReportReview.create({
+      data: {
+        reportId: existing.id,
+        clientUserId: req.auth.user.id,
+        action: data.action === 'APPROVED' ? ClientReviewAction.APPROVED : ClientReviewAction.REJECTED,
+        comment: data.comment || null,
+        ipAddress: clientIp(req),
+        userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
+      }
+    });
+
+    return tx.report.update({
+      where: { id: existing.id },
+      data: {
+        status: data.action === 'APPROVED' ? ReportStatus.SIGNED : ReportStatus.APPROVED
+      },
+      include
+    });
+  });
+
   res.json(item);
 }));
 
