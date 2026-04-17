@@ -9,5 +9,24 @@ backend/prisma/dev.db
 backend/prisma/dev.db-journal
 # Arquivos de upload em runtime — não versionar dados de usuários
 backend/uploads/
+uploads/
+
+# Temporários locais de inspeção/teste
+tmp_*/
+backend/tmp_*/
+
+# Arquivos temporários soltos
+tmp_definitivo.zip
+tmp_frontend_check.js
+backend/tmp_docx_output.docx
+
+# Relatórios gerados podem ser recriados a partir do banco/modelos
+backend/Relatórios/**
+!backend/Relatórios/
+!backend/Relatórios/Assinaturas/
+!backend/Relatórios/Assinaturas/**
+!backend/Relatórios/Registros Fotográficos/
+!backend/Relatórios/Registros Fotográficos/**
+
 # Added by code-review-graph
 .code-review-graph/

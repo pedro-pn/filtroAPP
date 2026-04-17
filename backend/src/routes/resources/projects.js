@@ -64,7 +64,6 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
   } else if (req.auth.user.role === 'CLIENT') {
-    where.isActive = true;
     where.clientCnpj = req.auth.user.username;
   } else {
     const collaboratorId = req.auth.user.collaboratorId;

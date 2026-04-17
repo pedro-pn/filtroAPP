@@ -346,6 +346,31 @@ function removeNode(node) {
   if (node && node.parentNode) node.parentNode.removeChild(node);
 }
 
+function setParagraphText(doc, paragraph, text) {
+  if (!paragraph) return;
+  const content = String(text || '');
+  let pPr = null;
+  for (let child = paragraph.firstChild; child; child = child.nextSibling) {
+    if (child.nodeName === 'w:pPr') {
+      pPr = child.cloneNode(true);
+      break;
+    }
+  }
+  while (paragraph.firstChild) paragraph.removeChild(paragraph.firstChild);
+  if (pPr) paragraph.appendChild(pPr);
+
+  const lines = content.split(/\r?\n/);
+  const run = doc.createElement('w:r');
+  lines.forEach((line, index) => {
+    if (index > 0) run.appendChild(doc.createElement('w:br'));
+    const textNode = doc.createElement('w:t');
+    if (/^\s|\s$/.test(line)) textNode.setAttribute('xml:space', 'preserve');
+    textNode.appendChild(doc.createTextNode(line));
+    run.appendChild(textNode);
+  });
+  paragraph.appendChild(run);
+}
+
 function cloneBefore(node, clones) {
   const parent = node.parentNode;
   clones.forEach(clone => parent.insertBefore(clone, node));
@@ -720,6 +745,27 @@ function expandServices(doc, report) {
   removeNode(templateTable);
 }
 
+function applyClientNotesTable(doc, report) {
+  const table = findFirstByText(doc, 'w:tbl', 'Notas do cliente:');
+  if (!table) return;
+
+  const approvedReview = ((report.clientReviews || []).find(item => item.action === 'APPROVED')) || null;
+  const comment = String(approvedReview?.comment || '').trim();
+  if (!comment) {
+    removeNode(table);
+    return;
+  }
+
+  const rows = Array.from(table.getElementsByTagName('w:tr'));
+  const noteRow = rows[1] || null;
+  if (!noteRow) return;
+  const cell = noteRow.getElementsByTagName('w:tc')[0] || null;
+  if (!cell) return;
+  const paragraph = cell.getElementsByTagName('w:p')[0] || null;
+  if (!paragraph) return;
+  setParagraphText(doc, paragraph, comment);
+}
+
 async function buildTemplateZip() {
   const bytes = await fs.readFile(templatePath);
   return new AdmZip(bytes);
@@ -760,6 +806,7 @@ export async function buildReportDocx(report) {
     expandCollaborators(doc, report);
     expandServices(doc, report);
     replacePlaceholders(doc, baseData);
+    applyClientNotesTable(doc, report);
     embedGeneralPhotos(zip, doc, generalPhotoAssets);
     embedSignature(zip, doc, signatureAsset);
   });

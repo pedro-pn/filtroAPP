@@ -32,6 +32,7 @@ function queueClientMail(message, meta) {
 export async function ensureClientAccountForProject(prisma, projectData, options = {}) {
   const project = projectData || {};
   const previousProject = options.previousProject || null;
+  const shouldNotify = options.notify !== false;
   const clientCnpj = String(project.clientCnpj || '').trim();
   const primaryEmail = String(project.clientEmailPrimary || '').trim().toLowerCase();
 
@@ -81,7 +82,7 @@ export async function ensureClientAccountForProject(prisma, projectData, options
 
   let notified = false;
 
-  if (created) {
+  if (created && shouldNotify) {
     const template = buildClientWelcomeEmailTemplate({
       clientName: project.clientName,
       cnpj: clientCnpj,
@@ -99,7 +100,7 @@ export async function ensureClientAccountForProject(prisma, projectData, options
       projectCode: project.code
     });
     notified = true;
-  } else {
+  } else if (shouldNotify) {
     const notifyExisting =
       !previousProject ||
       String(previousProject.clientCnpj || '') !== clientCnpj ||
@@ -126,4 +127,31 @@ export async function ensureClientAccountForProject(prisma, projectData, options
   }
 
   return { user, created, notified };
+}
+
+export async function ensureClientAccountForCnpj(prisma, clientCnpj, options = {}) {
+  const normalizedCnpj = String(clientCnpj || '').trim();
+  if (!normalizedCnpj || normalizedCnpj.length !== 14) {
+    return { user: null, created: false, notified: false };
+  }
+
+  const project = await prisma.project.findFirst({
+    where: {
+      clientCnpj: normalizedCnpj,
+      clientEmailPrimary: { not: '' }
+    },
+    orderBy: [
+      { isActive: 'desc' },
+      { updatedAt: 'desc' },
+      { createdAt: 'desc' }
+    ]
+  });
+
+  if (!project) {
+    return { user: null, created: false, notified: false };
+  }
+
+  return ensureClientAccountForProject(prisma, project, {
+    notify: options.notify !== false
+  });
 }

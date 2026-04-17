@@ -24,6 +24,7 @@
 {{collaboratorname}} - nome do colaborador
 {{collaboratorposition}} - cargo do colaborador
 {{collaboratorshift}} - turno em que aquele colaborador trabalhou
+{{activities}} - Atividades/observações adicionadas no final do relatório
 
 {{servicecount}} - numero do serviço, segue sequencial de 1 até o que for adicionado
 {{servicename}} - nome do serviço (Teste de pressão, limpeza química, etc.)

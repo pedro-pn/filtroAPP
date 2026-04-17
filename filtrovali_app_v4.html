@@ -7100,7 +7100,7 @@ refreshDbFromApi().then(function(){
   function syncAuthScreenLogos(){
     var loginLogo=document.getElementById('login-logo-img');
     var src=loginLogo&&loginLogo.src?loginLogo.src:'';
-    ['forgot-logo-img','reset-logo-img'].forEach(function(id){
+    ['forgot-logo-img','reset-logo-img','reset-expired-logo-img'].forEach(function(id){
       var img=document.getElementById(id);
       if(img&&src)img.src=src;
     });
@@ -7350,6 +7350,9 @@ refreshDbFromApi().then(function(){
     if(!document.getElementById('s-reset-password')){
       host.insertAdjacentHTML('beforeend','<div class="screen" id="s-reset-password"><div class="login-wrap">'+authCardLogoHtml('reset-logo-img')+'<div style="width:100%;display:flex;flex-direction:column;gap:12px"><div class="sec" style="margin-bottom:0">Redefinir senha</div><div style="font-size:13px;color:var(--mu);line-height:1.5">Defina a nova senha da conta.</div><div class="fg"><label>Nova senha</label><input type="password" id="reset-password-new" autocomplete="new-password"></div><div class="fg"><label>Confirmar nova senha</label><input type="password" id="reset-password-confirm" autocomplete="new-password"></div><div id="reset-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><button type="button" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer" onclick="submitResetPasswordScreen()">Salvar nova senha</button><button type="button" class="mini-btn alt" style="align-self:center" onclick="go(\'s-login\')">Voltar ao login</button></div></div></div>');
     }
+    if(!document.getElementById('s-reset-password-expired')){
+      host.insertAdjacentHTML('beforeend','<div class="screen" id="s-reset-password-expired"><div class="login-wrap">'+authCardLogoHtml('reset-expired-logo-img')+'<div style="width:100%;display:flex;flex-direction:column;gap:12px"><div class="sec" style="margin-bottom:0">Link expirado</div><div style="font-size:13px;color:var(--mu);line-height:1.6">O link de redefinicao de senha expirou ou ja foi utilizado. Solicite um novo link para continuar.</div><button type="button" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer" onclick="go(\'s-forgot-password\')">Solicitar novo link</button><button type="button" class="mini-btn alt" style="align-self:center" onclick="go(\'s-login\')">Voltar ao login</button></div></div></div>');
+    }
     if(!document.getElementById('s-account')){
       host.insertAdjacentHTML('beforeend','<div class="screen" id="s-account"><div class="topbar"><div class="topbar-brand"><div class="tb-title">Conta</div><div class="tb-sub" id="account-subtitle">Configuracoes da conta</div></div><div class="topbar-actions"><div class="logout-chip" style="margin-left:0" onclick="closeAccountSettings()">Voltar</div><div class="logout-chip" style="margin-left:0" onclick="logoutApp()">Sair</div></div></div><div class="scroll"><div class="card"><div class="sec">E-mail</div><div class="admin-inline-grid"><div class="fg full"><label>E-mail cadastrado</label><input type="email" id="account-email" placeholder="email@empresa.com"></div><div id="account-email-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><div class="admin-actions full"><button class="mini-btn" type="button" onclick="saveAccountEmail()">Salvar e-mail</button></div></div></div><div class="card"><div class="sec">Alterar senha</div><div class="admin-inline-grid"><div class="fg full"><label>Senha atual</label><input type="password" id="account-current-password" autocomplete="current-password"></div><div class="fg"><label>Nova senha</label><input type="password" id="account-new-password" autocomplete="new-password"></div><div class="fg"><label>Confirmar nova senha</label><input type="password" id="account-confirm-password" autocomplete="new-password"></div><div id="account-password-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><div class="admin-actions full"><button class="mini-btn" type="button" onclick="saveAccountPassword()">Alterar senha</button></div></div></div></div></div>');
     }
@@ -7454,6 +7457,16 @@ refreshDbFromApi().then(function(){
     var token=params.get('token')||params.get('resetToken')||'';
     if(!token)return;
     if((location.pathname||'').toLowerCase().indexOf('/reset-password')<0 && !params.get('resetToken'))return;
+    try{
+      var status=await apiFetch('/auth/reset-password-status?token='+encodeURIComponent(token));
+      if(!status||!status.valid){
+        go('s-reset-password-expired');
+        return;
+      }
+    }catch(_err){
+      go('s-reset-password-expired');
+      return;
+    }
     var screen=document.getElementById('s-reset-password');
     if(screen)screen.dataset.resetToken=token;
     setPanelMessage('reset-feedback','Digite a nova senha para concluir a recuperacao.',false);

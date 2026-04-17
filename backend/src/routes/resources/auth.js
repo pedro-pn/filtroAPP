@@ -4,6 +4,7 @@ import { z } from 'zod';
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
 import { createPasswordResetToken, createSession, hashToken, publicUser } from '../../lib/auth.js';
+import { ensureClientAccountForCnpj } from '../../lib/client-account.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import { buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
@@ -43,6 +44,26 @@ function passwordResetSuccessMessage(res) {
     ok: true,
     message: 'Se houver uma conta correspondente, o link de recuperacao sera enviado.'
   });
+}
+
+async function findPasswordResetToken(token) {
+  const tokenHash = hashToken(token);
+  return prisma.passwordResetToken.findUnique({
+    where: { tokenHash },
+    include: { user: true }
+  });
+}
+
+function passwordResetTokenStatus(tokenRow) {
+  if (!tokenRow) return { valid: false, expired: false, used: false };
+  const expired = tokenRow.expiresAt <= new Date();
+  const used = !!tokenRow.usedAt;
+  const activeUser = !!tokenRow.user?.isActive;
+  return {
+    valid: !expired && !used && activeUser,
+    expired,
+    used
+  };
 }
 
 async function queuePasswordResetEmail({ user, emails }) {
@@ -161,6 +182,10 @@ router.post('/forgot-password', asyncHandler(async (req, res) => {
     user = await prisma.user.findFirst({
       where: { username: { equals: normalizedIdentifier, mode: 'insensitive' } }
     });
+    if (!user) {
+      const ensured = await ensureClientAccountForCnpj(prisma, normalizedIdentifier, { notify: false });
+      user = ensured.user;
+    }
     if (user) {
       const projects = await prisma.project.findMany({
         where: { clientCnpj: normalizedIdentifier },
@@ -188,16 +213,22 @@ router.post('/forgot-password', asyncHandler(async (req, res) => {
   passwordResetSuccessMessage(res);
 }));
 
+router.get('/reset-password-status', asyncHandler(async (req, res) => {
+  const token = String(req.query.token || '').trim();
+  if (!token) {
+    return res.status(400).json({ error: 'Token ausente.' });
+  }
+
+  const tokenRow = await findPasswordResetToken(token);
+  res.json(passwordResetTokenStatus(tokenRow));
+}));
+
 router.post('/reset-password', asyncHandler(async (req, res) => {
   const data = resetPasswordSchema.parse(req.body);
-  const tokenHash = hashToken(data.token);
+  const tokenRow = await findPasswordResetToken(data.token);
+  const status = passwordResetTokenStatus(tokenRow);
 
-  const tokenRow = await prisma.passwordResetToken.findUnique({
-    where: { tokenHash },
-    include: { user: true }
-  });
-
-  if (!tokenRow || tokenRow.usedAt || tokenRow.expiresAt <= new Date() || !tokenRow.user?.isActive) {
+  if (!status.valid) {
     return res.status(400).json({ error: 'Token invalido, expirado ou ja utilizado.' });
   }
 
