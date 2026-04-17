@@ -8,6 +8,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
+import { readStoredImageAsset } from './stored-image.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -487,28 +488,7 @@ async function getSignatureAsset(report) {
 }
 
 async function getUploadAsset(source) {
-  if (!source) return null;
-  try {
-    let fileName = source;
-    if (/^https?:\/\//i.test(source)) {
-      const pathname = new URL(source).pathname;
-      if (pathname.startsWith('/relatorios/')) fileName = decodeURIComponent(pathname.slice('/relatorios/'.length));
-      else if (pathname.startsWith('/uploads/')) fileName = decodeURIComponent(pathname.slice('/uploads/'.length));
-    } else if (source.startsWith('/relatorios/')) {
-      fileName = decodeURIComponent(source.slice('/relatorios/'.length));
-    } else if (source.startsWith('/uploads/')) {
-      fileName = decodeURIComponent(source.slice('/uploads/'.length));
-    }
-    if (!fileName) return null;
-    const targetPath = path.join(env.uploadDir, fileName);
-    if (!fsSync.existsSync(targetPath)) return null;
-    const bytes = await fs.readFile(targetPath);
-    const meta = getImageMeta(bytes, fileName);
-    if (!meta.width || !meta.height) return null;
-    return { bytes, fileName, ...meta };
-  } catch (_err) {
-    return null;
-  }
+  return readStoredImageAsset(source);
 }
 
 function buildSignatureDrawingXml(relId, cx, cy) {

@@ -1,4 +1,4 @@
-import { randomInt } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 import env from '../config/env.js';
 import { buildClientProjectLinkedEmailTemplate, buildClientWelcomeEmailTemplate } from './email-templates.js';
@@ -6,7 +6,13 @@ import { getMissingMailerConfig, sendMail } from './mailer.js';
 import { hashPassword } from './password.js';
 
 function generateClientPassword() {
-  return String(randomInt(0, 1000000)).padStart(6, '0');
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*_-';
+  const bytes = randomBytes(12);
+  let password = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    password += alphabet[bytes[i] % alphabet.length];
+  }
+  return password;
 }
 
 function queueClientMail(message, meta) {

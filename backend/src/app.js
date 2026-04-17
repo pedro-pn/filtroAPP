@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { Prisma } from '@prisma/client';
 import cors from 'cors';
 import express from 'express';
+import helmet from 'helmet';
 import morgan from 'morgan';
 import { ZodError } from 'zod';
 
@@ -47,16 +48,30 @@ async function findSessionExpiryWithRetry(tokenHash, options = {}) {
 fs.mkdirSync(env.assetsDir, { recursive: true });
 fs.mkdirSync(env.reportsDir, { recursive: true });
 
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: false
+}));
 app.use(cors({
+  origin(origin, callback) {
+    if (!env.allowedOrigin || !origin || origin === env.allowedOrigin) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error('Origem nao permitida pelo CORS.'));
+  },
   exposedHeaders: ['Content-Disposition']
 }));
-app.use(express.json({ limit: '25mb' }));
+app.use((req, res, next) => {
+  const isUploadsApi = req.path.startsWith('/api/uploads');
+  const limit = isUploadsApi ? '25mb' : '1mb';
+  return express.json({ limit })(req, res, next);
+});
 app.use(morgan('dev'));
 
 // Assinaturas exigem autenticação (token via header Bearer ou query param ?t=)
 const protectedSignatures = async (req, res, next) => {
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim()
-    || String(req.query.t || '');
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
   if (!token) return res.status(401).json({ error: 'Acesso negado.' });
   try {
     const session = await findSessionExpiryWithRetry(hashToken(token));
@@ -119,8 +134,10 @@ app.use((err, _req, res, _next) => {
     }
   }
 
+  const isProduction = env.nodeEnv === 'production';
+  const status = err.status || 500;
   res.status(err.status || 500).json({
-    error: err.message || 'Internal server error'
+    error: status >= 500 && isProduction ? 'Erro interno do servidor.' : (err.message || 'Internal server error')
   });
 });
 

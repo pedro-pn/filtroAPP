@@ -1696,10 +1696,7 @@ async function saveColaboradorEditor(mode){
     var signatureImage=document.getElementById('ed-col-assinatura').value.trim();
     var signatureDataUrl=(document.getElementById('ed-col-assinatura-dataurl')||{}).value||'';
     if(signatureDataUrl){
-      var signatureName=((document.getElementById('ed-col-assinatura-name')||{}).value||('assinatura-'+id+'.png')).trim();
-      var signatureMime=((document.getElementById('ed-col-assinatura-mime')||{}).value||'image/png').trim();
-      var uploaded=await apiFetch('/uploads',{method:'POST',body:JSON.stringify({label:'Assinatura',fileName:signatureName,mimeType:signatureMime,dataUrl:signatureDataUrl})});
-      signatureImage=apiHost()+uploaded.url;
+      signatureImage=signatureDataUrl;
     }
     var body={code:id,name:nome,role:document.getElementById('ed-col-cargo').value.trim(),email:document.getElementById('ed-col-email').value.trim(),signatureImage:signatureImage||'',isActive:document.getElementById('ed-col-ativo').value==='true'};
     if(mode==='edit') await apiFetch('/collaborators/'+gestorEditors.equipe.id,{method:'PUT',body:JSON.stringify(body)});
@@ -1884,7 +1881,7 @@ function setLoginMessage(message,isError){
   box.style.color=isError?'#991b1b':'#243d2c';
 }
 function apiHost(){return API_BASE.replace(/\/api$/,'');}
-function signedUrl(url){if(!url||!authState.token)return url||'';if(!url.includes('/relatorios/Assinaturas')&&!url.includes('/uploads/Assinaturas'))return url;return url+(url.includes('?')?'&':'?')+'t='+encodeURIComponent(authState.token);}
+function signedUrl(url){return url||'';}
 async function apiFetch(path,options){
   var headers=Object.assign({'Content-Type':'application/json'},(options&&options.headers)||{});
   if(authState.token)headers.Authorization='Bearer '+authState.token;
@@ -7808,7 +7805,8 @@ window.__legacyBootstrapped = false;
   reportCard=(function(baseReportCard){
     return function(report,origin){
       var meta=reportStatusMeta(report);
-      var owner=(report.createdBy&&report.createdBy.name)||'—';
+      var owner=getProjectLeaderName(report)||'—';
+      var createdBy=(report.createdBy&&report.createdBy.name)||((report.createdBy&&report.createdBy.collaborator&&report.createdBy.collaborator.name)||'—');
       var normalizedType=normalizeReportType(report.reportType||'RDO');
       var subtitle;
       if(normalizedType==='RTP'){
@@ -7831,7 +7829,7 @@ window.__legacyBootstrapped = false;
         :'';
       return '<div class="rel-item" onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')" style="align-items:flex-start;gap:12px">'+
         '<div class="rel-icon">'+((isPendingEditReport(report)&&normalizedType==='RDO')?'🧾':'&#128203;')+'</div>'+
-        '<div class="rel-info"><div class="rel-name">'+escapeHtml(getReportCardTitle(report))+'</div><div class="rel-meta">'+escapeHtml(owner)+' · '+formatReportDate(report.reportDate)+'<br>'+subtitle+'</div></div>'+
+        '<div class="rel-info"><div class="rel-name">'+escapeHtml(getReportCardTitle(report))+'</div><div class="rel-meta">'+escapeHtml(owner)+' · '+formatReportDate(report.reportDate)+'<br>'+subtitle+'<br>Criado por: '+escapeHtml(createdBy)+'</div></div>'+
         '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:auto"><span class="badge '+meta.cls+'">'+meta.txt+'</span>'+actions+deleteAction+'</div>'+
         '</div>';
     };

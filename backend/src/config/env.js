@@ -16,13 +16,15 @@ const env = {
   reportsDir,
   uploadDir: reportsDir,
   appUrl: process.env.APP_URL || '',
+  allowedOrigin: process.env.ALLOWED_ORIGIN || '',
   smtpHost: process.env.SMTP_HOST || '',
   smtpPort: Number.isFinite(smtpPort) ? smtpPort : 587,
   smtpSecure: parseBoolean(process.env.SMTP_SECURE, false),
   smtpUser: process.env.SMTP_USER || '',
   smtpPass: process.env.SMTP_PASS || '',
   smtpFrom: process.env.SMTP_FROM || '',
-  smtpTestDest: process.env.SMTP_TEST_DEST || ''
+  smtpTestDest: process.env.SMTP_TEST_DEST || '',
+  nodeEnv: process.env.NODE_ENV || 'development'
 };
 
 export default env;
