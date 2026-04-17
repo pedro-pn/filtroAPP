@@ -119,6 +119,7 @@ textarea{resize:none;min-height:72px}
 .badge-pen{background:#fef3c7;color:#92400e}
 .badge-rev{background:#dbeafe;color:#1e40af}
 .badge-ok{background:#d1fae5;color:#065f46}
+.badge-signed{background:#ede9fe;color:#5b21b6}
 .badge-rej{background:#fee2e2;color:#991b1b}
 .rel-item{background:#fff;border-radius:var(--r);border:.5px solid var(--br);padding:12px 14px;display:flex;align-items:flex-start;gap:12px;cursor:pointer;transition:.15s}
 .rel-item:hover{border-color:var(--g)}
@@ -7302,7 +7303,7 @@ refreshDbFromApi().then(function(){
 
   var baseStatusMeta=statusMeta;
   statusMeta=function(status){
-    if(status==='SIGNED')return {txt:'Assinado',cls:'badge-ok'};
+    if(status==='SIGNED')return {txt:'Assinado',cls:'badge-signed'};
     return baseStatusMeta(status);
   };
   reportStatusMeta=function(report){
@@ -7501,10 +7502,26 @@ refreshDbFromApi().then(function(){
   var clientProjectTab='';
   var clientReportTypeTabs={};
   function clientStatusMeta(report){
-    if(report&&report.status==='SIGNED')return {txt:'Assinado',cls:'badge-ok'};
+    if(report&&report.status==='SIGNED')return {txt:'Assinado',cls:'badge-signed'};
     if(report&&report.status==='APPROVED')return {txt:'Aprovado',cls:'badge-pen'};
     if(report&&report.status==='RETURNED')return {txt:'Reprovado',cls:'badge-rej'};
     return {txt:report&&report.status?report.status:'Pendente',cls:'badge-rev'};
+  }
+  function renderClientReviewSummary(report){
+    var reviews=(report&&report.clientReviews)||[];
+    if(!reviews.length)return '';
+    return '<div class="card"><div class="sec">Retorno do cliente</div><div class="det-section">'+reviews.slice(0,3).map(function(item){
+      return '<div class="det-row"><span class="det-label">'+(item.action==='APPROVED'?'Aprovado':'Reprovado')+'</span><span class="det-val">'+escapeHtml(item.comment||'Sem comentario')+'</span></div>';
+    }).join('')+'</div></div>';
+  }
+  async function refreshClientDbFromApi(){
+    var projects=await apiFetch('/projects');
+    db.projetos=(projects||[]).map(function(p){
+      var seq={}; REPORT_TYPES.forEach(function(t){seq[t]=0;});
+      (p.reportSequences||[]).forEach(function(s){seq[s.reportType]=s.nextNumber;});
+      return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj||'',emailPrincipal:p.clientEmailPrimary||'',emailsCopia:p.clientEmailCc||[],contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,visivelColaboradores:p.visibleToCollaborators!==false,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
+    });
+    saveDb();
   }
   function renderClientReportCard(report){
     var meta=clientStatusMeta(report);
@@ -7582,7 +7599,16 @@ refreshDbFromApi().then(function(){
   function postAuthNavigation(){
     updateUserLabels();
     if(currentUser&&currentUser.role==='MANAGER'){ renderGestor(); go('s-gestor'); return; }
-    if(currentUser&&currentUser.role==='CLIENT'){ renderClientPanel(); go('s-client'); return; }
+    if(currentUser&&currentUser.role==='CLIENT'){
+      try{
+        renderClientPanel();
+        go('s-client');
+      }catch(err){
+        console.error('Falha ao renderizar painel do cliente apos autenticacao.',err);
+        go('s-client');
+      }
+      return;
+    }
     renderMyReports(); go('s-home');
   }
   go=(function(baseGo){
@@ -7593,13 +7619,19 @@ refreshDbFromApi().then(function(){
   })(go);
   renderMyReports=(function(baseRenderMyReports){
     return function(){
-      if(currentUser&&currentUser.role==='CLIENT'){ renderClientPanel(); return; }
+      if(currentUser&&currentUser.role==='CLIENT'){
+        try{ renderClientPanel(); }catch(err){ console.error('Falha ao renderizar painel do cliente.',err); }
+        return;
+      }
       return baseRenderMyReports();
     };
   })(renderMyReports);
   async function bootstrapAfterLogin(){
     updateUserLabels();
-    try{ await refreshDbFromApi(); }catch(err){ console.warn('Falha ao carregar base apos login.',err); }
+    try{
+      if(currentUser&&currentUser.role==='CLIENT') await refreshClientDbFromApi();
+      else await refreshDbFromApi();
+    }catch(err){ console.warn('Falha ao carregar base apos login.',err); }
     try{ await refreshReportsCache(); }catch(err){ console.warn('Falha ao carregar relatorios apos login.',err); }
     try{ await refreshDraftsCache(); }catch(err){ console.warn('Falha ao carregar rascunhos apos login.',err); }
     if(currentUser&&currentUser.role==='MANAGER'){
@@ -7625,12 +7657,86 @@ refreshDbFromApi().then(function(){
     try{
       var me=await apiFetch('/auth/me');
       saveAuthState({token:authState.token,user:me.user});
-      await refreshDbFromApi();
+      if(currentUser&&currentUser.role==='CLIENT') await refreshClientDbFromApi();
+      else await refreshDbFromApi();
       await refreshReportsCache();
       if(currentUser&&currentUser.role==='MANAGER')await refreshUsersCache();
-      postAuthNavigation();
-    }catch(err){ clearAuthState(); }
+    }catch(err){ clearAuthState(); return; }
+    postAuthNavigation();
   };
+  reportCard=(function(baseReportCard){
+    return function(report,origin){
+      var meta=reportStatusMeta(report);
+      var owner=(report.createdBy&&report.createdBy.name)||'—';
+      var normalizedType=normalizeReportType(report.reportType||'RDO');
+      var subtitle;
+      if(normalizedType==='RTP'){
+        var svc=(report.services||[])[0];
+        var svcData=(svc&&svc.extraData)||(((report.specialConditions||{}).serviceData)||{});
+        var equip=svcData['Equipamento(s)']?stringify2(svcData['Equipamento(s)']):(svcData['Equipamento'])||'—';
+        var sys=svc?((svc.system||svcData['Sistema'])||'—'):((report.system||svcData['Sistema'])||'—');
+        subtitle=escapeHtml(equip)+' · '+escapeHtml(sys);
+      }else{
+        subtitle=escapeHtml(summarizeServices(report)||('Sem servi'+String.fromCharCode(231)+'os'));
+      }
+      var actions='';
+      if(report.status==='APPROVED' || report.status==='SIGNED'){
+        actions=currentUser&&currentUser.role==='MANAGER'
+          ?'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();downloadDocx(\''+report.id+'\')">DOCX</button><button class="mini-btn alt" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">PDF</button></div>'
+          :'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn alt" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">PDF</button></div>';
+      }
+      var deleteAction=currentUser&&currentUser.role==='MANAGER'
+        ?'<button title="'+(isPendingEditReport(report)?'Descartar edição':'Excluir relatório')+'" aria-label="'+(isPendingEditReport(report)?'Descartar edição':'Excluir relatório')+'" type="button" onclick="event.stopPropagation();'+(isPendingEditReport(report)?'discardPendingEditByManager':'deleteReport')+'(\''+report.id+'\')" style="margin-top:2px;align-self:flex-end;width:28px;height:28px;border:none;border-radius:999px;background:#f3f4f6;color:#b42318;cursor:pointer;font-size:14px;line-height:1">'+(isPendingEditReport(report)?'🧾':'&#128465;')+'</button>'
+        :'';
+      return '<div class="rel-item" onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')" style="align-items:flex-start;gap:12px">'+
+        '<div class="rel-icon">'+((isPendingEditReport(report)&&normalizedType==='RDO')?'🧾':'&#128203;')+'</div>'+
+        '<div class="rel-info"><div class="rel-name">'+escapeHtml(getReportCardTitle(report))+'</div><div class="rel-meta">'+escapeHtml(owner)+' · '+formatReportDate(report.reportDate)+'<br>'+subtitle+'</div></div>'+
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:auto"><span class="badge '+meta.cls+'">'+meta.txt+'</span>'+actions+deleteAction+'</div>'+
+        '</div>';
+    };
+  })(reportCard);
+  renderGestor=(function(baseRenderGestor){
+    return function(){
+      var c=document.getElementById('gestor-content');if(!c)return;
+      var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED';});
+      var approved=reportsCache.filter(function(r){return r.status==='APPROVED'||r.status==='SIGNED';});
+      var pen=document.getElementById('cnt-pen');if(pen)pen.textContent=pending.length;
+      if(gestorTab==='pendentes'){
+        var draftsHtml='';
+        if(draftsCache&&draftsCache.length){draftsHtml='<div class="card" style="margin-bottom:12px"><div class="sec">Relatorios em andamento</div><div class="admin-list">'+draftsCache.map(function(draft){var payload=draft.payload||draft;var date=(draft.reportDate||payload.reportDate)?formatReportDate(draft.reportDate||payload.reportDate):'Sem data';return '<div class="rel-item" style="cursor:default"><div class="rel-icon">📝</div><div class="rel-info"><div class="rel-name">'+escapeHtml(draft.title||payload.title||'Relatorio em andamento')+'</div><div class="rel-meta">'+escapeHtml(date)+'</div></div><button class="mini-btn alt" type="button" onclick="resumeDraft(\''+draft.id+'\')">Continuar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" type="button" onclick="removeDraft(\''+draft.id+'\')">Excluir</button></div>';}).join('')+'</div></div>';}
+        c.innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="mini-btn" onclick="gestorCriarRelatorio()">+ Criar Relatorio</button></div>'+draftsHtml+'<div class="stat-grid"><div class="stat-card"><div class="stat-num">'+pending.length+'</div><div class="stat-lbl">Pendentes/devolvidos</div></div><div class="stat-card"><div class="stat-num">'+approved.length+'</div><div class="stat-lbl">Aprovados/assinados</div></div></div>'+groupedReportHtml(pending,'gestor-pendentes','Nenhum relatorio pendente.');
+      }else if(gestorTab==='aprovados'){
+        c.innerHTML=groupedReportHtml(approved,'gestor','Nenhum relatorio aprovado.');
+      }else{
+        return baseRenderGestor();
+      }
+      enhanceUploadZones(c);
+    };
+  })(renderGestor);
+  openReportDetail=(function(baseOpenReportDetail){
+    return async function(id,origin){
+      await baseOpenReportDetail(id,origin);
+      var report=reportsCache.find(function(r){return r.id===id;})||currentDetailReport;
+      if(!report||!currentUser||currentUser.role!=='MANAGER')return;
+      var body=document.getElementById('det-body');
+      if(!body)return;
+      var existingSummary=document.getElementById('manager-client-review-card');
+      if(existingSummary)existingSummary.remove();
+      if(report.clientReviews&&report.clientReviews.length){
+        body.insertAdjacentHTML('beforeend','<div id="manager-client-review-card">'+renderClientReviewSummary(report)+'</div>');
+      }
+      var actions=document.getElementById('det-actions');
+      var reportType=normalizeReportType(report.reportType||'RDO');
+      var isDerived=reportType!=='RDO';
+      if(actions && report.status==='SIGNED'){
+        if(currentUser.role==='MANAGER' && isDerived){
+          actions.innerHTML='<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+        }else if(currentUser.role==='MANAGER'){
+          actions.innerHTML='<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+        }
+      }
+    };
+  })(openReportDetail);
 
   ensureUtilityScreens();
   patchLoginPanel();
