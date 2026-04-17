@@ -389,7 +389,7 @@ textarea{resize:none;min-height:72px}
   <div class="topbar">
     <div class="topbar-brand"><img class="header-logo" id="gestor-header-logo" alt="Filtrovali"><div class="tb-sub" id="gestor-greeting-sub">Filtrovali</div></div>
     <div class="topbar-actions">
-      <div class="gestor-badge">Admin</div>
+      <div class="gestor-badge">Conta</div>
       <div class="logout-chip" onclick="go('s-login')">Sair</div>
     </div>
   </div>
@@ -7441,6 +7441,8 @@ window.__legacyBootstrapped = false;
     baseUpdateUserLabels();
     syncAccountEntryPoints();
     syncAuthScreenLogos();
+    var gestorBadge=document.getElementById('gestor-user-badge');
+    if(gestorBadge&&currentUser&&currentUser.role==='MANAGER')gestorBadge.textContent='Conta';
     var accountEmail=document.getElementById('account-email');
     if(accountEmail&&document.activeElement!==accountEmail)accountEmail.value=(currentUser&&currentUser.email)||'';
     var subtitle=document.getElementById('account-subtitle');
