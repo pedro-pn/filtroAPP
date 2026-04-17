@@ -8,11 +8,13 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Filtrovali RDO</title>
 </head>
-<body>
+<body class="app-booting">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--g:#30503a;--gl:#3d6449;--gd:#243d2c;--bl:#11437e;--rd:#c81519;--pu:#9b93a8;--bg:#f4f5f4;--wh:#fff;--tx:#1a1a1a;--mu:#6b7280;--br:#d1d5db;--r:10px;--rs:6px}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px}
+body.app-booting .shell{visibility:hidden}
+body.app-booting::before{content:'Carregando...';position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--g);font-size:15px;font-weight:700;z-index:9999}
 .shell{max-width:420px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;background:var(--bg)}
 .screen{display:none;flex-direction:column;flex:1}.screen.active{display:flex}
 .topbar{background:var(--g);color:#fff;padding:14px 16px 12px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
@@ -1763,6 +1765,7 @@ async function removeManometro(id){if(!confirm('Remover este manômetro?'))retur
 async function removeContador(id){if(!confirm('Remover este contador?'))return;try{await apiFetch('/particle-counters/'+id,{method:'DELETE'});await refreshDbFromApi();}catch(err){alert('Erro ao remover contador: '+err.message);}}
 var AUTH_KEY='filtrovali_auth_v1';
 var LOGIN_PREFS_KEY='filtrovali_login_prefs_v1';
+var AUTH_PERSIST_KEY='filtrovali_auth_persist_v1';
 var authState=loadAuthState();
 var currentUser=authState.user||null;
 var reportsCache=[];
@@ -1773,7 +1776,19 @@ var editingReportId='';
 var userEditorState=null;
 
 function loadAuthState(){
-  try{return JSON.parse(localStorage.getItem(AUTH_KEY)||'{}');}catch(e){return {};}
+  try{
+    var sessionRaw=sessionStorage.getItem(AUTH_KEY);
+    if(sessionRaw){
+      var sessionState=JSON.parse(sessionRaw||'{}');
+      sessionState.rememberConnected=false;
+      return sessionState;
+    }
+  }catch(e){}
+  try{
+    var localState=JSON.parse(localStorage.getItem(AUTH_KEY)||'{}');
+    if(localState && Object.keys(localState).length)localState.rememberConnected=true;
+    return localState;
+  }catch(e){return {};}
 }
 function loadLoginPrefs(){
   try{
@@ -1799,8 +1814,10 @@ function applyRememberedLogin(){
   var pass=document.getElementById('login-password');
   var rememberUser=document.getElementById('login-remember-user');
   var rememberPass=document.getElementById('login-remember-pass');
+  var keepSigned=document.getElementById('login-keep-signed');
   if(rememberUser)rememberUser.checked=!!prefs.rememberUser;
   if(rememberPass)rememberPass.checked=!!prefs.rememberPassword;
+  if(keepSigned)keepSigned.checked=!!prefs.keepSigned;
   updateLoginHistoryOptions();
   if(user&&prefs.lastUsername){
     user.value=prefs.lastUsername;
@@ -1823,24 +1840,39 @@ function syncLoginRememberByUser(){
 function persistLoginPrefs(username,password){
   var rememberUser=!!((document.getElementById('login-remember-user')||{}).checked);
   var rememberPass=!!((document.getElementById('login-remember-pass')||{}).checked);
+  var keepSigned=!!((document.getElementById('login-keep-signed')||{}).checked);
   var prefs=loadLoginPrefs();
   var history=(prefs.history||[]).filter(function(entry){return entry.username!==username;});
   history.unshift({username:username,password:rememberPass?password:''});
   prefs.history=history.slice(0,10);
   prefs.rememberUser=rememberUser;
   prefs.rememberPassword=rememberPass;
+  prefs.keepSigned=keepSigned;
   prefs.lastUsername=rememberUser?username:'';
   if(!rememberUser && !rememberPass)prefs.lastUsername='';
   saveLoginPrefs(prefs);
   updateLoginHistoryOptions();
 }
 function saveAuthState(state){
-  authState=state||{};
-  localStorage.setItem(AUTH_KEY,JSON.stringify(authState));
+  var nextState=Object.assign({},authState||{},state||{});
+  var persist=!!nextState.rememberConnected;
+  nextState.rememberConnected=persist;
+  authState=nextState;
+  try{ sessionStorage.removeItem(AUTH_KEY); }catch(e){}
+  try{ localStorage.removeItem(AUTH_KEY); }catch(e){}
+  try{ localStorage.setItem(AUTH_PERSIST_KEY,persist?'1':'0'); }catch(e){}
+  try{
+    (persist?localStorage:sessionStorage).setItem(AUTH_KEY,JSON.stringify(authState));
+  }catch(e){
+    try{ sessionStorage.setItem(AUTH_KEY,JSON.stringify(authState)); }catch(_){}
+  }
   currentUser=authState.user||null;
 }
 function clearAuthState(){
-  authState={};currentUser=null;localStorage.removeItem(AUTH_KEY);
+  authState={};currentUser=null;
+  try{ sessionStorage.removeItem(AUTH_KEY); }catch(e){}
+  try{ localStorage.removeItem(AUTH_KEY); }catch(e){}
+  try{ localStorage.removeItem(AUTH_PERSIST_KEY); }catch(e){}
 }
 function setLoginMessage(message,isError){
   var box=document.getElementById('login-feedback');
@@ -1864,6 +1896,13 @@ async function apiFetch(path,options){
   }
   if(!res.ok){
     var bodyText=await res.text();
+    if(res.status===401){
+      clearAuthState();
+      reportsCache=[]; usersCache=[]; editingReportId='';
+      try{ applyRememberedLogin(); }catch(_){}
+      setLoginMessage('Sua sessao expirou. Faca login novamente.',true);
+      go('s-login');
+    }
     try{
       var parsed=JSON.parse(bodyText);
       throw new Error(parsed.error||('HTTP '+res.status));
@@ -1931,16 +1970,13 @@ function setupRuntimeUi(){
   applyRememberedLogin();
   var qtdField=document.getElementById('hdr-qtd-colab');
   if(qtdField&&qtdField.parentElement)qtdField.parentElement.remove();
-  var homeExit=document.querySelector('#s-home .tb-step');
-  if(homeExit){
-    homeExit.setAttribute('onclick','logoutApp()');
-    homeExit.classList.add('logout-chip');
-  }
-  var gestorExit=document.querySelector('#s-gestor .topbar div[onclick]');
-  if(gestorExit){
-    gestorExit.setAttribute('onclick','logoutApp()');
-    gestorExit.classList.add('logout-chip');
-  }
+  ['#s-home .logout-chip','#s-gestor .logout-chip'].forEach(function(selector){
+    var exit=document.querySelector(selector);
+    if(exit){
+      exit.setAttribute('onclick','logoutApp()');
+      exit.classList.add('logout-chip');
+    }
+  });
   var homeSub=document.querySelector('#s-home .tb-sub');
   if(homeSub)homeSub.id='home-user-name';
   var headerBlock=document.querySelector('#s-home [style*="padding:4px 0"]');
@@ -7075,16 +7111,32 @@ initOvertimeUi();
 updateUserLabels();
 renderHeaderSources();
 renderGestor();
-refreshDbFromApi().then(function(){
-  if(currentUser)return refreshReportsCache().then(function(){
-    if(currentUser.role==='MANAGER')return refreshUsersCache().then(renderGestor);
-    renderMyReports();
-  });
-}).catch(function(err){
-  console.warn('Falha ao carregar API, usando cache local.',err);
-});
+window.__legacyBootstrapped = false;
 /* Frontend recovery layer for backend modules added after the rollback */
 (function(){
+  var hydrateRunId=0;
+  function wait(ms){
+    return new Promise(function(resolve){ setTimeout(resolve, ms); });
+  }
+  async function fetchCurrentSessionUser(){
+    var lastError=null;
+    for(var attempt=0; attempt<3; attempt+=1){
+      try{
+        return await apiFetch('/auth/me');
+      }catch(err){
+        lastError=err;
+        var msg=String((err&&err.message)||'');
+        if(msg.indexOf('Sessao ausente.')>=0 || msg.indexOf('Sessao invalida ou expirada.')>=0){
+          throw err;
+        }
+        if(attempt<2) await wait(80*(attempt+1));
+      }
+    }
+    throw lastError||new Error('Falha ao validar sessao.');
+  }
+  function releaseInitialBoot(){
+    if(document.body)document.body.classList.remove('app-booting');
+  }
   function authCardLogoHtml(id){
     return '<div style="display:flex;flex-direction:column;align-items:center;gap:10px"><div class="login-circle"><img class="login-logo" id="'+id+'" alt="Filtrovali"></div><div style="font-size:13px;color:var(--mu);text-align:center">Sistema de relatorios de servicos</div></div>';
   }
@@ -7411,6 +7463,14 @@ refreshDbFromApi().then(function(){
     var login=document.getElementById('s-login');
     var panel=login&&login.querySelector('.login-wrap > div:last-child');
     if(!panel)return;
+    var memoryBox=document.getElementById('login-memory-box');
+    if(memoryBox && !document.getElementById('login-keep-signed')){
+      var keepSignedLabel=document.createElement('label');
+      keepSignedLabel.style.cssText='display:flex;align-items:center;gap:8px;color:var(--mu)';
+      keepSignedLabel.innerHTML='<input type="checkbox" id="login-keep-signed" style="width:auto">Manter conectado';
+      memoryBox.appendChild(keepSignedLabel);
+      applyRememberedLogin();
+    }
     var help=document.getElementById('login-seed-help');
     if(help&&help.dataset.recoveryPatched!=='true'){
       help.dataset.recoveryPatched='true';
@@ -7689,27 +7749,59 @@ refreshDbFromApi().then(function(){
   fazerLogin=async function(){
     var username=(document.getElementById('login-user').value||'').trim();
     var password=(document.getElementById('login-password').value||'');
+    var rememberMe=!!((document.getElementById('login-keep-signed')||{}).checked);
     setLoginMessage('',false);
     if(!username||!password){ setLoginMessage('Informe usuario e senha.',true); return; }
     try{
-      var data=await apiFetch('/auth/login',{method:'POST',body:JSON.stringify({username:username,password:password})});
-      saveAuthState({token:data.token,user:data.user});
+      var data=await apiFetch('/auth/login',{method:'POST',body:JSON.stringify({username:username,password:password,rememberMe:rememberMe})});
+      saveAuthState({token:data.token,user:data.user,rememberConnected:rememberMe});
+      persistLoginPrefs(username,password);
       await bootstrapAfterLogin();
     }catch(err){
       setLoginMessage('Erro no login: '+err.message,true);
     }
   };
   hydrateSession=async function(){
-    if(!authState.token)return;
+    if(!authState.token){ releaseInitialBoot(); return; }
+    var runId=++hydrateRunId;
     try{
-      var me=await apiFetch('/auth/me');
+      var me=await fetchCurrentSessionUser();
+      if(runId!==hydrateRunId)return;
       saveAuthState({token:authState.token,user:me.user});
+    }catch(err){
+      if(runId!==hydrateRunId)return;
+      var msg=String((err&&err.message)||'');
+      if(msg.indexOf('Sessao ausente.')>=0 || msg.indexOf('Sessao invalida ou expirada.')>=0){
+        clearAuthState();
+      }else{
+        console.warn('Falha transitória ao validar sessao durante a hidratacao.',err);
+      }
+      releaseInitialBoot();
+      return;
+    }
+    try{
       if(currentUser&&currentUser.role==='CLIENT') await refreshClientDbFromApi();
       else await refreshDbFromApi();
+      if(runId!==hydrateRunId)return;
+    }catch(err){
+      console.warn('Falha ao carregar base durante a hidratacao da sessao.',err);
+    }
+    try{
       await refreshReportsCache();
-      if(currentUser&&currentUser.role==='MANAGER')await refreshUsersCache();
-    }catch(err){ clearAuthState(); return; }
+      if(runId!==hydrateRunId)return;
+    }catch(err){
+      console.warn('Falha ao carregar relatorios durante a hidratacao da sessao.',err);
+    }
+    if(currentUser&&currentUser.role==='MANAGER'){
+      try{
+        await refreshUsersCache();
+        if(runId!==hydrateRunId)return;
+      }catch(err){
+        console.warn('Falha ao carregar usuarios durante a hidratacao da sessao.',err);
+      }
+    }
     postAuthNavigation();
+    releaseInitialBoot();
   };
   reportCard=(function(baseReportCard){
     return function(report,origin){
@@ -7764,13 +7856,14 @@ refreshDbFromApi().then(function(){
     return async function(id,origin){
       await baseOpenReportDetail(id,origin);
       var report=reportsCache.find(function(r){return r.id===id;})||currentDetailReport;
-      if(!report||!currentUser||currentUser.role!=='MANAGER')return;
+      if(!report||!currentUser)return;
       var body=document.getElementById('det-body');
-      if(!body)return;
-      var existingSummary=document.getElementById('manager-client-review-card');
-      if(existingSummary)existingSummary.remove();
-      if(report.clientReviews&&report.clientReviews.length){
-        body.insertAdjacentHTML('beforeend','<div id="manager-client-review-card">'+renderClientReviewSummary(report)+'</div>');
+      if(currentUser.role==='MANAGER' && body){
+        var existingSummary=document.getElementById('manager-client-review-card');
+        if(existingSummary)existingSummary.remove();
+        if(report.clientReviews&&report.clientReviews.length){
+          body.insertAdjacentHTML('beforeend','<div id="manager-client-review-card">'+renderClientReviewSummary(report)+'</div>');
+        }
       }
       var actions=document.getElementById('det-actions');
       var reportType=normalizeReportType(report.reportType||'RDO');
@@ -7779,7 +7872,9 @@ refreshDbFromApi().then(function(){
         if(currentUser.role==='MANAGER' && isDerived){
           actions.innerHTML='<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
         }else if(currentUser.role==='MANAGER'){
-          actions.innerHTML='<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+          actions.innerHTML='<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+        }else{
+          actions.innerHTML='<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
         }
       }
     };
@@ -7787,9 +7882,15 @@ refreshDbFromApi().then(function(){
 
   ensureUtilityScreens();
   patchLoginPanel();
-  processPasswordResetFromUrl();
+  (async function(){
+    try{
+      await processPasswordResetFromUrl();
+      await hydrateSession();
+    }finally{
+      releaseInitialBoot();
+    }
+  })();
 })();
-hydrateSession();
 </script>
 </body>
 </html>

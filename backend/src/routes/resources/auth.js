@@ -16,7 +16,8 @@ const router = Router();
 
 const loginSchema = z.object({
   username: z.string().min(1),
-  password: z.string().min(1)
+  password: z.string().min(1),
+  rememberMe: z.boolean().optional()
 });
 const forgotPasswordSchema = z.object({
   identifier: z.string().min(1)
@@ -154,7 +155,7 @@ router.post('/login', asyncHandler(async (req, res) => {
     return res.status(401).json({ error: 'Usuario ou senha invalidos.' });
   }
 
-  const session = await createSession(user.id);
+  const session = await createSession(user.id, { rememberMe: !!data.rememberMe });
 
   res.json({
     token: session.token,
@@ -233,17 +234,29 @@ router.post('/reset-password', asyncHandler(async (req, res) => {
   }
 
   const passwordHash = await hashPassword(data.password);
+  const consumedAt = new Date();
 
-  await prisma.$transaction([
-    prisma.user.update({
+  await prisma.$transaction(async tx => {
+    const consume = await tx.passwordResetToken.updateMany({
+      where: {
+        id: tokenRow.id,
+        usedAt: null,
+        expiresAt: { gt: consumedAt }
+      },
+      data: { usedAt: consumedAt }
+    });
+
+    if (consume.count !== 1) {
+      const error = new Error('Token invalido, expirado ou ja utilizado.');
+      error.status = 400;
+      throw error;
+    }
+
+    await tx.user.update({
       where: { id: tokenRow.userId },
       data: { passwordHash }
-    }),
-    prisma.passwordResetToken.update({
-      where: { id: tokenRow.id },
-      data: { usedAt: new Date() }
-    })
-  ]);
+    });
+  });
 
   res.json({ ok: true });
 }));

@@ -3,16 +3,19 @@ import { createHash, randomBytes } from 'node:crypto';
 import prisma from './prisma.js';
 
 const SESSION_DAYS = 7;
+const REMEMBER_SESSION_DAYS = 30;
 const PASSWORD_RESET_HOURS = 1;
 
 export function hashToken(token) {
   return createHash('sha256').update(token).digest('hex');
 }
 
-export async function createSession(userId) {
+export async function createSession(userId, options = {}) {
+  const rememberMe = !!options.rememberMe;
   const token = randomBytes(32).toString('hex');
   const tokenHash = hashToken(token);
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+  const durationDays = rememberMe ? REMEMBER_SESSION_DAYS : SESSION_DAYS;
+  const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
 
   await prisma.userSession.create({
     data: {

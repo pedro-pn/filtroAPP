@@ -18,6 +18,32 @@ const appHtmlPath = path.resolve(__dirname, '../..', 'filtrovali_app_v4.html');
 
 const app = express();
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function findSessionExpiryWithRetry(tokenHash, options = {}) {
+  const attempts = options.attempts || 3;
+  const delayMs = options.delayMs || 25;
+  let lastError = null;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await prisma.userSession.findUnique({
+        where: { tokenHash },
+        select: { expiresAt: true }
+      });
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts - 1) {
+        await sleep(delayMs);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 fs.mkdirSync(env.assetsDir, { recursive: true });
 fs.mkdirSync(env.reportsDir, { recursive: true });
 
@@ -33,10 +59,7 @@ const protectedSignatures = async (req, res, next) => {
     || String(req.query.t || '');
   if (!token) return res.status(401).json({ error: 'Acesso negado.' });
   try {
-    const session = await prisma.userSession.findUnique({
-      where: { tokenHash: hashToken(token) },
-      select: { expiresAt: true }
-    });
+    const session = await findSessionExpiryWithRetry(hashToken(token));
     if (!session || session.expiresAt <= new Date()) {
       return res.status(401).json({ error: 'Sessao invalida ou expirada.' });
     }
