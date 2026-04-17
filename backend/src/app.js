@@ -69,10 +69,9 @@ app.use((req, res, next) => {
 });
 app.use(morgan('dev'));
 
-// Arquivos de relatórios e assinaturas exigem autenticação (header Bearer ou query param ?t=)
+// Arquivos de relatórios e assinaturas exigem autenticação via header Bearer.
 const protectedRelatorios = async (req, res, next) => {
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim()
-    || String(req.query.t || '').trim();
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
   if (!token) return res.status(401).json({ error: 'Acesso negado.' });
   try {
     const session = await findSessionExpiryWithRetry(hashToken(token));
@@ -89,7 +88,7 @@ app.use('/assets', express.static(env.assetsDir));
 app.use('/relatorios/Assinaturas', protectedRelatorios, express.static(path.join(env.reportsDir, 'Assinaturas')));
 app.use('/uploads/Assinaturas', protectedRelatorios, express.static(path.join(env.reportsDir, 'Assinaturas')));
 app.use('/relatorios', protectedRelatorios, express.static(env.reportsDir));
-app.use('/uploads', express.static(env.reportsDir));
+app.use('/uploads', protectedRelatorios, express.static(env.reportsDir));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true });

@@ -1765,9 +1765,17 @@ var LOGIN_PREFS_KEY='filtrovali_login_prefs_v1';
 var AUTH_PERSIST_KEY='filtrovali_auth_persist_v1';
 var authState=loadAuthState();
 var currentUser=authState.user||null;
-function authUrl(url){
-  if(!url||!authState.token||!String(url).startsWith('/relatorios/'))return url||'#';
-  return url+'?t='+encodeURIComponent(authState.token);
+function openProtectedUrl(event,url){
+  event.preventDefault();
+  if(!authState.token||!url)return;
+  fetch(url,{headers:{Authorization:'Bearer '+authState.token}}).then(function(r){
+    if(!r.ok){alert('Erro ao abrir arquivo.');return null;}
+    return r.blob();
+  }).then(function(blob){
+    if(!blob)return;
+    var blobUrl=URL.createObjectURL(blob);
+    window.open(blobUrl,'_blank');
+  }).catch(function(){alert('Erro ao abrir arquivo.');});
 }
 var reportsCache=[];
 var usersCache=[];
@@ -2713,14 +2721,14 @@ async function openReportDetail(id,origin){
     var uploads=(fields.__uploads__||[]);
     var uploadHtml=uploads.map(function(group){
       var files=(group.files||[]).map(function(file){
-        return '<a href="'+escapeHtml(authUrl(file.url))+'" target="_blank" style="display:block;color:var(--bl);font-size:12px;text-decoration:none;margin-top:4px">'+escapeHtml(file.fileName||'arquivo')+'</a>';
+        return '<a href="#" data-purl="'+escapeHtml(file.url||'')+'" onclick="openProtectedUrl(event,this.getAttribute(\'data-purl\'))" style="display:block;color:var(--bl);font-size:12px;text-decoration:none;margin-top:4px">'+escapeHtml(file.fileName||'arquivo')+'</a>';
       }).join('');
       return files?'<div style="margin-top:8px"><div class="det-label">'+escapeHtml(group.label||'Anexos')+'</div>'+files+'</div>':'';
     }).join('');
     return '<div class="svc-mini"><div class="svc-mini-hdr">Serviço '+(i+1)+' — '+escapeHtml(serviceNames[s.serviceType]||s.serviceType)+'</div><div class="svc-mini-body"><div class="det-section">'+renderKeyValueRows(fields)+'</div>'+uploadHtml+'</div></div>';
   }).join('');
   var generalUploads=((report.specialConditions||{}).generalUploads||[]).map(function(file){
-    return '<a href="'+escapeHtml(authUrl(file.url))+'" target="_blank" style="display:block;color:var(--bl);font-size:12px;text-decoration:none;margin-top:4px">'+escapeHtml(file.fileName||'arquivo')+'</a>';
+    return '<a href="#" data-purl="'+escapeHtml(file.url||'')+'" onclick="openProtectedUrl(event,this.getAttribute(\'data-purl\'))" style="display:block;color:var(--bl);font-size:12px;text-decoration:none;margin-top:4px">'+escapeHtml(file.fileName||'arquivo')+'</a>';
   }).join('');
   var reviewNotes=report.reviewNotes?'<div class="card"><div class="sec">Retorno do gestor</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(report.reviewNotes)+'</div></div>':'';
   document.getElementById('det-body').innerHTML='<div class="card"><div class="sec">Informações gerais</div><div class="det-section">'+headerRows+'</div></div>'+
@@ -2831,13 +2839,13 @@ function renderManagerDetail(report){
       : detailInput('det-special-'+key,val))+'</div>';
   }).join('');
   var generalUploads=((specialConditions.generalUploads)||[]).map(function(file){
-    return '<a href="'+escapeHtml(authUrl(file.url))+'" target="_blank" style="display:block;color:var(--bl);font-size:12px;text-decoration:none;margin-top:4px">'+escapeHtml(file.fileName||'arquivo')+'</a>';
+    return '<a href="#" data-purl="'+escapeHtml(file.url||'')+'" onclick="openProtectedUrl(event,this.getAttribute(\'data-purl\'))" style="display:block;color:var(--bl);font-size:12px;text-decoration:none;margin-top:4px">'+escapeHtml(file.fileName||'arquivo')+'</a>';
   }).join('');
   var servicesHtml=(report.services||[]).map(function(service,index){
     var fields=service.extraData||{};
     var uploads=(fields.__uploads__||[]).map(function(group){
       var files=(group.files||[]).map(function(file){
-        return '<a href="'+escapeHtml(authUrl(file.url))+'" target="_blank" style="display:block;color:var(--bl);font-size:12px;text-decoration:none;margin-top:4px">'+escapeHtml(file.fileName||'arquivo')+'</a>';
+        return '<a href="#" data-purl="'+escapeHtml(file.url||'')+'" onclick="openProtectedUrl(event,this.getAttribute(\'data-purl\'))" style="display:block;color:var(--bl);font-size:12px;text-decoration:none;margin-top:4px">'+escapeHtml(file.fileName||'arquivo')+'</a>';
       }).join('');
       return files?'<div style="margin-top:8px"><div class="det-label">'+escapeHtml(group.label||'Anexos')+'</div>'+files+'</div>':'';
     }).join('');
@@ -2975,14 +2983,14 @@ async function openReportDetail(id,origin){
     var uploads=(fields.__uploads__||[]);
     var uploadHtml=uploads.map(function(group){
       var files=(group.files||[]).map(function(file){
-        return '<a href="'+escapeHtml(authUrl(file.url))+'" target="_blank" style="display:block;color:var(--bl);font-size:12px;text-decoration:none;margin-top:4px">'+escapeHtml(file.fileName||'arquivo')+'</a>';
+        return '<a href="#" data-purl="'+escapeHtml(file.url||'')+'" onclick="openProtectedUrl(event,this.getAttribute(\'data-purl\'))" style="display:block;color:var(--bl);font-size:12px;text-decoration:none;margin-top:4px">'+escapeHtml(file.fileName||'arquivo')+'</a>';
       }).join('');
       return files?'<div style="margin-top:8px"><div class="det-label">'+escapeHtml(group.label||'Anexos')+'</div>'+files+'</div>':'';
     }).join('');
     return '<div class="svc-mini"><div class="svc-mini-hdr">Serviço '+(i+1)+' — '+escapeHtml(serviceNames[s.serviceType]||s.serviceType)+'</div><div class="svc-mini-body"><div class="det-section">'+renderKeyValueRows(fields)+'</div>'+uploadHtml+'</div></div>';
   }).join('');
   var generalUploads=((report.specialConditions||{}).generalUploads||[]).map(function(file){
-    return '<a href="'+escapeHtml(authUrl(file.url))+'" target="_blank" style="display:block;color:var(--bl);font-size:12px;text-decoration:none;margin-top:4px">'+escapeHtml(file.fileName||'arquivo')+'</a>';
+    return '<a href="#" data-purl="'+escapeHtml(file.url||'')+'" onclick="openProtectedUrl(event,this.getAttribute(\'data-purl\'))" style="display:block;color:var(--bl);font-size:12px;text-decoration:none;margin-top:4px">'+escapeHtml(file.fileName||'arquivo')+'</a>';
   }).join('');
   var reviewNotes=report.reviewNotes?'<div class="card"><div class="sec">Retorno do gestor</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(report.reviewNotes)+'</div></div>':'';
   document.getElementById('det-body').innerHTML='<div class="card"><div class="sec">Informações gerais</div><div class="det-section">'+headerRows+'</div></div><div class="card"><div class="sec">Condições especiais</div><div class="det-section">'+(specialRows||'<div style="font-size:12px;color:var(--mu)">Sem condições especiais registradas.</div>')+'</div>'+(generalUploads?'<div style="margin-top:10px">'+generalUploads+'</div>':'')+'</div><div class="card"><div class="sec">Serviços registrados</div>'+(servicesHtml||'<div style="font-size:13px;color:var(--mu)">Sem serviços.</div>')+'</div>'+reviewNotes;
@@ -3814,7 +3822,7 @@ function buildPdfServicePhotos(service){
   if(!groups.length)return '';
   return '<div class="pdf-photos">'+groups.map(function(group){
     return (group.files||[]).map(function(file){
-      return '<figure class="pdf-photo"><img src="'+escapeHtml(authUrl(file.url)||'')+'" alt="'+escapeHtml(file.fileName||'Imagem')+'"><figcaption>'+escapeHtml(normalizePreviewLabel(group.label||'Imagem'))+'</figcaption></figure>';
+      return '<figure class="pdf-photo"><img src="'+escapeHtml(file.url||'')+'" alt="'+escapeHtml(file.fileName||'Imagem')+'"><figcaption>'+escapeHtml(normalizePreviewLabel(group.label||'Imagem'))+'</figcaption></figure>';
     }).join('');
   }).join('')+'</div>';
 }
@@ -3844,7 +3852,7 @@ function buildRdoPdfHtml(report){
   var photoSections=collectReportUploads(report).map(function(section){
     return '<section class="pdf-block"><div class="pdf-block-title">Registros fotográficos · Item '+section.serviceIndex+' · '+escapeHtml(section.serviceName)+'</div><div class="pdf-photos">'+section.groups.map(function(group){
       return (group.files||[]).map(function(file){
-        return '<figure class="pdf-photo"><img src="'+escapeHtml(authUrl(file.url)||'')+'" alt="'+escapeHtml(file.fileName||'Imagem')+'"><figcaption>'+escapeHtml(normalizePreviewLabel(group.label||'Imagem'))+'</figcaption></figure>';
+        return '<figure class="pdf-photo"><img src="'+escapeHtml(file.url||'')+'" alt="'+escapeHtml(file.fileName||'Imagem')+'"><figcaption>'+escapeHtml(normalizePreviewLabel(group.label||'Imagem'))+'</figcaption></figure>';
       }).join('');
     }).join('')+'</div></section>';
   }).join('');
