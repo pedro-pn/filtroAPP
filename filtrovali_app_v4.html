@@ -7113,6 +7113,33 @@ refreshDbFromApi().then(function(){
     if(digits.length!==14)return digits;
     return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5');
   }
+  function isValidCnpj(value){
+    var cnpj=normalizeCnpjDigits(value);
+    if(cnpj.length!==14)return false;
+    if(/^(\d)\1{13}$/.test(cnpj))return false;
+    function calcDigit(base, weights){
+      var sum=0;
+      for(var i=0;i<weights.length;i++)sum+=Number(base.charAt(i))*weights[i];
+      var mod=sum%11;
+      return mod<2?0:11-mod;
+    }
+    var d1=calcDigit(cnpj.slice(0,12),[5,4,3,2,9,8,7,6,5,4,3,2]);
+    var d2=calcDigit(cnpj.slice(0,12)+String(d1),[6,5,4,3,2,9,8,7,6,5,4,3,2]);
+    return cnpj===cnpj.slice(0,12)+String(d1)+String(d2);
+  }
+  function maybeFormatLoginIdentifier(input){
+    if(!input)return;
+    var raw=String(input.value||'');
+    if(raw.indexOf('@')>=0)return;
+    if(/[A-Za-z]/.test(raw))return;
+    var digits=normalizeCnpjDigits(raw);
+    if(!digits)return;
+    if(digits.length===14 && isValidCnpj(digits)){
+      input.value=formatCnpj(digits);
+      return;
+    }
+    if(/^[\d.\-\/\s]+$/.test(raw))input.value=digits;
+  }
   function parseEmailList(value){
     var parts=Array.isArray(value)?value:String(value||'').split(/[,\n;]+/);
     var seen={}; var out=[];
@@ -7387,7 +7414,14 @@ refreshDbFromApi().then(function(){
       help.innerHTML='Acesso inicial: gestor / gestor123, carlos / colab123, joao / colab123.<br><a href="#" onclick="openForgotPassword();return false;" style="color:var(--g);font-weight:700;text-decoration:none">Esqueci minha senha</a>';
     }
     var userInput=document.getElementById('login-user');
-    if(userInput)userInput.placeholder='Ex.: carlos, gestor, email ou CNPJ';
+    if(userInput){
+      userInput.placeholder='Ex.: carlos, gestor, email ou CNPJ';
+      if(userInput.dataset.cnpjMaskBound!=='true'){
+        userInput.dataset.cnpjMaskBound='true';
+        userInput.addEventListener('input',function(){ maybeFormatLoginIdentifier(this); });
+        userInput.addEventListener('blur',function(){ maybeFormatLoginIdentifier(this); });
+      }
+    }
   }
   if(typeof enforceLoginUi==='function'){
     var baseEnforceLoginUi=enforceLoginUi;
