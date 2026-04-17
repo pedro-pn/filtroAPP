@@ -19,6 +19,8 @@ backend/tmp_*/
 tmp_definitivo.zip
 tmp_frontend_check.js
 backend/tmp_docx_output.docx
+codex.txt
+Planejamento.txt
 
 # Relatórios gerados podem ser recriados a partir do banco/modelos
 backend/Relatórios/**
