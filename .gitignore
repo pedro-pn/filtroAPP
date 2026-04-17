@@ -27,6 +27,8 @@ backend/Relatórios/**
 !backend/Relatórios/Assinaturas/**
 !backend/Relatórios/Registros Fotográficos/
 !backend/Relatórios/Registros Fotográficos/**
+!backend/Relatórios/Logo/
+!backend/Relatórios/Logo/**
 
 # Added by code-review-graph
 .code-review-graph/
