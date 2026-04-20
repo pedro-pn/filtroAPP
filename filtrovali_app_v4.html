@@ -136,9 +136,10 @@ textarea{resize:none;min-height:72px}
 .admin-actions{display:flex;justify-content:flex-end;margin-top:8px}
 .mini-btn{background:var(--g);color:#fff;border:none;border-radius:var(--rs);padding:9px 12px;font-size:12px;font-weight:600;cursor:pointer}
 .mini-btn.alt{background:#fff;color:var(--tx);border:1px solid var(--br)}
-.batch-toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
-.batch-toolbar-actions .mini-btn{min-width:0}
-.batch-toolbar-client .batch-toolbar-actions .mini-btn{flex:1 1 100%;white-space:normal;line-height:1.35;text-align:center}
+.batch-inline-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.batch-inline-actions .mini-btn{min-width:0}
+.batch-inline-actions .mini-btn{padding:7px 10px;font-size:11px;line-height:1.2}
+.batch-inline-actions.batch-inline-client .mini-btn{flex:0 1 auto;white-space:nowrap;text-align:center}
 .client-report-card{margin-bottom:10px}
 .client-report-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .client-report-main{display:flex;align-items:flex-start;gap:10px;min-width:0;flex:1}
@@ -155,7 +156,7 @@ textarea{resize:none;min-height:72px}
   .client-report-header{flex-direction:column;align-items:stretch}
   .client-report-badge{max-width:none;align-self:flex-start}
   .client-report-actions .mini-btn{flex-basis:100%}
-  .batch-toolbar-client .batch-toolbar-actions .mini-btn{flex-basis:100%}
+  .batch-inline-actions.batch-inline-client .mini-btn{flex:1 1 100%;white-space:normal}
 }
 .admin-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
 .admin-toolbar .sec{margin-bottom:0}
@@ -7773,8 +7774,9 @@ window.__legacyBootstrapped = false;
         return '<button class="mini-btn'+(active?'':' alt')+'" type="button" onclick="switchClientReportTypeTab(\''+currentProject.id+'\',\''+type+'\')">'+type+' ('+count+')</button>';
       }).join('');
       var filteredReports=reports.filter(function(report){return (report.reportType||'RDO')===activeType;});
+      var batchClientActions=renderBatchSelectAllButton('cliente',currentProject.id,activeType);
       content='<div class="card"><div class="sec">Projeto atual</div><div class="det-section"><div class="det-row"><span class="det-label">Projeto</span><span class="det-val">'+escapeHtml(clientProjectTitle(currentProject))+'</span></div><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(currentProject.cliente||currentUser&&currentUser.name||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(currentUser&&currentUser.username||'')||'-')+'</span></div><div class="det-row"><span class="det-label">Relatorios visiveis</span><span class="det-val">'+reports.length+'</span></div></div></div>';
-      content+='<div class="card"><div class="sec">Relatorios</div>'+(typeTabs?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+typeTabs+'</div>':'')+(filteredReports.length?filteredReports.map(renderClientReportCard).join(''):'<div style="font-size:13px;color:var(--mu)">Nenhum relatorio disponivel nesta aba no momento.</div>')+'</div>';
+      content+='<div class="card"><div class="sec">Relatorios</div>'+(typeTabs?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+typeTabs+'</div>':'')+(batchClientActions||'')+(filteredReports.length?filteredReports.map(renderClientReportCard).join(''):'<div style="font-size:13px;color:var(--mu)">Nenhum relatorio disponivel nesta aba no momento.</div>')+'</div>';
     }else{
       content='<div class="card"><div class="sec">Projetos</div><div style="font-size:13px;color:var(--mu)">Nenhum projeto associado ao seu CNPJ.</div></div>';
     }
@@ -8000,9 +8002,9 @@ window.__legacyBootstrapped = false;
   })(openReportDetail);
 
   var batchSelections={
-    gestor:{ ids:[], projectId:'' },
-    colaborador:{ ids:[], projectId:'' },
-    cliente:{ ids:[], projectId:'' }
+    gestor:{ ids:[], projectId:'', reportType:'' },
+    colaborador:{ ids:[], projectId:'', reportType:'' },
+    cliente:{ ids:[], projectId:'', reportType:'' }
   };
   function batchContextFromOrigin(origin){
     if(origin==='gestor')return 'gestor';
@@ -8010,7 +8012,7 @@ window.__legacyBootstrapped = false;
     return '';
   }
   function getBatchSelection(ctx){
-    if(!batchSelections[ctx])batchSelections[ctx]={ ids:[], projectId:'' };
+    if(!batchSelections[ctx])batchSelections[ctx]={ ids:[], projectId:'', reportType:'' };
     return batchSelections[ctx];
   }
   function isSelectableReport(report,ctx){
@@ -8026,6 +8028,7 @@ window.__legacyBootstrapped = false;
     var state=getBatchSelection(ctx);
     state.ids=[];
     state.projectId='';
+    state.reportType='';
     if(rerender!==false)renderBatchSelectionContext(ctx);
   }
   function renderBatchSelectionContext(ctx){
@@ -8033,53 +8036,94 @@ window.__legacyBootstrapped = false;
     if(ctx==='colaborador'){ renderMyReports(); return; }
     if(ctx==='cliente'){ renderClientPanel(); return; }
   }
-  function toggleBatchSelection(ctx,reportId,projectId){
+  function toggleBatchSelection(ctx,reportId,projectId,reportType){
     var state=getBatchSelection(ctx);
     var idx=state.ids.indexOf(reportId);
     if(idx>=0){
       state.ids.splice(idx,1);
-      if(!state.ids.length)state.projectId='';
+      if(!state.ids.length){
+        state.projectId='';
+        state.reportType='';
+      }
       renderBatchSelectionContext(ctx);
       return;
     }
-    if(ctx==='cliente' && state.projectId && state.projectId!==projectId){
-      alert('Para assinar em lote, selecione relatorios de apenas um projeto por vez.');
+    if(state.ids.length && ((state.projectId&&state.projectId!==projectId) || (state.reportType&&state.reportType!==reportType))){
+      alert('Selecione relatorios do mesmo projeto e do mesmo tipo por vez.');
       return;
     }
     state.ids.push(reportId);
     if(projectId)state.projectId=projectId;
+    if(reportType)state.reportType=reportType;
     renderBatchSelectionContext(ctx);
   }
   function selectedReportsForContext(ctx){
     var ids=getBatchSelection(ctx).ids;
     return (reportsCache||[]).filter(function(report){ return ids.indexOf(report.id)>=0; });
   }
+  function selectableReportsForGroup(ctx,projectId,reportType){
+    return (reportsCache||[]).filter(function(report){
+      return report.projectId===projectId &&
+        normalizeReportType(report.reportType||'RDO')===normalizeReportType(reportType||'RDO') &&
+        isSelectableReport(report,ctx);
+    });
+  }
+  function selectedReportsForGroup(ctx,projectId,reportType){
+    var ids=getBatchSelection(ctx).ids;
+    return selectableReportsForGroup(ctx,projectId,reportType).filter(function(report){
+      return ids.indexOf(report.id)>=0;
+    });
+  }
+  function isBatchGroupActive(ctx,projectId,reportType){
+    var state=getBatchSelection(ctx);
+    return !!state.ids.length && state.projectId===projectId && state.reportType===normalizeReportType(reportType||'RDO');
+  }
+  function selectAllBatchReports(ctx,projectId,reportType){
+    var normalizedType=normalizeReportType(reportType||'RDO');
+    var selectable=selectableReportsForGroup(ctx,projectId,normalizedType);
+    if(!selectable.length){ alert('Nao ha relatorios disponiveis para selecionar.'); return; }
+    var state=getBatchSelection(ctx);
+    state.ids=selectable.map(function(report){ return report.id; });
+    state.projectId=String(projectId||'');
+    state.reportType=normalizedType;
+    renderBatchSelectionContext(ctx);
+  }
   function allClientSelectionSignable(selected){
     return !!selected.length && selected.every(function(report){
       return report.status==='APPROVED' && (report.reportType||'RDO')==='RDO';
     });
   }
-  function renderBatchToolbar(ctx,selected){
-    selected=selected||selectedReportsForContext(ctx);
-    if(!selected.length)return '';
+  function renderBatchInlineActions(ctx,selected,projectId,reportType){
+    var normalizedType=normalizeReportType(reportType||'RDO');
+    selected=selected||selectedReportsForGroup(ctx,projectId,normalizedType);
+    var selectable=selectableReportsForGroup(ctx,projectId,normalizedType);
+    if(!selectable.length)return '';
     var total=selected.length;
+    if(total<=0)return '';
     var buttons='';
     if(ctx==='gestor'){
-      buttons+='<button class="mini-btn" type="button" onclick="downloadSelectedReports(\''+ctx+'\',\'pdf\')">Baixar relatórios selecionados (PDF)</button>';
-      buttons+='<button class="mini-btn alt" type="button" onclick="downloadSelectedReports(\''+ctx+'\',\'docx\')">Baixar relatórios selecionados (DOCX)</button>';
+      buttons+='<button class="mini-btn" type="button" onclick="downloadSelectedReports(\''+ctx+'\',\'pdf\')">Baixar PDF</button>';
+      buttons+='<button class="mini-btn alt" type="button" onclick="downloadSelectedReports(\''+ctx+'\',\'docx\')">Baixar DOCX</button>';
     }else{
-      buttons+='<button class="mini-btn" type="button" onclick="downloadSelectedReports(\''+ctx+'\',\'pdf\')">Baixar relatórios selecionados (PDF)</button>';
+      buttons+='<button class="mini-btn" type="button" onclick="downloadSelectedReports(\''+ctx+'\',\'pdf\')">Baixar PDF</button>';
       if(ctx==='cliente' && allClientSelectionSignable(selected)){
-        buttons+='<button class="mini-btn alt" type="button" onclick="startClientBatchSignature()">Assinar relatórios selecionados</button>';
+        buttons+='<button class="mini-btn alt" type="button" onclick="startClientBatchSignature()">Assinar selecionados</button>';
       }
     }
     buttons+='<button class="mini-btn alt" type="button" onclick="clearBatchSelection(\''+ctx+'\')">Desfazer seleção</button>';
-    return '<div class="card '+(ctx==='cliente'?'batch-toolbar-client':'')+'" style="margin-bottom:12px"><div class="sec">Seleção em lote</div><div style="font-size:13px;color:var(--mu);margin-bottom:10px">'+total+' relatório'+(total!==1?'s':'')+' selecionado'+(total!==1?'s':'')+'.</div><div class="batch-toolbar-actions">'+buttons+'</div></div>';
+    return '<div class="batch-inline-actions '+(ctx==='cliente'?'batch-inline-client':'')+'"><span style="display:flex;align-items:center;font-size:12px;color:var(--mu);font-weight:600;margin-right:4px">'+total+' selecionado'+(total!==1?'s':'')+'</span>'+buttons+'</div>';
+  }
+  function renderBatchSelectAllButton(ctx,projectId,reportType){
+    var selectable=selectableReportsForGroup(ctx,projectId,reportType);
+    if(!selectable.length)return '';
+    var normalizedType=normalizeReportType(reportType||'RDO');
+    var selected=selectedReportsForGroup(ctx,projectId,normalizedType);
+    return '<div style="margin-top:8px"><button class="mini-btn alt" type="button" onclick="event.stopPropagation();selectAllBatchReports(\''+ctx+'\',\''+projectId+'\',\''+normalizedType+'\')">Selecionar todos</button>'+renderBatchInlineActions(ctx,selected,projectId,normalizedType)+'</div>';
   }
   function renderBatchCheckbox(ctx,report){
     if(!isSelectableReport(report,ctx))return '';
     var checked=isSelectedInBatch(ctx,report.id)?' checked':'';
-    return '<label style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;cursor:pointer" onclick="event.stopPropagation()"><input type="checkbox"'+checked+' onchange="toggleBatchSelection(\''+ctx+'\',\''+report.id+'\',\''+(report.projectId||'')+'\')" /></label>';
+    return '<label style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;cursor:pointer" onclick="event.stopPropagation()"><input type="checkbox"'+checked+' onchange="toggleBatchSelection(\''+ctx+'\',\''+report.id+'\',\''+(report.projectId||'')+'\',\''+normalizeReportType(report.reportType||'RDO')+'\')" /></label>';
   }
   async function downloadSelectedReports(ctx,format){
     var state=getBatchSelection(ctx);
@@ -8153,6 +8197,7 @@ window.__legacyBootstrapped = false;
     }
   }
   window.toggleBatchSelection=toggleBatchSelection;
+  window.selectAllBatchReports=selectAllBatchReports;
   window.clearBatchSelection=clearBatchSelection;
   window.downloadSelectedReports=downloadSelectedReports;
   window.startClientBatchSignature=startClientBatchSignature;
@@ -8182,24 +8227,50 @@ window.__legacyBootstrapped = false;
       );
     };
   })(reportCard);
+  groupedReportHtml=(function(baseGroupedReportHtml){
+    return function(items,origin,emptyText){
+      if(origin!=='gestor' && origin!=='meus')return baseGroupedReportHtml(items,origin,emptyText);
+      if(!items.length)return '<div style="text-align:center;color:var(--mu);padding:32px;font-size:13px">'+emptyText+'</div>';
+      var ctx=origin==='gestor'?'gestor':'colaborador';
+      var groups=groupReportsByProject(items),html='';
+      Object.keys(groups).sort().forEach(function(projectName){
+        var projectReports=groups[projectName].slice();
+        var byType={RDO:[],RTP:[],RLQ:[],RCPU:[],RLM:[]};
+        projectReports.forEach(function(report){
+          var type=normalizeReportType(report.reportType||'RDO');
+          if(!byType[type])byType[type]=[];
+          byType[type].push(report);
+        });
+        var projectId=String((projectReports[0]&&projectReports[0].projectId)||'');
+        var sections='';
+        ['RDO','RTP','RLQ','RCPU','RLM'].forEach(function(type){
+          if(!byType[type]||!byType[type].length)return;
+          var uid='rtype_'+String(origin||'default').replace(/[^a-z0-9]/gi,'_')+'_'+projectId.replace(/[^a-z0-9]/gi,'_')+'_'+type;
+          sections+='<div class="report-type-group">'+
+            '<div class="report-type-header" onclick="toggleTypeGroup(\''+uid+'\')">'+
+            '<span class="rtype-badge rtype-'+type+'">'+type+'</span>'+
+            '<span class="rtype-count">'+byType[type].length+' relatório'+(byType[type].length!==1?'s':'')+'</span>'+
+            '<span class="rtype-chevron" id="chev-'+uid+'">▾</span>'+
+            '</div>'+
+            renderBatchSelectAllButton(ctx,projectId,type)+
+            '<div class="report-type-list" id="'+uid+'">'+
+            byType[type].map(function(report){ return reportCard(report,origin); }).join('')+
+            '</div></div>';
+        });
+        html+='<div class="card"><div class="sec">'+escapeHtml(getProjectCardTitle(projectReports[0]))+'</div>'+sections+'</div>';
+      });
+      return html;
+    };
+  })(groupedReportHtml);
   renderMyReports=(function(baseRenderMyReports){
     return function(){
       if(currentUser&&currentUser.role==='CLIENT')return baseRenderMyReports();
       baseRenderMyReports();
-      var content=document.getElementById('my-reports-content');
-      if(!content)return;
-      var selected=selectedReportsForContext('colaborador');
-      if(selected.length)content.innerHTML=renderBatchToolbar('colaborador',selected)+content.innerHTML;
     };
   })(renderMyReports);
   renderGestor=(function(baseRenderGestor){
     return function(){
       baseRenderGestor();
-      if(gestorTab!=='aprovados')return;
-      var content=document.getElementById('gestor-content');
-      if(!content)return;
-      var selected=selectedReportsForContext('gestor');
-      if(selected.length)content.innerHTML=renderBatchToolbar('gestor',selected)+content.innerHTML;
     };
   })(renderGestor);
   renderClientReportCard=(function(baseRenderClientReportCard){
@@ -8212,7 +8283,7 @@ window.__legacyBootstrapped = false;
       var leader=(report.createdBy&&report.createdBy.name)||'-';
       var subtitle=isRdo?'RDO pronto para conferencia do cliente':'Relatorio de servico liberado apos assinatura do RDO';
       var checkbox=isSelectableReport(report,'cliente')
-        ? '<label class="client-report-checkbox" onclick="event.stopPropagation()"><input type="checkbox"'+(isSelectedInBatch('cliente',report.id)?' checked':'')+' onchange="toggleBatchSelection(\'cliente\',\''+report.id+'\',\''+(report.projectId||'')+'\')" /></label>'
+        ? '<label class="client-report-checkbox" onclick="event.stopPropagation()"><input type="checkbox"'+(isSelectedInBatch('cliente',report.id)?' checked':'')+' onchange="toggleBatchSelection(\'cliente\',\''+report.id+'\',\''+(report.projectId||'')+'\',\''+normalizeReportType(report.reportType||'RDO')+'\')" /></label>'
         : '';
       var actions='<div class="client-report-actions"><button class="mini-btn alt" type="button" onclick="gerarPDF(\''+report.id+'\')">Baixar PDF</button></div>';
       if(canReview){
@@ -8230,15 +8301,6 @@ window.__legacyBootstrapped = false;
   renderClientPanel=(function(baseRenderClientPanel){
     return function(){
       baseRenderClientPanel();
-      var screen=document.getElementById('s-client'); if(!screen)return;
-      var scroll=screen.querySelector('.scroll'); if(!scroll)return;
-      var cards=scroll.querySelectorAll('.card');
-      if(cards.length<3)return;
-      var selected=selectedReportsForContext('cliente');
-      var state=getBatchSelection('cliente');
-      if(state.projectId && clientProjectTab && state.projectId!==clientProjectTab)return;
-      if(!selected.length)return;
-      cards[cards.length-1].insertAdjacentHTML('afterbegin',renderBatchToolbar('cliente',selected));
     };
   })(renderClientPanel);
 
