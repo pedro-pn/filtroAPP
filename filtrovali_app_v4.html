@@ -2043,7 +2043,7 @@ function updateUserLabels(){
   if(dateLbl)dateLbl.textContent=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
 }
 function statusMeta(status){
-  var map={PENDING:{txt:'Pendente',cls:'badge-pen'},APPROVED:{txt:'Aprovado',cls:'badge-ok'},RETURNED:{txt:'Devolvido',cls:'badge-rej'},EDITED:{txt:'Editado',cls:'badge-rev'}};
+  var map={PENDING:{txt:'Pendente',cls:'badge-pen'},APPROVED:{txt:'Aprovado',cls:'badge-ok'},RETURNED:{txt:'Devolvido',cls:'badge-rej'},SIGNED:{txt:'Assinado',cls:'badge-signed'},EDITED:{txt:'Editado',cls:'badge-rev'}};
   return map[status]||{txt:status,cls:'badge-rev'};
 }
 function reportStatusMeta(report){
@@ -5031,6 +5031,7 @@ function voltarDoRelatorio(){
   if(currentUser&&currentUser.role==='MANAGER'){go('s-gestor');}else{go('s-home');}
 }
 var _gestorPollInterval=null;
+var _reportStatusPollInterval=null;
 function startGestorPolling(){
   if(_gestorPollInterval)return;
   _gestorPollInterval=setInterval(async function(){
@@ -5042,6 +5043,45 @@ function startGestorPolling(){
     await refreshReportsCache();
     renderGestor();
   },30000);
+}
+function shouldPollReportPanels(){
+  if(!currentUser)return false;
+  var managerScreen=document.getElementById('s-gestor');
+  var clientScreen=document.getElementById('s-client');
+  var homeScreen=document.getElementById('s-home');
+  if(currentUser.role==='MANAGER'){
+    if(!managerScreen||!managerScreen.classList.contains('active'))return false;
+    var hasOpenEditor=Object.values(gestorEditors).some(function(v){return v!==null;});
+    return !hasOpenEditor;
+  }
+  if(currentUser.role==='CLIENT'){
+    return !!(clientScreen&&clientScreen.classList.contains('active'));
+  }
+  return !!(homeScreen&&homeScreen.classList.contains('active'));
+}
+function rerenderActiveReportPanel(){
+  if(!currentUser)return;
+  if(currentUser.role==='MANAGER'){
+    renderGestor();
+    return;
+  }
+  if(currentUser.role==='CLIENT'){
+    renderClientPanel();
+    return;
+  }
+  renderMyReports();
+}
+function startReportStatusPolling(){
+  if(_reportStatusPollInterval)return;
+  _reportStatusPollInterval=setInterval(async function(){
+    if(!shouldPollReportPanels())return;
+    try{
+      await refreshReportsCache();
+      rerenderActiveReportPanel();
+    }catch(err){
+      console.warn('Falha ao atualizar status dos relatorios em segundo plano.',err);
+    }
+  },15000);
 }
 function renderGestor(){
   var c=document.getElementById('gestor-content');if(!c)return;
@@ -7645,12 +7685,13 @@ window.__legacyBootstrapped = false;
     var meta=clientStatusMeta(report);
     var isRdo=(report.reportType||'RDO')==='RDO';
     var canReview=isRdo&&report.status==='APPROVED';
+    var signaturePending=canReview&&!!report.zapsignRequestedAt&&!report.zapsignSignedAt;
     var commentId='client-review-comment-'+report.id;
     var leader=(report.createdBy&&report.createdBy.name)||'-';
     var subtitle=isRdo?'RDO pronto para conferencia do cliente':'Relatorio de servico liberado apos assinatura do RDO';
     var actions='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="mini-btn alt" type="button" onclick="gerarPDF(\''+report.id+'\')">Baixar PDF</button></div>';
     if(canReview){
-      actions+='<div style="margin-top:10px" class="fg"><label>Comentario do cliente</label><textarea id="'+commentId+'" rows="3" placeholder="Comentario opcional"></textarea></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="mini-btn" type="button" onclick="submitClientReview(\''+report.id+'\',\'APPROVED\')">Aprovar e assinar</button><button class="mini-btn alt" type="button" onclick="submitClientReview(\''+report.id+'\',\'REJECTED\')">Reprovar</button></div>';
+      actions+='<div style="margin-top:10px" class="fg"><label>Comentario do cliente</label><textarea id="'+commentId+'" rows="3" placeholder="Comentario opcional para reprovar"></textarea></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="mini-btn" type="button" onclick="startClientSignature(\''+report.id+'\')">'+(signaturePending?'Continuar assinatura digital':'Aprovar e assinar digitalmente')+'</button><button class="mini-btn alt" type="button" onclick="submitClientReview(\''+report.id+'\',\'REJECTED\')">Reprovar</button></div>';
     }
     var reviews=(report.clientReviews||[]).length?'<div class="det-section" style="margin-top:10px">'+(report.clientReviews||[]).slice(0,3).map(function(item){ return '<div class="det-row"><span class="det-label">'+(item.action==='APPROVED'?'Aprovado':'Reprovado')+'</span><span class="det-val">'+escapeHtml(item.comment||'Sem comentario')+'</span></div>'; }).join('')+'</div>':'';
     return '<div class="card admin-card" style="margin-bottom:10px"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><div class="admin-item-title">'+escapeHtml(reportDisplayLabel(report))+' - '+escapeHtml(formatReportDate(report.reportDate))+'</div><div class="admin-item-sub">'+escapeHtml(leader)+' - '+escapeHtml(subtitle)+'</div></div><span class="badge '+meta.cls+'">'+meta.txt+'</span></div>'+actions+reviews+'</div>';
@@ -7700,19 +7741,34 @@ window.__legacyBootstrapped = false;
     if(!report)return;
     var commentField=document.getElementById('client-review-comment-'+reportId);
     var comment=commentField?commentField.value.trim():'';
-    if(action==='APPROVED'){
-      var confirmText='Eu, '+((currentUser&&currentUser.name)||'Cliente')+', CNPJ '+(formatCnpj((currentUser&&currentUser.username)||'')||'')+', declaro que li e aprovo o '+(report.reportType||'RDO')+' n '+(report.sequenceNumber!=null?String(report.sequenceNumber).padStart(3,'0'):'---')+' referente ao projeto '+((report.project&&report.project.name)||'')+'.';
-      if(!confirm(confirmText))return;
-    }else if(!confirm('Confirmar reprovacao deste relatorio?'))return;
+    if(!confirm('Confirmar reprovacao deste relatorio?'))return;
     try{
       await apiFetch('/reports/'+reportId+'/client-review',{method:'POST',body:JSON.stringify({action:action,comment:comment||null})});
       await refreshReportsCache(); renderClientPanel();
-      showToast(action==='APPROVED'?'Relatorio assinado com sucesso.':'Reprovacao registrada.');
+      showToast('Reprovacao registrada.');
     }catch(err){ alert('Erro ao registrar acao do cliente: '+err.message); }
+  }
+  async function startClientSignature(reportId){
+    var report=(reportsCache||[]).find(function(item){return item.id===reportId;});
+    if(!report)return;
+    var confirmText='Voce sera redirecionado para a ZapSign para assinar digitalmente o '+(report.reportType||'RDO')+' n '+(report.sequenceNumber!=null?String(report.sequenceNumber).padStart(3,'0'):'---')+'. Deseja continuar?';
+    if(!confirm(confirmText))return;
+    try{
+      var result=await apiFetch('/reports/'+reportId+'/request-signature',{method:'POST'});
+      await refreshReportsCache();
+      renderClientPanel();
+      if(result&&result.signUrl){
+        window.open(result.signUrl,'_blank','noopener');
+        showToast('Link de assinatura aberto na ZapSign.');
+        return;
+      }
+      throw new Error('Link de assinatura nao retornado.');
+    }catch(err){ alert('Erro ao iniciar assinatura digital: '+err.message); }
   }
   window.switchClientProjectTab=switchClientProjectTab;
   window.switchClientReportTypeTab=switchClientReportTypeTab;
   window.submitClientReview=submitClientReview;
+  window.startClientSignature=startClientSignature;
 
   function postAuthNavigation(){
     updateUserLabels();
@@ -7754,7 +7810,9 @@ window.__legacyBootstrapped = false;
     try{ await refreshDraftsCache(); }catch(err){ console.warn('Falha ao carregar rascunhos apos login.',err); }
     if(currentUser&&currentUser.role==='MANAGER'){
       try{ await refreshUsersCache(); }catch(err){ console.warn('Falha ao carregar usuarios apos login.',err); }
+      startGestorPolling();
     }
+    startReportStatusPolling();
     postAuthNavigation();
   }
   fazerLogin=async function(){
@@ -7810,7 +7868,9 @@ window.__legacyBootstrapped = false;
       }catch(err){
         console.warn('Falha ao carregar usuarios durante a hidratacao da sessao.',err);
       }
+      startGestorPolling();
     }
+    startReportStatusPolling();
     postAuthNavigation();
     releaseInitialBoot();
   };

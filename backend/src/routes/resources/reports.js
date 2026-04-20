@@ -13,6 +13,14 @@ import { saveRtpDocx, saveRtpPdf, organizeRtpPhotos } from '../../lib/report-rtp
 import { saveRlqDocx, saveRlqPdf, organizeRlqPhotos } from '../../lib/report-rlq.js';
 import { saveRcpDocx, saveRcpPdf, organizeRcpPhotos, calcServiceMinutes } from '../../lib/report-rcp.js';
 import { saveRlmDocx, saveRlmPdf, organizeRlmPhotos } from '../../lib/report-rlm.js';
+import {
+  assertZapSignEnabled,
+  downloadSignedZapSignDocument,
+  getZapSignDocument,
+  isZapSignEnabled,
+  sendToZapSign,
+  signerUrlForToken
+} from '../../lib/zapsign.js';
 import { calculateReportOvertime } from '../../lib/overtime.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
@@ -141,6 +149,77 @@ function assertReportMutable(report) {
 function clientIp(req) {
   const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   return forwarded || req.ip || null;
+}
+
+function reportPdfFileName(report, saved) {
+  if (saved?.fileName) return saved.fileName;
+  const type = String(report.reportType || 'RDO');
+  const number = report.sequenceNumber != null ? String(report.sequenceNumber).padStart(3, '0') : '---';
+  return `${type}_${number}.pdf`;
+}
+
+async function generateReportPdfAsset(report) {
+  if (report.reportType === 'RTP') return saveRtpPdf(report);
+  if (report.reportType === 'RLQ') return saveRlqPdf(report);
+  if (report.reportType === 'RCPU') return saveRcpPdf(report);
+  if (report.reportType === 'RLM') return saveRlmPdf(report);
+  return saveReportPdf(report);
+}
+
+function buildZapSignWebhookUrl() {
+  const base = String(env.appUrl || '').replace(/\/+$/, '');
+  if (!base) {
+    const error = new Error('APP_URL nao configurado para receber webhook do ZapSign.');
+    error.statusCode = 503;
+    throw error;
+  }
+  return `${base}/api/webhooks/zapsign`;
+}
+
+function resolveZapSignSigner(report, authUser) {
+  const signerEmail = String(report.project?.clientEmailPrimary || authUser?.email || '').trim().toLowerCase();
+  if (!signerEmail) {
+    const error = new Error('Projeto sem e-mail principal do cliente para assinatura digital.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  return {
+    signerName: String(authUser?.name || report.project?.clientName || 'Cliente').trim() || 'Cliente',
+    signerEmail
+  };
+}
+
+async function resolveSignedPdf(report) {
+  if (!report?.zapsignDocToken) {
+    const error = new Error('Relatorio assinado sem referencia do documento ZapSign.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  let signedUrl = String(report.zapsignDocUrl || '').trim();
+
+  if (!signedUrl) {
+    const details = await getZapSignDocument(report.zapsignDocToken);
+    signedUrl = String(details?.signedFile || '').trim();
+    if (!signedUrl) {
+      const error = new Error('Documento assinado ainda nao disponivel na ZapSign.');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    await prisma.report.update({
+      where: { id: report.id },
+      data: {
+        zapsignDocUrl: signedUrl,
+        ...(report.zapsignSignedAt ? {} : { zapsignSignedAt: new Date() })
+      }
+    });
+  }
+
+  const fileName = `${String(report.reportType || 'RDO')}_${report.sequenceNumber != null ? String(report.sequenceNumber).padStart(3, '0') : report.id}_assinado.pdf`;
+  const buffer = await downloadSignedZapSignDocument(signedUrl);
+  return { fileName, buffer };
 }
 
 const serviceSchema = z.object({
@@ -1166,12 +1245,15 @@ router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
     }
   }
 
-  let saved;
-  if (item.reportType === 'RTP') saved = await saveRtpPdf(item);
-  else if (item.reportType === 'RLQ') saved = await saveRlqPdf(item);
-  else if (item.reportType === 'RCPU') saved = await saveRcpPdf(item);
-  else if (item.reportType === 'RLM') saved = await saveRlmPdf(item);
-  else saved = await saveReportPdf(item);
+  if (item.status === ReportStatus.SIGNED && item.reportType === ReportType.RDO && item.zapsignDocToken) {
+    const signed = await resolveSignedPdf(item);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', contentDisposition(signed.fileName));
+    res.send(signed.buffer);
+    return;
+  }
+
+  const saved = await generateReportPdfAsset(item);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', contentDisposition(saved.fileName));
   res.send(await fs.readFile(saved.targetPath));
@@ -1574,6 +1656,80 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
+router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth.user.role !== 'CLIENT') {
+    return res.status(403).json({ error: 'Apenas o cliente pode solicitar a assinatura digital.' });
+  }
+
+  assertZapSignEnabled();
+
+  const existing = await prisma.report.findUniqueOrThrow({
+    where: { id: req.params.id },
+    include
+  });
+
+  if (!canAccessReport(req.auth, existing)) {
+    return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+  }
+  if (existing.reportType !== ReportType.RDO) {
+    return res.status(400).json({ error: 'Apenas RDO pode iniciar assinatura digital.' });
+  }
+  if (existing.status === ReportStatus.SIGNED) {
+    return res.status(409).json({ error: 'Relatorio ja esta assinado.' });
+  }
+  if (existing.status !== ReportStatus.APPROVED) {
+    return res.status(409).json({ error: 'Somente relatorios aprovados pelo gestor podem ser assinados.' });
+  }
+  if (existing.zapsignSignerToken && !existing.zapsignSignedAt) {
+    return res.json({
+      ok: true,
+      signUrl: signerUrlForToken(existing.zapsignSignerToken),
+      report: existing
+    });
+  }
+
+  const { signerName, signerEmail } = resolveZapSignSigner(existing, req.auth.user);
+  const saved = await generateReportPdfAsset(existing);
+  const pdfBuffer = await fs.readFile(saved.targetPath);
+  const zapsign = await sendToZapSign({
+    pdfBuffer,
+    fileName: reportPdfFileName(existing, saved),
+    signerName,
+    signerEmail,
+    externalId: existing.id,
+    webhookUrl: buildZapSignWebhookUrl()
+  });
+
+  if (!zapsign.docToken) {
+    const error = new Error('A ZapSign nao retornou o token do documento.');
+    error.statusCode = 502;
+    throw error;
+  }
+  if (!zapsign.signerUrl) {
+    const error = new Error('A ZapSign nao retornou o link de assinatura.');
+    error.statusCode = 502;
+    throw error;
+  }
+
+  const item = await prisma.report.update({
+    where: { id: existing.id },
+    data: {
+      zapsignDocToken: zapsign.docToken,
+      zapsignSignerToken: zapsign.signerToken || null,
+      zapsignRequestedAt: new Date(),
+      zapsignSignedAt: null,
+      zapsignDocUrl: null
+    },
+    include
+  });
+
+  res.json({
+    ok: true,
+    signUrl: zapsign.signerUrl,
+    report: item
+  });
+}));
+
 router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'CLIENT') {
     return res.status(403).json({ error: 'Apenas o cliente pode registrar esta acao.' });
@@ -1596,6 +1752,9 @@ router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => 
   }
   if (existing.status !== ReportStatus.APPROVED) {
     return res.status(409).json({ error: 'Somente relatorios aprovados pelo gestor podem ser avaliados pelo cliente.' });
+  }
+  if (data.action === 'APPROVED' && isZapSignEnabled()) {
+    return res.status(409).json({ error: 'Use a assinatura digital do ZapSign para concluir a aprovacao do relatorio.' });
   }
 
   const item = await prisma.$transaction(async tx => {

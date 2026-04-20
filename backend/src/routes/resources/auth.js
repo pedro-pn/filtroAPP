@@ -13,9 +13,6 @@ import prisma from '../../lib/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
-const loginAttempts = new Map();
-const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-const LOGIN_MAX_ATTEMPTS = 10;
 
 const loginSchema = z.object({
   username: z.string().min(1),
@@ -41,44 +38,6 @@ function resetUrlForToken(token) {
   const base = String(env.appUrl || '').replace(/\/+$/, '');
   if (!base) return '';
   return `${base}/reset-password?token=${encodeURIComponent(token)}`;
-}
-
-function loginAttemptKey(req, username) {
-  const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
-  return `${ip}|${String(username || '').trim().toLowerCase()}`;
-}
-
-function clearExpiredLoginAttempts(now = Date.now()) {
-  for (const [key, bucket] of loginAttempts.entries()) {
-    if (!bucket || bucket.resetAt <= now) loginAttempts.delete(key);
-  }
-}
-
-function checkLoginRateLimit(req, username) {
-  const now = Date.now();
-  clearExpiredLoginAttempts(now);
-  const key = loginAttemptKey(req, username);
-  const bucket = loginAttempts.get(key);
-  if (bucket && bucket.count >= LOGIN_MAX_ATTEMPTS && bucket.resetAt > now) {
-    return Math.ceil((bucket.resetAt - now) / 1000);
-  }
-  return 0;
-}
-
-function registerLoginAttempt(req, username, success) {
-  const now = Date.now();
-  const key = loginAttemptKey(req, username);
-  if (success) {
-    loginAttempts.delete(key);
-    return;
-  }
-  const current = loginAttempts.get(key);
-  if (!current || current.resetAt <= now) {
-    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
-    return;
-  }
-  current.count += 1;
-  loginAttempts.set(key, current);
 }
 
 function passwordResetSuccessMessage(res) {
@@ -180,11 +139,6 @@ async function findLoginCandidates(identifier) {
 
 router.post('/login', asyncHandler(async (req, res) => {
   const data = loginSchema.parse(req.body);
-  const retryAfter = checkLoginRateLimit(req, data.username);
-  if (retryAfter > 0) {
-    res.setHeader('Retry-After', String(retryAfter));
-    return res.status(429).json({ error: 'Muitas tentativas de login. Tente novamente em alguns minutos.' });
-  }
   const candidates = await findLoginCandidates(data.username);
   let user = null;
 
@@ -198,11 +152,9 @@ router.post('/login', asyncHandler(async (req, res) => {
   }
 
   if (!user) {
-    registerLoginAttempt(req, data.username, false);
     return res.status(401).json({ error: 'Usuario ou senha invalidos.' });
   }
 
-  registerLoginAttempt(req, data.username, true);
   const session = await createSession(user.id, { rememberMe: !!data.rememberMe });
 
   res.json({

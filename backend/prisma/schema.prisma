@@ -119,6 +119,11 @@ model Report {
   pendingDerivedTypes Json?
   approvedAt      DateTime?
   returnedAt      DateTime?
+  zapsignDocToken String?
+  zapsignSignerToken String?
+  zapsignRequestedAt DateTime?
+  zapsignSignedAt DateTime?
+  zapsignDocUrl   String?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
   project         Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)

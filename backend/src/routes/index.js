@@ -11,6 +11,7 @@ import reportsRouter from './resources/reports.js';
 import unitsRouter from './resources/units.js';
 import uploadsRouter from './resources/uploads.js';
 import usersRouter from './resources/users.js';
+import webhooksRouter from './resources/webhooks.js';
 
 const router = Router();
 
@@ -25,5 +26,6 @@ router.use('/particle-counters', countersRouter);
 router.use('/drafts', draftsRouter);
 router.use('/uploads', uploadsRouter);
 router.use('/users', usersRouter);
+router.use('/webhooks', webhooksRouter);
 
 export default router;
