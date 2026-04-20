@@ -263,6 +263,9 @@ const clientReviewSchema = z.object({
   action: z.enum(['APPROVED', 'REJECTED']),
   comment: z.string().trim().max(4000).optional().nullable()
 });
+const requestSignatureSchema = z.object({
+  comment: z.string().trim().max(4000).optional().nullable()
+});
 
 function uniqueIds(values) {
   return Array.from(new Set((values || []).filter(Boolean)));
@@ -1662,6 +1665,7 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
   }
 
   assertZapSignEnabled();
+  const data = requestSignatureSchema.parse(req.body || {});
 
   const existing = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
@@ -1680,23 +1684,57 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
   if (existing.status !== ReportStatus.APPROVED) {
     return res.status(409).json({ error: 'Somente relatorios aprovados pelo gestor podem ser assinados.' });
   }
-  if (existing.zapsignSignerToken && !existing.zapsignSignedAt) {
+  const comment = String(data.comment || '').trim();
+
+  const prepared = await prisma.$transaction(async tx => {
+    const approvedReview = (existing.clientReviews || []).find(item => item.action === ClientReviewAction.APPROVED);
+    if (approvedReview) {
+      if (comment !== String(approvedReview.comment || '').trim()) {
+        await tx.clientReportReview.update({
+          where: { id: approvedReview.id },
+          data: {
+            comment: comment || null,
+            ipAddress: clientIp(req),
+            userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
+          }
+        });
+      }
+    } else {
+      await tx.clientReportReview.create({
+        data: {
+          reportId: existing.id,
+          clientUserId: req.auth.user.id,
+          action: ClientReviewAction.APPROVED,
+          comment: comment || null,
+          ipAddress: clientIp(req),
+          userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
+        }
+      });
+    }
+
+    return tx.report.findUniqueOrThrow({
+      where: { id: existing.id },
+      include
+    });
+  });
+
+  if (prepared.zapsignSignerToken && !prepared.zapsignSignedAt) {
     return res.json({
       ok: true,
-      signUrl: signerUrlForToken(existing.zapsignSignerToken),
-      report: existing
+      signUrl: signerUrlForToken(prepared.zapsignSignerToken),
+      report: prepared
     });
   }
 
-  const { signerName, signerEmail } = resolveZapSignSigner(existing, req.auth.user);
-  const saved = await generateReportPdfAsset(existing);
+  const { signerName, signerEmail } = resolveZapSignSigner(prepared, req.auth.user);
+  const saved = await generateReportPdfAsset(prepared);
   const pdfBuffer = await fs.readFile(saved.targetPath);
   const zapsign = await sendToZapSign({
     pdfBuffer,
-    fileName: reportPdfFileName(existing, saved),
+    fileName: reportPdfFileName(prepared, saved),
     signerName,
     signerEmail,
-    externalId: existing.id,
+    externalId: prepared.id,
     webhookUrl: buildZapSignWebhookUrl()
   });
 
@@ -1712,7 +1750,7 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
   }
 
   const item = await prisma.report.update({
-    where: { id: existing.id },
+    where: { id: prepared.id },
     data: {
       zapsignDocToken: zapsign.docToken,
       zapsignSignerToken: zapsign.signerToken || null,

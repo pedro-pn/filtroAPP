@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
+import os from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 import env from '../config/env.js';
@@ -10,6 +12,16 @@ const execFileAsync = promisify(execFile);
 
 function pdfNameFromDocx(fileName) {
   return fileName.replace(/\.docx$/i, '.pdf');
+}
+
+async function ensurePdfCreated(pdfPath) {
+  try {
+    await fs.access(pdfPath);
+  } catch {
+    const error = new Error('Conversao DOCX -> PDF nao gerou o arquivo esperado.');
+    error.statusCode = 500;
+    throw error;
+  }
 }
 
 async function convertWithWord(docxPath, pdfPath) {
@@ -44,12 +56,49 @@ try {
   }
 }
 
+async function convertWithLibreOffice(docxPath, pdfPath) {
+  const outDir = path.dirname(pdfPath);
+  const profileDir = await fs.mkdtemp(path.join(os.tmpdir(), 'filtrovali-soffice-'));
+  try {
+    await fs.mkdir(outDir, { recursive: true });
+    await execFileAsync(
+      env.libreOfficeBinary,
+      [
+        '--headless',
+        '--nologo',
+        '--nolockcheck',
+        '--norestore',
+        '--nodefault',
+        `-env:UserInstallation=${pathToFileURL(profileDir).href}`,
+        '--convert-to',
+        'pdf',
+        '--outdir',
+        outDir,
+        docxPath
+      ],
+      { windowsHide: true, maxBuffer: 10 * 1024 * 1024 }
+    );
+    await ensurePdfCreated(pdfPath);
+  } finally {
+    await fs.rm(profileDir, { recursive: true, force: true });
+  }
+}
+
+async function convertDocxToPdf(docxPath, pdfPath) {
+  if (process.platform === 'win32') {
+    await convertWithWord(docxPath, pdfPath);
+    return;
+  }
+
+  await convertWithLibreOffice(docxPath, pdfPath);
+}
+
 export async function saveReportPdf(report) {
   const docx = await saveReportDocx(report);
   const pdfFileName = pdfNameFromDocx(docx.fileName);
   const pdfPath = path.join(path.dirname(docx.targetPath), pdfFileName);
 
-  await convertWithWord(docx.targetPath, pdfPath);
+  await convertDocxToPdf(docx.targetPath, pdfPath);
 
   return {
     fileName: pdfFileName,

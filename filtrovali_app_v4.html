@@ -452,7 +452,7 @@ var projetos={
 
 /* ── dados mock para o painel ── */
 var DB_KEY='filtrovali-db-v1';
-var API_BASE=window.location.protocol==='file:'?'http://localhost:4000/api':(window.location.protocol+'//'+window.location.hostname+':4000/api');
+var API_BASE=window.location.protocol==='file:'?'http://localhost:4000/api':(window.location.origin+'/api');
 var REPORT_TYPES=['RDO','RTP','RLQ','RCPU','RLM','RLF','RLI'];
 var serviceIcons={limpeza:'🧪',pressao:'🔴',filtragem:'🔵',flushing:'💧',mecanica:'⚙️',inibicao:'🛡️'};
 var serviceNames={limpeza:'Limpeza química',pressao:'Teste de pressão',filtragem:'Filtragem',flushing:'Flushing',mecanica:'Limpeza mecânica',inibicao:'Inibição'};
@@ -5027,7 +5027,22 @@ async function removeProjeto(id){
 function gestorCriarRelatorio(){
   return openFreshReportForm('');
 }
-function voltarDoRelatorio(){
+async function voltarDoRelatorio(){
+  try{
+    if(!editingReportId&&!_isSubmitting){
+      if(_draftPersistTimer){
+        clearTimeout(_draftPersistTimer);
+        _draftPersistTimer=null;
+      }
+      var draft=currentReportDraftSnapshot();
+      if(draft&&draft.projectId&&draft.reportDate){
+        await flushDraftPersist(draft);
+        try{ await refreshDraftsCache(); }catch(_){}
+      }
+    }
+  }catch(err){
+    console.warn('Falha ao persistir rascunho ao voltar do relatorio.',err);
+  }
   if(currentUser&&currentUser.role==='MANAGER'){go('s-gestor');}else{go('s-home');}
 }
 var _gestorPollInterval=null;
@@ -5055,7 +5070,16 @@ function shouldPollReportPanels(){
     return !hasOpenEditor;
   }
   if(currentUser.role==='CLIENT'){
-    return !!(clientScreen&&clientScreen.classList.contains('active'));
+    if(!(clientScreen&&clientScreen.classList.contains('active')))return false;
+    var activeElement=document.activeElement;
+    if(activeElement&&activeElement.tagName==='TEXTAREA'&&String(activeElement.id||'').indexOf('client-review-comment-')===0){
+      return false;
+    }
+    var commentFields=Array.from(document.querySelectorAll('textarea[id^="client-review-comment-"]'));
+    var hasTypedComment=commentFields.some(function(field){
+      return document.activeElement===field || !!String(field.value||'').trim();
+    });
+    return !hasTypedComment;
   }
   return !!(homeScreen&&homeScreen.classList.contains('active'));
 }
@@ -7691,7 +7715,7 @@ window.__legacyBootstrapped = false;
     var subtitle=isRdo?'RDO pronto para conferencia do cliente':'Relatorio de servico liberado apos assinatura do RDO';
     var actions='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="mini-btn alt" type="button" onclick="gerarPDF(\''+report.id+'\')">Baixar PDF</button></div>';
     if(canReview){
-      actions+='<div style="margin-top:10px" class="fg"><label>Comentario do cliente</label><textarea id="'+commentId+'" rows="3" placeholder="Comentario opcional para reprovar"></textarea></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="mini-btn" type="button" onclick="startClientSignature(\''+report.id+'\')">'+(signaturePending?'Continuar assinatura digital':'Aprovar e assinar digitalmente')+'</button><button class="mini-btn alt" type="button" onclick="submitClientReview(\''+report.id+'\',\'REJECTED\')">Reprovar</button></div>';
+      actions+='<div style="margin-top:10px" class="fg"><label>Comentario do cliente</label><textarea id="'+commentId+'" rows="3" placeholder="Comentario opcional que sera exibido no relatorio final"></textarea></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="mini-btn" type="button" onclick="startClientSignature(\''+report.id+'\')">'+(signaturePending?'Continuar assinatura digital':'Aprovar e assinar digitalmente')+'</button><button class="mini-btn alt" type="button" onclick="submitClientReview(\''+report.id+'\',\'REJECTED\')">Reprovar</button></div>';
     }
     var reviews=(report.clientReviews||[]).length?'<div class="det-section" style="margin-top:10px">'+(report.clientReviews||[]).slice(0,3).map(function(item){ return '<div class="det-row"><span class="det-label">'+(item.action==='APPROVED'?'Aprovado':'Reprovado')+'</span><span class="det-val">'+escapeHtml(item.comment||'Sem comentario')+'</span></div>'; }).join('')+'</div>':'';
     return '<div class="card admin-card" style="margin-bottom:10px"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><div class="admin-item-title">'+escapeHtml(reportDisplayLabel(report))+' - '+escapeHtml(formatReportDate(report.reportDate))+'</div><div class="admin-item-sub">'+escapeHtml(leader)+' - '+escapeHtml(subtitle)+'</div></div><span class="badge '+meta.cls+'">'+meta.txt+'</span></div>'+actions+reviews+'</div>';
@@ -7751,10 +7775,12 @@ window.__legacyBootstrapped = false;
   async function startClientSignature(reportId){
     var report=(reportsCache||[]).find(function(item){return item.id===reportId;});
     if(!report)return;
+    var commentField=document.getElementById('client-review-comment-'+reportId);
+    var comment=commentField?commentField.value.trim():'';
     var confirmText='Voce sera redirecionado para a ZapSign para assinar digitalmente o '+(report.reportType||'RDO')+' n '+(report.sequenceNumber!=null?String(report.sequenceNumber).padStart(3,'0'):'---')+'. Deseja continuar?';
     if(!confirm(confirmText))return;
     try{
-      var result=await apiFetch('/reports/'+reportId+'/request-signature',{method:'POST'});
+      var result=await apiFetch('/reports/'+reportId+'/request-signature',{method:'POST',body:JSON.stringify({comment:comment||null})});
       await refreshReportsCache();
       renderClientPanel();
       if(result&&result.signUrl){

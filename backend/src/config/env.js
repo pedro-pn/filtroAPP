@@ -29,6 +29,7 @@ const env = {
   zapsignWebhookHeader: process.env.ZAPSIGN_WEBHOOK_HEADER || 'x-zapsign-webhook-secret',
   zapsignApiBaseUrl: process.env.ZAPSIGN_API_BASE_URL || 'https://api.zapsign.com.br/api/v1',
   zapsignSandbox: parseBoolean(process.env.ZAPSIGN_SANDBOX, false),
+  libreOfficeBinary: process.env.LIBREOFFICE_BINARY || 'soffice',
   nodeEnv: process.env.NODE_ENV || 'development'
 };
 

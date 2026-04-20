@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: filtrovali-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: filtrovali
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - filtrovali_pgdata:/var/lib/postgresql/data
+    networks:
+      - filtrovali-net
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: filtrovali-backend
+    restart: unless-stopped
+    env_file:
+      - backend/.env.production
+    depends_on:
+      - postgres
+    volumes:
+      - filtrovali_relatorios:/data/relatorios
+    networks:
+      - filtrovali-net
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: filtrovali-nginx
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - filtrovali_certs:/etc/letsencrypt
+      - filtrovali_certbot_www:/var/www/certbot
+    networks:
+      - filtrovali-net
+
+volumes:
+  filtrovali_pgdata:
+  filtrovali_relatorios:
+  filtrovali_certs:
+  filtrovali_certbot_www:
+
+networks:
+  filtrovali-net:
+    driver: bridge

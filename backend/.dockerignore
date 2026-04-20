@@ -1,0 +1,9 @@
+node_modules
+.env
+.env.*
+Relatórios
+uploads
+tmp_*
+tmp_generated_docx*
+tmp_docx_*
+*.log
