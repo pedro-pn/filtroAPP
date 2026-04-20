@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import fs from 'node:fs/promises';
+import AdmZip from 'adm-zip';
 import { ClientReviewAction, ReportStatus, ReportType } from '@prisma/client';
 import { z } from 'zod';
 
@@ -14,6 +15,7 @@ import { saveRlqDocx, saveRlqPdf, organizeRlqPhotos } from '../../lib/report-rlq
 import { saveRcpDocx, saveRcpPdf, organizeRcpPhotos, calcServiceMinutes } from '../../lib/report-rcp.js';
 import { saveRlmDocx, saveRlmPdf, organizeRlmPhotos } from '../../lib/report-rlm.js';
 import {
+  addExtraDocToZapSign,
   assertZapSignEnabled,
   downloadSignedZapSignDocument,
   getZapSignDocument,
@@ -166,6 +168,14 @@ async function generateReportPdfAsset(report) {
   return saveReportPdf(report);
 }
 
+async function generateReportDocxAsset(report) {
+  if (report.reportType === 'RTP') return saveRtpDocx(report);
+  if (report.reportType === 'RLQ') return saveRlqDocx(report);
+  if (report.reportType === 'RCPU') return saveRcpDocx(report);
+  if (report.reportType === 'RLM') return saveRlmDocx(report);
+  return saveReportDocx(report);
+}
+
 function buildZapSignWebhookUrl() {
   const base = String(env.appUrl || '').replace(/\/+$/, '');
   if (!base) {
@@ -222,6 +232,72 @@ async function resolveSignedPdf(report) {
   return { fileName, buffer };
 }
 
+async function getReportPdfDownload(report) {
+  if (report.status === ReportStatus.SIGNED && report.reportType === ReportType.RDO && report.zapsignDocToken) {
+    return resolveSignedPdf(report);
+  }
+
+  const saved = await generateReportPdfAsset(report);
+  return {
+    fileName: saved.fileName,
+    buffer: await fs.readFile(saved.targetPath)
+  };
+}
+
+async function getReportDocxDownload(report) {
+  const saved = await generateReportDocxAsset(report);
+  return {
+    fileName: saved.fileName,
+    buffer: await fs.readFile(saved.targetPath)
+  };
+}
+
+async function fetchReportsForIds(ids) {
+  const items = await prisma.report.findMany({
+    where: { id: { in: ids } },
+    include,
+    orderBy: [{ reportDate: 'desc' }, { createdAt: 'desc' }]
+  });
+  const byId = new Map(items.map(item => [item.id, item]));
+  return ids.map(id => byId.get(id)).filter(Boolean);
+}
+
+async function assertBatchAccess(auth, reports) {
+  if (!reports.length) {
+    const error = new Error('Nenhum relatorio selecionado.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (reports.some(report => !canAccessReport(auth, report))) {
+    const error = new Error('Voce nao tem permissao para acessar um ou mais relatorios selecionados.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (auth.user.role === 'CLIENT') {
+    const projectIds = Array.from(new Set(reports.map(report => report.projectId).filter(Boolean)));
+    const projectReports = await prisma.report.findMany({
+      where: { projectId: { in: projectIds } },
+      include
+    });
+    const byId = new Map(projectReports.map(report => [report.id, report]));
+    if (reports.some(report => !canClientSeeReport(report, byId))) {
+      const error = new Error('Voce nao tem permissao para acessar um ou mais relatorios selecionados.');
+      error.statusCode = 403;
+      throw error;
+    }
+  }
+}
+
+function normalizeCommentMap(raw) {
+  const out = {};
+  Object.entries(raw || {}).forEach(([key, value]) => {
+    out[String(key)] = String(value || '').trim();
+  });
+  return out;
+}
+
 const serviceSchema = z.object({
   serviceType: z.string().min(1),
   equipmentId: z.string().nullable().optional(),
@@ -265,6 +341,14 @@ const clientReviewSchema = z.object({
 });
 const requestSignatureSchema = z.object({
   comment: z.string().trim().max(4000).optional().nullable()
+});
+const batchDownloadSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1).max(100),
+  format: z.enum(['pdf', 'docx'])
+});
+const batchSignatureSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1).max(15),
+  commentsById: z.record(z.string(), z.any()).optional()
 });
 
 function uniqueIds(values) {
@@ -1203,6 +1287,158 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     return res.json(items.filter(item => canClientSeeReport(item, byId)));
   }
   res.json(items);
+}));
+
+router.post('/batch-download', requireAuth, asyncHandler(async (req, res) => {
+  const data = batchDownloadSchema.parse(req.body);
+  if (data.format === 'docx' && req.auth.user.role !== 'MANAGER') {
+    return res.status(403).json({ error: 'Apenas o gestor pode baixar DOCX em lote.' });
+  }
+
+  const ids = uniqueIds(data.ids);
+  const reports = await fetchReportsForIds(ids);
+  if (reports.length !== ids.length) {
+    return res.status(404).json({ error: 'Um ou mais relatorios selecionados nao foram encontrados.' });
+  }
+  await assertBatchAccess(req.auth, reports);
+
+  const zip = new AdmZip();
+  for (const report of reports) {
+    const file = data.format === 'docx'
+      ? await getReportDocxDownload(report)
+      : await getReportPdfDownload(report);
+    zip.addFile(file.fileName, file.buffer);
+  }
+
+  const archiveName = `relatorios_${data.format}_${new Date().toISOString().slice(0, 10)}.zip`;
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', contentDisposition(archiveName));
+  res.send(zip.toBuffer());
+}));
+
+router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth.user.role !== 'CLIENT') {
+    return res.status(403).json({ error: 'Apenas o cliente pode solicitar assinatura digital em lote.' });
+  }
+
+  assertZapSignEnabled();
+  const data = batchSignatureSchema.parse(req.body || {});
+  const ids = uniqueIds(data.ids);
+  const reports = await fetchReportsForIds(ids);
+  if (reports.length !== ids.length) {
+    return res.status(404).json({ error: 'Um ou mais relatorios selecionados nao foram encontrados.' });
+  }
+  await assertBatchAccess(req.auth, reports);
+
+  const projectIds = Array.from(new Set(reports.map(report => report.projectId).filter(Boolean)));
+  if (projectIds.length !== 1) {
+    return res.status(409).json({ error: 'A assinatura em lote do cliente exige relatorios do mesmo projeto.' });
+  }
+  if (reports.some(report => report.reportType !== ReportType.RDO || report.status !== ReportStatus.APPROVED || report.status === ReportStatus.SIGNED)) {
+    return res.status(409).json({ error: 'A assinatura em lote aceita apenas RDOs aprovados pelo gestor e ainda nao assinados.' });
+  }
+
+  const commentsById = normalizeCommentMap(data.commentsById);
+  const preparedReports = await prisma.$transaction(async tx => {
+    const prepared = [];
+    for (const report of reports) {
+      const comment = commentsById[report.id] || '';
+      const approvedReview = (report.clientReviews || []).find(item => item.action === ClientReviewAction.APPROVED);
+      if (approvedReview) {
+        if (comment !== String(approvedReview.comment || '').trim()) {
+          await tx.clientReportReview.update({
+            where: { id: approvedReview.id },
+            data: {
+              comment: comment || null,
+              ipAddress: clientIp(req),
+              userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
+            }
+          });
+        }
+      } else {
+        await tx.clientReportReview.create({
+          data: {
+            reportId: report.id,
+            clientUserId: req.auth.user.id,
+            action: ClientReviewAction.APPROVED,
+            comment: comment || null,
+            ipAddress: clientIp(req),
+            userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
+          }
+        });
+      }
+      prepared.push(await tx.report.findUniqueOrThrow({ where: { id: report.id }, include }));
+    }
+    return prepared;
+  });
+
+  const pendingExisting = preparedReports.find(report => report.zapsignSignerToken && !report.zapsignSignedAt);
+  if (pendingExisting) {
+    return res.json({
+      ok: true,
+      signUrl: signerUrlForToken(pendingExisting.zapsignSignerToken),
+      reportIds: preparedReports.map(report => report.id)
+    });
+  }
+
+  const [mainReport, ...extraReports] = preparedReports;
+  const { signerName, signerEmail } = resolveZapSignSigner(mainReport, req.auth.user);
+  const mainFile = await getReportPdfDownload(mainReport);
+  const mainResult = await sendToZapSign({
+    pdfBuffer: mainFile.buffer,
+    fileName: reportPdfFileName(mainReport, mainFile),
+    signerName,
+    signerEmail,
+    externalId: mainReport.id,
+    webhookUrl: buildZapSignWebhookUrl()
+  });
+
+  if (!mainResult.docToken || !mainResult.signerUrl) {
+    const error = new Error('A ZapSign nao retornou os dados esperados para a assinatura em lote.');
+    error.statusCode = 502;
+    throw error;
+  }
+
+  const updates = [{
+    id: mainReport.id,
+    docToken: mainResult.docToken,
+    signerToken: mainResult.signerToken || null
+  }];
+
+  for (const report of extraReports) {
+    const file = await getReportPdfDownload(report);
+    const extra = await addExtraDocToZapSign(mainResult.docToken, {
+      pdfBuffer: file.buffer,
+      fileName: reportPdfFileName(report, file)
+    });
+    if (!extra.docToken) {
+      const error = new Error('A ZapSign nao retornou o token de um documento extra da assinatura em lote.');
+      error.statusCode = 502;
+      throw error;
+    }
+    updates.push({ id: report.id, docToken: extra.docToken, signerToken: null });
+  }
+
+  await prisma.$transaction(async tx => {
+    for (const item of updates) {
+      await tx.report.update({
+        where: { id: item.id },
+        data: {
+          zapsignDocToken: item.docToken,
+          zapsignSignerToken: item.signerToken,
+          zapsignRequestedAt: new Date(),
+          zapsignSignedAt: null,
+          zapsignDocUrl: null
+        }
+      });
+    }
+  });
+
+  res.json({
+    ok: true,
+    signUrl: mainResult.signerUrl,
+    reportIds: updates.map(item => item.id)
+  });
 }));
 
 router.get('/:id', requireAuth, asyncHandler(async (req, res) => {

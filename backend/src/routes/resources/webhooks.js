@@ -101,6 +101,18 @@ router.post('/zapsign', asyncHandler(async (req, res) => {
         }
       });
     }
+
+    const extraDocs = Array.isArray(details?.extraDocs) ? details.extraDocs : [];
+    for (const extraDoc of extraDocs) {
+      await tx.report.updateMany({
+        where: { zapsignDocToken: extraDoc.token },
+        data: {
+          status: ReportStatus.SIGNED,
+          zapsignSignedAt: signedTimestamp(req.body, details),
+          zapsignDocUrl: extraDoc.signedFile || null
+        }
+      });
+    }
   });
 
   res.json({ ok: true });

@@ -136,6 +136,27 @@ textarea{resize:none;min-height:72px}
 .admin-actions{display:flex;justify-content:flex-end;margin-top:8px}
 .mini-btn{background:var(--g);color:#fff;border:none;border-radius:var(--rs);padding:9px 12px;font-size:12px;font-weight:600;cursor:pointer}
 .mini-btn.alt{background:#fff;color:var(--tx);border:1px solid var(--br)}
+.batch-toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
+.batch-toolbar-actions .mini-btn{min-width:0}
+.batch-toolbar-client .batch-toolbar-actions .mini-btn{flex:1 1 100%;white-space:normal;line-height:1.35;text-align:center}
+.client-report-card{margin-bottom:10px}
+.client-report-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.client-report-main{display:flex;align-items:flex-start;gap:10px;min-width:0;flex:1}
+.client-report-copy{min-width:0;flex:1}
+.client-report-checkbox{display:flex;align-items:center;justify-content:center;width:22px;height:22px;flex:0 0 22px;cursor:pointer;margin-top:1px}
+.client-report-badge{flex-shrink:0;max-width:40%}
+.client-report-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.client-report-actions .mini-btn{min-width:0}
+.client-report-actions .mini-btn:not(.alt){flex:1 1 180px}
+.client-report-actions .mini-btn.alt{flex:1 1 140px}
+.client-report-comment{margin-top:10px}
+.client-report-comment textarea{min-height:90px}
+@media (max-width:360px){
+  .client-report-header{flex-direction:column;align-items:stretch}
+  .client-report-badge{max-width:none;align-self:flex-start}
+  .client-report-actions .mini-btn{flex-basis:100%}
+  .batch-toolbar-client .batch-toolbar-actions .mini-btn{flex-basis:100%}
+}
 .admin-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
 .admin-toolbar .sec{margin-bottom:0}
 .admin-card{margin-bottom:10px}
@@ -7977,6 +7998,249 @@ window.__legacyBootstrapped = false;
       }
     };
   })(openReportDetail);
+
+  var batchSelections={
+    gestor:{ ids:[], projectId:'' },
+    colaborador:{ ids:[], projectId:'' },
+    cliente:{ ids:[], projectId:'' }
+  };
+  function batchContextFromOrigin(origin){
+    if(origin==='gestor')return 'gestor';
+    if(origin==='meus')return 'colaborador';
+    return '';
+  }
+  function getBatchSelection(ctx){
+    if(!batchSelections[ctx])batchSelections[ctx]={ ids:[], projectId:'' };
+    return batchSelections[ctx];
+  }
+  function isSelectableReport(report,ctx){
+    if(!report)return false;
+    if(report.status!=='APPROVED' && report.status!=='SIGNED')return false;
+    if(ctx==='cliente')return true;
+    return true;
+  }
+  function isSelectedInBatch(ctx,reportId){
+    return getBatchSelection(ctx).ids.indexOf(reportId)>=0;
+  }
+  function clearBatchSelection(ctx,rerender){
+    var state=getBatchSelection(ctx);
+    state.ids=[];
+    state.projectId='';
+    if(rerender!==false)renderBatchSelectionContext(ctx);
+  }
+  function renderBatchSelectionContext(ctx){
+    if(ctx==='gestor'){ renderGestor(); return; }
+    if(ctx==='colaborador'){ renderMyReports(); return; }
+    if(ctx==='cliente'){ renderClientPanel(); return; }
+  }
+  function toggleBatchSelection(ctx,reportId,projectId){
+    var state=getBatchSelection(ctx);
+    var idx=state.ids.indexOf(reportId);
+    if(idx>=0){
+      state.ids.splice(idx,1);
+      if(!state.ids.length)state.projectId='';
+      renderBatchSelectionContext(ctx);
+      return;
+    }
+    if(ctx==='cliente' && state.projectId && state.projectId!==projectId){
+      alert('Para assinar em lote, selecione relatorios de apenas um projeto por vez.');
+      return;
+    }
+    state.ids.push(reportId);
+    if(projectId)state.projectId=projectId;
+    renderBatchSelectionContext(ctx);
+  }
+  function selectedReportsForContext(ctx){
+    var ids=getBatchSelection(ctx).ids;
+    return (reportsCache||[]).filter(function(report){ return ids.indexOf(report.id)>=0; });
+  }
+  function allClientSelectionSignable(selected){
+    return !!selected.length && selected.every(function(report){
+      return report.status==='APPROVED' && (report.reportType||'RDO')==='RDO';
+    });
+  }
+  function renderBatchToolbar(ctx,selected){
+    selected=selected||selectedReportsForContext(ctx);
+    if(!selected.length)return '';
+    var total=selected.length;
+    var buttons='';
+    if(ctx==='gestor'){
+      buttons+='<button class="mini-btn" type="button" onclick="downloadSelectedReports(\''+ctx+'\',\'pdf\')">Baixar relatórios selecionados (PDF)</button>';
+      buttons+='<button class="mini-btn alt" type="button" onclick="downloadSelectedReports(\''+ctx+'\',\'docx\')">Baixar relatórios selecionados (DOCX)</button>';
+    }else{
+      buttons+='<button class="mini-btn" type="button" onclick="downloadSelectedReports(\''+ctx+'\',\'pdf\')">Baixar relatórios selecionados (PDF)</button>';
+      if(ctx==='cliente' && allClientSelectionSignable(selected)){
+        buttons+='<button class="mini-btn alt" type="button" onclick="startClientBatchSignature()">Assinar relatórios selecionados</button>';
+      }
+    }
+    buttons+='<button class="mini-btn alt" type="button" onclick="clearBatchSelection(\''+ctx+'\')">Desfazer seleção</button>';
+    return '<div class="card '+(ctx==='cliente'?'batch-toolbar-client':'')+'" style="margin-bottom:12px"><div class="sec">Seleção em lote</div><div style="font-size:13px;color:var(--mu);margin-bottom:10px">'+total+' relatório'+(total!==1?'s':'')+' selecionado'+(total!==1?'s':'')+'.</div><div class="batch-toolbar-actions">'+buttons+'</div></div>';
+  }
+  function renderBatchCheckbox(ctx,report){
+    if(!isSelectableReport(report,ctx))return '';
+    var checked=isSelectedInBatch(ctx,report.id)?' checked':'';
+    return '<label style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;cursor:pointer" onclick="event.stopPropagation()"><input type="checkbox"'+checked+' onchange="toggleBatchSelection(\''+ctx+'\',\''+report.id+'\',\''+(report.projectId||'')+'\')" /></label>';
+  }
+  async function downloadSelectedReports(ctx,format){
+    var state=getBatchSelection(ctx);
+    if(!state.ids.length){ alert('Selecione pelo menos um relatório.'); return; }
+    if(format==='docx' && ctx!=='gestor'){ alert('DOCX em lote está disponível apenas para o gestor.'); return; }
+    try{
+      var response=await fetch(API_BASE+'/reports/batch-download',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          Authorization:'Bearer '+authState.token
+        },
+        body:JSON.stringify({ ids:state.ids, format:format })
+      });
+      if(!response.ok){
+        var message='Falha ao baixar relatórios selecionados.';
+        try{
+          var err=await response.json();
+          message=err.error||message;
+        }catch(e){}
+        alert(message);
+        return;
+      }
+      var blob=await response.blob();
+      var url=URL.createObjectURL(blob);
+      var disposition=response.headers.get('Content-Disposition')||'';
+      var fallback='relatorios-'+format+'.zip';
+      var name=fileNameFromDisposition(disposition,fallback);
+      var a=document.createElement('a');
+      a.href=url;
+      a.download=name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(url); },1500);
+      showToast('Download em lote concluído.');
+    }catch(err){
+      alert('Erro ao baixar relatórios selecionados: '+err.message);
+    }
+  }
+  async function startClientBatchSignature(){
+    var selected=selectedReportsForContext('cliente');
+    if(!selected.length){ alert('Selecione pelo menos um relatório.'); return; }
+    if(!allClientSelectionSignable(selected)){
+      alert('A assinatura em lote aceita apenas RDOs aprovados e ainda não assinados.');
+      return;
+    }
+    var label=selected.length===1?'1 relatório':selected.length+' relatórios';
+    if(!confirm('Você será redirecionado para a ZapSign para assinar '+label+' de uma vez. Deseja continuar?'))return;
+    var commentsById={};
+    selected.forEach(function(report){
+      var field=document.getElementById('client-review-comment-'+report.id);
+      commentsById[report.id]=field?String(field.value||'').trim():'';
+    });
+    try{
+      var result=await apiFetch('/reports/batch-request-signature',{
+        method:'POST',
+        body:JSON.stringify({ ids:selected.map(function(report){ return report.id; }), commentsById:commentsById })
+      });
+      clearBatchSelection('cliente',false);
+      await refreshReportsCache();
+      renderClientPanel();
+      if(result&&result.signUrl){
+        window.open(result.signUrl,'_blank','noopener');
+        showToast('Lote enviado para assinatura na ZapSign.');
+        return;
+      }
+      throw new Error('Link de assinatura não retornado.');
+    }catch(err){
+      alert('Erro ao iniciar assinatura em lote: '+err.message);
+    }
+  }
+  window.toggleBatchSelection=toggleBatchSelection;
+  window.clearBatchSelection=clearBatchSelection;
+  window.downloadSelectedReports=downloadSelectedReports;
+  window.startClientBatchSignature=startClientBatchSignature;
+  switchClientProjectTab=(function(baseSwitchClientProjectTab){
+    return function(projectId){
+      var state=getBatchSelection('cliente');
+      if(state.ids.length && state.projectId && projectId && state.projectId!==projectId){
+        clearBatchSelection('cliente',false);
+      }
+      return baseSwitchClientProjectTab(projectId);
+    };
+  })(switchClientProjectTab);
+  window.switchClientProjectTab=switchClientProjectTab;
+
+  reportCard=(function(baseReportCard){
+    return function(report,origin){
+      var html=baseReportCard(report,origin);
+      var ctx=batchContextFromOrigin(origin);
+      if(!ctx || !isSelectableReport(report,ctx))return html;
+      var checkbox=renderBatchCheckbox(ctx,report);
+      return html.replace(
+        '<div class="rel-item"',
+        '<div class="rel-item" data-batch-context="'+ctx+'" data-report-id="'+report.id+'"'
+      ).replace(
+        '<div class="rel-icon">',
+        checkbox+'<div class="rel-icon">'
+      );
+    };
+  })(reportCard);
+  renderMyReports=(function(baseRenderMyReports){
+    return function(){
+      if(currentUser&&currentUser.role==='CLIENT')return baseRenderMyReports();
+      baseRenderMyReports();
+      var content=document.getElementById('my-reports-content');
+      if(!content)return;
+      var selected=selectedReportsForContext('colaborador');
+      if(selected.length)content.innerHTML=renderBatchToolbar('colaborador',selected)+content.innerHTML;
+    };
+  })(renderMyReports);
+  renderGestor=(function(baseRenderGestor){
+    return function(){
+      baseRenderGestor();
+      if(gestorTab!=='aprovados')return;
+      var content=document.getElementById('gestor-content');
+      if(!content)return;
+      var selected=selectedReportsForContext('gestor');
+      if(selected.length)content.innerHTML=renderBatchToolbar('gestor',selected)+content.innerHTML;
+    };
+  })(renderGestor);
+  renderClientReportCard=(function(baseRenderClientReportCard){
+    return function(report){
+      var meta=clientStatusMeta(report);
+      var isRdo=(report.reportType||'RDO')==='RDO';
+      var canReview=isRdo&&report.status==='APPROVED';
+      var signaturePending=canReview&&!!report.zapsignRequestedAt&&!report.zapsignSignedAt;
+      var commentId='client-review-comment-'+report.id;
+      var leader=(report.createdBy&&report.createdBy.name)||'-';
+      var subtitle=isRdo?'RDO pronto para conferencia do cliente':'Relatorio de servico liberado apos assinatura do RDO';
+      var checkbox=isSelectableReport(report,'cliente')
+        ? '<label class="client-report-checkbox" onclick="event.stopPropagation()"><input type="checkbox"'+(isSelectedInBatch('cliente',report.id)?' checked':'')+' onchange="toggleBatchSelection(\'cliente\',\''+report.id+'\',\''+(report.projectId||'')+'\')" /></label>'
+        : '';
+      var actions='<div class="client-report-actions"><button class="mini-btn alt" type="button" onclick="gerarPDF(\''+report.id+'\')">Baixar PDF</button></div>';
+      if(canReview){
+        actions+='<div class="fg client-report-comment"><label>Comentario do cliente</label><textarea id="'+commentId+'" rows="3" placeholder="Comentario opcional que sera exibido no relatorio final"></textarea></div>';
+        actions+='<div class="client-report-actions"><button class="mini-btn" type="button" onclick="startClientSignature(\''+report.id+'\')">'+(signaturePending?'Continuar assinatura digital':'Aprovar e assinar digitalmente')+'</button><button class="mini-btn alt" type="button" onclick="submitClientReview(\''+report.id+'\',\'REJECTED\')">Reprovar</button></div>';
+      }
+      var reviews=(report.clientReviews||[]).length
+        ? '<div class="det-section" style="margin-top:10px">'+(report.clientReviews||[]).slice(0,3).map(function(item){
+            return '<div class="det-row"><span class="det-label">'+(item.action==='APPROVED'?'Aprovado':'Reprovado')+'</span><span class="det-val">'+escapeHtml(item.comment||'Sem comentario')+'</span></div>';
+          }).join('')+'</div>'
+        : '';
+      return '<div class="card admin-card client-report-card"><div class="client-report-header"><div class="client-report-main">'+checkbox+'<div class="client-report-copy"><div class="admin-item-title">'+escapeHtml(reportDisplayLabel(report))+' - '+escapeHtml(formatReportDate(report.reportDate))+'</div><div class="admin-item-sub">'+escapeHtml(leader)+' - '+escapeHtml(subtitle)+'</div></div></div><span class="badge '+meta.cls+' client-report-badge">'+meta.txt+'</span></div>'+actions+reviews+'</div>';
+    };
+  })(renderClientReportCard);
+  renderClientPanel=(function(baseRenderClientPanel){
+    return function(){
+      baseRenderClientPanel();
+      var screen=document.getElementById('s-client'); if(!screen)return;
+      var scroll=screen.querySelector('.scroll'); if(!scroll)return;
+      var cards=scroll.querySelectorAll('.card');
+      if(cards.length<3)return;
+      var selected=selectedReportsForContext('cliente');
+      var state=getBatchSelection('cliente');
+      if(state.projectId && clientProjectTab && state.projectId!==clientProjectTab)return;
+      if(!selected.length)return;
+      cards[cards.length-1].insertAdjacentHTML('afterbegin',renderBatchToolbar('cliente',selected));
+    };
+  })(renderClientPanel);
 
   ensureUtilityScreens();
   patchLoginPanel();

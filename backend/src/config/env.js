@@ -25,6 +25,7 @@ const env = {
   smtpFrom: process.env.SMTP_FROM || '',
   smtpTestDest: process.env.SMTP_TEST_DEST || '',
   zapsignApiToken: process.env.ZAPSIGN_API_TOKEN || '',
+  zapsignRefreshToken: process.env.ZAPSIGN_REFRESH_TOKEN || '',
   zapsignWebhookSecret: process.env.ZAPSIGN_WEBHOOK_SECRET || '',
   zapsignWebhookHeader: process.env.ZAPSIGN_WEBHOOK_HEADER || 'x-zapsign-webhook-secret',
   zapsignApiBaseUrl: process.env.ZAPSIGN_API_BASE_URL || 'https://api.zapsign.com.br/api/v1',
