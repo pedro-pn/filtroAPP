@@ -29,7 +29,7 @@ router.get('/', asyncHandler(async (req, res) => {
   const group = String(req.query.group || '').trim().toLowerCase();
   const where = {};
   if (group === 'internal') {
-    where.role = { in: [UserRole.MANAGER, UserRole.COLLABORATOR] };
+    where.role = { in: [UserRole.MANAGER, UserRole.COLLABORATOR, UserRole.COORDINATOR] };
   } else if (group === 'client') {
     where.role = UserRole.CLIENT;
   }
