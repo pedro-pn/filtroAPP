@@ -84,7 +84,7 @@ async function convertWithLibreOffice(docxPath, pdfPath) {
   }
 }
 
-async function convertDocxToPdf(docxPath, pdfPath) {
+export async function convertDocxToPdf(docxPath, pdfPath) {
   if (process.platform === 'win32') {
     await convertWithWord(docxPath, pdfPath);
     return;

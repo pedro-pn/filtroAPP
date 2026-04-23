@@ -10,6 +10,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
+import { convertDocxToPdf } from './report-pdf-from-docx.js';
 import { readStoredImageAsset } from './stored-image.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -590,7 +591,7 @@ export async function saveRlqPdf(report) {
   const docx = await saveRlqDocx(report);
   const pdfFileName = docx.fileName.replace(/\.docx$/i, '.pdf');
   const pdfPath = path.join(path.dirname(docx.targetPath), pdfFileName);
-  await convertWithWord(docx.targetPath, pdfPath);
+  await convertDocxToPdf(docx.targetPath, pdfPath);
   return {
     fileName: pdfFileName,
     targetPath: pdfPath,
