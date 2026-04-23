@@ -333,6 +333,7 @@ function buildRlqBaseData(report) {
     system: stringify(getField(sd, ['Sistema'])),
     material: stringify(getField(sd, ['Material da tubulação', 'Material da tubulacao', 'Material do equipamento'])),
     cleaningunit: units.join(', '),
+    ulq: units.join(', '),
     inspectiontype: stringify(inspectionTypeRaw),
     cleaningmethods: stringify(cleaningMethodsRaw),
     starttime: stringify(getField(sd, ['Hora de início', 'Hora de inicio'])),
