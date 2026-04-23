@@ -1910,6 +1910,15 @@ function installSpaFormGuards(){
   document.addEventListener('submit', function(event){
     event.preventDefault();
   });
+  document.addEventListener('keydown', function(event){
+    if(event.key!=='Enter')return;
+    var target=event.target;
+    if(!target || !target.closest)return;
+    if(target.tagName==='TEXTAREA')return;
+    if(target.closest('.admin-inline-form')){
+      event.preventDefault();
+    }
+  });
   var observer=new MutationObserver(function(mutations){
     mutations.forEach(function(mutation){
       Array.prototype.forEach.call(mutation.addedNodes||[], function(node){
@@ -5090,14 +5099,33 @@ async function voltarDoRelatorio(){
 }
 var _gestorPollInterval=null;
 var _reportStatusPollInterval=null;
+function hasActiveAdminEditing(){
+  try{
+    if(typeof userEditorState!=='undefined' && userEditorState)return true;
+    if(typeof gestorEditors!=='undefined' && gestorEditors){
+      if(Object.values(gestorEditors).some(function(v){return v!==null;}))return true;
+    }
+    var inlineForm=document.querySelector('.admin-inline-form');
+    if(!inlineForm)return false;
+    var activeElement=document.activeElement;
+    if(activeElement && inlineForm.contains(activeElement))return true;
+    var filledField=inlineForm.querySelector('input:not([type="hidden"]), textarea, select');
+    if(!filledField)return true;
+    var hasTypedValue=Array.from(inlineForm.querySelectorAll('input:not([type="hidden"]), textarea')).some(function(field){
+      return !!String(field.value||'').trim();
+    });
+    return hasTypedValue;
+  }catch(_){
+    return true;
+  }
+}
 function startGestorPolling(){
   if(_gestorPollInterval)return;
   _gestorPollInterval=setInterval(async function(){
     if(!currentUser||currentUser.role!=='MANAGER')return;
     var sc=document.getElementById('s-gestor');
     if(!sc||!sc.classList.contains('active'))return;
-    var hasOpenEditor=Object.values(gestorEditors).some(function(v){return v!==null;});
-    if(hasOpenEditor)return;
+    if(hasActiveAdminEditing())return;
     await refreshReportsCache();
     renderGestor();
   },30000);
@@ -5109,8 +5137,7 @@ function shouldPollReportPanels(){
   var homeScreen=document.getElementById('s-home');
   if(currentUser.role==='MANAGER'){
     if(!managerScreen||!managerScreen.classList.contains('active'))return false;
-    var hasOpenEditor=Object.values(gestorEditors).some(function(v){return v!==null;});
-    return !hasOpenEditor;
+    return !hasActiveAdminEditing();
   }
   if(currentUser.role==='CLIENT'){
     if(!(clientScreen&&clientScreen.classList.contains('active')))return false;
