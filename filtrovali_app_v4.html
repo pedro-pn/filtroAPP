@@ -1645,7 +1645,6 @@ function editorEquipe(){
   var st=gestorEditors.equipe;if(!st)return '';
   var c=st.type==='edit'?getColaboradorById(st.id):{id:'',code:'',nome:'',cargo:'',email:'',assinatura:'',ativo:true};
   return '<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(st.type==='edit'?'Editar colaborador':'Novo colaborador')+'</div><button class="mini-btn alt" onclick="closeEditor(\'equipe\')">Cancelar</button></div><div class="admin-inline-grid">'+
-    '<div class="fg"><label>ID</label><input type="text" id="ed-col-id" value="'+escapeHtml(c.code||'')+'" '+(st.type==='edit'?'readonly':'')+'></div>'+
     '<div class="fg"><label>Nome</label><input type="text" id="ed-col-nome" value="'+escapeHtml(c.nome||'')+'"></div>'+
     '<div class="fg"><label>Cargo</label><input type="text" id="ed-col-cargo" value="'+escapeHtml(c.cargo||'')+'"></div>'+
     '<div class="fg"><label>E-mail</label><input type="text" id="ed-col-email" value="'+escapeHtml(c.email||'')+'"></div>'+
@@ -1738,15 +1737,15 @@ async function saveProjetoEditor(mode){
   }catch(err){alert('Erro ao salvar projeto: '+err.message);}
 }
 async function saveColaboradorEditor(mode){
-  var id=document.getElementById('ed-col-id').value.trim(), nome=document.getElementById('ed-col-nome').value.trim();
-  if(!id||!nome){alert('Preencha ID e nome do colaborador.');return;}
+  var nome=document.getElementById('ed-col-nome').value.trim();
+  if(!nome){alert('Preencha o nome do colaborador.');return;}
   try{
     var signatureImage=document.getElementById('ed-col-assinatura').value.trim();
     var signatureDataUrl=(document.getElementById('ed-col-assinatura-dataurl')||{}).value||'';
     if(signatureDataUrl){
       signatureImage=signatureDataUrl;
     }
-    var body={code:id,name:nome,role:document.getElementById('ed-col-cargo').value.trim(),email:document.getElementById('ed-col-email').value.trim(),signatureImage:signatureImage||'',isActive:document.getElementById('ed-col-ativo').value==='true'};
+    var body={name:nome,role:document.getElementById('ed-col-cargo').value.trim(),email:document.getElementById('ed-col-email').value.trim(),signatureImage:signatureImage||'',isActive:document.getElementById('ed-col-ativo').value==='true'};
     if(mode==='edit') await apiFetch('/collaborators/'+gestorEditors.equipe.id,{method:'PUT',body:JSON.stringify(body)});
     else await apiFetch('/collaborators',{method:'POST',body:JSON.stringify(body)});
     closeEditor('equipe');
@@ -8500,6 +8499,78 @@ window.__legacyBootstrapped = false;
       syncReportTypeToggleDom(document.getElementById('s-client'));
     };
   })(renderClientPanel);
+  function clearHeaderCollaboratorLists(){
+    var dayList=document.getElementById('colab-list');
+    if(dayList)dayList.innerHTML='';
+    var nightList=document.getElementById('noturno-colab-list');
+    if(nightList)nightList.innerHTML='';
+  }
+  function fillHeaderCollaboratorList(listId, collaboratorIds){
+    var list=document.getElementById(listId);
+    if(!list)return;
+    list.innerHTML='';
+    Array.from(new Set((collaboratorIds||[]).filter(Boolean))).forEach(function(id){
+      var col=getColaboradorById(id);
+      if(col)list.appendChild(buildColabTag({id:col.id,nome:col.nome}));
+    });
+  }
+  function reportMatchesCurrentCollaborator(report){
+    if(!currentUser)return false;
+    if(currentUser.role==='MANAGER')return true;
+    if(report.createdByUserId===currentUser.id)return true;
+    if(report.createdBy&&report.createdBy.id===currentUser.id)return true;
+    var collaboratorId=currentUserCollaboratorId();
+    if(!collaboratorId)return false;
+    if((report.collaborators||[]).some(function(link){
+      return link.collaboratorId===collaboratorId || (link.collaborator&&link.collaborator.id===collaboratorId);
+    })) return true;
+    var nightIds=((report.specialConditions||{}).noturnoDetails||{}).collaboratorIds||[];
+    return nightIds.indexOf(collaboratorId)>=0;
+  }
+  function reportPresetSortValue(report){
+    return new Date(report.reportDate||report.createdAt||0).getTime();
+  }
+  function findLatestProjectCollaboratorPreset(projectId){
+    if(!projectId)return null;
+    return (reportsCache||[])
+      .filter(function(report){
+        return report.projectId===projectId && reportMatchesCurrentCollaborator(report);
+      })
+      .sort(function(a,b){
+        var timeDiff=reportPresetSortValue(b)-reportPresetSortValue(a);
+        if(timeDiff)return timeDiff;
+        return new Date(b.createdAt||0).getTime()-new Date(a.createdAt||0).getTime();
+      })[0]||null;
+  }
+  function applyProjectCollaboratorPreset(projectId){
+    clearHeaderCollaboratorLists();
+    var preset=findLatestProjectCollaboratorPreset(projectId);
+    var nightToggle=document.querySelector('input[onchange*="noturno"]');
+    if(!preset){
+      if(nightToggle){nightToggle.checked=false;tog('noturno',nightToggle);}
+      refreshServiceCollaboratorOptions();
+      return;
+    }
+    var daytimeIds=(preset.collaborators||[]).map(function(link){
+      return link.collaboratorId || (link.collaborator&&link.collaborator.id) || '';
+    }).filter(Boolean);
+    var nightIds=(((preset.specialConditions||{}).noturnoDetails||{}).collaboratorIds||[]).filter(Boolean);
+    fillHeaderCollaboratorList('colab-list',daytimeIds);
+    fillHeaderCollaboratorList('noturno-colab-list',nightIds);
+    if(nightToggle){
+      nightToggle.checked=nightIds.length>0;
+      tog('noturno',nightToggle);
+    }
+    refreshServiceCollaboratorOptions();
+  }
+  setProjeto=(function(baseSetProjeto){
+    return function(v){
+      if(typeof baseSetProjeto==='function')baseSetProjeto(v);
+      else projAtual=v||'';
+      if(editingReportId)return;
+      applyProjectCollaboratorPreset(projAtual);
+    };
+  })(setProjeto);
 
   ensureUtilityScreens();
   patchLoginPanel();
