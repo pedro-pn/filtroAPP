@@ -15,7 +15,7 @@
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px}
 body.app-booting .shell{visibility:hidden}
 body.app-booting::before{content:'Carregando...';position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--g);font-size:15px;font-weight:700;z-index:9999}
-.shell{max-width:420px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;background:var(--bg)}
+.shell{max-width:420px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;background:var(--bg);overflow-x:hidden}
 .screen{display:none;flex-direction:column;flex:1}.screen.active{display:flex}
 .topbar{background:var(--g);color:#fff;padding:14px 16px 12px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .topbar-brand{display:flex;flex-direction:column;gap:2px}
@@ -28,13 +28,14 @@ body.app-booting::before{content:'Carregando...';position:fixed;inset:0;display:
 .card{background:var(--wh);border-radius:var(--r);border:.5px solid var(--br);padding:14px}
 .sec{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--g);margin-bottom:12px;display:flex;align-items:center;gap:6px}
 .sec::before{content:'';display:inline-block;width:3px;height:13px;background:var(--g);border-radius:2px}
-.fg{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}.fg:last-child{margin-bottom:0}
+.fg{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;min-width:0}.fg:last-child{margin-bottom:0}
 label{font-size:12px;font-weight:500;color:var(--mu)}
-input[type=text],input[type=date],input[type=time],input[type=number],select,textarea{width:100%;border:1px solid var(--br);border-radius:var(--rs);padding:9px 11px;font-size:14px;background:#fafafa;color:var(--tx);outline:none;transition:border .15s}
+input[type=text],input[type=date],input[type=time],input[type=number],select,textarea{width:100%;min-width:0;border:1px solid var(--br);border-radius:var(--rs);padding:9px 11px;font-size:14px;background:#fafafa;color:var(--tx);outline:none;transition:border .15s}
 input:focus,select:focus,textarea:focus{border-color:var(--g);background:#fff}
 textarea{resize:none;min-height:72px}
-.r2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.r3{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}
+.r2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.r3{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto;gap:8px;align-items:end;margin-bottom:8px}
+.r2>*,.r3>*{min-width:0}
 .tog-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:.5px solid var(--bg)}.tog-row:last-child{border-bottom:none}
 .tog-lbl{font-size:13px;font-weight:500}
 .tog{position:relative;width:40px;height:22px}.tog input{opacity:0;width:0;height:0}
@@ -133,7 +134,7 @@ textarea{resize:none;min-height:72px}
 .admin-item{background:#f8faf8;border:1px solid #d4e4d8;border-radius:var(--rs);padding:10px 12px}
 .admin-item-title{font-size:13px;font-weight:600;color:var(--g)}
 .admin-item-sub{font-size:11px;color:var(--mu);line-height:1.5;margin-top:3px}
-.admin-actions{display:flex;justify-content:flex-end;margin-top:8px}
+.admin-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
 .mini-btn{background:var(--g);color:#fff;border:none;border-radius:var(--rs);padding:9px 12px;font-size:12px;font-weight:600;cursor:pointer}
 .mini-btn.alt{background:#fff;color:var(--tx);border:1px solid var(--br)}
 .batch-inline-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
@@ -158,10 +159,28 @@ textarea{resize:none;min-height:72px}
   .client-report-actions .mini-btn{flex-basis:100%}
   .batch-inline-actions.batch-inline-client .mini-btn{flex:1 1 100%;white-space:normal}
 }
+@media (max-width:390px){
+  #s-cabecalho .r2,
+  #s-cabecalho .r3,
+  #s-servicos .r2,
+  #s-servicos .r3,
+  #s-final .r2,
+  #s-final .r3{
+    grid-template-columns:minmax(0,1fr);
+  }
+  #s-cabecalho .card,
+  #s-servicos .card,
+  #s-final .card{
+    overflow-x:hidden;
+  }
+}
 .admin-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
 .admin-toolbar .sec{margin-bottom:0}
 .admin-card{margin-bottom:10px}
 .admin-inline-form{background:#f8faf8;border:1px solid #d4e4d8;border-radius:var(--rs);padding:12px;margin-bottom:12px}
+.admin-item-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.admin-item-main{flex:1;min-width:220px}
+.admin-actions .mini-btn{margin-left:0 !important}
 .admin-inline-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .admin-inline-grid .full{grid-column:1/-1}
 .rel-icon{width:40px;height:40px;border-radius:var(--rs);background:#f0f7f2;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
@@ -7439,12 +7458,14 @@ window.__legacyBootstrapped = false;
   };
   renderProjetos=function(){
     var list=activeProjects();
-    return '<div class="admin-toolbar"><div class="sec">Projetos ativos</div><button class="mini-btn" onclick="openEditor(\'projetos\',\'new\')">+ Novo projeto</button></div>'+editorProjeto()+
-      (list.length?list.map(function(p){
-        var operador=getColaboradorById(p.operadorResponsavelId);
-        var totalSeq=REPORT_TYPES.reduce(function(acc,t){return acc+Number((p.sequenciais&&p.sequenciais[t])||0);},0);
-        return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrao')+'</span></div><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">E-mails em copia</span><span class="det-val">'+escapeHtml((p.emailsCopia||[]).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'-')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')" style="margin-left:8px">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
-      }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto ativo.</div></div>');
+    var header='<div class="admin-toolbar"><div class="sec">Projetos ativos</div><button class="mini-btn" onclick="openEditor(\'projetos\',\'new\')">+ Novo projeto</button></div>'+(gestorEditors.projetos&&gestorEditors.projetos.type==='new'?editorProjeto():'');
+    var body=list.length?list.map(function(p){
+      var operador=getColaboradorById(p.operadorResponsavelId);
+      var totalSeq=REPORT_TYPES.reduce(function(acc,t){return acc+Number((p.sequenciais&&p.sequenciais[t])||0);},0);
+      var editor=(gestorEditors.projetos&&gestorEditors.projetos.type==='edit'&&gestorEditors.projetos.id===p.id)?editorProjeto():'';
+      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrao')+'</span></div>'+editor+'<div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">E-mails em copia</span><span class="det-val">'+escapeHtml((p.emailsCopia||[]).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'-')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
+    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto ativo.</div></div>';
+    return header+body;
   };
   renderProjetosArquivados=function(){
     var list=archivedProjects();
@@ -7486,12 +7507,16 @@ window.__legacyBootstrapped = false;
   function switchUserAdminGroup(group){ userAdminGroup=group==='client'?'client':'internal'; userEditorState=null; renderGestor(); }
   window.switchUserAdminGroup=switchUserAdminGroup;
   function renderInternalUsersList(items){
-    var editor='';
-    if(userEditorState){
-      var u=userEditorState.mode==='edit'?(items.find(function(x){return x.id===userEditorState.id;})||{}):{username:'',name:'',email:'',role:'COLLABORATOR',isActive:true,collaboratorId:''};
-      editor='<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(userEditorState.mode==='edit'?'Editar usuario':'Novo usuario')+'</div><button class="mini-btn alt" onclick="closeUserEditor()">Cancelar</button></div><div class="admin-inline-grid"><div class="fg"><label>Usuario</label><input type="text" id="ed-user-username" value="'+escapeHtml(u.username||'')+'" '+(userEditorState.mode==='edit'?'readonly':'')+'></div><div class="fg"><label>Nome</label><input type="text" id="ed-user-name" value="'+escapeHtml(u.name||'')+'"></div><div class="fg"><label>E-mail</label><input type="email" id="ed-user-email" value="'+escapeHtml(u.email||'')+'" placeholder="email@empresa.com"></div><div class="fg"><label>Perfil</label><select id="ed-user-role"><option value="COLLABORATOR"'+((u.role||'')==='COLLABORATOR'?' selected':'')+'>Colaborador</option><option value="MANAGER"'+((u.role||'')==='MANAGER'?' selected':'')+'>Gestor</option></select></div><div class="fg"><label>Status</label><select id="ed-user-active"><option value="true"'+(u.isActive!==false?' selected':'')+'>Ativo</option><option value="false"'+(u.isActive===false?' selected':'')+'>Inativo</option></select></div><div class="fg full"><label>Vincular colaborador</label><select id="ed-user-col">'+selectOptions([{value:'',label:'Sem vinculo'}].concat(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};})),u.collaboratorId||'','Selecionar...')+'</select></div><div class="fg full"><label>Senha'+(userEditorState.mode==='edit'?' (opcional)':'')+'</label><input type="password" id="ed-user-pass" value=""></div><div class="admin-actions full"><button class="mini-btn" onclick="saveUserEditor(\''+userEditorState.mode+'\')">Salvar</button></div></div></div>';
+    function renderUserEditor(mode,id){
+      var u=mode==='edit'?(items.find(function(x){return x.id===id;})||{}):{username:'',name:'',email:'',role:'COLLABORATOR',isActive:true,collaboratorId:''};
+      return '<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(mode==='edit'?'Editar usuario':'Novo usuario')+'</div><button class="mini-btn alt" onclick="closeUserEditor()">Cancelar</button></div><div class="admin-inline-grid"><div class="fg"><label>Usuario</label><input type="text" id="ed-user-username" value="'+escapeHtml(u.username||'')+'" '+(mode==='edit'?'readonly':'')+'></div><div class="fg"><label>Nome</label><input type="text" id="ed-user-name" value="'+escapeHtml(u.name||'')+'"></div><div class="fg"><label>E-mail</label><input type="email" id="ed-user-email" value="'+escapeHtml(u.email||'')+'" placeholder="email@empresa.com"></div><div class="fg"><label>Perfil</label><select id="ed-user-role"><option value="COLLABORATOR"'+((u.role||'')==='COLLABORATOR'?' selected':'')+'>Colaborador</option><option value="MANAGER"'+((u.role||'')==='MANAGER'?' selected':'')+'>Gestor</option></select></div><div class="fg"><label>Status</label><select id="ed-user-active"><option value="true"'+(u.isActive!==false?' selected':'')+'>Ativo</option><option value="false"'+(u.isActive===false?' selected':'')+'>Inativo</option></select></div><div class="fg full"><label>Vincular colaborador</label><select id="ed-user-col">'+selectOptions([{value:'',label:'Sem vinculo'}].concat(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};})),u.collaboratorId||'','Selecionar...')+'</select></div><div class="fg full"><label>Senha'+(mode==='edit'?' (opcional)':'')+'</label><input type="password" id="ed-user-pass" value=""></div><div class="admin-actions full"><button class="mini-btn" onclick="saveUserEditor(\''+mode+'\')">Salvar</button></div></div></div>';
     }
-    return '<div class="admin-toolbar"><div class="sec">Usuarios internos</div><button class="mini-btn" onclick="openUserEditor(\'new\')">+ Novo usuario</button></div>'+editor+(items.length?items.map(function(u){return '<div class="card" style="margin-bottom:10px"><div class="admin-item-title">'+escapeHtml(u.name)+' - '+escapeHtml(u.username)+'</div><div class="admin-item-sub">'+(u.role==='MANAGER'?'Gestor':'Colaborador')+(u.email?' - '+escapeHtml(u.email):'')+(u.collaborator&&u.collaborator.name?' - '+escapeHtml(u.collaborator.name):'')+'</div><div class="admin-actions"><button class="mini-btn alt" onclick="openUserEditor(\'edit\',\''+u.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';}).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum usuario interno cadastrado.</div></div>');
+    var header='<div class="admin-toolbar"><div class="sec">Usuarios internos</div><button class="mini-btn" onclick="openUserEditor(\'new\')">+ Novo usuario</button></div>'+(userEditorState&&userEditorState.mode==='new'?renderUserEditor('new',''):'');
+    var body=items.length?items.map(function(u){
+      var editor=(userEditorState&&userEditorState.mode==='edit'&&userEditorState.id===u.id)?renderUserEditor('edit',u.id):'';
+      return '<div class="card admin-card" style="margin-bottom:10px"><div class="admin-item-title">'+escapeHtml(u.name)+' - '+escapeHtml(u.username)+'</div><div class="admin-item-sub">'+(u.role==='MANAGER'?'Gestor':'Colaborador')+(u.email?' - '+escapeHtml(u.email):'')+(u.collaborator&&u.collaborator.name?' - '+escapeHtml(u.collaborator.name):'')+'</div>'+editor+'<div class="admin-actions"><button class="mini-btn alt" onclick="openUserEditor(\'edit\',\''+u.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';
+    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum usuario interno cadastrado.</div></div>';
+    return header+body;
   }
   function renderClientUsersList(items){
     return '<div class="admin-toolbar"><div class="sec">Clientes</div><div style="font-size:12px;color:var(--mu)">Contas criadas automaticamente a partir dos projetos.</div></div>'+(items.length?items.map(function(u){
@@ -7505,6 +7530,44 @@ window.__legacyBootstrapped = false;
     var internalUsers=(usersCache||[]).filter(function(u){return u.role==='MANAGER'||u.role==='COLLABORATOR';});
     var clientUsers=(usersCache||[]).filter(function(u){return u.role==='CLIENT';});
     return groups+(userAdminGroup==='client'?renderClientUsersList(clientUsers):renderInternalUsersList(internalUsers));
+  };
+  renderEquipe=function(){
+    var list=db.colaboradores.filter(function(e){return e.ativo!==false;});
+    var header='<div class="admin-toolbar"><div class="sec">Equipe</div><button class="mini-btn" onclick="openEditor(\'equipe\',\'new\')">+ Novo colaborador</button></div>'+(gestorEditors.equipe&&gestorEditors.equipe.type==='new'?editorEquipe():'');
+    var body=list.length?list.map(function(e){
+      var editor=(gestorEditors.equipe&&gestorEditors.equipe.type==='edit'&&gestorEditors.equipe.id===e.id)?editorEquipe():'';
+      return '<div class="card admin-card"><div class="admin-item-row"><div style="width:42px;height:42px;border-radius:50%;background:var(--g);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0">'+initials(e.nome)+'</div><div class="admin-item-main"><div class="admin-item-title">'+escapeHtml(e.nome)+'</div><div class="admin-item-sub">'+escapeHtml(e.cargo||'-')+(e.email?' - '+escapeHtml(e.email):'')+'</div></div><div class="admin-actions"><button class="mini-btn alt" onclick="openEditor(\'equipe\',\'edit\',\''+e.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeColaborador(\''+e.id+'\')">Remover</button></div></div>'+editor+'</div>';
+    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum colaborador ativo.</div></div>';
+    return header+body;
+  };
+  renderEquipamentos=function(){
+    var cards='';
+    Object.keys(db.unidades).forEach(function(cat){
+      var showNewEditor=gestorEditors.equipamentos&&gestorEditors.equipamentos.type==='new'&&gestorEditors.equipamentos.extra===cat;
+      cards+='<div class="card admin-card"><div class="admin-toolbar"><div class="sec">'+cat+'</div><button class="mini-btn" onclick="openEditor(\'equipamentos\',\'new\',\'\',\''+cat+'\')">+ Nova unidade</button></div>'+(showNewEditor?editorEquipamento():'')+'<div class="admin-list">'+db.unidades[cat].map(function(u){
+        var editor=(gestorEditors.equipamentos&&gestorEditors.equipamentos.type==='edit'&&gestorEditors.equipamentos.id===u.id&&gestorEditors.equipamentos.extra===cat)?editorEquipamento():'';
+        return '<div class="admin-item"><div class="admin-item-row"><div class="admin-item-main"><div class="admin-item-title">'+escapeHtml(u.codigo)+'</div></div><div class="admin-actions"><button class="mini-btn alt" onclick="openEditor(\'equipamentos\',\'edit\',\''+u.id+'\',\''+cat+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeUnidade(\''+cat+'\',\''+u.id+'\')">Remover</button></div></div>'+editor+'</div>';
+      }).join('')+'</div></div>';
+    });
+    return cards;
+  };
+  renderManometros=function(){
+    var list=db.manometros.filter(function(m){return m.ativo!==false;});
+    var header='<div class="admin-toolbar"><div class="sec">Manômetros</div><button class="mini-btn" onclick="openEditor(\'manometros\',\'new\')">+ Novo manômetro</button></div>'+(gestorEditors.manometros&&gestorEditors.manometros.type==='new'?editorManometro():'');
+    var body=list.length?list.map(function(m){
+      var editor=(gestorEditors.manometros&&gestorEditors.manometros.type==='edit'&&gestorEditors.manometros.id===m.id)?editorManometro():'';
+      return '<div class="card admin-card"><div class="admin-item-title">'+escapeHtml(m.codigo)+' · '+escapeHtml(m.escala)+'</div><div class="admin-item-sub">Certificado '+escapeHtml(m.certificado)+' · calibração '+escapeHtml(m.calibracao)+' · vence '+escapeHtml(m.vencimento)+'</div>'+editor+'<div class="admin-actions"><button class="mini-btn alt" onclick="openEditor(\'manometros\',\'edit\',\''+m.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeManometro(\''+m.id+'\')">Remover</button></div></div>';
+    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum manômetro ativo.</div></div>';
+    return header+body;
+  };
+  renderContadores=function(){
+    var list=db.contadores.filter(function(c){return c.ativo!==false;});
+    var header='<div class="admin-toolbar"><div class="sec">Contadores</div><button class="mini-btn" onclick="openEditor(\'contadores\',\'new\')">+ Novo contador</button></div>'+(gestorEditors.contadores&&gestorEditors.contadores.type==='new'?editorContador():'');
+    var body=list.length?list.map(function(c){
+      var editor=(gestorEditors.contadores&&gestorEditors.contadores.type==='edit'&&gestorEditors.contadores.id===c.id)?editorContador():'';
+      return '<div class="card admin-card"><div class="admin-item-title">'+escapeHtml(c.codigo)+' · '+escapeHtml(c.serial)+'</div><div class="admin-item-sub">calibração '+escapeHtml(c.calibracao)+' · vence '+escapeHtml(c.vencimento)+'</div>'+editor+'<div class="admin-actions"><button class="mini-btn alt" onclick="openEditor(\'contadores\',\'edit\',\''+c.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeContador(\''+c.id+'\')">Remover</button></div></div>';
+    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum contador ativo.</div></div>';
+    return header+body;
   };
   saveUserEditor=async function(mode){
     var body={username:document.getElementById('ed-user-username').value.trim(),name:document.getElementById('ed-user-name').value.trim(),email:document.getElementById('ed-user-email').value.trim(),role:document.getElementById('ed-user-role').value,isActive:document.getElementById('ed-user-active').value==='true',collaboratorId:document.getElementById('ed-user-col').value||null};
