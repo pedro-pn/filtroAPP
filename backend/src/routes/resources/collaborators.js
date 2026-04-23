@@ -10,13 +10,29 @@ const router = Router();
 router.use(requireAuth);
 
 const schema = z.object({
-  code: z.string().min(1),
+  code: z.string().trim().min(1).optional(),
   name: z.string().min(1),
   role: z.string().min(1),
   email: z.string().email().optional().or(z.literal('')).transform(v => v || null),
   signatureImage: z.string().optional().or(z.literal('')).transform(v => v || null),
   isActive: z.boolean().default(true)
 });
+
+async function generateCollaboratorCode() {
+  const prefix = 'COL-';
+  const collaborators = await prisma.collaborator.findMany({
+    select: { code: true },
+    where: { code: { startsWith: prefix } }
+  });
+  const used = new Set(
+    collaborators
+      .map(item => Number.parseInt(String(item.code || '').slice(prefix.length), 10))
+      .filter(Number.isFinite)
+  );
+  let next = 1;
+  while (used.has(next)) next += 1;
+  return `${prefix}${String(next).padStart(3, '0')}`;
+}
 
 async function normalizeCollaboratorInput(data) {
   if (data.signatureImage === undefined) return data;
@@ -39,14 +55,19 @@ router.get('/', requireInternalUser, asyncHandler(async (_req, res) => {
 }));
 
 router.post('/', requireManager, asyncHandler(async (req, res) => {
-  const data = await normalizeCollaboratorInput(schema.parse(req.body));
-  const existing = await prisma.collaborator.findUnique({ where: { code: data.code } });
+  const parsed = schema.parse(req.body);
+  const code = parsed.code || await generateCollaboratorCode();
+  const data = await normalizeCollaboratorInput({ ...parsed, code });
+  const existing = await prisma.collaborator.findUnique({ where: { code } });
   if (existing && !existing.isActive) {
     const item = await prisma.collaborator.update({
       where: { id: existing.id },
       data: { ...data, isActive: true }
     });
     return res.status(200).json(item);
+  }
+  if (existing) {
+    return res.status(409).json({ error: 'Já existe um colaborador com esse identificador interno.' });
   }
   const item = await prisma.collaborator.create({ data });
   res.status(201).json(item);
