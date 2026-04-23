@@ -13,6 +13,7 @@ COPY backend/prisma ./prisma
 RUN npx prisma generate
 
 COPY backend/src ./src
+COPY backend/scripts ./scripts
 COPY backend/assets ./assets
 RUN mkdir -p /data/assets && cp -R ./assets/. /data/assets/
 COPY filtrovali_app_v4.html /workspace/filtrovali_app_v4.html
