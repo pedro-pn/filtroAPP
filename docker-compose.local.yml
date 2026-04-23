@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: filtrovali-local-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: filtrovali
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - filtrovali_local_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d filtrovali"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: filtrovali-local-backend
+    restart: unless-stopped
+    env_file:
+      - backend/.env.docker.local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./backend/src:/workspace/backend/src
+      - ./backend/prisma:/workspace/backend/prisma
+      - ./backend/scripts:/workspace/backend/scripts
+      - ./backend/assets:/workspace/backend/assets
+      - ./filtrovali_app_v4.html:/workspace/filtrovali_app_v4.html
+      - ./Modelos:/workspace/Modelos
+      - filtrovali_local_relatorios:/data/relatorios
+
+volumes:
+  filtrovali_local_pgdata:
+  filtrovali_local_relatorios:
