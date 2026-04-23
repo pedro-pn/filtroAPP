@@ -1323,6 +1323,9 @@ async function enviar(){
 /* ══ PAINEL GESTOR ══ */
 var gestorTab='pendentes';
 function switchGestorTab(tab,el){
+  if(isCoordinatorUser && isCoordinatorUser() && tab!=='aprovados' && tab!=='arquivados'){
+    tab='aprovados';
+  }
   gestorTab=tab;
   document.querySelectorAll('.nav-tab').forEach(function(t){t.classList.remove('active');});
   el.classList.add('active');
@@ -2219,7 +2222,7 @@ function groupedReportHtml(items,origin,emptyText){
 }
 async function refreshReportsCache(){
   if(!currentUser)return [];
-  var path=currentUser.role==='MANAGER'?'/reports':'/reports?mine=true';
+  var path=(currentUser.role==='MANAGER'||currentUser.role==='COORDINATOR')?'/reports':'/reports?mine=true';
   reportsCache=await apiFetch(path);
   updateHomeOngoingSummary();
   return reportsCache;
@@ -5022,12 +5025,38 @@ function activeProjects(){
 function archivedProjects(){
   return (db.projetos||[]).filter(function(p){return p.ativo===false;});
 }
+var myReportsTab='ativos';
+function projectArchiveStateById(projectId){
+  var project=(db.projetos||[]).find(function(item){ return item.id===projectId; });
+  return !!(project&&project.ativo===false);
+}
+function filterReportsByProjectArchiveState(items,isArchived){
+  return (items||[]).filter(function(report){
+    return projectArchiveStateById(report.projectId)===!!isArchived;
+  });
+}
+function switchMyReportsTab(tab){
+  myReportsTab=tab==='arquivados'?'arquivados':'ativos';
+  renderMyReports();
+}
+function isCoordinatorUser(){
+  return !!(currentUser&&currentUser.role==='COORDINATOR');
+}
+function isManagerLikeUser(){
+  return !!(currentUser&&(currentUser.role==='MANAGER'||currentUser.role==='COORDINATOR'));
+}
+function currentRoleLabel(role){
+  if(role==='MANAGER')return 'Gestor';
+  if(role==='COORDINATOR')return 'Coordenador';
+  if(role==='CLIENT')return 'Cliente';
+  return 'Colaborador';
+}
 function currentUserCollaboratorId(){
   return (currentUser&&((currentUser.collaborator&&currentUser.collaborator.id)||currentUser.collaboratorId))||'';
 }
 function canSelectProjectForCurrentUser(project){
   if(!project||project.ativo===false)return false;
-  if(!currentUser||currentUser.role==='MANAGER')return true;
+  if(!currentUser||currentUser.role==='MANAGER'||currentUser.role==='COORDINATOR')return true;
   var collaboratorId=currentUserCollaboratorId();
   if(!collaboratorId)return false;
   if(project.visivelColaboradores===false)return false;
@@ -5037,7 +5066,7 @@ function projectSelectOptions(selectedId,includeInactiveSelected){
   var items=activeProjects().filter(canSelectProjectForCurrentUser);
   if(includeInactiveSelected&&selectedId){
     var selected=getProjetoById(selectedId);
-    var canKeepSelected=currentUser&&currentUser.role==='MANAGER'
+    var canKeepSelected=currentUser&&(currentUser.role==='MANAGER'||currentUser.role==='COORDINATOR')
       ? selected&&selected.ativo===false
       : canSelectProjectForCurrentUser(selected);
     if(canKeepSelected&&selected&&!items.some(function(p){return p.id===selected.id;}))items.unshift(selected);
@@ -5179,7 +5208,7 @@ function hasActiveAdminEditing(){
 function startGestorPolling(){
   if(_gestorPollInterval)return;
   _gestorPollInterval=setInterval(async function(){
-    if(!currentUser||currentUser.role!=='MANAGER')return;
+    if(!currentUser||(currentUser.role!=='MANAGER'&&currentUser.role!=='COORDINATOR'))return;
     var sc=document.getElementById('s-gestor');
     if(!sc||!sc.classList.contains('active'))return;
     if(hasActiveAdminEditing())return;
@@ -5192,9 +5221,9 @@ function shouldPollReportPanels(){
   var managerScreen=document.getElementById('s-gestor');
   var clientScreen=document.getElementById('s-client');
   var homeScreen=document.getElementById('s-home');
-  if(currentUser.role==='MANAGER'){
+  if(currentUser.role==='MANAGER' || currentUser.role==='COORDINATOR'){
     if(!managerScreen||!managerScreen.classList.contains('active'))return false;
-    return !hasActiveAdminEditing();
+    return currentUser.role==='COORDINATOR' ? true : !hasActiveAdminEditing();
   }
   if(currentUser.role==='CLIENT'){
     if(!(clientScreen&&clientScreen.classList.contains('active')))return false;
@@ -5212,7 +5241,7 @@ function shouldPollReportPanels(){
 }
 function rerenderActiveReportPanel(){
   if(!currentUser)return;
-  if(currentUser.role==='MANAGER'){
+  if(currentUser.role==='MANAGER' || currentUser.role==='COORDINATOR'){
     renderGestor();
     return;
   }
@@ -7509,7 +7538,36 @@ window.__legacyBootstrapped = false;
     var list=archivedProjects();
     return '<div class="admin-toolbar"><div class="sec">Projetos arquivados</div></div>'+
       (list.length?list.map(function(p){
-        return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge badge-rev">Arquivado</span></div><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Local</span><span class="det-val">'+escapeHtml(p.local||'-')+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="unarchiveProjeto(\''+p.id+'\')">Desarquivar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
+        var projectReports=(reportsCache||[]).filter(function(report){
+          return report.projectId===p.id && (report.status==='APPROVED'||report.status==='SIGNED');
+        });
+        var byType={RDO:[],RTP:[],RLQ:[],RCPU:[],RLM:[]};
+        projectReports.forEach(function(report){
+          var type=normalizeReportType(report.reportType||'RDO');
+          if(!byType[type])byType[type]=[];
+          byType[type].push(report);
+        });
+        var reportSections='';
+        ['RDO','RTP','RLQ','RCPU','RLM'].forEach(function(type){
+          if(!byType[type]||!byType[type].length)return;
+          var uid='rtype_archived_gestor_'+String(p.id||'').replace(/[^a-z0-9]/gi,'_')+'_'+type;
+          var isOpen=getReportTypeToggleState(uid);
+          reportSections+='<div class="report-type-group">'+
+            '<div class="report-type-header" onclick="toggleTypeGroup(\''+uid+'\')">'+
+            '<span class="rtype-badge rtype-'+type+'">'+type+'</span>'+
+            '<span class="rtype-count">'+byType[type].length+' relatório'+(byType[type].length!==1?'s':'')+'</span>'+
+            '<span class="rtype-chevron" id="chev-'+uid+'">'+(isOpen?'▾':'◂')+'</span>'+
+            '</div>'+
+            '<div class="report-type-list'+(isOpen?'':' is-collapsed')+'" id="'+uid+'">'+
+            renderBatchSelectAllButton('gestor',p.id,type)+
+            byType[type].map(function(report){ return reportCard(report,'gestor'); }).join('')+
+            '</div></div>';
+        });
+        var actions=isCoordinatorUser()
+          ? ''
+          : '<div class="admin-actions"><button class="mini-btn alt" onclick="unarchiveProjeto(\''+p.id+'\')">Desarquivar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div>';
+        var reportsBlock=reportSections?'<div style="margin-top:14px">'+reportSections+'</div>':'<div style="margin-top:14px;font-size:13px;color:var(--mu)">Nenhum relatório aprovado neste projeto arquivado.</div>';
+        return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge badge-rev">Arquivado</span></div><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Local</span><span class="det-val">'+escapeHtml(p.local||'-')+'</span></div></div>'+reportsBlock+actions+'</div>';
       }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto arquivado.</div></div>');
   };
   saveProjetoEditor=async function(mode){
@@ -7547,12 +7605,12 @@ window.__legacyBootstrapped = false;
   function renderInternalUsersList(items){
     function renderUserEditor(mode,id){
       var u=mode==='edit'?(items.find(function(x){return x.id===id;})||{}):{username:'',name:'',email:'',role:'COLLABORATOR',isActive:true,collaboratorId:''};
-      return '<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(mode==='edit'?'Editar usuario':'Novo usuario')+'</div><button class="mini-btn alt" onclick="closeUserEditor()">Cancelar</button></div><div class="admin-inline-grid"><div class="fg"><label>Usuario</label><input type="text" id="ed-user-username" value="'+escapeHtml(u.username||'')+'" '+(mode==='edit'?'readonly':'')+'></div><div class="fg"><label>Nome</label><input type="text" id="ed-user-name" value="'+escapeHtml(u.name||'')+'"></div><div class="fg"><label>E-mail</label><input type="email" id="ed-user-email" value="'+escapeHtml(u.email||'')+'" placeholder="email@empresa.com"></div><div class="fg"><label>Perfil</label><select id="ed-user-role"><option value="COLLABORATOR"'+((u.role||'')==='COLLABORATOR'?' selected':'')+'>Colaborador</option><option value="MANAGER"'+((u.role||'')==='MANAGER'?' selected':'')+'>Gestor</option></select></div><div class="fg"><label>Status</label><select id="ed-user-active"><option value="true"'+(u.isActive!==false?' selected':'')+'>Ativo</option><option value="false"'+(u.isActive===false?' selected':'')+'>Inativo</option></select></div><div class="fg full"><label>Vincular colaborador</label><select id="ed-user-col">'+selectOptions([{value:'',label:'Sem vinculo'}].concat(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};})),u.collaboratorId||'','Selecionar...')+'</select></div><div class="fg full"><label>Senha'+(mode==='edit'?' (opcional)':'')+'</label><input type="password" id="ed-user-pass" value=""></div><div class="admin-actions full"><button class="mini-btn" onclick="saveUserEditor(\''+mode+'\')">Salvar</button></div></div></div>';
+      return '<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(mode==='edit'?'Editar usuario':'Novo usuario')+'</div><button class="mini-btn alt" onclick="closeUserEditor()">Cancelar</button></div><div class="admin-inline-grid"><div class="fg"><label>Usuario</label><input type="text" id="ed-user-username" value="'+escapeHtml(u.username||'')+'" '+(mode==='edit'?'readonly':'')+'></div><div class="fg"><label>Nome</label><input type="text" id="ed-user-name" value="'+escapeHtml(u.name||'')+'"></div><div class="fg"><label>E-mail</label><input type="email" id="ed-user-email" value="'+escapeHtml(u.email||'')+'" placeholder="email@empresa.com"></div><div class="fg"><label>Perfil</label><select id="ed-user-role"><option value="COLLABORATOR"'+((u.role||'')==='COLLABORATOR'?' selected':'')+'>Colaborador</option><option value="COORDINATOR"'+((u.role||'')==='COORDINATOR'?' selected':'')+'>Coordenador</option><option value="MANAGER"'+((u.role||'')==='MANAGER'?' selected':'')+'>Gestor</option></select></div><div class="fg"><label>Status</label><select id="ed-user-active"><option value="true"'+(u.isActive!==false?' selected':'')+'>Ativo</option><option value="false"'+(u.isActive===false?' selected':'')+'>Inativo</option></select></div><div class="fg full"><label>Vincular colaborador</label><select id="ed-user-col">'+selectOptions([{value:'',label:'Sem vinculo'}].concat(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};})),u.collaboratorId||'','Selecionar...')+'</select></div><div class="fg full"><label>Senha'+(mode==='edit'?' (opcional)':'')+'</label><input type="password" id="ed-user-pass" value=""></div><div class="admin-actions full"><button class="mini-btn" onclick="saveUserEditor(\''+mode+'\')">Salvar</button></div></div></div>';
     }
     var header='<div class="admin-toolbar"><div class="sec">Usuarios internos</div><button class="mini-btn" onclick="openUserEditor(\'new\')">+ Novo usuario</button></div>'+(userEditorState&&userEditorState.mode==='new'?renderUserEditor('new',''):'');
     var body=items.length?items.map(function(u){
       var editor=(userEditorState&&userEditorState.mode==='edit'&&userEditorState.id===u.id)?renderUserEditor('edit',u.id):'';
-      return '<div class="card admin-card" style="margin-bottom:10px"><div class="admin-item-title">'+escapeHtml(u.name)+' - '+escapeHtml(u.username)+'</div><div class="admin-item-sub">'+(u.role==='MANAGER'?'Gestor':'Colaborador')+(u.email?' - '+escapeHtml(u.email):'')+(u.collaborator&&u.collaborator.name?' - '+escapeHtml(u.collaborator.name):'')+'</div>'+editor+'<div class="admin-actions"><button class="mini-btn alt" onclick="openUserEditor(\'edit\',\''+u.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';
+      return '<div class="card admin-card" style="margin-bottom:10px"><div class="admin-item-title">'+escapeHtml(u.name)+' - '+escapeHtml(u.username)+'</div><div class="admin-item-sub">'+currentRoleLabel(u.role)+(u.email?' - '+escapeHtml(u.email):'')+(u.collaborator&&u.collaborator.name?' - '+escapeHtml(u.collaborator.name):'')+'</div>'+editor+'<div class="admin-actions"><button class="mini-btn alt" onclick="openUserEditor(\'edit\',\''+u.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';
     }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum usuario interno cadastrado.</div></div>';
     return header+body;
   }
@@ -7565,7 +7623,7 @@ window.__legacyBootstrapped = false;
   }
   renderUsuarios=function(){
     var groups='<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"><button class="mini-btn'+(userAdminGroup==='internal'?'':' alt')+'" onclick="switchUserAdminGroup(\'internal\')">Internos</button><button class="mini-btn'+(userAdminGroup==='client'?'':' alt')+'" onclick="switchUserAdminGroup(\'client\')">Clientes</button></div>';
-    var internalUsers=(usersCache||[]).filter(function(u){return u.role==='MANAGER'||u.role==='COLLABORATOR';});
+    var internalUsers=(usersCache||[]).filter(function(u){return u.role==='MANAGER'||u.role==='COLLABORATOR'||u.role==='COORDINATOR';});
     var clientUsers=(usersCache||[]).filter(function(u){return u.role==='CLIENT';});
     return groups+(userAdminGroup==='client'?renderClientUsersList(clientUsers):renderInternalUsersList(internalUsers));
   };
@@ -7655,7 +7713,7 @@ window.__legacyBootstrapped = false;
     syncAuthScreenLogos();
   }
   function accountBackTarget(){
-    if(currentUser&&currentUser.role==='MANAGER')return 's-gestor';
+    if(currentUser&&(currentUser.role==='MANAGER'||currentUser.role==='COORDINATOR'))return 's-gestor';
     if(currentUser&&currentUser.role==='CLIENT')return 's-client';
     return 's-home';
   }
@@ -7686,11 +7744,11 @@ window.__legacyBootstrapped = false;
     syncAccountEntryPoints();
     syncAuthScreenLogos();
     var gestorBadge=document.getElementById('gestor-user-badge');
-    if(gestorBadge&&currentUser&&currentUser.role==='MANAGER')gestorBadge.textContent='Conta';
+    if(gestorBadge&&currentUser&&(currentUser.role==='MANAGER'||currentUser.role==='COORDINATOR'))gestorBadge.textContent='Conta';
     var accountEmail=document.getElementById('account-email');
     if(accountEmail&&document.activeElement!==accountEmail)accountEmail.value=(currentUser&&currentUser.email)||'';
     var subtitle=document.getElementById('account-subtitle');
-    if(subtitle&&currentUser)subtitle.textContent=(currentUser.name||currentUser.username||'Conta')+' - '+(currentUser.role==='MANAGER'?'Gestor':(currentUser.role==='CLIENT'?'Cliente':'Colaborador'));
+    if(subtitle&&currentUser)subtitle.textContent=(currentUser.name||currentUser.username||'Conta')+' - '+currentRoleLabel(currentUser.role);
     var clientHeaderSub=document.getElementById('client-header-sub');
     if(clientHeaderSub&&currentUser&&currentUser.role==='CLIENT')clientHeaderSub.textContent='Cliente - '+(currentUser.email||currentUser.username||'');
     var clientWelcomeName=document.getElementById('client-welcome-name');
@@ -7968,9 +8026,31 @@ window.__legacyBootstrapped = false;
   window.submitClientReview=submitClientReview;
   window.startClientSignature=startClientSignature;
 
+  function syncGestorNavForCurrentRole(){
+    var screen=document.getElementById('s-gestor');
+    if(!screen)return;
+    var navTabs=Array.from(screen.querySelectorAll('.nav-tabs .nav-tab'));
+    if(!navTabs.length)return;
+    var coordinatorOnly=isCoordinatorUser();
+    navTabs.forEach(function(tab){
+      var action=String(tab.getAttribute('onclick')||'');
+      var visible=!coordinatorOnly || action.indexOf("'aprovados'")>=0 || action.indexOf("'arquivados'")>=0;
+      tab.style.display=visible?'':'none';
+    });
+    if(coordinatorOnly && gestorTab!=='aprovados' && gestorTab!=='arquivados'){
+      gestorTab='aprovados';
+    }
+    navTabs.forEach(function(tab){
+      var action=String(tab.getAttribute('onclick')||'');
+      var active=(gestorTab==='aprovados' && action.indexOf("'aprovados'")>=0) || (gestorTab==='arquivados' && action.indexOf("'arquivados'")>=0);
+      tab.classList.toggle('active', coordinatorOnly ? active : tab.classList.contains('active'));
+    });
+  }
+
   function postAuthNavigation(){
     updateUserLabels();
-    if(currentUser&&currentUser.role==='MANAGER'){ renderGestor(); go('s-gestor'); return; }
+    syncGestorNavForCurrentRole();
+    if(currentUser&&(currentUser.role==='MANAGER'||currentUser.role==='COORDINATOR')){ renderGestor(); go('s-gestor'); return; }
     if(currentUser&&currentUser.role==='CLIENT'){
       try{
         renderClientPanel();
@@ -8008,6 +8088,8 @@ window.__legacyBootstrapped = false;
     try{ await refreshDraftsCache(); }catch(err){ console.warn('Falha ao carregar rascunhos apos login.',err); }
     if(currentUser&&currentUser.role==='MANAGER'){
       try{ await refreshUsersCache(); }catch(err){ console.warn('Falha ao carregar usuarios apos login.',err); }
+      startGestorPolling();
+    } else if(currentUser&&currentUser.role==='COORDINATOR'){
       startGestorPolling();
     }
     startReportStatusPolling();
@@ -8067,6 +8149,8 @@ window.__legacyBootstrapped = false;
         console.warn('Falha ao carregar usuarios durante a hidratacao da sessao.',err);
       }
       startGestorPolling();
+    } else if(currentUser&&currentUser.role==='COORDINATOR'){
+      startGestorPolling();
     }
     startReportStatusPolling();
     postAuthNavigation();
@@ -8107,15 +8191,26 @@ window.__legacyBootstrapped = false;
   renderGestor=(function(baseRenderGestor){
     return function(){
       var c=document.getElementById('gestor-content');if(!c)return;
+      syncGestorNavForCurrentRole();
       var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED';});
-      var approved=reportsCache.filter(function(r){return r.status==='APPROVED'||r.status==='SIGNED';});
+      var approved=reportsCache.filter(function(r){return (r.status==='APPROVED'||r.status==='SIGNED') && !projectArchiveStateById(r.projectId);});
+      var archivedApproved=reportsCache.filter(function(r){return (r.status==='APPROVED'||r.status==='SIGNED') && projectArchiveStateById(r.projectId);});
       var pen=document.getElementById('cnt-pen');if(pen)pen.textContent=pending.length;
-      if(gestorTab==='pendentes'){
+      if(isCoordinatorUser()){
+        if(gestorTab==='arquivados'){
+          c.innerHTML=renderProjetosArquivados();
+        }else{
+          gestorTab='aprovados';
+          c.innerHTML=groupedReportHtml(approved,'gestor','Nenhum relatorio aprovado.');
+        }
+      }else if(gestorTab==='pendentes'){
         var draftsHtml='';
         if(draftsCache&&draftsCache.length){draftsHtml='<div class="card" style="margin-bottom:12px"><div class="sec">Relatorios em andamento</div><div class="admin-list">'+draftsCache.map(function(draft){var payload=draft.payload||draft;var date=(draft.reportDate||payload.reportDate)?formatReportDate(draft.reportDate||payload.reportDate):'Sem data';return '<div class="rel-item" style="cursor:default"><div class="rel-icon">📝</div><div class="rel-info"><div class="rel-name">'+escapeHtml(draft.title||payload.title||'Relatorio em andamento')+'</div><div class="rel-meta">'+escapeHtml(date)+'</div></div><button class="mini-btn alt" type="button" onclick="resumeDraft(\''+draft.id+'\')">Continuar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" type="button" onclick="removeDraft(\''+draft.id+'\')">Excluir</button></div>';}).join('')+'</div></div>';}
         c.innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="mini-btn" onclick="gestorCriarRelatorio()">+ Criar Relatorio</button></div>'+draftsHtml+'<div class="stat-grid"><div class="stat-card"><div class="stat-num">'+pending.length+'</div><div class="stat-lbl">Pendentes/devolvidos</div></div><div class="stat-card"><div class="stat-num">'+approved.length+'</div><div class="stat-lbl">Aprovados/assinados</div></div></div>'+groupedReportHtml(pending,'gestor-pendentes','Nenhum relatorio pendente.');
       }else if(gestorTab==='aprovados'){
         c.innerHTML=groupedReportHtml(approved,'gestor','Nenhum relatorio aprovado.');
+      }else if(gestorTab==='arquivados'){
+        c.innerHTML=renderProjetosArquivados();
       }else{
         return baseRenderGestor();
       }
@@ -8138,6 +8233,12 @@ window.__legacyBootstrapped = false;
       var actions=document.getElementById('det-actions');
       var reportType=normalizeReportType(report.reportType||'RDO');
       var isDerived=reportType!=='RDO';
+      if(actions && currentUser.role==='COORDINATOR'){
+        actions.innerHTML=(report.status==='APPROVED'||report.status==='SIGNED')
+          ?'<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
+          :'';
+        return;
+      }
       if(actions && report.status==='SIGNED'){
         if(currentUser.role==='MANAGER' && isDerived){
           actions.innerHTML='<button class="btn-pdf" onclick="downloadDocx(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
@@ -8250,7 +8351,7 @@ window.__legacyBootstrapped = false;
     var total=selected.length;
     if(total<=0)return '';
     var buttons='';
-    if(ctx==='gestor'){
+    if(ctx==='gestor' && currentUser&&currentUser.role==='MANAGER'){
       buttons+='<button class="mini-btn" type="button" onclick="downloadSelectedReports(\''+ctx+'\',\'pdf\')">Baixar PDF</button>';
       buttons+='<button class="mini-btn alt" type="button" onclick="downloadSelectedReports(\''+ctx+'\',\'docx\')">Baixar DOCX</button>';
     }else{
@@ -8309,7 +8410,7 @@ window.__legacyBootstrapped = false;
   async function downloadSelectedReports(ctx,format){
     var state=getBatchSelection(ctx);
     if(!state.ids.length){ alert('Selecione pelo menos um relatório.'); return; }
-    if(format==='docx' && ctx!=='gestor'){ alert('DOCX em lote está disponível apenas para o gestor.'); return; }
+    if(format==='docx' && (!currentUser || currentUser.role!=='MANAGER')){ alert('DOCX em lote está disponível apenas para o gestor.'); return; }
     try{
       var response=await fetch(API_BASE+'/reports/batch-download',{
         method:'POST',
@@ -8458,8 +8559,17 @@ window.__legacyBootstrapped = false;
   renderMyReports=(function(baseRenderMyReports){
     return function(){
       if(currentUser&&currentUser.role==='CLIENT')return baseRenderMyReports();
-      baseRenderMyReports();
-      syncReportTypeToggleDom(document.getElementById('s-home'));
+      var content=document.getElementById('my-reports-content');
+      if(!content)return;
+      var activeReports=filterReportsByProjectArchiveState(reportsCache,false);
+      var archivedReports=filterReportsByProjectArchiveState(reportsCache,true);
+      if(myReportsTab!=='arquivados')myReportsTab='ativos';
+      var tabs='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="mini-btn'+(myReportsTab==='ativos'?'':' alt')+'" type="button" onclick="switchMyReportsTab(\'ativos\')">Ativos</button><button class="mini-btn'+(myReportsTab==='arquivados'?'':' alt')+'" type="button" onclick="switchMyReportsTab(\'arquivados\')">Arquivados</button></div>';
+      var html=myReportsTab==='arquivados'
+        ? groupedReportHtml(archivedReports,'meus','Nenhum relatorio arquivado.')
+        : groupedReportHtml(activeReports,'meus','Nenhum relatorio enviado por voce.');
+      content.innerHTML=tabs+html;
+      syncReportTypeToggleDom(content);
     };
   })(renderMyReports);
   renderGestor=(function(baseRenderGestor){

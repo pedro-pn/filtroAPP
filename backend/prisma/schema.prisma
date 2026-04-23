@@ -41,6 +41,7 @@ enum ClientReviewAction {
 enum UserRole {
   COLLABORATOR
   MANAGER
+  COORDINATOR
   CLIENT
 }
 

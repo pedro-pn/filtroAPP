@@ -118,6 +118,7 @@ const include = {
 
 function canAccessReport(auth, report) {
   if (auth.user.role === 'MANAGER') return true;
+  if (auth.user.role === 'COORDINATOR') return true;
   if (auth.user.role === 'CLIENT') {
     return report.project?.clientCnpj === auth.user.username;
   }
@@ -1261,6 +1262,8 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
 
   if (req.auth.user.role === 'CLIENT') {
     where.project = { clientCnpj: req.auth.user.username };
+  } else if (req.auth.user.role === 'COORDINATOR') {
+    // Coordenador visualiza relatórios de todos os projetos.
   } else if (req.query.mine === 'true') {
     const me = await prisma.user.findUnique({
       where: { id: req.auth.user.id },
@@ -1524,8 +1527,8 @@ router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 router.post('/', requireAuth, asyncHandler(async (req, res) => {
-  if (req.auth.user.role === 'CLIENT') {
-    return res.status(403).json({ error: 'A conta CLIENT nao pode criar relatorios.' });
+  if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
+    return res.status(403).json({ error: `A conta ${req.auth.user.role} nao pode criar relatorios.` });
   }
   const data = schema.parse(req.body);
   const collaboratorIds = uniqueIds(data.collaboratorIds);
@@ -1610,8 +1613,8 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
-  if (req.auth.user.role === 'CLIENT') {
-    return res.status(403).json({ error: 'A conta CLIENT nao pode editar relatorios.' });
+  if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
+    return res.status(403).json({ error: `A conta ${req.auth.user.role} nao pode editar relatorios.` });
   }
   const data = updateSchema.parse(req.body);
   const collaboratorIds = uniqueIds(data.collaboratorIds);
@@ -1715,8 +1718,8 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
-  if (req.auth.user.role === 'CLIENT') {
-    return res.status(403).json({ error: 'A conta CLIENT nao pode desfazer edicoes de relatorios.' });
+  if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
+    return res.status(403).json({ error: `A conta ${req.auth.user.role} nao pode desfazer edicoes de relatorios.` });
   }
   if (req.auth.user.role === 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o colaborador pode desfazer a propria edicao pendente.' });
