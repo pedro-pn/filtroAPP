@@ -252,7 +252,7 @@ textarea{resize:none;min-height:72px}
   var panel=login.querySelector('.login-wrap > div:last-child');
   if(!panel)return;
   panel.dataset.loginPatched='true';
-  panel.innerHTML='<div class="fg"><label>Usuário</label><input type="text" id="login-user" list="login-user-history" placeholder="Ex.: carlos ou gestor"><datalist id="login-user-history"></datalist></div><div class="fg"><label>Senha</label><input type="password" id="login-password" placeholder="Digite a senha" autocomplete="current-password"></div><div id="login-memory-box" style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--mu)"><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-user" style="width:auto">Lembrar usuário</label><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-pass" style="width:auto">Lembrar senha</label></div><div id="login-seed-help" style="font-size:11px;color:var(--mu);line-height:1.5">Acesso inicial: gestor / gestor123, carlos / colab123, joao / colab123.</div><div id="login-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><button type="button" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px" onclick="fazerLogin()">Entrar</button>';
+  panel.innerHTML='<div class="fg"><label>Usuário</label><input type="text" id="login-user" list="login-user-history" placeholder="Ex.: carlos ou gestor"><datalist id="login-user-history"></datalist></div><div class="fg"><label>Senha</label><input type="password" id="login-password" placeholder="Digite a senha" autocomplete="current-password"></div><div id="login-memory-box" style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--mu)"><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-user" style="width:auto">Lembrar usuário</label><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-pass" style="width:auto">Lembrar senha</label></div><div id="login-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><button type="button" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px" onclick="fazerLogin()">Entrar</button>';
 })();
 </script>
 
@@ -1966,7 +1966,7 @@ function setupRuntimeUi(){
     var help=document.createElement('div');
     help.id='login-seed-help';
     help.style.cssText='font-size:11px;color:var(--mu);line-height:1.5';
-    help.textContent='Acesso inicial: gestor / gestor123, carlos / colab123, joao / colab123.';
+    help.innerHTML='<a href="#" onclick="openForgotPassword();return false;" style="color:var(--g);font-weight:700;text-decoration:none">Esqueci minha senha</a>';
     btn.parentElement.insertBefore(help,btn);
   }
   if(!document.getElementById('login-feedback')){
@@ -6128,7 +6128,7 @@ function enforceLoginUi(){
   var panel=loginScreen.querySelector('.login-wrap > div:last-child');
   if(panel && panel.dataset.loginPatched!=='true'){
     panel.dataset.loginPatched='true';
-    panel.innerHTML='<div class="fg"><label>Usuário</label><input type="text" id="login-user" list="login-user-history" placeholder="Ex.: carlos ou gestor"><datalist id="login-user-history"></datalist></div><div class="fg"><label>Senha</label><input type="password" id="login-password" placeholder="Digite a senha" autocomplete="current-password"></div><div id="login-memory-box" style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--mu)"><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-user" style="width:auto">Lembrar usuário</label><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-pass" style="width:auto">Lembrar senha</label></div><div id="login-seed-help" style="font-size:11px;color:var(--mu);line-height:1.5">Acesso inicial: gestor / gestor123, carlos / colab123, joao / colab123.</div><div id="login-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><button type="button" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px" onclick="fazerLogin()">Entrar</button>';
+    panel.innerHTML='<div class="fg"><label>Usuário</label><input type="text" id="login-user" list="login-user-history" placeholder="Ex.: carlos ou gestor"><datalist id="login-user-history"></datalist></div><div class="fg"><label>Senha</label><input type="password" id="login-password" placeholder="Digite a senha" autocomplete="current-password"></div><div id="login-memory-box" style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--mu)"><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-user" style="width:auto">Lembrar usuário</label><label style="display:flex;align-items:center;gap:8px;color:var(--mu)"><input type="checkbox" id="login-remember-pass" style="width:auto">Lembrar senha</label></div><div id="login-feedback" style="display:none;border-radius:var(--rs);padding:10px 12px;font-size:12px;line-height:1.5"></div><button type="button" style="background:var(--g);color:#fff;border:none;border-radius:var(--r);padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px" onclick="fazerLogin()">Entrar</button>';
   }
   var btn=loginScreen.querySelector('button');
   if(btn){
@@ -7571,7 +7571,7 @@ window.__legacyBootstrapped = false;
     var help=document.getElementById('login-seed-help');
     if(help&&help.dataset.recoveryPatched!=='true'){
       help.dataset.recoveryPatched='true';
-      help.innerHTML='Acesso inicial: gestor / gestor123, carlos / colab123, joao / colab123.<br><a href="#" onclick="openForgotPassword();return false;" style="color:var(--g);font-weight:700;text-decoration:none">Esqueci minha senha</a>';
+      help.innerHTML='<a href="#" onclick="openForgotPassword();return false;" style="color:var(--g);font-weight:700;text-decoration:none">Esqueci minha senha</a>';
     }
     var userInput=document.getElementById('login-user');
     if(userInput){

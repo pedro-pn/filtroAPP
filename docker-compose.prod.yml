@@ -45,10 +45,15 @@ services:
 
 volumes:
   filtrovali_pgdata:
+    name: filtrovali_pgdata
   filtrovali_relatorios:
+    name: filtrovali_relatorios
   filtrovali_certs:
+    name: filtrovali_certs
   filtrovali_certbot_www:
+    name: filtrovali_certbot_www
 
 networks:
   filtrovali-net:
+    name: filtrovali-net
     driver: bridge

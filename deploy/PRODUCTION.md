@@ -66,5 +66,5 @@ docker compose -f docker-compose.prod.yml exec backend npx prisma db seed
 ## Certificado
 
 O `nginx` já está preparado para servir o domínio final
-`app.filtrovali.com.br`, mas o certificado ainda precisa ser emitido
+`relatorios.filtrovali.com.br`, mas o certificado ainda precisa ser emitido
 no servidor antes do `443` ficar operacional.
