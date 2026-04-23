@@ -1899,6 +1899,27 @@ function saveAuthState(state){
   }
   currentUser=authState.user||null;
 }
+function normalizeButtonTypes(root){
+  var scope=root&&root.querySelectorAll?root:document;
+  scope.querySelectorAll('button:not([type])').forEach(function(btn){
+    btn.setAttribute('type','button');
+  });
+}
+function installSpaFormGuards(){
+  normalizeButtonTypes(document);
+  document.addEventListener('submit', function(event){
+    event.preventDefault();
+  });
+  var observer=new MutationObserver(function(mutations){
+    mutations.forEach(function(mutation){
+      Array.prototype.forEach.call(mutation.addedNodes||[], function(node){
+        if(node&&node.nodeType===1)normalizeButtonTypes(node);
+      });
+    });
+  });
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+}
+installSpaFormGuards();
 function clearAuthState(){
   authState={};currentUser=null;
   try{ sessionStorage.removeItem(AUTH_KEY); }catch(e){}
