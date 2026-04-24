@@ -39,7 +39,7 @@ function normalizeProjectInput(data) {
     throw new z.ZodError([{
       code: z.ZodIssueCode.custom,
       path: ['clientCnpj'],
-      message: 'CNPJ invalido. Informe 14 digitos.'
+      message: 'CNPJ inválido. Informe 14 dígitos.'
     }]);
   }
 

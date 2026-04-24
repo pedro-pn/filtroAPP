@@ -49,7 +49,7 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
   const session = await findSessionWithRetry(hashToken(token));
 
   if (!session || session.expiresAt <= new Date() || !session.user.isActive) {
-    return res.status(401).json({ error: 'Sessao invalida ou expirada.' });
+    return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
   }
 
   req.auth = {
@@ -72,7 +72,7 @@ export function requireManager(req, res, next) {
 
 export function requireInternalUser(req, res, next) {
   if (!req.auth || !['MANAGER', 'COLLABORATOR', 'COORDINATOR'].includes(req.auth.user.role)) {
-    return res.status(403).json({ error: 'Acesso restrito a usuarios internos.' });
+    return res.status(403).json({ error: 'Acesso restrito a usuários internos.' });
   }
 
   next();

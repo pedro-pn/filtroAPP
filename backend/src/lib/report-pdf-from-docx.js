@@ -18,7 +18,7 @@ async function ensurePdfCreated(pdfPath) {
   try {
     await fs.access(pdfPath);
   } catch {
-    const error = new Error('Conversao DOCX -> PDF nao gerou o arquivo esperado.');
+    const error = new Error('Conversão DOCX -> PDF não gerou o arquivo esperado.');
     error.statusCode = 500;
     throw error;
   }

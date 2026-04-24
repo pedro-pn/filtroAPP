@@ -625,7 +625,7 @@ async function apiFetch(path,options){
   try{
     res=await fetch(API_BASE+path,Object.assign({headers:{'Content-Type':'application/json'}},options||{}));
   }catch(fetchErr){
-    throw new Error('Nao foi possivel conectar a API em '+API_BASE+'. Verifique se o backend esta rodando.');
+    throw new Error('Não foi possível conectar à API em '+API_BASE+'. Verifique se o backend está rodando.');
   }
   if(!res.ok){
     var bodyText=await res.text();
@@ -866,7 +866,7 @@ function addNoturnoColab(){
   if(getSelectedNightCollaboratorIds().indexOf(col.id)>=0){s.value='';return;}
   var d=document.createElement('div');d.className='colab-tag';
   d.dataset.colabId=col.id;
-  d.innerHTML='<span class="colab-name">'+col.nome+'</span><span class="colab-rm" onclick="this.parentElement.remove()">Ã—</span>';
+  d.innerHTML='<span class="colab-name">'+col.nome+'</span><span class="colab-rm" onclick="this.parentElement.remove()">×</span>';
   document.getElementById('noturno-colab-list').appendChild(d);s.value='';
   refreshServiceCollaboratorOptions();
 }
@@ -5259,7 +5259,7 @@ function startReportStatusPolling(){
       await refreshReportsCache();
       rerenderActiveReportPanel();
     }catch(err){
-      console.warn('Falha ao atualizar status dos relatorios em segundo plano.',err);
+      console.warn('Falha ao atualizar status dos relatórios em segundo plano.',err);
     }
   },15000);
 }
@@ -8682,7 +8682,382 @@ window.__legacyBootstrapped = false;
     };
   })(setProjeto);
 
+  buildColabTag=function(col){
+    var d=document.createElement('div');d.className='colab-tag';d.dataset.colabId=col.id;
+    d.innerHTML='<span class="colab-name">'+col.nome+'</span><span class="colab-rm" onclick="this.parentElement.remove()">×</span>';
+    return d;
+  };
+  serviceCollaboratorsField=function(selected,isPre){
+    var collabs=getAvailableServiceCollaborators();
+    var selIds=[],selNames=[];
+    if(selected&&!Array.isArray(selected)&&selected.ids){selIds=selected.ids||[];selNames=selected.labels||[];}
+    else if(Array.isArray(selected)){selNames=selected.filter(Boolean);}
+    return '<div class="fg"><label>Colaboradores do serviço</label><div class="chk-grp svc-team-options">'+
+      (collabs.length?collabs.map(function(c){
+        var checked=selIds.indexOf(c.id)>=0||selNames.indexOf(c.nome)>=0;
+        return '<label class="chk-item '+(isPre&&checked?'pre':'')+'"><input type="checkbox" value="'+escapeHtml(c.id)+'"'+(checked?' checked':'')+'><span>'+escapeHtml(c.nome)+'</span></label>';
+      }).join(''):'<div style="font-size:12px;color:var(--mu)">Adicione colaboradores no cabeçalho para selecionar aqui.</div>')+
+      '</div></div>';
+  };
+  renderGestor=function(){
+    var c=document.getElementById('gestor-content');if(!c)return;
+    var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED';});
+    var approved=reportsCache.filter(function(r){return r.status==='APPROVED';});
+    var pen=document.getElementById('cnt-pen');if(pen)pen.textContent=pending.length;
+    if(gestorTab==='pendentes'){
+      var draftsHtml='';
+      if(draftsCache&&draftsCache.length){draftsHtml='<div class="card" style="margin-bottom:12px"><div class="sec">Relatórios em andamento</div><div class="admin-list">'+draftsCache.map(function(draft){var payload=draft.payload||draft;var date=(draft.reportDate||payload.reportDate)?formatReportDate(draft.reportDate||payload.reportDate):'Sem data';return '<div class="rel-item" style="cursor:default"><div class="rel-icon">📝</div><div class="rel-info"><div class="rel-name">'+escapeHtml(draft.title||payload.title||'Relatório em andamento')+'</div><div class="rel-meta">'+escapeHtml(date)+'</div></div><button class="mini-btn alt" type="button" onclick="resumeDraft(\''+draft.id+'\')">Continuar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" type="button" onclick="removeDraft(\''+draft.id+'\')">Excluir</button></div>';}).join('')+'</div></div>';}
+      c.innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="mini-btn" onclick="gestorCriarRelatorio()">+ Criar Relatório</button></div>'+draftsHtml+'<div class="stat-grid"><div class="stat-card"><div class="stat-num">'+pending.length+'</div><div class="stat-lbl">Pendentes/devolvidos</div></div><div class="stat-card"><div class="stat-num">'+approved.length+'</div><div class="stat-lbl">Aprovados</div></div></div>'+groupedReportHtml(pending,'gestor','Nenhum relatório pendente.');
+    }else if(gestorTab==='aprovados'){
+      c.innerHTML=groupedReportHtml(approved,'gestor','Nenhum relatório aprovado.');
+    }else if(gestorTab==='usuarios'){
+      c.innerHTML=renderUsuarios();
+    }else if(gestorTab==='projetos'){
+      c.innerHTML=renderProjetos();
+    }else if(gestorTab==='arquivados'){
+      c.innerHTML=renderProjetosArquivados();
+    }else if(gestorTab==='equipe'){
+      c.innerHTML=renderEquipe();
+    }else if(gestorTab==='equipamentos'){
+      c.innerHTML=renderEquipamentos();
+    }else if(gestorTab==='manometros'){
+      c.innerHTML=renderManometros();
+    }else if(gestorTab==='contadores'){
+      c.innerHTML=renderContadores();
+    }
+    enhanceUploadZones(c);
+  };
+  renderMyReports=function(){
+    var content=document.getElementById('my-reports-content');
+    if(content)content.innerHTML=groupedReportHtml(reportsCache,'meus','Nenhum relatório enviado por você.');
+  };
+  openReportDetail=async function(id,origin){
+    var report=reportsCache.find(function(r){return r.id===id;})||await apiFetch('/reports/'+id);
+    currentDetailReport=report;
+    currentDetailBack=origin==='meus'?'s-meus-relatorios':'s-gestor';
+    document.getElementById('det-title').textContent=reportDisplayLabel(report)+' · '+report.project.name;
+    document.getElementById('det-sub').textContent=((report.createdBy&&report.createdBy.name)||'—')+' · '+formatReportDate(report.reportDate);
+    document.getElementById('det-badge-top').textContent=statusMeta(report.status).txt;
+    var servicesHtml=(report.services||[]).map(function(s,i){
+      var uploads=((s.extraData||{})['__uploads__']||[]);
+      return '<div class="svc-mini"><div class="svc-mini-hdr">Serviço '+(i+1)+' — '+escapeHtml(serviceNames[s.serviceType]||s.serviceType)+'</div><div class="svc-mini-body">Equipamento: <b>'+(s.equipment?s.equipment.code+' - '+s.equipment.name:'—')+'</b><br>Sistema: <b>'+(escapeHtml(s.system||'—'))+'</b> · Material: <b>'+(escapeHtml(s.material||'—'))+'</b><br>Horário: '+escapeHtml((s.startTime||'—')+' às '+(s.endTime||'—'))+'<br>Anexos: '+uploads.length+'</div></div>';
+    }).join('');
+    var reviewNotes=report.reviewNotes?'<div class="card"><div class="sec">Retorno do gestor</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(report.reviewNotes)+'</div></div>':'';
+    document.getElementById('det-body').innerHTML='<div class="card"><div class="sec">Informações gerais</div><div class="det-section"><div class="det-row"><span class="det-label">Projeto</span><span class="det-val">'+escapeHtml(report.project.name)+'</span></div><div class="det-row"><span class="det-label">Data</span><span class="det-val">'+formatReportDate(report.reportDate)+'</span></div><div class="det-row"><span class="det-label">Horário</span><span class="det-val">'+escapeHtml(report.arrivalTime+' - '+report.departureTime)+'</span></div><div class="det-row"><span class="det-label">Equipe</span><span class="det-val">'+(report.collaborators||[]).length+'</span></div></div></div><div class="card"><div class="sec">Serviços registrados</div>'+(servicesHtml||'<div style="font-size:13px;color:var(--mu)">Sem serviços.</div>')+'</div>'+reviewNotes;
+    var actions='';
+    if(currentUser&&currentUser.role==='MANAGER'){
+      actions=report.status==='APPROVED'
+        ? '<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
+        : '<button class="btn-approve" onclick="aprovar(\''+report.id+'\')">Aprovar</button><button class="btn-reject" onclick="rejeitar(\''+report.id+'\')">Devolver</button>';
+    }else{
+      actions=report.status==='APPROVED'
+        ? '<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>'
+        : '<button class="btn-approve" onclick="startEditReport(\''+report.id+'\')">Editar relatório</button>';
+    }
+    document.getElementById('det-actions').innerHTML=actions;
+    go('s-detalhe');
+  };
+  rejeitar=async function(id){
+    var motivo=prompt('Motivo da devolução:');
+    if(motivo===null)return;
+    await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'RETURNED',reviewNotes:motivo||null})});
+    await refreshReportsCache();
+    renderGestor();
+    go('s-gestor');
+  };
+  renderOngoingServices=function(){
+    var root=document.getElementById('ongoing-services-content');
+    if(!root)return;
+    var groups={};
+    collectResolvedOngoingServices().forEach(function(item){
+      var reportProject=item.project||{};
+      var projectName=reportProject.name||'Sem projeto';
+      var projectCode=reportProject.code||'---';
+      var service=item.service||{};
+      if(!groups[projectName])groups[projectName]={code:projectCode,items:[]};
+      groups[projectName].items.push({reportId:item.reportId,serviceId:service.id,type:service.serviceType,equipment:serviceEquipmentName(service),system:serviceSystemName(service)});
+    });
+    var keys=Object.keys(groups).sort();
+    root.innerHTML=keys.length?keys.map(function(projectName){
+      var group=groups[projectName];
+      return '<div class="card"><div class="sec">'+escapeHtml((group.code||'')+' - '+projectName)+'</div><div class="ongoing-proj">'+group.items.map(function(item){
+        return '<div class="ongoing-item"><div><div class="ongoing-item-name">'+escapeHtml(serviceNames[item.type]||item.type)+'</div><div class="ongoing-item-sub">'+escapeHtml(item.equipment)+' · '+escapeHtml(item.system)+'</div></div><div class="ongoing-actions"><button class="ongoing-delete" type="button" onclick="removeOngoingService(\''+item.reportId+'\',\''+item.serviceId+'\')">Excluir</button></div></div>';
+      }).join('')+'</div></div>';
+    }).join(''):'<div class="card"><div style="font-size:13px;color:var(--mu)">Nenhum serviço em andamento.</div></div>';
+  };
+  renderOngoing=function(){
+    var blk=document.getElementById('ongoing-blk');
+    if(!blk)return;
+    var pending=getProjectPendingServices();
+    if(!pending.length){blk.innerHTML='';return;}
+    blk.innerHTML='<div class="ongoing-blk"><div class="ongoing-title">⚠ Serviços em andamento neste projeto</div>'+
+      pending.map(function(item){
+        var service=item.service||{};
+        var nomeEq=serviceEquipmentName(service);
+        var sistema=serviceSystemName(service);
+        var dataInicio=formatReportDate(item.reportDate);
+        return '<div class="ongoing-item" onclick="continuar(\''+item.reportId+'\',\''+service.id+'\')">'+
+          '<div><div class="ongoing-item-name">'+escapeHtml(serviceIcons[service.serviceType]||'')+' '+escapeHtml(serviceNames[service.serviceType]||service.serviceType)+' — '+escapeHtml(nomeEq)+'</div>'+
+          '<div class="ongoing-item-sub">'+escapeHtml(sistema)+' · iniciado '+escapeHtml(dataInicio||'—')+'</div></div>'+
+          '<div class="ongoing-badge">Continuar</div></div>';
+      }).join('')+'</div>';
+  };
+  removeOngoingService=async function(reportId,serviceId){
+    if(!confirm('Excluir este serviço em andamento?'))return;
+    var report=reportsCache.find(function(item){return item.id===reportId;}) || await apiFetch('/reports/'+reportId);
+    var remaining=(report.services||[]).filter(function(service){return service.id!==serviceId;});
+    await apiFetch('/reports/'+reportId,{method:'PUT',body:JSON.stringify(reportToEditablePayload(report,remaining))});
+    await refreshReportsCache();
+    renderOngoingServices();
+    renderMyReports();
+    showToast('Serviço removido do relatório.');
+  };
+  deleteReport=async function(id){
+    if(!authState.token){alert('Faça login novamente.');go('s-login');return;}
+    if(!confirm('Excluir este relatório? Se for um RDO, os relatórios de serviço vinculados a ele também serão removidos.'))return;
+    try{
+      var response=await fetch(API_BASE+'/reports/'+id,{method:'DELETE',headers:{Authorization:'Bearer '+authState.token}});
+      if(!response.ok){
+        var msg='Falha ao excluir relatório.';
+        try{ var err=await response.json(); msg=err.error||msg; }catch(e){}
+        alert(msg);
+        return;
+      }
+      await refreshReportsCache();
+      await refreshDraftsCache();
+      renderMyReports();
+      if(currentUser&&currentUser.role==='MANAGER'){
+        renderGestor();
+        go('s-gestor');
+      }else{
+        go('s-home');
+      }
+      showToast('Relatório excluído com sucesso.');
+    }catch(err){
+      alert('Erro ao excluir relatório: '+err.message);
+    }
+  };
+  gerarPDF=async function(id){
+    if(pdfLoadingMap[id])return;
+    if(!authState.token){alert('Faça login novamente para gerar o PDF.');go('s-login');return;}
+    pdfLoadingMap[id]=true;
+    setPdfButtonsLoading(id,true);
+    showToast('Gerando PDF...');
+    try{
+      var response=await fetch(API_BASE+'/reports/'+id+'/pdf',{headers:{Authorization:'Bearer '+authState.token}});
+      if(!response.ok){
+        var message='Falha ao gerar PDF.';
+        try{
+          var err=await response.json();
+          message=err.error||message;
+        }catch(e){
+          try{
+            var text=await response.text();
+            if(text)message=text;
+          }catch(e2){}
+        }
+        if(response.status===404)message='A rota de PDF ainda não está ativa no backend. Reinicie o servidor.';
+        alert(message);
+        return;
+      }
+      var blob=await response.blob();
+      var url=URL.createObjectURL(blob);
+      var disposition=response.headers.get('Content-Disposition')||'';
+      var name=fileNameFromDisposition(disposition,'relatorio-'+id+'.pdf');
+      var a=document.createElement('a');
+      a.href=url;
+      a.download=name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function(){URL.revokeObjectURL(url);},1500);
+      showToast('PDF gerado com sucesso.');
+    } finally {
+      delete pdfLoadingMap[id];
+      setPdfButtonsLoading(id,false);
+    }
+  };
+  apiFetch=async function(path,options){
+    var headers=Object.assign({},((options||{}).headers||{}));
+    if(!headers['Content-Type'])headers['Content-Type']='application/json';
+    if(authState.token)headers.Authorization='Bearer '+authState.token;
+    var res;
+    try{
+      res=await fetch(API_BASE+path,Object.assign({},options||{},{headers:headers}));
+    }catch(fetchErr){
+      throw new Error('Não foi possível conectar à API em '+API_BASE+'. Verifique se o backend está rodando.');
+    }
+    if(!res.ok){
+      var bodyText=await res.text();
+      try{
+        var parsed=JSON.parse(bodyText);
+        throw new Error(parsed.error||('HTTP '+res.status));
+      }catch(parseErr){
+        if(bodyText) throw new Error(bodyText);
+        throw new Error('HTTP '+res.status);
+      }
+    }
+    if(res.status===204)return null;
+    return res.json();
+  };
+  authCardLogoHtml=function(id){
+    return '<div style="display:flex;flex-direction:column;align-items:center;gap:10px"><div class="login-circle"><img class="login-logo" id="'+id+'" alt="Filtrovali"></div><div style="font-size:13px;color:var(--mu);text-align:center">Sistema de relatórios de serviços</div></div>';
+  };
+  function applyOrthographyUiFixes(){
+    var selectors=[
+      '#s-client .card .sec + div',
+      '#client-username'
+    ];
+    var clientIntro=document.querySelector('#s-client .card div[style*="line-height:1.7"]');
+    if(clientIntro)clientIntro.textContent='Acompanhe os relatórios liberados e registre a aprovação do cliente.';
+    var clientUserLabel=Array.from(document.querySelectorAll('#s-client .det-label')).find(function(el){ return el.textContent==='Usuario'; });
+    if(clientUserLabel)clientUserLabel.textContent='Usuário';
+    document.querySelectorAll('.login-wrap').forEach(function(wrap){
+      var text=wrap.textContent||'';
+      if(text.indexOf('Sistema de relatorios de servicos')>=0){
+        var hint=wrap.querySelector('div[style*="text-align:center"]');
+        if(hint)hint.textContent='Sistema de relatórios de serviços';
+      }
+    });
+  }
+
+  function ensureValidationBannerStyles(){
+    if(document.getElementById('validation-banner-style'))return;
+    var style=document.createElement('style');
+    style.id='validation-banner-style';
+    style.textContent='.validation-banner{display:none;margin:0 0 12px;padding:12px 14px;border-radius:var(--r);border:1px solid rgba(200,68,68,.28);background:#fff1f1;color:#8f2323;font-size:13px;line-height:1.5;font-weight:600}.validation-banner.show{display:block}';
+    document.head.appendChild(style);
+  }
+  function ensureValidationBanner(screenId){
+    ensureValidationBannerStyles();
+    var screen=screenId?document.getElementById(screenId):null;
+    if(!screen)return null;
+    var host=screen.querySelector('.scroll')||screen;
+    var banner=host.querySelector('.validation-banner');
+    if(!banner){
+      banner=document.createElement('div');
+      banner.className='validation-banner';
+      banner.setAttribute('role','alert');
+      host.insertBefore(banner,host.firstChild||null);
+    }
+    return banner;
+  }
+  function showValidationBanner(screenId,message){
+    var banner=ensureValidationBanner(screenId);
+    if(!banner)return;
+    banner.textContent=message;
+    banner.classList.add('show');
+  }
+  function clearValidationBanner(screenId){
+    if(!screenId)return;
+    var banner=ensureValidationBanner(screenId);
+    if(!banner)return;
+    banner.textContent='';
+    banner.classList.remove('show');
+  }
+  var baseValidateScope=validateScope;
+  validateScope=function(scope){
+    if(scope){
+      var screen=scope.closest('.screen');
+      if(screen)clearValidationBanner(screen.id);
+    }
+    return baseValidateScope(scope);
+  };
+  focusValidation=function(el,screenId){
+    if(screenId)go(screenId);
+    var label=cleanLabelText(el.dataset.label||'campo obrigatório');
+    showValidationBanner(screenId,'Preencha o campo obrigatório: '+label+'.');
+    setTimeout(function(){
+      var host=el.closest('.fg')||el;
+      if(host&&host.scrollIntoView)host.scrollIntoView({behavior:'smooth',block:'center'});
+      var target=(el.matches&&el.matches('input,select,textarea,button,[tabindex]'))?el:(el.querySelector?el.querySelector('input,select,textarea,button,[tabindex]'):null);
+      if(target&&target.focus)target.focus({preventScroll:true});
+      if(target&&target.select&&(/^(text|email|number|password|search|tel|url)$/i.test(target.type||'text')||target.tagName==='TEXTAREA'))target.select();
+    },50);
+  };
+  editorProjeto=function(){
+    var st=gestorEditors.projetos;if(!st)return '';
+    var p=st.type==='edit'?getProjetoById(st.id):{id:'',code:'',nome:'',cliente:'',cnpj:'',emailPrincipal:'',emailsCopia:[],contrato:'',local:'',operadorResponsavelId:'',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,visivelColaboradores:true,sequenciais:{}};
+    return '<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(st.type==='edit'?'Editar projeto':'Novo projeto')+'</div><button class="mini-btn alt" onclick="closeEditor(\'projetos\')">Cancelar</button></div><div class="admin-inline-grid">'+
+      '<div class="fg"><label>Número da missão</label><input type="text" id="ed-proj-id" value="'+escapeHtml(p.code||'')+'" '+(st.type==='edit'?'readonly':'')+'></div>'+
+      '<div class="fg"><label>Nome</label><input type="text" id="ed-proj-nome" value="'+escapeHtml(p.nome||'')+'"></div>'+
+      '<div class="fg"><label>Cliente</label><input type="text" id="ed-proj-cliente" value="'+escapeHtml(p.cliente||'')+'"></div>'+
+      '<div class="fg"><label>CNPJ</label><input type="text" id="ed-proj-cnpj" value="'+escapeHtml(formatCnpj(p.cnpj||''))+'" oninput="handleProjectCnpjInput(this)"></div>'+
+      '<div class="fg"><label>E-mail principal do cliente</label><input type="email" id="ed-proj-email-primary" value="'+escapeHtml(p.emailPrincipal||'')+'" placeholder="cliente@empresa.com.br"></div>'+
+      '<div class="fg full"><label>E-mails em cópia</label><input type="hidden" id="ed-proj-email-cc-values" value="'+escapeHtml(JSON.stringify(parseEmailList(p.emailsCopia||[])))+'"><div class="email-tags" id="ed-proj-email-cc-tags"><input type="text" id="ed-proj-email-cc-input" placeholder="Digite um e-mail e pressione Enter" onkeydown="handleProjectEmailCcKeydown(event)" onblur="commitProjectEmailCcInput()"></div></div>'+
+      '<div class="fg"><label>Contrato</label><input type="text" id="ed-proj-contrato" value="'+escapeHtml(p.contrato||'')+'"></div>'+
+      '<div class="fg"><label>Local</label><input type="text" id="ed-proj-local" value="'+escapeHtml(p.local||'')+'"></div>'+
+      '<div class="fg"><label>Operador responsável</label><select id="ed-proj-operador">'+selectOptions(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};}),p.operadorResponsavelId||'','Selecionar...')+'</select></div>'+
+      '<div class="fg"><label>Exibir para colaboradores</label><select id="ed-proj-visible-collab"><option value="true"'+(p.visivelColaboradores!==false?' selected':'')+'>Sim</option><option value="false"'+(p.visivelColaboradores===false?' selected':'')+'>Não</option></select></div>'+
+      '<div class="fg"><label>Jornada padrão</label><input type="text" id="ed-proj-jornada" value="'+escapeHtml(p.jornada||'09:00')+'"></div>'+
+      '<div class="fg"><label>Jornada de fim de semana</label><input type="text" id="ed-proj-fds" value="'+escapeHtml(p.jornadaFimSemana||'08:00')+'"></div>'+
+      '<div class="fg"><label>Inclui sábado</label><select id="ed-proj-sab"><option value="true"'+(p.incluiSabado?' selected':'')+'>Sim</option><option value="false"'+(!p.incluiSabado?' selected':'')+'>Não</option></select></div>'+
+      '<div class="fg"><label>Inclui domingo</label><select id="ed-proj-dom"><option value="true"'+(p.incluiDomingo?' selected':'')+'>Sim</option><option value="false"'+(!p.incluiDomingo?' selected':'')+'>Não</option></select></div>'+
+      '<div class="fg full"><label>Sequenciais</label><input type="text" id="ed-proj-seq" value="'+escapeHtml(sequenciaisText(p.sequenciais))+'"></div>'+
+      '<div class="admin-actions full"><button class="mini-btn" onclick="saveProjetoEditor(\''+st.type+'\')">Salvar</button></div></div></div>';
+  };
+  renderProjetos=function(){
+    var list=activeProjects();
+    var header='<div class="admin-toolbar"><div class="sec">Projetos ativos</div><button class="mini-btn" onclick="openEditor(\'projetos\',\'new\')">+ Novo projeto</button></div>'+(gestorEditors.projetos&&gestorEditors.projetos.type==='new'?editorProjeto():'');
+    var body=list.length?list.map(function(p){
+      var operador=getColaboradorById(p.operadorResponsavelId);
+      var totalSeq=REPORT_TYPES.reduce(function(acc,t){return acc+Number((p.sequenciais&&p.sequenciais[t])||0);},0);
+      var editor=(gestorEditors.projetos&&gestorEditors.projetos.type==='edit'&&gestorEditors.projetos.id===p.id)?editorProjeto():'';
+      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrão')+'</span></div>'+editor+'<div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">E-mails em cópia</span><span class="det-val">'+escapeHtml((p.emailsCopia||[]).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'-')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
+    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto ativo.</div></div>';
+    return header+body;
+  };
+  function renderInternalUsersList(items){
+    function renderUserEditor(mode,id){
+      var u=mode==='edit'?(items.find(function(x){return x.id===id;})||{}):{username:'',name:'',email:'',role:'COLLABORATOR',isActive:true,collaboratorId:''};
+      return '<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(mode==='edit'?'Editar usuário':'Novo usuário')+'</div><button class="mini-btn alt" onclick="closeUserEditor()">Cancelar</button></div><div class="admin-inline-grid"><div class="fg"><label>Usuário</label><input type="text" id="ed-user-username" value="'+escapeHtml(u.username||'')+'" '+(mode==='edit'?'readonly':'')+'></div><div class="fg"><label>Nome</label><input type="text" id="ed-user-name" value="'+escapeHtml(u.name||'')+'"></div><div class="fg"><label>E-mail</label><input type="email" id="ed-user-email" value="'+escapeHtml(u.email||'')+'" placeholder="email@empresa.com"></div><div class="fg"><label>Perfil</label><select id="ed-user-role"><option value="COLLABORATOR"'+((u.role||'')==='COLLABORATOR'?' selected':'')+'>Colaborador</option><option value="COORDINATOR"'+((u.role||'')==='COORDINATOR'?' selected':'')+'>Coordenador</option><option value="MANAGER"'+((u.role||'')==='MANAGER'?' selected':'')+'>Gestor</option></select></div><div class="fg"><label>Status</label><select id="ed-user-active"><option value="true"'+(u.isActive!==false?' selected':'')+'>Ativo</option><option value="false"'+(u.isActive===false?' selected':'')+'>Inativo</option></select></div><div class="fg full"><label>Vincular colaborador</label><select id="ed-user-col">'+selectOptions([{value:'',label:'Sem vínculo'}].concat(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};})),u.collaboratorId||'','Selecionar...')+'</select></div><div class="fg full"><label>Senha'+(mode==='edit'?' (opcional)':'')+'</label><input type="password" id="ed-user-pass" value=""></div><div class="admin-actions full"><button class="mini-btn" onclick="saveUserEditor(\''+mode+'\')">Salvar</button></div></div></div>';
+    }
+    var header='<div class="admin-toolbar"><div class="sec">Usuários internos</div><button class="mini-btn" onclick="openUserEditor(\'new\')">+ Novo usuário</button></div>'+(userEditorState&&userEditorState.mode==='new'?renderUserEditor('new',''):'');
+    var body=items.length?items.map(function(u){
+      var editor=(userEditorState&&userEditorState.mode==='edit'&&userEditorState.id===u.id)?renderUserEditor('edit',u.id):'';
+      return '<div class="card admin-card" style="margin-bottom:10px"><div class="admin-item-title">'+escapeHtml(u.name)+' - '+escapeHtml(u.username)+'</div><div class="admin-item-sub">'+currentRoleLabel(u.role)+(u.email?' - '+escapeHtml(u.email):'')+(u.collaborator&&u.collaborator.name?' - '+escapeHtml(u.collaborator.name):'')+'</div>'+editor+'<div class="admin-actions"><button class="mini-btn alt" onclick="openUserEditor(\'edit\',\''+u.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';
+    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum usuário interno cadastrado.</div></div>';
+    return header+body;
+  }
+  function renderClientUsersList(items){
+    return '<div class="admin-toolbar"><div class="sec">Clientes</div><div style="font-size:12px;color:var(--mu)">Contas criadas automaticamente a partir dos projetos.</div></div>'+(items.length?items.map(function(u){
+      var linked=(u.linkedProjects||[]);
+      var projectList=linked.length?linked.map(function(p){ return escapeHtml((p.contractCode||'---')+' - Missão '+(p.code||'---')+' - '+(p.name||'Sem nome')); }).join('<br>'):'Nenhum projeto vinculado.';
+      return '<div class="card admin-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><div class="admin-item-title">'+escapeHtml(u.name||'Cliente')+' - '+escapeHtml(formatCnpj(u.username||'')||u.username||'')+'</div><div class="admin-item-sub">'+(u.email?escapeHtml(u.email):'Sem e-mail principal')+' - '+(u.isActive===false?'Inativo':'Ativo')+'</div></div><span class="badge '+(u.isActive===false?'badge-rev':'badge-ok')+'">'+(u.isActive===false?'Inativo':'Ativo')+'</span></div><div class="det-section" style="margin-top:10px"><div class="det-row"><span class="det-label">Projetos</span><span class="det-val">'+linked.length+'</span></div><div class="det-row"><span class="det-label">Vínculos</span><span class="det-val">'+projectList+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="resendClientAccess(\''+u.id+'\')">Reenviar acesso</button><button class="mini-btn" style="background:var(--rd)" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';
+    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum cliente provisionado.</div></div>');
+  }
+  renderManometros=function(){
+    var list=db.manometros.filter(function(m){return m.ativo!==false;});
+    var header='<div class="admin-toolbar"><div class="sec">Manômetros</div><button class="mini-btn" onclick="openEditor(\'manometros\',\'new\')">+ Novo manômetro</button></div>'+(gestorEditors.manometros&&gestorEditors.manometros.type==='new'?editorManometro():'');
+    var body=list.length?list.map(function(m){
+      var editor=(gestorEditors.manometros&&gestorEditors.manometros.type==='edit'&&gestorEditors.manometros.id===m.id)?editorManometro():'';
+      return '<div class="card admin-card"><div class="admin-item-title">'+escapeHtml(m.codigo)+' · '+escapeHtml(m.escala)+'</div><div class="admin-item-sub">Certificado '+escapeHtml(m.certificado)+' · calibração '+escapeHtml(m.calibracao)+' · vence '+escapeHtml(m.vencimento)+'</div>'+editor+'<div class="admin-actions"><button class="mini-btn alt" onclick="openEditor(\'manometros\',\'edit\',\''+m.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeManometro(\''+m.id+'\')">Remover</button></div></div>';
+    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum manômetro ativo.</div></div>';
+    return header+body;
+  };
+  renderContadores=function(){
+    var list=db.contadores.filter(function(c){return c.ativo!==false;});
+    var header='<div class="admin-toolbar"><div class="sec">Contadores</div><button class="mini-btn" onclick="openEditor(\'contadores\',\'new\')">+ Novo contador</button></div>'+(gestorEditors.contadores&&gestorEditors.contadores.type==='new'?editorContador():'');
+    var body=list.length?list.map(function(c){
+      var editor=(gestorEditors.contadores&&gestorEditors.contadores.type==='edit'&&gestorEditors.contadores.id===c.id)?editorContador():'';
+      return '<div class="card admin-card"><div class="admin-item-title">'+escapeHtml(c.codigo)+' · '+escapeHtml(c.serial)+'</div><div class="admin-item-sub">Calibração '+escapeHtml(c.calibracao)+' · vence '+escapeHtml(c.vencimento)+'</div>'+editor+'<div class="admin-actions"><button class="mini-btn alt" onclick="openEditor(\'contadores\',\'edit\',\''+c.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeContador(\''+c.id+'\')">Remover</button></div></div>';
+    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum contador ativo.</div></div>';
+    return header+body;
+  };
+  applyOrthographyUiFixes=function(){
+    var clientIntro=document.querySelector('#s-client .card div[style*="line-height:1.7"]');
+    if(clientIntro)clientIntro.textContent='Acompanhe os relatórios liberados e registre a aprovação do cliente.';
+    var clientUserLabel=Array.from(document.querySelectorAll('#s-client .det-label')).find(function(el){ return el.textContent==='Usuario'; });
+    if(clientUserLabel)clientUserLabel.textContent='Usuário';
+    document.querySelectorAll('.login-wrap').forEach(function(wrap){
+      var hint=wrap.querySelector('div[style*="text-align:center"]');
+      if(hint&&(hint.textContent||'').indexOf('Sistema de')===0)hint.textContent='Sistema de relatórios de serviços';
+    });
+    var accountSubtitle=document.getElementById('account-subtitle');
+    if(accountSubtitle)accountSubtitle.textContent='Configurações da conta';
+  };
   ensureUtilityScreens();
+  applyOrthographyUiFixes();
   patchLoginPanel();
   (async function(){
     try{

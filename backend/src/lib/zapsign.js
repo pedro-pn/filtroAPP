@@ -24,7 +24,7 @@ async function refreshApiToken() {
 
   const refreshToken = currentRefreshToken();
   if (!refreshToken) {
-    const error = new Error('ZAPSIGN_REFRESH_TOKEN nao configurado.');
+    const error = new Error('ZAPSIGN_REFRESH_TOKEN não configurado.');
     error.statusCode = 503;
     throw error;
   }
@@ -40,7 +40,7 @@ async function refreshApiToken() {
     const data = await parseJsonResponse(response);
     const nextToken = String(data?.access || data?.token || data?.access_token || '').trim();
     if (!nextToken) {
-      const error = new Error('A ZapSign nao retornou um novo access token.');
+      const error = new Error('A ZapSign não retornou um novo access token.');
       error.statusCode = 502;
       error.details = data;
       throw error;
@@ -62,7 +62,7 @@ async function getAuthHeaders() {
     token = await refreshApiToken();
   }
   if (!token) {
-    const error = new Error('ZAPSIGN_API_TOKEN nao configurado.');
+    const error = new Error('ZAPSIGN_API_TOKEN não configurado.');
     error.statusCode = 503;
     throw error;
   }
@@ -150,7 +150,7 @@ export function isZapSignEnabled() {
 
 export function assertZapSignEnabled() {
   if (!isZapSignEnabled()) {
-    const error = new Error('Integracao ZapSign nao configurada.');
+    const error = new Error('Integração ZapSign não configurada.');
     error.statusCode = 503;
     throw error;
   }
@@ -284,7 +284,7 @@ export async function downloadSignedZapSignDocument(fileUrl) {
 export function verifyWebhookSignature(headers) {
   const expected = String(env.zapsignWebhookSecret || '').trim();
   if (!expected) {
-    const error = new Error('ZAPSIGN_WEBHOOK_SECRET nao configurado.');
+    const error = new Error('ZAPSIGN_WEBHOOK_SECRET não configurado.');
     error.statusCode = 503;
     throw error;
   }
@@ -292,7 +292,7 @@ export function verifyWebhookSignature(headers) {
   const headerName = String(env.zapsignWebhookHeader || 'x-zapsign-webhook-secret').trim().toLowerCase();
   const received = String(headers?.[headerName] || '').trim();
   if (!received || received !== expected) {
-    const error = new Error('Webhook ZapSign invalido.');
+    const error = new Error('Webhook ZapSign inválido.');
     error.statusCode = 401;
     throw error;
   }

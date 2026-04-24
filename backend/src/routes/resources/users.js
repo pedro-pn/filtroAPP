@@ -70,7 +70,7 @@ router.get('/', asyncHandler(async (req, res) => {
 router.post('/', asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
   if (!data.password) {
-    return res.status(400).json({ error: 'Senha obrigatoria para novo usuario.' });
+    return res.status(400).json({ error: 'Senha obrigatória para novo usuário.' });
   }
 
   const passwordHash = await hashPassword(data.password);
@@ -122,11 +122,11 @@ router.post('/:id/resend-client-access', asyncHandler(async (req, res) => {
   });
 
   if (user.role !== UserRole.CLIENT) {
-    return res.status(400).json({ error: 'Esta acao e exclusiva para contas CLIENT.' });
+    return res.status(400).json({ error: 'Esta ação é exclusiva para contas CLIENT.' });
   }
 
   if (!user.email) {
-    return res.status(400).json({ error: 'A conta CLIENT nao possui e-mail principal cadastrado.' });
+    return res.status(400).json({ error: 'A conta CLIENT não possui e-mail principal cadastrado.' });
   }
 
   const projects = await prisma.project.findMany({
@@ -137,7 +137,7 @@ router.post('/:id/resend-client-access', asyncHandler(async (req, res) => {
 
   const missingMailerConfig = getMissingMailerConfig();
   if (missingMailerConfig.length) {
-    return res.status(400).json({ error: `Configuracao SMTP ausente: ${missingMailerConfig.join(', ')}` });
+    return res.status(400).json({ error: `Configuração SMTP ausente: ${missingMailerConfig.join(', ')}` });
   }
 
   const template = buildClientAccessReminderEmailTemplate({
