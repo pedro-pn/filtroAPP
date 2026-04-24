@@ -90,6 +90,38 @@ gunzip -c /caminho/do/postgres.sql.gz | docker compose -f docker-compose.prod.ym
 docker run --rm -v filtrovali_relatorios:/to -v /caminho/do/backup:/backup alpine sh -c "cd /to && tar -xzf /backup/relatorios.tar.gz"
 ```
 
+## Restore automatizado
+
+O arquivo `deploy/restore-prod.sh` automatiza:
+
+- subida da stack
+- `prisma migrate deploy`
+- restore do banco
+- restore do volume `filtrovali_relatorios`
+- restore opcional de `filtrovali_certs`
+
+Uso:
+
+```bash
+chmod +x deploy/restore-prod.sh
+```
+
+```bash
+BACKUP_SOURCE=/home/ubuntu/restore/filtrovali/2026-04-24-030001 ./deploy/restore-prod.sh
+```
+
+Sem restaurar certificados:
+
+```bash
+BACKUP_SOURCE=/home/ubuntu/restore/filtrovali/2026-04-24-030001 RESTORE_CERTS=false ./deploy/restore-prod.sh
+```
+
+Sem rodar migrations:
+
+```bash
+BACKUP_SOURCE=/home/ubuntu/restore/filtrovali/2026-04-24-030001 RUN_MIGRATIONS=false ./deploy/restore-prod.sh
+```
+
 ## Estratégia recomendada
 
 - Backup diário via script
