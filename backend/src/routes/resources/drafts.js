@@ -43,7 +43,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   const data = schema.omit({ id: true }).parse(req.body);
   const current = await prisma.reportDraft.findUniqueOrThrow({ where: { id: req.params.id } });
   if (current.userId !== req.auth.user.id) {
-    return res.status(403).json({ error: 'Voce nao tem permissao para alterar este rascunho.' });
+    return res.status(403).json({ error: 'Você não tem permissão para alterar este rascunho.' });
   }
   const item = await prisma.reportDraft.update({
     where: { id: req.params.id },
@@ -61,7 +61,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
 router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
   const current = await prisma.reportDraft.findUniqueOrThrow({ where: { id: req.params.id } });
   if (current.userId !== req.auth.user.id) {
-    return res.status(403).json({ error: 'Voce nao tem permissao para excluir este rascunho.' });
+    return res.status(403).json({ error: 'Você não tem permissão para excluir este rascunho.' });
   }
   await prisma.reportDraft.delete({ where: { id: req.params.id } });
   res.status(204).end();

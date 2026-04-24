@@ -18,7 +18,7 @@ function generateClientPassword() {
 function queueClientMail(message, meta) {
   const missingMailerConfig = getMissingMailerConfig();
   if (missingMailerConfig.length) {
-    console.warn('Notificacao de conta CLIENT nao enviada por falta de configuracao SMTP.', {
+    console.warn('Notificação de conta CLIENT não enviada por falta de configuração SMTP.', {
       missingMailerConfig,
       meta
     });
@@ -27,7 +27,7 @@ function queueClientMail(message, meta) {
 
   setImmediate(() => {
     sendMail(message).catch(error => {
-      console.error('Falha ao enviar notificacao da conta CLIENT.', {
+      console.error('Falha ao enviar notificação da conta CLIENT.', {
         meta,
         error: error?.message || error
       });
@@ -57,7 +57,7 @@ export async function ensureClientAccountForProject(prisma, projectData, options
 
   if (user) {
     if (user.role !== 'CLIENT') {
-      throw new Error(`Ja existe um usuario interno com o identificador ${clientCnpj}.`);
+      throw new Error(`Já existe um usuário interno com o identificador ${clientCnpj}.`);
     }
 
     user = await prisma.user.update({

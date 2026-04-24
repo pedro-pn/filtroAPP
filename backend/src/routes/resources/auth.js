@@ -43,7 +43,7 @@ function resetUrlForToken(token) {
 function passwordResetSuccessMessage(res) {
   res.json({
     ok: true,
-    message: 'Se houver uma conta correspondente, o link de recuperacao sera enviado.'
+    message: 'Se houver uma conta correspondente, o link de recuperação será enviado.'
   });
 }
 
@@ -72,7 +72,7 @@ async function queuePasswordResetEmail({ user, emails }) {
   if (!uniqueEmails.length) return;
   const missingMailerConfig = getMissingMailerConfig();
   if (missingMailerConfig.length || !env.appUrl) {
-    console.warn('Recuperacao de senha nao enviada por falta de configuracao SMTP/APP_URL.', {
+    console.warn('Recuperação de senha não enviada por falta de configuração SMTP/APP_URL.', {
       missingMailerConfig,
       hasAppUrl: !!env.appUrl
     });
@@ -93,7 +93,7 @@ async function queuePasswordResetEmail({ user, emails }) {
       ...(uniqueEmails.length > 1 ? { cc: uniqueEmails.slice(1) } : {}),
       ...template
     }).catch(error => {
-      console.error('Falha ao enviar e-mail de recuperacao de senha.', {
+      console.error('Falha ao enviar e-mail de recuperação de senha.', {
         userId: user.id,
         expiresAt,
         error: error?.message || error
@@ -152,7 +152,7 @@ router.post('/login', asyncHandler(async (req, res) => {
   }
 
   if (!user) {
-    return res.status(401).json({ error: 'Usuario ou senha invalidos.' });
+    return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
   }
 
   const session = await createSession(user.id, { rememberMe: !!data.rememberMe });
@@ -230,7 +230,7 @@ router.post('/reset-password', asyncHandler(async (req, res) => {
   const status = passwordResetTokenStatus(tokenRow);
 
   if (!status.valid) {
-    return res.status(400).json({ error: 'Token invalido, expirado ou ja utilizado.' });
+    return res.status(400).json({ error: 'Token inválido, expirado ou já utilizado.' });
   }
 
   const passwordHash = await hashPassword(data.password);
@@ -247,7 +247,7 @@ router.post('/reset-password', asyncHandler(async (req, res) => {
     });
 
     if (consume.count !== 1) {
-      const error = new Error('Token invalido, expirado ou ja utilizado.');
+      const error = new Error('Token inválido, expirado ou já utilizado.');
       error.status = 400;
       throw error;
     }
@@ -268,7 +268,7 @@ router.post('/change-password', requireAuth, asyncHandler(async (req, res) => {
   });
   const valid = await verifyPassword(data.currentPassword, currentUser.passwordHash);
   if (!valid) {
-    return res.status(400).json({ error: 'Senha atual invalida.' });
+    return res.status(400).json({ error: 'Senha atual inválida.' });
   }
 
   const passwordHash = await hashPassword(data.newPassword);

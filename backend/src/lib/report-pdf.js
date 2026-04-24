@@ -7,7 +7,7 @@ import { formatCnpj } from './cnpj.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const logoPath = path.resolve(__dirname, '../../assets/filtrovali-logo.png');
+const logoPath = path.resolve(__dirname, '../../assets/Logo/LOGO_COLORIDO.png');
 
 const PAGE = { width: 595.28, height: 841.89 };
 const MARGIN = { left: 28, right: 28, top: 28, bottom: 24 };

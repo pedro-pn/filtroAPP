@@ -50,7 +50,7 @@ function queueApprovedReportNotification(report) {
 
   const missingMailerConfig = getMissingMailerConfig();
   if (missingMailerConfig.length) {
-    console.warn('SMTP nao configurado; notificacao de aprovacao nao enviada.', missingMailerConfig.join(', '));
+    console.warn('SMTP não configurado; notificação de aprovação não enviada.', missingMailerConfig.join(', '));
     return;
   }
 
@@ -70,7 +70,7 @@ function queueApprovedReportNotification(report) {
       ...(cc.length ? { cc } : {}),
       ...template
     }).catch(error => {
-      console.error('Falha ao enviar notificacao de aprovacao do relatorio.', {
+      console.error('Falha ao enviar notificação de aprovação do relatório.', {
         reportId: report.id,
         projectId: report.projectId,
         error: error?.message || error
@@ -143,7 +143,7 @@ function canClientSeeReport(report, allReportsById) {
 
 function assertReportMutable(report) {
   if (report.status === ReportStatus.SIGNED) {
-    const error = new Error('Relatorio assinado nao pode mais ser alterado.');
+    const error = new Error('Relatório assinado não pode mais ser alterado.');
     error.statusCode = 409;
     throw error;
   }
@@ -180,7 +180,7 @@ async function generateReportDocxAsset(report) {
 function buildZapSignWebhookUrl() {
   const base = String(env.appUrl || '').replace(/\/+$/, '');
   if (!base) {
-    const error = new Error('APP_URL nao configurado para receber webhook do ZapSign.');
+    const error = new Error('APP_URL não configurado para receber webhook do ZapSign.');
     error.statusCode = 503;
     throw error;
   }
@@ -203,7 +203,7 @@ function resolveZapSignSigner(report, authUser) {
 
 async function resolveSignedPdf(report) {
   if (!report?.zapsignDocToken) {
-    const error = new Error('Relatorio assinado sem referencia do documento ZapSign.');
+    const error = new Error('Relatório assinado sem referência do documento ZapSign.');
     error.statusCode = 409;
     throw error;
   }
@@ -214,7 +214,7 @@ async function resolveSignedPdf(report) {
     const details = await getZapSignDocument(report.zapsignDocToken);
     signedUrl = String(details?.signedFile || '').trim();
     if (!signedUrl) {
-      const error = new Error('Documento assinado ainda nao disponivel na ZapSign.');
+      const error = new Error('Documento assinado ainda não disponível na ZapSign.');
       error.statusCode = 409;
       throw error;
     }
@@ -265,13 +265,13 @@ async function fetchReportsForIds(ids) {
 
 async function assertBatchAccess(auth, reports) {
   if (!reports.length) {
-    const error = new Error('Nenhum relatorio selecionado.');
+    const error = new Error('Nenhum relatório selecionado.');
     error.statusCode = 400;
     throw error;
   }
 
   if (reports.some(report => !canAccessReport(auth, report))) {
-    const error = new Error('Voce nao tem permissao para acessar um ou mais relatorios selecionados.');
+    const error = new Error('Você não tem permissão para acessar um ou mais relatórios selecionados.');
     error.statusCode = 403;
     throw error;
   }
@@ -284,7 +284,7 @@ async function assertBatchAccess(auth, reports) {
     });
     const byId = new Map(projectReports.map(report => [report.id, report]));
     if (reports.some(report => !canClientSeeReport(report, byId))) {
-      const error = new Error('Voce nao tem permissao para acessar um ou mais relatorios selecionados.');
+      const error = new Error('Você não tem permissão para acessar um ou mais relatórios selecionados.');
       error.statusCode = 403;
       throw error;
     }
@@ -1301,7 +1301,7 @@ router.post('/batch-download', requireAuth, asyncHandler(async (req, res) => {
   const ids = uniqueIds(data.ids);
   const reports = await fetchReportsForIds(ids);
   if (reports.length !== ids.length) {
-    return res.status(404).json({ error: 'Um ou mais relatorios selecionados nao foram encontrados.' });
+    return res.status(404).json({ error: 'Um ou mais relatórios selecionados não foram encontrados.' });
   }
   await assertBatchAccess(req.auth, reports);
 
@@ -1329,16 +1329,16 @@ router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, re
   const ids = uniqueIds(data.ids);
   const reports = await fetchReportsForIds(ids);
   if (reports.length !== ids.length) {
-    return res.status(404).json({ error: 'Um ou mais relatorios selecionados nao foram encontrados.' });
+    return res.status(404).json({ error: 'Um ou mais relatórios selecionados não foram encontrados.' });
   }
   await assertBatchAccess(req.auth, reports);
 
   const projectIds = Array.from(new Set(reports.map(report => report.projectId).filter(Boolean)));
   if (projectIds.length !== 1) {
-    return res.status(409).json({ error: 'A assinatura em lote do cliente exige relatorios do mesmo projeto.' });
+    return res.status(409).json({ error: 'A assinatura em lote do cliente exige relatórios do mesmo projeto.' });
   }
   if (reports.some(report => report.reportType !== ReportType.RDO || report.status !== ReportStatus.APPROVED || report.status === ReportStatus.SIGNED)) {
-    return res.status(409).json({ error: 'A assinatura em lote aceita apenas RDOs aprovados pelo gestor e ainda nao assinados.' });
+    return res.status(409).json({ error: 'A assinatura em lote aceita apenas RDOs aprovados pelo gestor e ainda não assinados.' });
   }
 
   const commentsById = normalizeCommentMap(data.commentsById);
@@ -1397,7 +1397,7 @@ router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, re
   });
 
   if (!mainResult.docToken || !mainResult.signerUrl) {
-    const error = new Error('A ZapSign nao retornou os dados esperados para a assinatura em lote.');
+    const error = new Error('A ZapSign não retornou os dados esperados para a assinatura em lote.');
     error.statusCode = 502;
     throw error;
   }
@@ -1415,7 +1415,7 @@ router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, re
       fileName: reportPdfFileName(report, file)
     });
     if (!extra.docToken) {
-      const error = new Error('A ZapSign nao retornou o token de um documento extra da assinatura em lote.');
+      const error = new Error('A ZapSign não retornou o token de um documento extra da assinatura em lote.');
       error.statusCode = 502;
       throw error;
     }
@@ -1451,7 +1451,7 @@ router.get('/:id', requireAuth, asyncHandler(async (req, res) => {
   });
 
   if (!canAccessReport(req.auth, item)) {
-    return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+    return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (req.auth.user.role === 'CLIENT') {
     const projectReports = await prisma.report.findMany({
@@ -1460,7 +1460,7 @@ router.get('/:id', requireAuth, asyncHandler(async (req, res) => {
     });
     const byId = new Map(projectReports.map(report => [report.id, report]));
     if (!canClientSeeReport(item, byId)) {
-      return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+      return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
     }
   }
 
@@ -1474,7 +1474,7 @@ router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
   });
 
   if (!canAccessReport(req.auth, item)) {
-    return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+    return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (req.auth.user.role === 'CLIENT') {
     const projectReports = await prisma.report.findMany({
@@ -1483,7 +1483,7 @@ router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
     });
     const byId = new Map(projectReports.map(report => [report.id, report]));
     if (!canClientSeeReport(item, byId)) {
-      return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+      return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
     }
   }
 
@@ -1508,7 +1508,7 @@ router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
   });
 
   if (!canAccessReport(req.auth, item)) {
-    return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+    return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
 
   if (req.auth.user.role !== 'MANAGER') {
@@ -1528,7 +1528,7 @@ router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
 
 router.post('/', requireAuth, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
-    return res.status(403).json({ error: `A conta ${req.auth.user.role} nao pode criar relatorios.` });
+    return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode criar relatórios.` });
   }
   const data = schema.parse(req.body);
   const collaboratorIds = uniqueIds(data.collaboratorIds);
@@ -1614,7 +1614,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
 
 router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
-    return res.status(403).json({ error: `A conta ${req.auth.user.role} nao pode editar relatorios.` });
+    return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode editar relatórios.` });
   }
   const data = updateSchema.parse(req.body);
   const collaboratorIds = uniqueIds(data.collaboratorIds);
@@ -1719,10 +1719,10 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
 
 router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
-    return res.status(403).json({ error: `A conta ${req.auth.user.role} nao pode desfazer edicoes de relatorios.` });
+    return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode desfazer edições de relatórios.` });
   }
   if (req.auth.user.role === 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o colaborador pode desfazer a propria edicao pendente.' });
+    return res.status(403).json({ error: 'Apenas o colaborador pode desfazer a própria edição pendente.' });
   }
 
   const existing = await prisma.report.findUniqueOrThrow({
@@ -1732,12 +1732,12 @@ router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
   assertReportMutable(existing);
 
   if (!canAccessReport(req.auth, existing)) {
-    return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+    return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
 
   const originalSnapshot = cloneJson(existing.specialConditions?.__editOriginalSnapshot);
   if (!originalSnapshot) {
-    return res.status(400).json({ error: 'Este relatorio nao possui uma edicao pendente para desfazer.' });
+    return res.status(400).json({ error: 'Este relatório não possui uma edição pendente para desfazer.' });
   }
 
   const item = await prisma.$transaction(async tx => restoreReportFromSnapshot(tx, req.params.id, originalSnapshot));
@@ -1758,7 +1758,7 @@ router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
 
 router.post('/:id/discard-edit', requireAuth, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode descartar uma edicao pendente.' });
+    return res.status(403).json({ error: 'Apenas o gestor pode descartar uma edição pendente.' });
   }
 
   const existing = await prisma.report.findUniqueOrThrow({
@@ -1769,7 +1769,7 @@ router.post('/:id/discard-edit', requireAuth, asyncHandler(async (req, res) => {
 
   const originalSnapshot = cloneJson(existing.specialConditions?.__editOriginalSnapshot);
   if (!originalSnapshot) {
-    return res.status(400).json({ error: 'Este relatorio nao possui uma edicao pendente para descartar.' });
+    return res.status(400).json({ error: 'Este relatório não possui uma edição pendente para descartar.' });
   }
 
   const item = await prisma.$transaction(async tx => restoreReportFromSnapshot(tx, req.params.id, originalSnapshot));
@@ -1790,7 +1790,7 @@ router.post('/:id/discard-edit', requireAuth, asyncHandler(async (req, res) => {
 
 router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode excluir relatorios.' });
+    return res.status(403).json({ error: 'Apenas o gestor pode excluir relatórios.' });
   }
 
   const item = await prisma.report.findUniqueOrThrow({
@@ -1802,7 +1802,7 @@ router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
   const originalSnapshot = cloneJson(item.specialConditions?.__editOriginalSnapshot);
   if (originalSnapshot && item.status !== ReportStatus.APPROVED) {
     return res.status(409).json({
-      error: 'Nao e permitido excluir o relatorio a partir de uma edicao pendente. Use a opcao de descartar edicao.'
+      error: 'Não é permitido excluir o relatório a partir de uma edição pendente. Use a opção de descartar edição.'
     });
   }
 
@@ -1841,7 +1841,7 @@ router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
 
 router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
-    return res.status(403).json({ error: 'Apenas o gestor pode revisar relatorios.' });
+    return res.status(403).json({ error: 'Apenas o gestor pode revisar relatórios.' });
   }
 
   const data = statusSchema.parse(req.body);
@@ -1851,7 +1851,7 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
     select: { status: true, specialConditions: true }
   });
   if (previous?.status === ReportStatus.SIGNED) {
-    return res.status(409).json({ error: 'Relatorio assinado nao pode mais ser alterado.' });
+    return res.status(409).json({ error: 'Relatório assinado não pode mais ser alterado.' });
   }
 
   const item = await prisma.$transaction(async tx => {
@@ -1912,16 +1912,16 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
   });
 
   if (!canAccessReport(req.auth, existing)) {
-    return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+    return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (existing.reportType !== ReportType.RDO) {
     return res.status(400).json({ error: 'Apenas RDO pode iniciar assinatura digital.' });
   }
   if (existing.status === ReportStatus.SIGNED) {
-    return res.status(409).json({ error: 'Relatorio ja esta assinado.' });
+    return res.status(409).json({ error: 'Relatório já está assinado.' });
   }
   if (existing.status !== ReportStatus.APPROVED) {
-    return res.status(409).json({ error: 'Somente relatorios aprovados pelo gestor podem ser assinados.' });
+    return res.status(409).json({ error: 'Somente relatórios aprovados pelo gestor podem ser assinados.' });
   }
   const comment = String(data.comment || '').trim();
 
@@ -1978,12 +1978,12 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
   });
 
   if (!zapsign.docToken) {
-    const error = new Error('A ZapSign nao retornou o token do documento.');
+    const error = new Error('A ZapSign não retornou o token do documento.');
     error.statusCode = 502;
     throw error;
   }
   if (!zapsign.signerUrl) {
-    const error = new Error('A ZapSign nao retornou o link de assinatura.');
+    const error = new Error('A ZapSign não retornou o link de assinatura.');
     error.statusCode = 502;
     throw error;
   }
@@ -2009,7 +2009,7 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
 
 router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'CLIENT') {
-    return res.status(403).json({ error: 'Apenas o cliente pode registrar esta acao.' });
+    return res.status(403).json({ error: 'Apenas o cliente pode registrar esta ação.' });
   }
 
   const data = clientReviewSchema.parse(req.body);
@@ -2019,19 +2019,19 @@ router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => 
   });
 
   if (!canAccessReport(req.auth, existing)) {
-    return res.status(403).json({ error: 'Voce nao tem permissao para acessar este relatorio.' });
+    return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (existing.reportType !== ReportType.RDO) {
     return res.status(400).json({ error: 'Apenas RDO pode receber assinatura do cliente.' });
   }
   if (existing.status === ReportStatus.SIGNED) {
-    return res.status(409).json({ error: 'Relatorio ja esta assinado.' });
+    return res.status(409).json({ error: 'Relatório já está assinado.' });
   }
   if (existing.status !== ReportStatus.APPROVED) {
-    return res.status(409).json({ error: 'Somente relatorios aprovados pelo gestor podem ser avaliados pelo cliente.' });
+    return res.status(409).json({ error: 'Somente relatórios aprovados pelo gestor podem ser avaliados pelo cliente.' });
   }
   if (data.action === 'APPROVED' && isZapSignEnabled()) {
-    return res.status(409).json({ error: 'Use a assinatura digital do ZapSign para concluir a aprovacao do relatorio.' });
+    return res.status(409).json({ error: 'Use a assinatura digital do ZapSign para concluir a aprovação do relatório.' });
   }
 
   const item = await prisma.$transaction(async tx => {

@@ -30,7 +30,7 @@ router.post('/', asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
   const match = data.dataUrl.match(/^data:(.+);base64,(.+)$/);
   if (!match) {
-    return res.status(400).json({ error: 'Formato de imagem invalido.' });
+    return res.status(400).json({ error: 'Formato de imagem inválido.' });
   }
 
   const ext = path.extname(data.fileName) || '';

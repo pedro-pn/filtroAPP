@@ -76,7 +76,7 @@ const protectedRelatorios = async (req, res, next) => {
   try {
     const session = await findSessionExpiryWithRetry(hashToken(token));
     if (!session || session.expiresAt <= new Date()) {
-      return res.status(401).json({ error: 'Sessao invalida ou expirada.' });
+      return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
     }
   } catch {
     return res.status(500).json({ error: 'Erro ao verificar sessao.' });
