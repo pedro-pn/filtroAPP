@@ -68,3 +68,23 @@ docker compose -f docker-compose.prod.yml exec backend npx prisma db seed
 O `nginx` já está preparado para servir o domínio final
 `relatorios.filtrovali.com.br`, mas o certificado ainda precisa ser emitido
 no servidor antes do `443` ficar operacional.
+
+## Backup
+
+Não existe rotina automática de backup embutida no compose de produção.
+Os dados ficam persistidos localmente nos volumes Docker:
+
+- `filtrovali_pgdata`
+- `filtrovali_relatorios`
+
+Para backup operacional do servidor, use:
+
+- `deploy/backup-prod.sh`
+- `deploy/BACKUP.md`
+
+O fluxo recomendado é:
+
+1. `pg_dump` do PostgreSQL
+2. compactação do volume `filtrovali_relatorios`
+3. cópia para S3 ou outro destino externo
+4. snapshot periódico do disco EBS
