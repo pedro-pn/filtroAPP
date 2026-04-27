@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { downloadReportPdf } from '../../api/reports';
 import { useAuth } from '../../auth/AuthContext';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
+import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useReportMutations, useReports } from '../../hooks/useReports';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -33,6 +34,7 @@ export function ClientPage() {
   const reportsQuery = useReports();
   const reportMutations = useReportMutations();
   const [message, setMessage] = useState<string | null>(null);
+  const [rejectReport, setRejectReport] = useState<ReportSummary | null>(null);
 
   const reportSummary = useMemo(() => {
     const reports = reportsQuery.data || [];
@@ -69,19 +71,15 @@ export function ClientPage() {
     }
   }
 
-  async function handleReject(report: ReportSummary) {
+  async function handleReject(report: ReportSummary, comment: string) {
     setMessage(null);
-    const comment = window.prompt(TEXT.rejectReason)?.trim() || null;
-    if (!comment) {
-      setMessage(TEXT.rejectReasonRequired);
-      return;
-    }
 
     try {
       await reportMutations.clientReview.mutateAsync({
         id: report.id,
         payload: { action: 'REJECTED', comment }
       });
+      setRejectReport(null);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : TEXT.reviewError);
     }
@@ -98,7 +96,7 @@ export function ClientPage() {
             <button className="primary-button" type="button" onClick={() => void handleRequestSignature(report)}>
               {TEXT.approveSignature}
             </button>
-            <button className="secondary-button" type="button" onClick={() => void handleReject(report)}>
+            <button className="secondary-button" type="button" onClick={() => setRejectReport(report)}>
               {TEXT.reject}
             </button>
           </>
@@ -150,6 +148,19 @@ export function ClientPage() {
         {(reportsQuery.data || []).map(report => (
           <ReportSummaryCard key={report.id} report={report} actions={renderClientActions(report)} />
         ))}
+        <ReasonDialog
+          open={!!rejectReport}
+          title={TEXT.reject}
+          description={TEXT.rejectReason}
+          label="Motivo"
+          confirmLabel={TEXT.reject}
+          requiredMessage={TEXT.rejectReasonRequired}
+          isSubmitting={reportMutations.clientReview.isPending}
+          onCancel={() => setRejectReport(null)}
+          onConfirm={reason => {
+            if (rejectReport) void handleReject(rejectReport, reason);
+          }}
+        />
       </main>
     </Shell>
   );

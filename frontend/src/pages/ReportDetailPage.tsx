@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
+import { downloadReportDocx, downloadReportPdf } from '../api/reports';
 import { useAuth } from '../auth/AuthContext';
+import type { UploadedFile } from '../api/uploads';
 import { useCollaborators } from '../hooks/useCollaborators';
 import { useEquipment } from '../hooks/useEquipment';
 import { useProjects } from '../hooks/useProjects';
 import { useReport, useReportMutations } from '../hooks/useReports';
 import { Shell } from '../layout/Shell';
 import { TopBar } from '../layout/TopBar';
+import { ReasonDialog } from '../components/ui/ReasonDialog';
+import { UploadField } from '../components/ui/UploadField';
 import type { ReportPayload, ReportStatus, ReportSummary } from '../types/domain';
+import { downloadBlob } from '../utils/download';
 
 const serviceTypeOptions = ['LIMPEZA', 'FLUSHING', 'PRESSAO', 'FILTRAGEM', 'INSPECAO', 'OUTRO'];
 
@@ -19,6 +24,7 @@ const TEXT = {
   code: 'C\u00f3digo',
   description: 'Descri\u00e7\u00e3o do dia',
   details: 'Detalhe do relat\u00f3rio',
+  downloadError: 'N\u00e3o foi poss\u00edvel baixar o relat\u00f3rio.',
   finalization: 'Finaliza\u00e7\u00e3o',
   generalInfo: 'Informa\u00e7\u00f5es gerais',
   interval: 'Intervalo',
@@ -29,7 +35,14 @@ const TEXT = {
   noService: 'Nenhum servi\u00e7o adicionado.',
   project: 'Projeto',
   reject: 'Devolver',
+  rejectClient: 'Reprovar',
+  rejectClientPrompt: 'Informe o motivo da reprova\u00e7\u00e3o do relat\u00f3rio:',
+  rejectClientRequired: 'Informe um motivo para reprovar o relat\u00f3rio.',
+  rejectPrompt: 'Informe o motivo da devolu\u00e7\u00e3o do relat\u00f3rio:',
+  rejectRequired: 'Informe um motivo para devolver o relat\u00f3rio.',
   reportSummary: 'Resumo do relat\u00f3rio',
+  requestSignature: 'Assinar',
+  requestSignatureError: 'N\u00e3o foi poss\u00edvel solicitar a assinatura.',
   returnedAt: 'Devolvido em',
   save: 'Salvar altera\u00e7\u00f5es',
   saved: 'Relat\u00f3rio atualizado.',
@@ -37,11 +50,14 @@ const TEXT = {
   service: 'Servi\u00e7o',
   services: 'Servi\u00e7os',
   signedLocked: 'Relat\u00f3rio assinado. Os dados est\u00e3o bloqueados para edi\u00e7\u00e3o.',
+  signatureRequested: 'Assinatura solicitada. Abra o link para concluir.',
   team: 'Equipe',
   technicalPayload: 'Carga t\u00e9cnica',
   time: 'Hor\u00e1rio',
   updateError: 'N\u00e3o foi poss\u00edvel atualizar o relat\u00f3rio.'
 };
+
+const serviceUploadLabel = 'Fotos do servi\u00e7o';
 
 interface RdoServiceForm {
   id: string;
@@ -61,6 +77,7 @@ interface RdoFormState {
   noturno: boolean;
   overtimeReason: string;
   dailyDescription: string;
+  generalUploads: UploadedFile[];
   services: RdoServiceForm[];
 }
 
@@ -95,6 +112,12 @@ function getString(value: unknown) {
   return typeof value === 'string' ? value : '';
 }
 
+function asUploadedFiles(value: unknown): UploadedFile[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is UploadedFile => Boolean(item) && typeof item === 'object' && typeof (item as UploadedFile).url === 'string')
+    : [];
+}
+
 function serviceId() {
   return `svc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -118,6 +141,7 @@ function reportToForm(report: ReportSummary): RdoFormState {
     noturno: Boolean(noturnoDetails.enabled || nightCollaboratorIds.length),
     overtimeReason: report.overtimeReason || '',
     dailyDescription: report.dailyDescription || '',
+    generalUploads: asUploadedFiles(specialConditions.generalUploads),
     services: (report.services || []).map(service => ({
       id: service.id || serviceId(),
       type: service.serviceType,
@@ -147,6 +171,7 @@ function buildPayload(report: ReportSummary, form: RdoFormState): Omit<ReportPay
     specialConditions: {
       ...asRecord(report.specialConditions),
       standby: form.standby,
+      generalUploads: form.generalUploads,
       noturnoDetails: {
         enabled: form.noturno,
         collaboratorIds: form.nightCollaboratorIds
@@ -176,6 +201,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const [form, setForm] = useState<RdoFormState>(() => reportToForm(report));
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const readOnly = report.status === 'SIGNED';
 
   useEffect(() => {
@@ -229,6 +255,21 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     setForm(current => ({ ...current, services: current.services.filter(service => service.id !== id) }));
   }
 
+  function serviceUploads(data: Record<string, unknown>): UploadedFile[] {
+    const groups = Array.isArray(data.__uploads__) ? data.__uploads__ : [];
+    const group = groups.find(item => item && typeof item === 'object' && (item as { label?: unknown }).label === serviceUploadLabel);
+    const files = group && typeof group === 'object' ? (group as { files?: unknown }).files : [];
+    return asUploadedFiles(files);
+  }
+
+  function updateServiceUploads(serviceId: string, files: UploadedFile[]) {
+    updateService(serviceId, {
+      data: {
+        __uploads__: files.length ? [{ label: serviceUploadLabel, files }] : []
+      }
+    });
+  }
+
   async function handleSave() {
     if (readOnly) return;
     setMessage(null);
@@ -242,13 +283,14 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     }
   }
 
-  async function handleStatus(status: Extract<ReportStatus, 'APPROVED' | 'RETURNED'>) {
+  async function handleStatus(status: Extract<ReportStatus, 'APPROVED' | 'RETURNED'>, reviewNotes?: string | null) {
     if (readOnly) return;
     setMessage(null);
     setError(null);
 
     try {
-      await reportMutations.updateStatus.mutateAsync({ id: report.id, payload: { status } });
+      await reportMutations.updateStatus.mutateAsync({ id: report.id, payload: { status, reviewNotes } });
+      if (status === 'RETURNED') setReturnDialogOpen(false);
       setMessage(status === 'APPROVED' ? 'Relat\u00f3rio aprovado.' : 'Relat\u00f3rio devolvido.');
     } catch (err) {
       setError(err instanceof Error ? err.message : TEXT.updateError);
@@ -471,6 +513,13 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                       onChange={event => updateService(service.id, { data: { notes: event.target.value } })}
                     />
                   </div>
+                  <UploadField
+                    label={serviceUploadLabel}
+                    value={serviceUploads(service.data)}
+                    projectId={form.projectId}
+                    disabled={readOnly}
+                    onChange={files => updateServiceUploads(service.id, files)}
+                  />
                 </div>
               </article>
             ))}
@@ -502,6 +551,13 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               onChange={event => setField('dailyDescription', event.target.value)}
             />
           </div>
+          <UploadField
+            label="Fotos de registro"
+            value={form.generalUploads}
+            projectId={form.projectId}
+            disabled={readOnly}
+            onChange={files => setField('generalUploads', files)}
+          />
         </div>
         {!readOnly ? (
           <div className="admin-form-actions" style={{ marginTop: 14 }}>
@@ -509,7 +565,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               className="secondary-button"
               type="button"
               disabled={reportMutations.updateStatus.isPending}
-              onClick={() => void handleStatus('RETURNED')}
+              onClick={() => setReturnDialogOpen(true)}
             >
               {TEXT.reject}
             </button>
@@ -531,8 +587,106 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             </button>
           </div>
         ) : null}
+        <ReasonDialog
+          open={returnDialogOpen}
+          title={TEXT.reject}
+          description={TEXT.rejectPrompt}
+          label="Motivo"
+          confirmLabel={TEXT.reject}
+          requiredMessage={TEXT.rejectRequired}
+          isSubmitting={reportMutations.updateStatus.isPending}
+          onCancel={() => setReturnDialogOpen(false)}
+          onConfirm={reason => void handleStatus('RETURNED', reason)}
+        />
       </section>
     </>
+  );
+}
+
+function ReportDetailActions({ report, role }: { report: ReportSummary; role?: string }) {
+  const reportMutations = useReportMutations();
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [clientRejectOpen, setClientRejectOpen] = useState(false);
+  const canDownloadDocx = role === 'MANAGER';
+  const canClientSign = role === 'CLIENT' && report.reportType === 'RDO' && report.status === 'APPROVED';
+
+  async function handleDownload(format: 'pdf' | 'docx') {
+    setMessage(null);
+    setError(null);
+    try {
+      const blob = format === 'pdf' ? await downloadReportPdf(report.id) : await downloadReportDocx(report.id);
+      downloadBlob(blob, `${report.reportType}_${report.sequenceNumber || report.id}.${format}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : TEXT.downloadError);
+    }
+  }
+
+  async function handleRequestSignature() {
+    setMessage(null);
+    setError(null);
+    try {
+      const response = await reportMutations.requestSignature.mutateAsync({ id: report.id });
+      setMessage(TEXT.signatureRequested);
+      if (response.signUrl) window.open(response.signUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : TEXT.requestSignatureError);
+    }
+  }
+
+  async function handleClientReject(comment: string) {
+    setMessage(null);
+    setError(null);
+
+    try {
+      await reportMutations.clientReview.mutateAsync({
+        id: report.id,
+        payload: { action: 'REJECTED', comment }
+      });
+      setClientRejectOpen(false);
+      setMessage('Avalia\u00e7\u00e3o registrada.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : TEXT.updateError);
+    }
+  }
+
+  return (
+    <section className="page-card">
+      <div className="section-title">A\u00e7\u00f5es</div>
+      {error ? <div className="inline-error">{error}</div> : null}
+      {message ? <div className="inline-success">{message}</div> : null}
+      <div className="admin-form-actions" style={{ marginTop: error || message ? 12 : 0 }}>
+        <button className="secondary-button" type="button" onClick={() => void handleDownload('pdf')}>
+          PDF
+        </button>
+        {canDownloadDocx ? (
+          <button className="secondary-button" type="button" onClick={() => void handleDownload('docx')}>
+            DOCX
+          </button>
+        ) : null}
+        {canClientSign ? (
+          <>
+            <button className="primary-button" type="button" onClick={() => void handleRequestSignature()}>
+              {TEXT.requestSignature}
+            </button>
+            <button className="secondary-button" type="button" onClick={() => setClientRejectOpen(true)}>
+              {TEXT.rejectClient}
+            </button>
+          </>
+        ) : null}
+      </div>
+      <ReasonDialog
+        open={clientRejectOpen}
+        title={TEXT.rejectClient}
+        description={TEXT.rejectClientPrompt}
+        label="Motivo"
+        confirmLabel={TEXT.rejectClient}
+        requiredMessage={TEXT.rejectClientRequired}
+        isSubmitting={reportMutations.clientReview.isPending}
+        onCancel={() => setClientRejectOpen(false)}
+        onConfirm={reason => void handleClientReject(reason)}
+      />
+    </section>
   );
 }
 
@@ -613,7 +767,10 @@ export function ReportDetailPage() {
         ) : null}
 
         {report ? (
-          showManagerEditor ? <ManagerRdoEditor report={report} /> : <ReportSummaryView report={report} />
+          <>
+            <ReportDetailActions report={report} role={user?.role} />
+            {showManagerEditor ? <ManagerRdoEditor report={report} /> : <ReportSummaryView report={report} />}
+          </>
         ) : null}
 
         {!reportQuery.isLoading && !reportQuery.isError && !report ? (

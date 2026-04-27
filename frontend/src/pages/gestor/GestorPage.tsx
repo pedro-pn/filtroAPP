@@ -5,6 +5,7 @@ import type { UserRole } from '../../types/auth';
 import { downloadReportDocx, downloadReportPdf } from '../../api/reports';
 import { useAuth } from '../../auth/AuthContext';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
+import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useCollaboratorMutations, useCollaborators } from '../../hooks/useCollaborators';
 import { useCounterMutations, useCounters } from '../../hooks/useCounters';
 import { useEquipment, useEquipmentMutations } from '../../hooks/useEquipment';
@@ -326,6 +327,7 @@ export function GestorPage() {
   const [counterEditingId, setCounterEditingId] = useState<string | null>(null);
   const [counterMessage, setCounterMessage] = useState<string | null>(null);
   const [reportMessage, setReportMessage] = useState<string | null>(null);
+  const [returnReport, setReturnReport] = useState<ReportSummary | null>(null);
 
   const reportsQuery = useReports();
   const activeProjectsQuery = useProjects(true);
@@ -689,23 +691,15 @@ export function GestorPage() {
     }
   }
 
-  async function handleReportStatus(report: ReportSummary, status: 'APPROVED' | 'RETURNED') {
+  async function handleReportStatus(report: ReportSummary, status: 'APPROVED' | 'RETURNED', reviewNotes?: string | null) {
     setReportMessage(null);
-    const reviewNotes =
-      status === 'RETURNED'
-        ? window.prompt('Informe o motivo da devolu\u00e7\u00e3o do relat\u00f3rio:')?.trim() || null
-        : null;
-
-    if (status === 'RETURNED' && !reviewNotes) {
-      setReportMessage('Informe um motivo para devolver o relat\u00f3rio.');
-      return;
-    }
 
     try {
       await reportMutations.updateStatus.mutateAsync({
         id: report.id,
         payload: { status, reviewNotes }
       });
+      if (status === 'RETURNED') setReturnReport(null);
       setReportMessage(status === 'APPROVED' ? 'Relat\u00f3rio aprovado.' : 'Relat\u00f3rio devolvido.');
     } catch (error) {
       setReportMessage(error instanceof Error ? error.message : 'N\u00e3o foi poss\u00edvel revisar o relat\u00f3rio.');
@@ -741,7 +735,7 @@ export function GestorPage() {
           </button>
         ) : null}
         {canReview && report.status !== 'RETURNED' ? (
-          <button className="secondary-button" type="button" onClick={() => void handleReportStatus(report, 'RETURNED')}>
+          <button className="secondary-button" type="button" onClick={() => setReturnReport(report)}>
             Devolver
           </button>
         ) : null}
@@ -773,6 +767,19 @@ export function GestorPage() {
         {visibleReports.map(report => (
           <ReportSummaryCard key={report.id} report={report} actions={renderManagerReportActions(report)} />
         ))}
+        <ReasonDialog
+          open={!!returnReport}
+          title="Devolver relat\u00f3rio"
+          description="Informe o motivo da devolu\u00e7\u00e3o do relat\u00f3rio."
+          label="Motivo"
+          confirmLabel="Devolver"
+          requiredMessage="Informe um motivo para devolver o relat\u00f3rio."
+          isSubmitting={reportMutations.updateStatus.isPending}
+          onCancel={() => setReturnReport(null)}
+          onConfirm={reason => {
+            if (returnReport) void handleReportStatus(returnReport, 'RETURNED', reason);
+          }}
+        />
       </>
     );
   }

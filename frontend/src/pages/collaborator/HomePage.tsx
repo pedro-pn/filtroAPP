@@ -98,6 +98,7 @@ export function HomePage() {
       noturno: asBoolean(payload.noturno),
       overtimeReason: asString(payload.overtimeReason),
       dailyDescription: asString(payload.dailyDescription),
+      generalUploads: Array.isArray(payload.generalUploads) ? payload.generalUploads : [],
       services: asServices(payload.services)
     });
 

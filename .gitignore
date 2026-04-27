@@ -3,6 +3,10 @@ node_modules/
 .env.*
 dist/
 coverage/
+*.tsbuildinfo
+frontend/.vite/
+frontend/vite.config.js
+frontend/vite.config.d.ts
 backend/node_modules/
 backend/.env
 backend/prisma/dev.db

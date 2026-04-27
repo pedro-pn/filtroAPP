@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
+import { UploadField } from '../../components/ui/UploadField';
 import { useCollaborators } from '../../hooks/useCollaborators';
 import { useDraftMutations } from '../../hooks/useDrafts';
 import { useEquipment } from '../../hooks/useEquipment';
@@ -10,6 +11,7 @@ import { useReportMutations } from '../../hooks/useReports';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
+import type { UploadedFile } from '../../api/uploads';
 
 const serviceTypeOptions = ['LIMPEZA', 'FLUSHING', 'PRESSAO', 'FILTRAGEM', 'INSPECAO', 'OUTRO'];
 
@@ -30,6 +32,7 @@ const TEXT = {
   nightTeam: 'Equipe noturna',
   noService: 'Nenhum servi\u00e7o adicionado.',
   notes: 'Observa\u00e7\u00f5es',
+  photos: 'Fotos de registro',
   projectTimeRequired: 'Preencha projeto, data e hor\u00e1rios antes de enviar.',
   remove: 'Remover',
   saveDraft: 'Salvar rascunho',
@@ -42,6 +45,8 @@ const TEXT = {
   submit: 'Enviar relat\u00f3rio',
   team: 'Equipe'
 };
+
+const serviceUploadLabel = 'Fotos do servi\u00e7o';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -69,11 +74,13 @@ export function NewReportPage() {
     noturno,
     overtimeReason,
     dailyDescription,
+    generalUploads,
     services,
     setDraftId,
     setHeaderField,
     setCollaborators,
     setNightCollaborators,
+    setGeneralUploads,
     addService,
     updateServiceType,
     updateService,
@@ -122,8 +129,22 @@ export function NewReportPage() {
       noturno,
       overtimeReason,
       dailyDescription,
+      generalUploads,
       services
     };
+  }
+
+  function serviceUploads(data: Record<string, unknown>): UploadedFile[] {
+    const groups = Array.isArray(data.__uploads__) ? data.__uploads__ : [];
+    const group = groups.find(item => item && typeof item === 'object' && (item as { label?: unknown }).label === serviceUploadLabel);
+    const files = group && typeof group === 'object' ? (group as { files?: unknown }).files : [];
+    return Array.isArray(files) ? files.filter((item): item is UploadedFile => Boolean(item) && typeof item === 'object' && typeof (item as UploadedFile).url === 'string') : [];
+  }
+
+  function updateServiceUploads(serviceId: string, files: UploadedFile[]) {
+    updateService(serviceId, {
+      __uploads__: files.length ? [{ label: serviceUploadLabel, files }] : []
+    });
   }
 
   async function handleSaveDraft() {
@@ -189,6 +210,7 @@ export function NewReportPage() {
         dailyDescription: dailyDescription || null,
         specialConditions: {
           standby,
+          generalUploads,
           noturnoDetails: {
             enabled: noturno,
             collaboratorIds: nightCollaboratorIds
@@ -204,6 +226,7 @@ export function NewReportPage() {
           endTime: typeof service.data.endTime === 'string' ? service.data.endTime : null,
           finalized: true,
           extraData: {
+            ...service.data,
             notes: typeof service.data.notes === 'string' ? service.data.notes : ''
           }
         }))
@@ -429,6 +452,12 @@ export function NewReportPage() {
                         onChange={event => updateService(service.id, { notes: event.target.value })}
                       />
                     </div>
+                    <UploadField
+                      label={serviceUploadLabel}
+                      value={serviceUploads(service.data)}
+                      projectId={projectId}
+                      onChange={files => updateServiceUploads(service.id, files)}
+                    />
                   </div>
                 </article>
               ))}
@@ -458,6 +487,12 @@ export function NewReportPage() {
                 onChange={event => setHeaderField('dailyDescription', event.target.value)}
               />
             </div>
+            <UploadField
+              label={TEXT.photos}
+              value={generalUploads as UploadedFile[]}
+              projectId={projectId}
+              onChange={setGeneralUploads}
+            />
           </div>
           <div className="admin-form-actions" style={{ marginTop: 14 }}>
             <button className="secondary-button" type="button" onClick={handleSaveDraft}>

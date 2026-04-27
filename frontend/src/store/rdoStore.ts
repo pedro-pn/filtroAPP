@@ -19,10 +19,12 @@ interface RdoStoreState {
   noturno: boolean;
   overtimeReason: string;
   dailyDescription: string;
+  generalUploads: unknown[];
   services: RdoServiceDraft[];
   setHeaderField: <K extends keyof Pick<RdoStoreState, 'projectId' | 'reportDate' | 'arrivalTime' | 'departureTime' | 'lunchBreak' | 'standby' | 'noturno' | 'overtimeReason' | 'dailyDescription'>>(field: K, value: RdoStoreState[K]) => void;
   setCollaborators: (ids: string[]) => void;
   setNightCollaborators: (ids: string[]) => void;
+  setGeneralUploads: (uploads: unknown[]) => void;
   addService: (type: string, data?: Record<string, unknown>) => void;
   updateServiceType: (id: string, type: string) => void;
   updateService: (id: string, data: Record<string, unknown>) => void;
@@ -45,6 +47,7 @@ const initialState = {
   noturno: false,
   overtimeReason: '',
   dailyDescription: '',
+  generalUploads: [],
   services: [] as RdoServiceDraft[]
 };
 
@@ -58,6 +61,7 @@ export const useRdoStore = create<RdoStoreState>(set => ({
   setHeaderField: (field, value) => set(state => ({ ...state, [field]: value })),
   setCollaborators: collaboratorIds => set({ collaboratorIds }),
   setNightCollaborators: nightCollaboratorIds => set({ nightCollaboratorIds }),
+  setGeneralUploads: generalUploads => set({ generalUploads }),
   addService: (type, data = {}) =>
     set(state => ({
       services: [...state.services, { id: serviceId(), type, data }]
