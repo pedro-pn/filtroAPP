@@ -453,7 +453,7 @@ function buildReportUpdateFromSnapshot(project, snapshot) {
     services: {
       create: (snapshot.services || []).map(service => ({
         serviceType: service.serviceType,
-        equipmentId: null,
+        equipmentId: service.equipmentId || null,
         system: service.system || null,
         material: service.material || null,
         startTime: service.startTime || null,
@@ -1579,7 +1579,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
         services: {
           create: data.services.map(service => ({
             serviceType: service.serviceType,
-            equipmentId: null,
+            equipmentId: service.equipmentId || null,
             system: service.system || null,
             material: service.material || null,
             startTime: service.startTime || null,
@@ -1684,7 +1684,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
         services: {
           create: data.services.map(service => ({
             serviceType: service.serviceType,
-            equipmentId: null,
+            equipmentId: service.equipmentId || null,
             system: service.system || null,
             material: service.material || null,
             startTime: service.startTime || null,
