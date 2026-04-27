@@ -4553,6 +4553,9 @@ async function enviar(){
 }
 async function saveManagerDetail(id,action){
   var report=await apiFetch('/reports/'+id);
+  var sequenceField=document.getElementById('mgr-sequence-number');
+  var sequenceNumber=Number(String(sequenceField&&sequenceField.value||'').trim());
+  if(!Number.isInteger(sequenceNumber)||sequenceNumber<1){alert('Informe um número de relatório válido.');return;}
   var specialConditions=Object.assign({},report.specialConditions||{});
   specialConditions.standby=document.getElementById('mgr-standby-toggle').checked;
   specialConditions.noturno=document.getElementById('mgr-noturno-toggle').checked;
@@ -5015,6 +5018,9 @@ function collectManagerServices(){
 }
 async function saveManagerDetail(id,action){
   var report=await apiFetch('/reports/'+id);
+  var sequenceField=document.getElementById('mgr-sequence-number');
+  var sequenceNumber=Number(String(sequenceField&&sequenceField.value||'').trim());
+  if(!Number.isInteger(sequenceNumber)||sequenceNumber<1){alert('Informe um numero de relatorio valido.');return;}
   var specialConditions=Object.assign({},report.specialConditions||{});
   specialConditions.standby=document.getElementById('mgr-standby-toggle').checked;
   specialConditions.noturno=document.getElementById('mgr-noturno-toggle').checked;
@@ -5024,6 +5030,7 @@ async function saveManagerDetail(id,action){
   var payload={
     projectId: document.getElementById('mgr-project-id').value,
     reportType: report.reportType,
+    sequenceNumber: sequenceNumber,
     reportDate: document.getElementById('mgr-report-date').value,
     arrivalTime: document.getElementById('mgr-arrival').value,
     departureTime: document.getElementById('mgr-departure').value,
@@ -5334,6 +5341,7 @@ function reportToEditablePayload(report, servicesOverride){
   return {
     projectId: report.projectId,
     reportType: report.reportType,
+    sequenceNumber: report.sequenceNumber == null ? undefined : Number(report.sequenceNumber),
     reportDate: String(report.reportDate).slice(0,10),
     arrivalTime: report.arrivalTime,
     departureTime: report.departureTime,
@@ -8828,14 +8836,22 @@ window.__legacyBootstrapped = false;
   }
   async function saveReportSequence(id){
     var field=document.getElementById('det-sequence-number');
-    var value=Math.max(1,Number(field&&field.value)||0);
-    if(!value){alert('Informe um número válido.');return;}
-    var updated=await apiFetch('/reports/'+id+'/sequence',{method:'PATCH',body:JSON.stringify({sequenceNumber:value})});
-    await refreshDbFromApi();
-    await refreshReportsCache();
-    renderGestor();
-    await openReportDetail((updated&&updated.id)||id,'gestor');
-    showToast('Número do relatório atualizado.');
+    var raw=String(field&&field.value||'').trim();
+    var value=Number(raw);
+    if(!Number.isInteger(value)||value<1){alert('Informe um número válido.');return;}
+    try{
+      var updated=await apiFetch('/reports/'+id+'/sequence',{method:'PATCH',body:JSON.stringify({sequenceNumber:value})});
+      if(updated&&updated.id){
+        reportsCache=reportsCache.map(function(report){return report.id===updated.id?updated:report;});
+      }
+      await refreshDbFromApi();
+      await refreshReportsCache();
+      renderGestor();
+      await openReportDetail((updated&&updated.id)||id,'gestor');
+      showToast('Número do relatório atualizado.');
+    }catch(err){
+      alert('Erro ao salvar número do relatório: '+(err&&err.message?err.message:err));
+    }
   }
   window.saveReportSequence=saveReportSequence;
   openReportDetail=async function(id,origin){
