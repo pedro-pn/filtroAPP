@@ -2266,6 +2266,12 @@ async function refreshUsersCache(){
   usersCache=await apiFetch('/users');
   return usersCache;
 }
+function updateReportInCache(report){
+  if(!report||!report.id)return;
+  var idx=(reportsCache||[]).findIndex(function(r){return r.id===report.id;});
+  if(idx>=0)reportsCache[idx]=report;
+  else reportsCache.unshift(report);
+}
 function renderGestor(){
   var c=document.getElementById('gestor-content');if(!c)return;
   var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED';});
@@ -3885,8 +3891,9 @@ async function enterManagerEditMode(id){
 async function cancelPendingEdit(id){
   if(!confirm('Desfazer esta edição pendente e restaurar a versão anterior do relatório?'))return;
   try{
-    await apiFetch('/reports/'+id+'/cancel-edit',{method:'POST'});
-    await refreshReportsCache();
+    var restored=await apiFetch('/reports/'+id+'/cancel-edit',{method:'POST'});
+    updateReportInCache(restored);
+    updateHomeOngoingSummary();
     renderMyReports();
     await openReportDetail(id,'meus');
   }catch(err){
@@ -5045,13 +5052,21 @@ async function saveManagerDetail(id,action){
   var updated=await apiFetch('/reports/'+id,{method:'PUT',body:JSON.stringify(payload)});
   if(action==='approve'){
     await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'APPROVED',reviewNotes:null})});
+    await refreshReportsCache();
+    gestorTab='aprovados';
+    renderGestor();
+    await openReportDetail((updated&&updated.id)||id,'gestor');
+    showToast('Relatório aprovado com sucesso.');
+    return;
   }else if(action==='return'){
     var notesEl=document.getElementById('det-review-notes');
     var motivo=notesEl ? notesEl.value.trim() : '';
-    await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'RETURNED',reviewNotes:motivo||null})});
+    var returned=await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'RETURNED',reviewNotes:motivo||null})});
+    updateReportInCache(returned||updated);
+  }else{
+    updateReportInCache(updated);
   }
-  await refreshReportsCache();
-  if(action==='approve')gestorTab='aprovados';
+  updateHomeOngoingSummary();
   renderGestor();
   if(action==='return'){
     showToast('Relatório devolvido para correção.');
@@ -5059,10 +5074,6 @@ async function saveManagerDetail(id,action){
     return;
   }
   await openReportDetail((updated&&updated.id)||id,'gestor');
-  if(action==='approve'){
-    showToast('Relatório aprovado com sucesso.');
-    return;
-  }
   showToast('Alterações salvas.');
 }
 function activeProjects(){
@@ -6975,8 +6986,9 @@ async function enviar(){
   var payload={projectId: projeto.id,createdByUserId: currentUser.id,reportType:'RDO',status:isManager?'APPROVED':'PENDING',reportDate: document.getElementById('hdr-data').value,arrivalTime: document.getElementById('hdr-chegada').value,departureTime: document.getElementById('hdr-saida').value,lunchBreak: document.getElementById('hdr-intervalo').value,daytimeCount: getSelectedCollaboratorIds().length,overtimeReason: overtimeReason,dailyDescription: document.getElementById('final-description').value.trim() || null,specialConditions: collectSpecialConditions(),collaboratorIds: getSelectedCollaboratorIds(),services: collectServices()};
   _isSubmitting=true;
   try{
-    if(editingReportId)await apiFetch('/reports/'+editingReportId,{method:'PUT',body:JSON.stringify(payload)});
-    else await apiFetch('/reports',{method:'POST',body:JSON.stringify(payload)});
+    var savedReport;
+    if(editingReportId)savedReport=await apiFetch('/reports/'+editingReportId,{method:'PUT',body:JSON.stringify(payload)});
+    else savedReport=await apiFetch('/reports',{method:'POST',body:JSON.stringify(payload)});
     var matchKey=(projeto.id||'')+'|'+(payload.reportDate||'').slice(0,10);
     var toDelete=uniqueDraftsByProjectDate(draftsCache).filter(function(item){return draftProjectDateKey(item)===matchKey;}).map(function(item){return String(item.id||'');});
     if(currentDraftId&&toDelete.indexOf(String(currentDraftId))<0)toDelete.push(String(currentDraftId));
@@ -6986,7 +6998,12 @@ async function enviar(){
     renderDraftHome();
     var wasEditing=!!editingReportId;
     resetReportForm();
-    await refreshReportsCache();
+    if(payload.status==='APPROVED'){
+      await refreshReportsCache();
+    }else{
+      updateReportInCache(savedReport);
+      updateHomeOngoingSummary();
+    }
     await refreshDraftsCache();
     renderMyReports();
     if(isManager){if(payload.status==='APPROVED')gestorTab='aprovados';renderGestor();go('s-gestor');}else{go('s-home');}
@@ -7142,7 +7159,13 @@ async function deleteReport(id){
       alert(msg);
       return;
     }
-    await refreshReportsCache();
+    var isRdo=report&&report.reportType==='RDO';
+    reportsCache=(reportsCache||[]).filter(function(r){
+      if(r.id===id)return false;
+      if(isRdo&&r.specialConditions&&r.specialConditions.parentRdoId===id)return false;
+      return true;
+    });
+    updateHomeOngoingSummary();
     await refreshDraftsCache();
     renderMyReports();
     if(currentUser&&currentUser.role==='MANAGER'){
@@ -7159,8 +7182,9 @@ async function deleteReport(id){
 async function rejeitar(id){
   var motivo=prompt('Motivo da devolucao:');
   if(motivo===null)return;
-  await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'RETURNED',reviewNotes:motivo||null})});
-  await refreshReportsCache();
+  var returned=await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'RETURNED',reviewNotes:motivo||null})});
+  updateReportInCache(returned);
+  updateHomeOngoingSummary();
   renderGestor();
   showToast('Edicao devolvida para correcao.');
   await openReportDetail(id,'gestor');
@@ -7301,8 +7325,9 @@ function buildSnapshotPreviewMap(snapshot,report){
 async function discardPendingEditByManager(id){
   if(!confirm('Descartar esta edicao pendente e restaurar a versao aprovada anterior do relatorio?'))return;
   try{
-    await apiFetch('/reports/'+id+'/discard-edit',{method:'POST'});
-    await refreshReportsCache();
+    var restored=await apiFetch('/reports/'+id+'/discard-edit',{method:'POST'});
+    updateReportInCache(restored);
+    updateHomeOngoingSummary();
     await refreshDraftsCache();
     renderGestor();
     go('s-gestor');

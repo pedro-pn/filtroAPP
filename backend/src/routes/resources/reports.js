@@ -1385,11 +1385,13 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     }
   }
 
+  const tGet0 = Date.now();
   const items = await prisma.report.findMany({
     where,
     include,
     orderBy: [{ reportDate: 'desc' }, { createdAt: 'desc' }]
   });
+  console.log('[TIMING] GET /reports', { queryMs: Date.now() - tGet0, count: items.length, role: req.auth.user.role });
   if (req.auth.user.role === 'CLIENT') {
     const byId = new Map(items.map(item => [item.id, item]));
     return res.json(items.filter(item => canClientSeeReport(item, byId)));
@@ -1638,6 +1640,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
   const collaboratorIds = uniqueIds(data.collaboratorIds);
   const pendingDerivedTypes = collectPendingDerivedTypes(data.services);
+  const tPost0 = Date.now();
   const item = await prisma.$transaction(async tx => {
     const project = await tx.project.findUniqueOrThrow({
       where: { id: data.projectId },
@@ -1703,7 +1706,9 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
     await syncApprovedRlmReports(tx, created);
     return created;
   });
+  const tPostTx = Date.now();
   await organizeAndPersist(item);
+  const tPostOrg = Date.now();
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
       where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
@@ -1713,6 +1718,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
       if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
     }
   }
+  console.log('[TIMING] POST /reports', { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, totalMs: Date.now() - tPost0, reportType: item.reportType, status: item.status });
   if (item.status === ReportStatus.APPROVED) queueApprovedReportNotification(item);
   res.status(201).json(item);
 }));
@@ -1730,6 +1736,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   assertReportMutable(existing);
   const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);
 
+  const tPut0 = Date.now();
   const item = await prisma.$transaction(async tx => {
     const project = await tx.project.findUniqueOrThrow({
       where: { id: data.projectId }
@@ -1817,8 +1824,10 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     await syncApprovedRlmReports(tx, updated);
     return updated;
   });
+  const tPutTx = Date.now();
 
   await organizeAndPersist(item);
+  const tPutOrg = Date.now();
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
       where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
@@ -1828,6 +1837,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
     }
   }
+  console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: item.reportType, status: item.status });
   res.json(item);
 }));
 
@@ -1998,6 +2008,7 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
     return res.status(409).json({ error: 'Relatório assinado não pode mais ser alterado.' });
   }
 
+  const tPatch0 = Date.now();
   const item = await prisma.$transaction(async tx => {
     const nextSpecialConditions = data.status === ReportStatus.APPROVED
       ? stripInternalEditState(previous?.specialConditions || {})
@@ -2028,6 +2039,7 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
 
     return updated;
   });
+  const tPatchTx = Date.now();
 
   if (data.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
@@ -2039,6 +2051,7 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
     }
     if (approvedTransition) queueApprovedReportNotification(item);
   }
+  console.log('[TIMING] PATCH /reports/:id/status', { txMs: tPatchTx - tPatch0, totalMs: Date.now() - tPatch0, newStatus: data.status });
   res.json(item);
 }));
 
@@ -2110,8 +2123,10 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
   }
 
   const { signerName, signerEmail } = resolveZapSignSigner(prepared, req.auth.user);
+  const tSig0 = Date.now();
   const saved = await generateReportPdfAsset(prepared);
   const pdfBuffer = await fs.readFile(saved.targetPath);
+  const tSigPdf = Date.now();
   const zapsign = await sendToZapSign({
     pdfBuffer,
     fileName: reportPdfFileName(prepared, saved),
@@ -2120,6 +2135,7 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
     externalId: prepared.id,
     webhookUrl: buildZapSignWebhookUrl()
   });
+  console.log('[TIMING] POST /reports/:id/request-signature', { pdfMs: tSigPdf - tSig0, zapMs: Date.now() - tSigPdf, totalMs: Date.now() - tSig0 });
 
   if (!zapsign.docToken) {
     const error = new Error('A ZapSign não retornou o token do documento.');
