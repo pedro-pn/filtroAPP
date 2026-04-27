@@ -156,29 +156,31 @@ export function buildClientProjectLinkedEmailTemplate({ clientName, appUrl, proj
   };
 }
 
-export function buildClientAccessReminderEmailTemplate({ clientName, cnpj, appUrl, projectCount }) {
+export function buildClientAccessReminderEmailTemplate({ clientName, cnpj, newPassword, appUrl, projectCount }) {
   const title = 'Acesso do cliente';
-  const intro = `Segue um lembrete de acesso da conta do cliente ${clientName} no sistema Filtrovali.`;
+  const intro = `Segue o acesso atualizado da conta do cliente ${clientName} no sistema Filtrovali.`;
   const body = `
     <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
       <div style="font-size:14px;line-height:1.8">
         <div><strong>Usuário:</strong> ${cnpj}</div>
+        <div><strong>Senha:</strong> ${newPassword}</div>
         <div><strong>Projetos vinculados:</strong> ${projectCount}</div>
       </div>
     </div>
-    <p style="font-size:14px;line-height:1.7;margin:16px 0 0">Caso a senha não esteja disponível, use a opção "Esqueci minha senha" na tela de login.</p>
+    <p style="font-size:14px;line-height:1.7;margin:16px 0 0">Após o primeiro acesso, recomendamos alterar a senha pela opção "Esqueci minha senha" na tela de login.</p>
     ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
   `;
   const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
 
   return {
-    subject: '[Filtrovali] Lembrete de acesso',
+    subject: '[Filtrovali] Seus dados de acesso',
     text: [
-      `Segue um lembrete de acesso da conta do cliente ${clientName}.`,
+      `Segue o acesso atualizado da conta do cliente ${clientName}.`,
       '',
       `Usuário: ${cnpj}`,
+      `Senha: ${newPassword}`,
       `Projetos vinculados: ${projectCount}`,
-      'Se necessário, use a opção "Esqueci minha senha" na tela de login.',
+      'Após o primeiro acesso, recomendamos alterar a senha.',
       appUrl ? `Acesso: ${appUrl}` : ''
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
