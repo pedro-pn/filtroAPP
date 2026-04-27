@@ -332,7 +332,7 @@ textarea{resize:none;min-height:72px}
         <div class="fg"><label>Saída <span class="req">*</span></label><input type="time" id="hdr-saida" value="17:30" data-required="true" data-label="Saída"></div>
       </div>
       <div class="fg"><label>Intervalo de almoço <span class="req">*</span></label>
-        <select id="hdr-intervalo" data-required="true" data-label="Intervalo de almoço"><option>Sem intervalo</option><option>30 min</option><option selected>1 hora</option><option>1h30</option><option>2 horas</option></select>
+        <input type="time" step="1" id="hdr-intervalo" value="01:00:00" data-required="true" data-label="Intervalo de almoço">
       </div>
     </div>
     <div class="card">
@@ -356,8 +356,8 @@ textarea{resize:none;min-height:72px}
       </div>
       <div id="standby" class="collapse">
         <div class="r2">
-          <div class="fg"><label>Tempo total</label><input type="time" step="60" min="00:00" max="23:59" placeholder="02:00"></div>
-          <div class="fg"><label>Motivo</label><input type="text" placeholder="Motivo..."></div>
+          <div class="fg"><label>Tempo total <span class="req">*</span></label><input type="time" id="standby-total" step="60" min="00:00" max="23:59" placeholder="02:00" data-required="true" data-label="Tempo total (standby)"></div>
+          <div class="fg"><label>Motivo <span class="req">*</span></label><input type="text" id="standby-motivo" placeholder="Motivo..." data-required="true" data-label="Motivo (standby)"></div>
         </div>
       </div>
       <div class="tog-row"><span class="tog-lbl">Houve turno noturno?</span>
@@ -716,7 +716,7 @@ function escapeHtml(txt){
 function renderHeaderSources(){
   var projSel=document.getElementById('proj-sel');
   if(projSel){
-    projSel.innerHTML='<option value="">Selecionar projeto...</option>'+db.projetos.map(function(p){return '<option value="'+p.id+'">'+escapeHtml((p.code||'')+' - '+p.nome)+'</option>';}).join('');
+    projSel.innerHTML='<option value="">Selecionar projeto...</option>'+sortProjectList(db.projetos).map(function(p){return '<option value="'+p.id+'">'+escapeHtml((p.code||'')+' - '+p.nome)+'</option>';}).join('');
     if(projAtual)projSel.value=projAtual;
   }
   var addSel=document.getElementById('cadd-sel');
@@ -751,7 +751,7 @@ function serviceCollaboratorsField(selected,isPre){
   var selIds=[],selNames=[];
   if(selected&&!Array.isArray(selected)&&selected.ids){selIds=selected.ids||[];selNames=selected.labels||[];}
   else if(Array.isArray(selected)){selNames=selected.filter(Boolean);}
-  return '<div class="fg"><label>Colaboradores do serviço</label><div class="chk-grp svc-team-options">'+
+  return '<div class="fg"><label>Colaboradores do serviço <span class="req">*</span></label><div class="chk-grp svc-team-options" data-required-group="checkbox" data-label="Colaboradores do serviço">'+
     (collabs.length?collabs.map(function(c){
       var checked=selIds.indexOf(c.id)>=0||selNames.indexOf(c.nome)>=0;
       return '<label class="chk-item '+(isPre&&checked?'pre':'')+'"><input type="checkbox" value="'+escapeHtml(c.id)+'"'+(checked?' checked':'')+'><span>'+escapeHtml(c.nome)+'</span></label>';
@@ -965,8 +965,8 @@ function tubesBlock(n,tubes,isPre){
       '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento</label><div class="num-unit" style="margin-top:4px"><input type="text" class="'+(isPre&&t.c?'pre':'')+'" value="'+escapeHtml(t.c||'')+'" placeholder="45" style="flex:1.5"'+decimalOnlyAttrs()+'><select style="flex:0.8"><option value="m"'+(lengthUnit==='m'?' selected':'')+'>metros</option><option value="cm"'+(lengthUnit==='cm'?' selected':'')+'>centímetros</option></select></div></div>'+
       '<div style="color:#9ca3af;cursor:pointer;font-size:18px;align-self:flex-end;padding-bottom:8px" onclick="this.closest(\'.tube-row\').remove()">×</div></div>';
   }).join('');
-  return '<div class="fg"><label>Diâmetros e comprimentos'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
-    '<div id="tubes-'+n+'" data-multifield="tubes">'+rows+'</div>'+
+  return '<div class="fg"><label>Diâmetros e comprimentos <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
+    '<div id="tubes-'+n+'" data-multifield="tubes" data-required-group="tubes" data-label="Diâmetros e comprimentos">'+rows+'</div>'+
     '<div class="tube-add" onclick="addTube('+n+')">＋ Adicionar tubulação</div></div>';
 }
 function materialField(n,val,isPre,lbl){
@@ -994,8 +994,8 @@ function horariosBlock(){
     '<div class="fg"><label>Hora de término/pausa <span class="req">*</span></label><input type="time" data-required="true" data-label="Hora de término/pausa"></div></div>';
 }
 function etapasBlock(n,lista){
-  return '<div class="fg"><label>Etapas realizadas no dia</label>'+
-    '<div class="chk-grp" id="etapas-'+n+'">'+
+  return '<div class="fg"><label>Etapas realizadas no dia <span class="req">*</span></label>'+
+    '<div class="chk-grp" id="etapas-'+n+'" data-required-group="checkbox" data-label="Etapas realizadas no dia">'+
     lista.map(function(e){return '<label class="chk-item"><input type="checkbox"><span>'+e+'</span></label>';}).join('')+
     '</div>'+
     '<div class="etapa-add-row"><input type="text" id="et-inp-'+n+'" placeholder="Outra etapa..."><button class="etapa-add-btn" onclick="addEtapa('+n+')">+ Add</button></div></div>';
@@ -1026,8 +1026,8 @@ function particulasBlock(n,prefix){
     '<div class="rtag no" onclick="selectRad(this,false);showSec(\''+pid+'\',false)">Não</div>'+
     '</div>'+
     '<div id="'+pid+'" class="sub-card" style="display:none">'+
-    '<div class="fg"><label>Contador utilizado</label>'+
-    '<select>'+selectOptions(contadorOpts,'','Selecionar...')+'</select></div>'+
+    '<div class="fg"><label>Contador utilizado <span class="req">*</span></label>'+
+    '<select data-required="true" data-label="Contador utilizado">'+selectOptions(contadorOpts,'','Selecionar...')+'</select></div>'+
     '<div class="r2">'+
     '<div class="fg"><label>Contagem inicial NAS</label><input type="text" placeholder="NAS..."></div>'+
     '<div class="fg"><label>Contagem final NAS</label><input type="text" placeholder="NAS..."></div>'+
@@ -1047,7 +1047,7 @@ function desidratacaoBlock(n,prefix){
     '<div class="rtag no" onclick="selectRad(this,false);showSec(\''+did+'\',false)">Não</div>'+
     '</div>'+
     '<div id="'+did+'" class="sub-card" style="display:none">'+
-    unitField('Equipamento de desidratação','desidratacao','',false)+
+    unitField('Equipamento de desidratação','desidratacao','',true)+
     '<div class="fg"><label>Houve análise de umidade?</label>'+
     '<div class="rtag-grp">'+
     '<div class="rtag" onclick="selectRad(this,true);showSec(\''+uid+'\',true)">Sim</div>'+
@@ -1074,7 +1074,7 @@ function bodyLimpeza(n,p,isPre){
     '<div class="fg"><label>Local de limpeza <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
     '<div class="tag-list" data-required-group="tag" data-label="Local de limpeza">'+['Interna','Externa'].map(function(l){var s=p.local&&p.local.indexOf(l)>=0;return '<span class="tag'+(s?' sel':'')+'" onclick="this.classList.toggle(\'sel\')">'+l+'</span>';}).join('')+'</div></div>'+
     tubesBlock(n,p.tubes,isPre)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+
-    '<div class="fg"><label>Tipo de inspeção</label><div class="tag-list">'+['Visual','Corpo de prova','Vídeo boroscopia'].map(function(t){return '<span class="tag" onclick="this.classList.toggle(\'sel\')">'+t+'</span>';}).join('')+'</div></div>'+
+    '<div class="fg"><label>Tipo de inspeção <span class="req">*</span></label><div class="tag-list" data-required-group="tag" data-label="Tipo de inspeção">'+['Visual','Corpo de prova','Vídeo boroscopia'].map(function(t){return '<span class="tag" onclick="this.classList.toggle(\'sel\')">'+t+'</span>';}).join('')+'</div></div>'+
     uploadField('Imagens — corpo de prova')+uploadField('Imagens — tubulação')+desenhoObs();
 }
 function bodyPressao(n,p,isPre){
@@ -1104,7 +1104,7 @@ function bodyFlushing(n,p,isPre){
     '<div class="rtag yes" onclick="selectRad(this,true)">Primário</div>'+
     '<div class="rtag" onclick="selectRad(this,false)">Secundário</div>'+
     '</div></div>'+
-    unitField('Unidade de Flushing','flushing,filtragem',p.uf||'',false)+
+    unitField('Unidade de Flushing','flushing,filtragem',p.uf||'',true)+
     finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+
     particulasBlock(n,'fl')+desidratacaoBlock(n,'fl')+desenhoObs();
 }
@@ -1114,7 +1114,7 @@ function bodyFiltragem(n,p,isPre){
     fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Lubrificação')+
     '<div class="fg"><label>Tipo de óleo <span class="req">*</span></label><input type="text" placeholder="Marca/modelo do óleo..." data-required="true" data-label="Tipo de óleo"></div>'+
     volField('Volume de óleo',true)+
-    unitField('Unidade de filtragem','filtragem',p.ufg||'',false)+
+    unitField('Unidade de filtragem','filtragem',p.ufg||'',true)+
     finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+
     particulasBlock(n,'fg')+desidratacaoBlock(n,'fg')+desenhoObs();
 }
@@ -1200,6 +1200,7 @@ function validateField(el){
   if(el.dataset.requiredGroup==='checkbox')return !!el.querySelector('input:checked');
   if(el.dataset.requiredGroup==='tag')return !!el.querySelector('.tag.sel');
   if(el.dataset.requiredGroup==='rtag')return !!el.querySelector('.rtag.yes,.rtag.no');
+  if(el.dataset.requiredGroup==='tubes')return Array.from(el.querySelectorAll('.tube-row')).some(function(row){var inps=row.querySelectorAll('input');return !!(inps[0]&&inps[0].value.trim())||!!(inps[1]&&inps[1].value.trim());});
   if(el.tagName==='SELECT')return el.value!=='' && el.selectedIndex!==-1;
   if(el.type==='number')return el.value!=='' && !isNaN(Number(el.value));
   return !!String(el.value||'').trim();
@@ -2169,7 +2170,7 @@ function setupRuntimeUi(){
   if(detailBack)detailBack.setAttribute('onclick','backFromDetail()');
   var noturno=document.getElementById('noturno');
   if(noturno){
-    noturno.innerHTML='<div class="r2"><div class="fg"><label>InÃ­cio</label><input type="time" id="noturno-inicio"></div><div class="fg"><label>TÃ©rmino</label><input type="time" id="noturno-termino"></div></div><div class="fg" style="margin-top:10px"><label>Colaboradores noturnos</label><div id="noturno-colab-list"></div><div class="cadd" style="margin-top:8px"><select id="nadd-sel"><option value="">Adicionar...</option></select><button class="cadd-btn" type="button" onclick="addNoturnoColab()">+ Add</button></div></div>';
+    noturno.innerHTML='<div class="r2"><div class="fg"><label>InÃ­cio <span class="req">*</span></label><input type="time" id="noturno-inicio" data-required="true" data-label="InÃ­cio (noturno)"></div><div class="fg"><label>TÃ©rmino <span class="req">*</span></label><input type="time" id="noturno-termino" data-required="true" data-label="TÃ©rmino (noturno)"></div></div><div class="fg" style="margin-top:6px"><label>Intervalo noturno <span class="req">*</span></label><input type="time" step="1" id="noturno-intervalo" value="01:00:00" data-required="true" data-label="Intervalo noturno"></div><div class="fg" style="margin-top:6px"><label>Colaboradores noturnos <span class="req">*</span></label><div id="noturno-colab-list" data-required-group="list" data-label="Colaboradores noturnos"></div><div class="cadd" style="margin-top:8px"><select id="nadd-sel"><option value="">Adicionar...</option></select><button class="cadd-btn" type="button" onclick="addNoturnoColab()">+ Add</button></div></div>';
   }
   enhanceUploadZones(document);
 }
@@ -2519,9 +2520,8 @@ async function startEditReport(id){
   if(standbyToggle){standbyToggle.checked=!!special.standby;tog('standby',standbyToggle);}
   var noturnoToggle=document.querySelector('input[onchange*="noturno"]');
   if(noturnoToggle){noturnoToggle.checked=!!special.noturno;tog('noturno',noturnoToggle);}
-  var standbyInputs=document.querySelectorAll('#standby .fg input');
-  if(standbyInputs[0])standbyInputs[0].value=((special.standbyDetails||{}).total)||'';
-  if(standbyInputs[1])standbyInputs[1].value=((special.standbyDetails||{}).motivo)||'';
+  if(document.getElementById('standby-total'))document.getElementById('standby-total').value=((special.standbyDetails||{}).total)||'';
+  if(document.getElementById('standby-motivo'))document.getElementById('standby-motivo').value=((special.standbyDetails||{}).motivo)||'';
   if(document.getElementById('noturno-inicio'))document.getElementById('noturno-inicio').value=((special.noturnoDetails||{}).inicio)||'';
   if(document.getElementById('noturno-termino'))document.getElementById('noturno-termino').value=((special.noturnoDetails||{}).termino)||'';
   var nightList=document.getElementById('noturno-colab-list'); if(nightList)nightList.innerHTML='';
@@ -2564,8 +2564,8 @@ function collectSpecialConditions(){
     standby: document.querySelector('input[onchange*="standby"]').checked,
     noturno: document.querySelector('input[onchange*="noturno"]').checked,
     standbyDetails: {
-      total: document.querySelector('#standby .fg input') ? normalizeDurationText(document.querySelectorAll('#standby .fg input')[0].value) : '',
-      motivo: document.querySelectorAll('#standby .fg input')[1] ? document.querySelectorAll('#standby .fg input')[1].value : ''
+      total: document.getElementById('standby-total') ? normalizeDurationText(document.getElementById('standby-total').value) : '',
+      motivo: document.getElementById('standby-motivo') ? document.getElementById('standby-motivo').value : ''
     },
     noturnoDetails: {
       inicio: document.getElementById('noturno-inicio') ? document.getElementById('noturno-inicio').value : '',
@@ -2982,7 +2982,7 @@ function parseMaybeList(value){
   return txt.split(',').map(function(item){return item.trim();}).filter(Boolean);
 }
 function renderManagerDetail(report){
-  var projectOptions=db.projetos.map(function(p){return '<option value="'+p.id+'"'+(p.id===report.projectId?' selected':'')+'>'+escapeHtml(p.nome)+'</option>';}).join('');
+  var projectOptions=sortProjectList(db.projetos).map(function(p){return '<option value="'+p.id+'"'+(p.id===report.projectId?' selected':'')+'>'+escapeHtml(p.nome)+'</option>';}).join('');
   var collaboratorOptions=db.colaboradores.filter(function(c){return c.ativo!==false;}).map(function(c){
     var checked=(report.collaborators||[]).some(function(link){return link.collaboratorId===c.id;})?' checked':'';
     return '<label class="chk-item"><input type="checkbox" data-detail-collab="'+c.id+'"'+checked+'><span>'+escapeHtml(c.nome)+'</span></label>';
@@ -3241,11 +3241,11 @@ function renderManagerDetail(report){
   var finalUploads=special.generalUploads||[];
   document.getElementById('det-body').innerHTML=
     '<div class="card"><div class="sec">Cabeçalho</div><div class="admin-inline-grid">'+
-    '<div class="fg"><label>Projeto</label><select id="mgr-project-id">'+db.projetos.map(function(p){return '<option value="'+p.id+'"'+(p.id===report.projectId?' selected':'')+'>'+escapeHtml((p.code||'')+' - '+p.nome)+'</option>';}).join('')+'</select></div>'+
+    '<div class="fg"><label>Projeto</label><select id="mgr-project-id">'+sortProjectList(db.projetos).map(function(p){return '<option value="'+p.id+'"'+(p.id===report.projectId?' selected':'')+'>'+escapeHtml((p.code||'')+' - '+p.nome)+'</option>';}).join('')+'</select></div>'+
     '<div class="fg"><label>Data do relatório</label><input type="date" id="mgr-report-date" value="'+escapeHtml(String(report.reportDate).slice(0,10))+'"></div>'+
     '<div class="fg"><label>Chegada</label><input type="time" id="mgr-arrival" value="'+escapeHtml(report.arrivalTime||'')+'"></div>'+
     '<div class="fg"><label>Saída</label><input type="time" id="mgr-departure" value="'+escapeHtml(report.departureTime||'')+'"></div>'+
-    '<div class="fg"><label>Intervalo de almoço</label><input type="text" id="mgr-lunch" value="'+escapeHtml(report.lunchBreak||'')+'"></div>'+
+    '<div class="fg"><label>Intervalo de almoço</label><input type="time" step="1" id="mgr-lunch" value="'+escapeHtml(report.lunchBreak||'01:00:00')+'"></div>'+
     '</div></div>'+
     '<div class="card"><div class="sec">Equipe diurna</div><div id="mgr-colab-list"></div><div class="cadd"><select id="mgr-cadd-sel"></select><button type="button" class="cadd-btn" onclick="addManagerColab()">+ Add</button></div></div>'+
     '<div class="card"><div class="sec">Condições especiais</div>'+
@@ -3428,11 +3428,11 @@ function renderManagerDetail(report){
   var noturnoDetails=special.noturnoDetails||{};
   document.getElementById('det-body').innerHTML=
     '<div class="card"><div class="sec">CabeÃ§alho</div><div class="admin-inline-grid">'+
-    '<div class="fg"><label>Projeto</label><select id="mgr-project-id">'+db.projetos.map(function(p){return '<option value="'+p.id+'"'+(p.id===report.projectId?' selected':'')+'>'+escapeHtml((p.code||'')+' - '+p.nome)+'</option>';}).join('')+'</select></div>'+
+    '<div class="fg"><label>Projeto</label><select id="mgr-project-id">'+sortProjectList(db.projetos).map(function(p){return '<option value="'+p.id+'"'+(p.id===report.projectId?' selected':'')+'>'+escapeHtml((p.code||'')+' - '+p.nome)+'</option>';}).join('')+'</select></div>'+
     '<div class="fg"><label>Data do relatÃ³rio</label><input type="date" id="mgr-report-date" value="'+escapeHtml(String(report.reportDate).slice(0,10))+'"></div>'+
     '<div class="fg"><label>Chegada</label><input type="time" id="mgr-arrival" value="'+escapeHtml(report.arrivalTime||'')+'"></div>'+
     '<div class="fg"><label>SaÃ­da</label><input type="time" id="mgr-departure" value="'+escapeHtml(report.departureTime||'')+'"></div>'+
-    '<div class="fg"><label>Intervalo de almoÃ§o</label><input type="text" id="mgr-lunch" value="'+escapeHtml(report.lunchBreak||'')+'"></div>'+
+    '<div class="fg"><label>Intervalo de almoÃ§o</label><input type="time" step="1" id="mgr-lunch" value="'+escapeHtml(report.lunchBreak||'01:00:00')+'"></div>'+
     '</div></div>'+
     '<div class="card"><div class="sec">Equipe diurna</div><div id="mgr-colab-list"></div><div class="cadd"><select id="mgr-cadd-sel"></select><button type="button" class="cadd-btn" onclick="addManagerColab()">+ Add</button></div></div>'+
     '<div class="card"><div class="sec">CondiÃ§Ãµes especiais</div>'+
@@ -4414,7 +4414,7 @@ function ensureNightIntervalField(){
     if(row){
       var fg=document.createElement('div');
       fg.className='fg';
-      fg.innerHTML='<label>Intervalo de janta</label><select id="noturno-intervalo"><option>Sem intervalo</option><option>30 min</option><option selected>1 hora</option><option>1h30</option><option>2 horas</option></select>';
+      fg.innerHTML='<label>Intervalo noturno</label><input type="time" step="1" id="noturno-intervalo" value="01:00:00">';
       row.appendChild(fg);
     }
   }
@@ -4427,8 +4427,8 @@ function collectSpecialConditions(){
     standby: document.querySelector('input[onchange*="standby"]').checked,
     noturno: document.querySelector('input[onchange*="noturno"]').checked,
     standbyDetails: {
-      total: document.querySelector('#standby .fg input') ? normalizeDurationText(document.querySelectorAll('#standby .fg input')[0].value) : '',
-      motivo: document.querySelectorAll('#standby .fg input')[1] ? document.querySelectorAll('#standby .fg input')[1].value : ''
+      total: document.getElementById('standby-total') ? normalizeDurationText(document.getElementById('standby-total').value) : '',
+      motivo: document.getElementById('standby-motivo') ? document.getElementById('standby-motivo').value : ''
     },
     noturnoDetails: {
       inicio: document.getElementById('noturno-inicio') ? document.getElementById('noturno-inicio').value : '',
@@ -4464,12 +4464,12 @@ function resetReportForm(){
   document.getElementById('hdr-data').value=new Date().toISOString().slice(0,10);
   document.getElementById('hdr-chegada').value='';
   document.getElementById('hdr-saida').value='';
-  document.getElementById('hdr-intervalo').value='1 hora';
+  document.getElementById('hdr-intervalo').value='01:00:00';
   document.getElementById('colab-list').innerHTML='';
   var noturnoList=document.getElementById('noturno-colab-list'); if(noturnoList)noturnoList.innerHTML='';
   var noturnoInicio=document.getElementById('noturno-inicio'); if(noturnoInicio)noturnoInicio.value='';
   var noturnoTermino=document.getElementById('noturno-termino'); if(noturnoTermino)noturnoTermino.value='';
-  var noturnoIntervalo=document.getElementById('noturno-intervalo'); if(noturnoIntervalo)noturnoIntervalo.value='1 hora';
+  var noturnoIntervalo=document.getElementById('noturno-intervalo'); if(noturnoIntervalo)noturnoIntervalo.value='01:00:00';
   var standbyToggle=document.querySelector('input[onchange*="standby"]'); if(standbyToggle){standbyToggle.checked=false;tog('standby',standbyToggle);}
   var noturnoToggle=document.querySelector('input[onchange*="noturno"]'); if(noturnoToggle){noturnoToggle.checked=false;tog('noturno',noturnoToggle);}
   document.getElementById('svc-cards').innerHTML='';
@@ -4490,7 +4490,7 @@ async function startEditReport(id){
   document.getElementById('hdr-data').value=String(report.reportDate).slice(0,10);
   document.getElementById('hdr-chegada').value=report.arrivalTime||'';
   document.getElementById('hdr-saida').value=report.departureTime||'';
-  document.getElementById('hdr-intervalo').value=report.lunchBreak||'1 hora';
+  document.getElementById('hdr-intervalo').value=report.lunchBreak||'01:00:00';
   document.getElementById('colab-list').innerHTML='';
   (report.collaborators||[]).forEach(function(link){ if(link.collaborator)document.getElementById('colab-list').appendChild(buildColabTag({id:link.collaborator.id,nome:link.collaborator.name})); });
   renderHeaderSources();
@@ -4499,12 +4499,11 @@ async function startEditReport(id){
   if(standbyToggle){standbyToggle.checked=!!special.standby;tog('standby',standbyToggle);}
   var noturnoToggle=document.querySelector('input[onchange*="noturno"]');
   if(noturnoToggle){noturnoToggle.checked=!!special.noturno;tog('noturno',noturnoToggle);}
-  var standbyInputs=document.querySelectorAll('#standby .fg input');
-  if(standbyInputs[0])standbyInputs[0].value=((special.standbyDetails||{}).total)||'';
-  if(standbyInputs[1])standbyInputs[1].value=((special.standbyDetails||{}).motivo)||'';
+  if(document.getElementById('standby-total'))document.getElementById('standby-total').value=((special.standbyDetails||{}).total)||'';
+  if(document.getElementById('standby-motivo'))document.getElementById('standby-motivo').value=((special.standbyDetails||{}).motivo)||'';
   if(document.getElementById('noturno-inicio'))document.getElementById('noturno-inicio').value=((special.noturnoDetails||{}).inicio)||'';
   if(document.getElementById('noturno-termino'))document.getElementById('noturno-termino').value=((special.noturnoDetails||{}).termino)||'';
-  if(document.getElementById('noturno-intervalo'))document.getElementById('noturno-intervalo').value=((special.noturnoDetails||{}).intervalo)||'1 hora';
+  if(document.getElementById('noturno-intervalo'))document.getElementById('noturno-intervalo').value=((special.noturnoDetails||{}).intervalo)||'01:00:00';
   var nightList=document.getElementById('noturno-colab-list'); if(nightList)nightList.innerHTML='';
   (((special.noturnoDetails||{}).collaboratorIds)||[]).forEach(function(idNight){ var col=getColaboradorById(idNight); if(col)document.getElementById('noturno-colab-list').appendChild(buildColabTag({id:col.id,nome:col.nome})); });
   document.getElementById('svc-cards').innerHTML=''; svcCount=0;
@@ -4567,7 +4566,7 @@ async function saveManagerDetail(id,action){
   specialConditions.standby=document.getElementById('mgr-standby-toggle').checked;
   specialConditions.noturno=document.getElementById('mgr-noturno-toggle').checked;
   specialConditions.standbyDetails={total:normalizeDurationText(document.getElementById('mgr-standby-total').value||''),motivo:document.getElementById('mgr-standby-motivo').value||''};
-  specialConditions.noturnoDetails={inicio:document.getElementById('mgr-noturno-inicio').value||'',termino:document.getElementById('mgr-noturno-termino').value||'',intervalo:(specialConditions.noturnoDetails||{}).intervalo||'1 hora',collaboratorIds:managerSelectedNightCollaboratorIds(),colaboradores:managerSelectedNightCollaboratorIds().map(function(cid){var col=getColaboradorById(cid);return col?col.nome:cid;})};
+  specialConditions.noturnoDetails={inicio:document.getElementById('mgr-noturno-inicio').value||'',termino:document.getElementById('mgr-noturno-termino').value||'',intervalo:(specialConditions.noturnoDetails||{}).intervalo||'01:00:00',collaboratorIds:managerSelectedNightCollaboratorIds(),colaboradores:managerSelectedNightCollaboratorIds().map(function(cid){var col=getColaboradorById(cid);return col?col.nome:cid;})};
   specialConditions.generalUploads=(report.specialConditions&&report.specialConditions.generalUploads)||[];
   var payload={
     projectId: document.getElementById('mgr-project-id').value,
@@ -4943,11 +4942,11 @@ function renderManagerDetail(report){
   var finalUploads=special.generalUploads||[];
   document.getElementById('det-body').innerHTML=
     '<div class="card"><div class="sec">Cabeçalho</div><div class="admin-inline-grid">'+
-    '<div class="fg"><label>Projeto</label><select id="mgr-project-id">'+db.projetos.map(function(p){return '<option value="'+p.id+'"'+(p.id===report.projectId?' selected':'')+'>'+escapeHtml((p.code||'')+' - '+p.nome)+'</option>';}).join('')+'</select></div>'+
+    '<div class="fg"><label>Projeto</label><select id="mgr-project-id">'+sortProjectList(db.projetos).map(function(p){return '<option value="'+p.id+'"'+(p.id===report.projectId?' selected':'')+'>'+escapeHtml((p.code||'')+' - '+p.nome)+'</option>';}).join('')+'</select></div>'+
     '<div class="fg"><label>Data do relatório</label><input type="date" id="mgr-report-date" value="'+escapeHtml(String(report.reportDate).slice(0,10))+'"></div>'+
     '<div class="fg"><label>Chegada</label><input type="time" id="mgr-arrival" value="'+escapeHtml(report.arrivalTime||'')+'"></div>'+
     '<div class="fg"><label>Saída</label><input type="time" id="mgr-departure" value="'+escapeHtml(report.departureTime||'')+'"></div>'+
-    '<div class="fg"><label>Intervalo de almoço</label><input type="text" id="mgr-lunch" value="'+escapeHtml(report.lunchBreak||'')+'"></div>'+
+    '<div class="fg"><label>Intervalo de almoço</label><input type="time" step="1" id="mgr-lunch" value="'+escapeHtml(report.lunchBreak||'01:00:00')+'"></div>'+
     '</div></div>'+
     '<div class="card"><div class="sec">Equipe diurna</div><div id="mgr-colab-list"></div><div class="cadd"><select id="mgr-cadd-sel"></select><button type="button" class="cadd-btn" onclick="addManagerColab()">+ Add</button></div></div>'+
     '<div class="card"><div class="sec">Condições especiais</div>'+
@@ -5032,7 +5031,7 @@ async function saveManagerDetail(id,action){
   specialConditions.standby=document.getElementById('mgr-standby-toggle').checked;
   specialConditions.noturno=document.getElementById('mgr-noturno-toggle').checked;
   specialConditions.standbyDetails={total:normalizeDurationText(document.getElementById('mgr-standby-total').value||''),motivo:document.getElementById('mgr-standby-motivo').value||''};
-  specialConditions.noturnoDetails={inicio:document.getElementById('mgr-noturno-inicio').value||'',termino:document.getElementById('mgr-noturno-termino').value||'',intervalo:(specialConditions.noturnoDetails||{}).intervalo||'1 hora',collaboratorIds:managerSelectedNightCollaboratorIds(),colaboradores:managerSelectedNightCollaboratorIds().map(function(cid){var col=getColaboradorById(cid);return col?col.nome:cid;})};
+  specialConditions.noturnoDetails={inicio:document.getElementById('mgr-noturno-inicio').value||'',termino:document.getElementById('mgr-noturno-termino').value||'',intervalo:(specialConditions.noturnoDetails||{}).intervalo||'01:00:00',collaboratorIds:managerSelectedNightCollaboratorIds(),colaboradores:managerSelectedNightCollaboratorIds().map(function(cid){var col=getColaboradorById(cid);return col?col.nome:cid;})};
   specialConditions.generalUploads=(document.getElementById('mgr-final-uploads')?getUploads(document.getElementById('mgr-final-uploads')):((report.specialConditions||{}).generalUploads||[]));
   var payload={
     projectId: document.getElementById('mgr-project-id').value,
@@ -5076,11 +5075,18 @@ async function saveManagerDetail(id,action){
   await openReportDetail((updated&&updated.id)||id,'gestor');
   showToast('Alterações salvas.');
 }
+function sortProjectList(list){
+  return (list||[]).slice().sort(function(a,b){
+    var ca=Number(a.code||0)||0,cb=Number(b.code||0)||0;
+    if(ca!==cb)return ca-cb;
+    return (a.nome||'').localeCompare(b.nome||'','pt');
+  });
+}
 function activeProjects(){
-  return (db.projetos||[]).filter(function(p){return p.ativo!==false;});
+  return sortProjectList((db.projetos||[]).filter(function(p){return p.ativo!==false;}));
 }
 function archivedProjects(){
-  return (db.projetos||[]).filter(function(p){return p.ativo===false;});
+  return sortProjectList((db.projetos||[]).filter(function(p){return p.ativo===false;}));
 }
 var myReportsTab='ativos';
 function projectArchiveStateById(projectId){
@@ -5630,7 +5636,7 @@ function renderManagerDetail(report){
     '<div class="fg"><label>Data do relatório</label><input type="date" id="mgr-report-date" value="'+escapeHtml(String(report.reportDate).slice(0,10))+'"></div>'+
     '<div class="fg"><label>Chegada</label><input type="time" id="mgr-arrival" value="'+escapeHtml(report.arrivalTime||'')+'"></div>'+
     '<div class="fg"><label>Saída</label><input type="time" id="mgr-departure" value="'+escapeHtml(report.departureTime||'')+'"></div>'+
-    '<div class="fg"><label>Intervalo de almoço</label><input type="text" id="mgr-lunch" value="'+escapeHtml(report.lunchBreak||'')+'"></div>'+
+    '<div class="fg"><label>Intervalo de almoço</label><input type="time" step="1" id="mgr-lunch" value="'+escapeHtml(report.lunchBreak||'01:00:00')+'"></div>'+
     '</div></div>'+
     '<div class="card"><div class="sec">Equipe diurna</div><div id="mgr-colab-list"></div><div class="cadd"><select id="mgr-cadd-sel"></select><button type="button" class="cadd-btn" onclick="addManagerColab()">+ Add</button></div></div>'+
     '<div class="card"><div class="sec">Condições especiais</div>'+
@@ -5789,7 +5795,7 @@ function currentReportDraftSnapshot(){
     title: (function(){var p=getProjetoAtual(); return p?((p.code||'')+' - '+p.nome):'Relatório sem projeto';})(),
     arrivalTime: (document.getElementById('hdr-chegada')||{}).value||'',
     departureTime: (document.getElementById('hdr-saida')||{}).value||'',
-    lunchBreak: (document.getElementById('hdr-intervalo')||{}).value||'1 hora',
+    lunchBreak: (document.getElementById('hdr-intervalo')||{}).value||'01:00:00',
     collaboratorIds: getSelectedCollaboratorIds(),
     nightCollaboratorIds: getSelectedNightCollaboratorIds(),
     specialConditions: collectSpecialConditions(),
@@ -5861,7 +5867,7 @@ function hydrateDraft(draft){
   if(document.getElementById('hdr-data'))document.getElementById('hdr-data').value=draft.reportDate||'';
   if(document.getElementById('hdr-chegada'))document.getElementById('hdr-chegada').value=draft.arrivalTime||'';
   if(document.getElementById('hdr-saida'))document.getElementById('hdr-saida').value=draft.departureTime||'';
-  if(document.getElementById('hdr-intervalo'))document.getElementById('hdr-intervalo').value=draft.lunchBreak||'1 hora';
+  if(document.getElementById('hdr-intervalo'))document.getElementById('hdr-intervalo').value=draft.lunchBreak||'01:00:00';
   document.getElementById('colab-list').innerHTML='';
   (draft.collaboratorIds||[]).forEach(function(id){ var col=getColaboradorById(id); if(col)document.getElementById('colab-list').appendChild(buildColabTag({id:col.id,nome:col.nome})); });
   var special=draft.specialConditions||{};
@@ -5869,12 +5875,11 @@ function hydrateDraft(draft){
   if(standbyToggle){standbyToggle.checked=!!special.standby;tog('standby',standbyToggle);}
   var noturnoToggle=document.querySelector('input[onchange*="noturno"]');
   if(noturnoToggle){noturnoToggle.checked=!!special.noturno;tog('noturno',noturnoToggle);}
-  var standbyInputs=document.querySelectorAll('#standby .fg input');
-  if(standbyInputs[0])standbyInputs[0].value=((special.standbyDetails||{}).total)||'';
-  if(standbyInputs[1])standbyInputs[1].value=((special.standbyDetails||{}).motivo)||'';
+  if(document.getElementById('standby-total'))document.getElementById('standby-total').value=((special.standbyDetails||{}).total)||'';
+  if(document.getElementById('standby-motivo'))document.getElementById('standby-motivo').value=((special.standbyDetails||{}).motivo)||'';
   if(document.getElementById('noturno-inicio'))document.getElementById('noturno-inicio').value=((special.noturnoDetails||{}).inicio)||'';
   if(document.getElementById('noturno-termino'))document.getElementById('noturno-termino').value=((special.noturnoDetails||{}).termino)||'';
-  if(document.getElementById('noturno-intervalo'))document.getElementById('noturno-intervalo').value=((special.noturnoDetails||{}).intervalo)||'1 hora';
+  if(document.getElementById('noturno-intervalo'))document.getElementById('noturno-intervalo').value=((special.noturnoDetails||{}).intervalo)||'01:00:00';
   var nightList=document.getElementById('noturno-colab-list'); if(nightList)nightList.innerHTML='';
   (draft.nightCollaboratorIds||[]).forEach(function(id){ var col=getColaboradorById(id); if(col&&nightList)nightList.appendChild(buildColabTag({id:col.id,nome:col.nome})); });
   document.getElementById('svc-cards').innerHTML=''; svcCount=0;
@@ -5927,12 +5932,12 @@ function resetReportForm(){
   document.getElementById('hdr-data').value=new Date().toISOString().slice(0,10);
   document.getElementById('hdr-chegada').value='';
   document.getElementById('hdr-saida').value='';
-  document.getElementById('hdr-intervalo').value='1 hora';
+  document.getElementById('hdr-intervalo').value='01:00:00';
   document.getElementById('colab-list').innerHTML='';
   var noturnoList=document.getElementById('noturno-colab-list'); if(noturnoList)noturnoList.innerHTML='';
   var noturnoInicio=document.getElementById('noturno-inicio'); if(noturnoInicio)noturnoInicio.value='';
   var noturnoTermino=document.getElementById('noturno-termino'); if(noturnoTermino)noturnoTermino.value='';
-  var noturnoIntervalo=document.getElementById('noturno-intervalo'); if(noturnoIntervalo)noturnoIntervalo.value='1 hora';
+  var noturnoIntervalo=document.getElementById('noturno-intervalo'); if(noturnoIntervalo)noturnoIntervalo.value='01:00:00';
   var standbyToggle=document.querySelector('input[onchange*="standby"]'); if(standbyToggle){standbyToggle.checked=false;tog('standby',standbyToggle);}
   var noturnoToggle=document.querySelector('input[onchange*="noturno"]'); if(noturnoToggle){noturnoToggle.checked=false;tog('noturno',noturnoToggle);}
   document.getElementById('hdr-data').value='';
@@ -6129,7 +6134,7 @@ function hydrateDraft(draft){
   if(document.getElementById('hdr-data'))document.getElementById('hdr-data').value=data.reportDate||'';
   if(document.getElementById('hdr-chegada'))document.getElementById('hdr-chegada').value=data.arrivalTime||'';
   if(document.getElementById('hdr-saida'))document.getElementById('hdr-saida').value=data.departureTime||'';
-  if(document.getElementById('hdr-intervalo'))document.getElementById('hdr-intervalo').value=data.lunchBreak||'1 hora';
+  if(document.getElementById('hdr-intervalo'))document.getElementById('hdr-intervalo').value=data.lunchBreak||'01:00:00';
   document.getElementById('colab-list').innerHTML='';
   (data.collaboratorIds||[]).forEach(function(id){ var col=getColaboradorById(id); if(col)document.getElementById('colab-list').appendChild(buildColabTag({id:col.id,nome:col.nome})); });
   var special=data.specialConditions||{};
@@ -6137,12 +6142,11 @@ function hydrateDraft(draft){
   if(standbyToggle){standbyToggle.checked=!!special.standby;tog('standby',standbyToggle);}
   var noturnoToggle=document.querySelector('input[onchange*="noturno"]');
   if(noturnoToggle){noturnoToggle.checked=!!special.noturno;tog('noturno',noturnoToggle);}
-  var standbyInputs=document.querySelectorAll('#standby .fg input');
-  if(standbyInputs[0])standbyInputs[0].value=((special.standbyDetails||{}).total)||'';
-  if(standbyInputs[1])standbyInputs[1].value=((special.standbyDetails||{}).motivo)||'';
+  if(document.getElementById('standby-total'))document.getElementById('standby-total').value=((special.standbyDetails||{}).total)||'';
+  if(document.getElementById('standby-motivo'))document.getElementById('standby-motivo').value=((special.standbyDetails||{}).motivo)||'';
   if(document.getElementById('noturno-inicio'))document.getElementById('noturno-inicio').value=((special.noturnoDetails||{}).inicio)||'';
   if(document.getElementById('noturno-termino'))document.getElementById('noturno-termino').value=((special.noturnoDetails||{}).termino)||'';
-  if(document.getElementById('noturno-intervalo'))document.getElementById('noturno-intervalo').value=((special.noturnoDetails||{}).intervalo)||'1 hora';
+  if(document.getElementById('noturno-intervalo'))document.getElementById('noturno-intervalo').value=((special.noturnoDetails||{}).intervalo)||'01:00:00';
   var nightList=document.getElementById('noturno-colab-list'); if(nightList)nightList.innerHTML='';
   (data.nightCollaboratorIds||[]).forEach(function(id){ var col=getColaboradorById(id); if(col&&nightList)nightList.appendChild(buildColabTag({id:col.id,nome:col.nome})); });
   document.getElementById('svc-cards').innerHTML=''; svcCount=0;
@@ -8808,7 +8812,7 @@ window.__legacyBootstrapped = false;
     var selIds=[],selNames=[];
     if(selected&&!Array.isArray(selected)&&selected.ids){selIds=selected.ids||[];selNames=selected.labels||[];}
     else if(Array.isArray(selected)){selNames=selected.filter(Boolean);}
-    return '<div class="fg"><label>Colaboradores do serviço</label><div class="chk-grp svc-team-options">'+
+    return '<div class="fg"><label>Colaboradores do serviço <span class="req">*</span></label><div class="chk-grp svc-team-options" data-required-group="checkbox" data-label="Colaboradores do serviço">'+
       (collabs.length?collabs.map(function(c){
         var checked=selIds.indexOf(c.id)>=0||selNames.indexOf(c.nome)>=0;
         return '<label class="chk-item '+(isPre&&checked?'pre':'')+'"><input type="checkbox" value="'+escapeHtml(c.id)+'"'+(checked?' checked':'')+'><span>'+escapeHtml(c.nome)+'</span></label>';

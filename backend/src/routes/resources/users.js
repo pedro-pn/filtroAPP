@@ -140,9 +140,15 @@ router.post('/:id/resend-client-access', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: `Configuração SMTP ausente: ${missingMailerConfig.join(', ')}` });
   }
 
+  const { randomBytes } = await import('node:crypto');
+  const newPassword = randomBytes(5).toString('hex');
+  const newHash = await hashPassword(newPassword);
+  await prisma.user.update({ where: { id: user.id }, data: { passwordHash: newHash } });
+
   const template = buildClientAccessReminderEmailTemplate({
     clientName: user.name,
     cnpj: user.username,
+    newPassword,
     appUrl: env.appUrl,
     projectCount: projects.length
   });
