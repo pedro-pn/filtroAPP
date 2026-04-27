@@ -5,6 +5,7 @@ import {
   createReport,
   getReport,
   listReports,
+  requestReportsBatchSignature,
   requestReportSignature,
   updateReport,
   updateReportStatus,
@@ -76,11 +77,21 @@ export function useReportMutations() {
     }
   });
 
+  const batchSignatureMutation = useMutation({
+    mutationFn: ({ ids, commentsById }: { ids: string[]; commentsById?: Record<string, string> }) =>
+      requestReportsBatchSignature(ids, commentsById),
+    onSuccess: data => {
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      data.reportIds.forEach(id => queryClient.invalidateQueries({ queryKey: ['report', id] }));
+    }
+  });
+
   return {
     createReport: createMutation,
     updateReport: updateMutation,
     updateStatus: updateStatusMutation,
     requestSignature: requestSignatureMutation,
-    clientReview: clientReviewMutation
+    clientReview: clientReviewMutation,
+    batchSignature: batchSignatureMutation
   };
 }

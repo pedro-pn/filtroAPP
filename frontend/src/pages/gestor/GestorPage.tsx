@@ -1,8 +1,9 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { groupByProject } from '../../utils/groupByProject';
 
 import type { UserRole } from '../../types/auth';
-import { downloadReportDocx, downloadReportPdf } from '../../api/reports';
+import { downloadReportDocx, downloadReportPdf, downloadReportsBatch } from '../../api/reports';
 import { useAuth } from '../../auth/AuthContext';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
@@ -328,6 +329,7 @@ export function GestorPage() {
   const [counterMessage, setCounterMessage] = useState<string | null>(null);
   const [reportMessage, setReportMessage] = useState<string | null>(null);
   const [returnReport, setReturnReport] = useState<ReportSummary | null>(null);
+  const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
 
   const reportsQuery = useReports();
   const activeProjectsQuery = useProjects(true);
@@ -718,11 +720,44 @@ export function GestorPage() {
     }
   }
 
+  function toggleReportSelection(id: string, checked: boolean) {
+    setSelectedReportIds(current => {
+      const next = checked ? [...current, id] : current.filter(item => item !== id);
+      return Array.from(new Set(next));
+    });
+  }
+
+  async function handleBatchReportDownload(format: 'pdf' | 'docx', reports: ReportSummary[]) {
+    setReportMessage(null);
+    const visibleIds = new Set(reports.map(report => report.id));
+    const ids = selectedReportIds.filter(id => visibleIds.has(id));
+
+    if (!ids.length) {
+      setReportMessage('Selecione ao menos um relatório desta aba.');
+      return;
+    }
+
+    try {
+      const blob = await downloadReportsBatch(ids, format);
+      downloadBlob(blob, `relatorios_${format}_${new Date().toISOString().slice(0, 10)}.zip`);
+    } catch (error) {
+      setReportMessage(error instanceof Error ? error.message : 'Não foi possível baixar os relatórios.');
+    }
+  }
+
   function renderManagerReportActions(report: ReportSummary) {
     const canReview = report.status !== 'SIGNED';
 
     return (
       <>
+        <label className="checkbox-line">
+          <input
+            type="checkbox"
+            checked={selectedReportIds.includes(report.id)}
+            onChange={event => toggleReportSelection(report.id, event.target.checked)}
+          />
+          Selecionar
+        </label>
         <button className="secondary-button" type="button" onClick={() => void handleReportDownload(report, 'pdf')}>
           PDF
         </button>
@@ -740,6 +775,32 @@ export function GestorPage() {
           </button>
         ) : null}
       </>
+    );
+  }
+
+  function renderBatchReportActions(reports: ReportSummary[]) {
+    const visibleIds = reports.map(report => report.id);
+    const selectedVisibleCount = selectedReportIds.filter(id => visibleIds.includes(id)).length;
+
+    return (
+      <section className="page-card">
+        <div className="section-title">Ações em lote</div>
+        <div className="admin-form-actions">
+          <button className="secondary-button" type="button" onClick={() => setSelectedReportIds(visibleIds)}>
+            Selecionar todos
+          </button>
+          <button className="secondary-button" type="button" onClick={() => setSelectedReportIds([])}>
+            Limpar seleção
+          </button>
+          <button className="secondary-button" type="button" onClick={() => void handleBatchReportDownload('pdf', reports)}>
+            Baixar PDF
+          </button>
+          <button className="secondary-button" type="button" onClick={() => void handleBatchReportDownload('docx', reports)}>
+            Baixar DOCX
+          </button>
+        </div>
+        <p className="placeholder-copy">{selectedVisibleCount} selecionado(s) nesta aba.</p>
+      </section>
     );
   }
 
@@ -761,25 +822,53 @@ export function GestorPage() {
       );
     }
 
+    const reasonDialog = (
+      <ReasonDialog
+        open={!!returnReport}
+        title="Devolver relat\u00f3rio"
+        description="Informe o motivo da devolu\u00e7\u00e3o do relat\u00f3rio."
+        label="Motivo"
+        confirmLabel="Devolver"
+        requiredMessage="Informe um motivo para devolver o relat\u00f3rio."
+        isSubmitting={reportMutations.updateStatus.isPending}
+        onCancel={() => setReturnReport(null)}
+        onConfirm={reason => {
+          if (returnReport) void handleReportStatus(returnReport, 'RETURNED', reason);
+        }}
+      />
+    );
+
+    if (tab === 'arquivados') {
+      const groups = groupByProject(visibleReports);
+      return (
+        <>
+          {reportMessage ? <div className="page-card inline-success">{reportMessage}</div> : null}
+          {renderBatchReportActions(visibleReports)}
+          {groups.map(group => (
+            <div key={group.projectId}>
+              <div className="project-group-header">
+                <span className="project-group-code">{group.projectCode}</span>
+                <span className="project-group-name project-group-name--archived">{group.projectName}</span>
+                <span className="project-group-badge">Arquivado</span>
+              </div>
+              {group.reports.map(report => (
+                <ReportSummaryCard key={report.id} report={report} actions={renderManagerReportActions(report)} />
+              ))}
+            </div>
+          ))}
+          {reasonDialog}
+        </>
+      );
+    }
+
     return (
       <>
         {reportMessage ? <div className="page-card inline-success">{reportMessage}</div> : null}
+        {renderBatchReportActions(visibleReports)}
         {visibleReports.map(report => (
           <ReportSummaryCard key={report.id} report={report} actions={renderManagerReportActions(report)} />
         ))}
-        <ReasonDialog
-          open={!!returnReport}
-          title="Devolver relat\u00f3rio"
-          description="Informe o motivo da devolu\u00e7\u00e3o do relat\u00f3rio."
-          label="Motivo"
-          confirmLabel="Devolver"
-          requiredMessage="Informe um motivo para devolver o relat\u00f3rio."
-          isSubmitting={reportMutations.updateStatus.isPending}
-          onCancel={() => setReturnReport(null)}
-          onConfirm={reason => {
-            if (returnReport) void handleReportStatus(returnReport, 'RETURNED', reason);
-          }}
-        />
+        {reasonDialog}
       </>
     );
   }

@@ -4,60 +4,61 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { downloadReportDocx, downloadReportPdf } from '../api/reports';
 import { useAuth } from '../auth/AuthContext';
 import type { UploadedFile } from '../api/uploads';
+import { ServiceFields, serviceTypeLabels, serviceTypeOptions } from '../components/reports/ServiceFields';
 import { useCollaborators } from '../hooks/useCollaborators';
 import { useEquipment } from '../hooks/useEquipment';
+import { useManometers } from '../hooks/useManometers';
 import { useProjects } from '../hooks/useProjects';
 import { useReport, useReportMutations } from '../hooks/useReports';
+import { useUnits } from '../hooks/useUnits';
 import { Shell } from '../layout/Shell';
 import { TopBar } from '../layout/TopBar';
 import { ReasonDialog } from '../components/ui/ReasonDialog';
 import { UploadField } from '../components/ui/UploadField';
 import type { ReportPayload, ReportStatus, ReportSummary } from '../types/domain';
 import { downloadBlob } from '../utils/download';
-
-const serviceTypeOptions = ['LIMPEZA', 'FLUSHING', 'PRESSAO', 'FILTRAGEM', 'INSPECAO', 'OUTRO'];
+import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
 
 const TEXT = {
   approvedAt: 'Aprovado em',
   approve: 'Aprovar',
   back: 'Voltar',
-  code: 'C\u00f3digo',
-  description: 'Descri\u00e7\u00e3o do dia',
-  details: 'Detalhe do relat\u00f3rio',
-  downloadError: 'N\u00e3o foi poss\u00edvel baixar o relat\u00f3rio.',
-  finalization: 'Finaliza\u00e7\u00e3o',
-  generalInfo: 'Informa\u00e7\u00f5es gerais',
+  code: 'Código',
+  collaborators: 'Equipe',
+  description: 'Descrição do dia',
+  details: 'Detalhe do relatório',
+  downloadError: 'Não foi possível baixar o relatório.',
+  finalization: 'Finalização',
+  generalInfo: 'Informações gerais',
   interval: 'Intervalo',
-  loadError: 'Falha ao carregar relat\u00f3rio.',
-  loading: 'Carregando relat\u00f3rio...',
-  missing: 'Relat\u00f3rio n\u00e3o encontrado.',
+  loadError: 'Falha ao carregar relatório.',
+  loading: 'Carregando relatório...',
+  missing: 'Relatório não encontrado.',
   nightTeam: 'Equipe noturna',
-  noService: 'Nenhum servi\u00e7o adicionado.',
+  noService: 'Nenhum serviço adicionado.',
   project: 'Projeto',
   reject: 'Devolver',
   rejectClient: 'Reprovar',
-  rejectClientPrompt: 'Informe o motivo da reprova\u00e7\u00e3o do relat\u00f3rio:',
-  rejectClientRequired: 'Informe um motivo para reprovar o relat\u00f3rio.',
-  rejectPrompt: 'Informe o motivo da devolu\u00e7\u00e3o do relat\u00f3rio:',
-  rejectRequired: 'Informe um motivo para devolver o relat\u00f3rio.',
-  reportSummary: 'Resumo do relat\u00f3rio',
+  rejectClientPrompt: 'Informe o motivo da reprovação do relatório:',
+  rejectClientRequired: 'Informe um motivo para reprovar o relatório.',
+  rejectPrompt: 'Informe o motivo da devolução do relatório:',
+  rejectRequired: 'Informe um motivo para devolver o relatório.',
+  reportSummary: 'Resumo',
   requestSignature: 'Assinar',
-  requestSignatureError: 'N\u00e3o foi poss\u00edvel solicitar a assinatura.',
+  requestSignatureError: 'Não foi possível solicitar a assinatura.',
   returnedAt: 'Devolvido em',
-  save: 'Salvar altera\u00e7\u00f5es',
-  saved: 'Relat\u00f3rio atualizado.',
+  save: 'Salvar alterações',
+  saved: 'Relatório atualizado.',
   select: 'Selecione',
-  service: 'Servi\u00e7o',
-  services: 'Servi\u00e7os',
-  signedLocked: 'Relat\u00f3rio assinado. Os dados est\u00e3o bloqueados para edi\u00e7\u00e3o.',
+  service: 'Serviço',
+  services: 'Serviços',
+  signedLocked: 'Relatório assinado. Os dados estão bloqueados para edição.',
   signatureRequested: 'Assinatura solicitada. Abra o link para concluir.',
   team: 'Equipe',
-  technicalPayload: 'Carga t\u00e9cnica',
-  time: 'Hor\u00e1rio',
-  updateError: 'N\u00e3o foi poss\u00edvel atualizar o relat\u00f3rio.'
+  time: 'Horário',
+  updateError: 'Não foi possível atualizar o relatório.'
 };
 
-const serviceUploadLabel = 'Fotos do servi\u00e7o';
 
 interface RdoServiceForm {
   id: string;
@@ -93,15 +94,6 @@ function toDateInput(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value.slice(0, 10);
   return date.toISOString().slice(0, 10);
-}
-
-function formatJson(value: unknown): string {
-  if (value === null || value === undefined) return '-';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (Array.isArray(value)) return value.map(item => formatJson(item)).join(', ');
-  if (typeof value === 'object') return JSON.stringify(value, null, 2);
-  return String(value);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -146,6 +138,7 @@ function reportToForm(report: ReportSummary): RdoFormState {
       id: service.id || serviceId(),
       type: service.serviceType,
       data: {
+        ...(service.extraData || {}),
         equipmentId: service.equipmentId || '',
         system: service.system || '',
         material: service.material || '',
@@ -157,7 +150,15 @@ function reportToForm(report: ReportSummary): RdoFormState {
   };
 }
 
-function buildPayload(report: ReportSummary, form: RdoFormState): Omit<ReportPayload, 'createdByUserId' | 'status'> {
+function buildPayload(
+  report: ReportSummary,
+  form: RdoFormState,
+  resources: {
+    collaborators: ReturnType<typeof useCollaborators>['data'];
+    equipment: ReturnType<typeof useEquipment>['data'];
+    units: ReturnType<typeof useUnits>['data'];
+  }
+): Omit<ReportPayload, 'createdByUserId' | 'status'> {
   return {
     projectId: form.projectId || report.projectId,
     reportType: report.reportType,
@@ -178,17 +179,11 @@ function buildPayload(report: ReportSummary, form: RdoFormState): Omit<ReportPay
       }
     },
     collaboratorIds: form.collaboratorIds,
-    services: form.services.map(service => ({
-      serviceType: service.type,
-      equipmentId: getString(service.data.equipmentId) || null,
-      system: getString(service.data.system) || null,
-      material: getString(service.data.material) || null,
-      startTime: getString(service.data.startTime) || null,
-      endTime: getString(service.data.endTime) || null,
-      finalized: true,
-      extraData: {
-        notes: getString(service.data.notes)
-      }
+    services: form.services.map(service => buildReportServicePayload(service, {
+      collaboratorIds: form.collaboratorIds,
+      collaborators: resources.collaborators || [],
+      equipment: resources.equipment || [],
+      units: resources.units || []
     }))
   };
 }
@@ -197,6 +192,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const projectsQuery = useProjects(true);
   const collaboratorsQuery = useCollaborators();
   const equipmentQuery = useEquipment();
+  const unitsQuery = useUnits();
+  const manometersQuery = useManometers();
   const reportMutations = useReportMutations();
   const [form, setForm] = useState<RdoFormState>(() => reportToForm(report));
   const [message, setMessage] = useState<string | null>(null);
@@ -221,6 +218,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     [form.services]
   );
   const equipment = (equipmentQuery.data || []).filter(item => item.isActive || selectedEquipmentIds.has(item.id));
+  const units = unitsQuery.data || [];
+  const manometers = manometersQuery.data || [];
 
   function setField<K extends keyof RdoFormState>(field: K, value: RdoFormState[K]) {
     setForm(current => ({ ...current, [field]: value }));
@@ -236,7 +235,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   function addService() {
     setForm(current => ({
       ...current,
-      services: [...current.services, { id: serviceId(), type: 'LIMPEZA', data: {} }]
+      services: [...current.services, { id: serviceId(), type: 'limpeza', data: {} }]
     }));
   }
 
@@ -255,28 +254,20 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     setForm(current => ({ ...current, services: current.services.filter(service => service.id !== id) }));
   }
 
-  function serviceUploads(data: Record<string, unknown>): UploadedFile[] {
-    const groups = Array.isArray(data.__uploads__) ? data.__uploads__ : [];
-    const group = groups.find(item => item && typeof item === 'object' && (item as { label?: unknown }).label === serviceUploadLabel);
-    const files = group && typeof group === 'object' ? (group as { files?: unknown }).files : [];
-    return asUploadedFiles(files);
-  }
-
-  function updateServiceUploads(serviceId: string, files: UploadedFile[]) {
-    updateService(serviceId, {
-      data: {
-        __uploads__: files.length ? [{ label: serviceUploadLabel, files }] : []
-      }
-    });
-  }
-
   async function handleSave() {
     if (readOnly) return;
     setMessage(null);
     setError(null);
 
     try {
-      await reportMutations.updateReport.mutateAsync({ id: report.id, payload: buildPayload(report, form) });
+      await reportMutations.updateReport.mutateAsync({
+        id: report.id,
+        payload: buildPayload(report, form, {
+          collaborators,
+          equipment,
+          units
+        })
+      });
       setMessage(TEXT.saved);
     } catch (err) {
       setError(err instanceof Error ? err.message : TEXT.updateError);
@@ -291,7 +282,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     try {
       await reportMutations.updateStatus.mutateAsync({ id: report.id, payload: { status, reviewNotes } });
       if (status === 'RETURNED') setReturnDialogOpen(false);
-      setMessage(status === 'APPROVED' ? 'Relat\u00f3rio aprovado.' : 'Relat\u00f3rio devolvido.');
+      setMessage(status === 'APPROVED' ? 'Relatório aprovado.' : 'Relatório devolvido.');
     } catch (err) {
       setError(err instanceof Error ? err.message : TEXT.updateError);
     }
@@ -343,7 +334,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             />
           </div>
           <div className="field-group">
-            <label htmlFor="rdo-departure">Sa\u00edda</label>
+            <label htmlFor="rdo-departure">Saída</label>
             <input
               id="rdo-departure"
               type="time"
@@ -422,7 +413,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         {!readOnly ? (
           <div className="admin-form-actions">
             <button className="secondary-button" type="button" onClick={addService}>
-              + Adicionar servi\u00e7o
+              + Adicionar serviço
             </button>
           </div>
         ) : null}
@@ -431,7 +422,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             {form.services.map((service, index) => (
               <article className="admin-card-react" key={service.id}>
                 <div className="admin-card-head">
-                  <div className="admin-card-title">{TEXT.service} {index + 1}</div>
+                  <div className="admin-card-title">{TEXT.service} {index + 1} — {serviceTypeLabels[service.type] || service.type}</div>
                   {!readOnly ? (
                     <div className="admin-card-actions">
                       <button className="secondary-button" type="button" onClick={() => removeService(service.id)}>
@@ -444,13 +435,13 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                   <div className="field-group">
                     <label>Tipo</label>
                     <select
-                      value={service.type}
+                      value={normalizeServiceType(service.type)}
                       disabled={readOnly}
                       onChange={event => updateService(service.id, { type: event.target.value })}
                     >
                       {serviceTypeOptions.map(option => (
                         <option key={option} value={option}>
-                          {option}
+                          {serviceTypeLabels[option] || option}
                         </option>
                       ))}
                     </select>
@@ -478,16 +469,18 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                       onChange={event => updateService(service.id, { data: { system: event.target.value } })}
                     />
                   </div>
+                  {normalizeServiceType(service.type) !== 'pressao' ? (
+                    <div className="field-group">
+                      <label>Material</label>
+                      <input
+                        value={getString(service.data.material)}
+                        disabled={readOnly}
+                        onChange={event => updateService(service.id, { data: { material: event.target.value } })}
+                      />
+                    </div>
+                  ) : null}
                   <div className="field-group">
-                    <label>Material</label>
-                    <input
-                      value={getString(service.data.material)}
-                      disabled={readOnly}
-                      onChange={event => updateService(service.id, { data: { material: event.target.value } })}
-                    />
-                  </div>
-                  <div className="field-group">
-                    <label>In\u00edcio</label>
+                    <label>Início</label>
                     <input
                       type="time"
                       value={getString(service.data.startTime)}
@@ -504,8 +497,18 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                       onChange={event => updateService(service.id, { data: { endTime: event.target.value } })}
                     />
                   </div>
+                  <ServiceFields
+                    serviceType={service.type}
+                    data={service.data}
+                    onChange={update => updateService(service.id, { data: update })}
+                    disabled={readOnly}
+                    units={units}
+                    manometers={manometers}
+                    groupKey={service.id}
+                    projectId={form.projectId}
+                  />
                   <div className="field-group">
-                    <label>Observa\u00e7\u00f5es</label>
+                    <label>Observações</label>
                     <textarea
                       rows={3}
                       value={getString(service.data.notes)}
@@ -513,13 +516,6 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                       onChange={event => updateService(service.id, { data: { notes: event.target.value } })}
                     />
                   </div>
-                  <UploadField
-                    label={serviceUploadLabel}
-                    value={serviceUploads(service.data)}
-                    projectId={form.projectId}
-                    disabled={readOnly}
-                    onChange={files => updateServiceUploads(service.id, files)}
-                  />
                 </div>
               </article>
             ))}
@@ -644,7 +640,7 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
         payload: { action: 'REJECTED', comment }
       });
       setClientRejectOpen(false);
-      setMessage('Avalia\u00e7\u00e3o registrada.');
+      setMessage('Avaliação registrada.');
     } catch (err) {
       setError(err instanceof Error ? err.message : TEXT.updateError);
     }
@@ -652,7 +648,7 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
 
   return (
     <section className="page-card">
-      <div className="section-title">A\u00e7\u00f5es</div>
+      <div className="section-title">Ações</div>
       {error ? <div className="inline-error">{error}</div> : null}
       {message ? <div className="inline-success">{message}</div> : null}
       <div className="admin-form-actions" style={{ marginTop: error || message ? 12 : 0 }}>
@@ -690,7 +686,183 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
   );
 }
 
+const statusLabels: Record<string, string> = {
+  PENDING: 'Pendente',
+  RETURNED: 'Devolvido',
+  APPROVED: 'Aprovado',
+  SIGNED: 'Assinado'
+};
+
+function ServiceSummaryRow({ service, index }: { service: NonNullable<ReportSummary['services']>[number]; index: number }) {
+  const type = normalizeServiceType(service.serviceType || '');
+  const label = serviceTypeLabels[type] || type;
+  const extra = service.extraData || {};
+  const rows: { label: string; value: string }[] = [];
+
+  if (service.equipment) rows.push({ label: 'Equipamento', value: `${service.equipment.code} - ${service.equipment.name}` });
+  if (service.system) rows.push({ label: 'Sistema', value: service.system });
+  if (service.material) rows.push({ label: 'Material', value: service.material });
+  if (service.startTime || service.endTime) {
+    rows.push({ label: 'Horário', value: `${service.startTime || '--'} às ${service.endTime || '--'}` });
+  }
+
+  if (type === 'limpeza') {
+    const metodos = Array.isArray(extra.metodos) ? (extra.metodos as string[]).join(', ') : '';
+    const local = Array.isArray(extra.local) ? (extra.local as string[]).join(', ') : '';
+    const inspecao = Array.isArray(extra.tipoInspecao) ? (extra.tipoInspecao as string[]).join(', ') : '';
+    if (metodos) rows.push({ label: 'Método', value: metodos });
+    if (local) rows.push({ label: 'Local', value: local });
+    if (inspecao) rows.push({ label: 'Inspeção', value: inspecao });
+  }
+
+  if (type === 'pressao') {
+    if (extra.pressaoTrabalho) rows.push({ label: 'P. trabalho', value: String(extra.pressaoTrabalho) });
+    if (extra.pressaoTeste) rows.push({ label: 'P. teste', value: String(extra.pressaoTeste) });
+    if (extra.fluidoTeste) rows.push({ label: 'Fluido', value: extra.fluidoTeste === 'agua' ? 'Água' : 'Óleo' });
+  }
+
+  if (type === 'flushing' || type === 'filtragem') {
+    if (extra.tipoOleo) rows.push({ label: 'Tipo de óleo', value: String(extra.tipoOleo) });
+    if (extra.volumeOleo) rows.push({ label: 'Volume', value: String(extra.volumeOleo) });
+    if (type === 'flushing' && extra.tipoFlushing) {
+      rows.push({ label: 'Tipo flushing', value: extra.tipoFlushing === 'primario' ? 'Primário' : 'Secundário' });
+    }
+  }
+
+  const notes = typeof extra.notes === 'string' ? extra.notes : '';
+  if (notes) rows.push({ label: 'Observações', value: notes });
+
+  return (
+    <article className="admin-card-react">
+      <div className="admin-card-title">{index + 1}. {label}</div>
+      {rows.length ? (
+        <div className="detail-grid" style={{ marginTop: 8 }}>
+          {rows.map(row => (
+            <div key={row.label}>
+              <span className="detail-label">{row.label}</span>
+              <span className="detail-value">{row.value}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function formatMinutes(value: unknown) {
+  const minutes = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(minutes) || minutes <= 0) return '';
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+}
+
+function formatDetailValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.map(formatDetailValue).filter(Boolean).join(', ');
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.names)) return record.names.map(formatDetailValue).filter(Boolean).join(', ');
+    if (Array.isArray(record.codes)) return record.codes.map(formatDetailValue).filter(Boolean).join(', ');
+    if (typeof record.code === 'string' && typeof record.serialNumber === 'string') return `${record.code} - ${record.serialNumber}`;
+    if (typeof record.name === 'string' && typeof record.role === 'string') return `${record.name} - ${record.role}`;
+    if (typeof record.name === 'string') return record.name;
+    if (typeof record.code === 'string') return record.code;
+  }
+  return '';
+}
+
+function buildDerivedRows(report: ReportSummary) {
+  const specialConditions = asRecord(report.specialConditions);
+  const serviceData = asRecord(specialConditions.serviceData);
+  const rows: { label: string; value: string }[] = [];
+  const fieldsByType: Record<string, string[]> = {
+    RTP: [
+      'Equipamento(s)', 'Sistema', 'Unidade de Teste Hidrostático (UTH)', 'Pressão de trabalho',
+      'Pressão de teste', 'Fluido de teste', 'Qual óleo?', 'Manômetros utilizados',
+      'Hora de início', 'Hora de término/pausa', 'Aprovado pelo cliente?', 'Desenhos / TAGs', 'Observações'
+    ],
+    RLQ: [
+      'Equipamento(s)', 'Sistema', 'Material da tubulação', 'Método de limpeza',
+      'Unidade de Limpeza Química', 'Local de limpeza', 'Tipo de inspeção',
+      'Etapas realizadas no dia', 'Hora de início', 'Hora de término/pausa',
+      'Aprovado pelo cliente?', 'Desenhos / TAGs', 'Observações'
+    ],
+    RCPU: [
+      'Equipamento(s)', 'Sistema', 'Tipo de óleo', 'Volume de óleo', 'Tipo de flushing',
+      'Unidade de Flushing', 'Unidade de filtragem', 'Houve contagem de partículas?',
+      'Contagem inicial NAS', 'Contagem final NAS', 'Contagem inicial ISO', 'Contagem final ISO',
+      'Houve análise de umidade?', 'Umidade inicial (ppm)', 'Umidade final (ppm)',
+      'Hora de início', 'Hora de término/pausa', 'Aprovado pelo cliente?', 'Desenhos / TAGs', 'Observações'
+    ],
+    RLM: [
+      'Equipamento(s)', 'Sistema', 'Material do equipamento', 'Etapas realizadas no dia',
+      'Hora de início', 'Hora de término/pausa', 'Aprovado pelo cliente?', 'Observações'
+    ],
+    RLF: ['Equipamento(s)', 'Sistema', 'Material da tubulação', 'Etapas realizadas no dia', 'Observações'],
+    RLI: ['Equipamento(s)', 'Sistema', 'Material da tubulação', 'Etapas realizadas no dia', 'Observações']
+  };
+
+  for (const label of fieldsByType[report.reportType] || []) {
+    const value = formatDetailValue(serviceData[label]);
+    if (value) rows.push({ label, value });
+  }
+
+  const resolvedCollaborators = formatDetailValue(specialConditions.resolvedCollaborators);
+  const resolvedUnits = formatDetailValue(specialConditions.resolvedUnits);
+  const resolvedThermoUnit = formatDetailValue(specialConditions.resolvedThermoUnit);
+  const resolvedCounter = formatDetailValue(specialConditions.resolvedCounter);
+  const totalTime = formatMinutes(specialConditions.totalMinutes);
+
+  if (resolvedCollaborators) rows.push({ label: 'Equipe do serviço', value: resolvedCollaborators });
+  if (resolvedUnits) rows.push({ label: 'Unidades resolvidas', value: resolvedUnits });
+  if (resolvedThermoUnit) rows.push({ label: 'Equipamento de desidratação', value: resolvedThermoUnit });
+  if (resolvedCounter) rows.push({ label: 'Contador utilizado', value: resolvedCounter });
+  if (totalTime) rows.push({ label: 'Tempo acumulado', value: totalTime });
+
+  return rows;
+}
+
+function DerivedReportDetails({ report }: { report: ReportSummary }) {
+  if (report.reportType === 'RDO') return null;
+  const rows = buildDerivedRows(report);
+  if (!rows.length) return null;
+
+  return (
+    <section className="page-card">
+      <div className="section-title">Dados do {report.reportType}</div>
+      <div className="detail-grid">
+        {rows.map(row => (
+          <div key={row.label}>
+            <span className="detail-label">{row.label}</span>
+            <span className="detail-value">{row.value}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ReportSummaryView({ report }: { report: ReportSummary }) {
+  const specialConditions = asRecord(report.specialConditions);
+  const noturnoDetails = asRecord(specialConditions.noturnoDetails);
+  const nightCollaboratorIds = Array.isArray(noturnoDetails.collaboratorIds)
+    ? noturnoDetails.collaboratorIds.filter((id): id is string => typeof id === 'string')
+    : [];
+
+  const daytimeCollaborators = (report.collaborators || [])
+    .filter(link => !nightCollaboratorIds.includes(link.collaboratorId))
+    .map(link => link.collaborator?.name || link.collaboratorId);
+
+  const nightCollaborators = (report.collaborators || [])
+    .filter(link => nightCollaboratorIds.includes(link.collaboratorId))
+    .map(link => link.collaborator?.name || link.collaboratorId);
+
+  const generalUploads = asUploadedFiles(specialConditions.generalUploads);
+  const isStandby = Boolean(specialConditions.standby);
+  const isNoturno = Boolean(noturnoDetails.enabled || nightCollaboratorIds.length);
+
   return (
     <>
       <section className="page-card">
@@ -699,26 +871,65 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
           <div><span className="detail-label">{TEXT.project}</span><span className="detail-value">{report.project.name}</span></div>
           <div><span className="detail-label">{TEXT.code}</span><span className="detail-value">{report.project.code}</span></div>
           <div><span className="detail-label">Data</span><span className="detail-value">{formatDate(report.reportDate)}</span></div>
-          <div><span className="detail-label">{TEXT.time}</span><span className="detail-value">{report.arrivalTime} as {report.departureTime}</span></div>
+          <div><span className="detail-label">{TEXT.time}</span><span className="detail-value">{report.arrivalTime} às {report.departureTime}</span></div>
           <div><span className="detail-label">{TEXT.interval}</span><span className="detail-value">{report.lunchBreak || '-'}</span></div>
-          <div><span className="detail-label">Status</span><span className="detail-value">{report.status}</span></div>
+          <div><span className="detail-label">Status</span><span className="detail-value">{statusLabels[report.status] || report.status}</span></div>
+          {isStandby ? <div><span className="detail-label">Standby</span><span className="detail-value">Sim</span></div> : null}
+          {isNoturno ? <div><span className="detail-label">Turno noturno</span><span className="detail-value">Sim</span></div> : null}
         </div>
       </section>
 
       <section className="page-card">
+        <div className="section-title">{TEXT.collaborators}</div>
+        {daytimeCollaborators.length ? (
+          <ul className="detail-list">
+            {daytimeCollaborators.map(name => <li key={name}>{name}</li>)}
+          </ul>
+        ) : <p className="placeholder-copy">Nenhum colaborador registrado.</p>}
+        {nightCollaborators.length ? (
+          <>
+            <div className="section-subtitle" style={{ marginTop: 12 }}>{TEXT.nightTeam}</div>
+            <ul className="detail-list">
+              {nightCollaborators.map(name => <li key={name}>{name}</li>)}
+            </ul>
+          </>
+        ) : null}
+      </section>
+
+      {(report.services?.length ?? 0) > 0 ? (
+        <section className="page-card">
+          <div className="section-title">{TEXT.services}</div>
+          <div className="admin-stack" style={{ marginTop: 8 }}>
+            {(report.services || []).map((service, i) => (
+              <ServiceSummaryRow key={service.id} service={service} index={i} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <DerivedReportDetails report={report} />
+
+      <section className="page-card">
         <div className="section-title">{TEXT.reportSummary}</div>
         <div className="detail-grid">
-          <div><span className="detail-label">Motivo da hora extra</span><span className="detail-value">{report.overtimeReason || '-'}</span></div>
+          <div><span className="detail-label">Motivo hora extra</span><span className="detail-value">{report.overtimeReason || '-'}</span></div>
           <div><span className="detail-label">{TEXT.description}</span><span className="detail-value">{report.dailyDescription || '-'}</span></div>
           <div><span className="detail-label">{TEXT.approvedAt}</span><span className="detail-value">{formatDate(report.approvedAt)}</span></div>
           <div><span className="detail-label">{TEXT.returnedAt}</span><span className="detail-value">{formatDate(report.returnedAt)}</span></div>
         </div>
         {report.reviewNotes ? <p className="report-note">{report.reviewNotes}</p> : null}
-      </section>
-
-      <section className="page-card">
-        <div className="section-title">{TEXT.technicalPayload}</div>
-        <pre className="json-block">{formatJson(report)}</pre>
+        {generalUploads.length > 0 ? (
+          <div style={{ marginTop: 12 }}>
+            <div className="detail-label">Fotos de registro</div>
+            <div className="upload-thumbs">
+              {generalUploads.map(file => (
+                <a key={file.url} href={file.url} target="_blank" rel="noopener noreferrer">
+                  <img src={file.url} alt={file.fileName || 'foto'} className="upload-thumb" />
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </section>
     </>
   );
