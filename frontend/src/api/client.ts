@@ -4,7 +4,7 @@ const TOKEN_STORAGE_KEY = 'filtrovali-react-token';
 const UNAUTHORIZED_EVENT = 'filtrovali:unauthorized';
 
 export const apiClient = axios.create({
-  baseURL: '/api'
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api'
 });
 
 function extractApiErrorMessage(error: unknown) {

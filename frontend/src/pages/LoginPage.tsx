@@ -4,6 +4,9 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { roleHomePath } from '../auth/rolePath';
 
+const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
+const loginLogoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_LOGIN.png`;
+
 export function LoginPage() {
   const { isAuthenticated, user, login } = useAuth();
   const [username, setUsername] = useState('');
@@ -33,7 +36,7 @@ export function LoginPage() {
     <main className="auth-page">
       <section className="auth-card">
         <div className="auth-logo-wrap">
-          <img className="auth-logo" src="/assets/Logo/LOGO_LOGIN.png" alt="Filtrovali" />
+          <img className="auth-logo" src={loginLogoUrl} alt="Filtrovali" />
           <p className="auth-subtitle">Sistema de relatórios de serviços</p>
         </div>
 
