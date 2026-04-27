@@ -327,11 +327,13 @@ const schema = z.object({
   services: z.array(serviceSchema).default([])
 });
 
+const positiveIntSchema = z.coerce.number().int().positive();
+
 const updateSchema = schema.omit({
   createdByUserId: true,
   status: true
 }).extend({
-  sequenceNumber: z.number().int().positive().optional()
+  sequenceNumber: positiveIntSchema.optional()
 });
 
 const statusSchema = z.object({
@@ -339,7 +341,7 @@ const statusSchema = z.object({
   reviewNotes: z.string().nullable().optional()
 });
 const sequenceSchema = z.object({
-  sequenceNumber: z.number().int().positive()
+  sequenceNumber: positiveIntSchema
 });
 const clientReviewSchema = z.object({
   action: z.enum(['APPROVED', 'REJECTED']),
@@ -671,6 +673,61 @@ async function syncProjectReportSequence(tx, projectId, reportType, sequenceNumb
     },
     data: {
       nextNumber: lastUsedNumber
+    }
+  });
+}
+
+async function prepareReportSequenceChange(tx, currentReport, targetProjectId, targetReportType, targetSequenceNumber) {
+  if (!Number.isInteger(targetSequenceNumber) || targetSequenceNumber < 1) return null;
+
+  const currentSequenceNumber = currentReport.sequenceNumber;
+  const sameGroup = currentReport.projectId === targetProjectId && currentReport.reportType === targetReportType;
+  if (sameGroup && currentSequenceNumber === targetSequenceNumber) return null;
+
+  const conflicting = await tx.report.findFirst({
+    where: {
+      projectId: targetProjectId,
+      reportType: targetReportType,
+      sequenceNumber: targetSequenceNumber,
+      id: { not: currentReport.id }
+    },
+    select: {
+      id: true,
+      status: true
+    }
+  });
+
+  if (!conflicting) return null;
+
+  if (!sameGroup || !Number.isInteger(currentSequenceNumber) || currentSequenceNumber < 1) {
+    const error = new Error('Ja existe um relatorio deste projeto e tipo usando este numero.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  if (conflicting.status === ReportStatus.SIGNED) {
+    const error = new Error('Nao e possivel trocar numeracao com um relatorio assinado.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  await tx.report.update({
+    where: { id: conflicting.id },
+    data: { sequenceNumber: null }
+  });
+
+  return {
+    id: conflicting.id,
+    sequenceNumber: currentSequenceNumber
+  };
+}
+
+async function finishReportSequenceChange(tx, swappedReport) {
+  if (!swappedReport) return;
+  await tx.report.update({
+    where: { id: swappedReport.id },
+    data: {
+      sequenceNumber: swappedReport.sequenceNumber
     }
   });
 }
@@ -1692,6 +1749,9 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
           : {});
     await tx.reportCollaborator.deleteMany({ where: { reportId: req.params.id } });
     await tx.reportService.deleteMany({ where: { reportId: req.params.id } });
+    const sequenceSwap = req.auth.user.role === 'MANAGER' && data.sequenceNumber
+      ? await prepareReportSequenceChange(tx, existing, data.projectId, data.reportType, data.sequenceNumber)
+      : null;
 
     const updated = await tx.report.update({
       where: { id: req.params.id },
@@ -1747,6 +1807,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     });
 
     if (req.auth.user.role === 'MANAGER' && data.sequenceNumber) {
+      await finishReportSequenceChange(tx, sequenceSwap);
       await syncProjectReportSequence(tx, data.projectId, data.reportType, data.sequenceNumber);
     }
 
@@ -1783,6 +1844,7 @@ router.patch('/:id/sequence', requireAuth, asyncHandler(async (req, res) => {
   assertReportMutable(existing);
 
   const item = await prisma.$transaction(async tx => {
+    const sequenceSwap = await prepareReportSequenceChange(tx, existing, existing.projectId, existing.reportType, data.sequenceNumber);
     const updated = await tx.report.update({
       where: { id: req.params.id },
       data: {
@@ -1790,6 +1852,7 @@ router.patch('/:id/sequence', requireAuth, asyncHandler(async (req, res) => {
       },
       include
     });
+    await finishReportSequenceChange(tx, sequenceSwap);
     await syncProjectReportSequence(tx, updated.projectId, updated.reportType, data.sequenceNumber);
     return updated;
   });
