@@ -2235,7 +2235,7 @@ async function refreshUsersCache(){
 function renderGestor(){
   var c=document.getElementById('gestor-content');if(!c)return;
   var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED';});
-  var approved=reportsCache.filter(function(r){return r.status==='APPROVED';});
+  var approved=reportsCache.filter(function(r){return r.status==='APPROVED'||r.status==='SIGNED';});
   var pen=document.getElementById('cnt-pen');if(pen)pen.textContent=pending.length;
   if(gestorTab==='pendentes'){
     c.innerHTML='<div class="stat-grid"><div class="stat-card"><div class="stat-num">'+pending.length+'</div><div class="stat-lbl">Pendentes/devolvidos</div></div><div class="stat-card"><div class="stat-num">'+approved.length+'</div><div class="stat-lbl">Aprovados</div></div></div>'+groupedReportHtml(pending,'gestor','Nenhum relatório pendente.');
@@ -8702,7 +8702,7 @@ window.__legacyBootstrapped = false;
   renderGestor=function(){
     var c=document.getElementById('gestor-content');if(!c)return;
     var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED';});
-    var approved=reportsCache.filter(function(r){return r.status==='APPROVED';});
+    var approved=reportsCache.filter(function(r){return r.status==='APPROVED'||r.status==='SIGNED';});
     var pen=document.getElementById('cnt-pen');if(pen)pen.textContent=pending.length;
     if(gestorTab==='pendentes'){
       var draftsHtml='';
@@ -8738,6 +8738,21 @@ window.__legacyBootstrapped = false;
     document.getElementById('det-title').textContent=reportDisplayLabel(report)+' · '+report.project.name;
     document.getElementById('det-sub').textContent=((report.createdBy&&report.createdBy.name)||'—')+' · '+formatReportDate(report.reportDate);
     document.getElementById('det-badge-top').textContent=statusMeta(report.status).txt;
+    var reportType=normalizeReportType(report.reportType||'RDO');
+    var isDerived=reportType!=='RDO';
+    if(currentUser&&currentUser.role==='MANAGER'&&!isDerived){
+      if(report.status==='SIGNED'){
+        document.getElementById('det-body').innerHTML=
+          '<div class="card"><div class="sec">RelatÃ³rio assinado</div><div style="font-size:13px;line-height:1.6">Este relatÃ³rio jÃ¡ foi assinado e nÃ£o pode ser alterado.</div></div>'+
+          renderReadonlyRdoDetail(report)+
+          (report.reviewNotes?'<div class="card"><div class="sec">Retorno do gestor</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(report.reviewNotes)+'</div></div>':'');
+        document.getElementById('det-actions').innerHTML='<button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button>';
+      }else{
+        renderManagerDetail(report);
+      }
+      go('s-detalhe');
+      return;
+    }
     var servicesHtml=(report.services||[]).map(function(s,i){
       var uploads=((s.extraData||{})['__uploads__']||[]);
       return '<div class="svc-mini"><div class="svc-mini-hdr">Serviço '+(i+1)+' — '+escapeHtml(serviceNames[s.serviceType]||s.serviceType)+'</div><div class="svc-mini-body">Equipamento: <b>'+(s.equipment?s.equipment.code+' - '+s.equipment.name:'—')+'</b><br>Sistema: <b>'+(escapeHtml(s.system||'—'))+'</b> · Material: <b>'+(escapeHtml(s.material||'—'))+'</b><br>Horário: '+escapeHtml((s.startTime||'—')+' às '+(s.endTime||'—'))+'<br>Anexos: '+uploads.length+'</div></div>';
