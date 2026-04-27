@@ -945,16 +945,24 @@ function fgPre(label,id,val,isPre,ph){
   return '<div class="fg"><label>'+label+' <span class="req">*</span>'+(isPre&&val?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
     '<input type="text" id="'+id+'" class="'+c+'" value="'+val+'" placeholder="'+(ph||'')+'" data-required="true" data-label="'+label+'"></div>';
 }
+function decimalOnlyAttrs(){
+  return ' inputmode="decimal" pattern="[0-9.,]*" oninput="sanitizeDecimalInput(this)"';
+}
+function sanitizeDecimalInput(el){
+  if(!el)return;
+  el.value=String(el.value||'').replace(/[^0-9.,]/g,'');
+}
 function tubesBlock(n,tubes,isPre){
-  var rows=(tubes&&tubes.length?tubes:[{d:'',unit:'pol',c:''}]).map(function(t){
+  var rows=(tubes&&tubes.length?tubes:[{d:'',unit:'pol',c:'',lengthUnit:'m'}]).map(function(t){
     var unit=t.unit||'pol';
+    var lengthUnit=t.lengthUnit||t.cUnit||t.comprimentoUnit||'m';
     return '<div class="r3 tube-row">'+
       '<div class="fg" style="margin:0"><label style="font-size:10px">Diâmetro</label>'+
       '<div class="num-unit" style="margin-top:4px">'+
-      '<input type="text" class="'+(isPre&&t.d?'pre':'')+'" value="'+escapeHtml(t.d||'')+'" placeholder=\'2"\' style="flex:1.5">'+
+      '<input type="text" class="'+(isPre&&t.d?'pre':'')+'" value="'+escapeHtml(t.d||'')+'" placeholder=\'2"\' style="flex:1.5"'+decimalOnlyAttrs()+'>'+
       '<select style="flex:0.8"><option value="pol"'+(unit==='pol'?' selected':'')+'>pol</option><option value="mm"'+(unit==='mm'?' selected':'')+'>mm</option></select>'+
       '</div></div>'+
-      '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento (m)</label><input type="text" class="'+(isPre&&t.c?'pre':'')+'" value="'+escapeHtml(t.c||'')+'" placeholder="45"></div>'+
+      '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento</label><div class="num-unit" style="margin-top:4px"><input type="text" class="'+(isPre&&t.c?'pre':'')+'" value="'+escapeHtml(t.c||'')+'" placeholder="45" style="flex:1.5"'+decimalOnlyAttrs()+'><select style="flex:0.8"><option value="m"'+(lengthUnit==='m'?' selected':'')+'>metros</option><option value="cm"'+(lengthUnit==='cm'?' selected':'')+'>centímetros</option></select></div></div>'+
       '<div style="color:#9ca3af;cursor:pointer;font-size:18px;align-self:flex-end;padding-bottom:8px" onclick="this.closest(\'.tube-row\').remove()">×</div></div>';
   }).join('');
   return '<div class="fg"><label>Diâmetros e comprimentos'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
@@ -1004,7 +1012,7 @@ function pressaoField(lbl){
     '<select><option>bar</option><option>psi</option><option>kg/cm²</option><option>MPa</option><option>kPa</option></select></div></div>';
 }
 function volField(lbl,required){
-  return '<div class="fg"><label>'+lbl+(required?' <span class="req">*</span>':'')+'</label><div class="num-unit"><input type="number" placeholder="0"'+(required?' data-required="true" data-label="'+lbl+'"':'')+'>'+
+  return '<div class="fg"><label>'+lbl+(required?' <span class="req">*</span>':'')+'</label><div class="num-unit"><input type="text" placeholder="0"'+decimalOnlyAttrs()+(required?' data-required="true" data-label="'+lbl+'"':'')+'>'+
     '<select><option>L</option><option>mL</option></select></div></div>';
 }
 
@@ -1160,10 +1168,10 @@ function addTube(n){
   var d=document.createElement('div');d.className='r3 tube-row';
   d.innerHTML='<div class="fg" style="margin:0"><label style="font-size:10px">Diâmetro</label>'+
     '<div class="num-unit" style="margin-top:4px">'+
-    '<input type="text" placeholder=\'2"\' style="flex:1.5">'+
+    '<input type="text" placeholder=\'2"\' style="flex:1.5"'+decimalOnlyAttrs()+'>'+
     '<select style="flex:0.8"><option value="pol">pol</option><option value="mm">mm</option></select>'+
     '</div></div>'+
-    '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento (m)</label><input type="text" placeholder="45"></div>'+
+    '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento</label><div class="num-unit" style="margin-top:4px"><input type="text" placeholder="45" style="flex:1.5"'+decimalOnlyAttrs()+'><select style="flex:0.8"><option value="m">metros</option><option value="cm">centímetros</option></select></div></div>'+
     '<div style="color:#9ca3af;cursor:pointer;font-size:18px;align-self:flex-end;padding-bottom:8px" onclick="this.closest(\'.tube-row\').remove()">×</div>';
   c.appendChild(d);
 }
@@ -1235,8 +1243,8 @@ function fgValue(fg){
   if(equips)return Array.from(equips.querySelectorAll('[data-equip-input]')).map(function(i){return i.value.trim();}).filter(Boolean);
   var tubes=fg.querySelector('[data-multifield="tubes"]');
   if(tubes)return Array.from(tubes.querySelectorAll('.tube-row')).map(function(row){
-    var inputs=row.querySelectorAll('input');var sel=row.querySelector('select');
-    return {d:(inputs[0]?inputs[0].value.trim():''),unit:(sel?sel.value:'pol'),c:(inputs[1]?inputs[1].value.trim():'')};
+    var inputs=row.querySelectorAll('input');var sels=row.querySelectorAll('select');
+    return {d:(inputs[0]?inputs[0].value.trim():''),unit:(sels[0]?sels[0].value:'pol'),c:(inputs[1]?inputs[1].value.trim():''),lengthUnit:(sels[1]?sels[1].value:'m')};
   }).filter(function(t){return t.d||t.c;});
   var units=fg.querySelector('[data-multifield="units"]');
   if(units){var usels=Array.from(units.querySelectorAll('[data-unit-select]'));var uids=usels.map(function(s){return s.value;}).filter(Boolean);var ulabels=usels.filter(function(s){return s.value;}).map(function(s){return s.options[s.selectedIndex]?s.options[s.selectedIndex].text:'';}).filter(Boolean);return {ids:uids,labels:ulabels};}
@@ -1816,6 +1824,7 @@ var currentUser=authState.user||null;
 function openProtectedUrl(event,url){
   event.preventDefault();
   if(!authState.token||!url)return;
+  url=protectedAssetUrl(url);
   fetch(url,{headers:{Authorization:'Bearer '+authState.token}}).then(function(r){
     if(!r.ok){alert('Erro ao abrir arquivo.');return null;}
     return r.blob();
@@ -1824,6 +1833,33 @@ function openProtectedUrl(event,url){
     var blobUrl=URL.createObjectURL(blob);
     window.open(blobUrl,'_blank');
   }).catch(function(){alert('Erro ao abrir arquivo.');});
+}
+function protectedAssetUrl(url){
+  if(!url)return '';
+  if(/^data:/i.test(url) || /^blob:/i.test(url))return url;
+  if(/^https?:\/\//i.test(url))return url;
+  return apiHost()+url;
+}
+function loadProtectedImages(scope){
+  if(!authState.token)return;
+  var root=scope&&scope.querySelectorAll?scope:document;
+  root.querySelectorAll('img[data-protected-src]').forEach(function(img){
+    var source=protectedAssetUrl(img.getAttribute('data-protected-src')||'');
+    if(!source || img.dataset.loadedSrc===source)return;
+    img.dataset.loadedSrc=source;
+    fetch(source,{headers:{Authorization:'Bearer '+authState.token}}).then(function(r){
+      if(!r.ok)throw new Error('Falha ao carregar imagem.');
+      return r.blob();
+    }).then(function(blob){
+      var previous=img.dataset.objectUrl||'';
+      var objectUrl=URL.createObjectURL(blob);
+      img.dataset.objectUrl=objectUrl;
+      img.src=objectUrl;
+      if(previous)setTimeout(function(){URL.revokeObjectURL(previous);},500);
+    }).catch(function(){
+      img.alt='Imagem indisponível';
+    });
+  });
 }
 var reportsCache=[];
 var usersCache=[];
@@ -2415,13 +2451,14 @@ function setFgStoredValue(fg,val){
     val.forEach(function(t){
       if(!t||(!t.d&&!t.c))return;
       var unit=t.unit||'pol';
+      var lengthUnit=t.lengthUnit||t.cUnit||t.comprimentoUnit||'m';
       var d=document.createElement('div');d.className='r3 tube-row';
       d.innerHTML='<div class="fg" style="margin:0"><label style="font-size:10px">Diâmetro</label>'+
         '<div class="num-unit" style="margin-top:4px">'+
-        '<input type="text" value="'+escapeHtml(String(t.d||''))+'" placeholder=\'2"\' style="flex:1.5">'+
+        '<input type="text" value="'+escapeHtml(String(t.d||''))+'" placeholder=\'2"\' style="flex:1.5"'+decimalOnlyAttrs()+'>'+
         '<select style="flex:0.8"><option value="pol"'+(unit==='pol'?' selected':'')+'>pol</option><option value="mm"'+(unit==='mm'?' selected':'')+'>mm</option></select>'+
         '</div></div>'+
-        '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento (m)</label><input type="text" value="'+escapeHtml(String(t.c||''))+'" placeholder="45"></div>'+
+        '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento</label><div class="num-unit" style="margin-top:4px"><input type="text" value="'+escapeHtml(String(t.c||''))+'" placeholder="45" style="flex:1.5"'+decimalOnlyAttrs()+'><select style="flex:0.8"><option value="m"'+(lengthUnit==='m'?' selected':'')+'>metros</option><option value="cm"'+(lengthUnit==='cm'?' selected':'')+'>centímetros</option></select></div></div>'+
         '<div style="color:#9ca3af;cursor:pointer;font-size:18px;align-self:flex-end;padding-bottom:8px" onclick="this.closest(\'.tube-row\').remove()">×</div>';
       tubesC.appendChild(d);
     });
@@ -2786,9 +2823,12 @@ function updateUploadZone(zone){
   zone.id=zoneId;
   list.innerHTML=items.map(function(item,idx){
     var name=item.fileName||('arquivo-'+(idx+1));
-    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--br);border-radius:var(--rs);background:#fff"><a href="'+escapeHtml(item.url||'#')+'" target="_blank" style="font-size:12px;color:var(--bl);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+escapeHtml(name)+'</a><button type="button" class="mini-btn alt" style="padding:6px 10px" onclick="event.stopPropagation();removeUploadAt(\''+zoneId+'\','+idx+')">Remover</button></div>';
+    var url=protectedAssetUrl(item.url||'');
+    var thumb=url?'<img data-protected-src="'+escapeHtml(url)+'" alt="'+escapeHtml(name)+'" style="width:44px;height:44px;object-fit:cover;border-radius:8px;background:#eef2f6;border:1px solid var(--br);flex:0 0 auto">':'';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--br);border-radius:var(--rs);background:#fff">'+thumb+'<a href="#" data-purl="'+escapeHtml(url)+'" onclick="event.stopPropagation();openProtectedUrl(event,this.getAttribute(\'data-purl\'))" style="font-size:12px;color:var(--bl);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+escapeHtml(name)+'</a><button type="button" class="mini-btn alt" style="padding:6px 10px" onclick="event.stopPropagation();removeUploadAt(\''+zoneId+'\','+idx+')">Remover</button></div>';
   }).join('');
   zone.parentElement.appendChild(list);
+  loadProtectedImages(list);
 }
 function renderRlmDetail(report){
   var sc=report.specialConditions||{};
@@ -3573,8 +3613,8 @@ function collectServiceFields(card){
     // multi-tube container
     var tubes=fg.querySelector('[data-multifield="tubes"]');
     if(tubes){out[key]=Array.from(tubes.querySelectorAll('.tube-row')).map(function(row){
-      var inputs=row.querySelectorAll('input');var sel=row.querySelector('select');
-      return {d:(inputs[0]?inputs[0].value.trim():''),unit:(sel?sel.value:'pol'),c:(inputs[1]?inputs[1].value.trim():'')};
+      var inputs=row.querySelectorAll('input');var sels=row.querySelectorAll('select');
+      return {d:(inputs[0]?inputs[0].value.trim():''),unit:(sels[0]?sels[0].value:'pol'),c:(inputs[1]?inputs[1].value.trim():''),lengthUnit:(sels[1]?sels[1].value:'m')};
     }).filter(function(t){return t.d||t.c;});return;}
     // multi-unit container
     var unitsEl=fg.querySelector('[data-multifield="units"]');
@@ -7564,8 +7604,10 @@ window.__legacyBootstrapped = false;
         var actions=isCoordinatorUser()
           ? ''
           : '<div class="admin-actions"><button class="mini-btn alt" onclick="unarchiveProjeto(\''+p.id+'\')">Desarquivar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div>';
+        var projectBodyId='pgroup_archived_'+String(p.id||p.nome||'').replace(/[^a-z0-9]/gi,'_');
+        var projectOpen=getProjectGroupToggleState(projectBodyId);
         var reportsBlock=reportSections?'<div style="margin-top:14px">'+reportSections+'</div>':'<div style="margin-top:14px;font-size:13px;color:var(--mu)">Nenhum relatório aprovado neste projeto arquivado.</div>';
-        return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge badge-rev">Arquivado</span></div><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Local</span><span class="det-val">'+escapeHtml(p.local||'-')+'</span></div></div>'+reportsBlock+actions+'</div>';
+        return '<div class="card admin-card"><button type="button" onclick="toggleProjectReportGroup(\''+projectBodyId+'\')" style="width:100%;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px;border:0;background:transparent;padding:0;text-align:left;cursor:pointer"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span style="display:flex;align-items:center;gap:10px"><span class="badge badge-rev">Arquivado</span><span id="pchev-'+projectBodyId+'" style="color:var(--mu);font-weight:700">'+(projectOpen?'&#9662;':'&#9666;')+'</span></span></button><div id="'+projectBodyId+'" data-open="'+(projectOpen?'true':'false')+'" style="display:'+(projectOpen?'':'none')+'"><div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Local</span><span class="det-val">'+escapeHtml(p.local||'-')+'</span></div></div>'+reportsBlock+actions+'</div></div>';
       }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto arquivado.</div></div>');
   };
   saveProjetoEditor=async function(mode){
@@ -8400,6 +8442,38 @@ window.__legacyBootstrapped = false;
       if(chev)chev.textContent=isOpen?'▾':'◂';
     });
   }
+  function projectGroupToggleStorageKey(){
+    var userKey=(currentUser&&((currentUser.id)||currentUser.username||currentUser.email))||'anon';
+    return 'filtrovali_project_report_toggles_'+String(userKey);
+  }
+  function getStoredProjectGroupToggles(){
+    try{
+      return JSON.parse(localStorage.getItem(projectGroupToggleStorageKey())||'{}');
+    }catch(_){
+      return {};
+    }
+  }
+  function getProjectGroupToggleState(uid){
+    var state=getStoredProjectGroupToggles();
+    return state[uid]!==false;
+  }
+  function setProjectGroupToggleState(uid,isOpen){
+    try{
+      var state=getStoredProjectGroupToggles();
+      state[uid]=!!isOpen;
+      localStorage.setItem(projectGroupToggleStorageKey(),JSON.stringify(state));
+    }catch(_){}
+  }
+  function toggleProjectReportGroup(uid){
+    var body=document.getElementById(uid);
+    var chev=document.getElementById('pchev-'+uid);
+    if(!body)return;
+    var open=body.dataset.open!=='false';
+    body.style.display=open?'none':'';
+    body.dataset.open=open?'false':'true';
+    setProjectGroupToggleState(uid,!open);
+    if(chev)chev.innerHTML=open?'&#9666;':'&#9662;';
+  }
   function renderBatchCheckbox(ctx,report){
     if(!isSelectableReport(report,ctx))return '';
     var checked=isSelectedInBatch(ctx,report.id)?' checked':'';
@@ -8481,6 +8555,7 @@ window.__legacyBootstrapped = false;
   window.clearBatchSelection=clearBatchSelection;
   window.downloadSelectedReports=downloadSelectedReports;
   window.startClientBatchSignature=startClientBatchSignature;
+  window.toggleProjectReportGroup=toggleProjectReportGroup;
   switchClientProjectTab=(function(baseSwitchClientProjectTab){
     return function(projectId){
       var state=getBatchSelection('cliente');
@@ -8533,6 +8608,8 @@ window.__legacyBootstrapped = false;
           byType[type].push(report);
         });
         var projectId=String((projectReports[0]&&projectReports[0].projectId)||'');
+        var projectBodyId='pgroup_'+String(origin||'default').replace(/[^a-z0-9]/gi,'_')+'_'+(projectId||projectName).replace(/[^a-z0-9]/gi,'_');
+        var projectOpen=getProjectGroupToggleState(projectBodyId);
         var sections='';
         ['RDO','RTP','RLQ','RCPU','RLM'].forEach(function(type){
           if(!byType[type]||!byType[type].length)return;
@@ -8542,14 +8619,20 @@ window.__legacyBootstrapped = false;
             '<div class="report-type-header" onclick="toggleTypeGroup(\''+uid+'\')">'+
             '<span class="rtype-badge rtype-'+type+'">'+type+'</span>'+
             '<span class="rtype-count">'+byType[type].length+' relatório'+(byType[type].length!==1?'s':'')+'</span>'+
-            '<span class="rtype-chevron" id="chev-'+uid+'">▾</span>'+
+            '<span class="rtype-chevron" id="chev-'+uid+'">'+(isOpen?'&#9662;':'&#9656;')+'</span>'+
             '</div>'+
-            '<div class="report-type-list" id="'+uid+'">'+
+            '<div class="report-type-list'+(isOpen?'':' is-collapsed')+'" id="'+uid+'">'+
             renderBatchSelectAllButton(ctx,projectId,type)+
             byType[type].map(function(report){ return reportCard(report,origin); }).join('')+
             '</div></div>';
         });
-        html+='<div class="card"><div class="sec">'+escapeHtml(getProjectCardTitle(projectReports[0]))+'</div>'+sections+'</div>';
+        html+='<div class="card">'+
+          '<button type="button" onclick="toggleProjectReportGroup(\''+projectBodyId+'\')" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;border:0;background:transparent;padding:0;text-align:left;cursor:pointer">'+
+          '<span class="sec" style="margin:0">'+escapeHtml(getProjectCardTitle(projectReports[0]))+'</span>'+
+          '<span id="pchev-'+projectBodyId+'" style="color:var(--mu);font-size:12px;font-weight:700">'+(projectOpen?'&#9662;':'&#9666;')+'</span>'+
+          '</button>'+
+          '<div id="'+projectBodyId+'" data-open="'+(projectOpen?'true':'false')+'" style="display:'+(projectOpen?'':'none')+';margin-top:12px">'+sections+'</div>'+
+          '</div>';
       });
       return html;
     };
@@ -8727,7 +8810,15 @@ window.__legacyBootstrapped = false;
   };
   renderMyReports=function(){
     var content=document.getElementById('my-reports-content');
-    if(content)content.innerHTML=groupedReportHtml(reportsCache,'meus','Nenhum relatório enviado por você.');
+    if(!content)return;
+    var activeReports=typeof filterReportsByProjectArchiveState==='function'?filterReportsByProjectArchiveState(reportsCache,false):reportsCache;
+    var archivedReports=typeof filterReportsByProjectArchiveState==='function'?filterReportsByProjectArchiveState(reportsCache,true):[];
+    if(typeof myReportsTab==='undefined')myReportsTab='ativos';
+    if(myReportsTab!=='arquivados')myReportsTab='ativos';
+    var tabs='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="mini-btn'+(myReportsTab==='ativos'?'':' alt')+'" type="button" onclick="switchMyReportsTab(\'ativos\')">Ativos</button><button class="mini-btn'+(myReportsTab==='arquivados'?'':' alt')+'" type="button" onclick="switchMyReportsTab(\'arquivados\')">Arquivados</button></div>';
+    content.innerHTML=tabs+(myReportsTab==='arquivados'
+      ? groupedReportHtml(archivedReports,'meus','Nenhum relatório arquivado.')
+      : groupedReportHtml(activeReports,'meus','Nenhum relatório enviado por você.'));
   };
   openReportDetail=async function(id,origin){
     var report=reportsCache.find(function(r){return r.id===id;})||await apiFetch('/reports/'+id);
