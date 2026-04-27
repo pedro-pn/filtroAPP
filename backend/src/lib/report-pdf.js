@@ -83,7 +83,7 @@ function formatMinutes(total) {
 
 function reportLabel(report) {
   const number = typeof report.sequenceNumber === 'number'
-    ? String(report.sequenceNumber).padStart(3, '0')
+    ? String(report.sequenceNumber)
     : '---';
   return `${report.reportType} ${number}`;
 }
