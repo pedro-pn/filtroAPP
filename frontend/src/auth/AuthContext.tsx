@@ -1,0 +1,121 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+
+import { login as loginRequest, logout as logoutRequest, me as meRequest } from '../api/auth';
+import { TOKEN_STORAGE_KEY, UNAUTHORIZED_EVENT } from '../api/client';
+import type { AuthUser, LoginPayload } from '../types/auth';
+
+interface AuthContextValue {
+  user: AuthUser | null;
+  token: string | null;
+  isBootstrapping: boolean;
+  isAuthenticated: boolean;
+  login: (payload: LoginPayload) => Promise<void>;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  replaceUser: (user: AuthUser | null) => void;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+function getStoredToken() {
+  return localStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [token, setToken] = useState<string | null>(() => getStoredToken());
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+
+  const clearSession = useCallback(() => {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    setToken(null);
+    setUser(null);
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    const currentToken = getStoredToken();
+    if (!currentToken) {
+      clearSession();
+      return;
+    }
+    const currentUser = await meRequest();
+    setToken(currentToken);
+    setUser(currentUser);
+  }, [clearSession]);
+
+  const login = useCallback(async (payload: LoginPayload) => {
+    const data = await loginRequest(payload);
+    localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
+    setToken(data.token);
+    setUser(data.user);
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await logoutRequest();
+    } finally {
+      clearSession();
+    }
+  }, [clearSession]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function bootstrap() {
+      const storedToken = getStoredToken();
+      if (!storedToken) {
+        if (mounted) setIsBootstrapping(false);
+        return;
+      }
+
+      try {
+        const currentUser = await meRequest();
+        if (!mounted) return;
+        setToken(storedToken);
+        setUser(currentUser);
+      } catch {
+        if (!mounted) return;
+        clearSession();
+      } finally {
+        if (mounted) setIsBootstrapping(false);
+      }
+    }
+
+    bootstrap();
+    return () => {
+      mounted = false;
+    };
+  }, [clearSession]);
+
+  useEffect(() => {
+    function handleUnauthorized() {
+      clearSession();
+    }
+    window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
+  }, [clearSession]);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      token,
+      isBootstrapping,
+      isAuthenticated: !!user && !!token,
+      login,
+      logout,
+      refreshUser,
+      replaceUser: setUser
+    }),
+    [isBootstrapping, login, logout, refreshUser, token, user]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+  return context;
+}

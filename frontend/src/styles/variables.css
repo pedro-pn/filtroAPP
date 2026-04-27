@@ -1,0 +1,16 @@
+:root {
+  --g: #30503a;
+  --gl: #3d6449;
+  --gd: #243d2c;
+  --bl: #11437e;
+  --rd: #c81519;
+  --pu: #9b93a8;
+  --bg: #f4f5f4;
+  --wh: #ffffff;
+  --tx: #1a1a1a;
+  --mu: #6b7280;
+  --br: #d1d5db;
+  --r: 10px;
+  --rs: 6px;
+  --shadow: 0 12px 32px rgba(20, 20, 20, 0.08);
+}

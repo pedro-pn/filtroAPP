@@ -9,6 +9,13 @@ function parseBoolean(value, fallback = false) {
   return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
 }
 
+function parseOrigins(value) {
+  return String(value || '')
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
 const env = {
   port: Number(process.env.PORT || 4000),
   databaseUrl: process.env.DATABASE_URL || '',
@@ -17,6 +24,7 @@ const env = {
   uploadDir: reportsDir,
   appUrl: process.env.APP_URL || '',
   allowedOrigin: process.env.ALLOWED_ORIGIN || '',
+  allowedOrigins: parseOrigins(process.env.ALLOWED_ORIGIN),
   smtpHost: process.env.SMTP_HOST || '',
   smtpPort: Number.isFinite(smtpPort) ? smtpPort : 587,
   smtpSecure: parseBoolean(process.env.SMTP_SECURE, false),

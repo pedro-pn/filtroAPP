@@ -54,7 +54,9 @@ app.use(helmet({
 }));
 app.use(cors({
   origin(origin, callback) {
-    if (!env.allowedOrigin || !origin || origin === env.allowedOrigin) {
+    const allowedOrigins = env.allowedOrigins || [];
+    const originAllowed = !allowedOrigins.length || allowedOrigins.includes(origin);
+    if (!origin || originAllowed) {
       callback(null, true);
       return;
     }
