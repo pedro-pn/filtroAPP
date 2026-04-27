@@ -3355,7 +3355,7 @@ async function openReportDetail(id,origin){
 }
 function reportDisplayLabel(report){
   var seq=report&&report.sequenceNumber;
-  var padded=(typeof seq==='number'&&seq>0)?String(seq).padStart(3,'0'):'---';
+  var padded=(typeof seq==='number'&&seq>0)?String(seq):'---';
   var type=(report&&report.reportType?String(report.reportType).toUpperCase():'REL');
   if(type==='RCP')type='RCPU';
   return type+' '+padded;
@@ -4562,6 +4562,7 @@ async function saveManagerDetail(id,action){
   var payload={
     projectId: document.getElementById('mgr-project-id').value,
     reportType: report.reportType,
+    sequenceNumber: Math.max(1,Number(document.getElementById('mgr-sequence-number').value)||report.sequenceNumber||1),
     reportDate: document.getElementById('mgr-report-date').value,
     arrivalTime: document.getElementById('mgr-arrival').value,
     departureTime: document.getElementById('mgr-departure').value,
@@ -5606,6 +5607,7 @@ function renderManagerDetail(report){
   document.getElementById('det-body').innerHTML=
     '<div class="card"><div class="sec">Cabeçalho</div><div class="admin-inline-grid">'+
     '<div class="fg"><label>Projeto</label><select id="mgr-project-id">'+projectSelectOptions(report.projectId,true)+'</select></div>'+
+    '<div class="fg"><label>Número do relatório</label><input type="number" min="1" step="1" id="mgr-sequence-number" value="'+escapeHtml(String(report.sequenceNumber||''))+'"></div>'+
     '<div class="fg"><label>Data do relatório</label><input type="date" id="mgr-report-date" value="'+escapeHtml(String(report.reportDate).slice(0,10))+'"></div>'+
     '<div class="fg"><label>Chegada</label><input type="time" id="mgr-arrival" value="'+escapeHtml(report.arrivalTime||'')+'"></div>'+
     '<div class="fg"><label>Saída</label><input type="time" id="mgr-departure" value="'+escapeHtml(report.departureTime||'')+'"></div>'+
@@ -8047,7 +8049,7 @@ window.__legacyBootstrapped = false;
     if(!report)return;
     var commentField=document.getElementById('client-review-comment-'+reportId);
     var comment=commentField?commentField.value.trim():'';
-    var confirmText='Voce sera redirecionado para a ZapSign para assinar digitalmente o '+(report.reportType||'RDO')+' n '+(report.sequenceNumber!=null?String(report.sequenceNumber).padStart(3,'0'):'---')+'. Deseja continuar?';
+    var confirmText='Voce sera redirecionado para a ZapSign para assinar digitalmente o '+(report.reportType||'RDO')+' n '+(report.sequenceNumber!=null?String(report.sequenceNumber):'---')+'. Deseja continuar?';
     if(!confirm(confirmText))return;
     try{
       var result=await apiFetch('/reports/'+reportId+'/request-signature',{method:'POST',body:JSON.stringify({comment:comment||null})});
@@ -8820,6 +8822,22 @@ window.__legacyBootstrapped = false;
       ? groupedReportHtml(archivedReports,'meus','Nenhum relatório arquivado.')
       : groupedReportHtml(activeReports,'meus','Nenhum relatório enviado por você.'));
   };
+  function renderManagerSequenceEditor(report){
+    if(!currentUser||currentUser.role!=='MANAGER'||report.status==='SIGNED')return '';
+    return '<div class="card"><div class="sec">Numeração</div><div class="admin-inline-grid"><div class="fg"><label>Número do relatório</label><input type="number" min="1" step="1" id="det-sequence-number" value="'+escapeHtml(String(report.sequenceNumber||''))+'"></div><div class="fg" style="align-self:end"><button type="button" class="mini-btn" onclick="saveReportSequence(\''+report.id+'\')">Salvar número</button></div></div></div>';
+  }
+  async function saveReportSequence(id){
+    var field=document.getElementById('det-sequence-number');
+    var value=Math.max(1,Number(field&&field.value)||0);
+    if(!value){alert('Informe um número válido.');return;}
+    var updated=await apiFetch('/reports/'+id+'/sequence',{method:'PATCH',body:JSON.stringify({sequenceNumber:value})});
+    await refreshDbFromApi();
+    await refreshReportsCache();
+    renderGestor();
+    await openReportDetail((updated&&updated.id)||id,'gestor');
+    showToast('Número do relatório atualizado.');
+  }
+  window.saveReportSequence=saveReportSequence;
   openReportDetail=async function(id,origin){
     var report=reportsCache.find(function(r){return r.id===id;})||await apiFetch('/reports/'+id);
     currentDetailReport=report;
@@ -8847,7 +8865,7 @@ window.__legacyBootstrapped = false;
       return '<div class="svc-mini"><div class="svc-mini-hdr">Serviço '+(i+1)+' — '+escapeHtml(serviceNames[s.serviceType]||s.serviceType)+'</div><div class="svc-mini-body">Equipamento: <b>'+(s.equipment?s.equipment.code+' - '+s.equipment.name:'—')+'</b><br>Sistema: <b>'+(escapeHtml(s.system||'—'))+'</b> · Material: <b>'+(escapeHtml(s.material||'—'))+'</b><br>Horário: '+escapeHtml((s.startTime||'—')+' às '+(s.endTime||'—'))+'<br>Anexos: '+uploads.length+'</div></div>';
     }).join('');
     var reviewNotes=report.reviewNotes?'<div class="card"><div class="sec">Retorno do gestor</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(report.reviewNotes)+'</div></div>':'';
-    document.getElementById('det-body').innerHTML='<div class="card"><div class="sec">Informações gerais</div><div class="det-section"><div class="det-row"><span class="det-label">Projeto</span><span class="det-val">'+escapeHtml(report.project.name)+'</span></div><div class="det-row"><span class="det-label">Data</span><span class="det-val">'+formatReportDate(report.reportDate)+'</span></div><div class="det-row"><span class="det-label">Horário</span><span class="det-val">'+escapeHtml(report.arrivalTime+' - '+report.departureTime)+'</span></div><div class="det-row"><span class="det-label">Equipe</span><span class="det-val">'+(report.collaborators||[]).length+'</span></div></div></div><div class="card"><div class="sec">Serviços registrados</div>'+(servicesHtml||'<div style="font-size:13px;color:var(--mu)">Sem serviços.</div>')+'</div>'+reviewNotes;
+    document.getElementById('det-body').innerHTML=renderManagerSequenceEditor(report)+'<div class="card"><div class="sec">Informações gerais</div><div class="det-section"><div class="det-row"><span class="det-label">Projeto</span><span class="det-val">'+escapeHtml(report.project.name)+'</span></div><div class="det-row"><span class="det-label">Data</span><span class="det-val">'+formatReportDate(report.reportDate)+'</span></div><div class="det-row"><span class="det-label">Horário</span><span class="det-val">'+escapeHtml(report.arrivalTime+' - '+report.departureTime)+'</span></div><div class="det-row"><span class="det-label">Equipe</span><span class="det-val">'+(report.collaborators||[]).length+'</span></div></div></div><div class="card"><div class="sec">Serviços registrados</div>'+(servicesHtml||'<div style="font-size:13px;color:var(--mu)">Sem serviços.</div>')+'</div>'+reviewNotes;
     var actions='';
     if(currentUser&&currentUser.role==='MANAGER'){
       actions=report.status==='APPROVED'
@@ -8981,6 +8999,59 @@ window.__legacyBootstrapped = false;
       setPdfButtonsLoading(id,false);
     }
   };
+  var actionLoadingMap={};
+  function setActionButtonsLoading(actionKey,isLoading,label,onclickNeedle){
+    var active=document.activeElement;
+    var btns=Array.from(document.querySelectorAll('button')).filter(function(btn){
+      var handler=btn.getAttribute('onclick')||'';
+      return (onclickNeedle&&handler.indexOf(onclickNeedle)>=0) || btn===active;
+    });
+    btns.forEach(function(btn){
+      if(isLoading){
+        if(btn.dataset.lockedAction&&btn.dataset.lockedAction!==actionKey)return;
+        if(!btn.dataset.originalText)btn.dataset.originalText=btn.textContent;
+        btn.dataset.lockedAction=actionKey;
+        btn.disabled=true;
+        btn.style.opacity='0.7';
+        btn.style.cursor='wait';
+        btn.textContent=label;
+      }else if(btn.dataset.lockedAction===actionKey){
+        btn.disabled=false;
+        btn.style.opacity='';
+        btn.style.cursor='';
+        btn.textContent=btn.dataset.originalText||btn.textContent;
+        delete btn.dataset.lockedAction;
+        delete btn.dataset.originalText;
+      }
+    });
+  }
+  async function runLockedAction(actionKey,label,onclickNeedle,task){
+    if(actionLoadingMap[actionKey])return;
+    actionLoadingMap[actionKey]=true;
+    setActionButtonsLoading(actionKey,true,label,onclickNeedle);
+    try{
+      return await task();
+    }finally{
+      delete actionLoadingMap[actionKey];
+      setActionButtonsLoading(actionKey,false,label,onclickNeedle);
+    }
+  }
+  enviar=(function(baseEnviar){
+    return async function(){
+      return runLockedAction('enviar-relatorio','Enviando...','enviar()',function(){
+        return baseEnviar.apply(this,arguments);
+      }.bind(this));
+    };
+  })(enviar);
+  if(window.downloadSelectedReports){
+    window.downloadSelectedReports=(function(baseDownloadSelectedReports){
+      return async function(ctx,format){
+        return runLockedAction('download-lote-'+String(ctx)+'-'+String(format),'Baixando...',"downloadSelectedReports('"+ctx+"','"+format+"')",function(){
+          return baseDownloadSelectedReports(ctx,format);
+        });
+      };
+    })(window.downloadSelectedReports);
+  }
   apiFetch=async function(path,options){
     var headers=Object.assign({},((options||{}).headers||{}));
     if(!headers['Content-Type'])headers['Content-Type']='application/json';

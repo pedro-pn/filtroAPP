@@ -72,7 +72,7 @@ function maybeMinutes(total) {
 
 function reportNumber(report) {
   return typeof report.sequenceNumber === 'number'
-    ? String(report.sequenceNumber).padStart(3, '0')
+    ? String(report.sequenceNumber)
     : '---';
 }
 

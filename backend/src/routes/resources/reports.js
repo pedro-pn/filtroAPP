@@ -36,7 +36,7 @@ function formatDatePtBr(date) {
 
 function reportNumberLabel(report) {
   if (report.sequenceNumber == null) return '';
-  return String(report.sequenceNumber).padStart(3, '0');
+  return String(report.sequenceNumber);
 }
 
 function queueApprovedReportNotification(report) {
@@ -157,7 +157,7 @@ function clientIp(req) {
 function reportPdfFileName(report, saved) {
   if (saved?.fileName) return saved.fileName;
   const type = String(report.reportType || 'RDO');
-  const number = report.sequenceNumber != null ? String(report.sequenceNumber).padStart(3, '0') : '---';
+  const number = report.sequenceNumber != null ? String(report.sequenceNumber) : '---';
   return `${type}_${number}.pdf`;
 }
 
@@ -228,7 +228,7 @@ async function resolveSignedPdf(report) {
     });
   }
 
-  const fileName = `${String(report.reportType || 'RDO')}_${report.sequenceNumber != null ? String(report.sequenceNumber).padStart(3, '0') : report.id}_assinado.pdf`;
+  const fileName = `${String(report.reportType || 'RDO')}_${report.sequenceNumber != null ? String(report.sequenceNumber) : report.id}_assinado.pdf`;
   const buffer = await downloadSignedZapSignDocument(signedUrl);
   return { fileName, buffer };
 }
@@ -330,11 +330,16 @@ const schema = z.object({
 const updateSchema = schema.omit({
   createdByUserId: true,
   status: true
+}).extend({
+  sequenceNumber: z.number().int().positive().optional()
 });
 
 const statusSchema = z.object({
   status: z.nativeEnum(ReportStatus),
   reviewNotes: z.string().nullable().optional()
+});
+const sequenceSchema = z.object({
+  sequenceNumber: z.number().int().positive()
 });
 const clientReviewSchema = z.object({
   action: z.enum(['APPROVED', 'REJECTED']),
@@ -604,13 +609,13 @@ async function reserveSequence(tx, projectId, reportType) {
       data: {
         projectId,
         reportType,
-        nextNumber: 2
+        nextNumber: 1
       }
     });
     return 1;
   }
 
-  const sequenceNumber = existing.nextNumber > 0 ? existing.nextNumber : 1;
+  const sequenceNumber = (existing.nextNumber > 0 ? existing.nextNumber : 0) + 1;
 
   await tx.projectReportSeq.update({
     where: {
@@ -620,11 +625,54 @@ async function reserveSequence(tx, projectId, reportType) {
       }
     },
     data: {
-      nextNumber: sequenceNumber + 1
+      nextNumber: sequenceNumber
     }
   });
 
   return sequenceNumber;
+}
+
+async function syncProjectReportSequence(tx, projectId, reportType, sequenceNumber) {
+  if (!projectId || !reportType || !Number.isInteger(sequenceNumber) || sequenceNumber < 1) return;
+  const aggregate = await tx.report.aggregate({
+    where: {
+      projectId,
+      reportType
+    },
+    _max: {
+      sequenceNumber: true
+    }
+  });
+  const lastUsedNumber = Math.max(sequenceNumber, aggregate._max.sequenceNumber || 0);
+  const existing = await tx.projectReportSeq.findUnique({
+    where: {
+      projectId_reportType: {
+        projectId,
+        reportType
+      }
+    }
+  });
+  if (!existing) {
+    await tx.projectReportSeq.create({
+      data: {
+        projectId,
+        reportType,
+        nextNumber: lastUsedNumber
+      }
+    });
+    return;
+  }
+  await tx.projectReportSeq.update({
+    where: {
+      projectId_reportType: {
+        projectId,
+        reportType
+      }
+    },
+    data: {
+      nextNumber: lastUsedNumber
+    }
+  });
 }
 
 async function syncApprovedRtpReports(tx, report) {
@@ -1650,6 +1698,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       data: {
         projectId: data.projectId,
         reportType: data.reportType,
+        ...(req.auth.user.role === 'MANAGER' && data.sequenceNumber ? { sequenceNumber: data.sequenceNumber } : {}),
         reportDate: new Date(data.reportDate),
         arrivalTime: data.arrivalTime,
         departureTime: data.departureTime,
@@ -1697,6 +1746,10 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       include
     });
 
+    if (req.auth.user.role === 'MANAGER' && data.sequenceNumber) {
+      await syncProjectReportSequence(tx, data.projectId, data.reportType, data.sequenceNumber);
+    }
+
     await syncApprovedRtpReports(tx, updated);
     await syncApprovedRlqReports(tx, updated);
     await syncApprovedRcpReports(tx, updated);
@@ -1714,6 +1767,34 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
     }
   }
+  res.json(item);
+}));
+
+router.patch('/:id/sequence', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth.user.role !== 'MANAGER') {
+    return res.status(403).json({ error: 'Apenas o gestor pode alterar a numeração dos relatórios.' });
+  }
+
+  const data = sequenceSchema.parse(req.body);
+  const existing = await prisma.report.findUniqueOrThrow({
+    where: { id: req.params.id },
+    include
+  });
+  assertReportMutable(existing);
+
+  const item = await prisma.$transaction(async tx => {
+    const updated = await tx.report.update({
+      where: { id: req.params.id },
+      data: {
+        sequenceNumber: data.sequenceNumber
+      },
+      include
+    });
+    await syncProjectReportSequence(tx, updated.projectId, updated.reportType, data.sequenceNumber);
+    return updated;
+  });
+
+  await organizeAndPersist(item);
   res.json(item);
 }));
 
