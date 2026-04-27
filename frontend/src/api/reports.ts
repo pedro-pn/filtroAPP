@@ -55,6 +55,23 @@ export async function createClientReportReview(
   return response.data;
 }
 
+export async function downloadReportsBatch(ids: string[], format: 'pdf' | 'docx') {
+  const response = await apiClient.post<Blob>(
+    '/reports/batch-download',
+    { ids, format },
+    { responseType: 'blob' }
+  );
+  return response.data;
+}
+
+export async function requestReportsBatchSignature(ids: string[], commentsById?: Record<string, string>) {
+  const response = await apiClient.post<{ ok: boolean; signUrl?: string; reportIds: string[] }>(
+    '/reports/batch-request-signature',
+    { ids, commentsById }
+  );
+  return response.data;
+}
+
 export async function downloadReportPdf(id: string) {
   const response = await apiClient.get<Blob>(`/reports/${id}/pdf`, {
     responseType: 'blob'

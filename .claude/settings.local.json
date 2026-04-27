@@ -26,7 +26,9 @@
       "mcp__code-review-graph__detect_changes_tool",
       "Bash(npm install *)",
       "Bash(npm uninstall *)",
-      "mcp__code-review-graph__list_communities_tool"
+      "mcp__code-review-graph__list_communities_tool",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)"
     ]
   },
   "enableAllProjectMcpServers": true,

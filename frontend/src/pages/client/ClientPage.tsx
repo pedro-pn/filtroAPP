@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { downloadReportPdf } from '../../api/reports';
+import { downloadReportPdf, downloadReportsBatch } from '../../api/reports';
 import { useAuth } from '../../auth/AuthContext';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
@@ -13,11 +13,14 @@ import { downloadBlob } from '../../utils/download';
 
 const TEXT = {
   approveSignature: 'Assinar',
+  batchDownload: 'Baixar selecionados',
+  batchSignature: 'Assinar selecionados',
   availableReports: 'Relat\u00f3rios vis\u00edveis',
   clientPortal: 'Portal do cliente',
   downloadError: 'N\u00e3o foi poss\u00edvel baixar o relat\u00f3rio.',
   loading: 'Carregando relat\u00f3rios...',
   noReports: 'Nenhum relat\u00f3rio dispon\u00edvel para esta conta.',
+  noSelection: 'Selecione ao menos um relat\u00f3rio.',
   reject: 'Reprovar',
   rejectReason: 'Informe o motivo da reprova\u00e7\u00e3o do relat\u00f3rio:',
   rejectReasonRequired: 'Informe um motivo para reprovar o relat\u00f3rio.',
@@ -35,6 +38,7 @@ export function ClientPage() {
   const reportMutations = useReportMutations();
   const [message, setMessage] = useState<string | null>(null);
   const [rejectReport, setRejectReport] = useState<ReportSummary | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const reportSummary = useMemo(() => {
     const reports = reportsQuery.data || [];
@@ -44,6 +48,16 @@ export function ClientPage() {
       signed: reports.filter(report => report.status === 'SIGNED').length
     };
   }, [reportsQuery.data]);
+
+  const batchSignableReports = useMemo(
+    () => (reportsQuery.data || []).filter(report => report.reportType === 'RDO' && report.status === 'APPROVED'),
+    [reportsQuery.data]
+  );
+
+  const selectedSignableIds = useMemo(
+    () => selectedIds.filter(id => batchSignableReports.some(report => report.id === id)),
+    [batchSignableReports, selectedIds]
+  );
 
   async function handleLogout() {
     await logout();
@@ -57,6 +71,37 @@ export function ClientPage() {
       downloadBlob(blob, `${report.reportType}_${report.sequenceNumber || report.id}.pdf`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : TEXT.downloadError);
+    }
+  }
+
+  async function handleBatchDownload() {
+    setMessage(null);
+    if (!selectedIds.length) {
+      setMessage(TEXT.noSelection);
+      return;
+    }
+
+    try {
+      const blob = await downloadReportsBatch(selectedIds, 'pdf');
+      downloadBlob(blob, `relatorios_pdf_${new Date().toISOString().slice(0, 10)}.zip`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : TEXT.downloadError);
+    }
+  }
+
+  async function handleBatchSignature() {
+    setMessage(null);
+    if (!selectedSignableIds.length) {
+      setMessage('Selecione ao menos um RDO aprovado.');
+      return;
+    }
+
+    try {
+      const response = await reportMutations.batchSignature.mutateAsync({ ids: selectedSignableIds });
+      setMessage(TEXT.signatureRequested);
+      if (response.signUrl) window.open(response.signUrl, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : TEXT.requestSignatureError);
     }
   }
 
@@ -86,12 +131,25 @@ export function ClientPage() {
   }
 
   function renderClientActions(report: ReportSummary) {
+    const signable = report.reportType === 'RDO' && report.status === 'APPROVED';
+
     return (
       <>
+        <label className="checkbox-line">
+          <input
+            type="checkbox"
+            checked={selectedIds.includes(report.id)}
+            onChange={event => {
+              const checked = event.target.checked;
+              setSelectedIds(current => checked ? [...current, report.id] : current.filter(id => id !== report.id));
+            }}
+          />
+          Selecionar
+        </label>
         <button className="secondary-button" type="button" onClick={() => void handleDownloadPdf(report)}>
           PDF
         </button>
-        {report.reportType === 'RDO' && report.status === 'APPROVED' ? (
+        {signable ? (
           <>
             <button className="primary-button" type="button" onClick={() => void handleRequestSignature(report)}>
               {TEXT.approveSignature}
@@ -144,6 +202,31 @@ export function ClientPage() {
         {reportsQuery.isLoading ? <div className="page-card placeholder-copy">{TEXT.loading}</div> : null}
         {!reportsQuery.isLoading && !reportSummary.total ? (
           <div className="page-card placeholder-copy">{TEXT.noReports}</div>
+        ) : null}
+        {reportSummary.total ? (
+          <section className="page-card">
+            <div className="section-title">Ações em lote</div>
+            <div className="admin-form-actions">
+              <button className="secondary-button" type="button" onClick={() => setSelectedIds(batchSignableReports.map(report => report.id))}>
+                Selecionar RDOs aprovados
+              </button>
+              <button className="secondary-button" type="button" onClick={() => setSelectedIds([])}>
+                Limpar seleção
+              </button>
+              <button className="secondary-button" type="button" onClick={() => void handleBatchDownload()}>
+                {TEXT.batchDownload}
+              </button>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={reportMutations.batchSignature.isPending}
+                onClick={() => void handleBatchSignature()}
+              >
+                {TEXT.batchSignature}
+              </button>
+            </div>
+            <p className="placeholder-copy">{selectedIds.length} selecionado(s).</p>
+          </section>
         ) : null}
         {(reportsQuery.data || []).map(report => (
           <ReportSummaryCard key={report.id} report={report} actions={renderClientActions(report)} />

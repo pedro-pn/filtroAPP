@@ -1,52 +1,56 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 
 import { useAuth } from '../../auth/AuthContext';
+import { listReports } from '../../api/reports';
+import { ServiceFields, serviceTypeLabels, serviceTypeOptions } from '../../components/reports/ServiceFields';
 import { UploadField } from '../../components/ui/UploadField';
+import { useToast } from '../../components/ui/Toast';
 import { useCollaborators } from '../../hooks/useCollaborators';
 import { useDraftMutations } from '../../hooks/useDrafts';
 import { useEquipment } from '../../hooks/useEquipment';
+import { useManometers } from '../../hooks/useManometers';
 import { useProjects } from '../../hooks/useProjects';
 import { useReportMutations } from '../../hooks/useReports';
+import { useUnits } from '../../hooks/useUnits';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
 import type { UploadedFile } from '../../api/uploads';
-
-const serviceTypeOptions = ['LIMPEZA', 'FLUSHING', 'PRESSAO', 'FILTRAGEM', 'INSPECAO', 'OUTRO'];
+import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
 
 const TEXT = {
-  addService: 'Adicionar servi\u00e7o',
+  addService: 'Adicionar serviço',
   atLeastOneCollaborator: 'Selecione ao menos um colaborador do turno diurno.',
-  atLeastOneService: 'Adicione ao menos um servi\u00e7o.',
+  atLeastOneService: 'Adicione ao menos um serviço.',
   back: 'Voltar',
-  dailyDescription: 'Descri\u00e7\u00e3o di\u00e1ria',
-  departure: 'Sa\u00edda',
+  dailyDescription: 'Descrição diária',
+  departure: 'Saída',
   end: 'Fim',
-  errorCreate: 'N\u00e3o foi poss\u00edvel criar o relat\u00f3rio.',
-  errorDraft: 'N\u00e3o foi poss\u00edvel salvar o rascunho.',
-  finalization: 'Finaliza\u00e7\u00e3o',
-  header: 'Cabe\u00e7alho',
-  invalidSession: 'Sess\u00e3o inv\u00e1lida.',
-  newReport: 'Novo relat\u00f3rio',
+  errorCreate: 'Não foi possível criar o relatório.',
+  errorDraft: 'Não foi possível salvar o rascunho.',
+  finalization: 'Finalização',
+  header: 'Cabeçalho',
+  invalidSession: 'Sessão inválida.',
+  newReport: 'Novo relatório',
   nightTeam: 'Equipe noturna',
-  noService: 'Nenhum servi\u00e7o adicionado.',
-  notes: 'Observa\u00e7\u00f5es',
+  noService: 'Nenhum serviço adicionado.',
+  notes: 'Observações',
   photos: 'Fotos de registro',
-  projectTimeRequired: 'Preencha projeto, data e hor\u00e1rios antes de enviar.',
+  projectTimeRequired: 'Preencha projeto, data e horários antes de enviar.',
   remove: 'Remover',
   saveDraft: 'Salvar rascunho',
   savedDraft: 'Rascunho salvo.',
   saveDraftProjectRequired: 'Selecione um projeto antes de salvar o rascunho.',
   select: 'Selecione',
-  service: 'Servi\u00e7o',
-  services: 'Servi\u00e7os',
-  start: 'In\u00edcio',
-  submit: 'Enviar relat\u00f3rio',
+  service: 'Serviço',
+  services: 'Serviços',
+  start: 'Início',
+  submit: 'Enviar relatório',
   team: 'Equipe'
 };
 
-const serviceUploadLabel = 'Fotos do servi\u00e7o';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -58,6 +62,8 @@ export function NewReportPage() {
   const projectsQuery = useProjects(true);
   const collaboratorsQuery = useCollaborators();
   const equipmentQuery = useEquipment();
+  const unitsQuery = useUnits();
+  const manometersQuery = useManometers();
   const reportMutations = useReportMutations();
   const draftMutations = useDraftMutations();
 
@@ -88,22 +94,69 @@ export function NewReportPage() {
     reset
   } = useRdoStore();
 
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const showToast = useToast();
 
   const projects = projectsQuery.data || [];
   const collaborators = (collaboratorsQuery.data || []).filter(item => item.isActive);
   const equipment = (equipmentQuery.data || []).filter(item => item.isActive);
+  const units = unitsQuery.data || [];
+  const manometers = manometersQuery.data || [];
 
   const selectedProject = useMemo(
-    () => projects.find(project => project.id === projectId) || null,
-    [projectId, projects]
+    () => (projectsQuery.data || []).find(project => project.id === projectId) || null,
+    [projectId, projectsQuery.data]
   );
+
+  // Fetch reports of selected project for pre-fill and continuity
+  const lastProjectReportQuery = useQuery({
+    queryKey: ['reports', 'last-project', projectId],
+    queryFn: () => listReports({ projectId: projectId! }),
+    enabled: !!projectId,
+    staleTime: 30_000
+  });
+
+  const lastReport = useMemo(() => {
+    const reports = lastProjectReportQuery.data;
+    if (!reports?.length) return null;
+    return [...reports].sort(
+      (a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime()
+    )[0];
+  }, [lastProjectReportQuery.data]);
 
   useEffect(() => {
     if (!reportDate) setHeaderField('reportDate', todayIso());
     if (!lunchBreak) setHeaderField('lunchBreak', '1 hora');
   }, [lunchBreak, reportDate, setHeaderField]);
+
+  // Pre-fill collaborators from the most recent report of the selected project
+  useEffect(() => {
+    if (!projectId || collaboratorIds.length > 0) return;
+    if (!lastReport) return;
+    const ids = (lastReport.collaborators || []).map(l => l.collaboratorId).filter(Boolean);
+    if (ids.length) setCollaborators(ids);
+  }, [projectId, lastReport, collaboratorIds.length, setCollaborators]);
+
+  function handleContinueServices() {
+    if (!lastReport?.services?.length) return;
+    lastReport.services.forEach(service => {
+      addService(normalizeServiceType(service.serviceType), {
+        ...(service.extraData || {}),
+        equipmentId: service.equipmentId || '',
+        system: service.system || '',
+        material: service.material || '',
+        startTime: '',
+        endTime: '',
+        notes: typeof service.extraData?.notes === 'string' ? service.extraData.notes : ''
+      });
+    });
+  }
+
+  function formatLastReportDate(report: typeof lastReport) {
+    if (!report?.reportDate) return '';
+    const d = new Date(report.reportDate);
+    if (Number.isNaN(d.getTime())) return report.reportDate;
+    return d.toLocaleDateString('pt-BR');
+  }
 
   function toggleCollaborator(id: string, checked: boolean, night = false) {
     if (night) {
@@ -134,25 +187,9 @@ export function NewReportPage() {
     };
   }
 
-  function serviceUploads(data: Record<string, unknown>): UploadedFile[] {
-    const groups = Array.isArray(data.__uploads__) ? data.__uploads__ : [];
-    const group = groups.find(item => item && typeof item === 'object' && (item as { label?: unknown }).label === serviceUploadLabel);
-    const files = group && typeof group === 'object' ? (group as { files?: unknown }).files : [];
-    return Array.isArray(files) ? files.filter((item): item is UploadedFile => Boolean(item) && typeof item === 'object' && typeof (item as UploadedFile).url === 'string') : [];
-  }
-
-  function updateServiceUploads(serviceId: string, files: UploadedFile[]) {
-    updateService(serviceId, {
-      __uploads__: files.length ? [{ label: serviceUploadLabel, files }] : []
-    });
-  }
-
   async function handleSaveDraft() {
-    setError(null);
-    setMessage(null);
-
     if (!projectId) {
-      setError(TEXT.saveDraftProjectRequired);
+      showToast(TEXT.saveDraftProjectRequired, 'error');
       return;
     }
 
@@ -168,30 +205,27 @@ export function NewReportPage() {
         ? await draftMutations.updateDraft.mutateAsync({ id: draftId, payload })
         : await draftMutations.createDraft.mutateAsync(payload);
       setDraftId(saved.id);
-      setMessage(TEXT.savedDraft);
+      showToast(TEXT.savedDraft, 'success');
     } catch (err) {
-      setError(err instanceof Error ? err.message : TEXT.errorDraft);
+      showToast(err instanceof Error ? err.message : TEXT.errorDraft, 'error');
     }
   }
 
   async function handleSubmit() {
-    setError(null);
-    setMessage(null);
-
     if (!user?.id) {
-      setError(TEXT.invalidSession);
+      showToast(TEXT.invalidSession, 'error');
       return;
     }
     if (!projectId || !reportDate || !arrivalTime || !departureTime || !lunchBreak) {
-      setError(TEXT.projectTimeRequired);
+      showToast(TEXT.projectTimeRequired, 'error');
       return;
     }
     if (!collaboratorIds.length) {
-      setError(TEXT.atLeastOneCollaborator);
+      showToast(TEXT.atLeastOneCollaborator, 'error');
       return;
     }
     if (!services.length) {
-      setError(TEXT.atLeastOneService);
+      showToast(TEXT.atLeastOneService, 'error');
       return;
     }
 
@@ -217,18 +251,11 @@ export function NewReportPage() {
           }
         },
         collaboratorIds,
-        services: services.map(service => ({
-          serviceType: service.type,
-          equipmentId: typeof service.data.equipmentId === 'string' ? service.data.equipmentId : null,
-          system: typeof service.data.system === 'string' ? service.data.system : null,
-          material: typeof service.data.material === 'string' ? service.data.material : null,
-          startTime: typeof service.data.startTime === 'string' ? service.data.startTime : null,
-          endTime: typeof service.data.endTime === 'string' ? service.data.endTime : null,
-          finalized: true,
-          extraData: {
-            ...service.data,
-            notes: typeof service.data.notes === 'string' ? service.data.notes : ''
-          }
+        services: services.map(service => buildReportServicePayload(service, {
+          collaboratorIds,
+          collaborators,
+          equipment,
+          units
         }))
       });
 
@@ -236,14 +263,14 @@ export function NewReportPage() {
         try {
           await draftMutations.removeDraft.mutateAsync(draftId);
         } catch {
-          // The submitted report is already created; stale draft cleanup can be retried later.
+          // Draft cleanup can be retried later; report is already created.
         }
       }
 
       reset();
       navigate(`/relatorios/${created.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : TEXT.errorCreate);
+      showToast(err instanceof Error ? err.message : TEXT.errorCreate, 'error');
     }
   }
 
@@ -261,8 +288,6 @@ export function NewReportPage() {
       <main className="page-scroll">
         <section className="page-card">
           <div className="section-title">{TEXT.header}</div>
-          {error ? <div className="inline-error">{error}</div> : null}
-          {message ? <div className="inline-success">{message}</div> : null}
           <div className="admin-form-grid">
             <div className="field-group">
               <label htmlFor="rdo-project">Projeto</label>
@@ -334,6 +359,21 @@ export function NewReportPage() {
           </div>
         </section>
 
+        {projectId && (lastReport?.services?.length ?? 0) > 0 && !services.length ? (
+          <section className="page-card continuity-card">
+            <div className="section-title">Serviços em andamento</div>
+            <p className="placeholder-copy">
+              Último relatório do projeto ({formatLastReportDate(lastReport)}) tem{' '}
+              {lastReport!.services!.length} serviço(s) registrado(s).
+            </p>
+            <div className="admin-form-actions" style={{ marginTop: 10 }}>
+              <button className="secondary-button" type="button" onClick={handleContinueServices}>
+                Continuar serviços
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         <section className="page-card">
           <div className="section-title">{TEXT.team}</div>
           <div className="rdo-check-grid">
@@ -370,7 +410,7 @@ export function NewReportPage() {
         <section className="page-card">
           <div className="section-title">{TEXT.services}</div>
           <div className="admin-form-actions">
-            <button className="secondary-button" type="button" onClick={() => addService('LIMPEZA')}>
+            <button className="secondary-button" type="button" onClick={() => addService('limpeza')}>
               + {TEXT.addService}
             </button>
           </div>
@@ -390,12 +430,12 @@ export function NewReportPage() {
                     <div className="field-group">
                       <label>Tipo</label>
                       <select
-                        value={service.type}
+                        value={normalizeServiceType(service.type)}
                         onChange={event => updateServiceType(service.id, event.target.value)}
                       >
                         {serviceTypeOptions.map(option => (
                           <option key={option} value={option}>
-                            {option}
+                            {serviceTypeLabels[option] || option}
                           </option>
                         ))}
                       </select>
@@ -421,13 +461,15 @@ export function NewReportPage() {
                         onChange={event => updateService(service.id, { system: event.target.value })}
                       />
                     </div>
-                    <div className="field-group">
-                      <label>Material</label>
-                      <input
-                        value={typeof service.data.material === 'string' ? service.data.material : ''}
-                        onChange={event => updateService(service.id, { material: event.target.value })}
-                      />
-                    </div>
+                    {normalizeServiceType(service.type) !== 'pressao' ? (
+                      <div className="field-group">
+                        <label>Material</label>
+                        <input
+                          value={typeof service.data.material === 'string' ? service.data.material : ''}
+                          onChange={event => updateService(service.id, { material: event.target.value })}
+                        />
+                      </div>
+                    ) : null}
                     <div className="field-group">
                       <label>{TEXT.start}</label>
                       <input
@@ -452,11 +494,14 @@ export function NewReportPage() {
                         onChange={event => updateService(service.id, { notes: event.target.value })}
                       />
                     </div>
-                    <UploadField
-                      label={serviceUploadLabel}
-                      value={serviceUploads(service.data)}
+                    <ServiceFields
+                      serviceType={service.type}
+                      data={service.data}
+                      onChange={update => updateService(service.id, update)}
+                      units={units}
+                      manometers={manometers}
+                      groupKey={service.id}
                       projectId={projectId}
-                      onChange={files => updateServiceUploads(service.id, files)}
                     />
                   </div>
                 </article>
