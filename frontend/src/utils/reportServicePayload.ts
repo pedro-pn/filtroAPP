@@ -35,6 +35,10 @@ function getStrings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
+function getBool(value: unknown, fallback = false): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
 function singleId(value: unknown): string[] {
   const id = getString(value);
   return id ? [id] : [];
@@ -49,6 +53,13 @@ function unitIdsToCodes(ids: string[], units: Unit[] = []) {
   return ids
     .map(id => units.find(unit => unit.id === id)?.code || id)
     .filter(Boolean);
+}
+
+function formatValueWithUnit(value: unknown, unit: unknown) {
+  const text = getString(value);
+  if (!text) return '';
+  const unitText = getString(unit);
+  return unitText ? `${text} ${unitText}` : text;
 }
 
 function collaboratorLinks(ids: string[], collaborators: Collaborator[] = []) {
@@ -77,11 +88,12 @@ function commonExtraData(
       : { 'Material da tubulação': material }),
     'Hora de início': getString(data.startTime),
     'Hora de término/pausa': getString(data.endTime),
-    'Serviço finalizado?': 'Sim',
-    'Aprovado pelo cliente?': getString(data.aprovadoCliente) || 'Sim',
+    'Serviço finalizado?': getBool(data.finalized, true) ? 'Sim' : 'Não',
+    'Aprovado pelo cliente?': getString(data.aprovadoCliente) || '',
     'Etapas realizadas no dia': getStrings(data.etapas),
     Observações: getString(data.notes),
     'Desenhos / TAGs': getString(data.drawingsTags),
+    'Diâmetros e comprimentos': Array.isArray(data.tubes) ? data.tubes : [],
     'Colaboradores do serviço': collaboratorLinks(collaboratorIds, options.collaborators)
   };
 }
@@ -109,8 +121,8 @@ export function buildReportServicePayload(
   if (type === 'pressao') {
     const manometerIds = getStrings(data.manometroIds);
     const uthIds = singleId(data.uth);
-    extraData['Pressão de trabalho'] = getString(data.pressaoTrabalho);
-    extraData['Pressão de teste'] = getString(data.pressaoTeste);
+    extraData['Pressão de trabalho'] = formatValueWithUnit(data.pressaoTrabalho, data.pressaoTrabalhoUnit);
+    extraData['Pressão de teste'] = formatValueWithUnit(data.pressaoTeste, data.pressaoTesteUnit);
     extraData['Fluido de teste'] = getString(data.fluidoTeste) === 'oleo' ? 'Óleo' : 'Água';
     extraData['Qual óleo?'] = getString(data.qualOleo);
     extraData['Manômetros utilizados'] = { ids: manometerIds };
@@ -120,12 +132,18 @@ export function buildReportServicePayload(
   if (type === 'flushing' || type === 'filtragem') {
     const unitIds = type === 'filtragem' ? singleId(data.ufg) : singleId(data.uf);
     extraData['Tipo de óleo'] = getString(data.tipoOleo);
-    extraData['Volume de óleo'] = getString(data.volumeOleo);
+    extraData['Volume de óleo'] = formatValueWithUnit(data.volumeOleo, data.volumeOleoUnit);
     extraData['Houve contagem de partículas?'] = getString(data.houveParticulas) || 'Não';
+    extraData['Contador utilizado'] = getString(data.contadorUtilizado);
     extraData['Contagem inicial NAS'] = getString(data.contagemInicialNas);
     extraData['Contagem final NAS'] = getString(data.contagemFinalNas);
     extraData['Contagem inicial ISO'] = getString(data.contagemInicialIso);
     extraData['Contagem final ISO'] = getString(data.contagemFinalIso);
+    extraData['Houve desidratação?'] = getString(data.houveDesidratacao) || 'Não';
+    extraData['Equipamento de desidratação'] = {
+      ids: singleId(data.desidratacaoUnit),
+      codes: unitIdsToCodes(singleId(data.desidratacaoUnit), options.units)
+    };
     extraData['Houve análise de umidade?'] = getString(data.houveUmidade) || 'Não';
     extraData['Umidade inicial (ppm)'] = getString(data.umidadeInicial);
     extraData['Umidade final (ppm)'] = getString(data.umidadeFinal);
@@ -137,14 +155,21 @@ export function buildReportServicePayload(
     }
   }
 
+  if (type === 'inibicao') {
+    extraData['ID da embarcação'] = getString(data.embarcacaoId);
+    extraData.Linhas = getString(data.linhas);
+    extraData.Steps = getString(data.steps);
+    extraData['Tipo de relatório'] = getStrings(data.tipoRelatorio);
+  }
+
   return {
     serviceType: type,
     equipmentId: getString(data.equipmentId) || null,
     system: getString(data.system) || null,
-    material: type === 'pressao' || type === 'flushing' ? null : getString(data.material) || null,
+    material: getString(data.material) || null,
     startTime: getString(data.startTime) || null,
     endTime: getString(data.endTime) || null,
-    finalized: true,
+    finalized: getBool(data.finalized, true),
     extraData
   };
 }

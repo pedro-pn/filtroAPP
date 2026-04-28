@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -25,7 +25,7 @@ const TEXT = {
   atLeastOneCollaborator: 'Selecione ao menos um colaborador do turno diurno.',
   atLeastOneService: 'Adicione ao menos um serviço.',
   back: 'Voltar',
-  dailyDescription: 'Descrição diária',
+  dailyDescription: 'Descrição geral',
   departure: 'Saída',
   end: 'Fim',
   errorCreate: 'Não foi possível criar o relatório.',
@@ -36,7 +36,6 @@ const TEXT = {
   newReport: 'Novo relatório',
   nightTeam: 'Equipe noturna',
   noService: 'Nenhum serviço adicionado.',
-  notes: 'Observações',
   photos: 'Fotos de registro',
   projectTimeRequired: 'Preencha projeto, data e horários antes de enviar.',
   remove: 'Remover',
@@ -47,9 +46,24 @@ const TEXT = {
   service: 'Serviço',
   services: 'Serviços',
   start: 'Início',
-  submit: 'Enviar relatório',
-  team: 'Equipe'
+  next: 'Próximo →',
+  submit: 'Enviar relatório ✓',
+  team: 'Equipe diurna',
+  specialConditions: 'Condições especiais',
+  identification: 'Identificação',
+  schedules: 'Horários',
 };
+
+const serviceTypeModalOptions = [
+  { type: 'limpeza',  icon: '🧪', name: 'Limpeza química' },
+  { type: 'pressao',  icon: '🔴', name: 'Teste de pressão' },
+  { type: 'filtragem', icon: '🔵', name: 'Filtragem' },
+  { type: 'flushing', icon: '💧', name: 'Flushing' },
+  { type: 'mecanica', icon: '⚙️', name: 'Limpeza mecânica' },
+  { type: 'inibicao', icon: '🛡️', name: 'Inibição' },
+] as const;
+
+const rdoSteps = [TEXT.header, TEXT.services, TEXT.finalization];
 
 
 function todayIso() {
@@ -95,6 +109,15 @@ export function NewReportPage() {
   } = useRdoStore();
 
   const showToast = useToast();
+  const [step, setStep] = useState(0);
+  const [showServiceModal, setShowServiceModal] = useState(false);
+  const [standbyDuration, setStandbyDuration] = useState('');
+  const [standbyMotivo, setStandbyMotivo] = useState('');
+  const [noturnoStart, setNoturnoStart] = useState('');
+  const [noturnoEnd, setNoturnoEnd] = useState('');
+  const [invalidTarget, setInvalidTarget] = useState<string | null>(null);
+  const [collaboratorToAdd, setCollaboratorToAdd] = useState('');
+  const [nightCollaboratorToAdd, setNightCollaboratorToAdd] = useState('');
 
   const projects = projectsQuery.data || [];
   const collaborators = (collaboratorsQuery.data || []).filter(item => item.isActive);
@@ -106,6 +129,7 @@ export function NewReportPage() {
     () => (projectsQuery.data || []).find(project => project.id === projectId) || null,
     [projectId, projectsQuery.data]
   );
+  const backPath = user?.role === 'MANAGER' ? '/gestor' : '/home';
 
   // Fetch reports of selected project for pre-fill and continuity
   const lastProjectReportQuery = useQuery({
@@ -125,8 +149,8 @@ export function NewReportPage() {
 
   useEffect(() => {
     if (!reportDate) setHeaderField('reportDate', todayIso());
-    if (!lunchBreak) setHeaderField('lunchBreak', '1 hora');
-  }, [lunchBreak, reportDate, setHeaderField]);
+    if (!lunchBreak) setHeaderField('lunchBreak', '01:00:00');
+  }, [lunchBreak, reportDate, arrivalTime, departureTime, setHeaderField]);
 
   // Pre-fill collaborators from the most recent report of the selected project
   useEffect(() => {
@@ -158,15 +182,187 @@ export function NewReportPage() {
     return d.toLocaleDateString('pt-BR');
   }
 
-  function toggleCollaborator(id: string, checked: boolean, night = false) {
+  function addCollaboratorFromSelect(night = false) {
+    const id = night ? nightCollaboratorToAdd : collaboratorToAdd;
+    if (!id) return;
     if (night) {
-      const next = checked ? [...nightCollaboratorIds, id] : nightCollaboratorIds.filter(item => item !== id);
-      setNightCollaborators(Array.from(new Set(next)));
+      setNightCollaborators(Array.from(new Set([...nightCollaboratorIds, id])));
+      setNightCollaboratorToAdd('');
       return;
     }
+    setCollaborators(Array.from(new Set([...collaboratorIds, id])));
+    setCollaboratorToAdd('');
+  }
 
-    const next = checked ? [...collaboratorIds, id] : collaboratorIds.filter(item => item !== id);
-    setCollaborators(Array.from(new Set(next)));
+  function removeCollaboratorFromList(id: string, night = false) {
+    if (night) {
+      setNightCollaborators(nightCollaboratorIds.filter(item => item !== id));
+      return;
+    }
+    setCollaborators(collaboratorIds.filter(item => item !== id));
+  }
+
+  function renderCollaboratorList(ids: string[], night = false) {
+    if (!ids.length) {
+      return <div className="colab-empty">Nenhum colaborador adicionado.</div>;
+    }
+
+    return ids.map(id => {
+      const item = collaborators.find(candidate => candidate.id === id);
+      return (
+        <span className="colab-tag" key={`${night ? 'night' : 'day'}-${id}`}>
+          <span>{item?.name || id}</span>
+          <button type="button" onClick={() => removeCollaboratorFromList(id, night)}>×</button>
+        </span>
+      );
+    });
+  }
+
+  function fieldState(target: string) {
+    return invalidTarget === target ? 'field-group field-invalid' : 'field-group';
+  }
+
+  function serviceInvalidKey(serviceId: string) {
+    if (!invalidTarget?.startsWith(`${serviceId}:`)) return null;
+    return invalidTarget.slice(serviceId.length + 1);
+  }
+
+  function serviceFieldState(serviceId: string, key: string) {
+    return invalidTarget === `${serviceId}:${key}` ? 'field-group field-invalid' : 'field-group';
+  }
+
+  function failRequired(label: string, target: string, targetStep: number) {
+    setStep(targetStep);
+    setInvalidTarget(target);
+    showToast(`Preencha o campo obrigatório: ${label}.`, 'error');
+    window.setTimeout(() => {
+      const selector = target.includes(':')
+        ? `[data-service-id="${target.split(':')[0]}"]`
+        : `[data-invalid-target="${target}"]`;
+      document.querySelector(selector)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+    return false;
+  }
+
+  function hasText(value: unknown) {
+    return typeof value === 'string' && value.trim().length > 0;
+  }
+
+  function hasStringItem(value: unknown) {
+    return Array.isArray(value) && value.some(item => typeof item === 'string' && item.trim());
+  }
+
+  function hasValidTube(value: unknown) {
+    return Array.isArray(value) && value.some(item => {
+      if (!item || typeof item !== 'object') return false;
+      const row = item as Record<string, unknown>;
+      return hasText(row.d) || hasText(row.c);
+    });
+  }
+
+  function validateHeader() {
+    if (!projectId) return failRequired('Projeto', 'header:projectId', 0);
+    if (!reportDate) return failRequired('Data do relatório', 'header:reportDate', 0);
+    if (!arrivalTime) return failRequired('Chegada', 'header:arrivalTime', 0);
+    if (!departureTime) return failRequired('Saída', 'header:departureTime', 0);
+    if (!lunchBreak) return failRequired('Intervalo de almoço', 'header:lunchBreak', 0);
+    if (!collaboratorIds.length) return failRequired('Colaboradores', 'header:collaborators', 0);
+    if (standby && !standbyDuration) return failRequired('Tempo total (standby)', 'header:standbyDuration', 0);
+    if (standby && !standbyMotivo.trim()) return failRequired('Motivo (standby)', 'header:standbyMotivo', 0);
+    if (noturno && !noturnoStart) return failRequired('Início (noturno)', 'header:noturnoStart', 0);
+    if (noturno && !noturnoEnd) return failRequired('Término (noturno)', 'header:noturnoEnd', 0);
+    if (noturno && !nightCollaboratorIds.length) return failRequired('Colaboradores noturnos', 'header:nightCollaborators', 0);
+    return true;
+  }
+
+  function validateServices() {
+    if (!services.length) return failRequired('Serviços', 'services:empty', 1);
+
+    for (const service of services) {
+      const data = service.data || {};
+      const type = normalizeServiceType(service.type);
+      const target = (key: string) => `${service.id}:${key}`;
+
+      if (!hasText(data.equipmentId)) return failRequired('Equipamento(s)', target('equipmentId'), 1);
+      if (!hasText(data.system)) return failRequired('Sistema', target('system'), 1);
+      if (!hasText(data.startTime)) return failRequired('Hora de início', target('startTime'), 1);
+      if (!hasText(data.endTime)) return failRequired('Hora de término/pausa', target('endTime'), 1);
+      if (!hasStringItem(data.etapas)) return failRequired('Etapas realizadas no dia', target('etapas'), 1);
+
+      if (['limpeza', 'pressao', 'flushing', 'mecanica', 'inibicao'].includes(type) && !hasText(data.material)) {
+        return failRequired(type === 'mecanica' ? 'Material do equipamento' : 'Material da tubulação', target('material'), 1);
+      }
+      if (['limpeza', 'pressao', 'flushing'].includes(type) && !hasValidTube(data.tubes)) {
+        return failRequired('Diâmetros e comprimentos', target('tubes'), 1);
+      }
+
+      if (type === 'limpeza') {
+        if (!hasStringItem(data.metodos)) return failRequired('Método de limpeza', target('metodos'), 1);
+        if (!hasText(data.ulq)) return failRequired('Unidade de Limpeza Química', target('ulq'), 1);
+        if (!hasStringItem(data.local)) return failRequired('Local de limpeza', target('local'), 1);
+        if (!hasStringItem(data.tipoInspecao)) return failRequired('Tipo de inspeção', target('tipoInspecao'), 1);
+      }
+
+      if (type === 'pressao') {
+        if (!hasText(data.uth)) return failRequired('Unidade de Teste Hidrostático (UTH)', target('uth'), 1);
+        if (!hasText(data.pressaoTrabalho)) return failRequired('Pressão de trabalho', target('pressaoTrabalho'), 1);
+        if (!hasText(data.pressaoTeste)) return failRequired('Pressão de teste', target('pressaoTeste'), 1);
+        if (!hasStringItem(data.manometroIds)) return failRequired('Manômetros utilizados', target('manometroIds'), 1);
+      }
+
+      if (type === 'flushing') {
+        if (!hasText(data.tipoOleo)) return failRequired('Tipo de óleo', target('tipoOleo'), 1);
+        if (!hasText(data.volumeOleo)) return failRequired('Volume de óleo', target('volumeOleo'), 1);
+        if (!hasText(data.uf)) return failRequired('Unidade de Flushing', target('uf'), 1);
+      }
+
+      if (type === 'filtragem') {
+        if (!hasText(data.tipoOleo)) return failRequired('Tipo de óleo', target('tipoOleo'), 1);
+        if (!hasText(data.volumeOleo)) return failRequired('Volume de óleo', target('volumeOleo'), 1);
+        if (!hasText(data.ufg)) return failRequired('Unidade de filtragem', target('ufg'), 1);
+      }
+
+      if ((type === 'flushing' || type === 'filtragem') && data.houveParticulas === 'Sim' && !hasText(data.contadorUtilizado)) {
+        return failRequired('Contador utilizado', target('contadorUtilizado'), 1);
+      }
+      if ((type === 'flushing' || type === 'filtragem') && data.houveDesidratacao === 'Sim' && !hasText(data.desidratacaoUnit)) {
+        return failRequired('Equipamento de desidratação', target('desidratacaoUnit'), 1);
+      }
+    }
+
+    return true;
+  }
+
+  function handleNextStep() {
+    if (step === 0) {
+      if (!validateHeader()) return;
+    }
+
+    if (step === 1) {
+      if (!validateServices()) return;
+    }
+
+    setInvalidTarget(null);
+    setStep(current => Math.min(current + 1, rdoSteps.length - 1));
+  }
+
+  function buildResumoText() {
+    const parts: string[] = [];
+    if (selectedProject) parts.push(`${selectedProject.code} — ${selectedProject.name}`);
+    if (reportDate) {
+      const d = new Date(`${reportDate}T00:00:00`);
+      const label = d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+      parts.push(label.charAt(0).toUpperCase() + label.slice(1));
+    }
+    if (arrivalTime && departureTime) parts.push(`${arrivalTime} às ${departureTime}`);
+    if (collaboratorIds.length) {
+      parts.push(`${collaboratorIds.length} colaborador${collaboratorIds.length !== 1 ? 'es' : ''}`);
+    }
+    if (services.length) {
+      const types = services.map(s => serviceTypeLabels[normalizeServiceType(s.type)] || s.type);
+      parts.push(types.join(', '));
+    }
+    return parts.join(' · ') || '—';
   }
 
   function buildDraftPayload() {
@@ -216,22 +412,12 @@ export function NewReportPage() {
       showToast(TEXT.invalidSession, 'error');
       return;
     }
-    if (!projectId || !reportDate || !arrivalTime || !departureTime || !lunchBreak) {
-      showToast(TEXT.projectTimeRequired, 'error');
-      return;
-    }
-    if (!collaboratorIds.length) {
-      showToast(TEXT.atLeastOneCollaborator, 'error');
-      return;
-    }
-    if (!services.length) {
-      showToast(TEXT.atLeastOneService, 'error');
-      return;
-    }
+    if (!validateHeader()) return;
+    if (!validateServices()) return;
 
     try {
       const created = await reportMutations.createReport.mutateAsync({
-        projectId,
+        projectId: projectId!,
         createdByUserId: user.id,
         reportType: 'RDO',
         status: 'PENDING',
@@ -244,9 +430,15 @@ export function NewReportPage() {
         dailyDescription: dailyDescription || null,
         specialConditions: {
           standby,
+          standbyDetails: {
+            total: standbyDuration,
+            motivo: standbyMotivo
+          },
           generalUploads,
           noturnoDetails: {
             enabled: noturno,
+            inicio: noturnoStart,
+            termino: noturnoEnd,
             collaboratorIds: nightCollaboratorIds
           }
         },
@@ -280,23 +472,60 @@ export function NewReportPage() {
         title={TEXT.newReport}
         subtitle="RDO"
         actions={
-          <button className="topbar-chip" type="button" onClick={() => navigate('/home')}>
+          <button className="topbar-chip" type="button" onClick={() => navigate(backPath)}>
             {TEXT.back}
           </button>
         }
       />
       <main className="page-scroll">
+        <section className="page-card rdo-step-panel">
+          <div className="rdo-step-head">
+            <div>
+              <div className="section-title">{rdoSteps[step]}</div>
+              <div className="placeholder-copy">Etapa {step + 1} de {rdoSteps.length}</div>
+            </div>
+            <span className="status-pill status-approved">{step + 1} / {rdoSteps.length}</span>
+          </div>
+          <div className="rdo-progress-track" aria-hidden="true">
+            <div className="rdo-progress-fill" style={{ width: `${((step + 1) / rdoSteps.length) * 100}%` }} />
+          </div>
+          <div className="filter-tabs">
+            {rdoSteps.map((label, index) => (
+              <button
+                className={`filter-tab ${step === index ? 'active' : ''}`}
+                key={label}
+                type="button"
+                onClick={() => {
+                  if (index <= step) {
+                    setStep(index);
+                    return;
+                  }
+                  if (index === step + 1) {
+                    handleNextStep();
+                  }
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {step === 0 ? (
+        <>
+        {/* Card 1: Identificação */}
         <section className="page-card">
-          <div className="section-title">{TEXT.header}</div>
+          <div className="section-title">{TEXT.identification}</div>
           <div className="admin-form-grid">
-            <div className="field-group">
-              <label htmlFor="rdo-project">Projeto</label>
+            <div className={fieldState('header:projectId')} data-invalid-target="header:projectId">
+              <label htmlFor="rdo-project">Projeto <span style={{ color: 'var(--rd)' }}>*</span></label>
               <select
                 id="rdo-project"
                 value={projectId || ''}
                 onChange={event => setHeaderField('projectId', event.target.value || null)}
+                required
               >
-                <option value="">{TEXT.select}</option>
+                <option value="">Selecionar projeto...</option>
                 {projects.map(project => (
                   <option key={project.id} value={project.id}>
                     {project.code} - {project.name}
@@ -304,59 +533,168 @@ export function NewReportPage() {
                 ))}
               </select>
             </div>
-            <div className="field-group">
-              <label htmlFor="rdo-date">Data</label>
+            <div className={fieldState('header:reportDate')} data-invalid-target="header:reportDate">
+              <label htmlFor="rdo-date">Data do relatório <span style={{ color: 'var(--rd)' }}>*</span></label>
               <input
                 id="rdo-date"
                 type="date"
                 value={reportDate}
                 onChange={event => setHeaderField('reportDate', event.target.value)}
+                required
               />
             </div>
-            <div className="field-group">
-              <label htmlFor="rdo-arrival">Chegada</label>
+          </div>
+        </section>
+
+        {/* Card 2: Horários */}
+        <section className="page-card">
+          <div className="section-title">{TEXT.schedules}</div>
+          <div className="fg-r2">
+            <div className={fieldState('header:arrivalTime')} data-invalid-target="header:arrivalTime">
+              <label htmlFor="rdo-arrival">Chegada <span style={{ color: 'var(--rd)' }}>*</span></label>
               <input
                 id="rdo-arrival"
                 type="time"
                 value={arrivalTime}
                 onChange={event => setHeaderField('arrivalTime', event.target.value)}
+                required
               />
             </div>
-            <div className="field-group">
-              <label htmlFor="rdo-departure">{TEXT.departure}</label>
+            <div className={fieldState('header:departureTime')} data-invalid-target="header:departureTime">
+              <label htmlFor="rdo-departure">{TEXT.departure} <span style={{ color: 'var(--rd)' }}>*</span></label>
               <input
                 id="rdo-departure"
                 type="time"
                 value={departureTime}
                 onChange={event => setHeaderField('departureTime', event.target.value)}
+                required
               />
             </div>
-            <div className="field-group">
-              <label htmlFor="rdo-lunch">Intervalo</label>
-              <input
-                id="rdo-lunch"
-                value={lunchBreak}
-                placeholder="1 hora"
-                onChange={event => setHeaderField('lunchBreak', event.target.value)}
-              />
-            </div>
-            <label className="checkbox-line">
+          </div>
+          <div className={fieldState('header:lunchBreak')} style={{ marginTop: 10 }} data-invalid-target="header:lunchBreak">
+            <label htmlFor="rdo-lunch">Intervalo de almoço <span style={{ color: 'var(--rd)' }}>*</span></label>
+            <input
+              id="rdo-lunch"
+              type="time"
+              step={1}
+              value={lunchBreak}
+              onChange={event => setHeaderField('lunchBreak', event.target.value)}
+              required
+            />
+          </div>
+        </section>
+
+        {/* Card 3: Equipe diurna */}
+        <section className="page-card">
+          <div className="section-title">{TEXT.team}</div>
+          <div
+            className={`colab-list ${invalidTarget === 'header:collaborators' ? 'field-invalid-panel' : ''}`}
+            data-invalid-target="header:collaborators"
+          >
+            {renderCollaboratorList(collaboratorIds)}
+          </div>
+          <div className="cadd">
+            <select value={collaboratorToAdd} onChange={event => setCollaboratorToAdd(event.target.value)}>
+              <option value="">Adicionar...</option>
+              {collaborators
+                .filter(item => !collaboratorIds.includes(item.id))
+                .map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+            <button className="cadd-btn" type="button" onClick={() => addCollaboratorFromSelect()}>
+              + Add
+            </button>
+          </div>
+        </section>
+
+        {/* Card 4: Condições especiais */}
+        <section className="page-card">
+          <div className="section-title">{TEXT.specialConditions}</div>
+          <div className="tog-row">
+            <span className="tog-lbl">Houve standby?</span>
+            <label className="tog">
               <input
                 type="checkbox"
                 checked={standby}
                 onChange={event => setHeaderField('standby', event.target.checked)}
               />
-              Standby
+              <span className="tog-sl" />
             </label>
-            <label className="checkbox-line">
+          </div>
+          {standby ? (
+            <div className="collapse-section">
+              <div className="fg-r2">
+                <div className={fieldState('header:standbyDuration')} data-invalid-target="header:standbyDuration">
+                  <label>Tempo total <span style={{ color: 'var(--rd)' }}>*</span></label>
+                  <input
+                    type="time"
+                    step={60}
+                    value={standbyDuration}
+                    onChange={event => setStandbyDuration(event.target.value)}
+                  />
+                </div>
+                <div className={fieldState('header:standbyMotivo')} data-invalid-target="header:standbyMotivo">
+                  <label>Motivo <span style={{ color: 'var(--rd)' }}>*</span></label>
+                  <input
+                    type="text"
+                    placeholder="Motivo..."
+                    value={standbyMotivo}
+                    onChange={event => setStandbyMotivo(event.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <div className="tog-row">
+            <span className="tog-lbl">Houve turno noturno?</span>
+            <label className="tog">
               <input
                 type="checkbox"
                 checked={noturno}
                 onChange={event => setHeaderField('noturno', event.target.checked)}
               />
-              Turno noturno
+              <span className="tog-sl" />
             </label>
           </div>
+          {noturno ? (
+            <div className="collapse-section">
+              <div className="fg-r2">
+                <div className={fieldState('header:noturnoStart')} data-invalid-target="header:noturnoStart">
+                  <label>Início <span style={{ color: 'var(--rd)' }}>*</span></label>
+                  <input
+                    type="time"
+                    value={noturnoStart}
+                    onChange={event => setNoturnoStart(event.target.value)}
+                  />
+                </div>
+                <div className={fieldState('header:noturnoEnd')} data-invalid-target="header:noturnoEnd">
+                  <label>Término <span style={{ color: 'var(--rd)' }}>*</span></label>
+                  <input
+                    type="time"
+                    value={noturnoEnd}
+                    onChange={event => setNoturnoEnd(event.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="section-title" style={{ marginTop: 14 }}>{TEXT.nightTeam}</div>
+              <div
+                className={`colab-list ${invalidTarget === 'header:nightCollaborators' ? 'field-invalid-panel' : ''}`}
+                data-invalid-target="header:nightCollaborators"
+              >
+                {renderCollaboratorList(nightCollaboratorIds, true)}
+              </div>
+              <div className="cadd">
+                <select value={nightCollaboratorToAdd} onChange={event => setNightCollaboratorToAdd(event.target.value)}>
+                  <option value="">Adicionar...</option>
+                  {collaborators
+                    .filter(item => !nightCollaboratorIds.includes(item.id))
+                    .map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+                <button className="cadd-btn" type="button" onClick={() => addCollaboratorFromSelect(true)}>
+                  + Add
+                </button>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         {projectId && (lastReport?.services?.length ?? 0) > 0 && !services.length ? (
@@ -373,55 +711,34 @@ export function NewReportPage() {
             </div>
           </section>
         ) : null}
+        </>
+        ) : null}
 
-        <section className="page-card">
-          <div className="section-title">{TEXT.team}</div>
-          <div className="rdo-check-grid">
-            {collaborators.map(item => (
-              <label className="rdo-check-row" key={item.id}>
-                <input
-                  type="checkbox"
-                  checked={collaboratorIds.includes(item.id)}
-                  onChange={event => toggleCollaborator(item.id, event.target.checked)}
-                />
-                <span>{item.name}</span>
-              </label>
-            ))}
-          </div>
-          {noturno ? (
-            <>
-              <div className="section-title" style={{ marginTop: 16 }}>{TEXT.nightTeam}</div>
-              <div className="rdo-check-grid">
-                {collaborators.map(item => (
-                  <label className="rdo-check-row" key={`night-${item.id}`}>
-                    <input
-                      type="checkbox"
-                      checked={nightCollaboratorIds.includes(item.id)}
-                      onChange={event => toggleCollaborator(item.id, event.target.checked, true)}
-                    />
-                    <span>{item.name}</span>
-                  </label>
-                ))}
-              </div>
-            </>
-          ) : null}
-        </section>
-
-        <section className="page-card">
+        {step === 1 ? (
+        <>
+        <section className="page-card" data-invalid-target="services:empty">
           <div className="section-title">{TEXT.services}</div>
           <div className="admin-form-actions">
-            <button className="secondary-button" type="button" onClick={() => addService('limpeza')}>
-              + {TEXT.addService}
+            <button
+              className="secondary-button"
+              type="button"
+              style={{ width: '100%', borderStyle: 'dashed', color: 'var(--g)', fontWeight: 700 }}
+              onClick={() => setShowServiceModal(true)}
+            >
+              ＋ {TEXT.addService}
             </button>
           </div>
           {services.length ? (
             <div className="admin-stack" style={{ marginTop: 12 }}>
               {services.map((service, index) => (
-                <article className="admin-card-react" key={service.id}>
-                  <div className="admin-card-head">
-                    <div className="admin-card-title">{TEXT.service} {index + 1}</div>
+                <article className="admin-card-react" key={service.id} data-service-id={service.id}>
+                  <div className="svc-card-header">
+                    <div className="svc-card-title">
+                      <span>{serviceTypeLabels[normalizeServiceType(service.type)] || service.type}</span>
+                      <span className="svc-card-badge">{TEXT.service} {index + 1}</span>
+                    </div>
                     <div className="admin-card-actions">
-                      <button className="secondary-button" type="button" onClick={() => removeService(service.id)}>
+                      <button className="svc-remove" type="button" onClick={() => removeService(service.id)}>
                         {TEXT.remove}
                       </button>
                     </div>
@@ -440,58 +757,37 @@ export function NewReportPage() {
                         ))}
                       </select>
                     </div>
-                    <div className="field-group">
-                      <label>Equipamento</label>
-                      <select
-                        value={typeof service.data.equipmentId === 'string' ? service.data.equipmentId : ''}
-                        onChange={event => updateService(service.id, { equipmentId: event.target.value || null })}
-                      >
-                        <option value="">Nenhum</option>
-                        {equipment.map(item => (
-                          <option key={item.id} value={item.id}>
-                            {item.code} - {item.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="field-group">
-                      <label>Sistema</label>
+                    <div className={serviceFieldState(service.id, 'equipmentId')}>
+                      <label>Equipamento(s) <span style={{ color: 'var(--rd)' }}>*</span></label>
                       <input
-                        value={typeof service.data.system === 'string' ? service.data.system : ''}
-                        onChange={event => updateService(service.id, { system: event.target.value })}
+                        value={typeof service.data.equipmentId === 'string' ? service.data.equipmentId : ''}
+                        placeholder="Informar equipamento do cliente..."
+                        onChange={event => updateService(service.id, { equipmentId: event.target.value })}
                       />
                     </div>
-                    {normalizeServiceType(service.type) !== 'pressao' ? (
-                      <div className="field-group">
-                        <label>Material</label>
+                    {normalizeServiceType(service.type) !== 'inibicao' ? (
+                      <div className={serviceFieldState(service.id, 'system')}>
+                        <label>Sistema <span style={{ color: 'var(--rd)' }}>*</span></label>
                         <input
-                          value={typeof service.data.material === 'string' ? service.data.material : ''}
-                          onChange={event => updateService(service.id, { material: event.target.value })}
+                          value={typeof service.data.system === 'string' ? service.data.system : ''}
+                          onChange={event => updateService(service.id, { system: event.target.value })}
                         />
                       </div>
                     ) : null}
-                    <div className="field-group">
-                      <label>{TEXT.start}</label>
+                    <div className={serviceFieldState(service.id, 'startTime')}>
+                      <label>Hora de início <span style={{ color: 'var(--rd)' }}>*</span></label>
                       <input
                         type="time"
                         value={typeof service.data.startTime === 'string' ? service.data.startTime : ''}
                         onChange={event => updateService(service.id, { startTime: event.target.value })}
                       />
                     </div>
-                    <div className="field-group">
-                      <label>{TEXT.end}</label>
+                    <div className={serviceFieldState(service.id, 'endTime')}>
+                      <label>Hora de término/pausa <span style={{ color: 'var(--rd)' }}>*</span></label>
                       <input
                         type="time"
                         value={typeof service.data.endTime === 'string' ? service.data.endTime : ''}
                         onChange={event => updateService(service.id, { endTime: event.target.value })}
-                      />
-                    </div>
-                    <div className="field-group">
-                      <label>{TEXT.notes}</label>
-                      <textarea
-                        rows={3}
-                        value={typeof service.data.notes === 'string' ? service.data.notes : ''}
-                        onChange={event => updateService(service.id, { notes: event.target.value })}
                       />
                     </div>
                     <ServiceFields
@@ -502,6 +798,7 @@ export function NewReportPage() {
                       manometers={manometers}
                       groupKey={service.id}
                       projectId={projectId}
+                      invalidKey={serviceInvalidKey(service.id)}
                     />
                   </div>
                 </article>
@@ -511,44 +808,111 @@ export function NewReportPage() {
             <p className="placeholder-copy">{TEXT.noService}</p>
           )}
         </section>
+        </>
+        ) : null}
 
+        {step === 2 ? (
+        <>
+        {/* Card Horas extras */}
         <section className="page-card">
-          <div className="section-title">{TEXT.finalization}</div>
-          <div className="admin-form-grid">
-            <div className="field-group">
-              <label htmlFor="rdo-overtime">Motivo da hora extra</label>
-              <input
-                id="rdo-overtime"
-                value={overtimeReason}
-                onChange={event => setHeaderField('overtimeReason', event.target.value)}
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="rdo-description">{TEXT.dailyDescription}</label>
-              <textarea
-                id="rdo-description"
-                rows={5}
-                value={dailyDescription}
-                onChange={event => setHeaderField('dailyDescription', event.target.value)}
-              />
-            </div>
-            <UploadField
-              label={TEXT.photos}
-              value={generalUploads as UploadedFile[]}
-              projectId={projectId}
-              onChange={setGeneralUploads}
+          <div className="section-title">Horas extras</div>
+          <div style={{ fontSize: 12, color: 'var(--mu)', lineHeight: 1.7, marginBottom: 10 }}>
+            Nenhuma hora extra identificada.
+          </div>
+          <div className="field-group">
+            <label htmlFor="rdo-overtime">Justificativa</label>
+            <textarea
+              id="rdo-overtime"
+              placeholder="Descreva o motivo das horas extras..."
+              rows={3}
+              value={overtimeReason}
+              onChange={event => setHeaderField('overtimeReason', event.target.value)}
             />
           </div>
-          <div className="admin-form-actions" style={{ marginTop: 14 }}>
-            <button className="secondary-button" type="button" onClick={handleSaveDraft}>
-              {TEXT.saveDraft}
+        </section>
+
+        {/* Card Atividades do dia */}
+        <section className="page-card">
+          <div className="section-title">Atividades do dia</div>
+          <div className="field-group">
+            <label htmlFor="rdo-description">{TEXT.dailyDescription}</label>
+            <textarea
+              id="rdo-description"
+              style={{ minHeight: 100 }}
+              placeholder="Descreva as atividades realizadas..."
+              rows={5}
+              value={dailyDescription}
+              onChange={event => setHeaderField('dailyDescription', event.target.value)}
+            />
+          </div>
+        </section>
+
+        {/* Card Fotos */}
+        <section className="page-card">
+          <div className="section-title">{TEXT.photos}</div>
+          <UploadField
+            label=""
+            value={generalUploads as UploadedFile[]}
+            projectId={projectId}
+            onChange={setGeneralUploads}
+          />
+        </section>
+
+        {/* Card Resumo */}
+        <section className="page-card resumo-card">
+          <div className="resumo-card-title">Resumo</div>
+          <div className="resumo-txt">{buildResumoText()}</div>
+        </section>
+        </>
+        ) : null}
+
+        <section className="page-card rdo-bottom-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={step === 0 ? () => navigate(backPath) : () => setStep(current => Math.max(current - 1, 0))}
+          >
+            {step === 0 ? 'Cancelar' : `← ${TEXT.back}`}
+          </button>
+          <button className="secondary-button" type="button" onClick={handleSaveDraft}>
+            {TEXT.saveDraft}
+          </button>
+          {step < rdoSteps.length - 1 ? (
+            <button className="primary-button" type="button" onClick={handleNextStep}>
+              {TEXT.next}
             </button>
+          ) : (
             <button className="primary-button" type="button" onClick={handleSubmit}>
               {TEXT.submit}
             </button>
-          </div>
+          )}
         </section>
       </main>
+
+      {showServiceModal ? (
+        <div className="stype-modal-ov" onClick={() => setShowServiceModal(false)}>
+          <div className="stype-modal-sh" onClick={event => event.stopPropagation()}>
+            <div className="stype-modal-handle" />
+            <div className="stype-modal-title">Tipo de serviço</div>
+            <div className="stype-grid">
+              {serviceTypeModalOptions.map(({ type, icon, name }) => (
+                <button
+                  key={type}
+                  className="stype-btn"
+                  type="button"
+                  onClick={() => {
+                    addService(type);
+                    setShowServiceModal(false);
+                  }}
+                >
+                  <div className="stype-icon">{icon}</div>
+                  <div className="stype-name">{name}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </Shell>
   );
 }

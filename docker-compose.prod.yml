@@ -28,7 +28,9 @@ services:
       - filtrovali-net
 
   nginx:
-    image: nginx:1.27-alpine
+    build:
+      context: .
+      dockerfile: deploy/nginx/Dockerfile
     container_name: filtrovali-nginx
     restart: unless-stopped
     depends_on:

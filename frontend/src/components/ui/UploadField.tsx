@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+﻿import { useRef, useState } from 'react';
 
 import { uploadFiles, type UploadedFile } from '../../api/uploads';
 
@@ -44,7 +44,7 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
       const uploaded = await uploadFiles(items);
       onChange([...value, ...uploaded]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'N\u00e3o foi poss\u00edvel enviar as fotos.');
+      setError(err instanceof Error ? err.message : 'Não foi possível enviar as fotos.');
     } finally {
       setIsUploading(false);
       if (inputRef.current) inputRef.current.value = '';

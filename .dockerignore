@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+**/.vite
+**/*.tsbuildinfo
+.git
+.code-review-graph
+tmp_*
+backend/tmp_*
+uploads
+backend/uploads
+backend/Relatórios
+frontend/.env.local
+backend/.env
+backend/.env.production

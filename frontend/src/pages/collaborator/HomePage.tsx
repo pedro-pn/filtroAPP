@@ -1,10 +1,7 @@
-import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+﻿import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
-import { useProjects } from '../../hooks/useProjects';
-import { useReports } from '../../hooks/useReports';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
@@ -14,16 +11,33 @@ const TEXT = {
   archived: 'Arquivados',
   archivedSubtitle: 'Projetos arquivados',
   continue: 'Continuar',
-  createRdo: 'Criar RDO',
-  drafts: 'Relat\u00f3rios em andamento',
-  historyByProject: 'Hist\u00f3rico por projeto',
-  myReports: 'Meus relat\u00f3rios',
-  newReport: 'Novo relat\u00f3rio',
+  createRdo: 'Registrar serviços do dia',
+  drafts: 'Relatórios em andamento',
+  inProgress: 'Em andamento',
+  historyByProject: 'Histórico',
+  myReports: 'Meus relatórios',
+  newReport: 'Novo relatório',
   noDate: 'Sem data definida',
   remove: 'Remover',
   resume: 'Retomar preenchimento',
-  summary: 'Resumo'
 };
+
+function getGreeting(name: string) {
+  const hour = new Date().getHours();
+  const firstName = (name || '').split(' ')[0];
+  const saudacao = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+  return `${saudacao}, ${firstName} \u{1F44B}`;
+}
+
+function getTodayLabel() {
+  const label = new Date().toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
 
 interface RdoServiceDraft {
   id: string;
@@ -61,21 +75,11 @@ function draftDateLabel(draft: ReportDraft) {
 }
 
 export function HomePage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const projectsQuery = useProjects(true);
-  const reportsQuery = useReports({ mine: true });
   const draftsQuery = useDrafts();
   const draftMutations = useDraftMutations();
   const { hydrate, reset } = useRdoStore();
-
-  const reportStats = useMemo(() => {
-    const reports = reportsQuery.data || [];
-    return {
-      pending: reports.filter(report => report.status === 'PENDING' || report.status === 'RETURNED').length,
-      approved: reports.filter(report => report.status === 'APPROVED' || report.status === 'SIGNED').length
-    };
-  }, [reportsQuery.data]);
 
   function handleNewReport() {
     reset();
@@ -107,38 +111,56 @@ export function HomePage() {
 
   return (
     <Shell>
-      <TopBar title="Home" subtitle={user?.name} />
+      <TopBar
+        title="Home"
+        subtitle={user?.name}
+        actions={
+          <>
+            <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
+              Conta
+            </button>
+            <button
+              className="topbar-chip"
+              type="button"
+              onClick={async () => { await logout(); navigate('/', { replace: true }); }}
+            >
+              Sair
+            </button>
+          </>
+        }
+      />
       <main className="page-scroll">
-        <section className="page-card">
-          <div className="section-title">{TEXT.summary}</div>
-          <div className="stats-grid">
-            <div className="stat-card-react">
-              <div className="stat-number-react">{projectsQuery.data?.length ?? 0}</div>
-              <div className="stat-label-react">Projetos ativos</div>
-            </div>
-            <div className="stat-card-react">
-              <div className="stat-number-react">{reportStats.pending}</div>
-              <div className="stat-label-react">Pendentes/devolvidos</div>
-            </div>
-            <div className="stat-card-react">
-              <div className="stat-number-react">{reportStats.approved}</div>
-              <div className="stat-label-react">Aprovados/assinados</div>
-            </div>
-          </div>
-        </section>
+        <div className="home-greeting">
+          <div className="home-greeting-title">{getGreeting(user?.name || '')}</div>
+          <div className="home-greeting-date">{getTodayLabel()}</div>
+        </div>
 
         <section className="home-actions-grid">
           <button className="home-action-card home-action-primary" type="button" onClick={handleNewReport}>
-            <span className="home-action-title">{TEXT.newReport}</span>
-            <span className="home-action-subtitle">{TEXT.createRdo}</span>
+            <span className="home-action-icon">📋</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span className="home-action-title">{TEXT.newReport}</span>
+              <span className="home-action-subtitle">{TEXT.createRdo}</span>
+            </div>
           </button>
           <button className="home-action-card" type="button" onClick={() => navigate('/meus-relatorios')}>
-            <span className="home-action-title">{TEXT.myReports}</span>
-            <span className="home-action-subtitle">{TEXT.historyByProject}</span>
+            <div className="home-action-icon">📁</div>
+            <div className="home-action-title">{TEXT.myReports}</div>
+            <div className="home-action-subtitle">{TEXT.historyByProject}</div>
           </button>
-          <button className="home-action-card" type="button" onClick={() => navigate('/meus-relatorios/arquivados')}>
-            <span className="home-action-title">{TEXT.archived}</span>
-            <span className="home-action-subtitle">{TEXT.archivedSubtitle}</span>
+          <button className="home-action-card" type="button" onClick={() => {
+            const firstDraft = draftsQuery.data?.[0];
+            if (firstDraft) handleResumeDraft(firstDraft);
+          }} disabled={!draftsQuery.data?.length}>
+            <div className="home-action-icon">⏳</div>
+            <div className="home-action-title">{TEXT.inProgress}</div>
+            <div className="home-action-subtitle">{draftsQuery.data?.length || 0} relatório(s) ativos</div>
+          </button>
+        </section>
+
+        <section className="page-card compact-link-card">
+          <button className="secondary-button" type="button" onClick={() => navigate('/meus-relatorios/arquivados')}>
+            {TEXT.archived} — {TEXT.archivedSubtitle}
           </button>
         </section>
 

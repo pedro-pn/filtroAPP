@@ -1,15 +1,15 @@
-import { useMemo, useState, type FormEvent } from 'react';
+﻿import { useMemo, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { groupByProject } from '../../utils/groupByProject';
+import type { ReactNode } from 'react';
 
 import type { UserRole } from '../../types/auth';
 import { downloadReportDocx, downloadReportPdf, downloadReportsBatch } from '../../api/reports';
 import { useAuth } from '../../auth/AuthContext';
+import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useCollaboratorMutations, useCollaborators } from '../../hooks/useCollaborators';
 import { useCounterMutations, useCounters } from '../../hooks/useCounters';
-import { useEquipment, useEquipmentMutations } from '../../hooks/useEquipment';
 import { useManometerMutations, useManometers } from '../../hooks/useManometers';
 import { useProjectMutations, useProjects } from '../../hooks/useProjects';
 import { useReportMutations, useReports } from '../../hooks/useReports';
@@ -35,7 +35,6 @@ type GestorTab =
   | 'arquivados'
   | 'projetos'
   | 'equipe'
-  | 'usuarios'
   | 'equipamentos'
   | 'manometros'
   | 'contadores';
@@ -69,12 +68,6 @@ interface UserFormState {
   isActive: boolean;
 }
 
-interface EquipmentFormState {
-  code: string;
-  name: string;
-  serviceTags: string;
-}
-
 interface UnitFormState {
   code: string;
   category: UnitCategory;
@@ -96,8 +89,6 @@ interface CounterFormState {
 }
 
 const internalRoles: Array<Exclude<UserRole, 'CLIENT'>> = ['COLLABORATOR', 'MANAGER', 'COORDINATOR'];
-const unitCategories: UnitCategory[] = ['FILTRAGEM', 'FLUSHING', 'LIMPEZA_QUIMICA', 'DESIDRATACAO', 'UTH', 'OUTRA'];
-
 const emptyProjectForm: ProjectFormState = {
   code: '',
   name: '',
@@ -125,12 +116,6 @@ const emptyUserForm: UserFormState = {
   role: 'COLLABORATOR',
   collaboratorId: '',
   isActive: true
-};
-
-const emptyEquipmentForm: EquipmentFormState = {
-  code: '',
-  name: '',
-  serviceTags: ''
 };
 
 const emptyUnitForm: UnitFormState = {
@@ -165,8 +150,8 @@ function formatUnitCategory(category: UnitCategory) {
   const labels: Record<UnitCategory, string> = {
     FILTRAGEM: 'Filtragem',
     FLUSHING: 'Flushing',
-    LIMPEZA_QUIMICA: 'Limpeza qu\u00edmica',
-    DESIDRATACAO: 'Desidrata\u00e7\u00e3o',
+    LIMPEZA_QUIMICA: 'Limpeza química',
+    DESIDRATACAO: 'Desidratação',
     UTH: 'UTH',
     OUTRA: 'Outra'
   };
@@ -186,7 +171,7 @@ function formatUserRole(role: UserRole) {
 }
 
 function formatDate(value?: string | null) {
-  if (!value) return 'N\u00e3o informado';
+  if (!value) return 'Não informado';
   return new Date(value).toLocaleDateString('pt-BR');
 }
 
@@ -225,14 +210,6 @@ function userToForm(user: InternalUserSummary): UserFormState {
   };
 }
 
-function equipmentToForm(item: { code: string; name: string; serviceTags: string[] }) {
-  return {
-    code: item.code,
-    name: item.name,
-    serviceTags: item.serviceTags.join(', ')
-  };
-}
-
 function unitToForm(unit: Unit): UnitFormState {
   return {
     code: unit.code,
@@ -264,7 +241,7 @@ function counterToForm(item: ParticleCounter): CounterFormState {
   };
 }
 
-function renderProjectCard(project: Project, options: { onEdit: (project: Project) => void; onToggleArchive: (project: Project) => void; }) {
+function renderProjectCard(project: Project, options: { onEdit: (project: Project) => void; onToggleArchive: (project: Project) => void; children?: ReactNode; }) {
   return (
     <article className="admin-card-react" key={project.id}>
       <div className="admin-card-head">
@@ -289,8 +266,9 @@ function renderProjectCard(project: Project, options: { onEdit: (project: Projec
         <span>Local: {project.location}</span>
         <span>Cliente: {project.clientName}</span>
         <span>Status: {project.isActive ? 'Ativo' : 'Arquivado'}</span>
-        <span>{'Vis\u00edvel para colaboradores'}: {project.visibleToCollaborators ? 'Sim' : 'N\u00e3o'}</span>
+        <span>{'Visível para colaboradores'}: {project.visibleToCollaborators ? 'Sim' : 'Não'}</span>
       </div>
+      {options.children}
     </article>
   );
 }
@@ -302,30 +280,32 @@ export function GestorPage() {
 
   const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
   const [projectEditingId, setProjectEditingId] = useState<string | null>(null);
+  const [showProjectForm, setShowProjectForm] = useState(false);
   const [projectMessage, setProjectMessage] = useState<string | null>(null);
 
   const [collaboratorForm, setCollaboratorForm] = useState<CollaboratorFormState>(emptyCollaboratorForm);
   const [collaboratorEditingId, setCollaboratorEditingId] = useState<string | null>(null);
+  const [showCollaboratorForm, setShowCollaboratorForm] = useState(false);
   const [collaboratorMessage, setCollaboratorMessage] = useState<string | null>(null);
 
   const [userForm, setUserForm] = useState<UserFormState>(emptyUserForm);
   const [userEditingId, setUserEditingId] = useState<string | null>(null);
+  const [showUserForm, setShowUserForm] = useState(false);
   const [userMessage, setUserMessage] = useState<string | null>(null);
-
-  const [equipmentForm, setEquipmentForm] = useState<EquipmentFormState>(emptyEquipmentForm);
-  const [equipmentEditingId, setEquipmentEditingId] = useState<string | null>(null);
-  const [equipmentMessage, setEquipmentMessage] = useState<string | null>(null);
 
   const [unitForm, setUnitForm] = useState<UnitFormState>(emptyUnitForm);
   const [unitEditingId, setUnitEditingId] = useState<string | null>(null);
+  const [showUnitForm, setShowUnitForm] = useState(false);
   const [unitMessage, setUnitMessage] = useState<string | null>(null);
 
   const [manometerForm, setManometerForm] = useState<ManometerFormState>(emptyManometerForm);
   const [manometerEditingId, setManometerEditingId] = useState<string | null>(null);
+  const [showManometerForm, setShowManometerForm] = useState(false);
   const [manometerMessage, setManometerMessage] = useState<string | null>(null);
 
   const [counterForm, setCounterForm] = useState<CounterFormState>(emptyCounterForm);
   const [counterEditingId, setCounterEditingId] = useState<string | null>(null);
+  const [showCounterForm, setShowCounterForm] = useState(false);
   const [counterMessage, setCounterMessage] = useState<string | null>(null);
   const [reportMessage, setReportMessage] = useState<string | null>(null);
   const [returnReport, setReturnReport] = useState<ReportSummary | null>(null);
@@ -336,7 +316,6 @@ export function GestorPage() {
   const archivedProjectsQuery = useProjects(false);
   const collaboratorsQuery = useCollaborators();
   const usersQuery = useUsers('internal');
-  const equipmentQuery = useEquipment();
   const unitsQuery = useUnits();
   const manometersQuery = useManometers();
   const countersQuery = useCounters();
@@ -345,7 +324,6 @@ export function GestorPage() {
   const reportMutations = useReportMutations();
   const collaboratorMutations = useCollaboratorMutations();
   const userMutations = useUserMutations();
-  const equipmentMutations = useEquipmentMutations();
   const unitMutations = useUnitMutations();
   const manometerMutations = useManometerMutations();
   const counterMutations = useCounterMutations();
@@ -383,36 +361,37 @@ export function GestorPage() {
   function resetProjectForm() {
     setProjectForm(emptyProjectForm);
     setProjectEditingId(null);
+    setShowProjectForm(false);
   }
 
   function resetCollaboratorForm() {
     setCollaboratorForm(emptyCollaboratorForm);
     setCollaboratorEditingId(null);
+    setShowCollaboratorForm(false);
   }
 
   function resetUserForm() {
     setUserForm(emptyUserForm);
     setUserEditingId(null);
-  }
-
-  function resetEquipmentForm() {
-    setEquipmentForm(emptyEquipmentForm);
-    setEquipmentEditingId(null);
+    setShowUserForm(false);
   }
 
   function resetUnitForm() {
     setUnitForm(emptyUnitForm);
     setUnitEditingId(null);
+    setShowUnitForm(false);
   }
 
   function resetManometerForm() {
     setManometerForm(emptyManometerForm);
     setManometerEditingId(null);
+    setShowManometerForm(false);
   }
 
   function resetCounterForm() {
     setCounterForm(emptyCounterForm);
     setCounterEditingId(null);
+    setShowCounterForm(false);
   }
 
   async function handleProjectSubmit(event: FormEvent<HTMLFormElement>) {
@@ -441,7 +420,7 @@ export function GestorPage() {
       }
       resetProjectForm();
     } catch (error) {
-      setProjectMessage(error instanceof Error ? error.message : 'N\u00e3o foi poss\u00edvel salvar o projeto.');
+      setProjectMessage(error instanceof Error ? error.message : 'Não foi possível salvar o projeto.');
     }
   }
 
@@ -454,7 +433,7 @@ export function GestorPage() {
       });
       setProjectMessage(project.isActive ? 'Projeto arquivado.' : 'Projeto desarquivado.');
     } catch (error) {
-      setProjectMessage(error instanceof Error ? error.message : 'N\u00e3o foi poss\u00edvel atualizar o projeto.');
+      setProjectMessage(error instanceof Error ? error.message : 'Não foi possível atualizar o projeto.');
     }
   }
 
@@ -479,7 +458,7 @@ export function GestorPage() {
       }
       resetCollaboratorForm();
     } catch (error) {
-      setCollaboratorMessage(error instanceof Error ? error.message : 'N\u00e3o foi poss\u00edvel salvar o colaborador.');
+      setCollaboratorMessage(error instanceof Error ? error.message : 'Não foi possível salvar o colaborador.');
     }
   }
 
@@ -497,7 +476,7 @@ export function GestorPage() {
         setCollaboratorMessage('Colaborador reativado.');
       }
     } catch (error) {
-      setCollaboratorMessage(error instanceof Error ? error.message : 'N\u00e3o foi poss\u00edvel atualizar o colaborador.');
+      setCollaboratorMessage(error instanceof Error ? error.message : 'Não foi possível atualizar o colaborador.');
     }
   }
 
@@ -523,17 +502,17 @@ export function GestorPage() {
             ...(userForm.password.trim() ? { password: userForm.password.trim() } : {})
           }
         });
-        setUserMessage('Usu\u00e1rio atualizado.');
+        setUserMessage('Usuário atualizado.');
       } else {
         await userMutations.createUser.mutateAsync({
           ...basePayload,
           password: userForm.password.trim()
         });
-        setUserMessage('Usu\u00e1rio criado.');
+        setUserMessage('Usuário criado.');
       }
       resetUserForm();
     } catch (error) {
-      setUserMessage(error instanceof Error ? error.message : 'N\u00e3o foi poss\u00edvel salvar o usu\u00e1rio.');
+      setUserMessage(error instanceof Error ? error.message : 'Não foi possível salvar o usuário.');
     }
   }
 
@@ -541,48 +520,10 @@ export function GestorPage() {
     setUserMessage(null);
     try {
       await userMutations.removeUser.mutateAsync(id);
-      setUserMessage('Usu\u00e1rio removido.');
+      setUserMessage('Usuário removido.');
       if (userEditingId === id) resetUserForm();
     } catch (error) {
-      setUserMessage(error instanceof Error ? error.message : 'N\u00e3o foi poss\u00edvel remover o usu\u00e1rio.');
-    }
-  }
-
-  async function handleEquipmentSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setEquipmentMessage(null);
-
-    const payload = {
-      code: equipmentForm.code.trim(),
-      name: equipmentForm.name.trim(),
-      serviceTags: equipmentForm.serviceTags
-        .split(',')
-        .map(item => item.trim())
-        .filter(Boolean)
-    };
-
-    try {
-      if (equipmentEditingId) {
-        await equipmentMutations.updateEquipment.mutateAsync({ id: equipmentEditingId, payload });
-        setEquipmentMessage('Equipamento atualizado.');
-      } else {
-        await equipmentMutations.createEquipment.mutateAsync(payload);
-        setEquipmentMessage('Equipamento criado.');
-      }
-      resetEquipmentForm();
-    } catch (error) {
-      setEquipmentMessage(error instanceof Error ? error.message : 'N\u00e3o foi poss\u00edvel salvar o equipamento.');
-    }
-  }
-
-  async function handleEquipmentDeactivate(id: string) {
-    setEquipmentMessage(null);
-    try {
-      await equipmentMutations.removeEquipment.mutateAsync(id);
-      setEquipmentMessage('Equipamento desativado.');
-      if (equipmentEditingId === id) resetEquipmentForm();
-    } catch (error) {
-      setEquipmentMessage(error instanceof Error ? error.message : 'N\u00e3o foi poss\u00edvel atualizar o equipamento.');
+      setUserMessage(error instanceof Error ? error.message : 'Não foi possível remover o usuário.');
     }
   }
 
@@ -605,7 +546,7 @@ export function GestorPage() {
       }
       resetUnitForm();
     } catch (error) {
-      setUnitMessage(error instanceof Error ? error.message : 'N\u00e3o foi poss\u00edvel salvar a unidade.');
+      setUnitMessage(error instanceof Error ? error.message : 'Não foi possível salvar a unidade.');
     }
   }
 
@@ -616,7 +557,7 @@ export function GestorPage() {
       setUnitMessage('Unidade removida.');
       if (unitEditingId === id) resetUnitForm();
     } catch (error) {
-      setUnitMessage(error instanceof Error ? error.message : 'N\u00e3o foi poss\u00edvel remover a unidade.');
+      setUnitMessage(error instanceof Error ? error.message : 'Não foi possível remover a unidade.');
     }
   }
 
@@ -702,9 +643,9 @@ export function GestorPage() {
         payload: { status, reviewNotes }
       });
       if (status === 'RETURNED') setReturnReport(null);
-      setReportMessage(status === 'APPROVED' ? 'Relat\u00f3rio aprovado.' : 'Relat\u00f3rio devolvido.');
+      setReportMessage(status === 'APPROVED' ? 'Relatório aprovado.' : 'Relatório devolvido.');
     } catch (error) {
-      setReportMessage(error instanceof Error ? error.message : 'N\u00e3o foi poss\u00edvel revisar o relat\u00f3rio.');
+      setReportMessage(error instanceof Error ? error.message : 'Não foi possível revisar o relatório.');
     }
   }
 
@@ -716,7 +657,7 @@ export function GestorPage() {
       const blob = format === 'pdf' ? await downloadReportPdf(report.id) : await downloadReportDocx(report.id);
       downloadBlob(blob, fileName);
     } catch (error) {
-      setReportMessage(error instanceof Error ? error.message : 'N\u00e3o foi poss\u00edvel baixar o relat\u00f3rio.');
+      setReportMessage(error instanceof Error ? error.message : 'Não foi possível baixar o relatório.');
     }
   }
 
@@ -746,7 +687,7 @@ export function GestorPage() {
   }
 
   function renderManagerReportActions(report: ReportSummary) {
-    const canReview = report.status !== 'SIGNED';
+    const canReview = tab === 'pendentes' && report.status !== 'SIGNED';
 
     return (
       <>
@@ -781,26 +722,43 @@ export function GestorPage() {
   function renderBatchReportActions(reports: ReportSummary[]) {
     const visibleIds = reports.map(report => report.id);
     const selectedVisibleCount = selectedReportIds.filter(id => visibleIds.includes(id)).length;
+    const hasSelectedVisible = selectedVisibleCount > 0;
 
     return (
-      <section className="page-card">
-        <div className="section-title">Ações em lote</div>
+      <div className="report-batch-toolbar">
+        <span className="report-batch-count">{selectedVisibleCount} selecionado(s)</span>
         <div className="admin-form-actions">
           <button className="secondary-button" type="button" onClick={() => setSelectedReportIds(visibleIds)}>
             Selecionar todos
           </button>
-          <button className="secondary-button" type="button" onClick={() => setSelectedReportIds([])}>
-            Limpar seleção
-          </button>
-          <button className="secondary-button" type="button" onClick={() => void handleBatchReportDownload('pdf', reports)}>
-            Baixar PDF
-          </button>
-          <button className="secondary-button" type="button" onClick={() => void handleBatchReportDownload('docx', reports)}>
-            Baixar DOCX
-          </button>
+          {hasSelectedVisible ? (
+            <>
+              <button className="secondary-button" type="button" onClick={() => setSelectedReportIds([])}>
+                Limpar seleção
+              </button>
+              <button className="secondary-button" type="button" onClick={() => void handleBatchReportDownload('pdf', reports)}>
+                Baixar PDF
+              </button>
+              <button className="secondary-button" type="button" onClick={() => void handleBatchReportDownload('docx', reports)}>
+                Baixar DOCX
+              </button>
+            </>
+          ) : null}
         </div>
-        <p className="placeholder-copy">{selectedVisibleCount} selecionado(s) nesta aba.</p>
-      </section>
+      </div>
+    );
+  }
+
+  function renderProjectReportGroups(reports: ReportSummary[]) {
+    return (
+      <GroupedReportList
+        reports={reports}
+        archived={tab === 'arquivados'}
+        renderTypeActions={renderBatchReportActions}
+        renderReport={report => (
+          <ReportSummaryCard key={report.id} report={report} actions={renderManagerReportActions(report)} />
+        )}
+      />
     );
   }
 
@@ -808,28 +766,39 @@ export function GestorPage() {
     const visibleReports =
       tab === 'pendentes' ? pendingReports : tab === 'arquivados' ? archivedReports : approvedReports;
 
-    if (reportsQuery.isLoading) return <div className="page-card placeholder-copy">{'Carregando relat\u00f3rios...'}</div>;
+    if (reportsQuery.isLoading) return <div className="page-card placeholder-copy">Carregando relatórios...</div>;
+
+    const criarRelatorioBtn = tab === 'pendentes' ? (
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <button className="primary-button" type="button" onClick={() => navigate('/relatorios/novo')}>
+          + Criar Relatório
+        </button>
+      </div>
+    ) : null;
 
     if (!visibleReports.length) {
       return (
-        <div className="page-card placeholder-copy">
-          {tab === 'pendentes'
-            ? 'Nenhum relat\u00f3rio pendente.'
-            : tab === 'arquivados'
-              ? 'Nenhum relat\u00f3rio arquivado.'
-              : 'Nenhum relat\u00f3rio aprovado.'}
-        </div>
+        <>
+          {criarRelatorioBtn}
+          <div className="page-card placeholder-copy">
+            {tab === 'pendentes'
+              ? 'Nenhum relatório pendente.'
+              : tab === 'arquivados'
+                ? 'Nenhum relatório arquivado.'
+                : 'Nenhum relatório aprovado.'}
+          </div>
+        </>
       );
     }
 
     const reasonDialog = (
       <ReasonDialog
         open={!!returnReport}
-        title="Devolver relat\u00f3rio"
-        description="Informe o motivo da devolu\u00e7\u00e3o do relat\u00f3rio."
+        title="Devolver relatório"
+        description="Informe o motivo da devolução do relatório."
         label="Motivo"
         confirmLabel="Devolver"
-        requiredMessage="Informe um motivo para devolver o relat\u00f3rio."
+        requiredMessage="Informe um motivo para devolver o relatório."
         isSubmitting={reportMutations.updateStatus.isPending}
         onCancel={() => setReturnReport(null)}
         onConfirm={reason => {
@@ -838,36 +807,11 @@ export function GestorPage() {
       />
     );
 
-    if (tab === 'arquivados') {
-      const groups = groupByProject(visibleReports);
-      return (
-        <>
-          {reportMessage ? <div className="page-card inline-success">{reportMessage}</div> : null}
-          {renderBatchReportActions(visibleReports)}
-          {groups.map(group => (
-            <div key={group.projectId}>
-              <div className="project-group-header">
-                <span className="project-group-code">{group.projectCode}</span>
-                <span className="project-group-name project-group-name--archived">{group.projectName}</span>
-                <span className="project-group-badge">Arquivado</span>
-              </div>
-              {group.reports.map(report => (
-                <ReportSummaryCard key={report.id} report={report} actions={renderManagerReportActions(report)} />
-              ))}
-            </div>
-          ))}
-          {reasonDialog}
-        </>
-      );
-    }
-
     return (
       <>
+        {criarRelatorioBtn}
         {reportMessage ? <div className="page-card inline-success">{reportMessage}</div> : null}
-        {renderBatchReportActions(visibleReports)}
-        {visibleReports.map(report => (
-          <ReportSummaryCard key={report.id} report={report} actions={renderManagerReportActions(report)} />
-        ))}
+        {renderProjectReportGroups(visibleReports)}
         {reasonDialog}
       </>
     );
@@ -884,11 +828,26 @@ export function GestorPage() {
     return (
       <>
         <section className="page-card">
-          <div className="section-title">{projectEditingId ? 'Editar projeto' : 'Novo projeto'}</div>
+          <div className="admin-section-head">
+            <div className="section-title">{projectEditingId ? 'Editar projeto' : 'Projetos'}</div>
+            {!showProjectForm && !projectEditingId ? (
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => {
+                  setShowProjectForm(true);
+                  setProjectMessage(null);
+                }}
+              >
+                Adicionar projeto
+              </button>
+            ) : null}
+          </div>
           {projectMessage ? <div className="inline-success">{projectMessage}</div> : null}
-          <form className="admin-form-grid" onSubmit={handleProjectSubmit}>
+          {showProjectForm && !projectEditingId ? (
+            <form className="admin-form-grid" onSubmit={handleProjectSubmit}>
             <div className="field-group">
-              <label htmlFor="project-code">{'C\u00f3digo'}</label>
+              <label htmlFor="project-code">{'Código'}</label>
               <input
                 id="project-code"
                 value={projectForm.code}
@@ -942,7 +901,7 @@ export function GestorPage() {
               />
             </div>
             <div className="field-group">
-              <label htmlFor="project-operator">{'Colaborador respons\u00e1vel'}</label>
+              <label htmlFor="project-operator">{'Colaborador responsável'}</label>
               <select
                 id="project-operator"
                 value={projectForm.operatorId}
@@ -966,7 +925,7 @@ export function GestorPage() {
                   setProjectForm(current => ({ ...current, visibleToCollaborators: event.target.checked }))
                 }
               />
-              {'Vis\u00edvel para colaboradores'}
+              {'Visível para colaboradores'}
             </label>
             <label className="checkbox-line">
               <input
@@ -982,11 +941,16 @@ export function GestorPage() {
               </button>
               {projectEditingId ? (
                 <button className="secondary-button" type="button" onClick={resetProjectForm}>
-                  {'Cancelar edi\u00e7\u00e3o'}
+                  {'Cancelar edição'}
                 </button>
-              ) : null}
+              ) : (
+                <button className="secondary-button" type="button" onClick={resetProjectForm}>
+                  Cancelar
+                </button>
+              )}
             </div>
-          </form>
+            </form>
+          ) : null}
         </section>
 
         <section className="page-card">
@@ -995,8 +959,41 @@ export function GestorPage() {
             <div className="admin-stack">
               {activeProjects.map(project =>
                 renderProjectCard(project, {
+                  children: projectEditingId === project.id ? (
+                    <form className="admin-inline-form admin-form-grid" onSubmit={handleProjectSubmit}>
+                      <div className="field-group">
+                        <label htmlFor={`project-code-${project.id}`}>Código</label>
+                        <input id={`project-code-${project.id}`} value={projectForm.code} onChange={event => setProjectForm(current => ({ ...current, code: event.target.value }))} required />
+                      </div>
+                      <div className="field-group">
+                        <label htmlFor={`project-name-${project.id}`}>Nome</label>
+                        <input id={`project-name-${project.id}`} value={projectForm.name} onChange={event => setProjectForm(current => ({ ...current, name: event.target.value }))} required />
+                      </div>
+                      <div className="field-group">
+                        <label htmlFor={`project-client-${project.id}`}>Cliente</label>
+                        <input id={`project-client-${project.id}`} value={projectForm.clientName} onChange={event => setProjectForm(current => ({ ...current, clientName: event.target.value }))} required />
+                      </div>
+                      <div className="field-group">
+                        <label htmlFor={`project-cnpj-${project.id}`}>CNPJ</label>
+                        <input id={`project-cnpj-${project.id}`} value={projectForm.clientCnpj} onChange={event => setProjectForm(current => ({ ...current, clientCnpj: event.target.value }))} required />
+                      </div>
+                      <div className="field-group">
+                        <label htmlFor={`project-contract-${project.id}`}>Contrato</label>
+                        <input id={`project-contract-${project.id}`} value={projectForm.contractCode} onChange={event => setProjectForm(current => ({ ...current, contractCode: event.target.value }))} required />
+                      </div>
+                      <div className="field-group">
+                        <label htmlFor={`project-location-${project.id}`}>Local</label>
+                        <input id={`project-location-${project.id}`} value={projectForm.location} onChange={event => setProjectForm(current => ({ ...current, location: event.target.value }))} required />
+                      </div>
+                      <div className="admin-form-actions">
+                        <button className="primary-button" type="submit" disabled={projectMutations.updateProject.isPending}>Salvar projeto</button>
+                        <button className="secondary-button" type="button" onClick={resetProjectForm}>Cancelar edição</button>
+                      </div>
+                    </form>
+                  ) : null,
                   onEdit: item => {
                     setProjectEditingId(item.id);
+                    setShowProjectForm(true);
                     setProjectForm(projectToForm(item));
                     setProjectMessage(null);
                   },
@@ -1015,8 +1012,23 @@ export function GestorPage() {
             <div className="admin-stack">
               {archivedProjects.map(project =>
                 renderProjectCard(project, {
+                  children: projectEditingId === project.id ? (
+                    <form className="admin-inline-form admin-form-grid" onSubmit={handleProjectSubmit}>
+                      <div className="field-group"><label>Código</label><input value={projectForm.code} onChange={event => setProjectForm(current => ({ ...current, code: event.target.value }))} required /></div>
+                      <div className="field-group"><label>Nome</label><input value={projectForm.name} onChange={event => setProjectForm(current => ({ ...current, name: event.target.value }))} required /></div>
+                      <div className="field-group"><label>Cliente</label><input value={projectForm.clientName} onChange={event => setProjectForm(current => ({ ...current, clientName: event.target.value }))} required /></div>
+                      <div className="field-group"><label>CNPJ</label><input value={projectForm.clientCnpj} onChange={event => setProjectForm(current => ({ ...current, clientCnpj: event.target.value }))} required /></div>
+                      <div className="field-group"><label>Contrato</label><input value={projectForm.contractCode} onChange={event => setProjectForm(current => ({ ...current, contractCode: event.target.value }))} required /></div>
+                      <div className="field-group"><label>Local</label><input value={projectForm.location} onChange={event => setProjectForm(current => ({ ...current, location: event.target.value }))} required /></div>
+                      <div className="admin-form-actions">
+                        <button className="primary-button" type="submit" disabled={projectMutations.updateProject.isPending}>Salvar projeto</button>
+                        <button className="secondary-button" type="button" onClick={resetProjectForm}>Cancelar edição</button>
+                      </div>
+                    </form>
+                  ) : null,
                   onEdit: item => {
                     setProjectEditingId(item.id);
+                    setShowProjectForm(true);
                     setProjectForm(projectToForm(item));
                     setProjectMessage(null);
                   },
@@ -1042,8 +1054,23 @@ export function GestorPage() {
     return (
       <>
         <section className="page-card">
-          <div className="section-title">{collaboratorEditingId ? 'Editar colaborador' : 'Novo colaborador'}</div>
+          <div className="admin-section-head">
+            <div className="section-title">{collaboratorEditingId ? 'Editar colaborador' : 'Colaboradores'}</div>
+            {!showCollaboratorForm && !collaboratorEditingId ? (
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => {
+                  setShowCollaboratorForm(true);
+                  setCollaboratorMessage(null);
+                }}
+              >
+                Adicionar colaborador
+              </button>
+            ) : null}
+          </div>
           {collaboratorMessage ? <div className="inline-success">{collaboratorMessage}</div> : null}
+          {showCollaboratorForm && !collaboratorEditingId ? (
           <form className="admin-form-grid" onSubmit={handleCollaboratorSubmit}>
             <div className="field-group">
               <label htmlFor="collaborator-name">Nome</label>
@@ -1093,11 +1120,16 @@ export function GestorPage() {
               </button>
               {collaboratorEditingId ? (
                 <button className="secondary-button" type="button" onClick={resetCollaboratorForm}>
-                  {'Cancelar edi\u00e7\u00e3o'}
+                  {'Cancelar edição'}
                 </button>
-              ) : null}
+              ) : (
+                <button className="secondary-button" type="button" onClick={resetCollaboratorForm}>
+                  Cancelar
+                </button>
+              )}
             </div>
           </form>
+          ) : null}
         </section>
 
         <section className="page-card">
@@ -1117,6 +1149,7 @@ export function GestorPage() {
                         type="button"
                         onClick={() => {
                           setCollaboratorEditingId(collaborator.id);
+                          setShowCollaboratorForm(true);
                           setCollaboratorForm(collaboratorToForm(collaborator));
                           setCollaboratorMessage(null);
                         }}
@@ -1137,6 +1170,26 @@ export function GestorPage() {
                     <span>{collaborator.email || 'Sem e-mail'}</span>
                     <span>{collaborator.isActive ? 'Ativo' : 'Inativo'}</span>
                   </div>
+                  {collaboratorEditingId === collaborator.id ? (
+                    <form className="admin-inline-form admin-form-grid" onSubmit={handleCollaboratorSubmit}>
+                      <div className="field-group">
+                        <label>Nome</label>
+                        <input value={collaboratorForm.name} onChange={event => setCollaboratorForm(current => ({ ...current, name: event.target.value }))} required />
+                      </div>
+                      <div className="field-group">
+                        <label>Cargo</label>
+                        <input value={collaboratorForm.role} onChange={event => setCollaboratorForm(current => ({ ...current, role: event.target.value }))} required />
+                      </div>
+                      <div className="field-group">
+                        <label>E-mail</label>
+                        <input type="email" value={collaboratorForm.email} onChange={event => setCollaboratorForm(current => ({ ...current, email: event.target.value }))} />
+                      </div>
+                      <div className="admin-form-actions">
+                        <button className="primary-button" type="submit" disabled={collaboratorMutations.updateCollaborator.isPending}>Salvar colaborador</button>
+                        <button className="secondary-button" type="button" onClick={resetCollaboratorForm}>Cancelar edição</button>
+                      </div>
+                    </form>
+                  ) : null}
                 </article>
               ))}
             </div>
@@ -1144,6 +1197,7 @@ export function GestorPage() {
             <p className="placeholder-copy">Nenhum colaborador cadastrado.</p>
           )}
         </section>
+        {renderUsuariosTab()}
       </>
     );
   }
@@ -1152,14 +1206,29 @@ export function GestorPage() {
     const users = usersQuery.data || [];
 
     if (usersQuery.isLoading) {
-      return <div className="page-card placeholder-copy">{'Carregando usu\u00e1rios...'}</div>;
+      return <div className="page-card placeholder-copy">{'Carregando usuários...'}</div>;
     }
 
     return (
       <>
         <section className="page-card">
           <div className="section-title">{userEditingId ? 'Editar usuário' : 'Novo usuário interno'}</div>
+          {!showUserForm && !userEditingId ? (
+            <div className="admin-form-actions">
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => {
+                  setShowUserForm(true);
+                  setUserMessage(null);
+                }}
+              >
+                Adicionar usuario
+              </button>
+            </div>
+          ) : null}
           {userMessage ? <div className="inline-success">{userMessage}</div> : null}
+          {showUserForm && !userEditingId ? (
           <form className="admin-form-grid" onSubmit={handleUserSubmit}>
             <div className="field-group">
               <label htmlFor="user-username">Usuário</label>
@@ -1253,9 +1322,14 @@ export function GestorPage() {
                 <button className="secondary-button" type="button" onClick={resetUserForm}>
                   Cancelar edição
                 </button>
-              ) : null}
+              ) : (
+                <button className="secondary-button" type="button" onClick={resetUserForm}>
+                  Cancelar
+                </button>
+              )}
             </div>
           </form>
+          ) : null}
         </section>
 
         <section className="page-card">
@@ -1275,6 +1349,7 @@ export function GestorPage() {
                         type="button"
                         onClick={() => {
                           setUserEditingId(item.id);
+                          setShowUserForm(true);
                           setUserForm(userToForm(item));
                           setUserMessage(null);
                         }}
@@ -1292,6 +1367,45 @@ export function GestorPage() {
                     <span>{item.collaborator?.name || 'Sem colaborador vinculado'}</span>
                     <span>{item.isActive ? 'Ativo' : 'Inativo'}</span>
                   </div>
+                  {userEditingId === item.id ? (
+                    <form className="admin-inline-form admin-form-grid" onSubmit={handleUserSubmit}>
+                      <div className="field-group"><label>Usuário</label><input value={userForm.username} onChange={event => setUserForm(current => ({ ...current, username: event.target.value }))} required readOnly /></div>
+                      <div className="field-group"><label>Nome</label><input value={userForm.name} onChange={event => setUserForm(current => ({ ...current, name: event.target.value }))} required /></div>
+                      <div className="field-group"><label>E-mail</label><input type="email" value={userForm.email} onChange={event => setUserForm(current => ({ ...current, email: event.target.value }))} /></div>
+                      <div className="field-group"><label>Nova senha (opcional)</label><input type="password" value={userForm.password} onChange={event => setUserForm(current => ({ ...current, password: event.target.value }))} /></div>
+                      <div className="field-group">
+                        <label>Perfil</label>
+                        <select value={userForm.role} onChange={event => setUserForm(current => ({ ...current, role: event.target.value as Exclude<UserRole, 'CLIENT'> }))}>
+                          {internalRoles.map(role => <option key={role} value={role}>{formatUserRole(role)}</option>)}
+                        </select>
+                      </div>
+                      <div className="field-group">
+                        <label>Colaborador vinculado</label>
+                        <select value={userForm.collaboratorId} onChange={event => setUserForm(current => ({ ...current, collaboratorId: event.target.value }))}>
+                          <option value="">Nenhum</option>
+                          {(collaboratorsQuery.data || [])
+                            .filter(collaborator => collaborator.isActive)
+                            .map(collaborator => (
+                              <option key={collaborator.id} value={collaborator.id}>
+                                {collaborator.name}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                      <label className="checkbox-line">
+                        <input
+                          type="checkbox"
+                          checked={userForm.isActive}
+                          onChange={event => setUserForm(current => ({ ...current, isActive: event.target.checked }))}
+                        />
+                        Usuário ativo
+                      </label>
+                      <div className="admin-form-actions">
+                        <button className="primary-button" type="submit" disabled={userMutations.updateUser.isPending}>Salvar usuário</button>
+                        <button className="secondary-button" type="button" onClick={resetUserForm}>Cancelar edição</button>
+                      </div>
+                    </form>
+                  ) : null}
                 </article>
               ))}
             </div>
@@ -1304,154 +1418,67 @@ export function GestorPage() {
   }
 
   function renderEquipamentosTab() {
-    const equipment = equipmentQuery.data || [];
     const units = unitsQuery.data || [];
 
-    if (equipmentQuery.isLoading || unitsQuery.isLoading) {
-      return <div className="page-card placeholder-copy">Carregando equipamentos e unidades...</div>;
+    if (unitsQuery.isLoading) {
+      return <div className="page-card placeholder-copy">Carregando unidades...</div>;
     }
 
     return (
       <>
         <section className="page-card">
-          <div className="section-title">{equipmentEditingId ? 'Editar equipamento' : 'Novo equipamento'}</div>
-          {equipmentMessage ? <div className="inline-success">{equipmentMessage}</div> : null}
-          <form className="admin-form-grid" onSubmit={handleEquipmentSubmit}>
-            <div className="field-group">
-              <label htmlFor="equipment-code">Código</label>
-              <input
-                id="equipment-code"
-                value={equipmentForm.code}
-                onChange={event => setEquipmentForm(current => ({ ...current, code: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="equipment-name">Nome</label>
-              <input
-                id="equipment-name"
-                value={equipmentForm.name}
-                onChange={event => setEquipmentForm(current => ({ ...current, name: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="equipment-tags">Tags de serviço</label>
-              <input
-                id="equipment-tags"
-                value={equipmentForm.serviceTags}
-                onChange={event => setEquipmentForm(current => ({ ...current, serviceTags: event.target.value }))}
-                placeholder="RDO, RLQ, RCPU"
-              />
-            </div>
-            <div className="admin-form-actions">
-              <button
-                className="primary-button"
-                type="submit"
-                disabled={equipmentMutations.createEquipment.isPending || equipmentMutations.updateEquipment.isPending}
-              >
-                {equipmentEditingId ? 'Salvar equipamento' : 'Criar equipamento'}
-              </button>
-              {equipmentEditingId ? (
-                <button className="secondary-button" type="button" onClick={resetEquipmentForm}>
-                  Cancelar edição
-                </button>
-              ) : null}
-            </div>
-          </form>
-        </section>
-
-        <section className="page-card">
-          <div className="section-title">{unitEditingId ? 'Editar unidade' : 'Nova unidade'}</div>
-          {unitMessage ? <div className="inline-success">{unitMessage}</div> : null}
-          <form className="admin-form-grid" onSubmit={handleUnitSubmit}>
-            <div className="field-group">
-              <label htmlFor="unit-code">Código</label>
-              <input
-                id="unit-code"
-                value={unitForm.code}
-                onChange={event => setUnitForm(current => ({ ...current, code: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="unit-category">Categoria</label>
-              <select
-                id="unit-category"
-                value={unitForm.category}
-                onChange={event => setUnitForm(current => ({ ...current, category: event.target.value as UnitCategory }))}
-              >
-                {unitCategories.map(category => (
-                  <option key={category} value={category}>
-                    {formatUnitCategory(category)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="admin-form-actions">
-              <button
-                className="primary-button"
-                type="submit"
-                disabled={unitMutations.createUnit.isPending || unitMutations.updateUnit.isPending}
-              >
-                {unitEditingId ? 'Salvar unidade' : 'Criar unidade'}
-              </button>
-              {unitEditingId ? (
-                <button className="secondary-button" type="button" onClick={resetUnitForm}>
-                  Cancelar edição
-                </button>
-              ) : null}
-            </div>
-          </form>
-        </section>
-
-        <section className="page-card">
-          <div className="section-title">Equipamentos</div>
-          {equipment.length ? (
-            <div className="admin-stack">
-              {equipment.map(item => (
-                <article className="admin-card-react" key={item.id}>
-                  <div className="admin-card-head">
-                    <div>
-                      <div className="admin-card-title">{item.code}</div>
-                      <div className="admin-card-subtitle">{item.name}</div>
-                    </div>
-                    <div className="admin-card-actions">
-                      <button
-                        className="secondary-button"
-                        type="button"
-                        onClick={() => {
-                          setEquipmentEditingId(item.id);
-                          setEquipmentForm(equipmentToForm(item));
-                          setEquipmentMessage(null);
-                        }}
-                      >
-                        Editar
-                      </button>
-                      <button className="secondary-button" type="button" onClick={() => void handleEquipmentDeactivate(item.id)}>
-                        Desativar
-                      </button>
-                    </div>
-                  </div>
-                  <div className="admin-card-meta">
-                    <span>{item.serviceTags.join(', ') || 'Sem tags de serviço'}</span>
-                    <span>{item.isActive ? 'Ativo' : 'Inativo'}</span>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className="placeholder-copy">Nenhum equipamento cadastrado.</p>
-          )}
-        </section>
-
-        <section className="page-card">
           <div className="section-title">Unidades</div>
+          {unitMessage && !showUnitForm && !unitEditingId ? <div className="inline-success">{unitMessage}</div> : null}
           {units.length ? (
             <div className="admin-stack">
               {Object.entries(groupedUnits).map(([category, categoryUnits]) => (
                 <article className="admin-card-react" key={category}>
-                  <div className="admin-card-title">{formatUnitCategory(category as UnitCategory)}</div>
+                  <div className="admin-section-head admin-card-toolbar">
+                    <div className="admin-card-title">{formatUnitCategory(category as UnitCategory)}</div>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => {
+                        setUnitEditingId(null);
+                        setShowUnitForm(true);
+                        setUnitForm({ code: '', category: category as UnitCategory });
+                        setUnitMessage(null);
+                      }}
+                    >
+                      + Nova unidade
+                    </button>
+                  </div>
+                  {unitMessage && showUnitForm && !unitEditingId && unitForm.category === category ? (
+                    <div className="inline-success">{unitMessage}</div>
+                  ) : null}
+                  {showUnitForm && !unitEditingId && unitForm.category === category ? (
+                    <form className="admin-inline-form admin-form-grid" onSubmit={handleUnitSubmit}>
+                      <div className="field-group">
+                        <label>Código</label>
+                        <input
+                          value={unitForm.code}
+                          onChange={event => setUnitForm(current => ({ ...current, code: event.target.value }))}
+                          required
+                        />
+                      </div>
+                      <div className="field-group">
+                        <label>Categoria</label>
+                        <input value={formatUnitCategory(category as UnitCategory)} readOnly />
+                      </div>
+                      <div className="admin-form-actions">
+                        <button
+                          className="primary-button"
+                          type="submit"
+                          disabled={unitMutations.createUnit.isPending || unitMutations.updateUnit.isPending}
+                        >
+                          Criar unidade
+                        </button>
+                        <button className="secondary-button" type="button" onClick={resetUnitForm}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
                   <div className="admin-list">
                     {categoryUnits.map(unit => (
                       <div className="admin-list-row" key={unit.id}>
@@ -1462,6 +1489,7 @@ export function GestorPage() {
                             type="button"
                             onClick={() => {
                               setUnitEditingId(unit.id);
+                              setShowUnitForm(true);
                               setUnitForm(unitToForm(unit));
                               setUnitMessage(null);
                             }}
@@ -1472,6 +1500,16 @@ export function GestorPage() {
                             Excluir
                           </button>
                         </div>
+                        {unitEditingId === unit.id ? (
+                          <form className="admin-inline-form admin-form-grid" onSubmit={handleUnitSubmit}>
+                            <div className="field-group"><label>Código</label><input value={unitForm.code} onChange={event => setUnitForm(current => ({ ...current, code: event.target.value }))} required /></div>
+                            <div className="field-group"><label>Categoria</label><input value={formatUnitCategory(unit.category)} readOnly /></div>
+                            <div className="admin-form-actions">
+                              <button className="primary-button" type="submit" disabled={unitMutations.updateUnit.isPending}>Salvar unidade</button>
+                              <button className="secondary-button" type="button" onClick={resetUnitForm}>Cancelar edição</button>
+                            </div>
+                          </form>
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -1497,7 +1535,22 @@ export function GestorPage() {
       <>
         <section className="page-card">
           <div className="section-title">{manometerEditingId ? 'Editar manômetro' : 'Novo manômetro'}</div>
+          {!showManometerForm && !manometerEditingId ? (
+            <div className="admin-form-actions">
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => {
+                  setShowManometerForm(true);
+                  setManometerMessage(null);
+                }}
+              >
+                Adicionar manômetro
+              </button>
+            </div>
+          ) : null}
           {manometerMessage ? <div className="inline-success">{manometerMessage}</div> : null}
+          {showManometerForm && !manometerEditingId ? (
           <form className="admin-form-grid" onSubmit={handleManometerSubmit}>
             <div className="field-group">
               <label htmlFor="manometer-code">Código</label>
@@ -1560,9 +1613,14 @@ export function GestorPage() {
                 <button className="secondary-button" type="button" onClick={resetManometerForm}>
                   Cancelar edição
                 </button>
-              ) : null}
+              ) : (
+                <button className="secondary-button" type="button" onClick={resetManometerForm}>
+                  Cancelar
+                </button>
+              )}
             </div>
           </form>
+          ) : null}
         </section>
 
         <section className="page-card">
@@ -1582,6 +1640,7 @@ export function GestorPage() {
                         type="button"
                         onClick={() => {
                           setManometerEditingId(item.id);
+                          setShowManometerForm(true);
                           setManometerForm(manometerToForm(item));
                           setManometerMessage(null);
                         }}
@@ -1598,6 +1657,19 @@ export function GestorPage() {
                     <span>Vencimento: {formatDate(item.expiresAt)}</span>
                     <span>{item.isActive ? 'Ativo' : 'Inativo'}</span>
                   </div>
+                  {manometerEditingId === item.id ? (
+                    <form className="admin-inline-form admin-form-grid" onSubmit={handleManometerSubmit}>
+                      <div className="field-group"><label>Código</label><input value={manometerForm.code} onChange={event => setManometerForm(current => ({ ...current, code: event.target.value }))} required /></div>
+                      <div className="field-group"><label>Escala</label><input value={manometerForm.scale} onChange={event => setManometerForm(current => ({ ...current, scale: event.target.value }))} required /></div>
+                      <div className="field-group"><label>Certificado</label><input value={manometerForm.calibrationCertCode} onChange={event => setManometerForm(current => ({ ...current, calibrationCertCode: event.target.value }))} required /></div>
+                      <div className="field-group"><label>Calibração</label><input type="date" value={manometerForm.calibratedAt} onChange={event => setManometerForm(current => ({ ...current, calibratedAt: event.target.value }))} required /></div>
+                      <div className="field-group"><label>Vencimento</label><input type="date" value={manometerForm.expiresAt} onChange={event => setManometerForm(current => ({ ...current, expiresAt: event.target.value }))} required /></div>
+                      <div className="admin-form-actions">
+                        <button className="primary-button" type="submit" disabled={manometerMutations.updateManometer.isPending}>Salvar manômetro</button>
+                        <button className="secondary-button" type="button" onClick={resetManometerForm}>Cancelar edição</button>
+                      </div>
+                    </form>
+                  ) : null}
                 </article>
               ))}
             </div>
@@ -1620,7 +1692,22 @@ export function GestorPage() {
       <>
         <section className="page-card">
           <div className="section-title">{counterEditingId ? 'Editar contador' : 'Novo contador'}</div>
+          {!showCounterForm && !counterEditingId ? (
+            <div className="admin-form-actions">
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => {
+                  setShowCounterForm(true);
+                  setCounterMessage(null);
+                }}
+              >
+                Adicionar contador
+              </button>
+            </div>
+          ) : null}
           {counterMessage ? <div className="inline-success">{counterMessage}</div> : null}
+          {showCounterForm && !counterEditingId ? (
           <form className="admin-form-grid" onSubmit={handleCounterSubmit}>
             <div className="field-group">
               <label htmlFor="counter-code">Código</label>
@@ -1670,11 +1757,16 @@ export function GestorPage() {
               </button>
               {counterEditingId ? (
                 <button className="secondary-button" type="button" onClick={resetCounterForm}>
-                  {'Cancelar edi\u00e7\u00e3o'}
+                  {'Cancelar edição'}
                 </button>
-              ) : null}
+              ) : (
+                <button className="secondary-button" type="button" onClick={resetCounterForm}>
+                  Cancelar
+                </button>
+              )}
             </div>
           </form>
+          ) : null}
         </section>
 
         <section className="page-card">
@@ -1694,6 +1786,7 @@ export function GestorPage() {
                         type="button"
                         onClick={() => {
                           setCounterEditingId(item.id);
+                          setShowCounterForm(true);
                           setCounterForm(counterToForm(item));
                           setCounterMessage(null);
                         }}
@@ -1706,10 +1799,22 @@ export function GestorPage() {
                     </div>
                   </div>
                   <div className="admin-card-meta">
-                    <span>{'Calibra\u00e7\u00e3o'}: {formatDate(item.calibratedAt)}</span>
+                    <span>{'Calibração'}: {formatDate(item.calibratedAt)}</span>
                     <span>Vencimento: {formatDate(item.expiresAt)}</span>
                     <span>{item.isActive ? 'Ativo' : 'Inativo'}</span>
                   </div>
+                  {counterEditingId === item.id ? (
+                    <form className="admin-inline-form admin-form-grid" onSubmit={handleCounterSubmit}>
+                      <div className="field-group"><label>Código</label><input value={counterForm.code} onChange={event => setCounterForm(current => ({ ...current, code: event.target.value }))} required /></div>
+                      <div className="field-group"><label>Serial</label><input value={counterForm.serialNumber} onChange={event => setCounterForm(current => ({ ...current, serialNumber: event.target.value }))} required /></div>
+                      <div className="field-group"><label>Calibração</label><input type="date" value={counterForm.calibratedAt} onChange={event => setCounterForm(current => ({ ...current, calibratedAt: event.target.value }))} required /></div>
+                      <div className="field-group"><label>Vencimento</label><input type="date" value={counterForm.expiresAt} onChange={event => setCounterForm(current => ({ ...current, expiresAt: event.target.value }))} required /></div>
+                      <div className="admin-form-actions">
+                        <button className="primary-button" type="submit" disabled={counterMutations.updateCounter.isPending}>Salvar contador</button>
+                        <button className="secondary-button" type="button" onClick={resetCounterForm}>Cancelar edição</button>
+                      </div>
+                    </form>
+                  ) : null}
                 </article>
               ))}
             </div>
@@ -1725,10 +1830,33 @@ export function GestorPage() {
     if (tab === 'pendentes' || tab === 'aprovados' || tab === 'arquivados') return renderReportTabContent();
     if (tab === 'projetos') return renderProjectsTab();
     if (tab === 'equipe') return renderEquipeTab();
-    if (tab === 'usuarios') return renderUsuariosTab();
     if (tab === 'equipamentos') return renderEquipamentosTab();
     if (tab === 'manometros') return renderManometrosTab();
     return renderContadoresTab();
+  }
+
+  function renderReportSummary() {
+    if (tab !== 'pendentes' && tab !== 'aprovados' && tab !== 'arquivados') return null;
+
+    return (
+      <section className="page-card summary-card-compact">
+        <div className="section-title">Resumo</div>
+        <div className="stats-grid stats-grid-compact">
+          <div className="stat-card-react">
+            <div className="stat-number-react">{pendingReports.length}</div>
+            <div className="stat-label-react">Pendentes/devolvidos</div>
+          </div>
+          <div className="stat-card-react">
+            <div className="stat-number-react">{approvedReports.length}</div>
+            <div className="stat-label-react">Aprovados/assinados</div>
+          </div>
+          <div className="stat-card-react">
+            <div className="stat-number-react">{archivedReports.length}</div>
+            <div className="stat-label-react">Arquivados</div>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -1750,24 +1878,6 @@ export function GestorPage() {
 
       <main className="page-scroll">
         <section className="page-card">
-          <div className="section-title">Resumo</div>
-          <div className="stats-grid">
-            <div className="stat-card-react">
-              <div className="stat-number-react">{pendingReports.length}</div>
-              <div className="stat-label-react">Pendentes/devolvidos</div>
-            </div>
-            <div className="stat-card-react">
-              <div className="stat-number-react">{approvedReports.length}</div>
-              <div className="stat-label-react">Aprovados/assinados</div>
-            </div>
-            <div className="stat-card-react">
-              <div className="stat-number-react">{archivedReports.length}</div>
-              <div className="stat-label-react">Arquivados</div>
-            </div>
-          </div>
-        </section>
-
-        <section className="page-card">
           <div className="section-title">Painel</div>
           <div className="filter-tabs">
             <button className={`filter-tab ${tab === 'pendentes' ? 'active' : ''}`} type="button" onClick={() => setTab('pendentes')}>
@@ -1776,23 +1886,20 @@ export function GestorPage() {
             <button className={`filter-tab ${tab === 'aprovados' ? 'active' : ''}`} type="button" onClick={() => setTab('aprovados')}>
               Aprovados
             </button>
-            <button className={`filter-tab ${tab === 'arquivados' ? 'active' : ''}`} type="button" onClick={() => setTab('arquivados')}>
-              Arquivados
-            </button>
             <button className={`filter-tab ${tab === 'projetos' ? 'active' : ''}`} type="button" onClick={() => setTab('projetos')}>
               Projetos
+            </button>
+            <button className={`filter-tab ${tab === 'arquivados' ? 'active' : ''}`} type="button" onClick={() => setTab('arquivados')}>
+              Arquivados
             </button>
             <button className={`filter-tab ${tab === 'equipe' ? 'active' : ''}`} type="button" onClick={() => setTab('equipe')}>
               Equipe
             </button>
-            <button className={`filter-tab ${tab === 'usuarios' ? 'active' : ''}`} type="button" onClick={() => setTab('usuarios')}>
-              {'Usu\u00e1rios'}
-            </button>
             <button className={`filter-tab ${tab === 'equipamentos' ? 'active' : ''}`} type="button" onClick={() => setTab('equipamentos')}>
-              Equipamentos
+              Unidades
             </button>
             <button className={`filter-tab ${tab === 'manometros' ? 'active' : ''}`} type="button" onClick={() => setTab('manometros')}>
-              {'Man\u00f4metros'}
+              {'Manômetros'}
             </button>
             <button className={`filter-tab ${tab === 'contadores' ? 'active' : ''}`} type="button" onClick={() => setTab('contadores')}>
               Contadores
@@ -1800,6 +1907,7 @@ export function GestorPage() {
           </div>
         </section>
 
+        {renderReportSummary()}
         {renderTabContent()}
       </main>
     </Shell>
