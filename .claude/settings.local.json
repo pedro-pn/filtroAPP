@@ -26,7 +26,11 @@
       "mcp__code-review-graph__detect_changes_tool",
       "Bash(npm install *)",
       "Bash(npm uninstall *)",
-      "mcp__code-review-graph__list_communities_tool"
+      "mcp__code-review-graph__list_communities_tool",
+      "Bash(node --check \"C:\\\\Users\\\\relat\\\\Área de Trabalho\\\\RDO-v1\\\\app_v1\\\\filtrovali_app_v4.html\")",
+      "Bash(node *)",
+      "Bash(git stash *)",
+      "Bash(git restore *)"
     ]
   },
   "enableAllProjectMcpServers": true,

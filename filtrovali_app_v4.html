@@ -5075,12 +5075,33 @@ async function saveManagerDetail(id,action){
   await openReportDetail((updated&&updated.id)||id,'gestor');
   showToast('Alterações salvas.');
 }
+var projectSortDir='asc';
 function sortProjectList(list){
+  var dir=projectSortDir==='desc'?-1:1;
   return (list||[]).slice().sort(function(a,b){
     var ca=Number(a.code||0)||0,cb=Number(b.code||0)||0;
-    if(ca!==cb)return ca-cb;
-    return (a.nome||'').localeCompare(b.nome||'','pt');
+    if(ca!==cb)return dir*(ca-cb);
+    return dir*(a.nome||'').localeCompare(b.nome||'','pt');
   });
+}
+function sortProjectKeys(groups){
+  var dir=projectSortDir==='desc'?-1:1;
+  return Object.keys(groups).sort(function(a,b){
+    var ra=groups[a][0],rb=groups[b][0];
+    var pa=(ra&&ra.project)||{},pb=(rb&&rb.project)||{};
+    var ca=Number(pa.code||0)||0,cb=Number(pb.code||0)||0;
+    if(ca!==cb)return dir*(ca-cb);
+    return dir*(pa.name||a).localeCompare(pb.name||b,'pt');
+  });
+}
+function projectSortBtn(){
+  return '<button type="button" class="mini-btn alt" onclick="toggleProjectSort()" title="Alternar ordem" style="font-size:11px;padding:4px 10px">'+(projectSortDir==='asc'?'A→Z':'Z→A')+'</button>';
+}
+function toggleProjectSort(){
+  projectSortDir=projectSortDir==='asc'?'desc':'asc';
+  renderMyReports();
+  renderGestor();
+  if(typeof renderClientPanel==='function')renderClientPanel();
 }
 function activeProjects(){
   return sortProjectList((db.projetos||[]).filter(function(p){return p.ativo!==false;}));
@@ -7602,7 +7623,7 @@ window.__legacyBootstrapped = false;
   };
   renderProjetos=function(){
     var list=activeProjects();
-    var header='<div class="admin-toolbar"><div class="sec">Projetos ativos</div><button class="mini-btn" onclick="openEditor(\'projetos\',\'new\')">+ Novo projeto</button></div>'+(gestorEditors.projetos&&gestorEditors.projetos.type==='new'?editorProjeto():'');
+    var header='<div class="admin-toolbar"><div class="sec">Projetos ativos</div><div style="display:flex;gap:8px;align-items:center">'+projectSortBtn()+'<button class="mini-btn" onclick="openEditor(\'projetos\',\'new\')">+ Novo projeto</button></div></div>'+(gestorEditors.projetos&&gestorEditors.projetos.type==='new'?editorProjeto():'');
     var body=list.length?list.map(function(p){
       var operador=getColaboradorById(p.operadorResponsavelId);
       var totalSeq=REPORT_TYPES.reduce(function(acc,t){return acc+Number((p.sequenciais&&p.sequenciais[t])||0);},0);
@@ -7613,7 +7634,7 @@ window.__legacyBootstrapped = false;
   };
   renderProjetosArquivados=function(){
     var list=archivedProjects();
-    return '<div class="admin-toolbar"><div class="sec">Projetos arquivados</div></div>'+
+    return '<div class="admin-toolbar"><div class="sec">Projetos arquivados</div>'+projectSortBtn()+'</div>'+
       (list.length?list.map(function(p){
         var projectReports=(reportsCache||[]).filter(function(report){
           return report.projectId===p.id && (report.status==='APPROVED'||report.status==='SIGNED');
@@ -7985,9 +8006,14 @@ window.__legacyBootstrapped = false;
     return (project.contrato||'---')+' - Missao '+(project.code||project.codigo||'---')+' - '+(project.nome||project.name||'Sem nome');
   }
   function getClientProjects(){
+    var dir=projectSortDir==='desc'?-1:1;
     return (db.projetos||[]).filter(function(project){
       return !currentUser||currentUser.role!=='CLIENT' || normalizeCnpjDigits(project.cnpj||'')===normalizeCnpjDigits(currentUser.username||'');
-    }).slice().sort(function(a,b){ return clientProjectTitle(a).localeCompare(clientProjectTitle(b),'pt-BR'); });
+    }).slice().sort(function(a,b){
+      var ca=Number(a.code||0)||0,cb=Number(b.code||0)||0;
+      if(ca!==cb)return dir*(ca-cb);
+      return dir*clientProjectTitle(a).localeCompare(clientProjectTitle(b),'pt-BR');
+    });
   }
   var clientProjectTab='';
   var clientReportTypeTabs={};
@@ -8066,7 +8092,7 @@ window.__legacyBootstrapped = false;
     }else{
       content='<div class="card"><div class="sec">Projetos</div><div style="font-size:13px;color:var(--mu)">Nenhum projeto associado ao seu CNPJ.</div></div>';
     }
-    scroll.innerHTML='<div class="card"><div class="sec">Projetos vinculados</div><div style="display:flex;gap:8px;flex-wrap:wrap">'+(projectTabs||'<div style="font-size:13px;color:var(--mu)">Nenhum projeto associado.</div>')+'</div></div>'+content;
+    scroll.innerHTML='<div class="card"><div class="sec">Projetos vinculados</div><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><div style="display:flex;gap:8px;flex-wrap:wrap">'+(projectTabs||'<div style="font-size:13px;color:var(--mu)">Nenhum projeto associado.</div>')+'</div>'+projectSortBtn()+'</div></div>'+content;
     updateUserLabels();
   }
   async function submitClientReview(reportId,action){
@@ -8638,7 +8664,7 @@ window.__legacyBootstrapped = false;
       if(!items.length)return '<div style="text-align:center;color:var(--mu);padding:32px;font-size:13px">'+emptyText+'</div>';
       var ctx=origin==='gestor'?'gestor':'colaborador';
       var groups=groupReportsByProject(items),html='';
-      Object.keys(groups).sort().forEach(function(projectName){
+      sortProjectKeys(groups).forEach(function(projectName){
         var projectReports=groups[projectName].slice();
         var byType={RDO:[],RTP:[],RLQ:[],RCPU:[],RLM:[]};
         projectReports.forEach(function(report){
@@ -8827,9 +8853,9 @@ window.__legacyBootstrapped = false;
     if(gestorTab==='pendentes'){
       var draftsHtml='';
       if(draftsCache&&draftsCache.length){draftsHtml='<div class="card" style="margin-bottom:12px"><div class="sec">Relatórios em andamento</div><div class="admin-list">'+draftsCache.map(function(draft){var payload=draft.payload||draft;var date=(draft.reportDate||payload.reportDate)?formatReportDate(draft.reportDate||payload.reportDate):'Sem data';return '<div class="rel-item" style="cursor:default"><div class="rel-icon">📝</div><div class="rel-info"><div class="rel-name">'+escapeHtml(draft.title||payload.title||'Relatório em andamento')+'</div><div class="rel-meta">'+escapeHtml(date)+'</div></div><button class="mini-btn alt" type="button" onclick="resumeDraft(\''+draft.id+'\')">Continuar</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" type="button" onclick="removeDraft(\''+draft.id+'\')">Excluir</button></div>';}).join('')+'</div></div>';}
-      c.innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="mini-btn" onclick="gestorCriarRelatorio()">+ Criar Relatório</button></div>'+draftsHtml+'<div class="stat-grid"><div class="stat-card"><div class="stat-num">'+pending.length+'</div><div class="stat-lbl">Pendentes/devolvidos</div></div><div class="stat-card"><div class="stat-num">'+approved.length+'</div><div class="stat-lbl">Aprovados</div></div></div>'+groupedReportHtml(pending,'gestor','Nenhum relatório pendente.');
+      c.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><button class="mini-btn" onclick="gestorCriarRelatorio()">+ Criar Relatório</button>'+projectSortBtn()+'</div>'+draftsHtml+'<div class="stat-grid"><div class="stat-card"><div class="stat-num">'+pending.length+'</div><div class="stat-lbl">Pendentes/devolvidos</div></div><div class="stat-card"><div class="stat-num">'+approved.length+'</div><div class="stat-lbl">Aprovados</div></div></div>'+groupedReportHtml(pending,'gestor','Nenhum relatório pendente.');
     }else if(gestorTab==='aprovados'){
-      c.innerHTML=groupedReportHtml(approved,'gestor','Nenhum relatório aprovado.');
+      c.innerHTML='<div style="display:flex;justify-content:flex-end;margin-bottom:8px">'+projectSortBtn()+'</div>'+groupedReportHtml(approved,'gestor','Nenhum relatório aprovado.');
     }else if(gestorTab==='usuarios'){
       c.innerHTML=renderUsuarios();
     }else if(gestorTab==='projetos'){
@@ -8854,7 +8880,7 @@ window.__legacyBootstrapped = false;
     var archivedReports=typeof filterReportsByProjectArchiveState==='function'?filterReportsByProjectArchiveState(reportsCache,true):[];
     if(typeof myReportsTab==='undefined')myReportsTab='ativos';
     if(myReportsTab!=='arquivados')myReportsTab='ativos';
-    var tabs='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="mini-btn'+(myReportsTab==='ativos'?'':' alt')+'" type="button" onclick="switchMyReportsTab(\'ativos\')">Ativos</button><button class="mini-btn'+(myReportsTab==='arquivados'?'':' alt')+'" type="button" onclick="switchMyReportsTab(\'arquivados\')">Arquivados</button></div>';
+    var tabs='<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="mini-btn'+(myReportsTab==='ativos'?'':' alt')+'" type="button" onclick="switchMyReportsTab(\'ativos\')">Ativos</button><button class="mini-btn'+(myReportsTab==='arquivados'?'':' alt')+'" type="button" onclick="switchMyReportsTab(\'arquivados\')">Arquivados</button></div>'+projectSortBtn()+'</div>';
     content.innerHTML=tabs+(myReportsTab==='arquivados'
       ? groupedReportHtml(archivedReports,'meus','Nenhum relatório arquivado.')
       : groupedReportHtml(activeReports,'meus','Nenhum relatório enviado por você.'));
@@ -9218,7 +9244,7 @@ window.__legacyBootstrapped = false;
   };
   renderProjetos=function(){
     var list=activeProjects();
-    var header='<div class="admin-toolbar"><div class="sec">Projetos ativos</div><button class="mini-btn" onclick="openEditor(\'projetos\',\'new\')">+ Novo projeto</button></div>'+(gestorEditors.projetos&&gestorEditors.projetos.type==='new'?editorProjeto():'');
+    var header='<div class="admin-toolbar"><div class="sec">Projetos ativos</div><div style="display:flex;gap:8px;align-items:center">'+projectSortBtn()+'<button class="mini-btn" onclick="openEditor(\'projetos\',\'new\')">+ Novo projeto</button></div></div>'+(gestorEditors.projetos&&gestorEditors.projetos.type==='new'?editorProjeto():'');
     var body=list.length?list.map(function(p){
       var operador=getColaboradorById(p.operadorResponsavelId);
       var totalSeq=REPORT_TYPES.reduce(function(acc,t){return acc+Number((p.sequenciais&&p.sequenciais[t])||0);},0);
