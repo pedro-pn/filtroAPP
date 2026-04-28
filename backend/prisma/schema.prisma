@@ -136,6 +136,13 @@ model Report {
   clientReviews   ClientReportReview[]
 
   @@unique([projectId, reportType, sequenceNumber])
+  @@index([projectId])
+  @@index([createdByUserId])
+  @@index([status])
+  @@index([projectId, status])
+  @@index([projectId, reportType])
+  @@index([reportDate])
+  @@index([zapsignDocToken])
 }
 
 model ClientReportReview {
