@@ -36,7 +36,7 @@ function formatDatePtBr(date) {
 
 function reportNumberLabel(report) {
   if (report.sequenceNumber == null) return '';
-  return String(report.sequenceNumber).padStart(3, '0');
+  return String(report.sequenceNumber);
 }
 
 function queueApprovedReportNotification(report) {
@@ -157,7 +157,7 @@ function clientIp(req) {
 function reportPdfFileName(report, saved) {
   if (saved?.fileName) return saved.fileName;
   const type = String(report.reportType || 'RDO');
-  const number = report.sequenceNumber != null ? String(report.sequenceNumber).padStart(3, '0') : '---';
+  const number = report.sequenceNumber != null ? String(report.sequenceNumber) : '---';
   return `${type}_${number}.pdf`;
 }
 
@@ -228,7 +228,7 @@ async function resolveSignedPdf(report) {
     });
   }
 
-  const fileName = `${String(report.reportType || 'RDO')}_${report.sequenceNumber != null ? String(report.sequenceNumber).padStart(3, '0') : report.id}_assinado.pdf`;
+  const fileName = `${String(report.reportType || 'RDO')}_${report.sequenceNumber != null ? String(report.sequenceNumber) : report.id}_assinado.pdf`;
   const buffer = await downloadSignedZapSignDocument(signedUrl);
   return { fileName, buffer };
 }
@@ -327,14 +327,21 @@ const schema = z.object({
   services: z.array(serviceSchema).default([])
 });
 
+const positiveIntSchema = z.coerce.number().int().positive();
+
 const updateSchema = schema.omit({
   createdByUserId: true,
   status: true
+}).extend({
+  sequenceNumber: positiveIntSchema.optional()
 });
 
 const statusSchema = z.object({
   status: z.nativeEnum(ReportStatus),
   reviewNotes: z.string().nullable().optional()
+});
+const sequenceSchema = z.object({
+  sequenceNumber: positiveIntSchema
 });
 const clientReviewSchema = z.object({
   action: z.enum(['APPROVED', 'REJECTED']),
@@ -604,13 +611,13 @@ async function reserveSequence(tx, projectId, reportType) {
       data: {
         projectId,
         reportType,
-        nextNumber: 2
+        nextNumber: 1
       }
     });
     return 1;
   }
 
-  const sequenceNumber = existing.nextNumber > 0 ? existing.nextNumber : 1;
+  const sequenceNumber = (existing.nextNumber > 0 ? existing.nextNumber : 0) + 1;
 
   await tx.projectReportSeq.update({
     where: {
@@ -620,11 +627,109 @@ async function reserveSequence(tx, projectId, reportType) {
       }
     },
     data: {
-      nextNumber: sequenceNumber + 1
+      nextNumber: sequenceNumber
     }
   });
 
   return sequenceNumber;
+}
+
+async function syncProjectReportSequence(tx, projectId, reportType, sequenceNumber) {
+  if (!projectId || !reportType || !Number.isInteger(sequenceNumber) || sequenceNumber < 1) return;
+  const aggregate = await tx.report.aggregate({
+    where: {
+      projectId,
+      reportType
+    },
+    _max: {
+      sequenceNumber: true
+    }
+  });
+  const lastUsedNumber = Math.max(sequenceNumber, aggregate._max.sequenceNumber || 0);
+  const existing = await tx.projectReportSeq.findUnique({
+    where: {
+      projectId_reportType: {
+        projectId,
+        reportType
+      }
+    }
+  });
+  if (!existing) {
+    await tx.projectReportSeq.create({
+      data: {
+        projectId,
+        reportType,
+        nextNumber: lastUsedNumber
+      }
+    });
+    return;
+  }
+  await tx.projectReportSeq.update({
+    where: {
+      projectId_reportType: {
+        projectId,
+        reportType
+      }
+    },
+    data: {
+      nextNumber: lastUsedNumber
+    }
+  });
+}
+
+async function prepareReportSequenceChange(tx, currentReport, targetProjectId, targetReportType, targetSequenceNumber) {
+  if (!Number.isInteger(targetSequenceNumber) || targetSequenceNumber < 1) return null;
+
+  const currentSequenceNumber = currentReport.sequenceNumber;
+  const sameGroup = currentReport.projectId === targetProjectId && currentReport.reportType === targetReportType;
+  if (sameGroup && currentSequenceNumber === targetSequenceNumber) return null;
+
+  const conflicting = await tx.report.findFirst({
+    where: {
+      projectId: targetProjectId,
+      reportType: targetReportType,
+      sequenceNumber: targetSequenceNumber,
+      id: { not: currentReport.id }
+    },
+    select: {
+      id: true,
+      status: true
+    }
+  });
+
+  if (!conflicting) return null;
+
+  if (!sameGroup || !Number.isInteger(currentSequenceNumber) || currentSequenceNumber < 1) {
+    const error = new Error('Ja existe um relatorio deste projeto e tipo usando este numero.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  if (conflicting.status === ReportStatus.SIGNED) {
+    const error = new Error('Nao e possivel trocar numeracao com um relatorio assinado.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  await tx.report.update({
+    where: { id: conflicting.id },
+    data: { sequenceNumber: null }
+  });
+
+  return {
+    id: conflicting.id,
+    sequenceNumber: currentSequenceNumber
+  };
+}
+
+async function finishReportSequenceChange(tx, swappedReport) {
+  if (!swappedReport) return;
+  await tx.report.update({
+    where: { id: swappedReport.id },
+    data: {
+      sequenceNumber: swappedReport.sequenceNumber
+    }
+  });
 }
 
 async function syncApprovedRtpReports(tx, report) {
@@ -1280,11 +1385,13 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     }
   }
 
+  const tGet0 = Date.now();
   const items = await prisma.report.findMany({
     where,
     include,
     orderBy: [{ reportDate: 'desc' }, { createdAt: 'desc' }]
   });
+  console.log('[TIMING] GET /reports', { queryMs: Date.now() - tGet0, count: items.length, role: req.auth.user.role });
   if (req.auth.user.role === 'CLIENT') {
     const byId = new Map(items.map(item => [item.id, item]));
     return res.json(items.filter(item => canClientSeeReport(item, byId)));
@@ -1533,6 +1640,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
   const collaboratorIds = uniqueIds(data.collaboratorIds);
   const pendingDerivedTypes = collectPendingDerivedTypes(data.services);
+  const tPost0 = Date.now();
   const item = await prisma.$transaction(async tx => {
     const project = await tx.project.findUniqueOrThrow({
       where: { id: data.projectId },
@@ -1598,7 +1706,9 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
     await syncApprovedRlmReports(tx, created);
     return created;
   });
+  const tPostTx = Date.now();
   await organizeAndPersist(item);
+  const tPostOrg = Date.now();
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
       where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
@@ -1608,6 +1718,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
       if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
     }
   }
+  console.log('[TIMING] POST /reports', { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, totalMs: Date.now() - tPost0, reportType: item.reportType, status: item.status });
   if (item.status === ReportStatus.APPROVED) queueApprovedReportNotification(item);
   res.status(201).json(item);
 }));
@@ -1625,6 +1736,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   assertReportMutable(existing);
   const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);
 
+  const tPut0 = Date.now();
   const item = await prisma.$transaction(async tx => {
     const project = await tx.project.findUniqueOrThrow({
       where: { id: data.projectId }
@@ -1644,12 +1756,16 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
           : {});
     await tx.reportCollaborator.deleteMany({ where: { reportId: req.params.id } });
     await tx.reportService.deleteMany({ where: { reportId: req.params.id } });
+    const sequenceSwap = req.auth.user.role === 'MANAGER' && data.sequenceNumber
+      ? await prepareReportSequenceChange(tx, existing, data.projectId, data.reportType, data.sequenceNumber)
+      : null;
 
     const updated = await tx.report.update({
       where: { id: req.params.id },
       data: {
         projectId: data.projectId,
         reportType: data.reportType,
+        ...(req.auth.user.role === 'MANAGER' && data.sequenceNumber ? { sequenceNumber: data.sequenceNumber } : {}),
         reportDate: new Date(data.reportDate),
         arrivalTime: data.arrivalTime,
         departureTime: data.departureTime,
@@ -1697,14 +1813,21 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       include
     });
 
+    if (req.auth.user.role === 'MANAGER' && data.sequenceNumber) {
+      await finishReportSequenceChange(tx, sequenceSwap);
+      await syncProjectReportSequence(tx, data.projectId, data.reportType, data.sequenceNumber);
+    }
+
     await syncApprovedRtpReports(tx, updated);
     await syncApprovedRlqReports(tx, updated);
     await syncApprovedRcpReports(tx, updated);
     await syncApprovedRlmReports(tx, updated);
     return updated;
   });
+  const tPutTx = Date.now();
 
   await organizeAndPersist(item);
+  const tPutOrg = Date.now();
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
       where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
@@ -1714,6 +1837,37 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
     }
   }
+  console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: item.reportType, status: item.status });
+  res.json(item);
+}));
+
+router.patch('/:id/sequence', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth.user.role !== 'MANAGER') {
+    return res.status(403).json({ error: 'Apenas o gestor pode alterar a numeração dos relatórios.' });
+  }
+
+  const data = sequenceSchema.parse(req.body);
+  const existing = await prisma.report.findUniqueOrThrow({
+    where: { id: req.params.id },
+    include
+  });
+  assertReportMutable(existing);
+
+  const item = await prisma.$transaction(async tx => {
+    const sequenceSwap = await prepareReportSequenceChange(tx, existing, existing.projectId, existing.reportType, data.sequenceNumber);
+    const updated = await tx.report.update({
+      where: { id: req.params.id },
+      data: {
+        sequenceNumber: data.sequenceNumber
+      },
+      include
+    });
+    await finishReportSequenceChange(tx, sequenceSwap);
+    await syncProjectReportSequence(tx, updated.projectId, updated.reportType, data.sequenceNumber);
+    return updated;
+  });
+
+  await organizeAndPersist(item);
   res.json(item);
 }));
 
@@ -1854,6 +2008,7 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
     return res.status(409).json({ error: 'Relatório assinado não pode mais ser alterado.' });
   }
 
+  const tPatch0 = Date.now();
   const item = await prisma.$transaction(async tx => {
     const nextSpecialConditions = data.status === ReportStatus.APPROVED
       ? stripInternalEditState(previous?.specialConditions || {})
@@ -1884,6 +2039,7 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
 
     return updated;
   });
+  const tPatchTx = Date.now();
 
   if (data.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
@@ -1895,6 +2051,7 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
     }
     if (approvedTransition) queueApprovedReportNotification(item);
   }
+  console.log('[TIMING] PATCH /reports/:id/status', { txMs: tPatchTx - tPatch0, totalMs: Date.now() - tPatch0, newStatus: data.status });
   res.json(item);
 }));
 
@@ -1966,8 +2123,10 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
   }
 
   const { signerName, signerEmail } = resolveZapSignSigner(prepared, req.auth.user);
+  const tSig0 = Date.now();
   const saved = await generateReportPdfAsset(prepared);
   const pdfBuffer = await fs.readFile(saved.targetPath);
+  const tSigPdf = Date.now();
   const zapsign = await sendToZapSign({
     pdfBuffer,
     fileName: reportPdfFileName(prepared, saved),
@@ -1976,6 +2135,7 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
     externalId: prepared.id,
     webhookUrl: buildZapSignWebhookUrl()
   });
+  console.log('[TIMING] POST /reports/:id/request-signature', { pdfMs: tSigPdf - tSig0, zapMs: Date.now() - tSigPdf, totalMs: Date.now() - tSig0 });
 
   if (!zapsign.docToken) {
     const error = new Error('A ZapSign não retornou o token do documento.');

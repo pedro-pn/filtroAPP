@@ -18,6 +18,10 @@ const __dirname = path.dirname(__filename);
 const appHtmlPath = path.resolve(__dirname, '../..', 'filtrovali_app_v4.html');
 
 const app = express();
+const allowedOrigins = String(env.allowedOrigin || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
