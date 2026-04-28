@@ -1,15 +1,15 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { downloadReportPdf } from '../../api/reports';
 import { useAuth } from '../../auth/AuthContext';
+import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { useReports } from '../../hooks/useReports';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import type { ReportSummary } from '../../types/domain';
 import { downloadBlob } from '../../utils/download';
-import { groupByProject } from '../../utils/groupByProject';
 
 type CoordinatorTab = 'approved' | 'archived';
 
@@ -17,11 +17,11 @@ const TEXT = {
   archived: 'Arquivados',
   approved: 'Aprovados',
   coordinatorPanel: 'Painel do coordenador',
-  downloadError: 'N\u00e3o foi poss\u00edvel baixar o relat\u00f3rio.',
-  loading: 'Carregando relat\u00f3rios...',
-  noArchived: 'Nenhum relat\u00f3rio arquivado.',
-  noApproved: 'Nenhum relat\u00f3rio aprovado.',
-  reports: 'Relat\u00f3rios'
+  downloadError: 'Não foi possível baixar o relatório.',
+  loading: 'Carregando relatórios...',
+  noArchived: 'Nenhum relatório arquivado.',
+  noApproved: 'Nenhum relatório aprovado.',
+  reports: 'Relatórios'
 };
 
 export function CoordinatorPage() {
@@ -110,38 +110,21 @@ export function CoordinatorPage() {
             {tab === 'archived' ? TEXT.noArchived : TEXT.noApproved}
           </div>
         ) : null}
-        {tab === 'archived'
-          ? groupByProject(visibleReports).map(group => (
-              <div key={group.projectId}>
-                <div className="project-group-header">
-                  <span className="project-group-code">{group.projectCode}</span>
-                  <span className="project-group-name project-group-name--archived">{group.projectName}</span>
-                  <span className="project-group-badge">Arquivado</span>
-                </div>
-                {group.reports.map(report => (
-                  <ReportSummaryCard
-                    key={report.id}
-                    report={report}
-                    actions={
-                      <button className="secondary-button" type="button" onClick={() => void handleDownloadPdf(report)}>
-                        PDF
-                      </button>
-                    }
-                  />
-                ))}
-              </div>
-            ))
-          : visibleReports.map(report => (
-              <ReportSummaryCard
-                key={report.id}
-                report={report}
-                actions={
-                  <button className="secondary-button" type="button" onClick={() => void handleDownloadPdf(report)}>
-                    PDF
-                  </button>
-                }
-              />
-            ))}
+        <GroupedReportList
+          reports={visibleReports}
+          archived={tab === 'archived'}
+          renderReport={report => (
+            <ReportSummaryCard
+              key={report.id}
+              report={report}
+              actions={
+                <button className="secondary-button" type="button" onClick={() => void handleDownloadPdf(report)}>
+                  PDF
+                </button>
+              }
+            />
+          )}
+        />
       </main>
     </Shell>
   );

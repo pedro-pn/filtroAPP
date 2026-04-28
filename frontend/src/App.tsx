@@ -26,12 +26,15 @@ export default function App() {
         <Route path="/conta" element={<AccountPage />} />
       </Route>
 
+      <Route element={<RoleRoute allowedRoles={['COLLABORATOR', 'MANAGER']} />}>
+        <Route path="/relatorios/novo" element={<NewReportPage />} />
+        <Route path="/relatorios/:id" element={<ReportDetailPage />} />
+      </Route>
+
       <Route element={<RoleRoute allowedRoles={['COLLABORATOR']} />}>
         <Route path="/home" element={<HomePage />} />
-        <Route path="/relatorios/novo" element={<NewReportPage />} />
         <Route path="/meus-relatorios" element={<MyReportsPage />} />
         <Route path="/meus-relatorios/arquivados" element={<MyArchivedReportsPage />} />
-        <Route path="/relatorios/:id" element={<ReportDetailPage />} />
       </Route>
 
       <Route element={<RoleRoute allowedRoles={['MANAGER']} />}>

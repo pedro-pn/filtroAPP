@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+﻿import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
@@ -55,9 +55,9 @@ export function ReportSummaryCard({ report, actions }: { report: ReportSummary; 
           <span className="report-meta-value">{formatDate(report.reportDate)}</span>
         </div>
         <div>
-          <span className="report-meta-label">{'Hor\u00e1rio'}</span>
+          <span className="report-meta-label">Horário</span>
           <span className="report-meta-value">
-            {report.arrivalTime} as {report.departureTime}
+            {report.arrivalTime} às {report.departureTime}
           </span>
         </div>
       </div>

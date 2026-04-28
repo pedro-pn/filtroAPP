@@ -304,6 +304,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               value={form.projectId || ''}
               disabled={readOnly}
               onChange={event => setField('projectId', event.target.value || null)}
+              required
             >
               <option value="">{TEXT.select}</option>
               {projects.map(project => (
@@ -321,6 +322,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               value={form.reportDate}
               disabled={readOnly}
               onChange={event => setField('reportDate', event.target.value)}
+              required
             />
           </div>
           <div className="field-group">
@@ -331,6 +333,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               value={form.arrivalTime}
               disabled={readOnly}
               onChange={event => setField('arrivalTime', event.target.value)}
+              required
             />
           </div>
           <div className="field-group">
@@ -341,15 +344,19 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               value={form.departureTime}
               disabled={readOnly}
               onChange={event => setField('departureTime', event.target.value)}
+              required
             />
           </div>
           <div className="field-group">
             <label htmlFor="rdo-lunch">{TEXT.interval}</label>
             <input
               id="rdo-lunch"
+              type="time"
+              step={1}
               value={form.lunchBreak}
               disabled={readOnly}
               onChange={event => setField('lunchBreak', event.target.value)}
+              required
             />
           </div>
           <label className="checkbox-line">
@@ -979,8 +986,8 @@ export function ReportDetailPage() {
 
         {report ? (
           <>
-            <ReportDetailActions report={report} role={user?.role} />
             {showManagerEditor ? <ManagerRdoEditor report={report} /> : <ReportSummaryView report={report} />}
+            <ReportDetailActions report={report} role={user?.role} />
           </>
         ) : null}
 

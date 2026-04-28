@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 
 import { downloadReportPdf, downloadReportsBatch } from '../../api/reports';
 import { useAuth } from '../../auth/AuthContext';
-import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
+import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
+import { useToast } from '../../components/ui/Toast';
 import { useReportMutations, useReports } from '../../hooks/useReports';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -15,30 +16,47 @@ const TEXT = {
   approveSignature: 'Assinar',
   batchDownload: 'Baixar selecionados',
   batchSignature: 'Assinar selecionados',
-  availableReports: 'Relat\u00f3rios vis\u00edveis',
+  availableReports: 'Relatórios visíveis',
   clientPortal: 'Portal do cliente',
-  downloadError: 'N\u00e3o foi poss\u00edvel baixar o relat\u00f3rio.',
-  loading: 'Carregando relat\u00f3rios...',
-  noReports: 'Nenhum relat\u00f3rio dispon\u00edvel para esta conta.',
-  noSelection: 'Selecione ao menos um relat\u00f3rio.',
+  downloadError: 'Não foi possível baixar o relatório.',
+  loading: 'Carregando relatórios...',
+  noReports: 'Nenhum relatório disponível para esta conta.',
+  noSelection: 'Selecione ao menos um relatório.',
   reject: 'Reprovar',
-  rejectReason: 'Informe o motivo da reprova\u00e7\u00e3o do relat\u00f3rio:',
-  rejectReasonRequired: 'Informe um motivo para reprovar o relat\u00f3rio.',
-  requestSignatureError: 'N\u00e3o foi poss\u00edvel solicitar a assinatura.',
-  reviewError: 'N\u00e3o foi poss\u00edvel registrar a avalia\u00e7\u00e3o.',
+  rejectReason: 'Informe o motivo da reprovação do relatório:',
+  rejectReasonRequired: 'Informe um motivo para reprovar o relatório.',
+  requestSignatureError: 'Não foi possível solicitar a assinatura.',
+  reviewError: 'Não foi possível registrar a avaliação.',
   signed: 'Assinados',
   signatureRequested: 'Assinatura solicitada. Abra o link para concluir.',
   summary: 'Resumo'
 };
+
+const statusMap: Record<string, { label: string; className: string }> = {
+  PENDING: { label: 'Pendente', className: 'status-pending' },
+  RETURNED: { label: 'Devolvido', className: 'status-returned' },
+  APPROVED: { label: 'Aprovado', className: 'status-approved' },
+  SIGNED: { label: 'Assinado', className: 'status-signed' }
+};
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('pt-BR');
+}
+
+function reportLabel(report: ReportSummary) {
+  return report.sequenceNumber ? `${report.reportType} ${report.sequenceNumber}` : report.reportType;
+}
 
 export function ClientPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const reportsQuery = useReports();
   const reportMutations = useReportMutations();
-  const [message, setMessage] = useState<string | null>(null);
   const [rejectReport, setRejectReport] = useState<ReportSummary | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const showToast = useToast();
 
   const reportSummary = useMemo(() => {
     const reports = reportsQuery.data || [];
@@ -49,117 +67,152 @@ export function ClientPage() {
     };
   }, [reportsQuery.data]);
 
-  const batchSignableReports = useMemo(
-    () => (reportsQuery.data || []).filter(report => report.reportType === 'RDO' && report.status === 'APPROVED'),
-    [reportsQuery.data]
-  );
-
-  const selectedSignableIds = useMemo(
-    () => selectedIds.filter(id => batchSignableReports.some(report => report.id === id)),
-    [batchSignableReports, selectedIds]
-  );
-
   async function handleLogout() {
     await logout();
     navigate('/', { replace: true });
   }
 
+  function toggleSelection(reportId: string, checked: boolean) {
+    setSelectedIds(current => {
+      const next = checked ? [...current, reportId] : current.filter(id => id !== reportId);
+      return Array.from(new Set(next));
+    });
+  }
+
   async function handleDownloadPdf(report: ReportSummary) {
-    setMessage(null);
     try {
       const blob = await downloadReportPdf(report.id);
       downloadBlob(blob, `${report.reportType}_${report.sequenceNumber || report.id}.pdf`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : TEXT.downloadError);
+      showToast(error instanceof Error ? error.message : TEXT.downloadError, 'error');
     }
   }
 
-  async function handleBatchDownload() {
-    setMessage(null);
-    if (!selectedIds.length) {
-      setMessage(TEXT.noSelection);
+  async function handleBatchDownload(ids: string[]) {
+    if (!ids.length) {
+      showToast(TEXT.noSelection, 'error');
       return;
     }
 
     try {
-      const blob = await downloadReportsBatch(selectedIds, 'pdf');
+      const blob = await downloadReportsBatch(ids, 'pdf');
       downloadBlob(blob, `relatorios_pdf_${new Date().toISOString().slice(0, 10)}.zip`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : TEXT.downloadError);
+      showToast(error instanceof Error ? error.message : TEXT.downloadError, 'error');
     }
   }
 
-  async function handleBatchSignature() {
-    setMessage(null);
-    if (!selectedSignableIds.length) {
-      setMessage('Selecione ao menos um RDO aprovado.');
+  async function handleBatchSignature(ids: string[]) {
+    if (!ids.length) {
+      showToast('Selecione ao menos um RDO aprovado.', 'error');
       return;
     }
 
     try {
-      const response = await reportMutations.batchSignature.mutateAsync({ ids: selectedSignableIds });
-      setMessage(TEXT.signatureRequested);
+      const response = await reportMutations.batchSignature.mutateAsync({ ids });
+      showToast(TEXT.signatureRequested, 'success');
       if (response.signUrl) window.open(response.signUrl, '_blank', 'noopener,noreferrer');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : TEXT.requestSignatureError);
+      showToast(error instanceof Error ? error.message : TEXT.requestSignatureError, 'error');
     }
   }
 
   async function handleRequestSignature(report: ReportSummary) {
-    setMessage(null);
     try {
       const response = await reportMutations.requestSignature.mutateAsync({ id: report.id });
-      setMessage(TEXT.signatureRequested);
+      showToast(TEXT.signatureRequested, 'success');
       if (response.signUrl) window.open(response.signUrl, '_blank', 'noopener,noreferrer');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : TEXT.requestSignatureError);
+      showToast(error instanceof Error ? error.message : TEXT.requestSignatureError, 'error');
     }
   }
 
   async function handleReject(report: ReportSummary, comment: string) {
-    setMessage(null);
-
     try {
       await reportMutations.clientReview.mutateAsync({
         id: report.id,
         payload: { action: 'REJECTED', comment }
       });
       setRejectReport(null);
+      showToast('Avaliação registrada.', 'success');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : TEXT.reviewError);
+      showToast(error instanceof Error ? error.message : TEXT.reviewError, 'error');
     }
   }
 
-  function renderClientActions(report: ReportSummary) {
+  function renderClientReportCard(report: ReportSummary) {
     const signable = report.reportType === 'RDO' && report.status === 'APPROVED';
+    const status = statusMap[report.status] || { label: report.status, className: 'status-pending' };
 
     return (
-      <>
-        <label className="checkbox-line">
-          <input
-            type="checkbox"
-            checked={selectedIds.includes(report.id)}
-            onChange={event => {
-              const checked = event.target.checked;
-              setSelectedIds(current => checked ? [...current, report.id] : current.filter(id => id !== report.id));
-            }}
-          />
-          Selecionar
-        </label>
-        <button className="secondary-button" type="button" onClick={() => void handleDownloadPdf(report)}>
-          PDF
-        </button>
-        {signable ? (
-          <>
-            <button className="primary-button" type="button" onClick={() => void handleRequestSignature(report)}>
-              {TEXT.approveSignature}
+      <article className="client-report-card report-card-clickable" key={report.id} onClick={() => navigate(`/cliente/relatorio/${report.id}`)}>
+        <div className="client-report-header">
+          <div className="client-report-main">
+            <label className="client-report-checkbox" onClick={event => event.stopPropagation()}>
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(report.id)}
+                onChange={event => toggleSelection(report.id, event.target.checked)}
+              />
+            </label>
+            <div className="client-report-copy">
+              <div className="admin-card-title">{reportLabel(report)} - {formatDate(report.reportDate)}</div>
+              <div className="admin-card-subtitle">{report.arrivalTime} às {report.departureTime}</div>
+            </div>
+          </div>
+          <span className={`status-pill ${status.className} client-report-badge`}>{status.label}</span>
+        </div>
+        <div className="client-report-actions" onClick={event => event.stopPropagation()}>
+          <button className="secondary-button" type="button" onClick={() => void handleDownloadPdf(report)}>
+            Baixar PDF
+          </button>
+          {signable ? (
+            <>
+              <button className="primary-button" type="button" onClick={() => void handleRequestSignature(report)}>
+                {TEXT.approveSignature}
+              </button>
+              <button className="secondary-button" type="button" onClick={() => setRejectReport(report)}>
+                {TEXT.reject}
+              </button>
+            </>
+          ) : null}
+        </div>
+      </article>
+    );
+  }
+
+  function renderClientTypeActions(typeReports: ReportSummary[]) {
+    const typeIds = typeReports.map(report => report.id);
+    const selectedTypeIds = selectedIds.filter(id => typeIds.includes(id));
+    const signableIds = selectedTypeIds.filter(id =>
+      typeReports.some(report => report.id === id && report.reportType === 'RDO' && report.status === 'APPROVED')
+    );
+
+    return (
+      <div className="report-batch-toolbar">
+        <span className="report-batch-count">{selectedTypeIds.length} selecionado(s)</span>
+        <div className="admin-form-actions">
+          <button className="secondary-button" type="button" onClick={() => setSelectedIds(current => Array.from(new Set([...current, ...typeIds])))}>
+            Selecionar todos
+          </button>
+          <button className="secondary-button" type="button" onClick={() => setSelectedIds(current => current.filter(id => !typeIds.includes(id)))}>
+            Limpar seleção
+          </button>
+          <button className="secondary-button" type="button" onClick={() => void handleBatchDownload(selectedTypeIds)}>
+            {TEXT.batchDownload}
+          </button>
+          {typeReports[0]?.reportType === 'RDO' ? (
+            <button
+              className="primary-button"
+              type="button"
+              disabled={reportMutations.batchSignature.isPending}
+              onClick={() => void handleBatchSignature(signableIds)}
+            >
+              {TEXT.batchSignature}
             </button>
-            <button className="secondary-button" type="button" onClick={() => setRejectReport(report)}>
-              {TEXT.reject}
-            </button>
-          </>
-        ) : null}
-      </>
+          ) : null}
+        </div>
+      </div>
     );
   }
 
@@ -198,39 +251,19 @@ export function ClientPage() {
           </div>
         </section>
 
-        {message ? <div className="page-card inline-error">{message}</div> : null}
         {reportsQuery.isLoading ? <div className="page-card placeholder-copy">{TEXT.loading}</div> : null}
         {!reportsQuery.isLoading && !reportSummary.total ? (
           <div className="page-card placeholder-copy">{TEXT.noReports}</div>
         ) : null}
+
         {reportSummary.total ? (
-          <section className="page-card">
-            <div className="section-title">Ações em lote</div>
-            <div className="admin-form-actions">
-              <button className="secondary-button" type="button" onClick={() => setSelectedIds(batchSignableReports.map(report => report.id))}>
-                Selecionar RDOs aprovados
-              </button>
-              <button className="secondary-button" type="button" onClick={() => setSelectedIds([])}>
-                Limpar seleção
-              </button>
-              <button className="secondary-button" type="button" onClick={() => void handleBatchDownload()}>
-                {TEXT.batchDownload}
-              </button>
-              <button
-                className="primary-button"
-                type="button"
-                disabled={reportMutations.batchSignature.isPending}
-                onClick={() => void handleBatchSignature()}
-              >
-                {TEXT.batchSignature}
-              </button>
-            </div>
-            <p className="placeholder-copy">{selectedIds.length} selecionado(s).</p>
-          </section>
+          <GroupedReportList
+            reports={[...(reportsQuery.data || [])].sort((a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime())}
+            renderTypeActions={renderClientTypeActions}
+            renderReport={renderClientReportCard}
+          />
         ) : null}
-        {(reportsQuery.data || []).map(report => (
-          <ReportSummaryCard key={report.id} report={report} actions={renderClientActions(report)} />
-        ))}
+
         <ReasonDialog
           open={!!rejectReport}
           title={TEXT.reject}

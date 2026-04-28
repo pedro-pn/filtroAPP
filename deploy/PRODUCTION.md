@@ -4,6 +4,7 @@ Este repositório agora tem o esqueleto inicial de produção:
 
 - `docker-compose.prod.yml`
 - `backend/Dockerfile`
+- `deploy/nginx/Dockerfile`
 - `backend/.env.production.example`
 - `deploy/nginx/default.conf`
 
@@ -13,10 +14,26 @@ Este repositório agora tem o esqueleto inicial de produção:
 - Backend sem porta exposta diretamente ao host
 - Nginx como único serviço exposto em `80/443`
 - Volumes nomeados para banco, relatórios, assets e certificados
+- Frontend React compilado no build da imagem do nginx
+- SPA React servida pelo nginx, com proxy para `/api`, `/assets`, `/uploads` e `/relatorios`
 
 Na homologação atual, os assets padrão da aplicação são servidos da própria
 imagem do backend. Por isso o `docker-compose.prod.yml` não monta um volume
 separado em `/data/assets`.
+
+## Frontend React
+
+O cutover para React em produÃ§Ã£o Ã© feito pelo nginx:
+
+- `deploy/nginx/Dockerfile` compila `frontend/` com `npm run build`
+- o resultado de `frontend/dist` Ã© copiado para `/usr/share/nginx/html`
+- `deploy/nginx/default.conf` usa `try_files` para rotas da SPA
+- chamadas `/api`, arquivos `/assets`, `/uploads` e `/relatorios` continuam no backend
+
+Durante a validaÃ§Ã£o, o HTML legado continua acessÃ­vel em:
+
+- `/legacy`
+- `/legacy/reset-password`
 
 ## Conversão DOCX -> PDF em produção
 
