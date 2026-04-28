@@ -49,6 +49,7 @@ Por padrão ele usa:
 ```bash
 AWS_S3_URI=s3://meu-bucket/filtrovali-backups
 INCLUDE_CERTS=true
+INCLUDE_REPORTS=true
 RETENTION_DAYS=30
 ```
 
@@ -56,6 +57,12 @@ Exemplo:
 
 ```bash
 AWS_S3_URI=s3://meu-bucket/filtrovali-backups INCLUDE_CERTS=true ./deploy/backup-prod.sh
+```
+
+Para backup frequente apenas do banco, sem compactar o volume de relatórios:
+
+```bash
+AWS_S3_URI=s3://meu-bucket/filtrovali-backups/hourly INCLUDE_REPORTS=false INCLUDE_CERTS=false RETENTION_DAYS=2 ./deploy/backup-prod.sh
 ```
 
 ## Agendamento no cron
@@ -124,7 +131,8 @@ BACKUP_SOURCE=/home/ubuntu/restore/filtrovali/2026-04-24-030001 RUN_MIGRATIONS=f
 
 ## Estratégia recomendada
 
-- Backup diário via script
-- Cópia para S3
+- Backup horário do banco, com retenção curta
+- Backup diário completo via script
+- Cópia para S3 com lifecycle por prefixo
 - Snapshot periódico do disco EBS
 - Teste de restore pelo menos uma vez

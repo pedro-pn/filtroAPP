@@ -11,6 +11,7 @@ CERTS_VOLUME="${CERTS_VOLUME:-filtrovali_certs}"
 BACKUP_ROOT="${BACKUP_ROOT:-/home/ubuntu/backups/filtrovali}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 INCLUDE_CERTS="${INCLUDE_CERTS:-false}"
+INCLUDE_REPORTS="${INCLUDE_REPORTS:-true}"
 AWS_S3_URI="${AWS_S3_URI:-}"
 
 TIMESTAMP="$(date +%F-%H%M%S)"
@@ -23,8 +24,12 @@ cd "$PROJECT_DIR"
 echo "[backup] dumping postgres database to $RUN_DIR"
 docker compose -f "$COMPOSE_FILE" exec -T "$POSTGRES_SERVICE" pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" | gzip > "$RUN_DIR/postgres.sql.gz"
 
-echo "[backup] archiving reports volume $REPORTS_VOLUME"
-docker run --rm -v "${REPORTS_VOLUME}:/from:ro" -v "${RUN_DIR}:/backup" alpine sh -c "cd /from && tar -czf /backup/relatorios.tar.gz ."
+if [ "$INCLUDE_REPORTS" = "true" ]; then
+  echo "[backup] archiving reports volume $REPORTS_VOLUME"
+  docker run --rm -v "${REPORTS_VOLUME}:/from:ro" -v "${RUN_DIR}:/backup" alpine sh -c "cd /from && tar -czf /backup/relatorios.tar.gz ."
+else
+  echo "[backup] skipping reports volume archive"
+fi
 
 if [ "$INCLUDE_CERTS" = "true" ]; then
   echo "[backup] archiving cert volume $CERTS_VOLUME"
