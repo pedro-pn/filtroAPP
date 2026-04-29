@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useAuth } from '../../auth/AuthContext';
 import { listReports } from '../../api/reports';
-import { ServiceFields, serviceTypeLabels, serviceTypeOptions } from '../../components/reports/ServiceFields';
+import { ServiceFields, serviceTypeLabels } from '../../components/reports/ServiceFields';
 import { UploadField } from '../../components/ui/UploadField';
 import { useToast } from '../../components/ui/Toast';
 import { useCollaborators } from '../../hooks/useCollaborators';
@@ -99,7 +99,6 @@ export function NewReportPage() {
     setNightCollaborators,
     setGeneralUploads,
     addService,
-    updateServiceType,
     updateService,
     removeService,
     reset
@@ -350,6 +349,10 @@ export function NewReportPage() {
     return Array.isArray(value) && value.some(item => typeof item === 'string' && item.trim());
   }
 
+  function hasTextOrStringItem(value: unknown) {
+    return hasText(value) || hasStringItem(value);
+  }
+
   function hasValidTube(value: unknown) {
     return Array.isArray(value) && value.some(item => {
       if (!item || typeof item !== 'object') return false;
@@ -369,6 +372,7 @@ export function NewReportPage() {
     if (standby && !standbyMotivo.trim()) return failRequired('Motivo (standby)', 'header:standbyMotivo', 0);
     if (noturno && !noturnoStart) return failRequired('Início (noturno)', 'header:noturnoStart', 0);
     if (noturno && !noturnoEnd) return failRequired('Término (noturno)', 'header:noturnoEnd', 0);
+    if (noturno && !noturnoInterval) return failRequired('Intervalo noturno', 'header:noturnoInterval', 0);
     if (noturno && !nightCollaboratorIds.length) return failRequired('Colaboradores noturnos', 'header:nightCollaborators', 0);
     return true;
   }
@@ -396,13 +400,13 @@ export function NewReportPage() {
 
       if (type === 'limpeza') {
         if (!hasStringItem(data.metodos)) return failRequired('Método de limpeza', target('metodos'), 1);
-        if (!hasText(data.ulq)) return failRequired('Unidade de Limpeza Química', target('ulq'), 1);
+        if (!hasTextOrStringItem(data.ulq)) return failRequired('Unidade de Limpeza Química', target('ulq'), 1);
         if (!hasStringItem(data.local)) return failRequired('Local de limpeza', target('local'), 1);
         if (!hasStringItem(data.tipoInspecao)) return failRequired('Tipo de inspeção', target('tipoInspecao'), 1);
       }
 
       if (type === 'pressao') {
-        if (!hasText(data.uth)) return failRequired('Unidade de Teste Hidrostático (UTH)', target('uth'), 1);
+        if (!hasTextOrStringItem(data.uth)) return failRequired('Unidade de Teste Hidrostático (UTH)', target('uth'), 1);
         if (!hasText(data.pressaoTrabalho)) return failRequired('Pressão de trabalho', target('pressaoTrabalho'), 1);
         if (!hasText(data.pressaoTeste)) return failRequired('Pressão de teste', target('pressaoTeste'), 1);
         if (!hasStringItem(data.manometroIds)) return failRequired('Manômetros utilizados', target('manometroIds'), 1);
@@ -411,13 +415,13 @@ export function NewReportPage() {
       if (type === 'flushing') {
         if (!hasText(data.tipoOleo)) return failRequired('Tipo de óleo', target('tipoOleo'), 1);
         if (!hasText(data.volumeOleo)) return failRequired('Volume de óleo', target('volumeOleo'), 1);
-        if (!hasText(data.uf)) return failRequired('Unidade de Flushing', target('uf'), 1);
+        if (!hasTextOrStringItem(data.uf)) return failRequired('Unidade de Flushing', target('uf'), 1);
       }
 
       if (type === 'filtragem') {
         if (!hasText(data.tipoOleo)) return failRequired('Tipo de óleo', target('tipoOleo'), 1);
         if (!hasText(data.volumeOleo)) return failRequired('Volume de óleo', target('volumeOleo'), 1);
-        if (!hasText(data.ufg)) return failRequired('Unidade de filtragem', target('ufg'), 1);
+        if (!hasTextOrStringItem(data.ufg)) return failRequired('Unidade de filtragem', target('ufg'), 1);
       }
 
       if ((type === 'flushing' || type === 'filtragem') && data.houveParticulas === 'Sim' && !hasText(data.contadorUtilizado)) {
@@ -503,7 +507,7 @@ export function NewReportPage() {
     if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
 
     if (!projectId || !reportDate) {
-      setDraftId(null);
+      if (draftId) setDraftId(null);
       return;
     }
 
@@ -525,7 +529,7 @@ export function NewReportPage() {
           const saved = targetId
             ? await draftMutations.updateDraft.mutateAsync({ id: targetId, payload })
             : await draftMutations.createDraft.mutateAsync(payload);
-          setDraftId(saved.id);
+          if (draftId !== saved.id) setDraftId(saved.id);
 
           await Promise.all(
             sameProjectDateIds
@@ -819,8 +823,8 @@ export function NewReportPage() {
             </label>
           </div>
           {noturno ? (
-            <div className="collapse-section">
-              <div className="fg-r2">
+            <div className="collapse-section noturno-section">
+              <div className="fg-r2 night-time-grid">
                 <div className={fieldState('header:noturnoStart')} data-invalid-target="header:noturnoStart">
                   <label>Início <span style={{ color: 'var(--rd)' }}>*</span></label>
                   <input
@@ -837,11 +841,11 @@ export function NewReportPage() {
                     onChange={event => setHeaderField('noturnoEnd', event.target.value)}
                   />
                 </div>
-                <div>
-                  <label>Intervalo</label>
+                <div className={fieldState('header:noturnoInterval')} data-invalid-target="header:noturnoInterval">
+                  <label>Intervalo noturno</label>
                   <input
                     type="time"
-                    step={60}
+                    step={1}
                     value={noturnoInterval}
                     onChange={event => setHeaderField('noturnoInterval', event.target.value)}
                   />
@@ -916,19 +920,6 @@ export function NewReportPage() {
                     </div>
                   </div>
                   <div className="admin-form-grid">
-                    <div className="field-group">
-                      <label>Tipo</label>
-                      <select
-                        value={normalizeServiceType(service.type)}
-                        onChange={event => updateServiceType(service.id, event.target.value)}
-                      >
-                        {serviceTypeOptions.map(option => (
-                          <option key={option} value={option}>
-                            {serviceTypeLabels[option] || option}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
                     <div className={serviceFieldState(service.id, 'equipmentId')}>
                       <label>Equipamento(s) <span style={{ color: 'var(--rd)' }}>*</span></label>
                       <input

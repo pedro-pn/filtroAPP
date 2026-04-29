@@ -67,7 +67,7 @@ function serviceId() {
 
 export const useRdoStore = create<RdoStoreState>(set => ({
   ...initialState,
-  setDraftId: draftId => set({ draftId }),
+  setDraftId: draftId => set(state => (state.draftId === draftId ? state : { draftId })),
   setHeaderField: (field, value) => set(state => ({ ...state, [field]: value })),
   setCollaborators: collaboratorIds => set({ collaboratorIds }),
   setNightCollaborators: nightCollaboratorIds => set({ nightCollaboratorIds }),

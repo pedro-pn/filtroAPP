@@ -55,6 +55,12 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
     onChange(value.filter((_, itemIndex) => itemIndex !== index));
   }
 
+  function assetUrl(url: string) {
+    if (!url) return '';
+    if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
+    return url.startsWith('/') ? url : `/${url}`;
+  }
+
   return (
     <div className="upload-field">
       <div className="upload-field-head">
@@ -85,7 +91,12 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
         <div className="upload-list">
           {value.map((file, index) => (
             <div className="upload-list-item" key={`${file.url}-${index}`}>
-              <span>{file.fileName}</span>
+              {file.url ? (
+                <img className="upload-list-thumb" src={assetUrl(file.url)} alt={file.fileName} />
+              ) : null}
+              <a className="upload-list-name" href={assetUrl(file.url)} target="_blank" rel="noreferrer">
+                {file.fileName}
+              </a>
               {!disabled ? (
                 <button className="secondary-button" type="button" onClick={() => removeFile(index)}>
                   Remover

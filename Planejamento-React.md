@@ -1227,3 +1227,61 @@ Esta é a área de maior divergência funcional. O HTML define os campos de cada
 2. Conferir todos os campos obrigatórios condicionais contra o HTML, incluindo mensagens e foco/scroll no erro.
 3. Validar o arquivo final gerado (PDF/DOCX) com rascunho retomado, serviços com equipamento texto livre e condições especiais.
 4. Revisar campos numéricos restantes de serviços para decidir se também devem seguir a mesma filtragem de números, ponto e vírgula.
+
+---
+
+### 18.14 Integração pós-pull - Usuários no gestor
+
+| Ponto reportado | Ajuste integrado no React | Status |
+|---|---|---|
+| Alterações remotas não estavam no ambiente atual | Executado fetch/merge fast-forward para `origin/app_v2_react`, preservando as mudanças remotas de rascunhos, RDO e painel do gestor | Integrado |
+| Aba `Usuários` não existia no painel do gestor | Adicionada aba própria `Usuários` na navegação do gestor, separada de `Equipe` | Corrigido |
+| Usuários internos estavam dentro da aba `Equipe` | Removido o bloco de usuários da aba `Equipe`; a aba agora lista somente colaboradores | Corrigido |
+| HTML separa usuários internos e clientes | Aba `Usuários` ganhou alternância `Internos` / `Clientes`, seguindo o fluxo do HTML final | Corrigido |
+| Usuários internos precisam manter CRUD inline | Mantido cadastro, edição inline, vínculo com colaborador, perfil na ordem do HTML, status ativo e senha opcional na edição | Corrigido |
+| Clientes precisam aparecer separados | Lista de clientes usa `group=client`, mostra CNPJ formatado, e-mail, status, quantidade de projetos e vínculos por contrato/missão | Corrigido |
+| Funcionalidade de cliente do HTML | Implementado botão `Reenviar acesso` via endpoint `/users/:id/resend-client-access` e ação `Remover` | Corrigido |
+
+**Decisão de conflito:** nos arquivos de RDO/rascunho (`HomePage`, `NewReportPage`, `rdoStore`, `base.css`) foi mantida a versão vinda do pull, porque ela já continha a implementação mais completa do outro ambiente. Em `GestorPage`, a versão remota foi preservada e a aba `Usuários` foi aplicada por cima.
+
+**Validação:** `npm run build` executado em `frontend` com sucesso após o pull e a resolução dos conflitos.
+
+---
+
+### 18.15 Rodada de migração - Arquivados e remoções administrativas
+
+| Ponto reportado | Ajuste aplicado no React | Status |
+|---|---|---|
+| Projetos arquivados apareciam em `Projetos` | Aba `Projetos` passa a listar somente projetos ativos; `Arquivados` passa a listar projetos arquivados, como `renderProjetosArquivados()` no HTML | Corrigido |
+| `Arquivados` precisava seguir o HTML | Projetos arquivados mostram seus relatórios aprovados/assinados dentro do card do projeto, mantendo o acesso ao histórico | Corrigido |
+| Colaboradores removidos continuavam visíveis como inativos | Lista de `Equipe` filtra colaboradores ativos; o botão voltou a ser `Remover`, chamando o DELETE/soft delete do backend como no HTML | Corrigido |
+| Manômetros e contadores removidos continuavam visíveis como inativos | Listas administrativas filtram itens ativos; botões exibem `Remover`, mantendo o soft delete no backend para histórico | Corrigido |
+| Criar relatório resultava em `Acesso negado` no ambiente Vite | Removido o proxy `/relatorios` do Vite para a rota React `/relatorios/novo` não ser encaminhada ao backend estático protegido | Corrigido |
+| Página de relatórios ficou em branco após ajuste do proxy | Adicionada rota sem conflito `/relatorio/novo` para criação e atualizados os botões de Home/Gestor; `/relatorios/novo` permanece como compatibilidade | Corrigido |
+| Página de novo relatório entrava em loop quando projeto/data estavam vazios | `setDraftId` ficou idempotente na store e o autosave só limpa/grava o ID do rascunho quando há mudança real | Corrigido |
+
+**Validação:** `npm run build` executado em `frontend` com sucesso após os ajustes de rota e do autosave.
+
+**Próximos cuidados:**
+1. Testar no navegador a aba `Arquivados`, especialmente relatórios agrupados dentro dos projetos arquivados.
+2. Conferir se há algum link direto para arquivos estáticos em `/relatorios/...` no React; se houver, trocar para endpoint API autenticado em vez de reativar o proxy amplo.
+3. Aplicar o mesmo padrão visual de `Remover` para qualquer outro cadastro que ainda esteja exibindo inativos.
+
+---
+
+### 18.16 Rodada de migração - Paridade visual dos serviços
+
+| Ponto reportado | Ajuste aplicado no React | Status |
+|---|---|---|
+| Intervalo do turno noturno estava visualmente estranho | Campo `Intervalo noturno` passa a usar o mesmo bloco do turno noturno, com validação própria e layout responsivo | Corrigido |
+| Checkboxes dos serviços divergiam do HTML | Opções usam linhas compactas com checkbox, fonte 13px e realce verde quando selecionadas, seguindo `.chk-grp/.chk-item` do HTML | Corrigido |
+| Alternâncias dos serviços ocupavam largura demais | Radios de `Sim/Não`, fluido e tipo de flushing foram separados em layout segmentado `.rtag`; opções curtas voltaram a pílulas `.tag-list` | Corrigido |
+| Seletor interno de tipo deixava o card espremido | Removido o campo `Tipo` dentro do serviço; o tipo volta a ficar apenas no cabeçalho, como no HTML após adicionar o serviço | Corrigido |
+| Cards de serviços estouravam na horizontal | Tubulações, seletores de unidade e grupos de opções receberam `minmax(0, 1fr)` e quebras responsivas para telas estreitas | Corrigido |
+| Etapas ainda ficavam espremidas | Bloco `Etapas realizadas no dia` agora ocupa a linha inteira do formulário e força lista em uma coluna, com checkbox de 15px como no HTML | Corrigido |
+| Serviços precisavam aceitar mais de uma unidade | Criado campo múltiplo de unidades para Limpeza Química, UTH, Flushing e Filtragem, com `+ Adicionar unidade` como no HTML | Corrigido |
+| Flushing deve listar unidades de flushing e filtragem | `Unidade de Flushing` passa a buscar unidades das categorias `FLUSHING` e `FILTRAGEM` | Corrigido |
+| Payload precisava preservar múltiplas unidades | Montagem do payload agora aceita string legada ou array de IDs e envia todos os códigos/IDs no relatório final | Corrigido |
+| Upload precisava mostrar preview após adicionar imagem | Lista de arquivos enviados agora mostra miniatura 44x44, nome truncado e botão remover, copiando o padrão do HTML | Corrigido |
+
+**Validação:** `npm run build` executado em `frontend` com sucesso após os ajustes de serviços.
