@@ -17,11 +17,16 @@ interface RdoStoreState {
   nightCollaboratorIds: string[];
   standby: boolean;
   noturno: boolean;
+  standbyDuration: string;
+  standbyMotivo: string;
+  noturnoStart: string;
+  noturnoEnd: string;
+  noturnoInterval: string;
   overtimeReason: string;
   dailyDescription: string;
   generalUploads: unknown[];
   services: RdoServiceDraft[];
-  setHeaderField: <K extends keyof Pick<RdoStoreState, 'projectId' | 'reportDate' | 'arrivalTime' | 'departureTime' | 'lunchBreak' | 'standby' | 'noturno' | 'overtimeReason' | 'dailyDescription'>>(field: K, value: RdoStoreState[K]) => void;
+  setHeaderField: <K extends keyof Pick<RdoStoreState, 'projectId' | 'reportDate' | 'arrivalTime' | 'departureTime' | 'lunchBreak' | 'standby' | 'noturno' | 'standbyDuration' | 'standbyMotivo' | 'noturnoStart' | 'noturnoEnd' | 'noturnoInterval' | 'overtimeReason' | 'dailyDescription'>>(field: K, value: RdoStoreState[K]) => void;
   setCollaborators: (ids: string[]) => void;
   setNightCollaborators: (ids: string[]) => void;
   setGeneralUploads: (uploads: unknown[]) => void;
@@ -45,6 +50,11 @@ const initialState = {
   nightCollaboratorIds: [],
   standby: false,
   noturno: false,
+  standbyDuration: '',
+  standbyMotivo: '',
+  noturnoStart: '',
+  noturnoEnd: '',
+  noturnoInterval: '01:00:00',
   overtimeReason: '',
   dailyDescription: '',
   generalUploads: [],

@@ -80,6 +80,10 @@ function getBool(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback;
 }
 
+function onlyNumberPunctuation(value: string) {
+  return value.replace(/[^\d.,]/g, '');
+}
+
 function normalizeServiceType(type: string) {
   const map: Record<string, string> = {
     LIMPEZA: 'limpeza',
@@ -173,13 +177,11 @@ function TubesBlock({ data, onChange, disabled, invalidKey }: Pick<ServiceFields
         {rows.map((row, index) => (
           <div className="tube-row-react" key={index}>
             <input
-              type="number"
-              min="0"
-              step="0.01"
+              inputMode="decimal"
               placeholder="Diâmetro"
               value={row.d || ''}
               disabled={disabled}
-              onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, d: event.target.value }) })}
+              onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, d: onlyNumberPunctuation(event.target.value) }) })}
             />
             <select
               value={row.unit || 'pol'}
@@ -190,13 +192,11 @@ function TubesBlock({ data, onChange, disabled, invalidKey }: Pick<ServiceFields
               <option value="mm">mm</option>
             </select>
             <input
-              type="number"
-              min="0"
-              step="0.01"
+              inputMode="decimal"
               placeholder="Comprimento"
               value={row.c || ''}
               disabled={disabled}
-              onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, c: event.target.value }) })}
+              onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, c: onlyNumberPunctuation(event.target.value) }) })}
             />
             <select
               value={row.lengthUnit || 'm'}
@@ -354,12 +354,10 @@ function VolumeField({ data, onChange, disabled, invalidKey }: Pick<ServiceField
       <div className={fieldClass(invalidKey, 'volumeOleo')}>
         <label>Volume de óleo {requiredMark()}</label>
         <input
-          type="number"
-          min="0"
-          step="0.01"
+          inputMode="decimal"
           value={getString(data.volumeOleo)}
           disabled={disabled}
-          onChange={event => onChange({ volumeOleo: event.target.value })}
+          onChange={event => onChange({ volumeOleo: onlyNumberPunctuation(event.target.value) })}
         />
       </div>
       <div className="field-group">

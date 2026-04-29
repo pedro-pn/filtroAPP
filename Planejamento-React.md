@@ -1177,3 +1177,53 @@ Esta é a área de maior divergência funcional. O HTML define os campos de cada
 1. Revisar visual em navegador dos cards inline, especialmente a aba `Unidades`, para confirmar espaçamentos reais contra o HTML.
 2. Completar marcadores `*` e validação por serviço no mesmo padrão `data-required` do HTML.
 3. Conferir payload final dos novos campos de serviço contra o DOCX/PDF gerado.
+
+---
+
+### 18.12 Rodada de migração - 2026-04-29
+
+| Ponto reportado | Ajuste aplicado no React | Status |
+|---|---|---|
+| Gestor ainda não conseguia criar relatório | Confirmada rota compartilhada `/relatorios/novo` para `COLLABORATOR` e `MANAGER`; botão do gestor agora limpa o estado do RDO antes de abrir o formulário | Corrigido |
+| Aba `Unidades` ainda continha `Equipamentos` | Removida a administração de equipamentos do painel `Unidades`; permanecem somente cards de unidades por categoria com `+ Nova unidade`, editar e excluir | Corrigido |
+| Campo `Equipamento(s)` passou a ser texto livre | Payload de serviço não tenta mais vincular `equipmentId`; o texto digitado segue em `extraData['Equipamento(s)']` | Corrigido |
+| Tubulação e litros de óleo aceitavam letras | Diâmetro, comprimento e volume de óleo agora filtram entrada para apenas números, ponto e vírgula | Corrigido |
+| Campos dos cards de serviço estouravam horizontalmente | Inputs/selects/textareas passaram a usar `width:100%`, `box-sizing:border-box`, `min-width:0`; cards de serviço escondem overflow e títulos quebram corretamente | Corrigido |
+| Data vinha pré-preenchida | Removido preenchimento automático da data; o campo inicia vazio como no HTML final | Corrigido |
+| Rascunho deveria ser automático | Removido botão manual de rascunho no formulário; autosave silencioso roda quando existem projeto e data, com debounce de 150ms, como no HTML | Corrigido |
+| Evitar múltiplos rascunhos do mesmo projeto/dia | Autosave reaproveita rascunho existente por chave `projectId|reportDate` e remove duplicados dessa chave | Corrigido |
+| Envio deve apagar rascunho | Ao enviar, remove todos os rascunhos da mesma chave projeto/data e também o rascunho atual, se houver | Corrigido |
+| Gestor deve ver/continuar rascunhos | Aba `Pendentes` do gestor lista `Relatórios em andamento` com `Continuar` e `Excluir`, espelhando o HTML | Corrigido |
+
+**Validação:** `npm install` executado no workspace Linux para restaurar dependências; `npm run build` executado em `frontend` com sucesso. Aviso: Node local é `18.19.1`, enquanto algumas dependências recomendam Node `>=20`.
+
+**Etapa atual:** paridade funcional principal do fluxo RDO e do painel do gestor. O foco saiu de estrutura básica e entrou em polimento de fidelidade visual, validações finais e geração/saída de arquivos.
+
+**O que ainda falta:**
+1. Teste visual em navegador comparando HTML x React nas telas de RDO, Gestor, Unidades e cards de serviço.
+2. Revisar validação obrigatória campo a campo contra `validateScope` do HTML, principalmente condicionais.
+3. Validar DOCX/PDF gerado com os novos campos livres e extras de serviço.
+4. Revisar cálculo real de hora extra e exibição condicional da justificativa.
+5. Conferir fluxos de rascunho em uso real: criar, atualizar, continuar, excluir, enviar e voltar sem enviar.
+
+---
+
+### 18.13 Continuação da rodada - 2026-04-29
+
+| Ponto revisado | Ajuste aplicado no React | Status |
+|---|---|---|
+| Campos de standby/noturno não persistiam completos no rascunho | `standbyDuration`, `standbyMotivo`, `noturnoStart`, `noturnoEnd` e `noturnoInterval` foram movidos para o estado central do RDO e entram no autosave | Corrigido |
+| Retomar rascunho perdia detalhes condicionais | Home do colaborador e aba do gestor hidratam os detalhes de standby/noturno ao continuar um rascunho | Corrigido |
+| Intervalo noturno faltava no formulário React | Adicionado campo `Intervalo` no bloco de turno noturno, com padrão `01:00:00`, como no HTML | Corrigido |
+| Justificativa de hora extra aparecia sempre | Card `Horas extras` agora mostra a justificativa somente quando há hora extra calculada; sem hora extra, exibe apenas a mensagem/resumo | Corrigido |
+| Payload de envio precisava refletir o cálculo | `overtimeReason` só é enviado quando existe hora extra; `specialConditions` inclui `noturnoDetails.intervalo` e `overtimeSummary` | Corrigido |
+
+**Validação:** `npm run build` executado em `frontend` com sucesso após os ajustes.
+
+**Etapa atual:** a migração está na fase de paridade fina do fluxo RDO. A estrutura principal, rascunhos automáticos, criação pelo gestor, painel de unidades e campos livres de serviço já estão implementados; agora o trabalho está concentrado em reproduzir comportamentos condicionais e validações finais do HTML.
+
+**O que falta a partir daqui:**
+1. Fazer uma passada visual em navegador comparando HTML x React, principalmente toggles, cards inline e espaçamentos dos cards de serviço.
+2. Conferir todos os campos obrigatórios condicionais contra o HTML, incluindo mensagens e foco/scroll no erro.
+3. Validar o arquivo final gerado (PDF/DOCX) com rascunho retomado, serviços com equipamento texto livre e condições especiais.
+4. Revisar campos numéricos restantes de serviços para decidir se também devem seguir a mesma filtragem de números, ponto e vírgula.
