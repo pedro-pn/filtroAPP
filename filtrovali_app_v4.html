@@ -9214,12 +9214,33 @@ window.__legacyBootstrapped = false;
     var label=cleanLabelText(el.dataset.label||'campo obrigatório');
     showValidationBanner(screenId,'Preencha o campo obrigatório: '+label+'.');
     setTimeout(function(){
+      markInvalid(el);
       var host=el.closest('.fg')||el;
       if(host&&host.scrollIntoView)host.scrollIntoView({behavior:'smooth',block:'center'});
       var target=(el.matches&&el.matches('input,select,textarea,button,[tabindex]'))?el:(el.querySelector?el.querySelector('input,select,textarea,button,[tabindex]'):null);
       if(target&&target.focus)target.focus({preventScroll:true});
       if(target&&target.select&&(/^(text|email|number|password|search|tel|url)$/i.test(target.type||'text')||target.tagName==='TEXTAREA'))target.select();
     },50);
+  };
+  function clearReportValidationState(){
+    ['s-cabecalho','s-servicos','s-final'].forEach(function(id){
+      var screen=document.getElementById(id);
+      if(screen)clearValidation(screen);
+      clearValidationBanner(id);
+    });
+  }
+  var baseGoValidationState=go;
+  go=function(id){
+    var active=document.querySelector('.screen.active');
+    var previousId=active&&active.id;
+    baseGoValidationState(id);
+    if(previousId&&previousId!==id)clearReportValidationState();
+  };
+  var baseResetReportFormValidationState=resetReportForm;
+  resetReportForm=function(){
+    var result=baseResetReportFormValidationState.apply(this,arguments);
+    clearReportValidationState();
+    return result;
   };
   editorProjeto=function(){
     var st=gestorEditors.projetos;if(!st)return '';

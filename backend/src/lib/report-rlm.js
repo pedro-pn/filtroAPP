@@ -124,6 +124,24 @@ function replacePlaceholders(element, values) {
       token => replaceTokenInElement(element, token, safe)
     );
   });
+  preserveWordTextLineBreaks(element);
+}
+
+function preserveWordTextLineBreaks(element) {
+  Array.from(element.getElementsByTagName('w:t')).forEach(node => {
+    const content = node.textContent || '';
+    if (!/[\r\n]/.test(content)) return;
+    const doc = node.ownerDocument;
+    const parent = node.parentNode;
+    content.split(/\r\n|\r|\n/).forEach((line, index) => {
+      if (index > 0) parent.insertBefore(doc.createElement('w:br'), node);
+      const textNode = doc.createElement('w:t');
+      if (/^\s|\s$/.test(line)) textNode.setAttribute('xml:space', 'preserve');
+      textNode.appendChild(doc.createTextNode(line));
+      parent.insertBefore(textNode, node);
+    });
+    parent.removeChild(node);
+  });
 }
 
 function findFirstByText(root, tagName, token) {

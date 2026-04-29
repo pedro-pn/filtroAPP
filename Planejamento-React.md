@@ -1285,3 +1285,20 @@ Esta é a área de maior divergência funcional. O HTML define os campos de cada
 | Upload precisava mostrar preview após adicionar imagem | Lista de arquivos enviados agora mostra miniatura 44x44, nome truncado e botão remover, copiando o padrão do HTML | Corrigido |
 
 **Validação:** `npm run build` executado em `frontend` com sucesso após os ajustes de serviços.
+
+---
+
+### 18.17 Merge da `app_v1` atualizado
+
+| Novidade vinda do HTML/backend | Impacto para a migração React | Status |
+|---|---|---|
+| HTML limpa estado visual de validação ao trocar de tela ou resetar relatório | React deve garantir que `invalidTarget`, banners/toasts de validação e destaques de campos sejam limpos ao navegar entre etapas/telas e ao iniciar/resetar um relatório | Pendente de paridade |
+| HTML marca o campo inválido antes de rolar/focar | Fluxo React já possui `invalidTarget`; revisar se todos os grupos compostos recebem borda/realce visual antes do `scrollIntoView` | Pendente de revisão |
+| DOCX preserva quebras de linha em placeholders e células | Backend atualizado pela `app_v1`; testar relatórios React com descrições/observações multilinha em DOCX/PDF para confirmar saída final | Integrado no backend |
+| Backup ganhou `INCLUDE_REPORTS=false` para rotinas frequentes só de banco | Sem impacto direto na UI React; documentado como ajuste operacional integrado | Integrado |
+
+**Merge:** `app_v1` atualizada até `1620960` foi mesclada em `app_v2_react`. Nos conflitos de arquivo inteiro, foi aceita a versão da `app_v1` para `filtrovali_app_v4.html` e geradores Word, pois ela é a fonte HTML/backend mais recente.
+
+**Próximos cuidados adicionados:**
+1. Reproduzir no React a limpeza completa de validação ao sair/voltar das telas do RDO.
+2. Testar DOCX gerado a partir de relatório criado no React com quebras de linha em atividades, observações e campos de serviço.
