@@ -38,6 +38,7 @@ type GestorTab =
   | 'arquivados'
   | 'projetos'
   | 'equipe'
+  | 'usuarios'
   | 'equipamentos'
   | 'manometros'
   | 'contadores';
@@ -91,7 +92,7 @@ interface CounterFormState {
   expiresAt: string;
 }
 
-const internalRoles: Array<Exclude<UserRole, 'CLIENT'>> = ['COLLABORATOR', 'MANAGER', 'COORDINATOR'];
+const internalRoles: Array<Exclude<UserRole, 'CLIENT'>> = ['COLLABORATOR', 'COORDINATOR', 'MANAGER'];
 const emptyProjectForm: ProjectFormState = {
   code: '',
   name: '',
@@ -215,6 +216,12 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleDateString('pt-BR');
 }
 
+function formatCnpj(value?: string | null) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length !== 14) return value || '';
+  return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+}
+
 function projectToForm(project: Project): ProjectFormState {
   return {
     code: project.code,
@@ -333,6 +340,7 @@ export function GestorPage() {
   const [userEditingId, setUserEditingId] = useState<string | null>(null);
   const [showUserForm, setShowUserForm] = useState(false);
   const [userMessage, setUserMessage] = useState<string | null>(null);
+  const [userAdminGroup, setUserAdminGroup] = useState<'internal' | 'client'>('internal');
 
   const [unitForm, setUnitForm] = useState<UnitFormState>(emptyUnitForm);
   const [unitEditingId, setUnitEditingId] = useState<string | null>(null);
@@ -357,7 +365,8 @@ export function GestorPage() {
   const activeProjectsQuery = useProjects(true);
   const archivedProjectsQuery = useProjects(false);
   const collaboratorsQuery = useCollaborators();
-  const usersQuery = useUsers('internal');
+  const internalUsersQuery = useUsers('internal');
+  const clientUsersQuery = useUsers('client');
   const unitsQuery = useUnits();
   const manometersQuery = useManometers();
   const countersQuery = useCounters();
@@ -403,7 +412,7 @@ export function GestorPage() {
 
   function handleNewReport() {
     reset();
-    navigate('/relatorios/novo');
+    navigate('/relatorio/novo');
   }
 
   function handleResumeDraft(draft: ReportDraft) {
@@ -431,7 +440,7 @@ export function GestorPage() {
       services: asServices(payload.services)
     });
 
-    navigate('/relatorios/novo');
+    navigate('/relatorio/novo');
   }
 
   function resetProjectForm() {
@@ -541,18 +550,11 @@ export function GestorPage() {
   async function handleCollaboratorToggle(collaborator: Collaborator) {
     setCollaboratorMessage(null);
     try {
-      if (collaborator.isActive) {
-        await collaboratorMutations.removeCollaborator.mutateAsync(collaborator.id);
-        setCollaboratorMessage('Colaborador desativado.');
-      } else {
-        await collaboratorMutations.updateCollaborator.mutateAsync({
-          id: collaborator.id,
-          payload: { isActive: true }
-        });
-        setCollaboratorMessage('Colaborador reativado.');
-      }
+      await collaboratorMutations.removeCollaborator.mutateAsync(collaborator.id);
+      setCollaboratorMessage('Colaborador removido.');
+      if (collaboratorEditingId === collaborator.id) resetCollaboratorForm();
     } catch (error) {
-      setCollaboratorMessage(error instanceof Error ? error.message : 'Não foi possível atualizar o colaborador.');
+      setCollaboratorMessage(error instanceof Error ? error.message : 'Não foi possível remover o colaborador.');
     }
   }
 
@@ -600,6 +602,16 @@ export function GestorPage() {
       if (userEditingId === id) resetUserForm();
     } catch (error) {
       setUserMessage(error instanceof Error ? error.message : 'Não foi possível remover o usuário.');
+    }
+  }
+
+  async function handleResendClientAccess(id: string) {
+    setUserMessage(null);
+    try {
+      await userMutations.resendClientAccess.mutateAsync(id);
+      setUserMessage('E-mail de acesso reenviado.');
+    } catch (error) {
+      setUserMessage(error instanceof Error ? error.message : 'Não foi possível reenviar o acesso.');
     }
   }
 
@@ -667,10 +679,10 @@ export function GestorPage() {
     setManometerMessage(null);
     try {
       await manometerMutations.removeManometer.mutateAsync(id);
-      setManometerMessage('Manômetro desativado.');
+      setManometerMessage('Manômetro removido.');
       if (manometerEditingId === id) resetManometerForm();
     } catch (error) {
-      setManometerMessage(error instanceof Error ? error.message : 'Não foi possível atualizar o manômetro.');
+      setManometerMessage(error instanceof Error ? error.message : 'Não foi possível remover o manômetro.');
     }
   }
 
@@ -703,10 +715,10 @@ export function GestorPage() {
     setCounterMessage(null);
     try {
       await counterMutations.removeCounter.mutateAsync(id);
-      setCounterMessage('Contador desativado.');
+      setCounterMessage('Contador removido.');
       if (counterEditingId === id) resetCounterForm();
     } catch (error) {
-      setCounterMessage(error instanceof Error ? error.message : 'Não foi possível atualizar o contador.');
+      setCounterMessage(error instanceof Error ? error.message : 'Não foi possível remover o contador.');
     }
   }
 
@@ -925,10 +937,9 @@ export function GestorPage() {
   }
 
   function renderProjectsTab() {
-    const activeProjects = activeProjectsQuery.data || [];
-    const archivedProjects = archivedProjectsQuery.data || [];
+    const activeProjects = (activeProjectsQuery.data || []).filter(project => project.isActive !== false);
 
-    if (activeProjectsQuery.isLoading || archivedProjectsQuery.isLoading) {
+    if (activeProjectsQuery.isLoading) {
       return <div className="page-card placeholder-copy">Carregando projetos...</div>;
     }
 
@@ -1113,41 +1124,55 @@ export function GestorPage() {
           )}
         </section>
 
-        <section className="page-card">
-          <div className="section-title">Projetos arquivados</div>
-          {archivedProjects.length ? (
-            <div className="admin-stack">
-              {archivedProjects.map(project =>
-                renderProjectCard(project, {
-                  children: projectEditingId === project.id ? (
-                    <form className="admin-inline-form admin-form-grid" onSubmit={handleProjectSubmit}>
-                      <div className="field-group"><label>Código</label><input value={projectForm.code} onChange={event => setProjectForm(current => ({ ...current, code: event.target.value }))} required /></div>
-                      <div className="field-group"><label>Nome</label><input value={projectForm.name} onChange={event => setProjectForm(current => ({ ...current, name: event.target.value }))} required /></div>
-                      <div className="field-group"><label>Cliente</label><input value={projectForm.clientName} onChange={event => setProjectForm(current => ({ ...current, clientName: event.target.value }))} required /></div>
-                      <div className="field-group"><label>CNPJ</label><input value={projectForm.clientCnpj} onChange={event => setProjectForm(current => ({ ...current, clientCnpj: event.target.value }))} required /></div>
-                      <div className="field-group"><label>Contrato</label><input value={projectForm.contractCode} onChange={event => setProjectForm(current => ({ ...current, contractCode: event.target.value }))} required /></div>
-                      <div className="field-group"><label>Local</label><input value={projectForm.location} onChange={event => setProjectForm(current => ({ ...current, location: event.target.value }))} required /></div>
-                      <div className="admin-form-actions">
-                        <button className="primary-button" type="submit" disabled={projectMutations.updateProject.isPending}>Salvar projeto</button>
-                        <button className="secondary-button" type="button" onClick={resetProjectForm}>Cancelar edição</button>
-                      </div>
-                    </form>
-                  ) : null,
-                  onEdit: item => {
-                    setProjectEditingId(item.id);
-                    setShowProjectForm(true);
-                    setProjectForm(projectToForm(item));
-                    setProjectMessage(null);
-                  },
-                  onToggleArchive: handleProjectToggleArchive
-                })
-              )}
-            </div>
-          ) : (
-            <p className="placeholder-copy">Nenhum projeto arquivado.</p>
-          )}
-        </section>
       </>
+    );
+  }
+
+  function renderArchivedProjectsTab() {
+    const archivedProjects = (archivedProjectsQuery.data || []).filter(project => project.isActive === false);
+
+    if (archivedProjectsQuery.isLoading || reportsQuery.isLoading) {
+      return <div className="page-card placeholder-copy">Carregando projetos arquivados...</div>;
+    }
+
+    return (
+      <section className="page-card">
+        <div className="section-title">Projetos arquivados</div>
+        {projectMessage ? <div className="inline-success">{projectMessage}</div> : null}
+        {archivedProjects.length ? (
+          <div className="admin-stack">
+            {archivedProjects.map(project => {
+              const projectReports = archivedReports.filter(report => report.projectId === project.id);
+              return renderProjectCard(project, {
+                children: (
+                  <>
+                    {projectReports.length ? (
+                      <div className="admin-stack" style={{ marginTop: 14 }}>
+                        {projectReports.map(report => (
+                          <ReportSummaryCard key={report.id} report={report} actions={renderManagerReportActions(report)} />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="placeholder-copy" style={{ marginTop: 14 }}>
+                        Nenhum relatório aprovado neste projeto arquivado.
+                      </div>
+                    )}
+                  </>
+                ),
+                onEdit: item => {
+                  setProjectEditingId(item.id);
+                  setShowProjectForm(true);
+                  setProjectForm(projectToForm(item));
+                  setProjectMessage(null);
+                },
+                onToggleArchive: handleProjectToggleArchive
+              });
+            })}
+          </div>
+        ) : (
+          <p className="placeholder-copy">Nenhum projeto arquivado.</p>
+        )}
+      </section>
     );
   }
 
@@ -1156,7 +1181,7 @@ export function GestorPage() {
       return <div className="page-card placeholder-copy">Carregando colaboradores...</div>;
     }
 
-    const collaborators = collaboratorsQuery.data || [];
+    const collaborators = (collaboratorsQuery.data || []).filter(collaborator => collaborator.isActive !== false);
 
     return (
       <>
@@ -1264,18 +1289,17 @@ export function GestorPage() {
                         Editar
                       </button>
                       <button
-                        className="secondary-button"
+                        className="danger-button"
                         type="button"
                         onClick={() => void handleCollaboratorToggle(collaborator)}
                       >
-                        {collaborator.isActive ? 'Desativar' : 'Reativar'}
+                        Remover
                       </button>
                     </div>
                   </div>
                   <div className="admin-card-meta">
                     <span>{collaborator.code}</span>
                     <span>{collaborator.email || 'Sem e-mail'}</span>
-                    <span>{collaborator.isActive ? 'Ativo' : 'Inativo'}</span>
                   </div>
                   {collaboratorEditingId === collaborator.id ? (
                     <form className="admin-inline-form admin-form-grid" onSubmit={handleCollaboratorSubmit}>
@@ -1304,24 +1328,53 @@ export function GestorPage() {
             <p className="placeholder-copy">Nenhum colaborador cadastrado.</p>
           )}
         </section>
-        {renderUsuariosTab()}
       </>
     );
   }
 
   function renderUsuariosTab() {
-    const users = usersQuery.data || [];
+    const internalUsers = internalUsersQuery.data || [];
+    const clientUsers = clientUsersQuery.data || [];
 
-    if (usersQuery.isLoading) {
+    if (internalUsersQuery.isLoading || clientUsersQuery.isLoading) {
       return <div className="page-card placeholder-copy">{'Carregando usuários...'}</div>;
     }
+    const showInternal = userAdminGroup === 'internal';
 
     return (
       <>
+        <section className="page-card compact-link-card">
+          <div className="filter-tabs">
+            <button
+              className={`filter-tab ${showInternal ? 'active' : ''}`}
+              type="button"
+              onClick={() => {
+                setUserAdminGroup('internal');
+                setUserMessage(null);
+              }}
+            >
+              Internos
+            </button>
+            <button
+              className={`filter-tab ${!showInternal ? 'active' : ''}`}
+              type="button"
+              onClick={() => {
+                setUserAdminGroup('client');
+                resetUserForm();
+                setUserMessage(null);
+              }}
+            >
+              Clientes
+            </button>
+          </div>
+        </section>
+
+        {showInternal ? (
+        <>
         <section className="page-card">
-          <div className="section-title">{userEditingId ? 'Editar usuário' : 'Novo usuário interno'}</div>
+          <div className="admin-section-head">
+            <div className="section-title">Usuários internos</div>
           {!showUserForm && !userEditingId ? (
-            <div className="admin-form-actions">
               <button
                 className="primary-button"
                 type="button"
@@ -1330,13 +1383,16 @@ export function GestorPage() {
                   setUserMessage(null);
                 }}
               >
-                Adicionar usuario
+                + Novo usuário
               </button>
-            </div>
           ) : null}
+          </div>
           {userMessage ? <div className="inline-success">{userMessage}</div> : null}
           {showUserForm && !userEditingId ? (
-          <form className="admin-form-grid" onSubmit={handleUserSubmit}>
+          <form className="admin-inline-form admin-form-grid" onSubmit={handleUserSubmit}>
+            <div className="field-group full">
+              <div className="section-title">Novo usuário</div>
+            </div>
             <div className="field-group">
               <label htmlFor="user-username">Usuário</label>
               <input
@@ -1440,10 +1496,9 @@ export function GestorPage() {
         </section>
 
         <section className="page-card">
-          <div className="section-title">Usuários internos</div>
-          {users.length ? (
+          {internalUsers.length ? (
             <div className="admin-stack">
-              {users.map(item => (
+              {internalUsers.map(item => (
                 <article className="admin-card-react" key={item.id}>
                   <div className="admin-card-head">
                     <div>
@@ -1520,6 +1575,71 @@ export function GestorPage() {
             <p className="placeholder-copy">Nenhum usuário interno cadastrado.</p>
           )}
         </section>
+        </>
+        ) : (
+        <section className="page-card">
+          <div className="admin-section-head">
+            <div>
+              <div className="section-title">Clientes</div>
+              <div className="admin-card-subtitle">Contas criadas automaticamente a partir dos projetos.</div>
+            </div>
+          </div>
+          {userMessage ? <div className="inline-success">{userMessage}</div> : null}
+          {clientUsers.length ? (
+            <div className="admin-stack">
+              {clientUsers.map(item => {
+                const linked = item.linkedProjects || [];
+                const projectList = linked.length
+                  ? linked.map(project => `${project.contractCode || '---'} - Missão ${project.code || '---'} - ${project.name || 'Sem nome'}`)
+                  : ['Nenhum projeto vinculado.'];
+
+                return (
+                  <article className="admin-card-react" key={item.id}>
+                    <div className="admin-card-head">
+                      <div>
+                        <div className="admin-card-title">{item.name || 'Cliente'} - {formatCnpj(item.username) || item.username}</div>
+                        <div className="admin-card-subtitle">
+                          {item.email || 'Sem e-mail principal'} - {item.isActive ? 'Ativo' : 'Inativo'}
+                        </div>
+                      </div>
+                      <span className={`status-pill ${item.isActive ? 'status-approved' : 'status-returned'}`}>
+                        {item.isActive ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </div>
+                    <div className="det-section" style={{ marginTop: 10 }}>
+                      <div className="det-row">
+                        <span className="det-label">Projetos</span>
+                        <span className="det-val">{linked.length}</span>
+                      </div>
+                      <div className="det-row">
+                        <span className="det-label">Vínculos</span>
+                        <span className="det-val">
+                          {projectList.map(project => <span key={project}>{project}<br /></span>)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="admin-card-actions" style={{ marginTop: 10 }}>
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        disabled={userMutations.resendClientAccess.isPending}
+                        onClick={() => void handleResendClientAccess(item.id)}
+                      >
+                        Reenviar acesso
+                      </button>
+                      <button className="danger-button" type="button" onClick={() => void handleUserDelete(item.id)}>
+                        Remover
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="placeholder-copy">Nenhum cliente provisionado.</p>
+          )}
+        </section>
+        )}
       </>
     );
   }
@@ -1632,7 +1752,7 @@ export function GestorPage() {
   }
 
   function renderManometrosTab() {
-    const manometers = manometersQuery.data || [];
+    const manometers = (manometersQuery.data || []).filter(item => item.isActive !== false);
 
     if (manometersQuery.isLoading) {
       return <div className="page-card placeholder-copy">Carregando manômetros...</div>;
@@ -1754,15 +1874,14 @@ export function GestorPage() {
                       >
                         Editar
                       </button>
-                      <button className="secondary-button" type="button" onClick={() => void handleManometerDeactivate(item.id)}>
-                        Desativar
+                      <button className="danger-button" type="button" onClick={() => void handleManometerDeactivate(item.id)}>
+                        Remover
                       </button>
                     </div>
                   </div>
                   <div className="admin-card-meta">
                     <span>Calibração: {formatDate(item.calibratedAt)}</span>
                     <span>Vencimento: {formatDate(item.expiresAt)}</span>
-                    <span>{item.isActive ? 'Ativo' : 'Inativo'}</span>
                   </div>
                   {manometerEditingId === item.id ? (
                     <form className="admin-inline-form admin-form-grid" onSubmit={handleManometerSubmit}>
@@ -1789,7 +1908,7 @@ export function GestorPage() {
   }
 
   function renderContadoresTab() {
-    const counters = countersQuery.data || [];
+    const counters = (countersQuery.data || []).filter(item => item.isActive !== false);
 
     if (countersQuery.isLoading) {
       return <div className="page-card placeholder-copy">Carregando contadores...</div>;
@@ -1900,15 +2019,14 @@ export function GestorPage() {
                       >
                         Editar
                       </button>
-                      <button className="secondary-button" type="button" onClick={() => void handleCounterDeactivate(item.id)}>
-                        Desativar
+                      <button className="danger-button" type="button" onClick={() => void handleCounterDeactivate(item.id)}>
+                        Remover
                       </button>
                     </div>
                   </div>
                   <div className="admin-card-meta">
                     <span>{'Calibração'}: {formatDate(item.calibratedAt)}</span>
                     <span>Vencimento: {formatDate(item.expiresAt)}</span>
-                    <span>{item.isActive ? 'Ativo' : 'Inativo'}</span>
                   </div>
                   {counterEditingId === item.id ? (
                     <form className="admin-inline-form admin-form-grid" onSubmit={handleCounterSubmit}>
@@ -1934,16 +2052,18 @@ export function GestorPage() {
   }
 
   function renderTabContent() {
-    if (tab === 'pendentes' || tab === 'aprovados' || tab === 'arquivados') return renderReportTabContent();
+    if (tab === 'pendentes' || tab === 'aprovados') return renderReportTabContent();
     if (tab === 'projetos') return renderProjectsTab();
+    if (tab === 'arquivados') return renderArchivedProjectsTab();
     if (tab === 'equipe') return renderEquipeTab();
+    if (tab === 'usuarios') return renderUsuariosTab();
     if (tab === 'equipamentos') return renderEquipamentosTab();
     if (tab === 'manometros') return renderManometrosTab();
     return renderContadoresTab();
   }
 
   function renderReportSummary() {
-    if (tab !== 'pendentes' && tab !== 'aprovados' && tab !== 'arquivados') return null;
+    if (tab !== 'pendentes' && tab !== 'aprovados') return null;
 
     return (
       <section className="page-card summary-card-compact">
@@ -2001,6 +2121,9 @@ export function GestorPage() {
             </button>
             <button className={`filter-tab ${tab === 'equipe' ? 'active' : ''}`} type="button" onClick={() => setTab('equipe')}>
               Equipe
+            </button>
+            <button className={`filter-tab ${tab === 'usuarios' ? 'active' : ''}`} type="button" onClick={() => setTab('usuarios')}>
+              Usuários
             </button>
             <button className={`filter-tab ${tab === 'equipamentos' ? 'active' : ''}`} type="button" onClick={() => setTab('equipamentos')}>
               Unidades

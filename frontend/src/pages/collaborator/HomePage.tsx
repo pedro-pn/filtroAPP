@@ -83,7 +83,7 @@ export function HomePage() {
 
   function handleNewReport() {
     reset();
-    navigate('/relatorios/novo');
+    navigate('/relatorio/novo');
   }
 
   function handleResumeDraft(draft: ReportDraft) {
@@ -111,7 +111,7 @@ export function HomePage() {
       services: asServices(payload.services)
     });
 
-    navigate('/relatorios/novo');
+    navigate('/relatorio/novo');
   }
 
   return (

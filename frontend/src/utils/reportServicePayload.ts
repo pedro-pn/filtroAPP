@@ -44,6 +44,11 @@ function singleId(value: unknown): string[] {
   return id ? [id] : [];
 }
 
+function ids(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string' && Boolean(item));
+  return singleId(value);
+}
+
 function labelForEquipment(id: string, equipment: Equipment[] = []) {
   const item = equipment.find(candidate => candidate.id === id);
   return item ? `${item.code} - ${item.name}` : id;
@@ -111,7 +116,7 @@ export function buildReportServicePayload(
   const extraData = commonExtraData(type, data, options);
 
   if (type === 'limpeza') {
-    const unitIds = singleId(data.ulq);
+    const unitIds = ids(data.ulq);
     extraData['Método de limpeza'] = getStrings(data.metodos);
     extraData['Local de limpeza'] = getStrings(data.local);
     extraData['Tipo de inspeção'] = getStrings(data.tipoInspecao);
@@ -120,7 +125,7 @@ export function buildReportServicePayload(
 
   if (type === 'pressao') {
     const manometerIds = getStrings(data.manometroIds);
-    const uthIds = singleId(data.uth);
+    const uthIds = ids(data.uth);
     extraData['Pressão de trabalho'] = formatValueWithUnit(data.pressaoTrabalho, data.pressaoTrabalhoUnit);
     extraData['Pressão de teste'] = formatValueWithUnit(data.pressaoTeste, data.pressaoTesteUnit);
     extraData['Fluido de teste'] = getString(data.fluidoTeste) === 'oleo' ? 'Óleo' : 'Água';
@@ -130,7 +135,7 @@ export function buildReportServicePayload(
   }
 
   if (type === 'flushing' || type === 'filtragem') {
-    const unitIds = type === 'filtragem' ? singleId(data.ufg) : singleId(data.uf);
+    const unitIds = type === 'filtragem' ? ids(data.ufg) : ids(data.uf);
     extraData['Tipo de óleo'] = getString(data.tipoOleo);
     extraData['Volume de óleo'] = formatValueWithUnit(data.volumeOleo, data.volumeOleoUnit);
     extraData['Houve contagem de partículas?'] = getString(data.houveParticulas) || 'Não';

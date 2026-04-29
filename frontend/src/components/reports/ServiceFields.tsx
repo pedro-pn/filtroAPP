@@ -72,6 +72,12 @@ function getStrings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
 }
 
+function getStringList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string');
+  if (typeof value === 'string' && value) return [value];
+  return [''];
+}
+
 function getString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
@@ -102,6 +108,14 @@ function toggleItem(arr: string[], item: string, checked: boolean): string[] {
 
 function requiredMark() {
   return <span style={{ color: 'var(--rd)' }}>*</span>;
+}
+
+function radioOptionClass(checked: boolean, negative = false) {
+  return `rdo-tag-option ${checked ? (negative ? 'no' : 'yes') : ''}`;
+}
+
+function pillOptionClass(checked: boolean) {
+  return `rdo-pill-option ${checked ? 'sel' : ''}`;
 }
 
 interface ServiceFieldsProps {
@@ -229,6 +243,64 @@ function TubesBlock({ data, onChange, disabled, invalidKey }: Pick<ServiceFields
   );
 }
 
+function UnitMultiField({
+  label,
+  field,
+  units,
+  categories,
+  data,
+  onChange,
+  disabled,
+  invalidKey,
+  required = true
+}: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey'> & {
+  label: string;
+  field: string;
+  units: Unit[];
+  categories: Unit['category'][];
+  required?: boolean;
+}) {
+  const selected = getStringList(data[field]);
+  const options = units.filter(unit => categories.includes(unit.category));
+
+  return (
+    <div className={fieldClass(invalidKey, field)}>
+      <label>{label} {required ? requiredMark() : null}</label>
+      <div className="unit-stack">
+        {selected.map((value, index) => (
+          <div className="unit-row-react" key={`${field}-${index}`}>
+            <select
+              value={value}
+              disabled={disabled}
+              onChange={event => onChange({ [field]: updateArrayItem(selected, index, event.target.value) })}
+            >
+              <option value="">Selecionar...</option>
+              {options.map(unit => <option key={unit.id} value={unit.id}>{unit.code}</option>)}
+            </select>
+            <button
+              className="unit-row-remove"
+              type="button"
+              disabled={disabled || selected.length === 1}
+              onClick={() => onChange({ [field]: selected.filter((_, itemIndex) => itemIndex !== index) })}
+              aria-label={`Remover ${label}`}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        className="tube-add"
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange({ [field]: [...selected, ''] })}
+      >
+        ＋ Adicionar unidade
+      </button>
+    </div>
+  );
+}
+
 function FinalizadoAprovadoBlock({ data, onChange, disabled, groupKey, invalidKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'groupKey' | 'invalidKey'>) {
   const finalized = getBool(data.finalized, true);
   const aprovadoCliente = getString(data.aprovadoCliente) || 'Sim';
@@ -237,15 +309,16 @@ function FinalizadoAprovadoBlock({ data, onChange, disabled, groupKey, invalidKe
     <>
       <div className={fieldClass(invalidKey, 'finalized')}>
         <label>Serviço finalizado? {requiredMark()}</label>
-        <div className="rdo-check-grid">
+        <div className="rdo-tag-group">
           {['Sim', 'Não'].map(label => {
             const value = label === 'Sim';
+            const checked = finalized === value;
             return (
-              <label className="rdo-check-row" key={label}>
+              <label className={radioOptionClass(checked, label === 'Não')} key={label}>
                 <input
                   type="radio"
                   name={`finalizado-${groupKey}`}
-                  checked={finalized === value}
+                  checked={checked}
                   disabled={disabled}
                   onChange={() => onChange({ finalized: value })}
                 />
@@ -258,19 +331,22 @@ function FinalizadoAprovadoBlock({ data, onChange, disabled, groupKey, invalidKe
       {finalized ? (
         <div className="field-group">
           <label>Aprovado pelo cliente? {requiredMark()}</label>
-          <div className="rdo-check-grid">
-            {['Sim', 'Não'].map(label => (
-              <label className="rdo-check-row" key={label}>
-                <input
-                  type="radio"
-                  name={`aprovado-${groupKey}`}
-                  checked={aprovadoCliente === label}
-                  disabled={disabled}
-                  onChange={() => onChange({ aprovadoCliente: label })}
-                />
-                <span>{label}</span>
-              </label>
-            ))}
+          <div className="rdo-tag-group">
+            {['Sim', 'Não'].map(label => {
+              const checked = aprovadoCliente === label;
+              return (
+                <label className={radioOptionClass(checked, label === 'Não')} key={label}>
+                  <input
+                    type="radio"
+                    name={`aprovado-${groupKey}`}
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={() => onChange({ aprovadoCliente: label })}
+                  />
+                  <span>{label}</span>
+                </label>
+              );
+            })}
           </div>
         </div>
       ) : null}
@@ -285,9 +361,9 @@ function EtapasSection({ serviceType, data, onChange, disabled, invalidKey }: Pi
   const custom = getString(data.customEtapa);
 
   return (
-    <div className={fieldClass(invalidKey, 'etapas')}>
+    <div className={`${fieldClass(invalidKey, 'etapas')} service-options-full`}>
       <label>Etapas realizadas no dia {requiredMark()}</label>
-      <div className="rdo-check-grid">
+      <div className="rdo-check-grid service-step-list">
         {etapas.map(etapa => (
           <label className="rdo-check-row" key={etapa}>
             <input
@@ -377,19 +453,22 @@ function ParticulasBlock({ data, onChange, disabled, groupKey, invalidKey, uploa
   return (
     <div className="field-group">
       <label>Houve contagem de partículas?</label>
-      <div className="rdo-check-grid">
-        {['Sim', 'Não'].map(label => (
-          <label className="rdo-check-row" key={label}>
-            <input
-              type="radio"
-              name={`particulas-${groupKey}`}
-              checked={(getString(data.houveParticulas) || 'Não') === label}
-              disabled={disabled}
-              onChange={() => onChange({ houveParticulas: label })}
-            />
-            <span>{label}</span>
-          </label>
-        ))}
+      <div className="rdo-tag-group">
+        {['Sim', 'Não'].map(label => {
+          const checked = (getString(data.houveParticulas) || 'Não') === label;
+          return (
+            <label className={radioOptionClass(checked, label === 'Não')} key={label}>
+              <input
+                type="radio"
+                name={`particulas-${groupKey}`}
+                checked={checked}
+                disabled={disabled}
+                onChange={() => onChange({ houveParticulas: label })}
+              />
+              <span>{label}</span>
+            </label>
+          );
+        })}
       </div>
       {enabled ? (
         <div className="collapse-section">
@@ -434,19 +513,22 @@ function DesidratacaoBlock({ data, onChange, disabled, groupKey, units, invalidK
   return (
     <div className="field-group">
       <label>Houve desidratação?</label>
-      <div className="rdo-check-grid">
-        {['Sim', 'Não'].map(label => (
-          <label className="rdo-check-row" key={label}>
-            <input
-              type="radio"
-              name={`desidratacao-${groupKey}`}
-              checked={(getString(data.houveDesidratacao) || 'Não') === label}
-              disabled={disabled}
-              onChange={() => onChange({ houveDesidratacao: label })}
-            />
-            <span>{label}</span>
-          </label>
-        ))}
+      <div className="rdo-tag-group">
+        {['Sim', 'Não'].map(label => {
+          const checked = (getString(data.houveDesidratacao) || 'Não') === label;
+          return (
+            <label className={radioOptionClass(checked, label === 'Não')} key={label}>
+              <input
+                type="radio"
+                name={`desidratacao-${groupKey}`}
+                checked={checked}
+                disabled={disabled}
+                onChange={() => onChange({ houveDesidratacao: label })}
+              />
+              <span>{label}</span>
+            </label>
+          );
+        })}
       </div>
       {enabled ? (
         <div className="collapse-section">
@@ -461,19 +543,22 @@ function DesidratacaoBlock({ data, onChange, disabled, groupKey, units, invalidK
             {upload('Fotos da desidratação')}
             <div className="field-group">
               <label>Houve análise de umidade?</label>
-              <div className="rdo-check-grid">
-                {['Sim', 'Não'].map(label => (
-                  <label className="rdo-check-row" key={label}>
-                    <input
-                      type="radio"
-                      name={`umidade-${groupKey}`}
-                      checked={(getString(data.houveUmidade) || 'Não') === label}
-                      disabled={disabled}
-                      onChange={() => onChange({ houveUmidade: label })}
-                    />
-                    <span>{label}</span>
-                  </label>
-                ))}
+              <div className="rdo-tag-group">
+                {['Sim', 'Não'].map(label => {
+                  const checked = (getString(data.houveUmidade) || 'Não') === label;
+                  return (
+                    <label className={radioOptionClass(checked, label === 'Não')} key={label}>
+                      <input
+                        type="radio"
+                        name={`umidade-${groupKey}`}
+                        checked={checked}
+                        disabled={disabled}
+                        onChange={() => onChange({ houveUmidade: label })}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
             {hasHumidity ? (
@@ -535,8 +620,6 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
     const metodos = getStrings(data.metodos);
     const local = getStrings(data.local);
     const tipoInspecao = getStrings(data.tipoInspecao);
-    const ulq = getString(data.ulq);
-    const limpezaUnits = units.filter(u => u.category === 'LIMPEZA_QUIMICA');
 
     return (
       <>
@@ -552,18 +635,12 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
             ))}
           </div>
         </div>
-        <div className={fieldClass(invalidKey, 'ulq')}>
-          <label>Unidade de Limpeza Química {requiredMark()}</label>
-          <select value={ulq} disabled={disabled} onChange={e => onChange({ ulq: e.target.value })}>
-            <option value="">Selecionar...</option>
-            {limpezaUnits.map(u => <option key={u.id} value={u.id}>{u.code}</option>)}
-          </select>
-        </div>
+        <UnitMultiField label="Unidade de Limpeza Química" field="ulq" units={units} categories={['LIMPEZA_QUIMICA']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <div className={fieldClass(invalidKey, 'local')}>
           <label>Local de limpeza {requiredMark()}</label>
-          <div className="rdo-check-grid">
+          <div className="rdo-pill-list">
             {['Interna', 'Externa'].map(l => (
-              <label className="rdo-check-row" key={l}>
+              <label className={pillOptionClass(local.includes(l))} key={l}>
                 <input type="checkbox" checked={local.includes(l)} disabled={disabled} onChange={e => onChange({ local: toggleItem(local, l, e.target.checked) })} />
                 <span>{l}</span>
               </label>
@@ -575,9 +652,9 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <div className={fieldClass(invalidKey, 'tipoInspecao')}>
           <label>Tipo de inspeção {requiredMark()}</label>
-          <div className="rdo-check-grid">
+          <div className="rdo-pill-list">
             {['Visual', 'Corpo de prova', 'Vídeo boroscopia'].map(t => (
-              <label className="rdo-check-row" key={t}>
+              <label className={pillOptionClass(tipoInspecao.includes(t))} key={t}>
                 <input type="checkbox" checked={tipoInspecao.includes(t)} disabled={disabled} onChange={e => onChange({ tipoInspecao: toggleItem(tipoInspecao, t, e.target.checked) })} />
                 <span>{t}</span>
               </label>
@@ -596,8 +673,6 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
     const qualOleo = getString(data.qualOleo);
     const manometroIds = getStrings(data.manometroIds);
     const activeManometers = manometers.filter(m => m.isActive);
-    const uthUnits = units.filter(u => u.category === 'UTH');
-    const uth = getString(data.uth);
 
     return (
       <>
@@ -605,20 +680,14 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
         <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        <div className={fieldClass(invalidKey, 'uth')}>
-          <label>Unidade de Teste Hidrostático (UTH) {requiredMark()}</label>
-          <select value={uth} disabled={disabled} onChange={e => onChange({ uth: e.target.value })}>
-            <option value="">Selecionar...</option>
-            {uthUnits.map(u => <option key={u.id} value={u.id}>{u.code}</option>)}
-          </select>
-        </div>
+        <UnitMultiField label="Unidade de Teste Hidrostático (UTH)" field="uth" units={units} categories={['UTH']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <PressureField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} field="pressaoTrabalho" unitField="pressaoTrabalhoUnit" label="Pressão de trabalho" />
         <PressureField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} field="pressaoTeste" unitField="pressaoTesteUnit" label="Pressão de teste" />
         <div className={fieldClass(invalidKey, 'manometroIds')}>
           <label>Fluido de teste</label>
-          <div className="rdo-check-grid">
+          <div className="rdo-tag-group">
             {[['agua', 'Água'], ['oleo', 'Óleo']].map(([val, label]) => (
-              <label className="rdo-check-row" key={val}>
+              <label className={radioOptionClass(fluidoTeste === val)} key={val}>
                 <input type="radio" name={`fluido-${groupKey}`} checked={fluidoTeste === val} disabled={disabled} onChange={() => onChange({ fluidoTeste: val })} />
                 <span>{label}</span>
               </label>
@@ -651,8 +720,6 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
 
   if (normalizedType === 'flushing') {
     const tipoFlushing = getString(data.tipoFlushing) || 'primario';
-    const uf = getString(data.uf);
-    const flushingUnits = units.filter(u => u.category === 'FLUSHING');
 
     return (
       <>
@@ -665,22 +732,16 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
         <VolumeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <div className={fieldClass(invalidKey, 'uf')}>
           <label>Tipo de flushing</label>
-          <div className="rdo-check-grid">
+          <div className="rdo-tag-group">
             {[['primario', 'Primário'], ['secundario', 'Secundário']].map(([val, label]) => (
-              <label className="rdo-check-row" key={val}>
+              <label className={radioOptionClass(tipoFlushing === val)} key={val}>
                 <input type="radio" name={`flushing-tipo-${groupKey}`} checked={tipoFlushing === val} disabled={disabled} onChange={() => onChange({ tipoFlushing: val })} />
                 <span>{label}</span>
               </label>
             ))}
           </div>
         </div>
-        <div className="field-group">
-          <label>Unidade de Flushing {requiredMark()}</label>
-          <select value={uf} disabled={disabled} onChange={e => onChange({ uf: e.target.value })}>
-            <option value="">Selecionar...</option>
-            {flushingUnits.map(u => <option key={u.id} value={u.id}>{u.code}</option>)}
-          </select>
-        </div>
+        <UnitMultiField label="Unidade de Flushing" field="uf" units={units} categories={['FLUSHING', 'FILTRAGEM']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} upload={upload} />
@@ -691,9 +752,6 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
   }
 
   if (normalizedType === 'filtragem') {
-    const ufg = getString(data.ufg);
-    const filtragemUnits = units.filter(u => u.category === 'FILTRAGEM');
-
     return (
       <>
         <div className={fieldClass(invalidKey, 'tipoOleo')}>
@@ -701,13 +759,7 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
           <input value={getString(data.tipoOleo)} placeholder="Marca/modelo do óleo..." disabled={disabled} onChange={e => onChange({ tipoOleo: e.target.value })} />
         </div>
         <VolumeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        <div className={fieldClass(invalidKey, 'ufg')}>
-          <label>Unidade de filtragem {requiredMark()}</label>
-          <select value={ufg} disabled={disabled} onChange={e => onChange({ ufg: e.target.value })}>
-            <option value="">Selecionar...</option>
-            {filtragemUnits.map(u => <option key={u.id} value={u.id}>{u.code}</option>)}
-          </select>
-        </div>
+        <UnitMultiField label="Unidade de filtragem" field="ufg" units={units} categories={['FILTRAGEM']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} upload={upload} />
@@ -765,9 +817,9 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <div className="field-group">
           <label>Tipo de relatório</label>
-          <div className="rdo-check-grid">
+          <div className="rdo-pill-list">
             {['RLI', 'RLF'].map(tipo => (
-              <label className="rdo-check-row" key={tipo}>
+              <label className={pillOptionClass(tipoRelatorio.includes(tipo))} key={tipo}>
                 <input type="checkbox" checked={tipoRelatorio.includes(tipo)} disabled={disabled} onChange={event => onChange({ tipoRelatorio: toggleItem(tipoRelatorio, tipo, event.target.checked) })} />
                 <span>{tipo}</span>
               </label>

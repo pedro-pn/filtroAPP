@@ -32,7 +32,8 @@
       "Bash(grep -r \"\\\\\\\\\\\\\\\\u00\" \"C:\\\\Users\\\\relat\\\\Área de Trabalho\\\\NewRDO\\\\frontend\\\\src\" --include=\"*.tsx\" -l)",
       "Bash(grep -n \"\\\\\\\\\\\\\\\\u00\\\\|\\\\\\\\\\\\\\\\u20\\\\|\\\\\\\\\\\\\\\\u21\\\\|\\\\\\\\\\\\\\\\u01\\\\|\\\\\\\\\\\\\\\\u03\" \"C:\\\\Users\\\\relat\\\\Área de Trabalho\\\\NewRDO\\\\frontend\\\\src\\\\components\\\\reports\\\\ReportSummaryCard.tsx\" \"C:\\\\Users\\\\relat\\\\Área de Trabalho\\\\NewRDO\\\\frontend\\\\src\\\\pages\\\\gestor\\\\GestorPage.tsx\")",
       "Bash(grep -n \"\\\\\\\\\\\\\\\\u00\\\\|\\\\\\\\\\\\\\\\u20\\\\| as {\" \"C:\\\\Users\\\\relat\\\\Área de Trabalho\\\\NewRDO\\\\frontend\\\\src\\\\components\\\\reports\\\\ReportSummaryCard.tsx\" \"C:\\\\Users\\\\relat\\\\Área de Trabalho\\\\NewRDO\\\\frontend\\\\src\\\\pages\\\\gestor\\\\GestorPage.tsx\")",
-      "Bash(ipconfig)"
+      "Bash(ipconfig)",
+      "mcp__code-review-graph__list_graph_stats_tool"
     ]
   },
   "enableAllProjectMcpServers": true,
