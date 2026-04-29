@@ -336,6 +336,26 @@ function replacePlaceholders(element, values) {
       `{{ ${key}}}`
     ].forEach(token => replaceTokenInElement(element, token, safe));
   });
+  preserveWordTextLineBreaks(element);
+}
+
+function preserveWordTextLineBreaks(element) {
+  const textNodes = Array.from(element.getElementsByTagName('w:t'));
+  textNodes.forEach(node => {
+    const content = node.textContent || '';
+    if (!/[\r\n]/.test(content)) return;
+    const doc = node.ownerDocument;
+    const parent = node.parentNode;
+    const lines = content.split(/\r\n|\r|\n/);
+    lines.forEach((line, index) => {
+      if (index > 0) parent.insertBefore(doc.createElement('w:br'), node);
+      const textNode = doc.createElement('w:t');
+      if (/^\s|\s$/.test(line)) textNode.setAttribute('xml:space', 'preserve');
+      textNode.appendChild(doc.createTextNode(line));
+      parent.insertBefore(textNode, node);
+    });
+    parent.removeChild(node);
+  });
 }
 
 function findFirstByText(root, tagName, token) {
@@ -360,7 +380,7 @@ function setParagraphText(doc, paragraph, text) {
   while (paragraph.firstChild) paragraph.removeChild(paragraph.firstChild);
   if (pPr) paragraph.appendChild(pPr);
 
-  const lines = content.split(/\r?\n/);
+  const lines = content.split(/\r\n|\r|\n/);
   const run = doc.createElement('w:r');
   lines.forEach((line, index) => {
     if (index > 0) run.appendChild(doc.createElement('w:br'));
@@ -370,6 +390,45 @@ function setParagraphText(doc, paragraph, text) {
     run.appendChild(textNode);
   });
   paragraph.appendChild(run);
+}
+
+function setPlaceholderCellParagraphs(doc, token, text) {
+  const paragraph = findFirstByText(doc, 'w:p', token);
+  if (!paragraph) return;
+  const cell = paragraph.parentNode?.nodeName === 'w:tc' ? paragraph.parentNode : null;
+  if (!cell) {
+    setParagraphText(doc, paragraph, text);
+    return;
+  }
+
+  let pPr = null;
+  let rPr = null;
+  for (let child = paragraph.firstChild; child; child = child.nextSibling) {
+    if (child.nodeName === 'w:pPr') pPr = child.cloneNode(true);
+    if (!rPr && child.nodeName === 'w:r') {
+      for (let runChild = child.firstChild; runChild; runChild = runChild.nextSibling) {
+        if (runChild.nodeName === 'w:rPr') {
+          rPr = runChild.cloneNode(true);
+          break;
+        }
+      }
+    }
+  }
+
+  const lines = String(text || '').split(/\r\n|\r|\n/);
+  lines.forEach(line => {
+    const newParagraph = doc.createElement('w:p');
+    if (pPr) newParagraph.appendChild(pPr.cloneNode(true));
+    const run = doc.createElement('w:r');
+    if (rPr) run.appendChild(rPr.cloneNode(true));
+    const textNode = doc.createElement('w:t');
+    if (/^\s|\s$/.test(line)) textNode.setAttribute('xml:space', 'preserve');
+    textNode.appendChild(doc.createTextNode(line));
+    run.appendChild(textNode);
+    newParagraph.appendChild(run);
+    cell.insertBefore(newParagraph, paragraph);
+  });
+  cell.removeChild(paragraph);
 }
 
 function cloneBefore(node, clones) {
@@ -782,6 +841,7 @@ export async function buildReportDocx(report) {
   });
 
   updateXmlEntry(zip, 'word/document.xml', doc => {
+    setPlaceholderCellParagraphs(doc, '{{activities}}', baseData.activities);
     replacePlaceholders(doc, baseData);
     expandCollaborators(doc, report);
     expandServices(doc, report);
