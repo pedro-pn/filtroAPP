@@ -10,6 +10,7 @@ import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useCollaboratorMutations, useCollaborators } from '../../hooks/useCollaborators';
 import { useCounterMutations, useCounters } from '../../hooks/useCounters';
+import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useManometerMutations, useManometers } from '../../hooks/useManometers';
 import { useProjectMutations, useProjects } from '../../hooks/useProjects';
 import { useReportMutations, useReports } from '../../hooks/useReports';
@@ -17,12 +18,14 @@ import { useUnitMutations, useUnits } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
+import { useRdoStore } from '../../store/rdoStore';
 import type {
   Collaborator,
   InternalUserSummary,
   Manometer,
   ParticleCounter,
   Project,
+  ReportDraft,
   ReportSummary,
   Unit,
   UnitCategory
@@ -144,6 +147,43 @@ function groupUnits(units: Unit[]) {
     acc[unit.category].push(unit);
     return acc;
   }, {});
+}
+
+interface RdoServiceDraft {
+  id: string;
+  type: string;
+  data: Record<string, unknown>;
+}
+
+function asString(value: unknown, fallback = '') {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function asBoolean(value: unknown) {
+  return typeof value === 'boolean' ? value : false;
+}
+
+function asStringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function asServices(value: unknown): RdoServiceDraft[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map(item => ({
+      id: asString(item.id, `svc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+      type: asString(item.type, 'limpeza'),
+      data: item.data && typeof item.data === 'object' && !Array.isArray(item.data)
+        ? item.data as Record<string, unknown>
+        : {}
+    }));
+}
+
+function draftDateLabel(draft: ReportDraft) {
+  const payloadDate = asString(draft.payload.reportDate);
+  return draft.reportDate || payloadDate || 'Sem data';
 }
 
 function formatUnitCategory(category: UnitCategory) {
@@ -276,6 +316,7 @@ function renderProjectCard(project: Project, options: { onEdit: (project: Projec
 export function GestorPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { hydrate, reset } = useRdoStore();
   const [tab, setTab] = useState<GestorTab>('pendentes');
 
   const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
@@ -312,6 +353,7 @@ export function GestorPage() {
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
 
   const reportsQuery = useReports();
+  const draftsQuery = useDrafts();
   const activeProjectsQuery = useProjects(true);
   const archivedProjectsQuery = useProjects(false);
   const collaboratorsQuery = useCollaborators();
@@ -322,6 +364,7 @@ export function GestorPage() {
 
   const projectMutations = useProjectMutations();
   const reportMutations = useReportMutations();
+  const draftMutations = useDraftMutations();
   const collaboratorMutations = useCollaboratorMutations();
   const userMutations = useUserMutations();
   const unitMutations = useUnitMutations();
@@ -356,6 +399,39 @@ export function GestorPage() {
   async function handleLogout() {
     await logout();
     navigate('/', { replace: true });
+  }
+
+  function handleNewReport() {
+    reset();
+    navigate('/relatorios/novo');
+  }
+
+  function handleResumeDraft(draft: ReportDraft) {
+    const payload = draft.payload || {};
+
+    hydrate({
+      draftId: draft.id,
+      projectId: asString(payload.projectId, draft.projectId || '') || null,
+      reportDate: asString(payload.reportDate, draft.reportDate || ''),
+      arrivalTime: asString(payload.arrivalTime),
+      departureTime: asString(payload.departureTime),
+      lunchBreak: asString(payload.lunchBreak, '01:00:00'),
+      collaboratorIds: asStringArray(payload.collaboratorIds),
+      nightCollaboratorIds: asStringArray(payload.nightCollaboratorIds),
+      standby: asBoolean(payload.standby),
+      standbyDuration: asString(payload.standbyDuration),
+      standbyMotivo: asString(payload.standbyMotivo),
+      noturno: asBoolean(payload.noturno),
+      noturnoStart: asString(payload.noturnoStart),
+      noturnoEnd: asString(payload.noturnoEnd),
+      noturnoInterval: asString(payload.noturnoInterval, '01:00:00'),
+      overtimeReason: asString(payload.overtimeReason),
+      dailyDescription: asString(payload.dailyDescription),
+      generalUploads: Array.isArray(payload.generalUploads) ? payload.generalUploads : [],
+      services: asServices(payload.services)
+    });
+
+    navigate('/relatorios/novo');
   }
 
   function resetProjectForm() {
@@ -770,16 +846,46 @@ export function GestorPage() {
 
     const criarRelatorioBtn = tab === 'pendentes' ? (
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <button className="primary-button" type="button" onClick={() => navigate('/relatorios/novo')}>
+        <button className="primary-button" type="button" onClick={handleNewReport}>
           + Criar Relatório
         </button>
       </div>
+    ) : null;
+    const drafts = (draftsQuery.data || []).filter(draft => draft.projectId || draft.payload.projectId);
+    const draftsBlock = tab === 'pendentes' && drafts.length ? (
+      <section className="page-card">
+        <div className="section-title">Relatórios em andamento</div>
+        <div className="admin-stack">
+          {drafts.map(draft => (
+            <article className="admin-card-react" key={draft.id}>
+              <div className="admin-card-head">
+                <div>
+                  <div className="admin-card-title">{draft.title || 'Relatório em andamento'}</div>
+                  <div className="admin-card-meta">
+                    <span>{draft.project?.code || draft.projectId || 'Projeto'}</span>
+                    <span>{draftDateLabel(draft)}</span>
+                  </div>
+                </div>
+                <div className="admin-card-actions">
+                  <button className="secondary-button" type="button" onClick={() => handleResumeDraft(draft)}>
+                    Continuar
+                  </button>
+                  <button className="danger-button" type="button" onClick={() => draftMutations.removeDraft.mutate(draft.id)}>
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
     ) : null;
 
     if (!visibleReports.length) {
       return (
         <>
           {criarRelatorioBtn}
+          {draftsBlock}
           <div className="page-card placeholder-copy">
             {tab === 'pendentes'
               ? 'Nenhum relatório pendente.'
@@ -810,6 +916,7 @@ export function GestorPage() {
     return (
       <>
         {criarRelatorioBtn}
+        {draftsBlock}
         {reportMessage ? <div className="page-card inline-success">{reportMessage}</div> : null}
         {renderProjectReportGroups(visibleReports)}
         {reasonDialog}

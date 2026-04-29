@@ -164,7 +164,7 @@ export function buildReportServicePayload(
 
   return {
     serviceType: type,
-    equipmentId: getString(data.equipmentId) || null,
+    equipmentId: null,
     system: getString(data.system) || null,
     material: getString(data.material) || null,
     startTime: getString(data.startTime) || null,

@@ -403,6 +403,7 @@ a {
   border-radius: var(--r);
   background: #fafafa;
   padding: 12px;
+  overflow: hidden;
 }
 
 .admin-card-title {
@@ -517,6 +518,7 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
   margin: -12px -12px 12px;
   padding: 11px 12px;
   border-radius: var(--r) var(--r) 0 0;
@@ -529,8 +531,14 @@ a {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 1 1 auto;
   font-size: 13px;
   font-weight: 800;
+}
+
+.svc-card-title span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .svc-card-badge {
@@ -756,6 +764,9 @@ a {
 }
 
 .field-group input {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
   border: 1px solid var(--br);
   border-radius: var(--rs);
   padding: 8px 10px;
@@ -764,6 +775,9 @@ a {
 
 .field-group select,
 .field-group textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
   border: 1px solid var(--br);
   border-radius: var(--rs);
   padding: 8px 10px;
@@ -846,6 +860,12 @@ a {
 .admin-form-grid {
   display: grid;
   gap: 14px;
+}
+
+.admin-form-grid > *,
+.fg-r2 > *,
+.rdo-check-grid > * {
+  min-width: 0;
 }
 
 .admin-inline-form {

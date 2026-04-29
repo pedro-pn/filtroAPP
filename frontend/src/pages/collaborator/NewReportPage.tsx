@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -8,8 +8,7 @@ import { ServiceFields, serviceTypeLabels, serviceTypeOptions } from '../../comp
 import { UploadField } from '../../components/ui/UploadField';
 import { useToast } from '../../components/ui/Toast';
 import { useCollaborators } from '../../hooks/useCollaborators';
-import { useDraftMutations } from '../../hooks/useDrafts';
-import { useEquipment } from '../../hooks/useEquipment';
+import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useManometers } from '../../hooks/useManometers';
 import { useProjects } from '../../hooks/useProjects';
 import { useReportMutations } from '../../hooks/useReports';
@@ -29,7 +28,6 @@ const TEXT = {
   departure: 'Saída',
   end: 'Fim',
   errorCreate: 'Não foi possível criar o relatório.',
-  errorDraft: 'Não foi possível salvar o rascunho.',
   finalization: 'Finalização',
   header: 'Cabeçalho',
   invalidSession: 'Sessão inválida.',
@@ -39,9 +37,6 @@ const TEXT = {
   photos: 'Fotos de registro',
   projectTimeRequired: 'Preencha projeto, data e horários antes de enviar.',
   remove: 'Remover',
-  saveDraft: 'Salvar rascunho',
-  savedDraft: 'Rascunho salvo.',
-  saveDraftProjectRequired: 'Selecione um projeto antes de salvar o rascunho.',
   select: 'Selecione',
   service: 'Serviço',
   services: 'Serviços',
@@ -65,21 +60,18 @@ const serviceTypeModalOptions = [
 
 const rdoSteps = [TEXT.header, TEXT.services, TEXT.finalization];
 
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function NewReportPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const projectsQuery = useProjects(true);
   const collaboratorsQuery = useCollaborators();
-  const equipmentQuery = useEquipment();
   const unitsQuery = useUnits();
   const manometersQuery = useManometers();
   const reportMutations = useReportMutations();
+  const draftsQuery = useDrafts();
   const draftMutations = useDraftMutations();
+  const draftSaveTimerRef = useRef<number | null>(null);
+  const lastAutoSaveSignatureRef = useRef('');
 
   const {
     draftId,
@@ -92,6 +84,11 @@ export function NewReportPage() {
     nightCollaboratorIds,
     standby,
     noturno,
+    standbyDuration,
+    standbyMotivo,
+    noturnoStart,
+    noturnoEnd,
+    noturnoInterval,
     overtimeReason,
     dailyDescription,
     generalUploads,
@@ -111,17 +108,12 @@ export function NewReportPage() {
   const showToast = useToast();
   const [step, setStep] = useState(0);
   const [showServiceModal, setShowServiceModal] = useState(false);
-  const [standbyDuration, setStandbyDuration] = useState('');
-  const [standbyMotivo, setStandbyMotivo] = useState('');
-  const [noturnoStart, setNoturnoStart] = useState('');
-  const [noturnoEnd, setNoturnoEnd] = useState('');
   const [invalidTarget, setInvalidTarget] = useState<string | null>(null);
   const [collaboratorToAdd, setCollaboratorToAdd] = useState('');
   const [nightCollaboratorToAdd, setNightCollaboratorToAdd] = useState('');
 
   const projects = projectsQuery.data || [];
   const collaborators = (collaboratorsQuery.data || []).filter(item => item.isActive);
-  const equipment = (equipmentQuery.data || []).filter(item => item.isActive);
   const units = unitsQuery.data || [];
   const manometers = manometersQuery.data || [];
 
@@ -148,9 +140,8 @@ export function NewReportPage() {
   }, [lastProjectReportQuery.data]);
 
   useEffect(() => {
-    if (!reportDate) setHeaderField('reportDate', todayIso());
     if (!lunchBreak) setHeaderField('lunchBreak', '01:00:00');
-  }, [lunchBreak, reportDate, arrivalTime, departureTime, setHeaderField]);
+  }, [lunchBreak, setHeaderField]);
 
   // Pre-fill collaborators from the most recent report of the selected project
   useEffect(() => {
@@ -181,6 +172,113 @@ export function NewReportPage() {
     if (Number.isNaN(d.getTime())) return report.reportDate;
     return d.toLocaleDateString('pt-BR');
   }
+
+  function parseDurationToMinutes(value: string) {
+    const parts = String(value || '').split(':').map(part => Number(part));
+    if (parts.some(part => Number.isNaN(part))) return 0;
+    return (parts[0] || 0) * 60 + (parts[1] || 0);
+  }
+
+  function workedMinutes(start: string, end: string, breakValue: string) {
+    const startMinutes = parseDurationToMinutes(start);
+    const endMinutes = parseDurationToMinutes(end);
+    if (!start || !end) return 0;
+    const total = endMinutes >= startMinutes ? endMinutes - startMinutes : endMinutes + 24 * 60 - startMinutes;
+    return Math.max(0, total - parseDurationToMinutes(breakValue));
+  }
+
+  function addDays(date: Date, days: number) {
+    const copy = new Date(date.getTime());
+    copy.setUTCDate(copy.getUTCDate() + days);
+    return copy;
+  }
+
+  function dateKey(date: Date) {
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+  }
+
+  function easterDate(year: number) {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(Date.UTC(year, month - 1, day));
+  }
+
+  function isHoliday(value: string) {
+    const date = new Date(`${value}T00:00:00Z`);
+    if (Number.isNaN(date.getTime())) return false;
+    const year = date.getUTCFullYear();
+    const key = dateKey(date);
+    const fixed = new Set(['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25'].map(day => `${year}-${day}`));
+    const easter = easterDate(year);
+    const movable = new Set([-48, -47, -2, 0, 60].map(days => dateKey(addDays(easter, days))));
+    return fixed.has(key) || movable.has(key);
+  }
+
+  function expectedMinutes() {
+    if (!selectedProject) return 0;
+    const date = new Date(`${reportDate}T00:00:00Z`);
+    if (Number.isNaN(date.getTime())) return parseDurationToMinutes(selectedProject.workdayHours || '09:00');
+    if (isHoliday(reportDate)) return 0;
+    const dow = date.getUTCDay();
+    const weekdayBase = parseDurationToMinutes(selectedProject.workdayHours || '09:00');
+    const weekendBase = parseDurationToMinutes(selectedProject.weekendWorkdayHours || '08:00');
+    if (dow === 5) return weekendBase;
+    if (dow === 6) return selectedProject.includesSaturday ? weekendBase : 0;
+    if (dow === 0) return selectedProject.includesSunday ? weekendBase : 0;
+    return weekdayBase;
+  }
+
+  function formatMinutes(total: number) {
+    const hours = Math.floor(total / 60);
+    const minutes = total % 60;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  }
+
+  const overtimeSummary = useMemo(() => {
+    const expected = expectedMinutes();
+    const daytimeWorkedMinutes = workedMinutes(arrivalTime, departureTime, lunchBreak);
+    const nighttimeWorkedMinutes = noturno ? workedMinutes(noturnoStart, noturnoEnd, noturnoInterval) : 0;
+    const daytimeOvertimeMinutes = expected === 0
+      ? daytimeWorkedMinutes
+      : Math.max(0, daytimeWorkedMinutes - expected > 30 ? daytimeWorkedMinutes - expected : 0);
+    const nighttimeOvertimeMinutes = expected === 0
+      ? nighttimeWorkedMinutes
+      : Math.max(0, nighttimeWorkedMinutes - expected > 30 ? nighttimeWorkedMinutes - expected : 0);
+
+    return {
+      expectedMinutes: expected,
+      daytimeWorkedMinutes,
+      nighttimeWorkedMinutes,
+      daytimeOvertimeMinutes,
+      nighttimeOvertimeMinutes,
+      totalOvertimeMinutes: daytimeOvertimeMinutes + nighttimeOvertimeMinutes,
+      isHoliday: isHoliday(reportDate)
+    };
+  }, [arrivalTime, departureTime, lunchBreak, noturno, noturnoEnd, noturnoInterval, noturnoStart, reportDate, selectedProject]);
+
+  const overtimeLines = [
+    `Turno diurno: trabalhado ${formatMinutes(overtimeSummary.daytimeWorkedMinutes)} | extra ${formatMinutes(overtimeSummary.daytimeOvertimeMinutes)}`,
+    ...(noturno || overtimeSummary.nighttimeWorkedMinutes
+      ? [`Turno noturno: trabalhado ${formatMinutes(overtimeSummary.nighttimeWorkedMinutes)} | extra ${formatMinutes(overtimeSummary.nighttimeOvertimeMinutes)}`]
+      : []),
+    overtimeSummary.expectedMinutes
+      ? `Jornada de referência: ${formatMinutes(overtimeSummary.expectedMinutes)}${overtimeSummary.isHoliday ? ' | feriado detectado' : ''}`
+      : overtimeSummary.isHoliday
+        ? 'Feriado detectado: todo o período trabalhado será considerado hora extra.'
+        : 'Data com regime integral de hora extra conforme configuração do projeto.'
+  ];
 
   function addCollaboratorFromSelect(night = false) {
     const id = night ? nightCollaboratorToAdd : collaboratorToAdd;
@@ -376,6 +474,11 @@ export function NewReportPage() {
       nightCollaboratorIds,
       standby,
       noturno,
+      standbyDuration,
+      standbyMotivo,
+      noturnoStart,
+      noturnoEnd,
+      noturnoInterval,
       overtimeReason,
       dailyDescription,
       generalUploads,
@@ -383,29 +486,88 @@ export function NewReportPage() {
     };
   }
 
-  async function handleSaveDraft() {
-    if (!projectId) {
-      showToast(TEXT.saveDraftProjectRequired, 'error');
+  function draftProjectDateKey(draft: { projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) {
+    const payload = draft.payload || {};
+    const draftProjectId = draft.projectId || (typeof payload.projectId === 'string' ? payload.projectId : '');
+    const draftReportDate = draft.reportDate || (typeof payload.reportDate === 'string' ? payload.reportDate : '');
+    return draftProjectId && draftReportDate ? `${draftProjectId}|${draftReportDate.slice(0, 10)}` : '';
+  }
+
+  function matchingDraftIds() {
+    const key = projectId && reportDate ? `${projectId}|${reportDate.slice(0, 10)}` : '';
+    if (!key) return [];
+    return (draftsQuery.data || []).filter(draft => draftProjectDateKey(draft) === key).map(draft => draft.id);
+  }
+
+  useEffect(() => {
+    if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
+
+    if (!projectId || !reportDate) {
+      setDraftId(null);
       return;
     }
 
-    const payload = {
-      projectId,
-      reportDate: reportDate || null,
-      title: selectedProject ? `RDO - ${selectedProject.code}` : 'RDO em andamento',
-      payload: buildDraftPayload()
-    };
+    draftSaveTimerRef.current = window.setTimeout(() => {
+      const payload = {
+        projectId,
+        reportDate,
+        title: selectedProject ? `${selectedProject.code} - ${selectedProject.name}` : 'Relatório em andamento',
+        payload: buildDraftPayload()
+      };
+      const sameProjectDateIds = matchingDraftIds();
+      const targetId = draftId && sameProjectDateIds.includes(draftId) ? draftId : sameProjectDateIds[0];
+      const signature = JSON.stringify({ targetId: targetId || '', payload });
+      if (signature === lastAutoSaveSignatureRef.current) return;
+      lastAutoSaveSignatureRef.current = signature;
 
-    try {
-      const saved = draftId
-        ? await draftMutations.updateDraft.mutateAsync({ id: draftId, payload })
-        : await draftMutations.createDraft.mutateAsync(payload);
-      setDraftId(saved.id);
-      showToast(TEXT.savedDraft, 'success');
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : TEXT.errorDraft, 'error');
-    }
-  }
+      void (async () => {
+        try {
+          const saved = targetId
+            ? await draftMutations.updateDraft.mutateAsync({ id: targetId, payload })
+            : await draftMutations.createDraft.mutateAsync(payload);
+          setDraftId(saved.id);
+
+          await Promise.all(
+            sameProjectDateIds
+              .filter(id => id !== saved.id)
+              .map(id => draftMutations.removeDraft.mutateAsync(id).catch(() => undefined))
+          );
+        } catch {
+          // Autosave is silent in the HTML flow.
+        }
+      })();
+    }, 150);
+
+    return () => {
+      if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
+    };
+  }, [
+    projectId,
+    reportDate,
+    arrivalTime,
+    departureTime,
+    lunchBreak,
+    collaboratorIds,
+    nightCollaboratorIds,
+    standby,
+    noturno,
+    standbyDuration,
+    standbyMotivo,
+    noturnoStart,
+    noturnoEnd,
+    noturnoInterval,
+    overtimeReason,
+    dailyDescription,
+    generalUploads,
+    services,
+    selectedProject,
+    draftId,
+    draftsQuery.data,
+    draftMutations.createDraft,
+    draftMutations.updateDraft,
+    draftMutations.removeDraft,
+    setDraftId
+  ]);
 
   async function handleSubmit() {
     if (!user?.id) {
@@ -416,17 +578,19 @@ export function NewReportPage() {
     if (!validateServices()) return;
 
     try {
+      const draftIdsToRemove = matchingDraftIds();
+      if (draftId && !draftIdsToRemove.includes(draftId)) draftIdsToRemove.push(draftId);
       const created = await reportMutations.createReport.mutateAsync({
         projectId: projectId!,
         createdByUserId: user.id,
         reportType: 'RDO',
-        status: 'PENDING',
+        status: user.role === 'MANAGER' ? 'APPROVED' : 'PENDING',
         reportDate,
         arrivalTime,
         departureTime,
         lunchBreak,
         daytimeCount: collaboratorIds.length,
-        overtimeReason: overtimeReason || null,
+        overtimeReason: overtimeSummary.totalOvertimeMinutes > 0 ? overtimeReason || null : null,
         dailyDescription: dailyDescription || null,
         specialConditions: {
           standby,
@@ -439,28 +603,27 @@ export function NewReportPage() {
             enabled: noturno,
             inicio: noturnoStart,
             termino: noturnoEnd,
+            intervalo: noturnoInterval,
             collaboratorIds: nightCollaboratorIds
-          }
+          },
+          overtimeSummary
         },
         collaboratorIds,
         services: services.map(service => buildReportServicePayload(service, {
           collaboratorIds,
           collaborators,
-          equipment,
           units
         }))
       });
 
-      if (draftId) {
-        try {
-          await draftMutations.removeDraft.mutateAsync(draftId);
-        } catch {
-          // Draft cleanup can be retried later; report is already created.
-        }
-      }
+      await Promise.all(draftIdsToRemove.map(id => draftMutations.removeDraft.mutateAsync(id).catch(() => undefined)));
 
       reset();
-      navigate(`/relatorios/${created.id}`);
+      if (user.role === 'MANAGER') {
+        navigate('/gestor');
+      } else {
+        navigate(`/relatorios/${created.id}`);
+      }
     } catch (err) {
       showToast(err instanceof Error ? err.message : TEXT.errorCreate, 'error');
     }
@@ -629,7 +792,7 @@ export function NewReportPage() {
                     type="time"
                     step={60}
                     value={standbyDuration}
-                    onChange={event => setStandbyDuration(event.target.value)}
+                    onChange={event => setHeaderField('standbyDuration', event.target.value)}
                   />
                 </div>
                 <div className={fieldState('header:standbyMotivo')} data-invalid-target="header:standbyMotivo">
@@ -638,7 +801,7 @@ export function NewReportPage() {
                     type="text"
                     placeholder="Motivo..."
                     value={standbyMotivo}
-                    onChange={event => setStandbyMotivo(event.target.value)}
+                    onChange={event => setHeaderField('standbyMotivo', event.target.value)}
                   />
                 </div>
               </div>
@@ -663,7 +826,7 @@ export function NewReportPage() {
                   <input
                     type="time"
                     value={noturnoStart}
-                    onChange={event => setNoturnoStart(event.target.value)}
+                    onChange={event => setHeaderField('noturnoStart', event.target.value)}
                   />
                 </div>
                 <div className={fieldState('header:noturnoEnd')} data-invalid-target="header:noturnoEnd">
@@ -671,7 +834,16 @@ export function NewReportPage() {
                   <input
                     type="time"
                     value={noturnoEnd}
-                    onChange={event => setNoturnoEnd(event.target.value)}
+                    onChange={event => setHeaderField('noturnoEnd', event.target.value)}
+                  />
+                </div>
+                <div>
+                  <label>Intervalo</label>
+                  <input
+                    type="time"
+                    step={60}
+                    value={noturnoInterval}
+                    onChange={event => setHeaderField('noturnoInterval', event.target.value)}
                   />
                 </div>
               </div>
@@ -816,19 +988,38 @@ export function NewReportPage() {
         {/* Card Horas extras */}
         <section className="page-card">
           <div className="section-title">Horas extras</div>
-          <div style={{ fontSize: 12, color: 'var(--mu)', lineHeight: 1.7, marginBottom: 10 }}>
-            Nenhuma hora extra identificada.
+          <div
+            style={{
+              fontSize: 12,
+              color: overtimeSummary.totalOvertimeMinutes > 0 ? 'var(--rd)' : 'var(--mu)',
+              lineHeight: 1.7,
+              marginBottom: 10
+            }}
+          >
+            {overtimeSummary.totalOvertimeMinutes > 0 ? (
+              <>
+                <strong>Hora extra identificada: {formatMinutes(overtimeSummary.totalOvertimeMinutes)}</strong>
+                {overtimeLines.map(line => <div key={line}>{line}</div>)}
+              </>
+            ) : (
+              <>
+                Nenhuma hora extra identificada.
+                {overtimeLines.map(line => <div key={line}>{line}</div>)}
+              </>
+            )}
           </div>
-          <div className="field-group">
-            <label htmlFor="rdo-overtime">Justificativa</label>
-            <textarea
-              id="rdo-overtime"
-              placeholder="Descreva o motivo das horas extras..."
-              rows={3}
-              value={overtimeReason}
-              onChange={event => setHeaderField('overtimeReason', event.target.value)}
-            />
-          </div>
+          {overtimeSummary.totalOvertimeMinutes > 0 ? (
+            <div className="field-group">
+              <label htmlFor="rdo-overtime">Justificativa</label>
+              <textarea
+                id="rdo-overtime"
+                placeholder="Descreva o motivo das horas extras..."
+                rows={3}
+                value={overtimeReason}
+                onChange={event => setHeaderField('overtimeReason', event.target.value)}
+              />
+            </div>
+          ) : null}
         </section>
 
         {/* Card Atividades do dia */}
@@ -873,9 +1064,6 @@ export function NewReportPage() {
             onClick={step === 0 ? () => navigate(backPath) : () => setStep(current => Math.max(current - 1, 0))}
           >
             {step === 0 ? 'Cancelar' : `← ${TEXT.back}`}
-          </button>
-          <button className="secondary-button" type="button" onClick={handleSaveDraft}>
-            {TEXT.saveDraft}
           </button>
           {step < rdoSteps.length - 1 ? (
             <button className="primary-button" type="button" onClick={handleNextStep}>
