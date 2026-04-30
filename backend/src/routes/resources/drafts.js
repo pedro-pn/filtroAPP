@@ -26,6 +26,15 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
 
 router.post('/', requireAuth, asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
+  if (data.projectId && data.reportDate) {
+    await prisma.reportDraft.deleteMany({
+      where: {
+        userId: req.auth.user.id,
+        projectId: data.projectId,
+        reportDate: data.reportDate
+      }
+    });
+  }
   const item = await prisma.reportDraft.create({
     data: {
       userId: req.auth.user.id,
@@ -44,6 +53,16 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   const current = await prisma.reportDraft.findUniqueOrThrow({ where: { id: req.params.id } });
   if (current.userId !== req.auth.user.id) {
     return res.status(403).json({ error: 'Você não tem permissão para alterar este rascunho.' });
+  }
+  if (data.projectId && data.reportDate) {
+    await prisma.reportDraft.deleteMany({
+      where: {
+        userId: req.auth.user.id,
+        projectId: data.projectId,
+        reportDate: data.reportDate,
+        id: { not: req.params.id }
+      }
+    });
   }
   const item = await prisma.reportDraft.update({
     where: { id: req.params.id },
