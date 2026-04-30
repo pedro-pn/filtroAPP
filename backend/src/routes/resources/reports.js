@@ -769,6 +769,19 @@ async function syncApprovedRtpReports(tx, report) {
     }
   });
 
+  const allApprovedRdos = await tx.report.findMany({
+    where: { projectId: report.projectId, reportType: ReportType.RDO, status: ReportStatus.APPROVED },
+    orderBy: [{ reportDate: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true,
+      reportDate: true,
+      createdAt: true,
+      services: {
+        select: { id: true, serviceType: true, startTime: true, endTime: true, extraData: true }
+      }
+    }
+  });
+
   for (const service of pressaoServices) {
     const fields = service.extraData || {};
     const serviceLinkKey = String(
@@ -777,6 +790,20 @@ async function syncApprovedRtpReports(tx, report) {
       service.id ||
       ''
     ).trim();
+    const serviceHistory = [];
+    for (const rdo of allApprovedRdos) {
+      for (const svc of rdo.services || []) {
+        if (svc.serviceType !== service.serviceType) continue;
+        const svcLinkKey = serviceHistoryKey(svc);
+        if ((svcLinkKey && svcLinkKey === serviceLinkKey) || svc.id === service.id) {
+          serviceHistory.push({ rdo, svc, fields: svc.extraData || {} });
+        }
+      }
+    }
+    if (!serviceHistory.length) {
+      serviceHistory.push({ rdo: report, svc: service, fields });
+    }
+    const consolidatedFields = buildHistoricalServiceData(fields, serviceHistory);
 
     const collabField =
       fields['Colaboradores do serviço'] ||
@@ -834,7 +861,7 @@ async function syncApprovedRtpReports(tx, report) {
         parentRdoId: report.id,
         serviceId: service.id,
         serviceLinkKey: serviceLinkKey || String(service.id),
-        serviceData: fields,
+        serviceData: consolidatedFields,
         resolvedCollaborators,
         resolvedManometers,
         resolvedUnits,
@@ -863,7 +890,7 @@ async function syncApprovedRtpReports(tx, report) {
               startTime: service.startTime || null,
               endTime: service.endTime || null,
               finalized: true,
-              extraData: fields
+              extraData: consolidatedFields
             }]
           }
         }
@@ -889,7 +916,7 @@ async function syncApprovedRtpReports(tx, report) {
             startTime: service.startTime || null,
             endTime: service.endTime || null,
             finalized: true,
-            extraData: fields
+            extraData: consolidatedFields
           }]
         }
       }
@@ -930,6 +957,19 @@ async function syncApprovedRlqReports(tx, report) {
     if (linkKey) existingByLinkKey.set(linkKey, item);
   });
 
+  const allApprovedRdos = await tx.report.findMany({
+    where: { projectId: report.projectId, reportType: ReportType.RDO, status: ReportStatus.APPROVED },
+    orderBy: [{ reportDate: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true,
+      reportDate: true,
+      createdAt: true,
+      services: {
+        select: { id: true, serviceType: true, startTime: true, endTime: true, extraData: true }
+      }
+    }
+  });
+
   for (const service of limpezaServices) {
     const fields = service.extraData || {};
     const serviceLinkKey = String(
@@ -938,6 +978,20 @@ async function syncApprovedRlqReports(tx, report) {
       service.id ||
       ''
     ).trim();
+    const serviceHistory = [];
+    for (const rdo of allApprovedRdos) {
+      for (const svc of rdo.services || []) {
+        if (svc.serviceType !== service.serviceType) continue;
+        const svcLinkKey = serviceHistoryKey(svc);
+        if ((svcLinkKey && svcLinkKey === serviceLinkKey) || svc.id === service.id) {
+          serviceHistory.push({ rdo, svc, fields: svc.extraData || {} });
+        }
+      }
+    }
+    if (!serviceHistory.length) {
+      serviceHistory.push({ rdo: report, svc: service, fields });
+    }
+    const consolidatedFields = buildHistoricalServiceData(fields, serviceHistory);
 
     const collabField =
       fields['Colaboradores do serviço'] ||
@@ -981,7 +1035,7 @@ async function syncApprovedRlqReports(tx, report) {
         parentRdoId: report.id,
         serviceId: service.id,
         serviceLinkKey: serviceLinkKey || String(service.id),
-        serviceData: fields,
+        serviceData: consolidatedFields,
         resolvedCollaborators,
         resolvedUnits,
         __leaderSnapshot: report.specialConditions?.__leaderSnapshot || null
@@ -1009,7 +1063,7 @@ async function syncApprovedRlqReports(tx, report) {
               startTime: service.startTime || null,
               endTime: service.endTime || null,
               finalized: true,
-              extraData: fields
+              extraData: consolidatedFields
             }]
           }
         }
@@ -1035,12 +1089,101 @@ async function syncApprovedRlqReports(tx, report) {
             startTime: service.startTime || null,
             endTime: service.endTime || null,
             finalized: true,
-            extraData: fields
+            extraData: consolidatedFields
           }]
         }
       }
     });
   }
+}
+
+function hasReportFieldValue(value) {
+  if (Array.isArray(value)) return value.length > 0;
+  if (value && typeof value === 'object') return Object.keys(value).length > 0;
+  return value !== undefined && value !== null && String(value).trim() !== '';
+}
+
+function getReportField(fields, names) {
+  for (const name of names) {
+    if (Object.prototype.hasOwnProperty.call(fields || {}, name) && hasReportFieldValue(fields[name])) {
+      return fields[name];
+    }
+  }
+  return undefined;
+}
+
+function isYesReportField(value) {
+  return /sim/i.test(Array.isArray(value) ? value.filter(Boolean).join(', ') : String(value || ''));
+}
+
+function serviceHistoryKey(service) {
+  const fields = service?.extraData || {};
+  return String(fields.__serviceLinkKey || fields.__sourceServiceId || '').trim();
+}
+
+function buildHistoricalServiceData(currentFields, serviceHistory) {
+  const data = { ...(currentFields || {}) };
+  const firstField = names => {
+    for (const item of serviceHistory) {
+      const value = getReportField(item.fields, names);
+      if (value !== undefined) return value;
+    }
+    return undefined;
+  };
+  const lastField = names => {
+    for (let i = serviceHistory.length - 1; i >= 0; i--) {
+      const value = getReportField(serviceHistory[i].fields, names);
+      if (value !== undefined) return value;
+    }
+    return undefined;
+  };
+  const copyIfPresent = (targetKey, value) => {
+    if (value !== undefined) data[targetKey] = value;
+  };
+
+  copyIfPresent('Contagem inicial NAS', firstField(['Contagem inicial NAS']));
+  copyIfPresent('Contagem inicial ISO', firstField(['Contagem inicial ISO']));
+  copyIfPresent('Contagem final NAS', lastField(['Contagem final NAS']));
+  copyIfPresent('Contagem final ISO', lastField(['Contagem final ISO']));
+  copyIfPresent('Umidade inicial (ppm)', firstField(['Umidade inicial (ppm)']));
+  copyIfPresent('Umidade final (ppm)', lastField(['Umidade final (ppm)']));
+  copyIfPresent('Contador utilizado', lastField(['Contador utilizado']));
+  copyIfPresent('Foto do laudo do contador', lastField(['Foto do laudo do contador', 'Foto laudo do contador']));
+  copyIfPresent('Equipamento de desidratação', lastField(['Equipamento de desidratação', 'Equipamento de desidratacao']));
+  copyIfPresent('Foto análise inicial', lastField(['Foto análise inicial', 'Foto analise inicial']));
+  copyIfPresent('Foto análise final', lastField(['Foto análise final', 'Foto analise final']));
+  const allSteps = [];
+  const seenSteps = new Set();
+  for (const item of serviceHistory) {
+    const steps = getReportField(item.fields, ['Etapas realizadas no dia']);
+    const arr = Array.isArray(steps) ? steps : (steps ? [steps] : []);
+    for (const step of arr) {
+      const label = String(step || '').trim();
+      const key = label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      if (label && !seenSteps.has(key)) {
+        seenSteps.add(key);
+        allSteps.push(label);
+      }
+    }
+  }
+  if (allSteps.length) data['Etapas realizadas no dia'] = allSteps;
+
+  const hasParticleData = serviceHistory.some(item => (
+    isYesReportField(getReportField(item.fields, ['Houve contagem de partículas?', 'Houve contagem de particulas?'])) ||
+    getReportField(item.fields, ['Contador utilizado', 'Contagem inicial NAS', 'Contagem final NAS', 'Contagem inicial ISO', 'Contagem final ISO', 'Foto do laudo do contador', 'Foto laudo do contador'])
+  ));
+  if (hasParticleData) data['Houve contagem de partículas?'] = 'Sim';
+
+  const hasHumidityData = serviceHistory.some(item => (
+    isYesReportField(getReportField(item.fields, ['Houve desidratação?', 'Houve desidratacao?', 'Houve análise de umidade?', 'Houve analise de umidade?'])) ||
+    getReportField(item.fields, ['Umidade inicial (ppm)', 'Umidade final (ppm)', 'Equipamento de desidratação', 'Equipamento de desidratacao'])
+  ));
+  if (hasHumidityData) {
+    data['Houve desidratação?'] = 'Sim';
+    data['Houve análise de umidade?'] = 'Sim';
+  }
+
+  return data;
 }
 
 async function syncApprovedRcpReports(tx, report) {
@@ -1072,9 +1215,13 @@ async function syncApprovedRcpReports(tx, report) {
   // Fetch all approved RDOs once for totalMinutes calculation.
   const allApprovedRdos = await tx.report.findMany({
     where: { projectId: report.projectId, reportType: ReportType.RDO, status: ReportStatus.APPROVED },
+    orderBy: [{ reportDate: 'asc' }, { createdAt: 'asc' }],
     select: {
+      id: true,
+      reportDate: true,
+      createdAt: true,
       services: {
-        select: { serviceType: true, startTime: true, endTime: true, extraData: true }
+        select: { id: true, serviceType: true, startTime: true, endTime: true, extraData: true }
       }
     }
   });
@@ -1088,26 +1235,41 @@ async function syncApprovedRcpReports(tx, report) {
       ''
     ).trim();
 
+    const serviceHistory = [];
+    for (const rdo of allApprovedRdos) {
+      for (const svc of rdo.services || []) {
+        if (svc.serviceType !== service.serviceType) continue;
+        const svcLinkKey = serviceHistoryKey(svc);
+        if ((svcLinkKey && svcLinkKey === serviceLinkKey) || svc.id === service.id) {
+          serviceHistory.push({ rdo, svc, fields: svc.extraData || {} });
+        }
+      }
+    }
+    if (!serviceHistory.length) {
+      serviceHistory.push({ rdo: report, svc: service, fields });
+    }
+    const consolidatedFields = buildHistoricalServiceData(fields, serviceHistory);
+
     const collabField =
-      fields['Colaboradores do serviço'] ||
-      fields['Colaboradores do serviÃ§o'] ||
-      fields['Colaboradores do servico'];
+      consolidatedFields['Colaboradores do serviço'] ||
+      consolidatedFields['Colaboradores do serviÃ§o'] ||
+      consolidatedFields['Colaboradores do servico'];
     const collabIds = [...new Set(Array.isArray(collabField?.ids) ? collabField.ids.filter(Boolean) : [])];
 
     const unitFieldVal = service.serviceType === 'filtragem'
-      ? (fields['Unidade de filtragem'] || fields['Unidade de Filtragem'])
-      : (fields['Unidade de Flushing'] || fields['Unidade de flushing']);
+      ? (consolidatedFields['Unidade de filtragem'] || consolidatedFields['Unidade de Filtragem'])
+      : (consolidatedFields['Unidade de Flushing'] || consolidatedFields['Unidade de flushing']);
     const unitIds = Array.isArray(unitFieldVal?.ids) ? unitFieldVal.ids.filter(Boolean)
       : (unitFieldVal && typeof unitFieldVal === 'string' ? [unitFieldVal] : []);
 
     const thermoFieldVal =
-      fields['Equipamento de desidratação'] ||
-      fields['Equipamento de desidrataÃ§Ã£o'] ||
-      fields['Equipamento de desidratacao'];
+      consolidatedFields['Equipamento de desidratação'] ||
+      consolidatedFields['Equipamento de desidrataÃ§Ã£o'] ||
+      consolidatedFields['Equipamento de desidratacao'];
     const thermoIds = Array.isArray(thermoFieldVal?.ids) ? thermoFieldVal.ids.filter(Boolean)
       : (thermoFieldVal && typeof thermoFieldVal === 'string' ? [thermoFieldVal] : []);
 
-    const counterRaw = fields['Contador utilizado'];
+    const counterRaw = consolidatedFields['Contador utilizado'];
     const counterId = counterRaw && typeof counterRaw === 'string' ? counterRaw
       : (counterRaw?.id || null);
 
@@ -1125,16 +1287,7 @@ async function syncApprovedRcpReports(tx, report) {
 
     // Sum minutes across all approved RDOs with the same service linkKey.
     let totalMinutes = 0;
-    for (const rdo of allApprovedRdos) {
-      for (const svc of rdo.services || []) {
-        if (svc.serviceType !== service.serviceType) continue;
-        const svcFields = svc.extraData || {};
-        const svcLinkKey = String(svcFields.__serviceLinkKey || svcFields.__sourceServiceId || '').trim();
-        if (svcLinkKey && svcLinkKey === serviceLinkKey) {
-          totalMinutes += calcServiceMinutes(svc.startTime, svc.endTime);
-        }
-      }
-    }
+    for (const item of serviceHistory) totalMinutes += calcServiceMinutes(item.svc.startTime, item.svc.endTime);
 
     const rcpPayload = {
       projectId: report.projectId,
@@ -1158,7 +1311,7 @@ async function syncApprovedRcpReports(tx, report) {
         serviceId: service.id,
         serviceLinkKey: serviceLinkKey || String(service.id),
         serviceType: service.serviceType,
-        serviceData: fields,
+        serviceData: consolidatedFields,
         resolvedCollaborators,
         resolvedUnits,
         resolvedThermoUnit,
@@ -1189,7 +1342,7 @@ async function syncApprovedRcpReports(tx, report) {
               startTime: service.startTime || null,
               endTime: service.endTime || null,
               finalized: true,
-              extraData: fields
+              extraData: consolidatedFields
             }]
           }
         }
@@ -1214,7 +1367,7 @@ async function syncApprovedRcpReports(tx, report) {
             startTime: service.startTime || null,
             endTime: service.endTime || null,
             finalized: true,
-            extraData: fields
+            extraData: consolidatedFields
           }]
         }
       }
@@ -1248,6 +1401,19 @@ async function syncApprovedRlmReports(tx, report) {
     if (linkKey) existingByLinkKey.set(linkKey, item);
   });
 
+  const allApprovedRdos = await tx.report.findMany({
+    where: { projectId: report.projectId, reportType: ReportType.RDO, status: ReportStatus.APPROVED },
+    orderBy: [{ reportDate: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true,
+      reportDate: true,
+      createdAt: true,
+      services: {
+        select: { id: true, serviceType: true, startTime: true, endTime: true, extraData: true }
+      }
+    }
+  });
+
   for (const service of mecanicaServices) {
     const fields = service.extraData || {};
     const serviceLinkKey = String(
@@ -1256,6 +1422,20 @@ async function syncApprovedRlmReports(tx, report) {
       service.id ||
       ''
     ).trim();
+    const serviceHistory = [];
+    for (const rdo of allApprovedRdos) {
+      for (const svc of rdo.services || []) {
+        if (svc.serviceType !== service.serviceType) continue;
+        const svcLinkKey = serviceHistoryKey(svc);
+        if ((svcLinkKey && svcLinkKey === serviceLinkKey) || svc.id === service.id) {
+          serviceHistory.push({ rdo, svc, fields: svc.extraData || {} });
+        }
+      }
+    }
+    if (!serviceHistory.length) {
+      serviceHistory.push({ rdo: report, svc: service, fields });
+    }
+    const consolidatedFields = buildHistoricalServiceData(fields, serviceHistory);
 
     const collabField =
       fields['Colaboradores do serviço'] ||
@@ -1290,7 +1470,7 @@ async function syncApprovedRlmReports(tx, report) {
         parentRdoId: report.id,
         serviceId: service.id,
         serviceLinkKey: serviceLinkKey || String(service.id),
-        serviceData: fields,
+        serviceData: consolidatedFields,
         resolvedCollaborators,
         __leaderSnapshot: report.specialConditions?.__leaderSnapshot || null
       }
@@ -1317,7 +1497,7 @@ async function syncApprovedRlmReports(tx, report) {
               startTime: service.startTime || null,
               endTime: service.endTime || null,
               finalized: true,
-              extraData: fields
+              extraData: consolidatedFields
             }]
           }
         }
@@ -1342,7 +1522,7 @@ async function syncApprovedRlmReports(tx, report) {
             startTime: service.startTime || null,
             endTime: service.endTime || null,
             finalized: true,
-            extraData: fields
+            extraData: consolidatedFields
           }]
         }
       }
