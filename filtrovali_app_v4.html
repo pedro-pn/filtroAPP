@@ -504,6 +504,15 @@ var API_BASE=window.location.protocol==='file:'?'http://localhost:4000/api':(win
 var REPORT_TYPES=['RDO','RTP','RLQ','RCPU','RLM','RLF','RLI'];
 var serviceIcons={limpeza:'🧪',pressao:'🔴',filtragem:'🔵',flushing:'💧',mecanica:'⚙️',inibicao:'🛡️'};
 var serviceNames={limpeza:'Limpeza química',pressao:'Teste de pressão',filtragem:'Filtragem',flushing:'Flushing',mecanica:'Limpeza mecânica',inibicao:'Inibição'};
+function normalizeServiceType(service){
+  var raw=typeof service==='string'?service:(service&&(service.serviceType||service.type||service.tipo||service.service_type));
+  var type=String(raw||'').trim().toLowerCase();
+  if(serviceNames[type])return type;
+  var fields=(service&&(service.extraData||service.fields||service.serviceData))||{};
+  if(fields['Tipo de flushing']||fields['Unidade de Flushing']||fields['Unidade de flushing'])return 'flushing';
+  if(fields['Unidade de filtragem'])return 'filtragem';
+  return '';
+}
 var defaultDb={
   colaboradores:[
     {id:'COL-001',nome:'Carlos Mendes',cargo:'Técnico sênior',email:'carlos@filtrovali.com',assinatura:'assinatura-carlos.png',ativo:true},
@@ -812,10 +821,11 @@ function unitField(label,tipo,val,required){
   return '<div class="fg"><label>'+label+(required?' <span class="req">*</span>':'')+'</label>'+
     '<select'+(required?' data-required="true" data-label="'+label+'"':'')+'>'+selectOptions(unitOptions(tipo),val,'Selecionar...')+'</select></div>';
 }
-function unitMultiField(label,tipo,n,vals,required,isPre){
+function unitMultiField(label,tipo,n,vals,required,isPre,extraAttrs){
   var opts=unitOptions(tipo);
   var arr=Array.isArray(vals)?(vals.length?vals:['']):(vals?[vals]:['']);
   var cid='units-'+n+'-'+tipo;
+  var attrs=extraAttrs?' '+extraAttrs:'';
   var rows=arr.map(function(v,i){
     return '<div class="unit-row" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
       '<select'+(i===0&&required?' data-required="true" data-label="'+label+'"':'')+' class="'+(isPre&&v?'pre':'')+'" data-unit-select style="flex:1">'+
@@ -826,7 +836,7 @@ function unitMultiField(label,tipo,n,vals,required,isPre){
     '</div>';
   }).join('');
   return '<div class="fg"><label>'+label+(required?' <span class="req">*</span>':'')+(isPre&&arr.filter(Boolean).length?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
-    '<div data-multifield="units" data-unit-tipo="'+tipo+'" id="'+cid+'">'+rows+'</div>'+
+    '<div data-multifield="units" data-unit-tipo="'+tipo+'"'+attrs+' id="'+cid+'">'+rows+'</div>'+
     '<div class="tube-add" onclick="addUnit(\''+cid+'\',\''+tipo+'\')">＋ Adicionar unidade</div></div>';
 }
 function removeUnitRow(btn){
@@ -845,6 +855,49 @@ function addUnit(cid,tipo){
     '<div style="color:#9ca3af;cursor:pointer;font-size:18px;line-height:1;flex-shrink:0" onclick="removeUnitRow(this)">×</div>';
   c.appendChild(d);
 }
+function setUnitContainerTipo(container,tipo){
+  if(!container)return;
+  var cid=container.id;
+  var opts=unitOptions(tipo);
+  container.querySelectorAll('[data-unit-select]').forEach(function(sel){
+    var cur=sel.value;
+    sel.innerHTML='<option value="">Selecionar...</option>'+opts.map(function(o){return '<option value="'+escapeHtml(o.value)+'"'+(o.value===cur?' selected':'')+'>'+escapeHtml(o.label)+'</option>';}).join('');
+  });
+  container.dataset.unitTipo=tipo;
+  var addBtn=container.nextElementSibling;
+  if(addBtn&&addBtn.classList.contains('tube-add'))addBtn.onclick=function(){addUnit(cid,tipo);};
+}
+function syncFlushingUnitTipo(card){
+  if(!card)return;
+  var unitBox=card.querySelector('[data-flushing-unit="true"]');
+  if(!unitBox)return;
+  var tipoFg=Array.from(card.querySelectorAll('.fg')).find(function(fg){
+    var label=fg.querySelector(':scope > label')||fg.querySelector('label');
+    return label&&cleanLabelText(label.textContent)==='Tipo de flushing';
+  });
+  var selected=tipoFg&&tipoFg.querySelector('.rtag.yes,.rtag.no');
+  var text=selected?selected.textContent.trim().toLowerCase():'';
+  setUnitContainerTipo(unitBox,text.indexOf('secund')>=0?'filtragem':'flushing');
+}
+function switchFlushingUnitTipo(source,tipo){
+  var container=null;
+  if(source&&source.closest){
+    var card=source.closest('.svc-card');
+    container=card&&card.querySelector('[data-flushing-unit="true"]');
+  }else{
+    container=document.getElementById('units-'+source+'-flushing');
+  }
+  setUnitContainerTipo(container,tipo);
+}
+document.addEventListener('click',function(e){
+  var tag=e.target&&e.target.closest&&e.target.closest('.svc-card[data-svc-type="flushing"] .rtag');
+  if(tag&&tag.parentElement&&tag.parentElement.closest('.fg')){
+    var label=tag.parentElement.closest('.fg').querySelector(':scope > label');
+    if(label&&cleanLabelText(label.textContent)==='Tipo de flushing'){
+      setTimeout(function(){syncFlushingUnitTipo(tag.closest('.svc-card'));},0);
+    }
+  }
+},true);
 
 function setProjeto(v){projAtual=v;}
 function addColab(){
@@ -904,6 +957,8 @@ function openModal(){document.getElementById('modal').classList.add('open');}
 document.getElementById('modal').addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
 
 function addSvc(tipo,silent,pre){
+  tipo=normalizeServiceType(tipo);
+  if(!tipo)return null;
   document.getElementById('modal').classList.remove('open');
   svcCount++;var n=svcCount;
   var div=document.createElement('div');div.id='sv'+n;
@@ -911,6 +966,7 @@ function addSvc(tipo,silent,pre){
   document.getElementById('svc-cards').appendChild(div);
   enhanceUploadZones(div);
   if(!silent)div.scrollIntoView({behavior:'smooth',block:'start'});
+  return div.querySelector('.svc-card');
 }
 function removeSvc(n){
   var el=document.getElementById('sv'+n);
@@ -4134,7 +4190,7 @@ function bodyFlushing(n,p,isPre){
   var equips=p['Equipamento(s)']||p.equipId||[];
   var etapas=['Abastecimento de óleo','Montagem do sistema','Realização do flushing','Desidratação com centrífuga','Desidratação com termovácuo','Desmontagem do sistema','Drenagem do óleo','Coleta de amostra'];
   var ufVals=(p['Unidade de Flushing']||{});var ufIds=Array.isArray(ufVals)?ufVals:(ufVals.ids||[]);
-  return equipMultiField('flushing',n,equips,isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Hidráulico')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+tubesBlock(n,p.tubes,isPre)+'<div class="fg"><label>Tipo de óleo <span class="req">*</span></label><input type="text" placeholder="Marca/modelo do óleo..." data-required="true" data-label="Tipo de óleo"></div>'+volField('Volume de óleo',true)+'<div class="fg"><label>Tipo de flushing</label><div class="rtag-grp"><div class="rtag yes" onclick="selectRad(this,true)">Primário</div><div class="rtag" onclick="selectRad(this,false)">Secundário</div></div></div>'+unitMultiField('Unidade de Flushing','flushing',n,ufIds,false,isPre)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+particulasBlock(n,'fl')+desidratacaoBlock(n,'fl')+desenhoObs();
+  return equipMultiField('flushing',n,equips,isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Hidráulico')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+tubesBlock(n,p.tubes,isPre)+'<div class="fg"><label>Tipo de óleo <span class="req">*</span></label><input type="text" placeholder="Marca/modelo do óleo..." data-required="true" data-label="Tipo de óleo"></div>'+volField('Volume de óleo',true)+'<div class="fg"><label>Tipo de flushing</label><div class="rtag-grp"><div class="rtag yes" onclick="selectRad(this,true);switchFlushingUnitTipo(this,\'flushing\')">Primário</div><div class="rtag" onclick="selectRad(this,false);switchFlushingUnitTipo(this,\'filtragem\')">Secundário</div></div></div>'+unitMultiField('Unidade de Flushing','flushing',n,ufIds,false,isPre,'data-flushing-unit="true"')+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+particulasBlock(n,'fl')+desidratacaoBlock(n,'fl')+desenhoObs();
 }
 function bodyFiltragem(n,p,isPre){
   var equips=p['Equipamento(s)']||p.equipId||[];
@@ -5771,6 +5827,7 @@ function continuar(reportId,serviceId){
 }
 function sanitizeContinuationService(service){
   var fields=Object.assign({},(service&&service.extraData)||{});
+  var serviceType=normalizeServiceType(service);
   var resetMap={
     pressao:['Hora de início','Hora de término/pausa','Serviço finalizado?','Etapas realizadas no dia','Observações'],
     limpeza:['Serviço finalizado?','Hora de início','Hora de término/pausa','Etapas realizadas no dia','Observações'],
@@ -5787,9 +5844,9 @@ function sanitizeContinuationService(service){
     'Umidade inicial (ppm)','Umidade final (ppm)','Foto do laudo do contador','Foto laudo do contador',
     'Foto análise inicial','Foto anÃ¡lise inicial','Foto análise final','Foto anÃ¡lise final','Foto do óleo (antes)','Foto do Ã³leo (antes)','Foto do óleo (depois)','Foto do Ã³leo (depois)'
   ];
-  (resetMap[service.serviceType]||[]).concat(extraResets).forEach(function(key){ delete fields[key]; });
+  (resetMap[serviceType]||[]).concat(extraResets).forEach(function(key){ delete fields[key]; });
   return {
-    serviceType: service.serviceType,
+    serviceType: serviceType,
     extraData: fields
   };
 }
@@ -5823,14 +5880,16 @@ function currentReportDraftSnapshot(){
     overtimeReason: ((document.getElementById('final-overtime')||{}).value||'').trim(),
     dailyDescription: ((document.getElementById('final-description')||{}).value||'').trim(),
      services: Array.from(document.querySelectorAll('#svc-cards .svc-card')).map(function(card){
+      var serviceType=normalizeServiceType(card.dataset.svcType);
+      if(!serviceType)return null;
       return {
-        serviceType: card.dataset.svcType,
+        serviceType: serviceType,
         sourceReportId: card.dataset.sourceReportId||'',
         sourceServiceId: card.dataset.sourceServiceId||'',
         ongoingKey: card.dataset.ongoingKey||'',
         extraData: collectServiceFields(card)
       };
-    })
+    }).filter(Boolean)
   };
 }
 function persistCurrentDraft(){
@@ -6014,7 +6073,9 @@ function continuar(reportId,serviceId){
   if(!report)return;
   var service=(report.services||[]).find(function(item){return item.id===serviceId;});
   if(!service)return;
-  addSvc(service.serviceType,false,{});
+  var serviceType=normalizeServiceType(service);
+  if(!serviceType)return;
+  addSvc(serviceType,false,{});
   var cards=document.querySelectorAll('#svc-cards .svc-card');
   var card=cards[cards.length-1];
   if(card){
@@ -6022,6 +6083,7 @@ function continuar(reportId,serviceId){
     card.dataset.sourceServiceId=serviceId;
     card.dataset.ongoingKey=((service.extraData||{}).__ongoingKey)||serviceOngoingKey(report,service);
     fillServiceCardFromReport(card,sanitizeContinuationService(service));
+    if(serviceType==='flushing')syncFlushingUnitTipo(card);
     card.scrollIntoView({behavior:'smooth',block:'start'});
   }
 }
@@ -6172,13 +6234,16 @@ function hydrateDraft(draft){
   (data.nightCollaboratorIds||[]).forEach(function(id){ var col=getColaboradorById(id); if(col&&nightList)nightList.appendChild(buildColabTag({id:col.id,nome:col.nome})); });
   document.getElementById('svc-cards').innerHTML=''; svcCount=0;
   (data.services||[]).forEach(function(service){
-    addSvc(service.serviceType,false,{});
+    var serviceType=normalizeServiceType(service);
+    if(!serviceType)return;
+    addSvc(serviceType,false,{});
     var card=document.querySelectorAll('#svc-cards .svc-card')[document.querySelectorAll('#svc-cards .svc-card').length-1];
     if(card){
       card.dataset.sourceReportId=service.sourceReportId||'';
       card.dataset.sourceServiceId=service.sourceServiceId||'';
       card.dataset.ongoingKey=service.ongoingKey||'';
-      fillServiceCardFromReport(card,{serviceType:service.serviceType,extraData:service.extraData||{}});
+      fillServiceCardFromReport(card,{serviceType:serviceType,extraData:service.extraData||service.fields||service.serviceData||{}});
+      if(serviceType==='flushing')syncFlushingUnitTipo(card);
     }
   });
   if(document.getElementById('final-overtime'))document.getElementById('final-overtime').value=data.overtimeReason||'';
@@ -6196,19 +6261,21 @@ function startNewReport(){
 }
 function collectServices(){
   return Array.from(document.querySelectorAll('.svc-card')).map(function(card){
+    var serviceType=normalizeServiceType(card.dataset.svcType);
+    if(!serviceType)return null;
     var fields=collectServiceFields(card);
     if(card.dataset.ongoingKey)fields.__ongoingKey=card.dataset.ongoingKey;
     return {
-      serviceType: card.dataset.svcType,
+      serviceType: serviceType,
       equipmentId: null,
       system: fields['Sistema'] || null,
-      material: card.dataset.svcType==='pressao' ? null : (fields['Material da tubulação'] || fields['Material da tubulaÃ§Ã£o'] || fields['Material do equipamento'] || null),
+      material: serviceType==='pressao' ? null : (fields['Material da tubulação'] || fields['Material da tubulaÃ§Ã£o'] || fields['Material do equipamento'] || null),
       startTime: fields['Hora de início'] || fields['Hora de inÃ­cio'] || null,
       endTime: fields['Hora de término/pausa'] || fields['Hora de tÃ©rmino/pausa'] || null,
       finalized: finalizedFromFields(fields),
       extraData: fields
     };
-  });
+  }).filter(Boolean);
 }
 function collectResolvedOngoingServices(projectId){
   var items=new Map();
