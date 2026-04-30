@@ -1001,24 +1001,65 @@ function fgPre(label,id,val,isPre,ph){
   return '<div class="fg"><label>'+label+' <span class="req">*</span>'+(isPre&&val?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
     '<input type="text" id="'+id+'" class="'+c+'" value="'+val+'" placeholder="'+(ph||'')+'" data-required="true" data-label="'+label+'"></div>';
 }
-function decimalOnlyAttrs(){
-  return ' inputmode="decimal" pattern="[0-9.,]*" oninput="sanitizeDecimalInput(this)"';
+function decimalOnlyAttrs(allowSlash){
+  return allowSlash
+    ? ' inputmode="decimal" pattern="[0-9.,/]*" oninput="sanitizeDecimalInput(this,true)"'
+    : ' inputmode="decimal" pattern="[0-9.,]*" oninput="sanitizeDecimalInput(this)"';
 }
-function sanitizeDecimalInput(el){
+function sanitizeDecimalInput(el,allowSlash){
   if(!el)return;
-  el.value=String(el.value||'').replace(/[^0-9.,]/g,'');
+  el.value=String(el.value||'').replace(allowSlash?/[^0-9.,/]/g:/[^0-9.,]/g,'');
+}
+function normalizeTubeEntry(t){
+  if(!t)return null;
+  var scalar=function(v){
+    if(Array.isArray(v)){
+      return v.map(scalar).filter(Boolean).join(', ');
+    }
+    if(v&&typeof v==='object'){
+      var direct=v.value||v.text||v.label||v.name||v.nome||v.codigo||v.code||v.d||v.c||v.diametro||v.comprimento||v.length;
+      if(direct&&direct!==v)return scalar(direct);
+      var keys=Object.keys(v).filter(function(key){return key!=='unit'&&key!=='lengthUnit'&&key!=='cUnit'&&key!=='dUnit';});
+      for(var i=0;i<keys.length;i++){
+        var nested=scalar(v[keys[i]]);
+        if(nested)return nested;
+      }
+      return '';
+    }
+    return v||'';
+  };
+  var d=scalar(t.d||t.diametro||t['diâmetro']||t['diÃ¢metro']||t['Diâmetro']||t['Diametro']||t.diameter);
+  var c=scalar(t.c||t.comprimento||t['Comprimento']||t.length);
+  if(!d&&!c)return null;
+  return {
+    d:String(d||''),
+    unit:scalar(t.unit||t.dUnit||t.diametroUnit||t['unidade diâmetro'])||'pol',
+    c:String(c||''),
+    lengthUnit:scalar(t.lengthUnit||t.cUnit||t.comprimentoUnit||t['unidade comprimento'])||'m'
+  };
+}
+function normalizeTubeList(tubes){
+  if(tubes&&Array.isArray(tubes.items))tubes=tubes.items;
+  else if(tubes&&Array.isArray(tubes.rows))tubes=tubes.rows;
+  else if(tubes&&typeof tubes==='object'&&!Array.isArray(tubes)){
+    var numericKeys=Object.keys(tubes).filter(function(key){return /^\d+$/.test(key);}).sort(function(a,b){return Number(a)-Number(b);});
+    tubes=numericKeys.length?numericKeys.map(function(key){return tubes[key];}):[tubes];
+  }
+  if(!Array.isArray(tubes))return [];
+  return tubes.map(normalizeTubeEntry).filter(Boolean);
 }
 function tubesBlock(n,tubes,isPre){
+  tubes=normalizeTubeList(tubes);
   var rows=(tubes&&tubes.length?tubes:[{d:'',unit:'pol',c:'',lengthUnit:'m'}]).map(function(t){
     var unit=t.unit||'pol';
     var lengthUnit=t.lengthUnit||t.cUnit||t.comprimentoUnit||'m';
     return '<div class="r3 tube-row">'+
       '<div class="fg" style="margin:0"><label style="font-size:10px">Diâmetro</label>'+
       '<div class="num-unit" style="margin-top:4px">'+
-      '<input type="text" class="'+(isPre&&t.d?'pre':'')+'" value="'+escapeHtml(t.d||'')+'" placeholder=\'2"\' style="flex:1.5"'+decimalOnlyAttrs()+'>'+
+      '<input type="text" class="'+(isPre&&t.d?'pre':'')+'" value="'+escapeHtml(t.d||'')+'" placeholder=\'2"\' style="flex:1.5"'+decimalOnlyAttrs(true)+'>'+
       '<select style="flex:0.8"><option value="pol"'+(unit==='pol'?' selected':'')+'>pol</option><option value="mm"'+(unit==='mm'?' selected':'')+'>mm</option></select>'+
       '</div></div>'+
-      '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento</label><div class="num-unit" style="margin-top:4px"><input type="text" class="'+(isPre&&t.c?'pre':'')+'" value="'+escapeHtml(t.c||'')+'" placeholder="45" style="flex:1.5"'+decimalOnlyAttrs()+'><select style="flex:0.8"><option value="m"'+(lengthUnit==='m'?' selected':'')+'>metros</option><option value="cm"'+(lengthUnit==='cm'?' selected':'')+'>centímetros</option></select></div></div>'+
+      '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento</label><div class="num-unit" style="margin-top:4px"><input type="text" class="'+(isPre&&t.c?'pre':'')+'" value="'+escapeHtml(t.c||'')+'" placeholder="45" style="flex:1.5"'+decimalOnlyAttrs(true)+'><select style="flex:0.8"><option value="m"'+(lengthUnit==='m'?' selected':'')+'>m</option><option value="cm"'+(lengthUnit==='cm'?' selected':'')+'>cm</option></select></div></div>'+
       '<div style="color:#9ca3af;cursor:pointer;font-size:18px;align-self:flex-end;padding-bottom:8px" onclick="this.closest(\'.tube-row\').remove()">×</div></div>';
   }).join('');
   return '<div class="fg"><label>Diâmetros e comprimentos <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
@@ -1224,10 +1265,10 @@ function addTube(n){
   var d=document.createElement('div');d.className='r3 tube-row';
   d.innerHTML='<div class="fg" style="margin:0"><label style="font-size:10px">Diâmetro</label>'+
     '<div class="num-unit" style="margin-top:4px">'+
-    '<input type="text" placeholder=\'2"\' style="flex:1.5"'+decimalOnlyAttrs()+'>'+
+    '<input type="text" placeholder=\'2"\' style="flex:1.5"'+decimalOnlyAttrs(true)+'>'+
     '<select style="flex:0.8"><option value="pol">pol</option><option value="mm">mm</option></select>'+
     '</div></div>'+
-    '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento</label><div class="num-unit" style="margin-top:4px"><input type="text" placeholder="45" style="flex:1.5"'+decimalOnlyAttrs()+'><select style="flex:0.8"><option value="m">metros</option><option value="cm">centímetros</option></select></div></div>'+
+    '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento</label><div class="num-unit" style="margin-top:4px"><input type="text" placeholder="45" style="flex:1.5"'+decimalOnlyAttrs(true)+'><select style="flex:0.8"><option value="m">m</option><option value="cm">cm</option></select></div></div>'+
     '<div style="color:#9ca3af;cursor:pointer;font-size:18px;align-self:flex-end;padding-bottom:8px" onclick="this.closest(\'.tube-row\').remove()">×</div>';
   c.appendChild(d);
 }
@@ -1321,9 +1362,27 @@ function collectServiceFields(card){
   return out;
 }
 function finalizedFromFields(fields){
-  var v=fields['Serviço finalizado?'];
-  if(Array.isArray(v)&&v.length)return v[0]==='Sim';
+  fields=fields||{};
+  var keys=['Serviço finalizado?','Serviço finalizado','Servico finalizado?','Servico finalizado','ServiÃ§o finalizado?'];
+  var v;
+  for(var i=0;i<keys.length;i++){
+    if(Object.prototype.hasOwnProperty.call(fields,keys[i])){v=fields[keys[i]];break;}
+  }
+  if(Array.isArray(v)&&v.length)v=v[0];
+  if(v===true||v===false)return v;
+  var text=String(v||'').trim().toLowerCase();
+  if(text==='sim'||text==='true'||text==='finalizado')return true;
+  if(text==='não'||text==='nao'||text==='false'||text==='em andamento')return false;
   return null;
+}
+function isServiceFinalized(service){
+  if(!service)return false;
+  if(service.finalized===true)return true;
+  if(service.finalized===false)return false;
+  var text=String(service.finalized||'').trim().toLowerCase();
+  if(text==='true'||text==='sim'||text==='finalizado')return true;
+  if(text==='false'||text==='não'||text==='nao'||text==='em andamento')return false;
+  return finalizedFromFields(service.extraData||{})===true;
 }
 function collectServices(){
   return Array.from(document.querySelectorAll('#svc-cards .svc-card')).map(function(card){
@@ -2262,7 +2321,15 @@ function formatReportDate(v){
   return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:new Date(v).toLocaleDateString('pt-BR');
 }
 function summarizeServices(report){
-  return (report.services||[]).map(function(s){return serviceNames[s.serviceType]||s.serviceType;}).join(', ');
+  return (report.services||[]).map(function(s){
+    var name=serviceNames[s.serviceType]||s.serviceType;
+    var equip=serviceEquipmentName(s);
+    var system=serviceSystemName(s);
+    var parts=[name];
+    if(equip&&equip!=='—'&&equip!=='â€”')parts.push(equip);
+    if(system&&system!=='—'&&system!=='â€”')parts.push(system);
+    return parts.join(' · ');
+  }).join(' | ');
 }
 function groupReportsByProject(items){
   var out={};
@@ -2480,20 +2547,6 @@ function setFgStoredValue(fg,val){
     updateUploadZone(zone);
     return;
   }
-  var numUnit=fg.querySelector('.num-unit');
-  if(numUnit){
-    var input=numUnit.querySelector('input,textarea');
-    var select=numUnit.querySelector('select');
-    var str=String(val||'').trim();
-    var match=str.match(/^(.+?)\s+([^\s]+)$/);
-    if(input)input.value=match?match[1]:str;
-    if(select&&match){
-      Array.from(select.options).forEach(function(opt){
-        if(opt.value===match[2]||opt.textContent.trim()===match[2])select.value=opt.value;
-      });
-    }
-    return;
-  }
   var equipsC=fg.querySelector('[data-multifield="equips"]');
   if(equipsC){
     var equipsArr=Array.isArray(val)?(val.length?val:['']):(val?[val]:['']);
@@ -2509,22 +2562,36 @@ function setFgStoredValue(fg,val){
     return;
   }
   var tubesC=fg.querySelector('[data-multifield="tubes"]');
-  if(tubesC&&Array.isArray(val)&&val.length){
+  var tubeVals=normalizeTubeList(val);
+  if(tubesC&&tubeVals.length){
     tubesC.innerHTML='';
-    val.forEach(function(t){
-      if(!t||(!t.d&&!t.c))return;
+    tubeVals.forEach(function(t){
       var unit=t.unit||'pol';
       var lengthUnit=t.lengthUnit||t.cUnit||t.comprimentoUnit||'m';
       var d=document.createElement('div');d.className='r3 tube-row';
       d.innerHTML='<div class="fg" style="margin:0"><label style="font-size:10px">Diâmetro</label>'+
         '<div class="num-unit" style="margin-top:4px">'+
-        '<input type="text" value="'+escapeHtml(String(t.d||''))+'" placeholder=\'2"\' style="flex:1.5"'+decimalOnlyAttrs()+'>'+
+        '<input type="text" class="'+(t.d?'pre':'')+'" value="'+escapeHtml(String(t.d||''))+'" placeholder=\'2"\' style="flex:1.5"'+decimalOnlyAttrs(true)+'>'+
         '<select style="flex:0.8"><option value="pol"'+(unit==='pol'?' selected':'')+'>pol</option><option value="mm"'+(unit==='mm'?' selected':'')+'>mm</option></select>'+
         '</div></div>'+
-        '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento</label><div class="num-unit" style="margin-top:4px"><input type="text" value="'+escapeHtml(String(t.c||''))+'" placeholder="45" style="flex:1.5"'+decimalOnlyAttrs()+'><select style="flex:0.8"><option value="m"'+(lengthUnit==='m'?' selected':'')+'>metros</option><option value="cm"'+(lengthUnit==='cm'?' selected':'')+'>centímetros</option></select></div></div>'+
+        '<div class="fg" style="margin:0"><label style="font-size:10px">Comprimento</label><div class="num-unit" style="margin-top:4px"><input type="text" class="'+(t.c?'pre':'')+'" value="'+escapeHtml(String(t.c||''))+'" placeholder="45" style="flex:1.5"'+decimalOnlyAttrs(true)+'><select style="flex:0.8"><option value="m"'+(lengthUnit==='m'?' selected':'')+'>m</option><option value="cm"'+(lengthUnit==='cm'?' selected':'')+'>cm</option></select></div></div>'+
         '<div style="color:#9ca3af;cursor:pointer;font-size:18px;align-self:flex-end;padding-bottom:8px" onclick="this.closest(\'.tube-row\').remove()">×</div>';
       tubesC.appendChild(d);
     });
+    return;
+  }
+  var numUnit=fg.querySelector('.num-unit');
+  if(numUnit){
+    var input=numUnit.querySelector('input,textarea');
+    var select=numUnit.querySelector('select');
+    var str=String(val||'').trim();
+    var match=str.match(/^(.+?)\s+([^\s]+)$/);
+    if(input)input.value=match?match[1]:str;
+    if(select&&match){
+      Array.from(select.options).forEach(function(opt){
+        if(opt.value===match[2]||opt.textContent.trim()===match[2])select.value=opt.value;
+      });
+    }
     return;
   }
   var unitsC=fg.querySelector('[data-multifield="units"]');
@@ -3666,6 +3733,7 @@ function getDirectFieldValue(fg){
 function collectServiceFields(card){
   var out={};
   card.querySelectorAll('.fg').forEach(function(fg){
+    if(fg.closest('[data-multifield]'))return;
     var label=fg.querySelector(':scope > label')||fg.querySelector('label');
     if(!label)return;
     var key=cleanLabelText(label.textContent);
@@ -3677,7 +3745,7 @@ function collectServiceFields(card){
     if(tubes){out[key]=Array.from(tubes.querySelectorAll('.tube-row')).map(function(row){
       var inputs=row.querySelectorAll('input');var sels=row.querySelectorAll('select');
       return {d:(inputs[0]?inputs[0].value.trim():''),unit:(sels[0]?sels[0].value:'pol'),c:(inputs[1]?inputs[1].value.trim():''),lengthUnit:(sels[1]?sels[1].value:'m')};
-    }).filter(function(t){return t.d||t.c;});return;}
+    }).filter(function(t){return t.d||t.c;});out.__tubeRows=out[key];return;}
     // multi-unit container
     var unitsEl=fg.querySelector('[data-multifield="units"]');
     if(unitsEl){var usels=Array.from(unitsEl.querySelectorAll('[data-unit-select]'));var uids=usels.map(function(s){return s.value;}).filter(Boolean);var ulabels=usels.filter(function(s){return s.value;}).map(function(s){return s.options[s.selectedIndex]?s.options[s.selectedIndex].text:'';}).filter(Boolean);out[key]={ids:uids,labels:ulabels};return;}
@@ -3743,10 +3811,61 @@ function renderKeyValueRows(obj){
     return '<div class="det-row"><span class="det-label">'+escapeHtml(key)+'</span><span class="det-val">'+escapeHtml(displayStoredValue(key,obj[key]))+'</span></div>';
   }).join('');
 }
+function hasStoredValue(val){
+  if(Array.isArray(val))return val.length>0;
+  if(val&&typeof val==='object')return Object.keys(val).length>0;
+  return val!==undefined&&val!==null&&String(val).trim()!=='';
+}
+function getStoredField(fields,keys){
+  for(var i=0;i<keys.length;i++){
+    if(Object.prototype.hasOwnProperty.call(fields,keys[i]))return fields[keys[i]];
+  }
+  return undefined;
+}
+function getBestStoredTubeList(fields){
+  var keys=['__tubeRows','Diâmetros e comprimentos','Diametros e comprimentos','DiÃ¢metros e comprimentos','Tubulações','Tubulacoes','tubulacoes','tubes'];
+  var best=[];
+  keys.forEach(function(key){
+    if(!Object.prototype.hasOwnProperty.call(fields||{},key))return;
+    var list=normalizeTubeList(fields[key]);
+    if(list.length>best.length)best=list;
+  });
+  return best;
+}
+function markFieldPrefilled(fg){
+  if(!fg)return;
+  var label=fg.querySelector(':scope > label')||fg.querySelector('label');
+  if(label&&!label.querySelector('.pre-badge')){
+    var span=document.createElement('span');
+    span.className='pre-badge';
+    span.textContent='pré-preenchido';
+    label.appendChild(span);
+  }
+  fg.querySelectorAll('input,select,textarea').forEach(function(el){
+    if((el.type==='checkbox'&&el.checked)||String(el.value||'').trim())el.classList.add('pre');
+  });
+  fg.querySelectorAll('.tag.sel,.chk-item input:checked,.rtag.yes,.rtag.no').forEach(function(el){
+    (el.closest('.chk-item')||el).classList.add('pre');
+  });
+}
 function fillServiceCardFromReport(card,service){
   var fields=Object.assign({},service.extraData||{});
-  fields['Equipamento']=fields['Equipamento']||'';
-  fields['Sistema']=service.system||fields['Sistema']||'';
+  var shouldMarkPrefilled=!!(service&&service.__markPrefilled)||card.dataset.prefillMode==='continuation';
+  var tubeList=getBestStoredTubeList(fields);
+  if(tubeList.length){
+    fields['Diâmetros e comprimentos']=tubeList;
+    fields['DiÃ¢metros e comprimentos']=tubeList;
+  }
+  var equipmentValue=getStoredField(fields,['Equipamento(s)','Equipamentos','Equipamento']);
+  if(equipmentValue===undefined){
+    var resolvedEquipment=serviceEquipmentName(service);
+    if(resolvedEquipment&&resolvedEquipment!=='—'&&resolvedEquipment!=='â€”')fields['Equipamento(s)']=[resolvedEquipment];
+  }else if(!Array.isArray(equipmentValue)){
+    fields['Equipamento(s)']=[equipmentValue].filter(Boolean);
+  }
+  fields['Equipamento']=fields['Equipamento']||((fields['Equipamento(s)']||[])[0])||'';
+  var resolvedSystem=serviceSystemName(service);
+  fields['Sistema']=(resolvedSystem&&resolvedSystem!=='—'&&resolvedSystem!=='â€”')?resolvedSystem:(fields['Sistema']||'');
   if(service.serviceType==='flushing'){
     delete fields['Material da tubulação'];
     delete fields['Material da tubulaÃ§Ã£o'];
@@ -3772,7 +3891,10 @@ function fillServiceCardFromReport(card,service){
     var label=fg.querySelector(':scope > label')||fg.querySelector('label');
     if(!label)return;
     var key=cleanLabelText(label.textContent);
-    if(fields.hasOwnProperty(key))setFgStoredValue(fg,fields[key]);
+    if(fields.hasOwnProperty(key)){
+      setFgStoredValue(fg,fields[key]);
+      if(shouldMarkPrefilled&&hasStoredValue(fields[key]))markFieldPrefilled(fg);
+    }
   });
 }
 function normalizePreviewLabel(key){
@@ -4694,7 +4816,7 @@ function renderRtpDetail(report){
   var colHtml=collabs.length?collabs.map(function(c){return '<div class="det-row"><span class="det-label">'+escapeHtml(c.name||'—')+'</span><span class="det-val">'+escapeHtml(c.role||'—')+' · '+escapeHtml(c.shift||'Diurno')+'</span></div>';}).join(''):'<div style="font-size:12px;color:var(--mu)">—</div>';
   var manoHtml=manos.length?manos.map(function(m){return '<div class="det-row"><span class="det-label">'+escapeHtml(m.scale||'—')+'</span><span class="det-val">Cert: '+escapeHtml(m.certCode||'—')+' · Cal: '+escapeHtml(m.calibratedAt||'—')+' · Val: '+escapeHtml(m.expiresAt||'—')+'</span></div>';}).join(''):'<div style="font-size:12px;color:var(--mu)">—</div>';
   var tubesRaw=sd['Diâmetros e comprimentos']||sd['Diametros e comprimentos']||[];
-  var tubeHtml=Array.isArray(tubesRaw)&&tubesRaw.length?tubesRaw.map(function(t){return '<div class="det-row"><span class="det-label">Ø '+escapeHtml(t.d||'—')+' '+(t.unit||'pol')+'</span><span class="det-val">'+escapeHtml(t.c||'—')+' m</span></div>';}).join(''):'<div style="font-size:12px;color:var(--mu)">—</div>';
+  var tubeHtml=Array.isArray(tubesRaw)&&tubesRaw.length?tubesRaw.map(function(t){var lengthUnit=t.lengthUnit||t.cUnit||t.comprimentoUnit||'m';return '<div class="det-row"><span class="det-label">Ø '+escapeHtml(t.d||'—')+' '+(t.unit||'pol')+'</span><span class="det-val">'+escapeHtml(t.c||'—')+' '+escapeHtml(lengthUnit)+'</span></div>';}).join(''):'<div style="font-size:12px;color:var(--mu)">—</div>';
   document.getElementById('det-body').innerHTML=
     '<div class="card"><div class="sec">Informações do serviço</div><div class="det-section">'+
     row('Missão','Missão '+report.project.code+' - '+report.project.name)+
@@ -4722,7 +4844,7 @@ function renderRlqDetail(report){
   function row(lbl,val){return '<div class="det-row"><span class="det-label">'+lbl+'</span><span class="det-val">'+escapeHtml(fv(val))+'</span></div>';}
   var colHtml=collabs.length?collabs.map(function(c){return '<div class="det-row"><span class="det-label">'+escapeHtml(c.name||'—')+'</span><span class="det-val">'+escapeHtml(c.role||'—')+'</span></div>';}).join(''):'<div style="font-size:12px;color:var(--mu)">—</div>';
   var tubesRaw=sd['Diâmetros e comprimentos']||sd['Diametros e comprimentos']||[];
-  var tubeHtml=Array.isArray(tubesRaw)&&tubesRaw.length?tubesRaw.map(function(t){return '<div class="det-row"><span class="det-label">Ø '+escapeHtml(t.d||'—')+' '+(t.unit||'pol')+'</span><span class="det-val">'+escapeHtml(t.c||'—')+' m</span></div>';}).join(''):'<div style="font-size:12px;color:var(--mu)">—</div>';
+  var tubeHtml=Array.isArray(tubesRaw)&&tubesRaw.length?tubesRaw.map(function(t){var lengthUnit=t.lengthUnit||t.cUnit||t.comprimentoUnit||'m';return '<div class="det-row"><span class="det-label">Ø '+escapeHtml(t.d||'—')+' '+(t.unit||'pol')+'</span><span class="det-val">'+escapeHtml(t.c||'—')+' '+escapeHtml(lengthUnit)+'</span></div>';}).join(''):'<div style="font-size:12px;color:var(--mu)">—</div>';
   document.getElementById('det-body').innerHTML=
     '<div class="card"><div class="sec">Informações do serviço</div><div class="det-section">'+
     row('Missão','Missão '+report.project.code+' - '+report.project.name)+
@@ -5479,19 +5601,109 @@ function reportToEditablePayload(report, servicesOverride){
 }
 function serviceEquipmentName(service){
   var fields=(service&&service.extraData)||{};
-  return fields['Equipamento'] || fields['ID da embarcação'] || fields['ID da embarcaÃ§Ã£o'] || fields['ID da embarcaÃƒÂ§ÃƒÂ£o'] || 'â€”';
+  var value=fields['Equipamento(s)']||fields['Equipamentos']||fields['Equipamento']||fields['ID da embarcação']||fields['ID da embarcaÃ§Ã£o']||fields['ID da embarcaÃƒÂ§ÃƒÂ£o']||'';
+  if(Array.isArray(value)){
+    value=value.filter(Boolean).join(', ');
+  }else if(value&&typeof value==='object'){
+    value=(Array.isArray(value.labels)?value.labels.filter(Boolean).join(', '):'')||value.name||value.nome||value.code||value.codigo||value.id||'';
+  }
+  if(value)return String(value);
+  if(service&&service.equipment){
+    return [service.equipment.code||service.equipment.codigo,service.equipment.name||service.equipment.nome].filter(Boolean).join(' - ')||'—';
+  }
+  var eqId=(service&&(service.equipmentId||service.equipId))||fields.equipmentId||fields.equipId||'';
+  var eq=eqId&&getEquipamentoById(eqId);
+  return eq?((eq.codigo||eq.id)+' - '+(eq.nome||eq.name||'')):'—';
 }
 function serviceSystemName(service){
   var fields=(service&&service.extraData)||{};
-  return service.system || fields['Sistema'] || 'â€”';
+  return (service&&service.system) || fields['Sistema'] || fields.sistema || fields['Sistema operacional'] || '—';
+}
+function serviceMaterialName(service){
+  var fields=(service&&service.extraData)||{};
+  return (service&&service.material) || fields['Material da tubulação'] || fields['Material da tubulaÃ§Ã£o'] || fields['Material do equipamento'] || '—';
+}
+function serviceTimeRange(service){
+  var fields=(service&&service.extraData)||{};
+  var start=(service&&service.startTime)||fields['Hora de início']||fields['Hora de inÃ­cio']||'—';
+  var end=(service&&service.endTime)||fields['Hora de término/pausa']||fields['Hora de tÃ©rmino/pausa']||'—';
+  return start+' às '+end;
+}
+function serviceUploadCount(service){
+  var fields=(service&&service.extraData)||{};
+  var uploads=Array.isArray(fields.__uploads__)?fields.__uploads__:[];
+  var total=uploads.reduce(function(sum,item){return sum+((item.files||[]).length||0);},0);
+  Object.keys(fields).forEach(function(key){
+    if(key==='__uploads__')return;
+    if(Array.isArray(fields[key])&&fields[key].some(function(item){return item&&typeof item==='object'&&(item.url||item.path||item.name);})){
+      total+=fields[key].length;
+    }
+  });
+  return total;
+}
+function serviceDetailSummaryHtml(service,index){
+  var fields=(service&&service.extraData)||{};
+  var finalized=typeof service.finalized==='boolean'?(service.finalized?'Sim':'Não'):displayStoredValue('Serviço finalizado?',fields['Serviço finalizado?']);
+  var approved=displayStoredValue('Aprovado pelo cliente?',fields['Aprovado pelo cliente?']);
+  var rows=[
+    ['Equipamento',serviceEquipmentName(service)],
+    ['Sistema',serviceSystemName(service)],
+    ['Material',serviceMaterialName(service)],
+    ['Horário',serviceTimeRange(service)],
+    ['Finalizado',finalized],
+    ['Aprovado pelo cliente',approved],
+    ['Anexos',String(serviceUploadCount(service))]
+  ];
+  var extraKeys=['Tipo de óleo','Tipo de Ã³leo','Volume de óleo','Volume de Ã³leo','Tipo de flushing','Unidade de Flushing','Unidade de filtragem','Unidade de Limpeza Química','Unidade de Teste Hidrostático (UTH)','Manômetros utilizados','Contador utilizado'];
+  extraKeys.forEach(function(key){
+    if(fields[key]!==undefined&&hasStoredValue(fields[key]))rows.push([normalizePreviewLabel(key),displayStoredValue(key,fields[key])]);
+  });
+  return '<div class="svc-mini"><div class="svc-mini-hdr">Serviço '+(index+1)+' — '+escapeHtml(serviceNames[service.serviceType]||service.serviceType)+'</div><div class="svc-mini-body"><div class="det-section">'+rows.map(function(row){
+    return '<div class="det-row"><span class="det-label">'+escapeHtml(row[0])+'</span><span class="det-val">'+escapeHtml(row[1]||'—')+'</span></div>';
+  }).join('')+'</div></div></div>';
 }
 function serviceOngoingKey(report,service){
+  var fields=(service&&service.extraData)||{};
+  var stable=fields.__ongoingKey||fields.__serviceLinkKey||fields.__sourceServiceId;
+  if(stable)return String(stable);
+  return serviceOngoingFallbackKey(report,service);
+}
+function serviceOngoingFallbackKey(report,service){
   return [
     report.projectId || '',
     service.serviceType || '',
     String(serviceEquipmentName(service)||'').trim().toLowerCase(),
     String(serviceSystemName(service)||'').trim().toLowerCase()
   ].join('||');
+}
+function serviceOngoingKeyAliases(report,service){
+  var fields=(service&&service.extraData)||{};
+  var keys=[fields.__ongoingKey,fields.__serviceLinkKey,fields.__sourceServiceId,service&&service.id,serviceOngoingKey(report,service),serviceOngoingFallbackKey(report,service)];
+  var seen={};
+  return keys.map(function(key){return String(key||'').trim();}).filter(function(key){
+    if(!key||seen[key])return false;
+    seen[key]=true;
+    return true;
+  });
+}
+var HIDDEN_ONGOING_SERVICES_KEY='filtrovali_hidden_ongoing_services_v1';
+function hiddenOngoingStorageKey(){
+  var userKey=(currentUser&&(currentUser.id||currentUser.username||currentUser.email))||'anon';
+  return HIDDEN_ONGOING_SERVICES_KEY+'_'+String(userKey);
+}
+function loadHiddenOngoingKeys(){
+  try{return JSON.parse(localStorage.getItem(hiddenOngoingStorageKey())||'[]');}catch(e){return [];}
+}
+function saveHiddenOngoingKeys(keys){
+  localStorage.setItem(hiddenOngoingStorageKey(),JSON.stringify(Array.from(new Set((keys||[]).filter(Boolean)))));
+}
+function isOngoingServiceHidden(report,service){
+  var hidden=loadHiddenOngoingKeys();
+  if(!hidden.length)return false;
+  return serviceOngoingKeyAliases(report,service).some(function(alias){return hidden.indexOf(alias)>=0;});
+}
+function hideOngoingServiceLocally(report,service){
+  saveHiddenOngoingKeys(loadHiddenOngoingKeys().concat(serviceOngoingKeyAliases(report,service)));
 }
 function collectResolvedOngoingServices(projectId){
   var items=new Map();
@@ -5504,12 +5716,14 @@ function collectResolvedOngoingServices(projectId){
   ordered.forEach(function(report){
     if(projectId && report.projectId!==projectId)return;
     (report.services||[]).forEach(function(service){
-      var key=serviceOngoingKey(report,service);
-      if(service.finalized===true){
-        items.delete(key);
+      var aliases=serviceOngoingKeyAliases(report,service);
+      var key=aliases[0]||serviceOngoingKey(report,service);
+      if(isOngoingServiceHidden(report,service))return;
+      if(isServiceFinalized(service)){
+        aliases.forEach(function(alias){items.delete(alias);});
         return;
       }
-      items.set(key,{reportId:report.id,reportDate:report.reportDate,project:report.project,service:service});
+      items.set(key,{reportId:report.id,reportDate:report.reportDate,project:report.project,report:report,service:service});
     });
   });
   return Array.from(items.values());
@@ -5522,7 +5736,7 @@ function renderOngoingServices(){
   reports.forEach(function(report){
     var projectName=(report.project&&report.project.name)||'Sem projeto';
     var projectCode=(report.project&&report.project.code)||'---';
-    var ongoing=(report.services||[]).filter(function(service){return service.finalized!==true;});
+    var ongoing=(report.services||[]).filter(function(service){return !isServiceFinalized(service);});
     if(!ongoing.length)return;
     if(!groups[projectName])groups[projectName]={code:projectCode,items:[]};
     ongoing.forEach(function(service){
@@ -5535,7 +5749,8 @@ function renderOngoingServices(){
   root.innerHTML=keys.length?keys.map(function(projectName){
     var group=groups[projectName];
     return '<div class="card"><div class="sec">'+escapeHtml((group.code||'')+' - '+projectName)+'</div><div class="ongoing-proj">'+group.items.map(function(item){
-      return '<div class="ongoing-item"><div><div class="ongoing-item-name">'+escapeHtml(serviceNames[item.type]||item.type)+'</div><div class="ongoing-item-sub">'+escapeHtml(item.equipment)+' · '+escapeHtml(item.system)+'</div></div><div class="ongoing-actions"><button class="ongoing-delete" type="button" onclick="removeOngoingService(\''+item.reportId+'\',\''+item.serviceId+'\')">Excluir</button></div></div>';
+      var del=item.canDelete?'<button class="ongoing-delete" type="button" onclick="removeOngoingService(\''+item.reportId+'\',\''+item.serviceId+'\')">Excluir</button>':'';
+      return '<div class="ongoing-item"><div><div class="ongoing-item-name">'+escapeHtml(serviceNames[item.type]||item.type)+'</div><div class="ongoing-item-sub">'+escapeHtml(item.equipment)+' · '+escapeHtml(item.system)+'</div></div><div class="ongoing-actions">'+del+'</div></div>';
     }).join('')+'</div></div>';
   }).join(''):'<div class="card"><div style="font-size:13px;color:var(--mu)">Nenhum serviço em andamento.</div></div>';
 }
@@ -5562,7 +5777,7 @@ function getProjectPendingServices(){
     if(report.projectId!==project.id)return;
     if(report.status==='APPROVED')return;
     (report.services||[]).forEach(function(service){
-      if(service.finalized===true)return;
+      if(isServiceFinalized(service))return;
       items.push({reportId:report.id,reportDate:report.reportDate,service:service});
     });
   });
@@ -5855,23 +6070,39 @@ function continuar(reportId,serviceId){
 function sanitizeContinuationService(service){
   var fields=Object.assign({},(service&&service.extraData)||{});
   var serviceType=normalizeServiceType(service);
+  var hasAny=function(keys){
+    return keys.some(function(key){
+      var val=fields[key];
+      if(Array.isArray(val))return val.length>0;
+      if(val&&typeof val==='object')return Object.keys(val).length>0;
+      return val!==undefined&&val!==null&&String(val).trim()!=='';
+    });
+  };
+  var hadParticleData=hasAny(['Contador utilizado','Foto do laudo do contador','Foto laudo do contador','Contagem inicial NAS','Contagem final NAS','Contagem inicial ISO','Contagem final ISO']);
+  var hadHumidityData=hasAny(['Equipamento de desidratação','Equipamento de desidrataÃ§Ã£o','Equipamento de desidratacao','Foto análise inicial','Foto anÃ¡lise inicial','Foto análise final','Foto anÃ¡lise final','Foto do óleo (antes)','Foto do Ã³leo (antes)','Foto do óleo (depois)','Foto do Ã³leo (depois)','Umidade inicial (ppm)','Umidade final (ppm)']);
   var resetMap={
     pressao:['Hora de início','Hora de término/pausa','Serviço finalizado?','Etapas realizadas no dia','Observações'],
     limpeza:['Serviço finalizado?','Hora de início','Hora de término/pausa','Etapas realizadas no dia','Observações'],
-    flushing:['Serviço finalizado?','Hora de início','Hora de término/pausa','Etapas realizadas no dia','Houve contagem de partículas?','Houve desidratação?','Observações'],
-    filtragem:['Serviço finalizado?','Hora de início','Hora de término/pausa','Etapas realizadas no dia','Houve contagem de partículas?','Houve desidratação?','Observações'],
+    flushing:['Serviço finalizado?','Aprovado pelo cliente?','Hora de início','Hora de término/pausa','Etapas realizadas no dia','Observações'],
+    filtragem:['Serviço finalizado?','Aprovado pelo cliente?','Hora de início','Hora de término/pausa','Etapas realizadas no dia','Observações'],
     mecanica:['Serviço finalizado?','Hora de início','Hora de término/pausa','Etapas realizadas no dia','Observações'],
     inibicao:['Etapas realizadas no dia','Serviço finalizado?','Hora de início','Hora de término/pausa','Observações']
   };
   var extraResets=[
-    'Hora de inÃ­cio','Hora de tÃ©rmino/pausa','ServiÃ§o finalizado?','Etapas realizadas no dia','ObservaÃ§Ãµes',
-    'Houve contagem de partÃ­culas?','Houve desidrataÃ§Ã£o?',
-    'Contador utilizado','Contagem inicial NAS','Contagem final NAS','Contagem inicial ISO','Contagem final ISO',
-    'Equipamento de desidratação','Equipamento de desidrataÃ§Ã£o','Houve análise de umidade?','Houve anÃ¡lise de umidade?',
-    'Umidade inicial (ppm)','Umidade final (ppm)','Foto do laudo do contador','Foto laudo do contador',
-    'Foto análise inicial','Foto anÃ¡lise inicial','Foto análise final','Foto anÃ¡lise final','Foto do óleo (antes)','Foto do Ã³leo (antes)','Foto do óleo (depois)','Foto do Ã³leo (depois)'
+    'Hora de inÃ­cio','Hora de tÃ©rmino/pausa','ServiÃ§o finalizado?','Aprovado pelo cliente?','Etapas realizadas no dia','ObservaÃ§Ãµes',
+    'Contagem inicial NAS','Contagem final NAS','Contagem inicial ISO','Contagem final ISO',
+    'Umidade inicial (ppm)','Umidade final (ppm)'
   ];
   (resetMap[serviceType]||[]).concat(extraResets).forEach(function(key){ delete fields[key]; });
+  if(serviceType==='flushing'||serviceType==='filtragem'){
+    if(hadParticleData){
+      fields['Houve contagem de partículas?']=['Sim'];
+    }
+    if(hadHumidityData){
+      fields['Houve desidratação?']=['Sim'];
+      fields['Houve análise de umidade?']=['Sim'];
+    }
+  }
   return {
     serviceType: serviceType,
     extraData: fields
@@ -5913,6 +6144,7 @@ function currentReportDraftSnapshot(){
         serviceType: serviceType,
         sourceReportId: card.dataset.sourceReportId||'',
         sourceServiceId: card.dataset.sourceServiceId||'',
+        serviceLinkKey: card.dataset.serviceLinkKey||'',
         ongoingKey: card.dataset.ongoingKey||'',
         extraData: collectServiceFields(card)
       };
@@ -6085,12 +6317,15 @@ function collectResolvedOngoingServices(projectId){
     if(projectId && report.projectId!==projectId)return;
     (report.services||[]).forEach(function(service){
       var inherited=((service.extraData||{}).__ongoingKey)||'';
-      var key=inherited || serviceOngoingKey(report,service);
-      if(service.finalized===true){
-        items.delete(key);
+      var aliases=serviceOngoingKeyAliases(report,service);
+      if(inherited&&aliases.indexOf(inherited)<0)aliases.unshift(inherited);
+      var key=inherited || aliases[0] || serviceOngoingKey(report,service);
+      if(isOngoingServiceHidden(report,service))return;
+      if(isServiceFinalized(service)){
+        aliases.forEach(function(alias){items.delete(alias);});
         return;
       }
-      items.set(key,{reportId:report.id,reportDate:report.reportDate,project:report.project,service:service});
+      items.set(key,{reportId:report.id,reportDate:report.reportDate,project:report.project,report:report,service:service});
     });
   });
   return Array.from(items.values());
@@ -6268,8 +6503,10 @@ function hydrateDraft(draft){
     if(card){
       card.dataset.sourceReportId=service.sourceReportId||'';
       card.dataset.sourceServiceId=service.sourceServiceId||'';
+      card.dataset.serviceLinkKey=service.serviceLinkKey||((service.extraData||{}).__serviceLinkKey)||'';
+      card.dataset.prefillMode=service.sourceServiceId?'continuation':'';
       card.dataset.ongoingKey=service.ongoingKey||'';
-      fillServiceCardFromReport(card,{serviceType:serviceType,extraData:service.extraData||service.fields||service.serviceData||{}});
+      fillServiceCardFromReport(card,{serviceType:serviceType,extraData:service.extraData||service.fields||service.serviceData||{},__markPrefilled:!!service.sourceServiceId});
       if(serviceType==='flushing')syncFlushingUnitTipo(card);
     }
   });
@@ -6316,12 +6553,15 @@ function collectResolvedOngoingServices(projectId){
     if(projectId && report.projectId!==projectId)return;
     (report.services||[]).forEach(function(service){
       var inherited=((service.extraData||{}).__ongoingKey)||'';
-      var key=inherited || serviceOngoingKey(report,service);
-      if(service.finalized===true){
-        items.delete(key);
+      var aliases=serviceOngoingKeyAliases(report,service);
+      if(inherited&&aliases.indexOf(inherited)<0)aliases.unshift(inherited);
+      var key=inherited || aliases[0] || serviceOngoingKey(report,service);
+      if(isOngoingServiceHidden(report,service))return;
+      if(isServiceFinalized(service)){
+        aliases.forEach(function(alias){items.delete(alias);});
         return;
       }
-      items.set(key,{reportId:report.id,reportDate:report.reportDate,project:report.project,service:service});
+      items.set(key,{reportId:report.id,reportDate:report.reportDate,project:report.project,report:report,service:service});
     });
   });
   return Array.from(items.values());
@@ -6331,14 +6571,21 @@ function continuar(reportId,serviceId){
   if(!report)return;
   var service=(report.services||[]).find(function(item){return item.id===serviceId;});
   if(!service)return;
-  addSvc(service.serviceType,false,{});
+  var serviceType=normalizeServiceType(service);
+  if(!serviceType)return;
+  addSvc(serviceType,false,{});
   var cards=document.querySelectorAll('#svc-cards .svc-card');
   var card=cards[cards.length-1];
   if(card){
     card.dataset.sourceReportId=reportId;
     card.dataset.sourceServiceId=serviceId;
+    card.dataset.serviceLinkKey=((service.extraData||{}).__serviceLinkKey)||((service.extraData||{}).__sourceServiceId)||serviceId;
+    card.dataset.prefillMode='continuation';
     card.dataset.ongoingKey=((service.extraData||{}).__ongoingKey)||serviceOngoingKey(report,service);
-    fillServiceCardFromReport(card,sanitizeContinuationService(service));
+    var continuationService=sanitizeContinuationService(service);
+    continuationService.__markPrefilled=true;
+    fillServiceCardFromReport(card,continuationService);
+    if(serviceType==='flushing')syncFlushingUnitTipo(card);
     card.scrollIntoView({behavior:'smooth',block:'start'});
   }
 }
@@ -6912,7 +7159,8 @@ async function removeDraft(id,silent){
 function collectServices(){
   return Array.from(document.querySelectorAll('#svc-cards .svc-card')).map(function(card){
     var fields=collectServiceFields(card);
-    fields.__serviceLinkKey=card.dataset.sourceServiceId||card.dataset.serviceId||fields.__serviceLinkKey||('svc_'+Date.now()+'_'+Math.random().toString(36).slice(2,8));
+    fields.__serviceLinkKey=card.dataset.serviceLinkKey||fields.__serviceLinkKey||card.dataset.sourceServiceId||card.dataset.serviceId||('svc_'+Date.now()+'_'+Math.random().toString(36).slice(2,8));
+    if(card.dataset.sourceServiceId)fields.__sourceServiceId=card.dataset.sourceServiceId;
     if(card.dataset.ongoingKey)fields.__ongoingKey=card.dataset.ongoingKey;
     return {
       serviceType: card.dataset.svcType,
@@ -6978,6 +7226,23 @@ function draftProjectDateKey(item){
   var projectId=(item&&item.projectId)||data.projectId||'';
   var reportDate=((item&&item.reportDate)||data.reportDate||'').slice(0,10);
   return projectId&&reportDate?(projectId+'|'+reportDate):'';
+}
+function cancelPendingDraftPersist(){
+  if(_draftPersistTimer){
+    clearTimeout(_draftPersistTimer);
+    _draftPersistTimer=null;
+  }
+  _draftQueuedSnapshot=null;
+}
+function waitForDraftPersistIdle(){
+  return new Promise(function(resolve){
+    var tries=0;
+    (function check(){
+      if(!_draftPersistInFlight || tries>100){resolve();return;}
+      tries++;
+      setTimeout(check,50);
+    })();
+  });
 }
 function uniqueDraftsByProjectDate(items){
   var out=[];var seen=new Set();
@@ -7072,10 +7337,33 @@ async function removeDraft(id,silent){
   }
   try{ await refreshDraftsCache(); }catch(err){}
 }
+async function removeDraftsByProjectDateKey(matchKey){
+  if(!matchKey)return;
+  cancelPendingDraftPersist();
+  var ids=uniqueDraftsByProjectDate(draftsCache||[]).filter(function(item){return draftProjectDateKey(item)===matchKey;}).map(function(item){return String(item.id||'');});
+  if(currentDraftId){
+    var current=(draftsCache||[]).find(function(item){return String(item.id||'')===String(currentDraftId);});
+    if((current&&draftProjectDateKey(current)===matchKey)||String(currentDraftId).startsWith('draft_')){
+      if(ids.indexOf(String(currentDraftId))<0)ids.push(String(currentDraftId));
+    }
+  }
+  for(var i=0;i<ids.length;i++)await removeDraft(ids[i],true);
+  draftsCache=(draftsCache||[]).filter(function(item){return draftProjectDateKey(item)!==matchKey;});
+  currentDraftId='';
+  renderDraftHome();
+  try{
+    await refreshDraftsCache();
+    var stale=(draftsCache||[]).filter(function(item){return draftProjectDateKey(item)===matchKey;}).map(function(item){return String(item.id||'');});
+    for(var j=0;j<stale.length;j++)await removeDraft(stale[j],true);
+    draftsCache=(draftsCache||[]).filter(function(item){return draftProjectDateKey(item)!==matchKey;});
+  }catch(err){}
+  renderDraftHome();
+}
 function collectServices(){
   return Array.from(document.querySelectorAll('#svc-cards .svc-card')).map(function(card){
     var fields=collectServiceFields(card);
-    fields.__serviceLinkKey=card.dataset.sourceServiceId||card.dataset.serviceId||fields.__serviceLinkKey||('svc_'+Date.now()+'_'+Math.random().toString(36).slice(2,8));
+    fields.__serviceLinkKey=card.dataset.serviceLinkKey||fields.__serviceLinkKey||card.dataset.sourceServiceId||card.dataset.serviceId||('svc_'+Date.now()+'_'+Math.random().toString(36).slice(2,8));
+    if(card.dataset.sourceServiceId)fields.__sourceServiceId=card.dataset.sourceServiceId;
     if(card.dataset.ongoingKey)fields.__ongoingKey=card.dataset.ongoingKey;
     return {
       serviceType: card.dataset.svcType,
@@ -7104,22 +7392,17 @@ async function enviar(){
   var isManager=currentUser.role==='MANAGER';
   var payload={projectId: projeto.id,createdByUserId: currentUser.id,reportType:'RDO',status:isManager?'APPROVED':'PENDING',reportDate: document.getElementById('hdr-data').value,arrivalTime: document.getElementById('hdr-chegada').value,departureTime: document.getElementById('hdr-saida').value,lunchBreak: document.getElementById('hdr-intervalo').value,daytimeCount: getSelectedCollaboratorIds().length,overtimeReason: overtimeReason,dailyDescription: document.getElementById('final-description').value.trim() || null,specialConditions: collectSpecialConditions(),collaboratorIds: getSelectedCollaboratorIds(),services: collectServices()};
   _isSubmitting=true;
+  cancelPendingDraftPersist();
   try{
+    await waitForDraftPersistIdle();
     var savedReport;
     if(editingReportId)savedReport=await apiFetch('/reports/'+editingReportId,{method:'PUT',body:JSON.stringify(payload)});
     else savedReport=await apiFetch('/reports',{method:'POST',body:JSON.stringify(payload)});
     var matchKey=(projeto.id||'')+'|'+(payload.reportDate||'').slice(0,10);
-    var toDelete=uniqueDraftsByProjectDate(draftsCache).filter(function(item){return draftProjectDateKey(item)===matchKey;}).map(function(item){return String(item.id||'');});
-    if(currentDraftId&&toDelete.indexOf(String(currentDraftId))<0)toDelete.push(String(currentDraftId));
-    for(var di=0;di<toDelete.length;di++)await removeDraft(toDelete[di],true);
-    draftsCache=(draftsCache||[]).filter(function(item){return draftProjectDateKey(item)!==matchKey;});
-    currentDraftId='';
-    renderDraftHome();
+    await removeDraftsByProjectDateKey(matchKey);
     var wasEditing=!!editingReportId;
     resetReportForm();
-    if(payload.status==='APPROVED'){
-      await refreshReportsCache();
-    }else{
+    if(savedReport&&savedReport.id){
       updateReportInCache(savedReport);
       updateHomeOngoingSummary();
     }
@@ -7257,6 +7540,7 @@ async function removeDraft(id,silent){
       }
     }catch(err){}
   }
+  try{ await refreshDraftsCache(); }catch(err){}
   renderDraftHome();
 }
 async function deleteReport(id){
@@ -9027,8 +9311,7 @@ window.__legacyBootstrapped = false;
       return;
     }
     var servicesHtml=(report.services||[]).map(function(s,i){
-      var uploads=((s.extraData||{})['__uploads__']||[]);
-      return '<div class="svc-mini"><div class="svc-mini-hdr">Serviço '+(i+1)+' — '+escapeHtml(serviceNames[s.serviceType]||s.serviceType)+'</div><div class="svc-mini-body">Equipamento: <b>'+(s.equipment?s.equipment.code+' - '+s.equipment.name:'—')+'</b><br>Sistema: <b>'+(escapeHtml(s.system||'—'))+'</b> · Material: <b>'+(escapeHtml(s.material||'—'))+'</b><br>Horário: '+escapeHtml((s.startTime||'—')+' às '+(s.endTime||'—'))+'<br>Anexos: '+uploads.length+'</div></div>';
+      return serviceDetailSummaryHtml(s,i);
     }).join('');
     var reviewNotes=report.reviewNotes?'<div class="card"><div class="sec">Retorno do gestor</div><div style="font-size:13px;line-height:1.6">'+escapeHtml(report.reviewNotes)+'</div></div>':'';
     document.getElementById('det-body').innerHTML=renderManagerSequenceEditor(report)+'<div class="card"><div class="sec">Informações gerais</div><div class="det-section"><div class="det-row"><span class="det-label">Projeto</span><span class="det-val">'+escapeHtml(report.project.name)+'</span></div><div class="det-row"><span class="det-label">Data</span><span class="det-val">'+formatReportDate(report.reportDate)+'</span></div><div class="det-row"><span class="det-label">Horário</span><span class="det-val">'+escapeHtml(report.arrivalTime+' - '+report.departureTime)+'</span></div><div class="det-row"><span class="det-label">Equipe</span><span class="det-val">'+(report.collaborators||[]).length+'</span></div></div></div><div class="card"><div class="sec">Serviços registrados</div>'+(servicesHtml||'<div style="font-size:13px;color:var(--mu)">Sem serviços.</div>')+'</div>'+reviewNotes;
@@ -9063,13 +9346,14 @@ window.__legacyBootstrapped = false;
       var projectCode=reportProject.code||'---';
       var service=item.service||{};
       if(!groups[projectName])groups[projectName]={code:projectCode,items:[]};
-      groups[projectName].items.push({reportId:item.reportId,serviceId:service.id,type:service.serviceType,equipment:serviceEquipmentName(service),system:serviceSystemName(service)});
+      groups[projectName].items.push({reportId:item.reportId,serviceId:service.id,type:service.serviceType,equipment:serviceEquipmentName(service),system:serviceSystemName(service),canDelete:!item.report||(item.report.status!=='APPROVED'&&item.report.status!=='SIGNED')});
     });
     var keys=Object.keys(groups).sort();
     root.innerHTML=keys.length?keys.map(function(projectName){
       var group=groups[projectName];
       return '<div class="card"><div class="sec">'+escapeHtml((group.code||'')+' - '+projectName)+'</div><div class="ongoing-proj">'+group.items.map(function(item){
-        return '<div class="ongoing-item"><div><div class="ongoing-item-name">'+escapeHtml(serviceNames[item.type]||item.type)+'</div><div class="ongoing-item-sub">'+escapeHtml(item.equipment)+' · '+escapeHtml(item.system)+'</div></div><div class="ongoing-actions"><button class="ongoing-delete" type="button" onclick="removeOngoingService(\''+item.reportId+'\',\''+item.serviceId+'\')">Excluir</button></div></div>';
+        var del='<button class="ongoing-delete" type="button" onclick="removeOngoingService(\''+item.reportId+'\',\''+item.serviceId+'\')">'+(item.canDelete?'Excluir':'Remover')+'</button>';
+        return '<div class="ongoing-item"><div><div class="ongoing-item-name">'+escapeHtml(serviceNames[item.type]||item.type)+'</div><div class="ongoing-item-sub">'+escapeHtml(item.equipment)+' · '+escapeHtml(item.system)+'</div></div><div class="ongoing-actions">'+del+'</div></div>';
       }).join('')+'</div></div>';
     }).join(''):'<div class="card"><div style="font-size:13px;color:var(--mu)">Nenhum serviço em andamento.</div></div>';
   };
@@ -9087,12 +9371,22 @@ window.__legacyBootstrapped = false;
         return '<div class="ongoing-item" onclick="continuar(\''+item.reportId+'\',\''+service.id+'\')">'+
           '<div><div class="ongoing-item-name">'+escapeHtml(serviceIcons[service.serviceType]||'')+' '+escapeHtml(serviceNames[service.serviceType]||service.serviceType)+' — '+escapeHtml(nomeEq)+'</div>'+
           '<div class="ongoing-item-sub">'+escapeHtml(sistema)+' · iniciado '+escapeHtml(dataInicio||'—')+'</div></div>'+
-          '<div class="ongoing-badge">Continuar</div></div>';
+          '<div class="ongoing-actions"><button class="ongoing-delete" type="button" onclick="event.stopPropagation();removeOngoingService(\''+item.reportId+'\',\''+service.id+'\')">Remover</button><div class="ongoing-badge">Continuar</div></div></div>';
       }).join('')+'</div>';
   };
   removeOngoingService=async function(reportId,serviceId){
-    if(!confirm('Excluir este serviço em andamento?'))return;
+    if(!confirm('Remover este serviço da lista de serviços em andamento?'))return;
     var report=reportsCache.find(function(item){return item.id===reportId;}) || await apiFetch('/reports/'+reportId);
+    if(report.status==='APPROVED'||report.status==='SIGNED'){
+      var service=(report.services||[]).find(function(item){return item.id===serviceId;});
+      if(!service){alert('Serviço não encontrado. Atualize a lista e tente novamente.');return;}
+      hideOngoingServiceLocally(report,service);
+      renderOngoingServices();
+      renderOngoing();
+      updateHomeOngoingSummary();
+      showToast('Serviço removido da lista de andamento.');
+      return;
+    }
     var remaining=(report.services||[]).filter(function(service){return service.id!==serviceId;});
     await apiFetch('/reports/'+reportId,{method:'PUT',body:JSON.stringify(reportToEditablePayload(report,remaining))});
     await refreshReportsCache();
@@ -9451,6 +9745,207 @@ window.__legacyBootstrapped = false;
     var accountSubtitle=document.getElementById('account-subtitle');
     if(accountSubtitle)accountSubtitle.textContent='Configurações da conta';
   };
+  var reportsRefreshInFlight=null;
+  function reportListPathForCurrentUser(){
+    if(!currentUser)return '';
+    return (currentUser.role==='MANAGER'||currentUser.role==='COORDINATOR'||currentUser.role==='CLIENT')?'/reports':'/reports?mine=true';
+  }
+  refreshReportsCache=async function(){
+    if(!currentUser){reportsCache=[];return [];}
+    if(reportsRefreshInFlight)return reportsRefreshInFlight;
+    reportsRefreshInFlight=(async function(){
+      try{
+        reportsCache=await apiFetch(reportListPathForCurrentUser());
+        updateHomeOngoingSummary();
+        return reportsCache;
+      }finally{
+        reportsRefreshInFlight=null;
+      }
+    })();
+    return reportsRefreshInFlight;
+  };
+  function refreshVisibleReportViews(){
+    if(!currentUser)return;
+    var gestorScreen=document.getElementById('s-gestor');
+    var clientScreen=document.getElementById('s-client');
+    var myReportsScreen=document.getElementById('s-meus-relatorios');
+    var homeScreen=document.getElementById('s-home');
+    if((currentUser.role==='MANAGER'||currentUser.role==='COORDINATOR')&&gestorScreen&&gestorScreen.classList.contains('active'))renderGestor();
+    if(currentUser.role==='CLIENT'&&clientScreen&&clientScreen.classList.contains('active'))renderClientPanel();
+    if(myReportsScreen&&myReportsScreen.classList.contains('active'))renderMyReports();
+    if(homeScreen&&homeScreen.classList.contains('active')){
+      renderMyReports();
+      renderOngoing();
+      renderDraftHome();
+    }
+  }
+  startGestorPolling=function(){
+    startReportStatusPolling();
+  };
+  startReportStatusPolling=function(){
+    if(_reportStatusPollInterval)return;
+    _reportStatusPollInterval=setInterval(async function(){
+      if(!shouldPollReportPanels())return;
+      try{
+        await refreshReportsCache();
+        refreshVisibleReportViews();
+      }catch(err){
+        console.warn('Falha ao atualizar relatórios em segundo plano.',err);
+      }
+    },45000);
+  };
+  var baseEnviarNoFullReload=enviar;
+  enviar=async function(){
+    return baseEnviarNoFullReload.apply(this,arguments);
+  };
+  saveManagerDetail=async function(id,action){
+    var report=await apiFetch('/reports/'+id);
+    var sequenceField=document.getElementById('mgr-sequence-number');
+    var sequenceNumber=Number(String(sequenceField&&sequenceField.value||'').trim());
+    if(!Number.isInteger(sequenceNumber)||sequenceNumber<1){alert('Informe um número de relatório válido.');return;}
+    var specialConditions=Object.assign({},report.specialConditions||{});
+    specialConditions.standby=document.getElementById('mgr-standby-toggle').checked;
+    specialConditions.noturno=document.getElementById('mgr-noturno-toggle').checked;
+    specialConditions.standbyDetails={total:normalizeDurationText(document.getElementById('mgr-standby-total').value||''),motivo:document.getElementById('mgr-standby-motivo').value||''};
+    specialConditions.noturnoDetails={inicio:document.getElementById('mgr-noturno-inicio').value||'',termino:document.getElementById('mgr-noturno-termino').value||'',intervalo:(specialConditions.noturnoDetails||{}).intervalo||'01:00:00',collaboratorIds:managerSelectedNightCollaboratorIds(),colaboradores:managerSelectedNightCollaboratorIds().map(function(cid){var col=getColaboradorById(cid);return col?col.nome:cid;})};
+    specialConditions.generalUploads=(document.getElementById('mgr-final-uploads')?getUploads(document.getElementById('mgr-final-uploads')):((report.specialConditions||{}).generalUploads||[]));
+    var payload={
+      projectId: document.getElementById('mgr-project-id').value,
+      reportType: report.reportType,
+      sequenceNumber: sequenceNumber,
+      reportDate: document.getElementById('mgr-report-date').value,
+      arrivalTime: document.getElementById('mgr-arrival').value,
+      departureTime: document.getElementById('mgr-departure').value,
+      lunchBreak: document.getElementById('mgr-lunch').value,
+      daytimeCount: managerSelectedCollaboratorIds().length,
+      overtimeReason: document.getElementById('mgr-overtime').value.trim() || null,
+      dailyDescription: document.getElementById('mgr-description').value.trim() || null,
+      specialConditions: specialConditions,
+      collaboratorIds: managerSelectedCollaboratorIds(),
+      services: collectManagerServices()
+    };
+    var updated=await apiFetch('/reports/'+id,{method:'PUT',body:JSON.stringify(payload)});
+    var finalReport=updated;
+    if(action==='approve'){
+      finalReport=await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'APPROVED',reviewNotes:null})});
+      await refreshReportsCache();
+      showToast('Relatório aprovado com sucesso.');
+    }else if(action==='return'){
+      var notesEl=document.getElementById('det-review-notes');
+      var motivo=notesEl ? notesEl.value.trim() : '';
+      finalReport=await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'RETURNED',reviewNotes:motivo||null})});
+      showToast('Relatório devolvido para correção.');
+    }else{
+      showToast('Alterações salvas.');
+    }
+    if(action!=='approve')updateReportInCache(finalReport||updated);
+    updateHomeOngoingSummary();
+    renderGestor();
+    if(action==='return'){
+      go('s-gestor');
+      return;
+    }
+    await openReportDetail(((finalReport||updated)&&((finalReport||updated).id))||id,'gestor');
+  };
+  rejeitar=async function(id){
+    var notesEl=document.getElementById('det-review-notes');
+    var motivo=notesEl ? notesEl.value.trim() : '';
+    var returned=await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'RETURNED',reviewNotes:motivo||null})});
+    updateReportInCache(returned);
+    updateHomeOngoingSummary();
+    renderGestor();
+    go('s-gestor');
+  };
+  aprovar=async function(id){
+    var approved=await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'APPROVED',reviewNotes:null})});
+    await refreshReportsCache();
+    updateHomeOngoingSummary();
+    renderGestor();
+    await openReportDetail(id,'gestor');
+  };
+  deleteReport=async function(id){
+    if(!authState.token){alert('Faça login novamente.');go('s-login');return;}
+    if(!confirm('Excluir este relatório? Se for um RDO, os relatórios de serviço vinculados a ele também serão removidos.'))return;
+    try{
+      var report=(reportsCache||[]).find(function(item){return item.id===id;});
+      var response=await fetch(API_BASE+'/reports/'+id,{method:'DELETE',headers:{Authorization:'Bearer '+authState.token}});
+      if(!response.ok){
+        var msg='Falha ao excluir relatório.';
+        try{ var err=await response.json(); msg=err.error||msg; }catch(e){}
+        alert(msg);
+        return;
+      }
+      var isRdo=report&&report.reportType==='RDO';
+      reportsCache=(reportsCache||[]).filter(function(item){
+        if(item.id===id)return false;
+        return !(isRdo&&item.specialConditions&&item.specialConditions.parentRdoId===id);
+      });
+      updateHomeOngoingSummary();
+      await refreshDraftsCache();
+      renderMyReports();
+      if(currentUser&&currentUser.role==='MANAGER'){
+        renderGestor();
+        go('s-gestor');
+      }else{
+        go('s-home');
+      }
+      showToast('Relatório excluído com sucesso.');
+    }catch(err){
+      alert('Erro ao excluir relatório: '+err.message);
+    }
+  };
+  if(typeof wrapLockedGlobalAction==='function'){
+    wrapLockedGlobalAction('saveManagerDetail',function(id,action){
+      if(action==='approve')return 'Aprovando...';
+      if(action==='return')return 'Devolvendo...';
+      return 'Salvando...';
+    },function(id,action){
+      return "saveManagerDetail('"+id+"','"+action+"')";
+    },function(id,action){
+      return 'save-manager-final-'+String(id)+'-'+String(action||'save');
+    });
+    wrapLockedGlobalAction('aprovar','Aprovando...',function(id){return "aprovar('"+id+"')";},function(id){return 'aprovar-final-'+String(id);});
+    wrapLockedGlobalAction('rejeitar','Devolvendo...',function(id){return "rejeitar('"+id+"')";},function(id){return 'rejeitar-final-'+String(id);});
+    wrapLockedGlobalAction('deleteReport','Excluindo...',function(id){return "deleteReport('"+id+"')";},function(id){return 'delete-report-'+String(id);});
+  }
+  submitClientReview=async function(reportId,action){
+    var report=(reportsCache||[]).find(function(item){return item.id===reportId;});
+    if(!report)return;
+    var commentField=document.getElementById('client-review-comment-'+reportId);
+    var comment=commentField?commentField.value.trim():'';
+    if(!confirm('Confirmar reprovação deste relatório?'))return;
+    try{
+      var updated=await apiFetch('/reports/'+reportId+'/client-review',{method:'POST',body:JSON.stringify({action:action,comment:comment||null})});
+      updateReportInCache(updated);
+      renderClientPanel();
+      showToast('Reprovação registrada.');
+    }catch(err){ alert('Erro ao registrar ação do cliente: '+err.message); }
+  };
+  startClientSignature=async function(reportId){
+    var report=(reportsCache||[]).find(function(item){return item.id===reportId;});
+    if(!report)return;
+    var commentField=document.getElementById('client-review-comment-'+reportId);
+    var comment=commentField?commentField.value.trim():'';
+    var confirmText='Você será redirecionado para a ZapSign para assinar digitalmente o '+(report.reportType||'RDO')+' n '+(report.sequenceNumber!=null?String(report.sequenceNumber):'---')+'. Deseja continuar?';
+    if(!confirm(confirmText))return;
+    try{
+      var result=await apiFetch('/reports/'+reportId+'/request-signature',{method:'POST',body:JSON.stringify({comment:comment||null})});
+      if(result&&result.report)updateReportInCache(result.report);
+      renderClientPanel();
+      if(result&&result.signUrl){
+        window.open(result.signUrl,'_blank','noopener');
+        showToast('Link de assinatura aberto na ZapSign.');
+        return;
+      }
+      throw new Error('Link de assinatura não retornado.');
+    }catch(err){ alert('Erro ao iniciar assinatura: '+err.message); }
+  };
+  window.submitClientReview=submitClientReview;
+  window.startClientSignature=startClientSignature;
+  if(typeof wrapLockedGlobalAction==='function'){
+    wrapLockedGlobalAction('submitClientReview','Enviando...',function(id,action){return "submitClientReview('"+id+"','"+action+"')";},function(id){return 'client-review-'+String(id);});
+    wrapLockedGlobalAction('startClientSignature','Enviando...',function(id){return "startClientSignature('"+id+"')";},function(id){return 'client-signature-'+String(id);});
+  }
   ensureUtilityScreens();
   applyOrthographyUiFixes();
   patchLoginPanel();
