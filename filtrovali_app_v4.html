@@ -1757,7 +1757,7 @@ function editorProjeto(){
     '<div class="fg"><label>CNPJ</label><input type="text" id="ed-proj-cnpj" value="'+escapeHtml(p.cnpj||'')+'"></div>'+
     '<div class="fg"><label>Contrato</label><input type="text" id="ed-proj-contrato" value="'+escapeHtml(p.contrato||'')+'"></div>'+
     '<div class="fg"><label>Local</label><input type="text" id="ed-proj-local" value="'+escapeHtml(p.local||'')+'"></div>'+
-    '<div class="fg"><label>Operador responsável</label><select id="ed-proj-operador">'+selectOptions(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};}),p.operadorResponsavelId||'','Selecionar...')+'</select></div>'+
+    '<div class="fg"><label>Operador responsável</label><select id="ed-proj-operador">'+selectOptions(db.colaboradores.filter(function(c){return c.ativo!==false;}).map(function(c){return {value:c.id,label:c.nome};}),p.operadorResponsavelId||'','Selecionar...')+'</select></div>'+
     '<div class="fg"><label>Exibir para colaboradores</label><select id="ed-proj-visible-collab"><option value="true"'+(p.visivelColaboradores!==false?' selected':'')+'>Sim</option><option value="false"'+(p.visivelColaboradores===false?' selected':'')+'>Não</option></select></div>'+
     '<div class="fg"><label>Jornada padrão</label><input type="text" id="ed-proj-jornada" value="'+escapeHtml(p.jornada||'09:00')+'"></div>'+
     '<div class="fg"><label>Jornada fim de semana</label><input type="text" id="ed-proj-fds" value="'+escapeHtml(p.jornadaFimSemana||'08:00')+'"></div>'+
@@ -7985,7 +7985,7 @@ window.__legacyBootstrapped = false;
       '<div class="fg full"><label>E-mails em copia</label><input type="hidden" id="ed-proj-email-cc-values" value="'+escapeHtml(JSON.stringify(parseEmailList(p.emailsCopia||[])))+'"><div class="email-tags" id="ed-proj-email-cc-tags"><input type="text" id="ed-proj-email-cc-input" placeholder="Digite um e-mail e pressione Enter" onkeydown="handleProjectEmailCcKeydown(event)" onblur="commitProjectEmailCcInput()"></div></div>'+
       '<div class="fg"><label>Contrato</label><input type="text" id="ed-proj-contrato" value="'+escapeHtml(p.contrato||'')+'"></div>'+
       '<div class="fg"><label>Local</label><input type="text" id="ed-proj-local" value="'+escapeHtml(p.local||'')+'"></div>'+
-      '<div class="fg"><label>Operador responsavel</label><select id="ed-proj-operador">'+selectOptions(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};}),p.operadorResponsavelId||'','Selecionar...')+'</select></div>'+
+      '<div class="fg"><label>Operador responsavel</label><select id="ed-proj-operador">'+selectOptions(db.colaboradores.filter(function(c){return c.ativo!==false;}).map(function(c){return {value:c.id,label:c.nome};}),p.operadorResponsavelId||'','Selecionar...')+'</select></div>'+
       '<div class="fg"><label>Exibir para colaboradores</label><select id="ed-proj-visible-collab"><option value="true"'+(p.visivelColaboradores!==false?' selected':'')+'>Sim</option><option value="false"'+(p.visivelColaboradores===false?' selected':'')+'>Nao</option></select></div>'+
       '<div class="fg"><label>Jornada padrao</label><input type="text" id="ed-proj-jornada" value="'+escapeHtml(p.jornada||'09:00')+'"></div>'+
       '<div class="fg"><label>Jornada fim de semana</label><input type="text" id="ed-proj-fds" value="'+escapeHtml(p.jornadaFimSemana||'08:00')+'"></div>'+
@@ -9676,7 +9676,7 @@ window.__legacyBootstrapped = false;
       '<div class="fg full"><label>E-mails em cópia</label><input type="hidden" id="ed-proj-email-cc-values" value="'+escapeHtml(JSON.stringify(parseEmailList(p.emailsCopia||[])))+'"><div class="email-tags" id="ed-proj-email-cc-tags"><input type="text" id="ed-proj-email-cc-input" placeholder="Digite um e-mail e pressione Enter" onkeydown="handleProjectEmailCcKeydown(event)" onblur="commitProjectEmailCcInput()"></div></div>'+
       '<div class="fg"><label>Contrato</label><input type="text" id="ed-proj-contrato" value="'+escapeHtml(p.contrato||'')+'"></div>'+
       '<div class="fg"><label>Local</label><input type="text" id="ed-proj-local" value="'+escapeHtml(p.local||'')+'"></div>'+
-      '<div class="fg"><label>Operador responsável</label><select id="ed-proj-operador">'+selectOptions(db.colaboradores.map(function(c){return {value:c.id,label:c.nome};}),p.operadorResponsavelId||'','Selecionar...')+'</select></div>'+
+      '<div class="fg"><label>Operador responsável</label><select id="ed-proj-operador">'+selectOptions(db.colaboradores.filter(function(c){return c.ativo!==false;}).map(function(c){return {value:c.id,label:c.nome};}),p.operadorResponsavelId||'','Selecionar...')+'</select></div>'+
       '<div class="fg"><label>Exibir para colaboradores</label><select id="ed-proj-visible-collab"><option value="true"'+(p.visivelColaboradores!==false?' selected':'')+'>Sim</option><option value="false"'+(p.visivelColaboradores===false?' selected':'')+'>Não</option></select></div>'+
       '<div class="fg"><label>Jornada padrão</label><input type="text" id="ed-proj-jornada" value="'+escapeHtml(p.jornada||'09:00')+'"></div>'+
       '<div class="fg"><label>Jornada de fim de semana</label><input type="text" id="ed-proj-fds" value="'+escapeHtml(p.jornadaFimSemana||'08:00')+'"></div>'+
