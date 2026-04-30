@@ -378,9 +378,10 @@ function expandTubeRows(doc, sd) {
   const clones = tubes.map(t => {
     const clone = templateRow.cloneNode(true);
     const unit = t.unit || 'pol';
+    const lengthUnit = t.lengthUnit || t.cUnit || t.comprimentoUnit || 'm';
     replacePlaceholders(clone, {
       diameter: t.d ? `${t.d} ${unit}` : '',
-      length: t.c ? `${t.c} m` : ''
+      length: t.c ? `${t.c} ${lengthUnit}` : ''
     });
     return clone;
   });

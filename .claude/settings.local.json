@@ -33,7 +33,16 @@
       "Bash(grep -n \"\\\\\\\\\\\\\\\\u00\\\\|\\\\\\\\\\\\\\\\u20\\\\|\\\\\\\\\\\\\\\\u21\\\\|\\\\\\\\\\\\\\\\u01\\\\|\\\\\\\\\\\\\\\\u03\" \"C:\\\\Users\\\\relat\\\\Área de Trabalho\\\\NewRDO\\\\frontend\\\\src\\\\components\\\\reports\\\\ReportSummaryCard.tsx\" \"C:\\\\Users\\\\relat\\\\Área de Trabalho\\\\NewRDO\\\\frontend\\\\src\\\\pages\\\\gestor\\\\GestorPage.tsx\")",
       "Bash(grep -n \"\\\\\\\\\\\\\\\\u00\\\\|\\\\\\\\\\\\\\\\u20\\\\| as {\" \"C:\\\\Users\\\\relat\\\\Área de Trabalho\\\\NewRDO\\\\frontend\\\\src\\\\components\\\\reports\\\\ReportSummaryCard.tsx\" \"C:\\\\Users\\\\relat\\\\Área de Trabalho\\\\NewRDO\\\\frontend\\\\src\\\\pages\\\\gestor\\\\GestorPage.tsx\")",
       "Bash(ipconfig)",
-      "mcp__code-review-graph__list_graph_stats_tool"
+      "mcp__code-review-graph__list_graph_stats_tool",
+      "Bash(node --check \"C:\\\\Users\\\\relat\\\\Área de Trabalho\\\\RDO-v1\\\\app_v1\\\\filtrovali_app_v4.html\")",
+      "Bash(node *)",
+      "Bash(git stash *)",
+      "Bash(git restore *)",
+      "Bash(awk 'NR>=4098 && NR<=4110 {print NR\": \"$0}' /home/relat/apps/RDO-v1/app_v1/filtrovali_app_v4.html)",
+      "Bash(awk NR>=1090 && NR<=1100 {print NR\": \"$0} *)",
+      "Bash(awk NR>=3480 && NR<=3510 {print NR\": \"$0} *)",
+      "Bash(awk NR>=2538 && NR<=2565 {print NR\": \"$0} *)",
+      "Bash(awk NR>=487 && NR<=500 {print NR\": \"$0} *)"
     ]
   },
   "enableAllProjectMcpServers": true,
