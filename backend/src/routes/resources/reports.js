@@ -29,9 +29,32 @@ import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
 const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
+const CLIENT_REJECTION_KEY = '__clientRejectedAt';
+const CLIENT_REJECTION_RESOLVED_KEY = '__clientRejectionResolvedAt';
 
 function formatDatePtBr(date) {
   return new Date(date).toLocaleDateString('pt-BR');
+}
+
+function hasActiveClientRejection(report) {
+  const special = report?.specialConditions || {};
+  const rejectedAt = special[CLIENT_REJECTION_KEY];
+  const resolvedAt = special[CLIENT_REJECTION_RESOLVED_KEY];
+  if (rejectedAt) {
+    return !resolvedAt || new Date(rejectedAt).getTime() > new Date(resolvedAt).getTime();
+  }
+  const reviews = Array.isArray(report?.clientReviews) ? report.clientReviews : [];
+  const latest = reviews[0];
+  if (!latest || latest.action !== ClientReviewAction.REJECTED) return false;
+  if (resolvedAt && new Date(latest.createdAt).getTime() <= new Date(resolvedAt).getTime()) return false;
+  return report?.status !== ReportStatus.SIGNED;
+}
+
+function withClientRejectionCleared(specialConditions) {
+  const next = { ...(specialConditions || {}) };
+  delete next[CLIENT_REJECTION_KEY];
+  next[CLIENT_REJECTION_RESOLVED_KEY] = new Date().toISOString();
+  return next;
 }
 
 function reportNumberLabel(report) {
@@ -133,7 +156,7 @@ function canAccessReport(auth, report) {
 function canClientSeeReport(report, allReportsById) {
   if (!report || !report.project?.clientCnpj) return false;
   if (report.reportType === ReportType.RDO) {
-    return report.status === ReportStatus.APPROVED || report.status === ReportStatus.SIGNED;
+    return report.status === ReportStatus.APPROVED || report.status === ReportStatus.SIGNED || hasActiveClientRejection(report);
   }
   const parentId = report.specialConditions?.parentRdoId;
   if (!parentId) return false;
@@ -229,7 +252,30 @@ async function resolveSignedPdf(report) {
   }
 
   const fileName = `${String(report.reportType || 'RDO')}_${report.sequenceNumber != null ? String(report.sequenceNumber) : report.id}_assinado.pdf`;
-  const buffer = await downloadSignedZapSignDocument(signedUrl);
+  let buffer;
+  try {
+    buffer = await downloadSignedZapSignDocument(signedUrl);
+  } catch (error) {
+    if (error?.statusCode !== 403) {
+      throw error;
+    }
+
+    const details = await getZapSignDocument(report.zapsignDocToken);
+    const refreshedSignedUrl = String(details?.signedFile || '').trim();
+    if (!refreshedSignedUrl || refreshedSignedUrl === signedUrl) {
+      throw error;
+    }
+
+    await prisma.report.update({
+      where: { id: report.id },
+      data: {
+        zapsignDocUrl: refreshedSignedUrl,
+        ...(report.zapsignSignedAt ? {} : { zapsignSignedAt: new Date() })
+      }
+    });
+
+    buffer = await downloadSignedZapSignDocument(refreshedSignedUrl);
+  }
   return { fileName, buffer };
 }
 
@@ -1627,6 +1673,9 @@ router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, re
   if (reports.some(report => report.reportType !== ReportType.RDO || report.status !== ReportStatus.APPROVED || report.status === ReportStatus.SIGNED)) {
     return res.status(409).json({ error: 'A assinatura em lote aceita apenas RDOs aprovados pelo gestor e ainda não assinados.' });
   }
+  if (reports.some(report => hasActiveClientRejection(report))) {
+    return res.status(409).json({ error: 'Há relatórios reprovados pelo cliente que precisam ser alterados pelo gestor antes da assinatura.' });
+  }
 
   const commentsById = normalizeCommentMap(data.commentsById);
   const preparedReports = await prisma.$transaction(async tx => {
@@ -1959,7 +2008,9 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
         overtimeReason: data.overtimeReason || null,
         dailyDescription: data.dailyDescription || null,
         specialConditions: {
-          ...(stripInternalEditState(data.specialConditions || {})),
+          ...(req.auth.user.role === 'MANAGER'
+            ? withClientRejectionCleared(stripInternalEditState(data.specialConditions || {}))
+            : stripInternalEditState(data.specialConditions || {})),
           overtimeSummary: overtime,
           ...internalEditState,
           ...(existing.specialConditions?.__leaderSnapshot
@@ -2191,7 +2242,7 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
   const tPatch0 = Date.now();
   const item = await prisma.$transaction(async tx => {
     const nextSpecialConditions = data.status === ReportStatus.APPROVED
-      ? stripInternalEditState(previous?.specialConditions || {})
+      ? withClientRejectionCleared(stripInternalEditState(previous?.specialConditions || {}))
       : previous?.specialConditions;
 
     const updated = await tx.report.update({
@@ -2256,6 +2307,9 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
   }
   if (existing.status === ReportStatus.SIGNED) {
     return res.status(409).json({ error: 'Relatório já está assinado.' });
+  }
+  if (hasActiveClientRejection(existing)) {
+    return res.status(409).json({ error: 'Relatório reprovado pelo cliente. O gestor precisa alterar o relatório antes de uma nova assinatura.' });
   }
   if (existing.status !== ReportStatus.APPROVED) {
     return res.status(409).json({ error: 'Somente relatórios aprovados pelo gestor podem ser assinados.' });
@@ -2367,6 +2421,9 @@ router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => 
   if (existing.status === ReportStatus.SIGNED) {
     return res.status(409).json({ error: 'Relatório já está assinado.' });
   }
+  if (hasActiveClientRejection(existing)) {
+    return res.status(409).json({ error: 'Este relatório já foi reprovado. Aguarde a alteração do gestor para avaliar novamente.' });
+  }
   if (existing.status !== ReportStatus.APPROVED) {
     return res.status(409).json({ error: 'Somente relatórios aprovados pelo gestor podem ser avaliados pelo cliente.' });
   }
@@ -2386,10 +2443,19 @@ router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => 
       }
     });
 
+    const nextSpecialConditions = { ...(existing.specialConditions || {}) };
+    if (data.action === 'REJECTED') {
+      nextSpecialConditions[CLIENT_REJECTION_KEY] = new Date().toISOString();
+      delete nextSpecialConditions[CLIENT_REJECTION_RESOLVED_KEY];
+    }
+
     return tx.report.update({
       where: { id: existing.id },
       data: {
-        status: data.action === 'APPROVED' ? ReportStatus.SIGNED : ReportStatus.APPROVED
+        status: data.action === 'APPROVED' ? ReportStatus.SIGNED : ReportStatus.PENDING,
+        specialConditions: data.action === 'REJECTED'
+          ? nextSpecialConditions
+          : withClientRejectionCleared(existing.specialConditions)
       },
       include
     });
