@@ -1066,6 +1066,24 @@ function tubesBlock(n,tubes,isPre){
     '<div id="tubes-'+n+'" data-multifield="tubes" data-required-group="tubes" data-label="Diâmetros e comprimentos">'+rows+'</div>'+
     '<div class="tube-add" onclick="addTube('+n+')">＋ Adicionar tubulação</div></div>';
 }
+function isNoValue(value){
+  if(Array.isArray(value))value=value[0];
+  return String(value||'').trim().toLowerCase().replace('ã','a')==='nao';
+}
+function toggleTubesQuestion(el,n,show){
+  selectRad(el,show);
+  showSec('limpeza-tubes-wrap-'+n,show);
+}
+function limpezaTubesBlock(n,p,isPre){
+  var raw=p['Limpeza de tubulação?']||p['Limpeza de tubulacao?']||p.limpezaTubulacao;
+  var show=!isNoValue(raw);
+  return '<div class="fg"><label>Limpeza de tubulação? <span class="req">*</span>'+(isPre&&raw?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
+    '<div class="rtag-grp" data-required-group="rtag" data-label="Limpeza de tubulação?">'+
+    '<div class="rtag '+(show?'yes':'')+'" onclick="toggleTubesQuestion(this,'+n+',true)">Sim</div>'+
+    '<div class="rtag '+(!show?'no':'')+'" onclick="toggleTubesQuestion(this,'+n+',false)">Não</div>'+
+    '</div></div>'+
+    '<div id="limpeza-tubes-wrap-'+n+'" style="display:'+(show?'block':'none')+'">'+tubesBlock(n,p.tubes,isPre)+'</div>';
+}
 function materialField(n,val,isPre,lbl){
   var opts=['Aço carbono','Inox','Outro'];var lb=lbl||'Material da tubulação';
   return '<div class="fg"><label>'+lb+' <span class="req">*</span>'+(isPre&&val?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
@@ -4300,7 +4318,7 @@ function bodyLimpeza(n,p,isPre){
   var equips=p['Equipamento(s)']||p.equipId||[];
   var etapas=['Montagem do sistema','Teste de estanqueidade','Desengraxe','Fase ácida','Fase sequestrante','Fase neutralizante','Fase passivante','Secagem','Desmontagem do sistema','Inspeção por boroscopia'];
   var ulqVals=(p['Unidade de Limpeza Química']||p['Unidade de Limpeza Quimica']||{});var ulqIds=Array.isArray(ulqVals)?ulqVals:(ulqVals.ids||[]);
-  return equipMultiField('limpeza',n,equips,isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Resfriamento')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+'<div class="fg"><label>Método de limpeza <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label><div class="chk-grp" data-required-group="checkbox" data-label="Método de limpeza">'+['Circulação pressurizada','Pulverização','Enchimento e imersão'].map(function(m){var c=p.metodos&&p.metodos.indexOf(m)>=0;return '<label class="chk-item '+(isPre&&c?'pre':'')+'"><input type="checkbox"'+(c?' checked':'')+'><span>'+m+'</span></label>';}).join('')+'</div></div>'+unitMultiField('Unidade de Limpeza Química','limpezaQuimica',n,ulqIds,true,isPre)+'<div class="fg"><label>Local de limpeza <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label><div class="tag-list" data-required-group="tag" data-label="Local de limpeza">'+['Interna','Externa'].map(function(l){var s=p.local&&p.local.indexOf(l)>=0;return '<span class="tag'+(s?' sel':'')+'" onclick="this.classList.toggle(\'sel\')">'+l+'</span>';}).join('')+'</div></div>'+tubesBlock(n,p.tubes,isPre)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+'<div class="fg"><label>Tipo de inspeção</label><div class="tag-list">'+['Visual','Corpo de prova','Vídeo boroscopia'].map(function(t){return '<span class="tag" onclick="this.classList.toggle(\'sel\')">'+t+'</span>';}).join('')+'</div></div>'+uploadField('Imagens — corpo de prova')+uploadField('Imagens — tubulação')+desenhoObs();
+  return equipMultiField('limpeza',n,equips,isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Resfriamento')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+'<div class="fg"><label>Método de limpeza <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label><div class="chk-grp" data-required-group="checkbox" data-label="Método de limpeza">'+['Circulação pressurizada','Pulverização','Enchimento e imersão'].map(function(m){var c=p.metodos&&p.metodos.indexOf(m)>=0;return '<label class="chk-item '+(isPre&&c?'pre':'')+'"><input type="checkbox"'+(c?' checked':'')+'><span>'+m+'</span></label>';}).join('')+'</div></div>'+unitMultiField('Unidade de Limpeza Química','limpezaQuimica',n,ulqIds,true,isPre)+'<div class="fg"><label>Local de limpeza <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label><div class="tag-list" data-required-group="tag" data-label="Local de limpeza">'+['Interna','Externa'].map(function(l){var s=p.local&&p.local.indexOf(l)>=0;return '<span class="tag'+(s?' sel':'')+'" onclick="this.classList.toggle(\'sel\')">'+l+'</span>';}).join('')+'</div></div>'+limpezaTubesBlock(n,p,isPre)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+'<div class="fg"><label>Tipo de inspeção</label><div class="tag-list">'+['Visual','Corpo de prova','Vídeo boroscopia'].map(function(t){return '<span class="tag" onclick="this.classList.toggle(\'sel\')">'+t+'</span>';}).join('')+'</div></div>'+uploadField('Imagens — corpo de prova')+uploadField('Imagens — tubulação')+desenhoObs();
 }
 function bodyPressao(n,p,isPre){
   var equips=p['Equipamento(s)']||p.equipId||[];
@@ -4560,6 +4578,7 @@ function updateOvertimeUi(){
   var text=document.getElementById('overtime-summary');
   var textarea=document.getElementById('final-overtime');
   if(!wrap||!text)return;
+  var hasOvertime=summary.totalOvertimeMinutes>0;
   var lines=[
     'Turno diurno: trabalhado '+overtimeFormatMinutes(summary.daytimeWorkedMinutes)+' | extra '+overtimeFormatMinutes(summary.daytimeOvertimeMinutes)
   ];
@@ -4573,7 +4592,8 @@ function updateOvertimeUi(){
   }else{
     lines.push('Data com regime integral de hora extra conforme configuração do projeto.');
   }
-  if(summary.totalOvertimeMinutes>0){
+  if(textarea)textarea.disabled=!hasOvertime;
+  if(hasOvertime){
     text.style.color='var(--rd)';
     text.innerHTML='<strong>Hora extra identificada:</strong><br>'+lines.join('<br>');
     wrap.style.display='';
@@ -4631,6 +4651,7 @@ function collectSpecialConditions(){
 function goFinal(){
   var err=validateScope(document.getElementById('s-servicos'));
   if(err){focusValidation(err,'s-servicos');return;}
+  initOvertimeUi();
   updateOvertimeUi();
   go('s-final');
 }
@@ -6122,6 +6143,8 @@ function currentReportDraftSnapshot(){
   var hasServices=document.querySelectorAll('#svc-cards .svc-card').length>0;
   var hasDescription=!!((document.getElementById('final-description')||{}).value||'').trim();
   var hasTeam=getSelectedCollaboratorIds().length>0;
+  var overtimeSummary=updateOvertimeUi();
+  var hasOvertime=overtimeSummary&&overtimeSummary.totalOvertimeMinutes>0;
   if(!hasProject&&!hasServices&&!hasDescription&&!hasTeam)return null;
   return {
     id: currentDraftId||('draft_'+Date.now()),
@@ -6135,7 +6158,7 @@ function currentReportDraftSnapshot(){
     collaboratorIds: getSelectedCollaboratorIds(),
     nightCollaboratorIds: getSelectedNightCollaboratorIds(),
     specialConditions: collectSpecialConditions(),
-    overtimeReason: ((document.getElementById('final-overtime')||{}).value||'').trim(),
+    overtimeReason: hasOvertime?((document.getElementById('final-overtime')||{}).value||'').trim():'',
     dailyDescription: ((document.getElementById('final-description')||{}).value||'').trim(),
      services: Array.from(document.querySelectorAll('#svc-cards .svc-card')).map(function(card){
       var serviceType=normalizeServiceType(card.dataset.svcType);
@@ -7705,6 +7728,7 @@ function formatReportDate(v){
   return d+'/'+m+'/'+y;
 }
 function reportStatusMeta(report){
+  if(typeof isClientRejectedReport==='function'&&isClientRejectedReport(report))return {txt:'Reprovado pelo cliente',cls:'badge-rej'};
   if(report&&report.status==='PENDING'&&isPendingEditReport(report))return statusMeta('EDITED');
   return statusMeta(report&&report.status);
 }
@@ -8395,9 +8419,29 @@ window.__legacyBootstrapped = false;
   }
   var clientProjectTab='';
   var clientReportTypeTabs={};
+  function clientReviewDateValue(value){
+    var time=value?new Date(value).getTime():0;
+    return isNaN(time)?0:time;
+  }
+  function latestClientReview(report){
+    var reviews=(report&&report.clientReviews)||[];
+    return reviews.length?reviews[0]:null;
+  }
+  function isClientRejectedReport(report){
+    if(!report)return false;
+    var special=report.specialConditions||{};
+    var rejectedAt=clientReviewDateValue(special.__clientRejectedAt);
+    var resolvedAt=clientReviewDateValue(special.__clientRejectionResolvedAt);
+    if(rejectedAt)return !resolvedAt||rejectedAt>resolvedAt;
+    var latest=latestClientReview(report);
+    if(!latest||latest.action!=='REJECTED')return false;
+    if(resolvedAt&&clientReviewDateValue(latest.createdAt)<=resolvedAt)return false;
+    return report.status!=='SIGNED';
+  }
   function clientStatusMeta(report){
     if(report&&report.status==='SIGNED')return {txt:'Assinado',cls:'badge-signed'};
-    if(report&&report.status==='APPROVED')return {txt:'Aprovado',cls:'badge-pen'};
+    if(isClientRejectedReport(report))return {txt:'Reprovado',cls:'badge-rej'};
+    if(report&&report.status==='APPROVED')return {txt:'Aguardando assinatura',cls:'badge-pen'};
     if(report&&report.status==='RETURNED')return {txt:'Reprovado',cls:'badge-rej'};
     return {txt:report&&report.status?report.status:'Pendente',cls:'badge-rev'};
   }
@@ -8407,6 +8451,39 @@ window.__legacyBootstrapped = false;
     return '<div class="card"><div class="sec">Retorno do cliente</div><div class="det-section">'+reviews.slice(0,3).map(function(item){
       return '<div class="det-row"><span class="det-label">'+(item.action==='APPROVED'?'Aprovado':'Reprovado')+'</span><span class="det-val">'+escapeHtml(item.comment||'Sem comentario')+'</span></div>';
     }).join('')+'</div></div>';
+  }
+  function openZapSignPendingWindow(){
+    if(isMobileZapSignFlow())return null;
+    var win=null;
+    try{
+      win=window.open('about:blank','_blank');
+      if(win){
+        try{win.opener=null;}catch(e){}
+        try{
+          win.document.title='Abrindo ZapSign...';
+          win.document.body.innerHTML='<div style="font-family:Arial,sans-serif;padding:24px;line-height:1.5;color:#111827"><strong>Abrindo ZapSign...</strong><br>Aguarde enquanto o link de assinatura é preparado.</div>';
+        }catch(e){}
+      }
+    }catch(e){win=null;}
+    return win;
+  }
+  function isMobileZapSignFlow(){
+    var ua=(navigator.userAgent||navigator.vendor||'').toLowerCase();
+    var touch=!!(navigator.maxTouchPoints&&navigator.maxTouchPoints>1);
+    return /android|iphone|ipad|ipod|mobile/.test(ua)||touch;
+  }
+  function redirectZapSignWindow(win,url){
+    if(!url)return false;
+    if(win&&!win.closed){
+      try{win.location.replace(url);return true;}catch(e){}
+    }
+    window.location.assign(url);
+    return true;
+  }
+  function closeZapSignPendingWindow(win){
+    if(win&&!win.closed){
+      try{win.close();}catch(e){}
+    }
   }
   async function refreshClientDbFromApi(){
     var projects=await apiFetch('/projects');
@@ -8420,11 +8497,12 @@ window.__legacyBootstrapped = false;
   function renderClientReportCard(report){
     var meta=clientStatusMeta(report);
     var isRdo=(report.reportType||'RDO')==='RDO';
-    var canReview=isRdo&&report.status==='APPROVED';
+    var clientRejected=isClientRejectedReport(report);
+    var canReview=isRdo&&report.status==='APPROVED'&&!clientRejected;
     var signaturePending=canReview&&!!report.zapsignRequestedAt&&!report.zapsignSignedAt;
     var commentId='client-review-comment-'+report.id;
     var leader=(report.createdBy&&report.createdBy.name)||'-';
-    var subtitle=isRdo?'RDO pronto para conferencia do cliente':'Relatorio de servico liberado apos assinatura do RDO';
+    var subtitle=clientRejected?'Reprovado. Aguarde a alteração do gestor.':(isRdo?'RDO pronto para conferencia do cliente':'Relatorio de servico liberado apos assinatura do RDO');
     var actions='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="mini-btn alt" type="button" onclick="gerarPDF(\''+report.id+'\')">Baixar PDF</button></div>';
     if(canReview){
       actions+='<div style="margin-top:10px" class="fg"><label>Comentario do cliente</label><textarea id="'+commentId+'" rows="3" placeholder="Comentario opcional que sera exibido no relatorio final"></textarea></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="mini-btn" type="button" onclick="startClientSignature(\''+report.id+'\')">'+(signaturePending?'Continuar assinatura digital':'Aprovar e assinar digitalmente')+'</button><button class="mini-btn alt" type="button" onclick="submitClientReview(\''+report.id+'\',\'REJECTED\')">Reprovar</button></div>';
@@ -8492,17 +8570,21 @@ window.__legacyBootstrapped = false;
     var comment=commentField?commentField.value.trim():'';
     var confirmText='Voce sera redirecionado para a ZapSign para assinar digitalmente o '+(report.reportType||'RDO')+' n '+(report.sequenceNumber!=null?String(report.sequenceNumber):'---')+'. Deseja continuar?';
     if(!confirm(confirmText))return;
+    var signWindow=openZapSignPendingWindow();
     try{
       var result=await apiFetch('/reports/'+reportId+'/request-signature',{method:'POST',body:JSON.stringify({comment:comment||null})});
       await refreshReportsCache();
       renderClientPanel();
       if(result&&result.signUrl){
-        window.open(result.signUrl,'_blank','noopener');
+        redirectZapSignWindow(signWindow,result.signUrl);
         showToast('Link de assinatura aberto na ZapSign.');
         return;
       }
       throw new Error('Link de assinatura nao retornado.');
-    }catch(err){ alert('Erro ao iniciar assinatura digital: '+err.message); }
+    }catch(err){
+      closeZapSignPendingWindow(signWindow);
+      alert('Erro ao iniciar assinatura digital: '+err.message);
+    }
   }
   window.switchClientProjectTab=switchClientProjectTab;
   window.switchClientReportTypeTab=switchClientReportTypeTab;
@@ -8656,7 +8738,7 @@ window.__legacyBootstrapped = false;
         subtitle=escapeHtml(summarizeServices(report)||('Sem servi'+String.fromCharCode(231)+'os'));
       }
       var actions='';
-      if(report.status==='APPROVED' || report.status==='SIGNED'){
+      if((report.status==='APPROVED' || report.status==='SIGNED')&&!isClientRejectedReport(report)){
         actions=currentUser&&currentUser.role==='MANAGER'
           ?'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();downloadDocx(\''+report.id+'\')">DOCX</button><button class="mini-btn alt" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">PDF</button></div>'
           :'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn alt" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">PDF</button></div>';
@@ -8750,6 +8832,7 @@ window.__legacyBootstrapped = false;
   }
   function isSelectableReport(report,ctx){
     if(!report)return false;
+    if(isClientRejectedReport(report))return false;
     if(report.status!=='APPROVED' && report.status!=='SIGNED')return false;
     if(ctx==='cliente')return true;
     return true;
@@ -8970,6 +9053,7 @@ window.__legacyBootstrapped = false;
     }
     var label=selected.length===1?'1 relatório':selected.length+' relatórios';
     if(!confirm('Você será redirecionado para a ZapSign para assinar '+label+' de uma vez. Deseja continuar?'))return;
+    var signWindow=openZapSignPendingWindow();
     var commentsById={};
     selected.forEach(function(report){
       var field=document.getElementById('client-review-comment-'+report.id);
@@ -8984,12 +9068,13 @@ window.__legacyBootstrapped = false;
       await refreshReportsCache();
       renderClientPanel();
       if(result&&result.signUrl){
-        window.open(result.signUrl,'_blank','noopener');
+        redirectZapSignWindow(signWindow,result.signUrl);
         showToast('Lote enviado para assinatura na ZapSign.');
         return;
       }
       throw new Error('Link de assinatura não retornado.');
     }catch(err){
+      closeZapSignPendingWindow(signWindow);
       alert('Erro ao iniciar assinatura em lote: '+err.message);
     }
   }
@@ -9107,11 +9192,12 @@ window.__legacyBootstrapped = false;
     return function(report){
       var meta=clientStatusMeta(report);
       var isRdo=(report.reportType||'RDO')==='RDO';
-      var canReview=isRdo&&report.status==='APPROVED';
+      var clientRejected=isClientRejectedReport(report);
+      var canReview=isRdo&&report.status==='APPROVED'&&!clientRejected;
       var signaturePending=canReview&&!!report.zapsignRequestedAt&&!report.zapsignSignedAt;
       var commentId='client-review-comment-'+report.id;
       var leader=(report.createdBy&&report.createdBy.name)||'-';
-      var subtitle=isRdo?'RDO pronto para conferencia do cliente':'Relatorio de servico liberado apos assinatura do RDO';
+      var subtitle=clientRejected?'Reprovado. Aguarde a alteracao do gestor.':(isRdo?'RDO pronto para conferencia do cliente':'Relatorio de servico liberado apos assinatura do RDO');
       var checkbox=isSelectableReport(report,'cliente')
         ? '<label class="client-report-checkbox" onclick="event.stopPropagation()"><input type="checkbox"'+(isSelectedInBatch('cliente',report.id)?' checked':'')+' onchange="toggleBatchSelection(\'cliente\',\''+report.id+'\',\''+(report.projectId||'')+'\',\''+normalizeReportType(report.reportType||'RDO')+'\')" /></label>'
         : '';
@@ -9226,8 +9312,8 @@ window.__legacyBootstrapped = false;
   };
   renderGestor=function(){
     var c=document.getElementById('gestor-content');if(!c)return;
-    var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED';});
-    var approved=reportsCache.filter(function(r){return r.status==='APPROVED'||r.status==='SIGNED';});
+    var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED'||isClientRejectedReport(r);});
+    var approved=reportsCache.filter(function(r){return (r.status==='APPROVED'||r.status==='SIGNED')&&!isClientRejectedReport(r);});
     var pen=document.getElementById('cnt-pen');if(pen)pen.textContent=pending.length;
     if(gestorTab==='pendentes'){
       var draftsHtml='';
@@ -9294,7 +9380,7 @@ window.__legacyBootstrapped = false;
     currentDetailBack=origin==='meus'?'s-meus-relatorios':'s-gestor';
     document.getElementById('det-title').textContent=reportDisplayLabel(report)+' · '+report.project.name;
     document.getElementById('det-sub').textContent=((report.createdBy&&report.createdBy.name)||'—')+' · '+formatReportDate(report.reportDate);
-    document.getElementById('det-badge-top').textContent=statusMeta(report.status).txt;
+    document.getElementById('det-badge-top').textContent=reportStatusMeta(report).txt;
     var reportType=normalizeReportType(report.reportType||'RDO');
     var isDerived=reportType!=='RDO';
     if(currentUser&&currentUser.role==='MANAGER'&&!isDerived){
@@ -9911,6 +9997,10 @@ window.__legacyBootstrapped = false;
   submitClientReview=async function(reportId,action){
     var report=(reportsCache||[]).find(function(item){return item.id===reportId;});
     if(!report)return;
+    if(isClientRejectedReport(report)){
+      alert('Este relatório já foi reprovado. Aguarde a alteração do gestor.');
+      return;
+    }
     var commentField=document.getElementById('client-review-comment-'+reportId);
     var comment=commentField?commentField.value.trim():'';
     if(!confirm('Confirmar reprovação deste relatório?'))return;
@@ -9924,21 +10014,29 @@ window.__legacyBootstrapped = false;
   startClientSignature=async function(reportId){
     var report=(reportsCache||[]).find(function(item){return item.id===reportId;});
     if(!report)return;
+    if(isClientRejectedReport(report)){
+      alert('Este relatório foi reprovado. Aguarde a alteração do gestor para assinar.');
+      return;
+    }
     var commentField=document.getElementById('client-review-comment-'+reportId);
     var comment=commentField?commentField.value.trim():'';
     var confirmText='Você será redirecionado para a ZapSign para assinar digitalmente o '+(report.reportType||'RDO')+' n '+(report.sequenceNumber!=null?String(report.sequenceNumber):'---')+'. Deseja continuar?';
     if(!confirm(confirmText))return;
+    var signWindow=openZapSignPendingWindow();
     try{
       var result=await apiFetch('/reports/'+reportId+'/request-signature',{method:'POST',body:JSON.stringify({comment:comment||null})});
       if(result&&result.report)updateReportInCache(result.report);
       renderClientPanel();
       if(result&&result.signUrl){
-        window.open(result.signUrl,'_blank','noopener');
+        redirectZapSignWindow(signWindow,result.signUrl);
         showToast('Link de assinatura aberto na ZapSign.');
         return;
       }
       throw new Error('Link de assinatura não retornado.');
-    }catch(err){ alert('Erro ao iniciar assinatura: '+err.message); }
+    }catch(err){
+      closeZapSignPendingWindow(signWindow);
+      alert('Erro ao iniciar assinatura: '+err.message);
+    }
   };
   window.submitClientReview=submitClientReview;
   window.startClientSignature=startClientSignature;

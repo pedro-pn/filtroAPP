@@ -152,6 +152,13 @@ function removeNode(node) {
   if (node && node.parentNode) node.parentNode.removeChild(node);
 }
 
+function closestAncestor(node, tagName) {
+  for (let cur = node; cur; cur = cur.parentNode) {
+    if (cur.tagName === tagName) return cur;
+  }
+  return null;
+}
+
 function cloneBefore(node, clones) {
   const parent = node.parentNode;
   clones.forEach(clone => parent.insertBefore(clone, node));
@@ -364,9 +371,18 @@ function buildRlqBaseData(report) {
   };
 }
 
+function shouldShowTubeTable(sd) {
+  const raw = stringify(getField(sd, ['Limpeza de tubulação?', 'Limpeza de tubulacao?']));
+  return !/n[ãa]o/i.test(raw);
+}
+
 function expandTubeRows(doc, sd) {
   const templateRow = findFirstByText(doc, 'w:tr', '{{diameter}}');
   if (!templateRow) return;
+  if (!shouldShowTubeTable(sd)) {
+    removeNode(closestAncestor(templateRow, 'w:tbl') || templateRow);
+    return;
+  }
   const tubesRaw = getField(sd, ['Diâmetros e comprimentos', 'Diametros e comprimentos']);
   const tubes = Array.isArray(tubesRaw) ? tubesRaw.filter(t => t && (t.d || t.c)) : [];
   if (!tubes.length) {
