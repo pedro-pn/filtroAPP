@@ -7961,7 +7961,7 @@ window.__legacyBootstrapped = false;
     if(document.getElementById('frontend-recovery-style'))return;
     var style=document.createElement('style');
     style.id='frontend-recovery-style';
-    style.textContent='.email-tags{display:flex;flex-wrap:wrap;gap:8px;min-height:42px;padding:8px 10px;border:1px solid var(--br);border-radius:var(--rs);background:#fafafa}.email-tags input{border:none;background:transparent;outline:none;min-width:180px;flex:1;padding:4px 0}.email-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#eef5f0;border:1px solid #c3ddc9;color:var(--gd);font-size:12px}.email-chip-rm{cursor:pointer;color:var(--rd);font-weight:700}.email-tags-empty{font-size:12px;color:var(--mu)}';
+    style.textContent='.email-chip-rm{cursor:pointer;color:var(--rd);font-weight:700;font-size:15px;padding:0 2px;line-height:1}.cc-list{border:1px solid var(--br);border-radius:var(--rs);overflow:hidden;background:#fafafa}.cc-list-header{display:flex;align-items:center;justify-content:space-between;padding:5px 12px;background:#f0f4f0;border-bottom:1px solid var(--br);font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em}.cc-row{border-bottom:.5px solid var(--br)}.cc-row:last-of-type{border-bottom:none}.cc-row-main{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;gap:8px}.cc-email{font-size:13px;color:var(--gd);flex:1;word-break:break-all;min-width:0}.cc-row-actions{display:flex;align-items:center;gap:10px;flex-shrink:0}.cc-name-row{padding:0 12px 8px}.cc-name-input{width:100%;border:1px solid #c3ddc9;border-radius:4px;padding:4px 8px;font-size:12px;background:#fff;box-sizing:border-box}.cc-add-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:.5px solid var(--br);background:#fff}.cc-add-row input{flex:1;border:none;outline:none;font-size:13px;background:transparent;min-width:0}.cc-add-btn{background:var(--g);color:#fff;border:none;border-radius:var(--rs);padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0}.field-hint{font-size:12px;color:var(--mu);margin:0 0 8px;line-height:1.5}';
     document.head.appendChild(style);
   }
   function handleProjectCnpjInput(input){
@@ -7984,10 +7984,24 @@ window.__legacyBootstrapped = false;
     var input=document.getElementById('ed-proj-email-cc-input');
     if(!root||!input)return;
     var values=getProjectEmailCcValues();
-    root.innerHTML=values.length?values.map(function(email){
-      return '<span class="email-chip">'+escapeHtml(email)+'<span class="email-chip-rm" onclick="removeProjectEmailCc(\''+escapeHtml(email)+'\')">x</span></span>';
-    }).join(''):'<span class="email-tags-empty">Nenhum e-mail em copia.</span>';
-    root.appendChild(input);
+    var meta=getProjectSignerMeta();
+    var headerHtml=values.length?'<div class="cc-list-header"><span>E-mail</span><span>Assinante?</span></div>':'';
+    var rowsHtml=values.map(function(email){
+      var m=meta[email]||{isSigner:false,name:email.split('@')[0]};
+      var nameRow=m.isSigner?'<div class="cc-name-row"><input type="text" class="cc-name-input" value="'+escapeHtml(m.name||'')+'" placeholder="Nome do assinante" onchange="updateProjectSignerName(\''+escapeHtml(email)+'\',this.value)"></div>':'';
+      return '<div class="cc-row">'
+        +'<div class="cc-row-main">'
+        +'<div class="cc-email">'+escapeHtml(email)+'</div>'
+        +'<div class="cc-row-actions">'
+        +'<label class="tog" style="flex-shrink:0"><input type="checkbox"'+(m.isSigner?' checked':'')+' onchange="toggleProjectEmailSigner(\''+escapeHtml(email)+'\')"><span class="tog-sl"></span></label>'
+        +'<span class="email-chip-rm" onclick="removeProjectEmailCc(\''+escapeHtml(email)+'\')">×</span>'
+        +'</div>'
+        +'</div>'
+        +nameRow
+        +'</div>';
+    }).join('');
+    root.innerHTML='<div class="cc-list">'+headerHtml+rowsHtml+'<div class="cc-add-row"><button type="button" class="cc-add-btn" onclick="commitProjectEmailCcInput()">+ Adicionar</button></div></div>';
+    root.querySelector('.cc-add-row').insertBefore(input,root.querySelector('.cc-add-btn'));
   }
   function removeProjectEmailCc(email){
     setProjectEmailCcValues(getProjectEmailCcValues().filter(function(item){return item!==String(email||'').toLowerCase();}));
@@ -8010,6 +8024,40 @@ window.__legacyBootstrapped = false;
   window.removeProjectEmailCc=removeProjectEmailCc;
   window.commitProjectEmailCcInput=commitProjectEmailCcInput;
   window.handleProjectEmailCcKeydown=handleProjectEmailCcKeydown;
+  function getProjectSignerMeta(){
+    var hidden=document.getElementById('ed-proj-signer-meta');
+    if(!hidden)return {};
+    try{return JSON.parse(hidden.value||'{}');}catch(_){return {};}
+  }
+  function setProjectSignerMeta(meta){
+    var hidden=document.getElementById('ed-proj-signer-meta');
+    if(!hidden)return;
+    hidden.value=JSON.stringify(meta||{});
+  }
+  function getProjectSignersValues(){
+    var cc=getProjectEmailCcValues();
+    var meta=getProjectSignerMeta();
+    return cc.filter(function(email){return meta[email]&&meta[email].isSigner;}).map(function(email){
+      return {name:meta[email].name||email.split('@')[0],email:email};
+    });
+  }
+  function toggleProjectEmailSigner(email){
+    var meta=getProjectSignerMeta();
+    var cur=meta[email]||{isSigner:false,name:email.split('@')[0]};
+    meta[email]={isSigner:!cur.isSigner,name:cur.name};
+    setProjectSignerMeta(meta);
+    renderProjectEmailCcTags();
+  }
+  function updateProjectSignerName(email,name){
+    var meta=getProjectSignerMeta();
+    if(!meta[email])meta[email]={isSigner:true,name:name};
+    else meta[email].name=name;
+    setProjectSignerMeta(meta);
+  }
+  window.getProjectSignersValues=getProjectSignersValues;
+  window.toggleProjectEmailSigner=toggleProjectEmailSigner;
+  window.updateProjectSignerName=updateProjectSignerName;
+  window.renderProjectSignersList=function(){};
 
   var baseToLocalDb=toLocalDb;
   toLocalDb=function(payload){
@@ -8017,21 +8065,21 @@ window.__legacyBootstrapped = false;
     local.projetos=(payload.projects||[]).map(function(p){
       var seq={}; REPORT_TYPES.forEach(function(t){seq[t]=0;});
       (p.reportSequences||[]).forEach(function(s){seq[s.reportType]=s.nextNumber;});
-      return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj||'',emailPrincipal:p.clientEmailPrimary||'',emailsCopia:p.clientEmailCc||[],contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,visivelColaboradores:p.visibleToCollaborators!==false,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
+      return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj||'',emailPrincipal:p.clientEmailPrimary||'',emailsCopia:p.clientEmailCc||[],assinantesAdicionais:p.clientSigners||[],contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,visivelColaboradores:p.visibleToCollaborators!==false,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
     });
     return local;
   };
 
   editorProjeto=function(){
     var st=gestorEditors.projetos;if(!st)return '';
-    var p=st.type==='edit'?getProjetoById(st.id):{id:'',code:'',nome:'',cliente:'',cnpj:'',emailPrincipal:'',emailsCopia:[],contrato:'',local:'',operadorResponsavelId:'',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,visivelColaboradores:true,sequenciais:{}};
+    var p=st.type==='edit'?getProjetoById(st.id):{id:'',code:'',nome:'',cliente:'',cnpj:'',emailPrincipal:'',emailsCopia:[],assinantesAdicionais:[],contrato:'',local:'',operadorResponsavelId:'',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,visivelColaboradores:true,sequenciais:{}};
     return '<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(st.type==='edit'?'Editar projeto':'Novo projeto')+'</div><button class="mini-btn alt" onclick="closeEditor(\'projetos\')">Cancelar</button></div><div class="admin-inline-grid">'+
       '<div class="fg"><label>Numero da missao</label><input type="text" id="ed-proj-id" value="'+escapeHtml(p.code||'')+'" '+(st.type==='edit'?'readonly':'')+'></div>'+
       '<div class="fg"><label>Nome</label><input type="text" id="ed-proj-nome" value="'+escapeHtml(p.nome||'')+'"></div>'+
       '<div class="fg"><label>Cliente</label><input type="text" id="ed-proj-cliente" value="'+escapeHtml(p.cliente||'')+'"></div>'+
       '<div class="fg"><label>CNPJ</label><input type="text" id="ed-proj-cnpj" value="'+escapeHtml(formatCnpj(p.cnpj||''))+'" oninput="handleProjectCnpjInput(this)"></div>'+
       '<div class="fg"><label>E-mail principal do cliente</label><input type="email" id="ed-proj-email-primary" value="'+escapeHtml(p.emailPrincipal||'')+'" placeholder="cliente@empresa.com.br"></div>'+
-      '<div class="fg full"><label>E-mails em copia</label><input type="hidden" id="ed-proj-email-cc-values" value="'+escapeHtml(JSON.stringify(parseEmailList(p.emailsCopia||[])))+'"><div class="email-tags" id="ed-proj-email-cc-tags"><input type="text" id="ed-proj-email-cc-input" placeholder="Digite um e-mail e pressione Enter" onkeydown="handleProjectEmailCcKeydown(event)" onblur="commitProjectEmailCcInput()"></div></div>'+
+      (function(){var signerMeta={};(p.assinantesAdicionais||[]).forEach(function(s){signerMeta[s.email]={isSigner:true,name:s.name};});return '<div class="fg full"><label>E-mails em cópia</label><input type="hidden" id="ed-proj-email-cc-values" value="'+escapeHtml(JSON.stringify(parseEmailList(p.emailsCopia||[])))+'"><input type="hidden" id="ed-proj-signer-meta" value="'+escapeHtml(JSON.stringify(signerMeta))+'"><div id="ed-proj-email-cc-tags"><input type="text" id="ed-proj-email-cc-input" placeholder="Digite um e-mail..." onkeydown="handleProjectEmailCcKeydown(event)" onblur="commitProjectEmailCcInput()"></div></div>';})()+
       '<div class="fg"><label>Contrato</label><input type="text" id="ed-proj-contrato" value="'+escapeHtml(p.contrato||'')+'"></div>'+
       '<div class="fg"><label>Local</label><input type="text" id="ed-proj-local" value="'+escapeHtml(p.local||'')+'"></div>'+
       '<div class="fg"><label>Operador responsavel</label><select id="ed-proj-operador">'+selectOptions(db.colaboradores.filter(function(c){return c.ativo!==false;}).map(function(c){return {value:c.id,label:c.nome};}),p.operadorResponsavelId||'','Selecionar...')+'</select></div>'+
@@ -8046,7 +8094,7 @@ window.__legacyBootstrapped = false;
   var baseOpenEditor=openEditor;
   openEditor=function(tab,type,id,extra){
     baseOpenEditor(tab,type,id,extra);
-    if(tab==='projetos')setTimeout(renderProjectEmailCcTags,0);
+    if(tab==='projetos'){setTimeout(renderProjectEmailCcTags,0);setTimeout(renderProjectSignersList,0);}
   };
   renderProjetos=function(){
     var list=activeProjects();
@@ -8055,7 +8103,7 @@ window.__legacyBootstrapped = false;
       var operador=getColaboradorById(p.operadorResponsavelId);
       var totalSeq=REPORT_TYPES.reduce(function(acc,t){return acc+Number((p.sequenciais&&p.sequenciais[t])||0);},0);
       var editor=(gestorEditors.projetos&&gestorEditors.projetos.type==='edit'&&gestorEditors.projetos.id===p.id)?editorProjeto():'';
-      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrao')+'</span></div>'+editor+'<div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">E-mails em copia</span><span class="det-val">'+escapeHtml((p.emailsCopia||[]).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'-')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
+      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrao')+'</span></div>'+editor+'<div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">E-mails em copia</span><span class="det-val">'+escapeHtml((p.emailsCopia||[]).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Assinantes adicionais</span><span class="det-val">'+escapeHtml((p.assinantesAdicionais||[]).map(function(s){return s.name+' ('+s.email+')';}).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'-')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
     }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto ativo.</div></div>';
     return header+body;
   };
@@ -8101,7 +8149,7 @@ window.__legacyBootstrapped = false;
     var id=document.getElementById('ed-proj-id').value.trim(), nome=document.getElementById('ed-proj-nome').value.trim();
     if(!id||!nome){alert('Preencha numero da missao e nome do projeto.');return;}
     var existing=mode==='edit'?db.projetos.find(function(p){return p.id===gestorEditors.projetos.id;}):null;
-    var body={code:id,name:nome,isActive:existing?existing.ativo!==false:true,clientName:document.getElementById('ed-proj-cliente').value.trim(),clientCnpj:normalizeCnpjDigits(document.getElementById('ed-proj-cnpj').value),clientEmailPrimary:document.getElementById('ed-proj-email-primary').value.trim(),clientEmailCc:getProjectEmailCcValues(),contractCode:document.getElementById('ed-proj-contrato').value.trim(),location:document.getElementById('ed-proj-local').value.trim(),operatorId:document.getElementById('ed-proj-operador').value||null,visibleToCollaborators:document.getElementById('ed-proj-visible-collab').value==='true',workdayHours:document.getElementById('ed-proj-jornada').value.trim()||'09:00',weekendWorkdayHours:document.getElementById('ed-proj-fds').value.trim()||'08:00',includesSaturday:document.getElementById('ed-proj-sab').value==='true',includesSunday:document.getElementById('ed-proj-dom').value==='true',reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number(parseSequenciais(document.getElementById('ed-proj-seq').value)[t]||0)};})};
+    var body={code:id,name:nome,isActive:existing?existing.ativo!==false:true,clientName:document.getElementById('ed-proj-cliente').value.trim(),clientCnpj:normalizeCnpjDigits(document.getElementById('ed-proj-cnpj').value),clientEmailPrimary:document.getElementById('ed-proj-email-primary').value.trim(),clientEmailCc:getProjectEmailCcValues(),clientSigners:getProjectSignersValues(),contractCode:document.getElementById('ed-proj-contrato').value.trim(),location:document.getElementById('ed-proj-local').value.trim(),operatorId:document.getElementById('ed-proj-operador').value||null,visibleToCollaborators:document.getElementById('ed-proj-visible-collab').value==='true',workdayHours:document.getElementById('ed-proj-jornada').value.trim()||'09:00',weekendWorkdayHours:document.getElementById('ed-proj-fds').value.trim()||'08:00',includesSaturday:document.getElementById('ed-proj-sab').value==='true',includesSunday:document.getElementById('ed-proj-dom').value==='true',reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number(parseSequenciais(document.getElementById('ed-proj-seq').value)[t]||0)};})};
     try{
       if(mode==='edit') await apiFetch('/projects/'+gestorEditors.projetos.id,{method:'PUT',body:JSON.stringify(body)});
       else await apiFetch('/projects',{method:'POST',body:JSON.stringify(body)});
@@ -8113,7 +8161,7 @@ window.__legacyBootstrapped = false;
     if(!confirm('Arquivar este projeto?'))return;
     var p=getProjetoById(id); if(!p)return;
     try{
-      await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:false,clientName:p.cliente||'',clientCnpj:normalizeCnpjDigits(p.cnpj||''),clientEmailPrimary:p.emailPrincipal||'',clientEmailCc:p.emailsCopia||[],contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
+      await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:false,clientName:p.cliente||'',clientCnpj:normalizeCnpjDigits(p.cnpj||''),clientEmailPrimary:p.emailPrincipal||'',clientEmailCc:p.emailsCopia||[],clientSigners:p.assinantesAdicionais||[],contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
       if(projAtual===id)projAtual='';
       await refreshDbFromApi(); renderGestor();
     }catch(err){alert('Erro ao arquivar projeto: '+err.message);}
@@ -8121,7 +8169,7 @@ window.__legacyBootstrapped = false;
   unarchiveProjeto=async function(id){
     var p=getProjetoById(id); if(!p)return;
     try{
-      await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:true,clientName:p.cliente||'',clientCnpj:normalizeCnpjDigits(p.cnpj||''),clientEmailPrimary:p.emailPrincipal||'',clientEmailCc:p.emailsCopia||[],contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
+      await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:true,clientName:p.cliente||'',clientCnpj:normalizeCnpjDigits(p.cnpj||''),clientEmailPrimary:p.emailPrincipal||'',clientEmailCc:p.emailsCopia||[],clientSigners:p.assinantesAdicionais||[],contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
       await refreshDbFromApi(); renderGestor();
     }catch(err){alert('Erro ao desarquivar projeto: '+err.message);}
   };
@@ -8141,12 +8189,51 @@ window.__legacyBootstrapped = false;
     }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum usuario interno cadastrado.</div></div>';
     return header+body;
   }
+  function renderClientUserCard(u,isCc){
+    var linked=(u.linkedProjects||[]);
+    var projectList=linked.length?linked.map(function(p){return escapeHtml((p.contractCode||'---')+' - '+p.code+' - '+(p.name||'Sem nome'));}).join('<br>'):'Nenhum projeto vinculado.';
+    var typeLabel=isCc?'<span class="badge badge-pen" style="font-size:10px">CC / Assinante</span>':'<span class="badge badge-ok" style="font-size:10px">Principal</span>';
+    return '<div style="border:1px solid var(--br);border-radius:var(--rs);padding:10px;margin-top:8px;background:#fafafa"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><div><div style="font-size:13px;font-weight:600">'+escapeHtml(u.name||'Cliente')+'</div><div style="font-size:12px;color:var(--mu)">'+escapeHtml(isCc?u.email||u.username:u.email||u.username)+(u.isActive===false?' · Inativo':'')+'</div></div><div style="display:flex;gap:6px;align-items:center">'+typeLabel+'<span class="badge '+(u.isActive===false?'badge-rev':'badge-ok')+'">'+(u.isActive===false?'Inativo':'Ativo')+'</span></div></div><div class="det-section" style="margin-top:8px"><div class="det-row"><span class="det-label">Vínculos</span><span class="det-val">'+projectList+'</span></div></div><div class="admin-actions" style="margin-top:8px"><button class="mini-btn alt" onclick="resendClientAccess(\''+u.id+'\')">Reenviar acesso</button><button class="mini-btn" style="background:var(--rd)" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';
+  }
   function renderClientUsersList(items){
-    return '<div class="admin-toolbar"><div class="sec">Clientes</div><div style="font-size:12px;color:var(--mu)">Contas criadas automaticamente a partir dos projetos.</div></div>'+(items.length?items.map(function(u){
-      var linked=(u.linkedProjects||[]);
-      var projectList=linked.length?linked.map(function(p){ return escapeHtml((p.contractCode||'---')+' - Missao '+(p.code||'---')+' - '+(p.name||'Sem nome')); }).join('<br>'):'Nenhum projeto vinculado.';
-      return '<div class="card admin-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><div class="admin-item-title">'+escapeHtml(u.name||'Cliente')+' - '+escapeHtml(formatCnpj(u.username||'')||u.username||'')+'</div><div class="admin-item-sub">'+(u.email?escapeHtml(u.email):'Sem e-mail principal')+' - '+(u.isActive===false?'Inativo':'Ativo')+'</div></div><span class="badge '+(u.isActive===false?'badge-rev':'badge-ok')+'">'+(u.isActive===false?'Inativo':'Ativo')+'</span></div><div class="det-section" style="margin-top:10px"><div class="det-row"><span class="det-label">Projetos</span><span class="det-val">'+linked.length+'</span></div><div class="det-row"><span class="det-label">Vinculos</span><span class="det-val">'+projectList+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="resendClientAccess(\''+u.id+'\')">Reenviar acesso</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';
-    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum cliente provisionado.</div></div>');
+    if(!items.length)return '<div class="admin-toolbar"><div class="sec">Clientes</div></div><div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum cliente provisionado.</div></div>';
+    var groups={};
+    var noGroup=[];
+    items.forEach(function(u){
+      var isCnpj=/^\d{14}$/.test(u.username);
+      if(isCnpj){
+        if(!groups[u.username])groups[u.username]={cnpj:u.username,clientName:u.name,primary:null,cc:[]};
+        groups[u.username].primary=u;
+      } else {
+        var cnpj=u.clientCnpj||null;
+        if(!cnpj){
+          var email=String(u.email||u.username||'').toLowerCase();
+          var proj=(db.projetos||[]).find(function(p){return (p.emailsCopia||[]).some(function(cc){return cc.toLowerCase()===email;});});
+          cnpj=proj?proj.cnpj:null;
+        }
+        if(cnpj){
+          if(!groups[cnpj])groups[cnpj]={cnpj:cnpj,clientName:'',primary:null,cc:[]};
+          groups[cnpj].cc.push(u);
+        } else {
+          noGroup.push(u);
+        }
+      }
+    });
+    var html='<div class="admin-toolbar"><div class="sec">Clientes</div><div style="font-size:12px;color:var(--mu)">Agrupados por CNPJ.</div></div>';
+    Object.values(groups).forEach(function(g){
+      var proj=(db.projetos||[]).find(function(p){return p.cnpj===g.cnpj;});
+      var clientLabel=g.clientName||(proj&&proj.cliente)||g.cnpj;
+      html+='<div class="card admin-card" style="margin-bottom:10px"><div style="font-size:14px;font-weight:700;margin-bottom:4px">'+escapeHtml(clientLabel)+'</div><div style="font-size:12px;color:var(--mu);margin-bottom:8px">'+escapeHtml(formatCnpj(g.cnpj))+'</div>';
+      if(g.primary)html+=renderClientUserCard(g.primary,false);
+      g.cc.forEach(function(u){html+=renderClientUserCard(u,true);});
+      html+='</div>';
+    });
+    if(noGroup.length){
+      html+='<div class="card admin-card" style="margin-bottom:10px"><div style="font-size:14px;font-weight:700;margin-bottom:8px">Sem CNPJ associado</div>';
+      noGroup.forEach(function(u){html+=renderClientUserCard(u,true);});
+      html+='</div>';
+    }
+    return html;
   }
   renderUsuarios=function(){
     var groups='<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"><button class="mini-btn'+(userAdminGroup==='internal'?'':' alt')+'" onclick="switchUserAdminGroup(\'internal\')">Internos</button><button class="mini-btn'+(userAdminGroup==='client'?'':' alt')+'" onclick="switchUserAdminGroup(\'client\')">Clientes</button></div>';
@@ -8436,7 +8523,10 @@ window.__legacyBootstrapped = false;
   function getClientProjects(){
     var dir=projectSortDir==='desc'?-1:1;
     return (db.projetos||[]).filter(function(project){
-      return !currentUser||currentUser.role!=='CLIENT' || normalizeCnpjDigits(project.cnpj||'')===normalizeCnpjDigits(currentUser.username||'');
+      if(!currentUser||currentUser.role!=='CLIENT')return true;
+      if(normalizeCnpjDigits(project.cnpj||'')===normalizeCnpjDigits(currentUser.username||''))return true;
+      var userEmail=String(currentUser.email||'').trim().toLowerCase();
+      return userEmail&&(project.emailsCopia||[]).some(function(cc){return cc.toLowerCase()===userEmail;});
     }).slice().sort(function(a,b){
       var ca=Number(a.code||0)||0,cb=Number(b.code||0)||0;
       if(ca!==cb)return dir*(ca-cb);
@@ -8516,7 +8606,7 @@ window.__legacyBootstrapped = false;
     db.projetos=(projects||[]).map(function(p){
       var seq={}; REPORT_TYPES.forEach(function(t){seq[t]=0;});
       (p.reportSequences||[]).forEach(function(s){seq[s.reportType]=s.nextNumber;});
-      return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj||'',emailPrincipal:p.clientEmailPrimary||'',emailsCopia:p.clientEmailCc||[],contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,visivelColaboradores:p.visibleToCollaborators!==false,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
+      return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj||'',emailPrincipal:p.clientEmailPrimary||'',emailsCopia:p.clientEmailCc||[],assinantesAdicionais:p.clientSigners||[],contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,visivelColaboradores:p.visibleToCollaborators!==false,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
     });
     saveDb();
   }
@@ -9785,14 +9875,14 @@ window.__legacyBootstrapped = false;
   };
   editorProjeto=function(){
     var st=gestorEditors.projetos;if(!st)return '';
-    var p=st.type==='edit'?getProjetoById(st.id):{id:'',code:'',nome:'',cliente:'',cnpj:'',emailPrincipal:'',emailsCopia:[],contrato:'',local:'',operadorResponsavelId:'',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,visivelColaboradores:true,sequenciais:{}};
+    var p=st.type==='edit'?getProjetoById(st.id):{id:'',code:'',nome:'',cliente:'',cnpj:'',emailPrincipal:'',emailsCopia:[],assinantesAdicionais:[],contrato:'',local:'',operadorResponsavelId:'',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,visivelColaboradores:true,sequenciais:{}};
     return '<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(st.type==='edit'?'Editar projeto':'Novo projeto')+'</div><button class="mini-btn alt" onclick="closeEditor(\'projetos\')">Cancelar</button></div><div class="admin-inline-grid">'+
       '<div class="fg"><label>Número da missão</label><input type="text" id="ed-proj-id" value="'+escapeHtml(p.code||'')+'" '+(st.type==='edit'?'readonly':'')+'></div>'+
       '<div class="fg"><label>Nome</label><input type="text" id="ed-proj-nome" value="'+escapeHtml(p.nome||'')+'"></div>'+
       '<div class="fg"><label>Cliente</label><input type="text" id="ed-proj-cliente" value="'+escapeHtml(p.cliente||'')+'"></div>'+
       '<div class="fg"><label>CNPJ</label><input type="text" id="ed-proj-cnpj" value="'+escapeHtml(formatCnpj(p.cnpj||''))+'" oninput="handleProjectCnpjInput(this)"></div>'+
       '<div class="fg"><label>E-mail principal do cliente</label><input type="email" id="ed-proj-email-primary" value="'+escapeHtml(p.emailPrincipal||'')+'" placeholder="cliente@empresa.com.br"></div>'+
-      '<div class="fg full"><label>E-mails em cópia</label><input type="hidden" id="ed-proj-email-cc-values" value="'+escapeHtml(JSON.stringify(parseEmailList(p.emailsCopia||[])))+'"><div class="email-tags" id="ed-proj-email-cc-tags"><input type="text" id="ed-proj-email-cc-input" placeholder="Digite um e-mail e pressione Enter" onkeydown="handleProjectEmailCcKeydown(event)" onblur="commitProjectEmailCcInput()"></div></div>'+
+      (function(){var signerMeta={};(p.assinantesAdicionais||[]).forEach(function(s){signerMeta[s.email]={isSigner:true,name:s.name};});return '<div class="fg full"><label>E-mails em cópia</label><input type="hidden" id="ed-proj-email-cc-values" value="'+escapeHtml(JSON.stringify(parseEmailList(p.emailsCopia||[])))+'"><input type="hidden" id="ed-proj-signer-meta" value="'+escapeHtml(JSON.stringify(signerMeta))+'"><div id="ed-proj-email-cc-tags"><input type="text" id="ed-proj-email-cc-input" placeholder="Digite um e-mail..." onkeydown="handleProjectEmailCcKeydown(event)" onblur="commitProjectEmailCcInput()"></div></div>';})()+
       '<div class="fg"><label>Contrato</label><input type="text" id="ed-proj-contrato" value="'+escapeHtml(p.contrato||'')+'"></div>'+
       '<div class="fg"><label>Local</label><input type="text" id="ed-proj-local" value="'+escapeHtml(p.local||'')+'"></div>'+
       '<div class="fg"><label>Operador responsável</label><select id="ed-proj-operador">'+selectOptions(db.colaboradores.filter(function(c){return c.ativo!==false;}).map(function(c){return {value:c.id,label:c.nome};}),p.operadorResponsavelId||'','Selecionar...')+'</select></div>'+
@@ -9811,7 +9901,7 @@ window.__legacyBootstrapped = false;
       var operador=getColaboradorById(p.operadorResponsavelId);
       var totalSeq=REPORT_TYPES.reduce(function(acc,t){return acc+Number((p.sequenciais&&p.sequenciais[t])||0);},0);
       var editor=(gestorEditors.projetos&&gestorEditors.projetos.type==='edit'&&gestorEditors.projetos.id===p.id)?editorProjeto():'';
-      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrão')+'</span></div>'+editor+'<div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">E-mails em cópia</span><span class="det-val">'+escapeHtml((p.emailsCopia||[]).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'-')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
+      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrão')+'</span></div>'+editor+'<div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">E-mails em cópia</span><span class="det-val">'+escapeHtml((p.emailsCopia||[]).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Assinantes adicionais</span><span class="det-val">'+escapeHtml((p.assinantesAdicionais||[]).map(function(s){return s.name+' ('+s.email+')';}).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'-')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
     }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto ativo.</div></div>';
     return header+body;
   };
@@ -9828,11 +9918,44 @@ window.__legacyBootstrapped = false;
     return header+body;
   }
   function renderClientUsersList(items){
-    return '<div class="admin-toolbar"><div class="sec">Clientes</div><div style="font-size:12px;color:var(--mu)">Contas criadas automaticamente a partir dos projetos.</div></div>'+(items.length?items.map(function(u){
-      var linked=(u.linkedProjects||[]);
-      var projectList=linked.length?linked.map(function(p){ return escapeHtml((p.contractCode||'---')+' - Missão '+(p.code||'---')+' - '+(p.name||'Sem nome')); }).join('<br>'):'Nenhum projeto vinculado.';
-      return '<div class="card admin-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><div class="admin-item-title">'+escapeHtml(u.name||'Cliente')+' - '+escapeHtml(formatCnpj(u.username||'')||u.username||'')+'</div><div class="admin-item-sub">'+(u.email?escapeHtml(u.email):'Sem e-mail principal')+' - '+(u.isActive===false?'Inativo':'Ativo')+'</div></div><span class="badge '+(u.isActive===false?'badge-rev':'badge-ok')+'">'+(u.isActive===false?'Inativo':'Ativo')+'</span></div><div class="det-section" style="margin-top:10px"><div class="det-row"><span class="det-label">Projetos</span><span class="det-val">'+linked.length+'</span></div><div class="det-row"><span class="det-label">Vínculos</span><span class="det-val">'+projectList+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="resendClientAccess(\''+u.id+'\')">Reenviar acesso</button><button class="mini-btn" style="background:var(--rd)" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';
-    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum cliente provisionado.</div></div>');
+    if(!items.length)return '<div class="admin-toolbar"><div class="sec">Clientes</div></div><div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum cliente provisionado.</div></div>';
+    var groups={};
+    var noGroup=[];
+    items.forEach(function(u){
+      var isCnpj=/^\d{14}$/.test(u.username);
+      if(isCnpj){
+        if(!groups[u.username])groups[u.username]={cnpj:u.username,clientName:u.name,primary:null,cc:[]};
+        groups[u.username].primary=u;
+      } else {
+        var cnpj=u.clientCnpj||null;
+        if(!cnpj){
+          var email=String(u.email||u.username||'').toLowerCase();
+          var proj=(db.projetos||[]).find(function(p){return (p.emailsCopia||[]).some(function(cc){return cc.toLowerCase()===email;});});
+          cnpj=proj?proj.cnpj:null;
+        }
+        if(cnpj){
+          if(!groups[cnpj])groups[cnpj]={cnpj:cnpj,clientName:'',primary:null,cc:[]};
+          groups[cnpj].cc.push(u);
+        } else {
+          noGroup.push(u);
+        }
+      }
+    });
+    var html='<div class="admin-toolbar"><div class="sec">Clientes</div><div style="font-size:12px;color:var(--mu)">Agrupados por CNPJ.</div></div>';
+    Object.values(groups).forEach(function(g){
+      var proj=(db.projetos||[]).find(function(p){return p.cnpj===g.cnpj;});
+      var clientLabel=g.clientName||(proj&&proj.cliente)||g.cnpj;
+      html+='<div class="card admin-card" style="margin-bottom:10px"><div style="font-size:14px;font-weight:700;margin-bottom:4px">'+escapeHtml(clientLabel)+'</div><div style="font-size:12px;color:var(--mu);margin-bottom:8px">'+escapeHtml(formatCnpj(g.cnpj))+'</div>';
+      if(g.primary)html+=renderClientUserCard(g.primary,false);
+      g.cc.forEach(function(u){html+=renderClientUserCard(u,true);});
+      html+='</div>';
+    });
+    if(noGroup.length){
+      html+='<div class="card admin-card" style="margin-bottom:10px"><div style="font-size:14px;font-weight:700;margin-bottom:8px">Sem CNPJ associado</div>';
+      noGroup.forEach(function(u){html+=renderClientUserCard(u,true);});
+      html+='</div>';
+    }
+    return html;
   }
   renderManometros=function(){
     var list=db.manometros.filter(function(m){return m.ativo!==false;});

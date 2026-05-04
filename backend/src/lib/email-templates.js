@@ -156,6 +156,36 @@ export function buildClientProjectLinkedEmailTemplate({ clientName, appUrl, proj
   };
 }
 
+export function buildReportReapprovedEmailTemplate({ projectCode, projectName, clientName, reportType, reportNumber, reportDate, appUrl }) {
+  const title = 'Relatório revisado e disponível para nova avaliação';
+  const intro = `O relatório ${reportType} ${reportNumber} do projeto ${projectCode} - ${projectName}, que havia sido reprovado anteriormente, foi revisado pelo gestor e está disponível para sua avaliação.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Cliente:</strong> ${clientName}</div>
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>Relatório:</strong> ${reportType} ${reportNumber}</div>
+        <div><strong>Data:</strong> ${reportDate}</div>
+      </div>
+    </div>
+    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema para avaliar: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+  `;
+  const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] ${reportType} ${reportNumber} revisado — disponível para nova avaliação`,
+    text: [
+      `O relatório ${reportType} ${reportNumber} foi revisado e está disponível para nova avaliação.`,
+      '',
+      `Cliente: ${clientName}`,
+      `Projeto: ${projectCode} - ${projectName}`,
+      `Data: ${reportDate}`,
+      appUrl ? `Acesso: ${appUrl}` : ''
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
 export function buildReportRejectedByClientEmailTemplate({ projectCode, projectName, reportType, reportNumber, reportDate, comment, appUrl }) {
   const title = 'Relatório reprovado pelo cliente';
   const intro = `O relatório ${reportType} ${reportNumber} do projeto ${projectCode} - ${projectName} foi reprovado pelo cliente e precisa ser revisado.`;

@@ -217,7 +217,7 @@ function buildUploadPayload({ pdfBuffer, fileName }) {
 export function signerUrlForToken(token) {
   const signerToken = String(token || '').trim();
   if (!signerToken) return null;
-  return `https://app.zapsign.com.br/verificar/autenticar?token=${encodeURIComponent(signerToken)}`;
+  return `https://app.zapsign.com.br/verificar/${encodeURIComponent(signerToken)}`;
 }
 
 export function isZapSignEnabled() {
@@ -237,6 +237,7 @@ export async function sendToZapSign({
   fileName,
   signerName,
   signerEmail,
+  additionalSigners = [],
   externalId,
   webhookUrl
 }) {
@@ -254,7 +255,13 @@ export async function sendToZapSign({
         email: signerEmail,
         lock_email: true,
         send_automatic_email: false
-      }
+      },
+      ...additionalSigners.map(s => ({
+        name: String(s.name || '').trim() || 'Assinante',
+        email: String(s.email || '').trim(),
+        lock_email: true,
+        send_automatic_email: true
+      }))
     ]
   };
 
@@ -269,10 +276,18 @@ export async function sendToZapSign({
   const documentData = await parseJsonResponse(response);
   const { signerToken, signerUrl } = extractSignerInfo(documentData);
 
+  const rawSigners = Array.isArray(documentData?.signers) ? documentData.signers : [];
+  const allSigners = rawSigners.slice(1).map((s, i) => ({
+    email: additionalSigners[i]?.email || String(s.email || '').trim(),
+    signerToken: s.token || s.signer_token || s.uuid || null,
+    signerUrl: s.sign_url || s.signer_url || null
+  })).filter(s => s.email && (s.signerToken || s.signerUrl));
+
   return {
     docToken: documentData.token || documentData.doc_token || null,
     signerToken,
     signerUrl,
+    allSigners,
     raw: documentData
   };
 }
