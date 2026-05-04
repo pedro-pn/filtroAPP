@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
-import { buildReportApprovedEmailTemplate } from '../../lib/email-templates.js';
+import { buildReportApprovedEmailTemplate, buildReportRejectedByClientEmailTemplate } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { saveReportDocx, organizePhotos } from '../../lib/report-docx.js';
 import { saveReportPdf } from '../../lib/report-pdf-from-docx.js';
@@ -96,6 +96,36 @@ function queueApprovedReportNotification(report) {
       console.error('Falha ao enviar notificação de aprovação do relatório.', {
         reportId: report.id,
         projectId: report.projectId,
+        error: error?.message || error
+      });
+    });
+  });
+}
+
+function queueClientRejectionNotification(report, comment) {
+  const managerEmail = String(report.reviewedBy?.email || '').trim().toLowerCase();
+  if (!managerEmail) return;
+
+  const missingMailerConfig = getMissingMailerConfig();
+  if (missingMailerConfig.length) {
+    console.warn('SMTP não configurado; notificação de reprovação não enviada.', missingMailerConfig.join(', '));
+    return;
+  }
+
+  const template = buildReportRejectedByClientEmailTemplate({
+    projectCode: report.project?.code || '---',
+    projectName: report.project?.name || 'Sem projeto',
+    reportType: report.reportType,
+    reportNumber: reportNumberLabel(report),
+    reportDate: formatDatePtBr(report.reportDate),
+    comment: comment || '',
+    appUrl: env.appUrl || ''
+  });
+
+  setImmediate(() => {
+    sendMail({ to: managerEmail, ...template }).catch(error => {
+      console.error('Falha ao enviar notificação de reprovação do relatório.', {
+        reportId: report.id,
         error: error?.message || error
       });
     });
@@ -1964,6 +1994,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   });
   assertReportMutable(existing);
   const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);
+  const isManagerFixingClientRejection = req.auth.user.role === 'MANAGER' && hasActiveClientRejection(existing);
 
   const tPut0 = Date.now();
   const item = await prisma.$transaction(async tx => {
@@ -2018,13 +2049,19 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
             : {})
         },
         pendingDerivedTypes: collectPendingDerivedTypes(data.services),
-        status: req.auth.user.role === 'MANAGER' ? existing.status : ReportStatus.PENDING,
+        status: req.auth.user.role === 'MANAGER'
+          ? (isManagerFixingClientRejection ? ReportStatus.APPROVED : existing.status)
+          : ReportStatus.PENDING,
         reviewNotes: req.auth.user.role === 'MANAGER'
           ? existing.reviewNotes
           : (hasApprovedVersion ? COLLABORATOR_EDIT_NOTE : null),
-        reviewedByUserId: req.auth.user.role === 'MANAGER' ? existing.reviewedByUserId : null,
+        reviewedByUserId: req.auth.user.role === 'MANAGER'
+          ? (isManagerFixingClientRejection ? req.auth.user.id : existing.reviewedByUserId)
+          : null,
         returnedAt: req.auth.user.role === 'MANAGER' ? existing.returnedAt : null,
-        approvedAt: req.auth.user.role === 'MANAGER' ? existing.approvedAt : null,
+        approvedAt: req.auth.user.role === 'MANAGER'
+          ? (isManagerFixingClientRejection ? new Date() : existing.approvedAt)
+          : null,
         collaborators: {
           create: collaboratorIds.map(collaboratorId => ({ collaboratorId }))
         },
@@ -2069,6 +2106,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     }
   }
   console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: item.reportType, status: item.status });
+  if (isManagerFixingClientRejection && item.status === ReportStatus.APPROVED) queueApprovedReportNotification(item);
   res.json(item);
 }));
 
@@ -2460,6 +2498,10 @@ router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => 
       include
     });
   });
+
+  if (data.action === 'REJECTED') {
+    queueClientRejectionNotification(item, data.comment || '');
+  }
 
   res.json(item);
 }));
