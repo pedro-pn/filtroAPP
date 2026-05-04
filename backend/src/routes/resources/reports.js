@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
-import { buildReportApprovedEmailTemplate, buildReportRejectedByClientEmailTemplate } from '../../lib/email-templates.js';
+import { buildReportApprovedEmailTemplate, buildReportReapprovedEmailTemplate, buildReportRejectedByClientEmailTemplate } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { saveReportDocx, organizePhotos } from '../../lib/report-docx.js';
 import { saveReportPdf } from '../../lib/report-pdf-from-docx.js';
@@ -31,6 +31,7 @@ const router = Router();
 const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
 const CLIENT_REJECTION_KEY = '__clientRejectedAt';
 const CLIENT_REJECTION_RESOLVED_KEY = '__clientRejectionResolvedAt';
+const ZAPSIGN_SIGNERS_KEY = '__zapSignSigners';
 
 function formatDatePtBr(date) {
   return new Date(date).toLocaleDateString('pt-BR');
@@ -94,6 +95,46 @@ function queueApprovedReportNotification(report) {
       ...template
     }).catch(error => {
       console.error('Falha ao enviar notificação de aprovação do relatório.', {
+        reportId: report.id,
+        projectId: report.projectId,
+        error: error?.message || error
+      });
+    });
+  });
+}
+
+function queueReapprovedReportNotification(report) {
+  const primary = String(report.project?.clientEmailPrimary || '').trim().toLowerCase();
+  const cc = Array.from(new Set((report.project?.clientEmailCc || [])
+    .map(email => String(email || '').trim().toLowerCase())
+    .filter(Boolean)
+    .filter(email => email !== primary)));
+  const recipients = [primary, ...cc].filter(Boolean);
+  if (!recipients.length) return;
+
+  const missingMailerConfig = getMissingMailerConfig();
+  if (missingMailerConfig.length) {
+    console.warn('SMTP não configurado; notificação de reaprovação não enviada.', missingMailerConfig.join(', '));
+    return;
+  }
+
+  const template = buildReportReapprovedEmailTemplate({
+    projectCode: report.project?.code || '---',
+    projectName: report.project?.name || 'Sem projeto',
+    clientName: report.project?.clientName || 'Cliente',
+    reportType: report.reportType,
+    reportNumber: reportNumberLabel(report),
+    reportDate: formatDatePtBr(report.reportDate),
+    appUrl: env.appUrl || ''
+  });
+
+  setImmediate(() => {
+    sendMail({
+      to: primary,
+      ...(cc.length ? { cc } : {}),
+      ...template
+    }).catch(error => {
+      console.error('Falha ao enviar notificação de reaprovação do relatório.', {
         reportId: report.id,
         projectId: report.projectId,
         error: error?.message || error
@@ -169,12 +210,18 @@ const include = {
   }
 };
 
+function clientCanAccessProject(auth, project) {
+  if (project?.clientCnpj === auth.user.username) return true;
+  const userEmail = String(auth.user.email || '').trim().toLowerCase();
+  return userEmail.length > 0
+    && Array.isArray(project?.clientEmailCc)
+    && project.clientEmailCc.some(cc => cc.toLowerCase() === userEmail);
+}
+
 function canAccessReport(auth, report) {
   if (auth.user.role === 'MANAGER') return true;
   if (auth.user.role === 'COORDINATOR') return true;
-  if (auth.user.role === 'CLIENT') {
-    return report.project?.clientCnpj === auth.user.username;
-  }
+  if (auth.user.role === 'CLIENT') return clientCanAccessProject(auth, report.project);
   if (report.createdByUserId === auth.user.id) return true;
   const collabId = auth.rawUser?.collaboratorId;
   if (collabId && Array.isArray(report.collaborators)) {
@@ -192,6 +239,33 @@ function canClientSeeReport(report, allReportsById) {
   if (!parentId) return false;
   const parent = allReportsById.get(parentId);
   return !!(parent && parent.status === ReportStatus.SIGNED);
+}
+
+function resolveSignerUrlForUser(report, authUser) {
+  const primaryEmail = String(report.project?.clientEmailPrimary || '').trim().toLowerCase();
+  const userEmail = String(authUser?.email || '').trim().toLowerCase();
+  if (!userEmail || userEmail === primaryEmail) {
+    return signerUrlForToken(report.zapsignSignerToken);
+  }
+  const extras = Array.isArray(report.specialConditions?.[ZAPSIGN_SIGNERS_KEY])
+    ? report.specialConditions[ZAPSIGN_SIGNERS_KEY]
+    : [];
+  const match = extras.find(s => String(s?.email || '').toLowerCase() === userEmail);
+  return match ? (match.signerUrl || signerUrlForToken(match.signerToken)) : null;
+}
+
+async function resolveSignerUrlFromZapSign(docToken, authUser, project) {
+  const zapDoc = await getZapSignDocument(docToken);
+  const zapSigners = Array.isArray(zapDoc.raw?.signers) ? zapDoc.raw.signers : [];
+  const primaryEmail = String(project?.clientEmailPrimary || '').trim().toLowerCase();
+  const userEmail = String(authUser?.email || '').trim().toLowerCase();
+  if (!userEmail || userEmail === primaryEmail) {
+    return zapDoc.signerUrl;
+  }
+  const match = zapSigners.find(s => String(s.email || '').toLowerCase() === userEmail);
+  if (!match) return null;
+  const token = match.token || match.signer_token || match.uuid || null;
+  return match.sign_url || match.signer_url || signerUrlForToken(token);
 }
 
 function assertReportMutable(report) {
@@ -1622,7 +1696,13 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
   }
 
   if (req.auth.user.role === 'CLIENT') {
-    where.project = { clientCnpj: req.auth.user.username };
+    const userEmail = String(req.auth.user.email || '').trim().toLowerCase();
+    where.project = {
+      OR: [
+        { clientCnpj: req.auth.user.username },
+        ...(userEmail ? [{ clientEmailCc: { has: userEmail } }] : [])
+      ]
+    };
   } else if (req.auth.user.role === 'COORDINATOR') {
     // Coordenador visualiza relatórios de todos os projetos.
   } else if (req.query.mine === 'true') {
@@ -1741,16 +1821,22 @@ router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, re
     return prepared;
   });
 
-  const pendingExisting = preparedReports.find(report => report.zapsignSignerToken && !report.zapsignSignedAt);
+  const pendingExisting = preparedReports.find(report => report.zapsignDocToken && !report.zapsignSignedAt);
   if (pendingExisting) {
-    return res.json({
-      ok: true,
-      signUrl: signerUrlForToken(pendingExisting.zapsignSignerToken),
-      reportIds: preparedReports.map(report => report.id)
-    });
+    let signUrl = resolveSignerUrlForUser(pendingExisting, req.auth.user);
+    if (!signUrl) {
+      signUrl = await resolveSignerUrlFromZapSign(pendingExisting.zapsignDocToken, req.auth.user, pendingExisting.project);
+    }
+    if (signUrl) {
+      return res.json({ ok: true, signUrl, reportIds: preparedReports.map(report => report.id) });
+    }
+    return res.status(409).json({ error: 'Seu link de assinatura não foi encontrado para estes relatórios. Contate o gestor.' });
   }
 
   const [mainReport, ...extraReports] = preparedReports;
+  const additionalSigners = Array.isArray(mainReport.project?.clientSigners)
+    ? mainReport.project.clientSigners
+    : [];
   const { signerName, signerEmail } = resolveZapSignSigner(mainReport, req.auth.user);
   const mainFile = await getReportPdfDownload(mainReport);
   const mainResult = await sendToZapSign({
@@ -1758,6 +1844,7 @@ router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, re
     fileName: reportPdfFileName(mainReport, mainFile),
     signerName,
     signerEmail,
+    additionalSigners,
     externalId: mainReport.id,
     webhookUrl: buildZapSignWebhookUrl()
   });
@@ -1768,10 +1855,12 @@ router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, re
     throw error;
   }
 
+  const mainSigners = mainResult.allSigners?.length ? mainResult.allSigners : [];
   const updates = [{
     id: mainReport.id,
     docToken: mainResult.docToken,
-    signerToken: mainResult.signerToken || null
+    signerToken: mainResult.signerToken || null,
+    allSigners: mainSigners
   }];
 
   for (const report of extraReports) {
@@ -1785,11 +1874,16 @@ router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, re
       error.statusCode = 502;
       throw error;
     }
-    updates.push({ id: report.id, docToken: extra.docToken, signerToken: null });
+    updates.push({ id: report.id, docToken: extra.docToken, signerToken: null, allSigners: mainSigners });
   }
 
   await prisma.$transaction(async tx => {
     for (const item of updates) {
+      const existing = await tx.report.findUnique({ where: { id: item.id }, select: { specialConditions: true } });
+      const nextSpecialConditions = {
+        ...(existing?.specialConditions || {}),
+        ...(item.allSigners.length ? { [ZAPSIGN_SIGNERS_KEY]: item.allSigners } : {})
+      };
       await tx.report.update({
         where: { id: item.id },
         data: {
@@ -1797,15 +1891,20 @@ router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, re
           zapsignSignerToken: item.signerToken,
           zapsignRequestedAt: new Date(),
           zapsignSignedAt: null,
-          zapsignDocUrl: null
+          zapsignDocUrl: null,
+          specialConditions: nextSpecialConditions
         }
       });
     }
   });
 
+  const batchSignUrl = resolveSignerUrlForUser(
+    { ...preparedReports[0], specialConditions: { ...(preparedReports[0].specialConditions || {}), [ZAPSIGN_SIGNERS_KEY]: mainSigners }, zapsignSignerToken: mainResult.signerToken },
+    req.auth.user
+  ) || mainResult.signerUrl;
   res.json({
     ok: true,
-    signUrl: mainResult.signerUrl,
+    signUrl: batchSignUrl,
     reportIds: updates.map(item => item.id)
   });
 }));
@@ -2106,7 +2205,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     }
   }
   console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: item.reportType, status: item.status });
-  if (isManagerFixingClientRejection && item.status === ReportStatus.APPROVED) queueApprovedReportNotification(item);
+  if (isManagerFixingClientRejection && item.status === ReportStatus.APPROVED) queueReapprovedReportNotification(item);
   res.json(item);
 }));
 
@@ -2276,6 +2375,7 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
   if (previous?.status === ReportStatus.SIGNED) {
     return res.status(409).json({ error: 'Relatório assinado não pode mais ser alterado.' });
   }
+  const wasClientRejection = hasActiveClientRejection(previous);
 
   const tPatch0 = Date.now();
   const item = await prisma.$transaction(async tx => {
@@ -2318,7 +2418,13 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
     for (const d of derived) {
       if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
     }
-    if (approvedTransition) queueApprovedReportNotification(item);
+    if (approvedTransition) {
+      if (wasClientRejection) {
+        queueReapprovedReportNotification(item);
+      } else {
+        queueApprovedReportNotification(item);
+      }
+    }
   }
   console.log('[TIMING] PATCH /reports/:id/status', { txMs: tPatchTx - tPatch0, totalMs: Date.now() - tPatch0, newStatus: data.status });
   res.json(item);
@@ -2386,14 +2492,18 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
     });
   });
 
-  if (prepared.zapsignSignerToken && !prepared.zapsignSignedAt) {
-    return res.json({
-      ok: true,
-      signUrl: signerUrlForToken(prepared.zapsignSignerToken),
-      report: prepared
-    });
+  if (prepared.zapsignDocToken && !prepared.zapsignSignedAt) {
+    let signUrl = resolveSignerUrlForUser(prepared, req.auth.user);
+    if (!signUrl) {
+      signUrl = await resolveSignerUrlFromZapSign(prepared.zapsignDocToken, req.auth.user, prepared.project);
+    }
+    if (signUrl) return res.json({ ok: true, signUrl, report: prepared });
+    return res.status(409).json({ error: 'Seu link de assinatura não foi encontrado para este relatório. Contate o gestor.' });
   }
 
+  const additionalSigners = Array.isArray(prepared.project?.clientSigners)
+    ? prepared.project.clientSigners
+    : [];
   const { signerName, signerEmail } = resolveZapSignSigner(prepared, req.auth.user);
   const tSig0 = Date.now();
   const saved = await generateReportPdfAsset(prepared);
@@ -2404,6 +2514,7 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
     fileName: reportPdfFileName(prepared, saved),
     signerName,
     signerEmail,
+    additionalSigners,
     externalId: prepared.id,
     webhookUrl: buildZapSignWebhookUrl()
   });
@@ -2420,6 +2531,11 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
     throw error;
   }
 
+  const nextSpecialConditions = {
+    ...(prepared.specialConditions || {}),
+    ...(zapsign.allSigners?.length ? { [ZAPSIGN_SIGNERS_KEY]: zapsign.allSigners } : {})
+  };
+
   const item = await prisma.report.update({
     where: { id: prepared.id },
     data: {
@@ -2427,14 +2543,16 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
       zapsignSignerToken: zapsign.signerToken || null,
       zapsignRequestedAt: new Date(),
       zapsignSignedAt: null,
-      zapsignDocUrl: null
+      zapsignDocUrl: null,
+      specialConditions: nextSpecialConditions
     },
     include
   });
 
+  const resolvedSignUrl = resolveSignerUrlForUser(item, req.auth.user) || zapsign.signerUrl;
   res.json({
     ok: true,
-    signUrl: zapsign.signerUrl,
+    signUrl: resolvedSignUrl,
     report: item
   });
 }));

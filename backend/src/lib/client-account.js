@@ -5,6 +5,8 @@ import { buildClientProjectLinkedEmailTemplate, buildClientWelcomeEmailTemplate 
 import { getMissingMailerConfig, sendMail } from './mailer.js';
 import { hashPassword } from './password.js';
 
+const CC_WELCOME_SUBJECT_PREFIX = '[Filtrovali] Acesso ao portal do cliente criado';
+
 function generateClientPassword() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*_-';
   const bytes = randomBytes(12);
@@ -133,6 +135,73 @@ export async function ensureClientAccountForProject(prisma, projectData, options
   }
 
   return { user, created, notified };
+}
+
+export async function ensureClientCcAccounts(prisma, projectData, options = {}) {
+  const ccEmails = Array.isArray(projectData.clientEmailCc)
+    ? projectData.clientEmailCc.map(e => String(e || '').trim().toLowerCase()).filter(Boolean)
+    : [];
+  const clientSigners = Array.isArray(projectData.clientSigners) ? projectData.clientSigners : [];
+  const previousProject = options.previousProject || null;
+  const shouldNotify = options.notify !== false;
+
+  for (const email of ccEmails) {
+    const signerEntry = clientSigners.find(s => String(s?.email || '').toLowerCase() === email);
+    const name = signerEntry?.name || projectData.clientName;
+
+    const existingUser = await prisma.user.findFirst({
+      where: { username: { equals: email, mode: 'insensitive' } }
+    });
+
+    if (existingUser) {
+      if (existingUser.role !== 'CLIENT') continue;
+      await prisma.user.update({
+        where: { id: existingUser.id },
+        data: { name, email, isActive: true }
+      });
+      continue;
+    }
+
+    const initialPassword = generateClientPassword();
+    const passwordHash = await hashPassword(initialPassword);
+    const user = await prisma.user.create({
+      data: { username: email, name, email, passwordHash, role: 'CLIENT', isActive: true }
+    });
+
+    if (shouldNotify) {
+      const template = buildClientWelcomeEmailTemplate({
+        clientName: name,
+        cnpj: email,
+        password: initialPassword,
+        appUrl: env.appUrl,
+        projectCode: projectData.code,
+        projectName: projectData.name
+      });
+      queueClientMail({ to: email, ...template }, {
+        type: 'client-cc-welcome',
+        userId: user.id,
+        projectCode: projectData.code
+      });
+    }
+  }
+
+  if (previousProject && Array.isArray(previousProject.clientEmailCc)) {
+    const removedEmails = previousProject.clientEmailCc
+      .map(e => String(e || '').trim().toLowerCase())
+      .filter(e => e && !ccEmails.includes(e));
+
+    for (const email of removedEmails) {
+      const stillLinked = await prisma.project.findFirst({
+        where: { clientEmailCc: { has: email }, ...(projectData.id ? { id: { not: projectData.id } } : {}) }
+      });
+      if (!stillLinked) {
+        await prisma.user.updateMany({
+          where: { username: { equals: email, mode: 'insensitive' }, role: 'CLIENT' },
+          data: { isActive: false }
+        });
+      }
+    }
+  }
 }
 
 export async function ensureClientAccountForCnpj(prisma, clientCnpj, options = {}) {

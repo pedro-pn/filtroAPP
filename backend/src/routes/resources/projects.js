@@ -3,7 +3,7 @@ import { ReportType } from '@prisma/client';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
-import { ensureClientAccountForProject } from '../../lib/client-account.js';
+import { ensureClientAccountForProject, ensureClientCcAccounts } from '../../lib/client-account.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth, requireManager } from '../../middleware/auth.js';
@@ -20,6 +20,10 @@ const schema = z.object({
   clientCnpj: z.string().min(1),
   clientEmailPrimary: z.union([emailSchema, z.literal('')]).default(''),
   clientEmailCc: z.array(emailSchema).default([]),
+  clientSigners: z.array(z.object({
+    name: z.string().min(1),
+    email: emailSchema
+  })).default([]),
   contractCode: z.string().min(1),
   location: z.string().min(1),
   workdayHours: z.string().min(1).default('09:00'),
@@ -49,11 +53,18 @@ function normalizeProjectInput(data) {
     .filter(Boolean)
     .filter(email => email !== primary)));
 
+  const seenSignerEmails = new Set();
+  const clientSigners = (data.clientSigners || [])
+    .map(s => ({ name: String(s.name || '').trim(), email: String(s.email || '').trim().toLowerCase() }))
+    .filter(s => s.name && s.email && s.email !== primary)
+    .filter(s => { if (seenSignerEmails.has(s.email)) return false; seenSignerEmails.add(s.email); return true; });
+
   return {
     ...data,
     clientCnpj: normalizedCnpj,
     clientEmailPrimary: primary,
-    clientEmailCc
+    clientEmailCc,
+    clientSigners
   };
 }
 
@@ -67,7 +78,11 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
   } else if (req.auth.user.role === 'CLIENT') {
-    where.clientCnpj = req.auth.user.username;
+    const userEmail = String(req.auth.user.email || '').trim().toLowerCase();
+    where.OR = [
+      { clientCnpj: req.auth.user.username },
+      ...(userEmail ? [{ clientEmailCc: { has: userEmail } }] : [])
+    ];
   } else {
     const collaboratorId = req.auth.user.collaboratorId;
     where.isActive = true;
@@ -103,6 +118,7 @@ router.post('/', requireAuth, requireManager, asyncHandler(async (req, res) => {
       }
     });
     await ensureClientAccountForProject(tx, created);
+    await ensureClientCcAccounts(tx, created);
     return created;
   });
   res.status(201).json(item);
@@ -111,20 +127,22 @@ router.post('/', requireAuth, requireManager, asyncHandler(async (req, res) => {
 router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) => {
   const parsed = schema.partial().parse(req.body);
   let data = parsed;
-  if (parsed.clientCnpj !== undefined || parsed.clientEmailPrimary !== undefined || parsed.clientEmailCc !== undefined) {
+  if (parsed.clientCnpj !== undefined || parsed.clientEmailPrimary !== undefined || parsed.clientEmailCc !== undefined || parsed.clientSigners !== undefined) {
     const existingProject = await prisma.project.findUniqueOrThrow({
       where: { id: req.params.id },
       select: {
         clientCnpj: true,
         clientEmailPrimary: true,
-        clientEmailCc: true
+        clientEmailCc: true,
+        clientSigners: true
       }
     });
     data = normalizeProjectInput({
       ...parsed,
       clientCnpj: parsed.clientCnpj ?? existingProject.clientCnpj,
       clientEmailPrimary: parsed.clientEmailPrimary ?? existingProject.clientEmailPrimary,
-      clientEmailCc: parsed.clientEmailCc ?? existingProject.clientEmailCc
+      clientEmailCc: parsed.clientEmailCc ?? existingProject.clientEmailCc,
+      clientSigners: parsed.clientSigners ?? existingProject.clientSigners
     });
   }
   const { reportSequences, ...projectData } = data;
@@ -134,7 +152,8 @@ router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) =>
       where: { id: req.params.id },
       select: {
         clientCnpj: true,
-        clientEmailPrimary: true
+        clientEmailPrimary: true,
+        clientEmailCc: true
       }
     });
     if (reportSequences) {
@@ -159,6 +178,7 @@ router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) =>
       }
     });
     await ensureClientAccountForProject(tx, updated, { previousProject });
+    await ensureClientCcAccounts(tx, { ...updated, id: req.params.id }, { previousProject });
     return updated;
   });
 
