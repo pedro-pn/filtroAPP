@@ -70,6 +70,7 @@ model Project {
   clientCnpj            String
   clientEmailPrimary    String            @default("")
   clientEmailCc         String[]          @default([])
+  clientSigners         Json[]            @default([])
   contractCode          String
   location              String
   workdayHours          String            @default("09:00")

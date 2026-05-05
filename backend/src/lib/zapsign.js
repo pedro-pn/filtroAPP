@@ -1,6 +1,8 @@
 import env from '../config/env.js';
 
 let cachedApiToken = String(env.zapsignApiToken || '').trim();
+let cachedRefreshToken = String(env.zapsignRefreshToken || '').trim();
+let loginInFlight = null;
 let refreshInFlight = null;
 
 function trimTrailingSlash(value) {
@@ -16,7 +18,68 @@ function currentApiToken() {
 }
 
 function currentRefreshToken() {
-  return String(env.zapsignRefreshToken || '').trim();
+  return String(cachedRefreshToken || env.zapsignRefreshToken || '').trim();
+}
+
+function currentZapSignUsername() {
+  return String(env.zapsignUsername || '').trim();
+}
+
+function currentZapSignPassword() {
+  return String(env.zapsignPassword || '').trim();
+}
+
+function currentZapSignOrganizationId() {
+  return String(env.zapsignOrganizationId || '').trim();
+}
+
+function hasCredentialAuth() {
+  return !!(currentZapSignUsername() && currentZapSignPassword() && currentZapSignOrganizationId());
+}
+
+function credentialAuthMissingError() {
+  const error = new Error('Credenciais ZapSign não configuradas. Defina ZAPSIGN_USERNAME, ZAPSIGN_PASSWORD e ZAPSIGN_ORGANIZATION_ID.');
+  error.statusCode = 503;
+  return error;
+}
+
+async function loginWithCredentials() {
+  if (loginInFlight) return loginInFlight;
+
+  const username = currentZapSignUsername();
+  const password = currentZapSignPassword();
+  const organizationId = currentZapSignOrganizationId();
+  if (!username || !password || !organizationId) {
+    throw credentialAuthMissingError();
+  }
+
+  loginInFlight = (async () => {
+    const response = await fetch(apiUrl(`/auth/token/${encodeURIComponent(organizationId)}/`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await parseJsonResponse(response);
+    const nextToken = String(data?.access || data?.token || data?.access_token || '').trim();
+    const nextRefreshToken = String(data?.refresh || data?.refresh_token || '').trim();
+    if (!nextToken || !nextRefreshToken) {
+      const error = new Error('A ZapSign não retornou access token e refresh token.');
+      error.statusCode = 502;
+      error.details = data;
+      throw error;
+    }
+    cachedApiToken = nextToken;
+    cachedRefreshToken = nextRefreshToken;
+    return nextToken;
+  })();
+
+  try {
+    return await loginInFlight;
+  } finally {
+    loginInFlight = null;
+  }
 }
 
 async function refreshApiToken() {
@@ -24,29 +87,36 @@ async function refreshApiToken() {
 
   const refreshToken = currentRefreshToken();
   if (!refreshToken) {
-    const error = new Error('ZAPSIGN_REFRESH_TOKEN não configurado.');
-    error.statusCode = 503;
-    throw error;
+    return loginWithCredentials();
   }
 
   refreshInFlight = (async () => {
-    const response = await fetch(apiUrl('/auth/token-refresh/'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ refresh: refreshToken })
-    });
-    const data = await parseJsonResponse(response);
-    const nextToken = String(data?.access || data?.token || data?.access_token || '').trim();
-    if (!nextToken) {
-      const error = new Error('A ZapSign não retornou um novo access token.');
-      error.statusCode = 502;
-      error.details = data;
+    try {
+      const response = await fetch(apiUrl('/auth/token-refresh/'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ refresh: refreshToken })
+      });
+      const data = await parseJsonResponse(response);
+      const nextToken = String(data?.access || data?.token || data?.access_token || '').trim();
+      const nextRefreshToken = String(data?.refresh || data?.refresh_token || '').trim();
+      if (!nextToken) {
+        const error = new Error('A ZapSign não retornou um novo access token.');
+        error.statusCode = 502;
+        error.details = data;
+        throw error;
+      }
+      cachedApiToken = nextToken;
+      if (nextRefreshToken) cachedRefreshToken = nextRefreshToken;
+      return nextToken;
+    } catch (error) {
+      if (hasCredentialAuth() && (error?.statusCode === 401 || error?.statusCode === 503)) {
+        return loginWithCredentials();
+      }
       throw error;
     }
-    cachedApiToken = nextToken;
-    return nextToken;
   })();
 
   try {
@@ -58,11 +128,11 @@ async function refreshApiToken() {
 
 async function getAuthHeaders() {
   let token = currentApiToken();
-  if (!token && currentRefreshToken()) {
+  if (!token && (currentRefreshToken() || hasCredentialAuth())) {
     token = await refreshApiToken();
   }
   if (!token) {
-    const error = new Error('ZAPSIGN_API_TOKEN não configurado.');
+    const error = new Error('Integração ZapSign não configurada. Defina ZAPSIGN_API_TOKEN ou as credenciais ZAPSIGN_USERNAME, ZAPSIGN_PASSWORD e ZAPSIGN_ORGANIZATION_ID.');
     error.statusCode = 503;
     throw error;
   }
@@ -82,7 +152,7 @@ async function zapsignFetch(pathOrUrl, options = {}, { absolute = false, retryOn
     headers
   });
 
-  if (response.status === 401 && retryOnAuth && currentRefreshToken()) {
+  if (response.status === 401 && retryOnAuth && (currentRefreshToken() || hasCredentialAuth())) {
     await refreshApiToken();
     return zapsignFetch(pathOrUrl, options, { absolute, retryOnAuth: false });
   }
@@ -103,13 +173,19 @@ async function parseJsonResponse(response) {
   }
 
   if (!response.ok) {
+    const isAuthTokenError = response.status === 401 && (
+      data?.code === 'token_not_valid' ||
+      /token is invalid or expired/i.test(String(data?.detail || data?.message || data?.error || ''))
+    );
     const message =
+      isAuthTokenError ? 'Token da integração ZapSign inválido ou expirado.' :
       data?.message ||
       data?.detail ||
       data?.error ||
       `Falha na API da ZapSign (${response.status}).`;
     const error = new Error(message);
-    error.statusCode = response.status;
+    error.status = isAuthTokenError ? 503 : response.status;
+    error.statusCode = error.status;
     error.details = data;
     throw error;
   }
@@ -141,11 +217,11 @@ function buildUploadPayload({ pdfBuffer, fileName }) {
 export function signerUrlForToken(token) {
   const signerToken = String(token || '').trim();
   if (!signerToken) return null;
-  return `https://app.zapsign.com.br/verificar/autenticar?token=${encodeURIComponent(signerToken)}`;
+  return `https://app.zapsign.com.br/verificar/${encodeURIComponent(signerToken)}`;
 }
 
 export function isZapSignEnabled() {
-  return !!(currentApiToken() || currentRefreshToken());
+  return !!(currentApiToken() || currentRefreshToken() || hasCredentialAuth());
 }
 
 export function assertZapSignEnabled() {
@@ -161,6 +237,7 @@ export async function sendToZapSign({
   fileName,
   signerName,
   signerEmail,
+  additionalSigners = [],
   externalId,
   webhookUrl
 }) {
@@ -178,7 +255,13 @@ export async function sendToZapSign({
         email: signerEmail,
         lock_email: true,
         send_automatic_email: false
-      }
+      },
+      ...additionalSigners.map(s => ({
+        name: String(s.name || '').trim() || 'Assinante',
+        email: String(s.email || '').trim(),
+        lock_email: true,
+        send_automatic_email: true
+      }))
     ]
   };
 
@@ -193,10 +276,18 @@ export async function sendToZapSign({
   const documentData = await parseJsonResponse(response);
   const { signerToken, signerUrl } = extractSignerInfo(documentData);
 
+  const rawSigners = Array.isArray(documentData?.signers) ? documentData.signers : [];
+  const allSigners = rawSigners.slice(1).map((s, i) => ({
+    email: additionalSigners[i]?.email || String(s.email || '').trim(),
+    signerToken: s.token || s.signer_token || s.uuid || null,
+    signerUrl: s.sign_url || s.signer_url || null
+  })).filter(s => s.email && (s.signerToken || s.signerUrl));
+
   return {
     docToken: documentData.token || documentData.doc_token || null,
     signerToken,
     signerUrl,
+    allSigners,
     raw: documentData
   };
 }
