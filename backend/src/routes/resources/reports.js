@@ -288,7 +288,31 @@ function reportPdfFileName(report, saved) {
   return `${type}_${number}.pdf`;
 }
 
+async function withCurrentServiceLeaderSnapshot(report) {
+  const parentRdoId = report?.specialConditions?.parentRdoId;
+  if (!parentRdoId || report.reportType === ReportType.RDO) return report;
+
+  const parent = await prisma.report.findUnique({
+    where: { id: parentRdoId },
+    include: {
+      project: { include: { operator: true } },
+      createdBy: { include: { collaborator: true } }
+    }
+  });
+  if (!parent) return report;
+
+  const leaderSnapshot = parent.specialConditions?.__leaderSnapshot || projectLeaderSnapshot(parent.project);
+  return {
+    ...report,
+    specialConditions: {
+      ...(report.specialConditions || {}),
+      __leaderSnapshot: leaderSnapshot
+    }
+  };
+}
+
 async function generateReportPdfAsset(report) {
+  report = await withCurrentServiceLeaderSnapshot(report);
   if (report.reportType === 'RTP') return saveRtpPdf(report);
   if (report.reportType === 'RLQ') return saveRlqPdf(report);
   if (report.reportType === 'RCPU') return saveRcpPdf(report);
@@ -297,6 +321,7 @@ async function generateReportPdfAsset(report) {
 }
 
 async function generateReportDocxAsset(report) {
+  report = await withCurrentServiceLeaderSnapshot(report);
   if (report.reportType === 'RTP') return saveRtpDocx(report);
   if (report.reportType === 'RLQ') return saveRlqDocx(report);
   if (report.reportType === 'RCPU') return saveRcpDocx(report);
@@ -2011,12 +2036,7 @@ router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'Apenas o gestor pode baixar o DOCX.' });
   }
 
-  let saved;
-  if (item.reportType === 'RTP') saved = await saveRtpDocx(item);
-  else if (item.reportType === 'RLQ') saved = await saveRlqDocx(item);
-  else if (item.reportType === 'RCPU') saved = await saveRcpDocx(item);
-  else if (item.reportType === 'RLM') saved = await saveRlmDocx(item);
-  else saved = await saveReportDocx(item);
+  const saved = await generateReportDocxAsset(item);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   res.setHeader('Content-Disposition', contentDisposition(saved.fileName));
   res.send(await fs.readFile(saved.targetPath));
