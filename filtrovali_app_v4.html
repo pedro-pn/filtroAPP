@@ -749,9 +749,13 @@ function getSelectedCollaboratorIds(){
 function getSelectedNightCollaboratorIds(){
   return Array.from(new Set(Array.from(document.querySelectorAll('#noturno-colab-list .colab-tag')).map(function(el){return el.dataset.colabId;}).filter(Boolean)));
 }
+var serviceCollaboratorScope='report';
 function getAvailableServiceCollaborators(){
+  var selector=serviceCollaboratorScope==='manager'
+    ? '#mgr-colab-list .colab-tag, #mgr-noturno-colab-list .colab-tag'
+    : '#colab-list .colab-tag, #noturno-colab-list .colab-tag';
   var seen=new Set();var result=[];
-  Array.from(document.querySelectorAll('#colab-list .colab-tag, #noturno-colab-list .colab-tag, #mgr-colab-list .colab-tag, #mgr-noturno-colab-list .colab-tag')).forEach(function(el){
+  Array.from(document.querySelectorAll(selector)).forEach(function(el){
     var id=el.dataset.colabId;
     var name=((el.querySelector('.colab-name')||{}).textContent||'').trim();
     if(id&&!seen.has(id)){seen.add(id);result.push({id:id,nome:name});}
@@ -3255,7 +3259,12 @@ function addManagerServiceCard(type,prefill){
   var wrap=document.createElement('div');
   wrap.className='card';
   wrap.style.marginBottom='10px';
-  wrap.innerHTML=buildSvc(type,index,prefill);
+  serviceCollaboratorScope='manager';
+  try{
+    wrap.innerHTML=buildSvc(type,index,prefill);
+  }finally{
+    serviceCollaboratorScope='report';
+  }
   root.appendChild(wrap);
   enhanceUploadZones(wrap);
 }
@@ -5134,7 +5143,12 @@ function addManagerServiceCard(type,prefill){
   var wrap=document.createElement('div');
   wrap.className='card';
   wrap.style.marginBottom='10px';
-  wrap.innerHTML=buildSvc(type,index,prefill);
+  serviceCollaboratorScope='manager';
+  try{
+    wrap.innerHTML=buildSvc(type,index,prefill);
+  }finally{
+    serviceCollaboratorScope='report';
+  }
   root.appendChild(wrap);
   var card=wrap.querySelector('.svc-card');
   if(card){
