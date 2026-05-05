@@ -596,8 +596,8 @@ export async function buildReportPdf(report, prisma) {
     drawText('ASSINATURAS', MARGIN.left + 8, y - 8, 11, bold, COLORS.black);
     drawText('Cliente', MARGIN.left + leftWidth + 26, y - 8, 11, bold, COLORS.black);
 
-    const leader = report.project?.operator || report.createdBy?.collaborator || {};
-    const signatureSource = leader.signatureImage || report.createdBy?.collaborator?.signatureImage || null;
+    const leader = report.specialConditions?.__leaderSnapshot || report.project?.operator || report.createdBy?.collaborator || {};
+    const signatureSource = leader.signatureImage || report.project?.operator?.signatureImage || report.createdBy?.collaborator?.signatureImage || null;
     const signatureBytes = await loadImageBytes(signatureSource);
     if (signatureBytes) {
       try {
