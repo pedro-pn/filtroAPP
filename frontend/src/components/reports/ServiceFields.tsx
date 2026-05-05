@@ -720,6 +720,7 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
 
   if (normalizedType === 'flushing') {
     const tipoFlushing = getString(data.tipoFlushing) || 'primario';
+    const unitCategories: Unit['category'][] = tipoFlushing === 'secundario' ? ['FILTRAGEM'] : ['FLUSHING'];
 
     return (
       <>
@@ -735,13 +736,13 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
           <div className="rdo-tag-group">
             {[['primario', 'Primário'], ['secundario', 'Secundário']].map(([val, label]) => (
               <label className={radioOptionClass(tipoFlushing === val)} key={val}>
-                <input type="radio" name={`flushing-tipo-${groupKey}`} checked={tipoFlushing === val} disabled={disabled} onChange={() => onChange({ tipoFlushing: val })} />
+                <input type="radio" name={`flushing-tipo-${groupKey}`} checked={tipoFlushing === val} disabled={disabled} onChange={() => onChange({ tipoFlushing: val, uf: [''] })} />
                 <span>{label}</span>
               </label>
             ))}
           </div>
         </div>
-        <UnitMultiField label="Unidade de Flushing" field="uf" units={units} categories={['FLUSHING', 'FILTRAGEM']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <UnitMultiField label={tipoFlushing === 'secundario' ? 'Unidade de filtragem' : 'Unidade de Flushing'} field="uf" units={units} categories={unitCategories} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} upload={upload} />

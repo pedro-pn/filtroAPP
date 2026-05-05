@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, type FormEvent } from 'react';
+﻿import { useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
@@ -21,6 +21,7 @@ import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
 import type {
   Collaborator,
+  ClientSigner,
   InternalUserSummary,
   Manometer,
   ParticleCounter,
@@ -48,6 +49,9 @@ interface ProjectFormState {
   name: string;
   clientName: string;
   clientCnpj: string;
+  clientEmailPrimary: string;
+  clientEmailCc: string;
+  clientSigners: ClientSigner[];
   contractCode: string;
   location: string;
   operatorId: string;
@@ -98,6 +102,9 @@ const emptyProjectForm: ProjectFormState = {
   name: '',
   clientName: '',
   clientCnpj: '',
+  clientEmailPrimary: '',
+  clientEmailCc: '',
+  clientSigners: [],
   contractCode: '',
   location: '',
   operatorId: '',
@@ -164,8 +171,40 @@ function asBoolean(value: unknown) {
   return typeof value === 'boolean' ? value : false;
 }
 
+function hasActiveClientRejection(report: ReportSummary) {
+  const special = report.specialConditions || {};
+  const rejectedAt = typeof special.__clientRejectedAt === 'string' ? special.__clientRejectedAt : '';
+  const resolvedAt = typeof special.__clientRejectionResolvedAt === 'string' ? special.__clientRejectionResolvedAt : '';
+  if (!rejectedAt) return false;
+  return !resolvedAt || new Date(rejectedAt).getTime() > new Date(resolvedAt).getTime();
+}
+
 function asStringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function parseEmailList(value: string) {
+  return Array.from(new Set(
+    value
+      .split(/[\n,;]+/)
+      .map(item => item.trim().toLowerCase())
+      .filter(Boolean)
+  ));
+}
+
+function cleanSigners(signers: ClientSigner[]) {
+  const seen = new Set<string>();
+  return signers
+    .map(signer => ({
+      name: signer.name.trim(),
+      email: signer.email.trim().toLowerCase()
+    }))
+    .filter(signer => signer.name && signer.email)
+    .filter(signer => {
+      if (seen.has(signer.email)) return false;
+      seen.add(signer.email);
+      return true;
+    });
 }
 
 function asServices(value: unknown): RdoServiceDraft[] {
@@ -228,12 +267,102 @@ function projectToForm(project: Project): ProjectFormState {
     name: project.name,
     clientName: project.clientName,
     clientCnpj: project.clientCnpj,
+    clientEmailPrimary: project.clientEmailPrimary || '',
+    clientEmailCc: (project.clientEmailCc || []).join('\n'),
+    clientSigners: (project.clientSigners || []).map(signer => ({
+      name: signer.name || '',
+      email: signer.email || ''
+    })),
     contractCode: project.contractCode,
     location: project.location,
     operatorId: project.operatorId || '',
     visibleToCollaborators: project.visibleToCollaborators,
     isActive: project.isActive
   };
+}
+
+function ProjectClientFields({
+  form,
+  idPrefix,
+  setForm
+}: {
+  form: ProjectFormState;
+  idPrefix: string;
+  setForm: Dispatch<SetStateAction<ProjectFormState>>;
+}) {
+  function updateSigner(index: number, field: keyof ClientSigner, value: string) {
+    setForm(current => ({
+      ...current,
+      clientSigners: current.clientSigners.map((signer, itemIndex) => (
+        itemIndex === index ? { ...signer, [field]: value } : signer
+      ))
+    }));
+  }
+
+  return (
+    <>
+      <div className="field-group">
+        <label htmlFor={`${idPrefix}-client-email-primary`}>E-mail principal do cliente</label>
+        <input
+          id={`${idPrefix}-client-email-primary`}
+          type="email"
+          value={form.clientEmailPrimary}
+          onChange={event => setForm(current => ({ ...current, clientEmailPrimary: event.target.value }))}
+        />
+      </div>
+      <div className="field-group field-group-wide">
+        <label htmlFor={`${idPrefix}-client-email-cc`}>E-mails CC do cliente</label>
+        <textarea
+          id={`${idPrefix}-client-email-cc`}
+          rows={3}
+          placeholder="um e-mail por linha"
+          value={form.clientEmailCc}
+          onChange={event => setForm(current => ({ ...current, clientEmailCc: event.target.value }))}
+        />
+      </div>
+      <div className="field-group field-group-wide">
+        <label>Assinantes adicionais ZapSign</label>
+        <div className="project-signer-stack">
+          {form.clientSigners.map((signer, index) => (
+            <div className="project-signer-row" key={index}>
+              <input
+                value={signer.name}
+                placeholder="Nome"
+                onChange={event => updateSigner(index, 'name', event.target.value)}
+              />
+              <input
+                type="email"
+                value={signer.email}
+                placeholder="E-mail"
+                onChange={event => updateSigner(index, 'email', event.target.value)}
+              />
+              <button
+                className="unit-row-remove"
+                type="button"
+                aria-label="Remover assinante"
+                onClick={() => setForm(current => ({
+                  ...current,
+                  clientSigners: current.clientSigners.filter((_, itemIndex) => itemIndex !== index)
+                }))}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        <button
+          className="tube-add"
+          type="button"
+          onClick={() => setForm(current => ({
+            ...current,
+            clientSigners: [...current.clientSigners, { name: '', email: '' }]
+          }))}
+        >
+          ＋ Adicionar assinante
+        </button>
+      </div>
+    </>
+  );
 }
 
 function collaboratorToForm(collaborator: Collaborator): CollaboratorFormState {
@@ -312,6 +441,9 @@ function renderProjectCard(project: Project, options: { onEdit: (project: Projec
       <div className="admin-card-meta">
         <span>Local: {project.location}</span>
         <span>Cliente: {project.clientName}</span>
+        <span>E-mail principal: {project.clientEmailPrimary || 'Não informado'}</span>
+        <span>CC: {(project.clientEmailCc || []).length || 0}</span>
+        <span>Assinantes: {(project.clientSigners || []).length || 0}</span>
         <span>Status: {project.isActive ? 'Ativo' : 'Arquivado'}</span>
         <span>{'Visível para colaboradores'}: {project.visibleToCollaborators ? 'Sim' : 'Não'}</span>
       </div>
@@ -488,6 +620,9 @@ export function GestorPage() {
       name: projectForm.name.trim(),
       clientName: projectForm.clientName.trim(),
       clientCnpj: projectForm.clientCnpj.trim(),
+      clientEmailPrimary: projectForm.clientEmailPrimary.trim().toLowerCase(),
+      clientEmailCc: parseEmailList(projectForm.clientEmailCc),
+      clientSigners: cleanSigners(projectForm.clientSigners),
       contractCode: projectForm.contractCode.trim(),
       location: projectForm.location.trim(),
       visibleToCollaborators: projectForm.visibleToCollaborators,
@@ -795,7 +930,7 @@ export function GestorPage() {
         </button>
         {canReview && report.status !== 'APPROVED' ? (
           <button className="primary-button" type="button" onClick={() => void handleReportStatus(report, 'APPROVED')}>
-            Aprovar
+            {hasActiveClientRejection(report) ? 'Reenviar para avaliação' : 'Aprovar'}
           </button>
         ) : null}
         {canReview && report.status !== 'RETURNED' ? (
@@ -1000,6 +1135,7 @@ export function GestorPage() {
                 required
               />
             </div>
+            <ProjectClientFields form={projectForm} idPrefix="project" setForm={setProjectForm} />
             <div className="field-group">
               <label htmlFor="project-contract">Contrato</label>
               <input
@@ -1095,6 +1231,7 @@ export function GestorPage() {
                         <label htmlFor={`project-cnpj-${project.id}`}>CNPJ</label>
                         <input id={`project-cnpj-${project.id}`} value={projectForm.clientCnpj} onChange={event => setProjectForm(current => ({ ...current, clientCnpj: event.target.value }))} required />
                       </div>
+                      <ProjectClientFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
                       <div className="field-group">
                         <label htmlFor={`project-contract-${project.id}`}>Contrato</label>
                         <input id={`project-contract-${project.id}`} value={projectForm.contractCode} onChange={event => setProjectForm(current => ({ ...current, contractCode: event.target.value }))} required />
@@ -1589,6 +1726,7 @@ export function GestorPage() {
             <div className="admin-stack">
               {clientUsers.map(item => {
                 const linked = item.linkedProjects || [];
+                const isCcAccount = !/^\d{14}$/.test(item.username);
                 const projectList = linked.length
                   ? linked.map(project => `${project.contractCode || '---'} - Missão ${project.code || '---'} - ${project.name || 'Sem nome'}`)
                   : ['Nenhum projeto vinculado.'];
@@ -1599,7 +1737,7 @@ export function GestorPage() {
                       <div>
                         <div className="admin-card-title">{item.name || 'Cliente'} - {formatCnpj(item.username) || item.username}</div>
                         <div className="admin-card-subtitle">
-                          {item.email || 'Sem e-mail principal'} - {item.isActive ? 'Ativo' : 'Inativo'}
+                          {item.email || 'Sem e-mail principal'} - {isCcAccount ? 'Conta CC' : 'Conta principal'} - {item.isActive ? 'Ativo' : 'Inativo'}
                         </div>
                       </div>
                       <span className={`status-pill ${item.isActive ? 'status-approved' : 'status-returned'}`}>
@@ -1607,6 +1745,10 @@ export function GestorPage() {
                       </span>
                     </div>
                     <div className="det-section" style={{ marginTop: 10 }}>
+                      <div className="det-row">
+                        <span className="det-label">CNPJ vinculado</span>
+                        <span className="det-val">{formatCnpj(item.clientCnpj) || formatCnpj(item.username) || 'Não informado'}</span>
+                      </div>
                       <div className="det-row">
                         <span className="det-label">Projetos</span>
                         <span className="det-val">{linked.length}</span>

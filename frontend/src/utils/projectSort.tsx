@@ -1,0 +1,88 @@
+import type { Project, ReportSummary } from '../types/domain';
+import type { ProjectGroup } from './groupByProject';
+
+export type ProjectSortDirection = 'asc' | 'desc';
+
+function directionFactor(direction: ProjectSortDirection) {
+  return direction === 'desc' ? -1 : 1;
+}
+
+function compareProjectFields(
+  aCode: string | number | null | undefined,
+  aName: string | null | undefined,
+  bCode: string | number | null | undefined,
+  bName: string | null | undefined,
+  direction: ProjectSortDirection
+) {
+  const dir = directionFactor(direction);
+  const codeA = Number(aCode || 0) || 0;
+  const codeB = Number(bCode || 0) || 0;
+  if (codeA !== codeB) return dir * (codeA - codeB);
+  return dir * String(aName || '').localeCompare(String(bName || ''), 'pt');
+}
+
+export function compareProjects(a: Project, b: Project, direction: ProjectSortDirection) {
+  return compareProjectFields(a.code, a.name, b.code, b.name, direction);
+}
+
+export function sortProjects<T extends Project>(projects: T[], direction: ProjectSortDirection) {
+  return [...projects].sort((a, b) => compareProjects(a, b, direction));
+}
+
+export function sortReportsByProject(reports: ReportSummary[], direction: ProjectSortDirection) {
+  return [...reports].sort((a, b) => {
+    const projectCompare = compareProjectFields(
+      a.project?.code,
+      a.project?.name,
+      b.project?.code,
+      b.project?.name,
+      direction
+    );
+    if (projectCompare !== 0) return projectCompare;
+    return new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime();
+  });
+}
+
+// Espelha `sortReportList` do filtrovali_app_v4.html: ordena relatórios dentro
+// de um grupo (mesmo projeto + tipo) por número sequencial e, em empate, por
+// label/data/createdAt.
+function reportLabel(report: ReportSummary) {
+  const num = report.sequenceNumber ? `${report.reportType} ${report.sequenceNumber}` : report.reportType;
+  return num || '';
+}
+
+export function sortReportsInGroup(reports: ReportSummary[], direction: ProjectSortDirection) {
+  const dir = directionFactor(direction);
+  return [...reports].sort((a, b) => {
+    const sa = Number(a?.sequenceNumber) || 0;
+    const sb = Number(b?.sequenceNumber) || 0;
+    if (sa && sb && sa !== sb) return dir * (sa - sb);
+    const labelCmp = reportLabel(a).localeCompare(reportLabel(b), 'pt-BR', { numeric: true, sensitivity: 'base' });
+    if (labelCmp) return dir * labelCmp;
+    const da = String(a?.reportDate || '');
+    const db = String(b?.reportDate || '');
+    const dateCmp = da.localeCompare(db);
+    if (dateCmp) return dir * dateCmp;
+    return String(a?.createdAt || '').localeCompare(String(b?.createdAt || '')) * dir;
+  });
+}
+
+export function sortProjectGroups(groups: ProjectGroup[], direction: ProjectSortDirection) {
+  return [...groups].sort((a, b) =>
+    compareProjectFields(a.projectCode, a.projectName, b.projectCode, b.projectName, direction)
+  );
+}
+
+export function ProjectSortButton({
+  direction,
+  onToggle
+}: {
+  direction: ProjectSortDirection;
+  onToggle: () => void;
+}) {
+  return (
+    <button className="secondary-button project-sort-button" type="button" title="Alternar ordem" onClick={onToggle}>
+      {direction === 'asc' ? 'A→Z' : 'Z→A'}
+    </button>
+  );
+}
