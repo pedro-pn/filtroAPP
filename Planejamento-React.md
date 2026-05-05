@@ -1,7 +1,7 @@
 # Planejamento de Migração — Frontend atual → React + Vite
 
-> Atualizado em: 2026-04-27  
-> Branch sugerido: `feature/react-frontend`  
+> Atualizado em: 2026-05-05
+> Branch sugerido: `feature/react-frontend`
 > Objetivo: migrar o frontend atual baseado em `filtrovali_app_v4.html` para uma aplicação React moderna, mantendo o backend Express/Prisma e preservando paridade funcional antes do cutover.
 
 ---
@@ -51,7 +51,7 @@ Esta seção deve ser mantida atualizada a cada ciclo de implementação para fa
 
 ### Parcial / em andamento
 
-- [ ] Aproximar visualmente os cards, toggles e agrupamentos ao HTML original (MyReportsPage agrupado por projeto ✓).
+- [x] Aproximar visualmente os cards, toggles e agrupamentos ao HTML original nas telas já migradas (cards com ícone/hover, grupos por projeto/tipo, header verde nos serviços, bottom bars e welcome do cliente).
 - [x] Melhorar tela de detalhe para exibir dados por tipo de relatório, sem depender de JSON técnico.
 - [x] Completar paridade do formulário de RDO com o HTML original (etapas por tipo de serviço implementadas).
 - [x] Completar campos específicos por tipo de serviço do RDO (LIMPEZA, PRESSAO, FLUSHING, FILTRAGEM, MECANICA, INIBICAO).
@@ -59,20 +59,20 @@ Esta seção deve ser mantida atualizada a cada ciclo de implementação para fa
 - [x] Implementar continuidade de serviços em andamento por projeto (banner + importação de serviços).
 - [x] Implementar pré-preenchimento dos colaboradores do último relatório do mesmo projeto com paridade total.
 - [x] Revisar comportamento de arquivados por projeto em todas as roles (relatórios agrupados por projeto: colaborador, gestor, coordenador).
-- [ ] Revisar responsividade fina em celular.
-- [ ] Padronizar mensagens de erro/sucesso em todas as telas (Toast implementado; NewReportPage e ClientPage migradas; restante pendente).
+- [ ] Revisar responsividade fina em celular com navegador real; a regra mobile de botões compactos foi corrigida em código, mas ainda falta validação visual lado a lado (§18.27).
+- [x] Padronizar mensagens de erro/sucesso em ações transitórias: `NewReportPage`, `ClientPage`, `ReportDetailPage`, `GestorPage` e `CoordinatorPage` usam toast; inline fica para estados persistentes/formulários públicos/conta (§18.27).
 
 ### Pendente
 
-- [x] **Toast no detalhe:** `ReportDetailPage` migrado para `useToast` em ações (PDF/DOCX/aprovar/devolver/assinar/reprovar). Mensagens espelham `showToast` do HTML legado (§18.21).
+- [x] **Toast no detalhe:** `ReportDetailPage` usa `useToast` em ações transitórias de download, salvar, aprovar/devolver, assinatura e reprovação; inline mantido para read-only/erro persistente (§18.27).
 - [x] **Limpeza de validação ao navegar:** `goToStep` em `NewReportPage` limpa `invalidTarget` ao trocar etapa pelas tabs ou pelo botão Voltar (§18.21).
-- [x] **Banners inline duplicados removidos:** GestorPage e CoordinatorPage não exibem mais banners de sucesso paralelos ao toast; segue o padrão `showToast`-only do HTML (§18.22).
-- [x] **Botões mobile fiel ao HTML:** removido `width: 100%` em ações no breakpoint ≤390px; botões mantêm auto-width compacto e quebram em wrap como no HTML (§18.23).
+- [x] **Banners inline duplicados / toast por role:** `GestorPage` e `CoordinatorPage` tiveram feedback transitório migrado para `useToast`; banners inline removidos dos CRUDs/downloads/revisões (§18.27).
+- [x] **Botões mobile fiel ao HTML:** removido `width: 100%` dos botões de cards, ações e topbar no breakpoint ≤390px; ações compactas voltam a quebrar em wrap (§18.27).
 - [x] **Acessibilidade dos modais (parcial):** `role="dialog"` + `aria-modal` + `aria-labelledby` + fechamento por `Esc`/backdrop em `ReasonDialog` e `stype-modal` (§18.22).
-- [ ] **Login/Forgot/Reset/Account:** decidido **manter** erro inline (HTML legado usa `alert()` persistente; toast desapareceria em ~3s e divergiria do comportamento). Documentado em §18.21.
+- [x] **Login/Forgot/Reset/Account:** decidido **manter** erro inline (HTML legado usa `alert()` persistente; toast desapareceria em ~3s e divergiria do comportamento). Documentado em §18.21.
 - [ ] **Componentes reutilizáveis:** extrair `Button` (primary/secondary/danger/mini) e `Modal` genérico — hoje são classes CSS soltas e só existe `ReasonDialog`. *Baixa prioridade — não afeta UI.*
 - [ ] **Acessibilidade restante:** labels associadas via `htmlFor` em ServiceFields, foco-trap nos modais, navegação por teclado em tabs/tags, contraste WCAG AA.
-- [ ] **Validação visual em navegador** comparando HTML × React lado a lado em todas as telas, mobile e desktop.
+- [ ] **Validação visual em navegador** comparando HTML × React lado a lado em todas as telas, mobile e desktop; agora deve focar os itens residuais listados em §18.26.
 - [ ] **Validar DOCX/PDF** gerados a partir de RDO criado no React (incluindo continuação e condições especiais).
 - [ ] **Confirmar com stakeholder** se derivados (RTP/RLQ/RCPU/RLM/RLF/RLI) precisam ser editáveis no React (HTML hoje só edita RDO).
 - [ ] Migrar completamente os tipos derivados/específicos de relatório além do RDO, se forem editáveis no frontend.
@@ -83,6 +83,8 @@ Esta seção deve ser mantida atualizada a cada ciclo de implementação para fa
 - [x] **Múltiplos assinantes ZapSign (`clientSigners`):** formulário de projeto no gestor gerencia assinantes adicionais; backend usa essa lista no fluxo de assinatura individual e em lote (§18.25).
 - [x] **Contas CC (`clientEmailCc`):** formulário de projeto no gestor gerencia e-mails CC; listagem de clientes identifica contas CC e vínculos por projeto (§18.25).
 - [x] **Reaprovação de relatório:** relatórios com reprovação ativa do cliente exibem ação "Reenviar para avaliação"; backend já envia e-mail de reaprovação ao aprovar/reenviar (§18.25).
+- [x] **Editor gestor — projeto/número/líder:** `ManagerRdoEditor` React exibe dica de líder, permite editar `sequenceNumber` e bloqueia número duplicado por projeto/tipo (§18.28).
+- [x] **Colaboradores por serviço:** payload React agora envia colaboradores diurnos + noturnos em `Colaboradores do serviço` na criação e no editor gestor (§18.28).
 - [x] Criar checklist de testes manuais por role.
 - [x] Ajustar `nginx`/deploy para servir o build React.
 - [x] Planejar cutover mantendo fallback para o HTML antigo.
@@ -589,7 +591,7 @@ A tela de serviços continua sendo a parte mais delicada do sistema.
 
 ### Regra
 
-Não migrar o RDO “por tentativa”.  
+Não migrar o RDO “por tentativa”.
 Cada tipo de serviço precisa ser comparado com o comportamento atual antes de seguir para o próximo.
 
 ---
@@ -748,7 +750,7 @@ Até lá, o `filtrovali_app_v4.html` continua sendo referência funcional.
 
 ## 17. Auditoria de paridade visual/comportamental HTML x React
 
-> Registrado em: 2026-04-27  
+> Registrado em: 2026-04-27
 > Referências comparadas: `filtrovali_app_v4.html`, `frontend/src/pages/*`, `frontend/src/components/reports/ReportSummaryCard.tsx`, `frontend/src/styles/base.css`.
 
 ### Conclusão
@@ -953,8 +955,8 @@ As discrepâncias atuais não devem ser deixadas integralmente para o final. O R
 
 ## 18. Análise de paridade 2026-04-28 — pendências detalhadas
 
-> Atualizado em: 2026-04-28  
-> Auditoria profunda: `filtrovali_app_v4.html` linha a linha vs React src.  
+> Atualizado em: 2026-04-28
+> Auditoria profunda: `filtrovali_app_v4.html` linha a linha vs React src.
 > As seções abaixo mapeiam **exatamente o que falta**, com referências ao HTML e ao arquivo React correspondente.
 
 ---
@@ -1403,3 +1405,128 @@ Esta é a área de maior divergência funcional. O HTML define os campos de cada
 | HTML troca unidade do flushing secundário para `FILTRAGEM` | `ServiceFields` agora restringe a unidade de flushing primário a `FLUSHING` e flushing secundário a `FILTRAGEM`, limpando seleção anterior ao alternar o tipo | Corrigido |
 
 **Validação:** `npm run build` executado em `frontend` com sucesso (485 KB JS / 21.7 KB CSS).
+
+---
+
+### 18.26 Auditoria profunda de layout — 2026-05-05 — Formulário RDO e painel do gestor
+
+> Verificação código a código de `NewReportPage.tsx`, `GestorPage.tsx`, `ReportSummaryCard.tsx`, `GroupedReportList.tsx` e referência `filtrovali_app_v4.html`.
+
+#### Bugs confirmados e corrigidos
+
+| Ponto | Problema | Correção aplicada |
+|---|---|---|
+| **Banner de continuidade no passo errado** | `continuity-card` ("Serviços em andamento") estava dentro do bloco `step === 0` (Cabeçalho). O usuário via o botão "Continuar serviços" na etapa do cabeçalho, não na etapa de serviços. | Movido para o início do bloco `step === 1` (Serviços), antes da seção de adição de serviços — idêntico ao comportamento do HTML |
+| **`ReportSummaryCard` sem autor nem serviços** | HTML exibe `.rel-meta`: `{owner} · {data}\n{resumo serviços}`. React mostrava apenas data e horário. | Adicionado campo `createdBy` ao tipo `ReportSummary`; card exibe linha `.report-meta-owner` com `collaborator.name \|\| createdBy.name` + resumo de serviços (`summarizeServices`) |
+| **Rascunho sem contagem de serviços** | HTML mostra `{data}\nN serviço(s) preenchido(s)`. React mostrava só código do projeto e data. | `admin-card-meta` dos rascunhos do gestor agora exibe a contagem de serviços do `draft.payload.services` |
+
+#### Discrepâncias menores documentadas (sem correção nesta rodada)
+
+| Área | HTML | React | Decisão |
+|---|---|---|---|
+| Ações inline nos cards pendentes | Cards de pendentes não têm PDF/DOCX inline; só status badge + botão excluir. Aprovados têm DOCX + PDF compactos | React tem checkbox + PDF + DOCX + Aprovar + Devolver por card | Mantido — melhoria de UX; as ações inline evitam abrir detalhe só para aprovar |
+| Botão excluir no card | HTML exibe ícone de lixeira por card para o gestor | React não tem excluir no card | Pendente — verificar endpoint de delete e implementar se necessário |
+| `createdBy` no tipo `ReportSummary` | Backend já retornava `createdBy: { name, collaborator }` na resposta da lista | Frontend não mapeava o campo | Corrigido via Fix 2 desta rodada |
+
+#### Novos itens adicionados ao backlog de paridade
+
+- [ ] **Botão excluir no card de relatório do gestor**: HTML exibe ícone lixeira por card; React não tem. Verificar endpoint `DELETE /reports/:id` e adicionar ação no `renderManagerReportActions`.
+- [ ] **Validação visual completa em navegador**: Comparar cada tela HTML × React lado a lado com foco em cards de relatório (com dados reais), passo a passo do RDO e tela de pendentes/aprovados do gestor.
+
+**Validação:** `npx tsc --noEmit` executado no frontend com sucesso (zero erros) após as correções.
+
+---
+
+### 18.26 Auditoria de UI pendente — 2026-05-05 — fidelidade ao HTML legado
+
+#### O que já está visualmente próximo do HTML
+
+| Área | Evidência no React | Status |
+|---|---|---|
+| Cards de relatório | `ReportSummaryCard` já tem `rel-icon`, hover com `border-color: var(--g)`, badge de status e ações compactadas por contexto | OK |
+| Agrupamento de relatórios | `GroupedReportList` agrupa por projeto e por tipo de relatório para gestor, coordenador e cliente | OK |
+| Cliente | `ClientPage` já tem card de boas-vindas, ações no padrão `client-report-actions`, checkbox no cabeçalho do card e batch por grupo/tipo | OK |
+| RDO em 3 etapas | `NewReportPage` usa `Cabeçalho`, `Serviços`, `Finalização`, progresso e barra inferior de navegação | OK |
+| Card visual de serviço | Serviços usam `svc-card-header`, badge `Serviço N` e botão remover vermelho compacto | OK |
+| Campos de serviço | `ServiceFields` já contém `TubesBlock`, `FinalizadoAprovadoBlock`, `ParticulasBlock`, `DesidratacaoBlock`, `DrawingsObsBlock`, material select, etapas com item customizado e campos específicos de inibição | OK |
+| Hora extra | `NewReportPage` calcula `overtimeSummary`, mostra "Nenhuma hora extra identificada." e só exibe justificativa quando há hora extra | OK |
+| Pré-preenchimento | Colaboradores, equipamento e sistema exibem badge `pré-preenchido` quando vêm do último relatório/continuidade | OK parcial |
+| Detalhe de relatório | Ações principais foram movidas para `detail-action-bar`, visualmente alinhada à `bbar` do HTML | OK visual |
+
+#### Pendências reais de UI/fidelidade
+
+| Prioridade | Pendência | Onde revisar | Critério de aceite |
+|---|---|---|---|
+| P0 | Feedback transitório ainda aparece inline em vez de toast em ações de detalhe, gestor e coordenador | `ReportDetailPage`, `GestorPage`, `CoordinatorPage` | Downloads, aprovar/devolver, salvar edição, CRUDs e batch devem usar `useToast`; inline fica só para estado persistente de página, erro de carregamento e formulário público/conta |
+| P0 | Botões mobile voltaram a ocupar largura total no breakpoint ≤390px | `frontend/src/styles/base.css` (`@media max-width: 390px`) | Ações compactas devem quebrar linha com auto-width, sem `width: 100%` em botões de cards, toolbars e topbar, mantendo exceções só para formulários onde full-width for intencional |
+| P1 | Nav/tabs de gestor ainda estão em `page-card`; HTML usa `nav-tabs` sticky mais integrada ao topo | `GestorPage`, `base.css` | Corrigido em §18.27: abas principais usam `.nav-tabs-wrap` sticky fora de `page-card` |
+| P1 | Formulários administrativos novos ainda podem aparecer em bloco global acima da lista; edição inline está mais próxima, mas precisa validação visual por aba | `GestorPage` | `+ Novo` abre editor contextual compacto; edição aparece dentro do card/linha editada, sem empurrar toda a lista para baixo de forma divergente |
+| P1 | Cards administrativos de projeto no gestor mostram metadados em linha compacta, enquanto o HTML novo usa `det-section` com linhas para CNPJ, e-mail principal, e-mails em cópia, assinantes adicionais, contrato, operador e sequenciais | `GestorPage` | Corrigido em §18.29: cards usam `det-section` com dados de cliente, assinatura, operador, status e sequenciais |
+| P1 | Coordenador ainda usa painel simplificado; precisa confirmar se deve ser idêntico ao padrão de relatórios do gestor sem CRUDs | `CoordinatorPage` | Mesma densidade visual, agrupamento, ações compactas, estados vazios e toast de download do padrão final |
+| P1 | `ReportDetailPage` visualmente tem barra inferior, mas ainda mostra banners inline para ações transitórias | `ReportDetailPage` | Barra inferior + toast para ações; banners inline só para relatório assinado/read-only e falha persistente |
+| P2 | `ServiceFields` ainda tem muitos `<label>` sem `htmlFor`, reduzindo fidelidade/acessibilidade de formulário | `ServiceFields.tsx` | Labels associados a inputs/selects principais sem quebrar nomes/estrutura visual |
+| P2 | Validação visual em navegador ainda não foi feita lado a lado | HTML legado + React em desktop e mobile | Checklist manual por role com screenshots ou anotações: colaborador, gestor, coordenador, cliente, detalhe e conta |
+
+#### Ordem recomendada da próxima rodada de UI
+
+1. Corrigir feedback transitório para `useToast` em `ReportDetailPage`, `GestorPage` e `CoordinatorPage`.
+2. Ajustar responsividade mobile removendo `width: 100%` dos botões compactos no breakpoint ≤390px.
+3. Revisar `GestorPage` visualmente contra o HTML: tabs sticky, cards de projeto com `det-section` e editores administrativos.
+4. Validar `CoordinatorPage` contra o padrão do gestor e corrigir mensagens/download.
+5. Fazer passada em navegador HTML × React, desktop e celular, antes de qualquer cutover.
+
+---
+
+### 18.27 Rodada de UI — 2026-05-05 — Toasts e botões mobile
+
+| Ponto pendente | Ajuste aplicado | Status |
+|---|---|---|
+| `ReportDetailPage` ainda mostrava mensagens inline para ações transitórias | `ManagerRdoEditor` e `ReportDetailActions` migrados para `useToast`. Downloads mostram início/sucesso; salvar, aprovar/devolver, assinatura e reprovação usam toast. Inline ficou apenas para relatório assinado/read-only e erro de carregamento | Corrigido |
+| `CoordinatorPage` usava banner inline para erro de download | Download de PDF migrado para `useToast`, com `Gerando PDF...`, sucesso e erro | Corrigido |
+| `GestorPage` mantinha estados `projectMessage`, `reportMessage`, `userMessage`, `unitMessage`, `manometerMessage`, `counterMessage` e banners inline | CRUDs, arquivamento, revisão de relatório, downloads e batch agora usam `useToast`. Banners transitórios removidos das abas | Corrigido |
+| Breakpoint ≤390px forçava botões compactos para largura total | Removida a regra mobile que aplicava `width: 100%` em botões de cards, ações e topbar; toolbars voltam a usar wrap compacto como no HTML | Corrigido |
+
+**Validação:** `npm run build` executado em `frontend` com sucesso.
+
+**Pendente após esta rodada:** validação visual em navegador real, especialmente em celular, para confirmar que os botões compactos não estouram e que as toasts não encobrem ações críticas.
+
+---
+
+### 18.28 Merge da `app_v1` — 2026-05-05 — líder persistente, sequência por projeto e backups
+
+**Merge realizado:** `origin/app_v1` (`0a7433e` → `5109acf`) mesclada em `app_v2_react` no commit `73e02e0`.
+
+**Conflito resolvido:** `backend/src/lib/report-pdf.js`. Foi adotada a versão de `app_v1`, pois ela inclui o uso de `specialConditions.__leaderSnapshot` e fallback de assinatura do operador/criador, corrigindo o líder em PDF de RDO que mudou de projeto.
+
+#### Alterações integradas
+
+| Área | O que mudou na `app_v1` | Impacto para React |
+|---|---|---|
+| **HTML — colaboradores por serviço** | `getAvailableServiceCollaborators()` passou a usar `serviceCollaboratorScope` para isolar colaboradores do editor normal (`#colab-list`/`#noturno-colab-list`) e do editor gestor (`#mgr-colab-list`/`#mgr-noturno-colab-list`) | React não tem seletor visual por serviço; hoje `buildReportServicePayload` recebe apenas colaboradores diurnos. Revisar se deve incluir diurnos + noturnos em `Colaboradores do serviço` e se precisa UI por serviço no editor gestor |
+| **HTML — editor gestor ao trocar projeto** | `syncManagerProjectChange()` atualiza dica "Líder do projeto" ao selecionar outro projeto no detalhe do gestor | `ManagerRdoEditor` React deve exibir dica equivalente abaixo do select de projeto, usando `project.operator` |
+| **HTML — conflito de numeração** | `managerSequenceConflict()` valida número duplicado no mesmo projeto/tipo e bloqueia salvar com alerta | React ainda não expõe `sequenceNumber` no editor RDO do gestor; precisa adicionar campo, validação local contra `useReports()` e bloqueio antes de salvar |
+| **Backend — líder persistente** | `projectLeaderSnapshot(project)` grava `__leaderSnapshot` no `PUT /reports/:id` e geradores usam o snapshot em PDF/DOCX/derivados | Sem mudança obrigatória no payload React; ao editar/mover projeto, backend calcula o snapshot |
+| **Backend — derivados mudando de projeto** | Derivados RTP/RLQ/RCPU/RLM agora são localizados por `serviceLinkKey` independente do projeto anterior e validam/movem sequência quando o RDO muda de projeto | React deve evitar número duplicado ao mover projeto no editor gestor para reduzir erro 409/renumeração inesperada |
+| **DOCX/PDF derivados** | Downloads DOCX usam `generateReportDocxAsset()` com `withCurrentServiceLeaderSnapshot()` | Sem UI nova; validar DOCX/PDF após editar RDO e trocar projeto |
+| **Infra backup** | Ajustes em `deploy/BACKUP.md` e `deploy/restore-prod.sh`, incluindo certificados e esquema de backup | Sem impacto na UI React |
+
+#### Pendências React criadas pelo merge
+
+1. [x] Adicionar `sequenceNumber` ao estado/payload de edição do `ManagerRdoEditor` em `ReportDetailPage`.
+2. [x] Mostrar dica do líder do projeto selecionado no editor gestor (`project.operator?.name` ou "Projeto sem líder definido.").
+3. [x] Validar conflito de número por `projectId + reportType + sequenceNumber`, excluindo o relatório atual, antes de salvar/aprovar/devolver.
+4. [x] Confirmado pela paridade com o HTML: `Colaboradores do serviço` no React deve incluir colaboradores diurnos + noturnos; chamadas de criação e edição ajustadas.
+5. [ ] Testar cenário manual: gestor abre RDO, troca projeto, altera número, salva/aprova, gera PDF/DOCX e confere líder/assinatura.
+
+---
+
+### 18.29 Rodada de UI — 2026-05-05 — Projetos do gestor em `det-section`
+
+| Ponto pendente | Ajuste aplicado | Status |
+|---|---|---|
+| Cards de projeto tinham metadados compactos em chips, abaixo da paridade do HTML novo | `renderProjectCard` passou a renderizar uma `det-section` com linhas para cliente, CNPJ, e-mail principal, e-mails CC, assinantes ZapSign, contrato, local, colaborador responsável, sequenciais, visibilidade e status | Corrigido |
+| Faltavam estilos React para `det-section`/`det-row` usados no padrão visual do HTML | `base.css` recebeu estilos responsivos para linhas densas, com label forte e valor quebrando texto longo sem estourar o card | Corrigido |
+
+**Validação:** `npm run build` e `npm run lint` executados em `frontend` com sucesso. O lint segue apenas com avisos já existentes de Fast Refresh/dependências de hooks.
+
+**Pendente após esta rodada:** conferência visual em navegador, principalmente nos cards de projeto com muitos e-mails/assinantes.

@@ -5,11 +5,12 @@ import { downloadReportDocx, downloadReportPdf } from '../api/reports';
 import { useAuth } from '../auth/AuthContext';
 import type { UploadedFile } from '../api/uploads';
 import { ServiceFields, serviceTypeLabels, serviceTypeOptions } from '../components/reports/ServiceFields';
+import { useToast } from '../components/ui/Toast';
 import { useCollaborators } from '../hooks/useCollaborators';
 import { useEquipment } from '../hooks/useEquipment';
 import { useManometers } from '../hooks/useManometers';
 import { useProjects } from '../hooks/useProjects';
-import { useReport, useReportMutations } from '../hooks/useReports';
+import { useReport, useReportMutations, useReports } from '../hooks/useReports';
 import { useUnits } from '../hooks/useUnits';
 import { Shell } from '../layout/Shell';
 import { TopBar } from '../layout/TopBar';
@@ -68,6 +69,7 @@ interface RdoServiceForm {
 
 interface RdoFormState {
   projectId: string | null;
+  sequenceNumber: string;
   reportDate: string;
   arrivalTime: string;
   departureTime: string;
@@ -104,6 +106,11 @@ function getString(value: unknown) {
   return typeof value === 'string' ? value : '';
 }
 
+function toPositiveInteger(value: string) {
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : null;
+}
+
 function hasActiveClientRejection(report: ReportSummary) {
   const special = report.specialConditions || {};
   const rejectedAt = typeof special.__clientRejectedAt === 'string' ? special.__clientRejectedAt : '';
@@ -131,6 +138,7 @@ function reportToForm(report: ReportSummary): RdoFormState {
 
   return {
     projectId: report.projectId,
+    sequenceNumber: report.sequenceNumber ? String(report.sequenceNumber) : '',
     reportDate: toDateInput(report.reportDate),
     arrivalTime: report.arrivalTime || '',
     departureTime: report.departureTime || '',
@@ -167,9 +175,12 @@ function buildPayload(
     units: ReturnType<typeof useUnits>['data'];
   }
 ): Omit<ReportPayload, 'createdByUserId' | 'status'> {
+  const serviceCollaboratorIds = Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds]));
+
   return {
     projectId: form.projectId || report.projectId,
     reportType: report.reportType,
+    sequenceNumber: toPositiveInteger(form.sequenceNumber),
     reportDate: form.reportDate,
     arrivalTime: form.arrivalTime,
     departureTime: form.departureTime,
@@ -188,7 +199,7 @@ function buildPayload(
     },
     collaboratorIds: form.collaboratorIds,
     services: form.services.map(service => buildReportServicePayload(service, {
-      collaboratorIds: form.collaboratorIds,
+      collaboratorIds: serviceCollaboratorIds,
       collaborators: resources.collaborators || [],
       equipment: resources.equipment || [],
       units: resources.units || []
@@ -198,24 +209,40 @@ function buildPayload(
 
 function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const projectsQuery = useProjects(true);
+  const reportsQuery = useReports();
   const collaboratorsQuery = useCollaborators();
   const equipmentQuery = useEquipment();
   const unitsQuery = useUnits();
   const manometersQuery = useManometers();
   const reportMutations = useReportMutations();
+  const showToast = useToast();
   const [form, setForm] = useState<RdoFormState>(() => reportToForm(report));
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const readOnly = report.status === 'SIGNED';
 
   useEffect(() => {
     setForm(reportToForm(report));
-    setMessage(null);
-    setError(null);
   }, [report]);
 
   const projects = projectsQuery.data || [];
+  const selectedProject = projects.find(project => project.id === (form.projectId || report.projectId))
+    || (form.projectId === report.projectId ? report.project : null);
+  const projectLeaderHint = selectedProject?.operator?.name
+    ? `Líder do projeto: ${selectedProject.operator.name}`
+    : 'Projeto sem líder definido.';
+  const parsedSequenceNumber = toPositiveInteger(form.sequenceNumber);
+  const sequenceConflict = useMemo(() => {
+    if (!form.projectId || !parsedSequenceNumber) return null;
+    return (reportsQuery.data || []).find(item => (
+      item.id !== report.id
+      && item.projectId === form.projectId
+      && item.reportType === report.reportType
+      && Number(item.sequenceNumber) === parsedSequenceNumber
+    )) || null;
+  }, [form.projectId, parsedSequenceNumber, report.id, report.reportType, reportsQuery.data]);
+  const sequenceHint = sequenceConflict
+    ? `Número já usado no relatório ${sequenceConflict.reportType} ${sequenceConflict.sequenceNumber}.`
+    : 'Usado para manter a sequência do projeto e dos relatórios derivados.';
   const selectedCollaboratorIds = useMemo(
     () => new Set([...form.collaboratorIds, ...form.nightCollaboratorIds]),
     [form.collaboratorIds, form.nightCollaboratorIds]
@@ -262,10 +289,21 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     setForm(current => ({ ...current, services: current.services.filter(service => service.id !== id) }));
   }
 
+  function validateSequence() {
+    if (!toPositiveInteger(form.sequenceNumber)) {
+      showToast('Informe um número de relatório válido.', 'error');
+      return false;
+    }
+    if (sequenceConflict) {
+      showToast('O número informado já está em uso no projeto selecionado.', 'error');
+      return false;
+    }
+    return true;
+  }
+
   async function handleSave() {
     if (readOnly) return;
-    setMessage(null);
-    setError(null);
+    if (!validateSequence()) return;
 
     try {
       await reportMutations.updateReport.mutateAsync({
@@ -276,31 +314,28 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           units
         })
       });
-      setMessage(TEXT.saved);
+      showToast(TEXT.saved, 'success');
     } catch (err) {
-      setError(err instanceof Error ? err.message : TEXT.updateError);
+      showToast(err instanceof Error ? err.message : TEXT.updateError, 'error');
     }
   }
 
   async function handleStatus(status: Extract<ReportStatus, 'APPROVED' | 'RETURNED'>, reviewNotes?: string | null) {
     if (readOnly) return;
-    setMessage(null);
-    setError(null);
+    if (!validateSequence()) return;
 
     try {
       await reportMutations.updateStatus.mutateAsync({ id: report.id, payload: { status, reviewNotes } });
       if (status === 'RETURNED') setReturnDialogOpen(false);
-      setMessage(status === 'APPROVED' ? 'Relatório aprovado.' : 'Relatório devolvido.');
+      showToast(status === 'APPROVED' ? 'Relatório aprovado.' : 'Relatório devolvido.', 'success');
     } catch (err) {
-      setError(err instanceof Error ? err.message : TEXT.updateError);
+      showToast(err instanceof Error ? err.message : TEXT.updateError, 'error');
     }
   }
 
   return (
     <>
       {readOnly ? <div className="page-card inline-success">{TEXT.signedLocked}</div> : null}
-      {error ? <div className="page-card inline-error">{error}</div> : null}
-      {message ? <div className="page-card inline-success">{message}</div> : null}
 
       <section className="page-card">
         <div className="section-title">{TEXT.generalInfo}</div>
@@ -321,6 +356,26 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                 </option>
               ))}
             </select>
+            <span className="placeholder-copy" style={{ marginTop: 4 }}>{projectLeaderHint}</span>
+          </div>
+          <div className="field-group">
+            <label htmlFor="rdo-sequence">Número do relatório</label>
+            <input
+              id="rdo-sequence"
+              type="number"
+              min={1}
+              step={1}
+              value={form.sequenceNumber}
+              disabled={readOnly}
+              onChange={event => setField('sequenceNumber', event.target.value)}
+              required
+            />
+            <span
+              className={sequenceConflict ? 'inline-error' : 'placeholder-copy'}
+              style={{ marginTop: 4 }}
+            >
+              {sequenceHint}
+            </span>
           </div>
           <div className="field-group">
             <label htmlFor="rdo-date">Data</label>
@@ -616,59 +671,47 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
 
 function ReportDetailActions({ report, role }: { report: ReportSummary; role?: string }) {
   const reportMutations = useReportMutations();
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const showToast = useToast();
   const [clientRejectOpen, setClientRejectOpen] = useState(false);
   const canDownloadDocx = role === 'MANAGER';
   const canClientSign = role === 'CLIENT' && report.reportType === 'RDO' && report.status === 'APPROVED';
 
   async function handleDownload(format: 'pdf' | 'docx') {
-    setMessage(null);
-    setError(null);
+    showToast(format === 'pdf' ? 'Gerando PDF...' : 'Gerando DOCX...', 'info');
     try {
       const blob = format === 'pdf' ? await downloadReportPdf(report.id) : await downloadReportDocx(report.id);
       downloadBlob(blob, `${report.reportType}_${report.sequenceNumber || report.id}.${format}`);
+      showToast(format === 'pdf' ? 'PDF gerado com sucesso.' : 'DOCX baixado com sucesso.', 'success');
     } catch (err) {
-      setError(err instanceof Error ? err.message : TEXT.downloadError);
+      showToast(err instanceof Error ? err.message : TEXT.downloadError, 'error');
     }
   }
 
   async function handleRequestSignature() {
-    setMessage(null);
-    setError(null);
     try {
       const response = await reportMutations.requestSignature.mutateAsync({ id: report.id });
-      setMessage(TEXT.signatureRequested);
+      showToast(TEXT.signatureRequested, 'success');
       if (response.signUrl) window.open(response.signUrl, '_blank', 'noopener,noreferrer');
     } catch (err) {
-      setError(err instanceof Error ? err.message : TEXT.requestSignatureError);
+      showToast(err instanceof Error ? err.message : TEXT.requestSignatureError, 'error');
     }
   }
 
   async function handleClientReject(comment: string) {
-    setMessage(null);
-    setError(null);
-
     try {
       await reportMutations.clientReview.mutateAsync({
         id: report.id,
         payload: { action: 'REJECTED', comment }
       });
       setClientRejectOpen(false);
-      setMessage('Avaliação registrada.');
+      showToast('Avaliação registrada.', 'success');
     } catch (err) {
-      setError(err instanceof Error ? err.message : TEXT.updateError);
+      showToast(err instanceof Error ? err.message : TEXT.updateError, 'error');
     }
   }
 
   return (
     <>
-      {error || message ? (
-        <section className="page-card">
-          {error ? <div className="inline-error">{error}</div> : null}
-          {message ? <div className="inline-success">{message}</div> : null}
-        </section>
-      ) : null}
       <div className="detail-action-bar">
         <button className="primary-button" type="button" onClick={() => void handleDownload('pdf')}>
           PDF

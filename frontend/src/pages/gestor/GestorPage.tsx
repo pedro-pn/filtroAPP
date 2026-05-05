@@ -8,6 +8,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
+import { useToast } from '../../components/ui/Toast';
 import { useCollaboratorMutations, useCollaborators } from '../../hooks/useCollaborators';
 import { useCounterMutations, useCounters } from '../../hooks/useCounters';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
@@ -261,6 +262,27 @@ function formatCnpj(value?: string | null) {
   return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
 }
 
+function formatList(values: string[], fallback = 'Não informado') {
+  const cleaned = values.map(value => value.trim()).filter(Boolean);
+  return cleaned.length ? cleaned.join(', ') : fallback;
+}
+
+function formatProjectSigners(signers?: ClientSigner[]) {
+  if (!signers?.length) return 'Nenhum assinante adicional';
+  return signers
+    .map(signer => [signer.name, signer.email].filter(Boolean).join(' - '))
+    .filter(Boolean)
+    .join(', ');
+}
+
+function formatProjectSequences(project: Project) {
+  const sequences = project.reportSequences || [];
+  if (!sequences.length) return 'Sem sequenciais cadastrados';
+  return sequences
+    .map(sequence => `${sequence.reportType}: próximo ${sequence.nextNumber}`)
+    .join(', ');
+}
+
 function projectToForm(project: Project): ProjectFormState {
   return {
     code: project.code,
@@ -438,14 +460,51 @@ function renderProjectCard(project: Project, options: { onEdit: (project: Projec
           </button>
         </div>
       </div>
-      <div className="admin-card-meta">
-        <span>Local: {project.location}</span>
-        <span>Cliente: {project.clientName}</span>
-        <span>E-mail principal: {project.clientEmailPrimary || 'Não informado'}</span>
-        <span>CC: {(project.clientEmailCc || []).length || 0}</span>
-        <span>Assinantes: {(project.clientSigners || []).length || 0}</span>
-        <span>Status: {project.isActive ? 'Ativo' : 'Arquivado'}</span>
-        <span>{'Visível para colaboradores'}: {project.visibleToCollaborators ? 'Sim' : 'Não'}</span>
+      <div className="det-section admin-detail-section">
+        <div className="det-row">
+          <strong>Cliente</strong>
+          <span>{project.clientName || 'Não informado'}</span>
+        </div>
+        <div className="det-row">
+          <strong>CNPJ</strong>
+          <span>{formatCnpj(project.clientCnpj) || 'Não informado'}</span>
+        </div>
+        <div className="det-row">
+          <strong>E-mail principal</strong>
+          <span>{project.clientEmailPrimary || 'Não informado'}</span>
+        </div>
+        <div className="det-row">
+          <strong>E-mails em cópia</strong>
+          <span>{formatList(project.clientEmailCc || [])}</span>
+        </div>
+        <div className="det-row">
+          <strong>Assinantes adicionais</strong>
+          <span>{formatProjectSigners(project.clientSigners)}</span>
+        </div>
+        <div className="det-row">
+          <strong>Contrato</strong>
+          <span>{project.contractCode || 'Não informado'}</span>
+        </div>
+        <div className="det-row">
+          <strong>Local</strong>
+          <span>{project.location || 'Não informado'}</span>
+        </div>
+        <div className="det-row">
+          <strong>Colaborador responsável</strong>
+          <span>{project.operator?.name || 'Não definido'}</span>
+        </div>
+        <div className="det-row">
+          <strong>Sequenciais</strong>
+          <span>{formatProjectSequences(project)}</span>
+        </div>
+        <div className="det-row">
+          <strong>Visível para colaboradores</strong>
+          <span>{project.visibleToCollaborators ? 'Sim' : 'Não'}</span>
+        </div>
+        <div className="det-row">
+          <strong>Status</strong>
+          <span>{project.isActive ? 'Ativo' : 'Arquivado'}</span>
+        </div>
       </div>
       {options.children}
     </article>
@@ -456,39 +515,33 @@ export function GestorPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { hydrate, reset } = useRdoStore();
+  const showToast = useToast();
   const [tab, setTab] = useState<GestorTab>('pendentes');
 
   const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
   const [projectEditingId, setProjectEditingId] = useState<string | null>(null);
   const [showProjectForm, setShowProjectForm] = useState(false);
-  const [projectMessage, setProjectMessage] = useState<string | null>(null);
 
   const [collaboratorForm, setCollaboratorForm] = useState<CollaboratorFormState>(emptyCollaboratorForm);
   const [collaboratorEditingId, setCollaboratorEditingId] = useState<string | null>(null);
   const [showCollaboratorForm, setShowCollaboratorForm] = useState(false);
-  const [collaboratorMessage, setCollaboratorMessage] = useState<string | null>(null);
 
   const [userForm, setUserForm] = useState<UserFormState>(emptyUserForm);
   const [userEditingId, setUserEditingId] = useState<string | null>(null);
   const [showUserForm, setShowUserForm] = useState(false);
-  const [userMessage, setUserMessage] = useState<string | null>(null);
   const [userAdminGroup, setUserAdminGroup] = useState<'internal' | 'client'>('internal');
 
   const [unitForm, setUnitForm] = useState<UnitFormState>(emptyUnitForm);
   const [unitEditingId, setUnitEditingId] = useState<string | null>(null);
   const [showUnitForm, setShowUnitForm] = useState(false);
-  const [unitMessage, setUnitMessage] = useState<string | null>(null);
 
   const [manometerForm, setManometerForm] = useState<ManometerFormState>(emptyManometerForm);
   const [manometerEditingId, setManometerEditingId] = useState<string | null>(null);
   const [showManometerForm, setShowManometerForm] = useState(false);
-  const [manometerMessage, setManometerMessage] = useState<string | null>(null);
 
   const [counterForm, setCounterForm] = useState<CounterFormState>(emptyCounterForm);
   const [counterEditingId, setCounterEditingId] = useState<string | null>(null);
   const [showCounterForm, setShowCounterForm] = useState(false);
-  const [counterMessage, setCounterMessage] = useState<string | null>(null);
-  const [reportMessage, setReportMessage] = useState<string | null>(null);
   const [returnReport, setReturnReport] = useState<ReportSummary | null>(null);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
 
@@ -613,7 +666,6 @@ export function GestorPage() {
 
   async function handleProjectSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setProjectMessage(null);
 
     const payload = {
       code: projectForm.code.trim(),
@@ -633,33 +685,31 @@ export function GestorPage() {
     try {
       if (projectEditingId) {
         await projectMutations.updateProject.mutateAsync({ id: projectEditingId, payload });
-        setProjectMessage('Projeto atualizado.');
+        showToast('Projeto atualizado.', 'success');
       } else {
         await projectMutations.createProject.mutateAsync(payload);
-        setProjectMessage('Projeto criado.');
+        showToast('Projeto criado.', 'success');
       }
       resetProjectForm();
     } catch (error) {
-      setProjectMessage(error instanceof Error ? error.message : 'Não foi possível salvar o projeto.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível salvar o projeto.', 'error');
     }
   }
 
   async function handleProjectToggleArchive(project: Project) {
-    setProjectMessage(null);
     try {
       await projectMutations.updateProject.mutateAsync({
         id: project.id,
         payload: { isActive: !project.isActive }
       });
-      setProjectMessage(project.isActive ? 'Projeto arquivado.' : 'Projeto desarquivado.');
+      showToast(project.isActive ? 'Projeto arquivado.' : 'Projeto desarquivado.', 'success');
     } catch (error) {
-      setProjectMessage(error instanceof Error ? error.message : 'Não foi possível atualizar o projeto.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível atualizar o projeto.', 'error');
     }
   }
 
   async function handleCollaboratorSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setCollaboratorMessage(null);
 
     const payload = {
       name: collaboratorForm.name.trim(),
@@ -671,31 +721,29 @@ export function GestorPage() {
     try {
       if (collaboratorEditingId) {
         await collaboratorMutations.updateCollaborator.mutateAsync({ id: collaboratorEditingId, payload });
-        setCollaboratorMessage('Colaborador atualizado.');
+        showToast('Colaborador atualizado.', 'success');
       } else {
         await collaboratorMutations.createCollaborator.mutateAsync(payload);
-        setCollaboratorMessage('Colaborador criado.');
+        showToast('Colaborador criado.', 'success');
       }
       resetCollaboratorForm();
     } catch (error) {
-      setCollaboratorMessage(error instanceof Error ? error.message : 'Não foi possível salvar o colaborador.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível salvar o colaborador.', 'error');
     }
   }
 
   async function handleCollaboratorToggle(collaborator: Collaborator) {
-    setCollaboratorMessage(null);
     try {
       await collaboratorMutations.removeCollaborator.mutateAsync(collaborator.id);
-      setCollaboratorMessage('Colaborador removido.');
+      showToast('Colaborador removido.', 'success');
       if (collaboratorEditingId === collaborator.id) resetCollaboratorForm();
     } catch (error) {
-      setCollaboratorMessage(error instanceof Error ? error.message : 'Não foi possível remover o colaborador.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível remover o colaborador.', 'error');
     }
   }
 
   async function handleUserSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setUserMessage(null);
 
     const basePayload = {
       username: userForm.username.trim(),
@@ -715,44 +763,41 @@ export function GestorPage() {
             ...(userForm.password.trim() ? { password: userForm.password.trim() } : {})
           }
         });
-        setUserMessage('Usuário atualizado.');
+        showToast('Usuário atualizado.', 'success');
       } else {
         await userMutations.createUser.mutateAsync({
           ...basePayload,
           password: userForm.password.trim()
         });
-        setUserMessage('Usuário criado.');
+        showToast('Usuário criado.', 'success');
       }
       resetUserForm();
     } catch (error) {
-      setUserMessage(error instanceof Error ? error.message : 'Não foi possível salvar o usuário.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível salvar o usuário.', 'error');
     }
   }
 
   async function handleUserDelete(id: string) {
-    setUserMessage(null);
     try {
       await userMutations.removeUser.mutateAsync(id);
-      setUserMessage('Usuário removido.');
+      showToast('Usuário removido.', 'success');
       if (userEditingId === id) resetUserForm();
     } catch (error) {
-      setUserMessage(error instanceof Error ? error.message : 'Não foi possível remover o usuário.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível remover o usuário.', 'error');
     }
   }
 
   async function handleResendClientAccess(id: string) {
-    setUserMessage(null);
     try {
       await userMutations.resendClientAccess.mutateAsync(id);
-      setUserMessage('E-mail de acesso reenviado.');
+      showToast('E-mail de acesso reenviado.', 'success');
     } catch (error) {
-      setUserMessage(error instanceof Error ? error.message : 'Não foi possível reenviar o acesso.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível reenviar o acesso.', 'error');
     }
   }
 
   async function handleUnitSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setUnitMessage(null);
 
     const payload = {
       code: unitForm.code.trim(),
@@ -762,31 +807,29 @@ export function GestorPage() {
     try {
       if (unitEditingId) {
         await unitMutations.updateUnit.mutateAsync({ id: unitEditingId, payload });
-        setUnitMessage('Unidade atualizada.');
+        showToast('Unidade atualizada.', 'success');
       } else {
         await unitMutations.createUnit.mutateAsync(payload);
-        setUnitMessage('Unidade criada.');
+        showToast('Unidade criada.', 'success');
       }
       resetUnitForm();
     } catch (error) {
-      setUnitMessage(error instanceof Error ? error.message : 'Não foi possível salvar a unidade.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível salvar a unidade.', 'error');
     }
   }
 
   async function handleUnitDelete(id: string) {
-    setUnitMessage(null);
     try {
       await unitMutations.removeUnit.mutateAsync(id);
-      setUnitMessage('Unidade removida.');
+      showToast('Unidade removida.', 'success');
       if (unitEditingId === id) resetUnitForm();
     } catch (error) {
-      setUnitMessage(error instanceof Error ? error.message : 'Não foi possível remover a unidade.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível remover a unidade.', 'error');
     }
   }
 
   async function handleManometerSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setManometerMessage(null);
 
     const payload = {
       code: manometerForm.code.trim(),
@@ -799,31 +842,29 @@ export function GestorPage() {
     try {
       if (manometerEditingId) {
         await manometerMutations.updateManometer.mutateAsync({ id: manometerEditingId, payload });
-        setManometerMessage('Manômetro atualizado.');
+        showToast('Manômetro atualizado.', 'success');
       } else {
         await manometerMutations.createManometer.mutateAsync(payload);
-        setManometerMessage('Manômetro criado.');
+        showToast('Manômetro criado.', 'success');
       }
       resetManometerForm();
     } catch (error) {
-      setManometerMessage(error instanceof Error ? error.message : 'Não foi possível salvar o manômetro.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível salvar o manômetro.', 'error');
     }
   }
 
   async function handleManometerDeactivate(id: string) {
-    setManometerMessage(null);
     try {
       await manometerMutations.removeManometer.mutateAsync(id);
-      setManometerMessage('Manômetro removido.');
+      showToast('Manômetro removido.', 'success');
       if (manometerEditingId === id) resetManometerForm();
     } catch (error) {
-      setManometerMessage(error instanceof Error ? error.message : 'Não foi possível remover o manômetro.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível remover o manômetro.', 'error');
     }
   }
 
   async function handleCounterSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setCounterMessage(null);
 
     const payload = {
       code: counterForm.code.trim(),
@@ -835,52 +876,50 @@ export function GestorPage() {
     try {
       if (counterEditingId) {
         await counterMutations.updateCounter.mutateAsync({ id: counterEditingId, payload });
-        setCounterMessage('Contador atualizado.');
+        showToast('Contador atualizado.', 'success');
       } else {
         await counterMutations.createCounter.mutateAsync(payload);
-        setCounterMessage('Contador criado.');
+        showToast('Contador criado.', 'success');
       }
       resetCounterForm();
     } catch (error) {
-      setCounterMessage(error instanceof Error ? error.message : 'Não foi possível salvar o contador.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível salvar o contador.', 'error');
     }
   }
 
   async function handleCounterDeactivate(id: string) {
-    setCounterMessage(null);
     try {
       await counterMutations.removeCounter.mutateAsync(id);
-      setCounterMessage('Contador removido.');
+      showToast('Contador removido.', 'success');
       if (counterEditingId === id) resetCounterForm();
     } catch (error) {
-      setCounterMessage(error instanceof Error ? error.message : 'Não foi possível remover o contador.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível remover o contador.', 'error');
     }
   }
 
   async function handleReportStatus(report: ReportSummary, status: 'APPROVED' | 'RETURNED', reviewNotes?: string | null) {
-    setReportMessage(null);
-
     try {
       await reportMutations.updateStatus.mutateAsync({
         id: report.id,
         payload: { status, reviewNotes }
       });
       if (status === 'RETURNED') setReturnReport(null);
-      setReportMessage(status === 'APPROVED' ? 'Relatório aprovado.' : 'Relatório devolvido.');
+      showToast(status === 'APPROVED' ? 'Relatório aprovado.' : 'Relatório devolvido.', 'success');
     } catch (error) {
-      setReportMessage(error instanceof Error ? error.message : 'Não foi possível revisar o relatório.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível revisar o relatório.', 'error');
     }
   }
 
   async function handleReportDownload(report: ReportSummary, format: 'pdf' | 'docx') {
-    setReportMessage(null);
     const fileName = `${report.reportType}_${report.sequenceNumber || report.id}.${format}`;
+    showToast(format === 'pdf' ? 'Gerando PDF...' : 'Gerando DOCX...', 'info');
 
     try {
       const blob = format === 'pdf' ? await downloadReportPdf(report.id) : await downloadReportDocx(report.id);
       downloadBlob(blob, fileName);
+      showToast(format === 'pdf' ? 'PDF gerado com sucesso.' : 'DOCX baixado com sucesso.', 'success');
     } catch (error) {
-      setReportMessage(error instanceof Error ? error.message : 'Não foi possível baixar o relatório.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível baixar o relatório.', 'error');
     }
   }
 
@@ -892,20 +931,21 @@ export function GestorPage() {
   }
 
   async function handleBatchReportDownload(format: 'pdf' | 'docx', reports: ReportSummary[]) {
-    setReportMessage(null);
     const visibleIds = new Set(reports.map(report => report.id));
     const ids = selectedReportIds.filter(id => visibleIds.has(id));
 
     if (!ids.length) {
-      setReportMessage('Selecione ao menos um relatório desta aba.');
+      showToast('Selecione ao menos um relatório desta aba.', 'error');
       return;
     }
 
+    showToast('Gerando ZIP...', 'info');
     try {
       const blob = await downloadReportsBatch(ids, format);
       downloadBlob(blob, `relatorios_${format}_${new Date().toISOString().slice(0, 10)}.zip`);
+      showToast('Download em lote concluído.', 'success');
     } catch (error) {
-      setReportMessage(error instanceof Error ? error.message : 'Não foi possível baixar os relatórios.');
+      showToast(error instanceof Error ? error.message : 'Não foi possível baixar os relatórios.', 'error');
     }
   }
 
@@ -1011,6 +1051,12 @@ export function GestorPage() {
                   <div className="admin-card-meta">
                     <span>{draft.project?.code || draft.projectId || 'Projeto'}</span>
                     <span>{draftDateLabel(draft)}</span>
+                    {(() => {
+                      const count = Array.isArray((draft.payload as Record<string, unknown>).services)
+                        ? (draft.payload as Record<string, unknown>).services as unknown[]
+                        : [];
+                      return count.length ? <span>{count.length} serviço(s)</span> : null;
+                    })()}
                   </div>
                 </div>
                 <div className="admin-card-actions">
@@ -1064,7 +1110,6 @@ export function GestorPage() {
       <>
         {criarRelatorioBtn}
         {draftsBlock}
-        {reportMessage ? <div className="page-card inline-success">{reportMessage}</div> : null}
         {renderProjectReportGroups(visibleReports)}
         {reasonDialog}
       </>
@@ -1089,14 +1134,12 @@ export function GestorPage() {
                 type="button"
                 onClick={() => {
                   setShowProjectForm(true);
-                  setProjectMessage(null);
                 }}
               >
                 Adicionar projeto
               </button>
             ) : null}
           </div>
-          {projectMessage ? <div className="inline-success">{projectMessage}</div> : null}
           {showProjectForm && !projectEditingId ? (
             <form className="admin-form-grid" onSubmit={handleProjectSubmit}>
             <div className="field-group">
@@ -1250,7 +1293,6 @@ export function GestorPage() {
                     setProjectEditingId(item.id);
                     setShowProjectForm(true);
                     setProjectForm(projectToForm(item));
-                    setProjectMessage(null);
                   },
                   onToggleArchive: handleProjectToggleArchive
                 })
@@ -1275,7 +1317,6 @@ export function GestorPage() {
     return (
       <section className="page-card">
         <div className="section-title">Projetos arquivados</div>
-        {projectMessage ? <div className="inline-success">{projectMessage}</div> : null}
         {archivedProjects.length ? (
           <div className="admin-stack">
             {archivedProjects.map(project => {
@@ -1300,7 +1341,6 @@ export function GestorPage() {
                   setProjectEditingId(item.id);
                   setShowProjectForm(true);
                   setProjectForm(projectToForm(item));
-                  setProjectMessage(null);
                 },
                 onToggleArchive: handleProjectToggleArchive
               });
@@ -1331,14 +1371,12 @@ export function GestorPage() {
                 type="button"
                 onClick={() => {
                   setShowCollaboratorForm(true);
-                  setCollaboratorMessage(null);
                 }}
               >
                 Adicionar colaborador
               </button>
             ) : null}
           </div>
-          {collaboratorMessage ? <div className="inline-success">{collaboratorMessage}</div> : null}
           {showCollaboratorForm && !collaboratorEditingId ? (
           <form className="admin-form-grid" onSubmit={handleCollaboratorSubmit}>
             <div className="field-group">
@@ -1420,7 +1458,6 @@ export function GestorPage() {
                           setCollaboratorEditingId(collaborator.id);
                           setShowCollaboratorForm(true);
                           setCollaboratorForm(collaboratorToForm(collaborator));
-                          setCollaboratorMessage(null);
                         }}
                       >
                         Editar
@@ -1487,7 +1524,6 @@ export function GestorPage() {
               type="button"
               onClick={() => {
                 setUserAdminGroup('internal');
-                setUserMessage(null);
               }}
             >
               Internos
@@ -1498,7 +1534,6 @@ export function GestorPage() {
               onClick={() => {
                 setUserAdminGroup('client');
                 resetUserForm();
-                setUserMessage(null);
               }}
             >
               Clientes
@@ -1517,14 +1552,12 @@ export function GestorPage() {
                 type="button"
                 onClick={() => {
                   setShowUserForm(true);
-                  setUserMessage(null);
                 }}
               >
                 + Novo usuário
               </button>
           ) : null}
           </div>
-          {userMessage ? <div className="inline-success">{userMessage}</div> : null}
           {showUserForm && !userEditingId ? (
           <form className="admin-inline-form admin-form-grid" onSubmit={handleUserSubmit}>
             <div className="field-group full">
@@ -1650,7 +1683,6 @@ export function GestorPage() {
                           setUserEditingId(item.id);
                           setShowUserForm(true);
                           setUserForm(userToForm(item));
-                          setUserMessage(null);
                         }}
                       >
                         Editar
@@ -1721,7 +1753,6 @@ export function GestorPage() {
               <div className="admin-card-subtitle">Contas criadas automaticamente a partir dos projetos.</div>
             </div>
           </div>
-          {userMessage ? <div className="inline-success">{userMessage}</div> : null}
           {clientUsers.length ? (
             <div className="admin-stack">
               {clientUsers.map(item => {
@@ -1797,7 +1828,6 @@ export function GestorPage() {
       <>
         <section className="page-card">
           <div className="section-title">Unidades</div>
-          {unitMessage && !showUnitForm && !unitEditingId ? <div className="inline-success">{unitMessage}</div> : null}
           {units.length ? (
             <div className="admin-stack">
               {Object.entries(groupedUnits).map(([category, categoryUnits]) => (
@@ -1811,15 +1841,11 @@ export function GestorPage() {
                         setUnitEditingId(null);
                         setShowUnitForm(true);
                         setUnitForm({ code: '', category: category as UnitCategory });
-                        setUnitMessage(null);
                       }}
                     >
                       + Nova unidade
                     </button>
                   </div>
-                  {unitMessage && showUnitForm && !unitEditingId && unitForm.category === category ? (
-                    <div className="inline-success">{unitMessage}</div>
-                  ) : null}
                   {showUnitForm && !unitEditingId && unitForm.category === category ? (
                     <form className="admin-inline-form admin-form-grid" onSubmit={handleUnitSubmit}>
                       <div className="field-group">
@@ -1860,7 +1886,6 @@ export function GestorPage() {
                               setUnitEditingId(unit.id);
                               setShowUnitForm(true);
                               setUnitForm(unitToForm(unit));
-                              setUnitMessage(null);
                             }}
                           >
                             Editar
@@ -1911,14 +1936,12 @@ export function GestorPage() {
                 type="button"
                 onClick={() => {
                   setShowManometerForm(true);
-                  setManometerMessage(null);
                 }}
               >
                 Adicionar manômetro
               </button>
             </div>
           ) : null}
-          {manometerMessage ? <div className="inline-success">{manometerMessage}</div> : null}
           {showManometerForm && !manometerEditingId ? (
           <form className="admin-form-grid" onSubmit={handleManometerSubmit}>
             <div className="field-group">
@@ -2011,7 +2034,6 @@ export function GestorPage() {
                           setManometerEditingId(item.id);
                           setShowManometerForm(true);
                           setManometerForm(manometerToForm(item));
-                          setManometerMessage(null);
                         }}
                       >
                         Editar
@@ -2067,14 +2089,12 @@ export function GestorPage() {
                 type="button"
                 onClick={() => {
                   setShowCounterForm(true);
-                  setCounterMessage(null);
                 }}
               >
                 Adicionar contador
               </button>
             </div>
           ) : null}
-          {counterMessage ? <div className="inline-success">{counterMessage}</div> : null}
           {showCounterForm && !counterEditingId ? (
           <form className="admin-form-grid" onSubmit={handleCounterSubmit}>
             <div className="field-group">
@@ -2156,7 +2176,6 @@ export function GestorPage() {
                           setCounterEditingId(item.id);
                           setShowCounterForm(true);
                           setCounterForm(counterToForm(item));
-                          setCounterMessage(null);
                         }}
                       >
                         Editar

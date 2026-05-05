@@ -106,6 +106,11 @@ export interface ReportSummary {
   id: string;
   projectId: string;
   createdByUserId?: string | null;
+  createdBy?: {
+    id?: string;
+    name?: string | null;
+    collaborator?: { name?: string | null } | null;
+  } | null;
   reviewedByUserId?: string | null;
   reportType: ReportType;
   sequenceNumber?: number | null;
@@ -158,6 +163,7 @@ export interface ReportPayload {
   projectId: string;
   createdByUserId: string;
   reportType: ReportType;
+  sequenceNumber?: number | null;
   status: ReportStatus;
   reportDate: string;
   arrivalTime: string;

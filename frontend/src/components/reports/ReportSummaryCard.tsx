@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { roleHomePath } from '../../auth/rolePath';
 import type { ReportSummary } from '../../types/domain';
+import { serviceTypeLabels } from './ServiceFields';
 
 const statusMap: Record<string, { label: string; className: string }> = {
   PENDING: { label: 'Pendente', className: 'status-pending' },
@@ -35,6 +36,24 @@ function formatDate(value: string) {
 
 function reportLabel(report: ReportSummary) {
   return report.sequenceNumber ? `${report.reportType} ${report.sequenceNumber}` : report.reportType;
+}
+
+function summarizeServices(services: ReportSummary['services']) {
+  if (!services?.length) return '';
+  return services
+    .map(s => {
+      const type = serviceTypeLabels[s.serviceType] || s.serviceType;
+      const equip =
+        typeof (s.extraData as Record<string, unknown> | null | undefined)?.['Equipamento(s)'] === 'string'
+          ? String((s.extraData as Record<string, unknown>)['Equipamento(s)'])
+          : null;
+      const system = s.system || null;
+      const parts = [type];
+      if (equip) parts.push(equip);
+      else if (system) parts.push(system);
+      return parts.join(' · ');
+    })
+    .join(' | ');
 }
 
 export function ReportSummaryCard({ report, actions }: { report: ReportSummary; actions?: ReactNode }) {
@@ -79,6 +98,12 @@ export function ReportSummaryCard({ report, actions }: { report: ReportSummary; 
               </span>
             </div>
           </div>
+          {(() => {
+            const owner = report.createdBy?.collaborator?.name || report.createdBy?.name || null;
+            const svcs = summarizeServices(report.services);
+            const meta = [owner, svcs].filter(Boolean).join(' · ');
+            return meta ? <div className="report-meta-owner">{meta}</div> : null;
+          })()}
           {report.reviewNotes ? <p className="report-note">{report.reviewNotes}</p> : null}
         </div>
       </div>

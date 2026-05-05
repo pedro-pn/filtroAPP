@@ -5,6 +5,7 @@ import { downloadReportPdf } from '../../api/reports';
 import { useAuth } from '../../auth/AuthContext';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
+import { useToast } from '../../components/ui/Toast';
 import { useReports } from '../../hooks/useReports';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -28,7 +29,7 @@ export function CoordinatorPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [tab, setTab] = useState<CoordinatorTab>('approved');
-  const [message, setMessage] = useState<string | null>(null);
+  const showToast = useToast();
   const reportsQuery = useReports();
 
   const approvedReports = useMemo(
@@ -57,12 +58,13 @@ export function CoordinatorPage() {
   }
 
   async function handleDownloadPdf(report: ReportSummary) {
-    setMessage(null);
+    showToast('Gerando PDF...', 'info');
     try {
       const blob = await downloadReportPdf(report.id);
       downloadBlob(blob, `${report.reportType}_${report.sequenceNumber || report.id}.pdf`);
+      showToast('PDF gerado com sucesso.', 'success');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : TEXT.downloadError);
+      showToast(error instanceof Error ? error.message : TEXT.downloadError, 'error');
     }
   }
 
@@ -103,7 +105,6 @@ export function CoordinatorPage() {
           </div>
         </section>
 
-        {message ? <div className="page-card inline-error">{message}</div> : null}
         {reportsQuery.isLoading ? <div className="page-card placeholder-copy">{TEXT.loading}</div> : null}
         {!reportsQuery.isLoading && !visibleReports.length ? (
           <div className="page-card placeholder-copy">
