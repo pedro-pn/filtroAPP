@@ -589,6 +589,7 @@ export function NewReportPage() {
     try {
       const draftIdsToRemove = matchingDraftIds();
       if (draftId && !draftIdsToRemove.includes(draftId)) draftIdsToRemove.push(draftId);
+      const serviceCollaboratorIds = Array.from(new Set([...collaboratorIds, ...nightCollaboratorIds]));
       const created = await reportMutations.createReport.mutateAsync({
         projectId: projectId!,
         createdByUserId: user.id,
@@ -619,7 +620,7 @@ export function NewReportPage() {
         },
         collaboratorIds,
         services: services.map(service => buildReportServicePayload(service, {
-          collaboratorIds,
+          collaboratorIds: serviceCollaboratorIds,
           collaborators,
           units
         }))
@@ -875,6 +876,11 @@ export function NewReportPage() {
           ) : null}
         </section>
 
+        </>
+        ) : null}
+
+        {step === 1 ? (
+        <>
         {projectId && (lastReport?.services?.length ?? 0) > 0 && !services.length ? (
           <section className="page-card continuity-card">
             <div className="section-title">Serviços em andamento</div>
@@ -889,11 +895,6 @@ export function NewReportPage() {
             </div>
           </section>
         ) : null}
-        </>
-        ) : null}
-
-        {step === 1 ? (
-        <>
         <section className="page-card" data-invalid-target="services:empty">
           <div className="section-title">{TEXT.services}</div>
           <div className="admin-form-actions">

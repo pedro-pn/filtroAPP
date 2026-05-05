@@ -206,6 +206,16 @@ a {
   line-height: 1.5;
 }
 
+.report-meta-owner {
+  font-size: 11px;
+  color: var(--mu);
+  margin-top: 4px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .report-note {
   margin: 12px 0 0;
   border-top: 1px solid var(--br);
@@ -500,6 +510,39 @@ a {
 .admin-card-meta span {
   display: inline-flex;
   align-items: center;
+}
+
+.det-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--br);
+}
+
+.det-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--mu);
+}
+
+.det-row strong {
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.det-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-detail-section {
+  margin-bottom: 4px;
 }
 
 .admin-list {
@@ -1737,6 +1780,11 @@ a {
   .night-time-grid > :last-child {
     grid-column: auto;
   }
+
+  .det-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
 }
 
 /* ── Num + unit (paridade com .num-unit do HTML) ── */
@@ -1970,20 +2018,12 @@ textarea.pre {
   .admin-card-actions,
   .admin-form-actions,
   .report-batch-toolbar {
-    justify-content: stretch;
+    justify-content: flex-start;
   }
 
   .admin-list-row {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .admin-card-actions button,
-  .admin-form-actions button,
-  .report-card-actions button,
-  .client-report-actions button,
-  .topbar-chip {
-    width: 100%;
   }
 
   .client-report-header {
