@@ -104,6 +104,14 @@ function getString(value: unknown) {
   return typeof value === 'string' ? value : '';
 }
 
+function hasActiveClientRejection(report: ReportSummary) {
+  const special = report.specialConditions || {};
+  const rejectedAt = typeof special.__clientRejectedAt === 'string' ? special.__clientRejectedAt : '';
+  const resolvedAt = typeof special.__clientRejectionResolvedAt === 'string' ? special.__clientRejectionResolvedAt : '';
+  if (!rejectedAt) return false;
+  return !resolvedAt || new Date(rejectedAt).getTime() > new Date(resolvedAt).getTime();
+}
+
 function asUploadedFiles(value: unknown): UploadedFile[] {
   return Array.isArray(value)
     ? value.filter((item): item is UploadedFile => Boolean(item) && typeof item === 'object' && typeof (item as UploadedFile).url === 'string')
@@ -586,7 +594,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               disabled={reportMutations.updateStatus.isPending}
               onClick={() => void handleStatus('APPROVED')}
             >
-              {TEXT.approve}
+              {hasActiveClientRejection(report) ? 'Reenviar para avaliação' : TEXT.approve}
             </button>
           </div>
         ) : null}

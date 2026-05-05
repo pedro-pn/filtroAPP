@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Project, ProjectReportSequence } from '../types/domain';
+import type { ClientSigner, Project, ProjectReportSequence } from '../types/domain';
 
 export interface ProjectPayload {
   code: string;
@@ -10,6 +10,7 @@ export interface ProjectPayload {
   clientCnpj: string;
   clientEmailPrimary?: string;
   clientEmailCc?: string[];
+  clientSigners?: ClientSigner[];
   contractCode: string;
   location: string;
   workdayHours?: string;

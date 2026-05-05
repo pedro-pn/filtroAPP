@@ -64,17 +64,29 @@ Esta seção deve ser mantida atualizada a cada ciclo de implementação para fa
 
 ### Pendente
 
+- [x] **Toast no detalhe:** `ReportDetailPage` migrado para `useToast` em ações (PDF/DOCX/aprovar/devolver/assinar/reprovar). Mensagens espelham `showToast` do HTML legado (§18.21).
+- [x] **Limpeza de validação ao navegar:** `goToStep` em `NewReportPage` limpa `invalidTarget` ao trocar etapa pelas tabs ou pelo botão Voltar (§18.21).
+- [x] **Banners inline duplicados removidos:** GestorPage e CoordinatorPage não exibem mais banners de sucesso paralelos ao toast; segue o padrão `showToast`-only do HTML (§18.22).
+- [x] **Botões mobile fiel ao HTML:** removido `width: 100%` em ações no breakpoint ≤390px; botões mantêm auto-width compacto e quebram em wrap como no HTML (§18.23).
+- [x] **Acessibilidade dos modais (parcial):** `role="dialog"` + `aria-modal` + `aria-labelledby` + fechamento por `Esc`/backdrop em `ReasonDialog` e `stype-modal` (§18.22).
+- [ ] **Login/Forgot/Reset/Account:** decidido **manter** erro inline (HTML legado usa `alert()` persistente; toast desapareceria em ~3s e divergiria do comportamento). Documentado em §18.21.
+- [ ] **Componentes reutilizáveis:** extrair `Button` (primary/secondary/danger/mini) e `Modal` genérico — hoje são classes CSS soltas e só existe `ReasonDialog`. *Baixa prioridade — não afeta UI.*
+- [ ] **Acessibilidade restante:** labels associadas via `htmlFor` em ServiceFields, foco-trap nos modais, navegação por teclado em tabs/tags, contraste WCAG AA.
+- [ ] **Validação visual em navegador** comparando HTML × React lado a lado em todas as telas, mobile e desktop.
+- [ ] **Validar DOCX/PDF** gerados a partir de RDO criado no React (incluindo continuação e condições especiais).
+- [ ] **Confirmar com stakeholder** se derivados (RTP/RLQ/RCPU/RLM/RLF/RLI) precisam ser editáveis no React (HTML hoje só edita RDO).
 - [ ] Migrar completamente os tipos derivados/específicos de relatório além do RDO, se forem editáveis no frontend.
 - [x] Implementar visualização formatada completa para RDO, RTP, RLQ, RCPU, RLM, RLF e RLI.
 - [x] Implementar seleção em lote e downloads em lote, se o HTML original exigir.
 - [x] Implementar solicitação de assinatura em lote do cliente, se mantida no React.
 - [ ] Implementar todos os detalhes de aprovação/reprovação do cliente com paridade do HTML original.
-- [ ] Implementar componentes reutilizáveis finais de Toast, Modal, botões, cards e campos.
-- [ ] Revisar acessibilidade básica dos formulários e modais.
+- [x] **Múltiplos assinantes ZapSign (`clientSigners`):** formulário de projeto no gestor gerencia assinantes adicionais; backend usa essa lista no fluxo de assinatura individual e em lote (§18.25).
+- [x] **Contas CC (`clientEmailCc`):** formulário de projeto no gestor gerencia e-mails CC; listagem de clientes identifica contas CC e vínculos por projeto (§18.25).
+- [x] **Reaprovação de relatório:** relatórios com reprovação ativa do cliente exibem ação "Reenviar para avaliação"; backend já envia e-mail de reaprovação ao aprovar/reenviar (§18.25).
 - [x] Criar checklist de testes manuais por role.
 - [x] Ajustar `nginx`/deploy para servir o build React.
 - [x] Planejar cutover mantendo fallback para o HTML antigo.
-- [ ] Remover dependência operacional do `filtrovali_app_v4.html` somente após validação completa.
+- [ ] **Cutover final:** trocar `nginx`/Express para servir o React em `/` e `/reset-password` e remover dependência operacional do `filtrovali_app_v4.html`.
 
 ### Observações técnicas atuais
 
@@ -1302,3 +1314,92 @@ Esta é a área de maior divergência funcional. O HTML define os campos de cada
 **Próximos cuidados adicionados:**
 1. Reproduzir no React a limpeza completa de validação ao sair/voltar das telas do RDO.
 2. Testar DOCX gerado a partir de relatório criado no React com quebras de linha em atividades, observações e campos de serviço.
+
+---
+
+### 18.21 Rodada de migração — 2026-04-30 — Toast no detalhe + clearValidation no RDO
+
+| Ponto reportado | Ajuste aplicado no React | Status |
+|---|---|---|
+| `ReportDetailPage` ainda usava `setError`/`setMessage` inline para feedback de ações | `ReportDetailActions` e `ManagerRdoEditor` migrados para `useToast`. Mensagens espelham o HTML legado: `Gerando PDF...` / `PDF gerado com sucesso.`, `Gerando DOCX...` / `DOCX baixado com sucesso.`, `Relatório aprovado com sucesso.`, `Relatório devolvido para correção.`, `Alterações salvas.`, `Reprovação registrada.`, `Assinatura solicitada. Abra o link para concluir.` | Corrigido |
+| Erro de carregamento da página + banner read-only mantidos inline | Mantidos como `inline-error`/`inline-success` em `page-card` — são estados persistentes da página, não feedback transitório de ação (HTML também usa banner persistente nesses casos) | Mantido |
+| `LoginPage`/`ForgotPasswordPage`/`ResetPasswordPage`/`AccountPage` continuam com `setError` inline | Decidido **manter** o erro inline. O HTML legado usa `alert()` nesses formulários (mensagem persistente até o usuário interagir), e o erro inline persistente é o equivalente refinado mais próximo. Toast desapareceria em ~3s, divergindo do comportamento HTML | Decisão registrada |
+| HTML limpa estado visual de validação ao navegar entre etapas (§18.17) | Criada função `goToStep(target)` em `NewReportPage` que limpa `invalidTarget` antes de trocar `step`. Aplicada nos pontos: clique nas tabs (`filter-tab`), botão `← Voltar` da bottom-bar, avanço bem-sucedido em `handleNextStep`. `failRequired` continua marcando o campo correto antes do scroll | Corrigido |
+
+**Validação:** `npm run build` executado em `frontend` com sucesso (494 KB JS / 29 KB CSS).
+
+---
+
+### 18.22 Rodada de migração — 2026-04-30 — Acessibilidade dos modais + remoção de banners duplicados
+
+| Ponto reportado | Ajuste aplicado no React | Status |
+|---|---|---|
+| `ReasonDialog` sem fechamento via `Esc` ou clique no backdrop | Adicionado listener `keydown` para `Escape` (respeitando `isSubmitting`) e `onClick` no backdrop com `stopPropagation` no card. `role="dialog"`/`aria-modal`/`aria-labelledby` já presentes mantidos | Corrigido |
+| Modal bottom-sheet de tipo de serviço (`stype-modal`) sem ARIA nem `Esc` | Adicionado `role="dialog"`, `aria-modal="true"`, `aria-labelledby="stype-modal-title"` no shell e listener `Escape` no `NewReportPage` | Corrigido |
+| `GestorPage` mostrava feedback duplicado (toast + banner inline) divergindo do HTML | Removidos todos os banners `inline-success` (`projectMessage`, `collaboratorMessage`, `userMessage`, `unitMessage`, `manometerMessage`, `counterMessage`, `reportMessage`) e os respectivos `useState`. `setNotice` removido — chamadas substituídas por `showToast` direto. HTML usa apenas `showToast()` para essas mensagens | Corrigido |
+| `CoordinatorPage` usava `setMessage` + `showToast` em paralelo | Removido `message`/`setMessage`. Download de PDF agora segue o padrão HTML: `Gerando PDF...` (info) → `PDF gerado com sucesso.` (success) ou erro via toast | Corrigido |
+
+**Validação:** `npm run build` executado em `frontend` com sucesso (493 KB JS / 29 KB CSS).
+
+---
+
+### 18.23 Rodada de migração — 2026-04-30 — Botões mobile fiel ao HTML
+
+| Ponto reportado | Ajuste aplicado no React | Status |
+|---|---|---|
+| Em viewports ≤390px todos os botões de ação ficavam `width: 100%`, espalhando ações simples por toda a largura — divergente do HTML legado, onde `mini-btn` permanecem compactos | Trocado `width: 100%` por `flex-wrap: wrap` + `gap: 6px` em `.admin-card-actions`, `.admin-form-actions` e `.report-batch-toolbar`. Botões individuais voltaram a auto-width como no HTML | Corrigido |
+| `topbar-chip` ficava full-width no mobile, divergindo do header horizontal do HTML | Removido `width: 100%` no `topbar-chip` em viewport pequeno; segue auto-width compacto como `Conta`/`Sair` do HTML | Corrigido |
+
+**Validação:** `npm run build` executado em `frontend` com sucesso (493 KB JS / 28.7 KB CSS — redução de 0.15 KB).
+
+---
+
+### 18.24 Merge da `app_v1` — 2026-05-05 — Múltiplos assinantes ZapSign + consolidação histórica de serviços
+
+#### Backend — Alterações integradas da `app_v1` (commits `085c5de` a `0a7433e`)
+
+| Área | O que mudou | Impacto para o React |
+|---|---|---|
+| **ZapSign — múltiplos assinantes** | Campo `clientSigners Json[] @default([])` adicionado ao modelo `Project` no schema. Suporte a múltiplos assinantes por projeto além do CNPJ principal | Gestor precisa de campo para cadastrar assinantes adicionais no projeto; cliente precisa exibir assinatura múltipla |
+| **Contas CC** | Usuários CLIENT podem ser vinculados a projetos via `clientEmailCc` (campo de array no projeto). `GET /users` e `POST /:id/resend-client-access` agora entendem usuários CC, além de CNPJ | Listagem de clientes no gestor precisa exibir/criar usuários CC; `resend-client-access` já funciona |
+| **E-mail de reaprovação** | Nova template `buildReportReapprovedEmailTemplate` em `email-templates.js`. Enviada quando gestor reenvia relatório reprovado pelo cliente para nova avaliação | Fluxo de "reaprovação" ainda não existe no React — gestor precisa de botão/ação para reenviar relatório reprovado |
+| **E-mail de reprovação pelo cliente** | Nova template `buildReportRejectedByClientEmailTemplate`. Enviada ao gestor quando cliente reprova relatório | Backend integrado; React já tem o fluxo de reprovação pelo cliente — só falta confirmar que o backend dispara o e-mail |
+| **Consolidação histórica de serviços (RTP/RLQ/RCPU/RLM)** | Funções `buildHistoricalServiceData`, `serviceHistoryKey`, `getReportField`, `isYesReportField` consolidam dados de contagens NAS/ISO, umidade, etapas e análise de partículas de TODOS os RDOs aprovados do histórico do serviço | Relatórios derivados ficam mais completos automaticamente ao aprovar RDO. Sem impacto direto no preenchimento do RDO React |
+| **Unidade de comprimento em tubulações** | Campos `lengthUnit`/`cUnit`/`comprimentoUnit` respeitados nos geradores Word de RCP, RLQ e RTP. Antes fixava `m` | `ServiceFields` no React já envia `lengthUnit`; confirmar no DOCX gerado |
+| **Quebras de linha no Word** | `preserveWordTextLineBreaks` adicionada em todos os geradores (`report-docx.js`, `report-rcp.js`, `report-rlm.js`, `report-rlq.js`, `report-rtp.js`). Transforma `\n` em `<w:br>` | Campos multilinha criados no React (atividades, observações) serão renderizados corretamente no DOCX |
+| **Atividades em célula de tabela** | `setPlaceholderCellParagraphs` em `report-docx.js` trata `{{activities}}` dentro de células Word como parágrafos separados | Sem impacto no preenchimento; geração automática |
+| **Rascunhos duplicados** | `POST` e `PUT` em `/drafts` agora deletam rascunhos anteriores com mesmo `(userId, projectId, reportDate)` antes de criar/atualizar | Elimina acúmulo de rascunhos fantasmas; comportamento transparente para o React |
+| **Filtragem de colaboradores** | Fixes de colaboradores fantasmas na lista de operadores de projetos (`f264e0b`, `4ae7a61`) e filtro de ativos/inativos na listagem de usuários (`1badafc`) | Sem mudança no React; corrigido no backend |
+| **IP do backend dinâmico** | `get backend ip dynamically` (`1bdf6a0`) — nginx/config obtém IP dinamicamente | Apenas infraestrutura; sem impacto no React |
+
+#### Frontend HTML (`filtrovali_app_v4.html`) — Referências para paridade futura no React
+
+| Funcionalidade | Como funciona no HTML | Relevância para o React |
+|---|---|---|
+| Unidade de flushing dinâmica | `syncFlushingUnitTipo()` + `switchFlushingUnitTipo()`: quando "Tipo de flushing" = secundário, o campo de unidade troca automaticamente de `FLUSHING` para `FILTRAGEM` | `ServiceFields` no React precisa replicar: ao selecionar "Flushing Secundário", trocar a lista de unidades de `FLUSHING` para `FILTRAGEM` (§18.24 — Pendente) |
+| Normalização de tipo de serviço | `normalizeServiceType()` infere o tipo do serviço a partir de campos de `extraData` quando o campo `serviceType` está ausente | Útil ao carregar rascunhos ou serviços antigos com payload incompleto |
+| Normalização de tubulações | `normalizeTubeEntry()` + `normalizeTubeList()`: padroniza estrutura de tubulações independente do formato salvo | React deve garantir payload consistente ao salvar e ao pré-preencher serviços com continuidade |
+| Inputs decimais validados | `decimalOnlyAttrs()` + `sanitizeDecimalInput()`: campos de valores numéricos são sanitizados em tempo real | React já valida no submit; avaliar se precisa de `onInput` sanitization para UX |
+| Botões "Carregando" | Commit `085c5de`: principais botões exibem estado de carregamento durante operações assíncronas | React já tem `isSubmitting`/`isLoading` em alguns pontos; revisar botões de download e envio |
+
+**Merge:** `app_v1` mesclada em `app_v2_react` em 2026-05-05 (commit `0a7433e`). Conflitos resolvidos: `schema.prisma` (tomada versão app_v1 com `clientSigners`), `env.js` (HEAD preservado + campos ZapSign adicionados), `app.js` (HEAD preservado — usa `env.allowedOrigins`), `email-templates.js` (HEAD + 2 novas templates), `users.js` (tomada versão app_v1 com suporte a CC email).
+
+**Próximos itens derivados deste merge:**
+1. [x] Implementar campo de assinantes adicionais (`clientSigners`) no formulário de projeto no gestor.
+2. [x] Implementar fluxo de "reaprovação" no React: gestor clica em "Reenviar para avaliação" em relatório reprovado → backend reenvia e-mail de reaprovação.
+3. [x] Confirmar que unidade de flushing muda para `FILTRAGEM` quando tipo = secundário em `ServiceFields`.
+4. [ ] Testar DOCX gerado com quebras de linha e unidades de comprimento em relatório React.
+5. [x] Gerenciar usuários CC no painel do gestor.
+
+---
+
+### 18.25 Rodada de migração — 2026-05-05 — Assinantes, CC e reaprovação no React
+
+| Ponto reportado | Ajuste aplicado no React | Status |
+|---|---|---|
+| Projetos já suportavam `clientSigners` no backend, mas o gestor não conseguia cadastrar assinantes adicionais | `ProjectFormState`, `ProjectPayload` e `Project` passaram a carregar `clientSigners`. O formulário de projetos ganhou lista dinâmica com nome/e-mail e normalização antes de salvar | Corrigido |
+| Projetos já suportavam `clientEmailCc`, mas o gestor não conseguia gerenciar contas CC pela UI | O formulário de projetos ganhou e-mail principal e textarea para CC com split por linha, vírgula ou ponto-e-vírgula. A listagem de clientes identifica "Conta CC" e mostra o CNPJ vinculado | Corrigido |
+| Fluxo de reaprovação não estava explícito no React | Relatórios com `__clientRejectedAt` ativo mostram "Reenviar para avaliação" no painel do gestor e no detalhe; a ação reaproveita `PATCH /reports/:id/status` com `APPROVED`, que limpa a reprovação e dispara o e-mail de reaprovação no backend | Corrigido |
+| HTML troca unidade do flushing secundário para `FILTRAGEM` | `ServiceFields` agora restringe a unidade de flushing primário a `FLUSHING` e flushing secundário a `FILTRAGEM`, limpando seleção anterior ao alternar o tipo | Corrigido |
+
+**Validação:** `npm run build` executado em `frontend` com sucesso (485 KB JS / 21.7 KB CSS).

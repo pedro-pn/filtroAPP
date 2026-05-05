@@ -726,6 +726,20 @@ a {
   cursor: default;
 }
 
+.project-signer-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.project-signer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 24px;
+  gap: 8px;
+  align-items: center;
+}
+
 .tube-add {
   margin-top: 6px;
   border: 0;
@@ -1015,6 +1029,10 @@ a {
 .admin-form-grid {
   display: grid;
   gap: 14px;
+}
+
+.field-group-wide {
+  grid-column: 1 / -1;
 }
 
 .admin-form-grid > *,
@@ -1633,6 +1651,14 @@ a {
 
   .tube-row-react input:nth-of-type(2),
   .tube-row-react button {
+    grid-column: 1 / -1;
+  }
+
+  .project-signer-row {
+    grid-template-columns: minmax(0, 1fr) 24px;
+  }
+
+  .project-signer-row input:nth-of-type(2) {
     grid-column: 1 / -1;
   }
 

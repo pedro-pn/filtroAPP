@@ -21,6 +21,11 @@ export interface ProjectReportSequence {
   nextNumber: number;
 }
 
+export interface ClientSigner {
+  name: string;
+  email: string;
+}
+
 export interface Project {
   id: string;
   code: string;
@@ -31,6 +36,7 @@ export interface Project {
   clientCnpj: string;
   clientEmailPrimary: string;
   clientEmailCc: string[];
+  clientSigners: ClientSigner[];
   contractCode: string;
   location: string;
   workdayHours: string;
@@ -93,6 +99,7 @@ export interface InternalUserSummary {
   collaboratorId?: string | null;
   collaborator?: Collaborator | null;
   linkedProjects?: LinkedClientProject[];
+  clientCnpj?: string | null;
 }
 
 export interface ReportSummary {
