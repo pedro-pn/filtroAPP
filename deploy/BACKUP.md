@@ -22,14 +22,13 @@ O arquivo `deploy/backup-prod.sh` faz:
 
 ## Uso no servidor
 
-1. Copie o script para a EC2, por exemplo em `/home/ubuntu/apps/RDOAPP/deploy/backup-prod.sh`
-2. Dê permissão:
+1. Dê permissão ao script:
 
 ```bash
 chmod +x deploy/backup-prod.sh
 ```
 
-3. Rode manualmente:
+2. Rode manualmente:
 
 ```bash
 ./deploy/backup-prod.sh
@@ -42,6 +41,7 @@ Por padrão ele usa:
 - `POSTGRES_DB=filtrovali`
 - `POSTGRES_USER=postgres`
 - `REPORTS_VOLUME=filtrovali_relatorios`
+- `INCLUDE_REPORTS=true`
 - retenção local de `14` dias
 
 ## Variáveis opcionais
@@ -53,34 +53,20 @@ INCLUDE_REPORTS=true
 RETENTION_DAYS=30
 ```
 
-Exemplo:
-
-```bash
-AWS_S3_URI=s3://meu-bucket/filtrovali-backups INCLUDE_CERTS=true ./deploy/backup-prod.sh
-```
-
-Para backup frequente apenas do banco, sem compactar o volume de relatórios:
-
-```bash
-AWS_S3_URI=s3://meu-bucket/filtrovali-backups/hourly INCLUDE_REPORTS=false INCLUDE_CERTS=false RETENTION_DAYS=2 ./deploy/backup-prod.sh
-```
-
 ## Agendamento no cron
 
-Executar diariamente às 03:00:
+Dois agendamentos recomendados — horário (banco + relatórios) e diário completo com certificados:
 
 ```bash
 crontab -e
 ```
 
 ```cron
-0 3 * * * /home/ubuntu/apps/RDOAPP/deploy/backup-prod.sh >> /home/ubuntu/backup-filtrovali.log 2>&1
-```
+# Horário — banco + relatórios, retenção 2 dias
+0 * * * * AWS_S3_URI=s3://filtrovali-backups/hourly PROJECT_DIR=/home/ubuntu/apps/RDOAPP /home/ubuntu/apps/RDOAPP/deploy/backup-prod.sh >> /home/ubuntu/backup-filtrovali.log 2>&1
 
-Com upload para S3:
-
-```cron
-0 3 * * * AWS_S3_URI=s3://meu-bucket/filtrovali-backups /home/ubuntu/apps/RDOAPP/deploy/backup-prod.sh >> /home/ubuntu/backup-filtrovali.log 2>&1
+# Diário às 03h — banco + relatórios + certificados, retenção 30 dias
+0 3 * * * AWS_S3_URI=s3://filtrovali-backups/daily INCLUDE_CERTS=true RETENTION_DAYS=30 PROJECT_DIR=/home/ubuntu/apps/RDOAPP /home/ubuntu/apps/RDOAPP/deploy/backup-prod.sh >> /home/ubuntu/backup-filtrovali.log 2>&1
 ```
 
 ## Restore do banco
@@ -102,9 +88,9 @@ docker run --rm -v filtrovali_relatorios:/to -v /caminho/do/backup:/backup alpin
 O arquivo `deploy/restore-prod.sh` automatiza:
 
 - subida da stack
-- `prisma migrate deploy`
+- `prisma db push` (aplica schema)
 - restore do banco
-- restore do volume `filtrovali_relatorios`
+- restore do volume `filtrovali_relatorios` (opcional, se arquivo presente)
 - restore opcional de `filtrovali_certs`
 
 Uso:
@@ -131,8 +117,7 @@ BACKUP_SOURCE=/home/ubuntu/restore/filtrovali/2026-04-24-030001 RUN_MIGRATIONS=f
 
 ## Estratégia recomendada
 
-- Backup horário do banco, com retenção curta
-- Backup diário completo via script
-- Cópia para S3 com lifecycle por prefixo
+- Backup horário completo (banco + relatórios) com retenção curta no S3
+- Backup diário com certificados e retenção longa
 - Snapshot periódico do disco EBS
 - Teste de restore pelo menos uma vez
