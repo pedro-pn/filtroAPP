@@ -749,9 +749,13 @@ function getSelectedCollaboratorIds(){
 function getSelectedNightCollaboratorIds(){
   return Array.from(new Set(Array.from(document.querySelectorAll('#noturno-colab-list .colab-tag')).map(function(el){return el.dataset.colabId;}).filter(Boolean)));
 }
+var serviceCollaboratorScope='report';
 function getAvailableServiceCollaborators(){
+  var selector=serviceCollaboratorScope==='manager'
+    ? '#mgr-colab-list .colab-tag, #mgr-noturno-colab-list .colab-tag'
+    : '#colab-list .colab-tag, #noturno-colab-list .colab-tag';
   var seen=new Set();var result=[];
-  Array.from(document.querySelectorAll('#colab-list .colab-tag, #noturno-colab-list .colab-tag, #mgr-colab-list .colab-tag, #mgr-noturno-colab-list .colab-tag')).forEach(function(el){
+  Array.from(document.querySelectorAll(selector)).forEach(function(el){
     var id=el.dataset.colabId;
     var name=((el.querySelector('.colab-name')||{}).textContent||'').trim();
     if(id&&!seen.has(id)){seen.add(id);result.push({id:id,nome:name});}
@@ -3255,7 +3259,12 @@ function addManagerServiceCard(type,prefill){
   var wrap=document.createElement('div');
   wrap.className='card';
   wrap.style.marginBottom='10px';
-  wrap.innerHTML=buildSvc(type,index,prefill);
+  serviceCollaboratorScope='manager';
+  try{
+    wrap.innerHTML=buildSvc(type,index,prefill);
+  }finally{
+    serviceCollaboratorScope='report';
+  }
   root.appendChild(wrap);
   enhanceUploadZones(wrap);
 }
@@ -5134,7 +5143,12 @@ function addManagerServiceCard(type,prefill){
   var wrap=document.createElement('div');
   wrap.className='card';
   wrap.style.marginBottom='10px';
-  wrap.innerHTML=buildSvc(type,index,prefill);
+  serviceCollaboratorScope='manager';
+  try{
+    wrap.innerHTML=buildSvc(type,index,prefill);
+  }finally{
+    serviceCollaboratorScope='report';
+  }
   root.appendChild(wrap);
   var card=wrap.querySelector('.svc-card');
   if(card){
@@ -5155,6 +5169,39 @@ function addManagerServiceFromSelect(){
   var sel=document.getElementById('mgr-add-service-type');
   if(!sel||!sel.value)return;
   addManagerServiceCard(sel.value,null);
+}
+function managerSequenceConflict(projectId,reportType,sequenceNumber,reportId){
+  if(!projectId||!reportType||!Number.isInteger(sequenceNumber)||sequenceNumber<1)return null;
+  return (reportsCache||[]).find(function(item){
+    return item.id!==reportId &&
+      item.projectId===projectId &&
+      normalizeReportType(item.reportType||'RDO')===normalizeReportType(reportType||'RDO') &&
+      Number(item.sequenceNumber)===sequenceNumber;
+  })||null;
+}
+function syncManagerProjectChange(){
+  var projectSel=document.getElementById('mgr-project-id');
+  var sequenceField=document.getElementById('mgr-sequence-number');
+  var leaderHint=document.getElementById('mgr-project-leader-hint');
+  var sequenceHint=document.getElementById('mgr-sequence-hint');
+  if(!projectSel)return true;
+  var project=getProjetoById(projectSel.value);
+  if(leaderHint){
+    var leader=project?getColaboradorById(project.operadorResponsavelId):null;
+    leaderHint.textContent=leader?'Líder do projeto: '+leader.nome:'Projeto sem líder definido.';
+  }
+  if(!sequenceField||!sequenceHint)return true;
+  var sequenceNumber=Number(String(sequenceField.value||'').trim());
+  var report=currentDetailReport||{};
+  var conflict=managerSequenceConflict(projectSel.value,report.reportType||'RDO',sequenceNumber,report.id);
+  if(conflict){
+    sequenceHint.textContent='Número já usado neste projeto por '+reportDisplayLabel(conflict)+'.';
+    sequenceHint.style.color='var(--rd)';
+    return false;
+  }
+  sequenceHint.textContent=Number.isInteger(sequenceNumber)&&sequenceNumber>0?'Número válido para o projeto selecionado.':'Informe um número válido.';
+  sequenceHint.style.color='var(--mu)';
+  return Number.isInteger(sequenceNumber)&&sequenceNumber>0;
 }
 function renderManagerDetail(report){
   var special=report.specialConditions||{};
@@ -5993,8 +6040,8 @@ function renderManagerDetail(report){
   var finalUploads=special.generalUploads||[];
   document.getElementById('det-body').innerHTML=
     '<div class="card"><div class="sec">Cabeçalho</div><div class="admin-inline-grid">'+
-    '<div class="fg"><label>Projeto</label><select id="mgr-project-id">'+projectSelectOptions(report.projectId,true)+'</select></div>'+
-    '<div class="fg"><label>Número do relatório</label><input type="number" min="1" step="1" id="mgr-sequence-number" value="'+escapeHtml(String(report.sequenceNumber||''))+'"></div>'+
+    '<div class="fg"><label>Projeto</label><select id="mgr-project-id" onchange="syncManagerProjectChange()">'+projectSelectOptions(report.projectId,true)+'</select><div id="mgr-project-leader-hint" style="font-size:11px;color:var(--mu);margin-top:4px"></div></div>'+
+    '<div class="fg"><label>Número do relatório</label><input type="number" min="1" step="1" id="mgr-sequence-number" value="'+escapeHtml(String(report.sequenceNumber||''))+'" oninput="syncManagerProjectChange()"><div id="mgr-sequence-hint" style="font-size:11px;color:var(--mu);margin-top:4px"></div></div>'+
     '<div class="fg"><label>Data do relatório</label><input type="date" id="mgr-report-date" value="'+escapeHtml(String(report.reportDate).slice(0,10))+'"></div>'+
     '<div class="fg"><label>Chegada</label><input type="time" id="mgr-arrival" value="'+escapeHtml(report.arrivalTime||'')+'"></div>'+
     '<div class="fg"><label>Saída</label><input type="time" id="mgr-departure" value="'+escapeHtml(report.departureTime||'')+'"></div>'+
@@ -6049,6 +6096,7 @@ function renderManagerDetail(report){
   enhanceUploadZones(document.getElementById('det-body'));
   var finalZone=document.getElementById('mgr-final-uploads');
   if(finalZone)setUploads(finalZone,finalUploads);
+  syncManagerProjectChange();
   document.getElementById('det-actions').innerHTML=report.status==='APPROVED'
     ? '<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'save\')">Salvar</button><button class="btn-pdf" onclick="gerarDOCX(\''+report.id+'\')">Baixar DOCX</button><button class="btn-pdf" onclick="gerarPDF(\''+report.id+'\')">Gerar PDF</button><button class="btn-reject" onclick="deleteReport(\''+report.id+'\')">Excluir</button>'
     : '<button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'save\')">Salvar</button><button class="btn-approve" onclick="saveManagerDetail(\''+report.id+'\',\'approve\')">Salvar e aprovar</button><button class="btn-reject" onclick="saveManagerDetail(\''+report.id+'\',\'return\')">Salvar e devolver</button><button class="btn-reject" onclick="'+(isPendingEditReport(report)?'discardPendingEditByManager':'deleteReport')+'(\''+report.id+'\')">'+(isPendingEditReport(report)?'Descartar edição':'Excluir')+'</button>';
@@ -10045,6 +10093,10 @@ window.__legacyBootstrapped = false;
     var sequenceField=document.getElementById('mgr-sequence-number');
     var sequenceNumber=Number(String(sequenceField&&sequenceField.value||'').trim());
     if(!Number.isInteger(sequenceNumber)||sequenceNumber<1){alert('Informe um número de relatório válido.');return;}
+    if(typeof syncManagerProjectChange==='function'&&!syncManagerProjectChange()){
+      alert('O número informado já está em uso no projeto selecionado.');
+      return;
+    }
     var specialConditions=Object.assign({},report.specialConditions||{});
     specialConditions.standby=document.getElementById('mgr-standby-toggle').checked;
     specialConditions.noturno=document.getElementById('mgr-noturno-toggle').checked;
