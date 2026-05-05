@@ -2245,40 +2245,39 @@ export function GestorPage() {
         }
       />
 
-      <main className="page-scroll">
-        <section className="page-card">
-          <div className="section-title">Painel</div>
-          <div className="filter-tabs">
-            <button className={`filter-tab ${tab === 'pendentes' ? 'active' : ''}`} type="button" onClick={() => setTab('pendentes')}>
-              Pendentes
-            </button>
-            <button className={`filter-tab ${tab === 'aprovados' ? 'active' : ''}`} type="button" onClick={() => setTab('aprovados')}>
-              Aprovados
-            </button>
-            <button className={`filter-tab ${tab === 'projetos' ? 'active' : ''}`} type="button" onClick={() => setTab('projetos')}>
-              Projetos
-            </button>
-            <button className={`filter-tab ${tab === 'arquivados' ? 'active' : ''}`} type="button" onClick={() => setTab('arquivados')}>
-              Arquivados
-            </button>
-            <button className={`filter-tab ${tab === 'equipe' ? 'active' : ''}`} type="button" onClick={() => setTab('equipe')}>
-              Equipe
-            </button>
-            <button className={`filter-tab ${tab === 'usuarios' ? 'active' : ''}`} type="button" onClick={() => setTab('usuarios')}>
-              Usuários
-            </button>
-            <button className={`filter-tab ${tab === 'equipamentos' ? 'active' : ''}`} type="button" onClick={() => setTab('equipamentos')}>
-              Unidades
-            </button>
-            <button className={`filter-tab ${tab === 'manometros' ? 'active' : ''}`} type="button" onClick={() => setTab('manometros')}>
-              {'Manômetros'}
-            </button>
-            <button className={`filter-tab ${tab === 'contadores' ? 'active' : ''}`} type="button" onClick={() => setTab('contadores')}>
-              Contadores
-            </button>
-          </div>
-        </section>
+      <div className="nav-tabs-wrap">
+        <div className="nav-tabs">
+          <button className={`nav-tab ${tab === 'pendentes' ? 'active' : ''}`} type="button" onClick={() => setTab('pendentes')}>
+            Pendentes
+          </button>
+          <button className={`nav-tab ${tab === 'aprovados' ? 'active' : ''}`} type="button" onClick={() => setTab('aprovados')}>
+            Aprovados
+          </button>
+          <button className={`nav-tab ${tab === 'projetos' ? 'active' : ''}`} type="button" onClick={() => setTab('projetos')}>
+            Projetos
+          </button>
+          <button className={`nav-tab ${tab === 'arquivados' ? 'active' : ''}`} type="button" onClick={() => setTab('arquivados')}>
+            Arquivados
+          </button>
+          <button className={`nav-tab ${tab === 'equipe' ? 'active' : ''}`} type="button" onClick={() => setTab('equipe')}>
+            Equipe
+          </button>
+          <button className={`nav-tab ${tab === 'usuarios' ? 'active' : ''}`} type="button" onClick={() => setTab('usuarios')}>
+            Usuários
+          </button>
+          <button className={`nav-tab ${tab === 'equipamentos' ? 'active' : ''}`} type="button" onClick={() => setTab('equipamentos')}>
+            Unidades
+          </button>
+          <button className={`nav-tab ${tab === 'manometros' ? 'active' : ''}`} type="button" onClick={() => setTab('manometros')}>
+            {'Manômetros'}
+          </button>
+          <button className={`nav-tab ${tab === 'contadores' ? 'active' : ''}`} type="button" onClick={() => setTab('contadores')}>
+            Contadores
+          </button>
+        </div>
+      </div>
 
+      <main className="page-scroll">
         {renderReportSummary()}
         {renderTabContent()}
       </main>

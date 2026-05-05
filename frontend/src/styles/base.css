@@ -39,39 +39,67 @@ a {
 .topbar-react {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: 10px;
+  padding: 14px 16px 12px;
   background: var(--g);
   color: var(--wh);
   position: sticky;
   top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.topbar-react > .topbar-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .topbar-title {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
+  line-height: 1.2;
 }
 
 .topbar-subtitle {
-  font-size: 12px;
-  opacity: 0.8;
+  font-size: 11px;
+  opacity: 0.75;
 }
 
 .topbar-actions-react {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
 }
 
 .topbar-chip {
   border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.15);
   color: var(--wh);
-  padding: 5px 10px;
-  font-size: 12px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
+  transition: background .15s, transform .15s;
+}
+
+.topbar-chip:hover {
+  background: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+.topbar-step {
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--wh);
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .bottom-bar-react {
@@ -106,6 +134,36 @@ a {
 
 .report-card-clickable {
   cursor: pointer;
+  transition: border-color .15s;
+}
+
+.report-card.report-card-clickable:hover,
+.client-report-card.report-card-clickable:hover {
+  border-color: var(--g);
+}
+
+.report-card-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.report-card-body > .report-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.rel-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--rs);
+  background: #f0f7f2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
 }
 
 .report-card-head {
@@ -315,6 +373,16 @@ a {
   background: var(--wh);
   box-shadow: var(--shadow);
   cursor: pointer;
+  transition: border-color .15s, transform .15s;
+}
+
+.home-action-card:not(:disabled):hover {
+  border-color: var(--g);
+}
+
+.home-action-primary:not(:disabled):hover {
+  background: var(--gd);
+  border-color: var(--gd);
 }
 
 .home-action-card:disabled {
@@ -1669,6 +1737,215 @@ a {
   .night-time-grid > :last-child {
     grid-column: auto;
   }
+}
+
+/* ── Num + unit (paridade com .num-unit do HTML) ── */
+.num-unit {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.num-unit input {
+  flex: 2;
+  min-width: 0;
+}
+
+.num-unit select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Pre-fill badge (paridade com .pre/.pre-badge do HTML) ── */
+.pre,
+input.pre,
+select.pre,
+textarea.pre {
+  background: #fffde7 !important;
+  border-color: #f59e0b !important;
+}
+
+.pre-badge {
+  display: inline-block;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 20px;
+  padding: 1px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* ── Mini buttons (paridade com .mini-btn do HTML) ── */
+.mini-btn {
+  background: var(--g);
+  color: var(--wh);
+  border: none;
+  border-radius: var(--rs);
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, opacity .15s;
+}
+
+.mini-btn:hover {
+  background: var(--gd);
+}
+
+.mini-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mini-btn.alt {
+  background: var(--wh);
+  color: var(--tx);
+  border: 1px solid var(--br);
+}
+
+.mini-btn.alt:hover {
+  background: #f0f7f2;
+  border-color: var(--g);
+  color: var(--g);
+}
+
+.mini-btn.danger {
+  background: var(--rd);
+}
+
+.mini-btn.danger:hover {
+  background: #a4101a;
+}
+
+/* Compactar botões dentro de toolbars de cards (paridade .mini-btn HTML) */
+.report-card-actions .primary-button,
+.report-card-actions .secondary-button,
+.report-card-actions .danger-button,
+.client-report-actions .primary-button,
+.client-report-actions .secondary-button,
+.client-report-actions .danger-button,
+.report-batch-toolbar .primary-button,
+.report-batch-toolbar .secondary-button,
+.admin-card-actions .primary-button,
+.admin-card-actions .secondary-button,
+.admin-card-actions .danger-button {
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* ── Nav tabs (paridade com .nav-tabs do HTML) ── */
+.nav-tabs-wrap {
+  position: sticky;
+  top: 50px;
+  z-index: 95;
+  background: var(--wh);
+  border-bottom: .5px solid var(--br);
+  padding: 10px 12px;
+}
+
+.nav-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.nav-tab {
+  min-width: 0;
+  padding: 11px 6px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mu);
+  cursor: pointer;
+  border: 1px solid #d7dfda;
+  border-radius: 10px;
+  background: #f9fbfa;
+  transition: background .15s, color .15s, border-color .15s, transform .15s;
+}
+
+.nav-tab:hover {
+  background: #eef5f0;
+  color: var(--g);
+  border-color: #b7cdbd;
+  transform: translateY(-1px);
+}
+
+.nav-tab.active {
+  color: var(--wh);
+  border-color: var(--g);
+  background: var(--g);
+  font-weight: 700;
+}
+
+/* ── Welcome card do cliente ── */
+.client-welcome-card {
+  background: var(--wh);
+  border: 1px solid var(--br);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.client-welcome-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--g);
+}
+
+.client-welcome-subtitle {
+  font-size: 12px;
+  color: var(--mu);
+  line-height: 1.5;
+}
+
+.client-welcome-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--mu);
+}
+
+.client-welcome-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.client-welcome-meta strong {
+  color: var(--tx);
+  font-weight: 600;
+}
+
+/* ── Detail action bar (paridade com .bbar do HTML) ── */
+.detail-action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  margin: 12px -12px 0;
+  background: var(--wh);
+  border-top: .5px solid var(--br);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.detail-action-bar .mini-btn,
+.detail-action-bar .primary-button,
+.detail-action-bar .secondary-button {
+  flex: 1 1 120px;
 }
 
 @media (max-width: 390px) {
