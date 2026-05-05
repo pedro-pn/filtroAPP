@@ -301,7 +301,7 @@ async function withCurrentServiceLeaderSnapshot(report) {
   });
   if (!parent) return report;
 
-  const leaderSnapshot = parent.specialConditions?.__leaderSnapshot || projectLeaderSnapshot(parent.project);
+  const leaderSnapshot = projectLeaderSnapshot(parent.project) || parent.specialConditions?.__leaderSnapshot || null;
   return {
     ...report,
     specialConditions: {
