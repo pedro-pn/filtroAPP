@@ -882,6 +882,29 @@ async function finishReportSequenceChange(tx, swappedReport) {
   });
 }
 
+function projectLeaderSnapshot(project) {
+  if (!project || !project.operator) return null;
+  return {
+    name: project.operator.name || null,
+    role: project.operator.role || null,
+    signatureImage: project.operator.signatureImage || null
+  };
+}
+
+async function validateDerivedReportSequenceMove(tx, existingReport, targetProjectId, targetReportType) {
+  if (!existingReport || existingReport.projectId === targetProjectId) return;
+  if (!Number.isInteger(existingReport.sequenceNumber) || existingReport.sequenceNumber < 1) return;
+  const sequenceSwap = await prepareReportSequenceChange(
+    tx,
+    existingReport,
+    targetProjectId,
+    targetReportType,
+    existingReport.sequenceNumber
+  );
+  await finishReportSequenceChange(tx, sequenceSwap);
+  await syncProjectReportSequence(tx, targetProjectId, targetReportType, existingReport.sequenceNumber);
+}
+
 async function syncApprovedRtpReports(tx, report) {
   if (!report || report.reportType !== ReportType.RDO || report.status !== ReportStatus.APPROVED) {
     return;
@@ -897,12 +920,14 @@ async function syncApprovedRtpReports(tx, report) {
 
   const existingRtps = await tx.report.findMany({
     where: {
-      projectId: report.projectId,
       reportType: ReportType.RTP
     },
     select: {
       id: true,
+      projectId: true,
+      reportType: true,
       sequenceNumber: true,
+      status: true,
       specialConditions: true
     }
   });
@@ -1022,6 +1047,7 @@ async function syncApprovedRtpReports(tx, report) {
     const existingRtp = serviceLinkKey ? existingByLinkKey.get(serviceLinkKey) : null;
 
     if (existingRtp) {
+      await validateDerivedReportSequenceMove(tx, existingRtp, report.projectId, ReportType.RTP);
       await tx.reportCollaborator.deleteMany({ where: { reportId: existingRtp.id } });
       await tx.reportService.deleteMany({ where: { reportId: existingRtp.id } });
       await tx.report.update({
@@ -1089,12 +1115,14 @@ async function syncApprovedRlqReports(tx, report) {
 
   const existingRlqs = await tx.report.findMany({
     where: {
-      projectId: report.projectId,
       reportType: ReportType.RLQ
     },
     select: {
       id: true,
+      projectId: true,
+      reportType: true,
       sequenceNumber: true,
+      status: true,
       specialConditions: true
     }
   });
@@ -1195,6 +1223,7 @@ async function syncApprovedRlqReports(tx, report) {
     const existingRlq = serviceLinkKey ? existingByLinkKey.get(serviceLinkKey) : null;
 
     if (existingRlq) {
+      await validateDerivedReportSequenceMove(tx, existingRlq, report.projectId, ReportType.RLQ);
       await tx.reportCollaborator.deleteMany({ where: { reportId: existingRlq.id } });
       await tx.reportService.deleteMany({ where: { reportId: existingRlq.id } });
       await tx.report.update({
@@ -1351,8 +1380,8 @@ async function syncApprovedRcpReports(tx, report) {
 
   // For RCPU, one report per serviceLinkKey for the whole project (not per parentRdoId).
   const existingRcps = await tx.report.findMany({
-    where: { projectId: report.projectId, reportType: ReportType.RCPU },
-    select: { id: true, sequenceNumber: true, specialConditions: true }
+    where: { reportType: ReportType.RCPU },
+    select: { id: true, projectId: true, reportType: true, sequenceNumber: true, status: true, specialConditions: true }
   });
 
   const existingByLinkKey = new Map();
@@ -1474,6 +1503,7 @@ async function syncApprovedRcpReports(tx, report) {
     const existingRcp = serviceLinkKey ? existingByLinkKey.get(serviceLinkKey) : null;
 
     if (existingRcp) {
+      await validateDerivedReportSequenceMove(tx, existingRcp, report.projectId, ReportType.RCPU);
       await tx.reportCollaborator.deleteMany({ where: { reportId: existingRcp.id } });
       await tx.reportService.deleteMany({ where: { reportId: existingRcp.id } });
       await tx.report.update({
@@ -1539,8 +1569,8 @@ async function syncApprovedRlmReports(tx, report) {
   }
 
   const existingRlms = await tx.report.findMany({
-    where: { projectId: report.projectId, reportType: ReportType.RLM },
-    select: { id: true, sequenceNumber: true, specialConditions: true }
+    where: { reportType: ReportType.RLM },
+    select: { id: true, projectId: true, reportType: true, sequenceNumber: true, status: true, specialConditions: true }
   });
 
   const existingByLinkKey = new Map();
@@ -1629,6 +1659,7 @@ async function syncApprovedRlmReports(tx, report) {
     const existingRlm = serviceLinkKey ? existingByLinkKey.get(serviceLinkKey) : null;
 
     if (existingRlm) {
+      await validateDerivedReportSequenceMove(tx, existingRlm, report.projectId, ReportType.RLM);
       await tx.reportCollaborator.deleteMany({ where: { reportId: existingRlm.id } });
       await tx.reportService.deleteMany({ where: { reportId: existingRlm.id } });
       await tx.report.update({
@@ -2098,9 +2129,14 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   const tPut0 = Date.now();
   const item = await prisma.$transaction(async tx => {
     const project = await tx.project.findUniqueOrThrow({
-      where: { id: data.projectId }
+      where: { id: data.projectId },
+      include: { operator: true }
     });
     const overtime = calculateReportOvertime(project, data);
+    const leaderSnapshot = projectLeaderSnapshot(project);
+    const managerProvidedSequence = req.auth.user.role === 'MANAGER' && data.sequenceNumber;
+    const targetSequenceNumber = managerProvidedSequence ? data.sequenceNumber : existing.sequenceNumber;
+    const sequenceGroupChanged = existing.projectId !== data.projectId || existing.reportType !== data.reportType;
     const internalEditState = req.auth.user.role === 'MANAGER'
       ? extractInternalEditState(existing.specialConditions)
       : (hasApprovedVersion
@@ -2115,8 +2151,8 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
           : {});
     await tx.reportCollaborator.deleteMany({ where: { reportId: req.params.id } });
     await tx.reportService.deleteMany({ where: { reportId: req.params.id } });
-    const sequenceSwap = req.auth.user.role === 'MANAGER' && data.sequenceNumber
-      ? await prepareReportSequenceChange(tx, existing, data.projectId, data.reportType, data.sequenceNumber)
+    const sequenceSwap = (managerProvidedSequence || sequenceGroupChanged) && Number.isInteger(targetSequenceNumber)
+      ? await prepareReportSequenceChange(tx, existing, data.projectId, data.reportType, targetSequenceNumber)
       : null;
 
     const updated = await tx.report.update({
@@ -2124,7 +2160,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       data: {
         projectId: data.projectId,
         reportType: data.reportType,
-        ...(req.auth.user.role === 'MANAGER' && data.sequenceNumber ? { sequenceNumber: data.sequenceNumber } : {}),
+        ...(managerProvidedSequence ? { sequenceNumber: data.sequenceNumber } : {}),
         reportDate: new Date(data.reportDate),
         arrivalTime: data.arrivalTime,
         departureTime: data.departureTime,
@@ -2143,9 +2179,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
             : stripInternalEditState(data.specialConditions || {})),
           overtimeSummary: overtime,
           ...internalEditState,
-          ...(existing.specialConditions?.__leaderSnapshot
-            ? { __leaderSnapshot: existing.specialConditions.__leaderSnapshot }
-            : {})
+          __leaderSnapshot: leaderSnapshot
         },
         pendingDerivedTypes: collectPendingDerivedTypes(data.services),
         status: req.auth.user.role === 'MANAGER'
@@ -2180,9 +2214,9 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
       include
     });
 
-    if (req.auth.user.role === 'MANAGER' && data.sequenceNumber) {
+    if ((managerProvidedSequence || sequenceGroupChanged) && Number.isInteger(targetSequenceNumber)) {
       await finishReportSequenceChange(tx, sequenceSwap);
-      await syncProjectReportSequence(tx, data.projectId, data.reportType, data.sequenceNumber);
+      await syncProjectReportSequence(tx, data.projectId, data.reportType, targetSequenceNumber);
     }
 
     await syncApprovedRtpReports(tx, updated);
