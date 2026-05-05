@@ -1,4 +1,4 @@
-﻿import type { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
@@ -11,6 +11,21 @@ const statusMap: Record<string, { label: string; className: string }> = {
   APPROVED: { label: 'Aprovado', className: 'status-approved' },
   SIGNED: { label: 'Assinado', className: 'status-signed' }
 };
+
+const reportTypeIcon: Record<string, string> = {
+  RDO: '\u{1F4CB}',
+  RTP: '\u{1F4CF}',
+  RLQ: '\u{1F9EA}',
+  RCP: '\u{1F50D}',
+  RCPU: '\u{1F50D}',
+  RLM: '\u{1F527}',
+  RLF: '\u{1F4A7}',
+  RLI: '\u{1F4A7}'
+};
+
+function iconFor(type: string) {
+  return reportTypeIcon[type] || '\u{1F4C4}';
+}
 
 function formatDate(value: string) {
   const date = new Date(value);
@@ -42,26 +57,31 @@ export function ReportSummaryCard({ report, actions }: { report: ReportSummary; 
 
   return (
     <article className="report-card report-card-clickable" onClick={handleOpenDetail}>
-      <div className="report-card-head">
-        <div>
-          <div className="report-title">{reportLabel(report)}</div>
-          <div className="report-subtitle">{report.project.code} - {report.project.name}</div>
+      <div className="report-card-body">
+        <div className="rel-icon" aria-hidden="true">{iconFor(report.reportType)}</div>
+        <div className="report-card-info">
+          <div className="report-card-head">
+            <div>
+              <div className="report-title">{reportLabel(report)}</div>
+              <div className="report-subtitle">{report.project.code} - {report.project.name}</div>
+            </div>
+            <span className={`status-pill ${status.className}`}>{status.label}</span>
+          </div>
+          <div className="report-meta-grid">
+            <div>
+              <span className="report-meta-label">Data</span>
+              <span className="report-meta-value">{formatDate(report.reportDate)}</span>
+            </div>
+            <div>
+              <span className="report-meta-label">Horário</span>
+              <span className="report-meta-value">
+                {report.arrivalTime} às {report.departureTime}
+              </span>
+            </div>
+          </div>
+          {report.reviewNotes ? <p className="report-note">{report.reviewNotes}</p> : null}
         </div>
-        <span className={`status-pill ${status.className}`}>{status.label}</span>
       </div>
-      <div className="report-meta-grid">
-        <div>
-          <span className="report-meta-label">Data</span>
-          <span className="report-meta-value">{formatDate(report.reportDate)}</span>
-        </div>
-        <div>
-          <span className="report-meta-label">Horário</span>
-          <span className="report-meta-value">
-            {report.arrivalTime} às {report.departureTime}
-          </span>
-        </div>
-      </div>
-      {report.reviewNotes ? <p className="report-note">{report.reviewNotes}</p> : null}
       {actions ? (
         <div className="report-card-actions" onClick={event => event.stopPropagation()}>
           {actions}

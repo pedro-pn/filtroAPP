@@ -662,12 +662,15 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
   }
 
   return (
-    <section className="page-card">
-      <div className="section-title">Ações</div>
-      {error ? <div className="inline-error">{error}</div> : null}
-      {message ? <div className="inline-success">{message}</div> : null}
-      <div className="admin-form-actions" style={{ marginTop: error || message ? 12 : 0 }}>
-        <button className="secondary-button" type="button" onClick={() => void handleDownload('pdf')}>
+    <>
+      {error || message ? (
+        <section className="page-card">
+          {error ? <div className="inline-error">{error}</div> : null}
+          {message ? <div className="inline-success">{message}</div> : null}
+        </section>
+      ) : null}
+      <div className="detail-action-bar">
+        <button className="primary-button" type="button" onClick={() => void handleDownload('pdf')}>
           PDF
         </button>
         {canDownloadDocx ? (
@@ -697,7 +700,7 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
         onCancel={() => setClientRejectOpen(false)}
         onConfirm={reason => void handleClientReject(reason)}
       />
-    </section>
+    </>
   );
 }
 
