@@ -1,6 +1,6 @@
 # Planejamento de Migração — Frontend atual → React + Vite
 
-> Atualizado em: 2026-05-05
+> Atualizado em: 2026-05-05 (§18.30)
 > Branch sugerido: `feature/react-frontend`
 > Objetivo: migrar o frontend atual baseado em `filtrovali_app_v4.html` para uma aplicação React moderna, mantendo o backend Express/Prisma e preservando paridade funcional antes do cutover.
 
@@ -88,6 +88,12 @@ Esta seção deve ser mantida atualizada a cada ciclo de implementação para fa
 - [x] Criar checklist de testes manuais por role.
 - [x] Ajustar `nginx`/deploy para servir o build React.
 - [x] Planejar cutover mantendo fallback para o HTML antigo.
+- [ ] **Campos de jornada no formulário de projeto:** `workdayHours`, `weekendWorkdayHours`, `includesSaturday` e `includesSunday` ausentes de `ProjectFormState` e do payload de criação/edição — afeta cálculo de hora extra (§18.30, tarefa #1).
+- [ ] **Máscara de CNPJ nos inputs:** campo CNPJ do formulário de projeto não aplica formatação ao digitar; `user.username` no card do cliente e campo de login também exibem CNPJ sem máscara. Requer utilitário `formatCnpj` compartilhado (§18.30, tarefas #2, #5, #8, #9).
+- [ ] **Agrupamento de clientes por CNPJ:** aba Usuários → Clientes exibe lista flat; HTML agrupa por CNPJ com card por empresa e contas principal/CC dentro (§18.30, tarefa #3).
+- [ ] **Badge "Escala estendida/padrão"** ausente no card de projeto; depende dos campos de jornada estarem salvos (§18.30, tarefa #4).
+- [ ] **Sort de projetos não conectado:** utilitário `projectSort.tsx` criado mas sem nenhum import no codebase (§18.30, tarefa #6).
+- [ ] **Botão excluir relatório no card do gestor** ausente (§18.26, §18.30, tarefa #7).
 - [ ] **Cutover final:** trocar `nginx`/Express para servir o React em `/` e `/reset-password` e remover dependência operacional do `filtrovali_app_v4.html`.
 
 ### Observações técnicas atuais
@@ -1408,36 +1414,15 @@ Esta é a área de maior divergência funcional. O HTML define os campos de cada
 
 ---
 
-### 18.26 Auditoria profunda de layout — 2026-05-05 — Formulário RDO e painel do gestor
+### 18.26 Auditoria de layout — 2026-05-05 — Formulário RDO, painel do gestor e fidelidade ao HTML legado
 
-> Verificação código a código de `NewReportPage.tsx`, `GestorPage.tsx`, `ReportSummaryCard.tsx`, `GroupedReportList.tsx` e referência `filtrovali_app_v4.html`.
-
-#### Bugs confirmados e corrigidos
+#### Bugs corrigidos nesta rodada
 
 | Ponto | Problema | Correção aplicada |
 |---|---|---|
-| **Banner de continuidade no passo errado** | `continuity-card` ("Serviços em andamento") estava dentro do bloco `step === 0` (Cabeçalho). O usuário via o botão "Continuar serviços" na etapa do cabeçalho, não na etapa de serviços. | Movido para o início do bloco `step === 1` (Serviços), antes da seção de adição de serviços — idêntico ao comportamento do HTML |
-| **`ReportSummaryCard` sem autor nem serviços** | HTML exibe `.rel-meta`: `{owner} · {data}\n{resumo serviços}`. React mostrava apenas data e horário. | Adicionado campo `createdBy` ao tipo `ReportSummary`; card exibe linha `.report-meta-owner` com `collaborator.name \|\| createdBy.name` + resumo de serviços (`summarizeServices`) |
-| **Rascunho sem contagem de serviços** | HTML mostra `{data}\nN serviço(s) preenchido(s)`. React mostrava só código do projeto e data. | `admin-card-meta` dos rascunhos do gestor agora exibe a contagem de serviços do `draft.payload.services` |
-
-#### Discrepâncias menores documentadas (sem correção nesta rodada)
-
-| Área | HTML | React | Decisão |
-|---|---|---|---|
-| Ações inline nos cards pendentes | Cards de pendentes não têm PDF/DOCX inline; só status badge + botão excluir. Aprovados têm DOCX + PDF compactos | React tem checkbox + PDF + DOCX + Aprovar + Devolver por card | Mantido — melhoria de UX; as ações inline evitam abrir detalhe só para aprovar |
-| Botão excluir no card | HTML exibe ícone de lixeira por card para o gestor | React não tem excluir no card | Pendente — verificar endpoint de delete e implementar se necessário |
-| `createdBy` no tipo `ReportSummary` | Backend já retornava `createdBy: { name, collaborator }` na resposta da lista | Frontend não mapeava o campo | Corrigido via Fix 2 desta rodada |
-
-#### Novos itens adicionados ao backlog de paridade
-
-- [ ] **Botão excluir no card de relatório do gestor**: HTML exibe ícone lixeira por card; React não tem. Verificar endpoint `DELETE /reports/:id` e adicionar ação no `renderManagerReportActions`.
-- [ ] **Validação visual completa em navegador**: Comparar cada tela HTML × React lado a lado com foco em cards de relatório (com dados reais), passo a passo do RDO e tela de pendentes/aprovados do gestor.
-
-**Validação:** `npx tsc --noEmit` executado no frontend com sucesso (zero erros) após as correções.
-
----
-
-### 18.26 Auditoria de UI pendente — 2026-05-05 — fidelidade ao HTML legado
+| **Banner de continuidade no passo errado** | `continuity-card` estava dentro do bloco `step === 0` (Cabeçalho) — botão "Continuar serviços" aparecia na etapa errada | Movido para o início de `step === 1` (Serviços), antes da seção de adição |
+| **`ReportSummaryCard` sem autor nem serviços** | HTML exibe `{owner} · {data}\n{serviços}`. React mostrava apenas data e horário | Campo `createdBy` adicionado ao tipo `ReportSummary`; card exibe `.report-meta-owner` com nome do autor e resumo de serviços |
+| **Rascunho sem contagem de serviços** | HTML mostra `N serviço(s) preenchido(s)`. React mostrava só projeto e data | `admin-card-meta` dos rascunhos do gestor exibe contagem de `draft.payload.services` |
 
 #### O que já está visualmente próximo do HTML
 
@@ -1457,23 +1442,19 @@ Esta é a área de maior divergência funcional. O HTML define os campos de cada
 
 | Prioridade | Pendência | Onde revisar | Critério de aceite |
 |---|---|---|---|
-| P0 | Feedback transitório ainda aparece inline em vez de toast em ações de detalhe, gestor e coordenador | `ReportDetailPage`, `GestorPage`, `CoordinatorPage` | Downloads, aprovar/devolver, salvar edição, CRUDs e batch devem usar `useToast`; inline fica só para estado persistente de página, erro de carregamento e formulário público/conta |
-| P0 | Botões mobile voltaram a ocupar largura total no breakpoint ≤390px | `frontend/src/styles/base.css` (`@media max-width: 390px`) | Ações compactas devem quebrar linha com auto-width, sem `width: 100%` em botões de cards, toolbars e topbar, mantendo exceções só para formulários onde full-width for intencional |
-| P1 | Nav/tabs de gestor ainda estão em `page-card`; HTML usa `nav-tabs` sticky mais integrada ao topo | `GestorPage`, `base.css` | Corrigido em §18.27: abas principais usam `.nav-tabs-wrap` sticky fora de `page-card` |
-| P1 | Formulários administrativos novos ainda podem aparecer em bloco global acima da lista; edição inline está mais próxima, mas precisa validação visual por aba | `GestorPage` | `+ Novo` abre editor contextual compacto; edição aparece dentro do card/linha editada, sem empurrar toda a lista para baixo de forma divergente |
-| P1 | Cards administrativos de projeto no gestor mostram metadados em linha compacta, enquanto o HTML novo usa `det-section` com linhas para CNPJ, e-mail principal, e-mails em cópia, assinantes adicionais, contrato, operador e sequenciais | `GestorPage` | Corrigido em §18.29: cards usam `det-section` com dados de cliente, assinatura, operador, status e sequenciais |
-| P1 | Coordenador ainda usa painel simplificado; precisa confirmar se deve ser idêntico ao padrão de relatórios do gestor sem CRUDs | `CoordinatorPage` | Mesma densidade visual, agrupamento, ações compactas, estados vazios e toast de download do padrão final |
-| P1 | `ReportDetailPage` visualmente tem barra inferior, mas ainda mostra banners inline para ações transitórias | `ReportDetailPage` | Barra inferior + toast para ações; banners inline só para relatório assinado/read-only e falha persistente |
-| P2 | `ServiceFields` ainda tem muitos `<label>` sem `htmlFor`, reduzindo fidelidade/acessibilidade de formulário | `ServiceFields.tsx` | Labels associados a inputs/selects principais sem quebrar nomes/estrutura visual |
-| P2 | Validação visual em navegador ainda não foi feita lado a lado | HTML legado + React em desktop e mobile | Checklist manual por role com screenshots ou anotações: colaborador, gestor, coordenador, cliente, detalhe e conta |
-
-#### Ordem recomendada da próxima rodada de UI
-
-1. Corrigir feedback transitório para `useToast` em `ReportDetailPage`, `GestorPage` e `CoordinatorPage`.
-2. Ajustar responsividade mobile removendo `width: 100%` dos botões compactos no breakpoint ≤390px.
-3. Revisar `GestorPage` visualmente contra o HTML: tabs sticky, cards de projeto com `det-section` e editores administrativos.
-4. Validar `CoordinatorPage` contra o padrão do gestor e corrigir mensagens/download.
-5. Fazer passada em navegador HTML × React, desktop e celular, antes de qualquer cutover.
+| ~~P0~~ | ~~Feedback transitório inline em ações de detalhe, gestor e coordenador~~ | — | ✅ Corrigido em §18.27 |
+| ~~P0~~ | ~~Botões mobile ocupando largura total no breakpoint ≤390px~~ | — | ✅ Corrigido em §18.27 |
+| ~~P1~~ | ~~Nav/tabs do gestor em `page-card`~~ | — | ✅ Corrigido em §18.27: `.nav-tabs-wrap` sticky |
+| ~~P1~~ | ~~Cards de projeto sem `det-section`~~ | — | ✅ Corrigido em §18.29 |
+| P1 | Formulário de projeto sem campos de jornada (`workdayHours`, `weekendWorkdayHours`, sábado/domingo) | `GestorPage.tsx` `ProjectFormState` | Campos adicionados ao form, `projectToForm` e payload de submit (§18.30) |
+| P1 | Aba Clientes lista usuários em flat list; HTML agrupa por CNPJ | `GestorPage.tsx` `renderUsuariosTab` | Card por CNPJ com contas principal + CC dentro (§18.30) |
+| P1 | Coordenador usa painel simplificado; pode divergir do padrão do gestor | `CoordinatorPage.tsx` | Mesma densidade visual, agrupamento e toast de download |
+| P2 | CNPJ sem máscara no formulário de projeto, login e card do cliente | `GestorPage`, `LoginPage`, `ClientPage` | Utilitário `formatCnpj` extraído + máscara nos inputs (§18.30) |
+| P2 | Badge "Escala estendida/padrão" ausente no card de projeto | `GestorPage.tsx` `renderProjectCard` | Badge conforme `includesSaturday/includesSunday` (§18.30) |
+| P2 | Botão excluir relatório ausente no card do gestor | `GestorPage.tsx` `renderManagerReportActions` | Ícone lixeira + endpoint DELETE (§18.30) |
+| P2 | Sort de projetos não conectado ao utilitário `projectSort.tsx` | `GestorPage.tsx` aba Projetos | Botão de alternância A→Z / Z→A (§18.30) |
+| P3 | `ServiceFields` com muitos `<label>` sem `htmlFor` | `ServiceFields.tsx` | Labels associados a inputs principais |
+| P3 | Validação visual em navegador lado a lado | HTML legado + React desktop e mobile | Checklist manual por role |
 
 ---
 
@@ -1530,3 +1511,32 @@ Esta é a área de maior divergência funcional. O HTML define os campos de cada
 **Validação:** `npm run build` e `npm run lint` executados em `frontend` com sucesso. O lint segue apenas com avisos já existentes de Fast Refresh/dependências de hooks.
 
 **Pendente após esta rodada:** conferência visual em navegador, principalmente nos cards de projeto com muitos e-mails/assinantes.
+
+---
+
+### 18.30 Auditoria de paridade — 2026-05-05 — Formulário de projeto, CNPJ e aba de clientes
+
+> Auditoria cruzando `GestorPage.tsx`, `ClientPage.tsx`, `LoginPage.tsx`, `projectSort.tsx` e `filtrovali_app_v4.html`. Itens descobertos e registrados como tarefas de backlog.
+
+#### Pendências encontradas
+
+| Prioridade | Pendência | Arquivo(s) | Referência HTML |
+|---|---|---|---|
+| **P0** | **Formulário de projeto sem campos de jornada:** `ProjectFormState` não tem `workdayHours`, `weekendWorkdayHours`, `includesSaturday` e `includesSunday`. Esses campos afetam o cálculo de hora extra em `NewReportPage` (`selectedProject.workdayHours`). Dados não são salvos ao criar/editar projetos via React. | `GestorPage.tsx` — `ProjectFormState`, `emptyProjectForm`, `projectToForm`, `handleProjectSubmit`, formulário inline | `editorProjeto()` — campos "Jornada padrão", "Jornada fim de semana", "Inclui sábado", "Inclui domingo" |
+| **P1** | **Clientes não agrupados por CNPJ:** aba Usuários → Clientes exibe lista flat de `admin-card-react` por usuário. HTML agrupa por CNPJ: card por empresa com o nome do cliente e CNPJ formatado como cabeçalho, contas principal e CC listadas dentro. | `GestorPage.tsx` — `renderUsuariosTab` seção de clientes | `renderClientUsersList()` ~linha 8260 |
+| **P2** | **CNPJ sem utilitário compartilhado:** `formatCnpj` existe apenas como função local em `GestorPage.tsx` (linha 259). Será necessária em `ClientPage`, `LoginPage` e outros. Sem extração, cada arquivo precisaria duplicar a lógica. | `frontend/src/utils/` (novo arquivo `formatCnpj.ts`) | `formatCnpj()` e `normalizeCnpjDigits()` |
+| **P2** | **Máscara de CNPJ no input do formulário de projeto:** campo `clientCnpj` não aplica formatação ao digitar. HTML usa `oninput="handleProjectCnpjInput(this)"` que mascara em tempo real. | `GestorPage.tsx` — input `clientCnpj` no formulário | `handleProjectCnpjInput()` |
+| **P2** | **CNPJ sem formatação no card de boas-vindas do cliente:** `user?.username` exibido cru (14 dígitos) quando é login por CNPJ. | `ClientPage.tsx` linha 244 | Usa `formatCnpj(currentUser.username)` |
+| **P2** | **CNPJ sem formatação no login:** `LoginPage` não formata o campo usuário ao sair do campo. HTML aplica `maybeFormatLoginIdentifier` no `onblur`, detectando CNPJ de 14 dígitos. | `LoginPage.tsx` | `maybeFormatLoginIdentifier()` |
+| **P2** | **Badge "Escala estendida/padrão" ausente no card de projeto:** HTML exibe badge verde ("Escala estendida") se `incluiSabado || incluiDomingo`, caso contrário amarelo ("Escala padrão"). `renderProjectCard` não tem esse badge. | `GestorPage.tsx` — `renderProjectCard` | `renderProjetos()` — badge com classe `badge-ok`/`badge-pen` |
+| **P2** | **Sort de projetos não conectado:** `frontend/src/utils/projectSort.tsx` foi criado com `sortProjects()` mas não é importado em nenhum arquivo. HTML tem `projectSortBtn()` disponível nas listas de projetos ativos, arquivados e nos relatórios. | `GestorPage.tsx` — abas Projetos e Arquivados | `projectSortBtn()` — alternância A→Z / Z→A |
+| **P2** | **Botão excluir relatório ausente no card do gestor:** HTML exibe ícone lixeira compacto por card. React não tem essa ação em `renderManagerReportActions`. | `GestorPage.tsx` — `renderManagerReportActions` | `reportCard()` — `deleteAction` com `onclick="deleteReport(...)"` |
+
+#### Decisão de ordem de implementação
+
+1. **#1 Jornada no formulário de projeto** — crítico, afeta cálculo de hora extra
+2. **#9 → #2 Extrair `formatCnpj` + máscara no formulário** — pré-requisito para #5 e #8
+3. **#3 Agrupamento de clientes por CNPJ**
+4. **#5 CNPJ no card do cliente** e **#8 CNPJ no login**
+5. **#4 Badge "Escala estendida/padrão"** (depende de #1 para dados corretos)
+6. **#6 Sort de projetos** e **#7 Botão excluir relatório**
