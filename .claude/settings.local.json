@@ -43,9 +43,18 @@
       "Bash(awk NR>=3480 && NR<=3510 {print NR\": \"$0} *)",
       "Bash(awk NR>=2538 && NR<=2565 {print NR\": \"$0} *)",
       "Bash(awk NR>=487 && NR<=500 {print NR\": \"$0} *)",
-      "Bash(git merge *)",
-      "Bash(git add *)",
-      "Bash(git commit *)"
+      "Read(//home/relat/apps/RDO-v1/**)",
+      "Read(//home/relat/apps/**)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public\" npx prisma migrate dev --name add_project_client_signers)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public\" npx prisma migrate dev --name add_project_client_signers --skip-seed)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public\" npx prisma db push)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/filtrovali?schema=public\" npx prisma db push --accept-data-loss)",
+      "Bash(npx tsc *)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(/home/relat/apps/NewRDO/frontend/node_modules/.bin/tsc --noEmit --project /home/relat/apps/NewRDO/frontend/tsconfig.json)",
+      "Bash(docker restart filtrovali-local-backend *)",
+      "Bash(docker exec *)",
+      "Bash(git *)"
     ]
   },
   "enableAllProjectMcpServers": true,

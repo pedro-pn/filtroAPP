@@ -41,12 +41,22 @@ router.get('/', asyncHandler(async (req, res) => {
   });
 
   const clientUsers = users.filter(user => user.role === UserRole.CLIENT);
+
+  const cnpjUsernames = clientUsers.map(u => u.username).filter(u => /^\d{14}$/.test(u));
+  const ccEmails = clientUsers.map(u => u.email).filter(Boolean).map(e => e.toLowerCase());
+
   const linkedProjects = clientUsers.length
     ? await prisma.project.findMany({
-        where: { clientCnpj: { in: clientUsers.map(user => user.username) } },
+        where: {
+          OR: [
+            ...(cnpjUsernames.length ? [{ clientCnpj: { in: cnpjUsernames } }] : []),
+            ...(ccEmails.length ? [{ clientEmailCc: { hasSome: ccEmails } }] : [])
+          ]
+        },
         orderBy: [{ name: 'asc' }],
         select: {
           clientCnpj: true,
+          clientEmailCc: true,
           code: true,
           name: true,
           contractCode: true,
@@ -55,16 +65,20 @@ router.get('/', asyncHandler(async (req, res) => {
       })
     : [];
 
-  const projectsByCnpj = linkedProjects.reduce((acc, project) => {
-    if (!acc[project.clientCnpj]) acc[project.clientCnpj] = [];
-    acc[project.clientCnpj].push(project);
-    return acc;
-  }, {});
-
-  res.json(users.map(user => ({
-    ...publicUser(user),
-    linkedProjects: projectsByCnpj[user.username] || []
-  })));
+  res.json(users.map(user => {
+    const isCnpj = /^\d{14}$/.test(user.username);
+    const userEmail = String(user.email || '').toLowerCase();
+    const projects = linkedProjects.filter(p => {
+      if (isCnpj && p.clientCnpj === user.username) return true;
+      if (!isCnpj && userEmail && Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail)) return true;
+      return false;
+    });
+    return {
+      ...publicUser(user),
+      linkedProjects: projects,
+      clientCnpj: isCnpj ? user.username : (linkedProjects.find(p => Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail))?.clientCnpj || null)
+    };
+  }));
 }));
 
 router.post('/', asyncHandler(async (req, res) => {
@@ -129,10 +143,14 @@ router.post('/:id/resend-client-access', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'A conta CLIENT não possui e-mail principal cadastrado.' });
   }
 
+  const isCnpj = /^\d{14}$/.test(user.username);
+  const userEmail = String(user.email || '').toLowerCase();
   const projects = await prisma.project.findMany({
-    where: { clientCnpj: user.username },
+    where: isCnpj
+      ? { clientCnpj: user.username }
+      : { clientEmailCc: { has: userEmail } },
     orderBy: [{ name: 'asc' }],
-    select: { code: true, name: true, contractCode: true }
+    select: { clientCnpj: true, code: true, name: true, contractCode: true }
   });
 
   const missingMailerConfig = getMissingMailerConfig();
@@ -145,9 +163,10 @@ router.post('/:id/resend-client-access', asyncHandler(async (req, res) => {
   const newHash = await hashPassword(newPassword);
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash: newHash } });
 
+  const cnpjDisplay = isCnpj ? user.username : (projects[0]?.clientCnpj || user.username);
   const template = buildClientAccessReminderEmailTemplate({
     clientName: user.name,
-    cnpj: user.username,
+    cnpj: isCnpj ? user.username : user.email,
     newPassword,
     appUrl: env.appUrl,
     projectCount: projects.length

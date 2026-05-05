@@ -25,13 +25,15 @@ body.app-booting::before{content:'Carregando...';position:fixed;inset:0;display:
 .tb-step{margin-left:auto;background:rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;transition:background .15s,color .15s,transform .15s}
 .tb-step:hover{background:rgba(255,255,255,.28);color:#fff;transform:translateY(-1px)}
 .pbar{height:3px;background:rgba(255,255,255,.25)}.pfill{height:100%;background:#fff;border-radius:2px;transition:width .3s}
-.scroll{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px;display:flex;flex-direction:column;gap:14px}
 .card{background:var(--wh);border-radius:var(--r);border:.5px solid var(--br);padding:14px}
 .sec{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--g);margin-bottom:12px;display:flex;align-items:center;gap:6px}
 .sec::before{content:'';display:inline-block;width:3px;height:13px;background:var(--g);border-radius:2px}
 .fg{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;min-width:0}.fg:last-child{margin-bottom:0}
 label{font-size:12px;font-weight:500;color:var(--mu)}
 input[type=text],input[type=date],input[type=time],input[type=number],select,textarea{width:100%;min-width:0;border:1px solid var(--br);border-radius:var(--rs);padding:9px 11px;font-size:14px;background:#fafafa;color:var(--tx);outline:none;transition:border .15s}
+input[type=time]{-webkit-appearance:none;appearance:none;padding:9px 6px;font-size:16px;min-height:40px;width:100%;box-sizing:border-box}
+input[type=date]{-webkit-appearance:none;appearance:none;box-sizing:border-box;min-height:40px}
 input:focus,select:focus,textarea:focus{border-color:var(--g);background:#fff}
 textarea{resize:none;min-height:72px}
 .r2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
@@ -43,7 +45,7 @@ textarea{resize:none;min-height:72px}
 .tog-sl{position:absolute;inset:0;background:#cbd5e1;border-radius:22px;cursor:pointer;transition:.2s}
 .tog-sl::after{content:'';position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:3px;left:3px;transition:.2s}
 .tog input:checked+.tog-sl{background:var(--g)}.tog input:checked+.tog-sl::after{transform:translateX(18px)}
-.collapse{display:none;border-radius:var(--rs);padding:12px;margin-top:10px;border:1px solid #d4e4d8;background:#f8faf8}.collapse.open{display:block}
+.collapse{display:none;border-radius:var(--rs);padding:12px;margin-top:10px;border:1px solid #d4e4d8;background:#f8faf8;overflow-x:hidden}.collapse.open{display:block}
 .sub-card{background:#f4f9f5;border:1px solid #c8dece;border-radius:var(--rs);padding:12px;margin-top:8px;display:flex;flex-direction:column;gap:10px}
 .rtag-grp{display:flex;gap:8px}
 .rtag{flex:1;text-align:center;padding:9px 8px;border:1.5px solid var(--br);border-radius:var(--rs);font-size:13px;font-weight:500;cursor:pointer;transition:.15s;background:#fafafa;color:var(--mu);user-select:none}
@@ -78,7 +80,7 @@ textarea{resize:none;min-height:72px}
 .stype-icon{font-size:22px}.stype-name{font-size:12px;font-weight:600}
 .modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center}
 .modal-ov.open{display:flex}
-.modal-sh{background:#fff;border-radius:18px 18px 0 0;padding:20px 16px 32px;width:100%;max-width:420px;max-height:85vh;overflow-y:auto}
+.modal-sh{background:#fff;border-radius:18px 18px 0 0;padding:20px 16px 32px;width:100%;max-width:420px;max-height:85vh;overflow-y:auto;overflow-x:hidden}
 .modal-handle{width:36px;height:4px;background:var(--br);border-radius:2px;margin:0 auto 16px}
 .modal-title{font-size:16px;font-weight:700;margin-bottom:16px;color:var(--g)}
 .upload-z{border:1.5px dashed var(--br);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;background:#fafafa}
@@ -174,6 +176,9 @@ textarea{resize:none;min-height:72px}
   #s-final .card{
     overflow-x:hidden;
   }
+  #s-detalhe .card{
+    overflow-x:hidden;
+  }
 }
 .admin-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
 .admin-toolbar .sec{margin-bottom:0}
@@ -183,6 +188,7 @@ textarea{resize:none;min-height:72px}
 .admin-item-main{flex:1;min-width:220px}
 .admin-actions .mini-btn{margin-left:0 !important}
 .admin-inline-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.admin-inline-grid>*{min-width:0}
 .admin-inline-grid .full{grid-column:1/-1}
 .rel-icon{width:40px;height:40px;border-radius:var(--rs);background:#f0f7f2;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
 .report-type-group{margin-bottom:4px}
@@ -356,7 +362,7 @@ textarea{resize:none;min-height:72px}
       </div>
       <div id="standby" class="collapse">
         <div class="r2">
-          <div class="fg"><label>Tempo total <span class="req">*</span></label><input type="time" id="standby-total" step="60" min="00:00" max="23:59" placeholder="02:00" data-required="true" data-label="Tempo total (standby)"></div>
+          <div class="fg"><label>Tempo total <span class="req">*</span></label><input type="time" id="standby-total" step="60" placeholder="02:00" data-required="true" data-label="Tempo total (standby)"></div>
           <div class="fg"><label>Motivo <span class="req">*</span></label><input type="text" id="standby-motivo" placeholder="Motivo..." data-required="true" data-label="Motivo (standby)"></div>
         </div>
       </div>
@@ -768,17 +774,29 @@ function serviceCollaboratorsField(selected,isPre){
     '</div></div>';
 }
 function refreshServiceCollaboratorOptions(){
-  var collabs=getAvailableServiceCollaborators();
-  document.querySelectorAll('.svc-card .svc-team-options').forEach(function(group){
-    var selIds=Array.from(group.querySelectorAll('input:checked')).map(function(inp){return inp.value;}).filter(Boolean);
-    var selNames=Array.from(group.querySelectorAll('input:checked')).map(function(inp){
-      return ((inp.parentElement.querySelector('span')||{}).textContent||'').trim();
-    }).filter(Boolean);
-    group.innerHTML=collabs.length?collabs.map(function(c){
-      var checked=selIds.indexOf(c.id)>=0||selNames.indexOf(c.nome)>=0;
-      return '<label class="chk-item"><input type="checkbox" value="'+escapeHtml(c.id)+'"'+(checked?' checked':'')+'><span>'+escapeHtml(c.nome)+'</span></label>';
-    }).join(''):'<div style="font-size:12px;color:var(--mu)">Adicione colaboradores no cabeçalho para selecionar aqui.</div>';
-  });
+  function colabsFromSel(sel){
+    var seen=new Set();var res=[];
+    Array.from(document.querySelectorAll(sel)).forEach(function(el){
+      var id=el.dataset.colabId;
+      var name=((el.querySelector('.colab-name')||{}).textContent||'').trim();
+      if(id&&!seen.has(id)){seen.add(id);res.push({id:id,nome:name});}
+    });
+    return res;
+  }
+  function applyTo(containerSel,collabs){
+    document.querySelectorAll(containerSel+' .svc-team-options').forEach(function(group){
+      var selIds=Array.from(group.querySelectorAll('input:checked')).map(function(inp){return inp.value;}).filter(Boolean);
+      var selNames=Array.from(group.querySelectorAll('input:checked')).map(function(inp){
+        return ((inp.parentElement.querySelector('span')||{}).textContent||'').trim();
+      }).filter(Boolean);
+      group.innerHTML=collabs.length?collabs.map(function(c){
+        var checked=selIds.indexOf(c.id)>=0||selNames.indexOf(c.nome)>=0;
+        return '<label class="chk-item"><input type="checkbox" value="'+escapeHtml(c.id)+'"'+(checked?' checked':'')+'><span>'+escapeHtml(c.nome)+'</span></label>';
+      }).join(''):'<div style="font-size:12px;color:var(--mu)">Adicione colaboradores no cabeçalho para selecionar aqui.</div>';
+    });
+  }
+  applyTo('#svc-cards .svc-card',colabsFromSel('#colab-list .colab-tag, #noturno-colab-list .colab-tag'));
+  applyTo('#mgr-services-root .svc-card',colabsFromSel('#mgr-colab-list .colab-tag, #mgr-noturno-colab-list .colab-tag'));
 }
 function equipamentoOptions(tipo){
   return db.equipamentos.filter(function(e){return e.ativo!==false && (!e.tipos || e.tipos.indexOf(tipo)>=0);}).map(function(e){
@@ -1065,6 +1083,24 @@ function tubesBlock(n,tubes,isPre){
   return '<div class="fg"><label>Diâmetros e comprimentos <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
     '<div id="tubes-'+n+'" data-multifield="tubes" data-required-group="tubes" data-label="Diâmetros e comprimentos">'+rows+'</div>'+
     '<div class="tube-add" onclick="addTube('+n+')">＋ Adicionar tubulação</div></div>';
+}
+function isNoValue(value){
+  if(Array.isArray(value))value=value[0];
+  return String(value||'').trim().toLowerCase().replace('ã','a')==='nao';
+}
+function toggleTubesQuestion(el,n,show){
+  selectRad(el,show);
+  showSec('limpeza-tubes-wrap-'+n,show);
+}
+function limpezaTubesBlock(n,p,isPre){
+  var raw=p['Limpeza de tubulação?']||p['Limpeza de tubulacao?']||p.limpezaTubulacao;
+  var show=!isNoValue(raw);
+  return '<div class="fg"><label>Limpeza de tubulação? <span class="req">*</span>'+(isPre&&raw?'<span class="pre-badge">pré-preenchido</span>':'')+'</label>'+
+    '<div class="rtag-grp" data-required-group="rtag" data-label="Limpeza de tubulação?">'+
+    '<div class="rtag '+(show?'yes':'')+'" onclick="toggleTubesQuestion(this,'+n+',true)">Sim</div>'+
+    '<div class="rtag '+(!show?'no':'')+'" onclick="toggleTubesQuestion(this,'+n+',false)">Não</div>'+
+    '</div></div>'+
+    '<div id="limpeza-tubes-wrap-'+n+'" style="display:'+(show?'block':'none')+'">'+tubesBlock(n,p.tubes,isPre)+'</div>';
 }
 function materialField(n,val,isPre,lbl){
   var opts=['Aço carbono','Inox','Outro'];var lb=lbl||'Material da tubulação';
@@ -2483,6 +2519,8 @@ function resetReportForm(){
   var noturnoList=document.getElementById('noturno-colab-list'); if(noturnoList)noturnoList.innerHTML='';
   var noturnoInicio=document.getElementById('noturno-inicio'); if(noturnoInicio)noturnoInicio.value='';
   var noturnoTermino=document.getElementById('noturno-termino'); if(noturnoTermino)noturnoTermino.value='';
+  if(document.getElementById('standby-total'))document.getElementById('standby-total').value='';
+  if(document.getElementById('standby-motivo'))document.getElementById('standby-motivo').value='';
   var standbyToggle=document.querySelector('input[onchange*="standby"]'); if(standbyToggle){standbyToggle.checked=false;tog('standby',standbyToggle);}
   var noturnoToggle=document.querySelector('input[onchange*="noturno"]'); if(noturnoToggle){noturnoToggle.checked=false;tog('noturno',noturnoToggle);}
   document.getElementById('svc-cards').innerHTML='';
@@ -4300,7 +4338,7 @@ function bodyLimpeza(n,p,isPre){
   var equips=p['Equipamento(s)']||p.equipId||[];
   var etapas=['Montagem do sistema','Teste de estanqueidade','Desengraxe','Fase ácida','Fase sequestrante','Fase neutralizante','Fase passivante','Secagem','Desmontagem do sistema','Inspeção por boroscopia'];
   var ulqVals=(p['Unidade de Limpeza Química']||p['Unidade de Limpeza Quimica']||{});var ulqIds=Array.isArray(ulqVals)?ulqVals:(ulqVals.ids||[]);
-  return equipMultiField('limpeza',n,equips,isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Resfriamento')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+'<div class="fg"><label>Método de limpeza <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label><div class="chk-grp" data-required-group="checkbox" data-label="Método de limpeza">'+['Circulação pressurizada','Pulverização','Enchimento e imersão'].map(function(m){var c=p.metodos&&p.metodos.indexOf(m)>=0;return '<label class="chk-item '+(isPre&&c?'pre':'')+'"><input type="checkbox"'+(c?' checked':'')+'><span>'+m+'</span></label>';}).join('')+'</div></div>'+unitMultiField('Unidade de Limpeza Química','limpezaQuimica',n,ulqIds,true,isPre)+'<div class="fg"><label>Local de limpeza <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label><div class="tag-list" data-required-group="tag" data-label="Local de limpeza">'+['Interna','Externa'].map(function(l){var s=p.local&&p.local.indexOf(l)>=0;return '<span class="tag'+(s?' sel':'')+'" onclick="this.classList.toggle(\'sel\')">'+l+'</span>';}).join('')+'</div></div>'+tubesBlock(n,p.tubes,isPre)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+'<div class="fg"><label>Tipo de inspeção</label><div class="tag-list">'+['Visual','Corpo de prova','Vídeo boroscopia'].map(function(t){return '<span class="tag" onclick="this.classList.toggle(\'sel\')">'+t+'</span>';}).join('')+'</div></div>'+uploadField('Imagens — corpo de prova')+uploadField('Imagens — tubulação')+desenhoObs();
+  return equipMultiField('limpeza',n,equips,isPre)+fgPre('Sistema','si-'+n,p.sistema||'',isPre,'ex: Resfriamento')+serviceCollaboratorsField(p['Colaboradores do serviço']||p.colaboradoresServico||[],isPre)+materialField(n,p.material,isPre)+'<div class="fg"><label>Método de limpeza <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label><div class="chk-grp" data-required-group="checkbox" data-label="Método de limpeza">'+['Circulação pressurizada','Pulverização','Enchimento e imersão'].map(function(m){var c=p.metodos&&p.metodos.indexOf(m)>=0;return '<label class="chk-item '+(isPre&&c?'pre':'')+'"><input type="checkbox"'+(c?' checked':'')+'><span>'+m+'</span></label>';}).join('')+'</div></div>'+unitMultiField('Unidade de Limpeza Química','limpezaQuimica',n,ulqIds,true,isPre)+'<div class="fg"><label>Local de limpeza <span class="req">*</span>'+(isPre?'<span class="pre-badge">pré-preenchido</span>':'')+'</label><div class="tag-list" data-required-group="tag" data-label="Local de limpeza">'+['Interna','Externa'].map(function(l){var s=p.local&&p.local.indexOf(l)>=0;return '<span class="tag'+(s?' sel':'')+'" onclick="this.classList.toggle(\'sel\')">'+l+'</span>';}).join('')+'</div></div>'+limpezaTubesBlock(n,p,isPre)+finalizadoAprovado(n)+horariosBlock()+etapasBlock(n,etapas)+'<div class="fg"><label>Tipo de inspeção</label><div class="tag-list">'+['Visual','Corpo de prova','Vídeo boroscopia'].map(function(t){return '<span class="tag" onclick="this.classList.toggle(\'sel\')">'+t+'</span>';}).join('')+'</div></div>'+uploadField('Imagens — corpo de prova')+uploadField('Imagens — tubulação')+desenhoObs();
 }
 function bodyPressao(n,p,isPre){
   var equips=p['Equipamento(s)']||p.equipId||[];
@@ -4560,6 +4598,7 @@ function updateOvertimeUi(){
   var text=document.getElementById('overtime-summary');
   var textarea=document.getElementById('final-overtime');
   if(!wrap||!text)return;
+  var hasOvertime=summary.totalOvertimeMinutes>0;
   var lines=[
     'Turno diurno: trabalhado '+overtimeFormatMinutes(summary.daytimeWorkedMinutes)+' | extra '+overtimeFormatMinutes(summary.daytimeOvertimeMinutes)
   ];
@@ -4573,7 +4612,8 @@ function updateOvertimeUi(){
   }else{
     lines.push('Data com regime integral de hora extra conforme configuração do projeto.');
   }
-  if(summary.totalOvertimeMinutes>0){
+  if(textarea)textarea.disabled=!hasOvertime;
+  if(hasOvertime){
     text.style.color='var(--rd)';
     text.innerHTML='<strong>Hora extra identificada:</strong><br>'+lines.join('<br>');
     wrap.style.display='';
@@ -4631,6 +4671,7 @@ function collectSpecialConditions(){
 function goFinal(){
   var err=validateScope(document.getElementById('s-servicos'));
   if(err){focusValidation(err,'s-servicos');return;}
+  initOvertimeUi();
   updateOvertimeUi();
   go('s-final');
 }
@@ -4648,6 +4689,8 @@ function resetReportForm(){
   var noturnoInicio=document.getElementById('noturno-inicio'); if(noturnoInicio)noturnoInicio.value='';
   var noturnoTermino=document.getElementById('noturno-termino'); if(noturnoTermino)noturnoTermino.value='';
   var noturnoIntervalo=document.getElementById('noturno-intervalo'); if(noturnoIntervalo)noturnoIntervalo.value='01:00:00';
+  if(document.getElementById('standby-total'))document.getElementById('standby-total').value='';
+  if(document.getElementById('standby-motivo'))document.getElementById('standby-motivo').value='';
   var standbyToggle=document.querySelector('input[onchange*="standby"]'); if(standbyToggle){standbyToggle.checked=false;tog('standby',standbyToggle);}
   var noturnoToggle=document.querySelector('input[onchange*="noturno"]'); if(noturnoToggle){noturnoToggle.checked=false;tog('noturno',noturnoToggle);}
   document.getElementById('svc-cards').innerHTML='';
@@ -6122,6 +6165,8 @@ function currentReportDraftSnapshot(){
   var hasServices=document.querySelectorAll('#svc-cards .svc-card').length>0;
   var hasDescription=!!((document.getElementById('final-description')||{}).value||'').trim();
   var hasTeam=getSelectedCollaboratorIds().length>0;
+  var overtimeSummary=updateOvertimeUi();
+  var hasOvertime=overtimeSummary&&overtimeSummary.totalOvertimeMinutes>0;
   if(!hasProject&&!hasServices&&!hasDescription&&!hasTeam)return null;
   return {
     id: currentDraftId||('draft_'+Date.now()),
@@ -6135,7 +6180,7 @@ function currentReportDraftSnapshot(){
     collaboratorIds: getSelectedCollaboratorIds(),
     nightCollaboratorIds: getSelectedNightCollaboratorIds(),
     specialConditions: collectSpecialConditions(),
-    overtimeReason: ((document.getElementById('final-overtime')||{}).value||'').trim(),
+    overtimeReason: hasOvertime?((document.getElementById('final-overtime')||{}).value||'').trim():'',
     dailyDescription: ((document.getElementById('final-description')||{}).value||'').trim(),
      services: Array.from(document.querySelectorAll('#svc-cards .svc-card')).map(function(card){
       var serviceType=normalizeServiceType(card.dataset.svcType);
@@ -6277,6 +6322,8 @@ function resetReportForm(){
   var noturnoInicio=document.getElementById('noturno-inicio'); if(noturnoInicio)noturnoInicio.value='';
   var noturnoTermino=document.getElementById('noturno-termino'); if(noturnoTermino)noturnoTermino.value='';
   var noturnoIntervalo=document.getElementById('noturno-intervalo'); if(noturnoIntervalo)noturnoIntervalo.value='01:00:00';
+  if(document.getElementById('standby-total'))document.getElementById('standby-total').value='';
+  if(document.getElementById('standby-motivo'))document.getElementById('standby-motivo').value='';
   var standbyToggle=document.querySelector('input[onchange*="standby"]'); if(standbyToggle){standbyToggle.checked=false;tog('standby',standbyToggle);}
   var noturnoToggle=document.querySelector('input[onchange*="noturno"]'); if(noturnoToggle){noturnoToggle.checked=false;tog('noturno',noturnoToggle);}
   document.getElementById('hdr-data').value='';
@@ -7624,7 +7671,8 @@ function reportCard(report,origin){
     '</div>';
 }
 async function openReportDetail(id,origin){
-  var report=reportsCache.find(function(r){return r.id===id;})||await apiFetch('/reports/'+id);
+  var report;
+  try{report=await apiFetch('/reports/'+id);var ci=reportsCache.findIndex(function(r){return r.id===id;});if(ci>=0)reportsCache[ci]=report;}catch(e){report=reportsCache.find(function(r){return r.id===id;});}
   var hasPendingEdit=isPendingEditReport(report)&&report.status!=='APPROVED';
   currentDetailReport=report;
   currentDetailBack=origin==='meus'?'s-meus-relatorios':'s-gestor';
@@ -7705,6 +7753,7 @@ function formatReportDate(v){
   return d+'/'+m+'/'+y;
 }
 function reportStatusMeta(report){
+  if(typeof isClientRejectedReport==='function'&&isClientRejectedReport(report))return {txt:'Reprovado pelo cliente',cls:'badge-rej'};
   if(report&&report.status==='PENDING'&&isPendingEditReport(report))return statusMeta('EDITED');
   return statusMeta(report&&report.status);
 }
@@ -7912,7 +7961,7 @@ window.__legacyBootstrapped = false;
     if(document.getElementById('frontend-recovery-style'))return;
     var style=document.createElement('style');
     style.id='frontend-recovery-style';
-    style.textContent='.email-tags{display:flex;flex-wrap:wrap;gap:8px;min-height:42px;padding:8px 10px;border:1px solid var(--br);border-radius:var(--rs);background:#fafafa}.email-tags input{border:none;background:transparent;outline:none;min-width:180px;flex:1;padding:4px 0}.email-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#eef5f0;border:1px solid #c3ddc9;color:var(--gd);font-size:12px}.email-chip-rm{cursor:pointer;color:var(--rd);font-weight:700}.email-tags-empty{font-size:12px;color:var(--mu)}';
+    style.textContent='.email-chip-rm{cursor:pointer;color:var(--rd);font-weight:700;font-size:15px;padding:0 2px;line-height:1}.cc-list{border:1px solid var(--br);border-radius:var(--rs);overflow:hidden;background:#fafafa}.cc-list-header{display:flex;align-items:center;justify-content:space-between;padding:5px 12px;background:#f0f4f0;border-bottom:1px solid var(--br);font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em}.cc-row{border-bottom:.5px solid var(--br)}.cc-row:last-of-type{border-bottom:none}.cc-row-main{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;gap:8px}.cc-email{font-size:13px;color:var(--gd);flex:1;word-break:break-all;min-width:0}.cc-row-actions{display:flex;align-items:center;gap:10px;flex-shrink:0}.cc-name-row{padding:0 12px 8px}.cc-name-input{width:100%;border:1px solid #c3ddc9;border-radius:4px;padding:4px 8px;font-size:12px;background:#fff;box-sizing:border-box}.cc-add-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:.5px solid var(--br);background:#fff}.cc-add-row input{flex:1;border:none;outline:none;font-size:13px;background:transparent;min-width:0}.cc-add-btn{background:var(--g);color:#fff;border:none;border-radius:var(--rs);padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0}.field-hint{font-size:12px;color:var(--mu);margin:0 0 8px;line-height:1.5}';
     document.head.appendChild(style);
   }
   function handleProjectCnpjInput(input){
@@ -7935,10 +7984,24 @@ window.__legacyBootstrapped = false;
     var input=document.getElementById('ed-proj-email-cc-input');
     if(!root||!input)return;
     var values=getProjectEmailCcValues();
-    root.innerHTML=values.length?values.map(function(email){
-      return '<span class="email-chip">'+escapeHtml(email)+'<span class="email-chip-rm" onclick="removeProjectEmailCc(\''+escapeHtml(email)+'\')">x</span></span>';
-    }).join(''):'<span class="email-tags-empty">Nenhum e-mail em copia.</span>';
-    root.appendChild(input);
+    var meta=getProjectSignerMeta();
+    var headerHtml=values.length?'<div class="cc-list-header"><span>E-mail</span><span>Assinante?</span></div>':'';
+    var rowsHtml=values.map(function(email){
+      var m=meta[email]||{isSigner:false,name:email.split('@')[0]};
+      var nameRow=m.isSigner?'<div class="cc-name-row"><input type="text" class="cc-name-input" value="'+escapeHtml(m.name||'')+'" placeholder="Nome do assinante" onchange="updateProjectSignerName(\''+escapeHtml(email)+'\',this.value)"></div>':'';
+      return '<div class="cc-row">'
+        +'<div class="cc-row-main">'
+        +'<div class="cc-email">'+escapeHtml(email)+'</div>'
+        +'<div class="cc-row-actions">'
+        +'<label class="tog" style="flex-shrink:0"><input type="checkbox"'+(m.isSigner?' checked':'')+' onchange="toggleProjectEmailSigner(\''+escapeHtml(email)+'\')"><span class="tog-sl"></span></label>'
+        +'<span class="email-chip-rm" onclick="removeProjectEmailCc(\''+escapeHtml(email)+'\')">×</span>'
+        +'</div>'
+        +'</div>'
+        +nameRow
+        +'</div>';
+    }).join('');
+    root.innerHTML='<div class="cc-list">'+headerHtml+rowsHtml+'<div class="cc-add-row"><button type="button" class="cc-add-btn" onclick="commitProjectEmailCcInput()">+ Adicionar</button></div></div>';
+    root.querySelector('.cc-add-row').insertBefore(input,root.querySelector('.cc-add-btn'));
   }
   function removeProjectEmailCc(email){
     setProjectEmailCcValues(getProjectEmailCcValues().filter(function(item){return item!==String(email||'').toLowerCase();}));
@@ -7961,6 +8024,40 @@ window.__legacyBootstrapped = false;
   window.removeProjectEmailCc=removeProjectEmailCc;
   window.commitProjectEmailCcInput=commitProjectEmailCcInput;
   window.handleProjectEmailCcKeydown=handleProjectEmailCcKeydown;
+  function getProjectSignerMeta(){
+    var hidden=document.getElementById('ed-proj-signer-meta');
+    if(!hidden)return {};
+    try{return JSON.parse(hidden.value||'{}');}catch(_){return {};}
+  }
+  function setProjectSignerMeta(meta){
+    var hidden=document.getElementById('ed-proj-signer-meta');
+    if(!hidden)return;
+    hidden.value=JSON.stringify(meta||{});
+  }
+  function getProjectSignersValues(){
+    var cc=getProjectEmailCcValues();
+    var meta=getProjectSignerMeta();
+    return cc.filter(function(email){return meta[email]&&meta[email].isSigner;}).map(function(email){
+      return {name:meta[email].name||email.split('@')[0],email:email};
+    });
+  }
+  function toggleProjectEmailSigner(email){
+    var meta=getProjectSignerMeta();
+    var cur=meta[email]||{isSigner:false,name:email.split('@')[0]};
+    meta[email]={isSigner:!cur.isSigner,name:cur.name};
+    setProjectSignerMeta(meta);
+    renderProjectEmailCcTags();
+  }
+  function updateProjectSignerName(email,name){
+    var meta=getProjectSignerMeta();
+    if(!meta[email])meta[email]={isSigner:true,name:name};
+    else meta[email].name=name;
+    setProjectSignerMeta(meta);
+  }
+  window.getProjectSignersValues=getProjectSignersValues;
+  window.toggleProjectEmailSigner=toggleProjectEmailSigner;
+  window.updateProjectSignerName=updateProjectSignerName;
+  window.renderProjectSignersList=function(){};
 
   var baseToLocalDb=toLocalDb;
   toLocalDb=function(payload){
@@ -7968,21 +8065,21 @@ window.__legacyBootstrapped = false;
     local.projetos=(payload.projects||[]).map(function(p){
       var seq={}; REPORT_TYPES.forEach(function(t){seq[t]=0;});
       (p.reportSequences||[]).forEach(function(s){seq[s.reportType]=s.nextNumber;});
-      return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj||'',emailPrincipal:p.clientEmailPrimary||'',emailsCopia:p.clientEmailCc||[],contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,visivelColaboradores:p.visibleToCollaborators!==false,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
+      return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj||'',emailPrincipal:p.clientEmailPrimary||'',emailsCopia:p.clientEmailCc||[],assinantesAdicionais:p.clientSigners||[],contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,visivelColaboradores:p.visibleToCollaborators!==false,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
     });
     return local;
   };
 
   editorProjeto=function(){
     var st=gestorEditors.projetos;if(!st)return '';
-    var p=st.type==='edit'?getProjetoById(st.id):{id:'',code:'',nome:'',cliente:'',cnpj:'',emailPrincipal:'',emailsCopia:[],contrato:'',local:'',operadorResponsavelId:'',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,visivelColaboradores:true,sequenciais:{}};
+    var p=st.type==='edit'?getProjetoById(st.id):{id:'',code:'',nome:'',cliente:'',cnpj:'',emailPrincipal:'',emailsCopia:[],assinantesAdicionais:[],contrato:'',local:'',operadorResponsavelId:'',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,visivelColaboradores:true,sequenciais:{}};
     return '<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(st.type==='edit'?'Editar projeto':'Novo projeto')+'</div><button class="mini-btn alt" onclick="closeEditor(\'projetos\')">Cancelar</button></div><div class="admin-inline-grid">'+
       '<div class="fg"><label>Numero da missao</label><input type="text" id="ed-proj-id" value="'+escapeHtml(p.code||'')+'" '+(st.type==='edit'?'readonly':'')+'></div>'+
       '<div class="fg"><label>Nome</label><input type="text" id="ed-proj-nome" value="'+escapeHtml(p.nome||'')+'"></div>'+
       '<div class="fg"><label>Cliente</label><input type="text" id="ed-proj-cliente" value="'+escapeHtml(p.cliente||'')+'"></div>'+
       '<div class="fg"><label>CNPJ</label><input type="text" id="ed-proj-cnpj" value="'+escapeHtml(formatCnpj(p.cnpj||''))+'" oninput="handleProjectCnpjInput(this)"></div>'+
       '<div class="fg"><label>E-mail principal do cliente</label><input type="email" id="ed-proj-email-primary" value="'+escapeHtml(p.emailPrincipal||'')+'" placeholder="cliente@empresa.com.br"></div>'+
-      '<div class="fg full"><label>E-mails em copia</label><input type="hidden" id="ed-proj-email-cc-values" value="'+escapeHtml(JSON.stringify(parseEmailList(p.emailsCopia||[])))+'"><div class="email-tags" id="ed-proj-email-cc-tags"><input type="text" id="ed-proj-email-cc-input" placeholder="Digite um e-mail e pressione Enter" onkeydown="handleProjectEmailCcKeydown(event)" onblur="commitProjectEmailCcInput()"></div></div>'+
+      (function(){var signerMeta={};(p.assinantesAdicionais||[]).forEach(function(s){signerMeta[s.email]={isSigner:true,name:s.name};});return '<div class="fg full"><label>E-mails em cópia</label><input type="hidden" id="ed-proj-email-cc-values" value="'+escapeHtml(JSON.stringify(parseEmailList(p.emailsCopia||[])))+'"><input type="hidden" id="ed-proj-signer-meta" value="'+escapeHtml(JSON.stringify(signerMeta))+'"><div id="ed-proj-email-cc-tags"><input type="text" id="ed-proj-email-cc-input" placeholder="Digite um e-mail..." onkeydown="handleProjectEmailCcKeydown(event)" onblur="commitProjectEmailCcInput()"></div></div>';})()+
       '<div class="fg"><label>Contrato</label><input type="text" id="ed-proj-contrato" value="'+escapeHtml(p.contrato||'')+'"></div>'+
       '<div class="fg"><label>Local</label><input type="text" id="ed-proj-local" value="'+escapeHtml(p.local||'')+'"></div>'+
       '<div class="fg"><label>Operador responsavel</label><select id="ed-proj-operador">'+selectOptions(db.colaboradores.filter(function(c){return c.ativo!==false;}).map(function(c){return {value:c.id,label:c.nome};}),p.operadorResponsavelId||'','Selecionar...')+'</select></div>'+
@@ -7997,7 +8094,7 @@ window.__legacyBootstrapped = false;
   var baseOpenEditor=openEditor;
   openEditor=function(tab,type,id,extra){
     baseOpenEditor(tab,type,id,extra);
-    if(tab==='projetos')setTimeout(renderProjectEmailCcTags,0);
+    if(tab==='projetos'){setTimeout(renderProjectEmailCcTags,0);setTimeout(renderProjectSignersList,0);}
   };
   renderProjetos=function(){
     var list=activeProjects();
@@ -8006,7 +8103,7 @@ window.__legacyBootstrapped = false;
       var operador=getColaboradorById(p.operadorResponsavelId);
       var totalSeq=REPORT_TYPES.reduce(function(acc,t){return acc+Number((p.sequenciais&&p.sequenciais[t])||0);},0);
       var editor=(gestorEditors.projetos&&gestorEditors.projetos.type==='edit'&&gestorEditors.projetos.id===p.id)?editorProjeto():'';
-      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrao')+'</span></div>'+editor+'<div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">E-mails em copia</span><span class="det-val">'+escapeHtml((p.emailsCopia||[]).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'-')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
+      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrao')+'</span></div>'+editor+'<div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">E-mails em copia</span><span class="det-val">'+escapeHtml((p.emailsCopia||[]).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Assinantes adicionais</span><span class="det-val">'+escapeHtml((p.assinantesAdicionais||[]).map(function(s){return s.name+' ('+s.email+')';}).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'-')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
     }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto ativo.</div></div>';
     return header+body;
   };
@@ -8052,7 +8149,7 @@ window.__legacyBootstrapped = false;
     var id=document.getElementById('ed-proj-id').value.trim(), nome=document.getElementById('ed-proj-nome').value.trim();
     if(!id||!nome){alert('Preencha numero da missao e nome do projeto.');return;}
     var existing=mode==='edit'?db.projetos.find(function(p){return p.id===gestorEditors.projetos.id;}):null;
-    var body={code:id,name:nome,isActive:existing?existing.ativo!==false:true,clientName:document.getElementById('ed-proj-cliente').value.trim(),clientCnpj:normalizeCnpjDigits(document.getElementById('ed-proj-cnpj').value),clientEmailPrimary:document.getElementById('ed-proj-email-primary').value.trim(),clientEmailCc:getProjectEmailCcValues(),contractCode:document.getElementById('ed-proj-contrato').value.trim(),location:document.getElementById('ed-proj-local').value.trim(),operatorId:document.getElementById('ed-proj-operador').value||null,visibleToCollaborators:document.getElementById('ed-proj-visible-collab').value==='true',workdayHours:document.getElementById('ed-proj-jornada').value.trim()||'09:00',weekendWorkdayHours:document.getElementById('ed-proj-fds').value.trim()||'08:00',includesSaturday:document.getElementById('ed-proj-sab').value==='true',includesSunday:document.getElementById('ed-proj-dom').value==='true',reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number(parseSequenciais(document.getElementById('ed-proj-seq').value)[t]||0)};})};
+    var body={code:id,name:nome,isActive:existing?existing.ativo!==false:true,clientName:document.getElementById('ed-proj-cliente').value.trim(),clientCnpj:normalizeCnpjDigits(document.getElementById('ed-proj-cnpj').value),clientEmailPrimary:document.getElementById('ed-proj-email-primary').value.trim(),clientEmailCc:getProjectEmailCcValues(),clientSigners:getProjectSignersValues(),contractCode:document.getElementById('ed-proj-contrato').value.trim(),location:document.getElementById('ed-proj-local').value.trim(),operatorId:document.getElementById('ed-proj-operador').value||null,visibleToCollaborators:document.getElementById('ed-proj-visible-collab').value==='true',workdayHours:document.getElementById('ed-proj-jornada').value.trim()||'09:00',weekendWorkdayHours:document.getElementById('ed-proj-fds').value.trim()||'08:00',includesSaturday:document.getElementById('ed-proj-sab').value==='true',includesSunday:document.getElementById('ed-proj-dom').value==='true',reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number(parseSequenciais(document.getElementById('ed-proj-seq').value)[t]||0)};})};
     try{
       if(mode==='edit') await apiFetch('/projects/'+gestorEditors.projetos.id,{method:'PUT',body:JSON.stringify(body)});
       else await apiFetch('/projects',{method:'POST',body:JSON.stringify(body)});
@@ -8064,7 +8161,7 @@ window.__legacyBootstrapped = false;
     if(!confirm('Arquivar este projeto?'))return;
     var p=getProjetoById(id); if(!p)return;
     try{
-      await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:false,clientName:p.cliente||'',clientCnpj:normalizeCnpjDigits(p.cnpj||''),clientEmailPrimary:p.emailPrincipal||'',clientEmailCc:p.emailsCopia||[],contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
+      await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:false,clientName:p.cliente||'',clientCnpj:normalizeCnpjDigits(p.cnpj||''),clientEmailPrimary:p.emailPrincipal||'',clientEmailCc:p.emailsCopia||[],clientSigners:p.assinantesAdicionais||[],contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
       if(projAtual===id)projAtual='';
       await refreshDbFromApi(); renderGestor();
     }catch(err){alert('Erro ao arquivar projeto: '+err.message);}
@@ -8072,7 +8169,7 @@ window.__legacyBootstrapped = false;
   unarchiveProjeto=async function(id){
     var p=getProjetoById(id); if(!p)return;
     try{
-      await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:true,clientName:p.cliente||'',clientCnpj:normalizeCnpjDigits(p.cnpj||''),clientEmailPrimary:p.emailPrincipal||'',clientEmailCc:p.emailsCopia||[],contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
+      await apiFetch('/projects/'+id,{method:'PUT',body:JSON.stringify({code:p.code,name:p.nome,isActive:true,clientName:p.cliente||'',clientCnpj:normalizeCnpjDigits(p.cnpj||''),clientEmailPrimary:p.emailPrincipal||'',clientEmailCc:p.emailsCopia||[],clientSigners:p.assinantesAdicionais||[],contractCode:p.contrato||'',location:p.local||'',operatorId:p.operadorResponsavelId||null,visibleToCollaborators:p.visivelColaboradores!==false,workdayHours:p.jornada||'09:00',weekendWorkdayHours:p.jornadaFimSemana||'08:00',includesSaturday:!!p.incluiSabado,includesSunday:!!p.incluiDomingo,reportSequences:REPORT_TYPES.map(function(t){return {reportType:t,nextNumber:Number((p.sequenciais&&p.sequenciais[t])||0)};})})});
       await refreshDbFromApi(); renderGestor();
     }catch(err){alert('Erro ao desarquivar projeto: '+err.message);}
   };
@@ -8092,12 +8189,51 @@ window.__legacyBootstrapped = false;
     }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum usuario interno cadastrado.</div></div>';
     return header+body;
   }
+  function renderClientUserCard(u,isCc){
+    var linked=(u.linkedProjects||[]);
+    var projectList=linked.length?linked.map(function(p){return escapeHtml((p.contractCode||'---')+' - '+p.code+' - '+(p.name||'Sem nome'));}).join('<br>'):'Nenhum projeto vinculado.';
+    var typeLabel=isCc?'<span class="badge badge-pen" style="font-size:10px">CC / Assinante</span>':'<span class="badge badge-ok" style="font-size:10px">Principal</span>';
+    return '<div style="border:1px solid var(--br);border-radius:var(--rs);padding:10px;margin-top:8px;background:#fafafa"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><div><div style="font-size:13px;font-weight:600">'+escapeHtml(u.name||'Cliente')+'</div><div style="font-size:12px;color:var(--mu)">'+escapeHtml(isCc?u.email||u.username:u.email||u.username)+(u.isActive===false?' · Inativo':'')+'</div></div><div style="display:flex;gap:6px;align-items:center">'+typeLabel+'<span class="badge '+(u.isActive===false?'badge-rev':'badge-ok')+'">'+(u.isActive===false?'Inativo':'Ativo')+'</span></div></div><div class="det-section" style="margin-top:8px"><div class="det-row"><span class="det-label">Vínculos</span><span class="det-val">'+projectList+'</span></div></div><div class="admin-actions" style="margin-top:8px"><button class="mini-btn alt" onclick="resendClientAccess(\''+u.id+'\')">Reenviar acesso</button><button class="mini-btn" style="background:var(--rd)" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';
+  }
   function renderClientUsersList(items){
-    return '<div class="admin-toolbar"><div class="sec">Clientes</div><div style="font-size:12px;color:var(--mu)">Contas criadas automaticamente a partir dos projetos.</div></div>'+(items.length?items.map(function(u){
-      var linked=(u.linkedProjects||[]);
-      var projectList=linked.length?linked.map(function(p){ return escapeHtml((p.contractCode||'---')+' - Missao '+(p.code||'---')+' - '+(p.name||'Sem nome')); }).join('<br>'):'Nenhum projeto vinculado.';
-      return '<div class="card admin-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><div class="admin-item-title">'+escapeHtml(u.name||'Cliente')+' - '+escapeHtml(formatCnpj(u.username||'')||u.username||'')+'</div><div class="admin-item-sub">'+(u.email?escapeHtml(u.email):'Sem e-mail principal')+' - '+(u.isActive===false?'Inativo':'Ativo')+'</div></div><span class="badge '+(u.isActive===false?'badge-rev':'badge-ok')+'">'+(u.isActive===false?'Inativo':'Ativo')+'</span></div><div class="det-section" style="margin-top:10px"><div class="det-row"><span class="det-label">Projetos</span><span class="det-val">'+linked.length+'</span></div><div class="det-row"><span class="det-label">Vinculos</span><span class="det-val">'+projectList+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="resendClientAccess(\''+u.id+'\')">Reenviar acesso</button><button class="mini-btn" style="background:var(--rd);margin-left:8px" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';
-    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum cliente provisionado.</div></div>');
+    if(!items.length)return '<div class="admin-toolbar"><div class="sec">Clientes</div></div><div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum cliente provisionado.</div></div>';
+    var groups={};
+    var noGroup=[];
+    items.forEach(function(u){
+      var isCnpj=/^\d{14}$/.test(u.username);
+      if(isCnpj){
+        if(!groups[u.username])groups[u.username]={cnpj:u.username,clientName:u.name,primary:null,cc:[]};
+        groups[u.username].primary=u;
+      } else {
+        var cnpj=u.clientCnpj||null;
+        if(!cnpj){
+          var email=String(u.email||u.username||'').toLowerCase();
+          var proj=(db.projetos||[]).find(function(p){return (p.emailsCopia||[]).some(function(cc){return cc.toLowerCase()===email;});});
+          cnpj=proj?proj.cnpj:null;
+        }
+        if(cnpj){
+          if(!groups[cnpj])groups[cnpj]={cnpj:cnpj,clientName:'',primary:null,cc:[]};
+          groups[cnpj].cc.push(u);
+        } else {
+          noGroup.push(u);
+        }
+      }
+    });
+    var html='<div class="admin-toolbar"><div class="sec">Clientes</div><div style="font-size:12px;color:var(--mu)">Agrupados por CNPJ.</div></div>';
+    Object.values(groups).forEach(function(g){
+      var proj=(db.projetos||[]).find(function(p){return p.cnpj===g.cnpj;});
+      var clientLabel=g.clientName||(proj&&proj.cliente)||g.cnpj;
+      html+='<div class="card admin-card" style="margin-bottom:10px"><div style="font-size:14px;font-weight:700;margin-bottom:4px">'+escapeHtml(clientLabel)+'</div><div style="font-size:12px;color:var(--mu);margin-bottom:8px">'+escapeHtml(formatCnpj(g.cnpj))+'</div>';
+      if(g.primary)html+=renderClientUserCard(g.primary,false);
+      g.cc.forEach(function(u){html+=renderClientUserCard(u,true);});
+      html+='</div>';
+    });
+    if(noGroup.length){
+      html+='<div class="card admin-card" style="margin-bottom:10px"><div style="font-size:14px;font-weight:700;margin-bottom:8px">Sem CNPJ associado</div>';
+      noGroup.forEach(function(u){html+=renderClientUserCard(u,true);});
+      html+='</div>';
+    }
+    return html;
   }
   renderUsuarios=function(){
     var groups='<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"><button class="mini-btn'+(userAdminGroup==='internal'?'':' alt')+'" onclick="switchUserAdminGroup(\'internal\')">Internos</button><button class="mini-btn'+(userAdminGroup==='client'?'':' alt')+'" onclick="switchUserAdminGroup(\'client\')">Clientes</button></div>';
@@ -8166,6 +8302,7 @@ window.__legacyBootstrapped = false;
     return baseStatusMeta(status);
   };
   reportStatusMeta=function(report){
+    if(isClientRejectedReport(report))return {txt:'Reprovado pelo cliente',cls:'badge-rej'};
     if(report&&report.status==='PENDING'&&isPendingEditReport(report))return statusMeta('EDITED');
     return statusMeta(report&&report.status);
   };
@@ -8386,7 +8523,10 @@ window.__legacyBootstrapped = false;
   function getClientProjects(){
     var dir=projectSortDir==='desc'?-1:1;
     return (db.projetos||[]).filter(function(project){
-      return !currentUser||currentUser.role!=='CLIENT' || normalizeCnpjDigits(project.cnpj||'')===normalizeCnpjDigits(currentUser.username||'');
+      if(!currentUser||currentUser.role!=='CLIENT')return true;
+      if(normalizeCnpjDigits(project.cnpj||'')===normalizeCnpjDigits(currentUser.username||''))return true;
+      var userEmail=String(currentUser.email||'').trim().toLowerCase();
+      return userEmail&&(project.emailsCopia||[]).some(function(cc){return cc.toLowerCase()===userEmail;});
     }).slice().sort(function(a,b){
       var ca=Number(a.code||0)||0,cb=Number(b.code||0)||0;
       if(ca!==cb)return dir*(ca-cb);
@@ -8395,9 +8535,29 @@ window.__legacyBootstrapped = false;
   }
   var clientProjectTab='';
   var clientReportTypeTabs={};
+  function clientReviewDateValue(value){
+    var time=value?new Date(value).getTime():0;
+    return isNaN(time)?0:time;
+  }
+  function latestClientReview(report){
+    var reviews=(report&&report.clientReviews)||[];
+    return reviews.length?reviews[0]:null;
+  }
+  function isClientRejectedReport(report){
+    if(!report)return false;
+    var special=report.specialConditions||{};
+    var rejectedAt=clientReviewDateValue(special.__clientRejectedAt);
+    var resolvedAt=clientReviewDateValue(special.__clientRejectionResolvedAt);
+    if(rejectedAt)return !resolvedAt||rejectedAt>resolvedAt;
+    var latest=latestClientReview(report);
+    if(!latest||latest.action!=='REJECTED')return false;
+    if(resolvedAt&&clientReviewDateValue(latest.createdAt)<=resolvedAt)return false;
+    return report.status!=='SIGNED';
+  }
   function clientStatusMeta(report){
     if(report&&report.status==='SIGNED')return {txt:'Assinado',cls:'badge-signed'};
-    if(report&&report.status==='APPROVED')return {txt:'Aprovado',cls:'badge-pen'};
+    if(isClientRejectedReport(report))return {txt:'Reprovado',cls:'badge-rej'};
+    if(report&&report.status==='APPROVED')return {txt:'Aguardando assinatura',cls:'badge-pen'};
     if(report&&report.status==='RETURNED')return {txt:'Reprovado',cls:'badge-rej'};
     return {txt:report&&report.status?report.status:'Pendente',cls:'badge-rev'};
   }
@@ -8408,23 +8568,57 @@ window.__legacyBootstrapped = false;
       return '<div class="det-row"><span class="det-label">'+(item.action==='APPROVED'?'Aprovado':'Reprovado')+'</span><span class="det-val">'+escapeHtml(item.comment||'Sem comentario')+'</span></div>';
     }).join('')+'</div></div>';
   }
+  function openZapSignPendingWindow(){
+    if(isMobileZapSignFlow())return null;
+    var win=null;
+    try{
+      win=window.open('about:blank','_blank');
+      if(win){
+        try{win.opener=null;}catch(e){}
+        try{
+          win.document.title='Abrindo ZapSign...';
+          win.document.body.innerHTML='<div style="font-family:Arial,sans-serif;padding:24px;line-height:1.5;color:#111827"><strong>Abrindo ZapSign...</strong><br>Aguarde enquanto o link de assinatura é preparado.</div>';
+        }catch(e){}
+      }
+    }catch(e){win=null;}
+    return win;
+  }
+  function isMobileZapSignFlow(){
+    var ua=(navigator.userAgent||navigator.vendor||'').toLowerCase();
+    var touch=!!(navigator.maxTouchPoints&&navigator.maxTouchPoints>1);
+    return /android|iphone|ipad|ipod|mobile/.test(ua)||touch;
+  }
+  function redirectZapSignWindow(win,url){
+    if(!url)return false;
+    if(win&&!win.closed){
+      try{win.location.replace(url);return true;}catch(e){}
+    }
+    window.location.assign(url);
+    return true;
+  }
+  function closeZapSignPendingWindow(win){
+    if(win&&!win.closed){
+      try{win.close();}catch(e){}
+    }
+  }
   async function refreshClientDbFromApi(){
     var projects=await apiFetch('/projects');
     db.projetos=(projects||[]).map(function(p){
       var seq={}; REPORT_TYPES.forEach(function(t){seq[t]=0;});
       (p.reportSequences||[]).forEach(function(s){seq[s.reportType]=s.nextNumber;});
-      return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj||'',emailPrincipal:p.clientEmailPrimary||'',emailsCopia:p.clientEmailCc||[],contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,visivelColaboradores:p.visibleToCollaborators!==false,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
+      return {id:p.id,code:p.code,nome:p.name,cliente:p.clientName,cnpj:p.clientCnpj||'',emailPrincipal:p.clientEmailPrimary||'',emailsCopia:p.clientEmailCc||[],assinantesAdicionais:p.clientSigners||[],contrato:p.contractCode,local:p.location,operadorResponsavelId:p.operatorId||'',jornada:p.workdayHours,jornadaFimSemana:p.weekendWorkdayHours,incluiSabado:p.includesSaturday,incluiDomingo:p.includesSunday,visivelColaboradores:p.visibleToCollaborators!==false,sequenciais:seq,ongoing:[],ativo:p.isActive!==false};
     });
     saveDb();
   }
   function renderClientReportCard(report){
     var meta=clientStatusMeta(report);
     var isRdo=(report.reportType||'RDO')==='RDO';
-    var canReview=isRdo&&report.status==='APPROVED';
+    var clientRejected=isClientRejectedReport(report);
+    var canReview=isRdo&&report.status==='APPROVED'&&!clientRejected;
     var signaturePending=canReview&&!!report.zapsignRequestedAt&&!report.zapsignSignedAt;
     var commentId='client-review-comment-'+report.id;
     var leader=(report.createdBy&&report.createdBy.name)||'-';
-    var subtitle=isRdo?'RDO pronto para conferencia do cliente':'Relatorio de servico liberado apos assinatura do RDO';
+    var subtitle=clientRejected?'Reprovado. Aguarde a alteração do gestor.':(isRdo?'RDO pronto para conferencia do cliente':'Relatorio de servico liberado apos assinatura do RDO');
     var actions='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="mini-btn alt" type="button" onclick="gerarPDF(\''+report.id+'\')">Baixar PDF</button></div>';
     if(canReview){
       actions+='<div style="margin-top:10px" class="fg"><label>Comentario do cliente</label><textarea id="'+commentId+'" rows="3" placeholder="Comentario opcional que sera exibido no relatorio final"></textarea></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="mini-btn" type="button" onclick="startClientSignature(\''+report.id+'\')">'+(signaturePending?'Continuar assinatura digital':'Aprovar e assinar digitalmente')+'</button><button class="mini-btn alt" type="button" onclick="submitClientReview(\''+report.id+'\',\'REJECTED\')">Reprovar</button></div>';
@@ -8492,17 +8686,21 @@ window.__legacyBootstrapped = false;
     var comment=commentField?commentField.value.trim():'';
     var confirmText='Voce sera redirecionado para a ZapSign para assinar digitalmente o '+(report.reportType||'RDO')+' n '+(report.sequenceNumber!=null?String(report.sequenceNumber):'---')+'. Deseja continuar?';
     if(!confirm(confirmText))return;
+    var signWindow=openZapSignPendingWindow();
     try{
       var result=await apiFetch('/reports/'+reportId+'/request-signature',{method:'POST',body:JSON.stringify({comment:comment||null})});
       await refreshReportsCache();
       renderClientPanel();
       if(result&&result.signUrl){
-        window.open(result.signUrl,'_blank','noopener');
+        redirectZapSignWindow(signWindow,result.signUrl);
         showToast('Link de assinatura aberto na ZapSign.');
         return;
       }
       throw new Error('Link de assinatura nao retornado.');
-    }catch(err){ alert('Erro ao iniciar assinatura digital: '+err.message); }
+    }catch(err){
+      closeZapSignPendingWindow(signWindow);
+      alert('Erro ao iniciar assinatura digital: '+err.message);
+    }
   }
   window.switchClientProjectTab=switchClientProjectTab;
   window.switchClientReportTypeTab=switchClientReportTypeTab;
@@ -8656,7 +8854,7 @@ window.__legacyBootstrapped = false;
         subtitle=escapeHtml(summarizeServices(report)||('Sem servi'+String.fromCharCode(231)+'os'));
       }
       var actions='';
-      if(report.status==='APPROVED' || report.status==='SIGNED'){
+      if((report.status==='APPROVED' || report.status==='SIGNED')&&!isClientRejectedReport(report)){
         actions=currentUser&&currentUser.role==='MANAGER'
           ?'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();downloadDocx(\''+report.id+'\')">DOCX</button><button class="mini-btn alt" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">PDF</button></div>'
           :'<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="mini-btn alt" style="padding:8px 10px;font-size:11px" type="button" onclick="event.stopPropagation();gerarPDF(\''+report.id+'\')">PDF</button></div>';
@@ -8664,11 +8862,18 @@ window.__legacyBootstrapped = false;
       var deleteAction=currentUser&&currentUser.role==='MANAGER'
         ?'<button title="'+(isPendingEditReport(report)?'Descartar edição':'Excluir relatório')+'" aria-label="'+(isPendingEditReport(report)?'Descartar edição':'Excluir relatório')+'" type="button" onclick="event.stopPropagation();'+(isPendingEditReport(report)?'discardPendingEditByManager':'deleteReport')+'(\''+report.id+'\')" style="margin-top:2px;align-self:flex-end;width:28px;height:28px;border:none;border-radius:999px;background:#f3f4f6;color:#b42318;cursor:pointer;font-size:14px;line-height:1">'+(isPendingEditReport(report)?'🧾':'&#128465;')+'</button>'
         :'';
+      var rejectionBanner='';
+      if(isClientRejectedReport(report)){
+        var latestRej=(report.clientReviews||[]).find(function(rv){return rv.action==='REJECTED';});
+        if(latestRej&&latestRej.comment){
+          rejectionBanner='<div onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')" style="margin:-4px 0 8px;padding:8px 12px;background:#fef9ec;border-left:3px solid #f59e0b;border-radius:0 var(--rs) var(--rs) 0;font-size:12px;line-height:1.5;color:#78350f;cursor:pointer"><strong>Justificativa do cliente:</strong> '+escapeHtml(latestRej.comment)+'</div>';
+        }
+      }
       return '<div class="rel-item" onclick="openReportDetail(\''+report.id+'\',\''+origin+'\')" style="align-items:flex-start;gap:12px">'+
         '<div class="rel-icon">'+((isPendingEditReport(report)&&normalizedType==='RDO')?'🧾':'&#128203;')+'</div>'+
         '<div class="rel-info"><div class="rel-name">'+escapeHtml(getReportCardTitle(report))+'</div><div class="rel-meta">'+escapeHtml(owner)+' · '+formatReportDate(report.reportDate)+'<br>'+subtitle+'<br>Criado por: '+escapeHtml(createdBy)+'</div></div>'+
         '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:auto"><span class="badge '+meta.cls+'">'+meta.txt+'</span>'+actions+deleteAction+'</div>'+
-        '</div>';
+        '</div>'+rejectionBanner;
     };
   })(reportCard);
   renderGestor=(function(baseRenderGestor){
@@ -8750,6 +8955,7 @@ window.__legacyBootstrapped = false;
   }
   function isSelectableReport(report,ctx){
     if(!report)return false;
+    if(isClientRejectedReport(report))return false;
     if(report.status!=='APPROVED' && report.status!=='SIGNED')return false;
     if(ctx==='cliente')return true;
     return true;
@@ -8970,6 +9176,7 @@ window.__legacyBootstrapped = false;
     }
     var label=selected.length===1?'1 relatório':selected.length+' relatórios';
     if(!confirm('Você será redirecionado para a ZapSign para assinar '+label+' de uma vez. Deseja continuar?'))return;
+    var signWindow=openZapSignPendingWindow();
     var commentsById={};
     selected.forEach(function(report){
       var field=document.getElementById('client-review-comment-'+report.id);
@@ -8984,12 +9191,13 @@ window.__legacyBootstrapped = false;
       await refreshReportsCache();
       renderClientPanel();
       if(result&&result.signUrl){
-        window.open(result.signUrl,'_blank','noopener');
+        redirectZapSignWindow(signWindow,result.signUrl);
         showToast('Lote enviado para assinatura na ZapSign.');
         return;
       }
       throw new Error('Link de assinatura não retornado.');
     }catch(err){
+      closeZapSignPendingWindow(signWindow);
       alert('Erro ao iniciar assinatura em lote: '+err.message);
     }
   }
@@ -9107,11 +9315,12 @@ window.__legacyBootstrapped = false;
     return function(report){
       var meta=clientStatusMeta(report);
       var isRdo=(report.reportType||'RDO')==='RDO';
-      var canReview=isRdo&&report.status==='APPROVED';
+      var clientRejected=isClientRejectedReport(report);
+      var canReview=isRdo&&report.status==='APPROVED'&&!clientRejected;
       var signaturePending=canReview&&!!report.zapsignRequestedAt&&!report.zapsignSignedAt;
       var commentId='client-review-comment-'+report.id;
       var leader=(report.createdBy&&report.createdBy.name)||'-';
-      var subtitle=isRdo?'RDO pronto para conferencia do cliente':'Relatorio de servico liberado apos assinatura do RDO';
+      var subtitle=clientRejected?'Reprovado. Aguarde a alteracao do gestor.':(isRdo?'RDO pronto para conferencia do cliente':'Relatorio de servico liberado apos assinatura do RDO');
       var checkbox=isSelectableReport(report,'cliente')
         ? '<label class="client-report-checkbox" onclick="event.stopPropagation()"><input type="checkbox"'+(isSelectedInBatch('cliente',report.id)?' checked':'')+' onchange="toggleBatchSelection(\'cliente\',\''+report.id+'\',\''+(report.projectId||'')+'\',\''+normalizeReportType(report.reportType||'RDO')+'\')" /></label>'
         : '';
@@ -9226,8 +9435,8 @@ window.__legacyBootstrapped = false;
   };
   renderGestor=function(){
     var c=document.getElementById('gestor-content');if(!c)return;
-    var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED';});
-    var approved=reportsCache.filter(function(r){return r.status==='APPROVED'||r.status==='SIGNED';});
+    var pending=reportsCache.filter(function(r){return r.status==='PENDING'||r.status==='RETURNED'||isClientRejectedReport(r);});
+    var approved=reportsCache.filter(function(r){return (r.status==='APPROVED'||r.status==='SIGNED')&&!isClientRejectedReport(r);});
     var pen=document.getElementById('cnt-pen');if(pen)pen.textContent=pending.length;
     if(gestorTab==='pendentes'){
       var draftsHtml='';
@@ -9294,7 +9503,7 @@ window.__legacyBootstrapped = false;
     currentDetailBack=origin==='meus'?'s-meus-relatorios':'s-gestor';
     document.getElementById('det-title').textContent=reportDisplayLabel(report)+' · '+report.project.name;
     document.getElementById('det-sub').textContent=((report.createdBy&&report.createdBy.name)||'—')+' · '+formatReportDate(report.reportDate);
-    document.getElementById('det-badge-top').textContent=statusMeta(report.status).txt;
+    document.getElementById('det-badge-top').textContent=reportStatusMeta(report).txt;
     var reportType=normalizeReportType(report.reportType||'RDO');
     var isDerived=reportType!=='RDO';
     if(currentUser&&currentUser.role==='MANAGER'&&!isDerived){
@@ -9666,14 +9875,14 @@ window.__legacyBootstrapped = false;
   };
   editorProjeto=function(){
     var st=gestorEditors.projetos;if(!st)return '';
-    var p=st.type==='edit'?getProjetoById(st.id):{id:'',code:'',nome:'',cliente:'',cnpj:'',emailPrincipal:'',emailsCopia:[],contrato:'',local:'',operadorResponsavelId:'',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,visivelColaboradores:true,sequenciais:{}};
+    var p=st.type==='edit'?getProjetoById(st.id):{id:'',code:'',nome:'',cliente:'',cnpj:'',emailPrincipal:'',emailsCopia:[],assinantesAdicionais:[],contrato:'',local:'',operadorResponsavelId:'',jornada:'09:00',jornadaFimSemana:'08:00',incluiSabado:false,incluiDomingo:false,visivelColaboradores:true,sequenciais:{}};
     return '<div class="admin-inline-form"><div class="admin-toolbar"><div class="sec">'+(st.type==='edit'?'Editar projeto':'Novo projeto')+'</div><button class="mini-btn alt" onclick="closeEditor(\'projetos\')">Cancelar</button></div><div class="admin-inline-grid">'+
       '<div class="fg"><label>Número da missão</label><input type="text" id="ed-proj-id" value="'+escapeHtml(p.code||'')+'" '+(st.type==='edit'?'readonly':'')+'></div>'+
       '<div class="fg"><label>Nome</label><input type="text" id="ed-proj-nome" value="'+escapeHtml(p.nome||'')+'"></div>'+
       '<div class="fg"><label>Cliente</label><input type="text" id="ed-proj-cliente" value="'+escapeHtml(p.cliente||'')+'"></div>'+
       '<div class="fg"><label>CNPJ</label><input type="text" id="ed-proj-cnpj" value="'+escapeHtml(formatCnpj(p.cnpj||''))+'" oninput="handleProjectCnpjInput(this)"></div>'+
       '<div class="fg"><label>E-mail principal do cliente</label><input type="email" id="ed-proj-email-primary" value="'+escapeHtml(p.emailPrincipal||'')+'" placeholder="cliente@empresa.com.br"></div>'+
-      '<div class="fg full"><label>E-mails em cópia</label><input type="hidden" id="ed-proj-email-cc-values" value="'+escapeHtml(JSON.stringify(parseEmailList(p.emailsCopia||[])))+'"><div class="email-tags" id="ed-proj-email-cc-tags"><input type="text" id="ed-proj-email-cc-input" placeholder="Digite um e-mail e pressione Enter" onkeydown="handleProjectEmailCcKeydown(event)" onblur="commitProjectEmailCcInput()"></div></div>'+
+      (function(){var signerMeta={};(p.assinantesAdicionais||[]).forEach(function(s){signerMeta[s.email]={isSigner:true,name:s.name};});return '<div class="fg full"><label>E-mails em cópia</label><input type="hidden" id="ed-proj-email-cc-values" value="'+escapeHtml(JSON.stringify(parseEmailList(p.emailsCopia||[])))+'"><input type="hidden" id="ed-proj-signer-meta" value="'+escapeHtml(JSON.stringify(signerMeta))+'"><div id="ed-proj-email-cc-tags"><input type="text" id="ed-proj-email-cc-input" placeholder="Digite um e-mail..." onkeydown="handleProjectEmailCcKeydown(event)" onblur="commitProjectEmailCcInput()"></div></div>';})()+
       '<div class="fg"><label>Contrato</label><input type="text" id="ed-proj-contrato" value="'+escapeHtml(p.contrato||'')+'"></div>'+
       '<div class="fg"><label>Local</label><input type="text" id="ed-proj-local" value="'+escapeHtml(p.local||'')+'"></div>'+
       '<div class="fg"><label>Operador responsável</label><select id="ed-proj-operador">'+selectOptions(db.colaboradores.filter(function(c){return c.ativo!==false;}).map(function(c){return {value:c.id,label:c.nome};}),p.operadorResponsavelId||'','Selecionar...')+'</select></div>'+
@@ -9692,7 +9901,7 @@ window.__legacyBootstrapped = false;
       var operador=getColaboradorById(p.operadorResponsavelId);
       var totalSeq=REPORT_TYPES.reduce(function(acc,t){return acc+Number((p.sequenciais&&p.sequenciais[t])||0);},0);
       var editor=(gestorEditors.projetos&&gestorEditors.projetos.type==='edit'&&gestorEditors.projetos.id===p.id)?editorProjeto():'';
-      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrão')+'</span></div>'+editor+'<div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">E-mails em cópia</span><span class="det-val">'+escapeHtml((p.emailsCopia||[]).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'-')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
+      return '<div class="card admin-card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">'+escapeHtml((p.code||'')+' - '+p.nome)+'</div><span class="badge '+((p.incluiSabado||p.incluiDomingo)?'badge-ok':'badge-pen')+'">'+((p.incluiSabado||p.incluiDomingo)?'Escala estendida':'Escala padrão')+'</span></div>'+editor+'<div class="det-section"><div class="det-row"><span class="det-label">Cliente</span><span class="det-val">'+escapeHtml(p.cliente||'-')+'</span></div><div class="det-row"><span class="det-label">CNPJ</span><span class="det-val">'+escapeHtml(formatCnpj(p.cnpj||'')||'-')+'</span></div><div class="det-row"><span class="det-label">E-mail principal</span><span class="det-val">'+escapeHtml(p.emailPrincipal||'-')+'</span></div><div class="det-row"><span class="det-label">E-mails em cópia</span><span class="det-val">'+escapeHtml((p.emailsCopia||[]).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Assinantes adicionais</span><span class="det-val">'+escapeHtml((p.assinantesAdicionais||[]).map(function(s){return s.name+' ('+s.email+')';}).join(', ')||'-')+'</span></div><div class="det-row"><span class="det-label">Contrato</span><span class="det-val">'+escapeHtml(p.contrato||'-')+'</span></div><div class="det-row"><span class="det-label">Operador</span><span class="det-val">'+escapeHtml(operador?operador.nome:'-')+'</span></div><div class="det-row"><span class="det-label">Sequenciais</span><span class="det-val">'+totalSeq+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="archiveProjeto(\''+p.id+'\')">Arquivar</button><button class="mini-btn alt" onclick="openEditor(\'projetos\',\'edit\',\''+p.id+'\')">Editar</button><button class="mini-btn" style="background:var(--rd)" onclick="removeProjeto(\''+p.id+'\')">Remover</button></div></div>';
     }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum projeto ativo.</div></div>';
     return header+body;
   };
@@ -9709,11 +9918,44 @@ window.__legacyBootstrapped = false;
     return header+body;
   }
   function renderClientUsersList(items){
-    return '<div class="admin-toolbar"><div class="sec">Clientes</div><div style="font-size:12px;color:var(--mu)">Contas criadas automaticamente a partir dos projetos.</div></div>'+(items.length?items.map(function(u){
-      var linked=(u.linkedProjects||[]);
-      var projectList=linked.length?linked.map(function(p){ return escapeHtml((p.contractCode||'---')+' - Missão '+(p.code||'---')+' - '+(p.name||'Sem nome')); }).join('<br>'):'Nenhum projeto vinculado.';
-      return '<div class="card admin-card"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><div class="admin-item-title">'+escapeHtml(u.name||'Cliente')+' - '+escapeHtml(formatCnpj(u.username||'')||u.username||'')+'</div><div class="admin-item-sub">'+(u.email?escapeHtml(u.email):'Sem e-mail principal')+' - '+(u.isActive===false?'Inativo':'Ativo')+'</div></div><span class="badge '+(u.isActive===false?'badge-rev':'badge-ok')+'">'+(u.isActive===false?'Inativo':'Ativo')+'</span></div><div class="det-section" style="margin-top:10px"><div class="det-row"><span class="det-label">Projetos</span><span class="det-val">'+linked.length+'</span></div><div class="det-row"><span class="det-label">Vínculos</span><span class="det-val">'+projectList+'</span></div></div><div class="admin-actions"><button class="mini-btn alt" onclick="resendClientAccess(\''+u.id+'\')">Reenviar acesso</button><button class="mini-btn" style="background:var(--rd)" onclick="removeUser(\''+u.id+'\')">Remover</button></div></div>';
-    }).join(''):'<div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum cliente provisionado.</div></div>');
+    if(!items.length)return '<div class="admin-toolbar"><div class="sec">Clientes</div></div><div class="card admin-card"><div style="font-size:13px;color:var(--mu)">Nenhum cliente provisionado.</div></div>';
+    var groups={};
+    var noGroup=[];
+    items.forEach(function(u){
+      var isCnpj=/^\d{14}$/.test(u.username);
+      if(isCnpj){
+        if(!groups[u.username])groups[u.username]={cnpj:u.username,clientName:u.name,primary:null,cc:[]};
+        groups[u.username].primary=u;
+      } else {
+        var cnpj=u.clientCnpj||null;
+        if(!cnpj){
+          var email=String(u.email||u.username||'').toLowerCase();
+          var proj=(db.projetos||[]).find(function(p){return (p.emailsCopia||[]).some(function(cc){return cc.toLowerCase()===email;});});
+          cnpj=proj?proj.cnpj:null;
+        }
+        if(cnpj){
+          if(!groups[cnpj])groups[cnpj]={cnpj:cnpj,clientName:'',primary:null,cc:[]};
+          groups[cnpj].cc.push(u);
+        } else {
+          noGroup.push(u);
+        }
+      }
+    });
+    var html='<div class="admin-toolbar"><div class="sec">Clientes</div><div style="font-size:12px;color:var(--mu)">Agrupados por CNPJ.</div></div>';
+    Object.values(groups).forEach(function(g){
+      var proj=(db.projetos||[]).find(function(p){return p.cnpj===g.cnpj;});
+      var clientLabel=g.clientName||(proj&&proj.cliente)||g.cnpj;
+      html+='<div class="card admin-card" style="margin-bottom:10px"><div style="font-size:14px;font-weight:700;margin-bottom:4px">'+escapeHtml(clientLabel)+'</div><div style="font-size:12px;color:var(--mu);margin-bottom:8px">'+escapeHtml(formatCnpj(g.cnpj))+'</div>';
+      if(g.primary)html+=renderClientUserCard(g.primary,false);
+      g.cc.forEach(function(u){html+=renderClientUserCard(u,true);});
+      html+='</div>';
+    });
+    if(noGroup.length){
+      html+='<div class="card admin-card" style="margin-bottom:10px"><div style="font-size:14px;font-weight:700;margin-bottom:8px">Sem CNPJ associado</div>';
+      noGroup.forEach(function(u){html+=renderClientUserCard(u,true);});
+      html+='</div>';
+    }
+    return html;
   }
   renderManometros=function(){
     var list=db.manometros.filter(function(m){return m.ativo!==false;});
@@ -9816,7 +10058,7 @@ window.__legacyBootstrapped = false;
       reportDate: document.getElementById('mgr-report-date').value,
       arrivalTime: document.getElementById('mgr-arrival').value,
       departureTime: document.getElementById('mgr-departure').value,
-      lunchBreak: document.getElementById('mgr-lunch').value,
+      lunchBreak: document.getElementById('mgr-lunch').value || report.lunchBreak || '01:00:00',
       daytimeCount: managerSelectedCollaboratorIds().length,
       overtimeReason: document.getElementById('mgr-overtime').value.trim() || null,
       dailyDescription: document.getElementById('mgr-description').value.trim() || null,
@@ -9824,28 +10066,33 @@ window.__legacyBootstrapped = false;
       collaboratorIds: managerSelectedCollaboratorIds(),
       services: collectManagerServices()
     };
-    var updated=await apiFetch('/reports/'+id,{method:'PUT',body:JSON.stringify(payload)});
-    var finalReport=updated;
-    if(action==='approve'){
-      finalReport=await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'APPROVED',reviewNotes:null})});
-      await refreshReportsCache();
-      showToast('Relatório aprovado com sucesso.');
-    }else if(action==='return'){
-      var notesEl=document.getElementById('det-review-notes');
-      var motivo=notesEl ? notesEl.value.trim() : '';
-      finalReport=await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'RETURNED',reviewNotes:motivo||null})});
-      showToast('Relatório devolvido para correção.');
-    }else{
-      showToast('Alterações salvas.');
+    try{
+      var updated=await apiFetch('/reports/'+id,{method:'PUT',body:JSON.stringify(payload)});
+      var finalReport=updated;
+      if(action==='approve'){
+        finalReport=await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'APPROVED',reviewNotes:null})});
+        updateReportInCache(finalReport);
+        await refreshReportsCache();
+        showToast('Relatório aprovado com sucesso.');
+      }else if(action==='return'){
+        var notesEl=document.getElementById('det-review-notes');
+        var motivo=notesEl ? notesEl.value.trim() : '';
+        finalReport=await apiFetch('/reports/'+id+'/status',{method:'PATCH',body:JSON.stringify({status:'RETURNED',reviewNotes:motivo||null})});
+        showToast('Relatório devolvido para correção.');
+      }else{
+        showToast('Alterações salvas.');
+      }
+      updateReportInCache(finalReport||updated);
+      updateHomeOngoingSummary();
+      renderGestor();
+      if(action==='return'){
+        go('s-gestor');
+        return;
+      }
+      await openReportDetail(((finalReport||updated)&&((finalReport||updated).id))||id,'gestor');
+    }catch(err){
+      alert('Erro ao salvar relatório: '+(err&&err.message?err.message:String(err)));
     }
-    if(action!=='approve')updateReportInCache(finalReport||updated);
-    updateHomeOngoingSummary();
-    renderGestor();
-    if(action==='return'){
-      go('s-gestor');
-      return;
-    }
-    await openReportDetail(((finalReport||updated)&&((finalReport||updated).id))||id,'gestor');
   };
   rejeitar=async function(id){
     var notesEl=document.getElementById('det-review-notes');
@@ -9911,6 +10158,10 @@ window.__legacyBootstrapped = false;
   submitClientReview=async function(reportId,action){
     var report=(reportsCache||[]).find(function(item){return item.id===reportId;});
     if(!report)return;
+    if(isClientRejectedReport(report)){
+      alert('Este relatório já foi reprovado. Aguarde a alteração do gestor.');
+      return;
+    }
     var commentField=document.getElementById('client-review-comment-'+reportId);
     var comment=commentField?commentField.value.trim():'';
     if(!confirm('Confirmar reprovação deste relatório?'))return;
@@ -9924,21 +10175,29 @@ window.__legacyBootstrapped = false;
   startClientSignature=async function(reportId){
     var report=(reportsCache||[]).find(function(item){return item.id===reportId;});
     if(!report)return;
+    if(isClientRejectedReport(report)){
+      alert('Este relatório foi reprovado. Aguarde a alteração do gestor para assinar.');
+      return;
+    }
     var commentField=document.getElementById('client-review-comment-'+reportId);
     var comment=commentField?commentField.value.trim():'';
     var confirmText='Você será redirecionado para a ZapSign para assinar digitalmente o '+(report.reportType||'RDO')+' n '+(report.sequenceNumber!=null?String(report.sequenceNumber):'---')+'. Deseja continuar?';
     if(!confirm(confirmText))return;
+    var signWindow=openZapSignPendingWindow();
     try{
       var result=await apiFetch('/reports/'+reportId+'/request-signature',{method:'POST',body:JSON.stringify({comment:comment||null})});
       if(result&&result.report)updateReportInCache(result.report);
       renderClientPanel();
       if(result&&result.signUrl){
-        window.open(result.signUrl,'_blank','noopener');
+        redirectZapSignWindow(signWindow,result.signUrl);
         showToast('Link de assinatura aberto na ZapSign.');
         return;
       }
       throw new Error('Link de assinatura não retornado.');
-    }catch(err){ alert('Erro ao iniciar assinatura: '+err.message); }
+    }catch(err){
+      closeZapSignPendingWindow(signWindow);
+      alert('Erro ao iniciar assinatura: '+err.message);
+    }
   };
   window.submitClientReview=submitClientReview;
   window.startClientSignature=startClientSignature;
