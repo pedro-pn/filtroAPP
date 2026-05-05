@@ -55,7 +55,7 @@ RETENTION_DAYS=30
 
 ## Agendamento no cron
 
-Dois agendamentos recomendados — horário (banco + relatórios) e diário completo com certificados:
+Três agendamentos recomendados — horário, diário e mensal:
 
 ```bash
 crontab -e
@@ -63,10 +63,13 @@ crontab -e
 
 ```cron
 # Horário — banco + relatórios + certificados, retenção 2 dias
-0 * * * * AWS_S3_URI=s3://filtrovali-backups/hourly INCLUDE_CERTS=true PROJECT_DIR=/home/ubuntu/apps/RDOAPP /home/ubuntu/apps/RDOAPP/deploy/backup-prod.sh >> /home/ubuntu/backup-filtrovali.log 2>&1
+0 * * * * AWS_S3_URI=s3://filtrovali-backups/hourly INCLUDE_CERTS=true RETENTION_DAYS=2 PROJECT_DIR=/home/ubuntu/apps/RDOAPP /home/ubuntu/apps/RDOAPP/deploy/backup-prod.sh >> /home/ubuntu/backup-filtrovali.log 2>&1
 
 # Diário às 03h — banco + relatórios + certificados, retenção 30 dias
 0 3 * * * AWS_S3_URI=s3://filtrovali-backups/daily INCLUDE_CERTS=true RETENTION_DAYS=30 PROJECT_DIR=/home/ubuntu/apps/RDOAPP /home/ubuntu/apps/RDOAPP/deploy/backup-prod.sh >> /home/ubuntu/backup-filtrovali.log 2>&1
+
+# Mensal todo dia 1 às 02h — banco + relatórios + certificados, retenção 365 dias
+0 2 1 * * AWS_S3_URI=s3://filtrovali-backups/monthly INCLUDE_CERTS=true RETENTION_DAYS=365 PROJECT_DIR=/home/ubuntu/apps/RDOAPP /home/ubuntu/apps/RDOAPP/deploy/backup-prod.sh >> /home/ubuntu/backup-filtrovali.log 2>&1
 ```
 
 ## Restore do banco
