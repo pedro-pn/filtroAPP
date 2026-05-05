@@ -42,7 +42,10 @@
       "Bash(awk NR>=1090 && NR<=1100 {print NR\": \"$0} *)",
       "Bash(awk NR>=3480 && NR<=3510 {print NR\": \"$0} *)",
       "Bash(awk NR>=2538 && NR<=2565 {print NR\": \"$0} *)",
-      "Bash(awk NR>=487 && NR<=500 {print NR\": \"$0} *)"
+      "Bash(awk NR>=487 && NR<=500 {print NR\": \"$0} *)",
+      "Bash(git merge *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   },
   "enableAllProjectMcpServers": true,
