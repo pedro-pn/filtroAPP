@@ -56,10 +56,65 @@ function summarizeServices(services: ReportSummary['services']) {
     .join(' | ');
 }
 
-export function ReportSummaryCard({ report, actions }: { report: ReportSummary; actions?: ReactNode }) {
+function clientReviewDateValue(value?: string | null) {
+  const time = value ? new Date(value).getTime() : 0;
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function formatReviewDate(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('pt-BR');
+}
+
+function clientRejectionReviews(report: ReportSummary) {
+  const special = report.specialConditions || {};
+  const rejectedAt = clientReviewDateValue(typeof special.__clientRejectedAt === 'string' ? special.__clientRejectedAt : null);
+  const resolvedAt = clientReviewDateValue(typeof special.__clientRejectionResolvedAt === 'string' ? special.__clientRejectionResolvedAt : null);
+  const rejections = (report.clientReviews || [])
+    .filter(review => review.action === 'REJECTED')
+    .sort((a, b) => clientReviewDateValue(b.createdAt) - clientReviewDateValue(a.createdAt));
+
+  if (!rejections.length || report.status === 'SIGNED') return [];
+  if (rejectedAt && (!resolvedAt || rejectedAt > resolvedAt)) return rejections;
+
+  return rejections.filter(review => !resolvedAt || clientReviewDateValue(review.createdAt) > resolvedAt);
+}
+
+function normalizeComment(value?: string | null) {
+  return String(value || '')
+    .replace(/^justificativa do cliente:\s*/i, '')
+    .replace(/^reprova[cç][aã]o do cliente(?:\s*[-#]\s*[^:]+)?:\s*/i, '')
+    .trim();
+}
+
+function isClientRejectionNote(value?: string | null) {
+  const text = normalizeComment(value);
+  if (!text) return false;
+  const raw = String(value || '').trim();
+  return /^justificativa do cliente:/i.test(raw) || /^reprova[cç][aã]o do cliente/i.test(raw);
+}
+
+export function ReportSummaryCard({
+  report,
+  actions,
+  leadingControl
+}: {
+  report: ReportSummary;
+  actions?: ReactNode;
+  leadingControl?: ReactNode;
+}) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const status = statusMap[report.status] || { label: report.status, className: 'status-pending' };
+  const clientRejections = clientRejectionReviews(report);
+  const rejectionComments = new Set(clientRejections.map(review => normalizeComment(review.comment)));
+  const reviewNotes = normalizeComment(report.reviewNotes);
+  const legacyRejectionComment =
+    clientRejections.length && reviewNotes && !rejectionComments.has(reviewNotes) ? reviewNotes : '';
+  const owner = report.createdBy?.collaborator?.name || report.createdBy?.name || '—';
+  const services = summarizeServices(report.services) || 'Sem serviços';
 
   function handleOpenDetail() {
     const base = roleHomePath(user?.role);
@@ -75,42 +130,58 @@ export function ReportSummaryCard({ report, actions }: { report: ReportSummary; 
   }
 
   return (
-    <article className="report-card report-card-clickable" onClick={handleOpenDetail}>
-      <div className="report-card-body">
+    <article className="rel-item report-card report-card-clickable" onClick={handleOpenDetail}>
+      <div className="report-card-main">
+        {leadingControl ? (
+          <div className="report-card-select" onClick={event => event.stopPropagation()}>
+            {leadingControl}
+          </div>
+        ) : null}
         <div className="rel-icon" aria-hidden="true">{iconFor(report.reportType)}</div>
-        <div className="report-card-info">
-          <div className="report-card-head">
-            <div>
-              <div className="report-title">{reportLabel(report)}</div>
-              <div className="report-subtitle">{report.project.code} - {report.project.name}</div>
-            </div>
-            <span className={`status-pill ${status.className}`}>{status.label}</span>
+        <div className="rel-info">
+          <div className="rel-name">
+            {reportLabel(report)} · {report.project.name}
           </div>
-          <div className="report-meta-grid">
-            <div>
-              <span className="report-meta-label">Data</span>
-              <span className="report-meta-value">{formatDate(report.reportDate)}</span>
-            </div>
-            <div>
-              <span className="report-meta-label">Horário</span>
-              <span className="report-meta-value">
+          <div className="rel-meta">
+            {owner} · {formatDate(report.reportDate)}
+            <br />
+            {services}
+            {report.arrivalTime || report.departureTime ? (
+              <>
+                <br />
                 {report.arrivalTime} às {report.departureTime}
-              </span>
-            </div>
+              </>
+            ) : null}
           </div>
-          {(() => {
-            const owner = report.createdBy?.collaborator?.name || report.createdBy?.name || null;
-            const svcs = summarizeServices(report.services);
-            const meta = [owner, svcs].filter(Boolean).join(' · ');
-            return meta ? <div className="report-meta-owner">{meta}</div> : null;
-          })()}
-          {report.reviewNotes ? <p className="report-note">{report.reviewNotes}</p> : null}
+        </div>
+        <div className="report-card-side" onClick={event => event.stopPropagation()}>
+          <span className={`status-pill ${status.className}`}>{status.label}</span>
+          {actions ? (
+            <div className="report-card-actions">
+              {actions}
+            </div>
+          ) : null}
         </div>
       </div>
-      {actions ? (
-        <div className="report-card-actions" onClick={event => event.stopPropagation()}>
-          {actions}
+      {clientRejections.length || legacyRejectionComment ? (
+        <div className="client-rejection-list">
+          {clientRejections.map((review, index) => (
+            <div className="client-rejection-note" key={review.id}>
+              <strong>
+                Reprovação do cliente {formatReviewDate(review.createdAt) ? `- ${formatReviewDate(review.createdAt)}` : `#${index + 1}`}:
+              </strong>{' '}
+              {normalizeComment(review.comment) || 'Sem comentário'}
+            </div>
+          ))}
+          {legacyRejectionComment ? (
+            <div className="client-rejection-note">
+              <strong>Reprovação anterior:</strong> {legacyRejectionComment}
+            </div>
+          ) : null}
         </div>
+      ) : null}
+      {reviewNotes && !rejectionComments.has(reviewNotes) && !legacyRejectionComment && !isClientRejectionNote(report.reviewNotes) ? (
+        <p className="report-note">{report.reviewNotes}</p>
       ) : null}
     </article>
   );

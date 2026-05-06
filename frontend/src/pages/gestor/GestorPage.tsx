@@ -504,77 +504,74 @@ function counterToForm(item: ParticleCounter): CounterFormState {
   };
 }
 
-function renderProjectCard(project: Project, options: { onEdit: (project: Project) => void; onToggleArchive: (project: Project) => void; children?: ReactNode; }) {
+function renderProjectCard(
+  project: Project,
+  options: {
+    onEdit: (project: Project) => void;
+    onToggleArchive: (project: Project) => void;
+    onRemove: (project: Project) => void;
+    children?: ReactNode;
+  }
+) {
   return (
-    <article className="admin-card-react" key={project.id}>
-      <div className="admin-card-head">
-        <div>
-          <div className="admin-card-title">
-            {project.code} - {project.name}
-          </div>
-          <div className="admin-card-subtitle">
-            {project.clientName} - {project.contractCode}
-          </div>
-          <span className={`status-pill ${(project.includesSaturday || project.includesSunday) ? 'status-approved' : 'status-pending'}`} style={{ fontSize: 11, marginTop: 4, alignSelf: 'flex-start' }}>
-            {(project.includesSaturday || project.includesSunday) ? 'Escala estendida' : 'Escala padrão'}
-          </span>
+    <article className="card admin-card project-admin-card" key={project.id}>
+      <div className="project-admin-head">
+        <div className="project-admin-title">
+          {project.code} - {project.name}
         </div>
-        <div className="admin-card-actions">
-          <button className="secondary-button" type="button" onClick={() => options.onEdit(project)}>
-            Editar
-          </button>
-          <button className="secondary-button" type="button" onClick={() => options.onToggleArchive(project)}>
-            {project.isActive ? 'Arquivar' : 'Desarquivar'}
-          </button>
-        </div>
-      </div>
-      <div className="det-section admin-detail-section">
-        <div className="det-row">
-          <strong>Cliente</strong>
-          <span>{project.clientName || 'Não informado'}</span>
-        </div>
-        <div className="det-row">
-          <strong>CNPJ</strong>
-          <span>{formatCnpj(project.clientCnpj) || 'Não informado'}</span>
-        </div>
-        <div className="det-row">
-          <strong>E-mail principal</strong>
-          <span>{project.clientEmailPrimary || 'Não informado'}</span>
-        </div>
-        <div className="det-row">
-          <strong>E-mails em cópia</strong>
-          <span>{formatList(project.clientEmailCc || [])}</span>
-        </div>
-        <div className="det-row">
-          <strong>Assinantes adicionais</strong>
-          <span>{formatProjectSigners(project.clientSigners)}</span>
-        </div>
-        <div className="det-row">
-          <strong>Contrato</strong>
-          <span>{project.contractCode || 'Não informado'}</span>
-        </div>
-        <div className="det-row">
-          <strong>Local</strong>
-          <span>{project.location || 'Não informado'}</span>
-        </div>
-        <div className="det-row">
-          <strong>Colaborador responsável</strong>
-          <span>{project.operator?.name || 'Não definido'}</span>
-        </div>
-        <div className="det-row">
-          <strong>Sequenciais</strong>
-          <span>{formatProjectSequences(project)}</span>
-        </div>
-        <div className="det-row">
-          <strong>Visível para colaboradores</strong>
-          <span>{project.visibleToCollaborators ? 'Sim' : 'Não'}</span>
-        </div>
-        <div className="det-row">
-          <strong>Status</strong>
-          <span>{project.isActive ? 'Ativo' : 'Arquivado'}</span>
-        </div>
+        <span className={`badge ${(project.includesSaturday || project.includesSunday) ? 'badge-ok' : 'badge-pen'}`}>
+          {(project.includesSaturday || project.includesSunday) ? 'Escala estendida' : 'Escala padrão'}
+        </span>
       </div>
       {options.children}
+      <div className="det-section">
+        <div className="det-row">
+          <span className="det-label">Cliente</span>
+          <span className="det-val">{project.clientName || '-'}</span>
+        </div>
+        <div className="det-row">
+          <span className="det-label">CNPJ</span>
+          <span className="det-val">{formatCnpj(project.clientCnpj) || '-'}</span>
+        </div>
+        <div className="det-row">
+          <span className="det-label">E-mail principal</span>
+          <span className="det-val">{project.clientEmailPrimary || '-'}</span>
+        </div>
+        <div className="det-row">
+          <span className="det-label">E-mails em cópia</span>
+          <span className="det-val">{formatList(project.clientEmailCc || [])}</span>
+        </div>
+        <div className="det-row">
+          <span className="det-label">Assinantes adicionais</span>
+          <span className="det-val">{formatProjectSigners(project.clientSigners)}</span>
+        </div>
+        <div className="det-row">
+          <span className="det-label">Contrato</span>
+          <span className="det-val">{project.contractCode || '-'}</span>
+        </div>
+        <div className="det-row">
+          <span className="det-label">Operador</span>
+          <span className="det-val">{project.operator?.name || '-'}</span>
+        </div>
+        <div className="det-row">
+          <span className="det-label">Sequenciais</span>
+          <span className="det-val">{formatProjectSequences(project)}</span>
+        </div>
+      </div>
+      <div className="admin-actions">
+        <button className="mini-btn alt" type="button" onClick={() => options.onToggleArchive(project)}>
+          {project.isActive ? 'Arquivar' : 'Desarquivar'}
+        </button>
+        <button className="mini-btn alt" type="button" onClick={() => options.onEdit(project)}>
+          Editar
+        </button>
+        <button className="mini-btn danger" type="button" onClick={() => options.onRemove(project)}>
+          Remover
+        </button>
+        {!project.isActive ? (
+          <span className="badge badge-rev">Arquivado</span>
+        ) : null}
+      </div>
     </article>
   );
 }
@@ -782,6 +779,18 @@ export function GestorPage() {
       showToast(project.isActive ? 'Projeto arquivado.' : 'Projeto desarquivado.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível atualizar o projeto.', 'error');
+    }
+  }
+
+  async function handleProjectRemove(project: Project) {
+    if (!window.confirm('Remover este projeto?')) return;
+
+    try {
+      await projectMutations.removeProject.mutateAsync(project.id);
+      if (projectEditingId === project.id) resetProjectForm();
+      showToast('Projeto removido.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível remover o projeto.', 'error');
     }
   }
 
@@ -1043,39 +1052,39 @@ export function GestorPage() {
 
     return (
       <>
-        <label className="checkbox-line">
-          <input
-            type="checkbox"
-            checked={selectedReportIds.includes(report.id)}
-            onChange={event => toggleReportSelection(report.id, event.target.checked)}
-          />
-          Selecionar
-        </label>
-        <button className="secondary-button" type="button" onClick={() => void handleReportDownload(report, 'pdf')}>
-          PDF
-        </button>
-        <button className="secondary-button" type="button" onClick={() => void handleReportDownload(report, 'docx')}>
-          DOCX
-        </button>
+        <span className="report-download-actions">
+          <button className="secondary-button" type="button" onClick={() => void handleReportDownload(report, 'pdf')}>
+            PDF
+          </button>
+          <button className="secondary-button" type="button" onClick={() => void handleReportDownload(report, 'docx')}>
+            DOCX
+          </button>
+        </span>
         {canReview && report.status !== 'APPROVED' ? (
-          <button className="primary-button" type="button" onClick={() => void handleReportStatus(report, 'APPROVED')}>
-            {hasActiveClientRejection(report) ? 'Reenviar para avaliação' : 'Aprovar'}
+          <button
+            className="mini-btn"
+            type="button"
+            title={hasActiveClientRejection(report) ? 'Reenviar para avaliação' : 'Aprovar'}
+            onClick={() => void handleReportStatus(report, 'APPROVED')}
+          >
+            {hasActiveClientRejection(report) ? 'Reenviar' : 'Aprovar'}
           </button>
         ) : null}
         {canReview && report.status !== 'RETURNED' ? (
-          <button className="secondary-button" type="button" onClick={() => setReturnReport(report)}>
+          <button className="mini-btn alt" type="button" onClick={() => setReturnReport(report)}>
             Devolver
           </button>
         ) : null}
         {report.status !== 'SIGNED' ? (
           <button
-            className="danger-button"
+            className="icon-button danger-icon-button"
             type="button"
             title="Excluir relatório"
+            aria-label="Excluir relatório"
             disabled={reportMutations.deleteReport.isPending}
             onClick={() => void handleReportDelete(report)}
           >
-            Excluir
+            🗑
           </button>
         ) : null}
       </>
@@ -1121,7 +1130,20 @@ export function GestorPage() {
         showTypeSort
         renderTypeActions={renderBatchReportActions}
         renderReport={report => (
-          <ReportSummaryCard key={report.id} report={report} actions={renderManagerReportActions(report)} />
+          <ReportSummaryCard
+            key={report.id}
+            report={report}
+            leadingControl={(
+              <label className="report-select-checkbox" title="Selecionar relatório">
+                <input
+                  type="checkbox"
+                  checked={selectedReportIds.includes(report.id)}
+                  onChange={event => toggleReportSelection(report.id, event.target.checked)}
+                />
+              </label>
+            )}
+            actions={renderManagerReportActions(report)}
+          />
         )}
       />
     );
@@ -1233,9 +1255,9 @@ export function GestorPage() {
 
     return (
       <>
-        <section className="page-card">
-          <div className="admin-section-head">
-            <div className="section-title">{projectEditingId ? 'Editar projeto' : 'Projetos'}</div>
+        <section className="page-card project-admin-panel">
+          <div className="admin-toolbar">
+            <div className="sec">{projectEditingId ? 'Editar projeto' : 'Projetos ativos'}</div>
             <div className="admin-form-actions">
               <ProjectSortButton
                 direction={projectSortDir}
@@ -1243,158 +1265,90 @@ export function GestorPage() {
               />
               {!showProjectForm && !projectEditingId ? (
                 <button
-                  className="primary-button"
+                  className="mini-btn"
                   type="button"
                   onClick={() => { setShowProjectForm(true); setProjectEditingId(null); setProjectForm(emptyProjectForm); }}
                 >
-                  Adicionar projeto
+                  + Novo projeto
                 </button>
               ) : null}
             </div>
           </div>
           {showProjectForm && !projectEditingId ? (
-            <form className="admin-form-grid" onSubmit={handleProjectSubmit}>
-            <div className="field-group">
-              <label htmlFor="project-code">{'Código'}</label>
-              <input
-                id="project-code"
-                value={projectForm.code}
-                onChange={event => setProjectForm(current => ({ ...current, code: event.target.value }))}
-                required
-              />
+            <div className="admin-inline-form">
+              <div className="admin-section-head">
+                <div className="section-title" style={{ marginBottom: 0 }}>Novo projeto</div>
+                <button className="secondary-button" type="button" onClick={resetProjectForm}>Cancelar</button>
+              </div>
+              <form className="admin-inline-grid" onSubmit={handleProjectSubmit}>
+                <div className="field-group">
+                  <label htmlFor="project-code">Número da missão</label>
+                  <input id="project-code" value={projectForm.code} onChange={event => setProjectForm(current => ({ ...current, code: event.target.value }))} required />
+                </div>
+                <div className="field-group">
+                  <label htmlFor="project-name">Nome</label>
+                  <input id="project-name" value={projectForm.name} onChange={event => setProjectForm(current => ({ ...current, name: event.target.value }))} required />
+                </div>
+                <div className="field-group">
+                  <label htmlFor="project-client-name">Cliente</label>
+                  <input id="project-client-name" value={projectForm.clientName} onChange={event => setProjectForm(current => ({ ...current, clientName: event.target.value }))} required />
+                </div>
+                <div className="field-group">
+                  <label htmlFor="project-client-cnpj">CNPJ</label>
+                  <input id="project-client-cnpj" value={projectForm.clientCnpj} onChange={event => setProjectForm(current => ({ ...current, clientCnpj: normalizeCnpjInput(event.target.value) }))} required />
+                </div>
+                <ProjectClientFields form={projectForm} idPrefix="project" setForm={setProjectForm} />
+                <div className="field-group">
+                  <label htmlFor="project-contract">Contrato</label>
+                  <input id="project-contract" value={projectForm.contractCode} onChange={event => setProjectForm(current => ({ ...current, contractCode: event.target.value }))} />
+                </div>
+                <div className="field-group">
+                  <label htmlFor="project-location">Local</label>
+                  <input id="project-location" value={projectForm.location} onChange={event => setProjectForm(current => ({ ...current, location: event.target.value }))} />
+                </div>
+                <div className="field-group">
+                  <label htmlFor="project-operator">Operador responsável</label>
+                  <select id="project-operator" value={projectForm.operatorId} onChange={event => setProjectForm(current => ({ ...current, operatorId: event.target.value }))}>
+                    <option value="">Selecionar...</option>
+                    {(collaboratorsQuery.data || []).filter(item => item.isActive).map(item => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field-group">
+                  <label htmlFor="project-visible">Exibir para colaboradores</label>
+                  <select id="project-visible" value={projectForm.visibleToCollaborators ? 'true' : 'false'} onChange={event => setProjectForm(current => ({ ...current, visibleToCollaborators: event.target.value === 'true' }))}>
+                    <option value="true">Sim</option>
+                    <option value="false">Não</option>
+                  </select>
+                </div>
+                <div className="field-group">
+                  <label htmlFor="project-workday">Jornada padrão</label>
+                  <input id="project-workday" type="text" placeholder="09:00" value={projectForm.workdayHours} onChange={event => setProjectForm(current => ({ ...current, workdayHours: event.target.value }))} />
+                </div>
+                <div className="field-group">
+                  <label htmlFor="project-weekend">Jornada fim de semana</label>
+                  <input id="project-weekend" type="text" placeholder="08:00" value={projectForm.weekendWorkdayHours} onChange={event => setProjectForm(current => ({ ...current, weekendWorkdayHours: event.target.value }))} />
+                </div>
+                <div className="field-group">
+                  <label htmlFor="project-sat">Inclui sábado</label>
+                  <select id="project-sat" value={projectForm.includesSaturday ? 'true' : 'false'} onChange={event => setProjectForm(current => ({ ...current, includesSaturday: event.target.value === 'true' }))}>
+                    <option value="true">Sim</option>
+                    <option value="false">Não</option>
+                  </select>
+                </div>
+                <div className="field-group">
+                  <label htmlFor="project-sun">Inclui domingo</label>
+                  <select id="project-sun" value={projectForm.includesSunday ? 'true' : 'false'} onChange={event => setProjectForm(current => ({ ...current, includesSunday: event.target.value === 'true' }))}>
+                    <option value="true">Sim</option>
+                    <option value="false">Não</option>
+                  </select>
+                </div>
+                <div className="admin-form-actions">
+                  <button className="primary-button" type="submit" disabled={projectMutations.createProject.isPending}>Criar projeto</button>
+                </div>
+              </form>
             </div>
-            <div className="field-group">
-              <label htmlFor="project-name">Nome</label>
-              <input
-                id="project-name"
-                value={projectForm.name}
-                onChange={event => setProjectForm(current => ({ ...current, name: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="project-client-name">Cliente</label>
-              <input
-                id="project-client-name"
-                value={projectForm.clientName}
-                onChange={event => setProjectForm(current => ({ ...current, clientName: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="project-client-cnpj">CNPJ</label>
-              <input
-                id="project-client-cnpj"
-                value={projectForm.clientCnpj}
-                onChange={event => setProjectForm(current => ({ ...current, clientCnpj: normalizeCnpjInput(event.target.value) }))}
-                required
-              />
-            </div>
-            <ProjectClientFields form={projectForm} idPrefix="project" setForm={setProjectForm} />
-            <div className="field-group">
-              <label htmlFor="project-contract">Contrato</label>
-              <input
-                id="project-contract"
-                value={projectForm.contractCode}
-                onChange={event => setProjectForm(current => ({ ...current, contractCode: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="project-location">Local</label>
-              <input
-                id="project-location"
-                value={projectForm.location}
-                onChange={event => setProjectForm(current => ({ ...current, location: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="project-operator">{'Colaborador responsável'}</label>
-              <select
-                id="project-operator"
-                value={projectForm.operatorId}
-                onChange={event => setProjectForm(current => ({ ...current, operatorId: event.target.value }))}
-              >
-                <option value="">Nenhum</option>
-                {(collaboratorsQuery.data || [])
-                  .filter(item => item.isActive)
-                  .map(item => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <div className="field-group">
-              <label htmlFor="project-workday">Jornada padrão</label>
-              <input
-                id="project-workday"
-                type="text"
-                placeholder="09:00"
-                value={projectForm.workdayHours}
-                onChange={event => setProjectForm(current => ({ ...current, workdayHours: event.target.value }))}
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="project-weekend">Jornada fim de semana</label>
-              <input
-                id="project-weekend"
-                type="text"
-                placeholder="08:00"
-                value={projectForm.weekendWorkdayHours}
-                onChange={event => setProjectForm(current => ({ ...current, weekendWorkdayHours: event.target.value }))}
-              />
-            </div>
-            <label className="checkbox-line">
-              <input
-                type="checkbox"
-                checked={projectForm.includesSaturday}
-                onChange={event => setProjectForm(current => ({ ...current, includesSaturday: event.target.checked }))}
-              />
-              Inclui sábado
-            </label>
-            <label className="checkbox-line">
-              <input
-                type="checkbox"
-                checked={projectForm.includesSunday}
-                onChange={event => setProjectForm(current => ({ ...current, includesSunday: event.target.checked }))}
-              />
-              Inclui domingo
-            </label>
-            <label className="checkbox-line">
-              <input
-                type="checkbox"
-                checked={projectForm.visibleToCollaborators}
-                onChange={event =>
-                  setProjectForm(current => ({ ...current, visibleToCollaborators: event.target.checked }))
-                }
-              />
-              {'Visível para colaboradores'}
-            </label>
-            <label className="checkbox-line">
-              <input
-                type="checkbox"
-                checked={projectForm.isActive}
-                onChange={event => setProjectForm(current => ({ ...current, isActive: event.target.checked }))}
-              />
-              Projeto ativo
-            </label>
-            <div className="admin-form-actions">
-              <button className="primary-button" type="submit" disabled={projectMutations.createProject.isPending || projectMutations.updateProject.isPending}>
-                {projectEditingId ? 'Salvar projeto' : 'Criar projeto'}
-              </button>
-              {projectEditingId ? (
-                <button className="secondary-button" type="button" onClick={resetProjectForm}>
-                  {'Cancelar edição'}
-                </button>
-              ) : (
-                <button className="secondary-button" type="button" onClick={resetProjectForm}>
-                  Cancelar
-                </button>
-              )}
-            </div>
-            </form>
           ) : null}
         </section>
 
@@ -1405,10 +1359,10 @@ export function GestorPage() {
               {sortProjects(activeProjects, projectSortDir).map(project =>
                 renderProjectCard(project, {
                   children: projectEditingId === project.id ? (
-                    <form className="admin-inline-form admin-form-grid" onSubmit={handleProjectSubmit}>
+                    <form className="admin-inline-form admin-inline-grid" onSubmit={handleProjectSubmit}>
                       <div className="field-group">
-                        <label htmlFor={`project-code-${project.id}`}>Código</label>
-                        <input id={`project-code-${project.id}`} value={projectForm.code} onChange={event => setProjectForm(current => ({ ...current, code: event.target.value }))} required />
+                        <label htmlFor={`project-code-${project.id}`}>Número da missão</label>
+                        <input id={`project-code-${project.id}`} value={projectForm.code} readOnly />
                       </div>
                       <div className="field-group">
                         <label htmlFor={`project-name-${project.id}`}>Nome</label>
@@ -1425,11 +1379,27 @@ export function GestorPage() {
                       <ProjectClientFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
                       <div className="field-group">
                         <label htmlFor={`project-contract-${project.id}`}>Contrato</label>
-                        <input id={`project-contract-${project.id}`} value={projectForm.contractCode} onChange={event => setProjectForm(current => ({ ...current, contractCode: event.target.value }))} required />
+                        <input id={`project-contract-${project.id}`} value={projectForm.contractCode} onChange={event => setProjectForm(current => ({ ...current, contractCode: event.target.value }))} />
                       </div>
                       <div className="field-group">
                         <label htmlFor={`project-location-${project.id}`}>Local</label>
-                        <input id={`project-location-${project.id}`} value={projectForm.location} onChange={event => setProjectForm(current => ({ ...current, location: event.target.value }))} required />
+                        <input id={`project-location-${project.id}`} value={projectForm.location} onChange={event => setProjectForm(current => ({ ...current, location: event.target.value }))} />
+                      </div>
+                      <div className="field-group">
+                        <label htmlFor={`project-operator-${project.id}`}>Operador responsável</label>
+                        <select id={`project-operator-${project.id}`} value={projectForm.operatorId} onChange={event => setProjectForm(current => ({ ...current, operatorId: event.target.value }))}>
+                          <option value="">Selecionar...</option>
+                          {(collaboratorsQuery.data || []).filter(item => item.isActive).map(item => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="field-group">
+                        <label htmlFor={`project-visible-${project.id}`}>Exibir para colaboradores</label>
+                        <select id={`project-visible-${project.id}`} value={projectForm.visibleToCollaborators ? 'true' : 'false'} onChange={event => setProjectForm(current => ({ ...current, visibleToCollaborators: event.target.value === 'true' }))}>
+                          <option value="true">Sim</option>
+                          <option value="false">Não</option>
+                        </select>
                       </div>
                       <div className="field-group">
                         <label htmlFor={`project-workday-${project.id}`}>Jornada padrão</label>
@@ -1439,22 +1409,20 @@ export function GestorPage() {
                         <label htmlFor={`project-weekend-${project.id}`}>Jornada fim de semana</label>
                         <input id={`project-weekend-${project.id}`} type="text" placeholder="08:00" value={projectForm.weekendWorkdayHours} onChange={event => setProjectForm(current => ({ ...current, weekendWorkdayHours: event.target.value }))} />
                       </div>
-                      <label className="checkbox-line">
-                        <input type="checkbox" checked={projectForm.includesSaturday} onChange={event => setProjectForm(current => ({ ...current, includesSaturday: event.target.checked }))} />
-                        Inclui sábado
-                      </label>
-                      <label className="checkbox-line">
-                        <input type="checkbox" checked={projectForm.includesSunday} onChange={event => setProjectForm(current => ({ ...current, includesSunday: event.target.checked }))} />
-                        Inclui domingo
-                      </label>
-                      <label className="checkbox-line">
-                        <input
-                          type="checkbox"
-                          checked={projectForm.visibleToCollaborators}
-                          onChange={event => setProjectForm(current => ({ ...current, visibleToCollaborators: event.target.checked }))}
-                        />
-                        Visível para colaboradores
-                      </label>
+                      <div className="field-group">
+                        <label htmlFor={`project-sat-${project.id}`}>Inclui sábado</label>
+                        <select id={`project-sat-${project.id}`} value={projectForm.includesSaturday ? 'true' : 'false'} onChange={event => setProjectForm(current => ({ ...current, includesSaturday: event.target.value === 'true' }))}>
+                          <option value="true">Sim</option>
+                          <option value="false">Não</option>
+                        </select>
+                      </div>
+                      <div className="field-group">
+                        <label htmlFor={`project-sun-${project.id}`}>Inclui domingo</label>
+                        <select id={`project-sun-${project.id}`} value={projectForm.includesSunday ? 'true' : 'false'} onChange={event => setProjectForm(current => ({ ...current, includesSunday: event.target.value === 'true' }))}>
+                          <option value="true">Sim</option>
+                          <option value="false">Não</option>
+                        </select>
+                      </div>
                       <div className="admin-form-actions">
                         <button className="primary-button" type="submit" disabled={projectMutations.updateProject.isPending}>Salvar projeto</button>
                         <button className="secondary-button" type="button" onClick={resetProjectForm}>Cancelar edição</button>
@@ -1466,7 +1434,8 @@ export function GestorPage() {
                     setShowProjectForm(true);
                     setProjectForm(projectToForm(item));
                   },
-                  onToggleArchive: handleProjectToggleArchive
+                  onToggleArchive: handleProjectToggleArchive,
+                  onRemove: handleProjectRemove
                 })
               )}
             </div>
@@ -1520,7 +1489,8 @@ export function GestorPage() {
                   setShowProjectForm(true);
                   setProjectForm(projectToForm(item));
                 },
-                onToggleArchive: handleProjectToggleArchive
+                onToggleArchive: handleProjectToggleArchive,
+                onRemove: handleProjectRemove
               });
             })}
           </div>
@@ -1969,11 +1939,6 @@ export function GestorPage() {
             });
 
             const renderClientCard = (item: typeof clientUsers[0], isCc: boolean) => {
-              const linked = item.linkedProjects || [];
-              const projectList = linked.length
-                ? linked.map(p => `${p.contractCode || '---'} - Missão ${p.code || '---'} - ${p.name || 'Sem nome'}`)
-                : ['Nenhum projeto vinculado.'];
-
               return (
                 <div key={item.id} style={{ border: '1px solid var(--br)', borderRadius: 'var(--rs)', padding: 10, marginTop: 8, background: '#fafafa' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
@@ -1984,12 +1949,6 @@ export function GestorPage() {
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       {isCc ? <span className="status-pill status-pending" style={{ fontSize: 10 }}>CC / Assinante</span> : null}
                       <span className={`status-pill ${item.isActive ? 'status-approved' : 'status-returned'}`}>{item.isActive ? 'Ativo' : 'Inativo'}</span>
-                    </div>
-                  </div>
-                  <div className="det-section" style={{ marginTop: 8 }}>
-                    <div className="det-row">
-                      <strong>Vínculos</strong>
-                      <span>{projectList.map(p => <span key={p}>{p}<br /></span>)}</span>
                     </div>
                   </div>
                   <div className="admin-card-actions" style={{ marginTop: 8 }}>

@@ -1,10 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { downloadReportPdf, downloadReportsBatch } from '../../api/reports';
 import { useAuth } from '../../auth/AuthContext';
-import { GroupedReportList } from '../../components/reports/GroupedReportList';
-import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useToast } from '../../components/ui/Toast';
 import { useReportMutations, useReports } from '../../hooks/useReports';
 import { Shell } from '../../layout/Shell';
@@ -12,6 +10,7 @@ import { TopBar } from '../../layout/TopBar';
 import type { ReportSummary } from '../../types/domain';
 import { downloadBlob } from '../../utils/download';
 import { formatCnpj } from '../../utils/formatCnpj';
+import { compareReportTypes, ProjectSortButton, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
 
 const TEXT = {
   approveSignature: 'Assinar',
@@ -24,8 +23,6 @@ const TEXT = {
   noReports: 'Nenhum relatório disponível para esta conta.',
   noSelection: 'Selecione ao menos um relatório.',
   reject: 'Reprovar',
-  rejectReason: 'Informe o motivo da reprovação do relatório:',
-  rejectReasonRequired: 'Informe um motivo para reprovar o relatório.',
   requestSignatureError: 'Não foi possível solicitar a assinatura.',
   reviewError: 'Não foi possível registrar a avaliação.',
   signed: 'Assinados',
@@ -36,7 +33,7 @@ const TEXT = {
 const statusMap: Record<string, { label: string; className: string }> = {
   PENDING: { label: 'Pendente', className: 'status-pending' },
   RETURNED: { label: 'Devolvido', className: 'status-returned' },
-  APPROVED: { label: 'Aprovado', className: 'status-approved' },
+  APPROVED: { label: 'Aguardando assinatura', className: 'status-pending' },
   SIGNED: { label: 'Assinado', className: 'status-signed' }
 };
 
@@ -50,24 +47,131 @@ function reportLabel(report: ReportSummary) {
   return report.sequenceNumber ? `${report.reportType} ${report.sequenceNumber}` : report.reportType;
 }
 
+function projectTitle(report: ReportSummary) {
+  return [report.project.code, report.project.name].filter(Boolean).join(' - ') || report.project.name || report.projectId;
+}
+
+function clientReviewDateValue(value?: string | null) {
+  const time = value ? new Date(value).getTime() : 0;
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function formatClientReviewDate(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('pt-BR');
+}
+
+function normalizeClientComment(value?: string | null) {
+  return String(value || '')
+    .replace(/^justificativa do cliente:\s*/i, '')
+    .trim();
+}
+
+function clientRejectionReviews(report: ReportSummary) {
+  return (report.clientReviews || [])
+    .filter(review => review.action === 'REJECTED')
+    .sort((a, b) => clientReviewDateValue(b.createdAt) - clientReviewDateValue(a.createdAt));
+}
+
+function isClientRejectedReport(report: ReportSummary) {
+  const special = report.specialConditions || {};
+  const rejectedAt = clientReviewDateValue(typeof special.__clientRejectedAt === 'string' ? special.__clientRejectedAt : null);
+  const resolvedAt = clientReviewDateValue(typeof special.__clientRejectionResolvedAt === 'string' ? special.__clientRejectionResolvedAt : null);
+  if (rejectedAt) return !resolvedAt || rejectedAt > resolvedAt;
+
+  const latest = report.clientReviews?.[0];
+  if (!latest || latest.action !== 'REJECTED') return false;
+  if (resolvedAt && clientReviewDateValue(latest.createdAt) <= resolvedAt) return false;
+  return report.status !== 'SIGNED';
+}
+
+function clientStatusMeta(report: ReportSummary) {
+  if (report.status === 'SIGNED') return statusMap.SIGNED;
+  if (isClientRejectedReport(report) || report.status === 'RETURNED') {
+    return { label: 'Reprovado', className: 'status-returned' };
+  }
+  return statusMap[report.status] || { label: report.status, className: 'status-pending' };
+}
+
+function canSelectClientReport(report: ReportSummary) {
+  return !isClientRejectedReport(report) && (report.status === 'APPROVED' || report.status === 'SIGNED');
+}
+
 export function ClientPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const reportsQuery = useReports();
   const reportMutations = useReportMutations();
-  const [rejectReport, setRejectReport] = useState<ReportSummary | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [commentsById, setCommentsById] = useState<Record<string, string>>({});
+  const [activeProjectId, setActiveProjectId] = useState('');
+  const [activeTypeByProject, setActiveTypeByProject] = useState<Record<string, string>>({});
+  const [clientSortDirection, setClientSortDirection] = useState<ProjectSortDirection>('asc');
   const showToast = useToast();
 
+  const reports = reportsQuery.data || [];
+  const clientProjects = useMemo(() => {
+    const byProject = new Map<string, { id: string; title: string; clientName: string; cnpj: string; reports: ReportSummary[] }>();
+    reports.forEach(report => {
+      const current = byProject.get(report.projectId);
+      if (current) {
+        current.reports.push(report);
+        return;
+      }
+      byProject.set(report.projectId, {
+        id: report.projectId,
+        title: projectTitle(report),
+        clientName: report.project.clientName,
+        cnpj: report.project.clientCnpj,
+        reports: [report]
+      });
+    });
+    return Array.from(byProject.values()).sort((a, b) => (
+      clientSortDirection === 'asc'
+        ? a.title.localeCompare(b.title, 'pt-BR', { numeric: true, sensitivity: 'base' })
+        : b.title.localeCompare(a.title, 'pt-BR', { numeric: true, sensitivity: 'base' })
+    ));
+  }, [clientSortDirection, reports]);
+
+  useEffect(() => {
+    if (!clientProjects.length) {
+      if (activeProjectId) setActiveProjectId('');
+      return;
+    }
+    if (!activeProjectId || !clientProjects.some(project => project.id === activeProjectId)) {
+      setActiveProjectId(clientProjects[0].id);
+    }
+  }, [activeProjectId, clientProjects]);
+
+  const activeProject = clientProjects.find(project => project.id === activeProjectId) || clientProjects[0] || null;
+  const activeTypes = useMemo(
+    () => activeProject
+      ? Array.from(new Set(activeProject.reports.map(report => report.reportType))).sort(compareReportTypes)
+      : [],
+    [activeProject]
+  );
+  const activeReportType = activeProject ? activeTypeByProject[activeProject.id] || activeTypes[0] || 'RDO' : 'RDO';
+  const visibleReports = activeProject
+    ? sortReportsInGroup(
+      activeProject.reports.filter(report => report.reportType === activeReportType),
+      clientSortDirection
+    )
+    : [];
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [activeProjectId, activeReportType]);
+
   const reportSummary = useMemo(() => {
-    const reports = reportsQuery.data || [];
     return {
       total: reports.length,
       approved: reports.filter(report => report.status === 'APPROVED').length,
       signed: reports.filter(report => report.status === 'SIGNED').length,
       projectCount: new Set(reports.map(report => report.project.id)).size
     };
-  }, [reportsQuery.data]);
+  }, [reports]);
 
   async function handleLogout() {
     await logout();
@@ -111,7 +215,12 @@ export function ClientPage() {
     }
 
     try {
-      const response = await reportMutations.batchSignature.mutateAsync({ ids });
+      const selectedComments = ids.reduce<Record<string, string>>((acc, id) => {
+        const comment = commentsById[id]?.trim();
+        if (comment) acc[id] = comment;
+        return acc;
+      }, {});
+      const response = await reportMutations.batchSignature.mutateAsync({ ids, commentsById: selectedComments });
       showToast(TEXT.signatureRequested, 'success');
       if (response.signUrl) window.open(response.signUrl, '_blank', 'noopener,noreferrer');
     } catch (error) {
@@ -121,7 +230,10 @@ export function ClientPage() {
 
   async function handleRequestSignature(report: ReportSummary) {
     try {
-      const response = await reportMutations.requestSignature.mutateAsync({ id: report.id });
+      const response = await reportMutations.requestSignature.mutateAsync({
+        id: report.id,
+        comment: commentsById[report.id]?.trim() || null
+      });
       showToast(TEXT.signatureRequested, 'success');
       if (response.signUrl) window.open(response.signUrl, '_blank', 'noopener,noreferrer');
     } catch (error) {
@@ -129,13 +241,14 @@ export function ClientPage() {
     }
   }
 
-  async function handleReject(report: ReportSummary, comment: string) {
+  async function handleReject(report: ReportSummary) {
+    if (!window.confirm('Confirmar reprovação deste relatório?')) return;
+
     try {
       await reportMutations.clientReview.mutateAsync({
         id: report.id,
-        payload: { action: 'REJECTED', comment }
+        payload: { action: 'REJECTED', comment: commentsById[report.id]?.trim() || null }
       });
-      setRejectReport(null);
       showToast('Avaliação registrada.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : TEXT.reviewError, 'error');
@@ -143,23 +256,34 @@ export function ClientPage() {
   }
 
   function renderClientReportCard(report: ReportSummary) {
-    const signable = report.reportType === 'RDO' && report.status === 'APPROVED';
-    const status = statusMap[report.status] || { label: report.status, className: 'status-pending' };
+    const clientRejected = isClientRejectedReport(report);
+    const signable = report.reportType === 'RDO' && report.status === 'APPROVED' && !clientRejected;
+    const selectable = canSelectClientReport(report);
+    const signaturePending = signable && Boolean(report.zapsignRequestedAt) && !report.zapsignSignedAt;
+    const status = clientStatusMeta(report);
+    const rejections = clientRejectionReviews(report);
+    const subtitle = clientRejected
+      ? 'Reprovado. Aguarde a alteração do gestor.'
+      : report.reportType === 'RDO'
+        ? 'RDO pronto para conferência do cliente'
+        : 'Relatório de serviço liberado após assinatura do RDO';
 
     return (
       <article className="client-report-card report-card-clickable" key={report.id} onClick={() => navigate(`/cliente/relatorio/${report.id}`)}>
         <div className="client-report-header">
           <div className="client-report-main">
-            <label className="client-report-checkbox" onClick={event => event.stopPropagation()}>
-              <input
-                type="checkbox"
-                checked={selectedIds.includes(report.id)}
-                onChange={event => toggleSelection(report.id, event.target.checked)}
-              />
-            </label>
+            {selectable ? (
+              <label className="client-report-checkbox" onClick={event => event.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(report.id)}
+                  onChange={event => toggleSelection(report.id, event.target.checked)}
+                />
+              </label>
+            ) : null}
             <div className="client-report-copy">
               <div className="admin-card-title">{reportLabel(report)} - {formatDate(report.reportDate)}</div>
-              <div className="admin-card-subtitle">{report.arrivalTime} às {report.departureTime}</div>
+              <div className="admin-card-subtitle">{report.createdBy?.name || '-'} - {subtitle}</div>
             </div>
           </div>
           <span className={`status-pill ${status.className} client-report-badge`}>{status.label}</span>
@@ -170,15 +294,48 @@ export function ClientPage() {
           </button>
           {signable ? (
             <>
+              <div className="field-group client-report-comment">
+                <label htmlFor={`client-review-comment-${report.id}`}>Comentário do cliente</label>
+                <textarea
+                  id={`client-review-comment-${report.id}`}
+                  rows={3}
+                  placeholder="Comentário opcional que será exibido no relatório final"
+                  value={commentsById[report.id] || ''}
+                  onChange={event => setCommentsById(current => ({ ...current, [report.id]: event.target.value }))}
+                />
+              </div>
               <button className="primary-button" type="button" onClick={() => void handleRequestSignature(report)}>
-                {TEXT.approveSignature}
+                {signaturePending ? 'Continuar assinatura digital' : 'Aprovar e assinar digitalmente'}
               </button>
-              <button className="secondary-button" type="button" onClick={() => setRejectReport(report)}>
+              <button className="danger-button" type="button" onClick={() => void handleReject(report)}>
                 {TEXT.reject}
               </button>
             </>
           ) : null}
         </div>
+        {rejections.length ? (
+          <div className="client-rejection-list">
+            {rejections.map((review, index) => {
+              const date = formatClientReviewDate(review.createdAt);
+              return (
+                <div className="client-rejection-note" key={review.id}>
+                  <strong>Reprovação do cliente {date ? `- ${date}` : `#${index + 1}`}:</strong>{' '}
+                  {normalizeClientComment(review.comment) || 'Sem comentário'}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        {report.clientReviews?.some(review => review.action === 'APPROVED') ? (
+          <div className="det-section">
+            {report.clientReviews.filter(review => review.action === 'APPROVED').slice(0, 3).map(review => (
+              <div className="det-row" key={review.id}>
+                <span className="det-label">Aprovado</span>
+                <span className="det-val">{normalizeClientComment(review.comment) || 'Sem comentário'}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </article>
     );
   }
@@ -187,31 +344,37 @@ export function ClientPage() {
     const typeIds = typeReports.map(report => report.id);
     const selectedTypeIds = selectedIds.filter(id => typeIds.includes(id));
     const signableIds = selectedTypeIds.filter(id =>
-      typeReports.some(report => report.id === id && report.reportType === 'RDO' && report.status === 'APPROVED')
+      typeReports.some(report => report.id === id && report.reportType === 'RDO' && report.status === 'APPROVED' && !isClientRejectedReport(report))
     );
+    const selectableTypeIds = typeReports.filter(canSelectClientReport).map(report => report.id);
+    const hasSelection = selectedTypeIds.length > 0;
 
     return (
       <div className="report-batch-toolbar">
-        <span className="report-batch-count">{selectedTypeIds.length} selecionado(s)</span>
+        {hasSelection ? <span className="report-batch-count">{selectedTypeIds.length} selecionado(s)</span> : null}
         <div className="admin-form-actions">
-          <button className="secondary-button" type="button" onClick={() => setSelectedIds(current => Array.from(new Set([...current, ...typeIds])))}>
+          <button className="secondary-button" type="button" onClick={() => setSelectedIds(current => Array.from(new Set([...current, ...selectableTypeIds])))}>
             Selecionar todos
           </button>
-          <button className="secondary-button" type="button" onClick={() => setSelectedIds(current => current.filter(id => !typeIds.includes(id)))}>
-            Limpar seleção
-          </button>
-          <button className="secondary-button" type="button" onClick={() => void handleBatchDownload(selectedTypeIds)}>
-            {TEXT.batchDownload}
-          </button>
-          {typeReports[0]?.reportType === 'RDO' ? (
-            <button
-              className="primary-button"
-              type="button"
-              disabled={reportMutations.batchSignature.isPending}
-              onClick={() => void handleBatchSignature(signableIds)}
-            >
-              {TEXT.batchSignature}
-            </button>
+          {hasSelection ? (
+            <>
+              <button className="secondary-button" type="button" onClick={() => setSelectedIds(current => current.filter(id => !typeIds.includes(id)))}>
+                Limpar seleção
+              </button>
+              <button className="secondary-button" type="button" onClick={() => void handleBatchDownload(selectedTypeIds)}>
+                {TEXT.batchDownload}
+              </button>
+              {typeReports[0]?.reportType === 'RDO' ? (
+                <button
+                  className="primary-button"
+                  type="button"
+                  disabled={reportMutations.batchSignature.isPending}
+                  onClick={() => void handleBatchSignature(signableIds)}
+                >
+                  {TEXT.batchSignature}
+                </button>
+              ) : null}
+            </>
           ) : null}
         </div>
       </div>
@@ -272,27 +435,70 @@ export function ClientPage() {
           <div className="page-card placeholder-copy">{TEXT.noReports}</div>
         ) : null}
 
-        {reportSummary.total ? (
-          <GroupedReportList
-            reports={[...(reportsQuery.data || [])].sort((a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime())}
-            renderTypeActions={renderClientTypeActions}
-            renderReport={renderClientReportCard}
-          />
-        ) : null}
+        {activeProject ? (
+          <>
+            <section className="page-card compact-link-card">
+              <div className="filter-tabs">
+                {clientProjects.map(project => (
+                  <button
+                    className={`filter-tab ${project.id === activeProject.id ? 'active' : ''}`}
+                    type="button"
+                    key={project.id}
+                    onClick={() => setActiveProjectId(project.id)}
+                  >
+                    {project.title}
+                  </button>
+                ))}
+              </div>
+            </section>
 
-        <ReasonDialog
-          open={!!rejectReport}
-          title={TEXT.reject}
-          description={TEXT.rejectReason}
-          label="Motivo"
-          confirmLabel={TEXT.reject}
-          requiredMessage={TEXT.rejectReasonRequired}
-          isSubmitting={reportMutations.clientReview.isPending}
-          onCancel={() => setRejectReport(null)}
-          onConfirm={reason => {
-            if (rejectReport) void handleReject(rejectReport, reason);
-          }}
-        />
+            <section className="page-card">
+              <div className="section-title">Projeto atual</div>
+              <div className="det-section">
+                <div className="det-row"><span className="det-label">Projeto</span><span className="det-val">{activeProject.title}</span></div>
+                <div className="det-row"><span className="det-label">Cliente</span><span className="det-val">{activeProject.clientName || user?.name || '-'}</span></div>
+                <div className="det-row"><span className="det-label">CNPJ</span><span className="det-val">{formatCnpj(activeProject.cnpj) || '-'}</span></div>
+                <div className="det-row"><span className="det-label">Relatórios visíveis</span><span className="det-val">{activeProject.reports.length}</span></div>
+              </div>
+            </section>
+
+            <section className="page-card compact-link-card">
+              <div className="filter-tabs">
+                {activeTypes.map(reportType => (
+                  <button
+                    className={`filter-tab ${reportType === activeReportType ? 'active' : ''}`}
+                    type="button"
+                    key={reportType}
+                    onClick={() => {
+                      if (!activeProject) return;
+                      setActiveTypeByProject(current => ({ ...current, [activeProject.id]: reportType }));
+                    }}
+                  >
+                    {reportType}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="page-card">
+              <div className="admin-section-head">
+                <div className="section-title">{activeReportType}</div>
+                <ProjectSortButton
+                  direction={clientSortDirection}
+                  onToggle={() => setClientSortDirection(direction => direction === 'asc' ? 'desc' : 'asc')}
+                />
+              </div>
+              {renderClientTypeActions(visibleReports)}
+              {visibleReports.length ? (
+                <div className="report-type-list">
+                  {visibleReports.map(report => renderClientReportCard(report))}
+                </div>
+              ) : (
+                <p className="placeholder-copy">Nenhum relatório deste tipo.</p>
+              )}
+            </section>
+          </>
+        ) : null}
       </main>
     </Shell>
   );
