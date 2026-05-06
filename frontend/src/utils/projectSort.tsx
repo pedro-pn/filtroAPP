@@ -25,10 +25,15 @@ function compareProjectFields(
   direction: ProjectSortDirection
 ) {
   const dir = directionFactor(direction);
-  const codeA = Number(aCode || 0) || 0;
-  const codeB = Number(bCode || 0) || 0;
-  if (codeA !== codeB) return dir * (codeA - codeB);
-  return dir * String(aName || '').localeCompare(String(bName || ''), 'pt');
+  const codeCompare = String(aCode || '').localeCompare(String(bCode || ''), 'pt-BR', {
+    numeric: true,
+    sensitivity: 'base'
+  });
+  if (codeCompare) return dir * codeCompare;
+  return dir * String(aName || '').localeCompare(String(bName || ''), 'pt-BR', {
+    numeric: true,
+    sensitivity: 'base'
+  });
 }
 
 export function compareProjects(a: Project, b: Project, direction: ProjectSortDirection) {

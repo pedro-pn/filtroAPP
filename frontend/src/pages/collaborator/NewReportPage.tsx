@@ -20,6 +20,7 @@ import { useRdoStore } from '../../store/rdoStore';
 import type { UploadedFile } from '../../api/uploads';
 import type { ReportSummary } from '../../types/domain';
 import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
+import { sortProjects } from '../../utils/projectSort';
 
 const TEXT = {
   addService: 'Adicionar serviço',
@@ -116,7 +117,7 @@ export function NewReportPage() {
   const [nightCollaboratorToAdd, setNightCollaboratorToAdd] = useState('');
   const [collaboratorsPrefilled, setCollaboratorsPrefilled] = useState(false);
 
-  const projects = projectsQuery.data || [];
+  const projects = useMemo(() => sortProjects(projectsQuery.data || [], 'asc'), [projectsQuery.data]);
   const collaborators = (collaboratorsQuery.data || []).filter(item => item.isActive);
   const units = unitsQuery.data || [];
   const manometers = manometersQuery.data || [];

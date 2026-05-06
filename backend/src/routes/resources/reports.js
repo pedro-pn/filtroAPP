@@ -1370,10 +1370,10 @@ function buildHistoricalServiceData(currentFields, serviceHistory) {
     if (value !== undefined) data[targetKey] = value;
   };
 
-  copyIfPresent('Contagem inicial NAS', firstField(['Contagem inicial NAS']));
-  copyIfPresent('Contagem inicial ISO', firstField(['Contagem inicial ISO']));
-  copyIfPresent('Contagem final NAS', lastField(['Contagem final NAS']));
-  copyIfPresent('Contagem final ISO', lastField(['Contagem final ISO']));
+  copyIfPresent('Contagem inicial NAS', firstField(['Contagem inicial NAS', 'NAS inicial', 'Valor NAS inicial']));
+  copyIfPresent('Contagem inicial ISO', firstField(['Contagem inicial ISO', 'ISO inicial', 'Classe ISO inicial', 'Valor ISO inicial']));
+  copyIfPresent('Contagem final NAS', lastField(['Contagem final NAS', 'NAS final', 'Valor NAS final']));
+  copyIfPresent('Contagem final ISO', lastField(['Contagem final ISO', 'ISO final', 'Classe ISO final', 'Valor ISO final']));
   copyIfPresent('Umidade inicial (ppm)', firstField(['Umidade inicial (ppm)']));
   copyIfPresent('Umidade final (ppm)', lastField(['Umidade final (ppm)']));
   copyIfPresent('Contador utilizado', lastField(['Contador utilizado']));
@@ -1430,7 +1430,7 @@ async function syncApprovedRcpReports(tx, report) {
 
   // For RCPU, one report per serviceLinkKey for the whole project (not per parentRdoId).
   const existingRcps = await tx.report.findMany({
-    where: { reportType: ReportType.RCPU },
+    where: { projectId: report.projectId, reportType: ReportType.RCPU },
     select: { id: true, projectId: true, reportType: true, sequenceNumber: true, status: true, specialConditions: true }
   });
 

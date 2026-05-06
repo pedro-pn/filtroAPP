@@ -49,6 +49,9 @@ export function MyReportsPage() {
           <div className="page-card placeholder-copy">Nenhum relatório enviado por você.</div>
         ) : null}
         <GroupedReportList reports={groups} />
+        <button className="secondary-button" type="button" onClick={() => navigate('/home')}>
+          Voltar
+        </button>
       </main>
     </Shell>
   );

@@ -724,6 +724,7 @@ export function GestorPage() {
   const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>([]);
   const [closedArchivedTypeKeys, setClosedArchivedTypeKeys] = useState<string[]>([]);
   const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, 'asc' | 'desc'>>({});
+  const [closedClientAccountGroupIds, setClosedClientAccountGroupIds] = useState<string[]>([]);
 
   const reportsQuery = useReports();
   const draftsQuery = useDrafts();
@@ -826,6 +827,12 @@ export function GestorPage() {
       ...current,
       [typeKey]: (current[typeKey] || 'asc') === 'asc' ? 'desc' : 'asc'
     }));
+  }
+
+  function toggleClientAccountGroup(groupId: string) {
+    setClosedClientAccountGroupIds(current =>
+      current.includes(groupId) ? current.filter(id => id !== groupId) : [...current, groupId]
+    );
   }
 
   async function handleLogout() {
@@ -1838,7 +1845,7 @@ export function GestorPage() {
                         {collaborator.role || '-'}{collaborator.email ? ` - ${collaborator.email}` : ''}
                       </div>
                     </div>
-                    <div className="admin-actions">
+                    <div className="admin-actions collaborator-card-actions">
                       <button
                         className="mini-btn alt"
                         type="button"
@@ -2167,15 +2174,17 @@ export function GestorPage() {
 
             const renderClientCard = (item: typeof clientUsers[0], isCc: boolean) => {
               return (
-                <div className="card admin-card" key={item.id}>
-                  <div className="admin-item-row">
-                    <div className="admin-item-main">
-                      <div className="admin-item-title">{item.name || 'Cliente'}</div>
-                      <div className="admin-item-sub">{item.email || item.username}{item.isActive === false ? ' - Inativo' : ''}</div>
-                    </div>
-                    <div className="admin-actions">
+                <div className="card admin-card client-account-card" key={item.id}>
+                  <div className="admin-item-title">{item.name || 'Cliente'}</div>
+                  <div className="admin-item-sub client-account-email">
+                    {item.email || item.username}{item.isActive === false ? ' - Inativo' : ''}
+                  </div>
+                  <div className="client-account-action-area">
+                    <div className="client-account-badges">
                       {isCc ? <span className="status-pill status-pending" style={{ fontSize: 10 }}>CC / Assinante</span> : null}
                       <span className={`status-pill ${item.isActive ? 'status-approved' : 'status-returned'}`}>{item.isActive ? 'Ativo' : 'Inativo'}</span>
+                    </div>
+                    <div className="client-account-button-row">
                       <button className="mini-btn alt" type="button" disabled={userMutations.resendClientAccess.isPending} onClick={() => void handleResendClientAccess(item.id)}>Reenviar acesso</button>
                       <button className="mini-btn danger" type="button" onClick={() => void handleUserDelete(item.id)}>Remover</button>
                     </div>
@@ -2188,16 +2197,39 @@ export function GestorPage() {
 
             return (
               <div className="admin-stack">
-                {Object.values(groups).map(g => (
-                  <article className="card admin-card" key={g.cnpj}>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
-                      {g.clientName || projectLabelForCnpj(g.cnpj) || g.cnpj}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--mu)', marginBottom: 4 }}>{formatCnpj(g.cnpj)}</div>
-                    {g.primary ? renderClientCard(g.primary, false) : null}
-                    {g.cc.map(u => renderClientCard(u, true))}
-                  </article>
-                ))}
+                {Object.values(groups).map(g => {
+                  const closed = closedClientAccountGroupIds.includes(g.cnpj);
+                  const linkedProjects = sortProjects(
+                    clientGroupingProjects.filter(project => project.clientCnpj.replace(/\D/g, '') === g.cnpj),
+                    'asc'
+                  );
+                  const title = g.clientName || projectLabelForCnpj(g.cnpj) || g.cnpj;
+                  const projectSummary = linkedProjects.map(project => [project.code, project.name].filter(Boolean).join(' - ')).join(', ');
+                  return (
+                    <article className="card admin-card" key={g.cnpj}>
+                      <button
+                        className="client-account-group-toggle"
+                        type="button"
+                        onClick={() => toggleClientAccountGroup(g.cnpj)}
+                      >
+                        <span className="rtype-chevron">{closed ? '▸' : '▾'}</span>
+                        <span>{title}</span>
+                      </button>
+                      <div style={{ fontSize: 12, color: 'var(--mu)', marginBottom: 4 }}>{formatCnpj(g.cnpj)}</div>
+                      {projectSummary ? (
+                        <div className="admin-item-sub" style={{ marginBottom: 8 }}>
+                          Projetos: {projectSummary}
+                        </div>
+                      ) : null}
+                      {!closed ? (
+                        <>
+                          {g.primary ? renderClientCard(g.primary, false) : null}
+                          {g.cc.map(u => renderClientCard(u, true))}
+                        </>
+                      ) : null}
+                    </article>
+                  );
+                })}
                 {noGroup.length ? (
                   <article className="card admin-card">
                     <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Sem CNPJ associado</div>
@@ -2638,23 +2670,29 @@ export function GestorPage() {
 
   function renderReportSummary() {
     if (tab !== 'pendentes' && tab !== 'aprovados') return null;
+    const signedReports = approvedReports.filter(report => report.status === 'SIGNED');
+    const approvedOnlyReports = approvedReports.filter(report => report.status === 'APPROVED');
 
     return (
       <section className="page-card summary-card-compact">
         <div className="section-title">Resumo</div>
         <div className="stats-grid stats-grid-compact">
+          {tab === 'pendentes' ? (
+            <div className="stat-card-react">
+              <div className="stat-number-react">{pendingReports.length}</div>
+              <div className="stat-label-react">Pendentes/devolvidos</div>
+            </div>
+          ) : null}
           <div className="stat-card-react">
-            <div className="stat-number-react">{pendingReports.length}</div>
-            <div className="stat-label-react">Pendentes/devolvidos</div>
+            <div className="stat-number-react">{tab === 'aprovados' ? approvedOnlyReports.length : approvedReports.length}</div>
+            <div className="stat-label-react">Aprovados</div>
           </div>
-          <div className="stat-card-react">
-            <div className="stat-number-react">{approvedReports.length}</div>
-            <div className="stat-label-react">Aprovados/assinados</div>
-          </div>
-          <div className="stat-card-react">
-            <div className="stat-number-react">{archivedReports.length}</div>
-            <div className="stat-label-react">Arquivados</div>
-          </div>
+          {tab === 'aprovados' ? (
+            <div className="stat-card-react">
+              <div className="stat-number-react">{signedReports.length}</div>
+              <div className="stat-label-react">Assinados</div>
+            </div>
+          ) : null}
         </div>
       </section>
     );

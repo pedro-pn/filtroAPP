@@ -8,6 +8,7 @@ import { HomePage } from './pages/collaborator/HomePage';
 import { MyArchivedReportsPage } from './pages/collaborator/MyArchivedReportsPage';
 import { MyReportsPage } from './pages/collaborator/MyReportsPage';
 import { NewReportPage } from './pages/collaborator/NewReportPage';
+import { OngoingServicesPage } from './pages/collaborator/OngoingServicesPage';
 import { CoordinatorPage } from './pages/coordinator/CoordinatorPage';
 import { ReportDetailPage } from './pages/ReportDetailPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -34,6 +35,7 @@ export default function App() {
 
       <Route element={<RoleRoute allowedRoles={['COLLABORATOR']} />}>
         <Route path="/home" element={<HomePage />} />
+        <Route path="/andamento" element={<OngoingServicesPage />} />
         <Route path="/meus-relatorios" element={<MyReportsPage />} />
         <Route path="/meus-relatorios/arquivados" element={<MyArchivedReportsPage />} />
       </Route>
