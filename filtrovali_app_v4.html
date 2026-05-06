@@ -4472,8 +4472,8 @@ function overtimeParseBreak(value){
   if(!value||typeof value!=='string')return 0;
   var text=value.trim().toLowerCase();
   if(text==='sem intervalo')return 0;
-  var hm=text.match(/^(\d{1,2}):(\d{2})$/);
-  if(hm)return Number(hm[1])*60+Number(hm[2]);
+  var hms=text.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if(hms)return Number(hms[1])*60+Number(hms[2]);
   var compact=text.match(/^(\d{1,2})h(\d{1,2})$/);
   if(compact)return Number(compact[1])*60+Number(compact[2]);
   var onlyHours=text.match(/^(\d{1,2})\s*h(?:ora|horas)?$/);
