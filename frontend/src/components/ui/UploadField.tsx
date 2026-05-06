@@ -13,6 +13,7 @@ interface UploadFieldProps {
 
 type UploadValue = UploadedFile & {
   path?: string;
+  storagePath?: string;
   dataUrl?: string;
 };
 
@@ -62,7 +63,7 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
   }
 
   function rawFileUrl(file: UploadValue) {
-    return file.url || file.path || file.dataUrl || '';
+    return file.url || file.path || file.storagePath || file.dataUrl || '';
   }
 
   function isImageFile(file: UploadValue) {

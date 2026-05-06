@@ -1,14 +1,34 @@
 services:
+  backend-react:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: filtrovali-backend-react
+    restart: unless-stopped
+    env_file:
+      - backend/.env.react.production
+    volumes:
+      - filtrovali_relatorios:/data/relatorios
+    networks:
+      - filtrovali-net
+
   react:
     build:
       context: .
       dockerfile: deploy/nginx/Dockerfile.react
     container_name: filtrovali-react
     restart: unless-stopped
+    depends_on:
+      - backend-react
     networks:
       - filtrovali-net
 
 networks:
   filtrovali-net:
     name: filtrovali-net
+    external: true
+
+volumes:
+  filtrovali_relatorios:
+    name: filtrovali_relatorios
     external: true

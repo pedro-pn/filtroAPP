@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { ReportSummary } from '../../types/domain';
 import { groupByProject } from '../../utils/groupByProject';
@@ -12,6 +12,7 @@ interface GroupedReportListProps {
   renderTypeActions?: (reports: ReportSummary[]) => React.ReactNode;
   sortDirection?: ProjectSortDirection;
   showTypeSort?: boolean;
+  storageKey?: string;
 }
 
 export function GroupedReportList({
@@ -20,13 +21,50 @@ export function GroupedReportList({
   renderReport,
   renderTypeActions,
   sortDirection = 'asc',
-  showTypeSort = false
+  showTypeSort = false,
+  storageKey
 }: GroupedReportListProps) {
   const [closedProjects, setClosedProjects] = useState<string[]>([]);
   const [closedTypes, setClosedTypes] = useState<string[]>([]);
   const [typeSortDirections, setTypeSortDirections] = useState<Record<string, ProjectSortDirection>>({});
+  const [storageLoaded, setStorageLoaded] = useState(!storageKey);
 
   const groups = useMemo(() => sortProjectGroups(groupByProject(reports), sortDirection), [reports, sortDirection]);
+
+  useEffect(() => {
+    if (!storageKey) {
+      setStorageLoaded(true);
+      return;
+    }
+    setStorageLoaded(false);
+    try {
+      const parsed = JSON.parse(localStorage.getItem(storageKey) || '{}') as {
+        closedProjects?: unknown;
+        closedTypes?: unknown;
+        typeSortDirections?: unknown;
+      };
+      setClosedProjects(Array.isArray(parsed.closedProjects) ? parsed.closedProjects.filter((id): id is string => typeof id === 'string') : []);
+      setClosedTypes(Array.isArray(parsed.closedTypes) ? parsed.closedTypes.filter((id): id is string => typeof id === 'string') : []);
+      setTypeSortDirections(parsed.typeSortDirections && typeof parsed.typeSortDirections === 'object'
+        ? Object.fromEntries(Object.entries(parsed.typeSortDirections).filter((entry): entry is [string, ProjectSortDirection] => entry[1] === 'asc' || entry[1] === 'desc'))
+        : {});
+    } catch {
+      setClosedProjects([]);
+      setClosedTypes([]);
+      setTypeSortDirections({});
+    } finally {
+      setStorageLoaded(true);
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!storageKey || !storageLoaded) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ closedProjects, closedTypes, typeSortDirections }));
+    } catch {
+      // localStorage can be unavailable in private or restricted contexts.
+    }
+  }, [closedProjects, closedTypes, storageKey, storageLoaded, typeSortDirections]);
 
   function toggleType(id: string) {
     setClosedTypes(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
