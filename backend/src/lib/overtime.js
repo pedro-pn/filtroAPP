@@ -13,6 +13,7 @@ function parseBreak(value) {
   if (hourMinuteSecond) {
     return Number(hourMinuteSecond[1]) * 60 + Number(hourMinuteSecond[2]);
   }
+  const compactHourMinute = text.match(/^(\d{1,2})h(\d{1,2})$/);
   if (compactHourMinute) return Number(compactHourMinute[1]) * 60 + Number(compactHourMinute[2]);
   const onlyHours = text.match(/^(\d{1,2})\s*h(?:ora|oras)?$/);
   if (onlyHours) return Number(onlyHours[1]) * 60;
