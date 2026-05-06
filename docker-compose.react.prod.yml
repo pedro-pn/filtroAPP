@@ -1,0 +1,14 @@
+services:
+  react:
+    build:
+      context: .
+      dockerfile: deploy/nginx/Dockerfile.react
+    container_name: filtrovali-react
+    restart: unless-stopped
+    networks:
+      - filtrovali-net
+
+networks:
+  filtrovali-net:
+    name: filtrovali-net
+    external: true

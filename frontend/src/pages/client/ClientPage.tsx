@@ -11,6 +11,7 @@ import type { ReportSummary } from '../../types/domain';
 import { downloadBlob } from '../../utils/download';
 import { formatCnpj } from '../../utils/formatCnpj';
 import { compareReportTypes, ProjectSortButton, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
+import { closeZapSignPendingWindow, openZapSignPendingWindow, redirectZapSignWindow } from '../../utils/zapSign';
 
 const TEXT = {
   approveSignature: 'Assinar',
@@ -213,7 +214,10 @@ export function ClientPage() {
       showToast('Selecione ao menos um RDO aprovado.', 'error');
       return;
     }
+    const label = ids.length === 1 ? '1 relatório' : `${ids.length} relatórios`;
+    if (!window.confirm(`Você será redirecionado para a ZapSign para assinar ${label} de uma vez. Deseja continuar?`)) return;
 
+    const signWindow = openZapSignPendingWindow();
     try {
       const selectedComments = ids.reduce<Record<string, string>>((acc, id) => {
         const comment = commentsById[id]?.trim();
@@ -221,22 +225,38 @@ export function ClientPage() {
         return acc;
       }, {});
       const response = await reportMutations.batchSignature.mutateAsync({ ids, commentsById: selectedComments });
-      showToast(TEXT.signatureRequested, 'success');
-      if (response.signUrl) window.open(response.signUrl, '_blank', 'noopener,noreferrer');
+      if (response.signUrl) {
+        redirectZapSignWindow(signWindow, response.signUrl);
+        showToast('Lote enviado para assinatura na ZapSign.', 'success');
+        return;
+      }
+      closeZapSignPendingWindow(signWindow);
+      throw new Error('Link de assinatura não retornado.');
     } catch (error) {
+      closeZapSignPendingWindow(signWindow);
       showToast(error instanceof Error ? error.message : TEXT.requestSignatureError, 'error');
     }
   }
 
   async function handleRequestSignature(report: ReportSummary) {
+    const confirmText = `Você será redirecionado para a ZapSign para assinar digitalmente o ${report.reportType || 'RDO'} nº ${report.sequenceNumber ?? '---'}. Deseja continuar?`;
+    if (!window.confirm(confirmText)) return;
+
+    const signWindow = openZapSignPendingWindow();
     try {
       const response = await reportMutations.requestSignature.mutateAsync({
         id: report.id,
         comment: commentsById[report.id]?.trim() || null
       });
-      showToast(TEXT.signatureRequested, 'success');
-      if (response.signUrl) window.open(response.signUrl, '_blank', 'noopener,noreferrer');
+      if (response.signUrl) {
+        redirectZapSignWindow(signWindow, response.signUrl);
+        showToast('Link de assinatura aberto na ZapSign.', 'success');
+        return;
+      }
+      closeZapSignPendingWindow(signWindow);
+      throw new Error('Link de assinatura não retornado.');
     } catch (error) {
+      closeZapSignPendingWindow(signWindow);
       showToast(error instanceof Error ? error.message : TEXT.requestSignatureError, 'error');
     }
   }

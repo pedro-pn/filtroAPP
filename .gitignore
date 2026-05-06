@@ -26,6 +26,14 @@ backend/tmp_docx_output.docx
 codex.txt
 Planejamento.txt
 
+# Notas e documentos locais que não fazem parte do repositório
+.codex
+Revisao-Ortografia.txt
+Testes manuais obrigatorios.md
+
+# Configurações locais do IDE/ferramentas (não compartilhar entre máquinas)
+.claude/settings.local.json
+
 # Relatórios gerados podem ser recriados a partir do banco/modelos
 backend/Relatórios/**
 !backend/Relatórios/
