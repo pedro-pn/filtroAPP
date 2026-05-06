@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -8,6 +8,7 @@ import { ServiceFields, serviceTypeLabels } from '../../components/reports/Servi
 import { UploadField } from '../../components/ui/UploadField';
 import { useToast } from '../../components/ui/Toast';
 import { useCollaborators } from '../../hooks/useCollaborators';
+import { useCounters } from '../../hooks/useCounters';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useManometers } from '../../hooks/useManometers';
 import { useProjects } from '../../hooks/useProjects';
@@ -17,6 +18,7 @@ import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
 import type { UploadedFile } from '../../api/uploads';
+import type { ReportSummary } from '../../types/domain';
 import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
 
 const TEXT = {
@@ -59,6 +61,7 @@ const serviceTypeModalOptions = [
 ] as const;
 
 const rdoSteps = [TEXT.header, TEXT.services, TEXT.finalization];
+type ReportServiceSummary = NonNullable<ReportSummary['services']>[number];
 
 export function NewReportPage() {
   const navigate = useNavigate();
@@ -67,11 +70,13 @@ export function NewReportPage() {
   const collaboratorsQuery = useCollaborators();
   const unitsQuery = useUnits();
   const manometersQuery = useManometers();
+  const countersQuery = useCounters();
   const reportMutations = useReportMutations();
   const draftsQuery = useDrafts();
   const draftMutations = useDraftMutations();
   const draftSaveTimerRef = useRef<number | null>(null);
   const lastAutoSaveSignatureRef = useRef('');
+  const isSubmittingRef = useRef(false);
 
   const {
     draftId,
@@ -116,6 +121,15 @@ export function NewReportPage() {
   const collaborators = (collaboratorsQuery.data || []).filter(item => item.isActive);
   const units = unitsQuery.data || [];
   const manometers = manometersQuery.data || [];
+  const serviceCollaboratorOptions = useMemo(() => {
+    const ids = Array.from(new Set([...collaboratorIds, ...nightCollaboratorIds]));
+    return ids
+      .map(id => {
+        const collaborator = collaborators.find(item => item.id === id);
+        return collaborator ? { id: collaborator.id, name: collaborator.name } : null;
+      })
+      .filter((item): item is { id: string; name: string } => Boolean(item));
+  }, [collaboratorIds, nightCollaboratorIds, collaborators]);
 
   const selectedProject = useMemo(
     () => (projectsQuery.data || []).find(project => project.id === projectId) || null,
@@ -131,13 +145,68 @@ export function NewReportPage() {
     staleTime: 30_000
   });
 
-  const lastReport = useMemo(() => {
-    const reports = lastProjectReportQuery.data;
-    if (!reports?.length) return null;
+  const projectReports = useMemo(() => {
+    const reports = lastProjectReportQuery.data || [];
     return [...reports].sort(
       (a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime()
-    )[0];
+    );
   }, [lastProjectReportQuery.data]);
+  const lastReport = projectReports[0] || null;
+
+  const serviceFinalized = useCallback((service: ReportServiceSummary) => {
+    if (typeof service.finalized === 'boolean') return service.finalized;
+    const extra = service.extraData || {};
+    const stored = extra['Serviço finalizado?'];
+    if (typeof stored === 'string') return ['sim', 'true', 'finalizado'].includes(stored.trim().toLowerCase());
+    return false;
+  }, []);
+
+  const serviceEquipmentName = useCallback((service: ReportServiceSummary) => {
+    const extra = service.extraData || {};
+    const value = extra['Equipamento(s)'] || extra.Equipamentos || extra.Equipamento || extra['ID da embarcação'] || '';
+    if (Array.isArray(value)) return value.filter(Boolean).join(', ');
+    if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      if (Array.isArray(record.labels)) return record.labels.filter(Boolean).join(', ');
+      return String(record.name || record.nome || record.code || record.codigo || record.id || '');
+    }
+    return String(value || service.equipmentId || '');
+  }, []);
+
+  const serviceOngoingKey = useCallback((report: ReportSummary, service: ReportServiceSummary) => {
+    const extra = service.extraData || {};
+    return String(
+      extra.__ongoingKey
+      || extra.__serviceLinkKey
+      || extra.__sourceServiceId
+      || `${report.projectId || ''}||${service.serviceType || ''}||${serviceEquipmentName(service).trim().toLowerCase()}||${String(service.system || extra.Sistema || '').trim().toLowerCase()}`
+    );
+  }, [serviceEquipmentName]);
+
+  const pendingProjectServices = useMemo(() => {
+    const items = new Map<string, { key: string; report: ReportSummary; service: ReportServiceSummary }>();
+    [...projectReports].reverse().forEach(report => {
+      (report.services || []).forEach(service => {
+        const key = serviceOngoingKey(report, service);
+        if (serviceFinalized(service)) {
+          items.delete(key);
+          return;
+        }
+        items.set(key, { key, report, service });
+      });
+    });
+    return Array.from(items.values()).sort(
+      (a, b) => new Date(b.report.reportDate).getTime() - new Date(a.report.reportDate).getTime()
+    );
+  }, [projectReports, serviceFinalized, serviceOngoingKey]);
+
+  const visiblePendingProjectServices = useMemo(() => {
+    const activeKeys = new Set(services.map(service => {
+      const data = service.data || {};
+      return String(data.__ongoingKey || data.__serviceLinkKey || data.__sourceServiceId || '').trim();
+    }).filter(Boolean));
+    return pendingProjectServices.filter(item => !activeKeys.has(item.key));
+  }, [pendingProjectServices, services]);
 
   useEffect(() => {
     if (!lunchBreak) setHeaderField('lunchBreak', '01:00:00');
@@ -154,27 +223,52 @@ export function NewReportPage() {
     }
   }, [projectId, lastReport, collaboratorIds.length, setCollaborators]);
 
-  function handleContinueServices() {
-    if (!lastReport?.services?.length) return;
-    lastReport.services.forEach(service => {
+  useEffect(() => {
+    if (!projectId || !noturno || nightCollaboratorIds.length > 0) return;
+    const noturnoDetails = lastReport?.specialConditions?.noturnoDetails;
+    if (!noturnoDetails || typeof noturnoDetails !== 'object' || Array.isArray(noturnoDetails)) return;
+    const ids = Array.isArray((noturnoDetails as Record<string, unknown>).collaboratorIds)
+      ? ((noturnoDetails as Record<string, unknown>).collaboratorIds as unknown[]).filter((id): id is string => typeof id === 'string')
+      : [];
+    if (ids.length) setNightCollaborators(ids);
+  }, [projectId, noturno, nightCollaboratorIds.length, lastReport, setNightCollaborators]);
+
+  function continueService(service: ReportServiceSummary, ongoingKey: string) {
+      const extra = service.extraData || {};
+      const contadorUtilizado = String(extra['Contador utilizado'] || extra.contadorUtilizado || '');
+      const desidratacaoUnit = String(extra['Equipamento de desidratação'] || extra.desidratacaoUnit || '');
       addService(normalizeServiceType(service.serviceType), {
-        ...(service.extraData || {}),
-        equipmentId: service.equipmentId || '',
-        system: service.system || '',
-        material: service.material || '',
+        ...extra,
+        __ongoingKey: ongoingKey,
+        __serviceLinkKey: String(extra.__serviceLinkKey || ongoingKey),
+        etapas: [],
+        customEtapa: '',
+        finalized: false,
+        aprovadoCliente: 'Sim',
+        houveParticulas: contadorUtilizado ? 'Sim' : String(extra['Houve contagem de partículas?'] || extra.houveParticulas || 'Não'),
+        contadorUtilizado,
+        contagemInicialNas: '',
+        contagemFinalNas: '',
+        contagemInicialIso: '',
+        contagemFinalIso: '',
+        houveDesidratacao: desidratacaoUnit ? 'Sim' : String(extra['Houve desidratação?'] || extra.houveDesidratacao || 'Não'),
+        desidratacaoUnit,
+        houveUmidade: String(extra['Houve análise de umidade?'] || extra.houveUmidade || 'Não'),
+        umidadeInicial: '',
+        umidadeFinal: '',
+        equipmentId: service.equipmentId || serviceEquipmentName(service),
+        system: service.system || String(extra.Sistema || ''),
+        material: service.material || String(extra['Material da tubulação'] || extra['Material do equipamento'] || ''),
         startTime: '',
         endTime: '',
-        notes: typeof service.extraData?.notes === 'string' ? service.extraData.notes : '',
+        notes: '',
         _prefilled: true
       });
-    });
   }
 
-  function formatLastReportDate(report: typeof lastReport) {
-    if (!report?.reportDate) return '';
-    const d = new Date(report.reportDate);
-    if (Number.isNaN(d.getTime())) return report.reportDate;
-    return d.toLocaleDateString('pt-BR');
+  function handleContinueServices() {
+    if (!pendingProjectServices.length) return;
+    visiblePendingProjectServices.forEach(({ service, key }) => continueService(service, key));
   }
 
   function parseDurationToMinutes(value: string) {
@@ -338,11 +432,21 @@ export function NewReportPage() {
     setInvalidTarget(target);
     showToast(`Preencha o campo obrigatório: ${label}.`, 'error');
     window.setTimeout(() => {
-      const selector = target.includes(':')
-        ? `[data-service-id="${target.split(':')[0]}"]`
-        : `[data-invalid-target="${target}"]`;
-      document.querySelector(selector)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 80);
+      const [serviceId] = target.split(':');
+      const selectors = target.includes(':')
+        ? [
+            `[data-invalid-target="${target}"]`,
+            `[data-service-id="${serviceId}"] .field-invalid input`,
+            `[data-service-id="${serviceId}"] .field-invalid select`,
+            `[data-service-id="${serviceId}"] .field-invalid textarea`,
+            `[data-service-id="${serviceId}"] .field-invalid`,
+            `[data-service-id="${serviceId}"]`
+          ]
+        : [`[data-invalid-target="${target}"]`];
+      const element = selectors.map(selector => document.querySelector(selector)).find(Boolean) as HTMLElement | null;
+      element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (element && typeof element.focus === 'function') element.focus({ preventScroll: true });
+    }, 120);
     return false;
   }
 
@@ -394,6 +498,7 @@ export function NewReportPage() {
       if (!hasText(data.system)) return failRequired('Sistema', target('system'), 1);
       if (!hasText(data.startTime)) return failRequired('Hora de início', target('startTime'), 1);
       if (!hasText(data.endTime)) return failRequired('Hora de término/pausa', target('endTime'), 1);
+      if (!hasStringItem(data.serviceCollaboratorIds)) return failRequired('Colaboradores do serviço', target('serviceCollaboratorIds'), 1);
       if (!hasStringItem(data.etapas)) return failRequired('Etapas realizadas no dia', target('etapas'), 1);
 
       if (['limpeza', 'pressao', 'flushing', 'mecanica', 'inibicao'].includes(type) && !hasText(data.material)) {
@@ -509,6 +614,7 @@ export function NewReportPage() {
   }
 
   useEffect(() => {
+    if (isSubmittingRef.current) return;
     if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
 
     if (!projectId || !reportDate) {
@@ -586,10 +692,15 @@ export function NewReportPage() {
     if (!validateHeader()) return;
     if (!validateServices()) return;
 
+    isSubmittingRef.current = true;
+    if (draftSaveTimerRef.current) {
+      window.clearTimeout(draftSaveTimerRef.current);
+      draftSaveTimerRef.current = null;
+    }
+
     try {
       const draftIdsToRemove = matchingDraftIds();
       if (draftId && !draftIdsToRemove.includes(draftId)) draftIdsToRemove.push(draftId);
-      const serviceCollaboratorIds = Array.from(new Set([...collaboratorIds, ...nightCollaboratorIds]));
       const created = await reportMutations.createReport.mutateAsync({
         projectId: projectId!,
         createdByUserId: user.id,
@@ -620,13 +731,17 @@ export function NewReportPage() {
         },
         collaboratorIds,
         services: services.map(service => buildReportServicePayload(service, {
-          collaboratorIds: serviceCollaboratorIds,
+          collaboratorIds: Array.isArray(service.data.serviceCollaboratorIds)
+            ? service.data.serviceCollaboratorIds.filter((id): id is string => typeof id === 'string')
+            : [],
           collaborators,
           units
         }))
       });
 
       await Promise.all(draftIdsToRemove.map(id => draftMutations.removeDraft.mutateAsync(id).catch(() => undefined)));
+      setDraftId(null);
+      lastAutoSaveSignatureRef.current = '';
 
       reset();
       if (user.role === 'MANAGER') {
@@ -635,6 +750,7 @@ export function NewReportPage() {
         navigate(`/relatorios/${created.id}`);
       }
     } catch (err) {
+      isSubmittingRef.current = false;
       showToast(err instanceof Error ? err.message : TEXT.errorCreate, 'error');
     }
   }
@@ -881,32 +997,45 @@ export function NewReportPage() {
 
         {step === 1 ? (
         <>
-        {projectId && (lastReport?.services?.length ?? 0) > 0 && !services.length ? (
+        {projectId && visiblePendingProjectServices.length > 0 ? (
           <section className="page-card continuity-card">
             <div className="section-title">Serviços em andamento</div>
             <p className="placeholder-copy">
-              Último relatório do projeto ({formatLastReportDate(lastReport)}) tem{' '}
-              {lastReport!.services!.length} serviço(s) registrado(s).
+              Selecione individualmente quais serviços deseja continuar neste RDO.
             </p>
-            <div className="admin-form-actions" style={{ marginTop: 10 }}>
-              <button className="secondary-button" type="button" onClick={handleContinueServices}>
-                Continuar serviços
-              </button>
+            <div className="admin-list" style={{ marginTop: 10 }}>
+              {visiblePendingProjectServices.map(({ key, report, service }) => {
+                const type = normalizeServiceType(service.serviceType);
+                const equipment = serviceEquipmentName(service) || 'Equipamento não informado';
+                const system = service.system || String((service.extraData || {}).Sistema || '');
+                return (
+                  <article className="ongoing-item-react" key={`${report.id}-${service.id}`}>
+                    <div className="admin-item-row">
+                      <div className="admin-item-main">
+                        <div className="admin-item-title">{serviceTypeLabels[type] || type}</div>
+                        <div className="admin-item-sub">
+                          {equipment}{system ? ` · ${system}` : ''} · RDO {report.sequenceNumber || '---'}
+                        </div>
+                      </div>
+                      <button className="ongoing-badge-react" type="button" onClick={() => continueService(service, key)}>
+                        Continuar
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
+            {visiblePendingProjectServices.length > 1 ? (
+              <div className="admin-form-actions" style={{ marginTop: 10 }}>
+                <button className="secondary-button" type="button" onClick={handleContinueServices}>
+                  Continuar todos
+                </button>
+              </div>
+            ) : null}
           </section>
         ) : null}
         <section className="page-card" data-invalid-target="services:empty">
           <div className="section-title">{TEXT.services}</div>
-          <div className="admin-form-actions">
-            <button
-              className="secondary-button"
-              type="button"
-              style={{ width: '100%', borderStyle: 'dashed', color: 'var(--g)', fontWeight: 700 }}
-              onClick={() => setShowServiceModal(true)}
-            >
-              ＋ {TEXT.addService}
-            </button>
-          </div>
           {services.length ? (
             <div className="admin-stack" style={{ marginTop: 12 }}>
               {services.map((service, index) => (
@@ -970,6 +1099,8 @@ export function NewReportPage() {
                       onChange={update => updateService(service.id, update)}
                       units={units}
                       manometers={manometers}
+                      counters={countersQuery.data || []}
+                      collaboratorOptions={serviceCollaboratorOptions}
                       groupKey={service.id}
                       projectId={projectId}
                       invalidKey={serviceInvalidKey(service.id)}
@@ -981,6 +1112,16 @@ export function NewReportPage() {
           ) : (
             <p className="placeholder-copy">{TEXT.noService}</p>
           )}
+          <div className="admin-form-actions" style={{ marginTop: 12 }}>
+            <button
+              className="secondary-button"
+              type="button"
+              style={{ width: '100%', borderStyle: 'dashed', color: 'var(--g)', fontWeight: 700 }}
+              onClick={() => setShowServiceModal(true)}
+            >
+              ＋ {TEXT.addService}
+            </button>
+          </div>
         </section>
         </>
         ) : null}

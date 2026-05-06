@@ -11,6 +11,7 @@ import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import type { ReportSummary } from '../../types/domain';
 import { downloadBlob } from '../../utils/download';
+import { formatCnpj } from '../../utils/formatCnpj';
 
 const TEXT = {
   approveSignature: 'Assinar',
@@ -222,6 +223,7 @@ export function ClientPage() {
       <TopBar
         title={TEXT.clientPortal}
         subtitle={user?.name}
+        showLogo
         actions={
           <>
             <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
@@ -241,7 +243,7 @@ export function ClientPage() {
             Acompanhe os relatórios liberados e registre a aprovação do cliente.
           </div>
           <div className="client-welcome-meta">
-            <span><strong>Usuário:</strong> {user?.username || '—'}</span>
+            <span><strong>Usuário:</strong> {formatCnpj(user?.username) || user?.username || '—'}</span>
             <span><strong>E-mail:</strong> {user?.email || '—'}</span>
             <span><strong>Projetos vinculados:</strong> {reportSummary.projectCount}</span>
           </div>

@@ -119,6 +119,7 @@ export function HomePage() {
       <TopBar
         title="Home"
         subtitle={user?.name}
+        showLogo
         actions={
           <>
             <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>

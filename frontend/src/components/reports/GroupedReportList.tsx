@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 
 import type { ReportSummary } from '../../types/domain';
 import { groupByProject } from '../../utils/groupByProject';
+import { ProjectSortButton, compareReportTypes, sortProjectGroups, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
 import { ReportSummaryCard } from './ReportSummaryCard';
 
 interface GroupedReportListProps {
@@ -9,13 +10,23 @@ interface GroupedReportListProps {
   archived?: boolean;
   renderReport?: (report: ReportSummary) => React.ReactNode;
   renderTypeActions?: (reports: ReportSummary[]) => React.ReactNode;
+  sortDirection?: ProjectSortDirection;
+  showTypeSort?: boolean;
 }
 
-export function GroupedReportList({ reports, archived, renderReport, renderTypeActions }: GroupedReportListProps) {
+export function GroupedReportList({
+  reports,
+  archived,
+  renderReport,
+  renderTypeActions,
+  sortDirection = 'asc',
+  showTypeSort = false
+}: GroupedReportListProps) {
   const [closedProjects, setClosedProjects] = useState<string[]>([]);
   const [closedTypes, setClosedTypes] = useState<string[]>([]);
+  const [typeSortDirections, setTypeSortDirections] = useState<Record<string, ProjectSortDirection>>({});
 
-  const groups = useMemo(() => groupByProject(reports), [reports]);
+  const groups = useMemo(() => sortProjectGroups(groupByProject(reports), sortDirection), [reports, sortDirection]);
 
   function toggleProject(id: string) {
     setClosedProjects(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
@@ -23,6 +34,10 @@ export function GroupedReportList({ reports, archived, renderReport, renderTypeA
 
   function toggleType(id: string) {
     setClosedTypes(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
+  }
+
+  function toggleTypeSort(id: string) {
+    setTypeSortDirections(current => ({ ...current, [id]: (current[id] || 'asc') === 'asc' ? 'desc' : 'asc' }));
   }
 
   return (
@@ -48,24 +63,30 @@ export function GroupedReportList({ reports, archived, renderReport, renderTypeA
             </button>
             {!projectClosed ? (
               <div className="project-group-body">
-                {Object.entries(typeGroups).map(([reportType, typeReports]) => {
+                {Object.entries(typeGroups).sort(([a], [b]) => compareReportTypes(a, b)).map(([reportType, typeReports]) => {
                   const typeKey = `${group.projectId}-${reportType}`;
                   const typeClosed = closedTypes.includes(typeKey);
+                  const typeSortDirection = typeSortDirections[typeKey] || 'asc';
 
                   return (
                     <section className="report-type-group" key={typeKey}>
-                      <button className="report-type-header" type="button" onClick={() => toggleType(typeKey)}>
-                        <span className={`rtype-badge rtype-${reportType}`}>{reportType}</span>
-                        <span className="rtype-count">
-                          {typeReports.length} relatório{typeReports.length !== 1 ? 's' : ''}
-                        </span>
-                        <span className="group-chevron">{typeClosed ? '▸' : '▾'}</span>
-                      </button>
+                      <div className="report-type-header">
+                        <button className="report-type-toggle" type="button" onClick={() => toggleType(typeKey)}>
+                          <span className={`rtype-badge rtype-${reportType}`}>{reportType}</span>
+                          <span className="rtype-count">
+                            {typeReports.length} relatório{typeReports.length !== 1 ? 's' : ''}
+                          </span>
+                          <span className="group-chevron">{typeClosed ? '▸' : '▾'}</span>
+                        </button>
+                        {showTypeSort ? (
+                          <ProjectSortButton direction={typeSortDirection} onToggle={() => toggleTypeSort(typeKey)} />
+                        ) : null}
+                      </div>
                       {!typeClosed ? (
                         <>
                           {renderTypeActions ? renderTypeActions(typeReports) : null}
                           <div className="report-type-list">
-                            {typeReports.map(report => (
+                            {sortReportsInGroup(typeReports, typeSortDirection).map(report => (
                               renderReport ? renderReport(report) : <ReportSummaryCard key={report.id} report={report} />
                             ))}
                           </div>

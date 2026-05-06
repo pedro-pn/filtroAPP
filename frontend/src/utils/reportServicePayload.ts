@@ -93,7 +93,7 @@ function commonExtraData(
       : { 'Material da tubulação': material }),
     'Hora de início': getString(data.startTime),
     'Hora de término/pausa': getString(data.endTime),
-    'Serviço finalizado?': getBool(data.finalized, true) ? 'Sim' : 'Não',
+    'Serviço finalizado?': getBool(data.finalized, false) ? 'Sim' : 'Não',
     'Aprovado pelo cliente?': getString(data.aprovadoCliente) || '',
     'Etapas realizadas no dia': getStrings(data.etapas),
     Observações: getString(data.notes),
@@ -174,7 +174,7 @@ export function buildReportServicePayload(
     material: getString(data.material) || null,
     startTime: getString(data.startTime) || null,
     endTime: getString(data.endTime) || null,
-    finalized: getBool(data.finalized, true),
+    finalized: getBool(data.finalized, false),
     extraData
   };
 }

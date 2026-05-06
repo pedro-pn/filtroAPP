@@ -7,6 +7,7 @@ import type { UploadedFile } from '../api/uploads';
 import { ServiceFields, serviceTypeLabels, serviceTypeOptions } from '../components/reports/ServiceFields';
 import { useToast } from '../components/ui/Toast';
 import { useCollaborators } from '../hooks/useCollaborators';
+import { useCounters } from '../hooks/useCounters';
 import { useEquipment } from '../hooks/useEquipment';
 import { useManometers } from '../hooks/useManometers';
 import { useProjects } from '../hooks/useProjects';
@@ -214,6 +215,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const equipmentQuery = useEquipment();
   const unitsQuery = useUnits();
   const manometersQuery = useManometers();
+  const countersQuery = useCounters();
   const reportMutations = useReportMutations();
   const showToast = useToast();
   const [form, setForm] = useState<RdoFormState>(() => reportToForm(report));
@@ -255,6 +257,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const equipment = (equipmentQuery.data || []).filter(item => item.isActive || selectedEquipmentIds.has(item.id));
   const units = unitsQuery.data || [];
   const manometers = manometersQuery.data || [];
+  const counters = countersQuery.data || [];
 
   function setField<K extends keyof RdoFormState>(field: K, value: RdoFormState[K]) {
     setForm(current => ({ ...current, [field]: value }));
@@ -574,6 +577,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     disabled={readOnly}
                     units={units}
                     manometers={manometers}
+                    counters={counters}
                     groupKey={service.id}
                     projectId={form.projectId}
                   />

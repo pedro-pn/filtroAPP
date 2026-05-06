@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createClientReportReview,
   createReport,
+  deleteReport as deleteReportApi,
   getReport,
   listReports,
   requestReportsBatchSignature,
@@ -86,12 +87,18 @@ export function useReportMutations() {
     }
   });
 
+  const deleteReport = useMutation({
+    mutationFn: (id: string) => deleteReportApi(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports'] })
+  });
+
   return {
     createReport: createMutation,
     updateReport: updateMutation,
     updateStatus: updateStatusMutation,
     requestSignature: requestSignatureMutation,
     clientReview: clientReviewMutation,
-    batchSignature: batchSignatureMutation
+    batchSignature: batchSignatureMutation,
+    deleteReport
   };
 }

@@ -1,6 +1,9 @@
 ﻿import { useRef, useState } from 'react';
 
 import { uploadFiles, type UploadedFile } from '../../api/uploads';
+import { TOKEN_STORAGE_KEY } from '../../api/client';
+
+const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
 
 interface UploadFieldProps {
   label: string;
@@ -9,6 +12,11 @@ interface UploadFieldProps {
   disabled?: boolean;
   onChange: (files: UploadedFile[]) => void;
 }
+
+type UploadValue = UploadedFile & {
+  path?: string;
+  dataUrl?: string;
+};
 
 function fileToDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -55,10 +63,36 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
     onChange(value.filter((_, itemIndex) => itemIndex !== index));
   }
 
+  function rawFileUrl(file: UploadValue) {
+    return file.url || file.path || file.dataUrl || '';
+  }
+
   function assetUrl(url: string) {
     if (!url) return '';
     if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
-    return url.startsWith('/') ? url : `/${url}`;
+    // Normaliza: URLs sem barra inicial são caminhos relativos ao diretório de relatórios
+    // (formato legado anterior a ter /relatorios/ como prefixo explícito)
+    const normalized = url.startsWith('/') ? url : `/relatorios/${url}`;
+    const protectedPath = normalized.startsWith('/relatorios/')
+      ? normalized.slice('/relatorios/'.length)
+      : (normalized.startsWith('/uploads/') ? normalized.slice('/uploads/'.length) : '');
+    // Não precisamos do prefixo do assets para caminhos de relatórios autenticados
+    const isPublic = normalized.startsWith('/assets/');
+    const resolved = protectedPath
+      ? `/api/uploads/file/${protectedPath}`
+      : (isPublic && assetsBaseUrl ? `${assetsBaseUrl}${normalized}` : normalized);
+    if (isPublic) return resolved;
+    // Caminho de backend protegido: adiciona token como query param para suportar <img> e <a>
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (!token) return resolved;
+    const separator = resolved.includes('?') ? '&' : '?';
+    return `${resolved}${separator}token=${encodeURIComponent(token)}`;
+  }
+
+  function isImageFile(file: UploadValue) {
+    if ((file.mimeType || '').startsWith('image')) return true;
+    const ext = (file.fileName || rawFileUrl(file)).split('.').pop()?.toLowerCase() || '';
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
   }
 
   return (
@@ -89,21 +123,28 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
       {error ? <div className="inline-error">{error}</div> : null}
       {value.length ? (
         <div className="upload-list">
-          {value.map((file, index) => (
-            <div className="upload-list-item" key={`${file.url}-${index}`}>
-              {file.url ? (
-                <img className="upload-list-thumb" src={assetUrl(file.url)} alt={file.fileName} />
+          {value.map((file, index) => {
+            const href = assetUrl(rawFileUrl(file));
+            return (
+            <div className="upload-list-item" key={`${rawFileUrl(file)}-${index}`}>
+              {href && isImageFile(file) ? (
+                <img className="upload-list-thumb" src={href} alt={file.fileName} />
               ) : null}
-              <a className="upload-list-name" href={assetUrl(file.url)} target="_blank" rel="noreferrer">
-                {file.fileName}
-              </a>
+              {href ? (
+                <a className="upload-list-name" href={href} target="_blank" rel="noreferrer">
+                  {file.fileName}
+                </a>
+              ) : (
+                <span className="upload-list-name">{file.fileName}</span>
+              )}
               {!disabled ? (
                 <button className="secondary-button" type="button" onClick={() => removeFile(index)}>
                   Remover
                 </button>
               ) : null}
             </div>
-          ))}
+            );
+          })}
         </div>
       ) : null}
     </div>

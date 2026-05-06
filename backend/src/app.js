@@ -77,7 +77,7 @@ app.use(morgan('dev'));
 
 // Arquivos de relatórios e assinaturas exigem autenticação via header Bearer.
 const protectedRelatorios = async (req, res, next) => {
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim() || String(req.query.token || '').trim();
   if (!token) return res.status(401).json({ error: 'Acesso negado.' });
   try {
     const session = await findSessionExpiryWithRetry(hashToken(token));
