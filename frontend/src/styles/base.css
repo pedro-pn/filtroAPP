@@ -833,10 +833,48 @@ a {
   overflow-wrap: anywhere;
 }
 
+.project-admin-toggle {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
 .admin-item-title {
   font-size: 13px;
   font-weight: 600;
   color: var(--g);
+}
+
+.admin-item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-item-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--g);
+  color: var(--wh);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  flex: 0 0 auto;
 }
 
 .admin-item-sub {

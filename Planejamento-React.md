@@ -22,15 +22,17 @@
 - [x] **Serviço finalizado permanece em "Em andamento"**: regra de continuidade reforçada em `NewReportPage`: serviços finalizados removem sugestões equivalentes por chaves explícitas (`__ongoingKey`, `__serviceLinkKey`, `__sourceServiceId`) e por chave semântica de projeto/tipo/equipamento/sistema, sem apagar serviços dos relatórios já enviados.
 - [x] **Cliente — seleção e ações em lote**: checkboxes ficam visíveis nos relatórios selecionáveis; por padrão aparece apenas "Selecionar todos". Contador, limpar seleção, download em lote e assinatura em lote aparecem somente após existir seleção.
 - [x] **Cliente — navegação por abas de projeto**: portal do cliente usa abas horizontais por projeto e abas por tipo de relatório, com card "Projeto atual", em vez de grupos recolhíveis.
-- [ ] **Derivados editáveis?**: confirmar com stakeholder se RTP/RLQ/RCPU/RLM/RLF/RLI precisam de editor no React. HTML hoje só edita RDO. Resposta: os relatorios de serviços devem ser alterados através dos próprios RDOs que eles pertencem. Isto ocorre para manter o vinculo RDO/serviços.
+- [x] **Derivados editáveis?**: confirmado que os relatórios de serviços devem ser alterados através dos próprios RDOs aos quais pertencem, para manter o vínculo RDO/serviços. Verificado em 2026-05-06: React só renderiza `ManagerRdoEditor` para `reportType === 'RDO'`; HTML também separa derivados e só abre o editor completo para não derivados.
 
 ---
 
 ## P2 — Validação e testes obrigatórios
 
-- [ ] **Auto-refresh após arquivar projeto ou criar relatório**: ao arquivar um projeto e ao criar um relatório com serviços, a lista deve atualizar automaticamente via React Query sem precisar de refresh manual. Revisar invalidações de cache (`invalidateQueries`) nos handlers correspondentes.
-- [ ] **Arquivados — separar por tipo de relatório**: aba "Arquivados" do gestor (projetos arquivados) deve subdividir os relatórios dentro de cada projeto por tipo (RDO, RTP, RLQ, etc.), igual ao que já ocorre na aba "Aprovados".
-- [ ] **Toggle de detalhes nos cards de projeto**: adicionar botão para expandir/recolher os detalhes do card de projeto na aba Projetos. Estado do toggle deve ser persistido por conta (localStorage por userId+projectId) para que o usuário não precise reabrir toda vez.
+- [x] **Auto-refresh após arquivar projeto ou criar relatório**: `useReportMutations.createReport` já invalida `['reports']`; `useProjectMutations` agora também invalida `['reports']` além dos caches de projetos, para atualizar listas após arquivar/desarquivar/remover projeto.
+- [x] **Arquivados — separar por tipo de relatório**: aba "Arquivados" do gestor agora subdivide os relatórios de cada projeto arquivado por tipo (RDO, RTP, RLQ, etc.) com a mesma ordenação de tipos usada nas demais listagens.
+- [x] **Toggle de detalhes nos cards de projeto**: cards de projeto agora têm botão "Mostrar/Ocultar detalhes"; estado recolhido é persistido em `localStorage` por conta (`userId`) contendo os `projectId`s recolhidos.
+- [ ] **Relatório sem serviço**: remover a obrigatoriedade de adicionar serviços na segunda etapa de preenchimento.
+- [ ] **Remover cards de fundo**: várias abas do gestor, há cards de fundo, como em contadores, manometros e unidades. Eles não estão presentes no HTML e deixam o visual poluido.
 - [ ] **Campo de pesquisa nas abas do gestor**: adicionar input de busca nas abas Aprovados, Projetos, Arquivados, Equipe, Usuários, Unidades, Manômetros e Contadores. Ao digitar, filtrar em tempo real os cards que contenham o texto em qualquer campo visível (nome, CNPJ, e-mail, projeto, número, etc.).
 - [ ] **DOCX/PDF via React**: testar relatório criado no React com quebras de linha, unidades de comprimento, condições especiais (standby, noturno) e rascunho retomado. Confirmar que o DOCX gerado é equivalente ao do HTML.
 - [ ] **RCPU com dois RDOs**: confirmar `Contagem inicial NAS` = dia 1 e `Contagem final NAS` = dia 2 após fix em `syncApprovedRcpReports` (`reports.js`).
