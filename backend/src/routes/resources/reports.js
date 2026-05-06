@@ -329,6 +329,31 @@ async function generateReportDocxAsset(report) {
   return saveReportDocx(report);
 }
 
+async function refreshDerivedReportSource(report) {
+  if (![ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM].includes(report.reportType)) {
+    return report;
+  }
+  const parentRdoId = report.specialConditions?.parentRdoId;
+  if (!parentRdoId) return report;
+
+  await prisma.$transaction(async tx => {
+    const parent = await tx.report.findUnique({
+      where: { id: parentRdoId },
+      include
+    });
+    if (!parent || parent.reportType !== ReportType.RDO || parent.status !== ReportStatus.APPROVED) return;
+    if (report.reportType === ReportType.RTP) await syncApprovedRtpReports(tx, parent);
+    if (report.reportType === ReportType.RLQ) await syncApprovedRlqReports(tx, parent);
+    if (report.reportType === ReportType.RCPU) await syncApprovedRcpReports(tx, parent);
+    if (report.reportType === ReportType.RLM) await syncApprovedRlmReports(tx, parent);
+  });
+
+  return prisma.report.findUniqueOrThrow({
+    where: { id: report.id },
+    include
+  });
+}
+
 function buildZapSignWebhookUrl() {
   const base = String(env.appUrl || '').replace(/\/+$/, '');
   if (!base) {
@@ -984,12 +1009,7 @@ async function syncApprovedRtpReports(tx, report) {
 
   for (const service of pressaoServices) {
     const fields = service.extraData || {};
-    const serviceLinkKey = String(
-      fields.__serviceLinkKey ||
-      fields.__sourceServiceId ||
-      service.id ||
-      ''
-    ).trim();
+    const serviceLinkKey = serviceHistoryKey(service) || String(service.id || '').trim();
     const serviceHistory = [];
     for (const rdo of allApprovedRdos) {
       for (const svc of rdo.services || []) {
@@ -1155,9 +1175,10 @@ async function syncApprovedRlqReports(tx, report) {
   const existingByLinkKey = new Map();
   existingRlqs.forEach(item => {
     const special = item.specialConditions || {};
-    if (special.parentRdoId !== report.id) return;
-    const linkKey = String(special.serviceLinkKey || special.serviceId || '').trim();
+    const linkKey = String(special.serviceLinkKey || '').trim();
+    const serviceId = String(special.serviceId || '').trim();
     if (linkKey) existingByLinkKey.set(linkKey, item);
+    if (serviceId) existingByLinkKey.set(serviceId, item);
   });
 
   const allApprovedRdos = await tx.report.findMany({
@@ -1175,12 +1196,7 @@ async function syncApprovedRlqReports(tx, report) {
 
   for (const service of limpezaServices) {
     const fields = service.extraData || {};
-    const serviceLinkKey = String(
-      fields.__serviceLinkKey ||
-      fields.__sourceServiceId ||
-      service.id ||
-      ''
-    ).trim();
+    const serviceLinkKey = serviceHistoryKey(service) || String(service.id || '').trim();
     const serviceHistory = [];
     for (const rdo of allApprovedRdos) {
       for (const svc of rdo.services || []) {
@@ -1197,15 +1213,15 @@ async function syncApprovedRlqReports(tx, report) {
     const consolidatedFields = buildHistoricalServiceData(fields, serviceHistory);
 
     const collabField =
-      fields['Colaboradores do serviço'] ||
-      fields['Colaboradores do serviÃ§o'] ||
-      fields['Colaboradores do servico'];
+      consolidatedFields['Colaboradores do serviço'] ||
+      consolidatedFields['Colaboradores do serviÃ§o'] ||
+      consolidatedFields['Colaboradores do servico'];
     const collabIds = [...new Set(Array.isArray(collabField?.ids) ? collabField.ids.filter(Boolean) : [])];
 
     const ulqField =
-      fields['Unidade de Limpeza Química'] ||
-      fields['Unidade de Limpeza QuÃ­mica'] ||
-      fields['Unidade de Limpeza Quimica'];
+      consolidatedFields['Unidade de Limpeza Química'] ||
+      consolidatedFields['Unidade de Limpeza QuÃ­mica'] ||
+      consolidatedFields['Unidade de Limpeza Quimica'];
     const ulqIds = Array.isArray(ulqField?.ids) ? ulqField.ids.filter(Boolean)
       : (ulqField && typeof ulqField === 'string' ? [ulqField] : []);
 
@@ -1245,7 +1261,7 @@ async function syncApprovedRlqReports(tx, report) {
       }
     };
 
-    const existingRlq = serviceLinkKey ? existingByLinkKey.get(serviceLinkKey) : null;
+    const existingRlq = serviceLinkKey ? (existingByLinkKey.get(serviceLinkKey) || existingByLinkKey.get(String(service.id))) : null;
 
     if (existingRlq) {
       await validateDerivedReportSequenceMove(tx, existingRlq, report.projectId, ReportType.RLQ);
@@ -1322,7 +1338,15 @@ function isYesReportField(value) {
 
 function serviceHistoryKey(service) {
   const fields = service?.extraData || {};
-  return String(fields.__serviceLinkKey || fields.__sourceServiceId || '').trim();
+  const explicit = String(fields.__ongoingKey || fields.__serviceLinkKey || fields.__sourceServiceId || '').trim();
+  if (explicit) return explicit;
+  const equipment = getReportField(fields, ['Equipamento(s)', 'Equipamento', 'ID da embarcação', 'ID da embarcacao']) || service?.equipmentId || '';
+  const system = getReportField(fields, ['Sistema']) || service?.system || '';
+  return [
+    service?.serviceType || '',
+    String(equipment || '').trim().toLowerCase(),
+    String(system || '').trim().toLowerCase()
+  ].join('||');
 }
 
 function buildHistoricalServiceData(currentFields, serviceHistory) {
@@ -1330,14 +1354,14 @@ function buildHistoricalServiceData(currentFields, serviceHistory) {
   const firstField = names => {
     for (const item of serviceHistory) {
       const value = getReportField(item.fields, names);
-      if (value !== undefined) return value;
+      if (hasReportFieldValue(value)) return value;
     }
     return undefined;
   };
   const lastField = names => {
     for (let i = serviceHistory.length - 1; i >= 0; i--) {
       const value = getReportField(serviceHistory[i].fields, names);
-      if (value !== undefined) return value;
+      if (hasReportFieldValue(value)) return value;
     }
     return undefined;
   };
@@ -1413,7 +1437,9 @@ async function syncApprovedRcpReports(tx, report) {
   existingRcps.forEach(item => {
     const special = item.specialConditions || {};
     const linkKey = String(special.serviceLinkKey || '').trim();
+    const serviceId = String(special.serviceId || '').trim();
     if (linkKey) existingByLinkKey.set(linkKey, item);
+    if (serviceId) existingByLinkKey.set(serviceId, item);
   });
 
   // Fetch all approved RDOs once for totalMinutes calculation.
@@ -1432,12 +1458,7 @@ async function syncApprovedRcpReports(tx, report) {
 
   for (const service of rcpServices) {
     const fields = service.extraData || {};
-    const serviceLinkKey = String(
-      fields.__serviceLinkKey ||
-      fields.__sourceServiceId ||
-      service.id ||
-      ''
-    ).trim();
+    const serviceLinkKey = serviceHistoryKey(service) || String(service.id || '').trim();
 
     const serviceHistory = [];
     for (const rdo of allApprovedRdos) {
@@ -1525,7 +1546,7 @@ async function syncApprovedRcpReports(tx, report) {
       }
     };
 
-    const existingRcp = serviceLinkKey ? existingByLinkKey.get(serviceLinkKey) : null;
+    const existingRcp = serviceLinkKey ? (existingByLinkKey.get(serviceLinkKey) || existingByLinkKey.get(String(service.id))) : null;
 
     if (existingRcp) {
       await validateDerivedReportSequenceMove(tx, existingRcp, report.projectId, ReportType.RCPU);
@@ -1989,7 +2010,7 @@ router.get('/:id', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
-  const item = await prisma.report.findUniqueOrThrow({
+  let item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
   });
@@ -2016,6 +2037,7 @@ router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
     return;
   }
 
+  item = await refreshDerivedReportSource(item);
   const saved = await generateReportPdfAsset(item);
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', contentDisposition(saved.fileName));
@@ -2023,7 +2045,7 @@ router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
-  const item = await prisma.report.findUniqueOrThrow({
+  let item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
   });
@@ -2036,6 +2058,7 @@ router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'Apenas o gestor pode baixar o DOCX.' });
   }
 
+  item = await refreshDerivedReportSource(item);
   const saved = await generateReportDocxAsset(item);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   res.setHeader('Content-Disposition', contentDisposition(saved.fileName));

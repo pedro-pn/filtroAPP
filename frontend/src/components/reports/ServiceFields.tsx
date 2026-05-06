@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Manometer, Unit } from '../../types/domain';
+import type { Manometer, ParticleCounter, Unit } from '../../types/domain';
 import type { UploadedFile } from '../../api/uploads';
 import { UploadField } from '../ui/UploadField';
 
@@ -51,6 +51,7 @@ const etapasPorTipo: Record<string, string[]> = {
 
 type UploadGroup = { label: string; files: UploadedFile[] };
 type TubeRow = { d: string; unit: string; c: string; lengthUnit: string };
+export type ServiceCollaboratorOption = { id: string; name: string };
 
 function getGroup(data: Record<string, unknown>, label: string): UploadedFile[] {
   const groups = Array.isArray(data.__uploads__) ? (data.__uploads__ as UploadGroup[]) : [];
@@ -125,6 +126,8 @@ interface ServiceFieldsProps {
   disabled?: boolean;
   units: Unit[];
   manometers: Manometer[];
+  counters?: ParticleCounter[];
+  collaboratorOptions?: ServiceCollaboratorOption[];
   groupKey: string;
   projectId?: string | null;
   invalidKey?: string | null;
@@ -138,26 +141,34 @@ function fieldClass(invalidKey: string | null | undefined, key: string) {
   return `field-group ${invalidKey === key ? 'field-invalid' : ''}`;
 }
 
+function fieldId(groupKey: string, field: string, suffix?: string | number) {
+  return ['svc', groupKey, field, suffix].filter(value => value !== undefined && value !== '').join('-');
+}
+
 function MaterialField({
   data,
   onChange,
   disabled,
   invalidKey,
+  groupKey,
   label = 'Material da tubulação'
-}: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey'> & { label?: string }) {
+}: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey' | 'groupKey'> & { label?: string }) {
   const material = getString(data.material);
   const materialOther = getString(data.materialOther);
   const selected = ['Aço carbono', 'Inox'].includes(material) ? material : material ? 'Outro' : '';
   const isPre = Boolean(data._prefilled && material);
+  const materialId = fieldId(groupKey, 'material');
+  const materialOtherId = fieldId(groupKey, 'material-outro');
 
   return (
     <>
       <div className={fieldClass(invalidKey, 'material')}>
-        <label>
+        <label htmlFor={materialId}>
           {label} {requiredMark()}
           {isPre ? <span className="pre-badge">pré-preenchido</span> : null}
         </label>
         <select
+          id={materialId}
           className={isPre ? 'pre' : ''}
           value={selected}
           disabled={disabled}
@@ -174,8 +185,9 @@ function MaterialField({
       </div>
       {selected === 'Outro' ? (
         <div className="field-group">
-          <label>Outro material</label>
+          <label htmlFor={materialOtherId}>Outro material</label>
           <input
+            id={materialOtherId}
             value={materialOther || material}
             disabled={disabled}
             onChange={event => onChange({ material: event.target.value, materialOther: event.target.value })}
@@ -186,7 +198,7 @@ function MaterialField({
   );
 }
 
-function TubesBlock({ data, onChange, disabled, invalidKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey'>) {
+function TubesBlock({ data, onChange, disabled, invalidKey, groupKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey' | 'groupKey'>) {
   const rows = (Array.isArray(data.tubes) ? data.tubes : [{ d: '', unit: 'pol', c: '', lengthUnit: 'm' }]) as TubeRow[];
 
   return (
@@ -196,6 +208,8 @@ function TubesBlock({ data, onChange, disabled, invalidKey }: Pick<ServiceFields
         {rows.map((row, index) => (
           <div className="tube-row-react" key={index}>
             <input
+              id={fieldId(groupKey, 'diametro', index)}
+              aria-label={`Diâmetro ${index + 1}`}
               inputMode="decimal"
               placeholder="Diâmetro"
               value={row.d || ''}
@@ -203,6 +217,8 @@ function TubesBlock({ data, onChange, disabled, invalidKey }: Pick<ServiceFields
               onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, d: onlyNumberPunctuation(event.target.value) }) })}
             />
             <select
+              id={fieldId(groupKey, 'diametro-unidade', index)}
+              aria-label={`Unidade do diâmetro ${index + 1}`}
               value={row.unit || 'pol'}
               disabled={disabled}
               onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, unit: event.target.value }) })}
@@ -211,6 +227,8 @@ function TubesBlock({ data, onChange, disabled, invalidKey }: Pick<ServiceFields
               <option value="mm">mm</option>
             </select>
             <input
+              id={fieldId(groupKey, 'comprimento', index)}
+              aria-label={`Comprimento ${index + 1}`}
               inputMode="decimal"
               placeholder="Comprimento"
               value={row.c || ''}
@@ -218,6 +236,8 @@ function TubesBlock({ data, onChange, disabled, invalidKey }: Pick<ServiceFields
               onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, c: onlyNumberPunctuation(event.target.value) }) })}
             />
             <select
+              id={fieldId(groupKey, 'comprimento-unidade', index)}
+              aria-label={`Unidade do comprimento ${index + 1}`}
               value={row.lengthUnit || 'm'}
               disabled={disabled}
               onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, lengthUnit: event.target.value }) })}
@@ -257,8 +277,9 @@ function UnitMultiField({
   onChange,
   disabled,
   invalidKey,
+  groupKey,
   required = true
-}: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey'> & {
+}: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey' | 'groupKey'> & {
   label: string;
   field: string;
   units: Unit[];
@@ -275,6 +296,8 @@ function UnitMultiField({
         {selected.map((value, index) => (
           <div className="unit-row-react" key={`${field}-${index}`}>
             <select
+              id={fieldId(groupKey, field, index)}
+              aria-label={`${label} ${index + 1}`}
               value={value}
               disabled={disabled}
               onChange={event => onChange({ [field]: updateArrayItem(selected, index, event.target.value) })}
@@ -307,7 +330,7 @@ function UnitMultiField({
 }
 
 function FinalizadoAprovadoBlock({ data, onChange, disabled, groupKey, invalidKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'groupKey' | 'invalidKey'>) {
-  const finalized = getBool(data.finalized, true);
+  const finalized = getBool(data.finalized, false);
   const aprovadoCliente = getString(data.aprovadoCliente) || 'Sim';
 
   return (
@@ -359,10 +382,42 @@ function FinalizadoAprovadoBlock({ data, onChange, disabled, groupKey, invalidKe
   );
 }
 
+function ServiceCollaboratorsBlock({
+  data,
+  onChange,
+  disabled,
+  invalidKey,
+  collaboratorOptions = []
+}: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey' | 'collaboratorOptions'>) {
+  const selected = getStrings(data.serviceCollaboratorIds);
+
+  return (
+    <div className={fieldClass(invalidKey, 'serviceCollaboratorIds')}>
+      <label>Colaboradores do serviço {requiredMark()}</label>
+      <div className="rdo-check-grid svc-team-options">
+        {collaboratorOptions.length ? collaboratorOptions.map(collaborator => (
+          <label className="rdo-check-row" key={collaborator.id}>
+            <input
+              type="checkbox"
+              checked={selected.includes(collaborator.id)}
+              disabled={disabled}
+              onChange={event => onChange({ serviceCollaboratorIds: toggleItem(selected, collaborator.id, event.target.checked) })}
+            />
+            <span>{collaborator.name}</span>
+          </label>
+        )) : (
+          <div style={{ fontSize: 12, color: 'var(--mu)' }}>Adicione colaboradores no cabeçalho para selecionar aqui.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EtapasSection({ serviceType, data, onChange, disabled, invalidKey }: Pick<ServiceFieldsProps, 'serviceType' | 'data' | 'onChange' | 'disabled' | 'invalidKey'>) {
   const etapas = etapasPorTipo[serviceType] || etapasPorTipo[normalizeServiceType(serviceType).toUpperCase()];
   if (!etapas?.length) return null;
   const done = getStrings(data.etapas);
+  const customDone = done.filter(etapa => !etapas.includes(etapa));
   const custom = getString(data.customEtapa);
 
   return (
@@ -374,6 +429,17 @@ function EtapasSection({ serviceType, data, onChange, disabled, invalidKey }: Pi
             <input
               type="checkbox"
               checked={done.includes(etapa)}
+              disabled={disabled}
+              onChange={e => onChange({ etapas: toggleItem(done, etapa, e.target.checked) })}
+            />
+            <span>{etapa}</span>
+          </label>
+        ))}
+        {customDone.map(etapa => (
+          <label className="rdo-check-row" key={etapa}>
+            <input
+              type="checkbox"
+              checked
               disabled={disabled}
               onChange={e => onChange({ etapas: toggleItem(done, etapa, e.target.checked) })}
             />
@@ -401,19 +467,28 @@ function EtapasSection({ serviceType, data, onChange, disabled, invalidKey }: Pi
   );
 }
 
-function PressureField({ data, onChange, disabled, invalidKey, field, unitField, label }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey'> & { field: string; unitField: string; label: string }) {
+function PressureField({ data, onChange, disabled, invalidKey, groupKey, field, unitField, label }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey' | 'groupKey'> & { field: string; unitField: string; label: string }) {
+  const inputId = fieldId(groupKey, field);
+
   return (
     <div className={fieldClass(invalidKey, field)}>
-      <label>{label} {requiredMark()}</label>
+      <label htmlFor={inputId}>{label} {requiredMark()}</label>
       <div className="num-unit">
         <input
+          id={inputId}
           inputMode="decimal"
           placeholder="0"
           value={getString(data[field])}
           disabled={disabled}
           onChange={event => onChange({ [field]: onlyNumberPunctuation(event.target.value) })}
         />
-        <select value={getString(data[unitField]) || 'bar'} disabled={disabled} onChange={event => onChange({ [unitField]: event.target.value })}>
+        <select
+          id={fieldId(groupKey, unitField)}
+          aria-label={`Unidade de ${label}`}
+          value={getString(data[unitField]) || 'bar'}
+          disabled={disabled}
+          onChange={event => onChange({ [unitField]: event.target.value })}
+        >
           <option value="bar">bar</option>
           <option value="psi">psi</option>
           <option value="kg/cm²">kg/cm²</option>
@@ -425,19 +500,28 @@ function PressureField({ data, onChange, disabled, invalidKey, field, unitField,
   );
 }
 
-function VolumeField({ data, onChange, disabled, invalidKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey'>) {
+function VolumeField({ data, onChange, disabled, invalidKey, groupKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey' | 'groupKey'>) {
+  const inputId = fieldId(groupKey, 'volumeOleo');
+
   return (
     <div className={fieldClass(invalidKey, 'volumeOleo')}>
-      <label>Volume de óleo {requiredMark()}</label>
+      <label htmlFor={inputId}>Volume de óleo {requiredMark()}</label>
       <div className="num-unit">
         <input
+          id={inputId}
           inputMode="decimal"
           placeholder="0"
           value={getString(data.volumeOleo)}
           disabled={disabled}
           onChange={event => onChange({ volumeOleo: onlyNumberPunctuation(event.target.value) })}
         />
-        <select value={getString(data.volumeOleoUnit) || 'L'} disabled={disabled} onChange={event => onChange({ volumeOleoUnit: event.target.value })}>
+        <select
+          id={fieldId(groupKey, 'volumeOleoUnit')}
+          aria-label="Unidade do volume de óleo"
+          value={getString(data.volumeOleoUnit) || 'L'}
+          disabled={disabled}
+          onChange={event => onChange({ volumeOleoUnit: event.target.value })}
+        >
           <option value="L">L</option>
           <option value="mL">mL</option>
         </select>
@@ -446,8 +530,10 @@ function VolumeField({ data, onChange, disabled, invalidKey }: Pick<ServiceField
   );
 }
 
-function ParticulasBlock({ data, onChange, disabled, groupKey, invalidKey, upload }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'groupKey' | 'invalidKey'> & { upload: (label: string) => ReactNode }) {
+function ParticulasBlock({ data, onChange, disabled, groupKey, invalidKey, counters = [], upload }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'groupKey' | 'invalidKey' | 'counters'> & { upload: (label: string) => ReactNode }) {
   const enabled = getString(data.houveParticulas) === 'Sim';
+  const contadorId = fieldId(groupKey, 'contadorUtilizado');
+  const activeCounters = counters.filter(counter => counter.isActive !== false);
 
   return (
     <div className="field-group">
@@ -473,27 +559,34 @@ function ParticulasBlock({ data, onChange, disabled, groupKey, invalidKey, uploa
         <div className="collapse-section">
           <div className="admin-form-grid">
             <div className={fieldClass(invalidKey, 'contadorUtilizado')}>
-              <label>Contador utilizado {requiredMark()}</label>
-              <input value={getString(data.contadorUtilizado)} disabled={disabled} onChange={event => onChange({ contadorUtilizado: event.target.value })} />
+              <label htmlFor={contadorId}>Contador utilizado {requiredMark()}</label>
+              <select id={contadorId} value={getString(data.contadorUtilizado)} disabled={disabled} onChange={event => onChange({ contadorUtilizado: event.target.value })}>
+                <option value="">Selecionar...</option>
+                {activeCounters.map(counter => (
+                  <option key={counter.id} value={counter.id}>
+                    {counter.code} - {counter.serialNumber}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="fg-r2">
               <div className="field-group">
-                <label>NAS inicial</label>
-                <input value={getString(data.contagemInicialNas)} disabled={disabled} onChange={event => onChange({ contagemInicialNas: event.target.value })} />
+                <label htmlFor={fieldId(groupKey, 'contagemInicialNas')}>NAS inicial</label>
+                <input id={fieldId(groupKey, 'contagemInicialNas')} value={getString(data.contagemInicialNas)} disabled={disabled} onChange={event => onChange({ contagemInicialNas: event.target.value })} />
               </div>
               <div className="field-group">
-                <label>NAS final</label>
-                <input value={getString(data.contagemFinalNas)} disabled={disabled} onChange={event => onChange({ contagemFinalNas: event.target.value })} />
+                <label htmlFor={fieldId(groupKey, 'contagemFinalNas')}>NAS final</label>
+                <input id={fieldId(groupKey, 'contagemFinalNas')} value={getString(data.contagemFinalNas)} disabled={disabled} onChange={event => onChange({ contagemFinalNas: event.target.value })} />
               </div>
             </div>
             <div className="fg-r2">
               <div className="field-group">
-                <label>ISO inicial</label>
-                <input value={getString(data.contagemInicialIso)} disabled={disabled} onChange={event => onChange({ contagemInicialIso: event.target.value })} />
+                <label htmlFor={fieldId(groupKey, 'contagemInicialIso')}>ISO inicial</label>
+                <input id={fieldId(groupKey, 'contagemInicialIso')} value={getString(data.contagemInicialIso)} disabled={disabled} onChange={event => onChange({ contagemInicialIso: event.target.value })} />
               </div>
               <div className="field-group">
-                <label>ISO final</label>
-                <input value={getString(data.contagemFinalIso)} disabled={disabled} onChange={event => onChange({ contagemFinalIso: event.target.value })} />
+                <label htmlFor={fieldId(groupKey, 'contagemFinalIso')}>ISO final</label>
+                <input id={fieldId(groupKey, 'contagemFinalIso')} value={getString(data.contagemFinalIso)} disabled={disabled} onChange={event => onChange({ contagemFinalIso: event.target.value })} />
               </div>
             </div>
             {upload('Foto do laudo')}
@@ -533,8 +626,8 @@ function DesidratacaoBlock({ data, onChange, disabled, groupKey, units, invalidK
         <div className="collapse-section">
           <div className="admin-form-grid">
             <div className={fieldClass(invalidKey, 'desidratacaoUnit')}>
-              <label>Equipamento de desidratação {requiredMark()}</label>
-              <select value={getString(data.desidratacaoUnit)} disabled={disabled} onChange={event => onChange({ desidratacaoUnit: event.target.value })}>
+              <label htmlFor={fieldId(groupKey, 'desidratacaoUnit')}>Equipamento de desidratação {requiredMark()}</label>
+              <select id={fieldId(groupKey, 'desidratacaoUnit')} value={getString(data.desidratacaoUnit)} disabled={disabled} onChange={event => onChange({ desidratacaoUnit: event.target.value })}>
                 <option value="">Selecionar...</option>
                 {desidratacaoUnits.map(u => <option key={u.id} value={u.id}>{u.code}</option>)}
               </select>
@@ -563,12 +656,12 @@ function DesidratacaoBlock({ data, onChange, disabled, groupKey, units, invalidK
             {hasHumidity ? (
               <div className="fg-r2">
                 <div className="field-group">
-                  <label>Umidade inicial (ppm)</label>
-                  <input type="number" min="0" value={getString(data.umidadeInicial)} disabled={disabled} onChange={event => onChange({ umidadeInicial: event.target.value })} />
+                  <label htmlFor={fieldId(groupKey, 'umidadeInicial')}>Umidade inicial (ppm)</label>
+                  <input id={fieldId(groupKey, 'umidadeInicial')} type="number" min="0" value={getString(data.umidadeInicial)} disabled={disabled} onChange={event => onChange({ umidadeInicial: event.target.value })} />
                 </div>
                 <div className="field-group">
-                  <label>Umidade final (ppm)</label>
-                  <input type="number" min="0" value={getString(data.umidadeFinal)} disabled={disabled} onChange={event => onChange({ umidadeFinal: event.target.value })} />
+                  <label htmlFor={fieldId(groupKey, 'umidadeFinal')}>Umidade final (ppm)</label>
+                  <input id={fieldId(groupKey, 'umidadeFinal')} type="number" min="0" value={getString(data.umidadeFinal)} disabled={disabled} onChange={event => onChange({ umidadeFinal: event.target.value })} />
                 </div>
               </div>
             ) : null}
@@ -579,16 +672,17 @@ function DesidratacaoBlock({ data, onChange, disabled, groupKey, units, invalidK
   );
 }
 
-function DrawingsObsBlock({ data, onChange, disabled }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled'>) {
+function DrawingsObsBlock({ data, onChange, disabled, groupKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'groupKey'>) {
   return (
     <>
       <div className="field-group">
-        <label>Desenhos / TAGs</label>
-        <input value={getString(data.drawingsTags)} disabled={disabled} onChange={event => onChange({ drawingsTags: event.target.value })} />
+        <label htmlFor={fieldId(groupKey, 'drawingsTags')}>Desenhos / TAGs</label>
+        <input id={fieldId(groupKey, 'drawingsTags')} value={getString(data.drawingsTags)} disabled={disabled} onChange={event => onChange({ drawingsTags: event.target.value })} />
       </div>
       <div className="field-group">
-        <label>Observações</label>
+        <label htmlFor={fieldId(groupKey, 'notes')}>Observações</label>
         <textarea
+          id={fieldId(groupKey, 'notes')}
           rows={3}
           placeholder="Observações adicionais..."
           value={getString(data.notes)}
@@ -600,8 +694,29 @@ function DrawingsObsBlock({ data, onChange, disabled }: Pick<ServiceFieldsProps,
   );
 }
 
-export function ServiceFields({ serviceType, data, onChange, disabled, units, manometers, groupKey, projectId, invalidKey }: ServiceFieldsProps) {
+export function ServiceFields({
+  serviceType,
+  data,
+  onChange,
+  disabled,
+  units,
+  manometers,
+  counters = [],
+  collaboratorOptions = [],
+  groupKey,
+  projectId,
+  invalidKey
+}: ServiceFieldsProps) {
   const normalizedType = normalizeServiceType(serviceType);
+  const serviceCollaborators = (
+    <ServiceCollaboratorsBlock
+      data={data}
+      onChange={onChange}
+      disabled={disabled}
+      invalidKey={invalidKey}
+      collaboratorOptions={collaboratorOptions}
+    />
+  );
 
   function upload(label: string) {
     return (
@@ -622,7 +737,7 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
 
     return (
       <>
-        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
         <div className={fieldClass(invalidKey, 'metodos')}>
           <label>Método de limpeza {requiredMark()}</label>
           <div className="rdo-check-grid">
@@ -634,7 +749,7 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
             ))}
           </div>
         </div>
-        <UnitMultiField label="Unidade de Limpeza Química" field="ulq" units={units} categories={['LIMPEZA_QUIMICA']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <UnitMultiField groupKey={groupKey} label="Unidade de Limpeza Química" field="ulq" units={units} categories={['LIMPEZA_QUIMICA']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <div className={fieldClass(invalidKey, 'local')}>
           <label>Local de limpeza {requiredMark()}</label>
           <div className="rdo-pill-list">
@@ -646,8 +761,9 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
             ))}
           </div>
         </div>
-        <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
+        {serviceCollaborators}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <div className={fieldClass(invalidKey, 'tipoInspecao')}>
           <label>Tipo de inspeção {requiredMark()}</label>
@@ -662,7 +778,7 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
         </div>
         {upload('Imagens — corpo de prova')}
         {upload('Imagens — tubulação')}
-        <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} />
+        <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
       </>
     );
   }
@@ -675,13 +791,14 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
 
     return (
       <>
-        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
+        {serviceCollaborators}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        <UnitMultiField label="Unidade de Teste Hidrostático (UTH)" field="uth" units={units} categories={['UTH']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        <PressureField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} field="pressaoTrabalho" unitField="pressaoTrabalhoUnit" label="Pressão de trabalho" />
-        <PressureField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} field="pressaoTeste" unitField="pressaoTesteUnit" label="Pressão de teste" />
+        <UnitMultiField groupKey={groupKey} label="Unidade de Teste Hidrostático (UTH)" field="uth" units={units} categories={['UTH']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <PressureField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} field="pressaoTrabalho" unitField="pressaoTrabalhoUnit" label="Pressão de trabalho" />
+        <PressureField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} field="pressaoTeste" unitField="pressaoTesteUnit" label="Pressão de teste" />
         <div className={fieldClass(invalidKey, 'manometroIds')}>
           <label>Fluido de teste</label>
           <div className="rdo-tag-group">
@@ -695,8 +812,8 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
         </div>
         {fluidoTeste === 'oleo' ? (
           <div className="field-group">
-            <label>Qual óleo?</label>
-            <input value={qualOleo} placeholder="Especificar óleo..." disabled={disabled} onChange={e => onChange({ qualOleo: e.target.value })} />
+            <label htmlFor={fieldId(groupKey, 'qualOleo')}>Qual óleo?</label>
+            <input id={fieldId(groupKey, 'qualOleo')} value={qualOleo} placeholder="Especificar óleo..." disabled={disabled} onChange={e => onChange({ qualOleo: e.target.value })} />
           </div>
         ) : null}
         <div className="field-group">
@@ -712,7 +829,7 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
         </div>
         {upload('Fotos do manômetro')}
         {upload('Fotos do sistema')}
-        <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} />
+        <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
       </>
     );
   }
@@ -723,13 +840,13 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
 
     return (
       <>
-        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
         <div className={fieldClass(invalidKey, 'tipoOleo')}>
-          <label>Tipo de óleo {requiredMark()}</label>
-          <input value={getString(data.tipoOleo)} placeholder="Marca/modelo do óleo..." disabled={disabled} onChange={e => onChange({ tipoOleo: e.target.value })} />
+          <label htmlFor={fieldId(groupKey, 'tipoOleo')}>Tipo de óleo {requiredMark()}</label>
+          <input id={fieldId(groupKey, 'tipoOleo')} value={getString(data.tipoOleo)} placeholder="Marca/modelo do óleo..." disabled={disabled} onChange={e => onChange({ tipoOleo: e.target.value })} />
         </div>
-        <VolumeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <VolumeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
         <div className={fieldClass(invalidKey, 'uf')}>
           <label>Tipo de flushing</label>
           <div className="rdo-tag-group">
@@ -741,12 +858,13 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
             ))}
           </div>
         </div>
-        <UnitMultiField label={tipoFlushing === 'secundario' ? 'Unidade de filtragem' : 'Unidade de Flushing'} field="uf" units={units} categories={unitCategories} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <UnitMultiField groupKey={groupKey} label={tipoFlushing === 'secundario' ? 'Unidade de filtragem' : 'Unidade de Flushing'} field="uf" units={units} categories={unitCategories} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
+        {serviceCollaborators}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} upload={upload} />
+        <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} counters={counters} upload={upload} />
         <DesidratacaoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} units={units} invalidKey={invalidKey} upload={upload} />
-        <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} />
+        <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
       </>
     );
   }
@@ -755,16 +873,17 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
     return (
       <>
         <div className={fieldClass(invalidKey, 'tipoOleo')}>
-          <label>Tipo de óleo {requiredMark()}</label>
-          <input value={getString(data.tipoOleo)} placeholder="Marca/modelo do óleo..." disabled={disabled} onChange={e => onChange({ tipoOleo: e.target.value })} />
+          <label htmlFor={fieldId(groupKey, 'tipoOleo')}>Tipo de óleo {requiredMark()}</label>
+          <input id={fieldId(groupKey, 'tipoOleo')} value={getString(data.tipoOleo)} placeholder="Marca/modelo do óleo..." disabled={disabled} onChange={e => onChange({ tipoOleo: e.target.value })} />
         </div>
-        <VolumeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        <UnitMultiField label="Unidade de filtragem" field="ufg" units={units} categories={['FILTRAGEM']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <VolumeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        <UnitMultiField groupKey={groupKey} label="Unidade de filtragem" field="ufg" units={units} categories={['FILTRAGEM']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
+        {serviceCollaborators}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} upload={upload} />
+        <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} counters={counters} upload={upload} />
         <DesidratacaoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} units={units} invalidKey={invalidKey} upload={upload} />
-        <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} />
+        <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
       </>
     );
   }
@@ -772,11 +891,12 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
   if (normalizedType === 'mecanica') {
     return (
       <>
-        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} label="Material do equipamento" />
+        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} label="Material do equipamento" />
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
+        {serviceCollaborators}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         {upload('Imagens da limpeza')}
-        <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} />
+        <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
       </>
     );
   }
@@ -787,8 +907,8 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
     return (
       <>
         <div className={fieldClass(invalidKey, 'embarcacaoId')}>
-          <label>ID da embarcação</label>
-          <select value={getString(data.embarcacaoId)} disabled={disabled} onChange={event => onChange({ embarcacaoId: event.target.value })}>
+          <label htmlFor={fieldId(groupKey, 'embarcacaoId')}>ID da embarcação</label>
+          <select id={fieldId(groupKey, 'embarcacaoId')} value={getString(data.embarcacaoId)} disabled={disabled} onChange={event => onChange({ embarcacaoId: event.target.value })}>
             <option value="">Selecionar...</option>
             <option value="EMB-001">EMB-001 — Navio Cisterna Alpha</option>
             <option value="EMB-002">EMB-002 — Corveta Beta</option>
@@ -796,24 +916,25 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
           </select>
         </div>
         <div className={fieldClass(invalidKey, 'system')}>
-          <label>Sistema</label>
-          <select value={getString(data.system)} disabled={disabled} onChange={event => onChange({ system: event.target.value })}>
+          <label htmlFor={fieldId(groupKey, 'system')}>Sistema</label>
+          <select id={fieldId(groupKey, 'system')} value={getString(data.system)} disabled={disabled} onChange={event => onChange({ system: event.target.value })}>
             <option value="">Selecionar...</option>
             <option value="Sistema de resfriamento">Sistema de resfriamento</option>
             <option value="Sistema de combustível">Sistema de combustível</option>
             <option value="Sistema hidráulico">Sistema hidráulico</option>
           </select>
         </div>
-        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
         <div className="field-group">
-          <label>Linhas</label>
-          <input value={getString(data.linhas)} placeholder="Campo livre..." disabled={disabled} onChange={event => onChange({ linhas: event.target.value })} />
+          <label htmlFor={fieldId(groupKey, 'linhas')}>Linhas</label>
+          <input id={fieldId(groupKey, 'linhas')} value={getString(data.linhas)} placeholder="Campo livre..." disabled={disabled} onChange={event => onChange({ linhas: event.target.value })} />
         </div>
         <div className="field-group">
-          <label>Steps</label>
-          <textarea value={getString(data.steps)} placeholder="Campo livre..." disabled={disabled} onChange={event => onChange({ steps: event.target.value })} />
+          <label htmlFor={fieldId(groupKey, 'steps')}>Steps</label>
+          <textarea id={fieldId(groupKey, 'steps')} value={getString(data.steps)} placeholder="Campo livre..." disabled={disabled} onChange={event => onChange({ steps: event.target.value })} />
         </div>
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
+        {serviceCollaborators}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <div className="field-group">
           <label>Tipo de relatório</label>
@@ -828,7 +949,7 @@ export function ServiceFields({ serviceType, data, onChange, disabled, units, ma
         </div>
         {upload('Fotos do filtro')}
         {upload('Fotos das plaquetas')}
-        <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} />
+        <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
       </>
     );
   }

@@ -1,6 +1,6 @@
 # Planejamento de Migração — Frontend atual → React + Vite
 
-> Atualizado em: 2026-05-05 (§18.30)
+> Atualizado em: 2026-05-06 (§18.33)
 > Branch sugerido: `feature/react-frontend`
 > Objetivo: migrar o frontend atual baseado em `filtrovali_app_v4.html` para uma aplicação React moderna, mantendo o backend Express/Prisma e preservando paridade funcional antes do cutover.
 
@@ -71,7 +71,7 @@ Esta seção deve ser mantida atualizada a cada ciclo de implementação para fa
 - [x] **Acessibilidade dos modais (parcial):** `role="dialog"` + `aria-modal` + `aria-labelledby` + fechamento por `Esc`/backdrop em `ReasonDialog` e `stype-modal` (§18.22).
 - [x] **Login/Forgot/Reset/Account:** decidido **manter** erro inline (HTML legado usa `alert()` persistente; toast desapareceria em ~3s e divergiria do comportamento). Documentado em §18.21.
 - [ ] **Componentes reutilizáveis:** extrair `Button` (primary/secondary/danger/mini) e `Modal` genérico — hoje são classes CSS soltas e só existe `ReasonDialog`. *Baixa prioridade — não afeta UI.*
-- [ ] **Acessibilidade restante:** labels associadas via `htmlFor` em ServiceFields, foco-trap nos modais, navegação por teclado em tabs/tags, contraste WCAG AA.
+- [ ] **Acessibilidade restante:** labels principais de `ServiceFields` associadas via `htmlFor`/`aria-label` (§18.31); ainda faltam foco-trap nos modais, navegação por teclado em tabs/tags e auditoria de contraste WCAG AA.
 - [ ] **Validação visual em navegador** comparando HTML × React lado a lado em todas as telas, mobile e desktop; agora deve focar os itens residuais listados em §18.26.
 - [ ] **Validar DOCX/PDF** gerados a partir de RDO criado no React (incluindo continuação e condições especiais).
 - [ ] **Confirmar com stakeholder** se derivados (RTP/RLQ/RCPU/RLM/RLF/RLI) precisam ser editáveis no React (HTML hoje só edita RDO).
@@ -88,12 +88,13 @@ Esta seção deve ser mantida atualizada a cada ciclo de implementação para fa
 - [x] Criar checklist de testes manuais por role.
 - [x] Ajustar `nginx`/deploy para servir o build React.
 - [x] Planejar cutover mantendo fallback para o HTML antigo.
-- [ ] **Campos de jornada no formulário de projeto:** `workdayHours`, `weekendWorkdayHours`, `includesSaturday` e `includesSunday` ausentes de `ProjectFormState` e do payload de criação/edição — afeta cálculo de hora extra (§18.30, tarefa #1).
-- [ ] **Máscara de CNPJ nos inputs:** campo CNPJ do formulário de projeto não aplica formatação ao digitar; `user.username` no card do cliente e campo de login também exibem CNPJ sem máscara. Requer utilitário `formatCnpj` compartilhado (§18.30, tarefas #2, #5, #8, #9).
-- [ ] **Agrupamento de clientes por CNPJ:** aba Usuários → Clientes exibe lista flat; HTML agrupa por CNPJ com card por empresa e contas principal/CC dentro (§18.30, tarefa #3).
-- [ ] **Badge "Escala estendida/padrão"** ausente no card de projeto; depende dos campos de jornada estarem salvos (§18.30, tarefa #4).
-- [ ] **Sort de projetos não conectado:** utilitário `projectSort.tsx` criado mas sem nenhum import no codebase (§18.30, tarefa #6).
-- [ ] **Botão excluir relatório no card do gestor** ausente (§18.26, §18.30, tarefa #7).
+- [x] **Campos de jornada no formulário de projeto:** `ProjectFormState` e payload de criação/edição incluem `workdayHours`, `weekendWorkdayHours`, `includesSaturday` e `includesSunday` (§18.30, tarefa #1).
+- [x] **Máscara de CNPJ nos inputs:** `formatCnpj`/`normalizeCnpjInput` compartilhados; formulário de projeto mascara ao digitar, cliente exibe CNPJ formatado e login formata CNPJ no blur (§18.30, tarefas #2, #5, #8, #9).
+- [x] **Agrupamento de clientes por CNPJ:** aba Usuários → Clientes agrupa contas por CNPJ, separando conta principal e contas CC dentro do card da empresa (§18.30, tarefa #3).
+- [x] **Badge "Escala estendida/padrão":** card de projeto exibe badge conforme `includesSaturday`/`includesSunday` (§18.30, tarefa #4).
+- [x] **Sort de projetos conectado:** aba Projetos e Projetos arquivados usam `ProjectSortButton`/`sortProjects` (§18.30, tarefa #6).
+- [x] **Botão excluir relatório no card do gestor:** ações de relatório do gestor incluem exclusão com confirmação, toast e invalidação da lista (§18.26, §18.30, tarefa #7).
+- [ ] **Projeto — CC/assinantes unificados:** refatorar `ProjectClientFields` para reproduzir o HTML com entrada única de e-mail, tags, toggle de assinante e nome do assinante por e-mail (§18.32).
 - [ ] **Cutover final:** trocar `nginx`/Express para servir o React em `/` e `/reset-password` e remover dependência operacional do `filtrovali_app_v4.html`.
 
 ### Observações técnicas atuais
@@ -1540,3 +1541,100 @@ Esta é a área de maior divergência funcional. O HTML define os campos de cada
 4. **#5 CNPJ no card do cliente** e **#8 CNPJ no login**
 5. **#4 Badge "Escala estendida/padrão"** (depende de #1 para dados corretos)
 6. **#6 Sort de projetos** e **#7 Botão excluir relatório**
+
+#### Implementação retomada
+
+| Tarefa | Ajuste aplicado | Status |
+|---|---|---|
+| #1 Jornada no formulário de projeto | `ProjectFormState`, defaults, `projectToForm`, payload e formulários de criação/edição passam a carregar e salvar jornada padrão, jornada de fim de semana, sábado e domingo | Corrigido |
+| #2/#5/#8/#9 CNPJ | `formatCnpj.ts` compartilhado criado; máscara parcial de CNPJ aplicada no formulário de projeto; login formata CNPJ no blur; card do cliente exibe CNPJ formatado | Corrigido |
+| #3 Clientes por CNPJ | Aba Clientes agrupa usuários por CNPJ e lista conta principal/contas CC dentro de cada empresa | Corrigido |
+| #4 Badge de escala | Cards de projeto exibem "Escala estendida" ou "Escala padrão" | Corrigido |
+| #6 Sort de projetos | `ProjectSortButton` conectado às listas de projetos ativos e arquivados | Corrigido |
+| #7 Excluir relatório | `deleteReport` foi adicionado à API/hook e ações do gestor chamam exclusão com confirmação e toast | Corrigido |
+
+**Validação:** `npm run build` e `npm run lint` executados em `frontend` com sucesso. O lint segue apenas com avisos já existentes de Fast Refresh/dependências de hooks.
+
+**Pendente após esta retomada:** revisar visualmente a aba Projetos/Clientes no navegador com dados reais.
+
+---
+
+### 18.31 Acessibilidade parcial — 2026-05-05 — Labels em `ServiceFields`
+
+| Ponto pendente | Ajuste aplicado | Status |
+|---|---|---|
+| Campos principais de `ServiceFields` tinham `<label>` visual sem associação direta com `input`/`select`/`textarea` | Adicionado `fieldId(groupKey, field)` e aplicação de `htmlFor`/`id` nos campos principais de material, unidades, pressões, volume, partículas, desidratação, desenhos/TAGs, observações, óleo, inibição e campos compostos com `aria-label` | Corrigido parcial |
+| Grupos de checkbox/radio | Mantidos como `<label>` envolvendo o `<input>`, padrão já acessível e sem mudança visual | OK |
+
+**Validação:** `npm run build` e `npm run lint` executados em `frontend` com sucesso. O lint segue apenas com avisos já existentes.
+
+**Pendente após esta rodada:** foco-trap em modais, navegação por teclado em tabs/tags e auditoria de contraste WCAG AA.
+
+---
+
+### 18.32 Auditoria de discrepâncias reportadas — 2026-05-05 — Teste manual contra HTML
+
+> Fonte: teste manual do React comparado ao `filtrovali_app_v4.html`.
+
+| Item | Discrepância | Status |
+|---|---|---|
+| Projeto — visibilidade na edição | Ao editar projeto, faltava opção para modificar "Visível para colaboradores" no formulário inline | Corrigido: checkbox adicionado ao editor inline de projeto |
+| Projeto — CC/assinantes | HTML usa entrada unificada de e-mails CC com toggle/metadado de assinante; React ainda separa textarea de CC e lista de assinantes ZapSign | Pendente: refatorar `ProjectClientFields` para UI unificada com tags, toggle de assinante e nome do assinante por e-mail |
+| Gestor — aprovados | Faltava organizador A/Z na aba Aprovados e ordenação por projeto/tipo | Corrigido: `GroupedReportList` recebe `sortDirection`; abas de relatórios do gestor exibem `ProjectSortButton` e ordenam grupos/relatórios |
+| Gestor — A/Z por tipo | O botão A/Z também precisava aparecer dentro do agrupamento de cada tipo (`RDO`, `RLQ`, `RTP`, etc.), como no HTML | Corrigido: cabeçalho de cada tipo em `GroupedReportList` exibe `ProjectSortButton` com `showTypeSort` |
+| Gestor — A/Z independente | Botões A/Z da aba Aprovados compartilhavam o mesmo estado, fazendo todos mudarem ao clicar em um deles | Corrigido: ordenação por projeto continua no topo e cada tipo de relatório mantém direção própria por seção |
+| Gestor — clientes por CNPJ | Conta CC sem `clientCnpj` podia cair fora do grupo e parecer um projeto/conta isolada | Corrigido: agrupamento agora usa login CNPJ, `clientCnpj`, CNPJ dos vínculos e inferência por e-mail CC dos projetos, como `renderClientUsersList()` do HTML |
+| Gestor — clientes título do grupo | Card principal podia assumir o nome de um assinante quando a conta CC era processada antes da conta principal/projeto | Corrigido: título do grupo prefere projeto/cliente vinculado ao CNPJ; subcards representam as contas, com badge `CC / Assinante` |
+| Serviço — finalizado | "Serviço finalizado?" vinha como "Sim" por padrão; HTML usa "Não" | Corrigido em `ServiceFields` e `reportServicePayload`: fallback de `finalized` agora é `false` |
+| Serviço — etapa customizada | Ao adicionar etapa customizada, ela era salva no estado mas não aparecia na lista, parecendo que nada acontecia | Corrigido: etapas customizadas selecionadas são renderizadas abaixo das etapas padrão |
+| Upload — miniaturas/link | Miniaturas com URL relativa podiam quebrar e o clique no nome podia navegar para a home quando a URL vinha vazia/alternativa | Corrigido: `UploadField` resolve `url`, `path` ou `dataUrl`, prefixa `VITE_ASSETS_BASE_URL` e só renderiza link quando há URL válida |
+| Upload — ambiente de teste | `/uploads` e `/relatorios` exigiam Bearer header, mas `<img>`/link aberto em nova aba não enviam header; isso quebrava miniatura/abertura mesmo com URL correta | Corrigido: backend aceita token em query para arquivos protegidos e `UploadField` anexa o token da sessão nas URLs protegidas |
+| Upload — proxy dev | Uploads novos retornam `/relatorios/...`; no ambiente Vite só `/uploads` estava proxyado, então link/miniatura podiam cair no SPA e voltar para a home | Corrigido: `vite.config.ts` também proxyia `/relatorios` para o backend |
+| Upload — rota resiliente | Mesmo com proxy, `/relatorios/...` podia retornar `Cannot GET` se o request caísse no frontend ou em ambiente sem a rota estática correta | Corrigido: backend expõe `GET /api/uploads/file/:path` autenticado por token e `UploadField` converte `/relatorios`/`/uploads` para essa rota de API |
+| Upload — fotos antigas | Fotos anteriores podiam estar em pasta legada (`uploads`), em `Relatórios`, ou em pasta com nome antigo do projeto; a rota nova procurava só o caminho exato em `REPORTS_DIR` | Corrigido: rota de arquivo tenta múltiplas raízes (`REPORTS_DIR`, `UPLOAD_DIR`, `Relatórios`, `uploads`) e faz fallback por nome do arquivo para preservar acesso às fotos já existentes |
+| Upload — fotos antigas reorganizadas | Fotos antigas podiam ter sido movidas/renomeadas para `Registros Fotográficos`, deixando o banco com URL aleatória antiga que não existe mais por basename | Corrigido parcial: rota agora também pontua candidatos por projeto/pasta/extensão e recupera arquivo reorganizado provável quando o caminho e basename legados não existem |
+| Serviço — contador de partículas | Ao selecionar "Sim" em contagem de partículas, o React mostrava campo texto em vez da lista de contadores cadastrados | Corrigido: `ServiceFields` recebe `counters` e renderiza select com contadores ativos |
+| Serviço — colaboradores por serviço | Durante o preenchimento faltavam checkboxes de colaboradores do serviço a partir do turno diurno + noturno, como no HTML | Corrigido: `ServiceFields` renderiza `Colaboradores do serviço` e o payload usa a seleção individual do serviço |
+| Validação — foco no obrigatório | Ao avançar etapa com obrigatório faltando, o scroll parava no card do serviço, não necessariamente no campo | Corrigido: `failRequired()` tenta primeiro o alvo exato e depois o campo `.field-invalid` dentro do serviço |
+| Rascunhos — envio | Relatórios enviados podiam continuar aparecendo como rascunhos por corrida com autosave ou duplicatas do mesmo projeto/data | Corrigido: envio bloqueia autosave, cancela timer pendente, remove rascunhos da chave projeto/data e limpa `draftId`/assinatura local |
+| RDO etapa 2 — adicionar serviço | Botão "Adicionar serviço" ficava acima dos cards; no HTML fica abaixo para facilitar preenchimento contínuo | Corrigido: botão movido para baixo da lista/estado vazio |
+| Turno noturno | Colaboradores noturnos do relatório anterior não eram lembrados ao marcar turno noturno no próximo relatório | Corrigido: ao ativar noturno, React reaproveita `noturnoDetails.collaboratorIds` do último relatório do projeto se a lista atual estiver vazia |
+| Continuidade — equipamento | Serviço continuado não trazia equipamento quando o backend salvava o equipamento apenas em `extraData['Equipamento(s)']` | Corrigido: continuidade resolve equipamento por `equipmentId`, `Equipamento(s)`, `Equipamentos`, `Equipamento` ou `ID da embarcação` |
+| Continuidade — sugestões individuais | Quando havia mais de um serviço em andamento, React só oferecia continuar todos de uma vez | Corrigido: cada sugestão aparece em card próprio com botão `Continuar`; `Continuar todos` fica como ação secundária |
+| Continuidade — cards restantes | Ao continuar um serviço individual, todos os cards de andamento sumiam porque o bloco dependia de `services.length === 0` | Corrigido: bloco continua visível enquanto houver sugestões não adicionadas; sugestão volta se o serviço continuado for removido |
+| Continuidade — visual | Cards de andamento precisavam chamar mais atenção como no HTML | Corrigido: `continuity-card` e `ongoing-item-react` usam paleta âmbar do HTML (`#fffbeb`, `#f59e0b`, `#fcd34d`) |
+| Continuidade — etapas | Etapas estavam sendo pré-preenchidas ao continuar serviço; no HTML etapas do dia não são pré-preenchidas, embora o serviço final consolide todas sem duplicar | Corrigido: continuidade limpa `etapas` e `customEtapa` |
+| Continuidade — contagens | Ao continuar flushing/filtragem com contagem de partículas ou umidade, React não devia reaproveitar valores de contagem do dia anterior | Corrigido: continuidade preserva contador/equipamento de desidratação e limpa NAS/ISO/umidade inicial/final do novo RDO |
+| Continuidade — serviço finalizado | Serviço finalizado continuava aparecendo como sugestão em relatórios futuros | Corrigido: React replica a regra principal do HTML com chave de andamento por projeto/tipo/equipamento/sistema; serviços finalizados removem sugestões anteriores equivalentes |
+| Relatório final vs RDO | Etapas precisam acumular no relatório final, mas o RDO deve mostrar só as etapas preenchidas no dia | Verificado: continuidade limpa etapas no novo RDO e o payload mantém `Etapas realizadas no dia`; consolidação histórica continua no backend para derivados/final |
+| Ordenação — tipos de relatório | Em todas as contas/telas agrupadas por projeto/tipo, os tipos devem priorizar `RDO` antes de derivados | Corrigido: `GroupedReportList` usa ordem fixa `RDO`, `RTP`, `RLQ`, `RCPU`, `RLM`, `RLI`, `RLF` |
+| RCPU — análise inicial/final | RCPU deve usar primeira análise inicial do histórico do serviço e última análise final, não apenas o RDO finalizado | Corrigido no backend: chave histórica agora cai para tipo/equipamento/sistema quando não há `__serviceLinkKey`, preservando primeira inicial e última final |
+| RLQ — etapas acumuladas | RLQ não estava acumulando etapas de todos os RDOs do serviço quando a chave explícita faltava ou o relatório derivado estava preso ao RDO pai | Corrigido no backend: RLQ passa a consolidar por chave do serviço no projeto e deduplica etapas por rótulo normalizado |
+| Derivados antigos — download | Relatórios derivados já existentes podiam continuar baixando `serviceData` antigo mesmo após corrigir a regra de consolidação | Corrigido: download de PDF/DOCX de `RTP/RLQ/RCPU/RLM` reprocessa o RDO-fonte aprovado antes de gerar o arquivo |
+| Histórico — campos vazios | Consolidação histórica considerava string vazia como primeiro/último valor encontrado | Corrigido: `firstField`/`lastField` agora ignoram vazio, array vazio e objeto vazio antes de definir inicial/final |
+
+**Ainda pendente após esta auditoria:** UI unificada de CC/assinantes do projeto conforme HTML e validação visual dos fluxos corrigidos com dados reais.
+
+**Validação:** `npm run build` e `npm run lint` executados em `frontend` com sucesso. O lint segue apenas com avisos de Fast Refresh e dependências de hook já conhecidos.
+
+---
+
+### 18.33 Correções reportadas pelo teste manual — 2026-05-06
+
+> Fonte: inputs do usuário sobre erros observados na versão React.
+
+#### Bugs corrigidos
+
+| Problema | Causa | Correção |
+|---|---|---|
+| **Foto do RDO — link quebrado / miniatura indisponível** | URLs de uploads legados eram armazenadas sem prefixo `/relatorios/` (ex.: `Missão 9999 - Filtrovali/timestamp.jpeg`). O `assetUrl` em `UploadField` não normalizava esses caminhos, gerando URL inválida. Além disso, a miniatura dependia apenas de `file.mimeType` que pode estar ausente em dados antigos. | `UploadField.tsx`: caminhos sem `/` agora recebem prefixo `/relatorios/`. Token de auth adicionado a todos os caminhos locais não públicos. Miniatura exibida por `mimeType` OU extensão do arquivo. |
+| **RCPU — contagens NAS/ISO erradas** | `syncApprovedRcpReports` usava a chave legada (`fields.__serviceLinkKey \|\| service.id`) para identificar o serviço atual, enquanto os serviços históricos eram comparados com `serviceHistoryKey()`. Mismatch impedia consolidar dias 1 + 2, gerando RCPU só com dados do dia 2. | `reports.js`: `syncApprovedRcpReports` agora usa `serviceHistoryKey(service)` como os demais `sync*` já faziam após o Codex. |
+| **Logo ausente no header das telas principais** | `TopBar` React não tinha logo — só texto do título. HTML usa `LOGO_HEADER.png` nas telas Home, Gestor, Coordenador e Cliente. | `TopBar.tsx`: adicionada prop `showLogo` (default `false`). `base.css`: adicionadas classes `.topbar-brand` e `.header-logo`. Ativado com `showLogo` em `HomePage`, `GestorPage`, `CoordinatorPage` e `ClientPage`. |
+
+#### Pendências desta rodada
+
+- [ ] Validar visualmente que a logo aparece corretamente em produção (requer `VITE_ASSETS_BASE_URL` configurado e o arquivo `assets/Logo/LOGO_HEADER.png` disponível no servidor).
+- [ ] Testar RCPU com dois RDOs reais e conferir que `Contagem inicial NAS` = valor do dia 1 e `Contagem final NAS` = valor do dia 2.
+- [ ] Testar link de foto em RDO com uploads legados (URL sem `/relatorios/`) e com uploads novos.
+
+**Validação:** `npx tsc --noEmit` executado no frontend com zero erros.

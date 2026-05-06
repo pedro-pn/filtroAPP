@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext';
 import { roleHomePath } from '../auth/rolePath';
+import { normalizeCnpjInput } from '../utils/formatCnpj';
 
 const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
 const loginLogoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_LOGIN.png`;
@@ -43,7 +44,17 @@ export function LoginPage() {
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="field-group">
             <label htmlFor="username">Usuário</label>
-            <input id="username" value={username} onChange={event => setUsername(event.target.value)} />
+            <input
+              id="username"
+              value={username}
+              onChange={event => setUsername(event.target.value)}
+              onBlur={() => {
+                const digits = username.replace(/\D/g, '');
+                if (digits.length === 14 && !/[A-Za-z@]/.test(username)) {
+                  setUsername(normalizeCnpjInput(username));
+                }
+              }}
+            />
           </div>
 
           <div className="field-group">

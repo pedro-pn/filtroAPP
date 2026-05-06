@@ -73,6 +73,7 @@ export function CoordinatorPage() {
       <TopBar
         title={TEXT.coordinatorPanel}
         subtitle={user?.name}
+        showLogo
         actions={
           <>
             <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>

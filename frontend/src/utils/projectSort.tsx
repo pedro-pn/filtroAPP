@@ -2,6 +2,16 @@ import type { Project, ReportSummary } from '../types/domain';
 import type { ProjectGroup } from './groupByProject';
 
 export type ProjectSortDirection = 'asc' | 'desc';
+export const reportTypeOrder = ['RDO', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLI', 'RLF'];
+
+export function compareReportTypes(a: string, b: string) {
+  const ia = reportTypeOrder.indexOf(a);
+  const ib = reportTypeOrder.indexOf(b);
+  if (ia !== -1 || ib !== -1) {
+    return (ia === -1 ? Number.MAX_SAFE_INTEGER : ia) - (ib === -1 ? Number.MAX_SAFE_INTEGER : ib);
+  }
+  return a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' });
+}
 
 function directionFactor(direction: ProjectSortDirection) {
   return direction === 'desc' ? -1 : 1;

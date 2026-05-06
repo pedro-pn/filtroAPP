@@ -1,6 +1,9 @@
-﻿import { useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react';
+﻿import { useMemo, useState, type Dispatch, type FormEvent, type KeyboardEvent, type SetStateAction } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
+
+import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
+import { ProjectSortButton, sortProjects } from '../../utils/projectSort';
 
 import type { UserRole } from '../../types/auth';
 import { downloadReportDocx, downloadReportPdf, downloadReportsBatch } from '../../api/reports';
@@ -58,6 +61,10 @@ interface ProjectFormState {
   operatorId: string;
   visibleToCollaborators: boolean;
   isActive: boolean;
+  workdayHours: string;
+  weekendWorkdayHours: string;
+  includesSaturday: boolean;
+  includesSunday: boolean;
 }
 
 interface CollaboratorFormState {
@@ -110,7 +117,11 @@ const emptyProjectForm: ProjectFormState = {
   location: '',
   operatorId: '',
   visibleToCollaborators: true,
-  isActive: true
+  isActive: true,
+  workdayHours: '09:00',
+  weekendWorkdayHours: '08:00',
+  includesSaturday: false,
+  includesSunday: false
 };
 
 const emptyCollaboratorForm: CollaboratorFormState = {
@@ -208,6 +219,10 @@ function cleanSigners(signers: ClientSigner[]) {
     });
 }
 
+function defaultSignerName(email: string) {
+  return email.split('@')[0] || email;
+}
+
 function asServices(value: unknown): RdoServiceDraft[] {
   if (!Array.isArray(value)) return [];
 
@@ -256,12 +271,6 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleDateString('pt-BR');
 }
 
-function formatCnpj(value?: string | null) {
-  const digits = String(value || '').replace(/\D/g, '');
-  if (digits.length !== 14) return value || '';
-  return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
-}
-
 function formatList(values: string[], fallback = 'Não informado') {
   const cleaned = values.map(value => value.trim()).filter(Boolean);
   return cleaned.length ? cleaned.join(', ') : fallback;
@@ -290,7 +299,7 @@ function projectToForm(project: Project): ProjectFormState {
     clientName: project.clientName,
     clientCnpj: project.clientCnpj,
     clientEmailPrimary: project.clientEmailPrimary || '',
-    clientEmailCc: (project.clientEmailCc || []).join('\n'),
+    clientEmailCc: parseEmailList([...(project.clientEmailCc || []), ...(project.clientSigners || []).map(signer => signer.email)].join('\n')).join('\n'),
     clientSigners: (project.clientSigners || []).map(signer => ({
       name: signer.name || '',
       email: signer.email || ''
@@ -299,7 +308,11 @@ function projectToForm(project: Project): ProjectFormState {
     location: project.location,
     operatorId: project.operatorId || '',
     visibleToCollaborators: project.visibleToCollaborators,
-    isActive: project.isActive
+    isActive: project.isActive,
+    workdayHours: project.workdayHours || '09:00',
+    weekendWorkdayHours: project.weekendWorkdayHours || '08:00',
+    includesSaturday: project.includesSaturday ?? false,
+    includesSunday: project.includesSunday ?? false
   };
 }
 
@@ -312,11 +325,53 @@ function ProjectClientFields({
   idPrefix: string;
   setForm: Dispatch<SetStateAction<ProjectFormState>>;
 }) {
-  function updateSigner(index: number, field: keyof ClientSigner, value: string) {
+  const ccEmails = parseEmailList(form.clientEmailCc);
+  const signerByEmail = new Map(form.clientSigners.map(signer => [signer.email.trim().toLowerCase(), signer]));
+
+  function setCcEmails(values: string[]) {
+    const nextEmails = parseEmailList(values.join('\n'));
+    const nextEmailSet = new Set(nextEmails);
+
     setForm(current => ({
       ...current,
-      clientSigners: current.clientSigners.map((signer, itemIndex) => (
-        itemIndex === index ? { ...signer, [field]: value } : signer
+      clientEmailCc: nextEmails.join('\n'),
+      clientSigners: current.clientSigners.filter(signer => nextEmailSet.has(signer.email.trim().toLowerCase()))
+    }));
+  }
+
+  function commitCcInput(input: HTMLInputElement | null) {
+    if (!input) return;
+    const nextEmails = parseEmailList(input.value);
+    input.value = '';
+    if (!nextEmails.length) return;
+    setCcEmails([...ccEmails, ...nextEmails]);
+  }
+
+  function handleCcInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Enter' || event.key === ',' || event.key === ';') {
+      event.preventDefault();
+      commitCcInput(event.currentTarget);
+    }
+  }
+
+  function toggleSigner(email: string) {
+    setForm(current => {
+      const normalizedEmail = email.trim().toLowerCase();
+      const isSigner = current.clientSigners.some(signer => signer.email.trim().toLowerCase() === normalizedEmail);
+      return {
+        ...current,
+        clientSigners: isSigner
+          ? current.clientSigners.filter(signer => signer.email.trim().toLowerCase() !== normalizedEmail)
+          : [...current.clientSigners, { email: normalizedEmail, name: defaultSignerName(normalizedEmail) }]
+      };
+    });
+  }
+
+  function updateSignerName(email: string, name: string) {
+    setForm(current => ({
+      ...current,
+      clientSigners: current.clientSigners.map(signer => (
+        signer.email.trim().toLowerCase() === email ? { ...signer, name } : signer
       ))
     }));
   }
@@ -333,55 +388,65 @@ function ProjectClientFields({
         />
       </div>
       <div className="field-group field-group-wide">
-        <label htmlFor={`${idPrefix}-client-email-cc`}>E-mails CC do cliente</label>
-        <textarea
-          id={`${idPrefix}-client-email-cc`}
-          rows={3}
-          placeholder="um e-mail por linha"
-          value={form.clientEmailCc}
-          onChange={event => setForm(current => ({ ...current, clientEmailCc: event.target.value }))}
-        />
-      </div>
-      <div className="field-group field-group-wide">
-        <label>Assinantes adicionais ZapSign</label>
-        <div className="project-signer-stack">
-          {form.clientSigners.map((signer, index) => (
-            <div className="project-signer-row" key={index}>
-              <input
-                value={signer.name}
-                placeholder="Nome"
-                onChange={event => updateSigner(index, 'name', event.target.value)}
-              />
-              <input
-                type="email"
-                value={signer.email}
-                placeholder="E-mail"
-                onChange={event => updateSigner(index, 'email', event.target.value)}
-              />
-              <button
-                className="unit-row-remove"
-                type="button"
-                aria-label="Remover assinante"
-                onClick={() => setForm(current => ({
-                  ...current,
-                  clientSigners: current.clientSigners.filter((_, itemIndex) => itemIndex !== index)
-                }))}
-              >
-                ×
-              </button>
+        <label htmlFor={`${idPrefix}-client-email-cc-input`}>E-mails em cópia</label>
+        <div className="cc-list">
+          {ccEmails.length ? (
+            <div className="cc-list-header">
+              <span>E-mail</span>
+              <span>Assinante?</span>
             </div>
-          ))}
+          ) : null}
+          {ccEmails.map(email => {
+            const signer = signerByEmail.get(email);
+            return (
+              <div className="cc-row" key={email}>
+                <div className="cc-row-main">
+                  <div className="cc-email">{email}</div>
+                  <div className="cc-row-actions">
+                    <label className="tog">
+                      <input type="checkbox" checked={Boolean(signer)} onChange={() => toggleSigner(email)} />
+                      <span className="tog-sl" />
+                    </label>
+                    <button
+                      className="email-chip-rm"
+                      type="button"
+                      aria-label="Remover e-mail"
+                      onClick={() => setCcEmails(ccEmails.filter(item => item !== email))}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+                {signer ? (
+                  <div className="cc-name-row">
+                    <input
+                      className="cc-name-input"
+                      type="text"
+                      value={signer.name}
+                      placeholder="Nome do assinante"
+                      onChange={event => updateSignerName(email, event.target.value)}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+          <div className="cc-add-row">
+            <input
+              id={`${idPrefix}-client-email-cc-input`}
+              type="text"
+              placeholder="Digite um e-mail..."
+              onKeyDown={handleCcInputKeyDown}
+              onBlur={event => commitCcInput(event.currentTarget)}
+            />
+            <button className="cc-add-btn" type="button" onClick={event => {
+              const input = event.currentTarget.parentElement?.querySelector('input');
+              commitCcInput(input || null);
+            }}>
+              + Adicionar
+            </button>
+          </div>
         </div>
-        <button
-          className="tube-add"
-          type="button"
-          onClick={() => setForm(current => ({
-            ...current,
-            clientSigners: [...current.clientSigners, { name: '', email: '' }]
-          }))}
-        >
-          ＋ Adicionar assinante
-        </button>
       </div>
     </>
   );
@@ -450,6 +515,9 @@ function renderProjectCard(project: Project, options: { onEdit: (project: Projec
           <div className="admin-card-subtitle">
             {project.clientName} - {project.contractCode}
           </div>
+          <span className={`status-pill ${(project.includesSaturday || project.includesSunday) ? 'status-approved' : 'status-pending'}`} style={{ fontSize: 11, marginTop: 4, alignSelf: 'flex-start' }}>
+            {(project.includesSaturday || project.includesSunday) ? 'Escala estendida' : 'Escala padrão'}
+          </span>
         </div>
         <div className="admin-card-actions">
           <button className="secondary-button" type="button" onClick={() => options.onEdit(project)}>
@@ -544,6 +612,7 @@ export function GestorPage() {
   const [showCounterForm, setShowCounterForm] = useState(false);
   const [returnReport, setReturnReport] = useState<ReportSummary | null>(null);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
+  const [projectSortDir, setProjectSortDir] = useState<'asc' | 'desc'>('asc');
 
   const reportsQuery = useReports();
   const draftsQuery = useDrafts();
@@ -589,6 +658,10 @@ export function GestorPage() {
   );
 
   const groupedUnits = useMemo(() => groupUnits(unitsQuery.data || []), [unitsQuery.data]);
+  const clientGroupingProjects = useMemo(
+    () => [...(activeProjectsQuery.data || []), ...(archivedProjectsQuery.data || [])],
+    [activeProjectsQuery.data, archivedProjectsQuery.data]
+  );
 
   async function handleLogout() {
     await logout();
@@ -679,7 +752,11 @@ export function GestorPage() {
       location: projectForm.location.trim(),
       visibleToCollaborators: projectForm.visibleToCollaborators,
       isActive: projectForm.isActive,
-      operatorId: projectForm.operatorId || null
+      operatorId: projectForm.operatorId || null,
+      workdayHours: projectForm.workdayHours || '09:00',
+      weekendWorkdayHours: projectForm.weekendWorkdayHours || '08:00',
+      includesSaturday: projectForm.includesSaturday,
+      includesSunday: projectForm.includesSunday
     };
 
     try {
@@ -923,6 +1000,18 @@ export function GestorPage() {
     }
   }
 
+  async function handleReportDelete(report: ReportSummary) {
+    if (!window.confirm('Excluir este relatório permanentemente?')) return;
+
+    try {
+      await reportMutations.deleteReport.mutateAsync(report.id);
+      setSelectedReportIds(current => current.filter(id => id !== report.id));
+      showToast('Relatório excluído.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível excluir o relatório.', 'error');
+    }
+  }
+
   function toggleReportSelection(id: string, checked: boolean) {
     setSelectedReportIds(current => {
       const next = checked ? [...current, id] : current.filter(item => item !== id);
@@ -978,6 +1067,17 @@ export function GestorPage() {
             Devolver
           </button>
         ) : null}
+        {report.status !== 'SIGNED' ? (
+          <button
+            className="danger-button"
+            type="button"
+            title="Excluir relatório"
+            disabled={reportMutations.deleteReport.isPending}
+            onClick={() => void handleReportDelete(report)}
+          >
+            Excluir
+          </button>
+        ) : null}
       </>
     );
   }
@@ -1017,6 +1117,8 @@ export function GestorPage() {
       <GroupedReportList
         reports={reports}
         archived={tab === 'arquivados'}
+        sortDirection={projectSortDir}
+        showTypeSort
         renderTypeActions={renderBatchReportActions}
         renderReport={report => (
           <ReportSummaryCard key={report.id} report={report} actions={renderManagerReportActions(report)} />
@@ -1031,13 +1133,19 @@ export function GestorPage() {
 
     if (reportsQuery.isLoading) return <div className="page-card placeholder-copy">Carregando relatórios...</div>;
 
-    const criarRelatorioBtn = tab === 'pendentes' ? (
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <button className="primary-button" type="button" onClick={handleNewReport}>
-          + Criar Relatório
-        </button>
+    const topActions = (
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
+        <ProjectSortButton
+          direction={projectSortDir}
+          onToggle={() => setProjectSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
+        />
+        {tab === 'pendentes' ? (
+          <button className="primary-button" type="button" onClick={handleNewReport}>
+            + Criar Relatório
+          </button>
+        ) : null}
       </div>
-    ) : null;
+    );
     const drafts = (draftsQuery.data || []).filter(draft => draft.projectId || draft.payload.projectId);
     const draftsBlock = tab === 'pendentes' && drafts.length ? (
       <section className="page-card">
@@ -1077,7 +1185,7 @@ export function GestorPage() {
     if (!visibleReports.length) {
       return (
         <>
-          {criarRelatorioBtn}
+          {topActions}
           {draftsBlock}
           <div className="page-card placeholder-copy">
             {tab === 'pendentes'
@@ -1108,7 +1216,7 @@ export function GestorPage() {
 
     return (
       <>
-        {criarRelatorioBtn}
+        {topActions}
         {draftsBlock}
         {renderProjectReportGroups(visibleReports)}
         {reasonDialog}
@@ -1128,17 +1236,21 @@ export function GestorPage() {
         <section className="page-card">
           <div className="admin-section-head">
             <div className="section-title">{projectEditingId ? 'Editar projeto' : 'Projetos'}</div>
-            {!showProjectForm && !projectEditingId ? (
-              <button
-                className="primary-button"
-                type="button"
-                onClick={() => {
-                  setShowProjectForm(true);
-                }}
-              >
-                Adicionar projeto
-              </button>
-            ) : null}
+            <div className="admin-form-actions">
+              <ProjectSortButton
+                direction={projectSortDir}
+                onToggle={() => setProjectSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
+              />
+              {!showProjectForm && !projectEditingId ? (
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => { setShowProjectForm(true); setProjectEditingId(null); setProjectForm(emptyProjectForm); }}
+                >
+                  Adicionar projeto
+                </button>
+              ) : null}
+            </div>
           </div>
           {showProjectForm && !projectEditingId ? (
             <form className="admin-form-grid" onSubmit={handleProjectSubmit}>
@@ -1174,7 +1286,7 @@ export function GestorPage() {
               <input
                 id="project-client-cnpj"
                 value={projectForm.clientCnpj}
-                onChange={event => setProjectForm(current => ({ ...current, clientCnpj: event.target.value }))}
+                onChange={event => setProjectForm(current => ({ ...current, clientCnpj: normalizeCnpjInput(event.target.value) }))}
                 required
               />
             </div>
@@ -1214,6 +1326,42 @@ export function GestorPage() {
                   ))}
               </select>
             </div>
+            <div className="field-group">
+              <label htmlFor="project-workday">Jornada padrão</label>
+              <input
+                id="project-workday"
+                type="text"
+                placeholder="09:00"
+                value={projectForm.workdayHours}
+                onChange={event => setProjectForm(current => ({ ...current, workdayHours: event.target.value }))}
+              />
+            </div>
+            <div className="field-group">
+              <label htmlFor="project-weekend">Jornada fim de semana</label>
+              <input
+                id="project-weekend"
+                type="text"
+                placeholder="08:00"
+                value={projectForm.weekendWorkdayHours}
+                onChange={event => setProjectForm(current => ({ ...current, weekendWorkdayHours: event.target.value }))}
+              />
+            </div>
+            <label className="checkbox-line">
+              <input
+                type="checkbox"
+                checked={projectForm.includesSaturday}
+                onChange={event => setProjectForm(current => ({ ...current, includesSaturday: event.target.checked }))}
+              />
+              Inclui sábado
+            </label>
+            <label className="checkbox-line">
+              <input
+                type="checkbox"
+                checked={projectForm.includesSunday}
+                onChange={event => setProjectForm(current => ({ ...current, includesSunday: event.target.checked }))}
+              />
+              Inclui domingo
+            </label>
             <label className="checkbox-line">
               <input
                 type="checkbox"
@@ -1254,7 +1402,7 @@ export function GestorPage() {
           <div className="section-title">Projetos ativos</div>
           {activeProjects.length ? (
             <div className="admin-stack">
-              {activeProjects.map(project =>
+              {sortProjects(activeProjects, projectSortDir).map(project =>
                 renderProjectCard(project, {
                   children: projectEditingId === project.id ? (
                     <form className="admin-inline-form admin-form-grid" onSubmit={handleProjectSubmit}>
@@ -1272,7 +1420,7 @@ export function GestorPage() {
                       </div>
                       <div className="field-group">
                         <label htmlFor={`project-cnpj-${project.id}`}>CNPJ</label>
-                        <input id={`project-cnpj-${project.id}`} value={projectForm.clientCnpj} onChange={event => setProjectForm(current => ({ ...current, clientCnpj: event.target.value }))} required />
+                        <input id={`project-cnpj-${project.id}`} value={projectForm.clientCnpj} onChange={event => setProjectForm(current => ({ ...current, clientCnpj: normalizeCnpjInput(event.target.value) }))} required />
                       </div>
                       <ProjectClientFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
                       <div className="field-group">
@@ -1283,6 +1431,30 @@ export function GestorPage() {
                         <label htmlFor={`project-location-${project.id}`}>Local</label>
                         <input id={`project-location-${project.id}`} value={projectForm.location} onChange={event => setProjectForm(current => ({ ...current, location: event.target.value }))} required />
                       </div>
+                      <div className="field-group">
+                        <label htmlFor={`project-workday-${project.id}`}>Jornada padrão</label>
+                        <input id={`project-workday-${project.id}`} type="text" placeholder="09:00" value={projectForm.workdayHours} onChange={event => setProjectForm(current => ({ ...current, workdayHours: event.target.value }))} />
+                      </div>
+                      <div className="field-group">
+                        <label htmlFor={`project-weekend-${project.id}`}>Jornada fim de semana</label>
+                        <input id={`project-weekend-${project.id}`} type="text" placeholder="08:00" value={projectForm.weekendWorkdayHours} onChange={event => setProjectForm(current => ({ ...current, weekendWorkdayHours: event.target.value }))} />
+                      </div>
+                      <label className="checkbox-line">
+                        <input type="checkbox" checked={projectForm.includesSaturday} onChange={event => setProjectForm(current => ({ ...current, includesSaturday: event.target.checked }))} />
+                        Inclui sábado
+                      </label>
+                      <label className="checkbox-line">
+                        <input type="checkbox" checked={projectForm.includesSunday} onChange={event => setProjectForm(current => ({ ...current, includesSunday: event.target.checked }))} />
+                        Inclui domingo
+                      </label>
+                      <label className="checkbox-line">
+                        <input
+                          type="checkbox"
+                          checked={projectForm.visibleToCollaborators}
+                          onChange={event => setProjectForm(current => ({ ...current, visibleToCollaborators: event.target.checked }))}
+                        />
+                        Visível para colaboradores
+                      </label>
                       <div className="admin-form-actions">
                         <button className="primary-button" type="submit" disabled={projectMutations.updateProject.isPending}>Salvar projeto</button>
                         <button className="secondary-button" type="button" onClick={resetProjectForm}>Cancelar edição</button>
@@ -1316,10 +1488,16 @@ export function GestorPage() {
 
     return (
       <section className="page-card">
-        <div className="section-title">Projetos arquivados</div>
+        <div className="admin-section-head">
+          <div className="section-title">Projetos arquivados</div>
+          <ProjectSortButton
+            direction={projectSortDir}
+            onToggle={() => setProjectSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
+          />
+        </div>
         {archivedProjects.length ? (
           <div className="admin-stack">
-            {archivedProjects.map(project => {
+            {sortProjects(archivedProjects, projectSortDir).map(project => {
               const projectReports = archivedReports.filter(report => report.projectId === project.id);
               return renderProjectCard(project, {
                 children: (
@@ -1753,64 +1931,98 @@ export function GestorPage() {
               <div className="admin-card-subtitle">Contas criadas automaticamente a partir dos projetos.</div>
             </div>
           </div>
-          {clientUsers.length ? (
-            <div className="admin-stack">
-              {clientUsers.map(item => {
-                const linked = item.linkedProjects || [];
-                const isCcAccount = !/^\d{14}$/.test(item.username);
-                const projectList = linked.length
-                  ? linked.map(project => `${project.contractCode || '---'} - Missão ${project.code || '---'} - ${project.name || 'Sem nome'}`)
-                  : ['Nenhum projeto vinculado.'];
+          {(() => {
+            // Group by CNPJ
+            const groups: Record<string, { cnpj: string; clientName: string; primary: typeof clientUsers[0] | null; cc: typeof clientUsers }> = {};
+            const noGroup: typeof clientUsers = [];
 
-                return (
-                  <article className="admin-card-react" key={item.id}>
-                    <div className="admin-card-head">
-                      <div>
-                        <div className="admin-card-title">{item.name || 'Cliente'} - {formatCnpj(item.username) || item.username}</div>
-                        <div className="admin-card-subtitle">
-                          {item.email || 'Sem e-mail principal'} - {isCcAccount ? 'Conta CC' : 'Conta principal'} - {item.isActive ? 'Ativo' : 'Inativo'}
-                        </div>
-                      </div>
-                      <span className={`status-pill ${item.isActive ? 'status-approved' : 'status-returned'}`}>
-                        {item.isActive ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </div>
-                    <div className="det-section" style={{ marginTop: 10 }}>
-                      <div className="det-row">
-                        <span className="det-label">CNPJ vinculado</span>
-                        <span className="det-val">{formatCnpj(item.clientCnpj) || formatCnpj(item.username) || 'Não informado'}</span>
-                      </div>
-                      <div className="det-row">
-                        <span className="det-label">Projetos</span>
-                        <span className="det-val">{linked.length}</span>
-                      </div>
-                      <div className="det-row">
-                        <span className="det-label">Vínculos</span>
-                        <span className="det-val">
-                          {projectList.map(project => <span key={project}>{project}<br /></span>)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="admin-card-actions" style={{ marginTop: 10 }}>
-                      <button
-                        className="secondary-button"
-                        type="button"
-                        disabled={userMutations.resendClientAccess.isPending}
-                        onClick={() => void handleResendClientAccess(item.id)}
-                      >
-                        Reenviar acesso
-                      </button>
-                      <button className="danger-button" type="button" onClick={() => void handleUserDelete(item.id)}>
-                        Remover
-                      </button>
-                    </div>
-                  </article>
+            const projectLabelForCnpj = (cnpj: string) => {
+              const project = clientGroupingProjects.find(item => item.clientCnpj.replace(/\D/g, '') === cnpj);
+              if (!project) return '';
+              const projectName = [project.code, project.name].filter(Boolean).join(' - ');
+              return projectName || project.clientName || project.name;
+            };
+
+            clientUsers.forEach(item => {
+              const rawUsername = String(item.username || '');
+              const isPrimaryByCnpj = /^\d{14}$/.test(rawUsername.replace(/\D/g, '')) && rawUsername.replace(/\D/g, '').length === 14;
+              let cnpj = item.clientCnpj ? item.clientCnpj.replace(/\D/g, '') : (isPrimaryByCnpj ? rawUsername.replace(/\D/g, '') : null);
+              if (!cnpj) {
+                const email = String(item.email || item.username || '').trim().toLowerCase();
+                const linkedCnpj = (item.linkedProjects || []).find(project => project.clientCnpj)?.clientCnpj;
+                const emailProject = clientGroupingProjects.find(project =>
+                  (project.clientEmailCc || []).some(cc => cc.trim().toLowerCase() === email)
                 );
-              })}
-            </div>
-          ) : (
-            <p className="placeholder-copy">Nenhum cliente provisionado.</p>
-          )}
+                cnpj = String(linkedCnpj || emailProject?.clientCnpj || '').replace(/\D/g, '') || null;
+              }
+              if (cnpj) {
+                if (!groups[cnpj]) groups[cnpj] = { cnpj, clientName: projectLabelForCnpj(cnpj), primary: null, cc: [] };
+                if (isPrimaryByCnpj && !groups[cnpj].primary) {
+                  groups[cnpj].primary = item;
+                  if (!groups[cnpj].clientName) groups[cnpj].clientName = item.name || '';
+                } else {
+                  groups[cnpj].cc.push(item);
+                }
+              } else {
+                noGroup.push(item);
+              }
+            });
+
+            const renderClientCard = (item: typeof clientUsers[0], isCc: boolean) => {
+              const linked = item.linkedProjects || [];
+              const projectList = linked.length
+                ? linked.map(p => `${p.contractCode || '---'} - Missão ${p.code || '---'} - ${p.name || 'Sem nome'}`)
+                : ['Nenhum projeto vinculado.'];
+
+              return (
+                <div key={item.id} style={{ border: '1px solid var(--br)', borderRadius: 'var(--rs)', padding: 10, marginTop: 8, background: '#fafafa' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{item.name || 'Cliente'}</div>
+                      <div style={{ fontSize: 12, color: 'var(--mu)' }}>{item.email || item.username}{item.isActive === false ? ' · Inativo' : ''}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {isCc ? <span className="status-pill status-pending" style={{ fontSize: 10 }}>CC / Assinante</span> : null}
+                      <span className={`status-pill ${item.isActive ? 'status-approved' : 'status-returned'}`}>{item.isActive ? 'Ativo' : 'Inativo'}</span>
+                    </div>
+                  </div>
+                  <div className="det-section" style={{ marginTop: 8 }}>
+                    <div className="det-row">
+                      <strong>Vínculos</strong>
+                      <span>{projectList.map(p => <span key={p}>{p}<br /></span>)}</span>
+                    </div>
+                  </div>
+                  <div className="admin-card-actions" style={{ marginTop: 8 }}>
+                    <button className="secondary-button" type="button" disabled={userMutations.resendClientAccess.isPending} onClick={() => void handleResendClientAccess(item.id)}>Reenviar acesso</button>
+                    <button className="danger-button" type="button" onClick={() => void handleUserDelete(item.id)}>Remover</button>
+                  </div>
+                </div>
+              );
+            };
+
+            if (!clientUsers.length) return <p className="placeholder-copy">Nenhum cliente provisionado.</p>;
+
+            return (
+              <div className="admin-stack">
+                {Object.values(groups).map(g => (
+                  <article className="admin-card-react" key={g.cnpj}>
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
+                      {g.clientName || projectLabelForCnpj(g.cnpj) || g.cnpj}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--mu)', marginBottom: 4 }}>{formatCnpj(g.cnpj)}</div>
+                    {g.primary ? renderClientCard(g.primary, false) : null}
+                    {g.cc.map(u => renderClientCard(u, true))}
+                  </article>
+                ))}
+                {noGroup.length ? (
+                  <article className="admin-card-react">
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Sem CNPJ associado</div>
+                    {noGroup.map(u => renderClientCard(u, true))}
+                  </article>
+                ) : null}
+              </div>
+            );
+          })()}
         </section>
         )}
       </>
@@ -2252,6 +2464,7 @@ export function GestorPage() {
       <TopBar
         title="Painel do gestor"
         subtitle={user?.name}
+        showLogo
         actions={
           <>
             <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>

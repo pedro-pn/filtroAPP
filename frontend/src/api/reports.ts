@@ -85,3 +85,7 @@ export async function downloadReportDocx(id: string) {
   });
   return response.data;
 }
+
+export async function deleteReport(id: string): Promise<void> {
+  await apiClient.delete(`/reports/${id}`);
+}
