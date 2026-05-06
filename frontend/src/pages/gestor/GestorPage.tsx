@@ -1,9 +1,9 @@
-﻿import { useMemo, useState, type Dispatch, type FormEvent, type KeyboardEvent, type SetStateAction } from 'react';
+﻿import { useEffect, useMemo, useState, type Dispatch, type FormEvent, type KeyboardEvent, type SetStateAction } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
 import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
-import { ProjectSortButton, sortProjects } from '../../utils/projectSort';
+import { compareReportTypes, ProjectSortButton, sortProjects, sortReportsInGroup } from '../../utils/projectSort';
 
 import type { UserRole } from '../../types/auth';
 import { downloadReportDocx, downloadReportPdf, downloadReportsBatch } from '../../api/reports';
@@ -266,6 +266,16 @@ function formatUserRole(role: UserRole) {
   return labels[role] || role;
 }
 
+function initials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(part => part[0] || '')
+    .join('')
+    .toUpperCase() || 'CL';
+}
+
 function formatDate(value?: string | null) {
   if (!value) return 'Não informado';
   return new Date(value).toLocaleDateString('pt-BR');
@@ -510,55 +520,73 @@ function renderProjectCard(
     onEdit: (project: Project) => void;
     onToggleArchive: (project: Project) => void;
     onRemove: (project: Project) => void;
+    detailsExpanded: boolean;
+    onToggleDetails: (project: Project) => void;
+    reportSectionExpanded?: boolean;
+    reportCount?: number;
+    onToggleReports?: (project: Project) => void;
     children?: ReactNode;
   }
 ) {
   return (
     <article className="card admin-card project-admin-card" key={project.id}>
       <div className="project-admin-head">
-        <div className="project-admin-title">
-          {project.code} - {project.name}
-        </div>
+        {options.onToggleReports ? (
+          <button className="project-admin-toggle" type="button" onClick={() => options.onToggleReports?.(project)}>
+            <span className="project-admin-title">{project.code} - {project.name}</span>
+            <span className="rtype-count">{options.reportCount || 0} relatório{options.reportCount === 1 ? '' : 's'}</span>
+            <span className="rtype-chevron">{options.reportSectionExpanded ? '▾' : '▸'}</span>
+          </button>
+        ) : (
+          <div className="project-admin-title">
+            {project.code} - {project.name}
+          </div>
+        )}
         <span className={`badge ${(project.includesSaturday || project.includesSunday) ? 'badge-ok' : 'badge-pen'}`}>
           {(project.includesSaturday || project.includesSunday) ? 'Escala estendida' : 'Escala padrão'}
         </span>
       </div>
       {options.children}
-      <div className="det-section">
-        <div className="det-row">
-          <span className="det-label">Cliente</span>
-          <span className="det-val">{project.clientName || '-'}</span>
+      {options.detailsExpanded ? (
+        <div className="det-section">
+          <div className="det-row">
+            <span className="det-label">Cliente</span>
+            <span className="det-val">{project.clientName || '-'}</span>
+          </div>
+          <div className="det-row">
+            <span className="det-label">CNPJ</span>
+            <span className="det-val">{formatCnpj(project.clientCnpj) || '-'}</span>
+          </div>
+          <div className="det-row">
+            <span className="det-label">E-mail principal</span>
+            <span className="det-val">{project.clientEmailPrimary || '-'}</span>
+          </div>
+          <div className="det-row">
+            <span className="det-label">E-mails em cópia</span>
+            <span className="det-val">{formatList(project.clientEmailCc || [])}</span>
+          </div>
+          <div className="det-row">
+            <span className="det-label">Assinantes adicionais</span>
+            <span className="det-val">{formatProjectSigners(project.clientSigners)}</span>
+          </div>
+          <div className="det-row">
+            <span className="det-label">Contrato</span>
+            <span className="det-val">{project.contractCode || '-'}</span>
+          </div>
+          <div className="det-row">
+            <span className="det-label">Operador</span>
+            <span className="det-val">{project.operator?.name || '-'}</span>
+          </div>
+          <div className="det-row">
+            <span className="det-label">Sequenciais</span>
+            <span className="det-val">{formatProjectSequences(project)}</span>
+          </div>
         </div>
-        <div className="det-row">
-          <span className="det-label">CNPJ</span>
-          <span className="det-val">{formatCnpj(project.clientCnpj) || '-'}</span>
-        </div>
-        <div className="det-row">
-          <span className="det-label">E-mail principal</span>
-          <span className="det-val">{project.clientEmailPrimary || '-'}</span>
-        </div>
-        <div className="det-row">
-          <span className="det-label">E-mails em cópia</span>
-          <span className="det-val">{formatList(project.clientEmailCc || [])}</span>
-        </div>
-        <div className="det-row">
-          <span className="det-label">Assinantes adicionais</span>
-          <span className="det-val">{formatProjectSigners(project.clientSigners)}</span>
-        </div>
-        <div className="det-row">
-          <span className="det-label">Contrato</span>
-          <span className="det-val">{project.contractCode || '-'}</span>
-        </div>
-        <div className="det-row">
-          <span className="det-label">Operador</span>
-          <span className="det-val">{project.operator?.name || '-'}</span>
-        </div>
-        <div className="det-row">
-          <span className="det-label">Sequenciais</span>
-          <span className="det-val">{formatProjectSequences(project)}</span>
-        </div>
-      </div>
+      ) : null}
       <div className="admin-actions">
+        <button className="mini-btn alt" type="button" onClick={() => options.onToggleDetails(project)}>
+          {options.detailsExpanded ? 'Ocultar detalhes' : 'Mostrar detalhes'}
+        </button>
         <button className="mini-btn alt" type="button" onClick={() => options.onToggleArchive(project)}>
           {project.isActive ? 'Arquivar' : 'Desarquivar'}
         </button>
@@ -582,6 +610,8 @@ export function GestorPage() {
   const { hydrate, reset } = useRdoStore();
   const showToast = useToast();
   const [tab, setTab] = useState<GestorTab>('pendentes');
+  const projectDetailsStorageKey = `gestor-project-details-collapsed:${user?.id || 'anonymous'}`;
+  const [collapsedProjectDetailIds, setCollapsedProjectDetailIds] = useState<string[]>([]);
 
   const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
   const [projectEditingId, setProjectEditingId] = useState<string | null>(null);
@@ -610,6 +640,9 @@ export function GestorPage() {
   const [returnReport, setReturnReport] = useState<ReportSummary | null>(null);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [projectSortDir, setProjectSortDir] = useState<'asc' | 'desc'>('asc');
+  const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>([]);
+  const [closedArchivedTypeKeys, setClosedArchivedTypeKeys] = useState<string[]>([]);
+  const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, 'asc' | 'desc'>>({});
 
   const reportsQuery = useReports();
   const draftsQuery = useDrafts();
@@ -659,6 +692,57 @@ export function GestorPage() {
     () => [...(activeProjectsQuery.data || []), ...(archivedProjectsQuery.data || [])],
     [activeProjectsQuery.data, archivedProjectsQuery.data]
   );
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(projectDetailsStorageKey);
+      const parsed = stored ? JSON.parse(stored) : [];
+      setCollapsedProjectDetailIds(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : []);
+    } catch {
+      setCollapsedProjectDetailIds([]);
+    }
+  }, [projectDetailsStorageKey]);
+
+  function persistCollapsedProjectDetails(ids: string[]) {
+    try {
+      localStorage.setItem(projectDetailsStorageKey, JSON.stringify(ids));
+    } catch {
+      // localStorage can be unavailable in private or restricted contexts.
+    }
+  }
+
+  function projectDetailsExpanded(projectId: string) {
+    return !collapsedProjectDetailIds.includes(projectId);
+  }
+
+  function toggleProjectDetails(project: Project) {
+    setCollapsedProjectDetailIds(current => {
+      const next = current.includes(project.id)
+        ? current.filter(id => id !== project.id)
+        : [...current, project.id];
+      persistCollapsedProjectDetails(next);
+      return next;
+    });
+  }
+
+  function toggleArchivedProject(projectId: string) {
+    setClosedArchivedProjectIds(current =>
+      current.includes(projectId) ? current.filter(id => id !== projectId) : [...current, projectId]
+    );
+  }
+
+  function toggleArchivedType(typeKey: string) {
+    setClosedArchivedTypeKeys(current =>
+      current.includes(typeKey) ? current.filter(id => id !== typeKey) : [...current, typeKey]
+    );
+  }
+
+  function toggleArchivedTypeSort(typeKey: string) {
+    setArchivedTypeSortDirections(current => ({
+      ...current,
+      [typeKey]: (current[typeKey] || 'asc') === 'asc' ? 'desc' : 'asc'
+    }));
+  }
 
   async function handleLogout() {
     await logout();
@@ -1053,10 +1137,10 @@ export function GestorPage() {
     return (
       <>
         <span className="report-download-actions">
-          <button className="secondary-button" type="button" onClick={() => void handleReportDownload(report, 'pdf')}>
+          <button className="mini-btn alt" type="button" onClick={() => void handleReportDownload(report, 'pdf')}>
             PDF
           </button>
-          <button className="secondary-button" type="button" onClick={() => void handleReportDownload(report, 'docx')}>
+          <button className="mini-btn alt" type="button" onClick={() => void handleReportDownload(report, 'docx')}>
             DOCX
           </button>
         </span>
@@ -1100,18 +1184,18 @@ export function GestorPage() {
       <div className="report-batch-toolbar">
         <span className="report-batch-count">{selectedVisibleCount} selecionado(s)</span>
         <div className="admin-form-actions">
-          <button className="secondary-button" type="button" onClick={() => setSelectedReportIds(visibleIds)}>
+          <button className="mini-btn alt" type="button" onClick={() => setSelectedReportIds(visibleIds)}>
             Selecionar todos
           </button>
           {hasSelectedVisible ? (
             <>
-              <button className="secondary-button" type="button" onClick={() => setSelectedReportIds([])}>
+              <button className="mini-btn alt" type="button" onClick={() => setSelectedReportIds([])}>
                 Limpar seleção
               </button>
-              <button className="secondary-button" type="button" onClick={() => void handleBatchReportDownload('pdf', reports)}>
+              <button className="mini-btn alt" type="button" onClick={() => void handleBatchReportDownload('pdf', reports)}>
                 Baixar PDF
               </button>
-              <button className="secondary-button" type="button" onClick={() => void handleBatchReportDownload('docx', reports)}>
+              <button className="mini-btn alt" type="button" onClick={() => void handleBatchReportDownload('docx', reports)}>
                 Baixar DOCX
               </button>
             </>
@@ -1149,6 +1233,55 @@ export function GestorPage() {
     );
   }
 
+  function renderReportTypeSections(reports: ReportSummary[], projectId?: string) {
+    const byType = reports.reduce<Record<string, ReportSummary[]>>((acc, report) => {
+      if (!acc[report.reportType]) acc[report.reportType] = [];
+      acc[report.reportType].push(report);
+      return acc;
+    }, {});
+
+    return Object.entries(byType)
+      .sort(([a], [b]) => compareReportTypes(a, b))
+      .map(([reportType, typeReports]) => {
+        const typeKey = `${projectId || 'project'}-${reportType}`;
+        const typeClosed = closedArchivedTypeKeys.includes(typeKey);
+        const typeSortDirection = archivedTypeSortDirections[typeKey] || 'asc';
+
+        return (
+          <div className="report-type-group" key={typeKey}>
+            <div
+              className="report-type-header"
+              onClick={() => toggleArchivedType(typeKey)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  toggleArchivedType(typeKey);
+                }
+              }}
+            >
+              <span className={`rtype-badge rtype-${reportType}`}>{reportType}</span>
+              <span className="rtype-count">
+                {typeReports.length} relatório{typeReports.length !== 1 ? 's' : ''}
+              </span>
+              <span onClick={event => event.stopPropagation()}>
+                <ProjectSortButton direction={typeSortDirection} onToggle={() => toggleArchivedTypeSort(typeKey)} />
+              </span>
+              <span className="rtype-chevron">{typeClosed ? '▸' : '▾'}</span>
+            </div>
+            {!typeClosed ? (
+              <div className="report-type-list">
+                {sortReportsInGroup(typeReports, typeSortDirection).map(report => (
+                  <ReportSummaryCard key={report.id} report={report} actions={renderManagerReportActions(report)} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        );
+      });
+  }
+
   function renderReportTabContent() {
     const visibleReports =
       tab === 'pendentes' ? pendingReports : tab === 'arquivados' ? archivedReports : approvedReports;
@@ -1162,7 +1295,7 @@ export function GestorPage() {
           onToggle={() => setProjectSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
         />
         {tab === 'pendentes' ? (
-          <button className="primary-button" type="button" onClick={handleNewReport}>
+          <button className="mini-btn" type="button" onClick={handleNewReport}>
             + Criar Relatório
           </button>
         ) : null}
@@ -1174,7 +1307,7 @@ export function GestorPage() {
         <div className="section-title">Relatórios em andamento</div>
         <div className="admin-stack">
           {drafts.map(draft => (
-            <article className="admin-card-react" key={draft.id}>
+            <article className="card admin-card" key={draft.id}>
               <div className="admin-card-head">
                 <div>
                   <div className="admin-card-title">{draft.title || 'Relatório em andamento'}</div>
@@ -1190,10 +1323,10 @@ export function GestorPage() {
                   </div>
                 </div>
                 <div className="admin-card-actions">
-                  <button className="secondary-button" type="button" onClick={() => handleResumeDraft(draft)}>
+                  <button className="mini-btn alt" type="button" onClick={() => handleResumeDraft(draft)}>
                     Continuar
                   </button>
-                  <button className="danger-button" type="button" onClick={() => draftMutations.removeDraft.mutate(draft.id)}>
+                  <button className="mini-btn danger" type="button" onClick={() => draftMutations.removeDraft.mutate(draft.id)}>
                     Excluir
                   </button>
                 </div>
@@ -1278,7 +1411,7 @@ export function GestorPage() {
             <div className="admin-inline-form">
               <div className="admin-section-head">
                 <div className="section-title" style={{ marginBottom: 0 }}>Novo projeto</div>
-                <button className="secondary-button" type="button" onClick={resetProjectForm}>Cancelar</button>
+                <button className="mini-btn alt" type="button" onClick={resetProjectForm}>Cancelar</button>
               </div>
               <form className="admin-inline-grid" onSubmit={handleProjectSubmit}>
                 <div className="field-group">
@@ -1345,21 +1478,19 @@ export function GestorPage() {
                   </select>
                 </div>
                 <div className="admin-form-actions">
-                  <button className="primary-button" type="submit" disabled={projectMutations.createProject.isPending}>Criar projeto</button>
+                  <button className="mini-btn" type="submit" disabled={projectMutations.createProject.isPending}>Criar projeto</button>
                 </div>
               </form>
             </div>
           ) : null}
         </section>
 
-        <section className="page-card">
-          <div className="section-title">Projetos ativos</div>
-          {activeProjects.length ? (
-            <div className="admin-stack">
-              {sortProjects(activeProjects, projectSortDir).map(project =>
-                renderProjectCard(project, {
-                  children: projectEditingId === project.id ? (
-                    <form className="admin-inline-form admin-inline-grid" onSubmit={handleProjectSubmit}>
+        {activeProjects.length ? (
+          <div className="admin-stack">
+            {sortProjects(activeProjects, projectSortDir).map(project =>
+              renderProjectCard(project, {
+                children: projectEditingId === project.id ? (
+                  <form className="admin-inline-form admin-inline-grid" onSubmit={handleProjectSubmit}>
                       <div className="field-group">
                         <label htmlFor={`project-code-${project.id}`}>Número da missão</label>
                         <input id={`project-code-${project.id}`} value={projectForm.code} readOnly />
@@ -1424,25 +1555,28 @@ export function GestorPage() {
                         </select>
                       </div>
                       <div className="admin-form-actions">
-                        <button className="primary-button" type="submit" disabled={projectMutations.updateProject.isPending}>Salvar projeto</button>
-                        <button className="secondary-button" type="button" onClick={resetProjectForm}>Cancelar edição</button>
+                        <button className="mini-btn" type="submit" disabled={projectMutations.updateProject.isPending}>Salvar projeto</button>
+                        <button className="mini-btn alt" type="button" onClick={resetProjectForm}>Cancelar edição</button>
                       </div>
-                    </form>
-                  ) : null,
-                  onEdit: item => {
-                    setProjectEditingId(item.id);
-                    setShowProjectForm(true);
-                    setProjectForm(projectToForm(item));
-                  },
-                  onToggleArchive: handleProjectToggleArchive,
-                  onRemove: handleProjectRemove
-                })
-              )}
-            </div>
-          ) : (
-            <p className="placeholder-copy">Nenhum projeto ativo.</p>
-          )}
-        </section>
+                  </form>
+                ) : null,
+                onEdit: item => {
+                  setProjectEditingId(item.id);
+                  setShowProjectForm(true);
+                  setProjectForm(projectToForm(item));
+                },
+                onToggleArchive: handleProjectToggleArchive,
+                onRemove: handleProjectRemove,
+                detailsExpanded: projectDetailsExpanded(project.id),
+                onToggleDetails: toggleProjectDetails
+              })
+            )}
+          </div>
+        ) : (
+          <div className="card admin-card">
+            <div className="placeholder-copy">Nenhum projeto ativo.</div>
+          </div>
+        )}
 
       </>
     );
@@ -1468,14 +1602,13 @@ export function GestorPage() {
           <div className="admin-stack">
             {sortProjects(archivedProjects, projectSortDir).map(project => {
               const projectReports = archivedReports.filter(report => report.projectId === project.id);
+              const projectClosed = closedArchivedProjectIds.includes(project.id);
               return renderProjectCard(project, {
                 children: (
                   <>
                     {projectReports.length ? (
                       <div className="admin-stack" style={{ marginTop: 14 }}>
-                        {projectReports.map(report => (
-                          <ReportSummaryCard key={report.id} report={report} actions={renderManagerReportActions(report)} />
-                        ))}
+                        {!projectClosed ? renderReportTypeSections(projectReports, project.id) : null}
                       </div>
                     ) : (
                       <div className="placeholder-copy" style={{ marginTop: 14 }}>
@@ -1490,7 +1623,12 @@ export function GestorPage() {
                   setProjectForm(projectToForm(item));
                 },
                 onToggleArchive: handleProjectToggleArchive,
-                onRemove: handleProjectRemove
+                onRemove: handleProjectRemove,
+                detailsExpanded: projectDetailsExpanded(project.id),
+                onToggleDetails: toggleProjectDetails,
+                reportSectionExpanded: !projectClosed,
+                reportCount: projectReports.length,
+                onToggleReports: item => toggleArchivedProject(item.id)
               });
             })}
           </div>
@@ -1510,23 +1648,26 @@ export function GestorPage() {
 
     return (
       <>
-        <section className="page-card">
-          <div className="admin-section-head">
-            <div className="section-title">{collaboratorEditingId ? 'Editar colaborador' : 'Colaboradores'}</div>
+          <div className="admin-toolbar">
+            <div className="sec">Equipe</div>
             {!showCollaboratorForm && !collaboratorEditingId ? (
               <button
-                className="primary-button"
+                className="mini-btn"
                 type="button"
                 onClick={() => {
                   setShowCollaboratorForm(true);
                 }}
               >
-                Adicionar colaborador
+                + Novo colaborador
               </button>
             ) : null}
           </div>
           {showCollaboratorForm && !collaboratorEditingId ? (
-          <form className="admin-form-grid" onSubmit={handleCollaboratorSubmit}>
+          <form className="admin-inline-form admin-form-grid" onSubmit={handleCollaboratorSubmit}>
+            <div className="admin-toolbar full">
+              <div className="sec">Novo colaborador</div>
+              <button className="mini-btn alt" type="button" onClick={resetCollaboratorForm}>Cancelar</button>
+            </div>
             <div className="field-group">
               <label htmlFor="collaborator-name">Nome</label>
               <input
@@ -1564,7 +1705,7 @@ export function GestorPage() {
             </label>
             <div className="admin-form-actions">
               <button
-                className="primary-button"
+                className="mini-btn"
                 type="submit"
                 disabled={
                   collaboratorMutations.createCollaborator.isPending ||
@@ -1573,34 +1714,25 @@ export function GestorPage() {
               >
                 {collaboratorEditingId ? 'Salvar colaborador' : 'Criar colaborador'}
               </button>
-              {collaboratorEditingId ? (
-                <button className="secondary-button" type="button" onClick={resetCollaboratorForm}>
-                  {'Cancelar edição'}
-                </button>
-              ) : (
-                <button className="secondary-button" type="button" onClick={resetCollaboratorForm}>
-                  Cancelar
-                </button>
-              )}
             </div>
           </form>
           ) : null}
-        </section>
 
-        <section className="page-card">
-          <div className="section-title">Colaboradores</div>
           {collaborators.length ? (
             <div className="admin-stack">
               {collaborators.map(collaborator => (
-                <article className="admin-card-react" key={collaborator.id}>
-                  <div className="admin-card-head">
-                    <div>
-                      <div className="admin-card-title">{collaborator.name}</div>
-                      <div className="admin-card-subtitle">{collaborator.role}</div>
+                <article className="card admin-card" key={collaborator.id}>
+                  <div className="admin-item-row">
+                    <div className="admin-avatar" aria-hidden="true">{initials(collaborator.name)}</div>
+                    <div className="admin-item-main">
+                      <div className="admin-item-title">{collaborator.name}</div>
+                      <div className="admin-item-sub">
+                        {collaborator.role || '-'}{collaborator.email ? ` - ${collaborator.email}` : ''}
+                      </div>
                     </div>
-                    <div className="admin-card-actions">
+                    <div className="admin-actions">
                       <button
-                        className="secondary-button"
+                        className="mini-btn alt"
                         type="button"
                         onClick={() => {
                           setCollaboratorEditingId(collaborator.id);
@@ -1611,17 +1743,13 @@ export function GestorPage() {
                         Editar
                       </button>
                       <button
-                        className="danger-button"
+                        className="mini-btn danger"
                         type="button"
                         onClick={() => void handleCollaboratorToggle(collaborator)}
                       >
                         Remover
                       </button>
                     </div>
-                  </div>
-                  <div className="admin-card-meta">
-                    <span>{collaborator.code}</span>
-                    <span>{collaborator.email || 'Sem e-mail'}</span>
                   </div>
                   {collaboratorEditingId === collaborator.id ? (
                     <form className="admin-inline-form admin-form-grid" onSubmit={handleCollaboratorSubmit}>
@@ -1638,8 +1766,8 @@ export function GestorPage() {
                         <input type="email" value={collaboratorForm.email} onChange={event => setCollaboratorForm(current => ({ ...current, email: event.target.value }))} />
                       </div>
                       <div className="admin-form-actions">
-                        <button className="primary-button" type="submit" disabled={collaboratorMutations.updateCollaborator.isPending}>Salvar colaborador</button>
-                        <button className="secondary-button" type="button" onClick={resetCollaboratorForm}>Cancelar edição</button>
+                        <button className="mini-btn" type="submit" disabled={collaboratorMutations.updateCollaborator.isPending}>Salvar colaborador</button>
+                        <button className="mini-btn alt" type="button" onClick={resetCollaboratorForm}>Cancelar edição</button>
                       </div>
                     </form>
                   ) : null}
@@ -1647,9 +1775,10 @@ export function GestorPage() {
               ))}
             </div>
           ) : (
-            <p className="placeholder-copy">Nenhum colaborador cadastrado.</p>
+            <div className="card admin-card">
+              <div className="placeholder-copy">Nenhum colaborador ativo.</div>
+            </div>
           )}
-        </section>
       </>
     );
   }
@@ -1691,12 +1820,11 @@ export function GestorPage() {
 
         {showInternal ? (
         <>
-        <section className="page-card">
-          <div className="admin-section-head">
-            <div className="section-title">Usuários internos</div>
+          <div className="admin-toolbar">
+            <div className="sec">Usuários internos</div>
           {!showUserForm && !userEditingId ? (
               <button
-                className="primary-button"
+                className="mini-btn"
                 type="button"
                 onClick={() => {
                   setShowUserForm(true);
@@ -1708,8 +1836,9 @@ export function GestorPage() {
           </div>
           {showUserForm && !userEditingId ? (
           <form className="admin-inline-form admin-form-grid" onSubmit={handleUserSubmit}>
-            <div className="field-group full">
-              <div className="section-title">Novo usuário</div>
+            <div className="admin-toolbar full">
+              <div className="sec">Novo usuário</div>
+              <button className="mini-btn alt" type="button" onClick={resetUserForm}>Cancelar</button>
             </div>
             <div className="field-group">
               <label htmlFor="user-username">Usuário</label>
@@ -1793,61 +1922,49 @@ export function GestorPage() {
             </label>
             <div className="admin-form-actions">
               <button
-                className="primary-button"
+                className="mini-btn"
                 type="submit"
                 disabled={userMutations.createUser.isPending || userMutations.updateUser.isPending}
               >
                 {userEditingId ? 'Salvar usuário' : 'Criar usuário'}
               </button>
-              {userEditingId ? (
-                <button className="secondary-button" type="button" onClick={resetUserForm}>
-                  Cancelar edição
-                </button>
-              ) : (
-                <button className="secondary-button" type="button" onClick={resetUserForm}>
-                  Cancelar
-                </button>
-              )}
             </div>
           </form>
           ) : null}
-        </section>
 
-        <section className="page-card">
           {internalUsers.length ? (
             <div className="admin-stack">
               {internalUsers.map(item => (
-                <article className="admin-card-react" key={item.id}>
-                  <div className="admin-card-head">
-                    <div>
-                      <div className="admin-card-title">{item.name}</div>
-                      <div className="admin-card-subtitle">{item.username}</div>
-                    </div>
-                    <div className="admin-card-actions">
-                      <button
-                        className="secondary-button"
-                        type="button"
-                        onClick={() => {
-                          setUserEditingId(item.id);
-                          setShowUserForm(true);
-                          setUserForm(userToForm(item));
-                        }}
-                      >
-                        Editar
-                      </button>
-                      <button className="secondary-button" type="button" onClick={() => void handleUserDelete(item.id)}>
-                        Excluir
-                      </button>
-                    </div>
+                <article className="card admin-card" key={item.id}>
+                  <div className="admin-item-title">
+                    {item.name} · {item.username}
                   </div>
-                  <div className="admin-card-meta">
-                    <span>{item.email || 'Sem e-mail'}</span>
-                    <span>{formatUserRole(item.role)}</span>
-                    <span>{item.collaborator?.name || 'Sem colaborador vinculado'}</span>
-                    <span>{item.isActive ? 'Ativo' : 'Inativo'}</span>
+                  <div className="admin-item-sub">
+                    {formatUserRole(item.role)}
+                    {item.collaborator?.name ? ` · ${item.collaborator.name}` : ''}
+                  </div>
+                  <div className="admin-actions">
+                    <button
+                      className="mini-btn alt"
+                      type="button"
+                      onClick={() => {
+                        setUserEditingId(item.id);
+                        setShowUserForm(true);
+                        setUserForm(userToForm(item));
+                      }}
+                    >
+                      Editar
+                    </button>
+                    <button className="mini-btn danger" type="button" onClick={() => void handleUserDelete(item.id)}>
+                      Remover
+                    </button>
                   </div>
                   {userEditingId === item.id ? (
                     <form className="admin-inline-form admin-form-grid" onSubmit={handleUserSubmit}>
+                      <div className="admin-toolbar full">
+                        <div className="sec">Editar usuário</div>
+                        <button className="mini-btn alt" type="button" onClick={resetUserForm}>Cancelar</button>
+                      </div>
                       <div className="field-group"><label>Usuário</label><input value={userForm.username} onChange={event => setUserForm(current => ({ ...current, username: event.target.value }))} required readOnly /></div>
                       <div className="field-group"><label>Nome</label><input value={userForm.name} onChange={event => setUserForm(current => ({ ...current, name: event.target.value }))} required /></div>
                       <div className="field-group"><label>E-mail</label><input type="email" value={userForm.email} onChange={event => setUserForm(current => ({ ...current, email: event.target.value }))} /></div>
@@ -1880,8 +1997,7 @@ export function GestorPage() {
                         Usuário ativo
                       </label>
                       <div className="admin-form-actions">
-                        <button className="primary-button" type="submit" disabled={userMutations.updateUser.isPending}>Salvar usuário</button>
-                        <button className="secondary-button" type="button" onClick={resetUserForm}>Cancelar edição</button>
+                        <button className="mini-btn" type="submit" disabled={userMutations.updateUser.isPending}>Salvar usuário</button>
                       </div>
                     </form>
                   ) : null}
@@ -1889,9 +2005,10 @@ export function GestorPage() {
               ))}
             </div>
           ) : (
-            <p className="placeholder-copy">Nenhum usuário interno cadastrado.</p>
+            <div className="card admin-card">
+              <div className="placeholder-copy">Nenhum usuário interno cadastrado.</div>
+            </div>
           )}
-        </section>
         </>
         ) : (
         <section className="page-card">
@@ -1940,20 +2057,18 @@ export function GestorPage() {
 
             const renderClientCard = (item: typeof clientUsers[0], isCc: boolean) => {
               return (
-                <div key={item.id} style={{ border: '1px solid var(--br)', borderRadius: 'var(--rs)', padding: 10, marginTop: 8, background: '#fafafa' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{item.name || 'Cliente'}</div>
-                      <div style={{ fontSize: 12, color: 'var(--mu)' }}>{item.email || item.username}{item.isActive === false ? ' · Inativo' : ''}</div>
+                <div className="card admin-card" key={item.id}>
+                  <div className="admin-item-row">
+                    <div className="admin-item-main">
+                      <div className="admin-item-title">{item.name || 'Cliente'}</div>
+                      <div className="admin-item-sub">{item.email || item.username}{item.isActive === false ? ' - Inativo' : ''}</div>
                     </div>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <div className="admin-actions">
                       {isCc ? <span className="status-pill status-pending" style={{ fontSize: 10 }}>CC / Assinante</span> : null}
                       <span className={`status-pill ${item.isActive ? 'status-approved' : 'status-returned'}`}>{item.isActive ? 'Ativo' : 'Inativo'}</span>
+                      <button className="mini-btn alt" type="button" disabled={userMutations.resendClientAccess.isPending} onClick={() => void handleResendClientAccess(item.id)}>Reenviar acesso</button>
+                      <button className="mini-btn danger" type="button" onClick={() => void handleUserDelete(item.id)}>Remover</button>
                     </div>
-                  </div>
-                  <div className="admin-card-actions" style={{ marginTop: 8 }}>
-                    <button className="secondary-button" type="button" disabled={userMutations.resendClientAccess.isPending} onClick={() => void handleResendClientAccess(item.id)}>Reenviar acesso</button>
-                    <button className="danger-button" type="button" onClick={() => void handleUserDelete(item.id)}>Remover</button>
                   </div>
                 </div>
               );
@@ -1964,7 +2079,7 @@ export function GestorPage() {
             return (
               <div className="admin-stack">
                 {Object.values(groups).map(g => (
-                  <article className="admin-card-react" key={g.cnpj}>
+                  <article className="card admin-card" key={g.cnpj}>
                     <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>
                       {g.clientName || projectLabelForCnpj(g.cnpj) || g.cnpj}
                     </div>
@@ -1974,7 +2089,7 @@ export function GestorPage() {
                   </article>
                 ))}
                 {noGroup.length ? (
-                  <article className="admin-card-react">
+                  <article className="card admin-card">
                     <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Sem CNPJ associado</div>
                     {noGroup.map(u => renderClientCard(u, true))}
                   </article>
@@ -2002,11 +2117,11 @@ export function GestorPage() {
           {units.length ? (
             <div className="admin-stack">
               {Object.entries(groupedUnits).map(([category, categoryUnits]) => (
-                <article className="admin-card-react" key={category}>
+                <article className="card admin-card" key={category}>
                   <div className="admin-section-head admin-card-toolbar">
                     <div className="admin-card-title">{formatUnitCategory(category as UnitCategory)}</div>
                     <button
-                      className="secondary-button"
+                      className="mini-btn alt"
                       type="button"
                       onClick={() => {
                         setUnitEditingId(null);
@@ -2033,13 +2148,13 @@ export function GestorPage() {
                       </div>
                       <div className="admin-form-actions">
                         <button
-                          className="primary-button"
+                          className="mini-btn"
                           type="submit"
                           disabled={unitMutations.createUnit.isPending || unitMutations.updateUnit.isPending}
                         >
                           Criar unidade
                         </button>
-                        <button className="secondary-button" type="button" onClick={resetUnitForm}>
+                        <button className="mini-btn alt" type="button" onClick={resetUnitForm}>
                           Cancelar
                         </button>
                       </div>
@@ -2051,7 +2166,7 @@ export function GestorPage() {
                         <span>{unit.code}</span>
                         <div className="admin-card-actions">
                           <button
-                            className="secondary-button"
+                            className="mini-btn alt"
                             type="button"
                             onClick={() => {
                               setUnitEditingId(unit.id);
@@ -2061,8 +2176,8 @@ export function GestorPage() {
                           >
                             Editar
                           </button>
-                          <button className="secondary-button" type="button" onClick={() => void handleUnitDelete(unit.id)}>
-                            Excluir
+                          <button className="mini-btn danger" type="button" onClick={() => void handleUnitDelete(unit.id)}>
+                            Remover
                           </button>
                         </div>
                         {unitEditingId === unit.id ? (
@@ -2070,8 +2185,8 @@ export function GestorPage() {
                             <div className="field-group"><label>Código</label><input value={unitForm.code} onChange={event => setUnitForm(current => ({ ...current, code: event.target.value }))} required /></div>
                             <div className="field-group"><label>Categoria</label><input value={formatUnitCategory(unit.category)} readOnly /></div>
                             <div className="admin-form-actions">
-                              <button className="primary-button" type="submit" disabled={unitMutations.updateUnit.isPending}>Salvar unidade</button>
-                              <button className="secondary-button" type="button" onClick={resetUnitForm}>Cancelar edição</button>
+                              <button className="mini-btn" type="submit" disabled={unitMutations.updateUnit.isPending}>Salvar unidade</button>
+                              <button className="mini-btn alt" type="button" onClick={resetUnitForm}>Cancelar edição</button>
                             </div>
                           </form>
                         ) : null}
@@ -2103,7 +2218,7 @@ export function GestorPage() {
           {!showManometerForm && !manometerEditingId ? (
             <div className="admin-form-actions">
               <button
-                className="primary-button"
+                className="mini-btn"
                 type="button"
                 onClick={() => {
                   setShowManometerForm(true);
@@ -2166,18 +2281,18 @@ export function GestorPage() {
             </div>
             <div className="admin-form-actions">
               <button
-                className="primary-button"
+                className="mini-btn"
                 type="submit"
                 disabled={manometerMutations.createManometer.isPending || manometerMutations.updateManometer.isPending}
               >
                 {manometerEditingId ? 'Salvar manômetro' : 'Criar manômetro'}
               </button>
               {manometerEditingId ? (
-                <button className="secondary-button" type="button" onClick={resetManometerForm}>
+                <button className="mini-btn alt" type="button" onClick={resetManometerForm}>
                   Cancelar edição
                 </button>
               ) : (
-                <button className="secondary-button" type="button" onClick={resetManometerForm}>
+                <button className="mini-btn alt" type="button" onClick={resetManometerForm}>
                   Cancelar
                 </button>
               )}
@@ -2191,15 +2306,17 @@ export function GestorPage() {
           {manometers.length ? (
             <div className="admin-stack">
               {manometers.map(item => (
-                <article className="admin-card-react" key={item.id}>
-                  <div className="admin-card-head">
-                    <div>
-                      <div className="admin-card-title">{item.code} - {item.scale}</div>
-                      <div className="admin-card-subtitle">Certificado {item.calibrationCertCode}</div>
+                <article className="card admin-card" key={item.id}>
+                  <div className="admin-item-row">
+                    <div className="admin-item-main">
+                      <div className="admin-item-title">{item.code} - {item.scale}</div>
+                      <div className="admin-item-sub">
+                        Certificado {item.calibrationCertCode} - Calibração: {formatDate(item.calibratedAt)} - Vencimento: {formatDate(item.expiresAt)}
+                      </div>
                     </div>
-                    <div className="admin-card-actions">
+                    <div className="admin-actions">
                       <button
-                        className="secondary-button"
+                        className="mini-btn alt"
                         type="button"
                         onClick={() => {
                           setManometerEditingId(item.id);
@@ -2209,14 +2326,10 @@ export function GestorPage() {
                       >
                         Editar
                       </button>
-                      <button className="danger-button" type="button" onClick={() => void handleManometerDeactivate(item.id)}>
+                      <button className="mini-btn danger" type="button" onClick={() => void handleManometerDeactivate(item.id)}>
                         Remover
                       </button>
                     </div>
-                  </div>
-                  <div className="admin-card-meta">
-                    <span>Calibração: {formatDate(item.calibratedAt)}</span>
-                    <span>Vencimento: {formatDate(item.expiresAt)}</span>
                   </div>
                   {manometerEditingId === item.id ? (
                     <form className="admin-inline-form admin-form-grid" onSubmit={handleManometerSubmit}>
@@ -2226,8 +2339,8 @@ export function GestorPage() {
                       <div className="field-group"><label>Calibração</label><input type="date" value={manometerForm.calibratedAt} onChange={event => setManometerForm(current => ({ ...current, calibratedAt: event.target.value }))} required /></div>
                       <div className="field-group"><label>Vencimento</label><input type="date" value={manometerForm.expiresAt} onChange={event => setManometerForm(current => ({ ...current, expiresAt: event.target.value }))} required /></div>
                       <div className="admin-form-actions">
-                        <button className="primary-button" type="submit" disabled={manometerMutations.updateManometer.isPending}>Salvar manômetro</button>
-                        <button className="secondary-button" type="button" onClick={resetManometerForm}>Cancelar edição</button>
+                        <button className="mini-btn" type="submit" disabled={manometerMutations.updateManometer.isPending}>Salvar manômetro</button>
+                        <button className="mini-btn alt" type="button" onClick={resetManometerForm}>Cancelar edição</button>
                       </div>
                     </form>
                   ) : null}
@@ -2256,7 +2369,7 @@ export function GestorPage() {
           {!showCounterForm && !counterEditingId ? (
             <div className="admin-form-actions">
               <button
-                className="primary-button"
+                className="mini-btn"
                 type="button"
                 onClick={() => {
                   setShowCounterForm(true);
@@ -2308,18 +2421,18 @@ export function GestorPage() {
             </div>
             <div className="admin-form-actions">
               <button
-                className="primary-button"
+                className="mini-btn"
                 type="submit"
                 disabled={counterMutations.createCounter.isPending || counterMutations.updateCounter.isPending}
               >
                 {counterEditingId ? 'Salvar contador' : 'Criar contador'}
               </button>
               {counterEditingId ? (
-                <button className="secondary-button" type="button" onClick={resetCounterForm}>
+                <button className="mini-btn alt" type="button" onClick={resetCounterForm}>
                   {'Cancelar edição'}
                 </button>
               ) : (
-                <button className="secondary-button" type="button" onClick={resetCounterForm}>
+                <button className="mini-btn alt" type="button" onClick={resetCounterForm}>
                   Cancelar
                 </button>
               )}
@@ -2333,15 +2446,17 @@ export function GestorPage() {
           {counters.length ? (
             <div className="admin-stack">
               {counters.map(item => (
-                <article className="admin-card-react" key={item.id}>
-                  <div className="admin-card-head">
-                    <div>
-                      <div className="admin-card-title">{item.code}</div>
-                      <div className="admin-card-subtitle">Serial {item.serialNumber}</div>
+                <article className="card admin-card" key={item.id}>
+                  <div className="admin-item-row">
+                    <div className="admin-item-main">
+                      <div className="admin-item-title">{item.code}</div>
+                      <div className="admin-item-sub">
+                        Serial {item.serialNumber} - Calibração: {formatDate(item.calibratedAt)} - Vencimento: {formatDate(item.expiresAt)}
+                      </div>
                     </div>
-                    <div className="admin-card-actions">
+                    <div className="admin-actions">
                       <button
-                        className="secondary-button"
+                        className="mini-btn alt"
                         type="button"
                         onClick={() => {
                           setCounterEditingId(item.id);
@@ -2351,14 +2466,10 @@ export function GestorPage() {
                       >
                         Editar
                       </button>
-                      <button className="danger-button" type="button" onClick={() => void handleCounterDeactivate(item.id)}>
+                      <button className="mini-btn danger" type="button" onClick={() => void handleCounterDeactivate(item.id)}>
                         Remover
                       </button>
                     </div>
-                  </div>
-                  <div className="admin-card-meta">
-                    <span>{'Calibração'}: {formatDate(item.calibratedAt)}</span>
-                    <span>Vencimento: {formatDate(item.expiresAt)}</span>
                   </div>
                   {counterEditingId === item.id ? (
                     <form className="admin-inline-form admin-form-grid" onSubmit={handleCounterSubmit}>
@@ -2367,8 +2478,8 @@ export function GestorPage() {
                       <div className="field-group"><label>Calibração</label><input type="date" value={counterForm.calibratedAt} onChange={event => setCounterForm(current => ({ ...current, calibratedAt: event.target.value }))} required /></div>
                       <div className="field-group"><label>Vencimento</label><input type="date" value={counterForm.expiresAt} onChange={event => setCounterForm(current => ({ ...current, expiresAt: event.target.value }))} required /></div>
                       <div className="admin-form-actions">
-                        <button className="primary-button" type="submit" disabled={counterMutations.updateCounter.isPending}>Salvar contador</button>
-                        <button className="secondary-button" type="button" onClick={resetCounterForm}>Cancelar edição</button>
+                        <button className="mini-btn" type="submit" disabled={counterMutations.updateCounter.isPending}>Salvar contador</button>
+                        <button className="mini-btn alt" type="button" onClick={resetCounterForm}>Cancelar edição</button>
                       </div>
                     </form>
                   ) : null}

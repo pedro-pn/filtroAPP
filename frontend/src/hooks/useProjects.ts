@@ -17,7 +17,8 @@ export function useProjectMutations() {
     return Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.projects(true) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.projects(false) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects(undefined) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects(undefined) }),
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
     ]);
   }
 
