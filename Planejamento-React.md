@@ -31,9 +31,9 @@
 - [x] **Auto-refresh após arquivar projeto ou criar relatório**: `useReportMutations.createReport` já invalida `['reports']`; `useProjectMutations` agora também invalida `['reports']` além dos caches de projetos, para atualizar listas após arquivar/desarquivar/remover projeto.
 - [x] **Arquivados — separar por tipo de relatório**: aba "Arquivados" do gestor agora subdivide os relatórios de cada projeto arquivado por tipo (RDO, RTP, RLQ, etc.) com a mesma ordenação de tipos usada nas demais listagens.
 - [x] **Toggle de detalhes nos cards de projeto**: cards de projeto agora têm botão "Mostrar/Ocultar detalhes"; estado recolhido é persistido em `localStorage` por conta (`userId`) contendo os `projectId`s recolhidos.
-- [ ] **Relatório sem serviço**: remover a obrigatoriedade de adicionar serviços na segunda etapa de preenchimento.
-- [ ] **Remover cards de fundo**: várias abas do gestor, há cards de fundo, como em contadores, manometros e unidades. Eles não estão presentes no HTML e deixam o visual poluido.
-- [ ] **Campo de pesquisa nas abas do gestor**: adicionar input de busca nas abas Aprovados, Projetos, Arquivados, Equipe, Usuários, Unidades, Manômetros e Contadores. Ao digitar, filtrar em tempo real os cards que contenham o texto em qualquer campo visível (nome, CNPJ, e-mail, projeto, número, etc.).
+- [x] **Relatório sem serviço**: remover a obrigatoriedade de adicionar serviços na segunda etapa de preenchimento.
+- [x] **Remover cards de fundo**: várias abas do gestor, há cards de fundo, como em contadores, manometros e unidades. Eles não estão presentes no HTML e deixam o visual poluido.
+- [x] **Campo de pesquisa nas abas do gestor**: adicionar input de busca nas abas Aprovados, Projetos, Arquivados, Equipe, Usuários, Unidades, Manômetros e Contadores. Ao digitar, filtrar em tempo real os cards que contenham o texto em qualquer campo visível (nome, CNPJ, e-mail, projeto, número, etc.).
 - [ ] **DOCX/PDF via React**: testar relatório criado no React com quebras de linha, unidades de comprimento, condições especiais (standby, noturno) e rascunho retomado. Confirmar que o DOCX gerado é equivalente ao do HTML.
 - [ ] **RCPU com dois RDOs**: confirmar `Contagem inicial NAS` = dia 1 e `Contagem final NAS` = dia 2 após fix em `syncApprovedRcpReports` (`reports.js`).
 - [ ] **Fotos legadas**: testar URL sem prefixo `/relatorios/` em uploads antigos (ex.: `Missão 9999 - Filtrovali/timestamp.jpeg`) com a normalização atual de `UploadField.tsx`.

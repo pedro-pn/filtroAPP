@@ -1,0 +1,51 @@
+CHECKLIST DE PRODUCAO - NewRDO
+Atualizado em: 23/04/2026
+
+1. Infra e acesso
+- Confirmar docker compose -f docker-compose.prod.yml ps com backend, postgres e nginx em Up
+- Confirmar https://relatorios.filtrovali.com.br abrindo sem alerta de certificado
+- Confirmar backend/.env.production no servidor com APP_URL=https://relatorios.filtrovali.com.br
+- Confirmar backend/.env.production no servidor com ALLOWED_ORIGIN=https://relatorios.filtrovali.com.br
+- Confirmar Security Group da EC2 com 22 liberada so para seu IP
+- Confirmar Security Group da EC2 com 80 e 443 liberadas para 0.0.0.0/0
+- Confirmar que 4000 e 5432 nao estao expostas publicamente
+
+2. Pre-deploy: backup e rollback (OBRIGATORIO antes de qualquer migracao)
+- Tirar snapshot do banco ANTES de qualquer alteracao: docker compose -f docker-compose.prod.yml exec postgres pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup-pre-deploy-$(date +%Y%m%d%H%M).sql
+- Copiar o dump para fora do servidor (S3, maquina local ou outro destino externo)
+- Testar o restore do dump em ambiente isolado e confirmar que ele sobe sem erro
+- Definir criterio de rollback: se prisma migrate deploy falhar ou o login nao funcionar apos a migracao, restaurar o dump e reverter o container do backend para a imagem anterior
+
+3. Banco e aplicacao
+- Confirmar docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy executado
+- Confirmar que existe pelo menos um usuario valido para login
+- Confirmar seed executada quando o banco estiver vazio
+- Confirmar que login funciona no ambiente publicado
+
+4. Funcionalidades criticas
+- Confirmar envio de e-mail real com SMTP configurado
+- Confirmar geracao DOCX/PDF no Linux com um relatorio real
+- Confirmar upload e leitura de imagens e assinaturas
+- Confirmar fluxo do ZapSign somente depois que dominio publico e HTTPS estiverem estaveis
+
+5. Certificado e renovacao
+- Confirmar script de renovacao do certificado criado no servidor
+- Confirmar cron da renovacao configurado
+- Confirmar execucao manual de /home/ubuntu/renew-cert.sh sem erro
+- Confirmar que /home/ubuntu/renew-cert.log esta sendo gerado
+
+6. Backup rotineiro (recorrente, apos go-live)
+- Fazer backup diario do banco com pg_dump
+- Fazer backup do volume filtrovali_relatorios
+- Copiar os backups para S3 ou outro destino externo
+- Testar restauracao pelo menos uma vez por ciclo
+
+7. Operacao
+- Atualizar Ubuntu periodicamente com sudo apt update && sudo apt upgrade -y
+- Revisar logs do backend e nginx periodicamente
+- Evitar expor portas alem de 80 e 443
+
+8. Proximo passo recomendado
+- Fechar backup e teste funcional completo
+- Depois disso, validar ZapSign em producao
+- So entao liberar o uso real para clientes
