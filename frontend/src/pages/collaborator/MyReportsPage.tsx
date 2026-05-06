@@ -46,9 +46,9 @@ export function MyReportsPage() {
           <div className="page-card placeholder-copy">Carregando relatórios...</div>
         ) : null}
         {!reportsQuery.isLoading && !groups.length ? (
-          <div className="page-card placeholder-copy">Nenhum relatório enviado por você.</div>
+          <div className="page-card placeholder-copy">Nenhum relatório encontrado para suas missões.</div>
         ) : null}
-        <GroupedReportList reports={groups} />
+        <GroupedReportList reports={groups} storageKey={`collaborator-report-groups:${user?.id || user?.username || 'anonymous'}`} />
         <button className="secondary-button" type="button" onClick={() => navigate('/home')}>
           Voltar
         </button>

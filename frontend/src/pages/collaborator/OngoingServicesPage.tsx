@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
 import { serviceTypeLabels } from '../../components/reports/ServiceFields';
-import { useReports } from '../../hooks/useReports';
+import { useReportMutations, useReports } from '../../hooks/useReports';
+import { useToast } from '../../components/ui/Toast';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { collectOngoingServices } from '../../utils/ongoingServices';
@@ -11,7 +12,9 @@ import { collectOngoingServices } from '../../utils/ongoingServices';
 export function OngoingServicesPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const showToast = useToast();
   const reportsQuery = useReports({ mine: true });
+  const reportMutations = useReportMutations();
   const services = useMemo(() => collectOngoingServices(reportsQuery.data || []), [reportsQuery.data]);
   const groups = useMemo(() => {
     return services.reduce<Record<string, typeof services>>((acc, item) => {
@@ -24,6 +27,16 @@ export function OngoingServicesPage() {
   async function handleLogout() {
     await logout();
     navigate('/', { replace: true });
+  }
+
+  async function handleDeleteService(reportId: string, serviceId: string) {
+    if (!window.confirm('Excluir este serviço em andamento?')) return;
+    try {
+      await reportMutations.deleteService.mutateAsync({ reportId, serviceId });
+      showToast('Serviço excluído.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível excluir o serviço.', 'error');
+    }
   }
 
   return (
@@ -62,7 +75,17 @@ export function OngoingServicesPage() {
                         {item.equipment}{item.system ? ` - ${item.system}` : ''} - RDO {item.report.sequenceNumber || '---'}
                       </div>
                     </div>
-                    <span className="status-pill status-pending">Em andamento</span>
+                    <div className="admin-card-actions">
+                      <span className="status-pill status-pending">Em andamento</span>
+                      <button
+                        className="mini-btn danger"
+                        type="button"
+                        disabled={reportMutations.deleteService.isPending}
+                        onClick={() => void handleDeleteService(item.report.id, item.service.id)}
+                      >
+                        Excluir
+                      </button>
+                    </div>
                   </div>
                 </article>
               ))}

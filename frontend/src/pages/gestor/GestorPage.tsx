@@ -48,6 +48,46 @@ type GestorTab =
   | 'manometros'
   | 'contadores';
 
+type GestorUiPrefs = {
+  projectSortDir: 'asc' | 'desc';
+  closedArchivedProjectIds: string[];
+  closedArchivedTypeKeys: string[];
+  archivedTypeSortDirections: Record<string, 'asc' | 'desc'>;
+  closedClientAccountGroupIds: string[];
+};
+
+function readGestorUiPrefs(storageKey: string): GestorUiPrefs {
+  const fallback: GestorUiPrefs = {
+    projectSortDir: 'asc',
+    closedArchivedProjectIds: [],
+    closedArchivedTypeKeys: [],
+    archivedTypeSortDirections: {},
+    closedClientAccountGroupIds: []
+  };
+  try {
+    const parsed = JSON.parse(localStorage.getItem(storageKey) || '{}') as Partial<GestorUiPrefs>;
+    return {
+      projectSortDir: parsed.projectSortDir === 'desc' ? 'desc' : 'asc',
+      closedArchivedProjectIds: Array.isArray(parsed.closedArchivedProjectIds) ? parsed.closedArchivedProjectIds.filter((id): id is string => typeof id === 'string') : [],
+      closedArchivedTypeKeys: Array.isArray(parsed.closedArchivedTypeKeys) ? parsed.closedArchivedTypeKeys.filter((id): id is string => typeof id === 'string') : [],
+      archivedTypeSortDirections: parsed.archivedTypeSortDirections && typeof parsed.archivedTypeSortDirections === 'object'
+        ? Object.fromEntries(Object.entries(parsed.archivedTypeSortDirections).filter((entry): entry is [string, 'asc' | 'desc'] => entry[1] === 'asc' || entry[1] === 'desc'))
+        : {},
+      closedClientAccountGroupIds: Array.isArray(parsed.closedClientAccountGroupIds) ? parsed.closedClientAccountGroupIds.filter((id): id is string => typeof id === 'string') : []
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function writeGestorUiPrefs(storageKey: string, prefs: GestorUiPrefs) {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(prefs));
+  } catch {
+    // localStorage can be unavailable in private or restricted contexts.
+  }
+}
+
 interface ProjectFormState {
   code: string;
   name: string;
@@ -692,6 +732,8 @@ export function GestorPage() {
   const [tab, setTab] = useState<GestorTab>('pendentes');
   const [gestorSearch, setGestorSearch] = useState('');
   const projectDetailsStorageKey = `gestor-project-details-collapsed:${user?.id || 'anonymous'}`;
+  const gestorUiPrefsStorageKey = `gestor-ui-prefs:${user?.id || 'anonymous'}`;
+  const initialUiPrefs = useMemo(() => readGestorUiPrefs(gestorUiPrefsStorageKey), [gestorUiPrefsStorageKey]);
   const [collapsedProjectDetailIds, setCollapsedProjectDetailIds] = useState<string[]>([]);
 
   const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
@@ -720,11 +762,11 @@ export function GestorPage() {
   const [showCounterForm, setShowCounterForm] = useState(false);
   const [returnReport, setReturnReport] = useState<ReportSummary | null>(null);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
-  const [projectSortDir, setProjectSortDir] = useState<'asc' | 'desc'>('asc');
-  const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>([]);
-  const [closedArchivedTypeKeys, setClosedArchivedTypeKeys] = useState<string[]>([]);
-  const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, 'asc' | 'desc'>>({});
-  const [closedClientAccountGroupIds, setClosedClientAccountGroupIds] = useState<string[]>([]);
+  const [projectSortDir, setProjectSortDir] = useState<'asc' | 'desc'>(initialUiPrefs.projectSortDir);
+  const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>(initialUiPrefs.closedArchivedProjectIds);
+  const [closedArchivedTypeKeys, setClosedArchivedTypeKeys] = useState<string[]>(initialUiPrefs.closedArchivedTypeKeys);
+  const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, 'asc' | 'desc'>>(initialUiPrefs.archivedTypeSortDirections);
+  const [closedClientAccountGroupIds, setClosedClientAccountGroupIds] = useState<string[]>(initialUiPrefs.closedClientAccountGroupIds);
 
   const reportsQuery = useReports();
   const draftsQuery = useDrafts();
@@ -777,6 +819,32 @@ export function GestorPage() {
   useEffect(() => {
     setGestorSearch('');
   }, [tab]);
+
+  useEffect(() => {
+    const prefs = readGestorUiPrefs(gestorUiPrefsStorageKey);
+    setProjectSortDir(prefs.projectSortDir);
+    setClosedArchivedProjectIds(prefs.closedArchivedProjectIds);
+    setClosedArchivedTypeKeys(prefs.closedArchivedTypeKeys);
+    setArchivedTypeSortDirections(prefs.archivedTypeSortDirections);
+    setClosedClientAccountGroupIds(prefs.closedClientAccountGroupIds);
+  }, [gestorUiPrefsStorageKey]);
+
+  useEffect(() => {
+    writeGestorUiPrefs(gestorUiPrefsStorageKey, {
+      projectSortDir,
+      closedArchivedProjectIds,
+      closedArchivedTypeKeys,
+      archivedTypeSortDirections,
+      closedClientAccountGroupIds
+    });
+  }, [
+    gestorUiPrefsStorageKey,
+    projectSortDir,
+    closedArchivedProjectIds,
+    closedArchivedTypeKeys,
+    archivedTypeSortDirections,
+    closedClientAccountGroupIds
+  ]);
 
   useEffect(() => {
     try {
@@ -1303,6 +1371,7 @@ export function GestorPage() {
         archived={tab === 'arquivados'}
         sortDirection={projectSortDir}
         showTypeSort
+        storageKey={`gestor-report-groups:${user?.id || user?.username || 'anonymous'}:${tab}`}
         renderTypeActions={renderBatchReportActions}
         renderReport={report => (
           <ReportSummaryCard

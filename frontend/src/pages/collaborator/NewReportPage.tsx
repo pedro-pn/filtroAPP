@@ -717,7 +717,7 @@ export function NewReportPage() {
     try {
       const draftIdsToRemove = matchingDraftIds();
       if (draftId && !draftIdsToRemove.includes(draftId)) draftIdsToRemove.push(draftId);
-      const created = await reportMutations.createReport.mutateAsync({
+      await reportMutations.createReport.mutateAsync({
         projectId: projectId!,
         createdByUserId: user.id,
         reportType: 'RDO',
@@ -760,11 +760,7 @@ export function NewReportPage() {
       lastAutoSaveSignatureRef.current = '';
 
       reset();
-      if (user.role === 'MANAGER') {
-        navigate('/gestor');
-      } else {
-        navigate(`/relatorios/${created.id}`);
-      }
+      navigate(user.role === 'MANAGER' ? '/gestor' : '/home');
     } catch (err) {
       isSubmittingRef.current = false;
       showToast(err instanceof Error ? err.message : TEXT.errorCreate, 'error');

@@ -219,16 +219,45 @@ function clientCanAccessProject(auth, project) {
     && project.clientEmailCc.some(cc => cc.toLowerCase() === userEmail);
 }
 
-function canAccessReport(auth, report) {
+async function collaboratorProjectIdsForAuth(auth) {
+  const collabId = auth.rawUser?.collaboratorId;
+  if (!collabId) return [];
+
+  const [reports, projects] = await Promise.all([
+    prisma.report.findMany({
+      where: {
+        OR: [
+          { createdByUserId: auth.user.id },
+          { collaborators: { some: { collaboratorId: collabId } } }
+        ]
+      },
+      select: { projectId: true }
+    }),
+    prisma.project.findMany({
+      where: { operatorId: collabId },
+      select: { id: true }
+    })
+  ]);
+
+  return Array.from(new Set([
+    ...reports.map(item => item.projectId).filter(Boolean),
+    ...projects.map(item => item.id).filter(Boolean)
+  ]));
+}
+
+async function canAccessReport(auth, report) {
   if (auth.user.role === 'MANAGER') return true;
   if (auth.user.role === 'COORDINATOR') return true;
   if (auth.user.role === 'CLIENT') return clientCanAccessProject(auth, report.project);
   if (report.createdByUserId === auth.user.id) return true;
   const collabId = auth.rawUser?.collaboratorId;
+  if (collabId && report.project?.operatorId === collabId) return true;
   if (collabId && Array.isArray(report.collaborators)) {
-    return report.collaborators.some(rc => rc.collaboratorId === collabId);
+    if (report.collaborators.some(rc => rc.collaboratorId === collabId)) return true;
   }
-  return false;
+  if (!collabId) return false;
+  const projectIds = await collaboratorProjectIdsForAuth(auth);
+  return projectIds.includes(report.projectId);
 }
 
 function canClientSeeReport(report, allReportsById) {
@@ -471,7 +500,8 @@ async function assertBatchAccess(auth, reports) {
     throw error;
   }
 
-  if (reports.some(report => !canAccessReport(auth, report))) {
+  const access = await Promise.all(reports.map(report => canAccessReport(auth, report)));
+  if (access.some(allowed => !allowed)) {
     const error = new Error('Você não tem permissão para acessar um ou mais relatórios selecionados.');
     error.statusCode = 403;
     throw error;
@@ -1452,7 +1482,7 @@ async function syncApprovedRcpReports(tx, report) {
       reportDate: true,
       createdAt: true,
       services: {
-        select: { id: true, serviceType: true, startTime: true, endTime: true, extraData: true }
+        select: { id: true, serviceType: true, equipmentId: true, system: true, material: true, startTime: true, endTime: true, extraData: true }
       }
     }
   });
@@ -1793,9 +1823,14 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     });
     const collabId = me?.collaboratorId;
     if (collabId) {
+      const projectIds = await collaboratorProjectIdsForAuth({
+        ...req.auth,
+        rawUser: { ...req.auth.rawUser, collaboratorId: collabId }
+      });
       where.OR = [
         { createdByUserId: req.auth.user.id },
-        { collaborators: { some: { collaboratorId: collabId } } }
+        { collaborators: { some: { collaboratorId: collabId } } },
+        ...(projectIds.length ? [{ projectId: { in: projectIds } }] : [])
       ];
     } else {
       where.createdByUserId = req.auth.user.id;
@@ -1996,7 +2031,7 @@ router.get('/:id', requireAuth, asyncHandler(async (req, res) => {
     include
   });
 
-  if (!canAccessReport(req.auth, item)) {
+  if (!(await canAccessReport(req.auth, item))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (req.auth.user.role === 'CLIENT') {
@@ -2019,7 +2054,7 @@ router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
     include
   });
 
-  if (!canAccessReport(req.auth, item)) {
+  if (!(await canAccessReport(req.auth, item))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (req.auth.user.role === 'CLIENT') {
@@ -2054,7 +2089,7 @@ router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
     include
   });
 
-  if (!canAccessReport(req.auth, item)) {
+  if (!(await canAccessReport(req.auth, item))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
 
@@ -2067,6 +2102,41 @@ router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   res.setHeader('Content-Disposition', contentDisposition(saved.fileName));
   res.send(await fs.readFile(saved.targetPath));
+}));
+
+router.delete('/:id/services/:serviceId', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
+    return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode editar relatórios.` });
+  }
+
+  const existing = await prisma.report.findUniqueOrThrow({
+    where: { id: req.params.id },
+    include
+  });
+  assertReportMutable(existing);
+
+  if (!(await canAccessReport(req.auth, existing))) {
+    return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
+  }
+
+  const service = await prisma.reportService.findFirst({
+    where: { id: req.params.serviceId, reportId: req.params.id },
+    select: { id: true }
+  });
+  if (!service) {
+    return res.status(404).json({ error: 'Serviço não encontrado.' });
+  }
+
+  const item = await prisma.$transaction(async tx => {
+    await tx.reportService.delete({ where: { id: req.params.serviceId } });
+    return tx.report.findUniqueOrThrow({
+      where: { id: req.params.id },
+      include
+    });
+  });
+
+  await organizeAndPersist(item);
+  res.json(item);
 }));
 
 router.post('/', requireAuth, asyncHandler(async (req, res) => {
@@ -2170,6 +2240,9 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     include
   });
   assertReportMutable(existing);
+  if (!(await canAccessReport(req.auth, existing))) {
+    return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
+  }
   const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);
   const isManagerFixingClientRejection = req.auth.user.role === 'MANAGER' && hasActiveClientRejection(existing);
 
@@ -2334,7 +2407,7 @@ router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
   });
   assertReportMutable(existing);
 
-  if (!canAccessReport(req.auth, existing)) {
+  if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
 
@@ -2524,7 +2597,7 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
     include
   });
 
-  if (!canAccessReport(req.auth, existing)) {
+  if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (existing.reportType !== ReportType.RDO) {
@@ -2649,7 +2722,7 @@ router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => 
     include
   });
 
-  if (!canAccessReport(req.auth, existing)) {
+  if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (existing.reportType !== ReportType.RDO) {

@@ -4,6 +4,7 @@ import {
   createClientReportReview,
   createReport,
   deleteReport as deleteReportApi,
+  deleteReportService,
   getReport,
   listReports,
   requestReportsBatchSignature,
@@ -92,6 +93,15 @@ export function useReportMutations() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports'] })
   });
 
+  const deleteService = useMutation({
+    mutationFn: ({ reportId, serviceId }: { reportId: string; serviceId: string }) =>
+      deleteReportService(reportId, serviceId),
+    onSuccess: report => {
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['report', report.id] });
+    }
+  });
+
   return {
     createReport: createMutation,
     updateReport: updateMutation,
@@ -99,6 +109,7 @@ export function useReportMutations() {
     requestSignature: requestSignatureMutation,
     clientReview: clientReviewMutation,
     batchSignature: batchSignatureMutation,
-    deleteReport
+    deleteReport,
+    deleteService
   };
 }

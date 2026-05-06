@@ -138,12 +138,24 @@ function asUploadedFiles(value: unknown): UploadedFile[] {
       .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
       .map(item => ({
         label: getString(item.label) || 'Arquivo',
-        fileName: getString(item.fileName) || getString(item.name) || getString(item.url) || getString(item.path) || 'arquivo',
+        fileName: getString(item.fileName) || getString(item.name) || getString(item.url) || getString(item.path) || getString(item.storagePath) || 'arquivo',
         mimeType: getString(item.mimeType) || getString(item.type) || 'image/jpeg',
-        url: getString(item.url) || getString(item.path) || getString(item.dataUrl)
+        url: getString(item.url) || getString(item.path) || getString(item.storagePath) || getString(item.dataUrl)
       }))
       .filter((item): item is UploadedFile => Boolean(item.url))
     : [];
+}
+
+function serviceEquipmentValue(service: NonNullable<ReportSummary['services']>[number]) {
+  const extra = service.extraData || {};
+  const value = extra['Equipamento(s)'] || extra.Equipamentos || extra.Equipamento || extra['ID da embarcação'] || extra['ID da embarcacao'];
+  if (Array.isArray(value)) return value.filter(Boolean).join(', ');
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.labels)) return record.labels.filter(Boolean).join(', ');
+    return getString(record.name) || getString(record.nome) || getString(record.code) || getString(record.codigo) || getString(record.id);
+  }
+  return getString(value) || service.equipmentId || '';
 }
 
 function serviceId() {
@@ -176,7 +188,7 @@ function reportToForm(report: ReportSummary): RdoFormState {
       type: service.serviceType,
       data: {
         ...(service.extraData || {}),
-        equipmentId: service.equipmentId || '',
+        equipmentId: serviceEquipmentValue(service),
         system: service.system || '',
         material: service.material || '',
         startTime: service.startTime || '',
@@ -229,6 +241,7 @@ function buildPayload(
 }
 
 function ManagerRdoEditor({ report }: { report: ReportSummary }) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const projectsQuery = useProjects(true);
   const reportsQuery = useReports();
@@ -372,6 +385,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         })
       });
       showToast(TEXT.saved, 'success');
+      navigate(user?.role === 'MANAGER' ? '/gestor' : '/home');
     } catch (err) {
       showToast(err instanceof Error ? err.message : TEXT.updateError, 'error');
     }
@@ -394,7 +408,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     <>
       {readOnly ? <div className="page-card inline-success">{TEXT.signedLocked}</div> : null}
 
-      {!isManager ? (
+      {!readOnly ? (
         <section className="page-card rdo-step-panel">
           <div className="rdo-progress-track" aria-hidden="true">
             <div className="rdo-progress-fill" style={{ width: `${((editorStep + 1) / editorSteps.length) * 100}%` }} />
@@ -414,7 +428,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         </section>
       ) : null}
 
-      <section className="page-card" style={{ display: isManager || editorStep === 0 ? undefined : 'none' }}>
+      <section className="page-card" style={{ display: readOnly || editorStep === 0 ? undefined : 'none' }}>
         <div className="section-title">{TEXT.generalInfo}</div>
         <div className="admin-form-grid">
           <div className="field-group">
@@ -522,7 +536,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         </div>
       </section>
 
-      <section className="page-card" style={{ display: isManager || editorStep === 0 ? undefined : 'none' }}>
+      <section className="page-card" style={{ display: readOnly || editorStep === 0 ? undefined : 'none' }}>
         <div className="section-title">{TEXT.team}</div>
         <div className="colab-list">
           {renderCollaboratorList(form.collaboratorIds)}
@@ -563,7 +577,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         ) : null}
       </section>
 
-      <section className="page-card" style={{ display: isManager || editorStep === 1 ? undefined : 'none' }}>
+      <section className="page-card" style={{ display: readOnly || editorStep === 1 ? undefined : 'none' }}>
         <div className="section-title">{TEXT.services}</div>
         {form.services.length ? (
           <div className="admin-stack" style={{ marginTop: 12 }}>
@@ -669,7 +683,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         ) : null}
       </section>
 
-      <section className="page-card" style={{ display: isManager || editorStep === 2 ? undefined : 'none' }}>
+      <section className="page-card" style={{ display: readOnly || editorStep === 2 ? undefined : 'none' }}>
         <div className="section-title">{TEXT.finalization}</div>
         <div className="admin-form-grid">
           <div className="field-group">
@@ -744,7 +758,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         />
       </section>
 
-      {!isManager && !readOnly && editorStep < editorSteps.length - 1 ? (
+      {!readOnly && editorStep < editorSteps.length - 1 ? (
         <section className="page-card rdo-bottom-actions">
           <button
             className="secondary-button"

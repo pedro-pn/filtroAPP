@@ -89,3 +89,8 @@ export async function downloadReportDocx(id: string) {
 export async function deleteReport(id: string): Promise<void> {
   await apiClient.delete(`/reports/${id}`);
 }
+
+export async function deleteReportService(reportId: string, serviceId: string) {
+  const response = await apiClient.delete<ReportSummary>(`/reports/${reportId}/services/${serviceId}`);
+  return response.data;
+}

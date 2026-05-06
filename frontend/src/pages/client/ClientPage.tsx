@@ -149,6 +149,9 @@ export function ClientPage() {
       const parsed = stored ? JSON.parse(stored) : null;
       if (parsed && typeof parsed === 'object') {
         if (typeof parsed.activeProjectId === 'string') setActiveProjectId(parsed.activeProjectId);
+        if (parsed.clientSortDirection === 'asc' || parsed.clientSortDirection === 'desc') {
+          setClientSortDirection(parsed.clientSortDirection);
+        }
         if (parsed.activeTypeByProject && typeof parsed.activeTypeByProject === 'object' && !Array.isArray(parsed.activeTypeByProject)) {
           setActiveTypeByProject(parsed.activeTypeByProject as Record<string, string>);
         }
@@ -161,13 +164,13 @@ export function ClientPage() {
   }, [clientToggleStorageKey]);
 
   useEffect(() => {
-    if (!clientToggleStorageKey || !clientTogglesLoaded || !activeProjectId) return;
+    if (!clientToggleStorageKey || !clientTogglesLoaded) return;
     try {
-      localStorage.setItem(clientToggleStorageKey, JSON.stringify({ activeProjectId, activeTypeByProject }));
+      localStorage.setItem(clientToggleStorageKey, JSON.stringify({ activeProjectId, activeTypeByProject, clientSortDirection }));
     } catch {
       // Ignore unavailable localStorage.
     }
-  }, [activeProjectId, activeTypeByProject, clientToggleStorageKey, clientTogglesLoaded]);
+  }, [activeProjectId, activeTypeByProject, clientSortDirection, clientToggleStorageKey, clientTogglesLoaded]);
 
   useEffect(() => {
     if (!clientTogglesLoaded || reportsQuery.isLoading) return;
