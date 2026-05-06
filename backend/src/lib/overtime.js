@@ -9,9 +9,10 @@ function parseBreak(value) {
   if (!value || typeof value !== 'string') return 0;
   const text = value.trim().toLowerCase();
   if (text === 'sem intervalo') return 0;
-  const hourMinute = text.match(/^(\d{1,2}):(\d{2})$/);
-  if (hourMinute) return Number(hourMinute[1]) * 60 + Number(hourMinute[2]);
-  const compactHourMinute = text.match(/^(\d{1,2})h(\d{1,2})$/);
+  const hourMinuteSecond = text.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (hourMinuteSecond) {
+    return Number(hourMinuteSecond[1]) * 60 + Number(hourMinuteSecond[2]);
+  }
   if (compactHourMinute) return Number(compactHourMinute[1]) * 60 + Number(compactHourMinute[2]);
   const onlyHours = text.match(/^(\d{1,2})\s*h(?:ora|oras)?$/);
   if (onlyHours) return Number(onlyHours[1]) * 60;
