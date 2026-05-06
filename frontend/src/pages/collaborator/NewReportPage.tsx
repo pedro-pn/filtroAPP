@@ -24,7 +24,6 @@ import { buildReportServicePayload, normalizeServiceType } from '../../utils/rep
 const TEXT = {
   addService: 'Adicionar serviço',
   atLeastOneCollaborator: 'Selecione ao menos um colaborador do turno diurno.',
-  atLeastOneService: 'Adicione ao menos um serviço.',
   back: 'Voltar',
   dailyDescription: 'Descrição geral',
   departure: 'Saída',
@@ -503,7 +502,7 @@ export function NewReportPage() {
   }
 
   function validateServices() {
-    if (!services.length) return failRequired('Serviços', 'services:empty', 1);
+    if (!services.length) return true;
 
     for (const service of services) {
       const data = service.data || {};

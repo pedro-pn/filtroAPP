@@ -789,6 +789,27 @@ a {
   margin-bottom: 0;
 }
 
+.admin-search-row {
+  margin-bottom: 12px;
+}
+
+.admin-search-row input {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  padding: 9px 11px;
+  background: #fafafa;
+  color: var(--tx);
+}
+
+.admin-search-row input:focus {
+  outline: none;
+  border-color: var(--g);
+  background: var(--wh);
+}
+
 .admin-card-toolbar {
   margin-bottom: 8px;
 }

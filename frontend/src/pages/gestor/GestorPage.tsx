@@ -276,6 +276,86 @@ function initials(name: string) {
     .toUpperCase() || 'CL';
 }
 
+function normalizeSearchValue(value: unknown) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function matchesSearch(parts: unknown[], query: string) {
+  const term = normalizeSearchValue(query.trim());
+  if (!term) return true;
+  return normalizeSearchValue(parts.join(' ')).includes(term);
+}
+
+function projectSearchParts(project: Project) {
+  return [
+    project.code,
+    project.name,
+    project.clientName,
+    project.clientCnpj,
+    project.clientEmailPrimary,
+    ...(project.clientEmailCc || []),
+    ...(project.clientSigners || []).flatMap(signer => [signer.name, signer.email]),
+    project.contractCode,
+    project.location,
+    project.operator?.name,
+    formatProjectSequences(project)
+  ];
+}
+
+function reportSearchParts(report: ReportSummary) {
+  return [
+    report.reportType,
+    report.sequenceNumber,
+    report.status,
+    report.reportDate,
+    report.project?.code,
+    report.project?.name,
+    report.project?.clientName,
+    report.project?.clientCnpj,
+    report.createdBy?.name,
+    report.createdBy?.collaborator?.name,
+    ...(report.collaborators || []).map(item => item.collaborator?.name),
+    ...(report.services || []).flatMap(service => [
+      service.serviceType,
+      service.equipment?.code,
+      service.equipment?.name,
+      service.system,
+      service.material
+    ])
+  ];
+}
+
+function collaboratorSearchParts(collaborator: Collaborator) {
+  return [collaborator.code, collaborator.name, collaborator.role, collaborator.email];
+}
+
+function userSearchParts(item: InternalUserSummary) {
+  return [
+    item.name,
+    item.username,
+    item.email,
+    formatUserRole(item.role),
+    item.collaborator?.name,
+    item.clientCnpj,
+    ...(item.linkedProjects || []).flatMap(project => [project.code, project.name, project.clientCnpj, project.contractCode])
+  ];
+}
+
+function unitSearchParts(unit: Unit) {
+  return [unit.code, formatUnitCategory(unit.category)];
+}
+
+function manometerSearchParts(item: Manometer) {
+  return [item.code, item.scale, item.calibrationCertCode, formatDate(item.calibratedAt), formatDate(item.expiresAt)];
+}
+
+function counterSearchParts(item: ParticleCounter) {
+  return [item.code, item.serialNumber, formatDate(item.calibratedAt), formatDate(item.expiresAt)];
+}
+
 function formatDate(value?: string | null) {
   if (!value) return 'Não informado';
   return new Date(value).toLocaleDateString('pt-BR');
@@ -610,6 +690,7 @@ export function GestorPage() {
   const { hydrate, reset } = useRdoStore();
   const showToast = useToast();
   const [tab, setTab] = useState<GestorTab>('pendentes');
+  const [gestorSearch, setGestorSearch] = useState('');
   const projectDetailsStorageKey = `gestor-project-details-collapsed:${user?.id || 'anonymous'}`;
   const [collapsedProjectDetailIds, setCollapsedProjectDetailIds] = useState<string[]>([]);
 
@@ -687,11 +768,14 @@ export function GestorPage() {
     [reportsQuery.data]
   );
 
-  const groupedUnits = useMemo(() => groupUnits(unitsQuery.data || []), [unitsQuery.data]);
   const clientGroupingProjects = useMemo(
     () => [...(activeProjectsQuery.data || []), ...(archivedProjectsQuery.data || [])],
     [activeProjectsQuery.data, archivedProjectsQuery.data]
   );
+
+  useEffect(() => {
+    setGestorSearch('');
+  }, [tab]);
 
   useEffect(() => {
     try {
@@ -1283,8 +1367,12 @@ export function GestorPage() {
   }
 
   function renderReportTabContent() {
-    const visibleReports =
+    const sourceReports =
       tab === 'pendentes' ? pendingReports : tab === 'arquivados' ? archivedReports : approvedReports;
+    const visibleReports =
+      tab === 'aprovados' || tab === 'arquivados'
+        ? sourceReports.filter(report => matchesSearch(reportSearchParts(report), gestorSearch))
+        : sourceReports;
 
     if (reportsQuery.isLoading) return <div className="page-card placeholder-copy">Carregando relatórios...</div>;
 
@@ -1380,7 +1468,9 @@ export function GestorPage() {
   }
 
   function renderProjectsTab() {
-    const activeProjects = (activeProjectsQuery.data || []).filter(project => project.isActive !== false);
+    const activeProjects = (activeProjectsQuery.data || [])
+      .filter(project => project.isActive !== false)
+      .filter(project => matchesSearch(projectSearchParts(project), gestorSearch));
 
     if (activeProjectsQuery.isLoading) {
       return <div className="page-card placeholder-copy">Carregando projetos...</div>;
@@ -1589,6 +1679,21 @@ export function GestorPage() {
       return <div className="page-card placeholder-copy">Carregando projetos arquivados...</div>;
     }
 
+    const archivedProjectCards = sortProjects(archivedProjects, projectSortDir)
+      .map(project => {
+        const projectReports = archivedReports.filter(report => report.projectId === project.id);
+        const projectMatches = matchesSearch(projectSearchParts(project), gestorSearch);
+        const filteredProjectReports = projectMatches
+          ? projectReports
+          : projectReports.filter(report => matchesSearch(reportSearchParts(report), gestorSearch));
+        return {
+          project,
+          projectReports: filteredProjectReports,
+          visible: projectMatches || filteredProjectReports.length > 0
+        };
+      })
+      .filter(item => item.visible);
+
     return (
       <section className="page-card">
         <div className="admin-section-head">
@@ -1598,10 +1703,9 @@ export function GestorPage() {
             onToggle={() => setProjectSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
           />
         </div>
-        {archivedProjects.length ? (
+        {archivedProjectCards.length ? (
           <div className="admin-stack">
-            {sortProjects(archivedProjects, projectSortDir).map(project => {
-              const projectReports = archivedReports.filter(report => report.projectId === project.id);
+            {archivedProjectCards.map(({ project, projectReports }) => {
               const projectClosed = closedArchivedProjectIds.includes(project.id);
               return renderProjectCard(project, {
                 children: (
@@ -1633,7 +1737,9 @@ export function GestorPage() {
             })}
           </div>
         ) : (
-          <p className="placeholder-copy">Nenhum projeto arquivado.</p>
+          <p className="placeholder-copy">
+            {gestorSearch.trim() ? 'Nenhum projeto arquivado encontrado.' : 'Nenhum projeto arquivado.'}
+          </p>
         )}
       </section>
     );
@@ -1644,7 +1750,9 @@ export function GestorPage() {
       return <div className="page-card placeholder-copy">Carregando colaboradores...</div>;
     }
 
-    const collaborators = (collaboratorsQuery.data || []).filter(collaborator => collaborator.isActive !== false);
+    const collaborators = (collaboratorsQuery.data || [])
+      .filter(collaborator => collaborator.isActive !== false)
+      .filter(collaborator => matchesSearch(collaboratorSearchParts(collaborator), gestorSearch));
 
     return (
       <>
@@ -1784,8 +1892,10 @@ export function GestorPage() {
   }
 
   function renderUsuariosTab() {
-    const internalUsers = internalUsersQuery.data || [];
-    const clientUsers = clientUsersQuery.data || [];
+    const internalUsers = (internalUsersQuery.data || [])
+      .filter(item => matchesSearch(userSearchParts(item), gestorSearch));
+    const clientUsers = (clientUsersQuery.data || [])
+      .filter(item => matchesSearch(userSearchParts(item), gestorSearch));
 
     if (internalUsersQuery.isLoading || clientUsersQuery.isLoading) {
       return <div className="page-card placeholder-copy">{'Carregando usuários...'}</div>;
@@ -2104,108 +2214,107 @@ export function GestorPage() {
   }
 
   function renderEquipamentosTab() {
-    const units = unitsQuery.data || [];
+    const units = (unitsQuery.data || [])
+      .filter(item => matchesSearch(unitSearchParts(item), gestorSearch));
+    const visibleGroupedUnits = groupUnits(units);
 
     if (unitsQuery.isLoading) {
       return <div className="page-card placeholder-copy">Carregando unidades...</div>;
     }
 
-    return (
-      <>
-        <section className="page-card">
-          <div className="section-title">Unidades</div>
-          {units.length ? (
-            <div className="admin-stack">
-              {Object.entries(groupedUnits).map(([category, categoryUnits]) => (
-                <article className="card admin-card" key={category}>
-                  <div className="admin-section-head admin-card-toolbar">
-                    <div className="admin-card-title">{formatUnitCategory(category as UnitCategory)}</div>
+    return units.length ? (
+      <div className="admin-stack">
+        {Object.entries(visibleGroupedUnits).map(([category, categoryUnits]) => (
+          <article className="card admin-card" key={category}>
+            <div className="admin-section-head admin-card-toolbar">
+              <div className="admin-card-title">{formatUnitCategory(category as UnitCategory)}</div>
+              <button
+                className="mini-btn alt"
+                type="button"
+                onClick={() => {
+                  setUnitEditingId(null);
+                  setShowUnitForm(true);
+                  setUnitForm({ code: '', category: category as UnitCategory });
+                }}
+              >
+                + Nova unidade
+              </button>
+            </div>
+            {showUnitForm && !unitEditingId && unitForm.category === category ? (
+              <form className="admin-inline-form admin-form-grid" onSubmit={handleUnitSubmit}>
+                <div className="field-group">
+                  <label>Código</label>
+                  <input
+                    value={unitForm.code}
+                    onChange={event => setUnitForm(current => ({ ...current, code: event.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="field-group">
+                  <label>Categoria</label>
+                  <input value={formatUnitCategory(category as UnitCategory)} readOnly />
+                </div>
+                <div className="admin-form-actions">
+                  <button
+                    className="mini-btn"
+                    type="submit"
+                    disabled={unitMutations.createUnit.isPending || unitMutations.updateUnit.isPending}
+                  >
+                    Criar unidade
+                  </button>
+                  <button className="mini-btn alt" type="button" onClick={resetUnitForm}>
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            ) : null}
+            <div className="admin-list">
+              {categoryUnits.map(unit => (
+                <div className="admin-list-row" key={unit.id}>
+                  <span>{unit.code}</span>
+                  <div className="admin-card-actions">
                     <button
                       className="mini-btn alt"
                       type="button"
                       onClick={() => {
-                        setUnitEditingId(null);
+                        setUnitEditingId(unit.id);
                         setShowUnitForm(true);
-                        setUnitForm({ code: '', category: category as UnitCategory });
+                        setUnitForm(unitToForm(unit));
                       }}
                     >
-                      + Nova unidade
+                      Editar
+                    </button>
+                    <button className="mini-btn danger" type="button" onClick={() => void handleUnitDelete(unit.id)}>
+                      Remover
                     </button>
                   </div>
-                  {showUnitForm && !unitEditingId && unitForm.category === category ? (
+                  {unitEditingId === unit.id ? (
                     <form className="admin-inline-form admin-form-grid" onSubmit={handleUnitSubmit}>
-                      <div className="field-group">
-                        <label>Código</label>
-                        <input
-                          value={unitForm.code}
-                          onChange={event => setUnitForm(current => ({ ...current, code: event.target.value }))}
-                          required
-                        />
-                      </div>
-                      <div className="field-group">
-                        <label>Categoria</label>
-                        <input value={formatUnitCategory(category as UnitCategory)} readOnly />
-                      </div>
+                      <div className="field-group"><label>Código</label><input value={unitForm.code} onChange={event => setUnitForm(current => ({ ...current, code: event.target.value }))} required /></div>
+                      <div className="field-group"><label>Categoria</label><input value={formatUnitCategory(unit.category)} readOnly /></div>
                       <div className="admin-form-actions">
-                        <button
-                          className="mini-btn"
-                          type="submit"
-                          disabled={unitMutations.createUnit.isPending || unitMutations.updateUnit.isPending}
-                        >
-                          Criar unidade
-                        </button>
-                        <button className="mini-btn alt" type="button" onClick={resetUnitForm}>
-                          Cancelar
-                        </button>
+                        <button className="mini-btn" type="submit" disabled={unitMutations.updateUnit.isPending}>Salvar unidade</button>
+                        <button className="mini-btn alt" type="button" onClick={resetUnitForm}>Cancelar edição</button>
                       </div>
                     </form>
                   ) : null}
-                  <div className="admin-list">
-                    {categoryUnits.map(unit => (
-                      <div className="admin-list-row" key={unit.id}>
-                        <span>{unit.code}</span>
-                        <div className="admin-card-actions">
-                          <button
-                            className="mini-btn alt"
-                            type="button"
-                            onClick={() => {
-                              setUnitEditingId(unit.id);
-                              setShowUnitForm(true);
-                              setUnitForm(unitToForm(unit));
-                            }}
-                          >
-                            Editar
-                          </button>
-                          <button className="mini-btn danger" type="button" onClick={() => void handleUnitDelete(unit.id)}>
-                            Remover
-                          </button>
-                        </div>
-                        {unitEditingId === unit.id ? (
-                          <form className="admin-inline-form admin-form-grid" onSubmit={handleUnitSubmit}>
-                            <div className="field-group"><label>Código</label><input value={unitForm.code} onChange={event => setUnitForm(current => ({ ...current, code: event.target.value }))} required /></div>
-                            <div className="field-group"><label>Categoria</label><input value={formatUnitCategory(unit.category)} readOnly /></div>
-                            <div className="admin-form-actions">
-                              <button className="mini-btn" type="submit" disabled={unitMutations.updateUnit.isPending}>Salvar unidade</button>
-                              <button className="mini-btn alt" type="button" onClick={resetUnitForm}>Cancelar edição</button>
-                            </div>
-                          </form>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                </article>
+                </div>
               ))}
             </div>
-          ) : (
-            <p className="placeholder-copy">Nenhuma unidade cadastrada.</p>
-          )}
-        </section>
-      </>
+          </article>
+        ))}
+      </div>
+    ) : (
+      <div className="card admin-card">
+        <p className="placeholder-copy">Nenhuma unidade cadastrada.</p>
+      </div>
     );
   }
 
   function renderManometrosTab() {
-    const manometers = (manometersQuery.data || []).filter(item => item.isActive !== false);
+    const manometers = (manometersQuery.data || [])
+      .filter(item => item.isActive !== false)
+      .filter(item => matchesSearch(manometerSearchParts(item), gestorSearch));
 
     if (manometersQuery.isLoading) {
       return <div className="page-card placeholder-copy">Carregando manômetros...</div>;
@@ -2213,23 +2322,22 @@ export function GestorPage() {
 
     return (
       <>
-        <section className="page-card">
-          <div className="section-title">{manometerEditingId ? 'Editar manômetro' : 'Novo manômetro'}</div>
+        <div className="admin-toolbar">
+          <div className="sec">{manometerEditingId ? 'Editar manômetro' : 'Manômetros'}</div>
           {!showManometerForm && !manometerEditingId ? (
-            <div className="admin-form-actions">
-              <button
-                className="mini-btn"
-                type="button"
-                onClick={() => {
-                  setShowManometerForm(true);
-                }}
-              >
-                Adicionar manômetro
-              </button>
-            </div>
+            <button
+              className="mini-btn"
+              type="button"
+              onClick={() => {
+                setShowManometerForm(true);
+              }}
+            >
+              + Novo manômetro
+            </button>
           ) : null}
+        </div>
           {showManometerForm && !manometerEditingId ? (
-          <form className="admin-form-grid" onSubmit={handleManometerSubmit}>
+          <form className="admin-inline-form admin-form-grid" onSubmit={handleManometerSubmit}>
             <div className="field-group">
               <label htmlFor="manometer-code">Código</label>
               <input
@@ -2299,10 +2407,7 @@ export function GestorPage() {
             </div>
           </form>
           ) : null}
-        </section>
 
-        <section className="page-card">
-          <div className="section-title">Manômetros</div>
           {manometers.length ? (
             <div className="admin-stack">
               {manometers.map(item => (
@@ -2348,15 +2453,18 @@ export function GestorPage() {
               ))}
             </div>
           ) : (
-            <p className="placeholder-copy">Nenhum manômetro cadastrado.</p>
+            <div className="card admin-card">
+              <p className="placeholder-copy">Nenhum manômetro cadastrado.</p>
+            </div>
           )}
-        </section>
       </>
     );
   }
 
   function renderContadoresTab() {
-    const counters = (countersQuery.data || []).filter(item => item.isActive !== false);
+    const counters = (countersQuery.data || [])
+      .filter(item => item.isActive !== false)
+      .filter(item => matchesSearch(counterSearchParts(item), gestorSearch));
 
     if (countersQuery.isLoading) {
       return <div className="page-card placeholder-copy">Carregando contadores...</div>;
@@ -2364,23 +2472,22 @@ export function GestorPage() {
 
     return (
       <>
-        <section className="page-card">
-          <div className="section-title">{counterEditingId ? 'Editar contador' : 'Novo contador'}</div>
+        <div className="admin-toolbar">
+          <div className="sec">{counterEditingId ? 'Editar contador' : 'Contadores'}</div>
           {!showCounterForm && !counterEditingId ? (
-            <div className="admin-form-actions">
-              <button
-                className="mini-btn"
-                type="button"
-                onClick={() => {
-                  setShowCounterForm(true);
-                }}
-              >
-                Adicionar contador
-              </button>
-            </div>
+            <button
+              className="mini-btn"
+              type="button"
+              onClick={() => {
+                setShowCounterForm(true);
+              }}
+            >
+              + Novo contador
+            </button>
           ) : null}
+        </div>
           {showCounterForm && !counterEditingId ? (
-          <form className="admin-form-grid" onSubmit={handleCounterSubmit}>
+          <form className="admin-inline-form admin-form-grid" onSubmit={handleCounterSubmit}>
             <div className="field-group">
               <label htmlFor="counter-code">Código</label>
               <input
@@ -2439,10 +2546,7 @@ export function GestorPage() {
             </div>
           </form>
           ) : null}
-        </section>
 
-        <section className="page-card">
-          <div className="section-title">Contadores</div>
           {counters.length ? (
             <div className="admin-stack">
               {counters.map(item => (
@@ -2487,10 +2591,37 @@ export function GestorPage() {
               ))}
             </div>
           ) : (
-            <p className="placeholder-copy">Nenhum contador cadastrado.</p>
+            <div className="card admin-card">
+              <p className="placeholder-copy">Nenhum contador cadastrado.</p>
+            </div>
           )}
-        </section>
       </>
+    );
+  }
+
+  function renderGestorSearch() {
+    const labels: Partial<Record<GestorTab, string>> = {
+      aprovados: 'Buscar em aprovados',
+      projetos: 'Buscar em projetos',
+      arquivados: 'Buscar em arquivados',
+      equipe: 'Buscar na equipe',
+      usuarios: 'Buscar em usuários',
+      equipamentos: 'Buscar em unidades',
+      manometros: 'Buscar em manômetros',
+      contadores: 'Buscar em contadores'
+    };
+    const label = labels[tab];
+    if (!label) return null;
+
+    return (
+      <div className="admin-search-row">
+        <input
+          aria-label={label}
+          placeholder={label}
+          value={gestorSearch}
+          onChange={event => setGestorSearch(event.target.value)}
+        />
+      </div>
     );
   }
 
@@ -2581,6 +2712,7 @@ export function GestorPage() {
 
       <main className="page-scroll">
         {renderReportSummary()}
+        {renderGestorSearch()}
         {renderTabContent()}
       </main>
     </Shell>
