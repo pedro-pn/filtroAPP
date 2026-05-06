@@ -173,32 +173,48 @@ export function NewReportPage() {
     return String(value || service.equipmentId || '');
   }, []);
 
-  const serviceOngoingKey = useCallback((report: ReportSummary, service: ReportServiceSummary) => {
+  const serviceSemanticKey = useCallback((report: ReportSummary, service: ReportServiceSummary) => {
     const extra = service.extraData || {};
-    return String(
-      extra.__ongoingKey
-      || extra.__serviceLinkKey
-      || extra.__sourceServiceId
-      || `${report.projectId || ''}||${service.serviceType || ''}||${serviceEquipmentName(service).trim().toLowerCase()}||${String(service.system || extra.Sistema || '').trim().toLowerCase()}`
-    );
+    return `${report.projectId || ''}||${service.serviceType || ''}||${serviceEquipmentName(service).trim().toLowerCase()}||${String(service.system || extra.Sistema || '').trim().toLowerCase()}`;
   }, [serviceEquipmentName]);
 
+  const serviceOngoingKey = useCallback((report: ReportSummary, service: ReportServiceSummary) => {
+    const extra = service.extraData || {};
+    return String(extra.__ongoingKey || extra.__serviceLinkKey || extra.__sourceServiceId || serviceSemanticKey(report, service));
+  }, [serviceSemanticKey]);
+
+  const serviceOngoingKeys = useCallback((report: ReportSummary, service: ReportServiceSummary) => {
+    const extra = service.extraData || {};
+    return Array.from(new Set([
+      String(extra.__ongoingKey || '').trim(),
+      String(extra.__serviceLinkKey || '').trim(),
+      String(extra.__sourceServiceId || '').trim(),
+      serviceSemanticKey(report, service)
+    ].filter(Boolean)));
+  }, [serviceSemanticKey]);
+
   const pendingProjectServices = useMemo(() => {
-    const items = new Map<string, { key: string; report: ReportSummary; service: ReportServiceSummary }>();
+    const items = new Map<string, { key: string; keys: string[]; report: ReportSummary; service: ReportServiceSummary }>();
     [...projectReports].reverse().forEach(report => {
       (report.services || []).forEach(service => {
-        const key = serviceOngoingKey(report, service);
+        const keys = serviceOngoingKeys(report, service);
         if (serviceFinalized(service)) {
-          items.delete(key);
+          for (const [itemKey, item] of items.entries()) {
+            if (item.keys.some(key => keys.includes(key))) items.delete(itemKey);
+          }
           return;
         }
-        items.set(key, { key, report, service });
+        for (const [itemKey, item] of items.entries()) {
+          if (item.keys.some(key => keys.includes(key))) items.delete(itemKey);
+        }
+        const key = serviceOngoingKey(report, service);
+        items.set(key, { key, keys, report, service });
       });
     });
     return Array.from(items.values()).sort(
       (a, b) => new Date(b.report.reportDate).getTime() - new Date(a.report.reportDate).getTime()
     );
-  }, [projectReports, serviceFinalized, serviceOngoingKey]);
+  }, [projectReports, serviceFinalized, serviceOngoingKey, serviceOngoingKeys]);
 
   const visiblePendingProjectServices = useMemo(() => {
     const activeKeys = new Set(services.map(service => {
@@ -960,15 +976,15 @@ export function NewReportPage() {
                     onChange={event => setHeaderField('noturnoEnd', event.target.value)}
                   />
                 </div>
-                <div className={fieldState('header:noturnoInterval')} data-invalid-target="header:noturnoInterval">
-                  <label>Intervalo noturno</label>
-                  <input
-                    type="time"
-                    step={1}
-                    value={noturnoInterval}
-                    onChange={event => setHeaderField('noturnoInterval', event.target.value)}
-                  />
-                </div>
+              </div>
+              <div className={fieldState('header:noturnoInterval')} style={{ marginTop: 6 }} data-invalid-target="header:noturnoInterval">
+                <label>Intervalo noturno</label>
+                <input
+                  type="time"
+                  step={1}
+                  value={noturnoInterval}
+                  onChange={event => setHeaderField('noturnoInterval', event.target.value)}
+                />
               </div>
               <div className="section-title" style={{ marginTop: 14 }}>{TEXT.nightTeam}</div>
               <div

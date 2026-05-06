@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { createProject, listProjects, type ProjectPayload, updateProject } from '../api/projects';
+import { createProject, listProjects, removeProject, type ProjectPayload, updateProject } from '../api/projects';
 import { queryKeys } from './queryKeys';
 
 export function useProjects(active?: boolean) {
@@ -31,8 +31,14 @@ export function useProjectMutations() {
     onSuccess: invalidateProjects
   });
 
+  const removeMutation = useMutation({
+    mutationFn: (id: string) => removeProject(id),
+    onSuccess: invalidateProjects
+  });
+
   return {
     createProject: createMutation,
-    updateProject: updateMutation
+    updateProject: updateMutation,
+    removeProject: removeMutation
   };
 }

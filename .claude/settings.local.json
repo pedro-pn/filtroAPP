@@ -59,7 +59,10 @@
       "Bash(netstat -ltn)",
       "Bash(sed -n '223,235p' /home/relat/apps/NewRDO/frontend/src/pages/client/ClientPage.tsx)",
       "Bash(sed -n '73,85p' /home/relat/apps/NewRDO/frontend/src/pages/coordinator/CoordinatorPage.tsx)",
-      "Bash(sed -n '2408,2420p' /home/relat/apps/NewRDO/frontend/src/pages/gestor/GestorPage.tsx)"
+      "Bash(sed -n '2408,2420p' /home/relat/apps/NewRDO/frontend/src/pages/gestor/GestorPage.tsx)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(curl -s http://localhost:5175)",
+      "Bash(pkill -f \"vite\")"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -677,8 +677,9 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
   const reportMutations = useReportMutations();
   const showToast = useToast();
   const [clientRejectOpen, setClientRejectOpen] = useState(false);
+  const [clientComment, setClientComment] = useState('');
   const canDownloadDocx = role === 'MANAGER';
-  const canClientSign = role === 'CLIENT' && report.reportType === 'RDO' && report.status === 'APPROVED';
+  const canClientSign = role === 'CLIENT' && report.reportType === 'RDO' && report.status === 'APPROVED' && !hasActiveClientRejection(report);
 
   async function handleDownload(format: 'pdf' | 'docx') {
     showToast(format === 'pdf' ? 'Gerando PDF...' : 'Gerando DOCX...', 'info');
@@ -693,7 +694,10 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
 
   async function handleRequestSignature() {
     try {
-      const response = await reportMutations.requestSignature.mutateAsync({ id: report.id });
+      const response = await reportMutations.requestSignature.mutateAsync({
+        id: report.id,
+        comment: clientComment.trim() || null
+      });
       showToast(TEXT.signatureRequested, 'success');
       if (response.signUrl) window.open(response.signUrl, '_blank', 'noopener,noreferrer');
     } catch (err) {
@@ -727,8 +731,18 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
         ) : null}
         {canClientSign ? (
           <>
+            <div className="field-group client-report-comment detail-client-comment">
+              <label htmlFor={`detail-client-review-comment-${report.id}`}>Comentário do cliente</label>
+              <textarea
+                id={`detail-client-review-comment-${report.id}`}
+                rows={3}
+                placeholder="Comentário opcional que será exibido no relatório final"
+                value={clientComment}
+                onChange={event => setClientComment(event.target.value)}
+              />
+            </div>
             <button className="primary-button" type="button" onClick={() => void handleRequestSignature()}>
-              {TEXT.requestSignature}
+              {report.zapsignRequestedAt && !report.zapsignSignedAt ? 'Continuar assinatura digital' : 'Aprovar e assinar digitalmente'}
             </button>
             <button className="secondary-button" type="button" onClick={() => setClientRejectOpen(true)}>
               {TEXT.rejectClient}
@@ -996,6 +1010,20 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
           </div>
         ) : null}
       </section>
+
+      {report.clientReviews?.length ? (
+        <section className="page-card">
+          <div className="section-title">Retorno do cliente</div>
+          <div className="det-section">
+            {report.clientReviews.slice(0, 3).map(review => (
+              <div className="det-row" key={review.id}>
+                <span className="det-label">{review.action === 'APPROVED' ? 'Aprovado' : 'Reprovado'}</span>
+                <span className="det-val">{review.comment || 'Sem comentário'}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </>
   );
 }

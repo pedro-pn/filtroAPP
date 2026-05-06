@@ -207,44 +207,54 @@ function TubesBlock({ data, onChange, disabled, invalidKey, groupKey }: Pick<Ser
       <div className="tube-stack">
         {rows.map((row, index) => (
           <div className="tube-row-react" key={index}>
-            <input
-              id={fieldId(groupKey, 'diametro', index)}
-              aria-label={`Diâmetro ${index + 1}`}
-              inputMode="decimal"
-              placeholder="Diâmetro"
-              value={row.d || ''}
-              disabled={disabled}
-              onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, d: onlyNumberPunctuation(event.target.value) }) })}
-            />
-            <select
-              id={fieldId(groupKey, 'diametro-unidade', index)}
-              aria-label={`Unidade do diâmetro ${index + 1}`}
-              value={row.unit || 'pol'}
-              disabled={disabled}
-              onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, unit: event.target.value }) })}
-            >
-              <option value="pol">pol</option>
-              <option value="mm">mm</option>
-            </select>
-            <input
-              id={fieldId(groupKey, 'comprimento', index)}
-              aria-label={`Comprimento ${index + 1}`}
-              inputMode="decimal"
-              placeholder="Comprimento"
-              value={row.c || ''}
-              disabled={disabled}
-              onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, c: onlyNumberPunctuation(event.target.value) }) })}
-            />
-            <select
-              id={fieldId(groupKey, 'comprimento-unidade', index)}
-              aria-label={`Unidade do comprimento ${index + 1}`}
-              value={row.lengthUnit || 'm'}
-              disabled={disabled}
-              onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, lengthUnit: event.target.value }) })}
-            >
-              <option value="m">m</option>
-              <option value="cm">cm</option>
-            </select>
+            <div className="field-group tube-field">
+              <label htmlFor={fieldId(groupKey, 'diametro', index)}>Diâmetro</label>
+              <div className="num-unit">
+                <input
+                  id={fieldId(groupKey, 'diametro', index)}
+                  aria-label={`Diâmetro ${index + 1}`}
+                  inputMode="decimal"
+                  placeholder="10"
+                  value={row.d || ''}
+                  disabled={disabled}
+                  onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, d: onlyNumberPunctuation(event.target.value) }) })}
+                />
+                <select
+                  id={fieldId(groupKey, 'diametro-unidade', index)}
+                  aria-label={`Unidade do diâmetro ${index + 1}`}
+                  value={row.unit || 'pol'}
+                  disabled={disabled}
+                  onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, unit: event.target.value }) })}
+                >
+                  <option value="pol">pol</option>
+                  <option value="mm">mm</option>
+                </select>
+              </div>
+            </div>
+            <div className="field-group tube-field">
+              <label htmlFor={fieldId(groupKey, 'comprimento', index)}>Comprimento</label>
+              <div className="num-unit">
+                <input
+                  id={fieldId(groupKey, 'comprimento', index)}
+                  aria-label={`Comprimento ${index + 1}`}
+                  inputMode="decimal"
+                  placeholder="45"
+                  value={row.c || ''}
+                  disabled={disabled}
+                  onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, c: onlyNumberPunctuation(event.target.value) }) })}
+                />
+                <select
+                  id={fieldId(groupKey, 'comprimento-unidade', index)}
+                  aria-label={`Unidade do comprimento ${index + 1}`}
+                  value={row.lengthUnit || 'm'}
+                  disabled={disabled}
+                  onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, lengthUnit: event.target.value }) })}
+                >
+                  <option value="m">m</option>
+                  <option value="cm">cm</option>
+                </select>
+              </div>
+            </div>
             <button
               className="danger-button"
               type="button"

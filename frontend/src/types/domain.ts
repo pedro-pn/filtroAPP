@@ -115,6 +115,14 @@ export interface ReportSummary {
   reportType: ReportType;
   sequenceNumber?: number | null;
   status: ReportStatus;
+  zapsignRequestedAt?: string | null;
+  zapsignSignedAt?: string | null;
+  clientReviews?: Array<{
+    id: string;
+    action: 'APPROVED' | 'REJECTED';
+    comment?: string | null;
+    createdAt?: string | null;
+  }>;
   reportDate: string;
   arrivalTime: string;
   departureTime: string;
