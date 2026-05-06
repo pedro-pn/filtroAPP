@@ -1,9 +1,7 @@
 ﻿import { useRef, useState } from 'react';
 
 import { uploadFiles, type UploadedFile } from '../../api/uploads';
-import { TOKEN_STORAGE_KEY } from '../../api/client';
-
-const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
+import { resolveUploadAssetUrl } from '../../utils/uploadAssetUrl';
 
 interface UploadFieldProps {
   label: string;
@@ -67,28 +65,6 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
     return file.url || file.path || file.dataUrl || '';
   }
 
-  function assetUrl(url: string) {
-    if (!url) return '';
-    if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
-    // Normaliza: URLs sem barra inicial são caminhos relativos ao diretório de relatórios
-    // (formato legado anterior a ter /relatorios/ como prefixo explícito)
-    const normalized = url.startsWith('/') ? url : `/relatorios/${url}`;
-    const protectedPath = normalized.startsWith('/relatorios/')
-      ? normalized.slice('/relatorios/'.length)
-      : (normalized.startsWith('/uploads/') ? normalized.slice('/uploads/'.length) : '');
-    // Não precisamos do prefixo do assets para caminhos de relatórios autenticados
-    const isPublic = normalized.startsWith('/assets/');
-    const resolved = protectedPath
-      ? `/api/uploads/file/${protectedPath}`
-      : (isPublic && assetsBaseUrl ? `${assetsBaseUrl}${normalized}` : normalized);
-    if (isPublic) return resolved;
-    // Caminho de backend protegido: adiciona token como query param para suportar <img> e <a>
-    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
-    if (!token) return resolved;
-    const separator = resolved.includes('?') ? '&' : '?';
-    return `${resolved}${separator}token=${encodeURIComponent(token)}`;
-  }
-
   function isImageFile(file: UploadValue) {
     if ((file.mimeType || '').startsWith('image')) return true;
     const ext = (file.fileName || rawFileUrl(file)).split('.').pop()?.toLowerCase() || '';
@@ -124,7 +100,7 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
       {value.length ? (
         <div className="upload-list">
           {value.map((file, index) => {
-            const href = assetUrl(rawFileUrl(file));
+            const href = resolveUploadAssetUrl(rawFileUrl(file));
             return (
             <div className="upload-list-item" key={`${rawFileUrl(file)}-${index}`}>
               {href && isImageFile(file) ? (

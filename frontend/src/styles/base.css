@@ -914,6 +914,88 @@ a {
   margin-top: 8px;
 }
 
+.collaborator-card-actions {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-self: flex-start;
+}
+
+.collaborator-card-actions .mini-btn {
+  min-width: 70px;
+  text-align: center;
+}
+
+.client-account-group-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--tx);
+  padding: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  text-align: left;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.client-account-group-toggle span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.client-account-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 14px;
+}
+
+.client-account-email {
+  overflow-wrap: anywhere;
+  padding-right: 0;
+}
+
+.client-account-action-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.client-account-badges,
+.client-account-button-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.client-account-badges {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  max-width: 50%;
+}
+
+.client-account-card > .admin-item-title {
+  max-width: 48%;
+  min-height: 22px;
+  overflow-wrap: anywhere;
+}
+
+.client-account-button-row .mini-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
 .mini-btn {
   border: none;
   border-radius: var(--rs);
@@ -1611,6 +1693,29 @@ a {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.auth-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.auth-options-row .checkbox-line {
+  margin: 0;
+}
+
+.auth-link {
+  color: var(--g);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
 }
 
 .field-group {
@@ -2699,6 +2804,29 @@ textarea.pre {
   .admin-list-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .admin-item-row {
+    align-items: flex-start;
+  }
+
+  .collaborator-card-actions {
+    width: auto;
+    max-width: 48%;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .collaborator-card-actions .mini-btn {
+    min-width: 0;
+    flex: 1 1 0;
+    padding-left: 7px;
+    padding-right: 7px;
+  }
+
+  .client-account-group-toggle {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
   }
 
   .report-card-main {

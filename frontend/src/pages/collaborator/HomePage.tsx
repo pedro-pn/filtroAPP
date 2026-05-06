@@ -2,10 +2,12 @@
 
 import { useAuth } from '../../auth/AuthContext';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
+import { useReports } from '../../hooks/useReports';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
 import type { ReportDraft } from '../../types/domain';
+import { collectOngoingServices } from '../../utils/ongoingServices';
 
 const TEXT = {
   archived: 'Arquivados',
@@ -78,8 +80,10 @@ export function HomePage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const draftsQuery = useDrafts();
+  const reportsQuery = useReports({ mine: true });
   const draftMutations = useDraftMutations();
   const { hydrate, reset } = useRdoStore();
+  const ongoingServices = collectOngoingServices(reportsQuery.data || []);
 
   function handleNewReport() {
     reset();
@@ -154,13 +158,10 @@ export function HomePage() {
             <div className="home-action-title">{TEXT.myReports}</div>
             <div className="home-action-subtitle">{TEXT.historyByProject}</div>
           </button>
-          <button className="home-action-card" type="button" onClick={() => {
-            const firstDraft = draftsQuery.data?.[0];
-            if (firstDraft) handleResumeDraft(firstDraft);
-          }} disabled={!draftsQuery.data?.length}>
+          <button className="home-action-card" type="button" onClick={() => navigate('/andamento')} disabled={!ongoingServices.length}>
             <div className="home-action-icon">⏳</div>
             <div className="home-action-title">{TEXT.inProgress}</div>
-            <div className="home-action-subtitle">{draftsQuery.data?.length || 0} relatório(s) ativos</div>
+            <div className="home-action-subtitle">{ongoingServices.length} serviço(s) ativos</div>
           </button>
         </section>
 

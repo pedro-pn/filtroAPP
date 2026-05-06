@@ -34,7 +34,7 @@ const TEXT = {
 const statusMap: Record<string, { label: string; className: string }> = {
   PENDING: { label: 'Pendente', className: 'status-pending' },
   RETURNED: { label: 'Devolvido', className: 'status-returned' },
-  APPROVED: { label: 'Aguardando assinatura', className: 'status-pending' },
+  APPROVED: { label: 'Aprovado', className: 'status-approved' },
   SIGNED: { label: 'Assinado', className: 'status-signed' }
 };
 
@@ -110,7 +110,9 @@ export function ClientPage() {
   const [activeProjectId, setActiveProjectId] = useState('');
   const [activeTypeByProject, setActiveTypeByProject] = useState<Record<string, string>>({});
   const [clientSortDirection, setClientSortDirection] = useState<ProjectSortDirection>('asc');
+  const [clientTogglesLoaded, setClientTogglesLoaded] = useState(false);
   const showToast = useToast();
+  const clientToggleStorageKey = user ? `filtrovali-client-tabs:${user.id || user.username}` : '';
 
   const reports = reportsQuery.data || [];
   const clientProjects = useMemo(() => {
@@ -137,6 +139,38 @@ export function ClientPage() {
   }, [clientSortDirection, reports]);
 
   useEffect(() => {
+    setClientTogglesLoaded(false);
+    if (!clientToggleStorageKey) {
+      setClientTogglesLoaded(true);
+      return;
+    }
+    try {
+      const stored = localStorage.getItem(clientToggleStorageKey);
+      const parsed = stored ? JSON.parse(stored) : null;
+      if (parsed && typeof parsed === 'object') {
+        if (typeof parsed.activeProjectId === 'string') setActiveProjectId(parsed.activeProjectId);
+        if (parsed.activeTypeByProject && typeof parsed.activeTypeByProject === 'object' && !Array.isArray(parsed.activeTypeByProject)) {
+          setActiveTypeByProject(parsed.activeTypeByProject as Record<string, string>);
+        }
+      }
+    } catch {
+      // Ignore unavailable localStorage.
+    } finally {
+      setClientTogglesLoaded(true);
+    }
+  }, [clientToggleStorageKey]);
+
+  useEffect(() => {
+    if (!clientToggleStorageKey || !clientTogglesLoaded || !activeProjectId) return;
+    try {
+      localStorage.setItem(clientToggleStorageKey, JSON.stringify({ activeProjectId, activeTypeByProject }));
+    } catch {
+      // Ignore unavailable localStorage.
+    }
+  }, [activeProjectId, activeTypeByProject, clientToggleStorageKey, clientTogglesLoaded]);
+
+  useEffect(() => {
+    if (!clientTogglesLoaded || reportsQuery.isLoading) return;
     if (!clientProjects.length) {
       if (activeProjectId) setActiveProjectId('');
       return;
@@ -144,7 +178,7 @@ export function ClientPage() {
     if (!activeProjectId || !clientProjects.some(project => project.id === activeProjectId)) {
       setActiveProjectId(clientProjects[0].id);
     }
-  }, [activeProjectId, clientProjects]);
+  }, [activeProjectId, clientProjects, clientTogglesLoaded, reportsQuery.isLoading]);
 
   const activeProject = clientProjects.find(project => project.id === activeProjectId) || clientProjects[0] || null;
   const activeTypes = useMemo(

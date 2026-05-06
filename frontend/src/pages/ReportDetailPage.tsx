@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { downloadReportDocx, downloadReportPdf } from '../api/reports';
 import { useAuth } from '../auth/AuthContext';
 import type { UploadedFile } from '../api/uploads';
-import { ServiceFields, serviceTypeLabels, serviceTypeOptions } from '../components/reports/ServiceFields';
+import { ServiceFields, serviceTypeLabels } from '../components/reports/ServiceFields';
 import { useToast } from '../components/ui/Toast';
 import { useCollaborators } from '../hooks/useCollaborators';
 import { useCounters } from '../hooks/useCounters';
@@ -19,10 +19,13 @@ import { ReasonDialog } from '../components/ui/ReasonDialog';
 import { UploadField } from '../components/ui/UploadField';
 import type { ReportPayload, ReportStatus, ReportSummary } from '../types/domain';
 import { downloadBlob } from '../utils/download';
+import { sortProjects } from '../utils/projectSort';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
+import { resolveUploadAssetUrl } from '../utils/uploadAssetUrl';
 import { closeZapSignPendingWindow, openZapSignPendingWindow, redirectZapSignWindow } from '../utils/zapSign';
 
 const TEXT = {
+  addService: 'Adicionar serviço',
   approvedAt: 'Aprovado em',
   approve: 'Aprovar',
   back: 'Voltar',
@@ -62,6 +65,14 @@ const TEXT = {
   updateError: 'Não foi possível atualizar o relatório.'
 };
 
+const serviceTypeModalOptions = [
+  { type: 'limpeza', icon: '🧪', name: 'Limpeza química' },
+  { type: 'pressao', icon: '🔴', name: 'Teste de pressão' },
+  { type: 'filtragem', icon: '🔵', name: 'Filtragem' },
+  { type: 'flushing', icon: '💧', name: 'Flushing' },
+  { type: 'mecanica', icon: '⚙️', name: 'Limpeza mecânica' },
+  { type: 'inibicao', icon: '🛡️', name: 'Inibição' },
+] as const;
 
 interface RdoServiceForm {
   id: string;
@@ -123,7 +134,15 @@ function hasActiveClientRejection(report: ReportSummary) {
 
 function asUploadedFiles(value: unknown): UploadedFile[] {
   return Array.isArray(value)
-    ? value.filter((item): item is UploadedFile => Boolean(item) && typeof item === 'object' && typeof (item as UploadedFile).url === 'string')
+    ? value
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+      .map(item => ({
+        label: getString(item.label) || 'Arquivo',
+        fileName: getString(item.fileName) || getString(item.name) || getString(item.url) || getString(item.path) || 'arquivo',
+        mimeType: getString(item.mimeType) || getString(item.type) || 'image/jpeg',
+        url: getString(item.url) || getString(item.path) || getString(item.dataUrl)
+      }))
+      .filter((item): item is UploadedFile => Boolean(item.url))
     : [];
 }
 
@@ -210,6 +229,7 @@ function buildPayload(
 }
 
 function ManagerRdoEditor({ report }: { report: ReportSummary }) {
+  const { user } = useAuth();
   const projectsQuery = useProjects(true);
   const reportsQuery = useReports();
   const collaboratorsQuery = useCollaborators();
@@ -221,13 +241,21 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const showToast = useToast();
   const [form, setForm] = useState<RdoFormState>(() => reportToForm(report));
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
+  const [collaboratorToAdd, setCollaboratorToAdd] = useState('');
+  const [nightCollaboratorToAdd, setNightCollaboratorToAdd] = useState('');
+  const [editorStep, setEditorStep] = useState(0);
+  const [showServiceModal, setShowServiceModal] = useState(false);
   const readOnly = report.status === 'SIGNED';
+  const isManager = user?.role === 'MANAGER';
+  const canEditSequence = isManager && !readOnly;
+  const canApproveInEditor = report.status === 'PENDING' || report.status === 'RETURNED' || hasActiveClientRejection(report);
+  const editorSteps = [TEXT.generalInfo, TEXT.services, TEXT.finalization];
 
   useEffect(() => {
     setForm(reportToForm(report));
   }, [report]);
 
-  const projects = projectsQuery.data || [];
+  const projects = useMemo(() => sortProjects(projectsQuery.data || [], 'asc'), [projectsQuery.data]);
   const selectedProject = projects.find(project => project.id === (form.projectId || report.projectId))
     || (form.projectId === report.projectId ? report.project : null);
   const projectLeaderHint = selectedProject?.operator?.name
@@ -251,11 +279,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     [form.collaboratorIds, form.nightCollaboratorIds]
   );
   const collaborators = (collaboratorsQuery.data || []).filter(item => item.isActive || selectedCollaboratorIds.has(item.id));
-  const selectedEquipmentIds = useMemo(
-    () => new Set(form.services.map(service => getString(service.data.equipmentId)).filter(Boolean)),
-    [form.services]
-  );
-  const equipment = (equipmentQuery.data || []).filter(item => item.isActive || selectedEquipmentIds.has(item.id));
+  const equipment = equipmentQuery.data || [];
   const units = unitsQuery.data || [];
   const manometers = manometersQuery.data || [];
   const counters = countersQuery.data || [];
@@ -264,18 +288,47 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     setForm(current => ({ ...current, [field]: value }));
   }
 
-  function toggleCollaborator(id: string, checked: boolean, night = false) {
+  function addCollaboratorFromSelect(night = false) {
+    const id = night ? nightCollaboratorToAdd : collaboratorToAdd;
+    if (!id) return;
     const field = night ? 'nightCollaboratorIds' : 'collaboratorIds';
-    const current = form[field];
-    const next = checked ? [...current, id] : current.filter(item => item !== id);
-    setField(field, Array.from(new Set(next)));
+    setField(field, Array.from(new Set([...form[field], id])));
+    if (night) {
+      setNightCollaboratorToAdd('');
+    } else {
+      setCollaboratorToAdd('');
+    }
   }
 
-  function addService() {
+  function removeCollaboratorFromList(id: string, night = false) {
+    const field = night ? 'nightCollaboratorIds' : 'collaboratorIds';
+    setField(field, form[field].filter(item => item !== id));
+  }
+
+  function renderCollaboratorList(ids: string[], night = false) {
+    if (!ids.length) return <div className="colab-empty">Nenhum colaborador adicionado.</div>;
+    return ids.map(id => {
+      const item = collaborators.find(candidate => candidate.id === id);
+      return (
+        <span className="colab-tag" key={`${night ? 'night' : 'day'}-${id}`}>
+          <span>{item?.name || id}</span>
+          <button type="button" disabled={readOnly} onClick={() => removeCollaboratorFromList(id, night)}>x</button>
+        </span>
+      );
+    });
+  }
+
+  function addService(type = 'limpeza') {
+    const id = serviceId();
     setForm(current => ({
       ...current,
-      services: [...current.services, { id: serviceId(), type: 'limpeza', data: {} }]
+      services: [...current.services, { id, type, data: {} }]
     }));
+    setEditorStep(1);
+    setShowServiceModal(false);
+    window.setTimeout(() => {
+      document.querySelector(`[data-service-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
   }
 
   function updateService(id: string, data: Partial<RdoServiceForm>) {
@@ -341,7 +394,27 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     <>
       {readOnly ? <div className="page-card inline-success">{TEXT.signedLocked}</div> : null}
 
-      <section className="page-card">
+      {!isManager ? (
+        <section className="page-card rdo-step-panel">
+          <div className="rdo-progress-track" aria-hidden="true">
+            <div className="rdo-progress-fill" style={{ width: `${((editorStep + 1) / editorSteps.length) * 100}%` }} />
+          </div>
+          <div className="filter-tabs">
+            {editorSteps.map((label, index) => (
+              <button
+                className={`filter-tab ${editorStep === index ? 'active' : ''}`}
+                key={label}
+                type="button"
+                onClick={() => setEditorStep(index)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="page-card" style={{ display: isManager || editorStep === 0 ? undefined : 'none' }}>
         <div className="section-title">{TEXT.generalInfo}</div>
         <div className="admin-form-grid">
           <div className="field-group">
@@ -370,16 +443,18 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               min={1}
               step={1}
               value={form.sequenceNumber}
-              disabled={readOnly}
+              disabled={!canEditSequence}
               onChange={event => setField('sequenceNumber', event.target.value)}
               required
             />
-            <span
-              className={sequenceConflict ? 'inline-error' : 'placeholder-copy'}
-              style={{ marginTop: 4 }}
-            >
-              {sequenceHint}
-            </span>
+            {isManager ? (
+              <span
+                className={sequenceConflict ? 'inline-error' : 'placeholder-copy'}
+                style={{ marginTop: 4 }}
+              >
+                {sequenceHint}
+              </span>
+            ) : null}
           </div>
           <div className="field-group">
             <label htmlFor="rdo-date">Data</label>
@@ -447,59 +522,61 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         </div>
       </section>
 
-      <section className="page-card">
+      <section className="page-card" style={{ display: isManager || editorStep === 0 ? undefined : 'none' }}>
         <div className="section-title">{TEXT.team}</div>
-        <div className="rdo-check-grid">
-          {collaborators.map(item => (
-            <label className="rdo-check-row" key={item.id}>
-              <input
-                type="checkbox"
-                checked={form.collaboratorIds.includes(item.id)}
-                disabled={readOnly}
-                onChange={event => toggleCollaborator(item.id, event.target.checked)}
-              />
-              <span>{item.name}</span>
-            </label>
-          ))}
+        <div className="colab-list">
+          {renderCollaboratorList(form.collaboratorIds)}
         </div>
+        {!readOnly ? (
+          <div className="cadd">
+            <select value={collaboratorToAdd} onChange={event => setCollaboratorToAdd(event.target.value)}>
+              <option value="">Adicionar...</option>
+              {collaborators
+                .filter(item => !form.collaboratorIds.includes(item.id))
+                .map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+            <button className="cadd-btn" type="button" onClick={() => addCollaboratorFromSelect()}>
+              + Add
+            </button>
+          </div>
+        ) : null}
         {form.noturno ? (
           <>
             <div className="section-title" style={{ marginTop: 16 }}>{TEXT.nightTeam}</div>
-            <div className="rdo-check-grid">
-              {collaborators.map(item => (
-                <label className="rdo-check-row" key={`night-${item.id}`}>
-                  <input
-                    type="checkbox"
-                    checked={form.nightCollaboratorIds.includes(item.id)}
-                    disabled={readOnly}
-                    onChange={event => toggleCollaborator(item.id, event.target.checked, true)}
-                  />
-                  <span>{item.name}</span>
-                </label>
-              ))}
+            <div className="colab-list">
+              {renderCollaboratorList(form.nightCollaboratorIds, true)}
             </div>
+            {!readOnly ? (
+              <div className="cadd">
+                <select value={nightCollaboratorToAdd} onChange={event => setNightCollaboratorToAdd(event.target.value)}>
+                  <option value="">Adicionar...</option>
+                  {collaborators
+                    .filter(item => !form.nightCollaboratorIds.includes(item.id))
+                    .map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+                <button className="cadd-btn" type="button" onClick={() => addCollaboratorFromSelect(true)}>
+                  + Add
+                </button>
+              </div>
+            ) : null}
           </>
         ) : null}
       </section>
 
-      <section className="page-card">
+      <section className="page-card" style={{ display: isManager || editorStep === 1 ? undefined : 'none' }}>
         <div className="section-title">{TEXT.services}</div>
-        {!readOnly ? (
-          <div className="admin-form-actions">
-            <button className="secondary-button" type="button" onClick={addService}>
-              + Adicionar serviço
-            </button>
-          </div>
-        ) : null}
         {form.services.length ? (
           <div className="admin-stack" style={{ marginTop: 12 }}>
             {form.services.map((service, index) => (
-              <article className="admin-card-react" key={service.id}>
-                <div className="admin-card-head">
-                  <div className="admin-card-title">{TEXT.service} {index + 1} — {serviceTypeLabels[service.type] || service.type}</div>
+              <article className="admin-card-react" key={service.id} data-service-id={service.id}>
+                <div className="svc-card-header">
+                  <div className="svc-card-title">
+                    <span>{serviceTypeLabels[normalizeServiceType(service.type)] || service.type}</span>
+                    <span className="svc-card-badge">{TEXT.service} {index + 1}</span>
+                  </div>
                   {!readOnly ? (
                     <div className="admin-card-actions">
-                      <button className="secondary-button" type="button" onClick={() => removeService(service.id)}>
+                      <button className="svc-remove" type="button" onClick={() => removeService(service.id)}>
                         Remover
                       </button>
                     </div>
@@ -507,33 +584,13 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                 </div>
                 <div className="admin-form-grid">
                   <div className="field-group">
-                    <label>Tipo</label>
-                    <select
-                      value={normalizeServiceType(service.type)}
-                      disabled={readOnly}
-                      onChange={event => updateService(service.id, { type: event.target.value })}
-                    >
-                      {serviceTypeOptions.map(option => (
-                        <option key={option} value={option}>
-                          {serviceTypeLabels[option] || option}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="field-group">
                     <label>Equipamento</label>
-                    <select
+                    <input
                       value={getString(service.data.equipmentId)}
                       disabled={readOnly}
-                      onChange={event => updateService(service.id, { data: { equipmentId: event.target.value || null } })}
-                    >
-                      <option value="">Nenhum</option>
-                      {equipment.map(item => (
-                        <option key={item.id} value={item.id}>
-                          {item.code} - {item.name}
-                        </option>
-                      ))}
-                    </select>
+                      placeholder="Informar equipamento do cliente..."
+                      onChange={event => updateService(service.id, { data: { equipmentId: event.target.value } })}
+                    />
                   </div>
                   <div className="field-group">
                     <label>Sistema</label>
@@ -598,9 +655,21 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         ) : (
           <p className="placeholder-copy">{TEXT.noService}</p>
         )}
+        {!readOnly ? (
+          <div className="admin-form-actions" style={{ marginTop: 12 }}>
+            <button
+              className="secondary-button"
+              type="button"
+              style={{ width: '100%', borderStyle: 'dashed', color: 'var(--g)', fontWeight: 700 }}
+              onClick={() => setShowServiceModal(true)}
+            >
+              ＋ {TEXT.addService}
+            </button>
+          </div>
+        ) : null}
       </section>
 
-      <section className="page-card">
+      <section className="page-card" style={{ display: isManager || editorStep === 2 ? undefined : 'none' }}>
         <div className="section-title">{TEXT.finalization}</div>
         <div className="admin-form-grid">
           <div className="field-group">
@@ -632,14 +701,16 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         </div>
         {!readOnly ? (
           <div className="admin-form-actions" style={{ marginTop: 14 }}>
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={reportMutations.updateStatus.isPending}
-              onClick={() => setReturnDialogOpen(true)}
-            >
-              {TEXT.reject}
-            </button>
+            {isManager ? (
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={reportMutations.updateStatus.isPending}
+                onClick={() => setReturnDialogOpen(true)}
+              >
+                {TEXT.reject}
+              </button>
+            ) : null}
             <button
               className="secondary-button"
               type="button"
@@ -648,14 +719,16 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             >
               {TEXT.save}
             </button>
-            <button
-              className="primary-button"
-              type="button"
-              disabled={reportMutations.updateStatus.isPending}
-              onClick={() => void handleStatus('APPROVED')}
-            >
-              {hasActiveClientRejection(report) ? 'Reenviar para avaliação' : TEXT.approve}
-            </button>
+            {isManager && canApproveInEditor ? (
+              <button
+                className="primary-button"
+                type="button"
+                disabled={reportMutations.updateStatus.isPending}
+                onClick={() => void handleStatus('APPROVED')}
+              >
+                {hasActiveClientRejection(report) ? 'Reenviar para avaliação' : TEXT.approve}
+              </button>
+            ) : null}
           </div>
         ) : null}
         <ReasonDialog
@@ -670,6 +743,48 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           onConfirm={reason => void handleStatus('RETURNED', reason)}
         />
       </section>
+
+      {!isManager && !readOnly && editorStep < editorSteps.length - 1 ? (
+        <section className="page-card rdo-bottom-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={editorStep === 0}
+            onClick={() => setEditorStep(step => Math.max(0, step - 1))}
+          >
+            Voltar
+          </button>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => setEditorStep(step => Math.min(editorSteps.length - 1, step + 1))}
+          >
+            Próximo
+          </button>
+        </section>
+      ) : null}
+
+      {showServiceModal ? (
+        <div className="stype-modal-ov" onClick={() => setShowServiceModal(false)}>
+          <div className="stype-modal-sh" onClick={event => event.stopPropagation()}>
+            <div className="stype-modal-handle" />
+            <div className="stype-modal-title">Tipo de serviço</div>
+            <div className="stype-grid">
+              {serviceTypeModalOptions.map(({ type, icon, name }) => (
+                <button
+                  className="stype-btn"
+                  key={type}
+                  type="button"
+                  onClick={() => addService(type)}
+                >
+                  <div className="stype-icon">{icon}</div>
+                  <div className="stype-name">{name}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -1012,11 +1127,14 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
           <div style={{ marginTop: 12 }}>
             <div className="detail-label">Fotos de registro</div>
             <div className="upload-thumbs">
-              {generalUploads.map(file => (
-                <a key={file.url} href={file.url} target="_blank" rel="noopener noreferrer">
-                  <img src={file.url} alt={file.fileName || 'foto'} className="upload-thumb" />
-                </a>
-              ))}
+              {generalUploads.map(file => {
+                const href = resolveUploadAssetUrl(file.url);
+                return (
+                  <a key={file.url} href={href} target="_blank" rel="noopener noreferrer">
+                    <img src={href} alt={file.fileName || 'foto'} className="upload-thumb" />
+                  </a>
+                );
+              })}
             </div>
           </div>
         ) : null}
@@ -1051,7 +1169,10 @@ export function ReportDetailPage() {
   }
 
   const report = reportQuery.data;
-  const showManagerEditor = user?.role === 'MANAGER' && report?.reportType === 'RDO';
+  const showRdoEditor =
+    report?.reportType === 'RDO'
+    && report.status !== 'SIGNED'
+    && (user?.role === 'MANAGER' || user?.role === 'COLLABORATOR');
 
   return (
     <Shell>
@@ -1083,7 +1204,7 @@ export function ReportDetailPage() {
 
         {report ? (
           <>
-            {showManagerEditor ? <ManagerRdoEditor report={report} /> : <ReportSummaryView report={report} />}
+            {showRdoEditor ? <ManagerRdoEditor report={report} /> : <ReportSummaryView report={report} />}
             <ReportDetailActions report={report} role={user?.role} />
           </>
         ) : null}

@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext';
 import { roleHomePath } from '../auth/rolePath';
@@ -7,12 +7,13 @@ import { normalizeCnpjInput } from '../utils/formatCnpj';
 
 const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
 const loginLogoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_LOGIN.png`;
+const REMEMBERED_USER_KEY = 'filtrovali-react-remembered-user';
 
 export function LoginPage() {
   const { isAuthenticated, user, login } = useAuth();
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(() => localStorage.getItem(REMEMBERED_USER_KEY) || '');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(() => Boolean(localStorage.getItem(REMEMBERED_USER_KEY)));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -25,6 +26,11 @@ export function LoginPage() {
     setIsSubmitting(true);
     try {
       await login({ username, password, rememberMe });
+      if (rememberMe) {
+        localStorage.setItem(REMEMBERED_USER_KEY, username);
+      } else {
+        localStorage.removeItem(REMEMBERED_USER_KEY);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Falha ao realizar login.';
       setError(message);
@@ -67,14 +73,17 @@ export function LoginPage() {
             />
           </div>
 
+          <div className="auth-options-row">
           <label className="checkbox-line">
             <input
               type="checkbox"
               checked={rememberMe}
               onChange={event => setRememberMe(event.target.checked)}
             />
-            <span>Manter conectado</span>
+            <span>Lembrar usuário</span>
           </label>
+            <Link className="auth-link" to="/forgot-password">Esqueci minha senha</Link>
+          </div>
 
           {error ? <div className="inline-error">{error}</div> : null}
 

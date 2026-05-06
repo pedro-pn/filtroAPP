@@ -121,7 +121,7 @@ export function calculateReportOvertime(project, payload) {
   const special = payload.specialConditions || {};
   const night = special.noturnoDetails || {};
   const daytimeWorkedMinutes = calculateWorkedMinutes(payload.arrivalTime, payload.departureTime, payload.lunchBreak);
-  const nighttimeWorkedMinutes = special.noturno
+  const nighttimeWorkedMinutes = (special.noturno || night.enabled)
     ? calculateWorkedMinutes(night.inicio, night.termino, night.intervalo || night.jantaIntervalo || '')
     : 0;
   const expectedMinutes = getExpectedMinutes(project, payload.reportDate);
@@ -147,4 +147,3 @@ export function calculateReportOvertime(project, payload) {
     }
   };
 }
-

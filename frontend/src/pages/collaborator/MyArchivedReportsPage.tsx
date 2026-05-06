@@ -49,6 +49,9 @@ export function MyArchivedReportsPage() {
           <div className="page-card placeholder-copy">Nenhum relatório arquivado.</div>
         ) : null}
         <GroupedReportList reports={groups} archived />
+        <button className="secondary-button" type="button" onClick={() => navigate('/home')}>
+          Voltar
+        </button>
       </main>
     </Shell>
   );

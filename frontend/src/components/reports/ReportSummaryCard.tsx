@@ -107,7 +107,9 @@ export function ReportSummaryCard({
 }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const status = statusMap[report.status] || { label: report.status, className: 'status-pending' };
+  const status = report.status === 'PENDING' && report.reviewNotes === 'Editado pelo colaborador'
+    ? { label: 'Editado', className: 'status-pending' }
+    : (statusMap[report.status] || { label: report.status, className: 'status-pending' });
   const clientRejections = clientRejectionReviews(report);
   const rejectionComments = new Set(clientRejections.map(review => normalizeComment(review.comment)));
   const reviewNotes = normalizeComment(report.reviewNotes);
