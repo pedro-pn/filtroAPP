@@ -213,8 +213,9 @@ const include = {
 function clientCanAccessProject(auth, project) {
   if (project?.clientCnpj === auth.user.username) return true;
   const userEmail = String(auth.user.email || '').trim().toLowerCase();
-  return userEmail.length > 0
-    && Array.isArray(project?.clientEmailCc)
+  if (!userEmail) return false;
+  if (String(project?.clientEmailPrimary || '').trim().toLowerCase() === userEmail) return true;
+  return Array.isArray(project?.clientEmailCc)
     && project.clientEmailCc.some(cc => cc.toLowerCase() === userEmail);
 }
 
@@ -1777,7 +1778,10 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     where.project = {
       OR: [
         { clientCnpj: req.auth.user.username },
-        ...(userEmail ? [{ clientEmailCc: { has: userEmail } }] : [])
+        ...(userEmail ? [
+          { clientEmailPrimary: { equals: userEmail, mode: 'insensitive' } },
+          { clientEmailCc: { has: userEmail } }
+        ] : [])
       ]
     };
   } else if (req.auth.user.role === 'COORDINATOR') {

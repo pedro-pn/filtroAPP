@@ -20,6 +20,7 @@ import { UploadField } from '../components/ui/UploadField';
 import type { ReportPayload, ReportStatus, ReportSummary } from '../types/domain';
 import { downloadBlob } from '../utils/download';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
+import { closeZapSignPendingWindow, openZapSignPendingWindow, redirectZapSignWindow } from '../utils/zapSign';
 
 const TEXT = {
   approvedAt: 'Aprovado em',
@@ -693,14 +694,24 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
   }
 
   async function handleRequestSignature() {
+    const confirmText = `Você será redirecionado para a ZapSign para assinar digitalmente o ${report.reportType || 'RDO'} nº ${report.sequenceNumber ?? '---'}. Deseja continuar?`;
+    if (!window.confirm(confirmText)) return;
+
+    const signWindow = openZapSignPendingWindow();
     try {
       const response = await reportMutations.requestSignature.mutateAsync({
         id: report.id,
         comment: clientComment.trim() || null
       });
-      showToast(TEXT.signatureRequested, 'success');
-      if (response.signUrl) window.open(response.signUrl, '_blank', 'noopener,noreferrer');
+      if (response.signUrl) {
+        redirectZapSignWindow(signWindow, response.signUrl);
+        showToast('Link de assinatura aberto na ZapSign.', 'success');
+        return;
+      }
+      closeZapSignPendingWindow(signWindow);
+      throw new Error('Link de assinatura não retornado.');
     } catch (err) {
+      closeZapSignPendingWindow(signWindow);
       showToast(err instanceof Error ? err.message : TEXT.requestSignatureError, 'error');
     }
   }
