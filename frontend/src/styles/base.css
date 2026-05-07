@@ -3296,6 +3296,27 @@ textarea {
 select {
   -webkit-appearance: none;
   appearance: none;
+  padding-right: 30px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--mu) 50%),
+    linear-gradient(135deg, var(--mu) 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) 50%,
+    calc(100% - 9px) 50%;
+  background-size:
+    6px 6px,
+    6px 6px;
+  background-repeat: no-repeat;
+}
+
+.num-unit select {
+  padding-right: 22px;
+  background-position:
+    calc(100% - 12px) 50%,
+    calc(100% - 7px) 50%;
+  background-size:
+    5px 5px,
+    5px 5px;
 }
 
 .page-scroll {

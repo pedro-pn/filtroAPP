@@ -547,7 +547,7 @@ export function NewReportPage() {
       if (typeof data.finalized !== 'boolean') return failRequired('Serviço finalizado', target('finalized'), 1);
       if (!hasStringItem(data.etapas)) return failRequired('Etapas realizadas no dia', target('etapas'), 1);
 
-      if (['limpeza', 'pressao', 'flushing', 'mecanica', 'inibicao'].includes(type) && !hasText(data.material)) {
+      if (['limpeza', 'pressao', 'mecanica', 'inibicao'].includes(type) && !hasText(data.material)) {
         return failRequired(type === 'mecanica' ? 'Material do equipamento' : 'Material da tubulação', target('material'), 1);
       }
       if (serviceRequiresTubes(type, data) && !hasValidTube(data.tubes)) {
