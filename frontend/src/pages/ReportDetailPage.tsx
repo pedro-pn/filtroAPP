@@ -5,6 +5,7 @@ import { downloadReportDocx, downloadReportPdf } from '../api/reports';
 import { useAuth } from '../auth/AuthContext';
 import type { UploadedFile } from '../api/uploads';
 import { ServiceCollaboratorsBlock, ServiceFields, serviceTypeLabels } from '../components/reports/ServiceFields';
+import { SignatureProgress } from '../components/reports/SignatureProgress';
 import { useToast } from '../components/ui/Toast';
 import { useCollaborators } from '../hooks/useCollaborators';
 import { useCounters } from '../hooks/useCounters';
@@ -1312,6 +1313,7 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
           {isStandby ? <div><span className="detail-label">Standby</span><span className="detail-value">Sim</span></div> : null}
           {isNoturno ? <div><span className="detail-label">Turno noturno</span><span className="detail-value">Sim</span></div> : null}
         </div>
+        <SignatureProgress report={report} />
       </section>
 
       <section className="page-card">

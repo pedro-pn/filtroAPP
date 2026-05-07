@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { downloadReportPdf, downloadReportsBatch } from '../../api/reports';
 import { useAuth } from '../../auth/AuthContext';
+import { SignatureProgress } from '../../components/reports/SignatureProgress';
 import { useToast } from '../../components/ui/Toast';
 import { useReportMutations, useReports } from '../../hooks/useReports';
 import { Shell } from '../../layout/Shell';
@@ -381,6 +382,7 @@ export function ClientPage() {
             </>
           ) : null}
         </div>
+        <SignatureProgress report={report} />
         {rejections.length ? (
           <div className="client-rejection-list">
             {rejections.map((review, index) => {
