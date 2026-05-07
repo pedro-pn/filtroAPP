@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 
 import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
 import { compareReportTypes, ProjectSortButton, sortProjects, sortReportsInGroup } from '../../utils/projectSort';
+import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
 import type { UserRole } from '../../types/auth';
 import { downloadReportDocx, downloadReportPdf, downloadReportsBatch } from '../../api/reports';
@@ -1453,16 +1454,16 @@ export function GestorPage() {
     if (reportsQuery.isLoading) return <div className="page-card placeholder-copy">Carregando relatórios...</div>;
 
     const topActions = (
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
-        <ProjectSortButton
-          direction={projectSortDir}
-          onToggle={() => setProjectSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
-        />
+      <div className="admin-create-toolbar">
         {tab === 'pendentes' ? (
           <button className="mini-btn" type="button" onClick={handleNewReport}>
             + Criar Relatório
           </button>
         ) : null}
+        <ProjectSortButton
+          direction={projectSortDir}
+          onToggle={() => setProjectSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
+        />
       </div>
     );
     const drafts = (draftsQuery.data || []).filter(draft => draft.projectId || draft.payload.projectId);
@@ -1981,10 +1982,12 @@ export function GestorPage() {
     return (
       <>
         <section className="page-card compact-link-card">
-          <div className="filter-tabs">
+          <div className="filter-tabs" role="tablist" aria-label="Tipo de usuário" onKeyDown={handleHorizontalTabListKeyDown}>
             <button
               className={`filter-tab ${showInternal ? 'active' : ''}`}
               type="button"
+              role="tab"
+              aria-selected={showInternal}
               onClick={() => {
                 setUserAdminGroup('internal');
               }}
@@ -1994,6 +1997,8 @@ export function GestorPage() {
             <button
               className={`filter-tab ${!showInternal ? 'active' : ''}`}
               type="button"
+              role="tab"
+              aria-selected={!showInternal}
               onClick={() => {
                 setUserAdminGroup('client');
                 resetUserForm();
@@ -2786,32 +2791,32 @@ export function GestorPage() {
       />
 
       <div className="nav-tabs-wrap">
-        <div className="nav-tabs">
-          <button className={`nav-tab ${tab === 'pendentes' ? 'active' : ''}`} type="button" onClick={() => setTab('pendentes')}>
+        <div className="nav-tabs" role="tablist" aria-label="Seções do gestor" onKeyDown={handleHorizontalTabListKeyDown}>
+          <button className={`nav-tab ${tab === 'pendentes' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'pendentes'} onClick={() => setTab('pendentes')}>
             Pendentes
           </button>
-          <button className={`nav-tab ${tab === 'aprovados' ? 'active' : ''}`} type="button" onClick={() => setTab('aprovados')}>
+          <button className={`nav-tab ${tab === 'aprovados' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'aprovados'} onClick={() => setTab('aprovados')}>
             Aprovados
           </button>
-          <button className={`nav-tab ${tab === 'projetos' ? 'active' : ''}`} type="button" onClick={() => setTab('projetos')}>
+          <button className={`nav-tab ${tab === 'projetos' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'projetos'} onClick={() => setTab('projetos')}>
             Projetos
           </button>
-          <button className={`nav-tab ${tab === 'arquivados' ? 'active' : ''}`} type="button" onClick={() => setTab('arquivados')}>
+          <button className={`nav-tab ${tab === 'arquivados' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'arquivados'} onClick={() => setTab('arquivados')}>
             Arquivados
           </button>
-          <button className={`nav-tab ${tab === 'equipe' ? 'active' : ''}`} type="button" onClick={() => setTab('equipe')}>
+          <button className={`nav-tab ${tab === 'equipe' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'equipe'} onClick={() => setTab('equipe')}>
             Equipe
           </button>
-          <button className={`nav-tab ${tab === 'usuarios' ? 'active' : ''}`} type="button" onClick={() => setTab('usuarios')}>
+          <button className={`nav-tab ${tab === 'usuarios' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'usuarios'} onClick={() => setTab('usuarios')}>
             Usuários
           </button>
-          <button className={`nav-tab ${tab === 'equipamentos' ? 'active' : ''}`} type="button" onClick={() => setTab('equipamentos')}>
+          <button className={`nav-tab ${tab === 'equipamentos' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'equipamentos'} onClick={() => setTab('equipamentos')}>
             Unidades
           </button>
-          <button className={`nav-tab ${tab === 'manometros' ? 'active' : ''}`} type="button" onClick={() => setTab('manometros')}>
+          <button className={`nav-tab ${tab === 'manometros' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'manometros'} onClick={() => setTab('manometros')}>
             {'Manômetros'}
           </button>
-          <button className={`nav-tab ${tab === 'contadores' ? 'active' : ''}`} type="button" onClick={() => setTab('contadores')}>
+          <button className={`nav-tab ${tab === 'contadores' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'contadores'} onClick={() => setTab('contadores')}>
             Contadores
           </button>
         </div>

@@ -1,58 +1,39 @@
-# Planejamento de Migração React — Pendências
+# Planejamento de Migração React — Pendências Restantes
 
 > Branch: `app_v2_react` · Referência: `filtrovali_app_v4.html`
-> Última atualização: 2026-05-06 (§18.35)
+> Última atualização: 2026-05-07
 >
-> A migração funcional principal está concluída. Abaixo estão os itens pendentes antes do cutover.
+> A migração funcional principal está concluída. Os itens já implementados foram removidos da lista ativa. Abaixo ficam apenas o que ainda falta implementar e o que ainda precisa de validação manual.
 
 ---
 
-## P0 — Bloqueadores de cutover
+## Falta Implementar
 
-- [x] **CC/assinantes unificados no projeto** (`GestorPage.tsx` `ProjectClientFields`): refatorado para entrada única de e-mail com lista/tags, botão `+ Adicionar`, toggle `Assinante?`, remoção por linha e nome por e-mail quando marcado como assinante. O editor também inclui assinantes existentes na lista unificada para não perdê-los ao salvar.
-- [ ] **Cutover final**: trocar nginx/Express para servir React em `/` e `/reset-password`; remover dependência operacional do `filtrovali_app_v4.html`.
+- [x] **Cutover final para React em produção**: trocar a entrega principal de `/` e `/reset-password` para a SPA React.
 
----
+- [x] **Acessibilidade restante**: completar ajustes que não bloqueiam a UI atual, mas ainda faltam para uma revisão AA mais rigorosa.
 
-## P1 — Paridade funcional
-
-- [x] **Edição inline nos CRUDs admin** (`GestorPage.tsx`): projeto, equipe/colaboradores, usuários internos, unidades, manômetros e contadores já abrem formulário `.admin-inline-form` no card correspondente ao clicar em "Editar".
-- [x] **Aprovação/reprovação do cliente**: React agora replica os pontos principais do HTML: comentário opcional do cliente direto no card e no detalhe, envio do comentário na assinatura individual, reprovação e lote, status "Aguardando assinatura", bloqueio de ação em relatórios reprovados e histórico das últimas avaliações exibido na lista/detalhe. Fluxo de reaprovação pelo gestor já estava implementado.
-- [x] **Integração ZapSign**: fluxo de assinatura ligado ao endpoint real. Janela "Abrindo ZapSign..." aberta sincronamente antes da chamada async (evita bloqueio de popup). Mobile redireciona a própria aba. Confirmação antes de iniciar. Funciona em assinatura individual (`ClientPage`, `ReportDetailPage`) e em lote (`batch-request-signature`). Verificar criação de documento, envio de e-mail e callback de assinatura em teste com relatório real.
-- [x] **Serviço finalizado permanece em "Em andamento"**: regra de continuidade reforçada em `NewReportPage`: serviços finalizados removem sugestões equivalentes por chaves explícitas (`__ongoingKey`, `__serviceLinkKey`, `__sourceServiceId`) e por chave semântica de projeto/tipo/equipamento/sistema, sem apagar serviços dos relatórios já enviados.
-- [x] **Cliente — seleção e ações em lote**: checkboxes ficam visíveis nos relatórios selecionáveis; por padrão aparece apenas "Selecionar todos". Contador, limpar seleção, download em lote e assinatura em lote aparecem somente após existir seleção.
-- [x] **Cliente — navegação por abas de projeto**: portal do cliente usa abas horizontais por projeto e abas por tipo de relatório, com card "Projeto atual", em vez de grupos recolhíveis.
-- [x] **Derivados editáveis?**: confirmado que os relatórios de serviços devem ser alterados através dos próprios RDOs aos quais pertencem, para manter o vínculo RDO/serviços. Verificado em 2026-05-06: React só renderiza `ManagerRdoEditor` para `reportType === 'RDO'`; HTML também separa derivados e só abre o editor completo para não derivados.
+- [x] **Componentes reutilizáveis de UI**: extrair componentes genéricos para reduzir duplicação de classes CSS soltas.
 
 ---
 
-## P2 — Validação e testes obrigatórios
+## Falta Testar Manualmente
 
-- [x] **Auto-refresh após arquivar projeto ou criar relatório**: `useReportMutations.createReport` já invalida `['reports']`; `useProjectMutations` agora também invalida `['reports']` além dos caches de projetos, para atualizar listas após arquivar/desarquivar/remover projeto.
-- [x] **Arquivados — separar por tipo de relatório**: aba "Arquivados" do gestor agora subdivide os relatórios de cada projeto arquivado por tipo (RDO, RTP, RLQ, etc.) com a mesma ordenação de tipos usada nas demais listagens.
-- [x] **Toggle de detalhes nos cards de projeto**: cards de projeto agora têm botão "Mostrar/Ocultar detalhes"; estado recolhido é persistido em `localStorage` por conta (`userId`) contendo os `projectId`s recolhidos.
-- [x] **Relatório sem serviço**: remover a obrigatoriedade de adicionar serviços na segunda etapa de preenchimento.
-- [x] **Remover cards de fundo**: várias abas do gestor, há cards de fundo, como em contadores, manometros e unidades. Eles não estão presentes no HTML e deixam o visual poluido.
-- [x] **Campo de pesquisa nas abas do gestor**: adicionar input de busca nas abas Aprovados, Projetos, Arquivados, Equipe, Usuários, Unidades, Manômetros e Contadores. Ao digitar, filtrar em tempo real os cards que contenham o texto em qualquer campo visível (nome, CNPJ, e-mail, projeto, número, etc.).
-- [ ] **DOCX/PDF via React**: testar relatório criado no React com quebras de linha, unidades de comprimento, condições especiais (standby, noturno) e rascunho retomado. Confirmar que o DOCX gerado é equivalente ao do HTML.
-- [ ] **RCPU com dois RDOs**: confirmar `Contagem inicial NAS` = dia 1 e `Contagem final NAS` = dia 2 após fix em `syncApprovedRcpReports` (`reports.js`).
-- [ ] **Fotos legadas**: testar URL sem prefixo `/relatorios/` em uploads antigos (ex.: `Missão 9999 - Filtrovali/timestamp.jpeg`) com a normalização atual de `UploadField.tsx`.
+- [ ] **Cutover em homologação**: após implementar o cutover, validar que `/`, `/reset-password` e rotas internas do React carregam diretamente pelo navegador e por refresh.
+- [ ] **Link de redefinição de senha**: confirmar que o link enviado por e-mail abre `/reset-password?token=...` na SPA React e conclui a troca de senha.
+- [ ] **DOCX/PDF via React**: criar relatório no React com quebras de linha, unidades de comprimento, condições especiais (standby, noturno) e rascunho retomado; confirmar equivalência do DOCX/PDF com o fluxo do HTML.
+- [ ] **RCPU com dois RDOs**: confirmar `Contagem inicial NAS` = dia 1 e `Contagem final NAS` = dia 2 após o ajuste em `syncApprovedRcpReports` (`backend/src/routes/resources/reports.js`).
+- [ ] **Fotos legadas**: testar URL sem prefixo `/relatorios/` em uploads antigos, por exemplo `Missão 9999 - Filtrovali/timestamp.jpeg`, com a normalização atual de `UploadField.tsx`.
 - [ ] **Logo em produção**: validar `LOGO_HEADER.png` com `VITE_ASSETS_BASE_URL` configurado nas telas Home, Gestor, Coordenador e Cliente.
-- [ ] **Troca de projeto pelo gestor**: abrir RDO, trocar projeto, alterar número, salvar/aprovar, gerar PDF/DOCX e confirmar líder/assinatura corretos.
-- [ ] **Validação visual em navegador** (desktop + mobile): percorrer todas as telas comparando HTML × React — RDO (campos, toggles, continuidade), Gestor (CRUDs, cards inline, batch), Coordenador, Cliente.
+- [ ] **Troca de projeto pelo gestor**: abrir RDO, trocar projeto, alterar número, salvar/aprovar, gerar PDF/DOCX e confirmar líder e assinatura corretos.
+- [ ] **Validação visual HTML x React**: percorrer as telas em desktop e mobile comparando RDO, Gestor, Coordenador e Cliente contra `filtrovali_app_v4.html`.
+- [ ] **Responsividade em celular real**: validar cards de serviço, botões compactos, tabs/chips e toasts sem overflow horizontal e sem encobrir ações.
+- [ ] **Coordenador**: validar se densidade visual, agrupamento de relatórios e ações correspondem ao padrão do Gestor, sem os CRUDs.
+- [ ] **Correções recentes de relatório**: validar data sem retroceder um dia, obrigatoriedade de `Serviço finalizado?`, campo `Limpeza de tubulação?`, cores de links/textos, home do colaborador e centralização desktop.
 
 ---
 
-## P3 — Polimento e acessibilidade
-
-- [ ] **Responsividade fina em celular**: validação em dispositivo real para botões compactos e toasts não encobrirem ações.
-- [ ] **Coordenador**: validar se densidade visual e agrupamento de relatórios correspondem ao padrão do gestor (sem CRUDs).
-- [ ] **Acessibilidade restante**: foco-trap nos modais, navegação por teclado em tabs/tags, auditoria de contraste WCAG AA.
-- [ ] **Componentes reutilizáveis**: extrair `Button` (primary/secondary/danger/mini) e `Modal` genérico — hoje são classes CSS soltas. Baixa prioridade, não afeta UI atual.
-
----
-
-## Notas técnicas
+## Notas Técnicas
 
 - Dev local: `frontend/.env.local` com `VITE_API_BASE_URL=http://localhost:4000/api` e `VITE_ASSETS_BASE_URL=http://localhost:4000`.
 - Build: `npm run build` em `frontend/`. Lint só emite avisos de Fast Refresh e dependências de hook — não bloqueiam build.

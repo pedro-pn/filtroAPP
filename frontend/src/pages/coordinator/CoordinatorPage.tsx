@@ -11,6 +11,7 @@ import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import type { ReportSummary } from '../../types/domain';
 import { downloadBlob } from '../../utils/download';
+import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
 type CoordinatorTab = 'approved' | 'archived';
 
@@ -88,10 +89,12 @@ export function CoordinatorPage() {
       <main className="page-scroll">
         <section className="page-card">
           <div className="section-title">{TEXT.reports}</div>
-          <div className="filter-tabs">
+          <div className="filter-tabs" role="tablist" aria-label="Status dos relatórios" onKeyDown={handleHorizontalTabListKeyDown}>
             <button
               className={`filter-tab ${tab === 'approved' ? 'active' : ''}`}
               type="button"
+              role="tab"
+              aria-selected={tab === 'approved'}
               onClick={() => setTab('approved')}
             >
               {TEXT.approved}
@@ -99,6 +102,8 @@ export function CoordinatorPage() {
             <button
               className={`filter-tab ${tab === 'archived' ? 'active' : ''}`}
               type="button"
+              role="tab"
+              aria-selected={tab === 'archived'}
               onClick={() => setTab('archived')}
             >
               {TEXT.archived}
