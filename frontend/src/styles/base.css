@@ -632,7 +632,8 @@ a {
 }
 
 .signature-progress {
-  margin-top: 8px;
+  width: 100%;
+  margin-top: 0;
   padding: 8px 10px;
   border: 1px solid #d7dfda;
   border-radius: 8px;
@@ -675,9 +676,10 @@ a {
 .signature-progress-names {
   margin-top: 4px;
   color: var(--mu);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-x: auto;
+  text-overflow: clip;
   white-space: nowrap;
+  scrollbar-width: thin;
 }
 
 .status-pill {
