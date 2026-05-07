@@ -35,7 +35,6 @@ services:
       - ./backend/prisma:/workspace/backend/prisma
       - ./backend/scripts:/workspace/backend/scripts
       - ./backend/assets:/workspace/backend/assets
-      - ./filtrovali_app_v4.html:/workspace/filtrovali_app_v4.html
       - ./Modelos:/workspace/Modelos
       - filtrovali_local_relatorios:/data/relatorios
 

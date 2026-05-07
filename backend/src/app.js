@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Prisma } from '@prisma/client';
 import cors from 'cors';
 import express from 'express';
@@ -12,10 +11,6 @@ import env from './config/env.js';
 import { hashToken } from './lib/auth.js';
 import prisma from './lib/prisma.js';
 import apiRouter from './routes/index.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const appHtmlPath = path.resolve(__dirname, '../..', 'filtrovali_app_v4.html');
 
 const app = express();
 const allowedOrigins = String(env.allowedOrigin || '')
@@ -98,10 +93,6 @@ app.use('/uploads', protectedRelatorios, express.static(env.reportsDir));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
-});
-
-app.get(['/legacy', '/legacy/reset-password'], (_req, res) => {
-  res.sendFile(appHtmlPath);
 });
 
 app.use('/api', apiRouter);

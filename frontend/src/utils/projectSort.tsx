@@ -58,9 +58,8 @@ export function sortReportsByProject(reports: ReportSummary[], direction: Projec
   });
 }
 
-// Espelha `sortReportList` do filtrovali_app_v4.html: ordena relatórios dentro
-// de um grupo (mesmo projeto + tipo) por número sequencial e, em empate, por
-// label/data/createdAt.
+// Ordena relatórios dentro de um grupo (mesmo projeto + tipo) por número
+// sequencial e, em empate, por label/data/createdAt.
 function reportLabel(report: ReportSummary) {
   const num = report.sequenceNumber ? `${report.reportType} ${report.sequenceNumber}` : report.reportType;
   return num || '';

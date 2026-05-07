@@ -5,7 +5,7 @@ Este repositório agora tem o esqueleto inicial de produção:
 - `docker-compose.prod.yml`
 - `backend/Dockerfile`
 - `deploy/nginx/Dockerfile`
-- `backend/.env.production.example`
+- `backend/.env.production`
 - `deploy/nginx/default.conf`
 
 ## O que já está pronto
@@ -29,11 +29,6 @@ O cutover para React em produção é feito pelo nginx:
 - o resultado de `frontend/dist` é copiado para `/usr/share/nginx/html`
 - `deploy/nginx/default.conf` usa `try_files` para rotas da SPA
 - chamadas `/api`, arquivos `/assets`, `/uploads` e `/relatorios` continuam no backend
-
-O HTML legado fica acessível apenas como fallback operacional em:
-
-- `/legacy`
-- `/legacy/reset-password`
 
 ## Conversão DOCX -> PDF em produção
 
@@ -59,22 +54,21 @@ Isso remove o bloqueio principal que existia para o `P3`.
 
 ## Subida inicial em homologação
 
-1. Copiar `backend/.env.production.example` para `backend/.env.production`
-2. Preencher segredos e URLs reais
-3. Definir `POSTGRES_PASSWORD` no shell/ambiente antes do compose
-4. Subir:
+1. Preencher `backend/.env.production` com segredos e URLs reais
+2. Definir `POSTGRES_PASSWORD` no shell/ambiente antes do compose
+3. Subir:
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-5. Aplicar migrations:
+4. Aplicar migrations:
 
 ```bash
 docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
 ```
 
-6. Popular dados iniciais de homologação, incluindo usuários de login:
+5. Popular dados iniciais de homologação, incluindo usuários de login:
 
 ```bash
 docker compose -f docker-compose.prod.yml exec backend npx prisma db seed

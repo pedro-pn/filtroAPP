@@ -16,7 +16,6 @@ COPY backend/src ./src
 COPY backend/scripts ./scripts
 COPY backend/assets ./assets
 RUN mkdir -p /data/assets && cp -R ./assets/. /data/assets/
-COPY filtrovali_app_v4.html /workspace/filtrovali_app_v4.html
 COPY Modelos /workspace/Modelos
 
 ENV NODE_ENV=production

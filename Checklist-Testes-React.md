@@ -1,6 +1,6 @@
 # Checklist de testes manuais — Migração React
 
-Use este checklist antes do cutover definitivo do HTML legado para o React.
+Use este checklist para validar a versão React antes e depois do deploy definitivo.
 
 ## Pré-condições
 
@@ -87,4 +87,3 @@ Use este checklist antes do cutover definitivo do HTML legado para o React.
 - [ ] `/api/health` ou `/health` responde conforme esperado no ambiente.
 - [ ] `/api` continua proxy para o backend.
 - [ ] `/uploads` e `/relatorios` continuam proxy para o backend.
-- [ ] `/legacy` abre o HTML antigo durante a janela de validação.
