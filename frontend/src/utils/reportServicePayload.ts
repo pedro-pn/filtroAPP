@@ -35,8 +35,23 @@ function getStrings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
-function getBool(value: unknown, fallback = false): boolean {
-  return typeof value === 'boolean' ? value : fallback;
+function finalizedLabel(value: unknown) {
+  if (typeof value !== 'boolean') return '';
+  return value ? 'Sim' : 'Não';
+}
+
+function isNoValue(value: unknown) {
+  if (Array.isArray(value)) value = value[0];
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '') === 'nao';
+}
+
+function limpezaTubulacaoLabel(data: Record<string, unknown>) {
+  const raw = data.limpezaTubulacao || data['Limpeza de tubulação?'] || data['Limpeza de tubulacao?'];
+  return isNoValue(raw) ? 'Não' : 'Sim';
 }
 
 function singleId(value: unknown): string[] {
@@ -93,7 +108,7 @@ function commonExtraData(
       : { 'Material da tubulação': material }),
     'Hora de início': getString(data.startTime),
     'Hora de término/pausa': getString(data.endTime),
-    'Serviço finalizado?': getBool(data.finalized, false) ? 'Sim' : 'Não',
+    'Serviço finalizado?': finalizedLabel(data.finalized),
     'Aprovado pelo cliente?': getString(data.aprovadoCliente) || '',
     'Etapas realizadas no dia': getStrings(data.etapas),
     Observações: getString(data.notes),
@@ -117,6 +132,7 @@ export function buildReportServicePayload(
 
   if (type === 'limpeza') {
     const unitIds = ids(data.ulq);
+    extraData['Limpeza de tubulação?'] = limpezaTubulacaoLabel(data);
     extraData['Método de limpeza'] = getStrings(data.metodos);
     extraData['Local de limpeza'] = getStrings(data.local);
     extraData['Tipo de inspeção'] = getStrings(data.tipoInspecao);
@@ -181,7 +197,7 @@ export function buildReportServicePayload(
     material: getString(data.material) || null,
     startTime: getString(data.startTime) || null,
     endTime: getString(data.endTime) || null,
-    finalized: getBool(data.finalized, false),
+    finalized: typeof data.finalized === 'boolean' ? data.finalized : null,
     extraData
   };
 }

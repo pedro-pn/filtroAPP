@@ -10,6 +10,7 @@ import { TopBar } from '../../layout/TopBar';
 import type { ReportSummary } from '../../types/domain';
 import { downloadBlob } from '../../utils/download';
 import { formatCnpj } from '../../utils/formatCnpj';
+import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { compareReportTypes, ProjectSortButton, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
 import { closeZapSignPendingWindow, openZapSignPendingWindow, redirectZapSignWindow } from '../../utils/zapSign';
 
@@ -39,9 +40,7 @@ const statusMap: Record<string, { label: string; className: string }> = {
 };
 
 function formatDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString('pt-BR');
+  return formatDateOnlyPtBr(value, value);
 }
 
 function reportLabel(report: ReportSummary) {

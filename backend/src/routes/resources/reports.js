@@ -34,6 +34,12 @@ const CLIENT_REJECTION_RESOLVED_KEY = '__clientRejectionResolvedAt';
 const ZAPSIGN_SIGNERS_KEY = '__zapSignSigners';
 
 function formatDatePtBr(date) {
+  const value = date instanceof Date ? date.toISOString() : String(date || '');
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, year, month, day] = match;
+    return `${day}/${month}/${year}`;
+  }
   return new Date(date).toLocaleDateString('pt-BR');
 }
 
@@ -537,7 +543,7 @@ const serviceSchema = z.object({
   material: z.string().nullable().optional(),
   startTime: z.string().nullable().optional(),
   endTime: z.string().nullable().optional(),
-  finalized: z.boolean().nullable().optional(),
+  finalized: z.boolean(),
   extraData: z.any().optional()
 });
 
@@ -1370,10 +1376,13 @@ function isYesReportField(value) {
   return /sim/i.test(Array.isArray(value) ? value.filter(Boolean).join(', ') : String(value || ''));
 }
 
-function serviceHistoryKey(service) {
+function explicitServiceHistoryKey(service) {
   const fields = service?.extraData || {};
-  const explicit = String(fields.__ongoingKey || fields.__serviceLinkKey || fields.__sourceServiceId || '').trim();
-  if (explicit) return explicit;
+  return String(fields.__ongoingKey || fields.__serviceLinkKey || fields.__sourceServiceId || '').trim();
+}
+
+function semanticServiceHistoryKey(service) {
+  const fields = service?.extraData || {};
   const equipment = getReportField(fields, ['Equipamento(s)', 'Equipamento', 'ID da embarcação', 'ID da embarcacao']) || service?.equipmentId || '';
   const system = getReportField(fields, ['Sistema']) || service?.system || '';
   return [
@@ -1383,26 +1392,25 @@ function serviceHistoryKey(service) {
   ].join('||');
 }
 
+function serviceHistoryKey(service) {
+  return explicitServiceHistoryKey(service) || semanticServiceHistoryKey(service);
+}
+
 function serviceHistoryKeys(service) {
   const keys = new Set();
-  const primary = serviceHistoryKey(service);
-  if (primary) keys.add(primary);
-  const parts = String(primary || '').split('||');
-  if (parts.length === 4) keys.add(parts.slice(1).join('||'));
-
-  const fields = service?.extraData || {};
-  const equipment = getReportField(fields, ['Equipamento(s)', 'Equipamento', 'ID da embarcação', 'ID da embarcacao']) || service?.equipmentId || '';
-  const system = getReportField(fields, ['Sistema']) || service?.system || '';
-  keys.add([
-    service?.serviceType || '',
-    String(equipment || '').trim().toLowerCase(),
-    String(system || '').trim().toLowerCase()
-  ].join('||'));
+  const explicit = explicitServiceHistoryKey(service);
+  if (explicit) keys.add(explicit);
+  else keys.add(semanticServiceHistoryKey(service));
 
   return Array.from(keys).filter(Boolean);
 }
 
 function hasSharedServiceHistoryKey(left, right) {
+  const leftExplicit = explicitServiceHistoryKey(left);
+  const rightExplicit = explicitServiceHistoryKey(right);
+  if (leftExplicit || rightExplicit) {
+    return Boolean(leftExplicit && rightExplicit && leftExplicit === rightExplicit);
+  }
   const rightKeys = new Set(serviceHistoryKeys(right));
   return serviceHistoryKeys(left).some(key => rightKeys.has(key));
 }
