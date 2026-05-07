@@ -496,6 +496,23 @@ export function NewReportPage() {
     });
   }
 
+  function isNoValue(value: unknown) {
+    if (Array.isArray(value)) value = value[0];
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '') === 'nao';
+  }
+
+  function serviceRequiresTubes(type: string, data: Record<string, unknown>) {
+    if (type === 'limpeza') {
+      const raw = data.limpezaTubulacao || data['Limpeza de tubulação?'] || data['Limpeza de tubulacao?'];
+      return !isNoValue(raw);
+    }
+    return ['pressao', 'flushing'].includes(type);
+  }
+
   function validateHeader() {
     if (!projectId) return failRequired('Projeto', 'header:projectId', 0);
     if (!reportDate) return failRequired('Data do relatório', 'header:reportDate', 0);
@@ -525,12 +542,13 @@ export function NewReportPage() {
       if (!hasText(data.startTime)) return failRequired('Hora de início', target('startTime'), 1);
       if (!hasText(data.endTime)) return failRequired('Hora de término/pausa', target('endTime'), 1);
       if (!hasStringItem(data.serviceCollaboratorIds)) return failRequired('Colaboradores do serviço', target('serviceCollaboratorIds'), 1);
+      if (typeof data.finalized !== 'boolean') return failRequired('Serviço finalizado', target('finalized'), 1);
       if (!hasStringItem(data.etapas)) return failRequired('Etapas realizadas no dia', target('etapas'), 1);
 
       if (['limpeza', 'pressao', 'flushing', 'mecanica', 'inibicao'].includes(type) && !hasText(data.material)) {
         return failRequired(type === 'mecanica' ? 'Material do equipamento' : 'Material da tubulação', target('material'), 1);
       }
-      if (['limpeza', 'pressao', 'flushing'].includes(type) && !hasValidTube(data.tubes)) {
+      if (serviceRequiresTubes(type, data) && !hasValidTube(data.tubes)) {
         return failRequired('Diâmetros e comprimentos', target('tubes'), 1);
       }
 

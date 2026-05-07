@@ -59,7 +59,7 @@ a {
 
 .app-shell {
   width: 100%;
-  max-width: min(420px, 100vw);
+  max-width: 420px;
   min-height: 100vh;
   margin: 0 auto;
   background: var(--bg);
@@ -190,10 +190,10 @@ a {
   gap: 12px;
   overflow-x: hidden;
   overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .page-scroll > * {
-  width: 100%;
   min-width: 0;
   max-width: 100%;
 }
@@ -714,6 +714,7 @@ a {
   flex-direction: column;
   gap: 8px;
   text-align: left;
+  color: var(--tx);
   padding: 16px 14px;
   border: 1px solid var(--br);
   border-radius: var(--r);
@@ -748,6 +749,7 @@ a {
 .home-action-title {
   font-size: 14px;
   font-weight: 700;
+  color: inherit;
 }
 
 .home-action-subtitle {
@@ -857,7 +859,7 @@ a {
 }
 
 .admin-card-react {
-  width: 100%;
+  width: auto;
   min-width: 0;
   max-width: 100%;
   border: 1px solid var(--br);
@@ -1254,6 +1256,10 @@ a {
 .rdo-tag-option input,
 .rdo-pill-option input {
   position: absolute;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 0 !important;
+  margin: 0;
   opacity: 0;
   pointer-events: none;
 }
@@ -1324,8 +1330,10 @@ a {
 }
 
 .rdo-bottom-actions {
-  position: sticky;
+  width: 100%;
   bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 5;
   display: flex;
   gap: 8px;
@@ -1370,10 +1378,10 @@ a {
   padding: 0;
   min-width: 0;
   min-inline-size: 0;
+  width: auto;
   inline-size: 100%;
   max-width: 100%;
   max-inline-size: 100%;
-  contain: inline-size;
   overflow: hidden;
 }
 
@@ -1384,13 +1392,15 @@ a {
 }
 
 .admin-card-react[data-service-id] > .admin-form-grid {
-  width: 100%;
+  display: flex;
+  flex-direction: column;
+  width: auto;
   min-width: 0;
   min-inline-size: 0;
   inline-size: 100%;
   max-width: 100%;
   max-inline-size: 100%;
-  contain: inline-size;
+  gap: 14px;
   padding: 12px;
   overflow-x: hidden;
   overflow-x: clip;
@@ -1407,6 +1417,23 @@ a {
 .admin-card-react[data-service-id] .num-unit {
   min-width: 0;
   max-width: 100%;
+}
+
+.admin-card-react[data-service-id] .fg-r2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-card-react[data-service-id] input,
+.admin-card-react[data-service-id] select,
+.admin-card-react[data-service-id] textarea {
+  display: block;
+  min-width: 0 !important;
+  max-width: 100%;
+}
+
+.admin-card-react[data-service-id] .field-group label {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .admin-card-react[data-service-id] .upload-field-head,
@@ -1514,7 +1541,7 @@ a {
 .report-services-step .upload-field {
   min-width: 0;
   min-inline-size: 0;
-  width: 100%;
+  width: auto;
   inline-size: 100%;
   max-width: 100%;
   max-inline-size: 100%;
@@ -2717,6 +2744,7 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   cursor: pointer;
   transition: .15s;
   text-align: left;
+  color: var(--tx);
 }
 
 .stype-btn:hover {
@@ -2731,6 +2759,7 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 .stype-name {
   font-size: 13px;
   font-weight: 600;
+  color: inherit;
 }
 
 /* ── Resumo card (Finalização) ── */
@@ -3032,6 +3061,7 @@ textarea.pre {
   }
 
   .stats-grid-compact,
+  .home-actions-grid,
   .fg-r2,
   .stype-grid,
   .admin-inline-grid {
@@ -3172,4 +3202,68 @@ textarea.pre {
   .client-report-actions .danger-button {
     flex-basis: 100%;
   }
+}
+
+.admin-card-react[data-service-id],
+.admin-card-react[data-service-id] > .admin-form-grid,
+.admin-inline-grid,
+.fg-r2,
+.service-time-grid {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-card-react[data-service-id] * {
+  min-width: 0;
+}
+
+@supports (-webkit-touch-callout: none) {
+  body {
+    overflow-x: hidden;
+  }
+}
+
+/* FIX definitivo Safari iOS overflow */
+select,
+input,
+textarea {
+  max-width: 100%;
+  width: 100%;
+  min-width: 0;
+}
+
+.fg-r2,
+.admin-inline-grid,
+.inline-add-row,
+.tube-row-react,
+.project-signer-row {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.fg-r2 > *,
+.admin-inline-grid > *,
+.inline-add-row > *,
+.tube-row-react > *,
+.project-signer-row > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+select {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.page-scroll {
+  overflow-x: clip !important;
+}
+
+.page-scroll,
+.page-card,
+.admin-stack,
+.admin-card-react,
+.report-services-step {
+  box-sizing: border-box;
 }

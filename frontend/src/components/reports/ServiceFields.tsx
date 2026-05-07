@@ -83,6 +83,20 @@ function getString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
+function isNoValue(value: unknown) {
+  if (Array.isArray(value)) value = value[0];
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '') === 'nao';
+}
+
+function limpezaTubulacaoValue(data: Record<string, unknown>) {
+  const raw = data.limpezaTubulacao || data['Limpeza de tubulação?'] || data['Limpeza de tubulacao?'];
+  return isNoValue(raw) ? 'Não' : 'Sim';
+}
+
 function onlyNumberPunctuation(value: string) {
   return value.replace(/[^\d.,]/g, '');
 }
@@ -731,6 +745,7 @@ export function ServiceFields({
     const metodos = getStrings(data.metodos);
     const local = getStrings(data.local);
     const tipoInspecao = getStrings(data.tipoInspecao);
+    const limpezaTubulacao = limpezaTubulacaoValue(data);
 
     return (
       <>
@@ -758,7 +773,26 @@ export function ServiceFields({
             ))}
           </div>
         </div>
-        <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        <div className={fieldClass(invalidKey, 'limpezaTubulacao')}>
+          <label>Limpeza de tubulação? {requiredMark()}</label>
+          <div className="rdo-tag-group">
+            {['Sim', 'Não'].map(label => (
+              <label className={radioOptionClass(limpezaTubulacao === label, label === 'Não')} key={label}>
+                <input
+                  type="radio"
+                  name={`limpeza-tubulacao-${groupKey}`}
+                  checked={limpezaTubulacao === label}
+                  disabled={disabled}
+                  onChange={() => onChange({ limpezaTubulacao: label, 'Limpeza de tubulação?': label })}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        {limpezaTubulacao === 'Sim' ? (
+          <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        ) : null}
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <div className={fieldClass(invalidKey, 'tipoInspecao')}>

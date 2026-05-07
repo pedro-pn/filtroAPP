@@ -18,6 +18,7 @@ import { TopBar } from '../layout/TopBar';
 import { ReasonDialog } from '../components/ui/ReasonDialog';
 import { UploadField } from '../components/ui/UploadField';
 import type { ReportPayload, ReportStatus, ReportSummary } from '../types/domain';
+import { formatDateOnlyPtBr } from '../utils/dateOnly';
 import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
@@ -131,6 +132,26 @@ function getIdsFromField(value: unknown) {
   return Array.isArray(record.ids) ? record.ids.filter((id): id is string => typeof id === 'string') : [];
 }
 
+function serviceCollaboratorField(extra: Record<string, unknown>) {
+  const names = ['Colaboradores do serviço', 'Colaboradores do serviÃ§o', 'Colaboradores do servico'];
+  for (const name of names) {
+    if (Object.prototype.hasOwnProperty.call(extra, name)) return extra[name];
+  }
+  return undefined;
+}
+
+function serviceFinalizedValue(service: NonNullable<ReportSummary['services']>[number]) {
+  if (typeof service.finalized === 'boolean') return service.finalized;
+  const extra = service.extraData || {};
+  const stored = extra['Serviço finalizado?'] || extra['Serviço finalizado'] || extra['Servico finalizado?'] || extra['Servico finalizado'];
+  if (typeof stored === 'string') {
+    const normalized = stored.trim().toLowerCase();
+    if (['sim', 'true', 'finalizado'].includes(normalized)) return true;
+    if (['não', 'nao', 'false', 'em andamento'].includes(normalized)) return false;
+  }
+  return undefined;
+}
+
 function toPositiveInteger(value: string) {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? number : null;
@@ -200,24 +221,25 @@ function reportToForm(report: ReportSummary): RdoFormState {
     overtimeReason: report.overtimeReason || '',
     dailyDescription: report.dailyDescription || '',
     generalUploads: asUploadedFiles(specialConditions.generalUploads),
-    services: (report.services || []).map(service => ({
-      id: service.id || serviceId(),
-      type: service.serviceType,
-      data: {
-        ...(service.extraData || {}),
-        serviceCollaboratorIds: getIdsFromField(
-          service.extraData?.['Colaboradores do serviço'] ||
-          service.extraData?.['Colaboradores do serviÃ§o'] ||
-          service.extraData?.['Colaboradores do servico']
-        ),
-        equipmentId: serviceEquipmentValue(service),
-        system: service.system || '',
-        material: service.material || '',
-        startTime: service.startTime || '',
-        endTime: service.endTime || '',
-        notes: getString(service.extraData?.notes)
-      }
-    }))
+    services: (report.services || []).map(service => {
+      const extra = service.extraData || {};
+      const collaboratorField = serviceCollaboratorField(extra);
+      return {
+        id: service.id || serviceId(),
+        type: service.serviceType,
+        data: {
+          ...extra,
+          ...(collaboratorField !== undefined ? { serviceCollaboratorIds: getIdsFromField(collaboratorField) } : {}),
+          equipmentId: serviceEquipmentValue(service),
+          system: service.system || '',
+          material: service.material || '',
+          startTime: service.startTime || '',
+          endTime: service.endTime || '',
+          finalized: serviceFinalizedValue(service),
+          notes: getString(extra.notes)
+        }
+      };
+    })
   };
 }
 
@@ -261,14 +283,17 @@ function buildPayload(
       }
     },
     collaboratorIds: form.collaboratorIds,
-    services: form.services.map(service => buildReportServicePayload(service, {
-      collaboratorIds: Array.isArray(service.data.serviceCollaboratorIds)
-        ? service.data.serviceCollaboratorIds.filter((id): id is string => typeof id === 'string')
-        : [],
-      collaborators: resources.collaborators || [],
-      equipment: resources.equipment || [],
-      units: resources.units || []
-    }))
+    services: form.services.map(service => {
+      const explicitServiceCollaborators = Object.prototype.hasOwnProperty.call(service.data, 'serviceCollaboratorIds');
+      return buildReportServicePayload(service, {
+        collaboratorIds: explicitServiceCollaborators && Array.isArray(service.data.serviceCollaboratorIds)
+          ? service.data.serviceCollaboratorIds.filter((id): id is string => typeof id === 'string')
+          : Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds])),
+        collaborators: resources.collaborators || [],
+        equipment: resources.equipment || [],
+        units: resources.units || []
+      });
+    })
   };
 }
 
@@ -431,17 +456,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
 
   async function handleStatus(status: Extract<ReportStatus, 'APPROVED' | 'RETURNED'>, reviewNotes?: string | null) {
     if (readOnly) return;
-    if (!validateSequence()) return;
 
     try {
-      await reportMutations.updateReport.mutateAsync({
-        id: report.id,
-        payload: buildPayload(report, form, {
-          collaborators,
-          equipment,
-          units
-        })
-      });
       await reportMutations.updateStatus.mutateAsync({ id: report.id, payload: { status, reviewNotes } });
       if (status === 'RETURNED') setReturnDialogOpen(false);
       showToast(status === 'APPROVED' ? 'Relatório aprovado.' : 'Relatório devolvido.', 'success');
@@ -662,7 +678,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         </div>
       </section>
 
-      <section className="page-card">
+      <section className="page-card report-services-step">
         <div className="section-title">{TEXT.services}</div>
         {form.services.length ? (
           <div className="admin-stack" style={{ marginTop: 12 }}>
@@ -1148,7 +1164,7 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
         <div className="detail-grid">
           <div><span className="detail-label">{TEXT.project}</span><span className="detail-value">{report.project.name}</span></div>
           <div><span className="detail-label">{TEXT.code}</span><span className="detail-value">{report.project.code}</span></div>
-          <div><span className="detail-label">Data</span><span className="detail-value">{formatDate(report.reportDate)}</span></div>
+          <div><span className="detail-label">Data</span><span className="detail-value">{formatDateOnlyPtBr(report.reportDate)}</span></div>
           <div><span className="detail-label">{TEXT.time}</span><span className="detail-value">{report.arrivalTime} às {report.departureTime}</span></div>
           <div><span className="detail-label">{TEXT.interval}</span><span className="detail-value">{report.lunchBreak || '-'}</span></div>
           <div><span className="detail-label">Status</span><span className="detail-value">{statusLabels[report.status] || report.status}</span></div>

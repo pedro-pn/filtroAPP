@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { roleHomePath } from '../../auth/rolePath';
 import type { ReportSummary } from '../../types/domain';
+import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { serviceTypeLabels } from './ServiceFields';
 
 const statusMap: Record<string, { label: string; className: string }> = {
@@ -29,9 +30,7 @@ function iconFor(type: string) {
 }
 
 function formatDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString('pt-BR');
+  return formatDateOnlyPtBr(value, value);
 }
 
 function reportLabel(report: ReportSummary) {
