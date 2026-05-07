@@ -1,10 +1,10 @@
 # Filtrovali
 
-Base inicial para levar o protótipo `filtrovali_app_v4.html` para produção.
+Aplicação Filtrovali com frontend React, API Express e PostgreSQL.
 
 ## Estrutura
 
-- `filtrovali_app_v4.html`: protótipo atual
+- `frontend/`: SPA React com Vite
 - `backend/`: API REST com `Express + Prisma + PostgreSQL`
 
 ## Backend
@@ -69,11 +69,3 @@ npm run prisma:seed
 ```bash
 npm run dev
 ```
-
-## Próximos passos
-
-1. Integrar o HTML com a API REST
-2. Substituir `localStorage` por chamadas HTTP
-3. Adicionar autenticação
-4. Modelar relatórios e serviços executados
-5. Implementar upload de assinatura, anexos e imagens
