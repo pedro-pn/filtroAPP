@@ -6,6 +6,7 @@ import { roleHomePath } from '../../auth/rolePath';
 import type { ReportSummary } from '../../types/domain';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { serviceTypeLabels } from './ServiceFields';
+import { SignatureProgress } from './SignatureProgress';
 
 const statusMap: Record<string, { label: string; className: string }> = {
   PENDING: { label: 'Pendente', className: 'status-pending' },
@@ -177,6 +178,7 @@ export function ReportSummaryCard({
               </>
             ) : null}
           </div>
+          <SignatureProgress report={report} />
         </div>
         <div className="report-card-side" onClick={event => event.stopPropagation()}>
           <span className={`status-pill ${status.className}`}>{status.label}</span>

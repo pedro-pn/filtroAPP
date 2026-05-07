@@ -10,6 +10,13 @@ import { buildReportApprovedEmailTemplate, buildReportReapprovedEmailTemplate, b
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { saveReportDocx, organizePhotos } from '../../lib/report-docx.js';
 import { saveReportPdf } from '../../lib/report-pdf-from-docx.js';
+import {
+  buildZapSignSignatureProgress,
+  ZAPSIGN_BATCH_DOC_TOKENS_KEY,
+  ZAPSIGN_BATCH_MAIN_DOC_TOKEN_KEY,
+  ZAPSIGN_SIGNATURE_PROGRESS_KEY,
+  ZAPSIGN_SIGNERS_KEY
+} from '../../lib/zapsign-progress.js';
 import { saveRtpDocx, saveRtpPdf, organizeRtpPhotos } from '../../lib/report-rtp.js';
 import { saveRlqDocx, saveRlqPdf, organizeRlqPhotos } from '../../lib/report-rlq.js';
 import { saveRcpDocx, saveRcpPdf, organizeRcpPhotos, calcServiceMinutes } from '../../lib/report-rcp.js';
@@ -31,7 +38,6 @@ const router = Router();
 const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
 const CLIENT_REJECTION_KEY = '__clientRejectedAt';
 const CLIENT_REJECTION_RESOLVED_KEY = '__clientRejectionResolvedAt';
-const ZAPSIGN_SIGNERS_KEY = '__zapSignSigners';
 
 function formatDatePtBr(date) {
   const value = date instanceof Date ? date.toISOString() : String(date || '');
@@ -2012,6 +2018,7 @@ router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, re
     throw error;
   }
 
+  const initialProgress = buildZapSignSignatureProgress(mainResult.raw);
   const mainSigners = mainResult.allSigners?.length ? mainResult.allSigners : [];
   const updates = [{
     id: mainReport.id,
@@ -2035,11 +2042,17 @@ router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, re
   }
 
   await prisma.$transaction(async tx => {
+    const batchDocTokens = updates.map(item => item.docToken).filter(Boolean);
     for (const item of updates) {
       const existing = await tx.report.findUnique({ where: { id: item.id }, select: { specialConditions: true } });
       const nextSpecialConditions = {
         ...(existing?.specialConditions || {}),
-        ...(item.allSigners.length ? { [ZAPSIGN_SIGNERS_KEY]: item.allSigners } : {})
+        ...(item.allSigners.length ? { [ZAPSIGN_SIGNERS_KEY]: item.allSigners } : {}),
+        ...(initialProgress.total ? { [ZAPSIGN_SIGNATURE_PROGRESS_KEY]: initialProgress } : {}),
+        ...(batchDocTokens.length > 1 ? {
+          [ZAPSIGN_BATCH_MAIN_DOC_TOKEN_KEY]: mainResult.docToken,
+          [ZAPSIGN_BATCH_DOC_TOKENS_KEY]: batchDocTokens
+        } : {})
       };
       await tx.report.update({
         where: { id: item.id },
@@ -2730,6 +2743,10 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
     ...(prepared.specialConditions || {}),
     ...(zapsign.allSigners?.length ? { [ZAPSIGN_SIGNERS_KEY]: zapsign.allSigners } : {})
   };
+  const initialProgress = buildZapSignSignatureProgress(zapsign.raw);
+  if (initialProgress.total) {
+    nextSpecialConditions[ZAPSIGN_SIGNATURE_PROGRESS_KEY] = initialProgress;
+  }
 
   const item = await prisma.report.update({
     where: { id: prepared.id },

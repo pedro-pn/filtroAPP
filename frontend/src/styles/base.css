@@ -631,6 +631,35 @@ a {
   color: inherit;
 }
 
+.signature-progress {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid #d7dfda;
+  border-radius: 8px;
+  background: #f8faf8;
+  color: var(--tx);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.signature-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.signature-progress-head span:last-child {
+  color: var(--mu);
+  font-size: 11px;
+}
+
+.signature-progress-names {
+  margin-top: 4px;
+  color: var(--mu);
+}
+
 .status-pill {
   border-radius: 999px;
   padding: 5px 10px;
@@ -1953,6 +1982,8 @@ a {
 
 .auth-options-row .checkbox-line {
   margin: 0;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .auth-link {
