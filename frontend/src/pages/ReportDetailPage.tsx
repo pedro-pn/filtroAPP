@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { downloadReportDocx, downloadReportPdf } from '../api/reports';
 import { useAuth } from '../auth/AuthContext';
 import type { UploadedFile } from '../api/uploads';
-import { ServiceFields, serviceTypeLabels } from '../components/reports/ServiceFields';
+import { ServiceCollaboratorsBlock, ServiceFields, serviceTypeLabels } from '../components/reports/ServiceFields';
 import { useToast } from '../components/ui/Toast';
 import { useCollaborators } from '../hooks/useCollaborators';
 import { useCounters } from '../hooks/useCounters';
@@ -90,7 +90,11 @@ interface RdoFormState {
   collaboratorIds: string[];
   nightCollaboratorIds: string[];
   standby: boolean;
+  standbyDuration: string;
+  standbyMotivo: string;
   noturno: boolean;
+  noturnoStart: string;
+  noturnoEnd: string;
   overtimeReason: string;
   dailyDescription: string;
   generalUploads: UploadedFile[];
@@ -117,6 +121,14 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function getString(value: unknown) {
   return typeof value === 'string' ? value : '';
+}
+
+function getIdsFromField(value: unknown) {
+  if (Array.isArray(value)) return value.filter((id): id is string => typeof id === 'string');
+  if (typeof value === 'string' && value) return [value];
+  if (!value || typeof value !== 'object') return [];
+  const record = value as Record<string, unknown>;
+  return Array.isArray(record.ids) ? record.ids.filter((id): id is string => typeof id === 'string') : [];
 }
 
 function toPositiveInteger(value: string) {
@@ -164,6 +176,7 @@ function serviceId() {
 
 function reportToForm(report: ReportSummary): RdoFormState {
   const specialConditions = asRecord(report.specialConditions);
+  const standbyDetails = asRecord(specialConditions.standbyDetails);
   const noturnoDetails = asRecord(specialConditions.noturnoDetails);
   const nightCollaboratorIds = Array.isArray(noturnoDetails.collaboratorIds)
     ? noturnoDetails.collaboratorIds.filter((id): id is string => typeof id === 'string')
@@ -179,7 +192,11 @@ function reportToForm(report: ReportSummary): RdoFormState {
     collaboratorIds: (report.collaborators || []).map(link => link.collaboratorId).filter(Boolean),
     nightCollaboratorIds,
     standby: Boolean(specialConditions.standby),
-    noturno: Boolean(noturnoDetails.enabled || nightCollaboratorIds.length),
+    standbyDuration: getString(standbyDetails.total),
+    standbyMotivo: getString(standbyDetails.motivo),
+    noturno: Boolean(specialConditions.noturno || noturnoDetails.enabled || nightCollaboratorIds.length),
+    noturnoStart: getString(noturnoDetails.inicio),
+    noturnoEnd: getString(noturnoDetails.termino),
     overtimeReason: report.overtimeReason || '',
     dailyDescription: report.dailyDescription || '',
     generalUploads: asUploadedFiles(specialConditions.generalUploads),
@@ -188,6 +205,11 @@ function reportToForm(report: ReportSummary): RdoFormState {
       type: service.serviceType,
       data: {
         ...(service.extraData || {}),
+        serviceCollaboratorIds: getIdsFromField(
+          service.extraData?.['Colaboradores do serviço'] ||
+          service.extraData?.['Colaboradores do serviÃ§o'] ||
+          service.extraData?.['Colaboradores do servico']
+        ),
         equipmentId: serviceEquipmentValue(service),
         system: service.system || '',
         material: service.material || '',
@@ -208,8 +230,6 @@ function buildPayload(
     units: ReturnType<typeof useUnits>['data'];
   }
 ): Omit<ReportPayload, 'createdByUserId' | 'status'> {
-  const serviceCollaboratorIds = Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds]));
-
   return {
     projectId: form.projectId || report.projectId,
     reportType: report.reportType,
@@ -224,15 +244,27 @@ function buildPayload(
     specialConditions: {
       ...asRecord(report.specialConditions),
       standby: form.standby,
+      noturno: form.noturno,
+      standbyDetails: {
+        total: form.standbyDuration,
+        motivo: form.standbyMotivo
+      },
       generalUploads: form.generalUploads,
       noturnoDetails: {
         enabled: form.noturno,
-        collaboratorIds: form.nightCollaboratorIds
+        inicio: form.noturnoStart,
+        termino: form.noturnoEnd,
+        intervalo: getString(asRecord(asRecord(report.specialConditions).noturnoDetails).intervalo) || '01:00:00',
+        collaboratorIds: form.nightCollaboratorIds,
+        colaboradores: form.nightCollaboratorIds
+          .map(id => resources.collaborators?.find(collaborator => collaborator.id === id)?.name || id)
       }
     },
     collaboratorIds: form.collaboratorIds,
     services: form.services.map(service => buildReportServicePayload(service, {
-      collaboratorIds: serviceCollaboratorIds,
+      collaboratorIds: Array.isArray(service.data.serviceCollaboratorIds)
+        ? service.data.serviceCollaboratorIds.filter((id): id is string => typeof id === 'string')
+        : [],
       collaborators: resources.collaborators || [],
       equipment: resources.equipment || [],
       units: resources.units || []
@@ -256,13 +288,11 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [collaboratorToAdd, setCollaboratorToAdd] = useState('');
   const [nightCollaboratorToAdd, setNightCollaboratorToAdd] = useState('');
-  const [editorStep, setEditorStep] = useState(0);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const readOnly = report.status === 'SIGNED';
   const isManager = user?.role === 'MANAGER';
   const canEditSequence = isManager && !readOnly;
   const canApproveInEditor = report.status === 'PENDING' || report.status === 'RETURNED' || hasActiveClientRejection(report);
-  const editorSteps = [TEXT.generalInfo, TEXT.services, TEXT.finalization];
 
   useEffect(() => {
     setForm(reportToForm(report));
@@ -292,6 +322,15 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     [form.collaboratorIds, form.nightCollaboratorIds]
   );
   const collaborators = (collaboratorsQuery.data || []).filter(item => item.isActive || selectedCollaboratorIds.has(item.id));
+  const serviceCollaboratorOptions = useMemo(() => {
+    const ids = Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds]));
+    return ids
+      .map(id => {
+        const collaborator = collaborators.find(item => item.id === id);
+        return collaborator ? { id: collaborator.id, name: collaborator.name } : null;
+      })
+      .filter((item): item is { id: string; name: string } => Boolean(item));
+  }, [form.collaboratorIds, form.nightCollaboratorIds, collaborators]);
   const equipment = equipmentQuery.data || [];
   const units = unitsQuery.data || [];
   const manometers = manometersQuery.data || [];
@@ -337,7 +376,6 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       ...current,
       services: [...current.services, { id, type, data: {} }]
     }));
-    setEditorStep(1);
     setShowServiceModal(false);
     window.setTimeout(() => {
       document.querySelector(`[data-service-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -396,6 +434,14 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     if (!validateSequence()) return;
 
     try {
+      await reportMutations.updateReport.mutateAsync({
+        id: report.id,
+        payload: buildPayload(report, form, {
+          collaborators,
+          equipment,
+          units
+        })
+      });
       await reportMutations.updateStatus.mutateAsync({ id: report.id, payload: { status, reviewNotes } });
       if (status === 'RETURNED') setReturnDialogOpen(false);
       showToast(status === 'APPROVED' ? 'Relatório aprovado.' : 'Relatório devolvido.', 'success');
@@ -408,29 +454,9 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     <>
       {readOnly ? <div className="page-card inline-success">{TEXT.signedLocked}</div> : null}
 
-      {!readOnly ? (
-        <section className="page-card rdo-step-panel">
-          <div className="rdo-progress-track" aria-hidden="true">
-            <div className="rdo-progress-fill" style={{ width: `${((editorStep + 1) / editorSteps.length) * 100}%` }} />
-          </div>
-          <div className="filter-tabs">
-            {editorSteps.map((label, index) => (
-              <button
-                className={`filter-tab ${editorStep === index ? 'active' : ''}`}
-                key={label}
-                type="button"
-                onClick={() => setEditorStep(index)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="page-card" style={{ display: readOnly || editorStep === 0 ? undefined : 'none' }}>
+      <section className="page-card">
         <div className="section-title">{TEXT.generalInfo}</div>
-        <div className="admin-form-grid">
+        <div className="admin-inline-grid manager-header-grid">
           <div className="field-group">
             <label htmlFor="rdo-project">{TEXT.project}</label>
             <select
@@ -471,7 +497,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             ) : null}
           </div>
           <div className="field-group">
-            <label htmlFor="rdo-date">Data</label>
+            <label htmlFor="rdo-date">Data do relatório</label>
             <input
               id="rdo-date"
               type="date"
@@ -515,29 +541,11 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               required
             />
           </div>
-          <label className="checkbox-line">
-            <input
-              type="checkbox"
-              checked={form.standby}
-              disabled={readOnly}
-              onChange={event => setField('standby', event.target.checked)}
-            />
-            Standby
-          </label>
-          <label className="checkbox-line">
-            <input
-              type="checkbox"
-              checked={form.noturno}
-              disabled={readOnly}
-              onChange={event => setField('noturno', event.target.checked)}
-            />
-            Turno noturno
-          </label>
         </div>
       </section>
 
-      <section className="page-card" style={{ display: readOnly || editorStep === 0 ? undefined : 'none' }}>
-        <div className="section-title">{TEXT.team}</div>
+      <section className="page-card">
+        <div className="section-title">Equipe diurna</div>
         <div className="colab-list">
           {renderCollaboratorList(form.collaboratorIds)}
         </div>
@@ -554,9 +562,86 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             </button>
           </div>
         ) : null}
-        {form.noturno ? (
-          <>
-            <div className="section-title" style={{ marginTop: 16 }}>{TEXT.nightTeam}</div>
+      </section>
+
+      <section className="page-card">
+        <div className="section-title">Condições especiais</div>
+        <div className="tog-row">
+          <span className="tog-lbl">Houve standby?</span>
+          <label className="tog">
+            <input
+              type="checkbox"
+              checked={form.standby}
+              disabled={readOnly}
+              onChange={event => setField('standby', event.target.checked)}
+            />
+            <span className="tog-sl" />
+          </label>
+        </div>
+        <div className={`manager-collapse ${form.standby ? 'open' : ''}`}>
+          <div className="fg-r2">
+            <div className="field-group">
+              <label htmlFor="rdo-standby-total">Tempo total</label>
+              <input
+                id="rdo-standby-total"
+                type="time"
+                step={60}
+                min="00:00"
+                max="23:59"
+                value={form.standbyDuration}
+                disabled={readOnly}
+                onChange={event => setField('standbyDuration', event.target.value)}
+              />
+            </div>
+            <div className="field-group">
+              <label htmlFor="rdo-standby-motivo">Motivo</label>
+              <input
+                id="rdo-standby-motivo"
+                type="text"
+                value={form.standbyMotivo}
+                disabled={readOnly}
+                onChange={event => setField('standbyMotivo', event.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="tog-row">
+          <span className="tog-lbl">Houve turno noturno?</span>
+          <label className="tog">
+            <input
+              type="checkbox"
+              checked={form.noturno}
+              disabled={readOnly}
+              onChange={event => setField('noturno', event.target.checked)}
+            />
+            <span className="tog-sl" />
+          </label>
+        </div>
+        <div className={`manager-collapse ${form.noturno ? 'open' : ''}`}>
+          <div className="fg-r2">
+            <div className="field-group">
+              <label htmlFor="rdo-noturno-inicio">Início</label>
+              <input
+                id="rdo-noturno-inicio"
+                type="time"
+                value={form.noturnoStart}
+                disabled={readOnly}
+                onChange={event => setField('noturnoStart', event.target.value)}
+              />
+            </div>
+            <div className="field-group">
+              <label htmlFor="rdo-noturno-termino">Término</label>
+              <input
+                id="rdo-noturno-termino"
+                type="time"
+                value={form.noturnoEnd}
+                disabled={readOnly}
+                onChange={event => setField('noturnoEnd', event.target.value)}
+              />
+            </div>
+          </div>
+          <div className="field-group" style={{ marginTop: 10 }}>
+            <label>Colaboradores noturnos</label>
             <div className="colab-list">
               {renderCollaboratorList(form.nightCollaboratorIds, true)}
             </div>
@@ -573,11 +658,11 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                 </button>
               </div>
             ) : null}
-          </>
-        ) : null}
+          </div>
+        </div>
       </section>
 
-      <section className="page-card" style={{ display: readOnly || editorStep === 1 ? undefined : 'none' }}>
+      <section className="page-card">
         <div className="section-title">{TEXT.services}</div>
         {form.services.length ? (
           <div className="admin-stack" style={{ marginTop: 12 }}>
@@ -598,7 +683,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                 </div>
                 <div className="admin-form-grid">
                   <div className="field-group">
-                    <label>Equipamento</label>
+                    <label>Equipamento(s)</label>
                     <input
                       value={getString(service.data.equipmentId)}
                       disabled={readOnly}
@@ -606,41 +691,43 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                       onChange={event => updateService(service.id, { data: { equipmentId: event.target.value } })}
                     />
                   </div>
-                  <div className="field-group">
-                    <label>Sistema</label>
-                    <input
-                      value={getString(service.data.system)}
-                      disabled={readOnly}
-                      onChange={event => updateService(service.id, { data: { system: event.target.value } })}
-                    />
-                  </div>
-                  {normalizeServiceType(service.type) !== 'pressao' ? (
+                  {normalizeServiceType(service.type) !== 'inibicao' ? (
                     <div className="field-group">
-                      <label>Material</label>
+                      <label>Sistema</label>
                       <input
-                        value={getString(service.data.material)}
+                        value={getString(service.data.system)}
                         disabled={readOnly}
-                        onChange={event => updateService(service.id, { data: { material: event.target.value } })}
+                        onChange={event => updateService(service.id, { data: { system: event.target.value } })}
                       />
                     </div>
                   ) : null}
-                  <div className="field-group">
-                    <label>Início</label>
-                    <input
-                      type="time"
-                      value={getString(service.data.startTime)}
+                  {normalizeServiceType(service.type) !== 'inibicao' ? (
+                    <ServiceCollaboratorsBlock
+                      data={service.data}
+                      onChange={update => updateService(service.id, { data: update })}
                       disabled={readOnly}
-                      onChange={event => updateService(service.id, { data: { startTime: event.target.value } })}
+                      collaboratorOptions={serviceCollaboratorOptions}
                     />
-                  </div>
-                  <div className="field-group">
-                    <label>Fim</label>
-                    <input
-                      type="time"
-                      value={getString(service.data.endTime)}
-                      disabled={readOnly}
-                      onChange={event => updateService(service.id, { data: { endTime: event.target.value } })}
-                    />
+                  ) : null}
+                  <div className="fg-r2 service-time-grid">
+                    <div className="field-group">
+                      <label>Hora de início</label>
+                      <input
+                        type="time"
+                        value={getString(service.data.startTime)}
+                        disabled={readOnly}
+                        onChange={event => updateService(service.id, { data: { startTime: event.target.value } })}
+                      />
+                    </div>
+                    <div className="field-group">
+                      <label>Hora de término/pausa</label>
+                      <input
+                        type="time"
+                        value={getString(service.data.endTime)}
+                        disabled={readOnly}
+                        onChange={event => updateService(service.id, { data: { endTime: event.target.value } })}
+                      />
+                    </div>
                   </div>
                   <ServiceFields
                     serviceType={service.type}
@@ -650,18 +737,10 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     units={units}
                     manometers={manometers}
                     counters={counters}
+                    collaboratorOptions={serviceCollaboratorOptions}
                     groupKey={service.id}
                     projectId={form.projectId}
                   />
-                  <div className="field-group">
-                    <label>Observações</label>
-                    <textarea
-                      rows={3}
-                      value={getString(service.data.notes)}
-                      disabled={readOnly}
-                      onChange={event => updateService(service.id, { data: { notes: event.target.value } })}
-                    />
-                  </div>
                 </div>
               </article>
             ))}
@@ -683,7 +762,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         ) : null}
       </section>
 
-      <section className="page-card" style={{ display: readOnly || editorStep === 2 ? undefined : 'none' }}>
+      <section className="page-card">
         <div className="section-title">{TEXT.finalization}</div>
         <div className="admin-form-grid">
           <div className="field-group">
@@ -757,26 +836,6 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           onConfirm={reason => void handleStatus('RETURNED', reason)}
         />
       </section>
-
-      {!readOnly && editorStep < editorSteps.length - 1 ? (
-        <section className="page-card rdo-bottom-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={editorStep === 0}
-            onClick={() => setEditorStep(step => Math.max(0, step - 1))}
-          >
-            Voltar
-          </button>
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => setEditorStep(step => Math.min(editorSteps.length - 1, step + 1))}
-          >
-            Próximo
-          </button>
-        </section>
-      ) : null}
 
       {showServiceModal ? (
         <div className="stype-modal-ov" onClick={() => setShowServiceModal(false)}>

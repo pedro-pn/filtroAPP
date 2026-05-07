@@ -1045,8 +1045,7 @@ async function syncApprovedRtpReports(tx, report) {
     for (const rdo of allApprovedRdos) {
       for (const svc of rdo.services || []) {
         if (svc.serviceType !== service.serviceType) continue;
-        const svcLinkKey = serviceHistoryKey(svc);
-        if ((svcLinkKey && svcLinkKey === serviceLinkKey) || svc.id === service.id) {
+        if (hasSharedServiceHistoryKey(service, svc) || svc.id === service.id) {
           serviceHistory.push({ rdo, svc, fields: svc.extraData || {} });
         }
       }
@@ -1120,7 +1119,7 @@ async function syncApprovedRtpReports(tx, report) {
       }
     };
 
-    const existingRtp = serviceLinkKey ? existingByLinkKey.get(serviceLinkKey) : null;
+    const existingRtp = serviceLinkKey ? findExistingByLinkKeys(existingByLinkKey, service, service.id) : null;
 
     if (existingRtp) {
       await validateDerivedReportSequenceMove(tx, existingRtp, report.projectId, ReportType.RTP);
@@ -1232,8 +1231,7 @@ async function syncApprovedRlqReports(tx, report) {
     for (const rdo of allApprovedRdos) {
       for (const svc of rdo.services || []) {
         if (svc.serviceType !== service.serviceType) continue;
-        const svcLinkKey = serviceHistoryKey(svc);
-        if ((svcLinkKey && svcLinkKey === serviceLinkKey) || svc.id === service.id) {
+        if (hasSharedServiceHistoryKey(service, svc) || svc.id === service.id) {
           serviceHistory.push({ rdo, svc, fields: svc.extraData || {} });
         }
       }
@@ -1292,7 +1290,7 @@ async function syncApprovedRlqReports(tx, report) {
       }
     };
 
-    const existingRlq = serviceLinkKey ? (existingByLinkKey.get(serviceLinkKey) || existingByLinkKey.get(String(service.id))) : null;
+    const existingRlq = serviceLinkKey ? findExistingByLinkKeys(existingByLinkKey, service, service.id) : null;
 
     if (existingRlq) {
       await validateDerivedReportSequenceMove(tx, existingRlq, report.projectId, ReportType.RLQ);
@@ -1350,7 +1348,12 @@ async function syncApprovedRlqReports(tx, report) {
 
 function hasReportFieldValue(value) {
   if (Array.isArray(value)) return value.length > 0;
-  if (value && typeof value === 'object') return Object.keys(value).length > 0;
+  if (value && typeof value === 'object') {
+    if (Array.isArray(value.ids)) return value.ids.filter(Boolean).length > 0;
+    if (Array.isArray(value.codes)) return value.codes.filter(Boolean).length > 0;
+    if (Array.isArray(value.labels)) return value.labels.filter(Boolean).length > 0;
+    return Object.values(value).some(item => hasReportFieldValue(item));
+  }
   return value !== undefined && value !== null && String(value).trim() !== '';
 }
 
@@ -1378,6 +1381,38 @@ function serviceHistoryKey(service) {
     String(equipment || '').trim().toLowerCase(),
     String(system || '').trim().toLowerCase()
   ].join('||');
+}
+
+function serviceHistoryKeys(service) {
+  const keys = new Set();
+  const primary = serviceHistoryKey(service);
+  if (primary) keys.add(primary);
+  const parts = String(primary || '').split('||');
+  if (parts.length === 4) keys.add(parts.slice(1).join('||'));
+
+  const fields = service?.extraData || {};
+  const equipment = getReportField(fields, ['Equipamento(s)', 'Equipamento', 'ID da embarcação', 'ID da embarcacao']) || service?.equipmentId || '';
+  const system = getReportField(fields, ['Sistema']) || service?.system || '';
+  keys.add([
+    service?.serviceType || '',
+    String(equipment || '').trim().toLowerCase(),
+    String(system || '').trim().toLowerCase()
+  ].join('||'));
+
+  return Array.from(keys).filter(Boolean);
+}
+
+function hasSharedServiceHistoryKey(left, right) {
+  const rightKeys = new Set(serviceHistoryKeys(right));
+  return serviceHistoryKeys(left).some(key => rightKeys.has(key));
+}
+
+function findExistingByLinkKeys(existingByLinkKey, service, serviceId) {
+  for (const key of serviceHistoryKeys(service)) {
+    const existing = existingByLinkKey.get(key);
+    if (existing) return existing;
+  }
+  return serviceId ? existingByLinkKey.get(String(serviceId)) : null;
 }
 
 function buildHistoricalServiceData(currentFields, serviceHistory) {
@@ -1495,8 +1530,7 @@ async function syncApprovedRcpReports(tx, report) {
     for (const rdo of allApprovedRdos) {
       for (const svc of rdo.services || []) {
         if (svc.serviceType !== service.serviceType) continue;
-        const svcLinkKey = serviceHistoryKey(svc);
-        if ((svcLinkKey && svcLinkKey === serviceLinkKey) || svc.id === service.id) {
+        if (hasSharedServiceHistoryKey(service, svc) || svc.id === service.id) {
           serviceHistory.push({ rdo, svc, fields: svc.extraData || {} });
         }
       }
@@ -1577,7 +1611,7 @@ async function syncApprovedRcpReports(tx, report) {
       }
     };
 
-    const existingRcp = serviceLinkKey ? (existingByLinkKey.get(serviceLinkKey) || existingByLinkKey.get(String(service.id))) : null;
+    const existingRcp = serviceLinkKey ? findExistingByLinkKeys(existingByLinkKey, service, service.id) : null;
 
     if (existingRcp) {
       await validateDerivedReportSequenceMove(tx, existingRcp, report.projectId, ReportType.RCPU);
@@ -1683,8 +1717,7 @@ async function syncApprovedRlmReports(tx, report) {
     for (const rdo of allApprovedRdos) {
       for (const svc of rdo.services || []) {
         if (svc.serviceType !== service.serviceType) continue;
-        const svcLinkKey = serviceHistoryKey(svc);
-        if ((svcLinkKey && svcLinkKey === serviceLinkKey) || svc.id === service.id) {
+        if (hasSharedServiceHistoryKey(service, svc) || svc.id === service.id) {
           serviceHistory.push({ rdo, svc, fields: svc.extraData || {} });
         }
       }
@@ -1733,7 +1766,7 @@ async function syncApprovedRlmReports(tx, report) {
       }
     };
 
-    const existingRlm = serviceLinkKey ? existingByLinkKey.get(serviceLinkKey) : null;
+    const existingRlm = serviceLinkKey ? findExistingByLinkKeys(existingByLinkKey, service, service.id) : null;
 
     if (existingRlm) {
       await validateDerivedReportSequenceMove(tx, existingRlm, report.projectId, ReportType.RLM);

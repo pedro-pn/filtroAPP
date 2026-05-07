@@ -136,22 +136,29 @@ export function buildReportServicePayload(
 
   if (type === 'flushing' || type === 'filtragem') {
     const unitIds = type === 'filtragem' ? ids(data.ufg) : ids(data.uf);
+    const houveParticulas = getString(data.houveParticulas) || 'Não';
+    const houveDesidratacao = getString(data.houveDesidratacao) || 'Não';
+    const houveUmidade = getString(data.houveUmidade) || 'Não';
+    const hasParticulas = houveParticulas === 'Sim';
+    const hasDesidratacao = houveDesidratacao === 'Sim';
+    const hasUmidade = houveUmidade === 'Sim';
+    const desidratacaoIds = hasDesidratacao ? singleId(data.desidratacaoUnit) : [];
     extraData['Tipo de óleo'] = getString(data.tipoOleo);
     extraData['Volume de óleo'] = formatValueWithUnit(data.volumeOleo, data.volumeOleoUnit);
-    extraData['Houve contagem de partículas?'] = getString(data.houveParticulas) || 'Não';
-    extraData['Contador utilizado'] = getString(data.contadorUtilizado);
-    extraData['Contagem inicial NAS'] = getString(data.contagemInicialNas);
-    extraData['Contagem final NAS'] = getString(data.contagemFinalNas);
-    extraData['Contagem inicial ISO'] = getString(data.contagemInicialIso);
-    extraData['Contagem final ISO'] = getString(data.contagemFinalIso);
-    extraData['Houve desidratação?'] = getString(data.houveDesidratacao) || 'Não';
+    extraData['Houve contagem de partículas?'] = houveParticulas;
+    extraData['Contador utilizado'] = hasParticulas ? getString(data.contadorUtilizado) : '';
+    extraData['Contagem inicial NAS'] = hasParticulas ? getString(data.contagemInicialNas) : '';
+    extraData['Contagem final NAS'] = hasParticulas ? getString(data.contagemFinalNas) : '';
+    extraData['Contagem inicial ISO'] = hasParticulas ? getString(data.contagemInicialIso) : '';
+    extraData['Contagem final ISO'] = hasParticulas ? getString(data.contagemFinalIso) : '';
+    extraData['Houve desidratação?'] = houveDesidratacao;
     extraData['Equipamento de desidratação'] = {
-      ids: singleId(data.desidratacaoUnit),
-      codes: unitIdsToCodes(singleId(data.desidratacaoUnit), options.units)
+      ids: desidratacaoIds,
+      codes: unitIdsToCodes(desidratacaoIds, options.units)
     };
-    extraData['Houve análise de umidade?'] = getString(data.houveUmidade) || 'Não';
-    extraData['Umidade inicial (ppm)'] = getString(data.umidadeInicial);
-    extraData['Umidade final (ppm)'] = getString(data.umidadeFinal);
+    extraData['Houve análise de umidade?'] = houveUmidade;
+    extraData['Umidade inicial (ppm)'] = hasUmidade ? getString(data.umidadeInicial) : '';
+    extraData['Umidade final (ppm)'] = hasUmidade ? getString(data.umidadeFinal) : '';
     if (type === 'flushing') {
       extraData['Tipo de flushing'] = getString(data.tipoFlushing) === 'secundario' ? 'Secundário' : 'Primário';
       extraData['Unidade de Flushing'] = { ids: unitIds, codes: unitIdsToCodes(unitIds, options.units) };

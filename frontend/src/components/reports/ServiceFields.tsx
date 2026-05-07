@@ -83,10 +83,6 @@ function getString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
 
-function getBool(value: unknown, fallback = false): boolean {
-  return typeof value === 'boolean' ? value : fallback;
-}
-
 function onlyNumberPunctuation(value: string) {
   return value.replace(/[^\d.,]/g, '');
 }
@@ -256,12 +252,13 @@ function TubesBlock({ data, onChange, disabled, invalidKey, groupKey }: Pick<Ser
               </div>
             </div>
             <button
-              className="danger-button"
+              className="tube-remove"
               type="button"
               disabled={disabled || rows.length === 1}
               onClick={() => onChange({ tubes: rows.filter((_, rowIndex) => rowIndex !== index) })}
+              aria-label={`Remover tubulação ${index + 1}`}
             >
-              Remover
+              ×
             </button>
           </div>
         ))}
@@ -340,7 +337,7 @@ function UnitMultiField({
 }
 
 function FinalizadoAprovadoBlock({ data, onChange, disabled, groupKey, invalidKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'groupKey' | 'invalidKey'>) {
-  const finalized = getBool(data.finalized, false);
+  const finalized = typeof data.finalized === 'boolean' ? data.finalized : null;
   const aprovadoCliente = getString(data.aprovadoCliente) || 'Sim';
 
   return (
@@ -392,7 +389,7 @@ function FinalizadoAprovadoBlock({ data, onChange, disabled, groupKey, invalidKe
   );
 }
 
-function ServiceCollaboratorsBlock({
+export function ServiceCollaboratorsBlock({
   data,
   onChange,
   disabled,
@@ -718,16 +715,6 @@ export function ServiceFields({
   invalidKey
 }: ServiceFieldsProps) {
   const normalizedType = normalizeServiceType(serviceType);
-  const serviceCollaborators = (
-    <ServiceCollaboratorsBlock
-      data={data}
-      onChange={onChange}
-      disabled={disabled}
-      invalidKey={invalidKey}
-      collaboratorOptions={collaboratorOptions}
-    />
-  );
-
   function upload(label: string) {
     return (
       <UploadField
@@ -773,7 +760,6 @@ export function ServiceFields({
         </div>
         <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
-        {serviceCollaborators}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <div className={fieldClass(invalidKey, 'tipoInspecao')}>
           <label>Tipo de inspeção {requiredMark()}</label>
@@ -804,7 +790,6 @@ export function ServiceFields({
         <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
         <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
-        {serviceCollaborators}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <UnitMultiField groupKey={groupKey} label="Unidade de Teste Hidrostático (UTH)" field="uth" units={units} categories={['UTH']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <PressureField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} field="pressaoTrabalho" unitField="pressaoTrabalhoUnit" label="Pressão de trabalho" />
@@ -870,7 +855,6 @@ export function ServiceFields({
         </div>
         <UnitMultiField groupKey={groupKey} label={tipoFlushing === 'secundario' ? 'Unidade de filtragem' : 'Unidade de Flushing'} field="uf" units={units} categories={unitCategories} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
-        {serviceCollaborators}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} counters={counters} upload={upload} />
         <DesidratacaoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} units={units} invalidKey={invalidKey} upload={upload} />
@@ -889,7 +873,6 @@ export function ServiceFields({
         <VolumeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
         <UnitMultiField groupKey={groupKey} label="Unidade de filtragem" field="ufg" units={units} categories={['FILTRAGEM']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
-        {serviceCollaborators}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} counters={counters} upload={upload} />
         <DesidratacaoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} units={units} invalidKey={invalidKey} upload={upload} />
@@ -903,7 +886,6 @@ export function ServiceFields({
       <>
         <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} label="Material do equipamento" />
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
-        {serviceCollaborators}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         {upload('Imagens da limpeza')}
         <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
@@ -934,6 +916,13 @@ export function ServiceFields({
             <option value="Sistema hidráulico">Sistema hidráulico</option>
           </select>
         </div>
+        <ServiceCollaboratorsBlock
+          data={data}
+          onChange={onChange}
+          disabled={disabled}
+          invalidKey={invalidKey}
+          collaboratorOptions={collaboratorOptions}
+        />
         <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
         <div className="field-group">
           <label htmlFor={fieldId(groupKey, 'linhas')}>Linhas</label>
@@ -944,7 +933,6 @@ export function ServiceFields({
           <textarea id={fieldId(groupKey, 'steps')} value={getString(data.steps)} placeholder="Campo livre..." disabled={disabled} onChange={event => onChange({ steps: event.target.value })} />
         </div>
         <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
-        {serviceCollaborators}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <div className="field-group">
           <label>Tipo de relatório</label>
