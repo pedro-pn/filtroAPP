@@ -843,6 +843,10 @@ a {
   margin-bottom: 12px;
 }
 
+.admin-create-toolbar .project-sort-button {
+  margin-left: auto;
+}
+
 .admin-toolbar > .mini-btn,
 .admin-toolbar .admin-form-actions > .mini-btn,
 .admin-create-toolbar > .mini-btn,

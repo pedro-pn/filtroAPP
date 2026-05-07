@@ -53,9 +53,18 @@ type UploadGroup = { label: string; files: UploadedFile[] };
 type TubeRow = { d: string; unit: string; c: string; lengthUnit: string };
 export type ServiceCollaboratorOption = { id: string; name: string };
 
+const uploadLabelAliases: Record<string, string[]> = {
+  'Foto do laudo': ['Foto do laudo', 'Foto do laudo do contador']
+};
+
+function uploadLabels(label: string) {
+  return uploadLabelAliases[label] || [label];
+}
+
 function getGroup(data: Record<string, unknown>, label: string): UploadedFile[] {
   const groups = Array.isArray(data.__uploads__) ? (data.__uploads__ as UploadGroup[]) : [];
-  return groups.find(g => g.label === label)?.files ?? [];
+  const labels = uploadLabels(label);
+  return groups.find(g => labels.includes(g.label))?.files ?? [];
 }
 
 function setGroup(
@@ -65,7 +74,8 @@ function setGroup(
   files: UploadedFile[]
 ) {
   const groups = Array.isArray(data.__uploads__) ? (data.__uploads__ as UploadGroup[]) : [];
-  const filtered = groups.filter(g => g.label !== label);
+  const labels = uploadLabels(label);
+  const filtered = groups.filter(g => !labels.includes(g.label));
   onChange({ __uploads__: files.length ? [...filtered, { label, files }] : filtered });
 }
 
