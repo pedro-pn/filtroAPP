@@ -178,7 +178,6 @@ export function ReportSummaryCard({
               </>
             ) : null}
           </div>
-          <SignatureProgress report={report} />
         </div>
         <div className="report-card-side" onClick={event => event.stopPropagation()}>
           <span className={`status-pill ${status.className}`}>{status.label}</span>
@@ -189,6 +188,7 @@ export function ReportSummaryCard({
           ) : null}
         </div>
       </div>
+      <SignatureProgress report={report} />
       {clientRejections.length || legacyRejectionComment ? (
         <div className="client-rejection-list">
           {clientRejections.map((review, index) => (
