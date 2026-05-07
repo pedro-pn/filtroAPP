@@ -640,6 +640,8 @@ a {
   color: var(--tx);
   font-size: 12px;
   line-height: 1.45;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .signature-progress-head {
@@ -648,11 +650,26 @@ a {
   justify-content: space-between;
   gap: 10px;
   font-weight: 700;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.signature-progress-head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signature-progress-head span:first-child {
+  flex: 0 0 auto;
 }
 
 .signature-progress-head span:last-child {
+  flex: 1 1 auto;
   color: var(--mu);
   font-size: 11px;
+  text-align: right;
 }
 
 .signature-progress-names {
