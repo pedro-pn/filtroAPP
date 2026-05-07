@@ -790,7 +790,10 @@ export function GestorPage() {
   const counterMutations = useCounterMutations();
 
   const pendingReports = useMemo(
-    () => (reportsQuery.data || []).filter(report => report.status === 'PENDING' || report.status === 'RETURNED'),
+    () =>
+      (reportsQuery.data || []).filter(
+        report => report.status === 'PENDING' || report.status === 'RETURNED' || hasActiveClientRejection(report)
+      ),
     [reportsQuery.data]
   );
 
@@ -2794,6 +2797,7 @@ export function GestorPage() {
         <div className="nav-tabs" role="tablist" aria-label="Seções do gestor" onKeyDown={handleHorizontalTabListKeyDown}>
           <button className={`nav-tab ${tab === 'pendentes' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'pendentes'} onClick={() => setTab('pendentes')}>
             Pendentes
+            <span className="nav-tab-count">{pendingReports.length}</span>
           </button>
           <button className={`nav-tab ${tab === 'aprovados' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'aprovados'} onClick={() => setTab('aprovados')}>
             Aprovados

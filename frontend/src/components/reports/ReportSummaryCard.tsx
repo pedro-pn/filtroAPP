@@ -37,19 +37,42 @@ function reportLabel(report: ReportSummary) {
   return report.sequenceNumber ? `${report.reportType} ${report.sequenceNumber}` : report.reportType;
 }
 
+type SummaryService = NonNullable<ReportSummary['services']>[number];
+
+function stringValue(value: unknown): string {
+  if (Array.isArray(value)) return value.map(item => stringValue(item)).filter(Boolean).join(', ');
+  if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
+  return '';
+}
+
+function extraString(extraData: SummaryService['extraData'], keys: string[]) {
+  const extra = extraData || {};
+  for (const key of keys) {
+    const value = stringValue(extra[key]);
+    if (value) return value;
+  }
+  return '';
+}
+
+function serviceEquipmentLabel(service: SummaryService) {
+  if (service.equipment) {
+    return [service.equipment.code, service.equipment.name].filter(Boolean).join(' - ');
+  }
+  return extraString(service.extraData, ['Equipamento(s)', 'Equipamentos', 'Equipamento', 'equipment', 'equipmentId']) || service.equipmentId || '';
+}
+
+function serviceSystemLabel(service: SummaryService) {
+  return service.system || extraString(service.extraData, ['Sistema', 'system']);
+}
+
 function summarizeServices(services: ReportSummary['services']) {
   if (!services?.length) return '';
   return services
     .map(s => {
       const type = serviceTypeLabels[s.serviceType] || s.serviceType;
-      const equip =
-        typeof (s.extraData as Record<string, unknown> | null | undefined)?.['Equipamento(s)'] === 'string'
-          ? String((s.extraData as Record<string, unknown>)['Equipamento(s)'])
-          : null;
-      const system = s.system || null;
-      const parts = [type];
-      if (equip) parts.push(equip);
-      else if (system) parts.push(system);
+      const equip = serviceEquipmentLabel(s);
+      const system = serviceSystemLabel(s);
+      const parts = [type, equip, system].filter(Boolean);
       return parts.join(' · ');
     })
     .join(' | ');
