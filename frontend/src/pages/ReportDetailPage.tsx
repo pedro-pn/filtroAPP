@@ -15,6 +15,7 @@ import { useReport, useReportMutations, useReports } from '../hooks/useReports';
 import { useUnits } from '../hooks/useUnits';
 import { Shell } from '../layout/Shell';
 import { TopBar } from '../layout/TopBar';
+import { Modal } from '../components/ui/Modal';
 import { ReasonDialog } from '../components/ui/ReasonDialog';
 import { UploadField } from '../components/ui/UploadField';
 import type { ReportPayload, ReportStatus, ReportSummary } from '../types/domain';
@@ -853,11 +854,15 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         />
       </section>
 
-      {showServiceModal ? (
-        <div className="stype-modal-ov" onClick={() => setShowServiceModal(false)}>
-          <div className="stype-modal-sh" onClick={event => event.stopPropagation()}>
+      <Modal
+        open={showServiceModal}
+        onClose={() => setShowServiceModal(false)}
+        backdropClassName="stype-modal-ov"
+        panelClassName="stype-modal-sh"
+        ariaLabelledBy="detail-service-type-title"
+      >
             <div className="stype-modal-handle" />
-            <div className="stype-modal-title">Tipo de serviço</div>
+            <div className="stype-modal-title" id="detail-service-type-title">Tipo de serviço</div>
             <div className="stype-grid">
               {serviceTypeModalOptions.map(({ type, icon, name }) => (
                 <button
@@ -871,9 +876,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-      ) : null}
+      </Modal>
     </>
   );
 }

@@ -100,11 +100,7 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/', (_req, res) => {
-  res.sendFile(appHtmlPath);
-});
-
-app.get('/reset-password', (_req, res) => {
+app.get(['/legacy', '/legacy/reset-password'], (_req, res) => {
   res.sendFile(appHtmlPath);
 });
 

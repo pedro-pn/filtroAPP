@@ -684,21 +684,23 @@ a {
 .stat-card-react {
   border: 1px solid var(--br);
   border-radius: var(--r);
-  background: #fafafa;
-  padding: 8px 10px;
+  background: var(--wh);
+  padding: 12px 14px;
   min-width: 0;
+  text-align: center;
 }
 
 .stat-number-react {
-  font-size: 18px;
-  font-weight: 800;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
   color: var(--g);
 }
 
 .stat-label-react {
-  margin-top: 4px;
+  margin-top: 3px;
   font-size: 11px;
-  line-height: 1.5;
+  line-height: 1.35;
   color: var(--mu);
   overflow-wrap: anywhere;
 }
@@ -831,6 +833,24 @@ a {
 
 .admin-toolbar .sec {
   margin-bottom: 0;
+}
+
+.admin-create-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.admin-toolbar > .mini-btn,
+.admin-toolbar .admin-form-actions > .mini-btn,
+.admin-create-toolbar > .mini-btn,
+.admin-inline-form .admin-form-actions > .mini-btn:not(.alt) {
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
 .admin-search-row {
@@ -1292,6 +1312,12 @@ a {
   background: var(--g);
   color: #fff;
   border-color: var(--g);
+}
+
+.rdo-tag-option:focus-within,
+.rdo-pill-option:focus-within {
+  outline: 3px solid rgba(9, 90, 44, 0.35);
+  outline-offset: 2px;
 }
 
 .rdo-step-panel {
@@ -2029,6 +2055,18 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 .primary-button:disabled {
   opacity: 0.7;
   cursor: wait;
+}
+
+.primary-button:focus-visible,
+.secondary-button:focus-visible,
+.danger-button:focus-visible,
+.mini-btn:focus-visible,
+.topbar-chip:focus-visible,
+.filter-tab:focus-visible,
+.nav-tab:focus-visible,
+.stype-btn:focus-visible {
+  outline: 3px solid rgba(9, 90, 44, 0.35);
+  outline-offset: 2px;
 }
 
 .secondary-button {

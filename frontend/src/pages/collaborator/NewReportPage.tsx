@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthContext';
 import { listReports } from '../../api/reports';
 import { ServiceCollaboratorsBlock, ServiceFields, serviceTypeLabels } from '../../components/reports/ServiceFields';
+import { Modal } from '../../components/ui/Modal';
 import { UploadField } from '../../components/ui/UploadField';
 import { useToast } from '../../components/ui/Toast';
 import { useCollaborators } from '../../hooks/useCollaborators';
@@ -21,6 +22,7 @@ import type { UploadedFile } from '../../api/uploads';
 import type { ReportSummary } from '../../types/domain';
 import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
 import { sortProjects } from '../../utils/projectSort';
+import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
 const TEXT = {
   addService: 'Adicionar serviço',
@@ -815,12 +817,14 @@ export function NewReportPage() {
           <div className="rdo-progress-track" aria-hidden="true">
             <div className="rdo-progress-fill" style={{ width: `${((step + 1) / rdoSteps.length) * 100}%` }} />
           </div>
-          <div className="filter-tabs">
+          <div className="filter-tabs" role="tablist" aria-label="Etapas do relatório" onKeyDown={handleHorizontalTabListKeyDown}>
             {rdoSteps.map((label, index) => (
               <button
                 className={`filter-tab ${step === index ? 'active' : ''}`}
                 key={label}
                 type="button"
+                role="tab"
+                aria-selected={step === index}
                 onClick={() => {
                   if (index <= step) {
                     setStep(index);
@@ -1273,11 +1277,15 @@ export function NewReportPage() {
         </section>
       </main>
 
-      {showServiceModal ? (
-        <div className="stype-modal-ov" onClick={() => setShowServiceModal(false)}>
-          <div className="stype-modal-sh" onClick={event => event.stopPropagation()}>
+      <Modal
+        open={showServiceModal}
+        onClose={() => setShowServiceModal(false)}
+        backdropClassName="stype-modal-ov"
+        panelClassName="stype-modal-sh"
+        ariaLabelledBy="new-report-service-type-title"
+      >
             <div className="stype-modal-handle" />
-            <div className="stype-modal-title">Tipo de serviço</div>
+            <div className="stype-modal-title" id="new-report-service-type-title">Tipo de serviço</div>
             <div className="stype-grid">
               {serviceTypeModalOptions.map(({ type, icon, name }) => (
                 <button
@@ -1294,9 +1302,7 @@ export function NewReportPage() {
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-      ) : null}
+      </Modal>
     </Shell>
   );
 }

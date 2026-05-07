@@ -23,14 +23,14 @@ separado em `/data/assets`.
 
 ## Frontend React
 
-O cutover para React em produÃ§Ã£o Ã© feito pelo nginx:
+O cutover para React em produção é feito pelo nginx:
 
 - `deploy/nginx/Dockerfile` compila `frontend/` com `npm run build`
-- o resultado de `frontend/dist` Ã© copiado para `/usr/share/nginx/html`
+- o resultado de `frontend/dist` é copiado para `/usr/share/nginx/html`
 - `deploy/nginx/default.conf` usa `try_files` para rotas da SPA
 - chamadas `/api`, arquivos `/assets`, `/uploads` e `/relatorios` continuam no backend
 
-Durante a validaÃ§Ã£o, o HTML legado continua acessÃ­vel em:
+O HTML legado fica acessível apenas como fallback operacional em:
 
 - `/legacy`
 - `/legacy/reset-password`

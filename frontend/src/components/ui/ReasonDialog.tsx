@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { Button } from './Button';
+import { Modal } from './Modal';
 
 interface ReasonDialogProps {
   open: boolean;
@@ -46,10 +48,9 @@ export function ReasonDialog({
   }
 
   return (
-    <div className="modal-backdrop" role="presentation">
-      <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="reason-dialog-title">
+    <Modal open={open} onClose={onCancel} ariaLabelledBy="reason-dialog-title" ariaDescribedBy="reason-dialog-description">
         <div className="section-title" id="reason-dialog-title">{title}</div>
-        <p className="placeholder-copy">{description}</p>
+        <p className="placeholder-copy" id="reason-dialog-description">{description}</p>
         <div className="field-group">
           <label htmlFor="reason-dialog-text">{label}</label>
           <textarea
@@ -65,14 +66,13 @@ export function ReasonDialog({
         </div>
         {error ? <div className="inline-error">{error}</div> : null}
         <div className="admin-form-actions">
-          <button className="secondary-button" type="button" onClick={onCancel} disabled={isSubmitting}>
+          <Button variant="secondary" onClick={onCancel} disabled={isSubmitting}>
             {cancelLabel}
-          </button>
-          <button className="primary-button" type="button" onClick={handleConfirm} disabled={isSubmitting}>
+          </Button>
+          <Button onClick={handleConfirm} disabled={isSubmitting}>
             {confirmLabel}
-          </button>
+          </Button>
         </div>
-      </section>
-    </div>
+      </Modal>
   );
 }

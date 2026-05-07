@@ -12,6 +12,7 @@ import { downloadBlob } from '../../utils/download';
 import { formatCnpj } from '../../utils/formatCnpj';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { compareReportTypes, ProjectSortButton, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
+import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import { closeZapSignPendingWindow, openZapSignPendingWindow, redirectZapSignWindow } from '../../utils/zapSign';
 
 const TEXT = {
@@ -494,12 +495,14 @@ export function ClientPage() {
         {activeProject ? (
           <>
             <section className="page-card compact-link-card">
-              <div className="filter-tabs">
+              <div className="filter-tabs" role="tablist" aria-label="Projetos do cliente" onKeyDown={handleHorizontalTabListKeyDown}>
                 {clientProjects.map(project => (
                   <button
                     className={`filter-tab ${project.id === activeProject.id ? 'active' : ''}`}
                     type="button"
                     key={project.id}
+                    role="tab"
+                    aria-selected={project.id === activeProject.id}
                     onClick={() => setActiveProjectId(project.id)}
                   >
                     {project.title}
@@ -519,12 +522,14 @@ export function ClientPage() {
             </section>
 
             <section className="page-card compact-link-card">
-              <div className="filter-tabs">
+              <div className="filter-tabs" role="tablist" aria-label="Tipos de relatório" onKeyDown={handleHorizontalTabListKeyDown}>
                 {activeTypes.map(reportType => (
                   <button
                     className={`filter-tab ${reportType === activeReportType ? 'active' : ''}`}
                     type="button"
                     key={reportType}
+                    role="tab"
+                    aria-selected={reportType === activeReportType}
                     onClick={() => {
                       if (!activeProject) return;
                       setActiveTypeByProject(current => ({ ...current, [activeProject.id]: reportType }));
