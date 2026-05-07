@@ -675,6 +675,9 @@ a {
 .signature-progress-names {
   margin-top: 4px;
   color: var(--mu);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-pill {
