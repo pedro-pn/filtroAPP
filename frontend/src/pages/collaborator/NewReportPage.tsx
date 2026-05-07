@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useAuth } from '../../auth/AuthContext';
 import { listReports } from '../../api/reports';
-import { ServiceFields, serviceTypeLabels } from '../../components/reports/ServiceFields';
+import { ServiceCollaboratorsBlock, ServiceFields, serviceTypeLabels } from '../../components/reports/ServiceFields';
 import { UploadField } from '../../components/ui/UploadField';
 import { useToast } from '../../components/ui/Toast';
 import { useCollaborators } from '../../hooks/useCollaborators';
@@ -116,6 +116,7 @@ export function NewReportPage() {
   const [collaboratorToAdd, setCollaboratorToAdd] = useState('');
   const [nightCollaboratorToAdd, setNightCollaboratorToAdd] = useState('');
   const [collaboratorsPrefilled, setCollaboratorsPrefilled] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const projects = useMemo(() => sortProjects(projectsQuery.data || [], 'asc'), [projectsQuery.data]);
   const collaborators = (collaboratorsQuery.data || []).filter(item => item.isActive);
@@ -136,6 +137,16 @@ export function NewReportPage() {
     [projectId, projectsQuery.data]
   );
   const backPath = user?.role === 'MANAGER' ? '/gestor' : '/home';
+
+  function firstIdFromField(value: unknown) {
+    if (typeof value === 'string') return value;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.ids)) {
+      return record.ids.find((id): id is string => typeof id === 'string' && id.trim().length > 0) || '';
+    }
+    return '';
+  }
 
   // Fetch reports of selected project for pre-fill and continuity
   const lastProjectReportQuery = useQuery({
@@ -251,15 +262,13 @@ export function NewReportPage() {
 
   function continueService(service: ReportServiceSummary, ongoingKey: string) {
       const extra = service.extraData || {};
-      const contadorUtilizado = String(extra['Contador utilizado'] || extra.contadorUtilizado || '');
-      const desidratacaoUnit = String(extra['Equipamento de desidratação'] || extra.desidratacaoUnit || '');
+      const contadorUtilizado = firstIdFromField(extra['Contador utilizado'] || extra.contadorUtilizado);
       addService(normalizeServiceType(service.serviceType), {
         ...extra,
         __ongoingKey: ongoingKey,
         __serviceLinkKey: String(extra.__serviceLinkKey || ongoingKey),
         etapas: [],
         customEtapa: '',
-        finalized: false,
         aprovadoCliente: 'Sim',
         houveParticulas: contadorUtilizado ? 'Sim' : String(extra['Houve contagem de partículas?'] || extra.houveParticulas || 'Não'),
         contadorUtilizado,
@@ -267,8 +276,8 @@ export function NewReportPage() {
         contagemFinalNas: '',
         contagemInicialIso: '',
         contagemFinalIso: '',
-        houveDesidratacao: desidratacaoUnit ? 'Sim' : String(extra['Houve desidratação?'] || extra.houveDesidratacao || 'Não'),
-        desidratacaoUnit,
+        houveDesidratacao: 'Não',
+        desidratacaoUnit: '',
         houveUmidade: String(extra['Houve análise de umidade?'] || extra.houveUmidade || 'Não'),
         umidadeInicial: '',
         umidadeFinal: '',
@@ -278,6 +287,7 @@ export function NewReportPage() {
         startTime: '',
         endTime: '',
         notes: '',
+        finalized: undefined,
         _prefilled: true
       });
   }
@@ -701,6 +711,7 @@ export function NewReportPage() {
   ]);
 
   async function handleSubmit() {
+    if (isSubmitting || isSubmittingRef.current) return;
     if (!user?.id) {
       showToast(TEXT.invalidSession, 'error');
       return;
@@ -709,6 +720,7 @@ export function NewReportPage() {
     if (!validateServices()) return;
 
     isSubmittingRef.current = true;
+    setIsSubmitting(true);
     if (draftSaveTimerRef.current) {
       window.clearTimeout(draftSaveTimerRef.current);
       draftSaveTimerRef.current = null;
@@ -763,6 +775,7 @@ export function NewReportPage() {
       navigate(user.role === 'MANAGER' ? '/gestor' : '/home');
     } catch (err) {
       isSubmittingRef.current = false;
+      setIsSubmitting(false);
       showToast(err instanceof Error ? err.message : TEXT.errorCreate, 'error');
     }
   }
@@ -1046,7 +1059,7 @@ export function NewReportPage() {
             ) : null}
           </section>
         ) : null}
-        <section className="page-card" data-invalid-target="services:empty">
+        <section className="page-card report-services-step" data-invalid-target="services:empty">
           <div className="section-title">{TEXT.services}</div>
           {services.length ? (
             <div className="admin-stack" style={{ marginTop: 12 }}>
@@ -1089,21 +1102,31 @@ export function NewReportPage() {
                         />
                       </div>
                     ) : null}
-                    <div className={serviceFieldState(service.id, 'startTime')}>
-                      <label>Hora de início <span style={{ color: 'var(--rd)' }}>*</span></label>
-                      <input
-                        type="time"
-                        value={typeof service.data.startTime === 'string' ? service.data.startTime : ''}
-                        onChange={event => updateService(service.id, { startTime: event.target.value })}
+                    {normalizeServiceType(service.type) !== 'inibicao' ? (
+                      <ServiceCollaboratorsBlock
+                        data={service.data}
+                        onChange={update => updateService(service.id, update)}
+                        invalidKey={invalidTarget === `${service.id}:serviceCollaboratorIds` ? 'serviceCollaboratorIds' : null}
+                        collaboratorOptions={serviceCollaboratorOptions}
                       />
-                    </div>
-                    <div className={serviceFieldState(service.id, 'endTime')}>
-                      <label>Hora de término/pausa <span style={{ color: 'var(--rd)' }}>*</span></label>
-                      <input
-                        type="time"
-                        value={typeof service.data.endTime === 'string' ? service.data.endTime : ''}
-                        onChange={event => updateService(service.id, { endTime: event.target.value })}
-                      />
+                    ) : null}
+                    <div className="fg-r2 service-time-grid">
+                      <div className={serviceFieldState(service.id, 'startTime')}>
+                        <label>Hora de início <span style={{ color: 'var(--rd)' }}>*</span></label>
+                        <input
+                          type="time"
+                          value={typeof service.data.startTime === 'string' ? service.data.startTime : ''}
+                          onChange={event => updateService(service.id, { startTime: event.target.value })}
+                        />
+                      </div>
+                      <div className={serviceFieldState(service.id, 'endTime')}>
+                        <label>Hora de término/pausa <span style={{ color: 'var(--rd)' }}>*</span></label>
+                        <input
+                          type="time"
+                          value={typeof service.data.endTime === 'string' ? service.data.endTime : ''}
+                          onChange={event => updateService(service.id, { endTime: event.target.value })}
+                        />
+                      </div>
                     </div>
                     <ServiceFields
                       serviceType={service.type}
@@ -1225,8 +1248,8 @@ export function NewReportPage() {
               {TEXT.next}
             </button>
           ) : (
-            <button className="primary-button" type="button" onClick={handleSubmit}>
-              {TEXT.submit}
+            <button className="primary-button" type="button" disabled={isSubmitting} onClick={handleSubmit}>
+              {isSubmitting ? 'Enviando...' : TEXT.submit}
             </button>
           )}
         </section>
