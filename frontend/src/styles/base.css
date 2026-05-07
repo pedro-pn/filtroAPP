@@ -2996,6 +2996,9 @@ textarea.pre {
 }
 
 .nav-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
   padding: 11px 6px;
   text-align: center;
@@ -3021,6 +3024,22 @@ textarea.pre {
   border-color: var(--g);
   background: var(--g);
   font-weight: 700;
+}
+
+.nav-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #f59e0b;
+  color: var(--wh);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 /* ── Welcome card do cliente ── */

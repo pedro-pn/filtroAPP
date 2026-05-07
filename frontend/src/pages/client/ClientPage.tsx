@@ -109,6 +109,7 @@ export function ClientPage() {
   const [commentsById, setCommentsById] = useState<Record<string, string>>({});
   const [activeProjectId, setActiveProjectId] = useState('');
   const [activeTypeByProject, setActiveTypeByProject] = useState<Record<string, string>>({});
+  const [closedTypeByProject, setClosedTypeByProject] = useState<Record<string, boolean>>({});
   const [clientSortDirection, setClientSortDirection] = useState<ProjectSortDirection>('asc');
   const [clientTogglesLoaded, setClientTogglesLoaded] = useState(false);
   const showToast = useToast();
@@ -155,6 +156,9 @@ export function ClientPage() {
         if (parsed.activeTypeByProject && typeof parsed.activeTypeByProject === 'object' && !Array.isArray(parsed.activeTypeByProject)) {
           setActiveTypeByProject(parsed.activeTypeByProject as Record<string, string>);
         }
+        if (parsed.closedTypeByProject && typeof parsed.closedTypeByProject === 'object' && !Array.isArray(parsed.closedTypeByProject)) {
+          setClosedTypeByProject(parsed.closedTypeByProject as Record<string, boolean>);
+        }
       }
     } catch {
       // Ignore unavailable localStorage.
@@ -166,11 +170,11 @@ export function ClientPage() {
   useEffect(() => {
     if (!clientToggleStorageKey || !clientTogglesLoaded) return;
     try {
-      localStorage.setItem(clientToggleStorageKey, JSON.stringify({ activeProjectId, activeTypeByProject, clientSortDirection }));
+      localStorage.setItem(clientToggleStorageKey, JSON.stringify({ activeProjectId, activeTypeByProject, closedTypeByProject, clientSortDirection }));
     } catch {
       // Ignore unavailable localStorage.
     }
-  }, [activeProjectId, activeTypeByProject, clientSortDirection, clientToggleStorageKey, clientTogglesLoaded]);
+  }, [activeProjectId, activeTypeByProject, clientSortDirection, clientToggleStorageKey, clientTogglesLoaded, closedTypeByProject]);
 
   useEffect(() => {
     if (!clientTogglesLoaded || reportsQuery.isLoading) return;
@@ -197,6 +201,8 @@ export function ClientPage() {
       clientSortDirection
     )
     : [];
+  const activeTypeKey = activeProject ? `${activeProject.id}-${activeReportType}` : '';
+  const activeTypeClosed = activeTypeKey ? closedTypeByProject[activeTypeKey] === true : false;
 
   useEffect(() => {
     setSelectedIds([]);
@@ -221,6 +227,11 @@ export function ClientPage() {
       const next = checked ? [...current, reportId] : current.filter(id => id !== reportId);
       return Array.from(new Set(next));
     });
+  }
+
+  function toggleActiveReportType() {
+    if (!activeTypeKey) return;
+    setClosedTypeByProject(current => ({ ...current, [activeTypeKey]: !current[activeTypeKey] }));
   }
 
   async function handleDownloadPdf(report: ReportSummary) {
@@ -542,21 +553,42 @@ export function ClientPage() {
             </section>
 
             <section className="page-card">
-              <div className="admin-section-head">
-                <div className="section-title">{activeReportType}</div>
-                <ProjectSortButton
-                  direction={clientSortDirection}
-                  onToggle={() => setClientSortDirection(direction => direction === 'asc' ? 'desc' : 'asc')}
-                />
+              <div
+                className="report-type-header"
+                onClick={toggleActiveReportType}
+                role="button"
+                tabIndex={0}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    toggleActiveReportType();
+                  }
+                }}
+              >
+                <span className={`rtype-badge rtype-${activeReportType}`}>{activeReportType}</span>
+                <span className="rtype-count">
+                  {visibleReports.length} relatório{visibleReports.length !== 1 ? 's' : ''}
+                </span>
+                <span onClick={event => event.stopPropagation()}>
+                  <ProjectSortButton
+                    direction={clientSortDirection}
+                    onToggle={() => setClientSortDirection(direction => direction === 'asc' ? 'desc' : 'asc')}
+                  />
+                </span>
+                <span className="rtype-chevron">{activeTypeClosed ? '▸' : '▾'}</span>
               </div>
-              {renderClientTypeActions(visibleReports)}
-              {visibleReports.length ? (
-                <div className="report-type-list">
-                  {visibleReports.map(report => renderClientReportCard(report))}
-                </div>
-              ) : (
-                <p className="placeholder-copy">Nenhum relatório deste tipo.</p>
-              )}
+              {!activeTypeClosed ? (
+                <>
+                  {renderClientTypeActions(visibleReports)}
+                  {visibleReports.length ? (
+                    <div className="report-type-list">
+                      {visibleReports.map(report => renderClientReportCard(report))}
+                    </div>
+                  ) : (
+                    <p className="placeholder-copy">Nenhum relatório deste tipo.</p>
+                  )}
+                </>
+              ) : null}
             </section>
           </>
         ) : null}
