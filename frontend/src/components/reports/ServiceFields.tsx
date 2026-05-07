@@ -879,7 +879,6 @@ export function ServiceFields({
 
     return (
       <>
-        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
         <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
         <div className={fieldClass(invalidKey, 'tipoOleo')}>
           <label htmlFor={fieldId(groupKey, 'tipoOleo')}>Tipo de óleo {requiredMark()}</label>

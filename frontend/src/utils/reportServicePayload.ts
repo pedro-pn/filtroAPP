@@ -103,7 +103,9 @@ function commonExtraData(
     ...data,
     'Equipamento(s)': equipmentId ? labelForEquipment(equipmentId, options.equipment) : '',
     Sistema: getString(data.system),
-    ...(type === 'mecanica'
+    ...(type === 'flushing'
+      ? {}
+      : type === 'mecanica'
       ? { 'Material do equipamento': material }
       : { 'Material da tubulação': material }),
     'Hora de início': getString(data.startTime),
@@ -194,7 +196,7 @@ export function buildReportServicePayload(
     serviceType: type,
     equipmentId: null,
     system: getString(data.system) || null,
-    material: getString(data.material) || null,
+    material: type === 'flushing' ? null : getString(data.material) || null,
     startTime: getString(data.startTime) || null,
     endTime: getString(data.endTime) || null,
     finalized: typeof data.finalized === 'boolean' ? data.finalized : null,

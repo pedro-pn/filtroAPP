@@ -1136,7 +1136,7 @@ function ServiceSummaryRow({ service, index }: { service: NonNullable<ReportSumm
     rows.push({ label: 'Equipamento', value: String(data.equipmentId) });
   }
   if (data.system) rows.push({ label: 'Sistema', value: String(data.system) });
-  if (data.material) rows.push({ label: 'Material', value: String(data.material) });
+  if (type !== 'flushing' && data.material) rows.push({ label: 'Material', value: String(data.material) });
   if (data.startTime || data.endTime) {
     rows.push({ label: 'Horário', value: `${data.startTime || '--'} às ${data.endTime || '--'}` });
   }
