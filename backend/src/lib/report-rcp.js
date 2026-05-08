@@ -440,6 +440,11 @@ function expandTubeRows(doc, sd, serviceType) {
     removeNode(findAncestor(templateRow, 'w:tbl') || templateRow);
     return;
   }
+  const flushingTubulacao = stringify(getField(sd, ['Flushing em tubulação?', 'Flushing em tubulacao?']));
+  if (serviceType === 'flushing' && canonicalize(flushingTubulacao) === 'nao') {
+    removeNode(findAncestor(templateRow, 'w:tbl') || templateRow);
+    return;
+  }
   const tubesRaw = getField(sd, ['Diâmetros e comprimentos', 'Diametros e comprimentos']);
   const tubes = Array.isArray(tubesRaw) ? tubesRaw.filter(t => t && (t.d || t.c)) : [];
   if (!tubes.length) {
