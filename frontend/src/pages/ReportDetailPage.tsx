@@ -56,7 +56,7 @@ const TEXT = {
   requestSignature: 'Assinar',
   requestSignatureError: 'Não foi possível solicitar a assinatura.',
   returnedAt: 'Devolvido em',
-  save: 'Salvar alterações',
+  save: 'Salvar',
   saved: 'Relatório atualizado.',
   select: 'Selecione',
   service: 'Serviço',
@@ -605,9 +605,11 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     return true;
   }
 
-  async function handleSave() {
-    if (readOnly) return;
-    if (!validateSequence()) return;
+  async function handleSave(options: { navigateAfter?: boolean; showSuccess?: boolean } = {}) {
+    if (readOnly) return false;
+    if (!validateSequence()) return false;
+
+    const { navigateAfter = true, showSuccess = true } = options;
 
     try {
       await reportMutations.updateReport.mutateAsync({
@@ -618,10 +620,12 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           units
         })
       });
-      showToast(TEXT.saved, 'success');
-      navigate(user?.role === 'MANAGER' ? '/gestor' : '/home');
+      if (showSuccess) showToast(TEXT.saved, 'success');
+      if (navigateAfter) navigate(user?.role === 'MANAGER' ? '/gestor' : '/home');
+      return true;
     } catch (err) {
       showToast(err instanceof Error ? err.message : TEXT.updateError, 'error');
+      return false;
     }
   }
 
@@ -634,6 +638,23 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       showToast(status === 'APPROVED' ? 'Relatório aprovado.' : 'Relatório devolvido.', 'success');
     } catch (err) {
       showToast(err instanceof Error ? err.message : TEXT.updateError, 'error');
+    }
+  }
+
+  async function handleSaveAndStatus(status: Extract<ReportStatus, 'APPROVED' | 'RETURNED'>, reviewNotes?: string | null) {
+    const saved = await handleSave({ navigateAfter: false, showSuccess: false });
+    if (!saved) return;
+    await handleStatus(status, reviewNotes);
+  }
+
+  async function handleDownload(format: 'pdf' | 'docx') {
+    showToast(format === 'pdf' ? 'Gerando PDF...' : 'Gerando DOCX...', 'info');
+    try {
+      const blob = format === 'pdf' ? await downloadReportPdf(report.id) : await downloadReportDocx(report.id);
+      downloadBlob(blob, `${report.reportType}_${report.sequenceNumber || report.id}.${format}`);
+      showToast(format === 'pdf' ? 'PDF gerado com sucesso.' : 'DOCX baixado com sucesso.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : TEXT.downloadError, 'error');
     }
   }
 
@@ -979,38 +1000,6 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             onChange={files => setField('generalUploads', files)}
           />
         </div>
-        {!readOnly ? (
-          <div className="admin-form-actions" style={{ marginTop: 14 }}>
-            {isManager ? (
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={reportMutations.updateStatus.isPending}
-                onClick={() => setReturnDialogOpen(true)}
-              >
-                {TEXT.reject}
-              </button>
-            ) : null}
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={reportMutations.updateReport.isPending}
-              onClick={() => void handleSave()}
-            >
-              {TEXT.save}
-            </button>
-            {isManager && canApproveInEditor ? (
-              <button
-                className="primary-button"
-                type="button"
-                disabled={reportMutations.updateStatus.isPending}
-                onClick={() => void handleStatus('APPROVED')}
-              >
-                {hasActiveClientRejection(report) ? 'Reenviar para avaliação' : TEXT.approve}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
         <ReasonDialog
           open={returnDialogOpen}
           title={TEXT.reject}
@@ -1018,11 +1007,52 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           label="Motivo"
           confirmLabel={TEXT.reject}
           requiredMessage={TEXT.rejectRequired}
-          isSubmitting={reportMutations.updateStatus.isPending}
+          isSubmitting={reportMutations.updateReport.isPending || reportMutations.updateStatus.isPending}
           onCancel={() => setReturnDialogOpen(false)}
-          onConfirm={reason => void handleStatus('RETURNED', reason)}
+          onConfirm={reason => void handleSaveAndStatus('RETURNED', reason)}
         />
       </section>
+
+      {!readOnly ? (
+        <div className="detail-action-bar detail-manager-action-bar">
+          <button
+            className="primary-button"
+            type="button"
+            disabled={reportMutations.updateReport.isPending}
+            onClick={() => void handleSave()}
+          >
+            {TEXT.save}
+          </button>
+          <button className="secondary-button" type="button" onClick={() => void handleDownload('pdf')}>
+            PDF
+          </button>
+          {isManager ? (
+            <button className="secondary-button" type="button" onClick={() => void handleDownload('docx')}>
+              DOCX
+            </button>
+          ) : null}
+          {isManager && canApproveInEditor ? (
+            <button
+              className="primary-button"
+              type="button"
+              disabled={reportMutations.updateReport.isPending || reportMutations.updateStatus.isPending}
+              onClick={() => void handleSaveAndStatus('APPROVED')}
+            >
+              {hasActiveClientRejection(report) ? 'Salvar e Reenviar' : 'Salvar e Aprovar'}
+            </button>
+          ) : null}
+          {isManager ? (
+            <button
+              className="danger-button"
+              type="button"
+              disabled={reportMutations.updateReport.isPending || reportMutations.updateStatus.isPending}
+              onClick={() => setReturnDialogOpen(true)}
+            >
+              Salvar e Devolver
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <Modal
         open={showServiceModal}
@@ -1467,7 +1497,7 @@ export function ReportDetailPage() {
         {report ? (
           <>
             {showRdoEditor ? <ManagerRdoEditor report={report} /> : <ReportSummaryView report={report} />}
-            <ReportDetailActions report={report} role={user?.role} />
+            {!showRdoEditor ? <ReportDetailActions report={report} role={user?.role} /> : null}
           </>
         ) : null}
 

@@ -52,11 +52,19 @@ function reportTime(report: ReportSummary) {
   return new Date(report.reportDate || report.createdAt || 0).getTime() || 0;
 }
 
-export function collectOngoingServices(reports: ReportSummary[]) {
+function endOfDayTime(value: Date | string = new Date()) {
+  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  if (Number.isNaN(date.getTime())) return Number.POSITIVE_INFINITY;
+  date.setHours(23, 59, 59, 999);
+  return date.getTime();
+}
+
+export function collectOngoingServices(reports: ReportSummary[], cutoffDate: Date | string = new Date()) {
   const items = new Map<string, OngoingServiceItem>();
+  const cutoffTime = endOfDayTime(cutoffDate);
 
   [...reports]
-    .filter(report => report.project?.isActive !== false)
+    .filter(report => report.reportType === 'RDO' && report.project?.isActive !== false && reportTime(report) <= cutoffTime)
     .sort((a, b) => reportTime(a) - reportTime(b) || new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
     .forEach(report => {
       (report.services || []).forEach(service => {

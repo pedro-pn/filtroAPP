@@ -112,6 +112,7 @@ interface CollaboratorFormState {
   name: string;
   role: string;
   email: string;
+  signatureImage: string;
   isActive: boolean;
 }
 
@@ -169,6 +170,7 @@ const emptyCollaboratorForm: CollaboratorFormState = {
   name: '',
   role: '',
   email: '',
+  signatureImage: '',
   isActive: true
 };
 
@@ -262,6 +264,20 @@ function cleanSigners(signers: ClientSigner[]) {
 
 function defaultSignerName(email: string) {
   return email.split('@')[0] || email;
+}
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error('Falha ao ler arquivo.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function normalizeSignatureImage(value?: string | null) {
+  const signature = String(value || '').trim();
+  return signature && signature !== 'null' && signature !== 'undefined' ? signature : '';
 }
 
 function asServices(value: unknown): RdoServiceDraft[] {
@@ -588,6 +604,7 @@ function collaboratorToForm(collaborator: Collaborator): CollaboratorFormState {
     name: collaborator.name,
     role: collaborator.role,
     email: collaborator.email || '',
+    signatureImage: normalizeSignatureImage(collaborator.signatureImage),
     isActive: collaborator.isActive
   };
 }
@@ -963,6 +980,67 @@ export function GestorPage() {
     setShowUserForm(false);
   }
 
+  function openNewCollaboratorForm() {
+    setCollaboratorForm(emptyCollaboratorForm);
+    setCollaboratorEditingId(null);
+    setShowCollaboratorForm(true);
+  }
+
+  function openNewUserForm() {
+    setUserForm(emptyUserForm);
+    setUserEditingId(null);
+    setShowUserForm(true);
+  }
+
+  async function handleCollaboratorSignatureInput(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setCollaboratorForm(current => ({ ...current, signatureImage: dataUrl }));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível carregar a assinatura.', 'error');
+    }
+  }
+
+  function renderCollaboratorSignatureField(inputId: string) {
+    return (
+      <div className="field-group field-group-wide collaborator-signature-field">
+        <label htmlFor={inputId}>Assinatura</label>
+        <div className="collaborator-signature-preview">
+          {normalizeSignatureImage(collaboratorForm.signatureImage) ? (
+            <img src={normalizeSignatureImage(collaboratorForm.signatureImage)} alt="" />
+          ) : (
+            <span>Nenhuma imagem carregada</span>
+          )}
+        </div>
+        <div className="collaborator-signature-actions">
+          <input
+            className="visually-hidden"
+            id={inputId}
+            type="file"
+            accept="image/*"
+            onChange={event => {
+              void handleCollaboratorSignatureInput(event.currentTarget.files);
+              event.currentTarget.value = '';
+            }}
+          />
+          <button className="mini-btn" type="button" onClick={() => document.getElementById(inputId)?.click()}>
+            Carregar imagem
+          </button>
+          <button
+            className="mini-btn alt"
+            type="button"
+            onClick={() => setCollaboratorForm(current => ({ ...current, signatureImage: '' }))}
+          >
+            Remover
+          </button>
+        </div>
+        <div className="form-hint">Aceita apenas uma imagem.</div>
+      </div>
+    );
+  }
+
   function resetUnitForm() {
     setUnitForm(emptyUnitForm);
     setUnitEditingId(null);
@@ -1048,6 +1126,7 @@ export function GestorPage() {
       name: collaboratorForm.name.trim(),
       role: collaboratorForm.role.trim(),
       email: collaboratorForm.email.trim() || null,
+      signatureImage: collaboratorForm.signatureImage || null,
       isActive: collaboratorForm.isActive
     };
 
@@ -1839,71 +1918,79 @@ export function GestorPage() {
           <div className="admin-toolbar">
             <div className="sec">Equipe</div>
             {!showCollaboratorForm && !collaboratorEditingId ? (
-              <button
-                className="mini-btn"
-                type="button"
-                onClick={() => {
-                  setShowCollaboratorForm(true);
-                }}
-              >
-                + Novo colaborador
-              </button>
+	              <button
+	                className="mini-btn"
+	                type="button"
+	                onClick={openNewCollaboratorForm}
+	              >
+	                + Novo colaborador
+	              </button>
             ) : null}
           </div>
           {showCollaboratorForm && !collaboratorEditingId ? (
-          <form className="admin-inline-form admin-form-grid" onSubmit={handleCollaboratorSubmit}>
-            <div className="admin-toolbar full">
-              <div className="sec">Novo colaborador</div>
-              <button className="mini-btn alt" type="button" onClick={resetCollaboratorForm}>Cancelar</button>
-            </div>
-            <div className="field-group">
-              <label htmlFor="collaborator-name">Nome</label>
-              <input
-                id="collaborator-name"
-                value={collaboratorForm.name}
-                onChange={event => setCollaboratorForm(current => ({ ...current, name: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="collaborator-role">Cargo</label>
-              <input
-                id="collaborator-role"
-                value={collaboratorForm.role}
-                onChange={event => setCollaboratorForm(current => ({ ...current, role: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="collaborator-email">E-mail</label>
-              <input
-                id="collaborator-email"
-                type="email"
-                value={collaboratorForm.email}
-                onChange={event => setCollaboratorForm(current => ({ ...current, email: event.target.value }))}
-              />
-            </div>
-            <label className="checkbox-line">
-              <input
-                type="checkbox"
-                checked={collaboratorForm.isActive}
-                onChange={event => setCollaboratorForm(current => ({ ...current, isActive: event.target.checked }))}
-              />
-              Colaborador ativo
-            </label>
-            <div className="admin-form-actions">
-              <button
-                className="mini-btn"
-                type="submit"
-                disabled={
-                  collaboratorMutations.createCollaborator.isPending ||
-                  collaboratorMutations.updateCollaborator.isPending
-                }
-              >
-                {collaboratorEditingId ? 'Salvar colaborador' : 'Criar colaborador'}
-              </button>
-            </div>
-          </form>
+	          <form className="admin-inline-form" onSubmit={handleCollaboratorSubmit} autoComplete="off">
+	            <div className="admin-toolbar full">
+	              <div className="sec">Novo colaborador</div>
+	              <button className="mini-btn alt" type="button" onClick={resetCollaboratorForm}>Cancelar</button>
+	            </div>
+	            <div className="admin-inline-grid">
+	              <div className="field-group">
+	                <label htmlFor="collaborator-name">Nome</label>
+	                <input
+	                  id="collaborator-name"
+	                  value={collaboratorForm.name}
+	                  autoComplete="off"
+	                  onChange={event => setCollaboratorForm(current => ({ ...current, name: event.target.value }))}
+	                  required
+	                />
+	              </div>
+	              <div className="field-group">
+	                <label htmlFor="collaborator-role">Cargo</label>
+	                <input
+	                  id="collaborator-role"
+	                  value={collaboratorForm.role}
+	                  autoComplete="off"
+	                  onChange={event => setCollaboratorForm(current => ({ ...current, role: event.target.value }))}
+	                  required
+	                />
+	              </div>
+	              <div className="field-group">
+	                <label htmlFor="collaborator-email">E-mail</label>
+	                <input
+	                  id="collaborator-email"
+	                  type="email"
+	                  value={collaboratorForm.email}
+	                  autoComplete="off"
+	                  placeholder="email@empresa.com"
+	                  onChange={event => setCollaboratorForm(current => ({ ...current, email: event.target.value }))}
+	                />
+	              </div>
+	              <div className="field-group">
+	                <label htmlFor="collaborator-active">Status</label>
+	                <select
+	                  id="collaborator-active"
+	                  value={String(collaboratorForm.isActive)}
+	                  onChange={event => setCollaboratorForm(current => ({ ...current, isActive: event.target.value === 'true' }))}
+	                >
+	                  <option value="true">Ativo</option>
+	                  <option value="false">Inativo</option>
+	                </select>
+	              </div>
+	              {renderCollaboratorSignatureField('collaborator-signature-new')}
+	              <div className="admin-form-actions">
+	                <button
+	                  className="mini-btn"
+	                  type="submit"
+	                  disabled={
+	                    collaboratorMutations.createCollaborator.isPending ||
+	                    collaboratorMutations.updateCollaborator.isPending
+	                  }
+	                >
+	                  Salvar
+	                </button>
+	              </div>
+	            </div>
+	          </form>
           ) : null}
 
           {collaborators.length ? (
@@ -1939,26 +2026,62 @@ export function GestorPage() {
                       </button>
                     </div>
                   </div>
-                  {collaboratorEditingId === collaborator.id ? (
-                    <form className="admin-inline-form admin-form-grid" onSubmit={handleCollaboratorSubmit}>
-                      <div className="field-group">
-                        <label>Nome</label>
-                        <input value={collaboratorForm.name} onChange={event => setCollaboratorForm(current => ({ ...current, name: event.target.value }))} required />
-                      </div>
-                      <div className="field-group">
-                        <label>Cargo</label>
-                        <input value={collaboratorForm.role} onChange={event => setCollaboratorForm(current => ({ ...current, role: event.target.value }))} required />
-                      </div>
-                      <div className="field-group">
-                        <label>E-mail</label>
-                        <input type="email" value={collaboratorForm.email} onChange={event => setCollaboratorForm(current => ({ ...current, email: event.target.value }))} />
-                      </div>
-                      <div className="admin-form-actions">
-                        <button className="mini-btn" type="submit" disabled={collaboratorMutations.updateCollaborator.isPending}>Salvar colaborador</button>
-                        <button className="mini-btn alt" type="button" onClick={resetCollaboratorForm}>Cancelar edição</button>
-                      </div>
-                    </form>
-                  ) : null}
+	                  {collaboratorEditingId === collaborator.id ? (
+	                    <form className="admin-inline-form" onSubmit={handleCollaboratorSubmit} autoComplete="off">
+	                      <div className="admin-toolbar full">
+	                        <div className="sec">Editar colaborador</div>
+	                        <button className="mini-btn alt" type="button" onClick={resetCollaboratorForm}>Cancelar</button>
+	                      </div>
+	                      <div className="admin-inline-grid">
+	                        <div className="field-group">
+	                          <label htmlFor={`collaborator-name-${collaborator.id}`}>Nome</label>
+	                          <input
+	                            id={`collaborator-name-${collaborator.id}`}
+	                            value={collaboratorForm.name}
+	                            autoComplete="off"
+	                            onChange={event => setCollaboratorForm(current => ({ ...current, name: event.target.value }))}
+	                            required
+	                          />
+	                        </div>
+	                        <div className="field-group">
+	                          <label htmlFor={`collaborator-role-${collaborator.id}`}>Cargo</label>
+	                          <input
+	                            id={`collaborator-role-${collaborator.id}`}
+	                            value={collaboratorForm.role}
+	                            autoComplete="off"
+	                            onChange={event => setCollaboratorForm(current => ({ ...current, role: event.target.value }))}
+	                            required
+	                          />
+	                        </div>
+	                        <div className="field-group">
+	                          <label htmlFor={`collaborator-email-${collaborator.id}`}>E-mail</label>
+	                          <input
+	                            id={`collaborator-email-${collaborator.id}`}
+	                            type="email"
+	                            value={collaboratorForm.email}
+	                            autoComplete="off"
+	                            placeholder="email@empresa.com"
+	                            onChange={event => setCollaboratorForm(current => ({ ...current, email: event.target.value }))}
+	                          />
+	                        </div>
+	                        <div className="field-group">
+	                          <label htmlFor={`collaborator-active-${collaborator.id}`}>Status</label>
+	                          <select
+	                            id={`collaborator-active-${collaborator.id}`}
+	                            value={String(collaboratorForm.isActive)}
+	                            onChange={event => setCollaboratorForm(current => ({ ...current, isActive: event.target.value === 'true' }))}
+	                          >
+	                            <option value="true">Ativo</option>
+	                            <option value="false">Inativo</option>
+	                          </select>
+	                        </div>
+	                        {renderCollaboratorSignatureField(`collaborator-signature-${collaborator.id}`)}
+	                        <div className="admin-form-actions">
+	                          <button className="mini-btn" type="submit" disabled={collaboratorMutations.updateCollaborator.isPending}>Salvar</button>
+	                        </div>
+	                      </div>
+	                    </form>
+	                  ) : null}
                 </article>
               ))}
             </div>
@@ -2017,113 +2140,119 @@ export function GestorPage() {
           <div className="admin-toolbar">
             <div className="sec">Usuários internos</div>
           {!showUserForm && !userEditingId ? (
-              <button
-                className="mini-btn"
-                type="button"
-                onClick={() => {
-                  setShowUserForm(true);
-                }}
-              >
+	              <button
+	                className="mini-btn"
+	                type="button"
+	                onClick={openNewUserForm}
+	              >
                 + Novo usuário
               </button>
           ) : null}
           </div>
           {showUserForm && !userEditingId ? (
-          <form className="admin-inline-form admin-form-grid" onSubmit={handleUserSubmit}>
-            <div className="admin-toolbar full">
-              <div className="sec">Novo usuário</div>
-              <button className="mini-btn alt" type="button" onClick={resetUserForm}>Cancelar</button>
-            </div>
-            <div className="field-group">
-              <label htmlFor="user-username">Usuário</label>
-              <input
-                id="user-username"
-                value={userForm.username}
-                onChange={event => setUserForm(current => ({ ...current, username: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="user-name">Nome</label>
-              <input
-                id="user-name"
-                value={userForm.name}
-                onChange={event => setUserForm(current => ({ ...current, name: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="user-email">E-mail</label>
-              <input
-                id="user-email"
-                type="email"
-                value={userForm.email}
-                onChange={event => setUserForm(current => ({ ...current, email: event.target.value }))}
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="user-password">
-                {userEditingId ? 'Nova senha (opcional)' : 'Senha'}
-              </label>
-              <input
-                id="user-password"
-                type="password"
-                value={userForm.password}
-                onChange={event => setUserForm(current => ({ ...current, password: event.target.value }))}
-                required={!userEditingId}
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="user-role">Perfil</label>
-              <select
-                id="user-role"
-                value={userForm.role}
-                onChange={event =>
-                  setUserForm(current => ({ ...current, role: event.target.value as Exclude<UserRole, 'CLIENT'> }))
-                }
-              >
-                {internalRoles.map(role => (
-                  <option key={role} value={role}>
-                    {formatUserRole(role)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field-group">
-              <label htmlFor="user-collaborator">Colaborador vinculado</label>
-              <select
-                id="user-collaborator"
-                value={userForm.collaboratorId}
-                onChange={event => setUserForm(current => ({ ...current, collaboratorId: event.target.value }))}
-              >
-                <option value="">Nenhum</option>
-                {(collaboratorsQuery.data || [])
-                  .filter(item => item.isActive)
-                  .map(item => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <label className="checkbox-line">
-              <input
-                type="checkbox"
-                checked={userForm.isActive}
-                onChange={event => setUserForm(current => ({ ...current, isActive: event.target.checked }))}
-              />
-              Usuário ativo
-            </label>
-            <div className="admin-form-actions">
-              <button
-                className="mini-btn"
-                type="submit"
-                disabled={userMutations.createUser.isPending || userMutations.updateUser.isPending}
-              >
-                {userEditingId ? 'Salvar usuário' : 'Criar usuário'}
-              </button>
-            </div>
-          </form>
+	          <form className="admin-inline-form" onSubmit={handleUserSubmit} autoComplete="off">
+	            <div className="admin-toolbar full">
+	              <div className="sec">Novo usuário</div>
+	              <button className="mini-btn alt" type="button" onClick={resetUserForm}>Cancelar</button>
+	            </div>
+	            <div className="admin-inline-grid">
+	              <div className="field-group">
+	                <label htmlFor="user-username">Usuário</label>
+	                <input
+	                  id="user-username"
+	                  value={userForm.username}
+	                  autoComplete="off"
+	                  onChange={event => setUserForm(current => ({ ...current, username: event.target.value }))}
+	                  required
+	                />
+	              </div>
+	              <div className="field-group">
+	                <label htmlFor="user-name">Nome</label>
+	                <input
+	                  id="user-name"
+	                  value={userForm.name}
+	                  autoComplete="off"
+	                  onChange={event => setUserForm(current => ({ ...current, name: event.target.value }))}
+	                  required
+	                />
+	              </div>
+	              <div className="field-group">
+	                <label htmlFor="user-email">E-mail</label>
+	                <input
+	                  id="user-email"
+	                  type="email"
+	                  value={userForm.email}
+	                  autoComplete="off"
+	                  placeholder="email@empresa.com"
+	                  onChange={event => setUserForm(current => ({ ...current, email: event.target.value }))}
+	                />
+	              </div>
+	              <div className="field-group">
+	                <label htmlFor="user-role">Perfil</label>
+	                <select
+	                  id="user-role"
+	                  value={userForm.role}
+	                  onChange={event =>
+	                    setUserForm(current => ({ ...current, role: event.target.value as Exclude<UserRole, 'CLIENT'> }))
+	                  }
+	                >
+	                  {internalRoles.map(role => (
+	                    <option key={role} value={role}>
+	                      {formatUserRole(role)}
+	                    </option>
+	                  ))}
+	                </select>
+	              </div>
+	              <div className="field-group">
+	                <label htmlFor="user-active">Status</label>
+	                <select
+	                  id="user-active"
+	                  value={String(userForm.isActive)}
+	                  onChange={event => setUserForm(current => ({ ...current, isActive: event.target.value === 'true' }))}
+	                >
+	                  <option value="true">Ativo</option>
+	                  <option value="false">Inativo</option>
+	                </select>
+	              </div>
+	              <div className="field-group field-group-wide">
+	                <label htmlFor="user-collaborator">Vincular colaborador</label>
+	                <select
+	                  id="user-collaborator"
+	                  value={userForm.collaboratorId}
+	                  onChange={event => setUserForm(current => ({ ...current, collaboratorId: event.target.value }))}
+	                >
+	                  <option value="">Sem vínculo</option>
+	                  {(collaboratorsQuery.data || [])
+	                    .filter(item => item.isActive)
+	                    .map(item => (
+	                      <option key={item.id} value={item.id}>
+	                        {item.name}
+	                      </option>
+	                    ))}
+	                </select>
+	              </div>
+	              <div className="field-group field-group-wide">
+	                <label htmlFor="user-password">Senha</label>
+	                <input
+	                  id="user-password"
+	                  type="password"
+	                  value={userForm.password}
+	                  autoComplete="new-password"
+	                  onChange={event => setUserForm(current => ({ ...current, password: event.target.value }))}
+	                  required
+	                />
+	              </div>
+	              <div className="admin-form-actions">
+	                <button
+	                  className="mini-btn"
+	                  type="submit"
+	                  disabled={userMutations.createUser.isPending || userMutations.updateUser.isPending}
+	                >
+	                  Salvar
+	                </button>
+	              </div>
+	            </div>
+	          </form>
           ) : null}
 
           {internalUsers.length ? (
@@ -2133,10 +2262,11 @@ export function GestorPage() {
                   <div className="admin-item-title">
                     {item.name} · {item.username}
                   </div>
-                  <div className="admin-item-sub">
-                    {formatUserRole(item.role)}
-                    {item.collaborator?.name ? ` · ${item.collaborator.name}` : ''}
-                  </div>
+	                  <div className="admin-item-sub">
+	                    {formatUserRole(item.role)}
+	                    {item.email ? ` · ${item.email}` : ''}
+	                    {item.collaborator?.name ? ` · ${item.collaborator.name}` : ''}
+	                  </div>
                   <div className="admin-actions">
                     <button
                       className="mini-btn alt"
@@ -2153,48 +2283,99 @@ export function GestorPage() {
                       Remover
                     </button>
                   </div>
-                  {userEditingId === item.id ? (
-                    <form className="admin-inline-form admin-form-grid" onSubmit={handleUserSubmit}>
-                      <div className="admin-toolbar full">
-                        <div className="sec">Editar usuário</div>
-                        <button className="mini-btn alt" type="button" onClick={resetUserForm}>Cancelar</button>
-                      </div>
-                      <div className="field-group"><label>Usuário</label><input value={userForm.username} onChange={event => setUserForm(current => ({ ...current, username: event.target.value }))} required readOnly /></div>
-                      <div className="field-group"><label>Nome</label><input value={userForm.name} onChange={event => setUserForm(current => ({ ...current, name: event.target.value }))} required /></div>
-                      <div className="field-group"><label>E-mail</label><input type="email" value={userForm.email} onChange={event => setUserForm(current => ({ ...current, email: event.target.value }))} /></div>
-                      <div className="field-group"><label>Nova senha (opcional)</label><input type="password" value={userForm.password} onChange={event => setUserForm(current => ({ ...current, password: event.target.value }))} /></div>
-                      <div className="field-group">
-                        <label>Perfil</label>
-                        <select value={userForm.role} onChange={event => setUserForm(current => ({ ...current, role: event.target.value as Exclude<UserRole, 'CLIENT'> }))}>
-                          {internalRoles.map(role => <option key={role} value={role}>{formatUserRole(role)}</option>)}
-                        </select>
-                      </div>
-                      <div className="field-group">
-                        <label>Colaborador vinculado</label>
-                        <select value={userForm.collaboratorId} onChange={event => setUserForm(current => ({ ...current, collaboratorId: event.target.value }))}>
-                          <option value="">Nenhum</option>
-                          {(collaboratorsQuery.data || [])
-                            .filter(collaborator => collaborator.isActive)
-                            .map(collaborator => (
-                              <option key={collaborator.id} value={collaborator.id}>
-                                {collaborator.name}
-                              </option>
-                            ))}
-                        </select>
-                      </div>
-                      <label className="checkbox-line">
-                        <input
-                          type="checkbox"
-                          checked={userForm.isActive}
-                          onChange={event => setUserForm(current => ({ ...current, isActive: event.target.checked }))}
-                        />
-                        Usuário ativo
-                      </label>
-                      <div className="admin-form-actions">
-                        <button className="mini-btn" type="submit" disabled={userMutations.updateUser.isPending}>Salvar usuário</button>
-                      </div>
-                    </form>
-                  ) : null}
+	                  {userEditingId === item.id ? (
+	                    <form className="admin-inline-form" onSubmit={handleUserSubmit} autoComplete="off">
+	                      <div className="admin-toolbar full">
+	                        <div className="sec">Editar usuário</div>
+	                        <button className="mini-btn alt" type="button" onClick={resetUserForm}>Cancelar</button>
+	                      </div>
+	                      <div className="admin-inline-grid">
+	                        <div className="field-group">
+	                          <label htmlFor={`user-username-${item.id}`}>Usuário</label>
+	                          <input
+	                            id={`user-username-${item.id}`}
+	                            value={userForm.username}
+	                            autoComplete="off"
+	                            onChange={event => setUserForm(current => ({ ...current, username: event.target.value }))}
+	                            required
+	                            readOnly
+	                          />
+	                        </div>
+	                        <div className="field-group">
+	                          <label htmlFor={`user-name-${item.id}`}>Nome</label>
+	                          <input
+	                            id={`user-name-${item.id}`}
+	                            value={userForm.name}
+	                            autoComplete="off"
+	                            onChange={event => setUserForm(current => ({ ...current, name: event.target.value }))}
+	                            required
+	                          />
+	                        </div>
+	                        <div className="field-group">
+	                          <label htmlFor={`user-email-${item.id}`}>E-mail</label>
+	                          <input
+	                            id={`user-email-${item.id}`}
+	                            type="email"
+	                            value={userForm.email}
+	                            autoComplete="off"
+	                            placeholder="email@empresa.com"
+	                            onChange={event => setUserForm(current => ({ ...current, email: event.target.value }))}
+	                          />
+	                        </div>
+	                        <div className="field-group">
+	                          <label htmlFor={`user-role-${item.id}`}>Perfil</label>
+	                          <select
+	                            id={`user-role-${item.id}`}
+	                            value={userForm.role}
+	                            onChange={event => setUserForm(current => ({ ...current, role: event.target.value as Exclude<UserRole, 'CLIENT'> }))}
+	                          >
+	                            {internalRoles.map(role => <option key={role} value={role}>{formatUserRole(role)}</option>)}
+	                          </select>
+	                        </div>
+	                        <div className="field-group">
+	                          <label htmlFor={`user-active-${item.id}`}>Status</label>
+	                          <select
+	                            id={`user-active-${item.id}`}
+	                            value={String(userForm.isActive)}
+	                            onChange={event => setUserForm(current => ({ ...current, isActive: event.target.value === 'true' }))}
+	                          >
+	                            <option value="true">Ativo</option>
+	                            <option value="false">Inativo</option>
+	                          </select>
+	                        </div>
+	                        <div className="field-group field-group-wide">
+	                          <label htmlFor={`user-collaborator-${item.id}`}>Vincular colaborador</label>
+	                          <select
+	                            id={`user-collaborator-${item.id}`}
+	                            value={userForm.collaboratorId}
+	                            onChange={event => setUserForm(current => ({ ...current, collaboratorId: event.target.value }))}
+	                          >
+	                            <option value="">Sem vínculo</option>
+	                            {(collaboratorsQuery.data || [])
+	                              .filter(collaborator => collaborator.isActive)
+	                              .map(collaborator => (
+	                                <option key={collaborator.id} value={collaborator.id}>
+	                                  {collaborator.name}
+	                                </option>
+	                              ))}
+	                          </select>
+	                        </div>
+	                        <div className="field-group field-group-wide">
+	                          <label htmlFor={`user-password-${item.id}`}>Senha (opcional)</label>
+	                          <input
+	                            id={`user-password-${item.id}`}
+	                            type="password"
+	                            value={userForm.password}
+	                            autoComplete="new-password"
+	                            onChange={event => setUserForm(current => ({ ...current, password: event.target.value }))}
+	                          />
+	                        </div>
+	                        <div className="admin-form-actions">
+	                          <button className="mini-btn" type="submit" disabled={userMutations.updateUser.isPending}>Salvar</button>
+	                        </div>
+	                      </div>
+	                    </form>
+	                  ) : null}
                 </article>
               ))}
             </div>

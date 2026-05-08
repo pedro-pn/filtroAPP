@@ -160,10 +160,15 @@ export function NewReportPage() {
 
   const projectReports = useMemo(() => {
     const reports = lastProjectReportQuery.data || [];
-    return [...reports].sort(
+    const cutoff = reportDate ? new Date(`${reportDate}T23:59:59`) : new Date();
+    const cutoffTime = Number.isNaN(cutoff.getTime()) ? Number.POSITIVE_INFINITY : cutoff.getTime();
+    return reports.filter(report => (
+      report.reportType === 'RDO'
+      && new Date(report.reportDate || report.createdAt || 0).getTime() <= cutoffTime
+    )).sort(
       (a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime()
     );
-  }, [lastProjectReportQuery.data]);
+  }, [lastProjectReportQuery.data, reportDate]);
   const lastReport = projectReports[0] || null;
 
   const serviceFinalized = useCallback((service: ReportServiceSummary) => {
@@ -205,6 +210,27 @@ export function NewReportPage() {
       serviceSemanticKey(report, service)
     ].filter(Boolean)));
   }, [serviceSemanticKey]);
+
+  function markPreviouslyAddedUploads(extra: Record<string, unknown>) {
+    const groups = Array.isArray(extra.__uploads__) ? extra.__uploads__ : [];
+    if (!groups.length) return extra;
+
+    return {
+      ...extra,
+      __uploads__: groups.map(group => {
+        if (!group || typeof group !== 'object' || Array.isArray(group)) return group;
+        const record = group as { label?: unknown; files?: unknown };
+        const files = Array.isArray(record.files)
+          ? record.files.map(file => (
+            file && typeof file === 'object' && !Array.isArray(file)
+              ? { ...(file as UploadedFile), __previouslyAdded: true }
+              : file
+          ))
+          : record.files;
+        return { ...record, files };
+      })
+    };
+  }
 
   const pendingProjectServices = useMemo(() => {
     const items = new Map<string, { key: string; keys: string[]; report: ReportSummary; service: ReportServiceSummary }>();
@@ -263,7 +289,7 @@ export function NewReportPage() {
   }, [projectId, noturno, nightCollaboratorIds.length, lastReport, setNightCollaborators]);
 
   function continueService(service: ReportServiceSummary, ongoingKey: string) {
-      const extra = service.extraData || {};
+      const extra = markPreviouslyAddedUploads(service.extraData || {});
       const contadorUtilizado = firstIdFromField(extra['Contador utilizado'] || extra.contadorUtilizado);
       addService(normalizeServiceType(service.serviceType), {
         ...extra,
