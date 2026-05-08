@@ -24,7 +24,7 @@ import { formatDateOnlyPtBr } from '../utils/dateOnly';
 import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
-import { resolveUploadAssetUrl } from '../utils/uploadAssetUrl';
+import { loadUploadAssetUrl } from '../utils/uploadAssetUrl';
 import { closeZapSignPendingWindow, openZapSignPendingWindow, redirectZapSignWindow } from '../utils/zapSign';
 
 const TEXT = {
@@ -242,6 +242,41 @@ function asUploadedFiles(value: unknown): UploadedFile[] {
       }))
       .filter((item): item is UploadedFile => Boolean(item.url))
     : [];
+}
+
+function GeneralUploadThumb({ file }: { file: UploadedFile }) {
+  const [href, setHref] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = '';
+
+    loadUploadAssetUrl(file.url)
+      .then(nextHref => {
+        if (cancelled) {
+          if (nextHref.startsWith('blob:')) URL.revokeObjectURL(nextHref);
+          return;
+        }
+        objectUrl = nextHref.startsWith('blob:') ? nextHref : '';
+        setHref(nextHref);
+      })
+      .catch(() => {
+        if (!cancelled) setHref('');
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [file.url]);
+
+  if (!href) return null;
+
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      <img src={href} alt={file.fileName || 'foto'} className="upload-thumb" />
+    </a>
+  );
 }
 
 function serviceEquipmentValue(service: NonNullable<ReportSummary['services']>[number]) {
@@ -1359,14 +1394,9 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
           <div style={{ marginTop: 12 }}>
             <div className="detail-label">Fotos de registro</div>
             <div className="upload-thumbs">
-              {generalUploads.map(file => {
-                const href = resolveUploadAssetUrl(file.url);
-                return (
-                  <a key={file.url} href={href} target="_blank" rel="noopener noreferrer">
-                    <img src={href} alt={file.fileName || 'foto'} className="upload-thumb" />
-                  </a>
-                );
-              })}
+              {generalUploads.map(file => (
+                <GeneralUploadThumb key={file.url} file={file} />
+              ))}
             </div>
           </div>
         ) : null}
