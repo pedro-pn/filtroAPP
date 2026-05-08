@@ -8,6 +8,7 @@ interface RdoServiceDraft {
 
 interface RdoStoreState {
   draftId: string | null;
+  serviceOnly: boolean;
   projectId: string | null;
   reportDate: string;
   arrivalTime: string;
@@ -26,7 +27,7 @@ interface RdoStoreState {
   dailyDescription: string;
   generalUploads: unknown[];
   services: RdoServiceDraft[];
-  setHeaderField: <K extends keyof Pick<RdoStoreState, 'projectId' | 'reportDate' | 'arrivalTime' | 'departureTime' | 'lunchBreak' | 'standby' | 'noturno' | 'standbyDuration' | 'standbyMotivo' | 'noturnoStart' | 'noturnoEnd' | 'noturnoInterval' | 'overtimeReason' | 'dailyDescription'>>(field: K, value: RdoStoreState[K]) => void;
+  setHeaderField: <K extends keyof Pick<RdoStoreState, 'serviceOnly' | 'projectId' | 'reportDate' | 'arrivalTime' | 'departureTime' | 'lunchBreak' | 'standby' | 'noturno' | 'standbyDuration' | 'standbyMotivo' | 'noturnoStart' | 'noturnoEnd' | 'noturnoInterval' | 'overtimeReason' | 'dailyDescription'>>(field: K, value: RdoStoreState[K]) => void;
   setCollaborators: (ids: string[]) => void;
   setNightCollaborators: (ids: string[]) => void;
   setGeneralUploads: (uploads: unknown[]) => void;
@@ -41,6 +42,7 @@ interface RdoStoreState {
 
 const initialState = {
   draftId: null,
+  serviceOnly: false,
   projectId: null,
   reportDate: '',
   arrivalTime: '',

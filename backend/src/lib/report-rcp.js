@@ -11,6 +11,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
+import { buildReportFileName } from './report-filename.js';
 import { readStoredImageAsset } from './stored-image.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -640,11 +641,10 @@ export async function saveRcpDocx(report) {
   const sd = sc.serviceData || {};
   const equip = safePath(stringify(getField(sd, ['Equipamento(s)', 'Equipamento'])) || 'Equipamento');
   const sys = safePath(stringify(getField(sd, ['Sistema'])) || 'Sistema');
-  const serviceLabel = sc.serviceType === 'filtragem' ? 'Filtragem' : 'Flushing';
   const projectFolderName = safePath(`Missão ${report.project.code} - ${report.project.name}`);
   const dir = path.join(env.uploadDir, projectFolderName, 'RCPU');
   await fs.mkdir(dir, { recursive: true });
-  const fileName = safePath(`Missão ${report.project.code} - ${report.project.name} - RCPU ${reportNumber(report)} - ${serviceLabel} - ${equip} - ${sys}.docx`);
+  const fileName = buildReportFileName(report, 'docx');
   const targetPath = path.join(dir, fileName);
   await fs.writeFile(targetPath, bytes);
   return {

@@ -11,6 +11,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
+import { buildReportFileName } from './report-filename.js';
 import { readStoredImageAsset } from './stored-image.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -613,7 +614,7 @@ export async function saveRlqDocx(report) {
   const projectFolderName = safePath(`Missão ${report.project.code} - ${report.project.name}`);
   const dir = path.join(env.uploadDir, projectFolderName, 'RLQ');
   await fs.mkdir(dir, { recursive: true });
-  const fileName = safePath(`Missão ${report.project.code} - ${report.project.name} - RLQ ${reportNumber(report)} - ${equip} - ${sys}.docx`);
+  const fileName = buildReportFileName(report, 'docx');
   const targetPath = path.join(dir, fileName);
   await fs.writeFile(targetPath, bytes);
   return {

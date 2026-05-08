@@ -14,6 +14,7 @@ import { useRdoStore } from '../../store/rdoStore';
 import type { Project, ReportSummary } from '../../types/domain';
 import { downloadBlob } from '../../utils/download';
 import { compareReportTypes, ProjectSortButton, sortProjects, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
+import { reportDownloadFileName } from '../../utils/reportFileName';
 import { matchesSearch, projectSearchParts, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
@@ -91,7 +92,7 @@ export function CoordinatorPage() {
     showToast('Gerando PDF...', 'info');
     try {
       const blob = await downloadReportPdf(report.id);
-      downloadBlob(blob, `${report.reportType}_${report.sequenceNumber || report.id}.pdf`);
+      downloadBlob(blob, reportDownloadFileName(report, 'pdf'));
       showToast('PDF gerado com sucesso.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : TEXT.downloadError, 'error');

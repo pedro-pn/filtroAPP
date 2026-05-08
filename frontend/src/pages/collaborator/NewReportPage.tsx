@@ -52,6 +52,8 @@ const TEXT = {
   specialConditions: 'Condições especiais',
   identification: 'Identificação',
   schedules: 'Horários',
+  serviceOnly: 'Somente serviço',
+  serviceOnlyHint: 'Cria apenas relatórios de serviço, liberados diretamente para o cliente.',
 };
 
 const serviceTypeModalOptions = [
@@ -64,6 +66,8 @@ const serviceTypeModalOptions = [
 ] as const;
 
 const rdoSteps = [TEXT.header, TEXT.services, TEXT.finalization];
+const serviceOnlySteps = [TEXT.header, TEXT.services];
+const serviceOnlySupportedTypes = new Set(['limpeza', 'pressao', 'filtragem', 'flushing', 'mecanica']);
 type ReportServiceSummary = NonNullable<ReportSummary['services']>[number];
 
 export function NewReportPage() {
@@ -83,6 +87,7 @@ export function NewReportPage() {
 
   const {
     draftId,
+    serviceOnly,
     projectId,
     reportDate,
     arrivalTime,
@@ -120,6 +125,12 @@ export function NewReportPage() {
   const [nightCollaboratorToAdd, setNightCollaboratorToAdd] = useState('');
   const [collaboratorsPrefilled, setCollaboratorsPrefilled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const canCreateServiceOnly = user?.role === 'MANAGER';
+  const effectiveServiceOnly = canCreateServiceOnly && serviceOnly;
+  const steps = effectiveServiceOnly ? serviceOnlySteps : rdoSteps;
+  const serviceOptions = effectiveServiceOnly
+    ? serviceTypeModalOptions.filter(option => serviceOnlySupportedTypes.has(option.type))
+    : serviceTypeModalOptions;
 
   const projects = useMemo(() => sortProjects(projectsQuery.data || [], 'asc'), [projectsQuery.data]);
   const collaborators = (collaboratorsQuery.data || []).filter(item => item.isActive);
@@ -265,8 +276,8 @@ export function NewReportPage() {
   }, [pendingProjectServices, services]);
 
   useEffect(() => {
-    if (!lunchBreak) setHeaderField('lunchBreak', '01:00:00');
-  }, [lunchBreak, setHeaderField]);
+    if (!effectiveServiceOnly && !lunchBreak) setHeaderField('lunchBreak', '01:00:00');
+  }, [effectiveServiceOnly, lunchBreak, setHeaderField]);
 
   // Pre-fill collaborators from the most recent report of the selected project
   useEffect(() => {
@@ -545,6 +556,10 @@ export function NewReportPage() {
   function validateHeader() {
     if (!projectId) return failRequired('Projeto', 'header:projectId', 0);
     if (!reportDate) return failRequired('Data do relatório', 'header:reportDate', 0);
+    if (effectiveServiceOnly) {
+      if (!collaboratorIds.length) return failRequired('Colaboradores', 'header:collaborators', 0);
+      return true;
+    }
     if (!arrivalTime) return failRequired('Chegada', 'header:arrivalTime', 0);
     if (!departureTime) return failRequired('Saída', 'header:departureTime', 0);
     if (!lunchBreak) return failRequired('Intervalo de almoço', 'header:lunchBreak', 0);
@@ -559,19 +574,25 @@ export function NewReportPage() {
   }
 
   function validateServices() {
-    if (!services.length) return true;
+    if (!services.length) {
+      if (effectiveServiceOnly) return failRequired('Serviço', 'services:empty', 1);
+      return true;
+    }
 
     for (const service of services) {
       const data = service.data || {};
       const type = normalizeServiceType(service.type);
       const target = (key: string) => `${service.id}:${key}`;
 
+      if (effectiveServiceOnly && !serviceOnlySupportedTypes.has(type)) {
+        return failRequired('Tipo de serviço com relatório independente disponível', target('serviceType'), 1);
+      }
       if (!hasText(data.equipmentId)) return failRequired('Equipamento(s)', target('equipmentId'), 1);
       if (!hasText(data.system)) return failRequired('Sistema', target('system'), 1);
       if (!hasText(data.startTime)) return failRequired('Hora de início', target('startTime'), 1);
       if (!hasText(data.endTime)) return failRequired('Hora de término/pausa', target('endTime'), 1);
       if (!hasStringItem(data.serviceCollaboratorIds)) return failRequired('Colaboradores do serviço', target('serviceCollaboratorIds'), 1);
-      if (typeof data.finalized !== 'boolean') return failRequired('Serviço finalizado', target('finalized'), 1);
+      if (!effectiveServiceOnly && typeof data.finalized !== 'boolean') return failRequired('Serviço finalizado', target('finalized'), 1);
       if (!hasStringItem(data.etapas)) return failRequired('Etapas realizadas no dia', target('etapas'), 1);
 
       if (['limpeza', 'pressao', 'mecanica', 'inibicao'].includes(type) && !hasText(data.material)) {
@@ -628,7 +649,7 @@ export function NewReportPage() {
     }
 
     setInvalidTarget(null);
-    setStep(current => Math.min(current + 1, rdoSteps.length - 1));
+    setStep(current => Math.min(current + 1, steps.length - 1));
   }
 
   function buildResumoText() {
@@ -653,6 +674,7 @@ export function NewReportPage() {
   function buildDraftPayload() {
     return {
       projectId,
+      serviceOnly: effectiveServiceOnly,
       reportDate,
       arrivalTime,
       departureTime,
@@ -677,11 +699,12 @@ export function NewReportPage() {
     const payload = draft.payload || {};
     const draftProjectId = draft.projectId || (typeof payload.projectId === 'string' ? payload.projectId : '');
     const draftReportDate = draft.reportDate || (typeof payload.reportDate === 'string' ? payload.reportDate : '');
-    return draftProjectId && draftReportDate ? `${draftProjectId}|${draftReportDate.slice(0, 10)}` : '';
+    const draftServiceOnly = payload.serviceOnly === true;
+    return draftProjectId && draftReportDate ? `${draftProjectId}|${draftReportDate.slice(0, 10)}|${draftServiceOnly ? 'service' : 'rdo'}` : '';
   }
 
   function matchingDraftIds() {
-    const key = projectId && reportDate ? `${projectId}|${reportDate.slice(0, 10)}` : '';
+    const key = projectId && reportDate ? `${projectId}|${reportDate.slice(0, 10)}|${effectiveServiceOnly ? 'service' : 'rdo'}` : '';
     if (!key) return [];
     return (draftsQuery.data || []).filter(draft => draftProjectDateKey(draft) === key).map(draft => draft.id);
   }
@@ -731,6 +754,7 @@ export function NewReportPage() {
     };
   }, [
     projectId,
+    effectiveServiceOnly,
     reportDate,
     arrivalTime,
     departureTime,
@@ -776,43 +800,60 @@ export function NewReportPage() {
     try {
       const draftIdsToRemove = matchingDraftIds();
       if (draftId && !draftIdsToRemove.includes(draftId)) draftIdsToRemove.push(draftId);
-      await reportMutations.createReport.mutateAsync({
-        projectId: projectId!,
-        createdByUserId: user.id,
-        reportType: 'RDO',
-        status: user.role === 'MANAGER' ? 'APPROVED' : 'PENDING',
-        reportDate,
-        arrivalTime,
-        departureTime,
-        lunchBreak,
-        daytimeCount: collaboratorIds.length,
-        overtimeReason: overtimeSummary.totalOvertimeMinutes > 0 ? overtimeReason || null : null,
-        dailyDescription: dailyDescription || null,
-        specialConditions: {
-          standby,
-          standbyDetails: {
-            total: standbyDuration,
-            motivo: standbyMotivo
-          },
-          generalUploads,
-          noturnoDetails: {
-            enabled: noturno,
-            inicio: noturnoStart,
-            termino: noturnoEnd,
-            intervalo: noturnoInterval,
-            collaboratorIds: nightCollaboratorIds
-          },
-          overtimeSummary
-        },
-        collaboratorIds,
-        services: services.map(service => buildReportServicePayload(service, {
+      const servicePayloads = services.map(service => buildReportServicePayload(
+        effectiveServiceOnly
+          ? { ...service, data: { ...service.data, finalized: true, aprovadoCliente: 'Sim' } }
+          : service,
+        {
           collaboratorIds: Array.isArray(service.data.serviceCollaboratorIds)
             ? service.data.serviceCollaboratorIds.filter((id): id is string => typeof id === 'string')
             : [],
           collaborators,
           units
-        }))
-      });
+        }
+      ));
+
+      if (effectiveServiceOnly) {
+        await reportMutations.createServiceOnlyReports.mutateAsync({
+          projectId: projectId!,
+          createdByUserId: user.id,
+          reportDate,
+          collaboratorIds,
+          services: servicePayloads
+        });
+      } else {
+        await reportMutations.createReport.mutateAsync({
+          projectId: projectId!,
+          createdByUserId: user.id,
+          reportType: 'RDO',
+          status: user.role === 'MANAGER' ? 'APPROVED' : 'PENDING',
+          reportDate,
+          arrivalTime,
+          departureTime,
+          lunchBreak,
+          daytimeCount: collaboratorIds.length,
+          overtimeReason: overtimeSummary.totalOvertimeMinutes > 0 ? overtimeReason || null : null,
+          dailyDescription: dailyDescription || null,
+          specialConditions: {
+            standby,
+            standbyDetails: {
+              total: standbyDuration,
+              motivo: standbyMotivo
+            },
+            generalUploads,
+            noturnoDetails: {
+              enabled: noturno,
+              inicio: noturnoStart,
+              termino: noturnoEnd,
+              intervalo: noturnoInterval,
+              collaboratorIds: nightCollaboratorIds
+            },
+            overtimeSummary
+          },
+          collaboratorIds,
+          services: servicePayloads
+        });
+      }
 
       await Promise.all(draftIdsToRemove.map(id => draftMutations.removeDraft.mutateAsync(id).catch(() => undefined)));
       setDraftId(null);
@@ -831,8 +872,8 @@ export function NewReportPage() {
     <Shell>
       <TopBar
         title={TEXT.newReport}
-        subtitle={rdoSteps[step]}
-        step={`${step + 1} / ${rdoSteps.length}`}
+        subtitle={steps[step]}
+        step={`${step + 1} / ${steps.length}`}
         actions={
           <button className="topbar-chip" type="button" onClick={() => navigate(backPath)}>
             {TEXT.back}
@@ -842,10 +883,10 @@ export function NewReportPage() {
       <main className="page-scroll">
         <section className="page-card rdo-step-panel">
           <div className="rdo-progress-track" aria-hidden="true">
-            <div className="rdo-progress-fill" style={{ width: `${((step + 1) / rdoSteps.length) * 100}%` }} />
+            <div className="rdo-progress-fill" style={{ width: `${((step + 1) / steps.length) * 100}%` }} />
           </div>
           <div className="filter-tabs" role="tablist" aria-label="Etapas do relatório" onKeyDown={handleHorizontalTabListKeyDown}>
-            {rdoSteps.map((label, index) => (
+            {steps.map((label, index) => (
               <button
                 className={`filter-tab ${step === index ? 'active' : ''}`}
                 key={label}
@@ -873,6 +914,25 @@ export function NewReportPage() {
         {/* Card 1: Identificação */}
         <section className="page-card">
           <div className="section-title">{TEXT.identification}</div>
+          {canCreateServiceOnly ? (
+            <div className="tog-row" style={{ marginBottom: 12 }}>
+              <span className="tog-lbl">
+                {TEXT.serviceOnly}
+                <span className="placeholder-copy" style={{ display: 'block', marginTop: 2 }}>{TEXT.serviceOnlyHint}</span>
+              </span>
+              <label className="tog">
+                <input
+                  type="checkbox"
+                  checked={effectiveServiceOnly}
+                  onChange={event => {
+                    setHeaderField('serviceOnly', event.target.checked);
+                    setStep(0);
+                  }}
+                />
+                <span className="tog-sl" />
+              </label>
+            </div>
+          ) : null}
           <div className="admin-form-grid">
             <div className={fieldState('header:projectId')} data-invalid-target="header:projectId">
               <label htmlFor="rdo-project">Projeto <span style={{ color: 'var(--rd)' }}>*</span></label>
@@ -903,6 +963,8 @@ export function NewReportPage() {
           </div>
         </section>
 
+        {!effectiveServiceOnly ? (
+        <>
         {/* Card 2: Horários */}
         <section className="page-card">
           <div className="section-title">{TEXT.schedules}</div>
@@ -940,6 +1002,8 @@ export function NewReportPage() {
             />
           </div>
         </section>
+        </>
+        ) : null}
 
         {/* Card 3: Equipe diurna */}
         <section className="page-card">
@@ -966,6 +1030,8 @@ export function NewReportPage() {
           </div>
         </section>
 
+        {!effectiveServiceOnly ? (
+        <>
         {/* Card 4: Condições especiais */}
         <section className="page-card">
           <div className="section-title">{TEXT.specialConditions}</div>
@@ -1065,13 +1131,15 @@ export function NewReportPage() {
             </div>
           ) : null}
         </section>
+        </>
+        ) : null}
 
         </>
         ) : null}
 
         {step === 1 ? (
         <>
-        {projectId && visiblePendingProjectServices.length > 0 ? (
+        {projectId && !effectiveServiceOnly && visiblePendingProjectServices.length > 0 ? (
           <section className="page-card continuity-card">
             <div className="section-title">Serviços em andamento</div>
             <p className="placeholder-copy">
@@ -1188,6 +1256,7 @@ export function NewReportPage() {
                       groupKey={service.id}
                       projectId={projectId}
                       invalidKey={serviceInvalidKey(service.id)}
+                      hideFinalization={effectiveServiceOnly}
                     />
                   </div>
                 </article>
@@ -1292,7 +1361,7 @@ export function NewReportPage() {
           >
             {step === 0 ? 'Cancelar' : `← ${TEXT.back}`}
           </button>
-          {step < rdoSteps.length - 1 ? (
+          {step < steps.length - 1 ? (
             <button className="primary-button" type="button" onClick={handleNextStep}>
               {TEXT.next}
             </button>
@@ -1314,7 +1383,7 @@ export function NewReportPage() {
             <div className="stype-modal-handle" />
             <div className="stype-modal-title" id="new-report-service-type-title">Tipo de serviço</div>
             <div className="stype-grid">
-              {serviceTypeModalOptions.map(({ type, icon, name }) => (
+              {serviceOptions.map(({ type, icon, name }) => (
                 <button
                   key={type}
                   className="stype-btn"

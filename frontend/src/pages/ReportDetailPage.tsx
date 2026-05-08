@@ -24,6 +24,7 @@ import type { ReportPayload, ReportStatus, ReportSummary } from '../types/domain
 import { formatDateOnlyPtBr } from '../utils/dateOnly';
 import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
+import { reportDownloadFileName } from '../utils/reportFileName';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
 import { loadUploadAssetUrl } from '../utils/uploadAssetUrl';
 import { closeZapSignPendingWindow, openZapSignPendingWindow, redirectZapSignWindow } from '../utils/zapSign';
@@ -77,6 +78,7 @@ const serviceTypeModalOptions = [
   { type: 'mecanica', icon: '⚙️', name: 'Limpeza mecânica' },
   { type: 'inibicao', icon: '🛡️', name: 'Inibição' },
 ] as const;
+const serviceOnlySupportedTypes = new Set(['limpeza', 'pressao', 'filtragem', 'flushing', 'mecanica']);
 
 interface RdoServiceForm {
   id: string;
@@ -229,6 +231,10 @@ function hasActiveClientRejection(report: ReportSummary) {
   const resolvedAt = typeof special.__clientRejectionResolvedAt === 'string' ? special.__clientRejectionResolvedAt : '';
   if (!rejectedAt) return false;
   return !resolvedAt || new Date(rejectedAt).getTime() > new Date(resolvedAt).getTime();
+}
+
+function isServiceOnlyReport(report: ReportSummary) {
+  return report.specialConditions?.serviceOnly === true;
 }
 
 function asUploadedFiles(value: unknown): UploadedFile[] {
@@ -424,43 +430,51 @@ function buildPayload(
     units: ReturnType<typeof useUnits>['data'];
   }
 ): Omit<ReportPayload, 'createdByUserId' | 'status'> {
+  const serviceOnly = isServiceOnlyReport(report);
+  const firstService = form.services[0];
+  const effectiveArrivalTime = serviceOnly ? getString(firstService?.data.startTime) || form.arrivalTime || '00:00' : form.arrivalTime;
+  const effectiveDepartureTime = serviceOnly ? getString(firstService?.data.endTime) || form.departureTime || '00:00' : form.departureTime;
+  const effectiveLunchBreak = serviceOnly ? '00:00:00' : form.lunchBreak;
+
   return {
     projectId: form.projectId || report.projectId,
     reportType: report.reportType,
     sequenceNumber: toPositiveInteger(form.sequenceNumber),
     reportDate: form.reportDate,
-    arrivalTime: form.arrivalTime,
-    departureTime: form.departureTime,
-    lunchBreak: form.lunchBreak,
+    arrivalTime: effectiveArrivalTime,
+    departureTime: effectiveDepartureTime,
+    lunchBreak: effectiveLunchBreak,
     daytimeCount: form.collaboratorIds.length,
     overtimeReason: form.overtimeReason || null,
     dailyDescription: form.dailyDescription || null,
-    specialConditions: {
-      ...asRecord(report.specialConditions),
-      standby: form.standby,
-      noturno: form.noturno,
-      standbyDetails: {
-        total: form.standbyDuration,
-        motivo: form.standbyMotivo
-      },
-      generalUploads: form.generalUploads,
-      noturnoDetails: {
-        enabled: form.noturno,
-        inicio: form.noturnoStart,
-        termino: form.noturnoEnd,
-        intervalo: getString(asRecord(asRecord(report.specialConditions).noturnoDetails).intervalo) || '01:00:00',
-        collaboratorIds: form.nightCollaboratorIds,
-        colaboradores: form.nightCollaboratorIds
-          .map(id => resources.collaborators?.find(collaborator => collaborator.id === id)?.name || id)
-      }
-    },
+    specialConditions: serviceOnly
+      ? asRecord(report.specialConditions)
+      : {
+          ...asRecord(report.specialConditions),
+          standby: form.standby,
+          noturno: form.noturno,
+          standbyDetails: {
+            total: form.standbyDuration,
+            motivo: form.standbyMotivo
+          },
+          generalUploads: form.generalUploads,
+          noturnoDetails: {
+            enabled: form.noturno,
+            inicio: form.noturnoStart,
+            termino: form.noturnoEnd,
+            intervalo: getString(asRecord(asRecord(report.specialConditions).noturnoDetails).intervalo) || '01:00:00',
+            collaboratorIds: form.nightCollaboratorIds,
+            colaboradores: form.nightCollaboratorIds
+              .map(id => resources.collaborators?.find(collaborator => collaborator.id === id)?.name || id)
+          }
+        },
     collaboratorIds: form.collaboratorIds,
     services: form.services.map(service => {
       const explicitServiceCollaborators = Object.prototype.hasOwnProperty.call(service.data, 'serviceCollaboratorIds');
-      return buildReportServicePayload(service, {
+      return buildReportServicePayload(serviceOnly ? { ...service, data: { ...service.data, finalized: true, aprovadoCliente: 'Sim' } } : service, {
         collaboratorIds: explicitServiceCollaborators && Array.isArray(service.data.serviceCollaboratorIds)
           ? service.data.serviceCollaboratorIds.filter((id): id is string => typeof id === 'string')
-          : Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds])),
+          : serviceOnly ? form.collaboratorIds : Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds])),
         collaborators: resources.collaborators || [],
         equipment: resources.equipment || [],
         units: resources.units || []
@@ -487,6 +501,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const [nightCollaboratorToAdd, setNightCollaboratorToAdd] = useState('');
   const [showServiceModal, setShowServiceModal] = useState(false);
   const readOnly = report.status === 'SIGNED';
+  const serviceOnly = isServiceOnlyReport(report);
   const isManager = user?.role === 'MANAGER';
   const canEditSequence = isManager && !readOnly;
   const canApproveInEditor = report.status === 'PENDING' || report.status === 'RETURNED' || hasActiveClientRejection(report);
@@ -515,19 +530,19 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     ? `Número já usado no relatório ${sequenceConflict.reportType} ${sequenceConflict.sequenceNumber}.`
     : 'Usado para manter a sequência do projeto e dos relatórios derivados.';
   const selectedCollaboratorIds = useMemo(
-    () => new Set([...form.collaboratorIds, ...form.nightCollaboratorIds]),
-    [form.collaboratorIds, form.nightCollaboratorIds]
+    () => new Set(serviceOnly ? form.collaboratorIds : [...form.collaboratorIds, ...form.nightCollaboratorIds]),
+    [serviceOnly, form.collaboratorIds, form.nightCollaboratorIds]
   );
   const collaborators = (collaboratorsQuery.data || []).filter(item => item.isActive || selectedCollaboratorIds.has(item.id));
   const serviceCollaboratorOptions = useMemo(() => {
-    const ids = Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds]));
+    const ids = serviceOnly ? form.collaboratorIds : Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds]));
     return ids
       .map(id => {
         const collaborator = collaborators.find(item => item.id === id);
         return collaborator ? { id: collaborator.id, name: collaborator.name } : null;
       })
       .filter((item): item is { id: string; name: string } => Boolean(item));
-  }, [form.collaboratorIds, form.nightCollaboratorIds, collaborators]);
+  }, [serviceOnly, form.collaboratorIds, form.nightCollaboratorIds, collaborators]);
   const equipment = equipmentQuery.data || [];
   const units = unitsQuery.data || [];
   const manometers = manometersQuery.data || [];
@@ -652,7 +667,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     showToast(format === 'pdf' ? 'Gerando PDF...' : 'Gerando DOCX...', 'info');
     try {
       const blob = format === 'pdf' ? await downloadReportPdf(report.id) : await downloadReportDocx(report.id);
-      downloadBlob(blob, `${report.reportType}_${report.sequenceNumber || report.id}.${format}`);
+      downloadBlob(blob, reportDownloadFileName(report, format));
       showToast(format === 'pdf' ? 'PDF gerado com sucesso.' : 'DOCX baixado com sucesso.', 'success');
     } catch (err) {
       showToast(err instanceof Error ? err.message : TEXT.downloadError, 'error');
@@ -716,6 +731,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               required
             />
           </div>
+          {!serviceOnly ? (
           <div className="field-group">
             <label htmlFor="rdo-arrival">Chegada</label>
             <input
@@ -727,6 +743,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               required
             />
           </div>
+          ) : null}
+          {!serviceOnly ? (
           <div className="field-group">
             <label htmlFor="rdo-departure">Saída</label>
             <input
@@ -738,6 +756,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               required
             />
           </div>
+          ) : null}
+          {!serviceOnly ? (
           <div className="field-group">
             <label htmlFor="rdo-lunch">{TEXT.interval}</label>
             <input
@@ -750,6 +770,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               required
             />
           </div>
+          ) : null}
         </div>
       </section>
 
@@ -773,6 +794,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         ) : null}
       </section>
 
+      {!serviceOnly ? (
       <section className="page-card">
         <div className="section-title">Condições especiais</div>
         <div className="tog-row">
@@ -870,6 +892,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           </div>
         </div>
       </section>
+      ) : null}
 
       <section className="page-card report-services-step">
         <div className="section-title">{TEXT.services}</div>
@@ -882,7 +905,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     <span>{serviceTypeLabels[normalizeServiceType(service.type)] || service.type}</span>
                     <span className="svc-card-badge">{TEXT.service} {index + 1}</span>
                   </div>
-                  {!readOnly ? (
+                  {!readOnly && !serviceOnly ? (
                     <div className="admin-card-actions">
                       <button className="svc-remove" type="button" onClick={() => removeService(service.id)}>
                         Remover
@@ -949,6 +972,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     collaboratorOptions={serviceCollaboratorOptions}
                     groupKey={service.id}
                     projectId={form.projectId}
+                    hideFinalization={serviceOnly}
                   />
                 </div>
               </article>
@@ -957,7 +981,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         ) : (
           <p className="placeholder-copy">{TEXT.noService}</p>
         )}
-        {!readOnly ? (
+        {!readOnly && !serviceOnly ? (
           <div className="admin-form-actions" style={{ marginTop: 12 }}>
             <button
               className="secondary-button"
@@ -971,6 +995,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         ) : null}
       </section>
 
+      {!serviceOnly ? (
       <section className="page-card">
         <div className="section-title">{TEXT.finalization}</div>
         <div className="admin-form-grid">
@@ -1013,6 +1038,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           onConfirm={reason => void handleSaveAndStatus('RETURNED', reason)}
         />
       </section>
+      ) : null}
 
       {!readOnly ? (
         <div className="detail-action-bar detail-manager-action-bar">
@@ -1042,7 +1068,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               {hasActiveClientRejection(report) ? 'Salvar e Reenviar' : 'Salvar e Aprovar'}
             </button>
           ) : null}
-          {isManager ? (
+          {isManager && !serviceOnly ? (
             <button
               className="danger-button"
               type="button"
@@ -1065,7 +1091,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             <div className="stype-modal-handle" />
             <div className="stype-modal-title" id="detail-service-type-title">Tipo de serviço</div>
             <div className="stype-grid">
-              {serviceTypeModalOptions.map(({ type, icon, name }) => (
+              {(serviceOnly ? serviceTypeModalOptions.filter(option => serviceOnlySupportedTypes.has(option.type)) : serviceTypeModalOptions).map(({ type, icon, name }) => (
                 <button
                   className="stype-btn"
                   key={type}
@@ -1094,7 +1120,7 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
     showToast(format === 'pdf' ? 'Gerando PDF...' : 'Gerando DOCX...', 'info');
     try {
       const blob = format === 'pdf' ? await downloadReportPdf(report.id) : await downloadReportDocx(report.id);
-      downloadBlob(blob, `${report.reportType}_${report.sequenceNumber || report.id}.${format}`);
+      downloadBlob(blob, reportDownloadFileName(report, format));
       showToast(format === 'pdf' ? 'PDF gerado com sucesso.' : 'DOCX baixado com sucesso.', 'success');
     } catch (err) {
       showToast(err instanceof Error ? err.message : TEXT.downloadError, 'error');
@@ -1463,12 +1489,15 @@ export function ReportDetailPage() {
 
   const report = reportQuery.data;
   const showRdoEditor =
-    report?.reportType === 'RDO'
+    !!report
     && report.status !== 'SIGNED'
     && (
-      user?.role === 'MANAGER'
-      || user?.role === 'COLLABORATOR'
-      || (user?.role === 'COORDINATOR' && report.createdByUserId === user.id)
+      (report.reportType === 'RDO' && (
+        user?.role === 'MANAGER'
+        || user?.role === 'COLLABORATOR'
+        || (user?.role === 'COORDINATOR' && report.createdByUserId === user.id)
+      ))
+      || (user?.role === 'MANAGER' && isServiceOnlyReport(report))
     );
 
   return (

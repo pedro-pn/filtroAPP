@@ -44,6 +44,7 @@ import {
 } from '../../lib/zapsign.js';
 import { calculateReportOvertime } from '../../lib/overtime.js';
 import prisma from '../../lib/prisma.js';
+import { buildReportFileName } from '../../lib/report-filename.js';
 import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
@@ -291,6 +292,9 @@ function canClientSeeReport(report, allReportsById) {
   if (report.reportType === ReportType.RDO) {
     return report.status === ReportStatus.APPROVED || report.status === ReportStatus.SIGNED || hasActiveClientRejection(report);
   }
+  if (report.specialConditions?.serviceOnly === true) {
+    return report.status === ReportStatus.APPROVED || report.status === ReportStatus.SIGNED;
+  }
   const parentId = report.specialConditions?.parentRdoId;
   if (!parentId) return false;
   const parent = allReportsById.get(parentId);
@@ -317,9 +321,7 @@ function clientIp(req) {
 
 function reportPdfFileName(report, saved) {
   if (saved?.fileName) return saved.fileName;
-  const type = String(report.reportType || 'RDO');
-  const number = report.sequenceNumber != null ? String(report.sequenceNumber) : '---';
-  return `${type}_${number}.pdf`;
+  return buildReportFileName(report, 'pdf');
 }
 
 async function withCurrentServiceLeaderSnapshot(report) {
@@ -347,6 +349,7 @@ async function withCurrentServiceLeaderSnapshot(report) {
 
 async function generateReportPdfAsset(report) {
   report = await withCurrentServiceLeaderSnapshot(report);
+  report = withServiceUploadFields(report);
   if (report.reportType === 'RTP') return saveRtpPdf(report);
   if (report.reportType === 'RLQ') return saveRlqPdf(report);
   if (report.reportType === 'RCPU') return saveRcpPdf(report);
@@ -356,6 +359,7 @@ async function generateReportPdfAsset(report) {
 
 async function generateReportDocxAsset(report) {
   report = await withCurrentServiceLeaderSnapshot(report);
+  report = withServiceUploadFields(report);
   if (report.reportType === 'RTP') return saveRtpDocx(report);
   if (report.reportType === 'RLQ') return saveRlqDocx(report);
   if (report.reportType === 'RCPU') return saveRcpDocx(report);
@@ -425,7 +429,7 @@ async function resolveSignedPdf(report) {
     });
   }
 
-  const fileName = `${String(report.reportType || 'RDO')}_${report.sequenceNumber != null ? String(report.sequenceNumber) : report.id}_assinado.pdf`;
+  const fileName = buildReportFileName(report, 'pdf');
   let buffer;
   try {
     buffer = await downloadSignedZapSignDocument(signedUrl);
@@ -531,6 +535,10 @@ const serviceSchema = z.object({
   extraData: z.any().optional()
 });
 
+const serviceOnlyServiceSchema = serviceSchema.extend({
+  finalized: z.boolean().optional()
+});
+
 const schema = z.object({
   projectId: z.string().min(1),
   createdByUserId: z.string().min(1),
@@ -546,6 +554,14 @@ const schema = z.object({
   specialConditions: z.any().optional(),
   collaboratorIds: z.array(z.string()).default([]),
   services: z.array(serviceSchema).default([])
+});
+
+const serviceOnlySchema = z.object({
+  projectId: z.string().min(1),
+  createdByUserId: z.string().min(1),
+  reportDate: z.string().min(1),
+  collaboratorIds: z.array(z.string()).default([]),
+  services: z.array(serviceOnlyServiceSchema).min(1)
 });
 
 const positiveIntSchema = z.coerce.number().int().positive();
@@ -744,7 +760,43 @@ function applyUrlMap(obj, urlMap) {
   try { return JSON.parse(json); } catch { return obj; }
 }
 
+function expandUploadGroupsInServiceData(serviceData, fallbackData) {
+  const next = cloneJson(serviceData || {}) || {};
+  const groups = [];
+  [fallbackData, serviceData].forEach(source => {
+    if (Array.isArray(source?.__uploads__)) groups.push(...source.__uploads__);
+  });
+
+  groups.forEach(group => {
+    if (!group || typeof group !== 'object' || Array.isArray(group)) return;
+    const label = String(group.label || '').trim();
+    const files = Array.isArray(group.files) ? group.files.filter(Boolean) : [];
+    if (!label || !files.length) return;
+    if (!hasReportFieldValue(next[label])) next[label] = files;
+    if (label === 'Foto do laudo' && !hasReportFieldValue(next['Foto do laudo do contador'])) {
+      next['Foto do laudo do contador'] = files;
+    }
+  });
+
+  return next;
+}
+
+function withServiceUploadFields(report) {
+  if (!report || report.reportType === ReportType.RDO) return report;
+  const specialConditions = report.specialConditions || {};
+  const serviceData = specialConditions.serviceData || {};
+  const serviceExtraData = report.services?.[0]?.extraData || {};
+  return {
+    ...report,
+    specialConditions: {
+      ...specialConditions,
+      serviceData: expandUploadGroupsInServiceData(serviceData, serviceExtraData)
+    }
+  };
+}
+
 async function organizeAndPersist(report) {
+  report = withServiceUploadFields(report);
   const projectFolderName = safePathLocal(`Missão ${report.project.code} - ${report.project.name}`);
   let urlMap;
   if (report.reportType === 'RTP') {
@@ -1813,6 +1865,206 @@ async function syncApprovedRlmReports(tx, report) {
   }
 }
 
+function independentReportTypesForService(service) {
+  switch (service.serviceType) {
+    case 'pressao':
+      return [ReportType.RTP];
+    case 'limpeza':
+      return [ReportType.RLQ];
+    case 'flushing':
+    case 'filtragem':
+      return [ReportType.RCPU];
+    case 'mecanica':
+      return [ReportType.RLM];
+    default:
+      return [];
+  }
+}
+
+function serviceCollaboratorIds(service, fallbackIds = []) {
+  const fields = service.extraData || {};
+  const collabField =
+    fields['Colaboradores do serviço'] ||
+    fields['Colaboradores do serviÃ§o'] ||
+    fields['Colaboradores do servico'];
+  const ids = Array.isArray(collabField?.ids) ? collabField.ids.filter(Boolean) : [];
+  return uniqueIds(ids.length ? ids : fallbackIds);
+}
+
+function serviceUnitIds(fields, names) {
+  const field = getReportField(fields, names);
+  if (Array.isArray(field?.ids)) return field.ids.filter(Boolean);
+  if (field && typeof field === 'string') return [field];
+  return [];
+}
+
+function sourceReportForIndependentService(project, data, collaboratorIds, reviewedByUserId) {
+  return {
+    id: null,
+    projectId: data.projectId,
+    createdByUserId: data.createdByUserId,
+    reviewedByUserId,
+    reportType: ReportType.RDO,
+    status: ReportStatus.APPROVED,
+    reportDate: new Date(data.reportDate),
+    arrivalTime: '00:00',
+    departureTime: '00:00',
+    lunchBreak: '00:00:00',
+    daytimeCount: collaboratorIds.length,
+    approvedAt: new Date(),
+    project,
+    collaborators: collaboratorIds.map(collaboratorId => ({ collaboratorId })),
+    specialConditions: {
+      __leaderSnapshot: projectLeaderSnapshot(project)
+    }
+  };
+}
+
+async function buildIndependentSpecialConditions(tx, reportType, sourceReport, service) {
+  const fields = expandUploadGroupsInServiceData(service.extraData || {}, service.extraData || {});
+  const collabIds = serviceCollaboratorIds(service, (sourceReport.collaborators || []).map(link => link.collaboratorId));
+  const collaborators = collabIds.length
+    ? await tx.collaborator.findMany({ where: { id: { in: collabIds } } })
+    : [];
+  const resolvedCollaborators = resolveCollaboratorsByShift(sourceReport, collaborators);
+  const serviceLinkKey = serviceHistoryKey(service) || String(service.id || '').trim();
+  const base = {
+    serviceOnly: true,
+    source: 'SERVICE_ONLY',
+    serviceLinkKey: serviceLinkKey || undefined,
+    serviceType: service.serviceType,
+    serviceData: fields,
+    resolvedCollaborators,
+    __leaderSnapshot: sourceReport.specialConditions?.__leaderSnapshot || null
+  };
+
+  if (reportType === ReportType.RTP) {
+    const manoIds = serviceUnitIds(fields, ['Manômetros utilizados', 'ManÃ´metros utilizados', 'Manometros utilizados']);
+    const uthIds = serviceUnitIds(fields, [
+      'Unidade de Teste Hidrostático (UTH)',
+      'Unidade de Teste HidrostÃ¡tico (UTH)',
+      'Unidade de Teste Hidrostatico (UTH)'
+    ]);
+    const [manometers, uthUnits] = await Promise.all([
+      manoIds.length ? tx.manometer.findMany({ where: { id: { in: manoIds } } }) : Promise.resolve([]),
+      uthIds.length ? tx.unit.findMany({ where: { id: { in: uthIds } } }) : Promise.resolve([])
+    ]);
+    return {
+      ...base,
+      resolvedManometers: manometers.map(m => ({
+        id: m.id,
+        code: m.code,
+        scale: m.scale,
+        certCode: m.calibrationCertCode,
+        calibratedAt: m.calibratedAt ? m.calibratedAt.toISOString().slice(0, 10) : '',
+        expiresAt: m.expiresAt ? m.expiresAt.toISOString().slice(0, 10) : ''
+      })),
+      resolvedUnits: uthUnits.map(u => u.code)
+    };
+  }
+
+  if (reportType === ReportType.RLQ) {
+    const ulqIds = serviceUnitIds(fields, [
+      'Unidade de Limpeza Química',
+      'Unidade de Limpeza QuÃ­mica',
+      'Unidade de Limpeza Quimica'
+    ]);
+    const units = ulqIds.length ? await tx.unit.findMany({ where: { id: { in: ulqIds } } }) : [];
+    return { ...base, resolvedUnits: units.map(u => u.code) };
+  }
+
+  if (reportType === ReportType.RCPU) {
+    const unitFieldNames = service.serviceType === 'filtragem'
+      ? ['Unidade de filtragem', 'Unidade de Filtragem']
+      : ['Unidade de Flushing', 'Unidade de flushing'];
+    const unitIds = serviceUnitIds(fields, unitFieldNames);
+    const thermoIds = serviceUnitIds(fields, [
+      'Equipamento de desidratação',
+      'Equipamento de desidrataÃ§Ã£o',
+      'Equipamento de desidratacao'
+    ]);
+    const counterRaw = fields['Contador utilizado'];
+    const counterId = counterRaw && typeof counterRaw === 'string' ? counterRaw : (counterRaw?.id || null);
+    const [units, thermoUnits, counter] = await Promise.all([
+      unitIds.length ? tx.unit.findMany({ where: { id: { in: unitIds } } }) : Promise.resolve([]),
+      thermoIds.length ? tx.unit.findMany({ where: { id: { in: thermoIds } } }) : Promise.resolve([]),
+      counterId ? tx.particleCounter.findUnique({ where: { id: counterId } }) : Promise.resolve(null)
+    ]);
+    return {
+      ...base,
+      resolvedUnits: units.map(u => u.code),
+      resolvedThermoUnit: thermoUnits.length ? thermoUnits[0].code : '',
+      resolvedCounter: counter ? { code: counter.code, serialNumber: counter.serialNumber } : null,
+      totalMinutes: calcServiceMinutes(service.startTime, service.endTime)
+    };
+  }
+
+  return base;
+}
+
+async function createIndependentServiceReports(tx, project, data, managerUserId) {
+  const collaboratorIds = uniqueIds(data.collaboratorIds);
+  const sourceReport = sourceReportForIndependentService(project, data, collaboratorIds, managerUserId);
+  const createdReports = [];
+
+  for (const service of data.services) {
+    const normalizedService = {
+      ...service,
+      id: String(service.extraData?.__serviceLinkKey || service.extraData?.__sourceServiceId || ''),
+      finalized: true,
+      extraData: service.extraData || {}
+    };
+    const reportTypes = independentReportTypesForService(normalizedService);
+    for (const reportType of reportTypes) {
+      const sequenceNumber = await reserveSequence(tx, data.projectId, reportType);
+      const specialConditions = await buildIndependentSpecialConditions(tx, reportType, sourceReport, normalizedService);
+      const reportCollaboratorIds = serviceCollaboratorIds(normalizedService, collaboratorIds);
+      const created = await tx.report.create({
+        data: {
+          projectId: data.projectId,
+          createdByUserId: managerUserId,
+          reviewedByUserId: managerUserId,
+          reportType,
+          sequenceNumber,
+          status: ReportStatus.APPROVED,
+          reportDate: new Date(data.reportDate),
+          arrivalTime: normalizedService.startTime || '00:00',
+          departureTime: normalizedService.endTime || '00:00',
+          lunchBreak: '00:00:00',
+          daytimeCount: reportCollaboratorIds.length || collaboratorIds.length,
+          daytimeWorkedMinutes: 0,
+          nighttimeWorkedMinutes: 0,
+          daytimeOvertimeMinutes: 0,
+          nighttimeOvertimeMinutes: 0,
+          totalOvertimeMinutes: 0,
+          approvedAt: new Date(),
+          specialConditions,
+          pendingDerivedTypes: [],
+          collaborators: {
+            create: reportCollaboratorIds.map(collaboratorId => ({ collaboratorId }))
+          },
+          services: {
+            create: [{
+              serviceType: normalizedService.serviceType,
+              equipmentId: normalizedService.equipmentId || null,
+              system: normalizedService.system || null,
+              material: normalizedService.material || null,
+              startTime: normalizedService.startTime || null,
+              endTime: normalizedService.endTime || null,
+              finalized: true,
+              extraData: normalizedService.extraData
+            }]
+          }
+        },
+        include
+      });
+      createdReports.push(created);
+    }
+  }
+
+  return createdReports;
+}
+
 router.get('/', requireAuth, asyncHandler(async (req, res) => {
   const where = {};
 
@@ -2218,6 +2470,40 @@ router.delete('/:id/services/:serviceId', requireAuth, asyncHandler(async (req, 
   res.json(item);
 }));
 
+router.post('/service-only', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth.user.role !== 'MANAGER') {
+    return res.status(403).json({ error: 'Apenas o gestor pode criar relatórios somente de serviço.' });
+  }
+
+  const data = serviceOnlySchema.parse(req.body);
+  const unsupportedTypes = Array.from(new Set(data.services
+    .filter(service => !independentReportTypesForService(service).length)
+    .map(service => service.serviceType)));
+  if (unsupportedTypes.length) {
+    return res.status(400).json({
+      error: `Tipo de serviço sem relatório independente disponível: ${unsupportedTypes.join(', ')}.`
+    });
+  }
+
+  const createdReports = await prisma.$transaction(async tx => {
+    const project = await tx.project.findUniqueOrThrow({
+      where: { id: data.projectId },
+      include: { operator: true }
+    });
+
+    return createIndependentServiceReports(tx, project, {
+      ...data,
+      createdByUserId: req.auth.user.id
+    }, req.auth.user.id);
+  });
+
+  for (const report of createdReports) {
+    await organizeAndPersist(report);
+  }
+
+  res.status(201).json(createdReports);
+}));
+
 router.post('/', requireAuth, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode criar relatórios.` });
@@ -2324,6 +2610,16 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  const isServiceOnlyReport = existing.specialConditions?.serviceOnly === true;
+  if (isServiceOnlyReport && req.auth.user.role !== 'MANAGER') {
+    return res.status(403).json({ error: 'Apenas o gestor pode editar relatórios somente de serviço.' });
+  }
+  if (isServiceOnlyReport) {
+    const firstService = data.services[0];
+    if (!firstService || !independentReportTypesForService(firstService).includes(data.reportType)) {
+      return res.status(400).json({ error: 'Tipo de serviço incompatível com este relatório independente.' });
+    }
+  }
   if (req.auth.user.role === 'COORDINATOR' && existing.createdByUserId !== req.auth.user.id) {
     return res.status(403).json({ error: 'O coordenador só pode editar relatórios criados por ele.' });
   }
@@ -2351,6 +2647,22 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     });
     const overtime = calculateReportOvertime(project, data);
     const leaderSnapshot = projectLeaderSnapshot(project);
+    const serviceOnlySpecialConditions = isServiceOnlyReport
+      ? await buildIndependentSpecialConditions(
+          tx,
+          data.reportType,
+          sourceReportForIndependentService(project, {
+            ...data,
+            createdByUserId: existing.createdByUserId || req.auth.user.id
+          }, collaboratorIds, existing.reviewedByUserId || req.auth.user.id),
+          {
+            ...data.services[0],
+            id: String(data.specialConditions?.serviceLinkKey || data.specialConditions?.serviceId || existing.services?.[0]?.id || ''),
+            finalized: true,
+            extraData: data.services[0]?.extraData || {}
+          }
+        )
+      : null;
     const managerProvidedSequence = req.auth.user.role === 'MANAGER' && data.sequenceNumber;
     const targetSequenceNumber = managerProvidedSequence ? data.sequenceNumber : existing.sequenceNumber;
     const sequenceGroupChanged = existing.projectId !== data.projectId || existing.reportType !== data.reportType;
@@ -2394,11 +2706,12 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
           ...(req.auth.user.role === 'MANAGER'
             ? withClientRejectionCleared(stripInternalEditState(data.specialConditions || {}))
             : stripInternalEditState(data.specialConditions || {})),
+          ...(serviceOnlySpecialConditions || {}),
           overtimeSummary: overtime,
           ...internalEditState,
           __leaderSnapshot: leaderSnapshot
         },
-        pendingDerivedTypes: collectPendingDerivedTypes(data.services),
+        pendingDerivedTypes: isServiceOnlyReport ? [] : collectPendingDerivedTypes(data.services),
         status: req.auth.user.role === 'MANAGER'
           ? (isManagerFixingClientRejection ? ReportStatus.APPROVED : existing.status)
           : ReportStatus.PENDING,
@@ -2423,7 +2736,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
             material: service.material || null,
             startTime: service.startTime || null,
             endTime: service.endTime || null,
-            finalized: typeof service.finalized === 'boolean' ? service.finalized : null,
+            finalized: isServiceOnlyReport ? true : (typeof service.finalized === 'boolean' ? service.finalized : null),
             extraData: service.extraData || {}
           }))
         }

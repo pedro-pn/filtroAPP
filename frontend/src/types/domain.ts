@@ -186,6 +186,14 @@ export interface ReportPayload {
   services: ReportServiceInput[];
 }
 
+export interface ServiceOnlyReportPayload {
+  projectId: string;
+  createdByUserId: string;
+  reportDate: string;
+  collaboratorIds: string[];
+  services: ReportServiceInput[];
+}
+
 export interface ReportDraft {
   id: string;
   projectId?: string | null;
