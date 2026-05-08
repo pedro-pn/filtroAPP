@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
@@ -8,6 +8,7 @@ import { useToast } from '../../components/ui/Toast';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { collectOngoingServices } from '../../utils/ongoingServices';
+import { matchesSearch, reportSearchParts } from '../../utils/search';
 
 export function OngoingServicesPage() {
   const navigate = useNavigate();
@@ -15,7 +16,18 @@ export function OngoingServicesPage() {
   const showToast = useToast();
   const reportsQuery = useReports({ mine: true });
   const reportMutations = useReportMutations();
-  const services = useMemo(() => collectOngoingServices(reportsQuery.data || []), [reportsQuery.data]);
+  const [search, setSearch] = useState('');
+  const services = useMemo(
+    () => collectOngoingServices(reportsQuery.data || []).filter(item => matchesSearch([
+      item.projectTitle,
+      item.serviceType,
+      item.equipment,
+      item.system,
+      item.report.sequenceNumber,
+      ...reportSearchParts(item.report)
+    ], search)),
+    [reportsQuery.data, search]
+  );
   const groups = useMemo(() => {
     return services.reduce<Record<string, typeof services>>((acc, item) => {
       if (!acc[item.projectTitle]) acc[item.projectTitle] = [];
@@ -56,11 +68,23 @@ export function OngoingServicesPage() {
         }
       />
       <main className="page-scroll">
+        <section className="page-card">
+          <div className="admin-search-row">
+            <input
+              aria-label="Buscar em serviços em andamento"
+              placeholder="Buscar em serviços em andamento"
+              value={search}
+              onChange={event => setSearch(event.target.value)}
+            />
+          </div>
+        </section>
         {reportsQuery.isLoading ? (
           <div className="page-card placeholder-copy">Carregando serviços em andamento...</div>
         ) : null}
         {!reportsQuery.isLoading && !services.length ? (
-          <div className="page-card placeholder-copy">Nenhum serviço em andamento.</div>
+          <div className="page-card placeholder-copy">
+            {search.trim() ? 'Nenhum serviço em andamento encontrado.' : 'Nenhum serviço em andamento.'}
+          </div>
         ) : null}
         {Object.entries(groups).map(([projectTitle, items]) => (
           <section className="page-card" key={projectTitle}>

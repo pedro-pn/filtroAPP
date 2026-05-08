@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { downloadReportDocx, downloadReportPdf } from '../api/reports';
 import { useAuth } from '../auth/AuthContext';
+import { roleHomePath } from '../auth/rolePath';
 import type { UploadedFile } from '../api/uploads';
 import { ServiceCollaboratorsBlock, ServiceFields, serviceTypeLabels } from '../components/reports/ServiceFields';
 import { SignatureProgress } from '../components/reports/SignatureProgress';
@@ -621,7 +622,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         })
       });
       if (showSuccess) showToast(TEXT.saved, 'success');
-      if (navigateAfter) navigate(user?.role === 'MANAGER' ? '/gestor' : '/home');
+      if (navigateAfter) navigate(roleHomePath(user?.role));
       return true;
     } catch (err) {
       showToast(err instanceof Error ? err.message : TEXT.updateError, 'error');
@@ -1413,7 +1414,7 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
 
       <section className="page-card">
         <div className="section-title">{TEXT.reportSummary}</div>
-        <div className="detail-grid">
+        <div className="detail-grid report-summary-detail-grid">
           <div><span className="detail-label">Motivo hora extra</span><span className="detail-value">{report.overtimeReason || '-'}</span></div>
           <div><span className="detail-label">{TEXT.description}</span><span className="detail-value">{report.dailyDescription || '-'}</span></div>
           <div><span className="detail-label">{TEXT.approvedAt}</span><span className="detail-value">{formatDate(report.approvedAt)}</span></div>
@@ -1464,7 +1465,11 @@ export function ReportDetailPage() {
   const showRdoEditor =
     report?.reportType === 'RDO'
     && report.status !== 'SIGNED'
-    && (user?.role === 'MANAGER' || user?.role === 'COLLABORATOR');
+    && (
+      user?.role === 'MANAGER'
+      || user?.role === 'COLLABORATOR'
+      || (user?.role === 'COORDINATOR' && report.createdByUserId === user.id)
+    );
 
   return (
     <Shell>

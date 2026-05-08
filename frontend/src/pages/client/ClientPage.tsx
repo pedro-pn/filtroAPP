@@ -13,6 +13,7 @@ import { downloadBlob } from '../../utils/download';
 import { formatCnpj } from '../../utils/formatCnpj';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { compareReportTypes, ProjectSortButton, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
+import { matchesSearch, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import { closeZapSignPendingWindow, openZapSignPendingWindow, redirectZapSignWindow } from '../../utils/zapSign';
 
@@ -113,13 +114,18 @@ export function ClientPage() {
   const [closedTypeByProject, setClosedTypeByProject] = useState<Record<string, boolean>>({});
   const [clientSortDirection, setClientSortDirection] = useState<ProjectSortDirection>('asc');
   const [clientTogglesLoaded, setClientTogglesLoaded] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
   const showToast = useToast();
   const clientToggleStorageKey = user ? `filtrovali-client-tabs:${user.id || user.username}` : '';
 
-  const reports = reportsQuery.data || [];
+  const reports = useMemo(() => reportsQuery.data || [], [reportsQuery.data]);
+  const visibleClientReports = useMemo(
+    () => reports.filter(report => matchesSearch(reportSearchParts(report), clientSearch)),
+    [clientSearch, reports]
+  );
   const clientProjects = useMemo(() => {
     const byProject = new Map<string, { id: string; title: string; clientName: string; cnpj: string; reports: ReportSummary[] }>();
-    reports.forEach(report => {
+    visibleClientReports.forEach(report => {
       const current = byProject.get(report.projectId);
       if (current) {
         current.reports.push(report);
@@ -138,7 +144,7 @@ export function ClientPage() {
         ? a.title.localeCompare(b.title, 'pt-BR', { numeric: true, sensitivity: 'base' })
         : b.title.localeCompare(a.title, 'pt-BR', { numeric: true, sensitivity: 'base' })
     ));
-  }, [clientSortDirection, reports]);
+  }, [clientSortDirection, visibleClientReports]);
 
   useEffect(() => {
     setClientTogglesLoaded(false);
@@ -505,6 +511,17 @@ export function ClientPage() {
           <div className="page-card placeholder-copy">{TEXT.noReports}</div>
         ) : null}
 
+        <section className="page-card">
+          <div className="admin-search-row">
+            <input
+              aria-label="Buscar relatórios"
+              placeholder="Buscar relatórios"
+              value={clientSearch}
+              onChange={event => setClientSearch(event.target.value)}
+            />
+          </div>
+        </section>
+
         {activeProject ? (
           <>
             <section className="page-card compact-link-card">
@@ -593,6 +610,10 @@ export function ClientPage() {
               ) : null}
             </section>
           </>
+        ) : !reportsQuery.isLoading && reportSummary.total ? (
+          <div className="page-card placeholder-copy">
+            {clientSearch.trim() ? 'Nenhum relatório encontrado.' : TEXT.noReports}
+          </div>
         ) : null}
       </main>
     </Shell>
