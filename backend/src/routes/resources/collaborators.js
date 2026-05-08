@@ -9,12 +9,19 @@ import { requireAuth, requireInternalUser, requireManager } from '../../middlewa
 const router = Router();
 router.use(requireAuth);
 
-const schema = z.object({
+const optionalNullableEmail = z.union([z.string().trim().email(), z.literal(''), z.null()])
+  .optional()
+  .transform(value => value || null);
+const optionalNullableString = z.union([z.string(), z.null()])
+  .optional()
+  .transform(value => value || null);
+
+export const collaboratorSchema = z.object({
   code: z.string().trim().min(1).optional(),
   name: z.string().min(1),
   role: z.string().min(1),
-  email: z.string().email().optional().or(z.literal('')).transform(v => v || null),
-  signatureImage: z.string().optional().or(z.literal('')).transform(v => v || null),
+  email: optionalNullableEmail,
+  signatureImage: optionalNullableString,
   isActive: z.boolean().default(true)
 });
 
@@ -55,7 +62,7 @@ router.get('/', requireInternalUser, asyncHandler(async (_req, res) => {
 }));
 
 router.post('/', requireManager, asyncHandler(async (req, res) => {
-  const parsed = schema.parse(req.body);
+  const parsed = collaboratorSchema.parse(req.body);
   const code = parsed.code || await generateCollaboratorCode();
   const data = await normalizeCollaboratorInput({ ...parsed, code });
   const existing = await prisma.collaborator.findUnique({ where: { code } });
@@ -74,7 +81,7 @@ router.post('/', requireManager, asyncHandler(async (req, res) => {
 }));
 
 router.put('/:id', requireManager, asyncHandler(async (req, res) => {
-  const data = await normalizeCollaboratorInput(schema.partial().parse(req.body));
+  const data = await normalizeCollaboratorInput(collaboratorSchema.partial().parse(req.body));
   const item = await prisma.collaborator.update({ where: { id: req.params.id }, data });
   res.json(item);
 }));
