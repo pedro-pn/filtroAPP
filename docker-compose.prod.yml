@@ -48,12 +48,16 @@ services:
 volumes:
   filtrovali_pgdata:
     name: filtrovali_pgdata
+    external: true
   filtrovali_relatorios:
     name: filtrovali_relatorios
+    external: true
   filtrovali_certs:
     name: filtrovali_certs
+    external: true
   filtrovali_certbot_www:
     name: filtrovali_certbot_www
+    external: true
 
 networks:
   filtrovali-net:
