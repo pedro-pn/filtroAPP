@@ -54,6 +54,11 @@ function limpezaTubulacaoLabel(data: Record<string, unknown>) {
   return isNoValue(raw) ? 'Não' : 'Sim';
 }
 
+function flushingTubulacaoLabel(data: Record<string, unknown>) {
+  const raw = data.flushingTubulacao || data['Flushing em tubulação?'] || data['Flushing em tubulacao?'];
+  return isNoValue(raw) ? 'Não' : 'Sim';
+}
+
 function singleId(value: unknown): string[] {
   const id = getString(value);
   return id ? [id] : [];
@@ -98,6 +103,9 @@ function commonExtraData(
   const equipmentId = getString(data.equipmentId);
   const material = getString(data.material);
   const collaboratorIds = options.collaboratorIds || [];
+  const tubes = type === 'flushing' && flushingTubulacaoLabel(data) === 'Não'
+    ? []
+    : (Array.isArray(data.tubes) ? data.tubes : []);
 
   return {
     ...data,
@@ -115,7 +123,7 @@ function commonExtraData(
     'Etapas realizadas no dia': getStrings(data.etapas),
     Observações: getString(data.notes),
     'Desenhos / TAGs': getString(data.drawingsTags),
-    'Diâmetros e comprimentos': Array.isArray(data.tubes) ? data.tubes : [],
+    'Diâmetros e comprimentos': tubes,
     'Colaboradores do serviço': collaboratorLinks(collaboratorIds, options.collaborators)
   };
 }
@@ -178,6 +186,7 @@ export function buildReportServicePayload(
     extraData['Umidade inicial (ppm)'] = hasUmidade ? getString(data.umidadeInicial) : '';
     extraData['Umidade final (ppm)'] = hasUmidade ? getString(data.umidadeFinal) : '';
     if (type === 'flushing') {
+      extraData['Flushing em tubulação?'] = flushingTubulacaoLabel(data);
       extraData['Tipo de flushing'] = getString(data.tipoFlushing) === 'secundario' ? 'Secundário' : 'Primário';
       extraData['Unidade de Flushing'] = { ids: unitIds, codes: unitIdsToCodes(unitIds, options.units) };
     } else {

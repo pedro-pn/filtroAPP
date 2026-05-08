@@ -550,7 +550,11 @@ export function NewReportPage() {
       const raw = data.limpezaTubulacao || data['Limpeza de tubulação?'] || data['Limpeza de tubulacao?'];
       return !isNoValue(raw);
     }
-    return ['pressao', 'flushing'].includes(type);
+    if (type === 'flushing') {
+      const raw = data.flushingTubulacao || data['Flushing em tubulação?'] || data['Flushing em tubulacao?'];
+      return !isNoValue(raw);
+    }
+    return type === 'pressao';
   }
 
   function validateHeader() {

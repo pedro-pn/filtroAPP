@@ -368,6 +368,7 @@ function legacyServiceData(service: NonNullable<ReportSummary['services']>[numbe
     data.umidadeInicial = getLegacyString(extra, ['umidadeInicial', 'Umidade inicial (ppm)']);
     data.umidadeFinal = getLegacyString(extra, ['umidadeFinal', 'Umidade final (ppm)']);
     if (type === 'flushing') {
+      data.flushingTubulacao = normalizeYesNo(getLegacyChoice(extra, ['flushingTubulacao', 'Flushing em tubulação?', 'Flushing em tubulacao?']), 'Sim');
       data.tipoFlushing = tipoFlushing.toLowerCase().includes('secund') ? 'secundario' : 'primario';
       data.uf = normalizeUnitField(extra, ['uf', 'Unidade de Flushing', 'Unidade de filtragem']);
     } else {
@@ -1253,6 +1254,7 @@ function ServiceSummaryRow({ service, index }: { service: NonNullable<ReportSumm
     if (data.tipoOleo) rows.push({ label: 'Tipo de óleo', value: String(data.tipoOleo) });
     if (data.volumeOleo) rows.push({ label: 'Volume', value: `${data.volumeOleo} ${data.volumeOleoUnit || ''}`.trim() });
     if (type === 'flushing' && data.tipoFlushing) {
+      if (data.flushingTubulacao) rows.push({ label: 'Flushing em tubulação?', value: String(data.flushingTubulacao) });
       rows.push({ label: 'Tipo flushing', value: data.tipoFlushing === 'primario' ? 'Primário' : 'Secundário' });
     }
   }
@@ -1318,7 +1320,7 @@ function buildDerivedRows(report: ReportSummary) {
       'Aprovado pelo cliente?', 'Desenhos / TAGs', 'Observações'
     ],
     RCPU: [
-      'Equipamento(s)', 'Sistema', 'Tipo de óleo', 'Volume de óleo', 'Tipo de flushing',
+      'Equipamento(s)', 'Sistema', 'Tipo de óleo', 'Volume de óleo', 'Flushing em tubulação?', 'Tipo de flushing',
       'Unidade de Flushing', 'Unidade de filtragem', 'Houve contagem de partículas?',
       'Contagem inicial NAS', 'Contagem final NAS', 'Contagem inicial ISO', 'Contagem final ISO',
       'Houve análise de umidade?', 'Umidade inicial (ppm)', 'Umidade final (ppm)',

@@ -107,6 +107,11 @@ function limpezaTubulacaoValue(data: Record<string, unknown>) {
   return isNoValue(raw) ? 'Não' : 'Sim';
 }
 
+function flushingTubulacaoValue(data: Record<string, unknown>) {
+  const raw = data.flushingTubulacao || data['Flushing em tubulação?'] || data['Flushing em tubulacao?'];
+  return isNoValue(raw) ? 'Não' : 'Sim';
+}
+
 function onlyNumberPunctuation(value: string) {
   return value.replace(/[^\d.,]/g, '');
 }
@@ -881,11 +886,35 @@ export function ServiceFields({
 
   if (normalizedType === 'flushing') {
     const tipoFlushing = getString(data.tipoFlushing) || 'primario';
+    const flushingTubulacao = flushingTubulacaoValue(data);
     const unitCategories: Unit['category'][] = tipoFlushing === 'secundario' ? ['FILTRAGEM'] : ['FLUSHING'];
 
     return (
       <>
-        <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        <div className={fieldClass(invalidKey, 'flushingTubulacao')}>
+          <label>Flushing em tubulação? {requiredMark()}</label>
+          <div className="rdo-tag-group">
+            {['Sim', 'Não'].map(label => (
+              <label className={radioOptionClass(flushingTubulacao === label, label === 'Não')} key={label}>
+                <input
+                  type="radio"
+                  name={`flushing-tubulacao-${groupKey}`}
+                  checked={flushingTubulacao === label}
+                  disabled={disabled}
+                  onChange={() => onChange({
+                    flushingTubulacao: label,
+                    'Flushing em tubulação?': label,
+                    ...(label === 'Não' ? { tubes: [] } : {})
+                  })}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        {flushingTubulacao === 'Sim' ? (
+          <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        ) : null}
         <div className={fieldClass(invalidKey, 'tipoOleo')}>
           <label htmlFor={fieldId(groupKey, 'tipoOleo')}>Tipo de óleo {requiredMark()}</label>
           <input id={fieldId(groupKey, 'tipoOleo')} value={getString(data.tipoOleo)} placeholder="Marca/modelo do óleo..." disabled={disabled} onChange={e => onChange({ tipoOleo: e.target.value })} />
