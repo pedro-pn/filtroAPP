@@ -6,6 +6,7 @@ export interface ProjectPayload {
   name: string;
   isActive?: boolean;
   visibleToCollaborators?: boolean;
+  managerOnly?: boolean;
   clientName: string;
   clientCnpj: string;
   clientEmailPrimary?: string;

@@ -97,6 +97,7 @@ function reportNumberLabel(report) {
 }
 
 function queueApprovedReportNotification(report) {
+  if (report.project?.managerOnly) return;
   const primary = String(report.project?.clientEmailPrimary || '').trim().toLowerCase();
   const cc = Array.from(new Set((report.project?.clientEmailCc || [])
     .map(email => String(email || '').trim().toLowerCase())
@@ -137,6 +138,7 @@ function queueApprovedReportNotification(report) {
 }
 
 function queueReapprovedReportNotification(report) {
+  if (report.project?.managerOnly) return;
   const primary = String(report.project?.clientEmailPrimary || '').trim().toLowerCase();
   const cc = Array.from(new Set((report.project?.clientEmailCc || [])
     .map(email => String(email || '').trim().toLowerCase())
@@ -244,6 +246,7 @@ const include = {
 };
 
 function clientCanAccessProject(auth, project) {
+  if (project?.managerOnly) return false;
   if (project?.clientCnpj === auth.user.username) return true;
   const userEmail = String(auth.user.email || '').trim().toLowerCase();
   if (!userEmail) return false;
@@ -260,6 +263,7 @@ async function collaboratorProjectIdsForAuth(auth) {
     where: {
       isActive: true,
       visibleToCollaborators: true,
+      managerOnly: false,
       operatorId: collaboratorId
     },
     select: { id: true }
@@ -270,6 +274,7 @@ async function collaboratorProjectIdsForAuth(auth) {
 
 async function canAccessReport(auth, report) {
   if (auth.user.role === 'MANAGER') return true;
+  if (report.project?.managerOnly) return false;
   if (auth.user.role === 'COORDINATOR') return true;
   if (auth.user.role === 'CLIENT') return clientCanAccessProject(auth, report.project);
   if (report.createdByUserId === auth.user.id) return true;
@@ -1826,6 +1831,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT') {
     const userEmail = String(req.auth.user.email || '').trim().toLowerCase();
     where.project = {
+      managerOnly: false,
       OR: [
         { clientCnpj: req.auth.user.username },
         ...(userEmail ? [
@@ -1835,7 +1841,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
       ]
     };
   } else if (req.auth.user.role === 'COORDINATOR') {
-    // Coordenador visualiza relatórios de todos os projetos.
+    where.project = { managerOnly: false };
   } else if (req.query.mine === 'true') {
     const me = await prisma.user.findUnique({
       where: { id: req.auth.user.id },
@@ -1852,9 +1858,14 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
         { collaborators: { some: { collaboratorId: collabId } } },
         ...(projectIds.length ? [{ projectId: { in: projectIds } }] : [])
       ];
+      where.project = { managerOnly: false };
     } else {
       where.createdByUserId = req.auth.user.id;
+      where.project = { managerOnly: false };
     }
+  }
+  if (req.auth.user.role !== 'MANAGER' && !where.project) {
+    where.project = { managerOnly: false };
   }
 
   const tGet0 = Date.now();
@@ -2221,6 +2232,11 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
       where: { id: data.projectId },
       include: { operator: true }
     });
+    if (project.managerOnly && req.auth.user.role !== 'MANAGER') {
+      const error = new Error('Este projeto é visível somente para o gestor.');
+      error.statusCode = 403;
+      throw error;
+    }
     const sequenceNumber = await reserveSequence(tx, data.projectId, data.reportType);
     const overtime = calculateReportOvertime(project, data);
     const leaderSnapshot = project.operator ? {
@@ -2314,6 +2330,15 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   assertReportMutable(existing);
   if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
+  }
+  if (req.auth.user.role !== 'MANAGER') {
+    const targetProject = await prisma.project.findUniqueOrThrow({
+      where: { id: data.projectId },
+      select: { managerOnly: true }
+    });
+    if (targetProject.managerOnly) {
+      return res.status(403).json({ error: 'Este projeto é visível somente para o gestor.' });
+    }
   }
   const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);
   const isManagerFixingClientRejection = req.auth.user.role === 'MANAGER' && hasActiveClientRejection(existing);

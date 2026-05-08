@@ -1,0 +1,2 @@
+ALTER TABLE "Project"
+ADD COLUMN "managerOnly" BOOLEAN NOT NULL DEFAULT false;

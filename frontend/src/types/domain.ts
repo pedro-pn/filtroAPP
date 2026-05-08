@@ -32,6 +32,7 @@ export interface Project {
   name: string;
   isActive: boolean;
   visibleToCollaborators: boolean;
+  managerOnly: boolean;
   clientName: string;
   clientCnpj: string;
   clientEmailPrimary: string;

@@ -101,6 +101,7 @@ interface ProjectFormState {
   location: string;
   operatorId: string;
   visibleToCollaborators: boolean;
+  managerOnly: boolean;
   isActive: boolean;
   workdayHours: string;
   weekendWorkdayHours: string;
@@ -147,6 +148,8 @@ interface CounterFormState {
 }
 
 const internalRoles: Array<Exclude<UserRole, 'CLIENT'>> = ['COLLABORATOR', 'COORDINATOR', 'MANAGER'];
+type ProjectVisibilityMode = 'manager-coordinator' | 'all-authorized' | 'manager-only';
+
 const emptyProjectForm: ProjectFormState = {
   code: '',
   name: '',
@@ -159,6 +162,7 @@ const emptyProjectForm: ProjectFormState = {
   location: '',
   operatorId: '',
   visibleToCollaborators: true,
+  managerOnly: false,
   isActive: true,
   workdayHours: '09:00',
   weekendWorkdayHours: '08:00',
@@ -358,6 +362,7 @@ function projectSearchParts(project: Project) {
     project.contractCode,
     project.location,
     project.operator?.name,
+    projectVisibilityLabel(project),
     formatProjectSequences(project)
   ];
 }
@@ -439,6 +444,23 @@ function formatProjectSequences(project: Project) {
     .join(', ');
 }
 
+function projectVisibilityMode(form: Pick<ProjectFormState, 'managerOnly' | 'visibleToCollaborators'>): ProjectVisibilityMode {
+  if (form.managerOnly) return 'manager-only';
+  return form.visibleToCollaborators ? 'all-authorized' : 'manager-coordinator';
+}
+
+function projectVisibilityLabel(project: Pick<Project, 'managerOnly' | 'visibleToCollaborators'>) {
+  if (project.managerOnly) return 'Somente gestor';
+  if (project.visibleToCollaborators) return 'Gestor, coordenador e colaboradores responsáveis';
+  return 'Gestor e coordenador';
+}
+
+function applyProjectVisibilityMode(mode: ProjectVisibilityMode): Pick<ProjectFormState, 'managerOnly' | 'visibleToCollaborators'> {
+  if (mode === 'manager-only') return { managerOnly: true, visibleToCollaborators: false };
+  if (mode === 'all-authorized') return { managerOnly: false, visibleToCollaborators: true };
+  return { managerOnly: false, visibleToCollaborators: false };
+}
+
 function projectToForm(project: Project): ProjectFormState {
   return {
     code: project.code,
@@ -455,6 +477,7 @@ function projectToForm(project: Project): ProjectFormState {
     location: project.location,
     operatorId: project.operatorId || '',
     visibleToCollaborators: project.visibleToCollaborators,
+    managerOnly: project.managerOnly,
     isActive: project.isActive,
     workdayHours: project.workdayHours || '09:00',
     weekendWorkdayHours: project.weekendWorkdayHours || '08:00',
@@ -714,6 +737,10 @@ function renderProjectCard(
           <div className="det-row">
             <span className="det-label">Operador</span>
             <span className="det-val">{project.operator?.name || '-'}</span>
+          </div>
+          <div className="det-row">
+            <span className="det-label">Visibilidade</span>
+            <span className="det-val">{projectVisibilityLabel(project)}</span>
           </div>
           <div className="det-row">
             <span className="det-label">Sequenciais</span>
@@ -1073,6 +1100,7 @@ export function GestorPage() {
       contractCode: projectForm.contractCode.trim(),
       location: projectForm.location.trim(),
       visibleToCollaborators: projectForm.visibleToCollaborators,
+      managerOnly: projectForm.managerOnly,
       isActive: projectForm.isActive,
       operatorId: projectForm.operatorId || null,
       workdayHours: projectForm.workdayHours || '09:00',
@@ -1698,10 +1726,18 @@ export function GestorPage() {
                   </select>
                 </div>
                 <div className="field-group">
-                  <label htmlFor="project-visible">Exibir para colaboradores</label>
-                  <select id="project-visible" value={projectForm.visibleToCollaborators ? 'true' : 'false'} onChange={event => setProjectForm(current => ({ ...current, visibleToCollaborators: event.target.value === 'true' }))}>
-                    <option value="true">Sim</option>
-                    <option value="false">Não</option>
+                  <label htmlFor="project-visible">Visibilidade / criação de relatórios</label>
+                  <select
+                    id="project-visible"
+                    value={projectVisibilityMode(projectForm)}
+                    onChange={event => setProjectForm(current => ({
+                      ...current,
+                      ...applyProjectVisibilityMode(event.target.value as ProjectVisibilityMode)
+                    }))}
+                  >
+                    <option value="manager-coordinator">Gestor e coordenador</option>
+                    <option value="all-authorized">Gestor, coordenador e colaboradores responsáveis</option>
+                    <option value="manager-only">Somente gestor</option>
                   </select>
                 </div>
                 <div className="field-group">
@@ -1775,10 +1811,18 @@ export function GestorPage() {
                         </select>
                       </div>
                       <div className="field-group">
-                        <label htmlFor={`project-visible-${project.id}`}>Exibir para colaboradores</label>
-                        <select id={`project-visible-${project.id}`} value={projectForm.visibleToCollaborators ? 'true' : 'false'} onChange={event => setProjectForm(current => ({ ...current, visibleToCollaborators: event.target.value === 'true' }))}>
-                          <option value="true">Sim</option>
-                          <option value="false">Não</option>
+                        <label htmlFor={`project-visible-${project.id}`}>Visibilidade / criação de relatórios</label>
+                        <select
+                          id={`project-visible-${project.id}`}
+                          value={projectVisibilityMode(projectForm)}
+                          onChange={event => setProjectForm(current => ({
+                            ...current,
+                            ...applyProjectVisibilityMode(event.target.value as ProjectVisibilityMode)
+                          }))}
+                        >
+                          <option value="manager-coordinator">Gestor e coordenador</option>
+                          <option value="all-authorized">Gestor, coordenador e colaboradores responsáveis</option>
+                          <option value="manager-only">Somente gestor</option>
                         </select>
                       </div>
                       <div className="field-group">

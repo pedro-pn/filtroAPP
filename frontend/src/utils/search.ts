@@ -25,6 +25,7 @@ export function projectSearchParts(project: Project) {
     project.contractCode,
     project.location,
     project.operator?.name,
+    project.managerOnly ? 'Somente gestor' : project.visibleToCollaborators ? 'Gestor coordenador colaboradores' : 'Gestor coordenador',
     ...(project.reportSequences || []).flatMap(sequence => [sequence.reportType, sequence.nextNumber])
   ];
 }
