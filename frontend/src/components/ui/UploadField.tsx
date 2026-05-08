@@ -15,6 +15,10 @@ type UploadValue = UploadedFile & {
   path?: string;
   storagePath?: string;
   dataUrl?: string;
+  source?: string;
+  src?: string;
+  href?: string;
+  publicUrl?: string;
   previouslyAdded?: boolean;
   __previouslyAdded?: boolean;
 };
@@ -36,7 +40,16 @@ function fileToDataUrl(file: File) {
 }
 
 function rawFileUrl(file: UploadValue) {
-  return file.url || file.path || file.storagePath || file.dataUrl || '';
+  return file.url
+    || file.path
+    || file.storagePath
+    || file.dataUrl
+    || file.source
+    || file.src
+    || file.href
+    || file.publicUrl
+    || file.fileName
+    || '';
 }
 
 function isImageFile(file: UploadValue) {
@@ -51,12 +64,13 @@ function wasPreviouslyAdded(file: UploadValue) {
 
 function UploadListItem({ disabled, file, index, onRemove }: UploadListItemProps) {
   const [href, setHref] = useState('');
+  const source = rawFileUrl(file);
 
   useEffect(() => {
     let cancelled = false;
     let objectUrl = '';
 
-    loadUploadAssetUrl(rawFileUrl(file))
+    loadUploadAssetUrl(source)
       .then(nextHref => {
         if (cancelled) {
           if (nextHref.startsWith('blob:')) URL.revokeObjectURL(nextHref);
@@ -73,7 +87,7 @@ function UploadListItem({ disabled, file, index, onRemove }: UploadListItemProps
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [file]);
+  }, [source]);
 
   return (
     <div className="upload-list-item">

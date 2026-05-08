@@ -241,12 +241,23 @@ function asUploadedFiles(value: unknown): UploadedFile[] {
   return Array.isArray(value)
     ? value
       .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
-      .map(item => ({
-        label: getString(item.label) || 'Arquivo',
-        fileName: getString(item.fileName) || getString(item.name) || getString(item.url) || getString(item.path) || getString(item.storagePath) || 'arquivo',
-        mimeType: getString(item.mimeType) || getString(item.type) || 'image/jpeg',
-        url: getString(item.url) || getString(item.path) || getString(item.storagePath) || getString(item.dataUrl)
-      }))
+      .map(item => {
+        const url = getString(item.url)
+          || getString(item.path)
+          || getString(item.storagePath)
+          || getString(item.dataUrl)
+          || getString(item.source)
+          || getString(item.src)
+          || getString(item.href)
+          || getString(item.publicUrl)
+          || getString(item.fileName);
+        return {
+          label: getString(item.label) || 'Arquivo',
+          fileName: getString(item.fileName) || getString(item.name) || url || 'arquivo',
+          mimeType: getString(item.mimeType) || getString(item.type) || 'image/jpeg',
+          url
+        };
+      })
       .filter((item): item is UploadedFile => Boolean(item.url))
     : [];
 }
