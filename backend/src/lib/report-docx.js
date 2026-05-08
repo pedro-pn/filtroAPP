@@ -8,6 +8,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
+import { buildReportFileName } from './report-filename.js';
 import { readStoredImageAsset } from './stored-image.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -948,9 +949,7 @@ export async function saveReportDocx(report) {
   const projectFolderName = safePath(`Missão ${report.project.code} - ${report.project.name}`);
   const dir = path.join(env.uploadDir, projectFolderName, report.reportType);
   await fs.mkdir(dir, { recursive: true });
-  const iso = formatDatePt(report.reportDate).replace(/\//g, '-');
-  const weekday = weekdayNamePt(report.reportDate);
-  const fileName = `Missão ${report.project.code} - ${report.project.name} - ${report.reportType} ${reportNumber(report)} - ${iso} - ${weekday}.docx`;
+  const fileName = buildReportFileName(report, 'docx');
   const targetPath = path.join(dir, fileName);
   await fs.writeFile(targetPath, bytes);
   return {

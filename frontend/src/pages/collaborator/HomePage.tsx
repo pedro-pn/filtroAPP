@@ -95,6 +95,7 @@ export function HomePage() {
 
     hydrate({
       draftId: draft.id,
+      serviceOnly: false,
       projectId: asString(payload.projectId, draft.projectId || '') || null,
       reportDate: asString(payload.reportDate, draft.reportDate || ''),
       arrivalTime: asString(payload.arrivalTime),

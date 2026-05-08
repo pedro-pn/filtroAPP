@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 
 import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
 import { compareReportTypes, ProjectSortButton, sortProjects, sortReportsInGroup } from '../../utils/projectSort';
+import { reportDownloadFileName } from '../../utils/reportFileName';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
 import type { UserRole } from '../../types/auth';
@@ -966,6 +967,7 @@ export function GestorPage() {
 
     hydrate({
       draftId: draft.id,
+      serviceOnly: asBoolean(payload.serviceOnly),
       projectId: asString(payload.projectId, draft.projectId || '') || null,
       reportDate: asString(payload.reportDate, draft.reportDate || ''),
       arrivalTime: asString(payload.arrivalTime),
@@ -1351,7 +1353,7 @@ export function GestorPage() {
   }
 
   async function handleReportDownload(report: ReportSummary, format: 'pdf' | 'docx') {
-    const fileName = `${report.reportType}_${report.sequenceNumber || report.id}.${format}`;
+    const fileName = reportDownloadFileName(report, format);
     showToast(format === 'pdf' ? 'Gerando PDF...' : 'Gerando DOCX...', 'info');
 
     try {

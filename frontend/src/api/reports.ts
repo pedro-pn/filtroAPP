@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { ReportPayload, ReportStatus, ReportSummary } from '../types/domain';
+import type { ReportPayload, ReportStatus, ReportSummary, ServiceOnlyReportPayload } from '../types/domain';
 
 export interface ReportFilters {
   status?: string;
@@ -26,6 +26,11 @@ export async function getReport(id: string) {
 
 export async function createReport(payload: ReportPayload) {
   const response = await apiClient.post<ReportSummary>('/reports', payload);
+  return response.data;
+}
+
+export async function createServiceOnlyReports(payload: ServiceOnlyReportPayload) {
+  const response = await apiClient.post<ReportSummary[]>('/reports/service-only', payload);
   return response.data;
 }
 

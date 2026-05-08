@@ -13,6 +13,7 @@ import { downloadBlob } from '../../utils/download';
 import { formatCnpj } from '../../utils/formatCnpj';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { compareReportTypes, ProjectSortButton, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
+import { reportDownloadFileName } from '../../utils/reportFileName';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import { closeZapSignPendingWindow, openZapSignPendingWindow, redirectZapSignWindow } from '../../utils/zapSign';
@@ -244,7 +245,7 @@ export function ClientPage() {
   async function handleDownloadPdf(report: ReportSummary) {
     try {
       const blob = await downloadReportPdf(report.id);
-      downloadBlob(blob, `${report.reportType}_${report.sequenceNumber || report.id}.pdf`);
+      downloadBlob(blob, reportDownloadFileName(report, 'pdf'));
     } catch (error) {
       showToast(error instanceof Error ? error.message : TEXT.downloadError, 'error');
     }
@@ -337,11 +338,14 @@ export function ClientPage() {
     const signaturePending = signable && Boolean(report.zapsignRequestedAt) && !report.zapsignSignedAt;
     const status = clientStatusMeta(report);
     const rejections = clientRejectionReviews(report);
+    const serviceOnly = report.specialConditions?.serviceOnly === true;
     const subtitle = clientRejected
       ? 'Reprovado. Aguarde a alteração do gestor.'
       : report.reportType === 'RDO'
         ? 'RDO pronto para conferência do cliente'
-        : 'Relatório de serviço liberado após assinatura do RDO';
+        : serviceOnly
+          ? 'Relatório de serviço liberado pelo gestor'
+          : 'Relatório de serviço liberado após assinatura do RDO';
 
     return (
       <article className="client-report-card report-card-clickable" key={report.id} onClick={() => navigate(`/cliente/relatorio/${report.id}`)}>

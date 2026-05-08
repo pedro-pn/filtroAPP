@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createClientReportReview,
   createReport,
+  createServiceOnlyReports,
   deleteReport as deleteReportApi,
   deleteReportService,
   getReport,
@@ -13,7 +14,7 @@ import {
   updateReportStatus,
   type ReportFilters
 } from '../api/reports';
-import type { ReportPayload, ReportStatus } from '../types/domain';
+import type { ReportPayload, ReportStatus, ServiceOnlyReportPayload } from '../types/domain';
 import { queryKeys } from './queryKeys';
 
 export function useReports(filters?: ReportFilters) {
@@ -37,6 +38,14 @@ export function useReportMutations() {
   const createMutation = useMutation({
     mutationFn: (payload: ReportPayload) => createReport(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports'] })
+  });
+
+  const createServiceOnlyMutation = useMutation({
+    mutationFn: (payload: ServiceOnlyReportPayload) => createServiceOnlyReports(payload),
+    onSuccess: reports => {
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      reports.forEach(report => queryClient.invalidateQueries({ queryKey: ['report', report.id] }));
+    }
   });
 
   const updateMutation = useMutation({
@@ -104,6 +113,7 @@ export function useReportMutations() {
 
   return {
     createReport: createMutation,
+    createServiceOnlyReports: createServiceOnlyMutation,
     updateReport: updateMutation,
     updateStatus: updateStatusMutation,
     requestSignature: requestSignatureMutation,
