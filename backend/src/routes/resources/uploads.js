@@ -183,31 +183,45 @@ function canAccessReport(auth, report) {
 
 async function candidateReportIdsForUpload(normalizedPath) {
   const searchTerm = normalizedPath.split('/').filter(Boolean).pop() || normalizedPath;
-  const like = `%${searchTerm}%`;
-  const rows = await prisma.$queryRaw`
-    SELECT DISTINCT id
-    FROM (
-      SELECT r.id
-      FROM "Report" r
-      WHERE r."specialConditions"::text ILIKE ${like}
-      UNION
-      SELECT s."reportId" AS id
-      FROM "ReportService" s
-      WHERE s."extraData"::text ILIKE ${like}
-      UNION
-      SELECT a."reportId" AS id
-      FROM "ReportAttachment" a
-      WHERE a."reportId" IS NOT NULL AND a."storagePath" ILIKE ${like}
-      UNION
-      SELECT s."reportId" AS id
-      FROM "ReportAttachment" a
-      JOIN "ReportService" s ON s.id = a."reportServiceId"
-      WHERE a."reportServiceId" IS NOT NULL AND a."storagePath" ILIKE ${like}
-    ) matches
-    WHERE id IS NOT NULL
-    LIMIT 100
-  `;
-  return rows.map(row => row.id).filter(Boolean);
+  const searchTerms = [...new Set([
+    searchTerm,
+    encodeURIComponent(searchTerm)
+  ].filter(Boolean))];
+  const ids = new Set();
+
+  for (const term of searchTerms) {
+    const like = `%${term}%`;
+    const rows = await prisma.$queryRaw`
+      SELECT DISTINCT id
+      FROM (
+        SELECT r.id
+        FROM "Report" r
+        WHERE r."specialConditions"::text ILIKE ${like}
+        UNION
+        SELECT s."reportId" AS id
+        FROM "ReportService" s
+        WHERE s."extraData"::text ILIKE ${like}
+        UNION
+        SELECT a."reportId" AS id
+        FROM "ReportAttachment" a
+        WHERE a."reportId" IS NOT NULL AND a."storagePath" ILIKE ${like}
+        UNION
+        SELECT s."reportId" AS id
+        FROM "ReportAttachment" a
+        JOIN "ReportService" s ON s.id = a."reportServiceId"
+        WHERE a."reportServiceId" IS NOT NULL AND a."storagePath" ILIKE ${like}
+      ) matches
+      WHERE id IS NOT NULL
+      LIMIT 100
+    `;
+    for (const row of rows) {
+      if (row.id) ids.add(row.id);
+      if (ids.size >= 100) break;
+    }
+    if (ids.size >= 100) break;
+  }
+
+  return [...ids];
 }
 
 async function authorizeStoredFile(req, normalizedPath) {
