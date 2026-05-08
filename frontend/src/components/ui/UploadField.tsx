@@ -15,6 +15,8 @@ type UploadValue = UploadedFile & {
   path?: string;
   storagePath?: string;
   dataUrl?: string;
+  previouslyAdded?: boolean;
+  __previouslyAdded?: boolean;
 };
 
 interface UploadListItemProps {
@@ -41,6 +43,10 @@ function isImageFile(file: UploadValue) {
   if ((file.mimeType || '').startsWith('image')) return true;
   const ext = (file.fileName || rawFileUrl(file)).split('.').pop()?.toLowerCase() || '';
   return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
+}
+
+function wasPreviouslyAdded(file: UploadValue) {
+  return Boolean(file.previouslyAdded || file.__previouslyAdded);
 }
 
 function UploadListItem({ disabled, file, index, onRemove }: UploadListItemProps) {
@@ -81,9 +87,16 @@ function UploadListItem({ disabled, file, index, onRemove }: UploadListItemProps
       ) : (
         <span className="upload-list-name">{file.fileName}</span>
       )}
+      {wasPreviouslyAdded(file) ? <span className="upload-previous-badge">Adicionada anteriormente</span> : null}
       {!disabled ? (
-        <button className="secondary-button" type="button" onClick={() => onRemove(index)}>
-          Remover
+        <button
+          className="upload-remove-button"
+          type="button"
+          onClick={() => onRemove(index)}
+          aria-label={`Remover ${file.fileName}`}
+          title="Remover"
+        >
+          X
         </button>
       ) : null}
     </div>
@@ -94,6 +107,8 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
+  const displayLabel = label.trim();
+  const uploadLabel = displayLabel || 'Fotos de registro';
 
   async function handleFiles(files: FileList | null) {
     const selected = Array.from(files || []);
@@ -105,7 +120,7 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
     try {
       const items = await Promise.all(
         selected.map(async file => ({
-          label,
+          label: uploadLabel,
           fileName: file.name,
           mimeType: file.type || 'image/jpeg',
           dataUrl: await fileToDataUrl(file),
@@ -123,14 +138,21 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
   }
 
   function removeFile(index: number) {
+    const file = value[index] as UploadValue | undefined;
+    if (file && wasPreviouslyAdded(file)) {
+      const confirmed = window.confirm('Esta foto foi adicionada anteriormente. Se você excluir, ela sairá do relatório. Deseja excluir mesmo assim?');
+      if (!confirmed) return;
+    }
     onChange(value.filter((_, itemIndex) => itemIndex !== index));
   }
+
+  const hasPreviouslyAddedFiles = value.some(file => wasPreviouslyAdded(file as UploadValue));
 
   return (
     <div className="upload-field">
       <div className="upload-field-head">
         <div>
-          <label className="upload-field-label">{label}</label>
+          {displayLabel ? <label className="upload-field-label">{displayLabel}</label> : null}
           <div className="upload-field-count">{value.length ? `${value.length} arquivo(s)` : 'Nenhum arquivo'}</div>
         </div>
         <button
@@ -152,6 +174,9 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
         onChange={event => void handleFiles(event.target.files)}
       />
       {error ? <div className="inline-error">{error}</div> : null}
+      {hasPreviouslyAddedFiles ? (
+        <div className="upload-previous-note">Estas fotos foram adicionadas anteriormente neste serviço. Se removidas, sairão do relatório.</div>
+      ) : null}
       {value.length ? (
         <div className="upload-list">
           {value.map((file, index) => (

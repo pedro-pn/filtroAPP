@@ -1517,12 +1517,11 @@ a {
   overflow-wrap: anywhere;
 }
 
-.admin-card-react[data-service-id] .upload-field-head,
-.admin-card-react[data-service-id] .upload-list-item {
+.admin-card-react[data-service-id] .upload-field-head {
   flex-wrap: wrap;
 }
 
-.admin-card-react[data-service-id] .upload-list-item .secondary-button {
+.admin-card-react[data-service-id] .upload-remove-button {
   margin-left: auto;
 }
 
@@ -2050,7 +2049,7 @@ a {
   border: 1px solid var(--br);
   border-radius: var(--rs);
   padding: 8px 10px;
-  background: #fafafa;
+  background-color: #fafafa;
   color: var(--tx);
   resize: vertical;
 }
@@ -2081,7 +2080,7 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 .field-invalid textarea,
 .field-invalid-panel {
   border-color: var(--rd) !important;
-  background: #fff5f5 !important;
+  background-color: #fff5f5 !important;
 }
 
 .field-invalid-panel {
@@ -2118,6 +2117,7 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 .secondary-button:focus-visible,
 .danger-button:focus-visible,
 .mini-btn:focus-visible,
+.upload-remove-button:focus-visible,
 .topbar-chip:focus-visible,
 .filter-tab:focus-visible,
 .nav-tab:focus-visible,
@@ -2202,6 +2202,40 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   border-radius: var(--rs);
   background: #f8faf8;
   padding: 12px;
+}
+
+.collaborator-signature-field {
+  gap: 8px;
+}
+
+.collaborator-signature-preview {
+  min-height: 92px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: var(--wh);
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.collaborator-signature-preview img {
+  max-width: 120px;
+  max-height: 78px;
+  object-fit: contain;
+  display: block;
+}
+
+.collaborator-signature-preview span,
+.form-hint {
+  font-size: 11px;
+  color: var(--mu);
+}
+
+.collaborator-signature-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .admin-form-actions {
@@ -2336,6 +2370,16 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   word-break: break-word;
 }
 
+.upload-previous-note {
+  border: 1px solid #f5d48a;
+  border-radius: var(--rs);
+  background: #fff8e5;
+  color: #7a4c00;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .upload-list {
   display: flex;
   flex-direction: column;
@@ -2347,6 +2391,7 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   border-radius: var(--rs);
   background: #fff;
   padding: 8px 10px;
+  flex-wrap: nowrap;
 }
 
 .upload-list-thumb {
@@ -2366,6 +2411,41 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-remove-button {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--rd);
+  padding: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.upload-remove-button:hover {
+  background: transparent;
+  color: #991b1b;
+}
+
+.upload-previous-badge {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #fff3cd;
+  color: #7a4c00;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
@@ -2954,7 +3034,7 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 input.pre,
 select.pre,
 textarea.pre {
-  background: #fffde7 !important;
+  background-color: #fffde7 !important;
   border-color: #f59e0b !important;
 }
 
@@ -3157,8 +3237,20 @@ textarea.pre {
 
 .detail-action-bar .mini-btn,
 .detail-action-bar .primary-button,
-.detail-action-bar .secondary-button {
+.detail-action-bar .secondary-button,
+.detail-action-bar .danger-button {
   flex: 1 1 120px;
+  min-height: 40px;
+  padding: 11px 12px;
+  font-size: 13px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.detail-manager-action-bar .primary-button,
+.detail-manager-action-bar .secondary-button,
+.detail-manager-action-bar .danger-button {
+  flex-basis: 108px;
 }
 
 @media (max-width: 430px) {

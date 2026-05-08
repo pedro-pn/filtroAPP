@@ -236,6 +236,22 @@ function clientCanAccessProject(auth, project) {
     && project.clientEmailCc.some(cc => cc.toLowerCase() === userEmail);
 }
 
+async function collaboratorProjectIdsForAuth(auth) {
+  const collaboratorId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
+  if (!collaboratorId) return [];
+
+  const projects = await prisma.project.findMany({
+    where: {
+      isActive: true,
+      visibleToCollaborators: true,
+      operatorId: collaboratorId
+    },
+    select: { id: true }
+  });
+
+  return projects.map(project => project.id);
+}
+
 async function canAccessReport(auth, report) {
   if (auth.user.role === 'MANAGER') return true;
   if (auth.user.role === 'COORDINATOR') return true;
