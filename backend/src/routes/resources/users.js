@@ -4,8 +4,9 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
-import { publicUser } from '../../lib/auth.js';
-import { buildClientAccessReminderEmailTemplate } from '../../lib/email-templates.js';
+import { createPasswordResetToken, publicUser } from '../../lib/auth.js';
+import { missingClientAccessResetConfig, sendClientAccessResetEmail } from '../../lib/client-access-reset.js';
+import { buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { hashPassword } from '../../lib/password.js';
 import prisma from '../../lib/prisma.js';
@@ -143,38 +144,20 @@ router.post('/:id/resend-client-access', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'A conta CLIENT não possui e-mail principal cadastrado.' });
   }
 
-  const isCnpj = /^\d{14}$/.test(user.username);
-  const userEmail = String(user.email || '').toLowerCase();
-  const projects = await prisma.project.findMany({
-    where: isCnpj
-      ? { clientCnpj: user.username }
-      : { clientEmailCc: { has: userEmail } },
-    orderBy: [{ name: 'asc' }],
-    select: { clientCnpj: true, code: true, name: true, contractCode: true }
-  });
-
-  const missingMailerConfig = getMissingMailerConfig();
-  if (missingMailerConfig.length) {
-    return res.status(400).json({ error: `Configuração SMTP ausente: ${missingMailerConfig.join(', ')}` });
+  const missingConfig = missingClientAccessResetConfig(env, getMissingMailerConfig());
+  if (missingConfig.length) {
+    return res.status(400).json({
+      error: `Configuração ausente: ${missingConfig.join(', ')}`
+    });
   }
 
-  const { randomBytes } = await import('node:crypto');
-  const newPassword = randomBytes(5).toString('hex');
-  const newHash = await hashPassword(newPassword);
-  await prisma.user.update({ where: { id: user.id }, data: { passwordHash: newHash } });
-
-  const cnpjDisplay = isCnpj ? user.username : (projects[0]?.clientCnpj || user.username);
-  const template = buildClientAccessReminderEmailTemplate({
-    clientName: user.name,
-    cnpj: isCnpj ? user.username : user.email,
-    newPassword,
-    appUrl: env.appUrl,
-    projectCount: projects.length
-  });
-
-  await sendMail({
-    to: user.email,
-    ...template
+  await sendClientAccessResetEmail({
+    user,
+    prismaClient: prisma,
+    envConfig: env,
+    createToken: createPasswordResetToken,
+    mailer: sendMail,
+    templateBuilder: buildPasswordResetEmailTemplate
   });
 
   res.json({ ok: true });

@@ -25,13 +25,6 @@ function apiUrl(path: string) {
   return `/api${path}`;
 }
 
-function appendSessionToken(url: string) {
-  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
-  if (!token) return url;
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}token=${encodeURIComponent(token)}`;
-}
-
 function protectedUploadPath(rawUrl: string) {
   const value = String(rawUrl || '').trim();
   if (!value || value.startsWith('data:')) return '';
@@ -64,21 +57,53 @@ function protectedUploadPath(rawUrl: string) {
   return '';
 }
 
+function isPublicAssetUrl(url: string) {
+  const normalized = url.startsWith('/') ? url : `/relatorios/${url}`;
+  return normalized.startsWith('/assets/');
+}
+
 export function resolveUploadAssetUrl(url: string) {
   if (!url) return '';
   if (url.startsWith('data:')) return url;
 
   const protectedPath = protectedUploadPath(url);
   if (protectedPath) {
-    return appendSessionToken(apiUrl(`/uploads/file/${encodePath(protectedPath)}`));
+    return apiUrl(`/uploads/file/${encodePath(protectedPath)}`);
   }
 
   if (/^https?:\/\//i.test(url)) return url;
 
   const normalized = url.startsWith('/') ? url : `/relatorios/${url}`;
-  const isPublic = normalized.startsWith('/assets/');
+  const isPublic = isPublicAssetUrl(url);
   if (isPublic && assetsBaseUrl) return `${assetsBaseUrl}${normalized}`;
   if (isPublic) return normalized;
 
-  return appendSessionToken(apiUrl(`/uploads/file/${encodePath(url)}`));
+  return apiUrl(`/uploads/file/${encodePath(url)}`);
+}
+
+export function isProtectedUploadAssetUrl(url: string) {
+  if (!url || url.startsWith('data:')) return false;
+  if (protectedUploadPath(url)) return true;
+  if (/^https?:\/\//i.test(url)) return false;
+  return !isPublicAssetUrl(url);
+}
+
+export async function loadUploadAssetUrl(url: string) {
+  const resolvedUrl = resolveUploadAssetUrl(url);
+  if (!resolvedUrl || !isProtectedUploadAssetUrl(url)) return resolvedUrl;
+
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+  if (!token) return '';
+
+  const response = await fetch(resolvedUrl, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error('Não foi possível carregar o arquivo protegido.');
+  }
+
+  return URL.createObjectURL(await response.blob());
 }

@@ -13,6 +13,8 @@ import { requireAuth } from '../../middleware/auth.js';
 import prisma from '../../lib/prisma.js';
 
 const router = Router();
+const TRANSIENT_UPLOAD_ACCESS_MS = 30 * 60 * 1000;
+const transientUploadAccess = new Map();
 
 const schema = z.object({
   fileName: z.string().min(1),
@@ -54,71 +56,39 @@ function isInside(root, targetPath) {
   return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
-function listFiles(root, maxEntries = 20000) {
-  const stack = [root];
-  const files = [];
-  let visited = 0;
-
-  while (stack.length) {
-    const current = stack.pop();
-    let entries;
-    try {
-      entries = fsSync.readdirSync(current, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-
-    for (const entry of entries) {
-      visited += 1;
-      if (visited > maxEntries) return files;
-      const candidate = path.join(current, entry.name);
-      if (entry.isFile()) files.push(candidate);
-      if (entry.isDirectory()) stack.push(candidate);
-    }
+function cleanupTransientUploadAccess(now = Date.now()) {
+  for (const [key, grant] of transientUploadAccess) {
+    if (!grant || grant.expiresAt <= now) transientUploadAccess.delete(key);
   }
-
-  return files;
 }
 
-function findByBasename(root, basename) {
-  return listFiles(root).find(candidate => path.basename(candidate) === basename) || null;
+function rememberTransientUploadAccess(normalizedPath, userId) {
+  if (!normalizedPath || !userId) return;
+  cleanupTransientUploadAccess();
+  transientUploadAccess.set(normalizedPath, {
+    userId,
+    expiresAt: Date.now() + TRANSIENT_UPLOAD_ACCESS_MS
+  });
 }
 
-function compactKey(value) {
-  return safeDecode(String(value || ''))
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/%[0-9a-f]{2}/gi, '')
-    .replace(/[^a-z0-9]+/gi, '')
-    .toLowerCase();
+function hasTransientUploadAccess(normalizedPath, auth) {
+  cleanupTransientUploadAccess();
+  const grant = transientUploadAccess.get(normalizedPath);
+  return !!(grant && grant.userId === auth.user.id && grant.expiresAt > Date.now());
 }
 
-function scoreLegacyCandidate(candidate, normalizedPath) {
-  const normalizedKey = compactKey(normalizedPath);
-  const candidateKey = compactKey(candidate);
-  const requestedParts = normalizedPath.split(path.sep).filter(Boolean);
-  const requestedProject = requestedParts[0] || '';
-  const requestedProjectKey = compactKey(requestedProject);
-  const ext = path.extname(normalizedPath).toLowerCase();
-
-  let score = 0;
-  if (requestedProjectKey && candidateKey.includes(requestedProjectKey)) score += 80;
-  if (candidateKey.includes(compactKey('Registros Fotográficos'))) score += 25;
-  if (ext && path.extname(candidate).toLowerCase() === ext) score += 10;
-  for (const part of requestedParts.slice(1, -1)) {
-    const key = compactKey(part);
-    if (key && candidateKey.includes(key)) score += 8;
-  }
-  if (normalizedKey && candidateKey.includes(normalizedKey)) score += 100;
-  return score;
-}
-
-function resolveStoredFilePath(rawPath) {
+function normalizeRelativeUploadPath(rawPath) {
   const normalizedPath = String(rawPath || '')
+    .replace(/\\/g, '/')
     .split('/')
     .filter(Boolean)
     .map(part => safeDecode(part))
-    .join(path.sep);
+    .join('/');
+  return normalizedPath || '';
+}
+
+function resolveStoredFilePath(rawPath) {
+  const normalizedPath = normalizeRelativeUploadPath(rawPath).split('/').join(path.sep);
   if (!normalizedPath) return null;
 
   const roots = fileRoots();
@@ -129,37 +99,159 @@ function resolveStoredFilePath(rawPath) {
     }
   }
 
-  const basename = path.basename(normalizedPath);
-  if (!basename || basename === '.' || basename === path.sep) return null;
-  for (const root of roots) {
-    const found = findByBasename(root, basename);
-    if (found && isInside(root, found)) return found;
-  }
-
-  let best = null;
-  let bestScore = 0;
-  for (const root of roots) {
-    for (const candidate of listFiles(root)) {
-      if (!isInside(root, candidate)) continue;
-      const score = scoreLegacyCandidate(candidate, normalizedPath);
-      if (score > bestScore) {
-        best = candidate;
-        bestScore = score;
-      }
-    }
-  }
-  if (best && bestScore >= 90) return best;
-
   return null;
 }
 
+function normalizeUploadReference(value) {
+  const raw = String(value || '').trim();
+  if (!raw || raw.startsWith('data:')) return '';
+
+  let pathname = raw;
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      pathname = new URL(raw).pathname;
+    } catch {
+      return '';
+    }
+  }
+
+  if (pathname.startsWith('/api/uploads/file/')) {
+    return normalizeRelativeUploadPath(pathname.slice('/api/uploads/file/'.length));
+  }
+  if (pathname.startsWith('/relatorios/')) {
+    return normalizeRelativeUploadPath(pathname.slice('/relatorios/'.length));
+  }
+  if (pathname.startsWith('/uploads/')) {
+    return normalizeRelativeUploadPath(pathname.slice('/uploads/'.length));
+  }
+  if (pathname.startsWith('relatorios/')) {
+    return normalizeRelativeUploadPath(pathname.slice('relatorios/'.length));
+  }
+  if (pathname.startsWith('uploads/')) {
+    return normalizeRelativeUploadPath(pathname.slice('uploads/'.length));
+  }
+  if (pathname.includes('/')) {
+    return normalizeRelativeUploadPath(pathname);
+  }
+  return '';
+}
+
+function valueReferencesUpload(value, normalizedPath) {
+  if (!value) return false;
+  if (typeof value === 'string') {
+    return normalizeUploadReference(value) === normalizedPath;
+  }
+  if (Array.isArray(value)) {
+    return value.some(item => valueReferencesUpload(item, normalizedPath));
+  }
+  if (typeof value === 'object') {
+    for (const key of ['url', 'path', 'storagePath']) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        const raw = String(value[key] || '').trim();
+        if (normalizeUploadReference(raw) === normalizedPath) return true;
+        if (normalizeRelativeUploadPath(raw) === normalizedPath) return true;
+      }
+    }
+    return Object.values(value).some(item => valueReferencesUpload(item, normalizedPath));
+  }
+  return false;
+}
+
+function clientCanAccessProject(auth, project) {
+  if (project?.clientCnpj === auth.user.username) return true;
+  const userEmail = String(auth.user.email || '').trim().toLowerCase();
+  if (!userEmail) return false;
+  if (String(project?.clientEmailPrimary || '').trim().toLowerCase() === userEmail) return true;
+  return Array.isArray(project?.clientEmailCc)
+    && project.clientEmailCc.some(cc => String(cc || '').trim().toLowerCase() === userEmail);
+}
+
+function canAccessReport(auth, report) {
+  if (auth.user.role === 'MANAGER') return true;
+  if (auth.user.role === 'COORDINATOR') return true;
+  if (auth.user.role === 'CLIENT') return clientCanAccessProject(auth, report.project);
+  if (report.createdByUserId === auth.user.id) return true;
+  const collabId = auth.rawUser?.collaboratorId;
+  if (collabId && report.project?.operatorId === collabId) return true;
+  if (collabId && Array.isArray(report.collaborators)) {
+    return report.collaborators.some(rc => rc.collaboratorId === collabId);
+  }
+  return false;
+}
+
+async function candidateReportIdsForUpload(normalizedPath) {
+  const searchTerm = normalizedPath.split('/').filter(Boolean).pop() || normalizedPath;
+  const like = `%${searchTerm}%`;
+  const rows = await prisma.$queryRaw`
+    SELECT DISTINCT id
+    FROM (
+      SELECT r.id
+      FROM "Report" r
+      WHERE r."specialConditions"::text ILIKE ${like}
+      UNION
+      SELECT s."reportId" AS id
+      FROM "ReportService" s
+      WHERE s."extraData"::text ILIKE ${like}
+      UNION
+      SELECT a."reportId" AS id
+      FROM "ReportAttachment" a
+      WHERE a."reportId" IS NOT NULL AND a."storagePath" ILIKE ${like}
+      UNION
+      SELECT s."reportId" AS id
+      FROM "ReportAttachment" a
+      JOIN "ReportService" s ON s.id = a."reportServiceId"
+      WHERE a."reportServiceId" IS NOT NULL AND a."storagePath" ILIKE ${like}
+    ) matches
+    WHERE id IS NOT NULL
+    LIMIT 100
+  `;
+  return rows.map(row => row.id).filter(Boolean);
+}
+
+async function authorizeStoredFile(req, normalizedPath) {
+  if (hasTransientUploadAccess(normalizedPath, req.auth)) return true;
+
+  const candidateIds = await candidateReportIdsForUpload(normalizedPath);
+  if (!candidateIds.length) return false;
+
+  const reports = await prisma.report.findMany({
+    where: { id: { in: candidateIds } },
+    include: {
+      project: true,
+      collaborators: true,
+      attachments: true,
+      services: {
+        include: {
+          attachments: true
+        }
+      }
+    }
+  });
+
+  return reports.some(report => {
+    if (!canAccessReport(req.auth, report)) return false;
+    if (valueReferencesUpload(report.specialConditions, normalizedPath)) return true;
+    if (valueReferencesUpload(report.attachments, normalizedPath)) return true;
+    return (report.services || []).some(service => (
+      valueReferencesUpload(service.extraData, normalizedPath)
+      || valueReferencesUpload(service.attachments, normalizedPath)
+    ));
+  });
+}
+
 async function authenticateFileRequest(req, res, next) {
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim() || String(req.query.token || '').trim();
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
   if (!token) return res.status(401).json({ error: 'Acesso negado.' });
 
   const session = await prisma.userSession.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: true }
+    include: {
+      user: {
+        include: {
+          collaborator: true
+        }
+      }
+    }
   });
   if (!session || session.expiresAt <= new Date() || !session.user.isActive) {
     return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
@@ -170,9 +262,13 @@ async function authenticateFileRequest(req, res, next) {
 }
 
 router.get('/file/*', asyncHandler(authenticateFileRequest), asyncHandler(async (req, res) => {
-  const targetPath = resolveStoredFilePath(req.params[0]);
+  const normalizedPath = normalizeRelativeUploadPath(req.params[0]);
+  const targetPath = resolveStoredFilePath(normalizedPath);
   if (!targetPath) {
     return res.status(404).json({ error: 'Arquivo não encontrado.' });
+  }
+  if (!(await authorizeStoredFile(req, normalizedPath))) {
+    return res.status(403).json({ error: 'Você não tem permissão para acessar este arquivo.' });
   }
 
   return res.sendFile(targetPath);
@@ -215,6 +311,7 @@ router.post('/', asyncHandler(async (req, res) => {
     .split(path.sep)
     .map(encodeURIComponent)
     .join('/');
+  rememberTransientUploadAccess(normalizeRelativeUploadPath(relativePath), req.auth.user.id);
 
   res.status(201).json({
     label: data.label,

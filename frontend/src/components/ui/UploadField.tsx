@@ -1,7 +1,7 @@
-﻿import { useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 
 import { uploadFiles, type UploadedFile } from '../../api/uploads';
-import { resolveUploadAssetUrl } from '../../utils/uploadAssetUrl';
+import { loadUploadAssetUrl } from '../../utils/uploadAssetUrl';
 
 interface UploadFieldProps {
   label: string;
@@ -17,6 +17,13 @@ type UploadValue = UploadedFile & {
   dataUrl?: string;
 };
 
+interface UploadListItemProps {
+  disabled: boolean;
+  file: UploadValue;
+  index: number;
+  onRemove: (index: number) => void;
+}
+
 function fileToDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -24,6 +31,63 @@ function fileToDataUrl(file: File) {
     reader.onerror = () => reject(reader.error || new Error('Falha ao ler arquivo.'));
     reader.readAsDataURL(file);
   });
+}
+
+function rawFileUrl(file: UploadValue) {
+  return file.url || file.path || file.storagePath || file.dataUrl || '';
+}
+
+function isImageFile(file: UploadValue) {
+  if ((file.mimeType || '').startsWith('image')) return true;
+  const ext = (file.fileName || rawFileUrl(file)).split('.').pop()?.toLowerCase() || '';
+  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
+}
+
+function UploadListItem({ disabled, file, index, onRemove }: UploadListItemProps) {
+  const [href, setHref] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = '';
+
+    loadUploadAssetUrl(rawFileUrl(file))
+      .then(nextHref => {
+        if (cancelled) {
+          if (nextHref.startsWith('blob:')) URL.revokeObjectURL(nextHref);
+          return;
+        }
+        objectUrl = nextHref.startsWith('blob:') ? nextHref : '';
+        setHref(nextHref);
+      })
+      .catch(() => {
+        if (!cancelled) setHref('');
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [file]);
+
+  return (
+    <div className="upload-list-item">
+      {href && isImageFile(file) ? (
+        <img className="upload-list-thumb" src={href} alt={file.fileName} />
+      ) : null}
+      {href ? (
+        <a className="upload-list-name" href={href} target="_blank" rel="noreferrer">
+          {file.fileName}
+        </a>
+      ) : (
+        <span className="upload-list-name">{file.fileName}</span>
+      )}
+      {!disabled ? (
+        <button className="secondary-button" type="button" onClick={() => onRemove(index)}>
+          Remover
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 export function UploadField({ label, value, projectId, disabled = false, onChange }: UploadFieldProps) {
@@ -62,16 +126,6 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
     onChange(value.filter((_, itemIndex) => itemIndex !== index));
   }
 
-  function rawFileUrl(file: UploadValue) {
-    return file.url || file.path || file.storagePath || file.dataUrl || '';
-  }
-
-  function isImageFile(file: UploadValue) {
-    if ((file.mimeType || '').startsWith('image')) return true;
-    const ext = (file.fileName || rawFileUrl(file)).split('.').pop()?.toLowerCase() || '';
-    return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
-  }
-
   return (
     <div className="upload-field">
       <div className="upload-field-head">
@@ -100,28 +154,15 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
       {error ? <div className="inline-error">{error}</div> : null}
       {value.length ? (
         <div className="upload-list">
-          {value.map((file, index) => {
-            const href = resolveUploadAssetUrl(rawFileUrl(file));
-            return (
-            <div className="upload-list-item" key={`${rawFileUrl(file)}-${index}`}>
-              {href && isImageFile(file) ? (
-                <img className="upload-list-thumb" src={href} alt={file.fileName} />
-              ) : null}
-              {href ? (
-                <a className="upload-list-name" href={href} target="_blank" rel="noreferrer">
-                  {file.fileName}
-                </a>
-              ) : (
-                <span className="upload-list-name">{file.fileName}</span>
-              )}
-              {!disabled ? (
-                <button className="secondary-button" type="button" onClick={() => removeFile(index)}>
-                  Remover
-                </button>
-              ) : null}
-            </div>
-            );
-          })}
+          {value.map((file, index) => (
+            <UploadListItem
+              key={`${rawFileUrl(file)}-${index}`}
+              disabled={disabled}
+              file={file}
+              index={index}
+              onRemove={removeFile}
+            />
+          ))}
         </div>
       ) : null}
     </div>

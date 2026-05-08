@@ -22,6 +22,11 @@ import { saveRlqDocx, saveRlqPdf, organizeRlqPhotos } from '../../lib/report-rlq
 import { saveRcpDocx, saveRcpPdf, organizeRcpPhotos, calcServiceMinutes } from '../../lib/report-rcp.js';
 import { saveRlmDocx, saveRlmPdf, organizeRlmPhotos } from '../../lib/report-rlm.js';
 import {
+  claimZapSignRequest,
+  persistZapSignRequest,
+  releaseZapSignRequestClaim
+} from '../../lib/zapsign-request-claim.js';
+import {
   addExtraDocToZapSign,
   assertZapSignEnabled,
   downloadSignedZapSignDocument,
@@ -231,32 +236,6 @@ function clientCanAccessProject(auth, project) {
     && project.clientEmailCc.some(cc => cc.toLowerCase() === userEmail);
 }
 
-async function collaboratorProjectIdsForAuth(auth) {
-  const collabId = auth.rawUser?.collaboratorId;
-  if (!collabId) return [];
-
-  const [reports, projects] = await Promise.all([
-    prisma.report.findMany({
-      where: {
-        OR: [
-          { createdByUserId: auth.user.id },
-          { collaborators: { some: { collaboratorId: collabId } } }
-        ]
-      },
-      select: { projectId: true }
-    }),
-    prisma.project.findMany({
-      where: { operatorId: collabId },
-      select: { id: true }
-    })
-  ]);
-
-  return Array.from(new Set([
-    ...reports.map(item => item.projectId).filter(Boolean),
-    ...projects.map(item => item.id).filter(Boolean)
-  ]));
-}
-
 async function canAccessReport(auth, report) {
   if (auth.user.role === 'MANAGER') return true;
   if (auth.user.role === 'COORDINATOR') return true;
@@ -267,9 +246,7 @@ async function canAccessReport(auth, report) {
   if (collabId && Array.isArray(report.collaborators)) {
     if (report.collaborators.some(rc => rc.collaboratorId === collabId)) return true;
   }
-  if (!collabId) return false;
-  const projectIds = await collaboratorProjectIdsForAuth(auth);
-  return projectIds.includes(report.projectId);
+  return false;
 }
 
 function canClientSeeReport(report, allReportsById) {
@@ -2667,101 +2644,131 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
     return res.status(409).json({ error: 'Somente relatórios aprovados pelo gestor podem ser assinados.' });
   }
   const comment = String(data.comment || '').trim();
+  const { claimed, claimTime } = await claimZapSignRequest(prisma, existing.id);
 
-  const prepared = await prisma.$transaction(async tx => {
-    const approvedReview = (existing.clientReviews || []).find(item => item.action === ClientReviewAction.APPROVED);
-    if (approvedReview) {
-      if (comment !== String(approvedReview.comment || '').trim()) {
-        await tx.clientReportReview.update({
-          where: { id: approvedReview.id },
+  if (!claimed) {
+    const current = await prisma.report.findUniqueOrThrow({
+      where: { id: existing.id },
+      include
+    });
+    if (current.zapsignDocToken && !current.zapsignSignedAt) {
+      let signUrl = resolveSignerUrlForUser(current, req.auth.user);
+      if (!signUrl) {
+        signUrl = await resolveSignerUrlFromZapSign(current.zapsignDocToken, req.auth.user, current.project);
+      }
+      if (signUrl) return res.json({ ok: true, signUrl, report: current });
+      return res.status(409).json({ error: 'Seu link de assinatura não foi encontrado para este relatório. Contate o gestor.' });
+    }
+    return res.status(409).json({ error: 'A solicitação de assinatura já está em andamento. Tente novamente em instantes.' });
+  }
+
+  let item;
+  let zapsignForResponse;
+  try {
+    const prepared = await prisma.$transaction(async tx => {
+      const approvedReview = (existing.clientReviews || []).find(item => item.action === ClientReviewAction.APPROVED);
+      if (approvedReview) {
+        if (comment !== String(approvedReview.comment || '').trim()) {
+          await tx.clientReportReview.update({
+            where: { id: approvedReview.id },
+            data: {
+              comment: comment || null,
+              ipAddress: clientIp(req),
+              userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
+            }
+          });
+        }
+      } else {
+        await tx.clientReportReview.create({
           data: {
+            reportId: existing.id,
+            clientUserId: req.auth.user.id,
+            action: ClientReviewAction.APPROVED,
             comment: comment || null,
             ipAddress: clientIp(req),
             userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
           }
         });
       }
-    } else {
-      await tx.clientReportReview.create({
-        data: {
-          reportId: existing.id,
-          clientUserId: req.auth.user.id,
-          action: ClientReviewAction.APPROVED,
-          comment: comment || null,
-          ipAddress: clientIp(req),
-          userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
-        }
+
+      return tx.report.findUniqueOrThrow({
+        where: { id: existing.id },
+        include
       });
+    });
+
+    const additionalSigners = Array.isArray(prepared.project?.clientSigners)
+      ? prepared.project.clientSigners
+      : [];
+    const { signerName, signerEmail } = resolveZapSignSigner(prepared, req.auth.user);
+    const tSig0 = Date.now();
+    const saved = await generateReportPdfAsset(prepared);
+    const pdfBuffer = await fs.readFile(saved.targetPath);
+    const tSigPdf = Date.now();
+    const zapsign = await sendToZapSign({
+      pdfBuffer,
+      fileName: reportPdfFileName(prepared, saved),
+      signerName,
+      signerEmail,
+      additionalSigners,
+      externalId: prepared.id,
+      webhookUrl: buildZapSignWebhookUrl()
+    });
+    zapsignForResponse = zapsign;
+    console.log('[TIMING] POST /reports/:id/request-signature', { pdfMs: tSigPdf - tSig0, zapMs: Date.now() - tSigPdf, totalMs: Date.now() - tSig0 });
+
+    if (!zapsign.docToken) {
+      const error = new Error('A ZapSign não retornou o token do documento.');
+      error.statusCode = 502;
+      throw error;
+    }
+    if (!zapsign.signerUrl) {
+      const error = new Error('A ZapSign não retornou o link de assinatura.');
+      error.statusCode = 502;
+      throw error;
     }
 
-    return tx.report.findUniqueOrThrow({
-      where: { id: existing.id },
+    const nextSpecialConditions = {
+      ...(prepared.specialConditions || {}),
+      ...(zapsign.allSigners?.length ? { [ZAPSIGN_SIGNERS_KEY]: zapsign.allSigners } : {})
+    };
+    const initialProgress = buildZapSignSignatureProgress(zapsign.raw);
+    if (initialProgress.total) {
+      nextSpecialConditions[ZAPSIGN_SIGNATURE_PROGRESS_KEY] = initialProgress;
+    }
+
+    const persisted = await persistZapSignRequest(
+      prisma,
+      prepared.id,
+      claimTime,
+      {
+        zapsignDocToken: zapsign.docToken,
+        zapsignSignerToken: zapsign.signerToken || null,
+        zapsignRequestedAt: new Date(),
+        zapsignSignedAt: null,
+        zapsignDocUrl: null,
+        specialConditions: nextSpecialConditions
+      }
+    );
+
+    if (!persisted) {
+      const error = new Error('A solicitação de assinatura já foi atualizada por outra operação.');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    item = await prisma.report.findUniqueOrThrow({
+      where: { id: prepared.id },
       include
     });
-  });
-
-  if (prepared.zapsignDocToken && !prepared.zapsignSignedAt) {
-    let signUrl = resolveSignerUrlForUser(prepared, req.auth.user);
-    if (!signUrl) {
-      signUrl = await resolveSignerUrlFromZapSign(prepared.zapsignDocToken, req.auth.user, prepared.project);
-    }
-    if (signUrl) return res.json({ ok: true, signUrl, report: prepared });
-    return res.status(409).json({ error: 'Seu link de assinatura não foi encontrado para este relatório. Contate o gestor.' });
-  }
-
-  const additionalSigners = Array.isArray(prepared.project?.clientSigners)
-    ? prepared.project.clientSigners
-    : [];
-  const { signerName, signerEmail } = resolveZapSignSigner(prepared, req.auth.user);
-  const tSig0 = Date.now();
-  const saved = await generateReportPdfAsset(prepared);
-  const pdfBuffer = await fs.readFile(saved.targetPath);
-  const tSigPdf = Date.now();
-  const zapsign = await sendToZapSign({
-    pdfBuffer,
-    fileName: reportPdfFileName(prepared, saved),
-    signerName,
-    signerEmail,
-    additionalSigners,
-    externalId: prepared.id,
-    webhookUrl: buildZapSignWebhookUrl()
-  });
-  console.log('[TIMING] POST /reports/:id/request-signature', { pdfMs: tSigPdf - tSig0, zapMs: Date.now() - tSigPdf, totalMs: Date.now() - tSig0 });
-
-  if (!zapsign.docToken) {
-    const error = new Error('A ZapSign não retornou o token do documento.');
-    error.statusCode = 502;
-    throw error;
-  }
-  if (!zapsign.signerUrl) {
-    const error = new Error('A ZapSign não retornou o link de assinatura.');
-    error.statusCode = 502;
+  } catch (error) {
+    await releaseZapSignRequestClaim(prisma, existing.id, claimTime).catch(cleanupError => {
+      console.error('Falha ao liberar solicitação ZapSign em andamento.', cleanupError);
+    });
     throw error;
   }
 
-  const nextSpecialConditions = {
-    ...(prepared.specialConditions || {}),
-    ...(zapsign.allSigners?.length ? { [ZAPSIGN_SIGNERS_KEY]: zapsign.allSigners } : {})
-  };
-  const initialProgress = buildZapSignSignatureProgress(zapsign.raw);
-  if (initialProgress.total) {
-    nextSpecialConditions[ZAPSIGN_SIGNATURE_PROGRESS_KEY] = initialProgress;
-  }
-
-  const item = await prisma.report.update({
-    where: { id: prepared.id },
-    data: {
-      zapsignDocToken: zapsign.docToken,
-      zapsignSignerToken: zapsign.signerToken || null,
-      zapsignRequestedAt: new Date(),
-      zapsignSignedAt: null,
-      zapsignDocUrl: null,
-      specialConditions: nextSpecialConditions
-    },
-    include
-  });
-
-  const resolvedSignUrl = resolveSignerUrlForUser(item, req.auth.user) || zapsign.signerUrl;
+  const resolvedSignUrl = resolveSignerUrlForUser(item, req.auth.user) || zapsignForResponse.signerUrl;
   res.json({
     ok: true,
     signUrl: resolvedSignUrl,

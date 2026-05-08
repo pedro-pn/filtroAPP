@@ -1,0 +1,32 @@
+# Runtime/generated assets and local diagnostics that should not enter the CRG.
+frontend/.vite/**
+frontend/dist/**
+backend/Relatórios/**
+backend/uploads/**
+uploads/**
+
+# Generated Office/PDF inspection outputs.
+tmp_*/**
+backend/tmp_*/**
+tmp_*.js
+tmp_*.zip
+backend/tmp_*.docx
+*.docx
+*.zip
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.odttf
+*.rels
+*.xml
+
+# Non-source project notes and tool state.
+.claude/**
+.codex/**
+Modelos/**
+Checklist-*.md
+Checklist-*.txt
+Planejamento*.md
+Planejamento*.txt
+codex.txt
