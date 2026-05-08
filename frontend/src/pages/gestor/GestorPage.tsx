@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState, type Dispatch, type FormEvent, type KeyboardEvent, type SetStateAction } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
 import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
@@ -49,6 +49,22 @@ type GestorTab =
   | 'equipamentos'
   | 'manometros'
   | 'contadores';
+
+const gestorTabs: GestorTab[] = [
+  'pendentes',
+  'aprovados',
+  'arquivados',
+  'projetos',
+  'equipe',
+  'usuarios',
+  'equipamentos',
+  'manometros',
+  'contadores'
+];
+
+function parseGestorTab(value: string | null): GestorTab {
+  return gestorTabs.includes(value as GestorTab) ? value as GestorTab : 'pendentes';
+}
 
 type GestorUiPrefs = {
   projectSortDir: 'asc' | 'desc';
@@ -772,10 +788,11 @@ function renderProjectCard(
 
 export function GestorPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, logout } = useAuth();
   const { hydrate, reset } = useRdoStore();
   const showToast = useToast();
-  const [tab, setTab] = useState<GestorTab>('pendentes');
+  const [tab, setTab] = useState<GestorTab>(() => parseGestorTab(searchParams.get('tab')));
   const [gestorSearch, setGestorSearch] = useState('');
   const projectDetailsStorageKey = `gestor-project-details-collapsed:${user?.id || 'anonymous'}`;
   const gestorUiPrefsStorageKey = `gestor-ui-prefs:${user?.id || 'anonymous'}`;
@@ -833,6 +850,25 @@ export function GestorPage() {
   const unitMutations = useUnitMutations();
   const manometerMutations = useManometerMutations();
   const counterMutations = useCounterMutations();
+
+  useEffect(() => {
+    const nextTab = parseGestorTab(searchParams.get('tab'));
+    setTab(current => current === nextTab ? current : nextTab);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const currentTab = parseGestorTab(searchParams.get('tab'));
+    const tabParam = searchParams.get('tab');
+    if (currentTab === tab && ((tab === 'pendentes' && !tabParam) || (tab !== 'pendentes' && tabParam === tab))) return;
+
+    const nextParams = new URLSearchParams(searchParams);
+    if (tab === 'pendentes') {
+      nextParams.delete('tab');
+    } else {
+      nextParams.set('tab', tab);
+    }
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams, tab]);
 
   const pendingReports = useMemo(
     () =>

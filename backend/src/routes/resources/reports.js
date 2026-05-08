@@ -814,6 +814,17 @@ async function organizeAndPersist(report) {
     const newSC = applyUrlMap(report.specialConditions, urlMap);
     await prisma.report.update({ where: { id: report.id }, data: { specialConditions: newSC } });
 
+    if (report.specialConditions?.serviceOnly === true) {
+      for (const service of (report.services || [])) {
+        if (!service.id) continue;
+        const newExtraData = applyUrlMap(service.extraData, urlMap);
+        await prisma.reportService.update({
+          where: { id: service.id },
+          data: { extraData: newExtraData }
+        });
+      }
+    }
+
     // Para RTP/RLQ, também atualiza o extraData do serviço-fonte do RDO para que
     // re-edições do RDO não percam as URLs organizadas das fotos.
     const sourceServiceId = report.specialConditions?.serviceId;

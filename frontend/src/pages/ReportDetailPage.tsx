@@ -401,6 +401,8 @@ function reportToForm(report: ReportSummary): RdoFormState {
   const specialConditions = asRecord(report.specialConditions);
   const standbyDetails = asRecord(specialConditions.standbyDetails);
   const noturnoDetails = asRecord(specialConditions.noturnoDetails);
+  const serviceOnly = isServiceOnlyReport(report);
+  const serviceData = asRecord(specialConditions.serviceData);
   const nightCollaboratorIds = Array.isArray(noturnoDetails.collaboratorIds)
     ? noturnoDetails.collaboratorIds.filter((id): id is string => typeof id === 'string')
     : [];
@@ -424,10 +426,19 @@ function reportToForm(report: ReportSummary): RdoFormState {
     dailyDescription: report.dailyDescription || '',
     generalUploads: asUploadedFiles(specialConditions.generalUploads),
     services: (report.services || []).map(service => {
+      const serviceForForm = serviceOnly
+        ? {
+            ...service,
+            extraData: {
+              ...(service.extraData || {}),
+              ...serviceData
+            }
+          }
+        : service;
       return {
         id: service.id || serviceId(),
         type: service.serviceType,
-        data: legacyServiceData(service)
+        data: legacyServiceData(serviceForForm)
       };
     })
   };
