@@ -20,6 +20,7 @@ import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
 import type { UploadedFile } from '../../api/uploads';
 import type { ReportSummary } from '../../types/domain';
+import { roleHomePath } from '../../auth/rolePath';
 import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
 import { sortProjects } from '../../utils/projectSort';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
@@ -138,7 +139,7 @@ export function NewReportPage() {
     () => (projectsQuery.data || []).find(project => project.id === projectId) || null,
     [projectId, projectsQuery.data]
   );
-  const backPath = user?.role === 'MANAGER' ? '/gestor' : '/home';
+  const backPath = roleHomePath(user?.role);
 
   function firstIdFromField(value: unknown) {
     if (typeof value === 'string') return value;
@@ -818,7 +819,7 @@ export function NewReportPage() {
       lastAutoSaveSignatureRef.current = '';
 
       reset();
-      navigate(user.role === 'MANAGER' ? '/gestor' : '/home');
+      navigate(roleHomePath(user.role));
     } catch (err) {
       isSubmittingRef.current = false;
       setIsSubmitting(false);

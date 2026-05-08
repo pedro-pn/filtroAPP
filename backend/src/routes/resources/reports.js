@@ -2208,10 +2208,11 @@ router.delete('/:id/services/:serviceId', requireAuth, asyncHandler(async (req, 
 }));
 
 router.post('/', requireAuth, asyncHandler(async (req, res) => {
-  if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
+  if (req.auth.user.role === 'CLIENT') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode criar relatórios.` });
   }
   const data = schema.parse(req.body);
+  const reportStatus = req.auth.user.role === 'MANAGER' ? data.status : ReportStatus.PENDING;
   const collaboratorIds = uniqueIds(data.collaboratorIds);
   const pendingDerivedTypes = collectPendingDerivedTypes(data.services);
   const tPost0 = Date.now();
@@ -2231,10 +2232,10 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
     const created = await tx.report.create({
       data: {
         projectId: data.projectId,
-        createdByUserId: data.createdByUserId,
+        createdByUserId: req.auth.user.role === 'MANAGER' ? data.createdByUserId : req.auth.user.id,
         reportType: data.reportType,
         sequenceNumber,
-        status: data.status,
+        status: reportStatus,
         reportDate: new Date(data.reportDate),
         arrivalTime: data.arrivalTime,
         departureTime: data.departureTime,
@@ -2247,8 +2248,8 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
         totalOvertimeMinutes: overtime.totalOvertimeMinutes,
         overtimeReason: data.overtimeReason || null,
         dailyDescription: data.dailyDescription || null,
-        reviewedByUserId: data.status === ReportStatus.APPROVED ? req.auth.user.id : null,
-        approvedAt: data.status === ReportStatus.APPROVED ? new Date() : null,
+        reviewedByUserId: reportStatus === ReportStatus.APPROVED ? req.auth.user.id : null,
+        approvedAt: reportStatus === ReportStatus.APPROVED ? new Date() : null,
         specialConditions: {
           ...(data.specialConditions || {}),
           overtimeSummary: overtime,
@@ -2298,7 +2299,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
-  if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
+  if (req.auth.user.role === 'CLIENT') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode editar relatórios.` });
   }
   const data = updateSchema.parse(req.body);
@@ -2307,6 +2308,9 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  if (req.auth.user.role === 'COORDINATOR' && existing.createdByUserId !== req.auth.user.id) {
+    return res.status(403).json({ error: 'O coordenador só pode editar relatórios criados por ele.' });
+  }
   assertReportMutable(existing);
   if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });

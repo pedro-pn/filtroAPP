@@ -27,7 +27,7 @@ export default function App() {
         <Route path="/conta" element={<AccountPage />} />
       </Route>
 
-      <Route element={<RoleRoute allowedRoles={['COLLABORATOR', 'MANAGER']} />}>
+      <Route element={<RoleRoute allowedRoles={['COLLABORATOR', 'MANAGER', 'COORDINATOR']} />}>
         <Route path="/relatorio/novo" element={<NewReportPage />} />
         <Route path="/relatorios/novo" element={<NewReportPage />} />
         <Route path="/relatorios/:id" element={<ReportDetailPage />} />
