@@ -213,6 +213,12 @@ async function candidateReportIdsForUpload(normalizedPath) {
 async function authorizeStoredFile(req, normalizedPath) {
   if (hasTransientUploadAccess(normalizedPath, req.auth)) return true;
 
+  const drafts = await prisma.reportDraft.findMany({
+    where: { userId: req.auth.user.id },
+    select: { payload: true }
+  });
+  if (drafts.some(draft => valueReferencesUpload(draft.payload, normalizedPath))) return true;
+
   const candidateIds = await candidateReportIdsForUpload(normalizedPath);
   if (!candidateIds.length) return false;
 
