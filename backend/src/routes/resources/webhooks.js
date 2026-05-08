@@ -3,6 +3,7 @@ import { Router } from 'express';
 
 import asyncHandler from '../../lib/async-handler.js';
 import prisma from '../../lib/prisma.js';
+import { clearPendingProjectZapSignState, shouldIgnoreExternalSigningForReport } from '../../lib/project-visibility.js';
 import { getZapSignDocument, verifyWebhookSignature } from '../../lib/zapsign.js';
 import { buildZapSignSignatureProgress, ZAPSIGN_BATCH_DOC_TOKENS_KEY, ZAPSIGN_SIGNATURE_PROGRESS_KEY } from '../../lib/zapsign-progress.js';
 
@@ -83,6 +84,13 @@ router.post('/zapsign', asyncHandler(async (req, res) => {
 
   if (!report) {
     return res.status(202).json({ ok: true, ignored: true });
+  }
+
+  if (shouldIgnoreExternalSigningForReport(report)) {
+    await prisma.$transaction(async tx => {
+      await clearPendingProjectZapSignState(tx, report.projectId);
+    });
+    return res.status(202).json({ ok: true, ignored: true, reason: 'manager-only-project' });
   }
 
   const status = payloadStatus(req.body);

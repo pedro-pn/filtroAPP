@@ -6,6 +6,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import { ensureClientAccountForProject, ensureClientCcAccounts } from '../../lib/client-account.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import prisma from '../../lib/prisma.js';
+import { clearPendingProjectZapSignState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
 import { requireAuth, requireManager } from '../../middleware/auth.js';
 
 const router = Router();
@@ -122,8 +123,10 @@ router.post('/', requireAuth, requireManager, asyncHandler(async (req, res) => {
         reportSequences: true
       }
     });
-    await ensureClientAccountForProject(tx, created);
-    await ensureClientCcAccounts(tx, created);
+    if (shouldProvisionProjectClientAccounts(created)) {
+      await ensureClientAccountForProject(tx, created);
+      await ensureClientCcAccounts(tx, created);
+    }
     return created;
   });
   res.status(201).json(item);
@@ -161,7 +164,8 @@ router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) =>
       select: {
         clientCnpj: true,
         clientEmailPrimary: true,
-        clientEmailCc: true
+        clientEmailCc: true,
+        managerOnly: true
       }
     });
     if (reportSequences) {
@@ -185,8 +189,12 @@ router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) =>
         reportSequences: true
       }
     });
-    await ensureClientAccountForProject(tx, updated, { previousProject });
-    await ensureClientCcAccounts(tx, { ...updated, id: req.params.id }, { previousProject });
+    if (!shouldProvisionProjectClientAccounts(updated)) {
+      await clearPendingProjectZapSignState(tx, updated.id);
+    } else {
+      await ensureClientAccountForProject(tx, updated, { previousProject });
+      await ensureClientCcAccounts(tx, { ...updated, id: req.params.id }, { previousProject });
+    }
     return updated;
   });
 

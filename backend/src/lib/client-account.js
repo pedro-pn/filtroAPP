@@ -111,6 +111,7 @@ export async function ensureClientAccountForProject(prisma, projectData, options
   } else if (shouldNotify) {
     const notifyExisting =
       !previousProject ||
+      previousProject.managerOnly ||
       String(previousProject.clientCnpj || '') !== clientCnpj ||
       String(previousProject.clientEmailPrimary || '').trim().toLowerCase() !== primaryEmail;
 
