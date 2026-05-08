@@ -16,6 +16,7 @@ const schema = z.object({
   name: z.string().min(1),
   isActive: z.boolean().default(true),
   visibleToCollaborators: z.boolean().default(true),
+  managerOnly: z.boolean().default(false),
   clientName: z.string().min(1),
   clientCnpj: z.string().min(1),
   clientEmailPrimary: z.union([emailSchema, z.literal('')]).default(''),
@@ -61,6 +62,7 @@ function normalizeProjectInput(data) {
 
   return {
     ...data,
+    visibleToCollaborators: data.managerOnly ? false : data.visibleToCollaborators,
     clientCnpj: normalizedCnpj,
     clientEmailPrimary: primary,
     clientEmailCc,
@@ -75,10 +77,12 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
   } else if (req.auth.user.role === 'COORDINATOR') {
+    where.managerOnly = false;
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
   } else if (req.auth.user.role === 'CLIENT') {
     const userEmail = String(req.auth.user.email || '').trim().toLowerCase();
+    where.managerOnly = false;
     where.OR = [
       { clientCnpj: req.auth.user.username },
       ...(userEmail ? [{ clientEmailCc: { has: userEmail } }] : [])
@@ -87,6 +91,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     const collaboratorId = req.auth.user.collaboratorId;
     where.isActive = true;
     where.visibleToCollaborators = true;
+    where.managerOnly = false;
     where.operatorId = collaboratorId || '__NO_MATCH__';
   }
 
@@ -144,6 +149,9 @@ router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) =>
       clientEmailCc: parsed.clientEmailCc ?? existingProject.clientEmailCc,
       clientSigners: parsed.clientSigners ?? existingProject.clientSigners
     });
+  }
+  if (data.managerOnly === true) {
+    data = { ...data, visibleToCollaborators: false };
   }
   const { reportSequences, ...projectData } = data;
 

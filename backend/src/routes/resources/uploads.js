@@ -158,6 +158,7 @@ function valueReferencesUpload(value, normalizedPath) {
 }
 
 function clientCanAccessProject(auth, project) {
+  if (project?.managerOnly) return false;
   if (project?.clientCnpj === auth.user.username) return true;
   const userEmail = String(auth.user.email || '').trim().toLowerCase();
   if (!userEmail) return false;
@@ -168,6 +169,7 @@ function clientCanAccessProject(auth, project) {
 
 function canAccessReport(auth, report) {
   if (auth.user.role === 'MANAGER') return true;
+  if (report.project?.managerOnly) return false;
   if (auth.user.role === 'COORDINATOR') return true;
   if (auth.user.role === 'CLIENT') return clientCanAccessProject(auth, report.project);
   if (report.createdByUserId === auth.user.id) return true;

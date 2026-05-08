@@ -66,6 +66,7 @@ model Project {
   name                  String
   isActive              Boolean           @default(true)
   visibleToCollaborators Boolean          @default(true)
+  managerOnly           Boolean           @default(false)
   clientName            String
   clientCnpj            String
   clientEmailPrimary    String            @default("")

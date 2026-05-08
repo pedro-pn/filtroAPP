@@ -49,6 +49,7 @@ router.get('/', asyncHandler(async (req, res) => {
   const linkedProjects = clientUsers.length
     ? await prisma.project.findMany({
         where: {
+          managerOnly: false,
           OR: [
             ...(cnpjUsernames.length ? [{ clientCnpj: { in: cnpjUsernames } }] : []),
             ...(ccEmails.length ? [{ clientEmailCc: { hasSome: ccEmails } }] : [])
