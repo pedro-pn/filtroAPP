@@ -114,8 +114,12 @@ router.post('/zapsign', asyncHandler(async (req, res) => {
       });
 
   await prisma.$transaction(async tx => {
-    await tx.report.update({
-      where: { id: report.id },
+    const signedReport = await tx.report.updateMany({
+      where: {
+        id: report.id,
+        status: ReportStatus.APPROVED,
+        zapsignDocToken: docToken
+      },
       data: {
         status: ReportStatus.SIGNED,
         zapsignSignedAt: signedTimestamp(req.body, details),
@@ -129,7 +133,7 @@ router.post('/zapsign', asyncHandler(async (req, res) => {
       }
     });
 
-    if (!approvedReview && clientUser?.id) {
+    if (signedReport.count === 1 && !approvedReview && clientUser?.id) {
       await tx.clientReportReview.create({
         data: {
           reportId: report.id,
@@ -148,8 +152,12 @@ router.post('/zapsign', asyncHandler(async (req, res) => {
         select: { id: true, specialConditions: true }
       });
       for (const extraReport of extraReports) {
-        await tx.report.update({
-          where: { id: extraReport.id },
+        await tx.report.updateMany({
+          where: {
+            id: extraReport.id,
+            status: ReportStatus.APPROVED,
+            zapsignDocToken: extraDoc.token
+          },
           data: {
             status: ReportStatus.SIGNED,
             zapsignSignedAt: signedTimestamp(req.body, details),
