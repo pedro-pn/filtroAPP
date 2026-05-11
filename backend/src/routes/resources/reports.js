@@ -256,6 +256,17 @@ function clientCanAccessProject(auth, project) {
     && project.clientEmailCc.some(cc => cc.toLowerCase() === userEmail);
 }
 
+export function collaboratorCanAccessProject(auth, project) {
+  const collaboratorId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
+  return !!(
+    collaboratorId
+    && project?.isActive
+    && project.visibleToCollaborators
+    && !project.managerOnly
+    && project.operatorId === collaboratorId
+  );
+}
+
 async function collaboratorProjectIdsForAuth(auth) {
   const collaboratorId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
   if (!collaboratorId) return [];
@@ -279,7 +290,7 @@ async function canAccessReport(auth, report) {
   if (auth.user.role === 'COORDINATOR') return true;
   if (auth.user.role === 'CLIENT') return clientCanAccessProject(auth, report.project);
   if (report.createdByUserId === auth.user.id) return true;
-  const collabId = auth.rawUser?.collaboratorId;
+  const collabId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
   if (collabId && report.project?.operatorId === collabId) return true;
   if (collabId && Array.isArray(report.collaborators)) {
     if (report.collaborators.some(rc => rc.collaboratorId === collabId)) return true;
@@ -2534,6 +2545,11 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
       error.statusCode = 403;
       throw error;
     }
+    if (req.auth.user.role === 'COLLABORATOR' && !collaboratorCanAccessProject(req.auth, project)) {
+      const error = new Error('Este projeto não está vinculado ao colaborador logado.');
+      error.statusCode = 403;
+      throw error;
+    }
     const sequenceNumber = await reserveSequence(tx, data.projectId, data.reportType);
     const overtime = calculateReportOvertime(project, data);
     const leaderSnapshot = project.operator ? {
@@ -2641,10 +2657,18 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     const targetProject = await prisma.project.findUniqueOrThrow({
       where: { id: data.projectId },
-      select: { managerOnly: true }
+      select: {
+        isActive: true,
+        visibleToCollaborators: true,
+        managerOnly: true,
+        operatorId: true
+      }
     });
     if (targetProject.managerOnly) {
       return res.status(403).json({ error: 'Este projeto é visível somente para o gestor.' });
+    }
+    if (req.auth.user.role === 'COLLABORATOR' && !collaboratorCanAccessProject(req.auth, targetProject)) {
+      return res.status(403).json({ error: 'Este projeto não está vinculado ao colaborador logado.' });
     }
   }
   const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);

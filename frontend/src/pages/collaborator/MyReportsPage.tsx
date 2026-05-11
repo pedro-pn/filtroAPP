@@ -6,6 +6,7 @@ import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useReports } from '../../hooks/useReports';
+import { ProjectSortButton, type ProjectSortDirection } from '../../utils/projectSort';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
@@ -17,6 +18,7 @@ export function MyReportsPage() {
   const reportsQuery = useReports({ mine: true });
   const [tab, setTab] = useState<MyReportsTab>('pending');
   const [search, setSearch] = useState('');
+  const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
 
   const groups = useMemo(() => {
     const active = (reportsQuery.data || [])
@@ -68,6 +70,12 @@ export function MyReportsPage() {
               onChange={event => setSearch(event.target.value)}
             />
           </div>
+          <div className="admin-create-toolbar collaborator-report-sort-toolbar">
+            <ProjectSortButton
+              direction={projectSortDir}
+              onToggle={() => setProjectSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
+            />
+          </div>
         </section>
         {reportsQuery.isLoading ? (
           <div className="page-card placeholder-copy">Carregando relatórios...</div>
@@ -77,7 +85,12 @@ export function MyReportsPage() {
             {tab === 'pending' ? 'Nenhum relatório pendente encontrado.' : 'Nenhum relatório aprovado encontrado.'}
           </div>
         ) : null}
-        <GroupedReportList reports={groups} storageKey={`collaborator-report-groups:${user?.id || user?.username || 'anonymous'}:${tab}`} />
+        <GroupedReportList
+          reports={groups}
+          sortDirection={projectSortDir}
+          showTypeSort
+          storageKey={`collaborator-report-groups:${user?.id || user?.username || 'anonymous'}:${tab}`}
+        />
         <button className="secondary-button" type="button" onClick={() => navigate('/home')}>
           Voltar
         </button>
