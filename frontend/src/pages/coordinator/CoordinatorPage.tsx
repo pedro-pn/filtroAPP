@@ -11,7 +11,7 @@ import { useReports } from '../../hooks/useReports';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
-import type { Project, ReportSummary } from '../../types/domain';
+import type { Project, ReportSummary, SatisfactionSurveySummary } from '../../types/domain';
 import { downloadBlob } from '../../utils/download';
 import { compareReportTypes, ProjectSortButton, sortProjects, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
 import { reportDownloadFileName } from '../../utils/reportFileName';
@@ -32,6 +32,32 @@ const TEXT = {
   pending: 'Pendentes',
   reports: 'Relatórios'
 };
+
+function surveyBadge(survey?: SatisfactionSurveySummary | null) {
+  if (!survey) return { label: 'Pesquisa não enviada', className: 'badge badge-pen' };
+  if (survey.respondedAt) return { label: 'Pesquisa respondida', className: 'badge badge-ok' };
+  if (new Date(survey.expiresAt).getTime() <= Date.now()) return { label: 'Pesquisa expirada', className: 'badge badge-rev' };
+  if (survey.reminderOptOutAt) return { label: 'Lembretes cancelados', className: 'badge badge-pen' };
+  return { label: 'Pesquisa enviada', className: 'badge badge-pen' };
+}
+
+function formatSurveyDate(value?: string | null) {
+  if (!value) return 'sem data';
+  return new Date(value).toLocaleDateString('pt-BR');
+}
+
+function surveyHistoryBadges(project: Project) {
+  const surveys = project.surveys || [];
+  if (!surveys.length) return [surveyBadge(null)];
+  return surveys.map((survey, index) => {
+    const badge = surveyBadge(survey);
+    const date = formatSurveyDate(survey.respondedAt || survey.sentAt || survey.createdAt);
+    return {
+      ...badge,
+      label: surveys.length > 1 ? `${badge.label} #${surveys.length - index} - ${date}` : `${badge.label} - ${date}`
+    };
+  });
+}
 
 export function CoordinatorPage() {
   const navigate = useNavigate();
@@ -192,6 +218,7 @@ export function CoordinatorPage() {
 
   function renderProjectCard(project: Project, projectReports: ReportSummary[]) {
     const projectClosed = closedArchivedProjectIds.includes(project.id);
+    const surveyInfos = surveyHistoryBadges(project);
 
     return (
       <article className="card admin-card" key={project.id}>
@@ -202,6 +229,11 @@ export function CoordinatorPage() {
               <span className="badge badge-rev" style={{ textTransform: 'none', marginLeft: 6 }}>
                 Arquivado
               </span>
+              {surveyInfos.map((surveyInfo, index) => (
+                <span className={surveyInfo.className} style={{ textTransform: 'none', marginLeft: 6 }} key={`${project.id}-survey-${index}`}>
+                  {surveyInfo.label}
+                </span>
+              ))}
             </div>
             <div className="admin-card-meta">
               <span>{project.clientName}</span>

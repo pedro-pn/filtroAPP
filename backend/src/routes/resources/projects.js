@@ -84,8 +84,11 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
   } else if (req.auth.user.role === 'CLIENT') {
     const userEmail = String(req.auth.user.email || '').trim().toLowerCase();
     where.managerOnly = false;
+    if (activeParam === 'true') where.isActive = true;
+    if (activeParam === 'false') where.isActive = false;
     where.OR = [
       { clientCnpj: req.auth.user.username },
+      ...(userEmail ? [{ clientEmailPrimary: userEmail }] : []),
       ...(userEmail ? [{ clientEmailCc: { has: userEmail } }] : [])
     ];
   } else {
@@ -100,7 +103,22 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     where,
     include: {
       operator: true,
-      reportSequences: true
+      reportSequences: true,
+      surveys: {
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          projectId: true,
+          emailTo: true,
+          expiresAt: true,
+          respondedAt: true,
+          sentAt: true,
+          lastReminderAt: true,
+          reminderCount: true,
+          reminderOptOutAt: true,
+          createdAt: true
+        }
+      }
     },
     orderBy: { name: 'asc' }
   });
