@@ -363,10 +363,118 @@ router.post('/:surveyId/resend', requireAuth, requireManager, asyncHandler(async
   await sendSurveyInvite({ survey, project: survey.project, token });
   const updated = await prisma.satisfactionSurvey.update({
     where: { id: survey.id },
-    data: { sentAt: new Date(), emailTo: survey.project.clientEmailPrimary || survey.emailTo, questions },
+    data: { sentAt: new Date(), emailTo: survey.project.clientEmailPrimary || survey.emailTo, questions, sentByUserId: req.auth.user.id },
     include: { project: true, sentBy: true }
   });
   res.json({ survey: safeSurvey(updated), reused: true });
+}));
+
+router.get('/dashboard', requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
+  const reqYear = parseInt(req.query.year, 10);
+  const year = Number.isFinite(reqYear) ? reqYear : new Date().getFullYear();
+  const yearStart = new Date(year, 0, 1);
+  const yearEnd = new Date(year + 1, 0, 1);
+
+  const [yearSurveys, allDates] = await Promise.all([
+    prisma.satisfactionSurvey.findMany({
+      where: { sentAt: { gte: yearStart, lt: yearEnd } },
+      select: {
+        id: true, sentAt: true, respondedAt: true, expiresAt: true,
+        responses: true, questions: true,
+        project: { select: { code: true, name: true, clientName: true } }
+      }
+    }),
+    prisma.satisfactionSurvey.findMany({ select: { sentAt: true } })
+  ]);
+
+  const availableYears = [...new Set(allDates.map(s => new Date(s.sentAt).getFullYear()))].sort((a, b) => b - a);
+  if (!availableYears.includes(year)) availableYears.unshift(year);
+
+  const quarters = [1, 2, 3, 4].map(q => {
+    const qMonths = [(q - 1) * 3 + 1, (q - 1) * 3 + 2, q * 3];
+    const qSurveys = yearSurveys.filter(s => qMonths.includes(new Date(s.sentAt).getMonth() + 1));
+    return { quarter: q, sent: qSurveys.length, responded: qSurveys.filter(s => s.respondedAt).length };
+  });
+
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const month = i + 1;
+    const monthSurveys = yearSurveys.filter(s => new Date(s.sentAt).getMonth() + 1 === month);
+    const responded = monthSurveys.filter(s => s.respondedAt);
+
+    const sums = {};
+    const counts = {};
+    const meta = {};
+
+    for (const survey of responded) {
+      const questions = Array.isArray(survey.questions) ? survey.questions : [];
+      const responses = (survey.responses && typeof survey.responses === 'object' && !Array.isArray(survey.responses))
+        ? survey.responses : {};
+
+      for (const question of questions) {
+        if (question.type === 'TEXT') continue;
+        const value = responses[question.id];
+        if (typeof value !== 'number') continue;
+        if (!sums[question.id]) {
+          sums[question.id] = 0;
+          counts[question.id] = 0;
+          meta[question.id] = { label: question.label, order: question.order ?? 0, type: question.type };
+        }
+        sums[question.id] += value;
+        counts[question.id] += 1;
+      }
+    }
+
+    const questionAverages = Object.keys(sums)
+      .map(id => ({
+        id,
+        label: meta[id].label,
+        order: meta[id].order,
+        type: meta[id].type,
+        avg: Math.round((sums[id] / counts[id]) * 100) / 100,
+        count: counts[id]
+      }))
+      .sort((a, b) => a.order - b.order);
+
+    const npsValues = [];
+    for (const survey of responded) {
+      const qs = Array.isArray(survey.questions) ? survey.questions : [];
+      const rs = (survey.responses && typeof survey.responses === 'object' && !Array.isArray(survey.responses)) ? survey.responses : {};
+      for (const q of qs) {
+        if (q.type === 'NPS') {
+          const v = rs[q.id];
+          if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 10) npsValues.push(v);
+          break;
+        }
+      }
+    }
+    const npsPromoters = npsValues.filter(v => v >= 9).length;
+    const npsDetractors = npsValues.filter(v => v <= 6).length;
+    const npsTotal = npsValues.length;
+    const npsScore = npsTotal > 0 ? Math.round(((npsPromoters - npsDetractors) / npsTotal) * 100) : null;
+    const npsCounts = Object.fromEntries(Array.from({ length: 11 }, (_, i) => [String(i), 0]));
+    for (const v of npsValues) npsCounts[String(v)]++;
+    const npsDistribution = {
+      promoters: npsPromoters,
+      neutrals: npsTotal - npsPromoters - npsDetractors,
+      detractors: npsDetractors,
+      total: npsTotal,
+      score: npsScore,
+      counts: npsCounts
+    };
+
+    const surveys = monthSurveys.map(s => ({
+      id: s.id,
+      projectCode: s.project?.code || '',
+      projectName: s.project?.name || '',
+      clientName: s.project?.clientName || '',
+      respondedAt: s.respondedAt,
+      expiresAt: s.expiresAt
+    }));
+
+    return { month, sent: monthSurveys.length, responded: responded.length, questionAverages, npsDistribution, surveys };
+  });
+
+  res.json({ year, years: availableYears, quarters, months });
 }));
 
 router.get('/projects/:projectId', requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {

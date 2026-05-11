@@ -91,3 +91,57 @@ export async function submitPublicSurvey(token: string, payload: SurveyResponseP
   const response = await apiClient.post<{ success: true }>(`/surveys/respond/${encodeURIComponent(token)}`, payload);
   return response.data;
 }
+
+export interface SurveyDashboardSurveyItem {
+  id: string;
+  projectCode: string;
+  projectName: string;
+  clientName: string;
+  respondedAt: string | null;
+  expiresAt: string;
+}
+
+export interface SurveyDashboardQuestionAvg {
+  id: string;
+  label: string;
+  order: number;
+  type: string;
+  avg: number;
+  count: number;
+}
+
+export interface SurveyDashboardNpsDistribution {
+  promoters: number;
+  neutrals: number;
+  detractors: number;
+  total: number;
+  score: number | null;
+  counts: Record<string, number>;
+}
+
+export interface SurveyDashboardMonth {
+  month: number;
+  sent: number;
+  responded: number;
+  questionAverages: SurveyDashboardQuestionAvg[];
+  npsDistribution: SurveyDashboardNpsDistribution;
+  surveys: SurveyDashboardSurveyItem[];
+}
+
+export interface SurveyDashboardQuarter {
+  quarter: number;
+  sent: number;
+  responded: number;
+}
+
+export interface SurveyDashboardData {
+  year: number;
+  years: number[];
+  quarters: SurveyDashboardQuarter[];
+  months: SurveyDashboardMonth[];
+}
+
+export async function getSurveyDashboard(year: number) {
+  const response = await apiClient.get<SurveyDashboardData>(`/surveys/dashboard?year=${year}`);
+  return response.data;
+}
