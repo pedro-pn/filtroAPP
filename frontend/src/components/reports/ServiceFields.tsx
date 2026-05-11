@@ -317,7 +317,7 @@ function TubesBlock({ data, onChange, disabled, invalidKey, groupKey }: Pick<Ser
         {rows.map((row, index) => (
           <div className="tube-row-react" key={index}>
             <div className="field-group tube-field">
-              <label htmlFor={fieldId(groupKey, 'diametro', index)}>Diâmetro</label>
+              <label htmlFor={fieldId(groupKey, 'diametro', index)}>Diâmetro {requiredMark()}</label>
               <div className="num-unit">
                 <input
                   id={fieldId(groupKey, 'diametro', index)}
@@ -341,7 +341,7 @@ function TubesBlock({ data, onChange, disabled, invalidKey, groupKey }: Pick<Ser
               </div>
             </div>
             <div className="field-group tube-field">
-              <label htmlFor={fieldId(groupKey, 'comprimento', index)}>Comprimento</label>
+              <label htmlFor={fieldId(groupKey, 'comprimento', index)}>Comprimento {requiredMark()}</label>
               <div className="num-unit">
                 <input
                   id={fieldId(groupKey, 'comprimento', index)}

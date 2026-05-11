@@ -528,6 +528,53 @@ function normalizeCommentMap(raw) {
   return out;
 }
 
+function normalizedText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '');
+}
+
+function serviceExtraData(service) {
+  return service?.extraData && typeof service.extraData === 'object' && !Array.isArray(service.extraData)
+    ? service.extraData
+    : {};
+}
+
+function serviceRequiresTubes(service) {
+  const type = String(service?.serviceType || '').trim().toLowerCase();
+  const extraData = serviceExtraData(service);
+  if (type === 'pressao') return true;
+  if (type === 'limpeza') return normalizedText(extraData['Limpeza de tubulação?'] || extraData['Limpeza de tubulacao?'] || extraData.limpezaTubulacao) !== 'nao';
+  if (type === 'flushing') return normalizedText(extraData['Flushing em tubulação?'] || extraData['Flushing em tubulacao?'] || extraData.flushingTubulacao) !== 'nao';
+  return false;
+}
+
+function serviceTubeRows(service) {
+  const extraData = serviceExtraData(service);
+  const rows = extraData['Diâmetros e comprimentos'] || extraData['Diametros e comprimentos'] || extraData.tubes;
+  return Array.isArray(rows) ? rows : [];
+}
+
+function serviceHasCompleteTubeRows(service) {
+  const rows = serviceTubeRows(service);
+  return rows.length > 0 && rows.every(row => (
+    row
+    && typeof row === 'object'
+    && String(row.d || '').trim()
+    && String(row.c || '').trim()
+  ));
+}
+
+export function assertCompleteTubeRows(services) {
+  const invalid = (services || []).find(service => serviceRequiresTubes(service) && !serviceHasCompleteTubeRows(service));
+  if (!invalid) return;
+  const error = new Error('Preencha diâmetro e comprimento para cada tubulação.');
+  error.status = 400;
+  throw error;
+}
+
 const serviceSchema = z.object({
   serviceType: z.string().min(1),
   equipmentId: z.string().nullable().optional(),
@@ -2479,6 +2526,7 @@ router.post('/service-only', requireAuth, asyncHandler(async (req, res) => {
   }
 
   const data = serviceOnlySchema.parse(req.body);
+  assertCompleteTubeRows(data.services);
   const unsupportedTypes = Array.from(new Set(data.services
     .filter(service => !independentReportTypesForService(service).length)
     .map(service => service.serviceType)));
@@ -2512,6 +2560,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode criar relatórios.` });
   }
   const data = schema.parse(req.body);
+  assertCompleteTubeRows(data.services);
   const reportStatus = req.auth.user.role === 'MANAGER' ? data.status : ReportStatus.PENDING;
   const collaboratorIds = uniqueIds(data.collaboratorIds);
   const pendingDerivedTypes = collectPendingDerivedTypes(data.services);
@@ -2613,6 +2662,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode editar relatórios.` });
   }
   const data = updateSchema.parse(req.body);
+  assertCompleteTubeRows(data.services);
   const collaboratorIds = uniqueIds(data.collaboratorIds);
   const existing = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },

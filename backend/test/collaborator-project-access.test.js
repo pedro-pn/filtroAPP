@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { collaboratorCanAccessProject, collaboratorReportProjectWhere } from '../src/routes/resources/reports.js';
+import {
+  assertCompleteTubeRows,
+  collaboratorCanAccessProject,
+  collaboratorReportProjectWhere
+} from '../src/routes/resources/reports.js';
 
 const auth = {
   user: {
@@ -52,4 +56,23 @@ test('collaborator report list filters by led project only', () => {
     operatorId: 'collab-carlos'
   });
   assert.deepEqual(collaboratorReportProjectWhere(null), { id: '__NO_MATCH__' });
+});
+
+test('tube rows require diameter and length when service uses tubing', () => {
+  assert.doesNotThrow(() => assertCompleteTubeRows([{
+    serviceType: 'pressao',
+    extraData: {
+      'Diâmetros e comprimentos': [{ d: '10', unit: 'pol', c: '45', lengthUnit: 'm' }]
+    }
+  }]));
+
+  assert.throws(
+    () => assertCompleteTubeRows([{
+      serviceType: 'pressao',
+      extraData: {
+        'Diâmetros e comprimentos': [{ d: '10', unit: 'pol', c: '', lengthUnit: 'm' }]
+      }
+    }]),
+    /Preencha diâmetro e comprimento/
+  );
 });
