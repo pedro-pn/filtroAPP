@@ -9,9 +9,9 @@ interface RoleRouteProps {
 }
 
 export function RoleRoute({ allowedRoles }: RoleRouteProps) {
-  const { user, isAuthenticated, isBootstrapping } = useAuth();
+  const { user, token, isAuthenticated, isBootstrapping } = useAuth();
 
-  if (isBootstrapping) return null;
+  if (isBootstrapping || (token && !user)) return null;
   if (!isAuthenticated || !user) {
     return <Navigate to="/" replace />;
   }

@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { login as loginRequest, logout as logoutRequest, me as meRequest } from '../api/auth';
-import { TOKEN_STORAGE_KEY, UNAUTHORIZED_EVENT } from '../api/client';
+import { ApiClientError, TOKEN_STORAGE_KEY, UNAUTHORIZED_EVENT } from '../api/client';
 import type { AuthUser, LoginPayload } from '../types/auth';
 
 interface AuthContextValue {
@@ -21,16 +22,23 @@ function getStoredToken() {
   return localStorage.getItem(TOKEN_STORAGE_KEY);
 }
 
+function isUnauthorizedError(error: unknown) {
+  return error instanceof ApiClientError && error.status === 401;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [token, setToken] = useState<string | null>(() => getStoredToken());
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
 
-  const clearSession = useCallback(() => {
+  const clearSession = useCallback((expectedToken?: string | null) => {
+    if (expectedToken !== undefined && getStoredToken() !== expectedToken) return;
+    queryClient.clear();
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     setToken(null);
     setUser(null);
-  }, []);
+  }, [queryClient]);
 
   const refreshUser = useCallback(async () => {
     const currentToken = getStoredToken();
@@ -45,10 +53,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (payload: LoginPayload) => {
     const data = await loginRequest(payload);
+    queryClient.clear();
     localStorage.setItem(TOKEN_STORAGE_KEY, data.token);
     setToken(data.token);
     setUser(data.user);
-  }, []);
+  }, [queryClient]);
 
   const logout = useCallback(async () => {
     try {
@@ -73,9 +82,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!mounted) return;
         setToken(storedToken);
         setUser(currentUser);
-      } catch {
+      } catch (error) {
         if (!mounted) return;
-        clearSession();
+        if (isUnauthorizedError(error)) {
+          clearSession(storedToken);
+        } else {
+          setToken(storedToken);
+          setUser(null);
+        }
       } finally {
         if (mounted) setIsBootstrapping(false);
       }
@@ -88,8 +102,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [clearSession]);
 
   useEffect(() => {
-    function handleUnauthorized() {
-      clearSession();
+    function handleUnauthorized(event: Event) {
+      const detail = event instanceof CustomEvent ? event.detail : undefined;
+      const unauthorizedToken = typeof detail?.token === 'string' ? detail.token : undefined;
+      clearSession(unauthorizedToken);
     }
     window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);

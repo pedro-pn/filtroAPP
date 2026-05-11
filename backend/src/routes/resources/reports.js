@@ -256,21 +256,25 @@ function clientCanAccessProject(auth, project) {
     && project.clientEmailCc.some(cc => cc.toLowerCase() === userEmail);
 }
 
-async function collaboratorProjectIdsForAuth(auth) {
+export function collaboratorCanAccessProject(auth, project) {
   const collaboratorId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
-  if (!collaboratorId) return [];
+  return !!(
+    collaboratorId
+    && project?.isActive
+    && project.visibleToCollaborators
+    && !project.managerOnly
+    && project.operatorId === collaboratorId
+  );
+}
 
-  const projects = await prisma.project.findMany({
-    where: {
-      isActive: true,
-      visibleToCollaborators: true,
-      managerOnly: false,
-      operatorId: collaboratorId
-    },
-    select: { id: true }
-  });
-
-  return projects.map(project => project.id);
+export function collaboratorReportProjectWhere(collaboratorId) {
+  if (!collaboratorId) return { id: '__NO_MATCH__' };
+  return {
+    isActive: true,
+    visibleToCollaborators: true,
+    managerOnly: false,
+    operatorId: collaboratorId
+  };
 }
 
 async function canAccessReport(auth, report) {
@@ -279,7 +283,7 @@ async function canAccessReport(auth, report) {
   if (auth.user.role === 'COORDINATOR') return true;
   if (auth.user.role === 'CLIENT') return clientCanAccessProject(auth, report.project);
   if (report.createdByUserId === auth.user.id) return true;
-  const collabId = auth.rawUser?.collaboratorId;
+  const collabId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
   if (collabId && report.project?.operatorId === collabId) return true;
   if (collabId && Array.isArray(report.collaborators)) {
     if (report.collaborators.some(rc => rc.collaboratorId === collabId)) return true;
@@ -522,6 +526,53 @@ function normalizeCommentMap(raw) {
     out[String(key)] = String(value || '').trim();
   });
   return out;
+}
+
+function normalizedText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '');
+}
+
+function serviceExtraData(service) {
+  return service?.extraData && typeof service.extraData === 'object' && !Array.isArray(service.extraData)
+    ? service.extraData
+    : {};
+}
+
+function serviceRequiresTubes(service) {
+  const type = String(service?.serviceType || '').trim().toLowerCase();
+  const extraData = serviceExtraData(service);
+  if (type === 'pressao') return true;
+  if (type === 'limpeza') return normalizedText(extraData['Limpeza de tubulação?'] || extraData['Limpeza de tubulacao?'] || extraData.limpezaTubulacao) !== 'nao';
+  if (type === 'flushing') return normalizedText(extraData['Flushing em tubulação?'] || extraData['Flushing em tubulacao?'] || extraData.flushingTubulacao) !== 'nao';
+  return false;
+}
+
+function serviceTubeRows(service) {
+  const extraData = serviceExtraData(service);
+  const rows = extraData['Diâmetros e comprimentos'] || extraData['Diametros e comprimentos'] || extraData.tubes;
+  return Array.isArray(rows) ? rows : [];
+}
+
+function serviceHasCompleteTubeRows(service) {
+  const rows = serviceTubeRows(service);
+  return rows.length > 0 && rows.every(row => (
+    row
+    && typeof row === 'object'
+    && String(row.d || '').trim()
+    && String(row.c || '').trim()
+  ));
+}
+
+export function assertCompleteTubeRows(services) {
+  const invalid = (services || []).find(service => serviceRequiresTubes(service) && !serviceHasCompleteTubeRows(service));
+  if (!invalid) return;
+  const error = new Error('Preencha diâmetro e comprimento para cada tubulação.');
+  error.status = 400;
+  throw error;
 }
 
 const serviceSchema = z.object({
@@ -2105,27 +2156,15 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     };
   } else if (req.auth.user.role === 'COORDINATOR') {
     where.project = { managerOnly: false };
-  } else if (req.query.mine === 'true') {
+  } else if (req.query.mine === 'true' && req.auth.user.role === 'COLLABORATOR') {
     const me = await prisma.user.findUnique({
       where: { id: req.auth.user.id },
       select: { collaboratorId: true }
     });
-    const collabId = me?.collaboratorId;
-    if (collabId) {
-      const projectIds = await collaboratorProjectIdsForAuth({
-        ...req.auth,
-        rawUser: { ...req.auth.rawUser, collaboratorId: collabId }
-      });
-      where.OR = [
-        { createdByUserId: req.auth.user.id },
-        { collaborators: { some: { collaboratorId: collabId } } },
-        ...(projectIds.length ? [{ projectId: { in: projectIds } }] : [])
-      ];
-      where.project = { managerOnly: false };
-    } else {
-      where.createdByUserId = req.auth.user.id;
-      where.project = { managerOnly: false };
-    }
+    where.project = collaboratorReportProjectWhere(me?.collaboratorId);
+  } else if (req.query.mine === 'true') {
+    where.createdByUserId = req.auth.user.id;
+    where.project = { managerOnly: false };
   }
   if (req.auth.user.role !== 'MANAGER' && !where.project) {
     where.project = { managerOnly: false };
@@ -2487,6 +2526,7 @@ router.post('/service-only', requireAuth, asyncHandler(async (req, res) => {
   }
 
   const data = serviceOnlySchema.parse(req.body);
+  assertCompleteTubeRows(data.services);
   const unsupportedTypes = Array.from(new Set(data.services
     .filter(service => !independentReportTypesForService(service).length)
     .map(service => service.serviceType)));
@@ -2520,6 +2560,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode criar relatórios.` });
   }
   const data = schema.parse(req.body);
+  assertCompleteTubeRows(data.services);
   const reportStatus = req.auth.user.role === 'MANAGER' ? data.status : ReportStatus.PENDING;
   const collaboratorIds = uniqueIds(data.collaboratorIds);
   const pendingDerivedTypes = collectPendingDerivedTypes(data.services);
@@ -2531,6 +2572,11 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
     });
     if (project.managerOnly && req.auth.user.role !== 'MANAGER') {
       const error = new Error('Este projeto é visível somente para o gestor.');
+      error.statusCode = 403;
+      throw error;
+    }
+    if (req.auth.user.role === 'COLLABORATOR' && !collaboratorCanAccessProject(req.auth, project)) {
+      const error = new Error('Este projeto não está vinculado ao colaborador logado.');
       error.statusCode = 403;
       throw error;
     }
@@ -2616,6 +2662,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode editar relatórios.` });
   }
   const data = updateSchema.parse(req.body);
+  assertCompleteTubeRows(data.services);
   const collaboratorIds = uniqueIds(data.collaboratorIds);
   const existing = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
@@ -2641,10 +2688,18 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     const targetProject = await prisma.project.findUniqueOrThrow({
       where: { id: data.projectId },
-      select: { managerOnly: true }
+      select: {
+        isActive: true,
+        visibleToCollaborators: true,
+        managerOnly: true,
+        operatorId: true
+      }
     });
     if (targetProject.managerOnly) {
       return res.status(403).json({ error: 'Este projeto é visível somente para o gestor.' });
+    }
+    if (req.auth.user.role === 'COLLABORATOR' && !collaboratorCanAccessProject(req.auth, targetProject)) {
+      return res.status(403).json({ error: 'Este projeto não está vinculado ao colaborador logado.' });
     }
   }
   const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);

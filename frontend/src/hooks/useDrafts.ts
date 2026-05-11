@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { createDraft, listDrafts, removeDraft, updateDraft, type DraftPayload } from '../api/drafts';
+import { useAuth } from '../auth/AuthContext';
 import { queryKeys } from './queryKeys';
 
 export function useDrafts() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: queryKeys.drafts,
+    queryKey: queryKeys.drafts(user?.id),
     queryFn: listDrafts
   });
 }
@@ -14,7 +16,7 @@ export function useDraftMutations() {
   const queryClient = useQueryClient();
 
   function invalidateDrafts() {
-    return queryClient.invalidateQueries({ queryKey: queryKeys.drafts });
+    return queryClient.invalidateQueries({ queryKey: ['drafts'] });
   }
 
   const createMutation = useMutation({

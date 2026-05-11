@@ -528,11 +528,11 @@ export function NewReportPage() {
     return hasText(value) || hasStringItem(value);
   }
 
-  function hasValidTube(value: unknown) {
-    return Array.isArray(value) && value.some(item => {
+  function hasValidTubes(value: unknown) {
+    return Array.isArray(value) && value.length > 0 && value.every(item => {
       if (!item || typeof item !== 'object') return false;
       const row = item as Record<string, unknown>;
-      return hasText(row.d) || hasText(row.c);
+      return hasText(row.d) && hasText(row.c);
     });
   }
 
@@ -602,8 +602,8 @@ export function NewReportPage() {
       if (['limpeza', 'pressao', 'mecanica', 'inibicao'].includes(type) && !hasText(data.material)) {
         return failRequired(type === 'mecanica' ? 'Material do equipamento' : 'Material da tubulação', target('material'), 1);
       }
-      if (serviceRequiresTubes(type, data) && !hasValidTube(data.tubes)) {
-        return failRequired('Diâmetros e comprimentos', target('tubes'), 1);
+      if (serviceRequiresTubes(type, data) && !hasValidTubes(data.tubes)) {
+        return failRequired('Diâmetro e comprimento de cada tubulação', target('tubes'), 1);
       }
 
       if (type === 'limpeza') {
