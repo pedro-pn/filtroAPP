@@ -5,6 +5,9 @@ dist/
 coverage/
 backend/node_modules/
 backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
 backend/prisma/dev.db
 backend/prisma/dev.db-journal
 # Arquivos de upload em runtime — não versionar dados de usuários
