@@ -1974,6 +1974,68 @@ a {
   padding: 24px;
 }
 
+.survey-page-shell {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 16px;
+  background: #f6f8f7;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.survey-header {
+  width: min(100%, 620px);
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.survey-header img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.survey-card {
+  width: min(100%, 620px);
+  max-width: 620px;
+}
+
+.survey-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.survey-submit-button {
+  padding: 11px 18px;
+  font-size: 13px;
+}
+
+.survey-project-panel {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--br);
+}
+
+@media (max-width: 640px) {
+  .survey-project-panel {
+    flex-direction: column;
+  }
+
+  .survey-project-panel .primary-button,
+  .survey-actions .primary-button {
+    width: 100%;
+  }
+}
+
 .auth-logo-wrap {
   display: flex;
   flex-direction: column;

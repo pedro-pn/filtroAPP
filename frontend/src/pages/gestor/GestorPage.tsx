@@ -12,6 +12,7 @@ import { downloadReportDocx, downloadReportPdf, downloadReportsBatch } from '../
 import { useAuth } from '../../auth/AuthContext';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
+import { Modal } from '../../components/ui/Modal';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useToast } from '../../components/ui/Toast';
 import { useCollaboratorMutations, useCollaborators } from '../../hooks/useCollaborators';
@@ -22,6 +23,7 @@ import { useProjectMutations, useProjects } from '../../hooks/useProjects';
 import { useReportMutations, useReports } from '../../hooks/useReports';
 import { useUnitMutations, useUnits } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
+import { useSurveyMutations } from '../../hooks/useSurveys';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
@@ -34,6 +36,7 @@ import type {
   Project,
   ReportDraft,
   ReportSummary,
+  SatisfactionSurveySummary,
   Unit,
   UnitCategory
 } from '../../types/domain';
@@ -472,6 +475,50 @@ function projectVisibilityLabel(project: Pick<Project, 'managerOnly' | 'visibleT
   return 'Gestor e coordenador';
 }
 
+function latestSurvey(project: Project) {
+  return (project.surveys || [])[0] || null;
+}
+
+function surveyIsActive(survey?: SatisfactionSurveySummary | null) {
+  return !!survey && !survey.respondedAt && new Date(survey.expiresAt).getTime() > Date.now();
+}
+
+function surveyBadge(survey?: SatisfactionSurveySummary | null) {
+  if (!survey) return { label: 'Pesquisa não enviada', className: 'badge badge-pen' };
+  if (survey.respondedAt) return { label: 'Pesquisa respondida', className: 'badge badge-ok' };
+  if (new Date(survey.expiresAt).getTime() <= Date.now()) return { label: 'Pesquisa expirada', className: 'badge badge-rev' };
+  if (survey.reminderOptOutAt) return { label: 'Lembretes cancelados', className: 'badge badge-pen' };
+  return { label: 'Pesquisa enviada', className: 'badge badge-pen' };
+}
+
+function surveyHistoryBadges(project: Project) {
+  const surveys = project.surveys || [];
+  if (!surveys.length) return [surveyBadge(null)];
+  return surveys.map((survey, index) => {
+    const badge = surveyBadge(survey);
+    const date = formatDate(survey.respondedAt || survey.sentAt || survey.createdAt);
+    return {
+      ...badge,
+      label: surveys.length > 1 ? `${badge.label} #${surveys.length - index} - ${date}` : `${badge.label} - ${date}`
+    };
+  });
+}
+
+function projectChangedAfterSurvey(project: Project, survey: SatisfactionSurveySummary) {
+  const projectUpdatedAt = project.updatedAt ? new Date(project.updatedAt).getTime() : 0;
+  const surveyReferenceAt = new Date(survey.respondedAt || survey.createdAt).getTime();
+  return Boolean(projectUpdatedAt && surveyReferenceAt && projectUpdatedAt > surveyReferenceAt);
+}
+
+function canSendProjectSurvey(project: Project) {
+  if (project.isActive) return false;
+  const survey = latestSurvey(project);
+  if (!survey) return true;
+  if (surveyIsActive(survey)) return false;
+  if (survey.respondedAt) return projectChangedAfterSurvey(project, survey);
+  return true;
+}
+
 function applyProjectVisibilityMode(mode: ProjectVisibilityMode): Pick<ProjectFormState, 'managerOnly' | 'visibleToCollaborators'> {
   if (mode === 'manager-only') return { managerOnly: true, visibleToCollaborators: false };
   if (mode === 'all-authorized') return { managerOnly: false, visibleToCollaborators: true };
@@ -703,9 +750,16 @@ function renderProjectCard(
     reportSectionExpanded?: boolean;
     reportCount?: number;
     onToggleReports?: (project: Project) => void;
+    onSendSurvey?: (project: Project) => void;
+    onResendSurvey?: (survey: SatisfactionSurveySummary) => void;
+    surveyPending?: boolean;
     children?: ReactNode;
   }
 ) {
+  const survey = latestSurvey(project);
+  const surveyInfos = !project.isActive ? surveyHistoryBadges(project) : [];
+  const canSendSurvey = canSendProjectSurvey(project);
+  const canResendSurvey = !project.isActive && surveyIsActive(survey);
   return (
     <article className="card admin-card project-admin-card" key={project.id}>
       <div className="project-admin-head">
@@ -781,6 +835,19 @@ function renderProjectCard(
         {!project.isActive ? (
           <span className="badge badge-rev">Arquivado</span>
         ) : null}
+        {surveyInfos.map((surveyInfo, index) => (
+          <span className={surveyInfo.className} key={`${project.id}-survey-badge-${index}`}>{surveyInfo.label}</span>
+        ))}
+        {canSendSurvey && options.onSendSurvey ? (
+          <button className="mini-btn alt" type="button" disabled={options.surveyPending} onClick={() => options.onSendSurvey?.(project)}>
+            Enviar pesquisa
+          </button>
+        ) : null}
+        {canResendSurvey && survey && options.onResendSurvey ? (
+          <button className="mini-btn alt" type="button" disabled={options.surveyPending} onClick={() => options.onResendSurvey?.(survey)}>
+            Reenviar pesquisa
+          </button>
+        ) : null}
       </div>
     </article>
   );
@@ -802,6 +869,7 @@ export function GestorPage() {
   const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
   const [projectEditingId, setProjectEditingId] = useState<string | null>(null);
   const [showProjectForm, setShowProjectForm] = useState(false);
+  const [archiveSurveyProject, setArchiveSurveyProject] = useState<Project | null>(null);
 
   const [collaboratorForm, setCollaboratorForm] = useState<CollaboratorFormState>(emptyCollaboratorForm);
   const [collaboratorEditingId, setCollaboratorEditingId] = useState<string | null>(null);
@@ -843,6 +911,7 @@ export function GestorPage() {
   const countersQuery = useCounters();
 
   const projectMutations = useProjectMutations();
+  const surveyMutations = useSurveyMutations();
   const reportMutations = useReportMutations();
   const draftMutations = useDraftMutations();
   const collaboratorMutations = useCollaboratorMutations();
@@ -1161,15 +1230,56 @@ export function GestorPage() {
     }
   }
 
-  async function handleProjectToggleArchive(project: Project) {
+  async function applyProjectArchiveChange(project: Project, sendSurvey: boolean) {
     try {
+      const shouldArchive = project.isActive;
       await projectMutations.updateProject.mutateAsync({
         id: project.id,
         payload: { isActive: !project.isActive }
       });
-      showToast(project.isActive ? 'Projeto arquivado.' : 'Projeto desarquivado.', 'success');
+      if (sendSurvey) {
+        await surveyMutations.sendProjectSurvey.mutateAsync(project.id);
+        showToast('Projeto arquivado e pesquisa enviada ao cliente.', 'success');
+      } else if (shouldArchive && !project.clientEmailPrimary) {
+        showToast('Projeto arquivado. Cadastre o e-mail principal do cliente para enviar pesquisa.', 'info');
+      } else {
+        showToast(project.isActive ? 'Projeto arquivado.' : 'Projeto desarquivado.', 'success');
+      }
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível atualizar o projeto.', 'error');
+    }
+  }
+
+  async function handleProjectToggleArchive(project: Project) {
+    if (project.isActive && project.clientEmailPrimary) {
+      setArchiveSurveyProject(project);
+      return;
+    }
+    await applyProjectArchiveChange(project, false);
+  }
+
+  async function handleArchiveSurveyChoice(sendSurvey: boolean) {
+    const project = archiveSurveyProject;
+    if (!project) return;
+    setArchiveSurveyProject(null);
+    await applyProjectArchiveChange(project, sendSurvey);
+  }
+
+  async function handleSendSurvey(project: Project) {
+    try {
+      await surveyMutations.sendProjectSurvey.mutateAsync(project.id);
+      showToast('Pesquisa enviada ao cliente.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível enviar a pesquisa.', 'error');
+    }
+  }
+
+  async function handleResendSurvey(survey: SatisfactionSurveySummary) {
+    try {
+      await surveyMutations.resendSurvey.mutateAsync(survey.id);
+      showToast('Pesquisa reenviada ao cliente.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível reenviar a pesquisa.', 'error');
     }
   }
 
@@ -1899,7 +2009,10 @@ export function GestorPage() {
                 onToggleArchive: handleProjectToggleArchive,
                 onRemove: handleProjectRemove,
                 detailsExpanded: projectDetailsExpanded(project.id),
-                onToggleDetails: toggleProjectDetails
+                onToggleDetails: toggleProjectDetails,
+                onSendSurvey: handleSendSurvey,
+                onResendSurvey: handleResendSurvey,
+                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending
               })
             )}
           </div>
@@ -1973,7 +2086,10 @@ export function GestorPage() {
                 onToggleDetails: toggleProjectDetails,
                 reportSectionExpanded: !projectClosed,
                 reportCount: projectReports.length,
-                onToggleReports: item => toggleArchivedProject(item.id)
+                onToggleReports: item => toggleArchivedProject(item.id),
+                onSendSurvey: handleSendSurvey,
+                onResendSurvey: handleResendSurvey,
+                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending
               });
             })}
           </div>
@@ -3094,6 +3210,44 @@ export function GestorPage() {
         {renderGestorSearch()}
         {renderTabContent()}
       </main>
+
+      <Modal
+        open={Boolean(archiveSurveyProject)}
+        onClose={() => setArchiveSurveyProject(null)}
+        ariaLabelledBy="archive-survey-title"
+        ariaDescribedBy="archive-survey-description"
+      >
+        <div className="section-title" id="archive-survey-title">Arquivar projeto</div>
+        <p className="placeholder-copy" id="archive-survey-description">
+          Deseja arquivar o projeto e enviar a pesquisa de satisfação ao cliente?
+        </p>
+        <div className="admin-form-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={projectMutations.updateProject.isPending || surveyMutations.sendProjectSurvey.isPending}
+            onClick={() => setArchiveSurveyProject(null)}
+          >
+            Cancelar
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={projectMutations.updateProject.isPending || surveyMutations.sendProjectSurvey.isPending}
+            onClick={() => void handleArchiveSurveyChoice(false)}
+          >
+            Arquivar sem enviar
+          </button>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={projectMutations.updateProject.isPending || surveyMutations.sendProjectSurvey.isPending}
+            onClick={() => void handleArchiveSurveyChoice(true)}
+          >
+            Enviar pesquisa
+          </button>
+        </div>
+      </Modal>
     </Shell>
   );
 }

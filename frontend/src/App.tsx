@@ -15,6 +15,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { GestorPage } from './pages/gestor/GestorPage';
 import { LoginPage } from './pages/LoginPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { SurveyPage } from './pages/SurveyPage';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
       <Route path="/" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/pesquisa/:token" element={<SurveyPage />} />
 
       <Route element={<PrivateRoute />}>
         <Route path="/conta" element={<AccountPage />} />
