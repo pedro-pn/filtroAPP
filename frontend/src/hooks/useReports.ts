@@ -14,12 +14,14 @@ import {
   updateReportStatus,
   type ReportFilters
 } from '../api/reports';
+import { useAuth } from '../auth/AuthContext';
 import type { ReportPayload, ReportStatus, ServiceOnlyReportPayload } from '../types/domain';
 import { queryKeys } from './queryKeys';
 
 export function useReports(filters?: ReportFilters) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: queryKeys.reports(filters),
+    queryKey: queryKeys.reports(filters, user?.id),
     queryFn: () => listReports(filters)
   });
 }

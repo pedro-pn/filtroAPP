@@ -2468,7 +2468,7 @@ export function GestorPage() {
           )}
         </>
         ) : (
-        <section className="page-card">
+        <section className="client-accounts-panel">
           <div className="admin-section-head">
             <div>
               <div className="section-title">Clientes</div>
@@ -2480,11 +2480,10 @@ export function GestorPage() {
             const groups: Record<string, { cnpj: string; clientName: string; primary: typeof clientUsers[0] | null; cc: typeof clientUsers }> = {};
             const noGroup: typeof clientUsers = [];
 
-            const projectLabelForCnpj = (cnpj: string) => {
+            const clientNameForCnpj = (cnpj: string) => {
               const project = clientGroupingProjects.find(item => item.clientCnpj.replace(/\D/g, '') === cnpj);
               if (!project) return '';
-              const projectName = [project.code, project.name].filter(Boolean).join(' - ');
-              return projectName || project.clientName || project.name;
+              return project.clientName || '';
             };
 
             clientUsers.forEach(item => {
@@ -2500,7 +2499,7 @@ export function GestorPage() {
                 cnpj = String(linkedCnpj || emailProject?.clientCnpj || '').replace(/\D/g, '') || null;
               }
               if (cnpj) {
-                if (!groups[cnpj]) groups[cnpj] = { cnpj, clientName: projectLabelForCnpj(cnpj), primary: null, cc: [] };
+                if (!groups[cnpj]) groups[cnpj] = { cnpj, clientName: clientNameForCnpj(cnpj), primary: null, cc: [] };
                 if (isPrimaryByCnpj && !groups[cnpj].primary) {
                   groups[cnpj].primary = item;
                   if (!groups[cnpj].clientName) groups[cnpj].clientName = item.name || '';
@@ -2543,8 +2542,12 @@ export function GestorPage() {
                     clientGroupingProjects.filter(project => project.clientCnpj.replace(/\D/g, '') === g.cnpj),
                     'asc'
                   );
-                  const title = g.clientName || projectLabelForCnpj(g.cnpj) || g.cnpj;
-                  const projectSummary = linkedProjects.map(project => [project.code, project.name].filter(Boolean).join(' - ')).join(', ');
+                  const title = g.clientName || clientNameForCnpj(g.cnpj) || g.cnpj;
+                  const missionSummary = Array.from(new Set(
+                    linkedProjects
+                      .map(project => [project.code, project.name].filter(Boolean).join(' - ') || project.name)
+                      .filter(Boolean)
+                  )).join(', ');
                   return (
                     <article className="card admin-card" key={g.cnpj}>
                       <button
@@ -2555,12 +2558,10 @@ export function GestorPage() {
                         <span className="rtype-chevron">{closed ? '▸' : '▾'}</span>
                         <span>{title}</span>
                       </button>
-                      <div style={{ fontSize: 12, color: 'var(--mu)', marginBottom: 4 }}>{formatCnpj(g.cnpj)}</div>
-                      {projectSummary ? (
-                        <div className="admin-item-sub" style={{ marginBottom: 8 }}>
-                          Projetos: {projectSummary}
-                        </div>
-                      ) : null}
+                      <div className="client-account-group-meta">
+                        <span>{formatCnpj(g.cnpj)}</span>
+                        {missionSummary ? <span>Missões: {missionSummary}</span> : null}
+                      </div>
                       {!closed ? (
                         <>
                           {g.primary ? renderClientCard(g.primary, false) : null}

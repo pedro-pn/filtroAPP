@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { createProject, listProjects, removeProject, type ProjectPayload, updateProject } from '../api/projects';
+import { useAuth } from '../auth/AuthContext';
 import { queryKeys } from './queryKeys';
 
 export function useProjects(active?: boolean) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: queryKeys.projects(active),
+    queryKey: queryKeys.projects(active, user?.id),
     queryFn: () => listProjects(active)
   });
 }
@@ -15,9 +17,7 @@ export function useProjectMutations() {
 
   function invalidateProjects() {
     return Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects(true) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects(false) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects(undefined) }),
+      queryClient.invalidateQueries({ queryKey: ['projects'] }),
       queryClient.invalidateQueries({ queryKey: ['reports'] })
     ]);
   }
