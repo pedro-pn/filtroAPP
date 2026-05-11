@@ -58,6 +58,11 @@ function requireManagerOrCoordinator(req, res, next) {
   next();
 }
 
+// Coordinators cannot see surveys from manager-only projects.
+function managerOnlyProjectFilter(role) {
+  return role === 'MANAGER' ? {} : { project: { managerOnly: false } };
+}
+
 function safeQuestion(question, index = 0) {
   return {
     id: String(question.id || ''),
@@ -405,7 +410,10 @@ router.post('/:surveyId/resend', requireAuth, requireManager, asyncHandler(async
 router.patch('/:surveyId/follow-up', requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
   const payload = followUpSchema.parse(req.body);
   const updated = await prisma.satisfactionSurvey.update({
-    where: { id: req.params.surveyId },
+    where: {
+      id: req.params.surveyId,
+      ...managerOnlyProjectFilter(req.auth.user.role)
+    },
     data: {
       followUpStatus: payload.status || null,
       followUpNotes: payload.notes || null,
@@ -423,7 +431,10 @@ router.get('/dashboard', requireAuth, requireManagerOrCoordinator, asyncHandler(
 
   const [yearSurveys, yearRows] = await Promise.all([
     prisma.satisfactionSurvey.findMany({
-      where: { sentAt: { gte: yearStart, lt: yearEnd } },
+      where: {
+        ...managerOnlyProjectFilter(req.auth.user.role),
+        sentAt: { gte: yearStart, lt: yearEnd }
+      },
       select: {
         id: true, sentAt: true, respondedAt: true, expiresAt: true,
         responses: true, questions: true,
@@ -520,7 +531,10 @@ router.get('/dashboard', requireAuth, requireManagerOrCoordinator, asyncHandler(
 
 router.get('/projects/:projectId', requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
   const items = await prisma.satisfactionSurvey.findMany({
-    where: { projectId: req.params.projectId },
+    where: {
+      ...managerOnlyProjectFilter(req.auth.user.role),
+      projectId: req.params.projectId
+    },
     orderBy: { createdAt: 'desc' }
   });
   res.json(items.map(safeSurvey));
@@ -530,6 +544,7 @@ router.get('/', requireAuth, requireManagerOrCoordinator, asyncHandler(async (re
   const now = new Date();
   const items = await prisma.satisfactionSurvey.findMany({
     where: {
+      ...managerOnlyProjectFilter(req.auth.user.role),
       OR: [
         { respondedAt: { not: null } },
         { respondedAt: null, expiresAt: { gt: now } }
@@ -582,20 +597,33 @@ router.post('/respond/:token', publicLimiter, asyncHandler(async (req, res) => {
 
   const questions = await questionsForSurvey(survey);
   const responses = validateSurveyResponses(req.body, questions);
-  const updated = await prisma.satisfactionSurvey.update({
-    where: { id: survey.id },
+  const now = new Date();
+
+  // Atomic claim: only succeeds if the survey is still unanswered at write time,
+  // preventing a race condition where two concurrent submissions both pass the
+  // ACTIVE check above and the second overwrites the first.
+  const claim = await prisma.satisfactionSurvey.updateMany({
+    where: { id: survey.id, respondedAt: null, expiresAt: { gt: now } },
     data: {
       responses,
       questions,
-      respondedAt: new Date(),
+      respondedAt: now,
       submittedIp: req.ip || req.socket?.remoteAddress || null,
       submittedUserAgent: String(req.headers['user-agent'] || '').slice(0, 500) || null
-    },
+    }
+  });
+
+  if (claim.count !== 1) {
+    return res.status(400).json({ error: 'Pesquisa indisponível.', status: 'RESPONDED' });
+  }
+
+  const updated = await prisma.satisfactionSurvey.findUnique({
+    where: { id: survey.id },
     include: { project: true, sentBy: true }
   });
 
   notifySurveyResponded({ survey: updated, project: updated.project }).catch(error => {
-    console.error('Falha ao notificar resposta de pesquisa.', { surveyId: updated.id, error: error?.message || error });
+    console.error('Falha ao notificar resposta de pesquisa.', { surveyId: survey.id, error: error?.message || error });
   });
 
   res.json({ success: true });
