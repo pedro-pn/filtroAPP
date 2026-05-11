@@ -303,6 +303,12 @@ export function NewReportPage() {
   function continueService(service: ReportServiceSummary, ongoingKey: string) {
       const extra = markPreviouslyAddedUploads(service.extraData || {});
       const contadorUtilizado = firstIdFromField(extra['Contador utilizado'] || extra.contadorUtilizado);
+      const previousDesidratacaoUnit = firstIdFromField(
+        extra.desidratacaoUnit
+        || extra['Equipamento de desidratação']
+        || extra['Equipamento de desidratacao']
+        || extra['Equipamento de desidrataÃ§Ã£o']
+      );
       addService(normalizeServiceType(service.serviceType), {
         ...extra,
         __ongoingKey: ongoingKey,
@@ -317,7 +323,7 @@ export function NewReportPage() {
         contagemInicialIso: '',
         contagemFinalIso: '',
         houveDesidratacao: 'Não',
-        desidratacaoUnit: '',
+        desidratacaoUnit: previousDesidratacaoUnit,
         houveUmidade: String(extra['Houve análise de umidade?'] || extra.houveUmidade || 'Não'),
         umidadeInicial: '',
         umidadeFinal: '',
