@@ -267,21 +267,14 @@ export function collaboratorCanAccessProject(auth, project) {
   );
 }
 
-async function collaboratorProjectIdsForAuth(auth) {
-  const collaboratorId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
-  if (!collaboratorId) return [];
-
-  const projects = await prisma.project.findMany({
-    where: {
-      isActive: true,
-      visibleToCollaborators: true,
-      managerOnly: false,
-      operatorId: collaboratorId
-    },
-    select: { id: true }
-  });
-
-  return projects.map(project => project.id);
+export function collaboratorReportProjectWhere(collaboratorId) {
+  if (!collaboratorId) return { id: '__NO_MATCH__' };
+  return {
+    isActive: true,
+    visibleToCollaborators: true,
+    managerOnly: false,
+    operatorId: collaboratorId
+  };
 }
 
 async function canAccessReport(auth, report) {
@@ -2116,27 +2109,15 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     };
   } else if (req.auth.user.role === 'COORDINATOR') {
     where.project = { managerOnly: false };
-  } else if (req.query.mine === 'true') {
+  } else if (req.query.mine === 'true' && req.auth.user.role === 'COLLABORATOR') {
     const me = await prisma.user.findUnique({
       where: { id: req.auth.user.id },
       select: { collaboratorId: true }
     });
-    const collabId = me?.collaboratorId;
-    if (collabId) {
-      const projectIds = await collaboratorProjectIdsForAuth({
-        ...req.auth,
-        rawUser: { ...req.auth.rawUser, collaboratorId: collabId }
-      });
-      where.OR = [
-        { createdByUserId: req.auth.user.id },
-        { collaborators: { some: { collaboratorId: collabId } } },
-        ...(projectIds.length ? [{ projectId: { in: projectIds } }] : [])
-      ];
-      where.project = { managerOnly: false };
-    } else {
-      where.createdByUserId = req.auth.user.id;
-      where.project = { managerOnly: false };
-    }
+    where.project = collaboratorReportProjectWhere(me?.collaboratorId);
+  } else if (req.query.mine === 'true') {
+    where.createdByUserId = req.auth.user.id;
+    where.project = { managerOnly: false };
   }
   if (req.auth.user.role !== 'MANAGER' && !where.project) {
     where.project = { managerOnly: false };
