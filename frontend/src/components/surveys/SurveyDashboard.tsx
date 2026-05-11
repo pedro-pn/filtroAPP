@@ -9,7 +9,7 @@ import type {
   SurveyDashboardQuestionAvg,
   SurveyDashboardSurveyItem,
 } from '../../api/surveys';
-import { useSurveyDashboard } from '../../hooks/useSurveys';
+import { useSurveyDashboard, useSurveyMutations } from '../../hooks/useSurveys';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -19,6 +19,8 @@ const MONTH_NAMES = [
 ];
 const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const QUARTER_LABELS = ['1º Tri', '2º Tri', '3º Tri', '4º Tri'];
+const NPS_BENCHMARK_MIN = 20;
+const NPS_BENCHMARK_MAX = 45;
 
 // ─── Period filter type ────────────────────────────────────────────────────────
 
@@ -36,6 +38,13 @@ function getFilteredMonths(months: SurveyDashboardMonth[], period: PeriodFilter)
   if (period.type === 'month') return months.filter(m => m.month === period.value);
   const qm = quarterMonths(period.value);
   return months.filter(m => qm.includes(m.month));
+}
+
+function getPreviousMonths(months: SurveyDashboardMonth[], period: PeriodFilter) {
+  if (period.type === 'month') return months.filter(m => m.month === period.value - 1);
+  if (period.type !== 'quarter') return [];
+  const previousQuarter = period.value - 1;
+  return previousQuarter > 0 ? months.filter(m => quarterMonths(previousQuarter).includes(m.month)) : [];
 }
 
 // ─── Aggregation ──────────────────────────────────────────────────────────────
@@ -116,6 +125,22 @@ function qaMaxLabel(qa: SurveyDashboardQuestionAvg) {
   if (qa.type === 'NPS') return '/ 10';
   if (qa.type === 'SCALE') return '/ 5';
   return '';
+}
+
+function csvCell(value: unknown) {
+  const text = value === undefined || value === null ? '' : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function downloadCsv(filename: string, rows: string[][]) {
+  const csv = rows.map(row => row.map(csvCell).join(';')).join('\n');
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -234,6 +259,20 @@ function NpsScorePanel({ nps }: { nps: SurveyDashboardNpsDistribution }) {
         {nPct > 0 && <div className="survey-dash-seg-neutral" style={{ width: `${nPct}%` }} />}
         {pPct > 0 && <div className="survey-dash-seg-promoter" style={{ width: `${pPct}%` }} />}
       </div>
+      <div className="survey-dash-benchmark">
+        Referência de serviços industriais: NPS {NPS_BENCHMARK_MIN} a {NPS_BENCHMARK_MAX}.
+      </div>
+    </div>
+  );
+}
+
+function DropAlertPanel({ current, previous }: { current: number | null; previous: number | null }) {
+  if (current === null || previous === null) return null;
+  const delta = current - previous;
+  if (delta > -15) return null;
+  return (
+    <div className="survey-dash-alert">
+      <strong>Alerta de queda:</strong> NPS caiu {Math.abs(delta)} pontos em relação ao período anterior ({previous} → {current}).
     </div>
   );
 }
@@ -333,6 +372,171 @@ function QuestionAveragesPanel({ questionAverages }: { questionAverages: SurveyD
   );
 }
 
+function OperatorNpsPanel({ surveys }: { surveys: SurveyDashboardSurveyItem[] }) {
+  const rows = Object.values(surveys.reduce<Record<string, { name: string; values: number[] }>>((acc, survey) => {
+    if (survey.npsScore === null) return acc;
+    const name = survey.operatorName || 'Sem responsável';
+    if (!acc[name]) acc[name] = { name, values: [] };
+    acc[name].values.push(survey.npsScore);
+    return acc;
+  }, {}))
+    .map(row => {
+      const promoters = row.values.filter(value => value >= 9).length;
+      const detractors = row.values.filter(value => value <= 6).length;
+      return {
+        name: row.name,
+        total: row.values.length,
+        score: Math.round(((promoters - detractors) / row.values.length) * 100)
+      };
+    })
+    .sort((a, b) => b.total - a.total || b.score - a.score);
+
+  if (!rows.length) return null;
+
+  return (
+    <div className="survey-dash-card">
+      <div className="survey-dash-card-title">NPS por responsável</div>
+      <div className="survey-dash-compact-list">
+        {rows.map(row => (
+          <div className="survey-dash-compact-row" key={row.name}>
+            <span>{row.name}</span>
+            <strong style={{ color: npsZone(row.score).color }}>{row.score > 0 ? `+${row.score}` : row.score}</strong>
+            <small>{row.total} resposta{row.total !== 1 ? 's' : ''}</small>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DriverCorrelationPanel({ surveys }: { surveys: SurveyDashboardSurveyItem[] }) {
+  const rows = Object.values(surveys.reduce<Record<string, {
+    id: string;
+    label: string;
+    promoters: number[];
+    detractors: number[];
+  }>>((acc, survey) => {
+    if (survey.npsScore === null) return acc;
+    const group = survey.npsScore >= 9 ? 'promoters' : survey.npsScore <= 6 ? 'detractors' : null;
+    if (!group) return acc;
+    for (const answer of survey.questionAnswers || []) {
+      if (answer.type !== 'SCALE' || typeof answer.value !== 'number') continue;
+      if (!acc[answer.id]) acc[answer.id] = { id: answer.id, label: answer.label, promoters: [], detractors: [] };
+      acc[answer.id][group].push(answer.value);
+    }
+    return acc;
+  }, {}))
+    .map(row => {
+      const promoterAvg = row.promoters.length ? row.promoters.reduce((a, b) => a + b, 0) / row.promoters.length : null;
+      const detractorAvg = row.detractors.length ? row.detractors.reduce((a, b) => a + b, 0) / row.detractors.length : null;
+      return {
+        ...row,
+        promoterAvg,
+        detractorAvg,
+        gap: promoterAvg !== null && detractorAvg !== null ? promoterAvg - detractorAvg : null
+      };
+    })
+    .filter(row => row.gap !== null)
+    .sort((a, b) => (b.gap || 0) - (a.gap || 0));
+
+  if (!rows.length) return null;
+
+  return (
+    <div className="survey-dash-card">
+      <div className="survey-dash-card-title">Drivers de satisfação</div>
+      <div className="survey-dash-compact-list">
+        {rows.map(row => (
+          <div className="survey-dash-driver-row" key={row.id}>
+            <span>{row.label}</span>
+            <small>Promotores {row.promoterAvg?.toFixed(1)} · Detratores {row.detractorAvg?.toFixed(1)}</small>
+            <strong>gap {row.gap?.toFixed(1)}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ClientTimelinePanel({ surveys }: { surveys: SurveyDashboardSurveyItem[] }) {
+  const groups = Object.values(surveys.reduce<Record<string, SurveyDashboardSurveyItem[]>>((acc, survey) => {
+    if (survey.npsScore === null) return acc;
+    const key = survey.clientName || 'Cliente não informado';
+    acc[key] = [...(acc[key] || []), survey];
+    return acc;
+  }, {}))
+    .filter(group => group.length > 1)
+    .map(group => group.sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime()))
+    .sort((a, b) => b.length - a.length)
+    .slice(0, 6);
+
+  if (!groups.length) return null;
+
+  return (
+    <div className="survey-dash-card">
+      <div className="survey-dash-card-title">Evolução por cliente</div>
+      <div className="survey-dash-client-lines">
+        {groups.map(group => (
+          <div className="survey-dash-client-line" key={group[0].clientName || group[0].id}>
+            <span>{group[0].clientName || 'Cliente não informado'}</span>
+            <div>
+              {group.map(item => (
+                <strong key={item.id} style={{ color: npsZone(item.npsScore || 0).color }}>
+                  {item.npsScore}
+                </strong>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FollowUpPanel({ surveys }: { surveys: SurveyDashboardSurveyItem[] }) {
+  const mutations = useSurveyMutations();
+  const detractors = surveys.filter(survey => survey.npsScore !== null && survey.npsScore <= 6);
+  if (!detractors.length) return null;
+
+  return (
+    <div className="survey-dash-card">
+      <div className="survey-dash-card-title">Closed-loop com detratores</div>
+      <div className="survey-dash-follow-list">
+        {detractors.map(survey => {
+          const title = [survey.projectCode, survey.projectName].filter(Boolean).join(' - ') || survey.clientName || 'Projeto';
+          return (
+            <div className="survey-dash-follow-row" key={survey.id}>
+              <div>
+                <strong>{title}</strong>
+                <span>{survey.clientName || 'Cliente não informado'} · NPS {survey.npsScore}</span>
+              </div>
+              <select
+                value={survey.followUpStatus || 'OPEN'}
+                onChange={event => mutations.updateFollowUp.mutate({
+                  surveyId: survey.id,
+                  payload: { status: event.target.value as SurveyDashboardSurveyItem['followUpStatus'], notes: survey.followUpNotes || '' }
+                })}
+              >
+                <option value="OPEN">Aberto</option>
+                <option value="CONTACTED">Cliente contatado</option>
+                <option value="RESOLVED">Resolvido</option>
+                <option value="NOT_APPLICABLE">Não aplicável</option>
+              </select>
+              <input
+                defaultValue={survey.followUpNotes || ''}
+                placeholder="Resultado do contato"
+                onBlur={event => mutations.updateFollowUp.mutate({
+                  surveyId: survey.id,
+                  payload: { status: survey.followUpStatus || 'OPEN', notes: event.target.value }
+                })}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function surveyItemStatus(s: SurveyDashboardSurveyItem) {
   if (s.respondedAt) return { label: 'Respondida', cls: 'survey-dash-proj-ok' };
   if (new Date(s.expiresAt) <= new Date()) return { label: 'Expirada', cls: 'survey-dash-proj-expired' };
@@ -385,7 +589,13 @@ export function SurveyDashboard() {
     [data, period],
   );
 
+  const previousMonths = useMemo(
+    () => (data ? getPreviousMonths(data.months, period) : []),
+    [data, period],
+  );
+
   const agg = useMemo(() => aggregateMonths(filteredMonths), [filteredMonths]);
+  const previousAgg = useMemo(() => aggregateMonths(previousMonths), [previousMonths]);
 
   const responseRate = agg.sent > 0 ? Math.round((agg.responded / agg.sent) * 100) : null;
 
@@ -394,6 +604,29 @@ export function SurveyDashboard() {
     : `${QUARTER_LABELS[period.value - 1]} ${year}`;
 
   const showTrend = period.type !== 'month';
+
+  function handleExportCsv() {
+    const questionLabels = Array.from(new Set(agg.surveys.flatMap(survey => (
+      (survey.questionAnswers || []).map(answer => answer.label)
+    ))));
+    const rows = [
+      ['Projeto', 'Cliente', 'Responsável', 'Enviada em', 'Respondida em', 'Status', 'NPS', ...questionLabels]
+    ];
+    for (const survey of agg.surveys) {
+      const answers = Object.fromEntries((survey.questionAnswers || []).map(answer => [answer.label, answer.value]));
+      rows.push([
+        [survey.projectCode, survey.projectName].filter(Boolean).join(' - '),
+        survey.clientName,
+        survey.operatorName,
+        survey.sentAt,
+        survey.respondedAt || '',
+        surveyItemStatus(survey).label,
+        survey.npsScore === null ? '' : String(survey.npsScore),
+        ...questionLabels.map(label => answers[label] === null || answers[label] === undefined ? '' : String(answers[label]))
+      ]);
+    }
+    downloadCsv(`pesquisas_nps_${periodLabel.replace(/\s+/g, '_').toLowerCase()}.csv`, rows);
+  }
 
   return (
     <div className="survey-dashboard">
@@ -411,6 +644,11 @@ export function SurveyDashboard() {
       ) : (
         <>
           <div className="survey-dash-period-label">{periodLabel}</div>
+          <div className="survey-dash-toolbar">
+            <button className="mini-btn alt" type="button" onClick={handleExportCsv} disabled={!agg.surveys.length}>
+              Exportar CSV
+            </button>
+          </div>
 
           <div className="survey-dash-kpis">
             <div className="stat-card-react">
@@ -436,6 +674,7 @@ export function SurveyDashboard() {
             </div>
           </div>
 
+          <DropAlertPanel current={agg.nps.score} previous={previousAgg.nps.score} />
           <NpsScorePanel nps={agg.nps} />
 
           <div className="survey-dash-two-col">
@@ -444,6 +683,12 @@ export function SurveyDashboard() {
           </div>
 
           <QuestionAveragesPanel questionAverages={agg.questionAverages} />
+          <div className="survey-dash-two-col">
+            <OperatorNpsPanel surveys={agg.surveys} />
+            <DriverCorrelationPanel surveys={agg.surveys} />
+          </div>
+          <ClientTimelinePanel surveys={agg.surveys} />
+          <FollowUpPanel surveys={agg.surveys} />
           <ProjectListSection surveys={agg.surveys} />
         </>
       )}

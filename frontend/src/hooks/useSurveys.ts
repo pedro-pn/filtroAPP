@@ -1,6 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { getSurveyDashboard, listSurveyQuestions, listSurveys, resendSurvey, sendProjectSurvey, updateSurveyQuestions, type SurveyQuestion } from '../api/surveys';
+import {
+  getSurveyDashboard,
+  listSurveyQuestions,
+  listSurveys,
+  resendSurvey,
+  sendProjectSurvey,
+  updateSurveyFollowUp,
+  updateSurveyQuestions,
+  type SurveyDashboardSurveyItem,
+  type SurveyQuestion
+} from '../api/surveys';
 import { queryKeys } from './queryKeys';
 
 export function useSurveys() {
@@ -46,6 +56,13 @@ export function useSurveyMutations() {
     }),
     updateQuestions: useMutation({
       mutationFn: (questions: Array<Omit<SurveyQuestion, 'order'>>) => updateSurveyQuestions(questions),
+      onSuccess: invalidateSurveys
+    }),
+    updateFollowUp: useMutation({
+      mutationFn: ({ surveyId, payload }: {
+        surveyId: string;
+        payload: { status?: SurveyDashboardSurveyItem['followUpStatus']; notes?: string | null };
+      }) => updateSurveyFollowUp(surveyId, payload),
       onSuccess: invalidateSurveys
     })
   };

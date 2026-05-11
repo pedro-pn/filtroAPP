@@ -428,21 +428,24 @@ export function CoordinatorPage() {
     return (
       <>
       {npsDashboardOpen && <SurveyDashboardOverlay onClose={() => setNpsDashboardOpen(false)} />}
-      <section className="page-card">
-        <div className="admin-section-head">
+      <div className="nps-tab-toolbar">
+        <div className="nps-tab-toolbar-left" />
+        <div className="nps-tab-toolbar-right">
+          <button className="mini-btn" type="button" onClick={() => setNpsDashboardOpen(true)}>
+            Dashboard NPS
+          </button>
+        </div>
+      </div>
+      <section className="nps-tab-content">
+        <div className="nps-tab-heading">
           <div>
             <div className="section-title">NPS</div>
             <div className="admin-card-subtitle">Pesquisas pendentes e respondidas ainda válidas.</div>
           </div>
-          <div className="admin-form-actions">
-            <button className="mini-btn" type="button" onClick={() => setNpsDashboardOpen(true)}>
-              Dashboard NPS
-            </button>
-            <ProjectSortButton
-              direction={npsSortDir}
-              onToggle={() => setNpsSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
-            />
-          </div>
+          <ProjectSortButton
+            direction={npsSortDir}
+            onToggle={() => setNpsSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
+          />
         </div>
         {surveyGroups.length ? (
           <div className="admin-stack">

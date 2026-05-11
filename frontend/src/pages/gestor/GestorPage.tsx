@@ -57,6 +57,15 @@ type GestorTab =
 type EquipmentSubTab = 'unidades' | 'manometros' | 'contadores';
 type SurveyQuestionDraft = Omit<SurveyQuestion, 'order' | 'options'> & { optionsText: string };
 
+const suggestedSurveyQuestions: Array<Omit<SurveyQuestionDraft, 'id'>> = [
+  { label: 'Nome do respondente', type: 'TEXT', required: false, optionsText: '' },
+  { label: 'Segmento do cliente', type: 'SELECT', required: false, optionsText: 'Petróleo & gás\nPapel e celulose\nFarmacêutico\nMineração\nSiderurgia\nOutro' },
+  { label: 'Tipo de serviço principal', type: 'SELECT', required: false, optionsText: 'Filtração\nFlushing\nLimpeza química\nDesidratação\nUTH\nOutro' },
+  { label: 'Primeira experiência com a Filtrovali?', type: 'SELECT', required: false, optionsText: 'Sim\nNão' },
+  { label: 'Autoriza contato para conversar sobre o projeto?', type: 'SELECT', required: false, optionsText: 'Sim\nNão' },
+  { label: 'O projeto foi concluído dentro do prazo?', type: 'SELECT', required: false, optionsText: 'Sim\nNão\nParcialmente' }
+];
+
 const gestorTabs: GestorTab[] = [
   'pendentes',
   'aprovados',
@@ -1456,6 +1465,20 @@ export function GestorPage() {
 
   function addSurveyQuestionDraft() {
     setSurveyQuestionDrafts(current => [...current, newSurveyQuestionDraft()]);
+    window.setTimeout(() => {
+      const container = surveyQuestionEditorListRef.current;
+      if (!container) return;
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+    }, 0);
+  }
+
+  function addSuggestedSurveyQuestion(template: Omit<SurveyQuestionDraft, 'id'>) {
+    const normalizedLabel = template.label.trim().toLowerCase();
+    if (surveyQuestionDrafts.some(question => question.label.trim().toLowerCase() === normalizedLabel)) {
+      showToast('Essa pergunta sugerida já está na pesquisa.', 'info');
+      return;
+    }
+    setSurveyQuestionDrafts(current => [...current, { ...template, id: `new-${Date.now()}` }]);
     window.setTimeout(() => {
       const container = surveyQuestionEditorListRef.current;
       if (!container) return;
@@ -3375,24 +3398,28 @@ export function GestorPage() {
     return (
       <>
       {npsDashboardOpen && <SurveyDashboardOverlay onClose={() => setNpsDashboardOpen(false)} />}
-      <section className="page-card">
-        <div className="admin-section-head">
+      <div className="nps-tab-toolbar">
+        <div className="nps-tab-toolbar-left">
+          <button className="mini-btn alt" type="button" onClick={openSurveyQuestionEditor}>
+            Editar pesquisa
+          </button>
+        </div>
+        <div className="nps-tab-toolbar-right">
+          <button className="mini-btn" type="button" onClick={() => setNpsDashboardOpen(true)}>
+            Dashboard NPS
+          </button>
+        </div>
+      </div>
+      <section className="nps-tab-content">
+        <div className="nps-tab-heading">
           <div>
             <div className="section-title">NPS</div>
             <div className="admin-card-subtitle">Pesquisas pendentes e respondidas ainda válidas.</div>
           </div>
-          <div className="admin-form-actions">
-            <button className="mini-btn" type="button" onClick={() => setNpsDashboardOpen(true)}>
-              Dashboard NPS
-            </button>
-            <button className="mini-btn alt" type="button" onClick={openSurveyQuestionEditor}>
-              Editar pesquisa
-            </button>
-            <ProjectSortButton
-              direction={npsSortDir}
-              onToggle={() => setNpsSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
-            />
-          </div>
+          <ProjectSortButton
+            direction={npsSortDir}
+            onToggle={() => setNpsSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
+          />
         </div>
         {surveyGroups.length ? (
           <div className="admin-stack">
@@ -3630,6 +3657,19 @@ export function GestorPage() {
             <button className="mini-btn alt" type="button" onClick={() => setShowSurveyQuestionEditor(false)}>
               Fechar
             </button>
+          </div>
+          <div className="survey-question-suggestions">
+            <span>Adicionar sugestão:</span>
+            {suggestedSurveyQuestions.map(template => (
+              <button
+                className="mini-btn alt"
+                type="button"
+                key={template.label}
+                onClick={() => addSuggestedSurveyQuestion(template)}
+              >
+                {template.label}
+              </button>
+            ))}
           </div>
           <div
             className="admin-stack survey-question-editor-list"

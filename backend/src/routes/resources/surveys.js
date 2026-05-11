@@ -46,6 +46,11 @@ const questionsPayloadSchema = z.object({
   questions: z.array(questionSchema).min(1)
 });
 
+const followUpSchema = z.object({
+  status: z.enum(['OPEN', 'CONTACTED', 'RESOLVED', 'NOT_APPLICABLE']).nullable().optional(),
+  notes: z.string().trim().max(1000).nullable().optional()
+});
+
 function requireManagerOrCoordinator(req, res, next) {
   if (!req.auth || !['MANAGER', 'COORDINATOR'].includes(req.auth.user.role)) {
     return res.status(403).json({ error: 'Acesso restrito ao gestor ou coordenador.' });
@@ -273,6 +278,34 @@ function publicSurveyPayload(survey) {
   };
 }
 
+function surveyResponseObject(survey) {
+  return survey.responses && typeof survey.responses === 'object' && !Array.isArray(survey.responses)
+    ? survey.responses
+    : {};
+}
+
+function surveyQuestionList(survey) {
+  return Array.isArray(survey.questions) ? survey.questions : [];
+}
+
+function surveyNpsValue(survey) {
+  const responses = surveyResponseObject(survey);
+  const npsQuestion = surveyQuestionList(survey).find(question => question.type === 'NPS');
+  const value = npsQuestion ? responses[npsQuestion.id] : undefined;
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 10 ? value : null;
+}
+
+function questionAnswers(survey) {
+  const responses = surveyResponseObject(survey);
+  return surveyQuestionList(survey).map(question => ({
+    id: question.id,
+    label: question.label,
+    type: question.type,
+    order: question.order ?? 0,
+    value: responses[question.id] ?? null
+  }));
+}
+
 router.get('/questions', requireAuth, requireManagerOrCoordinator, asyncHandler(async (_req, res) => {
   const questions = await activeSurveyQuestions();
   res.json(questions.map(safeQuestion));
@@ -369,32 +402,40 @@ router.post('/:surveyId/resend', requireAuth, requireManager, asyncHandler(async
   res.json({ survey: safeSurvey(updated), reused: true });
 }));
 
+router.patch('/:surveyId/follow-up', requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
+  const payload = followUpSchema.parse(req.body);
+  const updated = await prisma.satisfactionSurvey.update({
+    where: { id: req.params.surveyId },
+    data: {
+      followUpStatus: payload.status || null,
+      followUpNotes: payload.notes || null,
+      followUpUpdatedAt: payload.status || payload.notes ? new Date() : null
+    }
+  });
+  res.json(safeSurvey(updated));
+}));
+
 router.get('/dashboard', requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
   const reqYear = parseInt(req.query.year, 10);
   const year = Number.isFinite(reqYear) ? reqYear : new Date().getFullYear();
   const yearStart = new Date(year, 0, 1);
   const yearEnd = new Date(year + 1, 0, 1);
 
-  const [yearSurveys, allDates] = await Promise.all([
+  const [yearSurveys, yearRows] = await Promise.all([
     prisma.satisfactionSurvey.findMany({
       where: { sentAt: { gte: yearStart, lt: yearEnd } },
       select: {
         id: true, sentAt: true, respondedAt: true, expiresAt: true,
         responses: true, questions: true,
-        project: { select: { code: true, name: true, clientName: true } }
+        followUpStatus: true, followUpNotes: true, followUpUpdatedAt: true,
+        project: { select: { code: true, name: true, clientName: true, operator: { select: { name: true } } } }
       }
     }),
-    prisma.satisfactionSurvey.findMany({ select: { sentAt: true } })
+    prisma.$queryRaw`SELECT DISTINCT EXTRACT(YEAR FROM "sentAt")::int AS year FROM "SatisfactionSurvey" ORDER BY year DESC`
   ]);
 
-  const availableYears = [...new Set(allDates.map(s => new Date(s.sentAt).getFullYear()))].sort((a, b) => b - a);
+  const availableYears = yearRows.map(row => Number(row.year)).filter(Number.isFinite);
   if (!availableYears.includes(year)) availableYears.unshift(year);
-
-  const quarters = [1, 2, 3, 4].map(q => {
-    const qMonths = [(q - 1) * 3 + 1, (q - 1) * 3 + 2, q * 3];
-    const qSurveys = yearSurveys.filter(s => qMonths.includes(new Date(s.sentAt).getMonth() + 1));
-    return { quarter: q, sent: qSurveys.length, responded: qSurveys.filter(s => s.respondedAt).length };
-  });
 
   const months = Array.from({ length: 12 }, (_, i) => {
     const month = i + 1;
@@ -437,15 +478,8 @@ router.get('/dashboard', requireAuth, requireManagerOrCoordinator, asyncHandler(
 
     const npsValues = [];
     for (const survey of responded) {
-      const qs = Array.isArray(survey.questions) ? survey.questions : [];
-      const rs = (survey.responses && typeof survey.responses === 'object' && !Array.isArray(survey.responses)) ? survey.responses : {};
-      for (const q of qs) {
-        if (q.type === 'NPS') {
-          const v = rs[q.id];
-          if (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 10) npsValues.push(v);
-          break;
-        }
-      }
+      const npsValue = surveyNpsValue(survey);
+      if (npsValue !== null) npsValues.push(npsValue);
     }
     const npsPromoters = npsValues.filter(v => v >= 9).length;
     const npsDetractors = npsValues.filter(v => v <= 6).length;
@@ -464,17 +498,24 @@ router.get('/dashboard', requireAuth, requireManagerOrCoordinator, asyncHandler(
 
     const surveys = monthSurveys.map(s => ({
       id: s.id,
+      sentAt: s.sentAt,
       projectCode: s.project?.code || '',
       projectName: s.project?.name || '',
       clientName: s.project?.clientName || '',
+      operatorName: s.project?.operator?.name || '',
       respondedAt: s.respondedAt,
-      expiresAt: s.expiresAt
+      expiresAt: s.expiresAt,
+      npsScore: surveyNpsValue(s),
+      questionAnswers: questionAnswers(s),
+      followUpStatus: s.followUpStatus,
+      followUpNotes: s.followUpNotes,
+      followUpUpdatedAt: s.followUpUpdatedAt
     }));
 
     return { month, sent: monthSurveys.length, responded: responded.length, questionAverages, npsDistribution, surveys };
   });
 
-  res.json({ year, years: availableYears, quarters, months });
+  res.json({ year, years: availableYears, months });
 }));
 
 router.get('/projects/:projectId', requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {

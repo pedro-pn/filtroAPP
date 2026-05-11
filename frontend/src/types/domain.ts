@@ -38,6 +38,9 @@ export interface SatisfactionSurveySummary {
   lastReminderAt?: string | null;
   reminderCount: number;
   reminderOptOutAt?: string | null;
+  followUpStatus?: 'OPEN' | 'CONTACTED' | 'RESOLVED' | 'NOT_APPLICABLE' | null;
+  followUpNotes?: string | null;
+  followUpUpdatedAt?: string | null;
   createdAt: string;
   status?: SurveyStatus;
 }
