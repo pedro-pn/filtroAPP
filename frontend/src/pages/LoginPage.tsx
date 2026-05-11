@@ -10,7 +10,7 @@ const loginLogoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_LOGIN.png`;
 const REMEMBERED_USER_KEY = 'filtrovali-react-remembered-user';
 
 export function LoginPage() {
-  const { isAuthenticated, user, login } = useAuth();
+  const { isAuthenticated, isBootstrapping, token, user, login } = useAuth();
   const [username, setUsername] = useState(() => localStorage.getItem(REMEMBERED_USER_KEY) || '');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(() => Boolean(localStorage.getItem(REMEMBERED_USER_KEY)));
@@ -18,6 +18,7 @@ export function LoginPage() {
   const [error, setError] = useState('');
 
   const redirectPath = useMemo(() => roleHomePath(user?.role), [user?.role]);
+  if (isBootstrapping || (token && !user)) return null;
   if (isAuthenticated) return <Navigate to={redirectPath} replace />;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {

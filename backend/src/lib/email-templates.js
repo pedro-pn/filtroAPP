@@ -129,6 +129,37 @@ export function buildClientWelcomeEmailTemplate({ clientName, cnpj, password, ap
   };
 }
 
+export function buildInternalUserWelcomeEmailTemplate({ userName, username, password, roleLabel, appUrl }) {
+  const title = 'Acesso ao sistema liberado';
+  const intro = `A conta de ${roleLabel} ${userName} foi criada no sistema Filtrovali.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Perfil:</strong> ${roleLabel}</div>
+        <div><strong>Usuário:</strong> ${username}</div>
+        <div><strong>Senha inicial:</strong> ${password}</div>
+      </div>
+    </div>
+    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+  `;
+  const footer = 'Guarde estas informações com segurança. Depois do primeiro acesso, a senha pode ser alterada na área de conta.';
+
+  return {
+    subject: '[Filtrovali] Seu acesso foi criado',
+    text: [
+      `A conta de ${roleLabel} ${userName} foi criada no sistema Filtrovali.`,
+      '',
+      `Perfil: ${roleLabel}`,
+      `Usuário: ${username}`,
+      `Senha inicial: ${password}`,
+      appUrl ? `Acesso: ${appUrl}` : '',
+      '',
+      'Depois do primeiro acesso, a senha pode ser alterada na área de conta.'
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
 export function buildClientProjectLinkedEmailTemplate({ clientName, appUrl, projectCode, projectName, contractCode }) {
   const title = 'Novo projeto vinculado à sua conta';
   const intro = `Um novo projeto foi vinculado à conta do cliente ${clientName} no sistema Filtrovali.`;

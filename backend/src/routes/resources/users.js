@@ -6,13 +6,19 @@ import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
 import { createPasswordResetToken, publicUser } from '../../lib/auth.js';
 import { missingClientAccessResetConfig, sendClientAccessResetEmail } from '../../lib/client-access-reset.js';
-import { buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
+import { buildInternalUserWelcomeEmailTemplate, buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { hashPassword } from '../../lib/password.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth, requireManager } from '../../middleware/auth.js';
 
 const router = Router();
+const INTERNAL_ACCOUNT_ROLES = new Set([UserRole.MANAGER, UserRole.COLLABORATOR, UserRole.COORDINATOR]);
+const INTERNAL_ROLE_LABELS = {
+  [UserRole.MANAGER]: 'gestor',
+  [UserRole.COLLABORATOR]: 'colaborador',
+  [UserRole.COORDINATOR]: 'coordenador'
+};
 
 const schema = z.object({
   username: z.string().min(1),
@@ -23,6 +29,26 @@ const schema = z.object({
   isActive: z.boolean().default(true),
   collaboratorId: z.string().nullable().optional()
 });
+
+function queueInternalAccountMail(message, meta) {
+  const missingMailerConfig = getMissingMailerConfig();
+  if (missingMailerConfig.length) {
+    console.warn('Notificação de conta interna não enviada por falta de configuração SMTP.', {
+      missingMailerConfig,
+      meta
+    });
+    return;
+  }
+
+  setImmediate(() => {
+    sendMail(message).catch(error => {
+      console.error('Falha ao enviar notificação da conta interna.', {
+        meta,
+        error: error?.message || error
+      });
+    });
+  });
+}
 
 router.use(requireAuth, requireManager);
 
@@ -102,6 +128,24 @@ router.post('/', asyncHandler(async (req, res) => {
     },
     include: { collaborator: true }
   });
+
+  if (user.email && INTERNAL_ACCOUNT_ROLES.has(user.role)) {
+    const template = buildInternalUserWelcomeEmailTemplate({
+      userName: user.name,
+      username: user.username,
+      password: data.password,
+      roleLabel: INTERNAL_ROLE_LABELS[user.role],
+      appUrl: env.appUrl
+    });
+    queueInternalAccountMail({
+      to: user.email,
+      ...template
+    }, {
+      type: 'internal-account-welcome',
+      userId: user.id,
+      role: user.role
+    });
+  }
 
   res.status(201).json(publicUser(user));
 }));

@@ -898,6 +898,11 @@ a {
   margin-left: auto;
 }
 
+.collaborator-report-sort-toolbar {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
 .admin-toolbar > .mini-btn,
 .admin-toolbar .admin-form-actions > .mini-btn,
 .admin-create-toolbar > .mini-btn,
@@ -1074,6 +1079,22 @@ a {
 
 .client-account-group-toggle span:last-child {
   min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.client-accounts-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.client-account-group-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 8px;
+  color: var(--mu);
+  font-size: 12px;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 
