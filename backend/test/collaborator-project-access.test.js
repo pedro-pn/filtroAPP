@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { collaboratorCanAccessProject } from '../src/routes/resources/reports.js';
+import { collaboratorCanAccessProject, collaboratorReportProjectWhere } from '../src/routes/resources/reports.js';
 
 const auth = {
   user: {
@@ -42,4 +42,14 @@ test('collaborator access requires an active visible non-manager project', () =>
   assert.equal(collaboratorCanAccessProject(auth, { ...baseProject, isActive: false }), false);
   assert.equal(collaboratorCanAccessProject(auth, { ...baseProject, visibleToCollaborators: false }), false);
   assert.equal(collaboratorCanAccessProject(auth, { ...baseProject, managerOnly: true }), false);
+});
+
+test('collaborator report list filters by led project only', () => {
+  assert.deepEqual(collaboratorReportProjectWhere('collab-carlos'), {
+    isActive: true,
+    visibleToCollaborators: true,
+    managerOnly: false,
+    operatorId: 'collab-carlos'
+  });
+  assert.deepEqual(collaboratorReportProjectWhere(null), { id: '__NO_MATCH__' });
 });
