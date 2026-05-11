@@ -27,6 +27,7 @@ export function safeSurvey(survey) {
   const responded = Boolean(survey.respondedAt);
   const expired = !responded && survey.expiresAt && new Date(survey.expiresAt).getTime() <= now;
   const active = !responded && !expired;
+  const questions = Array.isArray(survey.questions) ? survey.questions : undefined;
   return {
     id: survey.id,
     projectId: survey.projectId,
@@ -38,6 +39,7 @@ export function safeSurvey(survey) {
     reminderCount: survey.reminderCount,
     reminderOptOutAt: survey.reminderOptOutAt,
     createdAt: survey.createdAt,
+    ...(questions ? { questions } : {}),
     status: responded ? 'RESPONDED' : expired ? 'EXPIRED' : active ? 'ACTIVE' : 'UNKNOWN'
   };
 }

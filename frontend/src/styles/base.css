@@ -854,6 +854,27 @@ a {
   color: var(--wh);
 }
 
+.client-project-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.client-project-tab-title {
+  min-width: 0;
+}
+
+.client-project-pending-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.18);
+}
+
 .admin-stack {
   display: flex;
   flex-direction: column;
