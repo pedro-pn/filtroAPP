@@ -1,12 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { listSurveyQuestions, listSurveys, resendSurvey, sendProjectSurvey, updateSurveyQuestions, type SurveyQuestion } from '../api/surveys';
+import { getSurveyDashboard, listSurveyQuestions, listSurveys, resendSurvey, sendProjectSurvey, updateSurveyQuestions, type SurveyQuestion } from '../api/surveys';
 import { queryKeys } from './queryKeys';
 
 export function useSurveys() {
   return useQuery({
     queryKey: queryKeys.surveys,
     queryFn: listSurveys
+  });
+}
+
+export function useSurveyDashboard(year: number) {
+  return useQuery({
+    queryKey: [...queryKeys.surveys, 'dashboard', year],
+    queryFn: () => getSurveyDashboard(year)
   });
 }
 

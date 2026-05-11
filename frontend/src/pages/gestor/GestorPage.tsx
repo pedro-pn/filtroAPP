@@ -25,6 +25,7 @@ import { useReportMutations, useReports } from '../../hooks/useReports';
 import { useUnitMutations, useUnits } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useSurveyMutations, useSurveyQuestions, useSurveys } from '../../hooks/useSurveys';
+import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
@@ -961,6 +962,7 @@ export function GestorPage() {
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [archiveSurveyProject, setArchiveSurveyProject] = useState<Project | null>(null);
   const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
+  const [npsDashboardOpen, setNpsDashboardOpen] = useState(false);
   const [equipmentSubTab, setEquipmentSubTab] = useState<EquipmentSubTab>('unidades');
   const [npsSortDir, setNpsSortDir] = useState<'asc' | 'desc'>('asc');
   const [showSurveyQuestionEditor, setShowSurveyQuestionEditor] = useState(false);
@@ -3371,6 +3373,8 @@ export function GestorPage() {
     }
 
     return (
+      <>
+      {npsDashboardOpen && <SurveyDashboardOverlay onClose={() => setNpsDashboardOpen(false)} />}
       <section className="page-card">
         <div className="admin-section-head">
           <div>
@@ -3378,6 +3382,9 @@ export function GestorPage() {
             <div className="admin-card-subtitle">Pesquisas pendentes e respondidas ainda válidas.</div>
           </div>
           <div className="admin-form-actions">
+            <button className="mini-btn" type="button" onClick={() => setNpsDashboardOpen(true)}>
+              Dashboard NPS
+            </button>
             <button className="mini-btn alt" type="button" onClick={openSurveyQuestionEditor}>
               Editar pesquisa
             </button>
@@ -3446,6 +3453,7 @@ export function GestorPage() {
           </p>
         )}
       </section>
+      </>
     );
   }
 

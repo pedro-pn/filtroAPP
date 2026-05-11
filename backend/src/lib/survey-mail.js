@@ -51,13 +51,14 @@ export function surveyProjectLabel(project) {
 export async function sendSurveyInvite({ survey, project, token }) {
   const surveyUrl = surveyResponseUrl(token);
   const optOutUrl = surveyOptOutUrl(token);
+  const daysValid = Math.max(1, Math.ceil((new Date(survey.expiresAt).getTime() - Date.now()) / 86_400_000));
   const template = buildSurveyInviteEmailTemplate({
     clientName: project.clientName,
     projectCode: project.code,
     projectName: project.name,
     surveyUrl,
     optOutUrl,
-    expiresLabel: '30 dias'
+    expiresLabel: `${daysValid} dia${daysValid !== 1 ? 's' : ''}`
   });
   await sendMail({ to: survey.emailTo, ...template });
 }
@@ -81,11 +82,14 @@ export async function notifySurveyResponded({ survey, project }) {
   const recipient = survey.sentBy?.email;
   if (!recipient) return;
   const responses = survey.responses && typeof survey.responses === 'object' ? survey.responses : {};
+  const questions = Array.isArray(survey.questions) ? survey.questions : [];
+  const npsQuestion = questions.find(q => q.type === 'NPS');
+  const nps = npsQuestion ? responses[npsQuestion.id] : undefined;
   const template = buildSurveyRespondedEmailTemplate({
     clientName: project.clientName,
     projectCode: project.code,
     projectName: project.name,
-    nps: responses.nps,
+    nps,
     appUrl: env.appUrl || ''
   });
   await sendMail({ to: recipient, ...template });

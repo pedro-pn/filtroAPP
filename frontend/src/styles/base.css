@@ -3867,3 +3867,582 @@ select {
     width: 100%;
   }
 }
+
+
+/* ── Survey Dashboard Overlay ────────────────────────────────── */
+
+.survey-dash-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 800;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.survey-dash-overlay-topbar {
+  background: #30503a;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.survey-dash-overlay-logo {
+  height: 26px;
+  width: auto;
+  max-width: 150px;
+  display: block;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.survey-dash-overlay-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.65);
+  flex: 1;
+}
+
+.survey-dash-overlay-back {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--rs);
+  color: var(--wh);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.survey-dash-overlay-back:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.survey-dash-overlay-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.survey-dash-overlay-content {
+  width: 100%;
+  max-width: 1040px;
+}
+
+/* ── Survey Dashboard ────────────────────────────────────────── */
+
+.survey-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Card base */
+.survey-dash-card {
+  background: var(--wh);
+  border: 1px solid var(--br);
+  border-radius: var(--r);
+  padding: 16px 18px;
+}
+
+.survey-dash-card-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mu);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 14px;
+}
+
+/* Period filter */
+.survey-dash-filter-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.survey-dash-filter-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.survey-dash-year-select {
+  padding: 6px 10px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: var(--wh);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tx);
+  cursor: pointer;
+}
+
+.survey-dash-period-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 4px;
+}
+
+.survey-dash-period-btn {
+  background: var(--wh);
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  padding: 5px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--mu);
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.survey-dash-period-btn:hover {
+  border-color: var(--g);
+  color: var(--g);
+}
+
+.survey-dash-period-btn.has-data {
+  color: var(--tx);
+  font-weight: 600;
+}
+
+.survey-dash-period-btn.active {
+  background: var(--g);
+  border-color: var(--g);
+  color: var(--wh);
+  font-weight: 700;
+}
+
+.survey-dash-period-month {
+  /* 1 column each — default */
+}
+
+.survey-dash-period-quarter {
+  grid-column: span 3;
+  font-size: 11px;
+  border-style: dashed;
+}
+
+.survey-dash-period-quarter.active {
+  border-style: solid;
+}
+
+/* Period label */
+.survey-dash-period-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mu);
+}
+
+/* KPI cards */
+.survey-dash-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* NPS score panel */
+.survey-dash-nps-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.survey-dash-nps-top {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.survey-dash-nps-score-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 110px;
+  flex-shrink: 0;
+}
+
+.survey-dash-nps-score {
+  font-size: 56px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+
+.survey-dash-nps-zone {
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.survey-dash-nps-total {
+  font-size: 11px;
+  color: var(--mu);
+  margin-top: 2px;
+}
+
+.survey-dash-nps-segs {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.survey-dash-nps-seg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 8px;
+  border-radius: var(--rs);
+  text-align: center;
+}
+
+.survey-dash-nps-seg-count {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.survey-dash-nps-seg-label {
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.survey-dash-nps-seg-pct {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.survey-dash-nps-seg-note {
+  font-size: 10px;
+  color: var(--mu);
+  margin-top: 2px;
+}
+
+.survey-dash-nps-promoter {
+  background: rgba(61, 100, 73, 0.07);
+}
+.survey-dash-nps-promoter .survey-dash-nps-seg-count,
+.survey-dash-nps-promoter .survey-dash-nps-seg-pct { color: var(--g); }
+
+.survey-dash-nps-neutral {
+  background: rgba(217, 119, 6, 0.07);
+}
+.survey-dash-nps-neutral .survey-dash-nps-seg-count,
+.survey-dash-nps-neutral .survey-dash-nps-seg-pct { color: #d97706; }
+
+.survey-dash-nps-detractor {
+  background: rgba(200, 21, 25, 0.07);
+}
+.survey-dash-nps-detractor .survey-dash-nps-seg-count,
+.survey-dash-nps-detractor .survey-dash-nps-seg-pct { color: var(--rd); }
+
+/* Segment bar */
+.survey-dash-seg-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  gap: 2px;
+}
+
+.survey-dash-seg-detractor { background: var(--rd); border-radius: 5px 0 0 5px; }
+.survey-dash-seg-neutral   { background: #f59e0b; }
+.survey-dash-seg-promoter  { background: var(--g); border-radius: 0 5px 5px 0; }
+
+/* Two-column layout */
+.survey-dash-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+/* Distribution chart */
+.survey-dash-dist {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.survey-dash-dist-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.survey-dash-dist-score {
+  font-size: 12px;
+  font-weight: 700;
+  width: 18px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.survey-dash-dist-promoter { color: var(--g); }
+.survey-dash-dist-neutral  { color: #d97706; }
+.survey-dash-dist-detractor{ color: var(--rd); }
+
+.survey-dash-dist-track {
+  flex: 1;
+  height: 8px;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.survey-dash-dist-bar {
+  height: 100%;
+  border-radius: 4px;
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+
+.survey-dash-dist-bar.survey-dash-dist-promoter  { background: var(--g); }
+.survey-dash-dist-bar.survey-dash-dist-neutral   { background: #f59e0b; }
+.survey-dash-dist-bar.survey-dash-dist-detractor { background: var(--rd); }
+
+.survey-dash-dist-count {
+  font-size: 11px;
+  color: var(--mu);
+  width: 16px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Trend chart */
+.survey-dash-trend {
+  display: flex;
+  gap: 3px;
+}
+
+.survey-dash-trend-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.survey-dash-trend-upper {
+  height: 54px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+}
+
+.survey-dash-trend-bar {
+  width: 65%;
+  border-radius: 3px;
+  min-width: 4px;
+}
+
+.survey-dash-trend-upper .survey-dash-trend-bar {
+  border-radius: 3px 3px 0 0;
+}
+
+.survey-dash-trend-lower .survey-dash-trend-bar {
+  border-radius: 0 0 3px 3px;
+}
+
+.survey-dash-trend-baseline {
+  width: 100%;
+  height: 2px;
+  background: var(--br);
+  flex-shrink: 0;
+}
+
+.survey-dash-trend-lower {
+  height: 54px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  width: 100%;
+}
+
+.survey-dash-trend-val {
+  font-size: 9px;
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+.survey-dash-trend-lbl {
+  font-size: 9px;
+  color: var(--mu);
+  margin-top: 1px;
+}
+
+/* Question averages */
+.survey-dash-qa {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.survey-dash-qa-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px auto auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.survey-dash-qa-label {
+  font-size: 13px;
+  color: var(--tx);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.survey-dash-qa-track {
+  height: 8px;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.survey-dash-qa-fill {
+  height: 100%;
+  background: var(--g);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.survey-dash-qa-val {
+  font-size: 13px;
+  color: var(--tx);
+  white-space: nowrap;
+}
+
+.survey-dash-qa-max {
+  font-size: 11px;
+  color: var(--mu);
+}
+
+.survey-dash-qa-count {
+  font-size: 11px;
+  color: var(--mu);
+  white-space: nowrap;
+}
+
+/* Project list */
+.survey-dash-projects-card {
+  padding: 12px 16px;
+}
+
+.survey-dash-projects-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tx);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.survey-dash-projects-toggle:hover {
+  color: var(--g);
+}
+
+.survey-dash-project-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.survey-dash-proj-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.survey-dash-proj-name {
+  color: var(--tx);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.survey-dash-proj-status {
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+
+.survey-dash-proj-ok       { background: rgba(61,100,73,0.1);   color: var(--g);  }
+.survey-dash-proj-pending  { background: rgba(180,120,0,0.1);   color: #7a5500;   }
+.survey-dash-proj-expired  { background: rgba(100,100,100,0.08);color: var(--mu); }
+
+/* ── Responsive ──────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .survey-dash-kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .survey-dash-two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .survey-dash-nps-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .survey-dash-nps-score-wrap {
+    flex-direction: row;
+    justify-content: center;
+    gap: 12px;
+    min-width: unset;
+  }
+
+  .survey-dash-qa-row {
+    grid-template-columns: minmax(0, 1fr) 80px auto;
+  }
+
+  .survey-dash-qa-count {
+    display: none;
+  }
+
+  .survey-dash-overlay-scroll {
+    padding: 12px;
+  }
+}
+
+@media (min-width: 769px) {
+  .survey-dash-overlay .survey-dash-trend-upper,
+  .survey-dash-overlay .survey-dash-trend-lower {
+    height: 70px;
+  }
+}

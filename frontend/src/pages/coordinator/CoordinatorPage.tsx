@@ -10,6 +10,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useProjects } from '../../hooks/useProjects';
 import { useReports } from '../../hooks/useReports';
 import { useSurveys } from '../../hooks/useSurveys';
+import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
@@ -108,6 +109,7 @@ export function CoordinatorPage() {
   const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
   const [npsSortDir, setNpsSortDir] = useState<ProjectSortDirection>('asc');
   const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
+  const [npsDashboardOpen, setNpsDashboardOpen] = useState(false);
   const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>([]);
   const [closedArchivedTypeKeys, setClosedArchivedTypeKeys] = useState<string[]>([]);
   const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, ProjectSortDirection>>({});
@@ -424,16 +426,23 @@ export function CoordinatorPage() {
     }
 
     return (
+      <>
+      {npsDashboardOpen && <SurveyDashboardOverlay onClose={() => setNpsDashboardOpen(false)} />}
       <section className="page-card">
         <div className="admin-section-head">
           <div>
             <div className="section-title">NPS</div>
             <div className="admin-card-subtitle">Pesquisas pendentes e respondidas ainda válidas.</div>
           </div>
-          <ProjectSortButton
-            direction={npsSortDir}
-            onToggle={() => setNpsSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
-          />
+          <div className="admin-form-actions">
+            <button className="mini-btn" type="button" onClick={() => setNpsDashboardOpen(true)}>
+              Dashboard NPS
+            </button>
+            <ProjectSortButton
+              direction={npsSortDir}
+              onToggle={() => setNpsSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
+            />
+          </div>
         </div>
         {surveyGroups.length ? (
           <div className="admin-stack">
@@ -494,6 +503,7 @@ export function CoordinatorPage() {
           </p>
         )}
       </section>
+      </>
     );
   }
 
