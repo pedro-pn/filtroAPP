@@ -94,11 +94,24 @@ export async function submitPublicSurvey(token: string, payload: SurveyResponseP
 
 export interface SurveyDashboardSurveyItem {
   id: string;
+  sentAt: string;
   projectCode: string;
   projectName: string;
   clientName: string;
+  operatorName: string;
   respondedAt: string | null;
   expiresAt: string;
+  npsScore: number | null;
+  questionAnswers: Array<{
+    id: string;
+    label: string;
+    type: string;
+    order: number;
+    value: string | number | null;
+  }>;
+  followUpStatus?: 'OPEN' | 'CONTACTED' | 'RESOLVED' | 'NOT_APPLICABLE' | null;
+  followUpNotes?: string | null;
+  followUpUpdatedAt?: string | null;
 }
 
 export interface SurveyDashboardQuestionAvg {
@@ -128,20 +141,21 @@ export interface SurveyDashboardMonth {
   surveys: SurveyDashboardSurveyItem[];
 }
 
-export interface SurveyDashboardQuarter {
-  quarter: number;
-  sent: number;
-  responded: number;
-}
-
 export interface SurveyDashboardData {
   year: number;
   years: number[];
-  quarters: SurveyDashboardQuarter[];
   months: SurveyDashboardMonth[];
 }
 
 export async function getSurveyDashboard(year: number) {
   const response = await apiClient.get<SurveyDashboardData>(`/surveys/dashboard?year=${year}`);
+  return response.data;
+}
+
+export async function updateSurveyFollowUp(
+  surveyId: string,
+  payload: { status?: SurveyDashboardSurveyItem['followUpStatus']; notes?: string | null }
+) {
+  const response = await apiClient.patch<SatisfactionSurveySummary>(`/surveys/${surveyId}/follow-up`, payload);
   return response.data;
 }

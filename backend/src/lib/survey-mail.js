@@ -38,6 +38,9 @@ export function safeSurvey(survey) {
     lastReminderAt: survey.lastReminderAt,
     reminderCount: survey.reminderCount,
     reminderOptOutAt: survey.reminderOptOutAt,
+    followUpStatus: survey.followUpStatus,
+    followUpNotes: survey.followUpNotes,
+    followUpUpdatedAt: survey.followUpUpdatedAt,
     createdAt: survey.createdAt,
     ...(questions ? { questions } : {}),
     status: responded ? 'RESPONDED' : expired ? 'EXPIRED' : active ? 'ACTIVE' : 'UNKNOWN'
