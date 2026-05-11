@@ -2,6 +2,7 @@ import http from 'node:http';
 
 import app from './app.js';
 import env from './config/env.js';
+import { startSurveyReminderJob } from './lib/survey-reminders.js';
 
 const server = http.createServer(app);
 
@@ -19,4 +20,8 @@ server.on('error', (error) => {
 
 server.listen(env.port, () => {
   console.log(`API running on http://localhost:${env.port}`);
+  if (!env.surveyTokenSecret) {
+    console.warn('[AVISO] SURVEY_TOKEN_SECRET não definido. Os tokens de pesquisa estão usando um fallback inseguro. Defina essa variável em produção.');
+  }
+  startSurveyReminderJob();
 });

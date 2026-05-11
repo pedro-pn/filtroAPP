@@ -38,6 +38,7 @@ const env = {
   zapsignPassword: process.env.ZAPSIGN_PASSWORD || process.env.ZAPSIGN_SENHA || '',
   zapsignOrganizationId: process.env.ZAPSIGN_ORGANIZATION_ID || process.env.ZAPSIGN_ORG_ID || '',
   zapsignWebhookSecret: process.env.ZAPSIGN_WEBHOOK_SECRET || '',
+  surveyTokenSecret: process.env.SURVEY_TOKEN_SECRET || '',
   zapsignWebhookHeader: process.env.ZAPSIGN_WEBHOOK_HEADER || 'x-zapsign-webhook-secret',
   zapsignApiBaseUrl: process.env.ZAPSIGN_API_BASE_URL || 'https://api.zapsign.com.br/api/v1',
   zapsignSandbox: parseBoolean(process.env.ZAPSIGN_SANDBOX, false),

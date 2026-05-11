@@ -26,6 +26,25 @@ export interface ClientSigner {
   email: string;
 }
 
+export type SurveyStatus = 'ACTIVE' | 'RESPONDED' | 'EXPIRED' | 'UNKNOWN';
+
+export interface SatisfactionSurveySummary {
+  id: string;
+  projectId: string;
+  emailTo: string;
+  expiresAt: string;
+  respondedAt?: string | null;
+  sentAt: string;
+  lastReminderAt?: string | null;
+  reminderCount: number;
+  reminderOptOutAt?: string | null;
+  followUpStatus?: 'OPEN' | 'CONTACTED' | 'RESOLVED' | 'NOT_APPLICABLE' | null;
+  followUpNotes?: string | null;
+  followUpUpdatedAt?: string | null;
+  createdAt: string;
+  status?: SurveyStatus;
+}
+
 export interface Project {
   id: string;
   code: string;
@@ -47,6 +66,9 @@ export interface Project {
   operatorId: string | null;
   operator?: Collaborator | null;
   reportSequences?: ProjectReportSequence[];
+  surveys?: SatisfactionSurveySummary[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Equipment {

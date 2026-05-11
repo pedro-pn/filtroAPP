@@ -85,6 +85,7 @@ model Project {
   reportSequences       ProjectReportSeq[]
   reports               Report[]
   drafts                ReportDraft[]
+  surveys               SatisfactionSurvey[]
 }
 
 model ProjectReportSeq {
@@ -247,6 +248,53 @@ model User {
   createdReports  Report[]      @relation("ReportCreator")
   reviewedReports Report[]      @relation("ReportReviewer")
   clientReportReviews ClientReportReview[] @relation("ClientReportReviewer")
+  sentSurveys     SatisfactionSurvey[]
+}
+
+model SatisfactionSurvey {
+  id                 String    @id @default(cuid())
+  projectId          String
+  tokenHash          String    @unique
+  tokenEncrypted     String
+  tokenIv            String
+  tokenAuthTag       String
+  emailTo            String
+  expiresAt          DateTime
+  respondedAt        DateTime?
+  sentAt             DateTime  @default(now())
+  lastReminderAt     DateTime?
+  reminderClaimedAt  DateTime?
+  reminderOptOutAt   DateTime?
+  reminderCount      Int       @default(0)
+  responses          Json?
+  questions          Json?
+  followUpStatus     String?
+  followUpNotes      String?
+  followUpUpdatedAt  DateTime?
+  submittedIp        String?
+  submittedUserAgent String?
+  sentByUserId       String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  project            Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sentBy             User?     @relation(fields: [sentByUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([expiresAt, respondedAt, reminderOptOutAt])
+}
+
+model SatisfactionSurveyQuestion {
+  id        String   @id @default(cuid())
+  label     String
+  type      String
+  options   Json?
+  required  Boolean  @default(true)
+  order     Int
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, order])
 }
 
 model PasswordResetToken {

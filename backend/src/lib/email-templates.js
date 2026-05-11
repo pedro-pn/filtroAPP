@@ -277,3 +277,99 @@ export function buildReportRejectedByClientEmailTemplate({ projectCode, projectN
     html: wrapEmailHtml({ title, intro, body, footer })
   };
 }
+
+export function buildSurveyInviteEmailTemplate({ clientName, projectCode, projectName, surveyUrl, optOutUrl, expiresLabel }) {
+  const title = 'Pesquisa de satisfação';
+  const intro = `Gostaríamos de ouvir sua opinião sobre o projeto ${projectCode} - ${projectName}.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Cliente:</strong> ${clientName}</div>
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>Prazo:</strong> ${expiresLabel}</div>
+      </div>
+    </div>
+    <p style="font-size:14px;line-height:1.7;margin:16px 0">Sua resposta nos ajuda a melhorar continuamente nossos serviços.</p>
+    <p style="margin:0 0 16px"><a href="${surveyUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Responder pesquisa</a></p>
+    <p style="font-size:13px;line-height:1.7;margin:0 0 8px">Se preferir, copie e cole este link no navegador:</p>
+    <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0 0 16px">${surveyUrl}</p>
+    ${optOutUrl ? `<p style="font-size:12px;line-height:1.7;margin:0">Para parar de receber lembretes desta pesquisa, acesse: <a href="${optOutUrl}" style="color:#30503a">${optOutUrl}</a></p>` : ''}
+  `;
+  const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Pesquisa de satisfação - ${projectCode}`,
+    text: [
+      `Gostaríamos de ouvir sua opinião sobre o projeto ${projectCode} - ${projectName}.`,
+      '',
+      `Cliente: ${clientName}`,
+      `Projeto: ${projectCode} - ${projectName}`,
+      `Prazo: ${expiresLabel}`,
+      '',
+      `Responder pesquisa: ${surveyUrl}`,
+      optOutUrl ? `Parar lembretes: ${optOutUrl}` : ''
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildSurveyReminderEmailTemplate({ clientName, projectCode, projectName, surveyUrl, optOutUrl, daysRemaining }) {
+  const expiresLabel = daysRemaining > 0 ? `${daysRemaining} dia${daysRemaining !== 1 ? 's' : ''}` : 'em breve';
+  const title = 'Lembrete: pesquisa de satisfação';
+  const intro = `A pesquisa de satisfação do projeto ${projectCode} - ${projectName} ainda está disponível.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Cliente:</strong> ${clientName}</div>
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>Disponível por:</strong> ${expiresLabel}</div>
+      </div>
+    </div>
+    <p style="margin:16px 0"><a href="${surveyUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Responder pesquisa</a></p>
+    <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0 0 16px">${surveyUrl}</p>
+    ${optOutUrl ? `<p style="font-size:12px;line-height:1.7;margin:0">Para parar de receber lembretes desta pesquisa, acesse: <a href="${optOutUrl}" style="color:#30503a">${optOutUrl}</a></p>` : ''}
+  `;
+  const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Lembrete de pesquisa de satisfação - ${projectCode}`,
+    text: [
+      `A pesquisa de satisfação do projeto ${projectCode} - ${projectName} ainda está disponível.`,
+      '',
+      `Cliente: ${clientName}`,
+      `Disponível por: ${expiresLabel}`,
+      '',
+      `Responder pesquisa: ${surveyUrl}`,
+      optOutUrl ? `Parar lembretes: ${optOutUrl}` : ''
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildSurveyRespondedEmailTemplate({ clientName, projectCode, projectName, nps, appUrl }) {
+  const title = 'Pesquisa de satisfação respondida';
+  const intro = `O cliente ${clientName} respondeu a pesquisa de satisfação do projeto ${projectCode} - ${projectName}.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Cliente:</strong> ${clientName}</div>
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>NPS:</strong> ${nps ?? '-'}</div>
+      </div>
+    </div>
+    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+  `;
+  const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Pesquisa respondida - ${projectCode}`,
+    text: [
+      `O cliente ${clientName} respondeu a pesquisa de satisfação.`,
+      '',
+      `Projeto: ${projectCode} - ${projectName}`,
+      `NPS: ${nps ?? '-'}`,
+      appUrl ? `Acesso: ${appUrl}` : ''
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}

@@ -8,5 +8,7 @@ export const queryKeys = {
   counters: ['particle-counters'] as const,
   drafts: (userId?: string | null) => ['drafts', { userId: userId || 'anonymous' }] as const,
   users: (group?: 'internal' | 'client') => ['users', { group }] as const,
+  surveys: ['surveys'] as const,
+  surveyQuestions: ['surveys', 'questions'] as const,
   reports: (filters?: unknown, userId?: string | null) => ['reports', filters ?? {}, { userId: userId || 'anonymous' }] as const
 };
