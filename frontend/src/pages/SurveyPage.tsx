@@ -2,21 +2,13 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
-import { getPublicSurvey, submitPublicSurvey, type SurveyResponsePayload } from '../api/surveys';
+import { getPublicSurvey, submitPublicSurvey, type SurveyQuestion, type SurveyResponsePayload } from '../api/surveys';
 import { useToast } from '../components/ui/Toast';
 
 const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
 const surveyLogoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_VERDE.png`;
 
-const scaleFields = [
-  ['serviceQuality', 'Qualidade dos serviços prestados'],
-  ['communication', 'Comunicação da equipe durante o projeto'],
-  ['deadlines', 'Cumprimento de prazos'],
-  ['documentation', 'Qualidade da documentação entregue']
-] as const;
-
-type SurveyNumericField = 'nps' | 'serviceQuality' | 'communication' | 'deadlines' | 'documentation';
-type SurveyFormState = Omit<SurveyResponsePayload, SurveyNumericField> & Record<SurveyNumericField, number | ''>;
+type SurveyFormState = Record<string, string | number>;
 
 function numberOptions(start: number, end: number) {
   const values = [];
@@ -28,15 +20,7 @@ export function SurveyPage() {
   const { token = '' } = useParams();
   const navigate = useNavigate();
   const showToast = useToast();
-  const [form, setForm] = useState<SurveyFormState>({
-    nps: '',
-    serviceQuality: '',
-    communication: '',
-    deadlines: '',
-    documentation: '',
-    improvement: '',
-    highlight: ''
-  });
+  const [form, setForm] = useState<SurveyFormState>({});
   const [submitted, setSubmitted] = useState(false);
 
   const surveyQuery = useQuery({
@@ -62,26 +46,78 @@ export function SurveyPage() {
     return 'Pesquisa de satisfação';
   }, [status]);
 
-  function setField<K extends keyof SurveyFormState>(field: K, value: SurveyFormState[K]) {
+  function setField(field: string, value: string | number) {
     setForm(current => ({ ...current, [field]: value }));
   }
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    const numericFields: SurveyNumericField[] = ['nps', 'serviceQuality', 'communication', 'deadlines', 'documentation'];
-    if (numericFields.some(field => form[field] === '')) {
-      showToast('Preencha todas as notas antes de enviar.', 'error');
+    const questions = surveyQuery.data?.survey?.questions || [];
+    const missing = questions.find(question => question.required && (form[question.id] === undefined || form[question.id] === ''));
+    if (missing) {
+      showToast(`Preencha: ${missing.label}`, 'error');
       return;
     }
-    submitMutation.mutate({
-      nps: Number(form.nps),
-      serviceQuality: Number(form.serviceQuality),
-      communication: Number(form.communication),
-      deadlines: Number(form.deadlines),
-      documentation: Number(form.documentation),
-      improvement: form.improvement || '',
-      highlight: form.highlight || ''
-    });
+    submitMutation.mutate({ answers: form });
+  }
+
+  function renderQuestion(question: SurveyQuestion) {
+    const value = form[question.id] ?? '';
+    if (question.type === 'TEXT') {
+      return (
+        <div className="field-group" key={question.id}>
+          <label htmlFor={`survey-${question.id}`}>{question.label}</label>
+          <textarea id={`survey-${question.id}`} value={String(value)} onChange={event => setField(question.id, event.target.value)} required={question.required} />
+        </div>
+      );
+    }
+
+    const options: Array<string | number> = question.type === 'NPS'
+      ? numberOptions(0, 10)
+      : question.type === 'SCALE'
+        ? numberOptions(1, 5)
+        : question.options;
+
+    if (question.type === 'NPS' || question.type === 'SCALE') {
+      return (
+        <fieldset className="field-group survey-scale-field" key={question.id}>
+          <legend>{question.label}</legend>
+          <div className="survey-scale-row">
+            {options.map(option => (
+              <label className={`survey-scale-option ${String(value) === String(option) ? 'selected' : ''}`} key={option}>
+                <input
+                  type="radio"
+                  name={`survey-${question.id}`}
+                  value={option}
+                  checked={String(value) === String(option)}
+                  required={question.required}
+                  onChange={() => setField(question.id, Number(option))}
+                />
+                <span className="survey-scale-dot">{option}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      );
+    }
+
+    return (
+      <div className="field-group" key={question.id}>
+        <label htmlFor={`survey-${question.id}`}>{question.label}</label>
+        <select
+          id={`survey-${question.id}`}
+          value={value}
+          onChange={event => {
+            const selected = event.target.value;
+            setField(question.id, question.type === 'NPS' || question.type === 'SCALE' ? Number(selected) : selected);
+          }}
+          required={question.required}
+        >
+          <option value="">Selecionar...</option>
+          {options.map(option => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </div>
+    );
   }
 
   return (
@@ -106,30 +142,7 @@ export function SurveyPage() {
               <div className="det-row"><span className="det-label">Cliente</span><span className="det-val">{surveyQuery.data.survey.project.clientName}</span></div>
               <div className="det-row"><span className="det-label">Projeto</span><span className="det-val">{surveyQuery.data.survey.project.code} - {surveyQuery.data.survey.project.name}</span></div>
             </div>
-            <div className="field-group">
-              <label htmlFor="survey-nps">Probabilidade de recomendar a Filtrovali</label>
-              <select id="survey-nps" value={form.nps} onChange={event => setField('nps', event.target.value === '' ? '' : Number(event.target.value))} required>
-                <option value="">Selecionar...</option>
-                {numberOptions(0, 10).map(value => <option key={value} value={value}>{value}</option>)}
-              </select>
-            </div>
-            {scaleFields.map(([field, label]) => (
-              <div className="field-group" key={field}>
-                <label htmlFor={`survey-${field}`}>{label}</label>
-                <select id={`survey-${field}`} value={form[field]} onChange={event => setField(field, event.target.value === '' ? '' : Number(event.target.value))} required>
-                  <option value="">Selecionar...</option>
-                  {numberOptions(1, 5).map(value => <option key={value} value={value}>{value}</option>)}
-                </select>
-              </div>
-            ))}
-            <div className="field-group">
-              <label htmlFor="survey-improvement">O que podemos melhorar?</label>
-              <textarea id="survey-improvement" value={form.improvement || ''} onChange={event => setField('improvement', event.target.value)} />
-            </div>
-            <div className="field-group">
-              <label htmlFor="survey-highlight">Algo que gostaria de destacar?</label>
-              <textarea id="survey-highlight" value={form.highlight || ''} onChange={event => setField('highlight', event.target.value)} />
-            </div>
+            {surveyQuery.data.survey.questions.map(question => renderQuestion(question))}
             <div className="survey-actions">
               <button className="primary-button survey-submit-button" type="submit" disabled={submitMutation.isPending}>Enviar resposta</button>
             </div>

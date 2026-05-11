@@ -279,6 +279,20 @@ model SatisfactionSurvey {
   @@index([expiresAt, respondedAt, reminderOptOutAt])
 }
 
+model SatisfactionSurveyQuestion {
+  id        String   @id @default(cuid())
+  label     String
+  type      String
+  options   Json?
+  required  Boolean  @default(true)
+  order     Int
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, order])
+}
+
 model PasswordResetToken {
   id        String   @id @default(cuid())
   tokenHash String   @unique
