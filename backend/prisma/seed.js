@@ -9,10 +9,10 @@ const prisma = new PrismaClient();
 
 async function main() {
   const collaborators = [
-    { code: 'COL-001', name: 'Carlos Mendes', role: 'Tecnico senior', email: 'carlos@filtrovali.com', signatureImage: 'assinatura-carlos.png', isActive: true },
-    { code: 'COL-002', name: 'Joao Pereira', role: 'Tecnico', email: 'joao@filtrovali.com', signatureImage: 'assinatura-joao.png', isActive: true },
-    { code: 'COL-003', name: 'Ana Souza', role: 'Tecnica', email: 'ana@filtrovali.com', signatureImage: 'assinatura-ana.png', isActive: true },
-    { code: 'COL-004', name: 'Pedro Lima', role: 'Auxiliar', email: null, signatureImage: 'assinatura-pedro.png', isActive: false }
+    { code: 'COL-001', name: 'Colaborador 1', role: 'Tecnico senior', email: 'colaborador1@example.com', signatureImage: 'assinatura-col1.png', isActive: true },
+    { code: 'COL-002', name: 'Colaborador 2', role: 'Tecnico', email: 'colaborador2@example.com', signatureImage: 'assinatura-col2.png', isActive: true },
+    { code: 'COL-003', name: 'Colaborador 3', role: 'Tecnica', email: 'colaborador3@example.com', signatureImage: 'assinatura-col3.png', isActive: true },
+    { code: 'COL-004', name: 'Colaborador 4', role: 'Auxiliar', email: null, signatureImage: 'assinatura-col4.png', isActive: false }
   ];
 
   for (const collaborator of collaborators) {
@@ -24,8 +24,8 @@ async function main() {
   }
 
   const byCode = async code => prisma.collaborator.findUniqueOrThrow({ where: { code } });
-  const carlos = await byCode('COL-001');
-  const joao = await byCode('COL-002');
+  const col1 = await byCode('COL-001');
+  const col2 = await byCode('COL-002');
 
   const equipments = [
     { code: 'EQ-001', name: 'Trocador T-101', serviceTags: ['limpeza', 'mecanica'] },
@@ -91,35 +91,35 @@ async function main() {
 
   const projects = [
     {
-      code: 'refinaria',
-      name: 'Refinaria XPTO - Fase 2',
-      clientName: 'XPTO Energia',
+      code: 'projeto-demo-a',
+      name: 'Projeto Demo - Refinaria',
+      clientName: 'Empresa Demo A',
       clientCnpj: normalizeCnpj('12.345.678/0001-90'),
-      clientEmailPrimary: 'cliente.xpto@filtrovali.com',
-      clientEmailCc: ['obras.xpto@filtrovali.com'],
+      clientEmailPrimary: 'clientea@example.com',
+      clientEmailCc: ['obrasa@example.com'],
       contractCode: 'CT-2026-014',
-      location: 'Macae/RJ',
+      location: 'Localidade A',
       workdayHours: '09:00',
       weekendWorkdayHours: '08:00',
       includesSaturday: true,
       includesSunday: false,
-      operatorId: carlos.id,
+      operatorId: col1.id,
       reportSequences: { RDO: 14, RTP: 3, RLQ: 8, RCPU: 2, RLM: 5, RLF: 7, RLI: 11 }
     },
     {
-      code: 'plataforma',
-      name: 'Plataforma P-52',
-      clientName: 'Offshore Brasil',
+      code: 'projeto-demo-b',
+      name: 'Projeto Demo - Plataforma',
+      clientName: 'Empresa Demo B',
       clientCnpj: normalizeCnpj('22.456.789/0001-44'),
-      clientEmailPrimary: 'contato@offshorebrasil.com',
-      clientEmailCc: ['fiscal@offshorebrasil.com'],
-      contractCode: 'P52-UTIL-88',
-      location: 'Bacia de Campos',
+      clientEmailPrimary: 'clienteb@example.com',
+      clientEmailCc: ['fiscalb@example.com'],
+      contractCode: 'CT-2026-088',
+      location: 'Localidade B',
       workdayHours: '09:00',
       weekendWorkdayHours: '08:00',
       includesSaturday: true,
       includesSunday: true,
-      operatorId: joao.id,
+      operatorId: col2.id,
       reportSequences: { RDO: 7, RTP: 12, RLQ: 2, RCPU: 1, RLM: 2, RLF: 4, RLI: 6 }
     }
   ];
@@ -154,42 +154,42 @@ async function main() {
   const users = [
     {
       username: 'gestor',
-      name: 'Admin Gestor',
+      name: 'Gestor Demo',
       role: UserRole.MANAGER,
       collaboratorId: null,
-      email: 'gestor@filtrovali.com',
+      email: 'gestor@example.com',
       password: 'gestor123'
     },
     {
-      username: 'carlos',
-      name: 'Carlos Mendes',
+      username: 'colaborador1',
+      name: 'Colaborador 1',
       role: UserRole.COLLABORATOR,
-      collaboratorId: carlos.id,
-      email: 'carlos@filtrovali.com',
+      collaboratorId: col1.id,
+      email: 'colaborador1@example.com',
       password: 'colab123'
     },
     {
-      username: 'joao',
-      name: 'Joao Pereira',
+      username: 'colaborador2',
+      name: 'Colaborador 2',
       role: UserRole.COLLABORATOR,
-      collaboratorId: joao.id,
-      email: 'joao@filtrovali.com',
+      collaboratorId: col2.id,
+      email: 'colaborador2@example.com',
       password: 'colab123'
     },
     {
       username: normalizeCnpj('12.345.678/0001-90'),
-      name: 'XPTO Energia',
+      name: 'Empresa Demo A',
       role: 'CLIENT',
       collaboratorId: null,
-      email: 'cliente.xpto@filtrovali.com',
+      email: 'clientea@example.com',
       password: '123456'
     },
     {
       username: normalizeCnpj('22.456.789/0001-44'),
-      name: 'Offshore Brasil',
+      name: 'Empresa Demo B',
       role: 'CLIENT',
       collaboratorId: null,
-      email: 'contato@offshorebrasil.com',
+      email: 'clienteb@example.com',
       password: '123456'
     }
   ];
