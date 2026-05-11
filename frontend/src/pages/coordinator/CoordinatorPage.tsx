@@ -9,7 +9,7 @@ import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { useToast } from '../../components/ui/Toast';
 import { useProjects } from '../../hooks/useProjects';
 import { useReports } from '../../hooks/useReports';
-import { useSurveyQuestions, useSurveys } from '../../hooks/useSurveys';
+import { useSurveys } from '../../hooks/useSurveys';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
@@ -71,19 +71,24 @@ function surveyResponseValue(value: unknown, fallback = 'Não respondido') {
   return String(value);
 }
 
+const legacyNpsResponseLabels: Record<string, string> = {
+  nps: 'Probabilidade de recomendar a Filtrovali',
+  serviceQuality: 'Qualidade dos serviços prestados',
+  communication: 'Comunicação da equipe durante o projeto',
+  deadlines: 'Cumprimento de prazos',
+  documentation: 'Qualidade da documentação entregue',
+  improvement: 'O que podemos melhorar?',
+  highlight: 'Algo que gostaria de destacar?'
+};
+
 function npsResponseRows(responses?: SurveyResponses | null, questions: SurveyQuestion[] = []) {
   if (questions.length) {
     return questions.map(question => [question.label, surveyResponseValue(responses?.[question.id])]);
   }
-  return [
-    ['Probabilidade de recomendar a Filtrovali', surveyResponseValue(responses?.nps)],
-    ['Qualidade dos serviços prestados', surveyResponseValue(responses?.serviceQuality)],
-    ['Comunicação da equipe durante o projeto', surveyResponseValue(responses?.communication)],
-    ['Cumprimento de prazos', surveyResponseValue(responses?.deadlines)],
-    ['Qualidade da documentação entregue', surveyResponseValue(responses?.documentation)],
-    ['O que podemos melhorar?', surveyResponseValue(responses?.improvement)],
-    ['Algo que gostaria de destacar?', surveyResponseValue(responses?.highlight)]
-  ];
+  return Object.keys(responses || {}).map(key => [
+    legacyNpsResponseLabels[key] || key,
+    surveyResponseValue(responses?.[key])
+  ]);
 }
 
 function npsProjectTitle(survey: SatisfactionSurveySummary & { project?: { code?: string; name?: string } | null }) {
@@ -110,7 +115,6 @@ export function CoordinatorPage() {
   const reportsQuery = useReports();
   const archivedProjectsQuery = useProjects(false);
   const surveysQuery = useSurveys();
-  const surveyQuestionsQuery = useSurveyQuestions();
 
   const pendingReports = useMemo(
     () =>
@@ -463,7 +467,7 @@ export function CoordinatorPage() {
                           {open ? (
                             survey.respondedAt ? (
                               <div className="det-section" style={{ marginTop: 12 }}>
-                                {npsResponseRows(survey.responses, surveyQuestionsQuery.data || []).map(([question, answer]) => (
+                                {npsResponseRows(survey.responses, survey.questions || []).map(([question, answer]) => (
                                   <div className="det-row" key={question}>
                                     <span className="det-label">{question}</span>
                                     <span className="det-val">{answer}</span>

@@ -18,6 +18,7 @@ export interface SurveyQuestion {
 
 export interface SurveyListItem extends SatisfactionSurveySummary {
   responses?: SurveyResponses | null;
+  questions?: SurveyQuestion[];
   project?: {
     id: string;
     code: string;

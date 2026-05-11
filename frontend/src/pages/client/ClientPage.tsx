@@ -74,6 +74,10 @@ function latestSurvey(project: Project) {
   return (project.surveys || [])[0] || null;
 }
 
+function isPendingSurvey(survey?: SatisfactionSurveySummary | null) {
+  return !!survey && !survey.respondedAt && new Date(survey.expiresAt).getTime() > Date.now();
+}
+
 function surveyBadge(survey?: SatisfactionSurveySummary | null) {
   if (!survey) return null;
   if (survey.respondedAt) return { label: 'Respondida', className: 'status-approved' };
@@ -233,7 +237,7 @@ export function ClientPage() {
   }, [activeProjectId, activeTypeByProject, clientSortDirection, clientToggleStorageKey, clientTogglesLoaded, closedTypeByProject]);
 
   useEffect(() => {
-    if (!clientTogglesLoaded || reportsQuery.isLoading) return;
+    if (!clientTogglesLoaded || reportsQuery.isLoading || archivedProjectsQuery.isLoading) return;
     if (!clientProjects.length) {
       if (activeProjectId) setActiveProjectId('');
       return;
@@ -241,7 +245,7 @@ export function ClientPage() {
     if (!activeProjectId || !clientProjects.some(project => project.id === activeProjectId)) {
       setActiveProjectId(clientProjects[0].id);
     }
-  }, [activeProjectId, clientProjects, clientTogglesLoaded, reportsQuery.isLoading]);
+  }, [activeProjectId, archivedProjectsQuery.isLoading, clientProjects, clientTogglesLoaded, reportsQuery.isLoading]);
 
   const activeProject = clientProjects.find(project => project.id === activeProjectId) || clientProjects[0] || null;
   const activeTypes = useMemo(
@@ -302,7 +306,12 @@ export function ClientPage() {
   async function handleOpenSurvey(project: Project) {
     try {
       const link = await getClientSurveyLink(project.id);
-      navigate(link.url);
+      const target = new URL(link.url, window.location.origin);
+      if (target.origin === window.location.origin) {
+        navigate(`${target.pathname}${target.search}${target.hash}`);
+      } else {
+        window.location.assign(target.toString());
+      }
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível abrir a pesquisa.', 'error');
     }
@@ -567,8 +576,8 @@ export function ClientPage() {
           </div>
         </section>
 
-        {reportsQuery.isLoading ? <div className="page-card placeholder-copy">{TEXT.loading}</div> : null}
-        {!reportsQuery.isLoading && !reportSummary.total && !surveyProjects.length ? (
+        {reportsQuery.isLoading || archivedProjectsQuery.isLoading ? <div className="page-card placeholder-copy">{TEXT.loading}</div> : null}
+        {!reportsQuery.isLoading && !archivedProjectsQuery.isLoading && !reportSummary.total && !surveyProjects.length ? (
           <div className="page-card placeholder-copy">{TEXT.noReports}</div>
         ) : null}
 
@@ -587,18 +596,28 @@ export function ClientPage() {
           <>
             <section className="page-card compact-link-card">
               <div className="filter-tabs" role="tablist" aria-label="Projetos do cliente" onKeyDown={handleHorizontalTabListKeyDown}>
-                {clientProjects.map(project => (
-                  <button
-                    className={`filter-tab ${project.id === activeProject.id ? 'active' : ''}`}
-                    type="button"
-                    key={project.id}
-                    role="tab"
-                    aria-selected={project.id === activeProject.id}
-                    onClick={() => setActiveProjectId(project.id)}
-                  >
-                    {project.title}
-                  </button>
-                ))}
+                {clientProjects.map(project => {
+                  const hasPendingSurvey = (project.surveyProject?.surveys || []).some(isPendingSurvey);
+                  return (
+                    <button
+                      className={`filter-tab client-project-tab ${project.id === activeProject.id ? 'active' : ''}`}
+                      type="button"
+                      key={project.id}
+                      role="tab"
+                      aria-selected={project.id === activeProject.id}
+                      aria-label={hasPendingSurvey ? `${project.title}, pesquisa pendente` : project.title}
+                      onClick={() => setActiveProjectId(project.id)}
+                    >
+                      <span className="client-project-tab-title">{project.title}</span>
+                      {hasPendingSurvey ? (
+                        <>
+                          <span className="client-project-pending-dot" aria-hidden="true" />
+                          <span className="visually-hidden">Pesquisa pendente</span>
+                        </>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
             </section>
 
@@ -627,8 +646,7 @@ export function ClientPage() {
                   </div>
                   {(() => {
                     const survey = latestSurvey(activeProject.surveyProject);
-                    const isActiveSurvey = survey && !survey.respondedAt && new Date(survey.expiresAt).getTime() > Date.now();
-                    return isActiveSurvey ? (
+                    return isPendingSurvey(survey) ? (
                       <button className="primary-button" type="button" onClick={() => void handleOpenSurvey(activeProject.surveyProject as Project)}>
                         Responder pesquisa
                       </button>

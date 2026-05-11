@@ -267,6 +267,7 @@ model SatisfactionSurvey {
   reminderOptOutAt   DateTime?
   reminderCount      Int       @default(0)
   responses          Json?
+  questions          Json?
   submittedIp        String?
   submittedUserAgent String?
   sentByUserId       String?
