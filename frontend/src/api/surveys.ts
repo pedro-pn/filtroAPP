@@ -1,7 +1,23 @@
 import { apiClient } from './client';
 import type { SatisfactionSurveySummary } from '../types/domain';
 
+export interface SurveyResponses {
+  [questionId: string]: string | number | undefined;
+}
+
+export type SurveyQuestionType = 'NPS' | 'SCALE' | 'SELECT' | 'TEXT';
+
+export interface SurveyQuestion {
+  id: string;
+  label: string;
+  type: SurveyQuestionType;
+  options: string[];
+  required: boolean;
+  order: number;
+}
+
 export interface SurveyListItem extends SatisfactionSurveySummary {
+  responses?: SurveyResponses | null;
   project?: {
     id: string;
     code: string;
@@ -17,6 +33,7 @@ export interface PublicSurveyPayload {
     id: string;
     expiresAt: string;
     respondedAt?: string | null;
+    questions: SurveyQuestion[];
     project: {
       code: string;
       name: string;
@@ -26,13 +43,7 @@ export interface PublicSurveyPayload {
 }
 
 export interface SurveyResponsePayload {
-  nps: number;
-  serviceQuality: number;
-  communication: number;
-  deadlines: number;
-  documentation: number;
-  improvement?: string;
-  highlight?: string;
+  answers: SurveyResponses;
 }
 
 export async function sendProjectSurvey(projectId: string) {
@@ -52,6 +63,16 @@ export async function listSurveys() {
 
 export async function listProjectSurveys(projectId: string) {
   const response = await apiClient.get<SatisfactionSurveySummary[]>(`/surveys/projects/${projectId}`);
+  return response.data;
+}
+
+export async function listSurveyQuestions() {
+  const response = await apiClient.get<SurveyQuestion[]>('/surveys/questions');
+  return response.data;
+}
+
+export async function updateSurveyQuestions(questions: Array<Omit<SurveyQuestion, 'order'>>) {
+  const response = await apiClient.put<SurveyQuestion[]>('/surveys/questions', { questions });
   return response.data;
 }
 

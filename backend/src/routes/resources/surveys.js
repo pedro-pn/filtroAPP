@@ -32,11 +32,131 @@ const responseSchema = z.object({
   highlight: z.string().max(2000).optional().default('')
 });
 
+const QUESTION_TYPES = ['NPS', 'SCALE', 'SELECT', 'TEXT'];
+const defaultQuestions = [
+  { id: 'nps', label: 'Probabilidade de recomendar a Filtrovali', type: 'NPS', options: [], required: true, order: 1 },
+  { id: 'serviceQuality', label: 'Qualidade dos serviços prestados', type: 'SCALE', options: [], required: true, order: 2 },
+  { id: 'communication', label: 'Comunicação da equipe durante o projeto', type: 'SCALE', options: [], required: true, order: 3 },
+  { id: 'deadlines', label: 'Cumprimento de prazos', type: 'SCALE', options: [], required: true, order: 4 },
+  { id: 'documentation', label: 'Qualidade da documentação entregue', type: 'SCALE', options: [], required: true, order: 5 },
+  { id: 'improvement', label: 'O que podemos melhorar?', type: 'TEXT', options: [], required: false, order: 6 },
+  { id: 'highlight', label: 'Algo que gostaria de destacar?', type: 'TEXT', options: [], required: false, order: 7 }
+];
+
+const questionSchema = z.object({
+  id: z.string().optional(),
+  label: z.string().trim().min(1),
+  type: z.enum(QUESTION_TYPES),
+  options: z.array(z.string().trim().min(1)).optional().default([]),
+  required: z.boolean().default(true)
+});
+
+const questionsPayloadSchema = z.object({
+  questions: z.array(questionSchema).min(1)
+});
+
 function requireManagerOrCoordinator(req, res, next) {
   if (!req.auth || !['MANAGER', 'COORDINATOR'].includes(req.auth.user.role)) {
     return res.status(403).json({ error: 'Acesso restrito ao gestor ou coordenador.' });
   }
   next();
+}
+
+function safeQuestion(question) {
+  return {
+    id: question.id,
+    label: question.label,
+    type: question.type,
+    options: Array.isArray(question.options) ? question.options : [],
+    required: question.required,
+    order: question.order
+  };
+}
+
+async function ensureDefaultSurveyQuestions() {
+  const count = await prisma.satisfactionSurveyQuestion.count();
+  if (count > 0) return;
+  await prisma.satisfactionSurveyQuestion.createMany({
+    data: defaultQuestions.map(question => ({
+      ...question,
+      options: question.options
+    })),
+    skipDuplicates: true
+  });
+}
+
+async function activeSurveyQuestions() {
+  await ensureDefaultSurveyQuestions();
+  return prisma.satisfactionSurveyQuestion.findMany({
+    where: { isActive: true },
+    orderBy: { order: 'asc' }
+  });
+}
+
+function responseInput(body) {
+  const answers = body?.answers;
+  if (answers && typeof answers === 'object' && !Array.isArray(answers)) return answers;
+  return body && typeof body === 'object' ? body : {};
+}
+
+function parseQuestionValue(question, rawValue) {
+  const empty = rawValue === undefined || rawValue === null || rawValue === '';
+  if (empty) {
+    if (question.required) {
+      const error = new Error(`Preencha a pergunta: ${question.label}`);
+      error.status = 400;
+      throw error;
+    }
+    return '';
+  }
+
+  if (question.type === 'NPS') {
+    const value = Number(rawValue);
+    if (!Number.isInteger(value) || value < 0 || value > 10) {
+      const error = new Error(`Resposta inválida para: ${question.label}`);
+      error.status = 400;
+      throw error;
+    }
+    return value;
+  }
+
+  if (question.type === 'SCALE') {
+    const value = Number(rawValue);
+    if (!Number.isInteger(value) || value < 1 || value > 5) {
+      const error = new Error(`Resposta inválida para: ${question.label}`);
+      error.status = 400;
+      throw error;
+    }
+    return value;
+  }
+
+  if (question.type === 'SELECT') {
+    const value = String(rawValue);
+    const options = Array.isArray(question.options) ? question.options : [];
+    if (!options.includes(value)) {
+      const error = new Error(`Resposta inválida para: ${question.label}`);
+      error.status = 400;
+      throw error;
+    }
+    return value;
+  }
+
+  const value = String(rawValue).trim();
+  if (value.length > 2000) {
+    const error = new Error(`Resposta muito longa para: ${question.label}`);
+    error.status = 400;
+    throw error;
+  }
+  return value;
+}
+
+async function validateSurveyResponses(body) {
+  const questions = await activeSurveyQuestions();
+  const input = responseInput(body);
+  return questions.reduce((acc, question) => {
+    acc[question.id] = parseQuestionValue(question, input[question.id]);
+    return acc;
+  }, {});
 }
 
 function activeSurveyWhere(projectId) {
@@ -132,6 +252,7 @@ function publicSurveyPayload(survey) {
       id: survey.id,
       expiresAt: survey.expiresAt,
       respondedAt: survey.respondedAt,
+      questions: (survey.questions || []).map(safeQuestion),
       project: {
         code: survey.project?.code || '',
         name: survey.project?.name || '',
@@ -140,6 +261,65 @@ function publicSurveyPayload(survey) {
     }
   };
 }
+
+router.get('/questions', requireAuth, requireManagerOrCoordinator, asyncHandler(async (_req, res) => {
+  const questions = await activeSurveyQuestions();
+  res.json(questions.map(safeQuestion));
+}));
+
+router.put('/questions', requireAuth, requireManager, asyncHandler(async (req, res) => {
+  const { questions } = questionsPayloadSchema.parse(req.body);
+  const normalized = questions.map((question, index) => ({
+    id: question.id && !question.id.startsWith('new-') ? question.id : null,
+    label: question.label,
+    type: question.type,
+    options: question.type === 'SELECT' ? Array.from(new Set(question.options || [])) : [],
+    required: question.required,
+    order: index + 1
+  }));
+
+  const saved = await prisma.$transaction(async tx => {
+    const keepIds = normalized.map(question => question.id).filter(Boolean);
+    await tx.satisfactionSurveyQuestion.updateMany({
+      where: keepIds.length ? { id: { notIn: keepIds } } : {},
+      data: { isActive: false }
+    });
+
+    for (const question of normalized) {
+      if (question.id) {
+        await tx.satisfactionSurveyQuestion.update({
+          where: { id: question.id },
+          data: {
+            label: question.label,
+            type: question.type,
+            options: question.options,
+            required: question.required,
+            order: question.order,
+            isActive: true
+          }
+        });
+      } else {
+        await tx.satisfactionSurveyQuestion.create({
+          data: {
+            label: question.label,
+            type: question.type,
+            options: question.options,
+            required: question.required,
+            order: question.order,
+            isActive: true
+          }
+        });
+      }
+    }
+
+    return tx.satisfactionSurveyQuestion.findMany({
+      where: { isActive: true },
+      orderBy: { order: 'asc' }
+    });
+  });
+
+  res.json(saved.map(safeQuestion));
+}));
 
 router.post('/:projectId/send', requireAuth, requireManager, asyncHandler(async (req, res) => {
   const project = await prisma.project.findUniqueOrThrow({
@@ -185,13 +365,22 @@ router.get('/projects/:projectId', requireAuth, requireManagerOrCoordinator, asy
   res.json(items.map(safeSurvey));
 }));
 
-router.get('/', requireAuth, requireManagerOrCoordinator, asyncHandler(async (_req, res) => {
+router.get('/', requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
+  const now = new Date();
   const items = await prisma.satisfactionSurvey.findMany({
+    where: {
+      OR: [
+        { respondedAt: { not: null } },
+        { respondedAt: null, expiresAt: { gt: now } }
+      ]
+    },
     include: { project: true },
     orderBy: { createdAt: 'desc' }
   });
+  const canViewResponses = ['MANAGER', 'COORDINATOR'].includes(req.auth.user.role);
   res.json(items.map(item => ({
     ...safeSurvey(item),
+    ...(canViewResponses ? { responses: item.responses } : {}),
     project: item.project ? {
       id: item.project.id,
       code: item.project.code,
@@ -218,7 +407,8 @@ router.get('/client/projects/:projectId/active-link', requireAuth, asyncHandler(
 
 router.get('/respond/:token', publicLimiter, asyncHandler(async (req, res) => {
   const survey = await surveyFromToken(req.params.token, { project: true });
-  res.json(publicSurveyPayload(survey));
+  const questions = await activeSurveyQuestions();
+  res.json(publicSurveyPayload(survey ? { ...survey, questions } : survey));
 }));
 
 router.post('/respond/:token', publicLimiter, asyncHandler(async (req, res) => {
@@ -228,7 +418,7 @@ router.post('/respond/:token', publicLimiter, asyncHandler(async (req, res) => {
     return res.status(status === 'INVALID' ? 404 : 400).json({ error: 'Pesquisa indisponível.', status });
   }
 
-  const responses = responseSchema.parse(req.body);
+  const responses = await validateSurveyResponses(req.body);
   const updated = await prisma.satisfactionSurvey.update({
     where: { id: survey.id },
     data: {

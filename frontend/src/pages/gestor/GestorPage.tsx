@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, type Dispatch, type FormEvent, type KeyboardEvent, type SetStateAction } from 'react';
+﻿import { useEffect, useMemo, useRef, useState, type Dispatch, type DragEvent, type FormEvent, type KeyboardEvent, type SetStateAction } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
@@ -9,6 +9,7 @@ import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
 import type { UserRole } from '../../types/auth';
 import { downloadReportDocx, downloadReportPdf, downloadReportsBatch } from '../../api/reports';
+import type { SurveyQuestion, SurveyQuestionType, SurveyResponses } from '../../api/surveys';
 import { useAuth } from '../../auth/AuthContext';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
@@ -23,7 +24,7 @@ import { useProjectMutations, useProjects } from '../../hooks/useProjects';
 import { useReportMutations, useReports } from '../../hooks/useReports';
 import { useUnitMutations, useUnits } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
-import { useSurveyMutations } from '../../hooks/useSurveys';
+import { useSurveyMutations, useSurveyQuestions, useSurveys } from '../../hooks/useSurveys';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
@@ -50,8 +51,10 @@ type GestorTab =
   | 'equipe'
   | 'usuarios'
   | 'equipamentos'
-  | 'manometros'
-  | 'contadores';
+  | 'nps';
+
+type EquipmentSubTab = 'unidades' | 'manometros' | 'contadores';
+type SurveyQuestionDraft = Omit<SurveyQuestion, 'order' | 'options'> & { optionsText: string };
 
 const gestorTabs: GestorTab[] = [
   'pendentes',
@@ -61,11 +64,11 @@ const gestorTabs: GestorTab[] = [
   'equipe',
   'usuarios',
   'equipamentos',
-  'manometros',
-  'contadores'
+  'nps'
 ];
 
 function parseGestorTab(value: string | null): GestorTab {
+  if (value === 'manometros' || value === 'contadores') return 'equipamentos';
   return gestorTabs.includes(value as GestorTab) ? value as GestorTab : 'pendentes';
 }
 
@@ -519,6 +522,88 @@ function canSendProjectSurvey(project: Project) {
   return true;
 }
 
+function surveyStatusLabel(survey: SatisfactionSurveySummary) {
+  if (survey.respondedAt) return { label: 'Respondida', className: 'status-approved' };
+  return { label: 'Pendente', className: 'status-pending' };
+}
+
+function surveyResponseValue(value: unknown, fallback = 'Não respondido') {
+  if (value === undefined || value === null || value === '') return fallback;
+  return String(value);
+}
+
+function npsResponseRows(responses?: SurveyResponses | null, questions: SurveyQuestion[] = []) {
+  if (questions.length) {
+    return questions.map(question => [question.label, surveyResponseValue(responses?.[question.id])]);
+  }
+  return [
+    ['Probabilidade de recomendar a Filtrovali', surveyResponseValue(responses?.nps)],
+    ['Qualidade dos serviços prestados', surveyResponseValue(responses?.serviceQuality)],
+    ['Comunicação da equipe durante o projeto', surveyResponseValue(responses?.communication)],
+    ['Cumprimento de prazos', surveyResponseValue(responses?.deadlines)],
+    ['Qualidade da documentação entregue', surveyResponseValue(responses?.documentation)],
+    ['O que podemos melhorar?', surveyResponseValue(responses?.improvement)],
+    ['Algo que gostaria de destacar?', surveyResponseValue(responses?.highlight)]
+  ];
+}
+
+function npsProjectTitle(survey: SatisfactionSurveySummary & { project?: { code?: string; name?: string } | null }) {
+  return [survey.project?.code, survey.project?.name].filter(Boolean).join(' - ') || 'Projeto não informado';
+}
+
+function npsProjectKey(survey: SatisfactionSurveySummary & { project?: { id?: string } | null }) {
+  return survey.project?.id || survey.projectId || survey.id;
+}
+
+function surveyQuestionToDraft(question: SurveyQuestion): SurveyQuestionDraft {
+  return {
+    id: question.id,
+    label: question.label,
+    type: question.type,
+    required: question.required,
+    optionsText: (question.options || []).join('\n')
+  };
+}
+
+function newSurveyQuestionDraft(): SurveyQuestionDraft {
+  return {
+    id: `new-${Date.now()}`,
+    label: '',
+    type: 'TEXT',
+    required: false,
+    optionsText: ''
+  };
+}
+
+function draftToSurveyQuestion(question: SurveyQuestionDraft): Omit<SurveyQuestion, 'order'> {
+  const options = question.type === 'SELECT'
+    ? question.optionsText
+      .split(/\n|,/)
+      .map(option => option.trim())
+      .filter(Boolean)
+    : [];
+  return {
+    id: question.id,
+    label: question.label.trim(),
+    type: question.type,
+    required: question.required,
+    options
+  };
+}
+
+function surveyDraftOptions(question: SurveyQuestionDraft) {
+  return question.optionsText
+    .split(/\n|,/)
+    .map(option => option.trim())
+    .filter(Boolean);
+}
+
+function scalePreviewValues(type: SurveyQuestionType) {
+  if (type === 'NPS') return Array.from({ length: 11 }, (_, index) => index);
+  if (type === 'SCALE') return [1, 2, 3, 4, 5];
+  return [];
+}
+
 function applyProjectVisibilityMode(mode: ProjectVisibilityMode): Pick<ProjectFormState, 'managerOnly' | 'visibleToCollaborators'> {
   if (mode === 'manager-only') return { managerOnly: true, visibleToCollaborators: false };
   if (mode === 'all-authorized') return { managerOnly: false, visibleToCollaborators: true };
@@ -870,6 +955,15 @@ export function GestorPage() {
   const [projectEditingId, setProjectEditingId] = useState<string | null>(null);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [archiveSurveyProject, setArchiveSurveyProject] = useState<Project | null>(null);
+  const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
+  const [equipmentSubTab, setEquipmentSubTab] = useState<EquipmentSubTab>('unidades');
+  const [npsSortDir, setNpsSortDir] = useState<'asc' | 'desc'>('asc');
+  const [showSurveyQuestionEditor, setShowSurveyQuestionEditor] = useState(false);
+  const [surveyQuestionDrafts, setSurveyQuestionDrafts] = useState<SurveyQuestionDraft[]>([]);
+  const [draggedSurveyQuestionId, setDraggedSurveyQuestionId] = useState<string | null>(null);
+  const [dragOverSurveyQuestionId, setDragOverSurveyQuestionId] = useState<string | null>(null);
+  const [surveyOptionInputs, setSurveyOptionInputs] = useState<Record<string, string>>({});
+  const surveyQuestionEditorListRef = useRef<HTMLDivElement | null>(null);
 
   const [collaboratorForm, setCollaboratorForm] = useState<CollaboratorFormState>(emptyCollaboratorForm);
   const [collaboratorEditingId, setCollaboratorEditingId] = useState<string | null>(null);
@@ -909,6 +1003,8 @@ export function GestorPage() {
   const unitsQuery = useUnits();
   const manometersQuery = useManometers();
   const countersQuery = useCounters();
+  const surveysQuery = useSurveys();
+  const surveyQuestionsQuery = useSurveyQuestions();
 
   const projectMutations = useProjectMutations();
   const surveyMutations = useSurveyMutations();
@@ -1280,6 +1376,107 @@ export function GestorPage() {
       showToast('Pesquisa reenviada ao cliente.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível reenviar a pesquisa.', 'error');
+    }
+  }
+
+  function openSurveyQuestionEditor() {
+    if (surveyQuestionsQuery.isLoading) {
+      showToast('Carregando perguntas da pesquisa.', 'info');
+      return;
+    }
+    setSurveyQuestionDrafts((surveyQuestionsQuery.data || []).map(surveyQuestionToDraft));
+    setShowSurveyQuestionEditor(true);
+  }
+
+  function updateSurveyQuestionDraft(index: number, patch: Partial<SurveyQuestionDraft>) {
+    setSurveyQuestionDrafts(current => current.map((question, itemIndex) => (
+      itemIndex === index ? { ...question, ...patch } : question
+    )));
+  }
+
+  function moveSurveyQuestion(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+    setSurveyQuestionDrafts(current => {
+      const next = [...current];
+      const [item] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, item);
+      return next;
+    });
+  }
+
+  function addSurveyQuestionOption(index: number) {
+    const question = surveyQuestionDrafts[index];
+    if (!question) return;
+    const option = (surveyOptionInputs[question.id] || '').trim();
+    if (!option) return;
+    const nextOptions = Array.from(new Set([...surveyDraftOptions(question), option]));
+    updateSurveyQuestionDraft(index, { optionsText: nextOptions.join('\n') });
+    setSurveyOptionInputs(current => ({ ...current, [question.id]: '' }));
+  }
+
+  function removeSurveyQuestionOption(index: number, option: string) {
+    const question = surveyQuestionDrafts[index];
+    if (!question) return;
+    updateSurveyQuestionDraft(index, {
+      optionsText: surveyDraftOptions(question).filter(item => item !== option).join('\n')
+    });
+  }
+
+  function handleSurveyQuestionDragOver(event: DragEvent<HTMLElement>, questionId?: string) {
+    event.preventDefault();
+    if (questionId) setDragOverSurveyQuestionId(questionId);
+    const container = surveyQuestionEditorListRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const edgeSize = 88;
+    const scrollStep = 18;
+    if (event.clientY < rect.top + edgeSize) {
+      container.scrollTop -= scrollStep;
+    } else if (event.clientY > rect.bottom - edgeSize) {
+      container.scrollTop += scrollStep;
+    }
+  }
+
+  function handleSurveyQuestionDragStart(event: DragEvent<HTMLButtonElement>, questionId: string) {
+    setDraggedSurveyQuestionId(questionId);
+    setDragOverSurveyQuestionId(questionId);
+    const card = event.currentTarget.closest('.survey-question-card');
+    if (card instanceof HTMLElement) {
+      event.dataTransfer.setDragImage(card, Math.min(80, card.clientWidth / 2), 28);
+    }
+    event.dataTransfer.effectAllowed = 'move';
+  }
+
+  function addSurveyQuestionDraft() {
+    setSurveyQuestionDrafts(current => [...current, newSurveyQuestionDraft()]);
+    window.setTimeout(() => {
+      const container = surveyQuestionEditorListRef.current;
+      if (!container) return;
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+    }, 0);
+  }
+
+  async function handleSurveyQuestionsSubmit(event: FormEvent) {
+    event.preventDefault();
+    const questions = surveyQuestionDrafts
+      .map(draftToSurveyQuestion)
+      .filter(question => question.label);
+    if (!questions.length) {
+      showToast('Mantenha ao menos uma pergunta na pesquisa.', 'error');
+      return;
+    }
+    const invalidSelect = questions.find(question => question.type === 'SELECT' && !question.options.length);
+    if (invalidSelect) {
+      showToast(`Adicione opções para a pergunta: ${invalidSelect.label}`, 'error');
+      return;
+    }
+
+    try {
+      await surveyMutations.updateQuestions.mutateAsync(questions);
+      setShowSurveyQuestionEditor(false);
+      showToast('Perguntas da pesquisa atualizadas.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível atualizar a pesquisa.', 'error');
     }
   }
 
@@ -2702,7 +2899,7 @@ export function GestorPage() {
     );
   }
 
-  function renderEquipamentosTab() {
+  function renderUnidadesSubTab() {
     const units = (unitsQuery.data || [])
       .filter(item => matchesSearch(unitSearchParts(item), gestorSearch));
     const visibleGroupedUnits = groupUnits(units);
@@ -3088,6 +3285,165 @@ export function GestorPage() {
     );
   }
 
+  function renderEquipamentosTab() {
+    return (
+      <section className="page-card">
+        <div className="filter-tabs" role="tablist" aria-label="Categorias de equipamentos" onKeyDown={handleHorizontalTabListKeyDown}>
+          <button
+            className={`filter-tab ${equipmentSubTab === 'unidades' ? 'active' : ''}`}
+            type="button"
+            role="tab"
+            aria-selected={equipmentSubTab === 'unidades'}
+            onClick={() => setEquipmentSubTab('unidades')}
+          >
+            Unidades
+          </button>
+          <button
+            className={`filter-tab ${equipmentSubTab === 'manometros' ? 'active' : ''}`}
+            type="button"
+            role="tab"
+            aria-selected={equipmentSubTab === 'manometros'}
+            onClick={() => setEquipmentSubTab('manometros')}
+          >
+            Manômetros
+          </button>
+          <button
+            className={`filter-tab ${equipmentSubTab === 'contadores' ? 'active' : ''}`}
+            type="button"
+            role="tab"
+            aria-selected={equipmentSubTab === 'contadores'}
+            onClick={() => setEquipmentSubTab('contadores')}
+          >
+            Contadores
+          </button>
+        </div>
+        <div className="admin-stack" style={{ marginTop: 12 }}>
+          {equipmentSubTab === 'unidades' ? renderUnidadesSubTab() : null}
+          {equipmentSubTab === 'manometros' ? renderManometrosTab() : null}
+          {equipmentSubTab === 'contadores' ? renderContadoresTab() : null}
+        </div>
+      </section>
+    );
+  }
+
+  function renderNpsTab() {
+    const surveys = (surveysQuery.data || [])
+      .filter(survey => survey.respondedAt || new Date(survey.expiresAt).getTime() > Date.now())
+      .filter(survey => {
+        const parts = [
+          survey.project?.code,
+          survey.project?.name,
+          survey.project?.clientName,
+          survey.emailTo,
+          survey.respondedAt ? 'respondida' : 'pendente'
+        ];
+        return matchesSearch(parts, gestorSearch);
+      });
+    const surveyGroups = Array.from(surveys.reduce((groups, survey) => {
+      const key = npsProjectKey(survey);
+      const current = groups.get(key);
+      if (current) {
+        current.surveys.push(survey);
+      } else {
+        groups.set(key, { key, title: npsProjectTitle(survey), clientName: survey.project?.clientName || '-', surveys: [survey] });
+      }
+      return groups;
+    }, new Map<string, { key: string; title: string; clientName: string; surveys: typeof surveys }>()).values())
+      .map(group => ({
+        ...group,
+        surveys: group.surveys.sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())
+      }))
+      .sort((a, b) => {
+        const titleA = a.title;
+        const titleB = b.title;
+        return npsSortDir === 'asc'
+          ? titleA.localeCompare(titleB, 'pt-BR', { numeric: true, sensitivity: 'base' })
+          : titleB.localeCompare(titleA, 'pt-BR', { numeric: true, sensitivity: 'base' });
+      });
+
+    if (surveysQuery.isLoading) {
+      return <div className="page-card placeholder-copy">Carregando pesquisas...</div>;
+    }
+
+    return (
+      <section className="page-card">
+        <div className="admin-section-head">
+          <div>
+            <div className="section-title">NPS</div>
+            <div className="admin-card-subtitle">Pesquisas pendentes e respondidas ainda válidas.</div>
+          </div>
+          <div className="admin-form-actions">
+            <button className="mini-btn alt" type="button" onClick={openSurveyQuestionEditor}>
+              Editar pesquisa
+            </button>
+            <ProjectSortButton
+              direction={npsSortDir}
+              onToggle={() => setNpsSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
+            />
+          </div>
+        </div>
+        {surveyGroups.length ? (
+          <div className="admin-stack">
+            {surveyGroups.map(group => {
+              return (
+                <article className="card admin-card" key={group.key}>
+                  <div className="admin-card-title">{group.title}</div>
+                  <div className="admin-card-meta">
+                    <span>{group.clientName}</span>
+                    <span>{group.surveys.length} pesquisa{group.surveys.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="admin-stack" style={{ marginTop: 12 }}>
+                    {group.surveys.map((survey, index) => {
+                      const status = surveyStatusLabel(survey);
+                      const open = openSurveyId === survey.id;
+                      return (
+                        <div className="report-type-group" key={survey.id}>
+                          <button
+                            className="client-account-group-toggle"
+                            type="button"
+                            onClick={() => setOpenSurveyId(current => current === survey.id ? null : survey.id)}
+                          >
+                            <span className="rtype-chevron">{open ? '▾' : '▸'}</span>
+                            <span>Pesquisa #{group.surveys.length - index}</span>
+                          </button>
+                          <div className="admin-card-meta">
+                            <span>Enviada: {formatDate(survey.sentAt)}</span>
+                            <span>Respondida: {survey.respondedAt ? formatDate(survey.respondedAt) : '-'}</span>
+                            <span className={`status-pill ${status.className}`}>{status.label}</span>
+                          </div>
+                          {open ? (
+                            survey.respondedAt ? (
+                              <div className="det-section" style={{ marginTop: 12 }}>
+                                {npsResponseRows(survey.responses, surveyQuestionsQuery.data || []).map(([question, answer]) => (
+                                  <div className="det-row" key={question}>
+                                    <span className="det-label">{question}</span>
+                                    <span className="det-val">{answer}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="placeholder-copy" style={{ marginTop: 12 }}>
+                                Pesquisa enviada, aguardando resposta do cliente.
+                              </p>
+                            )
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="placeholder-copy">
+            {gestorSearch.trim() ? 'Nenhuma pesquisa encontrada.' : 'Nenhuma pesquisa NPS disponível.'}
+          </p>
+        )}
+      </section>
+    );
+  }
+
   function renderGestorSearch() {
     const labels: Partial<Record<GestorTab, string>> = {
       aprovados: 'Buscar em aprovados',
@@ -3095,9 +3451,12 @@ export function GestorPage() {
       arquivados: 'Buscar em arquivados',
       equipe: 'Buscar na equipe',
       usuarios: 'Buscar em usuários',
-      equipamentos: 'Buscar em unidades',
-      manometros: 'Buscar em manômetros',
-      contadores: 'Buscar em contadores'
+      equipamentos: equipmentSubTab === 'unidades'
+        ? 'Buscar em unidades'
+        : equipmentSubTab === 'manometros'
+          ? 'Buscar em manômetros'
+          : 'Buscar em contadores',
+      nps: 'Buscar em pesquisas NPS'
     };
     const label = labels[tab];
     if (!label) return null;
@@ -3121,8 +3480,7 @@ export function GestorPage() {
     if (tab === 'equipe') return renderEquipeTab();
     if (tab === 'usuarios') return renderUsuariosTab();
     if (tab === 'equipamentos') return renderEquipamentosTab();
-    if (tab === 'manometros') return renderManometrosTab();
-    return renderContadoresTab();
+    return renderNpsTab();
   }
 
   function renderReportSummary() {
@@ -3195,13 +3553,10 @@ export function GestorPage() {
             Usuários
           </button>
           <button className={`nav-tab ${tab === 'equipamentos' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'equipamentos'} onClick={() => setTab('equipamentos')}>
-            Unidades
+            Equipamentos
           </button>
-          <button className={`nav-tab ${tab === 'manometros' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'manometros'} onClick={() => setTab('manometros')}>
-            {'Manômetros'}
-          </button>
-          <button className={`nav-tab ${tab === 'contadores' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'contadores'} onClick={() => setTab('contadores')}>
-            Contadores
+          <button className={`nav-tab ${tab === 'nps' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'nps'} onClick={() => setTab('nps')}>
+            NPS
           </button>
         </div>
       </div>
@@ -3248,6 +3603,185 @@ export function GestorPage() {
             Enviar pesquisa
           </button>
         </div>
+      </Modal>
+
+      <Modal
+        open={showSurveyQuestionEditor}
+        onClose={() => setShowSurveyQuestionEditor(false)}
+        ariaLabelledBy="survey-question-editor-title"
+        panelClassName="modal-card survey-question-editor-modal"
+      >
+        <form className="admin-form survey-question-editor-form" onSubmit={handleSurveyQuestionsSubmit}>
+          <div className="survey-question-editor-head">
+            <div className="section-title" id="survey-question-editor-title">Editar pesquisa NPS</div>
+            <button className="mini-btn alt" type="button" onClick={() => setShowSurveyQuestionEditor(false)}>
+              Fechar
+            </button>
+          </div>
+          <div
+            className="admin-stack survey-question-editor-list"
+            ref={surveyQuestionEditorListRef}
+            onDragOver={event => handleSurveyQuestionDragOver(event)}
+          >
+            {surveyQuestionDrafts.map((question, index) => (
+              <div
+                className={`card admin-card survey-question-card ${draggedSurveyQuestionId === question.id ? 'dragging' : ''} ${dragOverSurveyQuestionId === question.id && draggedSurveyQuestionId !== question.id ? 'drag-over' : ''}`}
+                key={question.id}
+                onDragEnter={() => setDragOverSurveyQuestionId(question.id)}
+                onDragOver={event => handleSurveyQuestionDragOver(event, question.id)}
+                onDrop={() => {
+                  const fromIndex = surveyQuestionDrafts.findIndex(item => item.id === draggedSurveyQuestionId);
+                  moveSurveyQuestion(fromIndex, index);
+                  setDraggedSurveyQuestionId(null);
+                  setDragOverSurveyQuestionId(null);
+                }}
+              >
+                <div className="admin-inline-grid">
+                  <div className="survey-question-drag-cell">
+                    <button
+                      className="survey-question-drag-handle"
+                      type="button"
+                      draggable
+                      onDragStart={event => handleSurveyQuestionDragStart(event, question.id)}
+                      onDragEnd={() => {
+                        setDraggedSurveyQuestionId(null);
+                        setDragOverSurveyQuestionId(null);
+                      }}
+                      title="Arrastar para reordenar"
+                      aria-label="Arrastar pergunta para reordenar"
+                    >
+                      <span aria-hidden="true">::</span>
+                    </button>
+                  </div>
+                  <div className="field-group field-group-wide">
+                    <label htmlFor={`survey-question-label-${question.id}`}>Pergunta</label>
+                    <input
+                      id={`survey-question-label-${question.id}`}
+                      value={question.label}
+                      onChange={event => updateSurveyQuestionDraft(index, { label: event.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="field-group survey-question-type-field">
+                    <label htmlFor={`survey-question-type-${question.id}`}>Tipo</label>
+                    <select
+                      id={`survey-question-type-${question.id}`}
+                      value={question.type}
+                      onChange={event => updateSurveyQuestionDraft(index, { type: event.target.value as SurveyQuestionType })}
+                    >
+                      <option value="NPS">NPS 0-10</option>
+                      <option value="SCALE">Escala 1-5</option>
+                      <option value="SELECT">Lista suspensa</option>
+                      <option value="TEXT">Campo de texto</option>
+                    </select>
+                  </div>
+                  <label className="checkbox-line">
+                    <input
+                      type="checkbox"
+                      checked={question.required}
+                      onChange={event => updateSurveyQuestionDraft(index, { required: event.target.checked })}
+                    />
+                    Obrigatória
+                  </label>
+                  {scalePreviewValues(question.type).length ? (
+                    <div className="field-group field-group-wide">
+                      <label>Exemplo</label>
+                      <div className="survey-scale-row preview" aria-hidden="true">
+                        {scalePreviewValues(question.type).map(value => (
+                          <span className="survey-scale-option" key={value}>
+                            <span className="survey-scale-dot">{value}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {question.type === 'SELECT' ? (
+                    <div className="field-group field-group-wide">
+                      <label htmlFor={`survey-question-option-input-${question.id}`}>Opções</label>
+                      <div className="inline-add-row">
+                        <input
+                          id={`survey-question-option-input-${question.id}`}
+                          placeholder="Adicionar opção..."
+                          value={surveyOptionInputs[question.id] || ''}
+                          onChange={event => setSurveyOptionInputs(current => ({ ...current, [question.id]: event.target.value }))}
+                          onKeyDown={event => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              addSurveyQuestionOption(index);
+                            }
+                          }}
+                        />
+                        <button className="mini-btn alt" type="button" onClick={() => addSurveyQuestionOption(index)}>
+                          Adicionar
+                        </button>
+                      </div>
+                      {surveyDraftOptions(question).length ? (
+                        <div className="survey-option-list">
+                          {surveyDraftOptions(question).map(option => (
+                            <span className="colab-tag" key={option}>
+                              <span>{option}</span>
+                              <button type="button" onClick={() => removeSurveyQuestionOption(index, option)}>×</button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="placeholder-copy">Nenhuma opção adicionada.</div>
+                      )}
+                    </div>
+                  ) : null}
+                  <div className="admin-form-actions">
+                    <button
+                      className="mini-btn alt"
+                      type="button"
+                      disabled={index === 0}
+                      onClick={() => setSurveyQuestionDrafts(current => {
+                        const next = [...current];
+                        const previous = next[index - 1];
+                        next[index - 1] = next[index];
+                        next[index] = previous;
+                        return next;
+                      })}
+                    >
+                      Subir
+                    </button>
+                    <button
+                      className="mini-btn alt"
+                      type="button"
+                      disabled={index === surveyQuestionDrafts.length - 1}
+                      onClick={() => setSurveyQuestionDrafts(current => {
+                        const next = [...current];
+                        const nextItem = next[index + 1];
+                        next[index + 1] = next[index];
+                        next[index] = nextItem;
+                        return next;
+                      })}
+                    >
+                      Descer
+                    </button>
+                    <button
+                      className="mini-btn danger"
+                      type="button"
+                      onClick={() => setSurveyQuestionDrafts(current => current.filter((_, itemIndex) => itemIndex !== index))}
+                    >
+                      Remover
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="admin-form-actions survey-question-editor-actions">
+            <button className="mini-btn alt" type="button" onClick={addSurveyQuestionDraft}>
+              + Pergunta
+            </button>
+            <button className="secondary-button" type="button" onClick={() => setShowSurveyQuestionEditor(false)}>
+              Cancelar
+            </button>
+            <button className="primary-button" type="submit" disabled={surveyMutations.updateQuestions.isPending}>
+              Salvar pesquisa
+            </button>
+          </div>
+        </form>
       </Modal>
     </Shell>
   );

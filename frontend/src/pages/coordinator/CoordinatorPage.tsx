@@ -2,12 +2,14 @@
 import { useNavigate } from 'react-router-dom';
 
 import { downloadReportPdf } from '../../api/reports';
+import type { SurveyQuestion, SurveyResponses } from '../../api/surveys';
 import { useAuth } from '../../auth/AuthContext';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { useToast } from '../../components/ui/Toast';
 import { useProjects } from '../../hooks/useProjects';
 import { useReports } from '../../hooks/useReports';
+import { useSurveyQuestions, useSurveys } from '../../hooks/useSurveys';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
@@ -18,7 +20,7 @@ import { reportDownloadFileName } from '../../utils/reportFileName';
 import { matchesSearch, projectSearchParts, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
-type CoordinatorTab = 'pending' | 'approved' | 'archived';
+type CoordinatorTab = 'pending' | 'approved' | 'archived' | 'nps';
 
 const TEXT = {
   archived: 'Arquivados',
@@ -59,6 +61,39 @@ function surveyHistoryBadges(project: Project) {
   });
 }
 
+function surveyStatusLabel(survey: SatisfactionSurveySummary) {
+  if (survey.respondedAt) return { label: 'Respondida', className: 'status-approved' };
+  return { label: 'Pendente', className: 'status-pending' };
+}
+
+function surveyResponseValue(value: unknown, fallback = 'Não respondido') {
+  if (value === undefined || value === null || value === '') return fallback;
+  return String(value);
+}
+
+function npsResponseRows(responses?: SurveyResponses | null, questions: SurveyQuestion[] = []) {
+  if (questions.length) {
+    return questions.map(question => [question.label, surveyResponseValue(responses?.[question.id])]);
+  }
+  return [
+    ['Probabilidade de recomendar a Filtrovali', surveyResponseValue(responses?.nps)],
+    ['Qualidade dos serviços prestados', surveyResponseValue(responses?.serviceQuality)],
+    ['Comunicação da equipe durante o projeto', surveyResponseValue(responses?.communication)],
+    ['Cumprimento de prazos', surveyResponseValue(responses?.deadlines)],
+    ['Qualidade da documentação entregue', surveyResponseValue(responses?.documentation)],
+    ['O que podemos melhorar?', surveyResponseValue(responses?.improvement)],
+    ['Algo que gostaria de destacar?', surveyResponseValue(responses?.highlight)]
+  ];
+}
+
+function npsProjectTitle(survey: SatisfactionSurveySummary & { project?: { code?: string; name?: string } | null }) {
+  return [survey.project?.code, survey.project?.name].filter(Boolean).join(' - ') || 'Projeto não informado';
+}
+
+function npsProjectKey(survey: SatisfactionSurveySummary & { project?: { id?: string } | null }) {
+  return survey.project?.id || survey.projectId || survey.id;
+}
+
 export function CoordinatorPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -66,12 +101,16 @@ export function CoordinatorPage() {
   const [tab, setTab] = useState<CoordinatorTab>('pending');
   const [search, setSearch] = useState('');
   const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
+  const [npsSortDir, setNpsSortDir] = useState<ProjectSortDirection>('asc');
+  const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
   const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>([]);
   const [closedArchivedTypeKeys, setClosedArchivedTypeKeys] = useState<string[]>([]);
   const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, ProjectSortDirection>>({});
   const showToast = useToast();
   const reportsQuery = useReports();
   const archivedProjectsQuery = useProjects(false);
+  const surveysQuery = useSurveys();
+  const surveyQuestionsQuery = useSurveyQuestions();
 
   const pendingReports = useMemo(
     () =>
@@ -314,6 +353,7 @@ export function CoordinatorPage() {
 
   function renderTabContent() {
     if (tab === 'archived') return renderArchivedTab();
+    if (tab === 'nps') return renderNpsTab();
 
     if (reportsQuery.isLoading) return <div className="page-card placeholder-copy">{TEXT.loading}</div>;
 
@@ -337,6 +377,119 @@ export function CoordinatorPage() {
         ) : null}
         {renderReportGroups()}
       </>
+    );
+  }
+
+  function renderNpsTab() {
+    const surveys = (surveysQuery.data || [])
+      .filter(survey => survey.respondedAt || new Date(survey.expiresAt).getTime() > Date.now())
+      .filter(survey => {
+        const parts = [
+          survey.project?.code,
+          survey.project?.name,
+          survey.project?.clientName,
+          survey.emailTo,
+          survey.respondedAt ? 'respondida' : 'pendente'
+        ];
+        return matchesSearch(parts, search);
+      });
+    const surveyGroups = Array.from(surveys.reduce((groups, survey) => {
+      const key = npsProjectKey(survey);
+      const current = groups.get(key);
+      if (current) {
+        current.surveys.push(survey);
+      } else {
+        groups.set(key, { key, title: npsProjectTitle(survey), clientName: survey.project?.clientName || '-', surveys: [survey] });
+      }
+      return groups;
+    }, new Map<string, { key: string; title: string; clientName: string; surveys: typeof surveys }>()).values())
+      .map(group => ({
+        ...group,
+        surveys: group.surveys.sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())
+      }))
+      .sort((a, b) => {
+        const titleA = a.title;
+        const titleB = b.title;
+        return npsSortDir === 'asc'
+          ? titleA.localeCompare(titleB, 'pt-BR', { numeric: true, sensitivity: 'base' })
+          : titleB.localeCompare(titleA, 'pt-BR', { numeric: true, sensitivity: 'base' });
+      });
+
+    if (surveysQuery.isLoading) {
+      return <div className="page-card placeholder-copy">Carregando pesquisas...</div>;
+    }
+
+    return (
+      <section className="page-card">
+        <div className="admin-section-head">
+          <div>
+            <div className="section-title">NPS</div>
+            <div className="admin-card-subtitle">Pesquisas pendentes e respondidas ainda válidas.</div>
+          </div>
+          <ProjectSortButton
+            direction={npsSortDir}
+            onToggle={() => setNpsSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
+          />
+        </div>
+        {surveyGroups.length ? (
+          <div className="admin-stack">
+            {surveyGroups.map(group => {
+              return (
+                <article className="card admin-card" key={group.key}>
+                  <div className="admin-card-title">{group.title}</div>
+                  <div className="admin-card-meta">
+                    <span>{group.clientName}</span>
+                    <span>{group.surveys.length} pesquisa{group.surveys.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="admin-stack" style={{ marginTop: 12 }}>
+                    {group.surveys.map((survey, index) => {
+                      const status = surveyStatusLabel(survey);
+                      const open = openSurveyId === survey.id;
+                      return (
+                        <div className="report-type-group" key={survey.id}>
+                          <button
+                            className="client-account-group-toggle"
+                            type="button"
+                            onClick={() => setOpenSurveyId(current => current === survey.id ? null : survey.id)}
+                          >
+                            <span className="rtype-chevron">{open ? '▾' : '▸'}</span>
+                            <span>Pesquisa #{group.surveys.length - index}</span>
+                          </button>
+                          <div className="admin-card-meta">
+                            <span>Enviada: {formatSurveyDate(survey.sentAt)}</span>
+                            <span>Respondida: {survey.respondedAt ? formatSurveyDate(survey.respondedAt) : '-'}</span>
+                            <span className={`status-pill ${status.className}`}>{status.label}</span>
+                          </div>
+                          {open ? (
+                            survey.respondedAt ? (
+                              <div className="det-section" style={{ marginTop: 12 }}>
+                                {npsResponseRows(survey.responses, surveyQuestionsQuery.data || []).map(([question, answer]) => (
+                                  <div className="det-row" key={question}>
+                                    <span className="det-label">{question}</span>
+                                    <span className="det-val">{answer}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="placeholder-copy" style={{ marginTop: 12 }}>
+                                Pesquisa enviada, aguardando resposta do cliente.
+                              </p>
+                            )
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="placeholder-copy">
+            {search.trim() ? 'Nenhuma pesquisa encontrada.' : 'Nenhuma pesquisa NPS disponível.'}
+          </p>
+        )}
+      </section>
     );
   }
 
@@ -369,6 +522,9 @@ export function CoordinatorPage() {
           <button className={`nav-tab ${tab === 'archived' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'archived'} onClick={() => setTab('archived')}>
             {TEXT.archived}
           </button>
+          <button className={`nav-tab ${tab === 'nps' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'nps'} onClick={() => setTab('nps')}>
+            NPS
+          </button>
         </div>
       </div>
       <main className="page-scroll">
@@ -376,8 +532,8 @@ export function CoordinatorPage() {
           <div className="section-title">{TEXT.reports}</div>
           <div className="admin-search-row">
             <input
-              aria-label={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : 'aprovados'}`}
-              placeholder={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : 'aprovados'}`}
+              aria-label={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : tab === 'nps' ? 'pesquisas NPS' : 'aprovados'}`}
+              placeholder={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : tab === 'nps' ? 'pesquisas NPS' : 'aprovados'}`}
               value={search}
               onChange={event => setSearch(event.target.value)}
             />
