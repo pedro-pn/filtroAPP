@@ -6,7 +6,12 @@ import test from 'node:test';
 
 import { PDFDocument } from 'pdf-lib';
 
-import { sha256Hex, signInternalReportVersion, writeFinalEvidencePdf } from '../src/lib/internal-report-signatures.js';
+import {
+  createValidationQrCodeMatrix,
+  sha256Hex,
+  signInternalReportVersion,
+  writeFinalEvidencePdf
+} from '../src/lib/internal-report-signatures.js';
 
 const tinyPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
@@ -81,6 +86,7 @@ test('writeFinalEvidencePdf creates final PDF with evidence page and hash', asyn
     version: {
       sourceDocumentHash: sha256Hex(Buffer.from(sourceBytes))
     },
+    validationCode: 'codigo-publico-teste',
     signatures: [
       {
         status: 'SIGNED',
@@ -102,4 +108,15 @@ test('writeFinalEvidencePdf creates final PDF with evidence page and hash', asyn
   assert.equal(finalPdf.getPageCount(), 2);
   assert.equal(result.finalDocumentHash, sha256Hex(finalBytes));
   assert.notEqual(result.finalDocumentHash, sha256Hex(Buffer.from(sourceBytes)));
+});
+
+test('createValidationQrCodeMatrix creates a square QR matrix for validation URLs', () => {
+  const matrix = createValidationQrCodeMatrix('/validar-assinatura/codigo-publico-teste');
+
+  assert.ok(Array.isArray(matrix));
+  assert.ok(matrix.length >= 21);
+  assert.equal(matrix.length, matrix[0].length);
+  assert.equal(matrix[0][0], true);
+  assert.equal(matrix[6][0], true);
+  assert.equal(matrix[6][6], true);
 });

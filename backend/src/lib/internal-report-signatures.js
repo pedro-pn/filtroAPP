@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import {
@@ -12,9 +13,14 @@ import {
 } from '@prisma/client';
 
 import env from '../config/env.js';
+import { createValidationQrCodeMatrix } from './qr-code.js';
 
 export const INTERNAL_SIGNATURE_PROGRESS_KEY = '__internalSignatureProgress';
 export const INTERNAL_SIGNATURE_TOKEN_DAYS = 30;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const evidenceLogoPath = path.resolve(__dirname, '../../assets/Logo/LOGO_COLORIDO.png');
 
 export function sha256Hex(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
@@ -423,12 +429,9 @@ export function allRequiredSignaturesCompleted(version) {
   return required.length > 0 && required.every(signature => signature.status === ReportSignatureStatus.SIGNED);
 }
 
-function maskedIp(value) {
+function signatureIp(value) {
   const ip = stringValue(value);
-  const ipv4 = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-  if (ipv4) return `${ipv4[1]}.${ipv4[2]}.xxx.xxx`;
-  if (ip.includes(':')) return `${ip.split(':').slice(0, 2).join(':')}:xxxx`;
-  return ip ? 'registrado' : '-';
+  return ip || '-';
 }
 
 function summarizedUserAgent(value) {
@@ -439,6 +442,58 @@ function summarizedUserAgent(value) {
 
 function drawText(page, text, x, y, options) {
   page.drawText(String(text || ''), { x, y, ...options });
+}
+
+function drawValidationQrCode(page, text, x, y, size) {
+  const matrix = createValidationQrCodeMatrix(text);
+  if (!matrix) return false;
+
+  const quietZone = 4;
+  const moduleSize = size / (matrix.length + quietZone * 2);
+  const fullSize = moduleSize * (matrix.length + quietZone * 2);
+  page.drawRectangle({
+    x,
+    y,
+    width: fullSize,
+    height: fullSize,
+    color: rgb(1, 1, 1),
+    borderColor: rgb(0.78, 0.81, 0.85),
+    borderWidth: 0.6
+  });
+
+  for (let row = 0; row < matrix.length; row += 1) {
+    for (let col = 0; col < matrix.length; col += 1) {
+      if (!matrix[row][col]) continue;
+      page.drawRectangle({
+        x: x + (col + quietZone) * moduleSize,
+        y: y + (matrix.length - row - 1 + quietZone) * moduleSize,
+        width: moduleSize,
+        height: moduleSize,
+        color: rgb(0.02, 0.02, 0.02)
+      });
+    }
+  }
+  return true;
+}
+
+async function drawEvidenceLogo(pdf, page) {
+  try {
+    const bytes = await fs.readFile(evidenceLogoPath);
+    const logo = await pdf.embedPng(bytes);
+    const maxWidth = 112;
+    const maxHeight = 44;
+    const scale = Math.min(maxWidth / logo.width, maxHeight / logo.height, 1);
+    const width = logo.width * scale;
+    const height = logo.height * scale;
+    page.drawImage(logo, {
+      x: 595.28 - 48 - width,
+      y: 790 - height + 4,
+      width,
+      height
+    });
+  } catch {
+    // A ausencia da logo nao deve impedir a geracao do PDF assinado.
+  }
 }
 
 async function embedSignatureImage(pdf, signature) {
@@ -471,6 +526,7 @@ export async function writeFinalEvidencePdf({
   const muted = rgb(0.35, 0.39, 0.46);
   let y = 790;
 
+  await drawEvidenceLogo(pdf, page);
   drawText(page, 'ASSINATURA ELETRONICA - FILTROVALI RDO', 48, y, { font: bold, size: 15, color: black });
   y -= 30;
   drawText(page, `Relatorio: ${report.reportType || 'RDO'} ${report.sequenceNumber || ''}`, 48, y, { font, size: 10, color: muted });
@@ -479,10 +535,14 @@ export async function writeFinalEvidencePdf({
   y -= 16;
   drawText(page, `Hash PDF-base: ${version.sourceDocumentHash}`, 48, y, { font, size: 9, color: muted });
   if (validationCode) {
+    const validationUrl = signatureValidationUrl(validationCode);
     y -= 16;
     drawText(page, `Codigo de validacao: ${validationCode}`, 48, y, { font, size: 9, color: muted });
     y -= 16;
-    drawText(page, `Validar documento: ${signatureValidationUrl(validationCode)}`, 48, y, { font, size: 9, color: muted });
+    drawText(page, `Validar documento: ${validationUrl}`, 48, y, { font, size: 9, color: muted });
+    if (drawValidationQrCode(page, validationUrl, 462, 670, 76)) {
+      drawText(page, 'Escaneie para validar', 462, 657, { font, size: 8, color: muted });
+    }
   }
   y -= 28;
 
@@ -500,7 +560,7 @@ export async function writeFinalEvidencePdf({
     y -= 15;
     drawText(page, `Data/Hora UTC: ${signature.signedAt ? new Date(signature.signedAt).toISOString() : '-'}`, 48, y, { font, size: 10, color: black });
     y -= 15;
-    drawText(page, `IP: ${maskedIp(signature.ipAddress)}`, 48, y, { font, size: 10, color: black });
+    drawText(page, `IP: ${signatureIp(signature.ipAddress)}`, 48, y, { font, size: 10, color: black });
     y -= 15;
     drawText(page, `Navegador: ${summarizedUserAgent(signature.userAgent)}`, 48, y, { font, size: 10, color: black });
     y -= 18;
@@ -547,4 +607,4 @@ export async function writeFinalEvidencePdf({
   };
 }
 
-export { ReportAuditAction, ReportSignatureStatus, ReportVersionStatus };
+export { createValidationQrCodeMatrix, ReportAuditAction, ReportSignatureStatus, ReportVersionStatus };

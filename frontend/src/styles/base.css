@@ -2143,8 +2143,14 @@ a {
 
 .survey-header img {
   width: 100%;
+  max-width: 100%;
   height: auto;
   display: block;
+}
+
+.public-signature-page .survey-header,
+.signature-validation-page .survey-header {
+  width: min(100%, 420px);
 }
 
 .survey-card {
