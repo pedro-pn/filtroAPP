@@ -24,6 +24,18 @@ export function createInternalSignatureToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+export function createSignatureValidationCode() {
+  return crypto.randomBytes(18).toString('base64url');
+}
+
+export function signatureValidationUrl(validationCode) {
+  const code = stringValue(validationCode);
+  if (!code) return '';
+  const base = String(env.appUrl || '').replace(/\/+$/, '');
+  const pathPart = `/validar-assinatura/${encodeURIComponent(code)}`;
+  return base ? `${base}${pathPart}` : pathPart;
+}
+
 export function internalSignatureTokenHash(token) {
   return crypto.createHash('sha256').update(String(token || '')).digest('hex');
 }
@@ -371,11 +383,13 @@ export async function signInternalReportVersion(tx, {
   if (signature.status === ReportSignatureStatus.SIGNED) {
     return { alreadySigned: true };
   }
+  const signerName = stringValue(signer?.name) || stringValue(signature.signerName) || 'Cliente';
 
   await tx.reportSignature.update({
     where: { id: signature.id },
     data: {
       status: ReportSignatureStatus.SIGNED,
+      signerName,
       userId,
       ipAddress: evidence.ipAddress || null,
       userAgent: evidence.userAgent || null,
@@ -389,7 +403,7 @@ export async function signInternalReportVersion(tx, {
     versionId: version.id,
     userId,
     action: ReportAuditAction.SIGNED,
-    description: `${signer.name} assinou o relatorio.`,
+    description: `${signerName} assinou o relatorio.`,
     evidence
   });
 
@@ -445,7 +459,8 @@ export async function writeFinalEvidencePdf({
   sourcePdfUrl,
   report,
   version,
-  signatures
+  signatures,
+  validationCode
 }) {
   const sourceBytes = await fs.readFile(sourcePdfPath);
   const pdf = await PDFDocument.load(sourceBytes);
@@ -463,6 +478,12 @@ export async function writeFinalEvidencePdf({
   drawText(page, `Projeto: ${report.project?.code || '---'} - ${report.project?.name || 'Sem projeto'}`, 48, y, { font, size: 10, color: muted });
   y -= 16;
   drawText(page, `Hash PDF-base: ${version.sourceDocumentHash}`, 48, y, { font, size: 9, color: muted });
+  if (validationCode) {
+    y -= 16;
+    drawText(page, `Codigo de validacao: ${validationCode}`, 48, y, { font, size: 9, color: muted });
+    y -= 16;
+    drawText(page, `Validar documento: ${signatureValidationUrl(validationCode)}`, 48, y, { font, size: 9, color: muted });
+  }
   y -= 28;
 
   for (const signature of signatures) {

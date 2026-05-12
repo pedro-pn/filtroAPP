@@ -96,6 +96,18 @@ export async function removeProjectById(projectId, prismaClient = prisma) {
     });
     const reportIds = reports.map(report => report.id);
 
+    if (reportIds.length > 0) {
+      await tx.project.update({
+        where: { id: projectId },
+        data: {
+          isActive: false,
+          deletedAt: new Date()
+        }
+      });
+      await clearPendingProjectZapSignState(tx, projectId);
+      return;
+    }
+
     await tx.reportDraft.updateMany({
       where: { projectId },
       data: { projectId: null }
@@ -127,7 +139,7 @@ export async function removeProjectById(projectId, prismaClient = prisma) {
 
 router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const activeParam = req.query.active;
-  const where = {};
+  const where = { deletedAt: null };
   if (req.auth.user.role === 'MANAGER') {
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;

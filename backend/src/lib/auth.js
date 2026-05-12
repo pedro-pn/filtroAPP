@@ -57,6 +57,7 @@ export function publicUser(user) {
     accountType: user.accountType || accountTypeForLegacyRole(user.role),
     moduleRoles: serializeModuleRoles(user),
     isActive: user.isActive,
+    clientCnpj: user.clientCnpj || null,
     collaboratorId: user.collaboratorId || null,
     collaborator: user.collaborator
       ? {

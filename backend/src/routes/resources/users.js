@@ -224,13 +224,18 @@ router.get('/', asyncHandler(async (req, res) => {
 
   const clientUsers = users.filter(user => user.role === UserRole.CLIENT);
 
-  const cnpjUsernames = clientUsers.map(u => u.username).filter(u => /^\d{14}$/.test(u));
+  const cnpjUsernames = clientUsers
+    .flatMap(u => [u.username, u.clientCnpj])
+    .filter(Boolean)
+    .map(value => String(value).replace(/\D/g, ''))
+    .filter(value => /^\d{14}$/.test(value));
   const ccEmails = clientUsers.map(u => u.email).filter(Boolean).map(e => e.toLowerCase());
 
   const linkedProjects = clientUsers.length
     ? await prisma.project.findMany({
         where: {
           managerOnly: false,
+          deletedAt: null,
           OR: [
             ...(cnpjUsernames.length ? [{ clientCnpj: { in: cnpjUsernames } }] : []),
             ...(ccEmails.length ? [{ clientEmailCc: { hasSome: ccEmails } }] : [])
@@ -250,16 +255,17 @@ router.get('/', asyncHandler(async (req, res) => {
 
   res.json(users.map(user => {
     const isCnpj = /^\d{14}$/.test(user.username);
+    const storedClientCnpj = String(user.clientCnpj || '').replace(/\D/g, '') || null;
     const userEmail = String(user.email || '').toLowerCase();
     const projects = linkedProjects.filter(p => {
-      if (isCnpj && p.clientCnpj === user.username) return true;
+      if ((isCnpj && p.clientCnpj === user.username) || (storedClientCnpj && p.clientCnpj === storedClientCnpj)) return true;
       if (!isCnpj && userEmail && Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail)) return true;
       return false;
     });
     return {
       ...publicUser(user),
       linkedProjects: projects,
-      clientCnpj: isCnpj ? user.username : (linkedProjects.find(p => Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail))?.clientCnpj || null)
+      clientCnpj: storedClientCnpj || (isCnpj ? user.username : (linkedProjects.find(p => Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail))?.clientCnpj || null))
     };
   }));
 }));

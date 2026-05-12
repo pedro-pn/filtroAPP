@@ -19,6 +19,7 @@ export interface AuthUser {
   accountType: AccountType;
   moduleRoles: ModuleRole[];
   isActive: boolean;
+  clientCnpj?: string | null;
   collaboratorId?: string | null;
 }
 

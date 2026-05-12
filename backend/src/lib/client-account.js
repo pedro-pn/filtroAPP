@@ -70,6 +70,7 @@ export async function ensureClientAccountForProject(prisma, projectData, options
       data: {
         name: project.clientName,
         email: primaryEmail,
+        clientCnpj,
         isActive: true,
         accountType: 'CLIENT',
         moduleRoles: {
@@ -89,6 +90,7 @@ export async function ensureClientAccountForProject(prisma, projectData, options
         email: primaryEmail,
         passwordHash,
         role: 'CLIENT',
+        clientCnpj,
         accountType: 'CLIENT',
         isActive: true,
         moduleRoles: {
@@ -173,6 +175,7 @@ export async function ensureClientCcAccounts(prisma, projectData, options = {}) 
         data: {
           name,
           email,
+          clientCnpj: projectData.clientCnpj,
           isActive: true,
           accountType: 'CLIENT',
           moduleRoles: {
@@ -193,6 +196,7 @@ export async function ensureClientCcAccounts(prisma, projectData, options = {}) 
         email,
         passwordHash,
         role: 'CLIENT',
+        clientCnpj: projectData.clientCnpj,
         accountType: 'CLIENT',
         isActive: true,
         moduleRoles: {

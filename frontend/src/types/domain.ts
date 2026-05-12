@@ -79,6 +79,7 @@ export interface Project {
   surveys?: SatisfactionSurveySummary[];
   createdAt?: string;
   updatedAt?: string;
+  deletedAt?: string | null;
 }
 
 export interface Equipment {
@@ -186,6 +187,7 @@ export interface ReportSummary {
   returnedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
   project: Project;
   collaborators?: Array<{
     collaboratorId: string;

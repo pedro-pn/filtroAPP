@@ -1141,6 +1141,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
 }
 
 function ReportDetailActions({ report, role }: { report: ReportSummary; role?: string }) {
+  const { user } = useAuth();
   const reportMutations = useReportMutations();
   const showToast = useToast();
   const [clientRejectOpen, setClientRejectOpen] = useState(false);
@@ -1160,11 +1161,26 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
     }
   }
 
-  async function handleRequestSignature(signatureImageDataUrl: string) {
+  const initialSignerName = useMemo(() => {
+    const userEmail = String(user?.email || (user?.username?.includes('@') ? user.username : '') || '').trim().toLowerCase();
+    const matchingSignature = report.reportSignatures?.find(signature =>
+      String(signature.signerEmail || '').trim().toLowerCase() === userEmail
+    );
+    return matchingSignature?.signerName || user?.name || report.project.clientName || '';
+  }, [report.project.clientName, report.reportSignatures, user]);
+
+  async function handleRequestSignature({
+    signerName,
+    signatureImageDataUrl
+  }: {
+    signerName: string;
+    signatureImageDataUrl: string;
+  }) {
     try {
       const response = await reportMutations.requestSignature.mutateAsync({
         id: report.id,
         comment: clientComment.trim() || null,
+        signerName,
         signatureImageDataUrl
       });
       setSignatureOpen(false);
@@ -1238,9 +1254,11 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
       <SignatureConsentDialog
         open={signatureOpen}
         title="Assinar relatório"
+        initialSignerName={initialSignerName}
+        cacheIdentity={user?.email || user?.username || user?.id || ''}
         isSubmitting={reportMutations.requestSignature.isPending}
         onCancel={() => setSignatureOpen(false)}
-        onConfirm={signatureImageDataUrl => void handleRequestSignature(signatureImageDataUrl)}
+        onConfirm={payload => void handleRequestSignature(payload)}
       />
     </>
   );

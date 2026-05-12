@@ -31,10 +31,15 @@ export async function getPublicSignature(token: string) {
   return response.data;
 }
 
-export async function confirmPublicSignature(token: string, signatureImageDataUrl: string) {
+export interface PublicSignatureConfirmPayload {
+  signerName: string;
+  signatureImageDataUrl: string;
+}
+
+export async function confirmPublicSignature(token: string, payload: PublicSignatureConfirmPayload) {
   const response = await apiClient.post<{ success: boolean; completed: boolean; report: ReportSummary }>(
     `/reports/public-sign/${encodeURIComponent(token)}/confirm`,
-    { signatureImageDataUrl }
+    payload
   );
   return response.data;
 }

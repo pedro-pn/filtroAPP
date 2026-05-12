@@ -66,6 +66,21 @@ function reportLabel(report: ReportSummary) {
   return report.sequenceNumber ? `${report.reportType} ${report.sequenceNumber}` : report.reportType;
 }
 
+function userSignatureEmail(user: ReturnType<typeof useAuth>['user']) {
+  const email = String(user?.email || '').trim().toLowerCase();
+  if (email) return email;
+  const username = String(user?.username || '').trim().toLowerCase();
+  return username.includes('@') ? username : '';
+}
+
+function initialSignerNameForReport(report: ReportSummary | undefined, user: ReturnType<typeof useAuth>['user']) {
+  const email = userSignatureEmail(user);
+  const matchingSignature = report?.reportSignatures?.find(signature =>
+    String(signature.signerEmail || '').trim().toLowerCase() === email
+  );
+  return matchingSignature?.signerName || user?.name || report?.project.clientName || '';
+}
+
 function projectTitle(report: ReportSummary) {
   return [report.project.code, report.project.name].filter(Boolean).join(' - ') || report.project.name || report.projectId;
 }
@@ -111,6 +126,19 @@ function clientRejectionReviews(report: ReportSummary) {
   return (report.clientReviews || [])
     .filter(review => review.action === 'REJECTED')
     .sort((a, b) => clientReviewDateValue(b.createdAt) - clientReviewDateValue(a.createdAt));
+}
+
+function activeSpecialRejection(report: ReportSummary) {
+  const special = report.specialConditions || {};
+  const rejectedAt = clientReviewDateValue(typeof special.__clientRejectedAt === 'string' ? special.__clientRejectedAt : null);
+  const resolvedAt = clientReviewDateValue(typeof special.__clientRejectionResolvedAt === 'string' ? special.__clientRejectionResolvedAt : null);
+  if (!rejectedAt || report.status === 'SIGNED') return null;
+  if (resolvedAt && rejectedAt <= resolvedAt) return null;
+  const comment = typeof special.__clientRejectionComment === 'string' ? special.__clientRejectionComment : '';
+  return {
+    comment,
+    createdAt: typeof special.__clientRejectedAt === 'string' ? special.__clientRejectedAt : null
+  };
 }
 
 function isClientRejectedReport(report: ReportSummary) {
@@ -345,7 +373,13 @@ export function ClientPage() {
     setSignatureTargetIds(ids);
   }
 
-  async function confirmSignature(signatureImageDataUrl: string) {
+  async function confirmSignature({
+    signerName,
+    signatureImageDataUrl
+  }: {
+    signerName: string;
+    signatureImageDataUrl: string;
+  }) {
     const ids = signatureTargetIds;
     if (!ids.length) return;
     try {
@@ -358,6 +392,7 @@ export function ClientPage() {
         await reportMutations.requestSignature.mutateAsync({
           id,
           comment: selectedComments[id] || null,
+          signerName,
           signatureImageDataUrl
         });
       }
@@ -371,6 +406,12 @@ export function ClientPage() {
   function handleRequestSignature(report: ReportSummary) {
     setSignatureTargetIds([report.id]);
   }
+
+  const signatureTargetReport = useMemo(
+    () => activeProject?.reports.find(report => report.id === signatureTargetIds[0]),
+    [activeProject?.reports, signatureTargetIds]
+  );
+  const initialSignerName = initialSignerNameForReport(signatureTargetReport, user);
 
   async function handleReject(report: ReportSummary) {
     const comment = commentsById[report.id]?.trim();
@@ -401,6 +442,9 @@ export function ClientPage() {
       : false;
     const status = clientStatusMeta(report);
     const rejections = clientRejectionReviews(report);
+    const specialRejection = activeSpecialRejection(report);
+    const rejectionComments = new Set(rejections.map(review => normalizeClientComment(review.comment)));
+    const specialRejectionComment = normalizeClientComment(specialRejection?.comment);
     const serviceOnly = report.specialConditions?.serviceOnly === true;
     const subtitle = clientRejected
       ? 'Reprovado. Aguarde a alteração do gestor.'
@@ -456,7 +500,7 @@ export function ClientPage() {
           ) : null}
         </div>
         <SignatureProgress report={report} />
-        {rejections.length ? (
+        {rejections.length || specialRejectionComment ? (
           <div className="client-rejection-list">
             {rejections.map((review, index) => {
               const date = formatClientReviewDate(review.createdAt);
@@ -467,6 +511,12 @@ export function ClientPage() {
                 </div>
               );
             })}
+            {specialRejectionComment && !rejectionComments.has(specialRejectionComment) ? (
+              <div className="client-rejection-note">
+                <strong>Reprovação do cliente {formatClientReviewDate(specialRejection?.createdAt) ? `- ${formatClientReviewDate(specialRejection?.createdAt)}` : ''}:</strong>{' '}
+                {specialRejectionComment}
+              </div>
+            ) : null}
           </div>
         ) : null}
         {report.clientReviews?.some(review => review.action === 'APPROVED') ? (
@@ -743,9 +793,11 @@ export function ClientPage() {
       <SignatureConsentDialog
         open={signatureTargetIds.length > 0}
         title={signatureTargetIds.length > 1 ? `Assinar ${signatureTargetIds.length} relatórios` : 'Assinar relatório'}
+        initialSignerName={initialSignerName}
+        cacheIdentity={user?.email || user?.username || user?.id || ''}
         isSubmitting={reportMutations.requestSignature.isPending}
         onCancel={() => setSignatureTargetIds([])}
-        onConfirm={signatureImageDataUrl => void confirmSignature(signatureImageDataUrl)}
+        onConfirm={payload => void confirmSignature(payload)}
       />
     </Shell>
   );

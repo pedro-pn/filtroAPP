@@ -44,7 +44,10 @@ export async function updateReportStatus(id: string, payload: { status: ReportSt
   return response.data;
 }
 
-export async function requestReportSignature(id: string, payload: { comment?: string | null; signatureImageDataUrl: string }) {
+export async function requestReportSignature(
+  id: string,
+  payload: { comment?: string | null; signerName: string; signatureImageDataUrl: string }
+) {
   const response = await apiClient.post<{ ok: boolean; signUrl?: string; signed?: boolean; completed?: boolean; report: ReportSummary }>(
     rdoApiPath(`/reports/${id}/request-signature`),
     payload
