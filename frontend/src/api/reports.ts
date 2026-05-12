@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { ReportPayload, ReportStatus, ReportSummary, ServiceOnlyReportPayload } from '../types/domain';
+import type { ReportAuditLog, ReportPayload, ReportStatus, ReportSummary, ServiceOnlyReportPayload } from '../types/domain';
 
 export interface ReportFilters {
   status?: string;
@@ -44,11 +44,16 @@ export async function updateReportStatus(id: string, payload: { status: ReportSt
   return response.data;
 }
 
-export async function requestReportSignature(id: string, payload: { comment?: string | null }) {
-  const response = await apiClient.post<{ ok: boolean; signUrl?: string; report: ReportSummary }>(
+export async function requestReportSignature(id: string, payload: { comment?: string | null; signatureImageDataUrl: string }) {
+  const response = await apiClient.post<{ ok: boolean; signUrl?: string; signed?: boolean; completed?: boolean; report: ReportSummary }>(
     `/reports/${id}/request-signature`,
     payload
   );
+  return response.data;
+}
+
+export async function getReportAudit(id: string) {
+  const response = await apiClient.get<ReportAuditLog[]>(`/reports/${id}/audit`);
   return response.data;
 }
 

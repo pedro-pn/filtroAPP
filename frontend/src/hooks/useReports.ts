@@ -6,6 +6,7 @@ import {
   createServiceOnlyReports,
   deleteReport as deleteReportApi,
   deleteReportService,
+  getReportAudit,
   getReport,
   listReports,
   requestReportsBatchSignature,
@@ -30,6 +31,14 @@ export function useReport(reportId: string, enabled = true) {
   return useQuery({
     queryKey: ['report', reportId],
     queryFn: () => getReport(reportId),
+    enabled: enabled && !!reportId
+  });
+}
+
+export function useReportAudit(reportId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.reportAudit(reportId),
+    queryFn: () => getReportAudit(reportId),
     enabled: enabled && !!reportId
   });
 }
@@ -69,7 +78,8 @@ export function useReportMutations() {
   });
 
   const requestSignatureMutation = useMutation({
-    mutationFn: ({ id, comment }: { id: string; comment?: string | null }) => requestReportSignature(id, { comment }),
+    mutationFn: ({ id, comment, signatureImageDataUrl }: { id: string; comment?: string | null; signatureImageDataUrl: string }) =>
+      requestReportSignature(id, { comment, signatureImageDataUrl }),
     onSuccess: data => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['report', data.report.id] });

@@ -278,6 +278,137 @@ export function buildReportRejectedByClientEmailTemplate({ projectCode, projectN
   };
 }
 
+export function buildReportSignatureReceivedEmailTemplate({
+  projectCode,
+  projectName,
+  reportType,
+  reportNumber,
+  reportDate,
+  signerName,
+  signerEmail,
+  signedCount,
+  requiredCount,
+  appUrl
+}) {
+  const title = 'Assinatura recebida';
+  const progress = `${signedCount}/${requiredCount}`;
+  const intro = `Uma assinatura foi registrada para o relatório ${reportType} ${reportNumber} do projeto ${projectCode} - ${projectName}.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>Relatório:</strong> ${reportType} ${reportNumber}</div>
+        <div><strong>Data:</strong> ${reportDate}</div>
+        <div><strong>Signatário:</strong> ${signerName} (${signerEmail})</div>
+        <div><strong>Progresso:</strong> ${progress} assinaturas obrigatórias</div>
+      </div>
+    </div>
+    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema para acompanhar: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+  `;
+  const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] ${reportType} ${reportNumber} recebeu uma assinatura`,
+    text: [
+      `Uma assinatura foi registrada para o relatório ${reportType} ${reportNumber}.`,
+      '',
+      `Projeto: ${projectCode} - ${projectName}`,
+      `Data: ${reportDate}`,
+      `Signatário: ${signerName} (${signerEmail})`,
+      `Progresso: ${progress} assinaturas obrigatórias`,
+      appUrl ? `Acesso: ${appUrl}` : ''
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildReportSignatureRequestEmailTemplate({
+  projectCode,
+  projectName,
+  reportType,
+  reportNumber,
+  reportDate,
+  signerName,
+  signUrl,
+  expiresLabel
+}) {
+  const title = 'Assinatura eletrônica disponível';
+  const intro = `O relatório ${reportType} ${reportNumber} do projeto ${projectCode} - ${projectName} está disponível para assinatura eletrônica.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Signatário:</strong> ${signerName}</div>
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>Relatório:</strong> ${reportType} ${reportNumber}</div>
+        <div><strong>Data:</strong> ${reportDate}</div>
+        <div><strong>Prazo:</strong> ${expiresLabel}</div>
+      </div>
+    </div>
+    <p style="margin:16px 0"><a href="${signUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Assinar relatório</a></p>
+    <p style="font-size:13px;line-height:1.7;margin:0 0 8px">Se preferir, copie e cole este link no navegador:</p>
+    <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0">${signUrl}</p>
+  `;
+  const footer = 'Este link é individual e foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Assinatura disponível - ${reportType} ${reportNumber}`,
+    text: [
+      `Olá, ${signerName}.`,
+      '',
+      `O relatório ${reportType} ${reportNumber} está disponível para assinatura eletrônica.`,
+      '',
+      `Projeto: ${projectCode} - ${projectName}`,
+      `Data: ${reportDate}`,
+      `Prazo: ${expiresLabel}`,
+      '',
+      `Assinar relatório: ${signUrl}`
+    ].join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildReportSignatureCompletedEmailTemplate({
+  projectCode,
+  projectName,
+  reportType,
+  reportNumber,
+  reportDate,
+  signerName,
+  signerEmail,
+  finalDocumentHash,
+  appUrl
+}) {
+  const title = 'Relatório assinado';
+  const intro = `Todas as assinaturas obrigatórias do relatório ${reportType} ${reportNumber} foram concluídas.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>Relatório:</strong> ${reportType} ${reportNumber}</div>
+        <div><strong>Data:</strong> ${reportDate}</div>
+        <div><strong>Último signatário:</strong> ${signerName} (${signerEmail})</div>
+        ${finalDocumentHash ? `<div><strong>Hash PDF final:</strong> <span style="word-break:break-all">${finalDocumentHash}</span></div>` : ''}
+      </div>
+    </div>
+    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema para baixar o PDF assinado: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+  `;
+  const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] ${reportType} ${reportNumber} assinado`,
+    text: [
+      `Todas as assinaturas obrigatórias do relatório ${reportType} ${reportNumber} foram concluídas.`,
+      '',
+      `Projeto: ${projectCode} - ${projectName}`,
+      `Data: ${reportDate}`,
+      `Último signatário: ${signerName} (${signerEmail})`,
+      finalDocumentHash ? `Hash PDF final: ${finalDocumentHash}` : '',
+      appUrl ? `Acesso: ${appUrl}` : ''
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
 export function buildSurveyInviteEmailTemplate({ clientName, projectCode, projectName, surveyUrl, optOutUrl, expiresLabel }) {
   const title = 'Pesquisa de satisfação';
   const intro = `Gostaríamos de ouvir sua opinião sobre o projeto ${projectCode} - ${projectName}.`;

@@ -14,6 +14,7 @@ import { ReportDetailPage } from './pages/ReportDetailPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { GestorPage } from './pages/gestor/GestorPage';
 import { LoginPage } from './pages/LoginPage';
+import { PublicSignaturePage } from './pages/PublicSignaturePage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { SurveyPage } from './pages/SurveyPage';
 
@@ -24,6 +25,7 @@ export default function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/pesquisa/:token" element={<SurveyPage />} />
+      <Route path="/assinar/:token" element={<PublicSignaturePage />} />
 
       <Route element={<PrivateRoute />}>
         <Route path="/conta" element={<AccountPage />} />

@@ -10,5 +10,6 @@ export const queryKeys = {
   users: (group?: 'internal' | 'client') => ['users', { group }] as const,
   surveys: ['surveys'] as const,
   surveyQuestions: ['surveys', 'questions'] as const,
-  reports: (filters?: unknown, userId?: string | null) => ['reports', filters ?? {}, { userId: userId || 'anonymous' }] as const
+  reports: (filters?: unknown, userId?: string | null) => ['reports', filters ?? {}, { userId: userId || 'anonymous' }] as const,
+  reportAudit: (reportId: string) => ['reports', reportId, 'audit'] as const
 };

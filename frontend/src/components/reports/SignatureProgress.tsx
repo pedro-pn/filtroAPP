@@ -10,7 +10,9 @@ export function SignatureProgress({ report }: { report: ReportSummary }) {
     <div className="signature-progress">
       <div className="signature-progress-head">
         <span>Assinaturas {progress.signed}/{progress.total}</span>
-        {progress.pending ? <span>{progress.pending} pendente{progress.pending !== 1 ? 's' : ''}</span> : <span>Concluído</span>}
+        {progress.signers.some(signer => signer.status === 'REJECTED') ? (
+          <span>Reprovado</span>
+        ) : progress.pending ? <span>{progress.pending} pendente{progress.pending !== 1 ? 's' : ''}</span> : <span>Concluído</span>}
       </div>
       {signedNames.length ? (
         <div className="signature-progress-names">
