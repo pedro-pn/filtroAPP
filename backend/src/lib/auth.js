@@ -54,6 +54,7 @@ export function publicUser(user) {
     email: user.email || null,
     role: user.role,
     isActive: user.isActive,
+    clientCnpj: user.clientCnpj || null,
     collaboratorId: user.collaboratorId || null,
     collaborator: user.collaborator
       ? {

@@ -7,6 +7,7 @@ export interface AuthUser {
   email: string | null;
   role: UserRole;
   isActive: boolean;
+  clientCnpj?: string | null;
   collaboratorId?: string | null;
 }
 

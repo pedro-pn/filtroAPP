@@ -73,7 +73,7 @@ function normalizeProjectInput(data) {
 
 router.get('/', requireAuth, asyncHandler(async (req, res) => {
   const activeParam = req.query.active;
-  const where = {};
+  const where = { deletedAt: null };
   if (req.auth.user.role === 'MANAGER') {
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
@@ -220,7 +220,23 @@ router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) =>
 }));
 
 router.delete('/:id', requireAuth, requireManager, asyncHandler(async (req, res) => {
-  await prisma.project.delete({ where: { id: req.params.id } });
+  await prisma.$transaction(async tx => {
+    const reportCount = await tx.report.count({
+      where: { projectId: req.params.id }
+    });
+    if (reportCount > 0) {
+      await tx.project.update({
+        where: { id: req.params.id },
+        data: {
+          isActive: false,
+          deletedAt: new Date()
+        }
+      });
+      await clearPendingProjectZapSignState(tx, req.params.id);
+      return;
+    }
+    await tx.project.delete({ where: { id: req.params.id } });
+  });
   res.status(204).end();
 }));
 

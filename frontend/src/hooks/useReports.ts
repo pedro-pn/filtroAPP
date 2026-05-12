@@ -78,8 +78,18 @@ export function useReportMutations() {
   });
 
   const requestSignatureMutation = useMutation({
-    mutationFn: ({ id, comment, signatureImageDataUrl }: { id: string; comment?: string | null; signatureImageDataUrl: string }) =>
-      requestReportSignature(id, { comment, signatureImageDataUrl }),
+    mutationFn: ({
+      id,
+      comment,
+      signerName,
+      signatureImageDataUrl
+    }: {
+      id: string;
+      comment?: string | null;
+      signerName: string;
+      signatureImageDataUrl: string;
+    }) =>
+      requestReportSignature(id, { comment, signerName, signatureImageDataUrl }),
     onSuccess: data => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['report', data.report.id] });

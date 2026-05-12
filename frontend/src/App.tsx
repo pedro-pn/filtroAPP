@@ -16,6 +16,7 @@ import { GestorPage } from './pages/gestor/GestorPage';
 import { LoginPage } from './pages/LoginPage';
 import { PublicSignaturePage } from './pages/PublicSignaturePage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { SignatureValidationPage } from './pages/SignatureValidationPage';
 import { SurveyPage } from './pages/SurveyPage';
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/pesquisa/:token" element={<SurveyPage />} />
       <Route path="/assinar/:token" element={<PublicSignaturePage />} />
+      <Route path="/validar-assinatura/:validationCode" element={<SignatureValidationPage />} />
 
       <Route element={<PrivateRoute />}>
         <Route path="/conta" element={<AccountPage />} />

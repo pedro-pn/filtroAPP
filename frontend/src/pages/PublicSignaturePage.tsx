@@ -40,7 +40,7 @@ export function PublicSignaturePage() {
   });
 
   const confirmMutation = useMutation({
-    mutationFn: (signatureImageDataUrl: string) => confirmPublicSignature(token, signatureImageDataUrl),
+    mutationFn: (payload: { signerName: string; signatureImageDataUrl: string }) => confirmPublicSignature(token, payload),
     onSuccess: data => {
       setSignatureOpen(false);
       showToast(data.completed ? 'Relatório assinado.' : 'Assinatura registrada.', 'success');
@@ -142,9 +142,11 @@ export function PublicSignaturePage() {
       <SignatureConsentDialog
         open={signatureOpen}
         title="Assinar relatório"
+        initialSignerName={signer?.name || ''}
+        cacheIdentity={signer?.email || token}
         isSubmitting={confirmMutation.isPending}
         onCancel={() => setSignatureOpen(false)}
-        onConfirm={signatureImageDataUrl => confirmMutation.mutate(signatureImageDataUrl)}
+        onConfirm={payload => confirmMutation.mutate(payload)}
       />
     </main>
   );

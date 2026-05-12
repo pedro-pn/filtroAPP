@@ -844,7 +844,7 @@ function renderProjectCard(
   options: {
     onEdit: (project: Project) => void;
     onToggleArchive: (project: Project) => void;
-    onRemove: (project: Project) => void;
+    onRemove?: (project: Project) => void;
     detailsExpanded: boolean;
     onToggleDetails: (project: Project) => void;
     reportSectionExpanded?: boolean;
@@ -929,9 +929,11 @@ function renderProjectCard(
         <button className="mini-btn alt" type="button" onClick={() => options.onEdit(project)}>
           Editar
         </button>
-        <button className="mini-btn danger" type="button" onClick={() => options.onRemove(project)}>
-          Remover
-        </button>
+        {options.onRemove ? (
+          <button className="mini-btn danger" type="button" onClick={() => options.onRemove?.(project)}>
+            Excluir
+          </button>
+        ) : null}
         {!project.isActive ? (
           <span className="badge badge-rev">Arquivado</span>
         ) : null}
@@ -1511,14 +1513,14 @@ export function GestorPage() {
   }
 
   async function handleProjectRemove(project: Project) {
-    if (!window.confirm('Remover este projeto?')) return;
+    if (!window.confirm('Excluir este projeto? Se houver relatórios associados, o projeto será ocultado e os relatórios permanecerão preservados.')) return;
 
     try {
       await projectMutations.removeProject.mutateAsync(project.id);
       if (projectEditingId === project.id) resetProjectForm();
-      showToast('Projeto removido.', 'success');
+      showToast('Projeto excluído.', 'success');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível remover o projeto.', 'error');
+      showToast(error instanceof Error ? error.message : 'Não foi possível excluir o projeto.', 'error');
     }
   }
 
@@ -1739,14 +1741,14 @@ export function GestorPage() {
   }
 
   async function handleReportDelete(report: ReportSummary) {
-    if (!window.confirm('Excluir este relatório permanentemente?')) return;
+    if (!window.confirm('Arquivar este relatório? O registro permanecerá preservado no banco de dados.')) return;
 
     try {
       await reportMutations.deleteReport.mutateAsync(report.id);
       setSelectedReportIds(current => current.filter(id => id !== report.id));
-      showToast('Relatório excluído.', 'success');
+      showToast('Relatório arquivado.', 'success');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível excluir o relatório.', 'error');
+      showToast(error instanceof Error ? error.message : 'Não foi possível arquivar o relatório.', 'error');
     }
   }
 
@@ -1808,8 +1810,8 @@ export function GestorPage() {
           <button
             className="icon-button danger-icon-button"
             type="button"
-            title="Excluir relatório"
-            aria-label="Excluir relatório"
+            title="Arquivar relatório"
+            aria-label="Arquivar relatório"
             disabled={reportMutations.deleteReport.isPending}
             onClick={() => void handleReportDelete(report)}
           >

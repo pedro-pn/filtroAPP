@@ -52,6 +52,7 @@ import {
   activeVersionWithSignatures,
   allRequiredSignaturesCompleted,
   createSignatureAuditLog,
+  createSignatureValidationCode,
   ensureInternalSignatureRound,
   hasActiveSignedInternalSignature,
   internalSignatureTokenHash,
@@ -76,11 +77,26 @@ const router = Router();
 const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
 const CLIENT_REJECTION_KEY = '__clientRejectedAt';
 const CLIENT_REJECTION_RESOLVED_KEY = '__clientRejectionResolvedAt';
+const CLIENT_REJECTION_COMMENT_KEY = '__clientRejectionComment';
 const publicSignatureLimiter = createMemoryRateLimit({
   windowMs: 15 * 60 * 1000,
   max: 60,
   message: 'Muitas tentativas. Tente novamente mais tarde.'
 });
+
+async function uniqueSignatureValidationCode() {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const code = createSignatureValidationCode();
+    const existing = await prisma.reportVersion.findUnique({
+      where: { validationCode: code },
+      select: { id: true }
+    });
+    if (!existing) return code;
+  }
+  const error = new Error('Não foi possível gerar código de validação único.');
+  error.statusCode = 500;
+  throw error;
+}
 
 function formatDatePtBr(date) {
   const value = date instanceof Date ? date.toISOString() : String(date || '');
@@ -109,6 +125,7 @@ function hasActiveClientRejection(report) {
 function withClientRejectionCleared(specialConditions) {
   const next = { ...(specialConditions || {}) };
   delete next[CLIENT_REJECTION_KEY];
+  delete next[CLIENT_REJECTION_COMMENT_KEY];
   next[CLIENT_REJECTION_RESOLVED_KEY] = new Date().toISOString();
   return next;
 }
@@ -362,6 +379,7 @@ function publicSignaturePayload(signature, status) {
 
 function publicSignatureStatus(signature) {
   if (!signature) return 'INVALID';
+  if (signature.report?.deletedAt) return 'UNAVAILABLE';
   if (signature.status === 'SIGNED') return 'SIGNED';
   if (signature.status === 'REJECTED') return 'REJECTED';
   if (signature.status === 'INVALIDATED') return 'INVALIDATED';
@@ -371,6 +389,54 @@ function publicSignatureStatus(signature) {
   if (signature.report?.status === ReportStatus.SIGNED) return 'SIGNED';
   if (signature.report?.status !== ReportStatus.APPROVED) return 'UNAVAILABLE';
   return 'ACTIVE';
+}
+
+function maskEmail(value) {
+  const email = String(value || '').trim().toLowerCase();
+  const [local, domain] = email.split('@');
+  if (!local || !domain) return email ? 'registrado' : '';
+  const visible = local.length <= 2 ? local[0] : `${local.slice(0, 2)}***`;
+  return `${visible}@${domain}`;
+}
+
+function validationStatus(version) {
+  if (!version) return 'INVALID';
+  if (version.status === 'REJECTED') return 'REJECTED';
+  if (version.status === 'SUPERSEDED') return 'SUPERSEDED';
+  if (version.report?.status !== ReportStatus.SIGNED || !version.finalDocumentHash) return 'UNAVAILABLE';
+  return 'VALID';
+}
+
+function publicValidationPayload(version) {
+  const status = validationStatus(version);
+  if (!version || status === 'INVALID') return { status };
+  return {
+    status,
+    validationCode: version.validationCode,
+    sourceDocumentHash: version.sourceDocumentHash,
+    finalDocumentHash: version.finalDocumentHash,
+    finalPdfCreatedAt: version.createdAt,
+    report: {
+      id: version.report?.id || '',
+      reportType: version.report?.reportType || '',
+      sequenceNumber: version.report?.sequenceNumber || null,
+      reportDate: version.report?.reportDate || null,
+      status: version.report?.status || '',
+      project: {
+        code: version.report?.project?.code || '',
+        name: version.report?.project?.name || '',
+        clientName: version.report?.project?.clientName || ''
+      }
+    },
+    signers: (version.signatures || []).map(signature => ({
+      name: signature.signerName,
+      email: maskEmail(signature.signerEmail),
+      role: signature.signerRole,
+      status: signature.status,
+      signedAt: signature.signedAt || null,
+      rejectedAt: signature.rejectedAt || null
+    }))
+  };
 }
 
 async function publicSignatureFromToken(token, client = prisma) {
@@ -697,12 +763,14 @@ async function finalizeInternalSignatureRound(report, version, evidence, userId)
     throw error;
   }
 
+  const validationCode = version.validationCode || await uniqueSignatureValidationCode();
   const finalPdf = await writeFinalEvidencePdf({
     sourcePdfPath: sourcePath,
     sourcePdfUrl: version.sourcePdfUrl,
     report,
     version,
-    signatures: version.signatures || []
+    signatures: version.signatures || [],
+    validationCode
   });
 
   await prisma.$transaction(async tx => {
@@ -710,7 +778,8 @@ async function finalizeInternalSignatureRound(report, version, evidence, userId)
       where: { id: version.id },
       data: {
         finalPdfUrl: finalPdf.finalPdfUrl,
-        finalDocumentHash: finalPdf.finalDocumentHash
+        finalDocumentHash: finalPdf.finalDocumentHash,
+        validationCode
       }
     });
     await tx.reportSignature.updateMany({
@@ -789,7 +858,7 @@ async function getReportDocxDownload(report) {
 
 async function fetchReportsForIds(ids) {
   const items = await prisma.report.findMany({
-    where: { id: { in: ids } },
+    where: { id: { in: ids }, deletedAt: null },
     include,
     orderBy: [{ reportDate: 'desc' }, { createdAt: 'desc' }]
   });
@@ -943,10 +1012,12 @@ const clientReviewSchema = z.object({
 });
 const requestSignatureSchema = z.object({
   comment: z.string().trim().max(4000).optional().nullable(),
+  signerName: z.string().trim().min(2).max(160),
   signatureImageDataUrl: z.string().trim().min(1).max(2_100_000)
     .refine(value => !!parseSignatureImageDataUrl(value), 'Assinatura visual invalida.')
 });
 const publicSignatureConfirmSchema = z.object({
+  signerName: z.string().trim().min(2).max(160),
   signatureImageDataUrl: z.string().trim().min(1).max(2_100_000)
     .refine(value => !!parseSignatureImageDataUrl(value), 'Assinatura visual invalida.')
 });
@@ -2443,7 +2514,7 @@ async function createIndependentServiceReports(tx, project, data, managerUserId)
 }
 
 router.get('/', requireAuth, asyncHandler(async (req, res) => {
-  const where = {};
+  const where = { deletedAt: null };
 
   if (req.query.status) {
     where.status = req.query.status;
@@ -2776,7 +2847,7 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
       report: signature.report,
       version: signature.version,
       signer: {
-        name: signature.signerName,
+        name: data.signerName,
         email: signature.signerEmail
       },
       userId: null,
@@ -2863,7 +2934,8 @@ router.post('/public-sign/:token/reject', publicSignatureLimiter, asyncHandler(a
         status: ReportStatus.PENDING,
         specialConditions: {
           ...(signature.report.specialConditions || {}),
-          [CLIENT_REJECTION_KEY]: new Date().toISOString()
+          [CLIENT_REJECTION_KEY]: new Date().toISOString(),
+          [CLIENT_REJECTION_COMMENT_KEY]: data.comment
         }
       },
       include
@@ -2874,18 +2946,40 @@ router.post('/public-sign/:token/reject', publicSignatureLimiter, asyncHandler(a
   res.json({ success: true, report: item });
 }));
 
+router.get('/validate-signature/:validationCode', publicSignatureLimiter, asyncHandler(async (req, res) => {
+  const validationCode = String(req.params.validationCode || '').trim();
+  const version = validationCode
+    ? await prisma.reportVersion.findUnique({
+      where: { validationCode },
+      include: {
+        report: {
+          include: {
+            project: true
+          }
+        },
+        signatures: {
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    })
+    : null;
+
+  res.json(publicValidationPayload(version));
+}));
+
 router.get('/:id', requireAuth, asyncHandler(async (req, res) => {
   const item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
   });
+  if (item.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, item))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (req.auth.user.role === 'CLIENT') {
     const projectReports = await prisma.report.findMany({
-      where: { projectId: item.projectId },
+      where: { projectId: item.projectId, deletedAt: null },
       include
     });
     const byId = new Map(projectReports.map(report => [report.id, report]));
@@ -2902,13 +2996,14 @@ router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  if (item.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, item))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (req.auth.user.role === 'CLIENT') {
     const projectReports = await prisma.report.findMany({
-      where: { projectId: item.projectId },
+      where: { projectId: item.projectId, deletedAt: null },
       include
     });
     const byId = new Map(projectReports.map(report => [report.id, report]));
@@ -2932,6 +3027,7 @@ router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  if (item.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, item))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
@@ -2957,6 +3053,7 @@ router.delete('/:id/services/:serviceId', requireAuth, asyncHandler(async (req, 
     where: { id: req.params.id },
     include
   });
+  if (existing.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(existing);
 
   if (!(await canAccessReport(req.auth, existing))) {
@@ -3108,7 +3205,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
   const tPostOrg = Date.now();
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
+      where: { projectId: item.projectId, deletedAt: null, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
       include
     });
     for (const d of derived) {
@@ -3134,6 +3231,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  if (existing.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
   const isServiceOnlyReport = existing.specialConditions?.serviceOnly === true;
   if (isServiceOnlyReport && req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode editar relatórios somente de serviço.' });
@@ -3300,7 +3398,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   const tPutOrg = Date.now();
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
+      where: { projectId: item.projectId, deletedAt: null, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
       include
     });
     for (const d of derived) {
@@ -3325,6 +3423,7 @@ router.patch('/:id/sequence', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  if (existing.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(existing);
 
   const item = await prisma.$transaction(async tx => {
@@ -3357,6 +3456,7 @@ router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  if (existing.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(existing);
 
   if (!(await canAccessReport(req.auth, existing))) {
@@ -3393,6 +3493,7 @@ router.post('/:id/discard-edit', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  if (existing.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(existing);
 
   const originalSnapshot = cloneJson(existing.specialConditions?.__editOriginalSnapshot);
@@ -3425,6 +3526,7 @@ router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  if (item.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(item);
 
   const originalSnapshot = cloneJson(item.specialConditions?.__editOriginalSnapshot);
@@ -3441,6 +3543,7 @@ router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
       const derivedReports = await tx.report.findMany({
         where: {
           projectId: item.projectId,
+          deletedAt: null,
           reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] }
         },
         select: {
@@ -3457,10 +3560,11 @@ router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
       });
     }
 
-    await tx.report.deleteMany({
+    await tx.report.updateMany({
       where: {
         id: { in: Array.from(new Set(idsToDelete)) }
-      }
+      },
+      data: { deletedAt: new Date() }
     });
   });
 
@@ -3476,8 +3580,9 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
   let approvedTransition = false;
   const previous = await prisma.report.findUnique({
     where: { id: req.params.id },
-    select: { status: true, specialConditions: true }
+    select: { status: true, specialConditions: true, deletedAt: true }
   });
+  if (!previous || previous.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
   if (previous?.status === ReportStatus.SIGNED) {
     return res.status(409).json({ error: 'Relatório assinado não pode mais ser alterado.' });
   }
@@ -3533,7 +3638,7 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
 
   if (data.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
+      where: { projectId: item.projectId, deletedAt: null, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
       include
     });
     for (const d of derived) {
@@ -3563,6 +3668,7 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
     where: { id: req.params.id },
     include
   });
+  if (existing.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
@@ -3580,7 +3686,10 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
     return res.status(409).json({ error: 'Somente relatórios aprovados pelo gestor podem ser assinados.' });
   }
   const comment = String(data.comment || '').trim();
-  const signer = resolveInternalClientSigner(existing, req.auth.user);
+  const signer = {
+    ...resolveInternalClientSigner(existing, req.auth.user),
+    name: data.signerName
+  };
   const evidence = signatureEvidenceFromRequest(req);
 
   const prepared = await prisma.$transaction(async tx => {
@@ -3693,6 +3802,7 @@ router.get('/:id/signatures', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  if (item.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
   if (!(await canAccessReport(req.auth, item))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
@@ -3704,10 +3814,11 @@ router.get('/:id/audit', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'Apenas o gestor pode consultar a auditoria do relatório.' });
   }
 
-  await prisma.report.findUniqueOrThrow({
+  const auditReport = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
-    select: { id: true }
+    select: { id: true, deletedAt: true }
   });
+  if (auditReport.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   const logs = await prisma.reportAuditLog.findMany({
     where: { reportId: req.params.id },
@@ -3746,6 +3857,7 @@ router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => 
     where: { id: req.params.id },
     include
   });
+  if (existing.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
@@ -3782,6 +3894,7 @@ router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => 
     const nextSpecialConditions = { ...(existing.specialConditions || {}) };
     if (data.action === 'REJECTED') {
       nextSpecialConditions[CLIENT_REJECTION_KEY] = new Date().toISOString();
+      nextSpecialConditions[CLIENT_REJECTION_COMMENT_KEY] = data.comment || null;
       delete nextSpecialConditions[CLIENT_REJECTION_RESOLVED_KEY];
 
       const activeVersion = await tx.reportVersion.findFirst({

@@ -6,9 +6,59 @@ import test from 'node:test';
 
 import { PDFDocument } from 'pdf-lib';
 
-import { sha256Hex, writeFinalEvidencePdf } from '../src/lib/internal-report-signatures.js';
+import { sha256Hex, signInternalReportVersion, writeFinalEvidencePdf } from '../src/lib/internal-report-signatures.js';
 
 const tinyPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+test('signInternalReportVersion stores the signer name provided at signing time', async () => {
+  let signatureUpdate;
+  let auditLog;
+  const tx = {
+    reportSignature: {
+      update: async payload => {
+        signatureUpdate = payload;
+        return payload;
+      }
+    },
+    reportAuditLog: {
+      create: async payload => {
+        auditLog = payload;
+        return payload;
+      }
+    }
+  };
+
+  const result = await signInternalReportVersion(tx, {
+    report: { id: 'report-1' },
+    version: {
+      id: 'version-1',
+      signatures: [
+        {
+          id: 'signature-1',
+          signerName: 'Nome inicial',
+          signerEmail: 'cliente@example.com',
+          status: 'PENDING'
+        }
+      ]
+    },
+    signer: {
+      name: 'Nome editado',
+      email: 'cliente@example.com'
+    },
+    userId: 'user-1',
+    evidence: {
+      ipAddress: '192.168.0.10',
+      userAgent: 'Node Test'
+    },
+    signatureImageDataUrl: tinyPngDataUrl
+  });
+
+  assert.equal(result.alreadySigned, false);
+  assert.equal(signatureUpdate.where.id, 'signature-1');
+  assert.equal(signatureUpdate.data.signerName, 'Nome editado');
+  assert.equal(signatureUpdate.data.signatureImageDataUrl, tinyPngDataUrl);
+  assert.match(auditLog.data.description, /Nome editado assinou o relatorio/);
+});
 
 test('writeFinalEvidencePdf creates final PDF with evidence page and hash', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rdo-signature-pdf-'));

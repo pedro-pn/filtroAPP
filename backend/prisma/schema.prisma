@@ -118,11 +118,14 @@ model Project {
   operatorId            String?
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
+  deletedAt             DateTime?
   operator              Collaborator?     @relation("ProjectOperator", fields: [operatorId], references: [id], onDelete: SetNull)
   reportSequences       ProjectReportSeq[]
   reports               Report[]
   drafts                ReportDraft[]
   surveys               SatisfactionSurvey[]
+
+  @@index([deletedAt])
 }
 
 model ProjectReportSeq {
@@ -167,7 +170,8 @@ model Report {
   zapsignDocUrl   String?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
-  project         Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?
+  project         Project              @relation(fields: [projectId], references: [id], onDelete: Restrict)
   createdBy       User?                @relation("ReportCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   reviewedBy      User?                @relation("ReportReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
   collaborators   ReportCollaborator[]
@@ -186,6 +190,7 @@ model Report {
   @@index([projectId, reportType])
   @@index([reportDate])
   @@index([zapsignDocToken])
+  @@index([deletedAt])
 }
 
 model ClientReportReview {
@@ -209,6 +214,7 @@ model ReportVersion {
   finalPdfUrl        String?
   sourceDocumentHash String
   finalDocumentHash  String?
+  validationCode     String?             @unique
   status             ReportVersionStatus @default(ACTIVE)
   createdByUserId    String?
   createdAt          DateTime            @default(now())
@@ -354,6 +360,7 @@ model User {
   passwordHash    String
   role            UserRole
   isActive        Boolean       @default(true)
+  clientCnpj      String?
   collaboratorId  String?       @unique
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -368,6 +375,8 @@ model User {
   reportSignatures ReportSignature[] @relation("ReportSignatureUser")
   reportAuditLogs ReportAuditLog[] @relation("ReportAuditLogUser")
   sentSurveys     SatisfactionSurvey[]
+
+  @@index([clientCnpj])
 }
 
 model SatisfactionSurvey {

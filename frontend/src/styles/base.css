@@ -4702,6 +4702,61 @@ select {
   gap: 10px;
 }
 
+.signature-saved-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.signature-saved-card {
+  display: grid;
+  grid-template-columns: minmax(112px, 0.6fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  min-height: 74px;
+  padding: 10px 12px;
+  border: 1px solid #b8c7d9;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--tx);
+  text-align: left;
+  cursor: pointer;
+}
+
+.signature-saved-card:hover {
+  border-color: #0b63ce;
+  background: #eef6ff;
+}
+
+.signature-saved-card span {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.signature-saved-card img {
+  width: 100%;
+  max-width: 100%;
+  height: 54px;
+  object-fit: contain;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.signature-saved-remove {
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--rd);
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .signature-canvas-shell {
   position: relative;
   width: 100%;
@@ -4793,6 +4848,21 @@ select {
   cursor: pointer;
 }
 
+.signature-remember-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--tx);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.signature-remember-option input {
+  width: 16px;
+  height: 16px;
+}
+
 .public-signature-card {
   display: grid;
   gap: 14px;
@@ -4846,6 +4916,76 @@ select {
 .public-signature-reject {
   display: grid;
   gap: 10px;
+}
+
+.signature-validation-card {
+  display: grid;
+  gap: 14px;
+}
+
+.signature-validation-status {
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: #f8fafc;
+  color: var(--tx);
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.signature-validation-status.status-valid {
+  background: #effaf1;
+  border-color: rgba(48, 112, 58, 0.2);
+  color: #205c2f;
+}
+
+.signature-validation-status.status-rejected,
+.signature-validation-status.status-invalid {
+  background: #fff1f1;
+  border-color: rgba(180, 54, 54, 0.2);
+  color: #962b2b;
+}
+
+.signature-validation-status.status-superseded,
+.signature-validation-status.status-unavailable {
+  background: #fff8e8;
+  border-color: rgba(160, 112, 0, 0.2);
+  color: #765200;
+}
+
+.signature-validation-hashes,
+.signature-validation-signers,
+.signature-validation-upload {
+  display: grid;
+  gap: 10px;
+}
+
+.signature-validation-hashes .detail-value {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.signature-validation-file {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 92px;
+  border: 1px dashed var(--bd);
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #0b63ce;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.signature-validation-file input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* ── Responsive ──────────────────────────────────────────────── */

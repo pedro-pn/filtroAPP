@@ -67,6 +67,7 @@ export async function ensureClientAccountForProject(prisma, projectData, options
       data: {
         name: project.clientName,
         email: primaryEmail,
+        clientCnpj,
         isActive: true
       },
       include: { collaborator: true }
@@ -81,6 +82,7 @@ export async function ensureClientAccountForProject(prisma, projectData, options
         email: primaryEmail,
         passwordHash,
         role: 'CLIENT',
+        clientCnpj,
         isActive: true
       },
       include: { collaborator: true }
@@ -158,7 +160,7 @@ export async function ensureClientCcAccounts(prisma, projectData, options = {}) 
       if (existingUser.role !== 'CLIENT') continue;
       await prisma.user.update({
         where: { id: existingUser.id },
-        data: { name, email, isActive: true }
+        data: { name, email, clientCnpj: projectData.clientCnpj, isActive: true }
       });
       continue;
     }
@@ -166,7 +168,7 @@ export async function ensureClientCcAccounts(prisma, projectData, options = {}) 
     const initialPassword = generateClientPassword();
     const passwordHash = await hashPassword(initialPassword);
     const user = await prisma.user.create({
-      data: { username: email, name, email, passwordHash, role: 'CLIENT', isActive: true }
+      data: { username: email, name, email, passwordHash, role: 'CLIENT', clientCnpj: projectData.clientCnpj, isActive: true }
     });
 
     if (shouldNotify) {
