@@ -16,6 +16,19 @@ function numberOptions(start: number, end: number) {
   return values;
 }
 
+function questionLabel(question: SurveyQuestion) {
+  return (
+    <>
+      {question.label}
+      {question.required ? (
+        <span className="survey-required-marker">
+          <span aria-hidden="true">*</span> (obrigatório)
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 export function SurveyPage() {
   const { token = '' } = useParams();
   const navigate = useNavigate();
@@ -66,7 +79,7 @@ export function SurveyPage() {
     if (question.type === 'TEXT') {
       return (
         <div className="field-group" key={question.id}>
-          <label htmlFor={`survey-${question.id}`}>{question.label}</label>
+          <label htmlFor={`survey-${question.id}`}>{questionLabel(question)}</label>
           <textarea id={`survey-${question.id}`} value={String(value)} onChange={event => setField(question.id, event.target.value)} required={question.required} />
         </div>
       );
@@ -81,7 +94,7 @@ export function SurveyPage() {
     if (question.type === 'NPS' || question.type === 'SCALE') {
       return (
         <fieldset className="field-group survey-scale-field" key={question.id}>
-          <legend>{question.label}</legend>
+          <legend>{questionLabel(question)}</legend>
           <div className="survey-scale-row">
             {options.map(option => (
               <label className={`survey-scale-option ${String(value) === String(option) ? 'selected' : ''}`} key={option}>
@@ -103,7 +116,7 @@ export function SurveyPage() {
 
     return (
       <div className="field-group" key={question.id}>
-        <label htmlFor={`survey-${question.id}`}>{question.label}</label>
+        <label htmlFor={`survey-${question.id}`}>{questionLabel(question)}</label>
         <select
           id={`survey-${question.id}`}
           value={value}

@@ -2180,6 +2180,12 @@ a {
   color: var(--mu);
 }
 
+.survey-required-marker {
+  margin-left: 4px;
+  color: var(--rd);
+  font-weight: 700;
+}
+
 .field-group input {
   width: 100%;
   box-sizing: border-box;
