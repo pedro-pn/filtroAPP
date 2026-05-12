@@ -34,6 +34,14 @@ Planejamento.txt
 Revisao-Ortografia.txt
 Testes manuais obrigatorios.md
 
+# Arquivos de planejamento — somente locais
+PLANEJAMENTO*.md
+Planejamento*.md
+planejamento*.md
+
+# Dados de seed com informações reais — somente locais
+backend/scripts/start-data.json
+
 # Configurações locais do IDE/ferramentas (não compartilhar entre máquinas)
 .claude/settings.local.json
 
