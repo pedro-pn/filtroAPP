@@ -124,9 +124,13 @@ test('daily report summary includes per-service measurements and standby minutes
     services: [{
       id: 'svc-1',
       serviceType: 'filtragem',
-      system: 'Sistema hidráulico',
-      equipment: { code: 'EQ-1', name: 'Unidade' },
-      extraData: { 'Volume de óleo': '2 L' }
+      system: null,
+      equipment: null,
+      extraData: {
+        'Equipamento(s)': 'EQ-1 - Unidade',
+        Sistema: 'Sistema hidráulico',
+        'Volume de óleo': '2 L'
+      }
     }]
   });
 

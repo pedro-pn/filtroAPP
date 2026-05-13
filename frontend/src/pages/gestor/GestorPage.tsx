@@ -26,7 +26,7 @@ import { useUnitMutations, useUnits } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useSurveyMutations, useSurveyQuestions, useSurveys } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
-import { StatsDashboardOverlay } from '../../components/stats/StatsDashboard';
+import { StatsDashboardOverlay, StatsOverview } from '../../components/stats/StatsDashboard';
 import { useProjectSegmentMutations, useProjectSegments } from '../../hooks/useProjectStats';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -3605,13 +3605,11 @@ export function GestorPage() {
           <div className="nps-tab-toolbar-left" />
           <div className="nps-tab-toolbar-right">
             <button className="mini-btn" type="button" onClick={() => setStatsDashboardOpen(true)}>
-              Abrir dashboard
+              Dashboard detalhado
             </button>
           </div>
         </div>
-        <div className="page-card placeholder-copy">
-          Clique em <strong>Abrir dashboard</strong> para ver as estatísticas de execução dos projetos.
-        </div>
+        <StatsOverview />
       </>
     );
   }

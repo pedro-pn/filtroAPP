@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { createProjectSegment, fetchProjectStats, listProjectSegments, type ClientSegmentPayload, type StatsParams } from '../api/statistics';
+import { createProjectSegment, fetchProjectStats, fetchStatsOverview, listProjectSegments, type ClientSegmentPayload, type StatsParams } from '../api/statistics';
 
 export function useProjectStats(params: StatsParams) {
   return useQuery({
@@ -16,6 +16,14 @@ export function useProjectSegments() {
     queryKey: ['projectSegments'],
     queryFn: listProjectSegments,
     staleTime: 10 * 60 * 1000
+  });
+}
+
+export function useStatsOverview() {
+  return useQuery({
+    queryKey: ['statsOverview'],
+    queryFn: fetchStatsOverview,
+    staleTime: 5 * 60 * 1000
   });
 }
 

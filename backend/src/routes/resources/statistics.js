@@ -156,6 +156,18 @@ function emptyServiceStats() {
   return { serviceCount: 0, volumeOleoLiters: 0, tubesByDiameter: {}, hasTubulacao: 0 };
 }
 
+function serviceEquipmentName(service) {
+  if (service.equipment) return `${service.equipment.code} - ${service.equipment.name}`;
+  const extra = service.extraData || {};
+  const raw = extra['Equipamento(s)'] || extra.equipmentName || extra.equipment || null;
+  return raw ? String(raw) : null;
+}
+
+function serviceSystemName(service) {
+  const extra = service.extraData || {};
+  return service.system || extra.Sistema || extra.system || null;
+}
+
 function mergeServiceStats(acc, s) {
   acc.serviceCount += s.serviceCount;
   acc.volumeOleoLiters += s.volumeOleoLiters;
@@ -262,8 +274,8 @@ export function buildDailyReport(r) {
 
     const item = {
       serviceId: svc.id,
-      system: svc.system || null,
-      equipmentName: svc.equipment ? `${svc.equipment.code} - ${svc.equipment.name}` : null,
+      system: serviceSystemName(svc),
+      equipmentName: serviceEquipmentName(svc),
       volumeOleoLiters: null,
       tubesByDiameter: {}
     };
@@ -600,6 +612,74 @@ router.get('/projects/export', requireAuth, asyncHandler(async (req, res) => {
   }
 
   res.end();
+}));
+
+// ─── Overview (mini dashboard) ───────────────────────────────────────────────
+
+router.get('/overview', requireAuth, asyncHandler(async (req, res) => {
+  const role = req.auth.user.role;
+  if (role !== 'MANAGER' && role !== 'COORDINATOR') {
+    return res.status(403).json({ error: 'Acesso restrito a gestor e coordenador.' });
+  }
+
+  const baseWhere = role === 'COORDINATOR' ? { managerOnly: false } : {};
+
+  const [activeCount, archivedCount, reportGroups, projects] = await Promise.all([
+    prisma.project.count({ where: { ...baseWhere, isActive: true } }),
+    prisma.project.count({ where: { ...baseWhere, isActive: false } }),
+    prisma.report.groupBy({
+      by: ['projectId', 'reportType'],
+      where: {
+        project: baseWhere,
+        status: { in: ['APPROVED', 'SIGNED'] }
+      },
+      _count: { id: true }
+    }),
+    prisma.project.findMany({
+      where: baseWhere,
+      select: { id: true, code: true, name: true, isActive: true }
+    })
+  ]);
+
+  // Build per-project map
+  const projectMap = new Map(projects.map(p => [p.id, p]));
+  const byProject = new Map();
+
+  for (const g of reportGroups) {
+    const p = projectMap.get(g.projectId);
+    if (!p) continue;
+    if (!byProject.has(g.projectId)) {
+      byProject.set(g.projectId, {
+        projectId: g.projectId,
+        code: p.code,
+        name: p.name,
+        isActive: p.isActive,
+        reportCounts: {},
+        rdoCount: 0
+      });
+    }
+    const entry = byProject.get(g.projectId);
+    entry.reportCounts[g.reportType] = g._count.id;
+    if (g.reportType === 'RDO') entry.rdoCount = g._count.id;
+  }
+
+  // Add projects with zero reports (active only, to show in active count)
+  for (const p of projects) {
+    if (!byProject.has(p.id)) {
+      byProject.set(p.id, {
+        projectId: p.id, code: p.code, name: p.name, isActive: p.isActive,
+        reportCounts: {}, rdoCount: 0
+      });
+    }
+  }
+
+  const sorted = Array.from(byProject.values())
+    .sort((a, b) => b.rdoCount - a.rdoCount);
+
+  res.json({
+    projectCounts: { active: activeCount, archived: archivedCount, total: activeCount + archivedCount },
+    byProject: sorted
+  });
 }));
 
 export default router;

@@ -128,3 +128,22 @@ export function statsExportFileName(params: StatsParams & { section: StatsExport
   const to = params.to || 'fim';
   return `estatisticas-${params.section}-${from}-${to}.csv`;
 }
+
+export interface StatsOverviewProject {
+  projectId: string;
+  code: string;
+  name: string;
+  isActive: boolean;
+  reportCounts: Partial<Record<string, number>>;
+  rdoCount: number;
+}
+
+export interface StatsOverviewResponse {
+  projectCounts: { active: number; archived: number; total: number };
+  byProject: StatsOverviewProject[];
+}
+
+export async function fetchStatsOverview(): Promise<StatsOverviewResponse> {
+  const response = await apiClient.get<StatsOverviewResponse>('/statistics/overview');
+  return response.data;
+}

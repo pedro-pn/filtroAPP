@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 
-import { downloadProjectStatsCsv, statsExportFileName, type StatsExportSection, type StatsParams, type StatsProjectData, type StatsServiceStats, type StatsSummary, type StatsTimelineSlot } from '../../api/statistics';
-import { useProjectStats, useProjectSegments } from '../../hooks/useProjectStats';
+import { downloadProjectStatsCsv, statsExportFileName, type StatsExportSection, type StatsOverviewProject, type StatsParams, type StatsProjectData, type StatsServiceStats, type StatsSummary, type StatsTimelineSlot } from '../../api/statistics';
+import { useProjectStats, useProjectSegments, useStatsOverview } from '../../hooks/useProjectStats';
 import { useProjects } from '../../hooks/useProjects';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { downloadBlob } from '../../utils/download';
@@ -265,7 +265,7 @@ function aggregateItemsByEquipment(byProject: StatsProjectData[]): Record<string
 
 function ServiceItemLabel({ item }: { item: AggregatedItem }) {
   const parts = [item.equipmentName, item.system].filter(Boolean);
-  return <span className="stats-svc-item-label">{parts.length ? parts.join(' / ') : '—'}</span>;
+  return <span className="stats-svc-item-label">{parts.length ? parts.join(' - ') : '—'}</span>;
 }
 
 function ServicesSection({ services, byProject }: { services: Record<string, StatsServiceStats>; byProject: StatsProjectData[] }) {
@@ -358,7 +358,7 @@ function RdoServiceRows({ services }: { services: Record<string, StatsServiceSta
           );
         }
         return items.map((item, idx) => {
-          const label = [item.equipmentName, item.system].filter(Boolean).join(' / ') || '—';
+          const label = [item.equipmentName, item.system].filter(Boolean).join(' - ') || '—';
           const tubes = Object.entries(item.tubesByDiameter || {});
           const hasVolume = type === 'filtragem' && item.volumeOleoLiters != null && item.volumeOleoLiters > 0;
           return (
@@ -726,6 +726,134 @@ export function StatsDashboardOverlay({ onClose }: StatsDashboardOverlayProps) {
           <StatsDashboard />
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Stats Overview (mini dashboard na aba) ───────────────────────────────────
+
+const REPORT_TYPE_LABELS: Record<string, string> = {
+  RDO: 'RDO', RTP: 'RTP', RLQ: 'RLQ', RCPU: 'RCPU', RLM: 'RLM', RLF: 'RLF', RLI: 'RLI'
+};
+
+const ALL_REPORT_TYPES = ['RDO', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLF', 'RLI'];
+
+function OverviewCountCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="stats-ov-count-card">
+      <div className="stats-ov-count-value">{value}</div>
+      <div className="stats-ov-count-label">{label}</div>
+    </div>
+  );
+}
+
+function TopProjectsBar({ rows }: { rows: StatsOverviewProject[] }) {
+  const maxRdo = Math.max(...rows.map(r => r.rdoCount), 1);
+  return (
+    <div className="stats-ov-bar-list">
+      {rows.map(row => (
+        <div key={row.projectId} className="stats-ov-bar-row">
+          <span className="stats-ov-bar-code">{row.code}</span>
+          <span className="stats-ov-bar-name">{row.name}</span>
+          <div className="stats-ov-bar-track">
+            <div className="stats-ov-bar-fill" style={{ width: `${(row.rdoCount / maxRdo) * 100}%` }} />
+          </div>
+          <span className="stats-ov-bar-count">{row.rdoCount}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReportTypeTable({ rows }: { rows: StatsOverviewProject[] }) {
+  const usedTypes = ALL_REPORT_TYPES.filter(t => rows.some(r => (r.reportCounts[t] ?? 0) > 0));
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table className="stats-ov-type-table">
+        <thead>
+          <tr>
+            <th>Projeto</th>
+            {usedTypes.map(t => <th key={t}>{REPORT_TYPE_LABELS[t]}</th>)}
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(row => {
+            const total = Object.values(row.reportCounts).reduce((a, b) => (a as number) + (b as number), 0) as number;
+            return (
+              <tr key={row.projectId}>
+                <td className="stats-ov-type-project">
+                  <span className="stats-ov-type-code">{row.code}</span>
+                  <span className="stats-ov-type-name">{row.name}</span>
+                </td>
+                {usedTypes.map(t => (
+                  <td key={t} className="stats-ov-type-num">
+                    {row.reportCounts[t]
+                      ? <strong>{row.reportCounts[t]}</strong>
+                      : <span className="stats-ov-type-zero">—</span>}
+                  </td>
+                ))}
+                <td className="stats-ov-type-num stats-ov-type-total">{total || '—'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function StatsOverview() {
+  const { data, isLoading, isError } = useStatsOverview();
+  const [showAll, setShowAll] = useState(false);
+
+  if (isLoading) return <div className="page-card placeholder-copy">Carregando visão geral...</div>;
+  if (isError) return <div className="page-card placeholder-copy" style={{ color: 'var(--rd)' }}>Erro ao carregar dados.</div>;
+  if (!data) return null;
+
+  const top10 = data.byProject.slice(0, 10);
+  const withReports = data.byProject.filter(r => Object.keys(r.reportCounts).length > 0);
+  const tableRows = showAll ? withReports : withReports.slice(0, 15);
+
+  return (
+    <div className="stats-ov-wrap">
+      {/* Contadores */}
+      <div className="survey-dash-card stats-ov-section">
+        <div className="survey-dash-card-title">Projetos</div>
+        <div className="stats-ov-count-row">
+          <OverviewCountCard label="Em andamento" value={data.projectCounts.active} />
+          <OverviewCountCard label="Arquivados / finalizados" value={data.projectCounts.archived} />
+          <OverviewCountCard label="Total" value={data.projectCounts.total} />
+        </div>
+      </div>
+
+      {/* Top por RDOs */}
+      {top10.length > 0 && (
+        <div className="survey-dash-card stats-ov-section">
+          <div className="survey-dash-card-title">Projetos com mais RDOs aprovados / assinados</div>
+          <TopProjectsBar rows={top10} />
+        </div>
+      )}
+
+      {/* Relatórios por tipo */}
+      {tableRows.length > 0 && (
+        <div className="survey-dash-card stats-ov-section">
+          <div className="survey-dash-card-title">Relatórios por projeto e tipo</div>
+          <ReportTypeTable rows={tableRows} />
+          {withReports.length > 15 && !showAll && (
+            <button type="button" className="stats-ov-show-more" onClick={() => setShowAll(true)}>
+              Ver todos os {withReports.length} projetos
+            </button>
+          )}
+        </div>
+      )}
+
+      {data.byProject.length === 0 && (
+        <div className="survey-dash-card">
+          <div className="stats-empty">Nenhum relatório aprovado ou assinado encontrado.</div>
+        </div>
+      )}
     </div>
   );
 }
