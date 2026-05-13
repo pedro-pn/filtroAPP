@@ -601,6 +601,7 @@ export function StatsDashboard() {
   const singleProject = selectedProjects.length === 1;
 
   const allProjects = (projectsQuery.data || [])
+    .filter(project => !project.managerOnly)
     .slice()
     .sort((a, b) => a.code.localeCompare(b.code, 'pt-BR', { numeric: true }));
 

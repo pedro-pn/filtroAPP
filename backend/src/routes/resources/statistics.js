@@ -392,11 +392,10 @@ router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
   const toDate = parseLocalDate(toStr, true);
 
   // Resolve project IDs
-  const projectWhere = {};
+  const projectWhere = { managerOnly: false };
   if (projectStatus === 'active') projectWhere.isActive = true;
   if (projectStatus === 'archived') projectWhere.isActive = false;
   if (segment) projectWhere.clientSegment = segment;
-  if (role === 'COORDINATOR') projectWhere.managerOnly = false;
 
   const projectIdFilter = normalizeProjectIds(req.query.projectId);
   if (projectIdFilter.length) projectWhere.id = { in: projectIdFilter };
@@ -569,11 +568,10 @@ router.get('/projects/export', requireAuth, asyncHandler(async (req, res) => {
   const fromDate = parseLocalDate(fromStr);
   const toDate = parseLocalDate(toStr, true);
 
-  const projectWhere = {};
+  const projectWhere = { managerOnly: false };
   if (projectStatus === 'active') projectWhere.isActive = true;
   if (projectStatus === 'archived') projectWhere.isActive = false;
   if (segment) projectWhere.clientSegment = segment;
-  if (role === 'COORDINATOR') projectWhere.managerOnly = false;
 
   const projectIdFilter = normalizeProjectIds(req.query.projectId);
   if (projectIdFilter.length) projectWhere.id = { in: projectIdFilter };
@@ -699,7 +697,7 @@ router.get('/overview', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'Acesso restrito a gestor e coordenador.' });
   }
 
-  const baseWhere = role === 'COORDINATOR' ? { managerOnly: false } : {};
+  const baseWhere = { managerOnly: false };
 
   const [activeCount, archivedCount, reportGroups, projects] = await Promise.all([
     prisma.project.count({ where: { ...baseWhere, isActive: true } }),
