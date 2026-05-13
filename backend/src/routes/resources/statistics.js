@@ -708,9 +708,7 @@ router.get('/overview', requireAuth, asyncHandler(async (req, res) => {
 
   const baseWhere = statsProjectWhere();
 
-  const [activeCount, archivedCount, reportGroups, projects] = await Promise.all([
-    prisma.project.count({ where: statsProjectWhere({ isActive: true }) }),
-    prisma.project.count({ where: statsProjectWhere({ isActive: false }) }),
+  const [reportGroups, projects] = await Promise.all([
     prisma.report.groupBy({
       by: ['projectId', 'reportType'],
       where: {
@@ -724,6 +722,9 @@ router.get('/overview', requireAuth, asyncHandler(async (req, res) => {
       select: { id: true, code: true, name: true, isActive: true }
     })
   ]);
+
+  const activeCount = projects.filter(p => p.isActive).length;
+  const archivedCount = projects.filter(p => !p.isActive).length;
 
   // Build per-project map
   const projectMap = new Map(projects.map(p => [p.id, p]));
