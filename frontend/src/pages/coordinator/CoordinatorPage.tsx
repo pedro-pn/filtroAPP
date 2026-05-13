@@ -11,6 +11,7 @@ import { useProjects } from '../../hooks/useProjects';
 import { useReports } from '../../hooks/useReports';
 import { useSurveys } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
+import { StatsDashboardOverlay } from '../../components/stats/StatsDashboard';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
@@ -21,7 +22,7 @@ import { reportDownloadFileName } from '../../utils/reportFileName';
 import { matchesSearch, projectSearchParts, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
-type CoordinatorTab = 'pending' | 'approved' | 'archived' | 'nps';
+type CoordinatorTab = 'pending' | 'approved' | 'archived' | 'nps' | 'estatisticas';
 
 const TEXT = {
   archived: 'Arquivados',
@@ -110,6 +111,7 @@ export function CoordinatorPage() {
   const [npsSortDir, setNpsSortDir] = useState<ProjectSortDirection>('asc');
   const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
   const [npsDashboardOpen, setNpsDashboardOpen] = useState(false);
+  const [statsDashboardOpen, setStatsDashboardOpen] = useState(false);
   const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>([]);
   const [closedArchivedTypeKeys, setClosedArchivedTypeKeys] = useState<string[]>([]);
   const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, ProjectSortDirection>>({});
@@ -357,9 +359,29 @@ export function CoordinatorPage() {
     );
   }
 
+  function renderEstatisticasTab() {
+    return (
+      <>
+        {statsDashboardOpen && <StatsDashboardOverlay onClose={() => setStatsDashboardOpen(false)} />}
+        <div className="nps-tab-toolbar">
+          <div className="nps-tab-toolbar-left" />
+          <div className="nps-tab-toolbar-right">
+            <button className="mini-btn" type="button" onClick={() => setStatsDashboardOpen(true)}>
+              Abrir dashboard
+            </button>
+          </div>
+        </div>
+        <div className="page-card placeholder-copy">
+          Clique em <strong>Abrir dashboard</strong> para ver as estatísticas de execução dos projetos.
+        </div>
+      </>
+    );
+  }
+
   function renderTabContent() {
     if (tab === 'archived') return renderArchivedTab();
     if (tab === 'nps') return renderNpsTab();
+    if (tab === 'estatisticas') return renderEstatisticasTab();
 
     if (reportsQuery.isLoading) return <div className="page-card placeholder-copy">{TEXT.loading}</div>;
 
@@ -541,6 +563,9 @@ export function CoordinatorPage() {
           </button>
           <button className={`nav-tab ${tab === 'nps' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'nps'} onClick={() => setTab('nps')}>
             NPS
+          </button>
+          <button className={`nav-tab ${tab === 'estatisticas' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'estatisticas'} onClick={() => setTab('estatisticas')}>
+            Estatísticas
           </button>
         </div>
       </div>

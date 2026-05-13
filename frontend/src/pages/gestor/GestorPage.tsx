@@ -26,6 +26,8 @@ import { useUnitMutations, useUnits } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useSurveyMutations, useSurveyQuestions, useSurveys } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
+import { StatsDashboardOverlay } from '../../components/stats/StatsDashboard';
+import { useProjectSegments } from '../../hooks/useProjectStats';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
@@ -52,7 +54,8 @@ type GestorTab =
   | 'equipe'
   | 'usuarios'
   | 'equipamentos'
-  | 'nps';
+  | 'nps'
+  | 'estatisticas';
 
 type EquipmentSubTab = 'unidades' | 'manometros' | 'contadores';
 type SurveyQuestionDraft = Omit<SurveyQuestion, 'order' | 'options'> & { optionsText: string };
@@ -74,7 +77,8 @@ const gestorTabs: GestorTab[] = [
   'equipe',
   'usuarios',
   'equipamentos',
-  'nps'
+  'nps',
+  'estatisticas'
 ];
 
 function parseGestorTab(value: string | null): GestorTab {
@@ -133,6 +137,7 @@ interface ProjectFormState {
   contractCode: string;
   location: string;
   operatorId: string;
+  clientSegment: string;
   visibleToCollaborators: boolean;
   managerOnly: boolean;
   isActive: boolean;
@@ -194,6 +199,7 @@ const emptyProjectForm: ProjectFormState = {
   contractCode: '',
   location: '',
   operatorId: '',
+  clientSegment: '',
   visibleToCollaborators: true,
   managerOnly: false,
   isActive: true,
@@ -640,6 +646,7 @@ function projectToForm(project: Project): ProjectFormState {
     contractCode: project.contractCode,
     location: project.location,
     operatorId: project.operatorId || '',
+    clientSegment: project.clientSegment || '',
     visibleToCollaborators: project.visibleToCollaborators,
     managerOnly: project.managerOnly,
     isActive: project.isActive,
@@ -854,6 +861,7 @@ function renderProjectCard(
     onResendSurvey?: (survey: SatisfactionSurveySummary) => void;
     surveyPending?: boolean;
     children?: ReactNode;
+    segments?: import('../../../types/domain').ClientSegment[];
   }
 ) {
   const survey = latestSurvey(project);
@@ -909,6 +917,12 @@ function renderProjectCard(
             <span className="det-label">Operador</span>
             <span className="det-val">{project.operator?.name || '-'}</span>
           </div>
+          {project.clientSegment && (
+            <div className="det-row">
+              <span className="det-label">Segmento</span>
+              <span className="det-val">{(options.segments || []).find(s => s.slug === project.clientSegment)?.label || project.clientSegment}</span>
+            </div>
+          )}
           <div className="det-row">
             <span className="det-label">Visibilidade</span>
             <span className="det-val">{projectVisibilityLabel(project)}</span>
@@ -972,6 +986,7 @@ export function GestorPage() {
   const [archiveSurveyProject, setArchiveSurveyProject] = useState<Project | null>(null);
   const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
   const [npsDashboardOpen, setNpsDashboardOpen] = useState(false);
+  const [statsDashboardOpen, setStatsDashboardOpen] = useState(false);
   const [equipmentSubTab, setEquipmentSubTab] = useState<EquipmentSubTab>('unidades');
   const [npsSortDir, setNpsSortDir] = useState<'asc' | 'desc'>('asc');
   const [showSurveyQuestionEditor, setShowSurveyQuestionEditor] = useState(false);
@@ -1020,6 +1035,7 @@ export function GestorPage() {
   const manometersQuery = useManometers();
   const countersQuery = useCounters();
   const surveysQuery = useSurveys();
+  const projectSegmentsQuery = useProjectSegments();
   const surveyQuestionsQuery = useSurveyQuestions();
 
   const projectMutations = useProjectMutations();
@@ -1322,6 +1338,7 @@ export function GestorPage() {
       managerOnly: projectForm.managerOnly,
       isActive: projectForm.isActive,
       operatorId: projectForm.operatorId || null,
+      clientSegment: projectForm.clientSegment || null,
       workdayHours: projectForm.workdayHours || '09:00',
       weekendWorkdayHours: projectForm.weekendWorkdayHours || '08:00',
       includesSaturday: projectForm.includesSaturday,
@@ -2101,6 +2118,15 @@ export function GestorPage() {
                   </select>
                 </div>
                 <div className="field-group">
+                  <label htmlFor="project-segment">Segmento do cliente</label>
+                  <select id="project-segment" value={projectForm.clientSegment} onChange={event => setProjectForm(current => ({ ...current, clientSegment: event.target.value }))}>
+                    <option value="">Selecionar segmento...</option>
+                    {(projectSegmentsQuery.data || []).map(s => (
+                      <option key={s.slug} value={s.slug}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field-group">
                   <label htmlFor="project-visible">Visibilidade / criação de relatórios</label>
                   <select
                     id="project-visible"
@@ -2186,6 +2212,15 @@ export function GestorPage() {
                         </select>
                       </div>
                       <div className="field-group">
+                        <label htmlFor={`project-segment-${project.id}`}>Segmento do cliente</label>
+                        <select id={`project-segment-${project.id}`} value={projectForm.clientSegment} onChange={event => setProjectForm(current => ({ ...current, clientSegment: event.target.value }))}>
+                          <option value="">Selecionar segmento...</option>
+                          {(projectSegmentsQuery.data || []).map(s => (
+                            <option key={s.slug} value={s.slug}>{s.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="field-group">
                         <label htmlFor={`project-visible-${project.id}`}>Visibilidade / criação de relatórios</label>
                         <select
                           id={`project-visible-${project.id}`}
@@ -2239,7 +2274,8 @@ export function GestorPage() {
                 onToggleDetails: toggleProjectDetails,
                 onSendSurvey: handleSendSurvey,
                 onResendSurvey: handleResendSurvey,
-                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending
+                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending,
+                segments: projectSegmentsQuery.data
               })
             )}
           </div>
@@ -2316,7 +2352,8 @@ export function GestorPage() {
                 onToggleReports: item => toggleArchivedProject(item.id),
                 onSendSurvey: handleSendSurvey,
                 onResendSurvey: handleResendSurvey,
-                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending
+                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending,
+                segments: projectSegmentsQuery.data
               });
             })}
           </div>
@@ -3513,6 +3550,25 @@ export function GestorPage() {
     );
   }
 
+  function renderEstatisticasTab() {
+    return (
+      <>
+        {statsDashboardOpen && <StatsDashboardOverlay onClose={() => setStatsDashboardOpen(false)} />}
+        <div className="nps-tab-toolbar">
+          <div className="nps-tab-toolbar-left" />
+          <div className="nps-tab-toolbar-right">
+            <button className="mini-btn" type="button" onClick={() => setStatsDashboardOpen(true)}>
+              Abrir dashboard
+            </button>
+          </div>
+        </div>
+        <div className="page-card placeholder-copy">
+          Clique em <strong>Abrir dashboard</strong> para ver as estatísticas de execução dos projetos.
+        </div>
+      </>
+    );
+  }
+
   function renderTabContent() {
     if (tab === 'pendentes' || tab === 'aprovados') return renderReportTabContent();
     if (tab === 'projetos') return renderProjectsTab();
@@ -3520,6 +3576,7 @@ export function GestorPage() {
     if (tab === 'equipe') return renderEquipeTab();
     if (tab === 'usuarios') return renderUsuariosTab();
     if (tab === 'equipamentos') return renderEquipamentosTab();
+    if (tab === 'estatisticas') return renderEstatisticasTab();
     return renderNpsTab();
   }
 
@@ -3597,6 +3654,9 @@ export function GestorPage() {
           </button>
           <button className={`nav-tab ${tab === 'nps' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'nps'} onClick={() => setTab('nps')}>
             NPS
+          </button>
+          <button className={`nav-tab ${tab === 'estatisticas' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'estatisticas'} onClick={() => setTab('estatisticas')}>
+            Estatísticas
           </button>
         </div>
       </div>

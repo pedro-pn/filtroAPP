@@ -217,6 +217,29 @@ async function main() {
       }
     });
   }
+
+  const segments = [
+    { slug: 'siderurgica',     label: 'Siderúrgica',        order: 1 },
+    { slug: 'celulose_papel',  label: 'Celulose e Papel',   order: 2 },
+    { slug: 'geracao_energia', label: 'Geração de Energia', order: 3 },
+    { slug: 'farmaceutico',    label: 'Farmacêutico',       order: 4 },
+    { slug: 'metalurgico',     label: 'Metalúrgico',        order: 5 },
+    { slug: 'petroquimica',    label: 'Petroquímica',       order: 6 },
+    { slug: 'naval',           label: 'Naval',              order: 7 },
+    { slug: 'cimento',         label: 'Cimento',            order: 8 },
+    { slug: 'refinaria',       label: 'Refinaria',          order: 9 },
+    { slug: 'automotivo',      label: 'Automotivo',         order: 10 },
+    { slug: 'mineracao',       label: 'Mineração',          order: 11 },
+    { slug: 'alimenticio',     label: 'Alimentício',        order: 12 }
+  ];
+
+  for (const seg of segments) {
+    await prisma.clientSegment.upsert({
+      where: { slug: seg.slug },
+      update: { label: seg.label, order: seg.order },
+      create: { ...seg, isActive: true }
+    });
+  }
 }
 
 main()

@@ -33,6 +33,7 @@ const schema = z.object({
   includesSaturday: z.boolean().default(false),
   includesSunday: z.boolean().default(false),
   operatorId: z.string().nullable().optional(),
+  clientSegment: z.string().nullable().optional(),
   reportSequences: z.array(z.object({
     reportType: z.nativeEnum(ReportType),
     nextNumber: z.number().int().nonnegative()
