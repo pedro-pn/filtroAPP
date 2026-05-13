@@ -72,6 +72,20 @@ function normalizeProjectInput(data) {
   };
 }
 
+export async function assertActiveClientSegment(slug, prismaClient = prisma) {
+  if (!slug) return;
+  const segment = await prismaClient.clientSegment.findFirst({
+    where: { slug, isActive: true },
+    select: { id: true }
+  });
+  if (segment) return;
+  throw new z.ZodError([{
+    code: z.ZodIssueCode.custom,
+    path: ['clientSegment'],
+    message: 'Segmento inválido ou inativo.'
+  }]);
+}
+
 router.get('/', requireAuth, asyncHandler(async (req, res) => {
   const activeParam = req.query.active;
   const where = {};
@@ -128,6 +142,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
 
 router.post('/', requireAuth, requireManager, asyncHandler(async (req, res) => {
   const data = normalizeProjectInput(schema.parse(req.body));
+  await assertActiveClientSegment(data.clientSegment);
   const { reportSequences, ...projectData } = data;
   const item = await prisma.$transaction(async tx => {
     const created = await tx.project.create({
@@ -174,6 +189,9 @@ router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) =>
   }
   if (data.managerOnly === true) {
     data = { ...data, visibleToCollaborators: false };
+  }
+  if (data.clientSegment !== undefined) {
+    await assertActiveClientSegment(data.clientSegment);
   }
   const { reportSequences, ...projectData } = data;
 

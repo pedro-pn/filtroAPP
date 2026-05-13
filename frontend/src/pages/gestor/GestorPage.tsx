@@ -27,12 +27,13 @@ import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useSurveyMutations, useSurveyQuestions, useSurveys } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
 import { StatsDashboardOverlay } from '../../components/stats/StatsDashboard';
-import { useProjectSegments } from '../../hooks/useProjectStats';
+import { useProjectSegmentMutations, useProjectSegments } from '../../hooks/useProjectStats';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
 import type {
   Collaborator,
+  ClientSegment,
   ClientSigner,
   InternalUserSummary,
   Manometer,
@@ -631,6 +632,16 @@ function applyProjectVisibilityMode(mode: ProjectVisibilityMode): Pick<ProjectFo
   return { managerOnly: false, visibleToCollaborators: false };
 }
 
+function segmentSlugFromLabel(label: string) {
+  return label
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
 function projectToForm(project: Project): ProjectFormState {
   return {
     code: project.code,
@@ -861,7 +872,7 @@ function renderProjectCard(
     onResendSurvey?: (survey: SatisfactionSurveySummary) => void;
     surveyPending?: boolean;
     children?: ReactNode;
-    segments?: import('../../../types/domain').ClientSegment[];
+    segments?: ClientSegment[];
   }
 ) {
   const survey = latestSurvey(project);
@@ -983,6 +994,8 @@ export function GestorPage() {
   const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
   const [projectEditingId, setProjectEditingId] = useState<string | null>(null);
   const [showProjectForm, setShowProjectForm] = useState(false);
+  const [showSegmentForm, setShowSegmentForm] = useState(false);
+  const [segmentLabel, setSegmentLabel] = useState('');
   const [archiveSurveyProject, setArchiveSurveyProject] = useState<Project | null>(null);
   const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
   const [npsDashboardOpen, setNpsDashboardOpen] = useState(false);
@@ -1039,6 +1052,7 @@ export function GestorPage() {
   const surveyQuestionsQuery = useSurveyQuestions();
 
   const projectMutations = useProjectMutations();
+  const projectSegmentMutations = useProjectSegmentMutations();
   const surveyMutations = useSurveyMutations();
   const reportMutations = useReportMutations();
   const draftMutations = useDraftMutations();
@@ -1230,6 +1244,16 @@ export function GestorPage() {
     setShowProjectForm(false);
   }
 
+  function openSegmentForm() {
+    setSegmentLabel('');
+    setShowSegmentForm(true);
+  }
+
+  function closeSegmentForm() {
+    setShowSegmentForm(false);
+    setSegmentLabel('');
+  }
+
   function resetCollaboratorForm() {
     setCollaboratorForm(emptyCollaboratorForm);
     setCollaboratorEditingId(null);
@@ -1356,6 +1380,27 @@ export function GestorPage() {
       resetProjectForm();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível salvar o projeto.', 'error');
+    }
+  }
+
+  async function handleSegmentSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const label = segmentLabel.trim();
+    const slug = segmentSlugFromLabel(label);
+    if (!label || !slug) return;
+
+    try {
+      const created = await projectSegmentMutations.createSegment.mutateAsync({
+        label,
+        slug,
+        isActive: true,
+        order: (projectSegmentsQuery.data || []).length + 1
+      });
+      setProjectForm(current => ({ ...current, clientSegment: created.slug }));
+      closeSegmentForm();
+      showToast('Segmento criado.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível criar o segmento.', 'error');
     }
   }
 
@@ -2125,6 +2170,7 @@ export function GestorPage() {
                       <option key={s.slug} value={s.slug}>{s.label}</option>
                     ))}
                   </select>
+                  <button className="mini-btn alt" type="button" onClick={openSegmentForm}>+ Adicionar segmento</button>
                 </div>
                 <div className="field-group">
                   <label htmlFor="project-visible">Visibilidade / criação de relatórios</label>
@@ -2219,6 +2265,7 @@ export function GestorPage() {
                             <option key={s.slug} value={s.slug}>{s.label}</option>
                           ))}
                         </select>
+                        <button className="mini-btn alt" type="button" onClick={openSegmentForm}>+ Adicionar segmento</button>
                       </div>
                       <div className="field-group">
                         <label htmlFor={`project-visible-${project.id}`}>Visibilidade / criação de relatórios</label>
@@ -3666,6 +3713,33 @@ export function GestorPage() {
         {renderGestorSearch()}
         {renderTabContent()}
       </main>
+
+      <Modal
+        open={showSegmentForm}
+        onClose={closeSegmentForm}
+        ariaLabelledBy="client-segment-title"
+      >
+        <form className="admin-form" onSubmit={handleSegmentSubmit}>
+          <div className="section-title" id="client-segment-title">Adicionar segmento</div>
+          <div className="field-group">
+            <label htmlFor="client-segment-label">Nome</label>
+            <input
+              id="client-segment-label"
+              value={segmentLabel}
+              onChange={event => setSegmentLabel(event.target.value)}
+              required
+            />
+          </div>
+          <div className="admin-form-actions segment-dialog-actions">
+            <button className="secondary-button" type="button" onClick={closeSegmentForm}>
+              Cancelar
+            </button>
+            <button className="primary-button" type="submit" disabled={projectSegmentMutations.createSegment.isPending}>
+              Salvar segmento
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal
         open={Boolean(archiveSurveyProject)}

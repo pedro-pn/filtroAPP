@@ -10,6 +10,13 @@ export interface StatsParams {
   granularity?: 'day' | 'week' | 'month' | 'year';
 }
 
+export interface ClientSegmentPayload {
+  label: string;
+  slug: string;
+  isActive?: boolean;
+  order?: number;
+}
+
 export interface StatsSummary {
   reportCount: number;
   totalDays: number;
@@ -98,6 +105,11 @@ export async function fetchProjectStats(params: StatsParams): Promise<ProjectSta
 
 export async function listProjectSegments(): Promise<ClientSegment[]> {
   const response = await apiClient.get<ClientSegment[]>('/project-segments');
+  return response.data;
+}
+
+export async function createProjectSegment(payload: ClientSegmentPayload): Promise<ClientSegment> {
+  const response = await apiClient.post<ClientSegment>('/project-segments', payload);
   return response.data;
 }
 

@@ -6,24 +6,41 @@ import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
 const MAX_YEARS = 2;
-// Brazil abolished DST in 2019; always UTC-3
-const BRT_OFFSET_MS = -3 * 60 * 60 * 1000;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function toBRT(date) {
-  return new Date(date.getTime() + BRT_OFFSET_MS);
+export function parseLocalDate(str, endOfDay = false) {
+  const match = String(str || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return new Date(NaN);
+  const [, y, m, d] = match.map(Number);
+  const date = endOfDay
+    ? new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999))
+    : new Date(Date.UTC(y, m - 1, d));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) {
+    return new Date(NaN);
+  }
+  return date;
 }
 
-function parseLocalDate(str) {
-  // YYYY-MM-DD → midnight UTC-3 → UTC
-  const [y, m, d] = str.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d) - BRT_OFFSET_MS);
-}
-
-function toLocalDateStr(date) {
-  const d = toBRT(date);
+export function toLocalDateStr(date) {
+  const d = new Date(date);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+export function validateDateRange(fromStr, toStr) {
+  const fromDate = parseLocalDate(fromStr);
+  const toDate = parseLocalDate(toStr);
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+    return 'Período inválido. Use datas no formato YYYY-MM-DD.';
+  }
+  if (toDate < fromDate) {
+    return 'Data final não pode ser anterior à data inicial.';
+  }
+  const diffYears = (toDate - fromDate) / (365.25 * 24 * 3600 * 1000);
+  if (diffYears > MAX_YEARS) {
+    return `Período máximo permitido é de ${MAX_YEARS} anos.`;
+  }
+  return null;
 }
 
 function isoWeek(date) {
@@ -35,8 +52,8 @@ function isoWeek(date) {
   return { year: d.getUTCFullYear(), week };
 }
 
-function periodKey(date, granularity) {
-  const d = toBRT(date);
+export function periodKey(date, granularity) {
+  const d = new Date(date);
   const y = d.getUTCFullYear();
   const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
   const day = String(d.getUTCDate()).padStart(2, '0');
@@ -72,27 +89,43 @@ function parseMinutes(val) {
   return 0;
 }
 
-function parseVolumeOleo(service) {
+export function parseDecimal(val) {
+  const str = String(val).trim();
+  const normalized = str.includes(',') && str.includes('.')
+    ? str.replace(/\./g, '').replace(',', '.')
+    : str.replace(',', '.');
+  const num = parseFloat(normalized);
+  return Number.isNaN(num) ? null : num;
+}
+
+export function parseVolumeOleo(service) {
   // extraData may have volumeOleo + volumeOleoUnit or a combined 'Volume de óleo'
   const extra = service.extraData || {};
 
   // New format: separate fields
   const vol = extra.volumeOleo ?? extra['Volume de óleo'];
-  const unit = extra.volumeOleoUnit ?? extra['Unidade de volume de óleo'];
+  let unit = extra.volumeOleoUnit ?? extra['Unidade de volume de óleo'];
 
   if (vol === undefined || vol === null || vol === '') return { liters: null, ignored: true };
 
-  const num = parseFloat(String(vol).replace(',', '.'));
-  if (isNaN(num)) return { liters: null, ignored: true };
+  let numericValue = vol;
+  const combined = String(vol).trim().match(/^([+-]?\d+(?:[.,]\d+)?)\s*([a-zA-Z³]+)?$/u);
+  if (combined) {
+    numericValue = combined[1];
+    unit = unit ?? combined[2];
+  }
+
+  const num = parseDecimal(numericValue);
+  if (num == null) return { liters: null, ignored: true };
 
   const unitStr = String(unit || 'L').trim().toLowerCase();
-  if (unitStr === 'ml' || unitStr === 'ml') return { liters: num / 1000, ignored: false };
+  if (unitStr === 'ml') return { liters: num / 1000, ignored: false };
   if (unitStr === 'm³' || unitStr === 'm3') return { liters: num * 1000, ignored: false };
   // L, litro, litros, l
   return { liters: num, ignored: false };
 }
 
-function parseTubulacoes(service) {
+export function parseTubulacoes(service) {
   const extra = service.extraData || {};
   const raw = extra['Diâmetros e comprimentos'] || extra.diametros || [];
   if (!Array.isArray(raw)) return { byDiameter: {}, ignoredCount: 0 };
@@ -108,8 +141,8 @@ function parseTubulacoes(service) {
 
     if (!d || c === undefined || c === null) { ignoredCount++; continue; }
 
-    const meters = parseFloat(String(c).replace(',', '.'));
-    if (isNaN(meters)) { ignoredCount++; continue; }
+    const meters = parseDecimal(c);
+    if (meters == null) { ignoredCount++; continue; }
 
     const normalizedMeters = cUnit === 'cm' ? meters / 100 : cUnit === 'mm' ? meters / 1000 : meters;
     const key = dUnit ? `${String(d).trim()} ${dUnit}` : String(d).trim();
@@ -139,7 +172,7 @@ function mergeServicesMap(acc, src) {
   }
 }
 
-function buildServiceStats(services, ignoredRows) {
+export function buildServiceStats(services, ignoredRows) {
   const result = {};
 
   for (const svc of services) {
@@ -160,7 +193,7 @@ function buildServiceStats(services, ignoredRows) {
         result[type].tubesByDiameter[d] = (result[type].tubesByDiameter[d] || 0) + m;
       }
       const extra = svc.extraData || {};
-      const tubFlag = extra['Flushing em tubulação'] || extra.flushingEmTubulacao;
+      const tubFlag = extra['Flushing em tubulação?'] || extra['Flushing em tubulação'] || extra.flushingEmTubulacao;
       if (tubFlag && String(tubFlag).toLowerCase() === 'sim') result[type].hasTubulacao += 1;
     }
   }
@@ -212,7 +245,7 @@ function summarize(reports) {
   return summary;
 }
 
-function buildDailyReport(r) {
+export function buildDailyReport(r) {
   const sc = r.specialConditions || {};
   const noturnoIds = sc.noturnoDetails?.collaboratorIds;
   const isStandby = sc.standby === true;
@@ -252,7 +285,7 @@ function buildDailyReport(r) {
         servicesByType[type].tubesByDiameter[d] = (servicesByType[type].tubesByDiameter[d] || 0) + m;
       }
       const extra = svc.extraData || {};
-      const tubFlag = extra['Flushing em tubulação'] || extra.flushingEmTubulacao;
+      const tubFlag = extra['Flushing em tubulação?'] || extra['Flushing em tubulação'] || extra.flushingEmTubulacao;
       if (tubFlag && String(tubFlag).toLowerCase() === 'sim') servicesByType[type].hasTubulacao += 1;
     }
 
@@ -296,13 +329,12 @@ router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
     ? req.query.projectStatus : 'all';
   const segment = req.query.segment || null;
 
-  // Validate date range (max 2 years)
-  const fromDate = parseLocalDate(fromStr);
-  const toDate = parseLocalDate(toStr);
-  const diffYears = (toDate - fromDate) / (365.25 * 24 * 3600 * 1000);
-  if (diffYears > MAX_YEARS) {
-    return res.status(400).json({ error: `Período máximo permitido é de ${MAX_YEARS} anos.` });
+  const rangeError = validateDateRange(fromStr, toStr);
+  if (rangeError) {
+    return res.status(400).json({ error: rangeError });
   }
+  const fromDate = parseLocalDate(fromStr);
+  const toDate = parseLocalDate(toStr, true);
 
   // Resolve project IDs
   const projectWhere = {};
@@ -406,8 +438,6 @@ router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
     for (const r of pReports) {
       mergeServicesMap(pServices, buildServiceStats(r.services, pIgnored));
     }
-    ignoredRows.volumeOleo += pIgnored.volumeOleo;
-    ignoredRows.tubulacao += pIgnored.tubulacao;
     return {
       projectId: p.id,
       code: p.code,
@@ -447,6 +477,9 @@ router.get('/projects/export', requireAuth, asyncHandler(async (req, res) => {
 
   // Reuse the same query by calling internal logic
   const section = req.query.section || 'summary';
+  if (!['summary', 'byProject', 'services'].includes(section)) {
+    return res.status(400).json({ error: 'Seção de exportação inválida.' });
+  }
 
   // Build a fake req to delegate to the main route handler (simpler: just inline)
   const now = new Date();
@@ -459,8 +492,12 @@ router.get('/projects/export', requireAuth, asyncHandler(async (req, res) => {
     ? req.query.projectStatus : 'all';
   const segment = req.query.segment || null;
 
+  const rangeError = validateDateRange(fromStr, toStr);
+  if (rangeError) {
+    return res.status(400).json({ error: rangeError });
+  }
   const fromDate = parseLocalDate(fromStr);
-  const toDate = parseLocalDate(toStr);
+  const toDate = parseLocalDate(toStr, true);
 
   const projectWhere = {};
   if (projectStatus === 'active') projectWhere.isActive = true;

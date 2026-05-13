@@ -2400,6 +2400,12 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   gap: 6px;
 }
 
+.segment-dialog-actions {
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .admin-card-head {
   display: flex;
   align-items: flex-start;

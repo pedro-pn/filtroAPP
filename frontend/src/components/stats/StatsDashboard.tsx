@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 
-import { exportStatsUrl, type StatsParams, type StatsServiceStats, type StatsSummary, type StatsTimelineSlot } from '../../api/statistics';
+import { exportStatsUrl, type StatsParams, type StatsProjectData, type StatsServiceStats, type StatsSummary, type StatsTimelineSlot } from '../../api/statistics';
 import { useProjectStats, useProjectSegments } from '../../hooks/useProjectStats';
 import { useProjects } from '../../hooks/useProjects';
+import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 
 const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
 const headerLogoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_HEADER.png`;
@@ -21,20 +22,20 @@ function fmtNum(n: number, decimals = 1): string {
 }
 
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  return dateInputValue(new Date());
 }
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T12:00:00');
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return dateInputValue(d);
 }
 
 function startOfWeek(): string {
   const d = new Date();
   const day = d.getDay() || 7;
   d.setDate(d.getDate() - day + 1);
-  return d.toISOString().slice(0, 10);
+  return dateInputValue(d);
 }
 
 function startOfMonth(): string {
@@ -44,6 +45,10 @@ function startOfMonth(): string {
 
 function startOfYear(): string {
   return `${new Date().getFullYear()}-01-01`;
+}
+
+function dateInputValue(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 type PeriodPreset = 'today' | 'week' | 'month' | 'year' | 'custom';
@@ -262,13 +267,6 @@ function ServiceItemLabel({ item }: { item: AggregatedItem }) {
   return <span className="stats-svc-item-label">{parts.length ? parts.join(' / ') : '—'}</span>;
 }
 
-function ServiceItemQuantity({ item, type }: { item: AggregatedItem; type: string }) {
-  const parts: string[] = [];
-  if (type === 'filtragem' && item.volumeOleoLiters > 0) parts.push(`${fmtNum(item.volumeOleoLiters, 0)} L`);
-  for (const [d, m] of Object.entries(item.tubesByDiameter)) parts.push(`${d} → ${fmtNum(m, 1)} m`);
-  return <span className="stats-svc-item-qty">{parts.length ? parts.join(' · ') : `${item.count}×`}</span>;
-}
-
 function ServicesSection({ services, byProject }: { services: Record<string, StatsServiceStats>; byProject: StatsProjectData[] }) {
   const entries = Object.entries(services).sort((a, b) => b[1].serviceCount - a[1].serviceCount);
   if (entries.length === 0) return <div className="stats-empty">Nenhum serviço no período.</div>;
@@ -429,12 +427,10 @@ function ByProjectSection({ byProject }: { byProject: StatsProjectData[] }) {
                 </thead>
                 <tbody>
                   {proj.dailyReports.map(rdo => {
-                    const dateStr = rdo.reportDate
-                      ? new Date(rdo.reportDate).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' })
-                      : '-';
+                    const dateStr = formatDateOnlyPtBr(rdo.reportDate);
                     const hasSvcs = Object.keys(rdo.services).length > 0;
                     return (
-                      <>
+                      <Fragment key={rdo.reportId}>
                         <tr key={rdo.reportId} className={hasSvcs ? 'stats-daily-row--has-svcs' : ''}>
                           <td>{dateStr}</td>
                           <td>{rdo.sequenceNumber ?? '-'}</td>
@@ -448,7 +444,7 @@ function ByProjectSection({ byProject }: { byProject: StatsProjectData[] }) {
                           <td>{rdo.standby ? fmtMin(rdo.standbyMinutes) : '—'}</td>
                         </tr>
                         {hasSvcs && <RdoServiceRows key={`${rdo.reportId}-svcs`} services={rdo.services} />}
-                      </>
+                      </Fragment>
                     );
                   })}
                 </tbody>
