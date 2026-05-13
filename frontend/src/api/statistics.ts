@@ -10,6 +10,8 @@ export interface StatsParams {
   granularity?: 'day' | 'week' | 'month' | 'year';
 }
 
+export type StatsExportSection = 'summary' | 'byProject' | 'services';
+
 export interface ClientSegmentPayload {
   label: string;
   slug: string;
@@ -113,17 +115,16 @@ export async function createProjectSegment(payload: ClientSegmentPayload): Promi
   return response.data;
 }
 
-export function exportStatsUrl(params: StatsParams & { section: string }): string {
-  const baseUrl = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
-  const qs = new URLSearchParams();
-  if (params.from) qs.set('from', params.from);
-  if (params.to) qs.set('to', params.to);
-  if (params.section) qs.set('section', params.section);
-  if (params.projectStatus) qs.set('projectStatus', params.projectStatus);
-  if (params.segment) qs.set('segment', params.segment);
-  if (params.projectId) {
-    const ids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
-    ids.forEach(id => qs.append('projectId', id));
-  }
-  return `${baseUrl}/statistics/projects/export?${qs.toString()}`;
+export async function downloadProjectStatsCsv(params: StatsParams & { section: StatsExportSection }): Promise<Blob> {
+  const response = await apiClient.get<Blob>('/statistics/projects/export', {
+    params,
+    responseType: 'blob'
+  });
+  return response.data;
+}
+
+export function statsExportFileName(params: StatsParams & { section: StatsExportSection }): string {
+  const from = params.from || 'inicio';
+  const to = params.to || 'fim';
+  return `estatisticas-${params.section}-${from}-${to}.csv`;
 }

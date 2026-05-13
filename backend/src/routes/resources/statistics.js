@@ -127,7 +127,7 @@ export function parseVolumeOleo(service) {
 
 export function parseTubulacoes(service) {
   const extra = service.extraData || {};
-  const raw = extra['Diâmetros e comprimentos'] || extra.diametros || [];
+  const raw = extra['Diâmetros e comprimentos'] || extra['Diametros e comprimentos'] || extra.diametros || extra.tubes || [];
   if (!Array.isArray(raw)) return { byDiameter: {}, ignoredCount: 0 };
 
   const byDiameter = {};

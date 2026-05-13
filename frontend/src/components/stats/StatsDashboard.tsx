@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useState } from 'react';
 
-import { exportStatsUrl, type StatsParams, type StatsProjectData, type StatsServiceStats, type StatsSummary, type StatsTimelineSlot } from '../../api/statistics';
+import { downloadProjectStatsCsv, statsExportFileName, type StatsExportSection, type StatsParams, type StatsProjectData, type StatsServiceStats, type StatsSummary, type StatsTimelineSlot } from '../../api/statistics';
 import { useProjectStats, useProjectSegments } from '../../hooks/useProjectStats';
 import { useProjects } from '../../hooks/useProjects';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
+import { downloadBlob } from '../../utils/download';
 
 const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
 const headerLogoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_HEADER.png`;
@@ -468,6 +469,8 @@ export function StatsDashboard() {
   const [projectStatus, setProjectStatus] = useState<'all' | 'active' | 'archived'>('all');
   const [segment, setSegment] = useState('');
   const [timelineMode, setTimelineMode] = useState<'hours' | 'services'>('hours');
+  const [exportingSection, setExportingSection] = useState<StatsExportSection | null>(null);
+  const [exportError, setExportError] = useState('');
 
   const projectsQuery = useProjects();
   const segmentsQuery = useProjectSegments();
@@ -495,6 +498,33 @@ export function StatsDashboard() {
   function toggleProject(id: string) {
     setSelectedProjects(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  }
+
+  async function handleExport(section: StatsExportSection) {
+    setExportError('');
+    setExportingSection(section);
+    try {
+      const params = { ...statsParams, section };
+      const blob = await downloadProjectStatsCsv(params);
+      downloadBlob(blob, statsExportFileName(params));
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'Não foi possível exportar o CSV.');
+    } finally {
+      setExportingSection(null);
+    }
+  }
+
+  function ExportButton({ section, children }: { section: StatsExportSection; children: string }) {
+    return (
+      <button
+        type="button"
+        className="mini-btn alt"
+        disabled={exportingSection !== null}
+        onClick={() => void handleExport(section)}
+      >
+        {exportingSection === section ? 'Exportando...' : children}
+      </button>
     );
   }
 
@@ -591,6 +621,11 @@ export function StatsDashboard() {
           Erro ao carregar estatísticas. Tente novamente.
         </div>
       )}
+      {exportError && (
+        <div className="page-card placeholder-copy" style={{ color: 'var(--rd)' }}>
+          {exportError}
+        </div>
+      )}
 
       {data && (
         <>
@@ -628,9 +663,9 @@ export function StatsDashboard() {
               <div className="stats-card-header">
                 <div className="survey-dash-card-title">Por projeto</div>
                 <div className="stats-export-btns">
-                  <a href={exportStatsUrl({ ...statsParams, section: 'summary' })} download className="mini-btn alt">CSV Resumo</a>
-                  <a href={exportStatsUrl({ ...statsParams, section: 'byProject' })} download className="mini-btn alt">CSV Por projeto</a>
-                  <a href={exportStatsUrl({ ...statsParams, section: 'services' })} download className="mini-btn alt">CSV Serviços</a>
+                  <ExportButton section="summary">CSV Resumo</ExportButton>
+                  <ExportButton section="byProject">CSV Por projeto</ExportButton>
+                  <ExportButton section="services">CSV Serviços</ExportButton>
                 </div>
               </div>
               <ByProjectSection byProject={data.byProject} />
@@ -642,7 +677,7 @@ export function StatsDashboard() {
               <div className="stats-card-header">
                 <div className="survey-dash-card-title">RDOs do projeto</div>
                 <div className="stats-export-btns">
-                  <a href={exportStatsUrl({ ...statsParams, section: 'services' })} download className="mini-btn alt">CSV Serviços</a>
+                  <ExportButton section="services">CSV Serviços</ExportButton>
                 </div>
               </div>
               <ByProjectSection byProject={data.byProject} />
