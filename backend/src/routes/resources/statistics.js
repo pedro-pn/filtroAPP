@@ -366,6 +366,13 @@ function reportLimitError(limit) {
   return `Consulta muito ampla para estatísticas. Refine por projeto, segmento ou período para até ${limit} RDOs.`;
 }
 
+function statsProjectWhere(extra = {}) {
+  return {
+    managerOnly: { not: true },
+    ...extra
+  };
+}
+
 router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
   const role = req.auth.user.role;
   if (role !== 'MANAGER' && role !== 'COORDINATOR') {
@@ -392,7 +399,7 @@ router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
   const toDate = parseLocalDate(toStr, true);
 
   // Resolve project IDs
-  const projectWhere = { managerOnly: false };
+  const projectWhere = statsProjectWhere();
   if (projectStatus === 'active') projectWhere.isActive = true;
   if (projectStatus === 'archived') projectWhere.isActive = false;
   if (segment) projectWhere.clientSegment = segment;
@@ -432,7 +439,8 @@ router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
     reportType: 'RDO',
     status: { in: ['APPROVED', 'SIGNED'] },
     reportDate: { gte: fromDate, lte: toDate },
-    projectId: { in: projectIds }
+    projectId: { in: projectIds },
+    project: statsProjectWhere()
   };
   const reportCount = await prisma.report.count({ where: reportWhere });
   if (reportCount > MAX_STATS_REPORTS) {
@@ -568,7 +576,7 @@ router.get('/projects/export', requireAuth, asyncHandler(async (req, res) => {
   const fromDate = parseLocalDate(fromStr);
   const toDate = parseLocalDate(toStr, true);
 
-  const projectWhere = { managerOnly: false };
+  const projectWhere = statsProjectWhere();
   if (projectStatus === 'active') projectWhere.isActive = true;
   if (projectStatus === 'archived') projectWhere.isActive = false;
   if (segment) projectWhere.clientSegment = segment;
@@ -585,7 +593,8 @@ router.get('/projects/export', requireAuth, asyncHandler(async (req, res) => {
     reportType: 'RDO',
     status: { in: ['APPROVED', 'SIGNED'] },
     reportDate: { gte: fromDate, lte: toDate },
-    projectId: { in: projects.map(p => p.id) }
+    projectId: { in: projects.map(p => p.id) },
+    project: statsProjectWhere()
   };
 
   const reportCount = projects.length === 0 ? 0 : await prisma.report.count({ where: reportWhere });
@@ -697,11 +706,11 @@ router.get('/overview', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'Acesso restrito a gestor e coordenador.' });
   }
 
-  const baseWhere = { managerOnly: false };
+  const baseWhere = statsProjectWhere();
 
   const [activeCount, archivedCount, reportGroups, projects] = await Promise.all([
-    prisma.project.count({ where: { ...baseWhere, isActive: true } }),
-    prisma.project.count({ where: { ...baseWhere, isActive: false } }),
+    prisma.project.count({ where: statsProjectWhere({ isActive: true }) }),
+    prisma.project.count({ where: statsProjectWhere({ isActive: false }) }),
     prisma.report.groupBy({
       by: ['projectId', 'reportType'],
       where: {
