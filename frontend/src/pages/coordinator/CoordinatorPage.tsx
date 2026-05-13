@@ -10,6 +10,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useProjects } from '../../hooks/useProjects';
 import { useReports } from '../../hooks/useReports';
 import { useSurveys } from '../../hooks/useSurveys';
+import { StatsDashboardOverlay } from '../../components/stats/StatsDashboard';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -21,7 +22,7 @@ import { reportDownloadFileName } from '../../utils/reportFileName';
 import { matchesSearch, projectSearchParts, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
-type CoordinatorTab = 'pending' | 'approved' | 'archived' | 'nps';
+type CoordinatorTab = 'pending' | 'approved' | 'archived' | 'nps' | 'estatisticas';
 
 const TEXT = {
   archived: 'Arquivados',
@@ -110,6 +111,7 @@ export function CoordinatorPage() {
   const [npsSortDir, setNpsSortDir] = useState<ProjectSortDirection>('asc');
   const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
   const [npsDashboardOpen, setNpsDashboardOpen] = useState(false);
+  const [statsDashboardOpen, setStatsDashboardOpen] = useState(false);
   const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>([]);
   const [closedArchivedTypeKeys, setClosedArchivedTypeKeys] = useState<string[]>([]);
   const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, ProjectSortDirection>>({});
@@ -360,6 +362,22 @@ export function CoordinatorPage() {
   function renderTabContent() {
     if (tab === 'archived') return renderArchivedTab();
     if (tab === 'nps') return renderNpsTab();
+    if (tab === 'estatisticas') {
+      return (
+        <section className="page-card">
+          {statsDashboardOpen && <StatsDashboardOverlay onClose={() => setStatsDashboardOpen(false)} />}
+          <div className="nps-tab-toolbar">
+            <div className="nps-tab-toolbar-left" />
+            <div className="nps-tab-toolbar-right">
+              <button className="mini-btn" type="button" onClick={() => setStatsDashboardOpen(true)}>
+                Abrir dashboard
+              </button>
+            </div>
+          </div>
+          <p className="placeholder-copy">Acompanhe produtividade, horas, serviços e projetos aprovados ou assinados.</p>
+        </section>
+      );
+    }
 
     if (reportsQuery.isLoading) return <div className="page-card placeholder-copy">{TEXT.loading}</div>;
 
@@ -542,20 +560,25 @@ export function CoordinatorPage() {
           <button className={`nav-tab ${tab === 'nps' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'nps'} onClick={() => setTab('nps')}>
             NPS
           </button>
+          <button className={`nav-tab ${tab === 'estatisticas' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'estatisticas'} onClick={() => setTab('estatisticas')}>
+            Estatísticas
+          </button>
         </div>
       </div>
       <main className="page-scroll">
-        <section className="page-card">
-          <div className="section-title">{TEXT.reports}</div>
-          <div className="admin-search-row">
-            <input
-              aria-label={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : tab === 'nps' ? 'pesquisas NPS' : 'aprovados'}`}
-              placeholder={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : tab === 'nps' ? 'pesquisas NPS' : 'aprovados'}`}
-              value={search}
-              onChange={event => setSearch(event.target.value)}
-            />
-          </div>
-        </section>
+        {tab !== 'estatisticas' ? (
+          <section className="page-card">
+            <div className="section-title">{TEXT.reports}</div>
+            <div className="admin-search-row">
+              <input
+                aria-label={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : tab === 'nps' ? 'pesquisas NPS' : 'aprovados'}`}
+                placeholder={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : tab === 'nps' ? 'pesquisas NPS' : 'aprovados'}`}
+                value={search}
+                onChange={event => setSearch(event.target.value)}
+              />
+            </div>
+          </section>
+        ) : null}
         {renderTabContent()}
       </main>
     </Shell>

@@ -8,6 +8,29 @@ const { PrismaClient, ReportType, UnitCategory, UserRole } = prismaPkg;
 const prisma = new PrismaClient();
 
 async function main() {
+  const clientSegments = [
+    { label: 'Siderúrgica', slug: 'siderurgica', order: 10 },
+    { label: 'Celulose e papel', slug: 'celulose_papel', order: 20 },
+    { label: 'Geração de energia', slug: 'geracao_energia', order: 30 },
+    { label: 'Farmacêutico', slug: 'farmaceutico', order: 40 },
+    { label: 'Metalúrgico', slug: 'metalurgico', order: 50 },
+    { label: 'Petroquímica', slug: 'petroquimica', order: 60 },
+    { label: 'Naval', slug: 'naval', order: 70 },
+    { label: 'Cimento', slug: 'cimento', order: 80 },
+    { label: 'Refinaria', slug: 'refinaria', order: 90 },
+    { label: 'Automotivo', slug: 'automotivo', order: 100 },
+    { label: 'Mineração', slug: 'mineracao', order: 110 },
+    { label: 'Alimentício', slug: 'alimenticio', order: 120 }
+  ];
+
+  for (const segment of clientSegments) {
+    await prisma.clientSegment.upsert({
+      where: { slug: segment.slug },
+      update: { ...segment, isActive: true },
+      create: segment
+    });
+  }
+
   const collaborators = [
     { code: 'COL-001', name: 'Colaborador 1', role: 'Tecnico senior', email: 'colaborador1@example.com', signatureImage: 'assinatura-col1.png', isActive: true },
     { code: 'COL-002', name: 'Colaborador 2', role: 'Tecnico', email: 'colaborador2@example.com', signatureImage: 'assinatura-col2.png', isActive: true },
@@ -97,6 +120,7 @@ async function main() {
       clientCnpj: normalizeCnpj('12.345.678/0001-90'),
       clientEmailPrimary: 'clientea@example.com',
       clientEmailCc: ['obrasa@example.com'],
+      clientSegment: 'refinaria',
       contractCode: 'CT-2026-014',
       location: 'Localidade A',
       workdayHours: '09:00',
@@ -113,6 +137,7 @@ async function main() {
       clientCnpj: normalizeCnpj('22.456.789/0001-44'),
       clientEmailPrimary: 'clienteb@example.com',
       clientEmailCc: ['fiscalb@example.com'],
+      clientSegment: 'naval',
       contractCode: 'CT-2026-088',
       location: 'Localidade B',
       workdayHours: '09:00',

@@ -26,6 +26,16 @@ export interface ClientSigner {
   email: string;
 }
 
+export interface ClientSegment {
+  id: string;
+  label: string;
+  slug: string;
+  isActive: boolean;
+  order: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export type SurveyStatus = 'ACTIVE' | 'RESPONDED' | 'EXPIRED' | 'UNKNOWN';
 
 export interface SatisfactionSurveySummary {
@@ -52,6 +62,7 @@ export interface Project {
   isActive: boolean;
   visibleToCollaborators: boolean;
   managerOnly: boolean;
+  clientSegment?: string | null;
   clientName: string;
   clientCnpj: string;
   clientEmailPrimary: string;

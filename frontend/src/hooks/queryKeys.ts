@@ -2,6 +2,8 @@ export const queryKeys = {
   authMe: ['auth', 'me'] as const,
   collaborators: ['collaborators'] as const,
   projects: (active?: boolean, userId?: string | null) => ['projects', { active, userId: userId || 'anonymous' }] as const,
+  projectSegments: ['project-segments'] as const,
+  projectStats: (params: unknown, userId?: string | null) => ['project-stats', params ?? {}, { userId: userId || 'anonymous' }] as const,
   equipment: ['equipment'] as const,
   units: ['units'] as const,
   manometers: ['manometers'] as const,

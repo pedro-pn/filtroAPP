@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { ClientSigner, Project, ProjectReportSequence } from '../types/domain';
+import type { ClientSegment, ClientSigner, Project, ProjectReportSequence } from '../types/domain';
 
 export interface ProjectPayload {
   code: string;
@@ -7,6 +7,7 @@ export interface ProjectPayload {
   isActive?: boolean;
   visibleToCollaborators?: boolean;
   managerOnly?: boolean;
+  clientSegment?: string | null;
   clientName: string;
   clientCnpj: string;
   clientEmailPrimary?: string;
@@ -26,6 +27,16 @@ export async function listProjects(active?: boolean) {
   const response = await apiClient.get<Project[]>('/projects', {
     params: active === undefined ? undefined : { active }
   });
+  return response.data;
+}
+
+export async function listProjectSegments() {
+  const response = await apiClient.get<ClientSegment[]>('/project-segments');
+  return response.data;
+}
+
+export async function createProjectSegment(payload: { label: string; slug?: string; order?: number }) {
+  const response = await apiClient.post<ClientSegment>('/project-segments', payload);
   return response.data;
 }
 

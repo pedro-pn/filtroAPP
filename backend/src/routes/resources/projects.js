@@ -18,6 +18,7 @@ const schema = z.object({
   isActive: z.boolean().default(true),
   visibleToCollaborators: z.boolean().default(true),
   managerOnly: z.boolean().default(false),
+  clientSegment: z.string().trim().nullable().optional(),
   clientName: z.string().min(1),
   clientCnpj: z.string().min(1),
   clientEmailPrimary: z.union([emailSchema, z.literal('')]).default(''),
@@ -64,11 +65,22 @@ function normalizeProjectInput(data) {
   return {
     ...data,
     visibleToCollaborators: data.managerOnly ? false : data.visibleToCollaborators,
+    clientSegment: data.clientSegment ? String(data.clientSegment).trim() : null,
     clientCnpj: normalizedCnpj,
     clientEmailPrimary: primary,
     clientEmailCc,
     clientSigners
   };
+}
+
+async function assertClientSegmentExists(slug) {
+  if (!slug) return;
+  const segment = await prisma.clientSegment.findUnique({ where: { slug } });
+  if (!segment || !segment.isActive) {
+    const error = new Error('Segmento do cliente inválido.');
+    error.status = 400;
+    throw error;
+  }
 }
 
 router.get('/', requireAuth, asyncHandler(async (req, res) => {
@@ -127,6 +139,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
 
 router.post('/', requireAuth, requireManager, asyncHandler(async (req, res) => {
   const data = normalizeProjectInput(schema.parse(req.body));
+  await assertClientSegmentExists(data.clientSegment);
   const { reportSequences, ...projectData } = data;
   const item = await prisma.$transaction(async tx => {
     const created = await tx.project.create({
@@ -173,6 +186,10 @@ router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) =>
   }
   if (data.managerOnly === true) {
     data = { ...data, visibleToCollaborators: false };
+  }
+  if (data.clientSegment !== undefined) {
+    data = { ...data, clientSegment: data.clientSegment ? String(data.clientSegment).trim() : null };
+    await assertClientSegmentExists(data.clientSegment);
   }
   const { reportSequences, ...projectData } = data;
 

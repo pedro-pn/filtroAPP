@@ -20,11 +20,12 @@ import { useCollaboratorMutations, useCollaborators } from '../../hooks/useColla
 import { useCounterMutations, useCounters } from '../../hooks/useCounters';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useManometerMutations, useManometers } from '../../hooks/useManometers';
-import { useProjectMutations, useProjects } from '../../hooks/useProjects';
+import { useProjectMutations, useProjectSegments, useProjects } from '../../hooks/useProjects';
 import { useReportMutations, useReports } from '../../hooks/useReports';
 import { useUnitMutations, useUnits } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useSurveyMutations, useSurveyQuestions, useSurveys } from '../../hooks/useSurveys';
+import { StatsDashboardOverlay } from '../../components/stats/StatsDashboard';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -52,7 +53,8 @@ type GestorTab =
   | 'equipe'
   | 'usuarios'
   | 'equipamentos'
-  | 'nps';
+  | 'nps'
+  | 'estatisticas';
 
 type EquipmentSubTab = 'unidades' | 'manometros' | 'contadores';
 type SurveyQuestionDraft = Omit<SurveyQuestion, 'order' | 'options'> & { optionsText: string };
@@ -74,7 +76,8 @@ const gestorTabs: GestorTab[] = [
   'equipe',
   'usuarios',
   'equipamentos',
-  'nps'
+  'nps',
+  'estatisticas'
 ];
 
 function parseGestorTab(value: string | null): GestorTab {
@@ -130,6 +133,7 @@ interface ProjectFormState {
   clientEmailPrimary: string;
   clientEmailCc: string;
   clientSigners: ClientSigner[];
+  clientSegment: string;
   contractCode: string;
   location: string;
   operatorId: string;
@@ -191,6 +195,7 @@ const emptyProjectForm: ProjectFormState = {
   clientEmailPrimary: '',
   clientEmailCc: '',
   clientSigners: [],
+  clientSegment: '',
   contractCode: '',
   location: '',
   operatorId: '',
@@ -637,6 +642,7 @@ function projectToForm(project: Project): ProjectFormState {
       name: signer.name || '',
       email: signer.email || ''
     })),
+    clientSegment: project.clientSegment || '',
     contractCode: project.contractCode,
     location: project.location,
     operatorId: project.operatorId || '',
@@ -854,12 +860,14 @@ function renderProjectCard(
     onResendSurvey?: (survey: SatisfactionSurveySummary) => void;
     surveyPending?: boolean;
     children?: ReactNode;
+    segmentLabelMap?: Map<string, string>;
   }
 ) {
   const survey = latestSurvey(project);
   const surveyInfos = !project.isActive ? surveyHistoryBadges(project) : [];
   const canSendSurvey = canSendProjectSurvey(project);
   const canResendSurvey = !project.isActive && surveyIsActive(survey);
+  const segmentLabel = project.clientSegment ? options.segmentLabelMap?.get(project.clientSegment) || project.clientSegment : '-';
   return (
     <article className="card admin-card project-admin-card" key={project.id}>
       <div className="project-admin-head">
@@ -884,6 +892,10 @@ function renderProjectCard(
           <div className="det-row">
             <span className="det-label">Cliente</span>
             <span className="det-val">{project.clientName || '-'}</span>
+          </div>
+          <div className="det-row">
+            <span className="det-label">Segmento</span>
+            <span className="det-val">{segmentLabel}</span>
           </div>
           <div className="det-row">
             <span className="det-label">CNPJ</span>
@@ -969,9 +981,12 @@ export function GestorPage() {
   const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
   const [projectEditingId, setProjectEditingId] = useState<string | null>(null);
   const [showProjectForm, setShowProjectForm] = useState(false);
+  const [segmentModalOpen, setSegmentModalOpen] = useState(false);
+  const [newSegmentLabel, setNewSegmentLabel] = useState('');
   const [archiveSurveyProject, setArchiveSurveyProject] = useState<Project | null>(null);
   const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
   const [npsDashboardOpen, setNpsDashboardOpen] = useState(false);
+  const [statsDashboardOpen, setStatsDashboardOpen] = useState(false);
   const [equipmentSubTab, setEquipmentSubTab] = useState<EquipmentSubTab>('unidades');
   const [npsSortDir, setNpsSortDir] = useState<'asc' | 'desc'>('asc');
   const [showSurveyQuestionEditor, setShowSurveyQuestionEditor] = useState(false);
@@ -1013,6 +1028,7 @@ export function GestorPage() {
   const draftsQuery = useDrafts();
   const activeProjectsQuery = useProjects(true);
   const archivedProjectsQuery = useProjects(false);
+  const projectSegmentsQuery = useProjectSegments();
   const collaboratorsQuery = useCollaborators();
   const internalUsersQuery = useUsers('internal');
   const clientUsersQuery = useUsers('client');
@@ -1080,6 +1096,11 @@ export function GestorPage() {
   const clientGroupingProjects = useMemo(
     () => [...(activeProjectsQuery.data || []), ...(archivedProjectsQuery.data || [])],
     [activeProjectsQuery.data, archivedProjectsQuery.data]
+  );
+
+  const segmentLabelMap = useMemo(
+    () => new Map((projectSegmentsQuery.data || []).map(segment => [segment.slug, segment.label])),
+    [projectSegmentsQuery.data]
   );
 
   useEffect(() => {
@@ -1316,6 +1337,7 @@ export function GestorPage() {
       clientEmailPrimary: projectForm.clientEmailPrimary.trim().toLowerCase(),
       clientEmailCc: parseEmailList(projectForm.clientEmailCc),
       clientSigners: cleanSigners(projectForm.clientSigners),
+      clientSegment: projectForm.clientSegment || null,
       contractCode: projectForm.contractCode.trim(),
       location: projectForm.location.trim(),
       visibleToCollaborators: projectForm.visibleToCollaborators,
@@ -1339,6 +1361,21 @@ export function GestorPage() {
       resetProjectForm();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível salvar o projeto.', 'error');
+    }
+  }
+
+  async function handleCreateClientSegment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const label = newSegmentLabel.trim();
+    if (!label) return;
+    try {
+      const segment = await projectMutations.createProjectSegment.mutateAsync({ label });
+      setProjectForm(current => ({ ...current, clientSegment: segment.slug }));
+      setNewSegmentLabel('');
+      setSegmentModalOpen(false);
+      showToast('Segmento criado.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível criar o segmento.', 'error');
     }
   }
 
@@ -2082,6 +2119,18 @@ export function GestorPage() {
                   <label htmlFor="project-client-cnpj">CNPJ</label>
                   <input id="project-client-cnpj" value={projectForm.clientCnpj} onChange={event => setProjectForm(current => ({ ...current, clientCnpj: normalizeCnpjInput(event.target.value) }))} required />
                 </div>
+                <div className="field-group">
+                  <label htmlFor="project-client-segment">Segmento do cliente</label>
+                  <div className="inline-select-action">
+                    <select id="project-client-segment" value={projectForm.clientSegment} onChange={event => setProjectForm(current => ({ ...current, clientSegment: event.target.value }))}>
+                      <option value="">Selecionar...</option>
+                      {(projectSegmentsQuery.data || []).map(segment => (
+                        <option key={segment.id} value={segment.slug}>{segment.label}</option>
+                      ))}
+                    </select>
+                    <button className="mini-btn alt" type="button" onClick={() => setSegmentModalOpen(true)}>Adicionar</button>
+                  </div>
+                </div>
                 <ProjectClientFields form={projectForm} idPrefix="project" setForm={setProjectForm} />
                 <div className="field-group">
                   <label htmlFor="project-contract">Contrato</label>
@@ -2167,6 +2216,18 @@ export function GestorPage() {
                         <label htmlFor={`project-cnpj-${project.id}`}>CNPJ</label>
                         <input id={`project-cnpj-${project.id}`} value={projectForm.clientCnpj} onChange={event => setProjectForm(current => ({ ...current, clientCnpj: normalizeCnpjInput(event.target.value) }))} required />
                       </div>
+                      <div className="field-group">
+                        <label htmlFor={`project-client-segment-${project.id}`}>Segmento do cliente</label>
+                        <div className="inline-select-action">
+                          <select id={`project-client-segment-${project.id}`} value={projectForm.clientSegment} onChange={event => setProjectForm(current => ({ ...current, clientSegment: event.target.value }))}>
+                            <option value="">Selecionar...</option>
+                            {(projectSegmentsQuery.data || []).map(segment => (
+                              <option key={segment.id} value={segment.slug}>{segment.label}</option>
+                            ))}
+                          </select>
+                          <button className="mini-btn alt" type="button" onClick={() => setSegmentModalOpen(true)}>Adicionar</button>
+                        </div>
+                      </div>
                       <ProjectClientFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
                       <div className="field-group">
                         <label htmlFor={`project-contract-${project.id}`}>Contrato</label>
@@ -2239,7 +2300,8 @@ export function GestorPage() {
                 onToggleDetails: toggleProjectDetails,
                 onSendSurvey: handleSendSurvey,
                 onResendSurvey: handleResendSurvey,
-                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending
+                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending,
+                segmentLabelMap
               })
             )}
           </div>
@@ -2316,7 +2378,8 @@ export function GestorPage() {
                 onToggleReports: item => toggleArchivedProject(item.id),
                 onSendSurvey: handleSendSurvey,
                 onResendSurvey: handleResendSurvey,
-                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending
+                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending,
+                segmentLabelMap
               });
             })}
           </div>
@@ -3520,6 +3583,22 @@ export function GestorPage() {
     if (tab === 'equipe') return renderEquipeTab();
     if (tab === 'usuarios') return renderUsuariosTab();
     if (tab === 'equipamentos') return renderEquipamentosTab();
+    if (tab === 'estatisticas') {
+      return (
+        <section className="page-card">
+          {statsDashboardOpen && <StatsDashboardOverlay onClose={() => setStatsDashboardOpen(false)} />}
+          <div className="nps-tab-toolbar">
+            <div className="nps-tab-toolbar-left" />
+            <div className="nps-tab-toolbar-right">
+              <button className="mini-btn" type="button" onClick={() => setStatsDashboardOpen(true)}>
+                Abrir dashboard
+              </button>
+            </div>
+          </div>
+          <p className="placeholder-copy">Acompanhe produtividade, horas, serviços e projetos aprovados ou assinados.</p>
+        </section>
+      );
+    }
     return renderNpsTab();
   }
 
@@ -3598,6 +3677,9 @@ export function GestorPage() {
           <button className={`nav-tab ${tab === 'nps' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'nps'} onClick={() => setTab('nps')}>
             NPS
           </button>
+          <button className={`nav-tab ${tab === 'estatisticas' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'estatisticas'} onClick={() => setTab('estatisticas')}>
+            Estatísticas
+          </button>
         </div>
       </div>
 
@@ -3606,6 +3688,31 @@ export function GestorPage() {
         {renderGestorSearch()}
         {renderTabContent()}
       </main>
+
+      <Modal
+        open={segmentModalOpen}
+        onClose={() => setSegmentModalOpen(false)}
+        ariaLabelledBy="client-segment-title"
+      >
+        <form className="admin-form" onSubmit={handleCreateClientSegment}>
+          <div className="section-title" id="client-segment-title">Novo segmento</div>
+          <div className="field-group">
+            <label htmlFor="client-segment-label">Nome do segmento</label>
+            <input
+              id="client-segment-label"
+              value={newSegmentLabel}
+              onChange={event => setNewSegmentLabel(event.target.value)}
+              required
+            />
+          </div>
+          <div className="admin-form-actions">
+            <button className="secondary-button" type="button" onClick={() => setSegmentModalOpen(false)}>Cancelar</button>
+            <button className="primary-button" type="submit" disabled={projectMutations.createProjectSegment.isPending}>
+              Salvar segmento
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal
         open={Boolean(archiveSurveyProject)}
