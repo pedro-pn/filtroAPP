@@ -19,6 +19,7 @@ Aplicação web para gestão de projetos de campo e relatórios técnicos da Fil
 - [Geração de PDF](#geração-de-pdf)
 - [Integração ZapSign](#integração-zapsign)
 - [Scripts Utilitários](#scripts-utilitários)
+- [Rotas da API](#rotas-da-api)
 
 ---
 
@@ -28,9 +29,10 @@ O sistema centraliza o ciclo completo dos relatórios técnicos de campo:
 
 1. Colaborador cria o relatório no campo.
 2. Gestor revisa e aprova.
-3. Cliente acessa o portal, visualiza e pode reprovar para revisão.
+3. Cliente acessa o portal, visualiza e pode reprovar (com justificativa obrigatória) para revisão.
 4. Relatório aprovado segue para assinatura digital via ZapSign.
 5. Relatório assinado fica disponível para download em PDF.
+6. Ao arquivar o projeto, o cliente recebe uma pesquisa de satisfação NPS por e-mail.
 
 ---
 
@@ -107,9 +109,11 @@ Cada perfil acessa uma rota raiz diferente: `/gestor`, `/coordenador`, `/cliente
 
 ### Projetos
 - Cadastro com dados do cliente (nome, CNPJ, e-mails principal e CC, signatários)
+- Categorização por segmento de cliente (`clientSegment`)
 - Arquivamento e desarquivamento
 - Controle de visibilidade (visível a colaboradores / somente gestor)
 - Provisionamento automático de conta de cliente ao associar e-mail
+- Disparo automático de pesquisa de satisfação ao arquivar
 
 ### Relatórios
 - Criação assistida com rascunho automático
@@ -119,6 +123,7 @@ Cada perfil acessa uma rota raiz diferente: `/gestor`, `/coordenador`, `/cliente
 - Download individual ou em lote (ZIP) em PDF
 - Anexos de fotos e arquivos
 - Numeração sequencial por tipo e projeto
+- Campos obrigatórios de diâmetro e comprimento por tubulação (RDO)
 
 ### Assinatura Digital (ZapSign)
 - Solicitação de assinatura para relatórios aprovados
@@ -128,21 +133,57 @@ Cada perfil acessa uma rota raiz diferente: `/gestor`, `/coordenador`, `/cliente
 ### Portal do Cliente
 - Acesso sem VPN via usuário CNPJ
 - Visualização de relatórios dos projetos vinculados
-- Aprovação ou reprovação com justificativa
-- Notificação por e-mail ao gestor quando reprovado
+- Aprovação ou reprovação com **justificativa obrigatória**
+- Identificação do cliente que reprovou (nome + e-mail) na notificação ao gestor
+- Histórico de reprovações exibido por relatório
+
+### Pesquisa de Satisfação (NPS)
+- Enviada automaticamente ao cliente por e-mail ao arquivar um projeto
+- Link público com token criptografado, válido por 30 dias (`/survey/:token`)
+- Tipos de pergunta: NPS (0–10), SCALE (1–5), SELECT, TEXT
+- Perguntas padrão: NPS, qualidade dos serviços, comunicação, prazos, documentação, campo aberto
+- Perguntas configuráveis pelo gestor
+- Lembretes automáticos com opção de opt-out
+- Notificação por e-mail ao gestor quando respondida
+- Follow-up de respostas: `OPEN`, `CONTACTED`, `RESOLVED`, `NOT_APPLICABLE`
+
+### Dashboard NPS
+- Restrito a Gestor e Coordenador
+- Filtros por ano, trimestre e mês
+- Score NPS com benchmark, distribuição (Promotores / Neutros / Detratores)
+- Médias por pergunta de escala e evolução mensal
+- Lista de pesquisas com status de follow-up e anotações
+
+### Dashboard de Estatísticas de Projetos
+- Restrito a Gestor e Coordenador
+- Filtros: período (máx. 2 anos), projeto(s), segmento e status (ativo / arquivado / todos)
+- Granularidade: dia, semana, mês, ano
+- Métricas: dias executados, horas diurnas/noturnas, horas extras, dias e horas em standby
+- Médias de colaboradores diurnos e noturnos por RDO
+- Breakdown por tipo de serviço: filtragem (volume de óleo em L), flushing/limpeza/pressão (tubulações por diâmetro em metros)
+- Timeline gráfica de atividade
+- Exportação CSV em três seções: resumo geral, por projeto, por serviço
 
 ### E-mails Automáticos
 - Boas-vindas ao criar conta de cliente
+- Boas-vindas ao criar conta interna (colaborador, coordenador)
 - Novo projeto vinculado
 - Relatório aprovado disponível para avaliação
-- Relatório reprovado pelo cliente (notifica gestor)
+- Relatório reprovado pelo cliente (notifica gestor com identificação do cliente)
 - Relatório revisado e disponível para nova avaliação
+- Convite de pesquisa de satisfação ao arquivar projeto
+- Lembrete de pesquisa de satisfação não respondida
+- Notificação ao gestor quando pesquisa é respondida
 - Recuperação de senha
 
 ### Usuários e Colaboradores
 - Gerenciamento de usuários e colaboradores pelo gestor
 - Reenvio de credenciais de acesso ao cliente
 - Alteração de senha via token de recuperação
+
+### Segmentos de Cliente
+- Categorias configuráveis pelo gestor para classificar projetos (ex: indústria, óleo & gás)
+- Usados como filtro no dashboard de estatísticas
 
 ---
 
@@ -320,7 +361,7 @@ O schema Prisma (`backend/prisma/schema.prisma`) define os modelos principais:
 
 | Modelo | Descrição |
 |---|---|
-| `Project` | Projeto de campo com dados do cliente e configurações |
+| `Project` | Projeto de campo com dados do cliente, segmento e configurações |
 | `Report` | Relatório técnico com status e dados operacionais |
 | `ReportDraft` | Rascunho de relatório |
 | `ReportAttachment` | Anexos de relatórios |
@@ -329,6 +370,9 @@ O schema Prisma (`backend/prisma/schema.prisma`) define os modelos principais:
 | `UserSession` | Sessões JWT ativas |
 | `PasswordResetToken` | Tokens de recuperação de senha |
 | `ClientReportReview` | Registro de aprovação/reprovação pelo cliente |
+| `ClientSegment` | Segmentos de cliente configuráveis (ex: indústria, óleo & gás) |
+| `SatisfactionSurvey` | Pesquisa de satisfação NPS enviada por projeto arquivado |
+| `SatisfactionSurveyQuestion` | Perguntas configuráveis da pesquisa de satisfação |
 | `Equipment` / `Unit` / `Manometer` / `ParticleCounter` | Equipamentos utilizados nos relatórios |
 
 ### Comandos Prisma
@@ -375,3 +419,33 @@ npm run import:master-data
 # Migrar assinaturas para formato data URL
 npm run migrate:signatures
 ```
+
+---
+
+## Rotas da API
+
+Prefixo base: `/api`
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `POST` | `/auth/login` | Autenticação |
+| `POST` | `/auth/logout` | Encerrar sessão |
+| `GET/POST` | `/projects` | Listar e criar projetos |
+| `GET/PATCH/DELETE` | `/projects/:id` | Detalhar, editar e arquivar projeto |
+| `GET/POST` | `/reports` | Listar e criar relatórios |
+| `GET/PATCH/DELETE` | `/reports/:id` | Detalhar, editar e excluir relatório |
+| `POST` | `/reports/:id/request-signature` | Solicitar assinatura individual |
+| `POST` | `/reports/batch-request-signature` | Solicitar assinatura em lote |
+| `GET` | `/statistics/projects` | Dashboard de estatísticas de RDOs |
+| `GET` | `/statistics/projects/export` | Exportar estatísticas em CSV |
+| `GET` | `/statistics/overview` | Mini-dashboard com contagem geral |
+| `GET/POST` | `/surveys` | Listar e criar pesquisas de satisfação |
+| `GET` | `/surveys/dashboard` | Dashboard NPS com análises agregadas |
+| `GET` | `/surveys/public/:token` | Acessar pesquisa pública via token |
+| `POST` | `/surveys/public/:token/respond` | Responder pesquisa pública |
+| `GET/PUT` | `/surveys/questions` | Listar e configurar perguntas padrão |
+| `PATCH` | `/surveys/:id/follow-up` | Atualizar status de follow-up |
+| `GET/POST` | `/project-segments` | Listar e criar segmentos de cliente |
+| `POST` | `/webhooks` | Webhook do ZapSign (assinatura concluída) |
+| `GET/POST` | `/users` | Gerenciar usuários |
+| `GET/POST` | `/collaborators` | Gerenciar colaboradores |
