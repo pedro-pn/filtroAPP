@@ -503,6 +503,10 @@ function surveyIsActive(survey?: SatisfactionSurveySummary | null) {
   return !!survey && !survey.respondedAt && new Date(survey.expiresAt).getTime() > Date.now();
 }
 
+function surveyIsExpired(survey?: SatisfactionSurveySummary | null) {
+  return !!survey && !survey.respondedAt && new Date(survey.expiresAt).getTime() <= Date.now();
+}
+
 function surveyBadge(survey?: SatisfactionSurveySummary | null) {
   if (!survey) return { label: 'Pesquisa não enviada', className: 'badge badge-pen' };
   if (survey.respondedAt) return { label: 'Pesquisa respondida', className: 'badge badge-ok' };
@@ -541,6 +545,7 @@ function canSendProjectSurvey(project: Project) {
 
 function surveyStatusLabel(survey: SatisfactionSurveySummary) {
   if (survey.respondedAt) return { label: 'Respondida', className: 'status-approved' };
+  if (surveyIsExpired(survey)) return { label: 'Expirada', className: 'status-returned' };
   return { label: 'Pendente', className: 'status-pending' };
 }
 
@@ -878,7 +883,7 @@ function renderProjectCard(
   const survey = latestSurvey(project);
   const surveyInfos = !project.isActive ? surveyHistoryBadges(project) : [];
   const canSendSurvey = canSendProjectSurvey(project);
-  const canResendSurvey = !project.isActive && surveyIsActive(survey);
+  const canResendSurvey = !project.isActive && !!survey && !survey.respondedAt;
   return (
     <article className="card admin-card project-admin-card" key={project.id}>
       <div className="project-admin-head">
@@ -963,7 +968,7 @@ function renderProjectCard(
         {surveyInfos.map((surveyInfo, index) => (
           <span className={surveyInfo.className} key={`${project.id}-survey-badge-${index}`}>{surveyInfo.label}</span>
         ))}
-        {canSendSurvey && options.onSendSurvey ? (
+        {canSendSurvey && !canResendSurvey && options.onSendSurvey ? (
           <button className="mini-btn alt" type="button" disabled={options.surveyPending} onClick={() => options.onSendSurvey?.(project)}>
             Enviar pesquisa
           </button>
@@ -3442,14 +3447,14 @@ export function GestorPage() {
 
   function renderNpsTab() {
     const surveys = (surveysQuery.data || [])
-      .filter(survey => survey.respondedAt || new Date(survey.expiresAt).getTime() > Date.now())
       .filter(survey => {
+        const status = surveyStatusLabel(survey).label.toLowerCase();
         const parts = [
           survey.project?.code,
           survey.project?.name,
           survey.project?.clientName,
           survey.emailTo,
-          survey.respondedAt ? 'respondida' : 'pendente'
+          status
         ];
         return matchesSearch(parts, gestorSearch);
       });
@@ -3498,7 +3503,7 @@ export function GestorPage() {
         <div className="nps-tab-heading">
           <div>
             <div className="section-title">NPS</div>
-            <div className="admin-card-subtitle">Pesquisas pendentes e respondidas ainda válidas.</div>
+            <div className="admin-card-subtitle">Pesquisas pendentes, respondidas e expiradas.</div>
           </div>
           <ProjectSortButton
             direction={npsSortDir}
@@ -3519,6 +3524,7 @@ export function GestorPage() {
                     {group.surveys.map((survey, index) => {
                       const status = surveyStatusLabel(survey);
                       const open = openSurveyId === survey.id;
+                      const canResendSurvey = !survey.respondedAt && survey.project?.isActive === false;
                       return (
                         <div className="report-type-group" key={survey.id}>
                           <button
@@ -3532,7 +3538,18 @@ export function GestorPage() {
                           <div className="admin-card-meta">
                             <span>Enviada: {formatDate(survey.sentAt)}</span>
                             <span>Respondida: {survey.respondedAt ? formatDate(survey.respondedAt) : '-'}</span>
+                            <span>Expira: {formatDate(survey.expiresAt)}</span>
                             <span className={`status-pill ${status.className}`}>{status.label}</span>
+                            {canResendSurvey ? (
+                              <button
+                                className="mini-btn alt"
+                                type="button"
+                                disabled={surveyMutations.resendSurvey.isPending}
+                                onClick={() => void handleResendSurvey(survey)}
+                              >
+                                Reenviar pesquisa
+                              </button>
+                            ) : null}
                           </div>
                           {open ? (
                             survey.respondedAt ? (
@@ -3546,7 +3563,9 @@ export function GestorPage() {
                               </div>
                             ) : (
                               <p className="placeholder-copy" style={{ marginTop: 12 }}>
-                                Pesquisa enviada, aguardando resposta do cliente.
+                                {surveyIsExpired(survey)
+                                  ? 'Pesquisa expirada sem resposta do cliente.'
+                                  : 'Pesquisa enviada, aguardando resposta do cliente.'}
                               </p>
                             )
                           ) : null}

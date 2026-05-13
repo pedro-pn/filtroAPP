@@ -63,8 +63,13 @@ function surveyHistoryBadges(project: Project) {
   });
 }
 
+function surveyIsExpired(survey?: SatisfactionSurveySummary | null) {
+  return !!survey && !survey.respondedAt && new Date(survey.expiresAt).getTime() <= Date.now();
+}
+
 function surveyStatusLabel(survey: SatisfactionSurveySummary) {
   if (survey.respondedAt) return { label: 'Respondida', className: 'status-approved' };
+  if (surveyIsExpired(survey)) return { label: 'Expirada', className: 'status-returned' };
   return { label: 'Pendente', className: 'status-pending' };
 }
 
@@ -408,14 +413,14 @@ export function CoordinatorPage() {
 
   function renderNpsTab() {
     const surveys = (surveysQuery.data || [])
-      .filter(survey => survey.respondedAt || new Date(survey.expiresAt).getTime() > Date.now())
       .filter(survey => {
+        const status = surveyStatusLabel(survey).label.toLowerCase();
         const parts = [
           survey.project?.code,
           survey.project?.name,
           survey.project?.clientName,
           survey.emailTo,
-          survey.respondedAt ? 'respondida' : 'pendente'
+          status
         ];
         return matchesSearch(parts, search);
       });
@@ -460,7 +465,7 @@ export function CoordinatorPage() {
         <div className="nps-tab-heading">
           <div>
             <div className="section-title">NPS</div>
-            <div className="admin-card-subtitle">Pesquisas pendentes e respondidas ainda válidas.</div>
+            <div className="admin-card-subtitle">Pesquisas pendentes, respondidas e expiradas.</div>
           </div>
           <ProjectSortButton
             direction={npsSortDir}
@@ -494,6 +499,7 @@ export function CoordinatorPage() {
                           <div className="admin-card-meta">
                             <span>Enviada: {formatSurveyDate(survey.sentAt)}</span>
                             <span>Respondida: {survey.respondedAt ? formatSurveyDate(survey.respondedAt) : '-'}</span>
+                            <span>Expira: {formatSurveyDate(survey.expiresAt)}</span>
                             <span className={`status-pill ${status.className}`}>{status.label}</span>
                           </div>
                           {open ? (
@@ -508,7 +514,9 @@ export function CoordinatorPage() {
                               </div>
                             ) : (
                               <p className="placeholder-copy" style={{ marginTop: 12 }}>
-                                Pesquisa enviada, aguardando resposta do cliente.
+                                {surveyIsExpired(survey)
+                                  ? 'Pesquisa expirada sem resposta do cliente.'
+                                  : 'Pesquisa enviada, aguardando resposta do cliente.'}
                               </p>
                             )
                           ) : null}

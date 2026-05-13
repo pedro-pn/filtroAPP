@@ -3,7 +3,8 @@ import test from 'node:test';
 
 import {
   buildInternalUserWelcomeEmailTemplate,
-  buildReportRejectedByClientEmailTemplate
+  buildReportRejectedByClientEmailTemplate,
+  buildSurveyExpiredEmailTemplate
 } from '../src/lib/email-templates.js';
 
 test('buildInternalUserWelcomeEmailTemplate includes account credentials', () => {
@@ -40,4 +41,21 @@ test('buildReportRejectedByClientEmailTemplate identifies the rejecting client',
   assert.match(template.text, /Cliente que reprovou: Maria Cliente \(maria@example\.com\)/);
   assert.match(template.text, /Justificativa: Corrigir medição informada\./);
   assert.match(template.html, /<strong>Cliente que reprovou:<\/strong> Maria Cliente \(maria@example\.com\)/);
+});
+
+test('buildSurveyExpiredEmailTemplate identifies expired survey details', () => {
+  const template = buildSurveyExpiredEmailTemplate({
+    clientName: 'Cliente A',
+    projectCode: 'PRJ-002',
+    projectName: 'Projeto NPS',
+    emailTo: 'cliente@example.com',
+    sentAt: '13/04/2026',
+    expiresAt: '13/05/2026',
+    appUrl: 'https://app.example.com'
+  });
+
+  assert.equal(template.subject, '[Filtrovali] Pesquisa expirada - PRJ-002');
+  assert.match(template.text, /expirou sem resposta do cliente/);
+  assert.match(template.text, /E-mail enviado: cliente@example\.com/);
+  assert.match(template.html, /<strong>Expirada em:<\/strong> 13\/05\/2026/);
 });

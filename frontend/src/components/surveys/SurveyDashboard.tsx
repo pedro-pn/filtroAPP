@@ -52,6 +52,7 @@ function getPreviousMonths(months: SurveyDashboardMonth[], period: PeriodFilter)
 interface Aggregated {
   sent: number;
   responded: number;
+  expired: number;
   surveys: SurveyDashboardSurveyItem[];
   questionAverages: SurveyDashboardQuestionAvg[];
   nps: SurveyDashboardNpsDistribution;
@@ -61,6 +62,8 @@ function aggregateMonths(months: SurveyDashboardMonth[]): Aggregated {
   const sent = months.reduce((a, m) => a + m.sent, 0);
   const responded = months.reduce((a, m) => a + m.responded, 0);
   const surveys = months.flatMap(m => m.surveys);
+  const now = Date.now();
+  const expired = surveys.filter(s => !s.respondedAt && new Date(s.expiresAt).getTime() <= now).length;
 
   const npsTotal = months.reduce((a, m) => a + m.npsDistribution.total, 0);
   const npsPromoters = months.reduce((a, m) => a + m.npsDistribution.promoters, 0);
@@ -88,7 +91,7 @@ function aggregateMonths(months: SurveyDashboardMonth[]): Aggregated {
     .sort((a, b) => a.order - b.order);
 
   return {
-    sent, responded, surveys, questionAverages,
+    sent, responded, expired, surveys, questionAverages,
     nps: {
       promoters: npsPromoters,
       neutrals: npsTotal - npsPromoters - npsDetractors,
@@ -658,6 +661,10 @@ export function SurveyDashboard() {
             <div className="stat-card-react">
               <div className="stat-number-react">{agg.responded}</div>
               <div className="stat-label-react">Respondidas</div>
+            </div>
+            <div className="stat-card-react">
+              <div className="stat-number-react">{agg.expired}</div>
+              <div className="stat-label-react">Expiradas</div>
             </div>
             <div className="stat-card-react">
               <div className="stat-number-react">{responseRate !== null ? `${responseRate}%` : '—'}</div>

@@ -1,5 +1,5 @@
 import prisma from './prisma.js';
-import { sendSurveyReminder } from './survey-mail.js';
+import { notifySurveyExpired, sendSurveyReminder } from './survey-mail.js';
 import { decryptSurveyToken } from './survey-token.js';
 
 const REMINDER_INTERVAL_MS = 60 * 60 * 1000;
@@ -25,6 +25,14 @@ export function reminderDueWhere(now = new Date()) {
         ]
       }
     ]
+  };
+}
+
+export function expirationDueWhere(now = new Date()) {
+  return {
+    respondedAt: null,
+    expiresAt: { lte: now },
+    expirationNotifiedAt: null
   };
 }
 
@@ -81,12 +89,71 @@ export async function processSurveyReminders({ limit = 25 } = {}) {
   return { checked: candidates.length, sent };
 }
 
-export function startSurveyReminderJob() {
-  const timer = setInterval(() => {
-    processSurveyReminders().catch(error => {
-      console.error('Falha no job de lembretes de pesquisa.', error);
+async function expirationNotificationRecipients(project) {
+  const roles = project?.managerOnly ? ['MANAGER'] : ['MANAGER', 'COORDINATOR'];
+  const users = await prisma.user.findMany({
+    where: {
+      role: { in: roles },
+      isActive: true,
+      email: { not: null }
+    },
+    select: { email: true }
+  });
+  return users.map(user => user.email).filter(Boolean);
+}
+
+export async function processSurveyExpirations({ limit = 25 } = {}) {
+  const now = new Date();
+  const candidates = await prisma.satisfactionSurvey.findMany({
+    where: expirationDueWhere(now),
+    take: limit,
+    orderBy: { expiresAt: 'asc' },
+    include: { project: true }
+  });
+
+  let notified = 0;
+  for (const survey of candidates) {
+    const claimTime = new Date();
+    const claim = await prisma.satisfactionSurvey.updateMany({
+      where: {
+        id: survey.id,
+        ...expirationDueWhere(now)
+      },
+      data: { expirationNotifiedAt: claimTime }
     });
-  }, REMINDER_INTERVAL_MS);
+    if (claim.count !== 1) continue;
+
+    try {
+      const recipients = await expirationNotificationRecipients(survey.project);
+      await notifySurveyExpired({ survey, project: survey.project, recipients });
+      notified += 1;
+    } catch (error) {
+      await prisma.satisfactionSurvey.update({
+        where: { id: survey.id },
+        data: { expirationNotifiedAt: null }
+      }).catch(() => {});
+      console.error('Falha ao notificar expiração de pesquisa.', { surveyId: survey.id, error: error?.message || error });
+    }
+  }
+
+  return { checked: candidates.length, notified };
+}
+
+function runSurveyJobs() {
+  return Promise.all([
+    processSurveyReminders(),
+    processSurveyExpirations()
+  ]);
+}
+
+export function startSurveyReminderJob() {
+  const run = () => {
+    runSurveyJobs().catch(error => {
+      console.error('Falha no job de pesquisas.', error);
+    });
+  };
+  run();
+  const timer = setInterval(run, REMINDER_INTERVAL_MS);
   timer.unref?.();
   return timer;
 }

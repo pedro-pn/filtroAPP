@@ -1,5 +1,6 @@
 import env from '../config/env.js';
 import {
+  buildSurveyExpiredEmailTemplate,
   buildSurveyInviteEmailTemplate,
   buildSurveyReminderEmailTemplate,
   buildSurveyRespondedEmailTemplate
@@ -38,6 +39,7 @@ export function safeSurvey(survey) {
     lastReminderAt: survey.lastReminderAt,
     reminderCount: survey.reminderCount,
     reminderOptOutAt: survey.reminderOptOutAt,
+    expirationNotifiedAt: survey.expirationNotifiedAt,
     followUpStatus: survey.followUpStatus,
     followUpNotes: survey.followUpNotes,
     followUpUpdatedAt: survey.followUpUpdatedAt,
@@ -96,4 +98,29 @@ export async function notifySurveyResponded({ survey, project }) {
     appUrl: env.appUrl || ''
   });
   await sendMail({ to: recipient, ...template });
+}
+
+function formatDatePtBr(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleDateString('pt-BR');
+}
+
+export async function notifySurveyExpired({ survey, project, recipients }) {
+  const uniqueRecipients = Array.from(new Set((recipients || [])
+    .map(email => String(email || '').trim().toLowerCase())
+    .filter(Boolean)));
+  if (!uniqueRecipients.length) return;
+
+  const template = buildSurveyExpiredEmailTemplate({
+    clientName: project.clientName,
+    projectCode: project.code,
+    projectName: project.name,
+    emailTo: survey.emailTo,
+    sentAt: formatDatePtBr(survey.sentAt),
+    expiresAt: formatDatePtBr(survey.expiresAt),
+    appUrl: env.appUrl || ''
+  });
+  await sendMail({ to: uniqueRecipients, ...template });
 }

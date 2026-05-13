@@ -131,6 +131,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
           lastReminderAt: true,
           reminderCount: true,
           reminderOptOutAt: true,
+          expirationNotifiedAt: true,
           createdAt: true
         }
       }

@@ -393,9 +393,23 @@ router.post('/:surveyId/resend', requireAuth, requireManager, asyncHandler(async
     where: { id: req.params.surveyId },
     include: { project: true, sentBy: true }
   });
-  if (responseStatus(survey) !== 'ACTIVE') {
-    return res.status(400).json({ error: 'Apenas pesquisas ativas podem ser reenviadas.' });
+  const status = responseStatus(survey);
+  if (status === 'RESPONDED') {
+    return res.status(400).json({ error: 'Pesquisas respondidas não podem ser reenviadas.' });
   }
+  if (survey.project.isActive !== false) {
+    return res.status(400).json({ error: 'A pesquisa só pode ser reenviada para projetos arquivados.' });
+  }
+  if (!String(survey.project.clientEmailPrimary || survey.emailTo || '').trim()) {
+    return res.status(400).json({ error: 'Informe o e-mail principal do cliente antes de reenviar a pesquisa.' });
+  }
+
+  if (status === 'EXPIRED') {
+    const { survey: newSurvey, token, reused } = await createOrReuseSurvey(survey.project, req.auth.user.id);
+    await sendSurveyInvite({ survey: newSurvey, project: survey.project, token });
+    return res.status(reused ? 200 : 201).json({ survey: safeSurvey(newSurvey), reused });
+  }
+
   const questions = storedSurveyQuestions(survey) || await activeSurveyQuestionSnapshot();
   const token = decryptSurveyToken(encryptedTokenPayload(survey));
   await sendSurveyInvite({ survey, project: survey.project, token });
@@ -541,14 +555,9 @@ router.get('/projects/:projectId', requireAuth, requireManagerOrCoordinator, asy
 }));
 
 router.get('/', requireAuth, requireManagerOrCoordinator, asyncHandler(async (req, res) => {
-  const now = new Date();
   const items = await prisma.satisfactionSurvey.findMany({
     where: {
-      ...managerOnlyProjectFilter(req.auth.user.role),
-      OR: [
-        { respondedAt: { not: null } },
-        { respondedAt: null, expiresAt: { gt: now } }
-      ]
+      ...managerOnlyProjectFilter(req.auth.user.role)
     },
     include: { project: true },
     orderBy: { createdAt: 'desc' }

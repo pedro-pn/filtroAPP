@@ -279,6 +279,7 @@ model SatisfactionSurvey {
   reminderClaimedAt  DateTime?
   reminderOptOutAt   DateTime?
   reminderCount      Int       @default(0)
+  expirationNotifiedAt DateTime?
   responses          Json?
   questions          Json?
   followUpStatus     String?
@@ -294,6 +295,7 @@ model SatisfactionSurvey {
 
   @@index([projectId, createdAt])
   @@index([expiresAt, respondedAt, reminderOptOutAt])
+  @@index([expirationNotifiedAt, expiresAt])
 }
 
 model SatisfactionSurveyQuestion {

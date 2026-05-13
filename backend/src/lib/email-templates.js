@@ -376,3 +376,35 @@ export function buildSurveyRespondedEmailTemplate({ clientName, projectCode, pro
     html: wrapEmailHtml({ title, intro, body, footer })
   };
 }
+
+export function buildSurveyExpiredEmailTemplate({ clientName, projectCode, projectName, emailTo, sentAt, expiresAt, appUrl }) {
+  const title = 'Pesquisa de satisfação expirada';
+  const intro = `A pesquisa de satisfação do projeto ${projectCode} - ${projectName} expirou sem resposta do cliente.`;
+  const body = `
+    <div style="background:#fff8f8;border:1px solid #f5c6c6;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Cliente:</strong> ${clientName}</div>
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>E-mail enviado:</strong> ${emailTo}</div>
+        <div><strong>Enviada em:</strong> ${sentAt}</div>
+        <div><strong>Expirada em:</strong> ${expiresAt}</div>
+      </div>
+    </div>
+    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema para reenviar a pesquisa: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+  `;
+  const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Pesquisa expirada - ${projectCode}`,
+    text: [
+      `A pesquisa de satisfação do projeto ${projectCode} - ${projectName} expirou sem resposta do cliente.`,
+      '',
+      `Cliente: ${clientName}`,
+      `E-mail enviado: ${emailTo}`,
+      `Enviada em: ${sentAt}`,
+      `Expirada em: ${expiresAt}`,
+      appUrl ? `Acesso: ${appUrl}` : ''
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
