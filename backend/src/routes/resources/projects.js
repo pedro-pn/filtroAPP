@@ -5,6 +5,7 @@ import { z } from 'zod';
 import asyncHandler from '../../lib/async-handler.js';
 import { ensureClientAccountForProject, ensureClientCcAccounts } from '../../lib/client-account.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
+import { invalidateUnsignedInternalSignatureRound, signatureEvidenceFromRequest } from '../../lib/internal-report-signatures.js';
 import prisma from '../../lib/prisma.js';
 import { clearPendingProjectZapSignState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
 import { requireAuth, requireManager } from '../../middleware/auth.js';
@@ -225,6 +226,19 @@ router.delete('/:id', requireAuth, requireManager, asyncHandler(async (req, res)
       where: { projectId: req.params.id }
     });
     if (reportCount > 0) {
+      const reports = await tx.report.findMany({
+        where: { projectId: req.params.id },
+        select: { id: true }
+      });
+      for (const report of reports) {
+        await invalidateUnsignedInternalSignatureRound(tx, {
+          reportId: report.id,
+          userId: req.auth.user.id,
+          evidence: signatureEvidenceFromRequest(req),
+          description: 'Rodada de assinatura invalidada por exclusao do projeto.',
+          invalidateSignedRound: true
+        });
+      }
       await tx.project.update({
         where: { id: req.params.id },
         data: {

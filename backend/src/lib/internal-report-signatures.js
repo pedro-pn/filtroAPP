@@ -331,7 +331,8 @@ export async function invalidateUnsignedInternalSignatureRound(tx, {
   reportId,
   userId = null,
   evidence = {},
-  description = 'Rodada de assinatura invalidada por alteracao do relatorio.'
+  description = 'Rodada de assinatura invalidada por alteracao do relatorio.',
+  invalidateSignedRound = false
 }) {
   const activeVersion = await tx.reportVersion.findFirst({
     where: { reportId, status: ReportVersionStatus.ACTIVE },
@@ -339,7 +340,8 @@ export async function invalidateUnsignedInternalSignatureRound(tx, {
     orderBy: { versionNumber: 'desc' }
   });
   if (!activeVersion) return false;
-  if (activeVersion.signatures.some(signature => signature.status === ReportSignatureStatus.SIGNED)) return false;
+  if (invalidateSignedRound && allRequiredSignaturesCompleted(activeVersion)) return false;
+  if (!invalidateSignedRound && activeVersion.signatures.some(signature => signature.status === ReportSignatureStatus.SIGNED)) return false;
 
   await tx.reportSignature.updateMany({
     where: {

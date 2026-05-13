@@ -7,7 +7,13 @@ import test from 'node:test';
 import { PDFDocument } from 'pdf-lib';
 
 import {
+  publicSignatureStatus,
+  shouldCreateInternalSignatureRound
+} from '../src/routes/resources/reports.js';
+import {
+  clientSignersForReport,
   createValidationQrCodeMatrix,
+  invalidateUnsignedInternalSignatureRound,
   sha256Hex,
   signInternalReportVersion,
   writeFinalEvidencePdf
@@ -63,6 +69,146 @@ test('signInternalReportVersion stores the signer name provided at signing time'
   assert.equal(signatureUpdate.data.signerName, 'Nome editado');
   assert.equal(signatureUpdate.data.signatureImageDataUrl, tinyPngDataUrl);
   assert.match(auditLog.data.description, /Nome editado assinou o relatorio/);
+});
+
+test('approved RDO without client signers does not require an internal signature round', () => {
+  const report = {
+    id: 'report-no-signers',
+    projectId: 'project-1',
+    reportType: 'RDO',
+    status: 'APPROVED',
+    project: {
+      managerOnly: false,
+      clientName: 'Cliente sem e-mail',
+      clientEmailPrimary: '',
+      clientSigners: []
+    }
+  };
+
+  assert.deepEqual(clientSignersForReport(report), []);
+  assert.equal(shouldCreateInternalSignatureRound(report), false);
+});
+
+test('publicSignatureStatus blocks links for deleted projects but allows archived projects', () => {
+  const activeSignature = {
+    status: 'PENDING',
+    tokenExpiresAt: new Date(Date.now() + 60_000),
+    version: { status: 'ACTIVE' },
+    report: {
+      deletedAt: null,
+      status: 'APPROVED',
+      project: {
+        deletedAt: null,
+        isActive: true
+      }
+    }
+  };
+
+  assert.equal(publicSignatureStatus(activeSignature), 'ACTIVE');
+  assert.equal(publicSignatureStatus({
+    ...activeSignature,
+    report: {
+      ...activeSignature.report,
+      project: {
+        ...activeSignature.report.project,
+        deletedAt: new Date()
+      }
+    }
+  }), 'UNAVAILABLE');
+  assert.equal(publicSignatureStatus({
+    ...activeSignature,
+    report: {
+      ...activeSignature.report,
+      project: {
+        ...activeSignature.report.project,
+        isActive: false
+      }
+    }
+  }), 'ACTIVE');
+});
+
+test('invalidateUnsignedInternalSignatureRound can invalidate pending project-delete rounds with signed signatures', async () => {
+  const calls = [];
+  const tx = {
+    reportVersion: {
+      findFirst: async () => ({
+        id: 'version-1',
+        signatures: [
+          { id: 'signature-signed', status: 'SIGNED' },
+          { id: 'signature-pending', status: 'PENDING' }
+        ]
+      }),
+      update: async payload => {
+        calls.push(['reportVersion.update', payload]);
+        return payload;
+      }
+    },
+    reportSignature: {
+      updateMany: async payload => {
+        calls.push(['reportSignature.updateMany', payload]);
+        return { count: 1 };
+      }
+    },
+    reportAuditLog: {
+      create: async payload => {
+        calls.push(['reportAuditLog.create', payload]);
+        return payload;
+      }
+    }
+  };
+
+  const invalidated = await invalidateUnsignedInternalSignatureRound(tx, {
+    reportId: 'report-1',
+    userId: 'manager-1',
+    description: 'Rodada de assinatura invalidada por exclusao do projeto.',
+    invalidateSignedRound: true
+  });
+
+  assert.equal(invalidated, true);
+  assert.deepEqual(calls[0][1].where, {
+    versionId: 'version-1',
+    status: { in: ['PENDING', 'EXPIRED'] }
+  });
+  assert.equal(calls[1][1].data.status, 'SUPERSEDED');
+  assert.equal(calls[2][1].data.description, 'Rodada de assinatura invalidada por exclusao do projeto.');
+});
+
+test('invalidateUnsignedInternalSignatureRound keeps completed signed rounds active on project delete', async () => {
+  const calls = [];
+  const tx = {
+    reportVersion: {
+      findFirst: async () => ({
+        id: 'version-1',
+        signatures: [
+          { id: 'signature-signed', status: 'SIGNED', isRequired: true }
+        ]
+      }),
+      update: async payload => {
+        calls.push(payload);
+        return payload;
+      }
+    },
+    reportSignature: {
+      updateMany: async payload => {
+        calls.push(payload);
+        return { count: 0 };
+      }
+    },
+    reportAuditLog: {
+      create: async payload => {
+        calls.push(payload);
+        return payload;
+      }
+    }
+  };
+
+  const invalidated = await invalidateUnsignedInternalSignatureRound(tx, {
+    reportId: 'report-1',
+    invalidateSignedRound: true
+  });
+
+  assert.equal(invalidated, false);
+  assert.deepEqual(calls, []);
 });
 
 test('writeFinalEvidencePdf creates final PDF with evidence page and hash', async () => {
