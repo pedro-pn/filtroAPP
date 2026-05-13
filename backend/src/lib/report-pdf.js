@@ -94,7 +94,15 @@ function yesNo(value) {
   return '—';
 }
 
-function stringifyValue(key, value, lookups) {
+function emptyLookups() {
+  return {
+    counters: new Map(),
+    manometers: new Map(),
+    units: new Map()
+  };
+}
+
+export function stringifyValue(key, value, lookups = emptyLookups()) {
   if (valueIsEmpty(value)) return '';
   const label = normalizeLabel(key);
 
@@ -104,6 +112,14 @@ function stringifyValue(key, value, lookups) {
 
   if (typeof value === 'object') {
     if (value.fileName) return value.fileName;
+    for (const objectKey of ['names', 'codes', 'labels', 'ids']) {
+      if (Array.isArray(value[objectKey])) {
+        return value[objectKey].map(item => stringifyValue(label, item, lookups)).filter(Boolean).join(', ');
+      }
+    }
+    if (value.name && value.role) return `${value.name} - ${value.role}`;
+    if (value.name) return String(value.name);
+    if (value.code) return String(value.code);
     return '';
   }
 

@@ -60,6 +60,16 @@ model Collaborator {
   user             User?
 }
 
+model ClientSegment {
+  id        String   @id @default(cuid())
+  label     String   @unique
+  slug      String   @unique
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Project {
   id                    String            @id @default(cuid())
   code                  String            @unique
@@ -79,6 +89,7 @@ model Project {
   includesSaturday      Boolean           @default(false)
   includesSunday        Boolean           @default(false)
   operatorId            String?
+  clientSegment         String?
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
   operator              Collaborator?     @relation("ProjectOperator", fields: [operatorId], references: [id], onDelete: SetNull)
@@ -146,6 +157,8 @@ model Report {
   @@index([projectId, reportType])
   @@index([reportDate])
   @@index([zapsignDocToken])
+  @@index([reportType, status, reportDate])
+  @@index([projectId, reportType, status, reportDate])
 }
 
 model ClientReportReview {

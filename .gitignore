@@ -33,6 +33,7 @@ Planejamento.txt
 .codex
 Revisao-Ortografia.txt
 Testes manuais obrigatorios.md
+PLANEJAMENTO_*.md
 
 # Configurações locais do IDE/ferramentas (não compartilhar entre máquinas)
 .claude/settings.local.json

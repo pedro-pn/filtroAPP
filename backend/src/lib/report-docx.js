@@ -131,12 +131,25 @@ function getField(fields, names) {
   return '';
 }
 
-function stringify(value) {
+export function stringifyReportDocxValue(value) {
   if (value == null) return '';
   if (Array.isArray(value)) return value.filter(Boolean).join(', ');
   if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
-  if (typeof value === 'object' && value.labels) return Array.isArray(value.labels) ? value.labels.filter(Boolean).join(', ') : '';
+  if (typeof value === 'object') {
+    for (const key of ['names', 'codes', 'labels', 'ids']) {
+      if (Array.isArray(value[key])) return value[key].map(stringifyReportDocxValue).filter(Boolean).join(', ');
+    }
+    if (value.fileName) return stringifyReportDocxValue(value.fileName);
+    if (value.name && value.role) return `${stringifyReportDocxValue(value.name)} - ${stringifyReportDocxValue(value.role)}`;
+    if (value.name) return stringifyReportDocxValue(value.name);
+    if (value.code) return stringifyReportDocxValue(value.code);
+    return '';
+  }
   return String(value);
+}
+
+function stringify(value) {
+  return stringifyReportDocxValue(value);
 }
 
 function emptyWhenZero(value) {

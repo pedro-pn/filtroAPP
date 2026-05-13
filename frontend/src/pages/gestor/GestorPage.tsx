@@ -26,11 +26,14 @@ import { useUnitMutations, useUnits } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useSurveyMutations, useSurveyQuestions, useSurveys } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
+import { StatsDashboardOverlay, StatsOverview } from '../../components/stats/StatsDashboard';
+import { useProjectSegmentMutations, useProjectSegments } from '../../hooks/useProjectStats';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
 import type {
   Collaborator,
+  ClientSegment,
   ClientSigner,
   InternalUserSummary,
   Manometer,
@@ -52,7 +55,8 @@ type GestorTab =
   | 'equipe'
   | 'usuarios'
   | 'equipamentos'
-  | 'nps';
+  | 'nps'
+  | 'estatisticas';
 
 type EquipmentSubTab = 'unidades' | 'manometros' | 'contadores';
 type SurveyQuestionDraft = Omit<SurveyQuestion, 'order' | 'options'> & { optionsText: string };
@@ -74,7 +78,8 @@ const gestorTabs: GestorTab[] = [
   'equipe',
   'usuarios',
   'equipamentos',
-  'nps'
+  'nps',
+  'estatisticas'
 ];
 
 function parseGestorTab(value: string | null): GestorTab {
@@ -133,6 +138,7 @@ interface ProjectFormState {
   contractCode: string;
   location: string;
   operatorId: string;
+  clientSegment: string;
   visibleToCollaborators: boolean;
   managerOnly: boolean;
   isActive: boolean;
@@ -194,6 +200,7 @@ const emptyProjectForm: ProjectFormState = {
   contractCode: '',
   location: '',
   operatorId: '',
+  clientSegment: '',
   visibleToCollaborators: true,
   managerOnly: false,
   isActive: true,
@@ -625,6 +632,16 @@ function applyProjectVisibilityMode(mode: ProjectVisibilityMode): Pick<ProjectFo
   return { managerOnly: false, visibleToCollaborators: false };
 }
 
+function segmentSlugFromLabel(label: string) {
+  return label
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
 function projectToForm(project: Project): ProjectFormState {
   return {
     code: project.code,
@@ -640,6 +657,7 @@ function projectToForm(project: Project): ProjectFormState {
     contractCode: project.contractCode,
     location: project.location,
     operatorId: project.operatorId || '',
+    clientSegment: project.clientSegment || '',
     visibleToCollaborators: project.visibleToCollaborators,
     managerOnly: project.managerOnly,
     isActive: project.isActive,
@@ -854,6 +872,7 @@ function renderProjectCard(
     onResendSurvey?: (survey: SatisfactionSurveySummary) => void;
     surveyPending?: boolean;
     children?: ReactNode;
+    segments?: ClientSegment[];
   }
 ) {
   const survey = latestSurvey(project);
@@ -909,6 +928,12 @@ function renderProjectCard(
             <span className="det-label">Operador</span>
             <span className="det-val">{project.operator?.name || '-'}</span>
           </div>
+          {project.clientSegment && (
+            <div className="det-row">
+              <span className="det-label">Segmento</span>
+              <span className="det-val">{(options.segments || []).find(s => s.slug === project.clientSegment)?.label || project.clientSegment}</span>
+            </div>
+          )}
           <div className="det-row">
             <span className="det-label">Visibilidade</span>
             <span className="det-val">{projectVisibilityLabel(project)}</span>
@@ -969,9 +994,12 @@ export function GestorPage() {
   const [projectForm, setProjectForm] = useState<ProjectFormState>(emptyProjectForm);
   const [projectEditingId, setProjectEditingId] = useState<string | null>(null);
   const [showProjectForm, setShowProjectForm] = useState(false);
+  const [showSegmentForm, setShowSegmentForm] = useState(false);
+  const [segmentLabel, setSegmentLabel] = useState('');
   const [archiveSurveyProject, setArchiveSurveyProject] = useState<Project | null>(null);
   const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
   const [npsDashboardOpen, setNpsDashboardOpen] = useState(false);
+  const [statsDashboardOpen, setStatsDashboardOpen] = useState(false);
   const [equipmentSubTab, setEquipmentSubTab] = useState<EquipmentSubTab>('unidades');
   const [npsSortDir, setNpsSortDir] = useState<'asc' | 'desc'>('asc');
   const [showSurveyQuestionEditor, setShowSurveyQuestionEditor] = useState(false);
@@ -1020,9 +1048,11 @@ export function GestorPage() {
   const manometersQuery = useManometers();
   const countersQuery = useCounters();
   const surveysQuery = useSurveys();
+  const projectSegmentsQuery = useProjectSegments();
   const surveyQuestionsQuery = useSurveyQuestions();
 
   const projectMutations = useProjectMutations();
+  const projectSegmentMutations = useProjectSegmentMutations();
   const surveyMutations = useSurveyMutations();
   const reportMutations = useReportMutations();
   const draftMutations = useDraftMutations();
@@ -1214,6 +1244,16 @@ export function GestorPage() {
     setShowProjectForm(false);
   }
 
+  function openSegmentForm() {
+    setSegmentLabel('');
+    setShowSegmentForm(true);
+  }
+
+  function closeSegmentForm() {
+    setShowSegmentForm(false);
+    setSegmentLabel('');
+  }
+
   function resetCollaboratorForm() {
     setCollaboratorForm(emptyCollaboratorForm);
     setCollaboratorEditingId(null);
@@ -1322,6 +1362,7 @@ export function GestorPage() {
       managerOnly: projectForm.managerOnly,
       isActive: projectForm.isActive,
       operatorId: projectForm.operatorId || null,
+      clientSegment: projectForm.clientSegment || null,
       workdayHours: projectForm.workdayHours || '09:00',
       weekendWorkdayHours: projectForm.weekendWorkdayHours || '08:00',
       includesSaturday: projectForm.includesSaturday,
@@ -1339,6 +1380,27 @@ export function GestorPage() {
       resetProjectForm();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível salvar o projeto.', 'error');
+    }
+  }
+
+  async function handleSegmentSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const label = segmentLabel.trim();
+    const slug = segmentSlugFromLabel(label);
+    if (!label || !slug) return;
+
+    try {
+      const created = await projectSegmentMutations.createSegment.mutateAsync({
+        label,
+        slug,
+        isActive: true,
+        order: (projectSegmentsQuery.data || []).length + 1
+      });
+      setProjectForm(current => ({ ...current, clientSegment: created.slug }));
+      closeSegmentForm();
+      showToast('Segmento criado.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível criar o segmento.', 'error');
     }
   }
 
@@ -2101,6 +2163,16 @@ export function GestorPage() {
                   </select>
                 </div>
                 <div className="field-group">
+                  <label htmlFor="project-segment">Segmento do cliente</label>
+                  <select id="project-segment" value={projectForm.clientSegment} onChange={event => setProjectForm(current => ({ ...current, clientSegment: event.target.value }))}>
+                    <option value="">Selecionar segmento...</option>
+                    {(projectSegmentsQuery.data || []).map(s => (
+                      <option key={s.slug} value={s.slug}>{s.label}</option>
+                    ))}
+                  </select>
+                  <button className="mini-btn alt" type="button" onClick={openSegmentForm}>+ Adicionar segmento</button>
+                </div>
+                <div className="field-group">
                   <label htmlFor="project-visible">Visibilidade / criação de relatórios</label>
                   <select
                     id="project-visible"
@@ -2186,6 +2258,16 @@ export function GestorPage() {
                         </select>
                       </div>
                       <div className="field-group">
+                        <label htmlFor={`project-segment-${project.id}`}>Segmento do cliente</label>
+                        <select id={`project-segment-${project.id}`} value={projectForm.clientSegment} onChange={event => setProjectForm(current => ({ ...current, clientSegment: event.target.value }))}>
+                          <option value="">Selecionar segmento...</option>
+                          {(projectSegmentsQuery.data || []).map(s => (
+                            <option key={s.slug} value={s.slug}>{s.label}</option>
+                          ))}
+                        </select>
+                        <button className="mini-btn alt" type="button" onClick={openSegmentForm}>+ Adicionar segmento</button>
+                      </div>
+                      <div className="field-group">
                         <label htmlFor={`project-visible-${project.id}`}>Visibilidade / criação de relatórios</label>
                         <select
                           id={`project-visible-${project.id}`}
@@ -2239,7 +2321,8 @@ export function GestorPage() {
                 onToggleDetails: toggleProjectDetails,
                 onSendSurvey: handleSendSurvey,
                 onResendSurvey: handleResendSurvey,
-                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending
+                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending,
+                segments: projectSegmentsQuery.data
               })
             )}
           </div>
@@ -2316,7 +2399,8 @@ export function GestorPage() {
                 onToggleReports: item => toggleArchivedProject(item.id),
                 onSendSurvey: handleSendSurvey,
                 onResendSurvey: handleResendSurvey,
-                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending
+                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending,
+                segments: projectSegmentsQuery.data
               });
             })}
           </div>
@@ -3513,6 +3597,23 @@ export function GestorPage() {
     );
   }
 
+  function renderEstatisticasTab() {
+    return (
+      <>
+        {statsDashboardOpen && <StatsDashboardOverlay onClose={() => setStatsDashboardOpen(false)} />}
+        <div className="nps-tab-toolbar">
+          <div className="nps-tab-toolbar-left" />
+          <div className="nps-tab-toolbar-right">
+            <button className="mini-btn" type="button" onClick={() => setStatsDashboardOpen(true)}>
+              Dashboard detalhado
+            </button>
+          </div>
+        </div>
+        <StatsOverview />
+      </>
+    );
+  }
+
   function renderTabContent() {
     if (tab === 'pendentes' || tab === 'aprovados') return renderReportTabContent();
     if (tab === 'projetos') return renderProjectsTab();
@@ -3520,6 +3621,7 @@ export function GestorPage() {
     if (tab === 'equipe') return renderEquipeTab();
     if (tab === 'usuarios') return renderUsuariosTab();
     if (tab === 'equipamentos') return renderEquipamentosTab();
+    if (tab === 'estatisticas') return renderEstatisticasTab();
     return renderNpsTab();
   }
 
@@ -3598,6 +3700,9 @@ export function GestorPage() {
           <button className={`nav-tab ${tab === 'nps' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'nps'} onClick={() => setTab('nps')}>
             NPS
           </button>
+          <button className={`nav-tab ${tab === 'estatisticas' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'estatisticas'} onClick={() => setTab('estatisticas')}>
+            Estatísticas
+          </button>
         </div>
       </div>
 
@@ -3606,6 +3711,33 @@ export function GestorPage() {
         {renderGestorSearch()}
         {renderTabContent()}
       </main>
+
+      <Modal
+        open={showSegmentForm}
+        onClose={closeSegmentForm}
+        ariaLabelledBy="client-segment-title"
+      >
+        <form className="admin-form" onSubmit={handleSegmentSubmit}>
+          <div className="section-title" id="client-segment-title">Adicionar segmento</div>
+          <div className="field-group">
+            <label htmlFor="client-segment-label">Nome</label>
+            <input
+              id="client-segment-label"
+              value={segmentLabel}
+              onChange={event => setSegmentLabel(event.target.value)}
+              required
+            />
+          </div>
+          <div className="admin-form-actions segment-dialog-actions">
+            <button className="secondary-button" type="button" onClick={closeSegmentForm}>
+              Cancelar
+            </button>
+            <button className="primary-button" type="submit" disabled={projectSegmentMutations.createSegment.isPending}>
+              Salvar segmento
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal
         open={Boolean(archiveSurveyProject)}

@@ -33,6 +33,7 @@ const schema = z.object({
   includesSaturday: z.boolean().default(false),
   includesSunday: z.boolean().default(false),
   operatorId: z.string().nullable().optional(),
+  clientSegment: z.string().nullable().optional(),
   reportSequences: z.array(z.object({
     reportType: z.nativeEnum(ReportType),
     nextNumber: z.number().int().nonnegative()
@@ -69,6 +70,20 @@ function normalizeProjectInput(data) {
     clientEmailCc,
     clientSigners
   };
+}
+
+export async function assertActiveClientSegment(slug, prismaClient = prisma) {
+  if (!slug) return;
+  const segment = await prismaClient.clientSegment.findFirst({
+    where: { slug, isActive: true },
+    select: { id: true }
+  });
+  if (segment) return;
+  throw new z.ZodError([{
+    code: z.ZodIssueCode.custom,
+    path: ['clientSegment'],
+    message: 'Segmento inválido ou inativo.'
+  }]);
 }
 
 router.get('/', requireAuth, asyncHandler(async (req, res) => {
@@ -127,6 +142,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
 
 router.post('/', requireAuth, requireManager, asyncHandler(async (req, res) => {
   const data = normalizeProjectInput(schema.parse(req.body));
+  await assertActiveClientSegment(data.clientSegment);
   const { reportSequences, ...projectData } = data;
   const item = await prisma.$transaction(async tx => {
     const created = await tx.project.create({
@@ -173,6 +189,9 @@ router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) =>
   }
   if (data.managerOnly === true) {
     data = { ...data, visibleToCollaborators: false };
+  }
+  if (data.clientSegment !== undefined) {
+    await assertActiveClientSegment(data.clientSegment);
   }
   const { reportSequences, ...projectData } = data;
 

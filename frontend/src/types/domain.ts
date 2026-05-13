@@ -45,6 +45,14 @@ export interface SatisfactionSurveySummary {
   status?: SurveyStatus;
 }
 
+export interface ClientSegment {
+  id: string;
+  label: string;
+  slug: string;
+  isActive: boolean;
+  order: number;
+}
+
 export interface Project {
   id: string;
   code: string;
@@ -64,6 +72,7 @@ export interface Project {
   includesSaturday: boolean;
   includesSunday: boolean;
   operatorId: string | null;
+  clientSegment?: string | null;
   operator?: Collaborator | null;
   reportSequences?: ProjectReportSequence[];
   surveys?: SatisfactionSurveySummary[];
