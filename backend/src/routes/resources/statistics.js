@@ -6,6 +6,8 @@ import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
 const MAX_YEARS = 2;
+const MAX_STATS_REPORTS = 5000;
+const MAX_DAILY_REPORTS = 500;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -134,10 +136,14 @@ export function parseTubulacoes(service) {
   let ignoredCount = 0;
 
   for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      ignoredCount++;
+      continue;
+    }
     const d = item.d || item.diametro;
-    const dUnit = (item.unit || item.dUnit || '').trim(); // "pol" | "mm" | ""
+    const dUnit = String(item.unit || item.dUnit || '').trim(); // "pol" | "mm" | ""
     const c = item.c ?? item.comprimento;
-    const cUnit = (item.lengthUnit || item.comprimentoUnit || 'm').toLowerCase();
+    const cUnit = String(item.lengthUnit || item.comprimentoUnit || 'm').toLowerCase();
 
     if (!d || c === undefined || c === null) { ignoredCount++; continue; }
 
@@ -323,6 +329,43 @@ export function buildDailyReport(r) {
 
 // ─── Main route ───────────────────────────────────────────────────────────────
 
+function normalizeProjectIds(rawProjectIds) {
+  if (!rawProjectIds || rawProjectIds === 'all') return [];
+  const ids = Array.isArray(rawProjectIds) ? rawProjectIds : [rawProjectIds];
+  return ids.map(id => String(id).trim()).filter(id => id && id !== 'all');
+}
+
+function serviceSelect(includeEquipment = false) {
+  return {
+    id: true,
+    serviceType: true,
+    system: true,
+    extraData: true,
+    ...(includeEquipment ? { equipment: { select: { code: true, name: true } } } : {})
+  };
+}
+
+function reportSelect(includeEquipment = false) {
+  return {
+    id: true,
+    projectId: true,
+    reportDate: true,
+    sequenceNumber: true,
+    status: true,
+    daytimeWorkedMinutes: true,
+    nighttimeWorkedMinutes: true,
+    daytimeOvertimeMinutes: true,
+    nighttimeOvertimeMinutes: true,
+    daytimeCount: true,
+    specialConditions: true,
+    services: { select: serviceSelect(includeEquipment) }
+  };
+}
+
+function reportLimitError(limit) {
+  return `Consulta muito ampla para estatísticas. Refine por projeto, segmento ou período para até ${limit} RDOs.`;
+}
+
 router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
   const role = req.auth.user.role;
   if (role !== 'MANAGER' && role !== 'COORDINATOR') {
@@ -355,11 +398,8 @@ router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
   if (segment) projectWhere.clientSegment = segment;
   if (role === 'COORDINATOR') projectWhere.managerOnly = false;
 
-  const rawProjectIds = req.query.projectId;
-  if (rawProjectIds && rawProjectIds !== 'all') {
-    const ids = Array.isArray(rawProjectIds) ? rawProjectIds : [rawProjectIds];
-    projectWhere.id = { in: ids };
-  }
+  const projectIdFilter = normalizeProjectIds(req.query.projectId);
+  if (projectIdFilter.length) projectWhere.id = { in: projectIdFilter };
 
   const projects = await prisma.project.findMany({
     where: projectWhere,
@@ -369,7 +409,18 @@ router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
   if (projects.length === 0) {
     return res.json({
       projects: [],
-      meta: { from: fromStr, to: toStr, granularity, projectStatus, includedStatuses: ['APPROVED', 'SIGNED'], generatedAt: new Date(), ignoredLegacyRows: { volumeOleo: 0, tubulacao: 0 } },
+      meta: {
+        from: fromStr,
+        to: toStr,
+        granularity,
+        projectStatus,
+        includedStatuses: ['APPROVED', 'SIGNED'],
+        generatedAt: new Date(),
+        ignoredLegacyRows: { volumeOleo: 0, tubulacao: 0 },
+        reportCountLimit: MAX_STATS_REPORTS,
+        dailyReportLimit: MAX_DAILY_REPORTS,
+        dailyReportsIncluded: false
+      },
       summary: summarize([]),
       services: {},
       timeline: [],
@@ -378,19 +429,23 @@ router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
   }
 
   const projectIds = projects.map(p => p.id);
+  const reportWhere = {
+    reportType: 'RDO',
+    status: { in: ['APPROVED', 'SIGNED'] },
+    reportDate: { gte: fromDate, lte: toDate },
+    projectId: { in: projectIds }
+  };
+  const reportCount = await prisma.report.count({ where: reportWhere });
+  if (reportCount > MAX_STATS_REPORTS) {
+    return res.status(413).json({ error: reportLimitError(MAX_STATS_REPORTS) });
+  }
+
+  const wantsDailyReports = req.query.includeDailyReports === 'true' || projectIdFilter.length > 0;
+  const includeDailyReports = wantsDailyReports && reportCount <= MAX_DAILY_REPORTS;
 
   const reports = await prisma.report.findMany({
-    where: {
-      reportType: 'RDO',
-      status: { in: ['APPROVED', 'SIGNED'] },
-      reportDate: { gte: fromDate, lte: toDate },
-      projectId: { in: projectIds }
-    },
-    include: {
-      services: {
-        include: { equipment: { select: { code: true, name: true } } }
-      }
-    },
+    where: reportWhere,
+    select: reportSelect(includeDailyReports),
     orderBy: { reportDate: 'asc' }
   });
 
@@ -456,7 +511,7 @@ router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
       name: p.name,
       summary: summarize(pReports),
       services: pServices,
-      dailyReports: pReports.map(r => buildDailyReport(r))
+      dailyReports: includeDailyReports ? pReports.map(r => buildDailyReport(r)) : []
     };
   });
 
@@ -470,7 +525,10 @@ router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
       projectStatus,
       includedStatuses: ['APPROVED', 'SIGNED'],
       generatedAt: new Date(),
-      ignoredLegacyRows: ignoredRows
+      ignoredLegacyRows: ignoredRows,
+      reportCountLimit: MAX_STATS_REPORTS,
+      dailyReportLimit: MAX_DAILY_REPORTS,
+      dailyReportsIncluded: includeDailyReports
     },
     summary: globalSummary,
     services: globalServices,
@@ -517,25 +575,44 @@ router.get('/projects/export', requireAuth, asyncHandler(async (req, res) => {
   if (segment) projectWhere.clientSegment = segment;
   if (role === 'COORDINATOR') projectWhere.managerOnly = false;
 
-  const rawProjectIds = req.query.projectId;
-  if (rawProjectIds && rawProjectIds !== 'all') {
-    const ids = Array.isArray(rawProjectIds) ? rawProjectIds : [rawProjectIds];
-    projectWhere.id = { in: ids };
-  }
+  const projectIdFilter = normalizeProjectIds(req.query.projectId);
+  if (projectIdFilter.length) projectWhere.id = { in: projectIdFilter };
 
   const projects = await prisma.project.findMany({
     where: projectWhere,
     select: { id: true, code: true, name: true, clientName: true, clientSegment: true }
   });
 
+  const reportWhere = {
+    reportType: 'RDO',
+    status: { in: ['APPROVED', 'SIGNED'] },
+    reportDate: { gte: fromDate, lte: toDate },
+    projectId: { in: projects.map(p => p.id) }
+  };
+
+  const reportCount = projects.length === 0 ? 0 : await prisma.report.count({ where: reportWhere });
+  if (reportCount > MAX_STATS_REPORTS) {
+    return res.status(413).json({ error: reportLimitError(MAX_STATS_REPORTS) });
+  }
+
+  const exportReportSelect = {
+    id: true,
+    projectId: true,
+    reportDate: true,
+    sequenceNumber: true,
+    status: true,
+    daytimeWorkedMinutes: true,
+    nighttimeWorkedMinutes: true,
+    daytimeOvertimeMinutes: true,
+    nighttimeOvertimeMinutes: true,
+    daytimeCount: true,
+    specialConditions: true,
+    ...(section === 'services' ? { services: { select: serviceSelect(true) } } : {})
+  };
+
   const reports = projects.length === 0 ? [] : await prisma.report.findMany({
-    where: {
-      reportType: 'RDO',
-      status: { in: ['APPROVED', 'SIGNED'] },
-      reportDate: { gte: fromDate, lte: toDate },
-      projectId: { in: projects.map(p => p.id) }
-    },
-    include: { services: { include: { equipment: { select: { code: true, name: true } } } } },
+    where: reportWhere,
+    select: exportReportSelect,
     orderBy: { reportDate: 'asc' }
   });
 

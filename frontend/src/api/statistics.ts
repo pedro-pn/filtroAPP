@@ -8,6 +8,7 @@ export interface StatsParams {
   from?: string;
   to?: string;
   granularity?: 'day' | 'week' | 'month' | 'year';
+  includeDailyReports?: boolean;
 }
 
 export type StatsExportSection = 'summary' | 'byProject' | 'services';
@@ -93,6 +94,9 @@ export interface ProjectStatsResponse {
     includedStatuses: string[];
     generatedAt: string;
     ignoredLegacyRows: { volumeOleo: number; tubulacao: number };
+    reportCountLimit?: number;
+    dailyReportLimit?: number;
+    dailyReportsIncluded?: boolean;
   };
   summary: StatsSummary;
   services: Record<string, StatsServiceStats>;

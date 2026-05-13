@@ -45,6 +45,8 @@ test('statistics parsers normalize decimal, oil volume and tubing lengths', () =
       'Diametros e comprimentos': [
         { d: '2', unit: 'pol', c: '120', lengthUnit: 'cm' },
         { diametro: '50', dUnit: 'mm', comprimento: '1.500,5', comprimentoUnit: 'mm' },
+        null,
+        'linha-legada',
         { d: '', c: '10' }
       ]
     }
@@ -53,7 +55,15 @@ test('statistics parsers normalize decimal, oil volume and tubing lengths', () =
       '2 pol': 1.2,
       '50 mm': 1.5005
     },
-    ignoredCount: 1
+    ignoredCount: 3
+  });
+  assert.deepEqual(parseTubulacoes({
+    extraData: {
+      tubes: [{ d: '6', unit: 42, c: '3', lengthUnit: { value: 'm' } }]
+    }
+  }), {
+    byDiameter: { '6 42': 3 },
+    ignoredCount: 0
   });
   assert.deepEqual(parseTubulacoes({
     extraData: {

@@ -386,7 +386,15 @@ function RdoServiceRows({ services }: { services: Record<string, StatsServiceSta
   );
 }
 
-function ByProjectSection({ byProject }: { byProject: StatsProjectData[] }) {
+function ByProjectSection({
+  byProject,
+  dailyReportsIncluded,
+  detailMessage
+}: {
+  byProject: StatsProjectData[];
+  dailyReportsIncluded: boolean;
+  detailMessage: string;
+}) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggle = (id: string) => setExpanded(prev => {
     const s = new Set(prev);
@@ -409,7 +417,13 @@ function ByProjectSection({ byProject }: { byProject: StatsProjectData[] }) {
             <span className="stats-byproject-chevron">{expanded.has(proj.projectId) ? '▲' : '▼'}</span>
           </button>
 
-          {expanded.has(proj.projectId) && (
+          {expanded.has(proj.projectId) && !dailyReportsIncluded && (
+            <div className="stats-byproject-detail">
+              <div className="stats-empty">{detailMessage}</div>
+            </div>
+          )}
+
+          {expanded.has(proj.projectId) && dailyReportsIncluded && (
             <div className="stats-byproject-detail">
               <table className="stats-daily-table">
                 <thead>
@@ -483,13 +497,16 @@ export function StatsDashboard() {
     ...periodPart,
     projectStatus,
     ...(segment ? { segment } : {}),
-    ...(selectedProjects.length > 0 ? { projectId: selectedProjects } : {})
+    ...(selectedProjects.length > 0 ? { projectId: selectedProjects, includeDailyReports: true } : {})
   };
 
   const statsQuery = useProjectStats(statsParams);
 
   const data = statsQuery.data;
   const singleProject = selectedProjects.length === 1;
+  const dailyReportsDetailMessage = selectedProjects.length > 0
+    ? 'Detalhe diário omitido pelo volume da consulta. Reduza o período ou a quantidade de projetos selecionados.'
+    : 'Selecione um ou mais projetos para carregar os RDOs detalhados.';
 
   const allProjects = (projectsQuery.data || [])
     .slice()
@@ -668,7 +685,11 @@ export function StatsDashboard() {
                   <ExportButton section="services">CSV Serviços</ExportButton>
                 </div>
               </div>
-              <ByProjectSection byProject={data.byProject} />
+              <ByProjectSection
+                byProject={data.byProject}
+                dailyReportsIncluded={Boolean(data.meta.dailyReportsIncluded)}
+                detailMessage={dailyReportsDetailMessage}
+              />
             </div>
           )}
 
@@ -680,7 +701,11 @@ export function StatsDashboard() {
                   <ExportButton section="services">CSV Serviços</ExportButton>
                 </div>
               </div>
-              <ByProjectSection byProject={data.byProject} />
+              <ByProjectSection
+                byProject={data.byProject}
+                dailyReportsIncluded={Boolean(data.meta.dailyReportsIncluded)}
+                detailMessage={dailyReportsDetailMessage}
+              />
             </div>
           )}
 
