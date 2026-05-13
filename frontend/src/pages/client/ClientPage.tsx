@@ -31,6 +31,7 @@ const TEXT = {
   noReports: 'Nenhum relatório disponível para esta conta.',
   noSelection: 'Selecione ao menos um relatório.',
   reject: 'Reprovar',
+  rejectRequired: 'Informe um motivo para reprovar o relatório.',
   requestSignatureError: 'Não foi possível solicitar a assinatura.',
   reviewError: 'Não foi possível registrar a avaliação.',
   signed: 'Assinados',
@@ -384,12 +385,17 @@ export function ClientPage() {
   }
 
   async function handleReject(report: ReportSummary) {
+    const comment = commentsById[report.id]?.trim();
+    if (!comment) {
+      showToast(TEXT.rejectRequired, 'error');
+      return;
+    }
     if (!window.confirm('Confirmar reprovação deste relatório?')) return;
 
     try {
       await reportMutations.clientReview.mutateAsync({
         id: report.id,
-        payload: { action: 'REJECTED', comment: commentsById[report.id]?.trim() || null }
+        payload: { action: 'REJECTED', comment }
       });
       showToast('Avaliação registrada.', 'success');
     } catch (error) {

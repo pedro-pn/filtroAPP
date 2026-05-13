@@ -192,6 +192,7 @@ function queueClientRejectionNotification(report, comment) {
   const template = buildReportRejectedByClientEmailTemplate({
     projectCode: report.project?.code || '---',
     projectName: report.project?.name || 'Sem projeto',
+    clientName: report.clientRejectionReviewer || 'Cliente',
     reportType: report.reportType,
     reportNumber: reportNumberLabel(report),
     reportDate: formatDatePtBr(report.reportDate),
@@ -207,6 +208,17 @@ function queueClientRejectionNotification(report, comment) {
       });
     });
   });
+}
+
+function clientReviewerLabel(report, user) {
+  const email = String(user?.email || '').trim().toLowerCase();
+  const signers = Array.isArray(report?.project?.clientSigners) ? report.project.clientSigners : [];
+  const signer = signers.find(item => String(item?.email || '').trim().toLowerCase() === email);
+  const isPrimaryClient = email && String(report?.project?.clientEmailPrimary || '').trim().toLowerCase() === email;
+  const name = String(signer?.name || (isPrimaryClient ? report?.project?.clientName : '') || user?.name || '').trim();
+
+  if (name && email && name.toLowerCase() !== email) return `${name} (${email})`;
+  return name || email || 'Cliente';
 }
 
 function contentDisposition(fileName) {
@@ -242,7 +254,17 @@ const include = {
   },
   attachments: true,
   clientReviews: {
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: 'desc' },
+    include: {
+      clientUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          username: true
+        }
+      }
+    }
   }
 };
 
@@ -634,6 +656,14 @@ const sequenceSchema = z.object({
 const clientReviewSchema = z.object({
   action: z.enum(['APPROVED', 'REJECTED']),
   comment: z.string().trim().max(4000).optional().nullable()
+}).superRefine((data, ctx) => {
+  if (data.action === 'REJECTED' && !data.comment) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['comment'],
+      message: 'Informe um motivo para reprovar o relatório.'
+    });
+  }
 });
 const requestSignatureSchema = z.object({
   comment: z.string().trim().max(4000).optional().nullable()
@@ -3261,6 +3291,7 @@ router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => 
     return res.status(409).json({ error: 'Use a assinatura digital do ZapSign para concluir a aprovação do relatório.' });
   }
 
+  const clientRejectionReviewer = clientReviewerLabel(existing, req.auth.user);
   const item = await prisma.$transaction(async tx => {
     await tx.clientReportReview.create({
       data: {
@@ -3292,7 +3323,7 @@ router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => 
   });
 
   if (data.action === 'REJECTED') {
-    queueClientRejectionNotification(item, data.comment || '');
+    queueClientRejectionNotification({ ...item, clientRejectionReviewer }, data.comment || '');
   }
 
   res.json(item);

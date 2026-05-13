@@ -154,6 +154,12 @@ export interface ReportSummary {
     action: 'APPROVED' | 'REJECTED';
     comment?: string | null;
     createdAt?: string | null;
+    clientUser?: {
+      id?: string;
+      name?: string | null;
+      email?: string | null;
+      username?: string | null;
+    } | null;
   }>;
   reportDate: string;
   arrivalTime: string;

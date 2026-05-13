@@ -119,6 +119,15 @@ function isClientRejectionNote(value?: string | null) {
   return /^justificativa do cliente:/i.test(raw) || /^reprova[cç][aã]o do cliente/i.test(raw);
 }
 
+function clientReviewAuthor(review: NonNullable<ReportSummary['clientReviews']>[number]) {
+  const name = String(review.clientUser?.name || '').trim();
+  const email = String(review.clientUser?.email || '').trim();
+  const username = String(review.clientUser?.username || '').trim();
+
+  if (name && email && name.toLowerCase() !== email.toLowerCase()) return `${name} (${email})`;
+  return name || email || username;
+}
+
 export function ReportSummaryCard({
   report,
   actions,
@@ -191,14 +200,19 @@ export function ReportSummaryCard({
       <SignatureProgress report={report} />
       {clientRejections.length || legacyRejectionComment ? (
         <div className="client-rejection-list">
-          {clientRejections.map((review, index) => (
-            <div className="client-rejection-note" key={review.id}>
-              <strong>
-                Reprovação do cliente {formatReviewDate(review.createdAt) ? `- ${formatReviewDate(review.createdAt)}` : `#${index + 1}`}:
-              </strong>{' '}
-              {normalizeComment(review.comment) || 'Sem comentário'}
-            </div>
-          ))}
+          {clientRejections.map((review, index) => {
+            const author = clientReviewAuthor(review);
+            const date = formatReviewDate(review.createdAt);
+
+            return (
+              <div className="client-rejection-note" key={review.id}>
+                <strong>
+                  Reprovação do cliente{author ? ` ${author}` : ''} {date ? `- ${date}` : `#${index + 1}`}:
+                </strong>{' '}
+                {normalizeComment(review.comment) || 'Sem comentário'}
+              </div>
+            );
+          })}
           {legacyRejectionComment ? (
             <div className="client-rejection-note">
               <strong>Reprovação anterior:</strong> {legacyRejectionComment}

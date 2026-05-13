@@ -248,12 +248,14 @@ export function buildReportReapprovedEmailTemplate({ projectCode, projectName, c
   };
 }
 
-export function buildReportRejectedByClientEmailTemplate({ projectCode, projectName, reportType, reportNumber, reportDate, comment, appUrl }) {
+export function buildReportRejectedByClientEmailTemplate({ projectCode, projectName, clientName, reportType, reportNumber, reportDate, comment, appUrl }) {
   const title = 'Relatório reprovado pelo cliente';
-  const intro = `O relatório ${reportType} ${reportNumber} do projeto ${projectCode} - ${projectName} foi reprovado pelo cliente e precisa ser revisado.`;
+  const reviewer = clientName || 'Cliente';
+  const intro = `O relatório ${reportType} ${reportNumber} do projeto ${projectCode} - ${projectName} foi reprovado por ${reviewer} e precisa ser revisado.`;
   const body = `
     <div style="background:#fff8f8;border:1px solid #f5c6c6;border-radius:12px;padding:16px">
       <div style="font-size:14px;line-height:1.8">
+        <div><strong>Cliente que reprovou:</strong> ${reviewer}</div>
         <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
         <div><strong>Relatório:</strong> ${reportType} ${reportNumber}</div>
         <div><strong>Data:</strong> ${reportDate}</div>
@@ -267,8 +269,9 @@ export function buildReportRejectedByClientEmailTemplate({ projectCode, projectN
   return {
     subject: `[Filtrovali] ${reportType} ${reportNumber} reprovado pelo cliente`,
     text: [
-      `O relatório ${reportType} ${reportNumber} foi reprovado pelo cliente.`,
+      `O relatório ${reportType} ${reportNumber} foi reprovado por ${reviewer}.`,
       '',
+      `Cliente que reprovou: ${reviewer}`,
       `Projeto: ${projectCode} - ${projectName}`,
       `Data: ${reportDate}`,
       comment ? `Justificativa: ${comment}` : '',
