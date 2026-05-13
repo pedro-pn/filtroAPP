@@ -366,9 +366,9 @@ function reportLimitError(limit) {
   return `Consulta muito ampla para estatísticas. Refine por projeto, segmento ou período para até ${limit} RDOs.`;
 }
 
-function statsProjectWhere(extra = {}) {
+export function statsProjectWhere(extra = {}) {
   return {
-    managerOnly: { not: true },
+    managerOnly: false,
     ...extra
   };
 }

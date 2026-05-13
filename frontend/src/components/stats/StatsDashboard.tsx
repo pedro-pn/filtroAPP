@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import { downloadProjectStatsCsv, statsExportFileName, type StatsExportSection, type StatsOverviewProject, type StatsParams, type StatsProjectData, type StatsServiceStats, type StatsSummary, type StatsTimelineSlot } from '../../api/statistics';
 import { useProjectStats, useProjectSegments, useStatsOverview } from '../../hooks/useProjectStats';
@@ -584,6 +584,16 @@ export function StatsDashboard() {
   const projectsQuery = useProjects();
   const segmentsQuery = useProjectSegments();
 
+  const allProjects = useMemo(() => (projectsQuery.data || [])
+    .filter(project => !project.managerOnly)
+    .slice()
+    .sort((a, b) => a.code.localeCompare(b.code, 'pt-BR', { numeric: true })), [projectsQuery.data]);
+  const visibleProjectIds = useMemo(() => new Set(allProjects.map(project => project.id)), [allProjects]);
+  const selectedVisibleProjects = useMemo(
+    () => selectedProjects.filter(id => visibleProjectIds.has(id)),
+    [selectedProjects, visibleProjectIds]
+  );
+
   const periodPart = preset === 'custom'
     ? { from: customFrom || startOfYear(), to: customTo || today(), granularity: customGranularity }
     : presetParams(preset);
@@ -592,18 +602,18 @@ export function StatsDashboard() {
     ...periodPart,
     projectStatus,
     ...(segment ? { segment } : {}),
-    ...(selectedProjects.length > 0 ? { projectId: selectedProjects, includeDailyReports: true } : {})
+    ...(selectedVisibleProjects.length > 0 ? { projectId: selectedVisibleProjects, includeDailyReports: true } : {})
   };
 
   const statsQuery = useProjectStats(statsParams);
 
   const data = statsQuery.data;
-  const singleProject = selectedProjects.length === 1;
+  const singleProject = selectedVisibleProjects.length === 1;
 
-  const allProjects = (projectsQuery.data || [])
-    .filter(project => !project.managerOnly)
-    .slice()
-    .sort((a, b) => a.code.localeCompare(b.code, 'pt-BR', { numeric: true }));
+  useEffect(() => {
+    if (!projectsQuery.data || selectedProjects.length === selectedVisibleProjects.length) return;
+    setSelectedProjects(selectedVisibleProjects);
+  }, [projectsQuery.data, selectedProjects, selectedVisibleProjects]);
 
   function toggleProject(id: string) {
     setSelectedProjects(prev =>
@@ -702,17 +712,17 @@ export function StatsDashboard() {
         {/* Project multi-select */}
         <div className="stats-filter-group">
           <label className="stats-filter-label">
-            Projetos {selectedProjects.length > 0 ? `(${selectedProjects.length} selecionados)` : '(todos)'}
+            Projetos {selectedVisibleProjects.length > 0 ? `(${selectedVisibleProjects.length} selecionados)` : '(todos)'}
           </label>
           <div className="stats-project-chips">
             {allProjects.map(p => (
               <button key={p.id} type="button"
-                className={`stats-project-chip${selectedProjects.includes(p.id) ? ' active' : ''}`}
+                className={`stats-project-chip${selectedVisibleProjects.includes(p.id) ? ' active' : ''}`}
                 onClick={() => toggleProject(p.id)}>
                 {p.code}
               </button>
             ))}
-            {selectedProjects.length > 0 && (
+            {selectedVisibleProjects.length > 0 && (
               <button type="button" className="stats-project-chip-clear"
                 onClick={() => setSelectedProjects([])}>
                 Limpar seleção

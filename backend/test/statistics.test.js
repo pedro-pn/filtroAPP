@@ -12,6 +12,7 @@ import {
   parseTubulacoes,
   parseVolumeOleo,
   periodKey,
+  statsProjectWhere,
   toLocalDateStr,
   validateDateRange
 } from '../src/routes/resources/statistics.js';
@@ -28,6 +29,15 @@ test('statistics date range validation rejects invalid and excessive ranges', ()
   assert.match(validateDateRange('2026-05-14', '2026-05-13'), /Data final/);
   assert.match(validateDateRange('2026-13-01', '2026-05-13'), /Período inválido/);
   assert.match(validateDateRange('2024-01-01', '2026-01-02'), /Período máximo/);
+});
+
+test('statistics project filters exclude manager-only projects', () => {
+  assert.deepEqual(statsProjectWhere(), { managerOnly: false });
+  assert.deepEqual(statsProjectWhere({ isActive: true }), { managerOnly: false, isActive: true });
+  assert.deepEqual(statsProjectWhere({ id: { in: ['visible-project'] } }), {
+    managerOnly: false,
+    id: { in: ['visible-project'] }
+  });
 });
 
 test('statistics parsers normalize decimal, oil volume and tubing lengths', () => {
