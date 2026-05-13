@@ -219,7 +219,8 @@ const SERVICE_LABELS: Record<string, string> = {
   filtragem: 'Filtragem',
   flushing: 'Flushing',
   limpeza: 'Limpeza Química',
-  pressao: 'Pressão',
+  mecanica: 'Limpeza mecânica',
+  pressao: 'Teste de Pressão',
 };
 
 interface AggregatedItem {
@@ -268,6 +269,10 @@ function ServiceItemLabel({ item }: { item: AggregatedItem }) {
   return <span className="stats-svc-item-label">{parts.length ? parts.join(' - ') : '—'}</span>;
 }
 
+function totalTubeLength(tubesByDiameter: Record<string, number>): number {
+  return Object.values(tubesByDiameter || {}).reduce((sum, meters) => sum + meters, 0);
+}
+
 function ServicesSection({ services, byProject }: { services: Record<string, StatsServiceStats>; byProject: StatsProjectData[] }) {
   const entries = Object.entries(services).sort((a, b) => b[1].serviceCount - a[1].serviceCount);
   if (entries.length === 0) return <div className="stats-empty">Nenhum serviço no período.</div>;
@@ -278,6 +283,7 @@ function ServicesSection({ services, byProject }: { services: Record<string, Sta
     <div className="stats-services-list">
       {entries.map(([type, stats]) => {
         const items = itemsByType[type] || [];
+        const tubeTotal = totalTubeLength(stats.tubesByDiameter);
         return (
           <div key={type} className="stats-service-card">
             <div className="stats-service-header">
@@ -287,6 +293,9 @@ function ServicesSection({ services, byProject }: { services: Record<string, Sta
             <div className="stats-service-details">
               {stats.volumeOleoLiters > 0 && (
                 <span>Volume total: <strong>{fmtNum(stats.volumeOleoLiters, 0)} L</strong></span>
+              )}
+              {tubeTotal > 0 && (
+                <span>Comprimento total: <strong>{fmtNum(tubeTotal, 1)} m</strong></span>
               )}
               {Object.entries(stats.tubesByDiameter).map(([d, m]) => (
                 <span key={d}>
@@ -309,6 +318,7 @@ function ServicesSection({ services, byProject }: { services: Record<string, Sta
                 <tbody>
                   {items.map(item => {
                     const tubes = Object.entries(item.tubesByDiameter);
+                    const itemTubeTotal = totalTubeLength(item.tubesByDiameter);
                     return (
                       <tr key={item.key}>
                         <td><ServiceItemLabel item={item} /></td>
@@ -317,9 +327,14 @@ function ServicesSection({ services, byProject }: { services: Record<string, Sta
                           {type === 'filtragem'
                             ? (item.volumeOleoLiters > 0 ? `${fmtNum(item.volumeOleoLiters, 0)} L` : '—')
                             : tubes.length > 0
-                              ? tubes.map(([d, m]) => (
-                                  <span key={d} className="stats-tube-entry"><strong>{d}</strong> → {fmtNum(m, 1)} m</span>
-                                ))
+                              ? (
+                                  <>
+                                    <span className="stats-tube-entry"><strong>Total</strong> → {fmtNum(itemTubeTotal, 1)} m</span>
+                                    {tubes.map(([d, m]) => (
+                                      <span key={d} className="stats-tube-entry"><strong>{d}</strong> → {fmtNum(m, 1)} m</span>
+                                    ))}
+                                  </>
+                                )
                               : '—'}
                         </td>
                       </tr>
@@ -360,6 +375,7 @@ function RdoServiceRows({ services }: { services: Record<string, StatsServiceSta
         return items.map((item, idx) => {
           const label = [item.equipmentName, item.system].filter(Boolean).join(' - ') || '—';
           const tubes = Object.entries(item.tubesByDiameter || {});
+          const tubeTotal = totalTubeLength(item.tubesByDiameter || {});
           const hasVolume = type === 'filtragem' && item.volumeOleoLiters != null && item.volumeOleoLiters > 0;
           return (
             <tr key={`${type}-${idx}`} className="stats-svc-subrow">
@@ -372,6 +388,7 @@ function RdoServiceRows({ services }: { services: Record<string, StatsServiceSta
                 )}
                 {tubes.length > 0 && (
                   <span className="stats-svc-subrow-qty">
+                    <span className="stats-tube-entry"><strong>Total</strong> → {fmtNum(tubeTotal, 1)} m</span>
                     {tubes.map(([d, m]) => (
                       <span key={d} className="stats-tube-entry"><strong>{d}</strong> → {fmtNum(m, 1)} m</span>
                     ))}
@@ -386,14 +403,144 @@ function RdoServiceRows({ services }: { services: Record<string, StatsServiceSta
   );
 }
 
+function ProjectDailyDetail({
+  project,
+  expanded,
+  dailyReportsIncluded,
+  detailParams
+}: {
+  project: StatsProjectData;
+  expanded: boolean;
+  dailyReportsIncluded: boolean;
+  detailParams: StatsParams;
+}) {
+  const detailQuery = useProjectStats(
+    {
+      ...detailParams,
+      projectId: project.projectId,
+      includeDailyReports: true
+    },
+    expanded && !dailyReportsIncluded
+  );
+
+  if (!expanded) return null;
+
+  const detailProject = dailyReportsIncluded
+    ? project
+    : detailQuery.data?.byProject.find(item => item.projectId === project.projectId);
+
+  if (!dailyReportsIncluded) {
+    if (detailQuery.isLoading) {
+      return (
+        <div className="stats-byproject-detail">
+          <div className="stats-empty">Carregando RDOs detalhados...</div>
+        </div>
+      );
+    }
+    if (detailQuery.isError) {
+      return (
+        <div className="stats-byproject-detail">
+          <div className="stats-empty">Não foi possível carregar os RDOs detalhados deste projeto.</div>
+        </div>
+      );
+    }
+    if (detailQuery.data && !detailQuery.data.meta.dailyReportsIncluded) {
+      return (
+        <div className="stats-byproject-detail">
+          <div className="stats-empty">Detalhe diário omitido pelo volume da consulta. Reduza o período deste projeto.</div>
+        </div>
+      );
+    }
+  }
+
+  if (!detailProject) return null;
+
+  return (
+    <div className="stats-byproject-detail">
+      <table className="stats-daily-table">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>RDO</th>
+            <th>Status</th>
+            <th>H. Diur.</th>
+            <th>HE Diur.</th>
+            <th>H. Not.</th>
+            <th>HE Not.</th>
+            <th>Col. D</th>
+            <th>Col. N</th>
+            <th>Standby</th>
+          </tr>
+        </thead>
+        <tbody>
+          {detailProject.dailyReports.map(rdo => {
+            const dateStr = formatDateOnlyPtBr(rdo.reportDate);
+            const hasSvcs = Object.keys(rdo.services).length > 0;
+            return (
+              <Fragment key={rdo.reportId}>
+                <tr key={rdo.reportId} className={hasSvcs ? 'stats-daily-row--has-svcs' : ''}>
+                  <td>{dateStr}</td>
+                  <td>{rdo.sequenceNumber ?? '-'}</td>
+                  <td>{rdo.status === 'SIGNED' ? 'Assinado' : 'Aprovado'}</td>
+                  <td>{fmtMin(rdo.daytimeWorkedMinutes)}</td>
+                  <td>{fmtMin(rdo.daytimeOvertimeMinutes)}</td>
+                  <td>{fmtMin(rdo.nighttimeWorkedMinutes)}</td>
+                  <td>{fmtMin(rdo.nighttimeOvertimeMinutes)}</td>
+                  <td>{rdo.daytimeCollaborators}</td>
+                  <td>{rdo.nighttimeCollaborators}</td>
+                  <td>{rdo.standby ? fmtMin(rdo.standbyMinutes) : '—'}</td>
+                </tr>
+                {hasSvcs && <RdoServiceRows key={`${rdo.reportId}-svcs`} services={rdo.services} />}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ProjectRow({
+  project,
+  expanded,
+  onToggle,
+  dailyReportsIncluded,
+  detailParams
+}: {
+  project: StatsProjectData;
+  expanded: boolean;
+  onToggle: () => void;
+  dailyReportsIncluded: boolean;
+  detailParams: StatsParams;
+}) {
+  return (
+    <div className="stats-byproject-row">
+      <button className="stats-byproject-toggle" type="button" onClick={onToggle}>
+        <span className="stats-byproject-code">{project.code}</span>
+        <span className="stats-byproject-name">{project.name}</span>
+        <span className="stats-byproject-meta">
+          {project.summary.reportCount} RDO{project.summary.reportCount !== 1 ? 's' : ''} · {fmtMin(project.summary.daytimeWorkedMinutes + project.summary.nighttimeWorkedMinutes)} diurnos/noturnos
+        </span>
+        <span className="stats-byproject-chevron">{expanded ? '▲' : '▼'}</span>
+      </button>
+      <ProjectDailyDetail
+        project={project}
+        expanded={expanded}
+        dailyReportsIncluded={dailyReportsIncluded}
+        detailParams={detailParams}
+      />
+    </div>
+  );
+}
+
 function ByProjectSection({
   byProject,
   dailyReportsIncluded,
-  detailMessage
+  detailParams
 }: {
   byProject: StatsProjectData[];
   dailyReportsIncluded: boolean;
-  detailMessage: string;
+  detailParams: StatsParams;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggle = (id: string) => setExpanded(prev => {
@@ -406,67 +553,15 @@ function ByProjectSection({
 
   return (
     <div className="stats-byproject-list">
-      {byProject.map(proj => (
-        <div key={proj.projectId} className="stats-byproject-row">
-          <button className="stats-byproject-toggle" type="button" onClick={() => toggle(proj.projectId)}>
-            <span className="stats-byproject-code">{proj.code}</span>
-            <span className="stats-byproject-name">{proj.name}</span>
-            <span className="stats-byproject-meta">
-              {proj.summary.reportCount} RDO{proj.summary.reportCount !== 1 ? 's' : ''} · {fmtMin(proj.summary.daytimeWorkedMinutes + proj.summary.nighttimeWorkedMinutes)} diurnos/noturnos
-            </span>
-            <span className="stats-byproject-chevron">{expanded.has(proj.projectId) ? '▲' : '▼'}</span>
-          </button>
-
-          {expanded.has(proj.projectId) && !dailyReportsIncluded && (
-            <div className="stats-byproject-detail">
-              <div className="stats-empty">{detailMessage}</div>
-            </div>
-          )}
-
-          {expanded.has(proj.projectId) && dailyReportsIncluded && (
-            <div className="stats-byproject-detail">
-              <table className="stats-daily-table">
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>RDO</th>
-                    <th>Status</th>
-                    <th>H. Diur.</th>
-                    <th>HE Diur.</th>
-                    <th>H. Not.</th>
-                    <th>HE Not.</th>
-                    <th>Col. D</th>
-                    <th>Col. N</th>
-                    <th>Standby</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {proj.dailyReports.map(rdo => {
-                    const dateStr = formatDateOnlyPtBr(rdo.reportDate);
-                    const hasSvcs = Object.keys(rdo.services).length > 0;
-                    return (
-                      <Fragment key={rdo.reportId}>
-                        <tr key={rdo.reportId} className={hasSvcs ? 'stats-daily-row--has-svcs' : ''}>
-                          <td>{dateStr}</td>
-                          <td>{rdo.sequenceNumber ?? '-'}</td>
-                          <td>{rdo.status === 'SIGNED' ? 'Assinado' : 'Aprovado'}</td>
-                          <td>{fmtMin(rdo.daytimeWorkedMinutes)}</td>
-                          <td>{fmtMin(rdo.daytimeOvertimeMinutes)}</td>
-                          <td>{fmtMin(rdo.nighttimeWorkedMinutes)}</td>
-                          <td>{fmtMin(rdo.nighttimeOvertimeMinutes)}</td>
-                          <td>{rdo.daytimeCollaborators}</td>
-                          <td>{rdo.nighttimeCollaborators}</td>
-                          <td>{rdo.standby ? fmtMin(rdo.standbyMinutes) : '—'}</td>
-                        </tr>
-                        {hasSvcs && <RdoServiceRows key={`${rdo.reportId}-svcs`} services={rdo.services} />}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+      {byProject.map(project => (
+        <ProjectRow
+          key={project.projectId}
+          project={project}
+          expanded={expanded.has(project.projectId)}
+          onToggle={() => toggle(project.projectId)}
+          dailyReportsIncluded={dailyReportsIncluded}
+          detailParams={detailParams}
+        />
       ))}
     </div>
   );
@@ -504,9 +599,6 @@ export function StatsDashboard() {
 
   const data = statsQuery.data;
   const singleProject = selectedProjects.length === 1;
-  const dailyReportsDetailMessage = selectedProjects.length > 0
-    ? 'Detalhe diário omitido pelo volume da consulta. Reduza o período ou a quantidade de projetos selecionados.'
-    : 'Selecione um ou mais projetos para carregar os RDOs detalhados.';
 
   const allProjects = (projectsQuery.data || [])
     .slice()
@@ -688,7 +780,7 @@ export function StatsDashboard() {
               <ByProjectSection
                 byProject={data.byProject}
                 dailyReportsIncluded={Boolean(data.meta.dailyReportsIncluded)}
-                detailMessage={dailyReportsDetailMessage}
+                detailParams={statsParams}
               />
             </div>
           )}
@@ -704,7 +796,7 @@ export function StatsDashboard() {
               <ByProjectSection
                 byProject={data.byProject}
                 dailyReportsIncluded={Boolean(data.meta.dailyReportsIncluded)}
-                detailMessage={dailyReportsDetailMessage}
+                detailParams={statsParams}
               />
             </div>
           )}

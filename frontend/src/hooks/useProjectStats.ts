@@ -2,12 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { createProjectSegment, fetchProjectStats, fetchStatsOverview, listProjectSegments, type ClientSegmentPayload, type StatsParams } from '../api/statistics';
 
-export function useProjectStats(params: StatsParams) {
+export function useProjectStats(params: StatsParams, enabled = true) {
   return useQuery({
     queryKey: ['projectStats', params],
     queryFn: () => fetchProjectStats(params),
     staleTime: 5 * 60 * 1000,
-    enabled: Boolean(params.from && params.to)
+    enabled: enabled && Boolean(params.from && params.to)
   });
 }
 
