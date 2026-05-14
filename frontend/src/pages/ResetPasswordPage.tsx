@@ -1,7 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { getResetPasswordStatus, resetPassword } from '../api/auth';
+
+const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
+const loginLogoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_LOGIN.png`;
 
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -52,10 +55,21 @@ export function ResetPasswordPage() {
   return (
     <main className="auth-page">
       <section className="auth-card">
+        <div className="auth-logo-wrap">
+          <img className="auth-logo" src={loginLogoUrl} alt="Filtrovali" />
+        </div>
         <div className="section-title">Redefinir senha</div>
         {status === 'loading' ? <p className="placeholder-copy">Validando link...</p> : null}
         {status === 'invalid' ? <div className="inline-error">Link inválido, expirado ou já utilizado.</div> : null}
-        {status === 'valid' ? (
+        {status === 'valid' && message ? (
+          <div className="auth-form">
+            <div className="inline-success">{message}</div>
+            <Link className="secondary-button auth-back-button" to="/">
+              Voltar
+            </Link>
+          </div>
+        ) : null}
+        {status === 'valid' && !message ? (
           <form className="auth-form" onSubmit={handleSubmit}>
             <div className="field-group">
               <label htmlFor="new-password">Nova senha</label>
@@ -75,7 +89,6 @@ export function ResetPasswordPage() {
                 onChange={event => setConfirmPassword(event.target.value)}
               />
             </div>
-            {message ? <div className="inline-success">{message}</div> : null}
             {error ? <div className="inline-error">{error}</div> : null}
             <button className="primary-button" type="submit">
               Salvar nova senha
