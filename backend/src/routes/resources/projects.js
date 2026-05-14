@@ -86,6 +86,43 @@ export async function assertActiveClientSegment(slug, prismaClient = prisma) {
   }]);
 }
 
+export async function removeProjectById(projectId, prismaClient = prisma) {
+  await prismaClient.$transaction(async tx => {
+    const reports = await tx.report.findMany({
+      where: { projectId },
+      select: { id: true }
+    });
+    const reportIds = reports.map(report => report.id);
+
+    await tx.reportDraft.updateMany({
+      where: { projectId },
+      data: { projectId: null }
+    });
+    await tx.satisfactionSurvey.deleteMany({ where: { projectId } });
+    await tx.projectReportSeq.deleteMany({ where: { projectId } });
+
+    if (reportIds.length > 0) {
+      await tx.reportAttachment.deleteMany({
+        where: { reportId: { in: reportIds } }
+      });
+      await tx.clientReportReview.deleteMany({
+        where: { reportId: { in: reportIds } }
+      });
+      await tx.reportCollaborator.deleteMany({
+        where: { reportId: { in: reportIds } }
+      });
+      await tx.reportService.deleteMany({
+        where: { reportId: { in: reportIds } }
+      });
+      await tx.report.deleteMany({
+        where: { id: { in: reportIds } }
+      });
+    }
+
+    await tx.project.delete({ where: { id: projectId } });
+  });
+}
+
 router.get('/', requireAuth, asyncHandler(async (req, res) => {
   const activeParam = req.query.active;
   const where = {};
@@ -240,7 +277,7 @@ router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) =>
 }));
 
 router.delete('/:id', requireAuth, requireManager, asyncHandler(async (req, res) => {
-  await prisma.project.delete({ where: { id: req.params.id } });
+  await removeProjectById(req.params.id);
   res.status(204).end();
 }));
 
