@@ -3584,6 +3584,109 @@ textarea.pre {
   font-weight: 600;
 }
 
+.client-welcome-actions {
+  margin-top: 8px;
+}
+
+/* ── Driver.js tour — visual do app ── */
+.driver-popover {
+  border-radius: var(--r) !important;
+  box-shadow: var(--shadow), 0 2px 8px rgba(0,0,0,0.12) !important;
+  font-family: inherit !important;
+  padding: 16px !important;
+  min-width: 260px !important;
+  max-width: 320px !important;
+  color: var(--tx) !important;
+  background-color: var(--wh) !important;
+}
+
+.driver-popover * {
+  font-family: inherit !important;
+}
+
+.driver-popover-title {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: var(--tx) !important;
+  line-height: 1.4 !important;
+}
+
+.driver-popover-description {
+  font-size: 12px !important;
+  color: var(--mu) !important;
+  line-height: 1.6 !important;
+}
+
+.driver-popover-progress-text {
+  font-size: 11px !important;
+  color: var(--mu) !important;
+}
+
+.driver-popover-footer {
+  margin-top: 14px !important;
+  gap: 6px !important;
+}
+
+.driver-popover-navigation-btns {
+  gap: 6px !important;
+}
+
+/* Botão "Anterior" — padrão secondary */
+.driver-popover-footer .driver-popover-prev-btn {
+  all: unset !important;
+  box-sizing: border-box !important;
+  display: inline-block !important;
+  border: 1px solid var(--br) !important;
+  border-radius: var(--r) !important;
+  background: var(--wh) !important;
+  color: var(--tx) !important;
+  padding: 7px 10px !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+}
+
+.driver-popover-footer .driver-popover-prev-btn:hover {
+  background: var(--bg) !important;
+}
+
+/* Botão "Próximo / Concluir" — padrão primary */
+.driver-popover-footer .driver-popover-next-btn {
+  all: unset !important;
+  box-sizing: border-box !important;
+  display: inline-block !important;
+  border: none !important;
+  border-radius: var(--r) !important;
+  background: var(--g) !important;
+  color: var(--wh) !important;
+  padding: 8px 11px !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+}
+
+.driver-popover-footer .driver-popover-next-btn:hover {
+  background: var(--gl) !important;
+}
+
+/* Botão fechar (×) */
+.driver-popover-close-btn {
+  color: var(--mu) !important;
+  font-size: 16px !important;
+}
+
+.driver-popover-close-btn:hover {
+  color: var(--tx) !important;
+}
+
+/* Estado desabilitado */
+.driver-popover-footer .driver-popover-btn-disabled {
+  opacity: 0.45 !important;
+  pointer-events: none !important;
+}
+
 /* ── Detail action bar (paridade com .bbar do HTML) ── */
 .detail-action-bar {
   position: sticky;
