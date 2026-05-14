@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { driver } from 'driver.js';
+import type { DriveStep } from 'driver.js';
 import 'driver.js/dist/driver.css';
 
 const STORAGE_KEY_PREFIX = 'filtrovali-tutorial-done';
@@ -25,7 +26,7 @@ function markTutorialDone(userId: string) {
 }
 
 function buildSteps() {
-  const steps: Parameters<typeof driver>[0]['steps'] = [
+  const steps: DriveStep[] = [
     {
       element: '.client-welcome-card',
       popover: {
