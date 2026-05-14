@@ -9,6 +9,7 @@ import { z } from 'zod';
 import env from '../../config/env.js';
 import asyncHandler from '../../lib/async-handler.js';
 import { hashToken } from '../../lib/auth.js';
+import { clientCanAccessProject } from '../../lib/client-project-access.js';
 import { requireAuth } from '../../middleware/auth.js';
 import prisma from '../../lib/prisma.js';
 
@@ -77,7 +78,7 @@ function hasTransientUploadAccess(normalizedPath, auth) {
   return !!(grant && grant.userId === auth.user.id && grant.expiresAt > Date.now());
 }
 
-function normalizeRelativeUploadPath(rawPath) {
+export function normalizeRelativeUploadPath(rawPath) {
   const normalizedPath = String(rawPath || '')
     .replace(/\\/g, '/')
     .split('/')
@@ -87,7 +88,7 @@ function normalizeRelativeUploadPath(rawPath) {
   return normalizedPath || '';
 }
 
-function resolveStoredFilePath(rawPath) {
+export function resolveStoredFilePath(rawPath) {
   const normalizedPath = normalizeRelativeUploadPath(rawPath).split('/').join(path.sep);
   if (!normalizedPath) return null;
 
@@ -157,16 +158,6 @@ function valueReferencesUpload(value, normalizedPath) {
   return false;
 }
 
-function clientCanAccessProject(auth, project) {
-  if (project?.managerOnly) return false;
-  if (project?.clientCnpj === auth.user.username) return true;
-  const userEmail = String(auth.user.email || '').trim().toLowerCase();
-  if (!userEmail) return false;
-  if (String(project?.clientEmailPrimary || '').trim().toLowerCase() === userEmail) return true;
-  return Array.isArray(project?.clientEmailCc)
-    && project.clientEmailCc.some(cc => String(cc || '').trim().toLowerCase() === userEmail);
-}
-
 function canAccessReport(auth, report) {
   if (auth.user.role === 'MANAGER') return true;
   if (report.project?.managerOnly) return false;
@@ -224,7 +215,7 @@ async function candidateReportIdsForUpload(normalizedPath) {
   return [...ids];
 }
 
-async function authorizeStoredFile(req, normalizedPath) {
+export async function authorizeStoredFile(req, normalizedPath) {
   if (hasTransientUploadAccess(normalizedPath, req.auth)) return true;
 
   const drafts = await prisma.reportDraft.findMany({

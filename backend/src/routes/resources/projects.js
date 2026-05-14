@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { ensureClientAccountForProject, ensureClientCcAccounts } from '../../lib/client-account.js';
+import { clientProjectAccessWhere } from '../../lib/client-project-access.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import prisma from '../../lib/prisma.js';
 import { clearPendingProjectZapSignState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
@@ -134,15 +135,9 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
   } else if (req.auth.user.role === 'CLIENT') {
-    const userEmail = String(req.auth.user.email || '').trim().toLowerCase();
-    where.managerOnly = false;
+    Object.assign(where, clientProjectAccessWhere(req.auth));
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
-    where.OR = [
-      { clientCnpj: req.auth.user.username },
-      ...(userEmail ? [{ clientEmailPrimary: userEmail }] : []),
-      ...(userEmail ? [{ clientEmailCc: { has: userEmail } }] : [])
-    ];
   } else {
     const collaboratorId = req.auth.user.collaboratorId;
     where.isActive = true;

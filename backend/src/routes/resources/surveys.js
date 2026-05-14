@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { hashToken } from '../../lib/auth.js';
-import { normalizeCnpj } from '../../lib/cnpj.js';
+import { clientCanAccessProject } from '../../lib/client-project-access.js';
 import prisma from '../../lib/prisma.js';
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import {
@@ -194,16 +194,6 @@ function encryptedTokenPayload(survey) {
     tokenIv: survey.tokenIv,
     tokenAuthTag: survey.tokenAuthTag
   };
-}
-
-function clientCanAccessProject(auth, project) {
-  if (project?.managerOnly) return false;
-  if (project?.clientCnpj === normalizeCnpj(auth.user.username)) return true;
-  const userEmail = String(auth.user.email || '').trim().toLowerCase();
-  if (!userEmail) return false;
-  if (String(project?.clientEmailPrimary || '').trim().toLowerCase() === userEmail) return true;
-  return Array.isArray(project?.clientEmailCc)
-    && project.clientEmailCc.some(cc => String(cc || '').trim().toLowerCase() === userEmail);
 }
 
 async function findActiveSurvey(projectId) {

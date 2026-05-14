@@ -2,7 +2,7 @@
 CREATE TYPE "UnitCategory" AS ENUM ('FILTRAGEM', 'FLUSHING', 'LIMPEZA_QUIMICA', 'DESIDRATACAO', 'UTH', 'OUTRA');
 
 -- CreateEnum
-CREATE TYPE "ReportType" AS ENUM ('RDO', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLF', 'RLI');
+CREATE TYPE "ReportType" AS ENUM ('RDO', 'RTP', 'RLQ', 'RCP', 'RLM', 'RLF', 'RLI');
 
 -- CreateTable
 CREATE TABLE "Collaborator" (

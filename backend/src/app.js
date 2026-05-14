@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { Prisma } from '@prisma/client';
 import cors from 'cors';
 import express from 'express';
@@ -8,41 +7,20 @@ import morgan from 'morgan';
 import { ZodError } from 'zod';
 
 import env from './config/env.js';
-import { hashToken } from './lib/auth.js';
-import prisma from './lib/prisma.js';
+import asyncHandler from './lib/async-handler.js';
+import { requireAuth } from './middleware/auth.js';
 import apiRouter from './routes/index.js';
+import {
+  authorizeStoredFile,
+  normalizeRelativeUploadPath,
+  resolveStoredFilePath
+} from './routes/resources/uploads.js';
 
 const app = express();
 const allowedOrigins = String(env.allowedOrigin || '')
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function findSessionExpiryWithRetry(tokenHash, options = {}) {
-  const attempts = options.attempts || 3;
-  const delayMs = options.delayMs || 25;
-  let lastError = null;
-
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    try {
-      return await prisma.userSession.findUnique({
-        where: { tokenHash },
-        select: { expiresAt: true }
-      });
-    } catch (error) {
-      lastError = error;
-      if (attempt < attempts - 1) {
-        await sleep(delayMs);
-      }
-    }
-  }
-
-  throw lastError;
-}
 
 fs.mkdirSync(env.assetsDir, { recursive: true });
 fs.mkdirSync(env.reportsDir, { recursive: true });
@@ -70,26 +48,22 @@ app.use((req, res, next) => {
 });
 app.use(morgan('dev'));
 
-// Arquivos de relatórios e assinaturas exigem autenticação via header Bearer.
-const protectedRelatorios = async (req, res, next) => {
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-  if (!token) return res.status(401).json({ error: 'Acesso negado.' });
-  try {
-    const session = await findSessionExpiryWithRetry(hashToken(token));
-    if (!session || session.expiresAt <= new Date()) {
-      return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
-    }
-  } catch {
-    return res.status(500).json({ error: 'Erro ao verificar sessao.' });
+async function serveAuthorizedStoredFile(req, res) {
+  const normalizedPath = normalizeRelativeUploadPath(req.params[0]);
+  const targetPath = resolveStoredFilePath(normalizedPath);
+  if (!targetPath) {
+    return res.status(404).json({ error: 'Arquivo não encontrado.' });
   }
-  next();
-};
+  if (!(await authorizeStoredFile(req, normalizedPath))) {
+    return res.status(403).json({ error: 'Você não tem permissão para acessar este arquivo.' });
+  }
+
+  return res.sendFile(targetPath);
+}
 
 app.use('/assets', express.static(env.assetsDir));
-app.use('/relatorios/Assinaturas', protectedRelatorios, express.static(path.join(env.reportsDir, 'Assinaturas')));
-app.use('/uploads/Assinaturas', protectedRelatorios, express.static(path.join(env.reportsDir, 'Assinaturas')));
-app.use('/relatorios', protectedRelatorios, express.static(env.reportsDir));
-app.use('/uploads', protectedRelatorios, express.static(env.reportsDir));
+app.get('/relatorios/*', requireAuth, asyncHandler(serveAuthorizedStoredFile));
+app.get('/uploads/*', requireAuth, asyncHandler(serveAuthorizedStoredFile));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true });

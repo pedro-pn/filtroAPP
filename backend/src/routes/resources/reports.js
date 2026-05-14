@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
+import { clientCanAccessProject, clientProjectAccessWhere } from '../../lib/client-project-access.js';
 import { buildReportApprovedEmailTemplate, buildReportReapprovedEmailTemplate, buildReportRejectedByClientEmailTemplate } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { saveReportDocx, organizePhotos } from '../../lib/report-docx.js';
@@ -267,16 +268,6 @@ const include = {
     }
   }
 };
-
-function clientCanAccessProject(auth, project) {
-  if (project?.managerOnly) return false;
-  if (project?.clientCnpj === auth.user.username) return true;
-  const userEmail = String(auth.user.email || '').trim().toLowerCase();
-  if (!userEmail) return false;
-  if (String(project?.clientEmailPrimary || '').trim().toLowerCase() === userEmail) return true;
-  return Array.isArray(project?.clientEmailCc)
-    && project.clientEmailCc.some(cc => cc.toLowerCase() === userEmail);
-}
 
 export function collaboratorCanAccessProject(auth, project) {
   const collaboratorId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
@@ -2173,17 +2164,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
   }
 
   if (req.auth.user.role === 'CLIENT') {
-    const userEmail = String(req.auth.user.email || '').trim().toLowerCase();
-    where.project = {
-      managerOnly: false,
-      OR: [
-        { clientCnpj: req.auth.user.username },
-        ...(userEmail ? [
-          { clientEmailPrimary: { equals: userEmail, mode: 'insensitive' } },
-          { clientEmailCc: { has: userEmail } }
-        ] : [])
-      ]
-    };
+    where.project = clientProjectAccessWhere(req.auth);
   } else if (req.auth.user.role === 'COORDINATOR') {
     where.project = { managerOnly: false };
   } else if (req.query.mine === 'true' && req.auth.user.role === 'COLLABORATOR') {
