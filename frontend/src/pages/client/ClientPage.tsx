@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { downloadReportPdf, downloadReportsBatch } from '../../api/reports';
 import { getClientSurveyLink } from '../../api/surveys';
 import { useAuth } from '../../auth/AuthContext';
+import { ClientTutorial } from '../../components/ClientTutorial';
 import { SignatureProgress } from '../../components/reports/SignatureProgress';
 import { useToast } from '../../components/ui/Toast';
 import { useReportMutations, useReports } from '../../hooks/useReports';
@@ -148,6 +149,7 @@ export function ClientPage() {
   const [clientSortDirection, setClientSortDirection] = useState<ProjectSortDirection>('asc');
   const [clientTogglesLoaded, setClientTogglesLoaded] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
+  const tutorialTrigger = useRef<(() => void) | null>(null);
   const showToast = useToast();
   const clientToggleStorageKey = user ? `filtrovali-client-tabs:${user.id || user.username}` : '';
 
@@ -533,8 +535,17 @@ export function ClientPage() {
     );
   }
 
+  const tutorialReady = !reportsQuery.isLoading && !archivedProjectsQuery.isLoading && clientTogglesLoaded;
+
   return (
     <Shell>
+      {user && (
+        <ClientTutorial
+          userId={user.id || user.username}
+          ready={tutorialReady}
+          triggerRef={tutorialTrigger}
+        />
+      )}
       <TopBar
         title={TEXT.clientPortal}
         subtitle={user?.name}
@@ -561,6 +572,15 @@ export function ClientPage() {
             <span><strong>Usuário:</strong> {formatCnpj(user?.username) || user?.username || '—'}</span>
             <span><strong>E-mail:</strong> {user?.email || '—'}</span>
             <span><strong>Projetos vinculados:</strong> {reportSummary.projectCount}</span>
+          </div>
+          <div className="client-welcome-actions">
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => tutorialTrigger.current?.()}
+            >
+              Ver tutorial
+            </button>
           </div>
         </section>
 
