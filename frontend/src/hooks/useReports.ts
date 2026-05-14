@@ -15,7 +15,7 @@ import {
   type ReportFilters
 } from '../api/reports';
 import { useAuth } from '../auth/AuthContext';
-import type { ReportPayload, ReportStatus, ServiceOnlyReportPayload } from '../types/domain';
+import type { ReportPayload, ReportStatus, ReportSummary, ServiceOnlyReportPayload } from '../types/domain';
 import { queryKeys } from './queryKeys';
 
 export function useReports(filters?: ReportFilters) {
@@ -34,12 +34,42 @@ export function useReport(reportId: string, enabled = true) {
   });
 }
 
+function updateReportCaches(
+  queryClient: ReturnType<typeof useQueryClient>,
+  report: ReportSummary
+) {
+  queryClient.setQueryData(['report', report.id], report);
+  queryClient.setQueriesData<ReportSummary[]>({ queryKey: ['reports'] }, current => {
+    if (!current?.length) return current;
+    let found = false;
+    const next = current.map(item => {
+      if (item.id !== report.id) return item;
+      found = true;
+      return report;
+    });
+    return found ? next : current;
+  });
+}
+
+function removeReportFromCaches(
+  queryClient: ReturnType<typeof useQueryClient>,
+  reportId: string
+) {
+  queryClient.removeQueries({ queryKey: ['report', reportId] });
+  queryClient.setQueriesData<ReportSummary[]>({ queryKey: ['reports'] }, current => (
+    current?.filter(report => report.id !== reportId) ?? current
+  ));
+}
+
 export function useReportMutations() {
   const queryClient = useQueryClient();
 
   const createMutation = useMutation({
     mutationFn: (payload: ReportPayload) => createReport(payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports'] })
+    onSuccess: report => {
+      queryClient.setQueryData(['report', report.id], report);
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+    }
   });
 
   const createServiceOnlyMutation = useMutation({
@@ -54,6 +84,7 @@ export function useReportMutations() {
     mutationFn: ({ id, payload }: { id: string; payload: Omit<ReportPayload, 'createdByUserId' | 'status'> }) =>
       updateReport(id, payload),
     onSuccess: report => {
+      updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
@@ -63,6 +94,7 @@ export function useReportMutations() {
     mutationFn: ({ id, payload }: { id: string; payload: { status: ReportStatus; reviewNotes?: string | null } }) =>
       updateReportStatus(id, payload),
     onSuccess: report => {
+      updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
@@ -71,6 +103,7 @@ export function useReportMutations() {
   const requestSignatureMutation = useMutation({
     mutationFn: ({ id, comment }: { id: string; comment?: string | null }) => requestReportSignature(id, { comment }),
     onSuccess: data => {
+      updateReportCaches(queryClient, data.report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['report', data.report.id] });
     }
@@ -85,6 +118,7 @@ export function useReportMutations() {
       payload: { action: 'APPROVED' | 'REJECTED'; comment?: string | null };
     }) => createClientReportReview(id, payload),
     onSuccess: report => {
+      updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
@@ -101,13 +135,17 @@ export function useReportMutations() {
 
   const deleteReport = useMutation({
     mutationFn: (id: string) => deleteReportApi(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['reports'] })
+    onSuccess: (_data, reportId) => {
+      removeReportFromCaches(queryClient, reportId);
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+    }
   });
 
   const deleteService = useMutation({
     mutationFn: ({ reportId, serviceId }: { reportId: string; serviceId: string }) =>
       deleteReportService(reportId, serviceId),
     onSuccess: report => {
+      updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
