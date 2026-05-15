@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { downloadReportPdf } from '../../api/reports';
 import type { SurveyQuestion, SurveyResponses } from '../../api/surveys';
 import { useAuth } from '../../auth/AuthContext';
+import { useHubChip } from '../../auth/useHubChip';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { useToast } from '../../components/ui/Toast';
@@ -110,6 +111,7 @@ export function CoordinatorPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { reset } = useRdoStore();
+  const showHubChip = useHubChip();
   const [tab, setTab] = useState<CoordinatorTab>('pending');
   const [search, setSearch] = useState('');
   const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
@@ -546,6 +548,11 @@ export function CoordinatorPage() {
         showLogo
         actions={
           <>
+            {showHubChip && (
+              <button className="topbar-chip" type="button" onClick={() => navigate('/hub')}>
+                Hub
+              </button>
+            )}
             <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
               Conta
             </button>

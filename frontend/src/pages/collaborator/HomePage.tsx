@@ -1,6 +1,7 @@
 ﻿import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
+import { useHubChip } from '../../auth/useHubChip';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useReports } from '../../hooks/useReports';
 import { Shell } from '../../layout/Shell';
@@ -83,6 +84,7 @@ export function HomePage() {
   const reportsQuery = useReports({ mine: true });
   const draftMutations = useDraftMutations();
   const { hydrate, reset } = useRdoStore();
+  const showHubChip = useHubChip();
   const ongoingServices = collectOngoingServices(reportsQuery.data || []);
 
   function handleNewReport() {
@@ -127,6 +129,11 @@ export function HomePage() {
         showLogo
         actions={
           <>
+            {showHubChip && (
+              <button className="topbar-chip" type="button" onClick={() => navigate('/hub')}>
+                Hub
+              </button>
+            )}
             <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
               Conta
             </button>

@@ -1,8 +1,10 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 
+import { AdminRoute } from './auth/AdminRoute';
 import { PrivateRoute } from './auth/PrivateRoute';
 import { RoleRoute } from './auth/RoleRoute';
 import { AccountPage } from './pages/account/AccountPage';
+import { AdminAccountsPage } from './pages/admin/AdminAccountsPage';
 import { ClientPage } from './pages/client/ClientPage';
 import { HomePage } from './pages/collaborator/HomePage';
 import { MyArchivedReportsPage } from './pages/collaborator/MyArchivedReportsPage';
@@ -13,6 +15,7 @@ import { CoordinatorPage } from './pages/coordinator/CoordinatorPage';
 import { ReportDetailPage } from './pages/ReportDetailPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { GestorPage } from './pages/gestor/GestorPage';
+import { HubPage } from './pages/hub/HubPage';
 import { LoginPage } from './pages/LoginPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { SurveyPage } from './pages/SurveyPage';
@@ -26,7 +29,12 @@ export default function App() {
       <Route path="/pesquisa/:token" element={<SurveyPage />} />
 
       <Route element={<PrivateRoute />}>
+        <Route path="/hub" element={<HubPage />} />
         <Route path="/conta" element={<AccountPage />} />
+      </Route>
+
+      <Route element={<AdminRoute />}>
+        <Route path="/admin/accounts" element={<AdminAccountsPage />} />
       </Route>
 
       <Route element={<RoleRoute allowedRoles={['COLLABORATOR', 'MANAGER', 'COORDINATOR']} />}>

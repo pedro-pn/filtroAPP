@@ -11,6 +11,7 @@ import type { UserRole } from '../../types/auth';
 import { downloadReportDocx, downloadReportPdf, downloadReportsBatch } from '../../api/reports';
 import type { SurveyQuestion, SurveyQuestionType, SurveyResponses } from '../../api/surveys';
 import { useAuth } from '../../auth/AuthContext';
+import { useHubChip } from '../../auth/useHubChip';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { Modal } from '../../components/ui/Modal';
@@ -989,6 +990,7 @@ export function GestorPage() {
   const { user, logout } = useAuth();
   const { hydrate, reset } = useRdoStore();
   const showToast = useToast();
+  const showHubChip = useHubChip();
   const [tab, setTab] = useState<GestorTab>(() => parseGestorTab(searchParams.get('tab')));
   const [gestorSearch, setGestorSearch] = useState('');
   const projectDetailsStorageKey = `gestor-project-details-collapsed:${user?.id || 'anonymous'}`;
@@ -3682,6 +3684,11 @@ export function GestorPage() {
         showLogo
         actions={
           <>
+            {showHubChip && (
+              <button className="topbar-chip" type="button" onClick={() => navigate('/hub')}>
+                Hub
+              </button>
+            )}
             <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
               Conta
             </button>

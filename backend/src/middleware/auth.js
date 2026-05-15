@@ -18,7 +18,8 @@ async function findSessionWithRetry(tokenHash, options = {}) {
         include: {
           user: {
             include: {
-              collaborator: true
+              collaborator: true,
+              moduleRoles: true
             }
           }
         }
@@ -76,4 +77,31 @@ export function requireInternalUser(req, res, next) {
   }
 
   next();
+}
+
+export function requireAdmin(req, res, next) {
+  if (!req.auth || req.auth.user.accountType !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso restrito ao administrador.' });
+  }
+
+  next();
+}
+
+export function requireModuleRole(module, ...roles) {
+  return function (req, res, next) {
+    if (!req.auth) {
+      return res.status(401).json({ error: 'Sessao ausente.' });
+    }
+
+    const userRoles = req.auth.user.moduleRoles || [];
+    const hasRole = roles.some(role =>
+      userRoles.some(mr => mr.module === module && mr.role === role)
+    );
+
+    if (!hasRole) {
+      return res.status(403).json({ error: 'Acesso não autorizado para este módulo.' });
+    }
+
+    next();
+  };
 }

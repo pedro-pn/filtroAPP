@@ -53,6 +53,11 @@ export function publicUser(user) {
     name: user.name,
     email: user.email || null,
     role: user.role,
+    accountType: user.accountType || 'INTERNAL',
+    moduleRoles: (user.moduleRoles || []).map(mr => ({
+      module: mr.module,
+      role: mr.role
+    })),
     isActive: user.isActive,
     collaboratorId: user.collaboratorId || null,
     collaborator: user.collaborator

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 
+import adminRouter from './resources/admin.js';
 import authRouter from './resources/auth.js';
 import collaboratorsRouter from './resources/collaborators.js';
 import countersRouter from './resources/counters.js';
@@ -18,6 +19,7 @@ import webhooksRouter from './resources/webhooks.js';
 
 const router = Router();
 
+router.use('/admin', adminRouter);
 router.use('/auth', authRouter);
 router.use('/collaborators', collaboratorsRouter);
 router.use('/projects', projectsRouter);
