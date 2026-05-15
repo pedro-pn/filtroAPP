@@ -117,7 +117,7 @@ async function findLoginCandidates(identifier) {
         { email: { equals: rawIdentifier.toLowerCase(), mode: 'insensitive' } }
       ]
     },
-    include: { collaborator: true }
+    include: { collaborator: true, moduleRoles: true }
   });
 
   const exactUsername = user => usernameCandidates.some(candidate => (
@@ -287,7 +287,7 @@ router.put('/account', requireAuth, asyncHandler(async (req, res) => {
     data: {
       ...(data.email !== undefined ? { email: data.email ? data.email.toLowerCase() : null } : {})
     },
-    include: { collaborator: true }
+    include: { collaborator: true, moduleRoles: true }
   });
 
   res.json({ user: publicUser(user) });

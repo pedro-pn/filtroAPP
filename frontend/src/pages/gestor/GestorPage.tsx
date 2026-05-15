@@ -11,6 +11,7 @@ import type { UserRole } from '../../types/auth';
 import { downloadReportDocx, downloadReportPdf, downloadReportsBatch } from '../../api/reports';
 import type { SurveyQuestion, SurveyQuestionType, SurveyResponses } from '../../api/surveys';
 import { useAuth } from '../../auth/AuthContext';
+import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { Modal } from '../../components/ui/Modal';
@@ -1211,7 +1212,7 @@ export function GestorPage() {
 
   function handleNewReport() {
     reset();
-    navigate('/relatorio/novo');
+    navigate(rdoPath('/relatorio/novo'));
   }
 
   function handleResumeDraft(draft: ReportDraft) {
@@ -1240,7 +1241,7 @@ export function GestorPage() {
       services: asServices(payload.services)
     });
 
-    navigate('/relatorio/novo');
+    navigate(rdoPath('/relatorio/novo'));
   }
 
   function resetProjectForm() {

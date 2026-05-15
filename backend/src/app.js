@@ -42,7 +42,7 @@ app.use(cors({
   exposedHeaders: ['Content-Disposition']
 }));
 app.use((req, res, next) => {
-  const isUploadsApi = req.path.startsWith('/api/uploads');
+  const isUploadsApi = req.path.startsWith('/api/uploads') || req.path.startsWith('/api/rdo/uploads');
   const limit = isUploadsApi ? '25mb' : '1mb';
   return express.json({ limit })(req, res, next);
 });

@@ -8,9 +8,10 @@ import { clientProjectAccessWhere } from '../../lib/client-project-access.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import prisma from '../../lib/prisma.js';
 import { clearPendingProjectZapSignState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
-import { requireAuth, requireManager } from '../../middleware/auth.js';
+import { RDO_ACCESS_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
+const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
 const emailSchema = z.string().trim().email();
 
 const schema = z.object({
@@ -124,7 +125,7 @@ export async function removeProjectById(projectId, prismaClient = prisma) {
   });
 }
 
-router.get('/', requireAuth, asyncHandler(async (req, res) => {
+router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const activeParam = req.query.active;
   const where = {};
   if (req.auth.user.role === 'MANAGER') {
@@ -173,7 +174,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
   res.json(items);
 }));
 
-router.post('/', requireAuth, requireManager, asyncHandler(async (req, res) => {
+router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
   const data = normalizeProjectInput(schema.parse(req.body));
   await assertActiveClientSegment(data.clientSegment);
   const { reportSequences, ...projectData } = data;
@@ -199,7 +200,7 @@ router.post('/', requireAuth, requireManager, asyncHandler(async (req, res) => {
   res.status(201).json(item);
 }));
 
-router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) => {
+router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
   const parsed = schema.partial().parse(req.body);
   let data = parsed;
   if (parsed.clientCnpj !== undefined || parsed.clientEmailPrimary !== undefined || parsed.clientEmailCc !== undefined || parsed.clientSigners !== undefined) {
@@ -271,7 +272,7 @@ router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) =>
   res.json(item);
 }));
 
-router.delete('/:id', requireAuth, requireManager, asyncHandler(async (req, res) => {
+router.delete('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
   await removeProjectById(req.params.id);
   res.status(204).end();
 }));

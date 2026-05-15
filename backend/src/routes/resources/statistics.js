@@ -2,9 +2,10 @@ import { Router } from 'express';
 
 import asyncHandler from '../../lib/async-handler.js';
 import prisma from '../../lib/prisma.js';
-import { requireAuth } from '../../middleware/auth.js';
+import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
+const requireRdoStats = requireModuleRole('rdo:manager', 'rdo:coordinator');
 const MAX_YEARS = 2;
 const MAX_STATS_REPORTS = 5000;
 const MAX_DAILY_REPORTS = 500;
@@ -373,7 +374,7 @@ export function statsProjectWhere(extra = {}) {
   };
 }
 
-router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
+router.get('/projects', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
   const role = req.auth.user.role;
   if (role !== 'MANAGER' && role !== 'COORDINATOR') {
     return res.status(403).json({ error: 'Acesso restrito a gestor e coordenador.' });
@@ -546,7 +547,7 @@ router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
 
 // ─── CSV Export ───────────────────────────────────────────────────────────────
 
-router.get('/projects/export', requireAuth, asyncHandler(async (req, res) => {
+router.get('/projects/export', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
   const role = req.auth.user.role;
   if (role !== 'MANAGER' && role !== 'COORDINATOR') {
     return res.status(403).json({ error: 'Acesso restrito a gestor e coordenador.' });
@@ -700,7 +701,7 @@ router.get('/projects/export', requireAuth, asyncHandler(async (req, res) => {
 
 // ─── Overview (mini dashboard) ───────────────────────────────────────────────
 
-router.get('/overview', requireAuth, asyncHandler(async (req, res) => {
+router.get('/overview', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
   const role = req.auth.user.role;
   if (role !== 'MANAGER' && role !== 'COORDINATOR') {
     return res.status(403).json({ error: 'Acesso restrito a gestor e coordenador.' });

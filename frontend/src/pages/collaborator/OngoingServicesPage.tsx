@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
+import { rdoPath } from '../../auth/rolePath';
 import { serviceTypeLabels } from '../../components/reports/ServiceFields';
 import { useReportMutations, useReports } from '../../hooks/useReports';
 import { useToast } from '../../components/ui/Toast';
@@ -58,7 +59,7 @@ export function OngoingServicesPage() {
         subtitle={user?.name}
         actions={
           <>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/home')}>
+            <button className="topbar-chip" type="button" onClick={() => navigate(rdoPath('/home'))}>
               Voltar
             </button>
             <button className="topbar-chip" type="button" onClick={handleLogout}>

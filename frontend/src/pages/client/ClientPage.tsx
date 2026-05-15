@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { downloadReportPdf, downloadReportsBatch } from '../../api/reports';
 import { getClientSurveyLink } from '../../api/surveys';
 import { useAuth } from '../../auth/AuthContext';
+import { rdoReportDetailPath } from '../../auth/rolePath';
 import { ClientTutorial } from '../../components/ClientTutorial';
 import { SignatureProgress } from '../../components/reports/SignatureProgress';
 import { useToast } from '../../components/ui/Toast';
@@ -422,7 +423,7 @@ export function ClientPage() {
           : 'Relatório de serviço liberado após assinatura do RDO';
 
     return (
-      <article className="client-report-card report-card-clickable" key={report.id} onClick={() => navigate(`/cliente/relatorio/${report.id}`)}>
+      <article className="client-report-card report-card-clickable" key={report.id} onClick={() => navigate(rdoReportDetailPath(user, report.id))}>
         <div className="client-report-header">
           <div className="client-report-main">
             {selectable ? (

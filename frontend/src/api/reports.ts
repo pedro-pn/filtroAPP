@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, rdoApiPath } from './client';
 import type { ReportPayload, ReportStatus, ReportSummary, ServiceOnlyReportPayload } from '../types/domain';
 
 export interface ReportFilters {
@@ -13,40 +13,40 @@ export async function listReports(filters?: ReportFilters) {
     ...(filters ?? {}),
     ...(filters?.mine !== undefined ? { mine: String(filters.mine) } : {})
   };
-  const response = await apiClient.get<ReportSummary[]>('/reports', {
+  const response = await apiClient.get<ReportSummary[]>(rdoApiPath('/reports'), {
     params
   });
   return response.data;
 }
 
 export async function getReport(id: string) {
-  const response = await apiClient.get<ReportSummary>(`/reports/${id}`);
+  const response = await apiClient.get<ReportSummary>(rdoApiPath(`/reports/${id}`));
   return response.data;
 }
 
 export async function createReport(payload: ReportPayload) {
-  const response = await apiClient.post<ReportSummary>('/reports', payload);
+  const response = await apiClient.post<ReportSummary>(rdoApiPath('/reports'), payload);
   return response.data;
 }
 
 export async function createServiceOnlyReports(payload: ServiceOnlyReportPayload) {
-  const response = await apiClient.post<ReportSummary[]>('/reports/service-only', payload);
+  const response = await apiClient.post<ReportSummary[]>(rdoApiPath('/reports/service-only'), payload);
   return response.data;
 }
 
 export async function updateReport(id: string, payload: Omit<ReportPayload, 'createdByUserId' | 'status'>) {
-  const response = await apiClient.put<ReportSummary>(`/reports/${id}`, payload);
+  const response = await apiClient.put<ReportSummary>(rdoApiPath(`/reports/${id}`), payload);
   return response.data;
 }
 
 export async function updateReportStatus(id: string, payload: { status: ReportStatus; reviewNotes?: string | null }) {
-  const response = await apiClient.patch<ReportSummary>(`/reports/${id}/status`, payload);
+  const response = await apiClient.patch<ReportSummary>(rdoApiPath(`/reports/${id}/status`), payload);
   return response.data;
 }
 
 export async function requestReportSignature(id: string, payload: { comment?: string | null }) {
   const response = await apiClient.post<{ ok: boolean; signUrl?: string; report: ReportSummary }>(
-    `/reports/${id}/request-signature`,
+    rdoApiPath(`/reports/${id}/request-signature`),
     payload
   );
   return response.data;
@@ -56,13 +56,13 @@ export async function createClientReportReview(
   id: string,
   payload: { action: 'APPROVED' | 'REJECTED'; comment?: string | null }
 ) {
-  const response = await apiClient.post<ReportSummary>(`/reports/${id}/client-review`, payload);
+  const response = await apiClient.post<ReportSummary>(rdoApiPath(`/reports/${id}/client-review`), payload);
   return response.data;
 }
 
 export async function downloadReportsBatch(ids: string[], format: 'pdf' | 'docx') {
   const response = await apiClient.post<Blob>(
-    '/reports/batch-download',
+    rdoApiPath('/reports/batch-download'),
     { ids, format },
     { responseType: 'blob' }
   );
@@ -71,31 +71,31 @@ export async function downloadReportsBatch(ids: string[], format: 'pdf' | 'docx'
 
 export async function requestReportsBatchSignature(ids: string[], commentsById?: Record<string, string>) {
   const response = await apiClient.post<{ ok: boolean; signUrl?: string; reportIds: string[] }>(
-    '/reports/batch-request-signature',
+    rdoApiPath('/reports/batch-request-signature'),
     { ids, commentsById }
   );
   return response.data;
 }
 
 export async function downloadReportPdf(id: string) {
-  const response = await apiClient.get<Blob>(`/reports/${id}/pdf`, {
+  const response = await apiClient.get<Blob>(rdoApiPath(`/reports/${id}/pdf`), {
     responseType: 'blob'
   });
   return response.data;
 }
 
 export async function downloadReportDocx(id: string) {
-  const response = await apiClient.get<Blob>(`/reports/${id}/docx`, {
+  const response = await apiClient.get<Blob>(rdoApiPath(`/reports/${id}/docx`), {
     responseType: 'blob'
   });
   return response.data;
 }
 
 export async function deleteReport(id: string): Promise<void> {
-  await apiClient.delete(`/reports/${id}`);
+  await apiClient.delete(rdoApiPath(`/reports/${id}`));
 }
 
 export async function deleteReportService(reportId: string, serviceId: string) {
-  const response = await apiClient.delete<ReportSummary>(`/reports/${reportId}/services/${serviceId}`);
+  const response = await apiClient.delete<ReportSummary>(rdoApiPath(`/reports/${reportId}/services/${serviceId}`));
   return response.data;
 }

@@ -2,6 +2,7 @@ import prismaPkg from '@prisma/client';
 
 import { hashPassword } from '../src/lib/password.js';
 import { normalizeCnpj } from '../src/lib/cnpj.js';
+import { accountTypeForLegacyRole, defaultPublicModuleRolesForLegacyRole, moduleRoleRows } from '../src/lib/module-roles.js';
 
 const { PrismaClient, ReportType, UnitCategory, UserRole } = prismaPkg;
 
@@ -196,24 +197,35 @@ async function main() {
 
   for (const user of users) {
     const passwordHash = await hashPassword(user.password);
+    const accountType = accountTypeForLegacyRole(user.role);
+    const moduleRoles = defaultPublicModuleRolesForLegacyRole(user.role);
     await prisma.user.upsert({
       where: { username: user.username },
       update: {
         name: user.name,
         role: user.role,
+        accountType,
         collaboratorId: user.collaboratorId,
         email: user.email,
         passwordHash,
-        isActive: true
+        isActive: true,
+        moduleRoles: {
+          deleteMany: {},
+          create: moduleRoleRows('', moduleRoles).map(({ module, role }) => ({ module, role }))
+        }
       },
       create: {
         username: user.username,
         name: user.name,
         role: user.role,
+        accountType,
         collaboratorId: user.collaboratorId,
         email: user.email,
         passwordHash,
-        isActive: true
+        isActive: true,
+        moduleRoles: {
+          create: moduleRoleRows('', moduleRoles).map(({ module, role }) => ({ module, role }))
+        }
       }
     });
   }

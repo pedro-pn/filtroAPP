@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, rdoApiPath } from './client';
 
 export interface UploadItem {
   label: string;
@@ -16,7 +16,7 @@ export interface UploadedFile {
 }
 
 export async function uploadFile(item: UploadItem) {
-  const response = await apiClient.post<UploadedFile>('/uploads', item);
+  const response = await apiClient.post<UploadedFile>(rdoApiPath('/uploads'), item);
   return response.data;
 }
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
+import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -36,7 +37,7 @@ export function MyArchivedReportsPage() {
         subtitle={user?.name}
         actions={
           <>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/home')}>
+            <button className="topbar-chip" type="button" onClick={() => navigate(rdoPath('/home'))}>
               Início
             </button>
             <button className="topbar-chip" type="button" onClick={handleLogout}>
@@ -65,7 +66,7 @@ export function MyArchivedReportsPage() {
           </div>
         ) : null}
         <GroupedReportList reports={groups} archived storageKey={`collaborator-archived-report-groups:${user?.id || user?.username || 'anonymous'}`} />
-        <button className="secondary-button" type="button" onClick={() => navigate('/home')}>
+        <button className="secondary-button" type="button" onClick={() => navigate(rdoPath('/home'))}>
           Voltar
         </button>
       </main>

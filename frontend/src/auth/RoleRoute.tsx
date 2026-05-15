@@ -1,22 +1,21 @@
 import { Navigate, Outlet } from 'react-router-dom';
 
 import { useAuth } from './AuthContext';
-import { roleHomePath } from './rolePath';
-import type { UserRole } from '../types/auth';
+import { isRouteAllowed } from './routeAccess';
+import { userEntryPath } from './rolePath';
+import type { RouteAccessOptions } from './routeAccess';
 
-interface RoleRouteProps {
-  allowedRoles: UserRole[];
-}
+type RoleRouteProps = RouteAccessOptions;
 
-export function RoleRoute({ allowedRoles }: RoleRouteProps) {
+export function RoleRoute({ allowedAccountTypes = [], allowedRoles = [], allowedModuleRoles = [] }: RoleRouteProps) {
   const { user, token, isAuthenticated, isBootstrapping } = useAuth();
 
   if (isBootstrapping || (token && !user)) return null;
   if (!isAuthenticated || !user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
-  if (!allowedRoles.includes(user.role)) {
-    return <Navigate to={roleHomePath(user.role)} replace />;
+  if (!isRouteAllowed(user, { allowedAccountTypes, allowedRoles, allowedModuleRoles })) {
+    return <Navigate to={userEntryPath(user)} replace />;
   }
   return <Outlet />;
 }

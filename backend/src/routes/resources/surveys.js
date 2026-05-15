@@ -13,9 +13,11 @@ import {
   surveyResponseUrl
 } from '../../lib/survey-mail.js';
 import { decryptSurveyToken, surveyTokenData } from '../../lib/survey-token.js';
-import { requireAuth, requireManager } from '../../middleware/auth.js';
+import { hasModuleRole } from '../../lib/module-roles.js';
+import { requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
+const requireRdoClient = requireModuleRole('rdo:client');
 const SURVEY_DAYS = 30;
 const publicLimiter = createMemoryRateLimit({
   windowMs: 15 * 60 * 1000,
@@ -52,7 +54,7 @@ const followUpSchema = z.object({
 });
 
 function requireManagerOrCoordinator(req, res, next) {
-  if (!req.auth || !['MANAGER', 'COORDINATOR'].includes(req.auth.user.role)) {
+  if (!req.auth || !hasModuleRole(req.auth.user, ['rdo:manager', 'rdo:coordinator'])) {
     return res.status(403).json({ error: 'Acesso restrito ao gestor ou coordenador.' });
   }
   next();
@@ -566,7 +568,7 @@ router.get('/', requireAuth, requireManagerOrCoordinator, asyncHandler(async (re
   })));
 }));
 
-router.get('/client/projects/:projectId/active-link', requireAuth, asyncHandler(async (req, res) => {
+router.get('/client/projects/:projectId/active-link', requireAuth, requireRdoClient, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'CLIENT') {
     return res.status(403).json({ error: 'Acesso restrito ao cliente.' });
   }

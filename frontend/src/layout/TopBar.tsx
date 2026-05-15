@@ -1,4 +1,7 @@
 import type { ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+
+import { useAuth } from '../auth/AuthContext';
 
 const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
 const headerLogoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_HEADER.png`;
@@ -13,6 +16,16 @@ interface TopBarProps {
 }
 
 export function TopBar({ title, subtitle, actions, step, leading, showLogo = false }: TopBarProps) {
+  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const canShowModulesButton = Boolean(
+    user
+    && user.accountType !== 'CLIENT'
+    && user.role !== 'CLIENT'
+    && location.pathname !== '/'
+  );
+
   return (
     <header className="topbar-react">
       {leading}
@@ -28,7 +41,16 @@ export function TopBar({ title, subtitle, actions, step, leading, showLogo = fal
         </div>
       )}
       {step ? <div className="topbar-step">{step}</div> : null}
-      {actions ? <div className="topbar-actions-react">{actions}</div> : null}
+      {canShowModulesButton || actions ? (
+        <div className="topbar-actions-react">
+          {canShowModulesButton ? (
+            <button className="topbar-chip" type="button" onClick={() => navigate('/')}>
+              Módulos
+            </button>
+          ) : null}
+          {actions}
+        </div>
+      ) : null}
     </header>
   );
 }

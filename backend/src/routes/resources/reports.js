@@ -46,9 +46,10 @@ import {
 import { calculateReportOvertime } from '../../lib/overtime.js';
 import prisma from '../../lib/prisma.js';
 import { buildReportFileName } from '../../lib/report-filename.js';
-import { requireAuth } from '../../middleware/auth.js';
+import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
+const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
 const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
 const CLIENT_REJECTION_KEY = '__clientRejectedAt';
 const CLIENT_REJECTION_RESOLVED_KEY = '__clientRejectionResolvedAt';
@@ -2148,7 +2149,7 @@ async function createIndependentServiceReports(tx, project, data, managerUserId)
   return createdReports;
 }
 
-router.get('/', requireAuth, asyncHandler(async (req, res) => {
+router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const where = {};
 
   if (req.query.status) {
@@ -2195,7 +2196,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
   res.json(items);
 }));
 
-router.post('/batch-download', requireAuth, asyncHandler(async (req, res) => {
+router.post('/batch-download', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const data = batchDownloadSchema.parse(req.body);
   if (data.format === 'docx' && req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode baixar DOCX em lote.' });
@@ -2222,7 +2223,7 @@ router.post('/batch-download', requireAuth, asyncHandler(async (req, res) => {
   res.send(zip.toBuffer());
 }));
 
-router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, res) => {
+router.post('/batch-request-signature', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'CLIENT') {
     return res.status(403).json({ error: 'Apenas o cliente pode solicitar assinatura digital em lote.' });
   }
@@ -2417,7 +2418,7 @@ router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, re
   });
 }));
 
-router.get('/:id', requireAuth, asyncHandler(async (req, res) => {
+router.get('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
@@ -2440,7 +2441,7 @@ router.get('/:id', requireAuth, asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
+router.get('/:id/pdf', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   let item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
@@ -2475,7 +2476,7 @@ router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
   res.send(await fs.readFile(saved.targetPath));
 }));
 
-router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
+router.get('/:id/docx', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   let item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
@@ -2496,7 +2497,7 @@ router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
   res.send(await fs.readFile(saved.targetPath));
 }));
 
-router.delete('/:id/services/:serviceId', requireAuth, asyncHandler(async (req, res) => {
+router.delete('/:id/services/:serviceId', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode editar relatórios.` });
   }
@@ -2531,7 +2532,7 @@ router.delete('/:id/services/:serviceId', requireAuth, asyncHandler(async (req, 
   res.json(item);
 }));
 
-router.post('/service-only', requireAuth, asyncHandler(async (req, res) => {
+router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode criar relatórios somente de serviço.' });
   }
@@ -2566,7 +2567,7 @@ router.post('/service-only', requireAuth, asyncHandler(async (req, res) => {
   res.status(201).json(createdReports);
 }));
 
-router.post('/', requireAuth, asyncHandler(async (req, res) => {
+router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode criar relatórios.` });
   }
@@ -2668,7 +2669,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
   res.status(201).json(item);
 }));
 
-router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
+router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode editar relatórios.` });
   }
@@ -2850,7 +2851,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.patch('/:id/sequence', requireAuth, asyncHandler(async (req, res) => {
+router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode alterar a numeração dos relatórios.' });
   }
@@ -2880,7 +2881,7 @@ router.patch('/:id/sequence', requireAuth, asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
+router.post('/:id/cancel-edit', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode desfazer edições de relatórios.` });
   }
@@ -2919,7 +2920,7 @@ router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.post('/:id/discard-edit', requireAuth, asyncHandler(async (req, res) => {
+router.post('/:id/discard-edit', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode descartar uma edição pendente.' });
   }
@@ -2951,7 +2952,7 @@ router.post('/:id/discard-edit', requireAuth, asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
+router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode excluir relatórios.' });
   }
@@ -3002,7 +3003,7 @@ router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
   res.status(204).end();
 }));
 
-router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
+router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode revisar relatórios.' });
   }
@@ -3078,7 +3079,7 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res) => {
+router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'CLIENT') {
     return res.status(403).json({ error: 'Apenas o cliente pode solicitar a assinatura digital.' });
   }
@@ -3242,7 +3243,7 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
   });
 }));
 
-router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => {
+router.post('/:id/client-review', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'CLIENT') {
     return res.status(403).json({ error: 'Apenas o cliente pode registrar esta ação.' });
   }

@@ -2,7 +2,7 @@ import { FormEvent, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext';
-import { roleHomePath } from '../auth/rolePath';
+import { userEntryPath } from '../auth/rolePath';
 import { normalizeCnpjInput } from '../utils/formatCnpj';
 
 const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
@@ -17,7 +17,7 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const redirectPath = useMemo(() => roleHomePath(user?.role), [user?.role]);
+  const redirectPath = useMemo(() => userEntryPath(user), [user]);
   if (isBootstrapping || (token && !user)) return null;
   if (isAuthenticated) return <Navigate to={redirectPath} replace />;
 

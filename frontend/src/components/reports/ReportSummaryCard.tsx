@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
-import { roleHomePath } from '../../auth/rolePath';
+import { rdoReportDetailPath } from '../../auth/rolePath';
 import type { ReportSummary } from '../../types/domain';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { serviceTypeLabels } from './ServiceFields';
@@ -151,16 +151,7 @@ export function ReportSummaryCard({
   const services = summarizeServices(report.services) || 'Sem serviços';
 
   function handleOpenDetail() {
-    const base = roleHomePath(user?.role);
-    const detailPath =
-      base === '/gestor'
-        ? `/gestor/relatorio/${report.id}`
-        : base === '/coordenador'
-          ? `/coordenador/relatorio/${report.id}`
-          : base === '/cliente'
-            ? `/cliente/relatorio/${report.id}`
-            : `/relatorios/${report.id}`;
-    navigate(detailPath);
+    navigate(rdoReportDetailPath(user, report.id));
   }
 
   return (

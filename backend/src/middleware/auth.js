@@ -1,6 +1,10 @@
 import asyncHandler from '../lib/async-handler.js';
 import { hashToken, publicUser } from '../lib/auth.js';
+import { hasModuleRole } from '../lib/module-roles.js';
 import prisma from '../lib/prisma.js';
+
+export const RDO_INTERNAL_ROLES = ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator'];
+export const RDO_ACCESS_ROLES = [...RDO_INTERNAL_ROLES, 'rdo:client'];
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -18,7 +22,8 @@ async function findSessionWithRetry(tokenHash, options = {}) {
         include: {
           user: {
             include: {
-              collaborator: true
+              collaborator: true,
+              moduleRoles: true
             }
           }
         }
@@ -63,17 +68,35 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
 });
 
 export function requireManager(req, res, next) {
-  if (!req.auth || req.auth.user.role !== 'MANAGER') {
+  if (!req.auth || req.auth.user.accountType !== 'ADMIN' || !hasModuleRole(req.auth.user, 'rdo:manager')) {
     return res.status(403).json({ error: 'Acesso restrito ao gestor.' });
   }
 
   next();
 }
 
+export function requireHubAdmin(req, res, next) {
+  if (!req.auth || req.auth.user.accountType !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso restrito ao administrador.' });
+  }
+
+  next();
+}
+
 export function requireInternalUser(req, res, next) {
-  if (!req.auth || !['MANAGER', 'COLLABORATOR', 'COORDINATOR'].includes(req.auth.user.role)) {
+  if (!req.auth || !hasModuleRole(req.auth.user, RDO_INTERNAL_ROLES)) {
     return res.status(403).json({ error: 'Acesso restrito a usuários internos.' });
   }
 
   next();
+}
+
+export function requireModuleRole(...roles) {
+  return (req, res, next) => {
+    if (!req.auth || !hasModuleRole(req.auth.user, roles)) {
+      return res.status(403).json({ error: 'Acesso restrito ao módulo.' });
+    }
+
+    next();
+  };
 }

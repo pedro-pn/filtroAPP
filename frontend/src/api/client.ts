@@ -17,6 +17,14 @@ export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api'
 });
 
+export function rdoApiPath(path: string) {
+  return `/rdo${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+export function adminApiPath(path: string) {
+  return `/admin${path.startsWith('/') ? path : `/${path}`}`;
+}
+
 function tokenFromAuthorizationHeader(header: unknown) {
   if (typeof header !== 'string') return '';
   const match = header.match(/^Bearer\s+(.+)$/i);

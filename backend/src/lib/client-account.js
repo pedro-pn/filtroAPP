@@ -3,7 +3,10 @@ import { randomBytes } from 'node:crypto';
 import env from '../config/env.js';
 import { buildClientProjectLinkedEmailTemplate, buildClientWelcomeEmailTemplate } from './email-templates.js';
 import { getMissingMailerConfig, sendMail } from './mailer.js';
+import { defaultPublicModuleRolesForLegacyRole, moduleRoleRows } from './module-roles.js';
 import { hashPassword } from './password.js';
+
+const CLIENT_MODULE_ROLES = defaultPublicModuleRolesForLegacyRole('CLIENT');
 
 const CC_WELCOME_SUBJECT_PREFIX = '[Filtrovali] Acesso ao portal do cliente criado';
 
@@ -50,7 +53,7 @@ export async function ensureClientAccountForProject(prisma, projectData, options
 
   const existingUser = await prisma.user.findFirst({
     where: { username: { equals: clientCnpj, mode: 'insensitive' } },
-    include: { collaborator: true }
+    include: { collaborator: true, moduleRoles: true }
   });
 
   let user = existingUser;
@@ -67,9 +70,14 @@ export async function ensureClientAccountForProject(prisma, projectData, options
       data: {
         name: project.clientName,
         email: primaryEmail,
-        isActive: true
+        isActive: true,
+        accountType: 'CLIENT',
+        moduleRoles: {
+          deleteMany: {},
+          create: moduleRoleRows(user.id, CLIENT_MODULE_ROLES).map(({ module, role }) => ({ module, role }))
+        }
       },
-      include: { collaborator: true }
+      include: { collaborator: true, moduleRoles: true }
     });
   } else {
     initialPassword = generateClientPassword();
@@ -81,9 +89,13 @@ export async function ensureClientAccountForProject(prisma, projectData, options
         email: primaryEmail,
         passwordHash,
         role: 'CLIENT',
-        isActive: true
+        accountType: 'CLIENT',
+        isActive: true,
+        moduleRoles: {
+          create: moduleRoleRows('', CLIENT_MODULE_ROLES).map(({ module, role }) => ({ module, role }))
+        }
       },
-      include: { collaborator: true }
+      include: { collaborator: true, moduleRoles: true }
     });
     created = true;
   }
@@ -158,7 +170,16 @@ export async function ensureClientCcAccounts(prisma, projectData, options = {}) 
       if (existingUser.role !== 'CLIENT') continue;
       await prisma.user.update({
         where: { id: existingUser.id },
-        data: { name, email, isActive: true }
+        data: {
+          name,
+          email,
+          isActive: true,
+          accountType: 'CLIENT',
+          moduleRoles: {
+            deleteMany: {},
+            create: moduleRoleRows(existingUser.id, CLIENT_MODULE_ROLES).map(({ module, role }) => ({ module, role }))
+          }
+        }
       });
       continue;
     }
@@ -166,7 +187,18 @@ export async function ensureClientCcAccounts(prisma, projectData, options = {}) 
     const initialPassword = generateClientPassword();
     const passwordHash = await hashPassword(initialPassword);
     const user = await prisma.user.create({
-      data: { username: email, name, email, passwordHash, role: 'CLIENT', isActive: true }
+      data: {
+        username: email,
+        name,
+        email,
+        passwordHash,
+        role: 'CLIENT',
+        accountType: 'CLIENT',
+        isActive: true,
+        moduleRoles: {
+          create: moduleRoleRows('', CLIENT_MODULE_ROLES).map(({ module, role }) => ({ module, role }))
+        }
+      }
     });
 
     if (shouldNotify) {

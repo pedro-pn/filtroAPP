@@ -1,4 +1,4 @@
-import type { UserRole } from './auth';
+import type { AccountType, ModuleRole, UserRole } from './auth';
 
 export type UnitCategory = 'FILTRAGEM' | 'FLUSHING' | 'LIMPEZA_QUIMICA' | 'DESIDRATACAO' | 'UTH' | 'OUTRA';
 export type ReportType = 'RDO' | 'RTP' | 'RLQ' | 'RCPU' | 'RLM' | 'RLF' | 'RLI';
@@ -128,6 +128,8 @@ export interface InternalUserSummary {
   name: string;
   email: string | null;
   role: UserRole;
+  accountType?: AccountType;
+  moduleRoles?: ModuleRole[];
   isActive: boolean;
   collaboratorId?: string | null;
   collaborator?: Collaborator | null;

@@ -8,12 +8,14 @@ import { z } from 'zod';
 
 import env from '../../config/env.js';
 import asyncHandler from '../../lib/async-handler.js';
-import { hashToken } from '../../lib/auth.js';
+import { hashToken, publicUser } from '../../lib/auth.js';
 import { clientCanAccessProject } from '../../lib/client-project-access.js';
-import { requireAuth } from '../../middleware/auth.js';
+import { hasModuleRole } from '../../lib/module-roles.js';
+import { RDO_INTERNAL_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import prisma from '../../lib/prisma.js';
 
 const router = Router();
+const requireRdoInternal = requireModuleRole(...RDO_INTERNAL_ROLES);
 const TRANSIENT_UPLOAD_ACCESS_MS = 30 * 60 * 1000;
 const transientUploadAccess = new Map();
 
@@ -119,6 +121,9 @@ function normalizeUploadReference(value) {
   if (pathname.startsWith('/api/uploads/file/')) {
     return normalizeRelativeUploadPath(pathname.slice('/api/uploads/file/'.length));
   }
+  if (pathname.startsWith('/api/rdo/uploads/file/')) {
+    return normalizeRelativeUploadPath(pathname.slice('/api/rdo/uploads/file/'.length));
+  }
   if (pathname.startsWith('/relatorios/')) {
     return normalizeRelativeUploadPath(pathname.slice('/relatorios/'.length));
   }
@@ -159,6 +164,7 @@ function valueReferencesUpload(value, normalizedPath) {
 }
 
 function canAccessReport(auth, report) {
+  if (!hasModuleRole(auth.user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator', 'rdo:client'])) return false;
   if (auth.user.role === 'MANAGER') return true;
   if (report.project?.managerOnly) return false;
   if (auth.user.role === 'COORDINATOR') return true;
@@ -217,6 +223,7 @@ async function candidateReportIdsForUpload(normalizedPath) {
 
 export async function authorizeStoredFile(req, normalizedPath) {
   if (hasTransientUploadAccess(normalizedPath, req.auth)) return true;
+  if (!hasModuleRole(req.auth.user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator', 'rdo:client'])) return false;
 
   const drafts = await prisma.reportDraft.findMany({
     where: { userId: req.auth.user.id },
@@ -261,7 +268,8 @@ async function authenticateFileRequest(req, res, next) {
     include: {
       user: {
         include: {
-          collaborator: true
+          collaborator: true,
+          moduleRoles: true
         }
       }
     }
@@ -270,7 +278,7 @@ async function authenticateFileRequest(req, res, next) {
     return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
   }
 
-  req.auth = { token, sessionId: session.id, user: session.user, rawUser: session.user };
+  req.auth = { token, sessionId: session.id, user: publicUser(session.user), rawUser: session.user };
   return next();
 }
 
@@ -289,7 +297,7 @@ router.get('/file/*', asyncHandler(authenticateFileRequest), asyncHandler(async 
 
 router.use(requireAuth);
 
-router.post('/', asyncHandler(async (req, res) => {
+router.post('/', requireRdoInternal, asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
   const match = data.dataUrl.match(/^data:(.+);base64,(.+)$/);
   if (!match) {

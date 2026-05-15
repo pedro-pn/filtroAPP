@@ -45,6 +45,29 @@ enum UserRole {
   CLIENT
 }
 
+enum AccountType {
+  ADMIN
+  INTERNAL
+  CLIENT
+}
+
+enum AppModule {
+  RDO
+  ROMANEIO
+  EPI
+}
+
+enum ModuleRoleCode {
+  RDO_MANAGER
+  RDO_COORDINATOR
+  RDO_COLLABORATOR
+  RDO_CLIENT
+  ROMANEIO_MANAGER
+  ROMANEIO_OPERATOR
+  EPI_TECHNICIAN
+  EPI_COLLABORATOR
+}
+
 model Collaborator {
   id               String    @id @default(cuid())
   code             String    @unique
@@ -250,11 +273,13 @@ model User {
   email           String?
   passwordHash    String
   role            UserRole
+  accountType     AccountType   @default(INTERNAL)
   isActive        Boolean       @default(true)
   collaboratorId  String?       @unique
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   collaborator    Collaborator? @relation(fields: [collaboratorId], references: [id], onDelete: SetNull)
+  moduleRoles     ModuleRole[]
   sessions        UserSession[]
   passwordResetTokens PasswordResetToken[]
   drafts          ReportDraft[]
@@ -262,6 +287,17 @@ model User {
   reviewedReports Report[]      @relation("ReportReviewer")
   clientReportReviews ClientReportReview[] @relation("ClientReportReviewer")
   sentSurveys     SatisfactionSurvey[]
+}
+
+model ModuleRole {
+  id        String         @id @default(uuid())
+  userId    String
+  module    AppModule
+  role      ModuleRoleCode
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+
+  @@unique([userId, module, role])
 }
 
 model SatisfactionSurvey {

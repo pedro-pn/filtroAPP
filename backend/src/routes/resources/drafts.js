@@ -3,9 +3,10 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import prisma from '../../lib/prisma.js';
-import { requireAuth } from '../../middleware/auth.js';
+import { RDO_INTERNAL_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
+const requireRdoInternal = requireModuleRole(...RDO_INTERNAL_ROLES);
 
 const schema = z.object({
   id: z.string().optional(),
@@ -15,7 +16,7 @@ const schema = z.object({
   payload: z.any()
 });
 
-router.get('/', requireAuth, asyncHandler(async (req, res) => {
+router.get('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const items = await prisma.reportDraft.findMany({
     where: { userId: req.auth.user.id },
     include: { project: true },
@@ -24,7 +25,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
   res.json(items);
 }));
 
-router.post('/', requireAuth, asyncHandler(async (req, res) => {
+router.post('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
   if (data.projectId && data.reportDate) {
     await prisma.reportDraft.deleteMany({
@@ -48,7 +49,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
   res.status(201).json(item);
 }));
 
-router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
+router.put('/:id', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const data = schema.omit({ id: true }).parse(req.body);
   const current = await prisma.reportDraft.findUniqueOrThrow({ where: { id: req.params.id } });
   if (current.userId !== req.auth.user.id) {
@@ -77,7 +78,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
+router.delete('/:id', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const current = await prisma.reportDraft.findUniqueOrThrow({ where: { id: req.params.id } });
   if (current.userId !== req.auth.user.id) {
     return res.status(403).json({ error: 'Você não tem permissão para excluir este rascunho.' });

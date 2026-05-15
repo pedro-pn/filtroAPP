@@ -8,7 +8,7 @@ export function PrivateRoute() {
 
   if (isBootstrapping || (token && !user)) return null;
   if (!isAuthenticated) {
-    return <Navigate to="/" replace state={{ from: location }} />;
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
   return <Outlet />;
 }
