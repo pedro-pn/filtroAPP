@@ -52,6 +52,7 @@ import {
   ReportAuditAction,
   activeVersionWithSignatures,
   allRequiredSignaturesCompleted,
+  clientSignersForReport,
   createSignatureAuditLog,
   createSignatureValidationCode,
   ensureInternalSignatureRound,
@@ -391,9 +392,10 @@ function publicSignaturePayload(signature, status) {
   };
 }
 
-function publicSignatureStatus(signature) {
+export function publicSignatureStatus(signature) {
   if (!signature) return 'INVALID';
   if (signature.report?.deletedAt) return 'UNAVAILABLE';
+  if (signature.report?.project?.deletedAt) return 'UNAVAILABLE';
   if (signature.status === 'SIGNED') return 'SIGNED';
   if (signature.status === 'REJECTED') return 'REJECTED';
   if (signature.status === 'INVALIDATED') return 'INVALIDATED';
@@ -403,6 +405,12 @@ function publicSignatureStatus(signature) {
   if (signature.report?.status === ReportStatus.SIGNED) return 'SIGNED';
   if (signature.report?.status !== ReportStatus.APPROVED) return 'UNAVAILABLE';
   return 'ACTIVE';
+}
+
+export function shouldCreateInternalSignatureRound(report) {
+  if (report?.reportType !== ReportType.RDO || report?.status !== ReportStatus.APPROVED || report?.project?.managerOnly) return false;
+  if (hasActiveClientRejection(report)) return false;
+  return clientSignersForReport(report).length > 0;
 }
 
 function maskEmail(value) {
@@ -821,8 +829,21 @@ async function finalizeInternalSignatureRound(report, version, evidence, userId)
 }
 
 async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
-  if (report.reportType !== ReportType.RDO || report.status !== ReportStatus.APPROVED || report.project?.managerOnly) return null;
-  if (hasActiveClientRejection(report)) return null;
+  if (!shouldCreateInternalSignatureRound(report)) {
+    if (
+      report?.reportType === ReportType.RDO
+      && report?.status === ReportStatus.APPROVED
+      && !report?.project?.managerOnly
+      && !hasActiveClientRejection(report)
+      && !clientSignersForReport(report).length
+    ) {
+      console.warn('Rodada de assinatura interna nao criada: nenhum signatario cliente configurado.', {
+        reportId: report.id,
+        projectId: report.projectId
+      });
+    }
+    return null;
+  }
 
   const activeVersion = await prisma.reportVersion.findFirst({
     where: { reportId: report.id, status: 'ACTIVE' },
@@ -839,24 +860,37 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
     sourceDocumentHash = sha256Hex(pdfBuffer);
   }
 
-  const { version, tokens } = await prisma.$transaction(async tx => {
-    const current = await tx.report.findUniqueOrThrow({
-      where: { id: report.id },
-      include
-    });
-    if (current.status !== ReportStatus.APPROVED || hasActiveClientRejection(current)) {
-      return { version: null, tokens: [] };
+  let version;
+  let tokens;
+  try {
+    ({ version, tokens } = await prisma.$transaction(async tx => {
+      const current = await tx.report.findUniqueOrThrow({
+        where: { id: report.id },
+        include
+      });
+      if (current.status !== ReportStatus.APPROVED || hasActiveClientRejection(current)) {
+        return { version: null, tokens: [] };
+      }
+      const nextVersion = await ensureInternalSignatureRound(tx, {
+        report: current,
+        sourcePdfUrl,
+        sourceDocumentHash,
+        createdByUserId: userId,
+        evidence
+      });
+      const issuedTokens = await issuePendingSignatureTokens(tx, nextVersion);
+      return { version: nextVersion, tokens: issuedTokens };
+    }));
+  } catch (error) {
+    if (error?.statusCode === 409 && /Nenhum signatario cliente/.test(error.message || '')) {
+      console.warn('Rodada de assinatura interna nao criada: nenhum signatario cliente configurado.', {
+        reportId: report.id,
+        projectId: report.projectId
+      });
+      return null;
     }
-    const nextVersion = await ensureInternalSignatureRound(tx, {
-      report: current,
-      sourcePdfUrl,
-      sourceDocumentHash,
-      createdByUserId: userId,
-      evidence
-    });
-    const issuedTokens = await issuePendingSignatureTokens(tx, nextVersion);
-    return { version: nextVersion, tokens: issuedTokens };
-  });
+    throw error;
+  }
 
   if (tokens.length) queueSignatureRequestEmails(report, tokens);
   return version;

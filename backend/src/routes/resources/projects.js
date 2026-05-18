@@ -6,6 +6,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import { ensureClientAccountForProject, ensureClientCcAccounts } from '../../lib/client-account.js';
 import { clientProjectAccessWhere } from '../../lib/client-project-access.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
+import { invalidateUnsignedInternalSignatureRound, signatureEvidenceFromRequest } from '../../lib/internal-report-signatures.js';
 import prisma from '../../lib/prisma.js';
 import { clearPendingProjectZapSignState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
@@ -285,7 +286,36 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
 }));
 
 router.delete('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
-  await removeProjectById(req.params.id);
+  await prisma.$transaction(async tx => {
+    const reportCount = await tx.report.count({
+      where: { projectId: req.params.id }
+    });
+    if (reportCount > 0) {
+      const reports = await tx.report.findMany({
+        where: { projectId: req.params.id },
+        select: { id: true }
+      });
+      for (const report of reports) {
+        await invalidateUnsignedInternalSignatureRound(tx, {
+          reportId: report.id,
+          userId: req.auth.user.id,
+          evidence: signatureEvidenceFromRequest(req),
+          description: 'Rodada de assinatura invalidada por exclusao do projeto.',
+          invalidateSignedRound: true
+        });
+      }
+      await tx.project.update({
+        where: { id: req.params.id },
+        data: {
+          isActive: false,
+          deletedAt: new Date()
+        }
+      });
+      await clearPendingProjectZapSignState(tx, req.params.id);
+      return;
+    }
+    await tx.project.delete({ where: { id: req.params.id } });
+  });
   res.status(204).end();
 }));
 
