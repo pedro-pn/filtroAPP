@@ -36,6 +36,7 @@ test('publicUser exposes hub account fields with legacy fallback', () => {
       accountType: 'ADMIN',
       moduleRoles: ['rdo:manager'],
       isActive: true,
+      clientCnpj: null,
       collaboratorId: null,
       collaborator: null
     }
