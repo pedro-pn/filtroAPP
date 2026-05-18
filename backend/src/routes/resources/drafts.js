@@ -16,9 +16,21 @@ const schema = z.object({
   payload: z.any()
 });
 
+function rdoDraftWhere(userId) {
+  return {
+    userId,
+    NOT: {
+      payload: {
+        path: ['__module'],
+        equals: 'romaneio'
+      }
+    }
+  };
+}
+
 router.get('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const items = await prisma.reportDraft.findMany({
-    where: { userId: req.auth.user.id },
+    where: rdoDraftWhere(req.auth.user.id),
     include: { project: true },
     orderBy: { updatedAt: 'desc' }
   });
@@ -30,7 +42,7 @@ router.post('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) 
   if (data.projectId && data.reportDate) {
     await prisma.reportDraft.deleteMany({
       where: {
-        userId: req.auth.user.id,
+        ...rdoDraftWhere(req.auth.user.id),
         projectId: data.projectId,
         reportDate: data.reportDate
       }
@@ -52,13 +64,13 @@ router.post('/', requireAuth, requireRdoInternal, asyncHandler(async (req, res) 
 router.put('/:id', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const data = schema.omit({ id: true }).parse(req.body);
   const current = await prisma.reportDraft.findUniqueOrThrow({ where: { id: req.params.id } });
-  if (current.userId !== req.auth.user.id) {
+  if (current.userId !== req.auth.user.id || current.payload?.__module === 'romaneio') {
     return res.status(403).json({ error: 'Você não tem permissão para alterar este rascunho.' });
   }
   if (data.projectId && data.reportDate) {
     await prisma.reportDraft.deleteMany({
       where: {
-        userId: req.auth.user.id,
+        ...rdoDraftWhere(req.auth.user.id),
         projectId: data.projectId,
         reportDate: data.reportDate,
         id: { not: req.params.id }
@@ -80,7 +92,7 @@ router.put('/:id', requireAuth, requireRdoInternal, asyncHandler(async (req, res
 
 router.delete('/:id', requireAuth, requireRdoInternal, asyncHandler(async (req, res) => {
   const current = await prisma.reportDraft.findUniqueOrThrow({ where: { id: req.params.id } });
-  if (current.userId !== req.auth.user.id) {
+  if (current.userId !== req.auth.user.id || current.payload?.__module === 'romaneio') {
     return res.status(403).json({ error: 'Você não tem permissão para excluir este rascunho.' });
   }
   await prisma.reportDraft.delete({ where: { id: req.params.id } });

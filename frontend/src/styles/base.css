@@ -2558,6 +2558,154 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   font-size: 12px;
 }
 
+.romaneio-panel {
+  padding: 12px;
+}
+
+.romaneio-accordion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.romaneio-accordion {
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: #fafafa;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.romaneio-accordion-head {
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--tx);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.romaneio-accordion-head[aria-expanded="true"] {
+  background: #f0f7f2;
+  color: var(--g);
+}
+
+.romaneio-accordion-title {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.romaneio-accordion-count {
+  min-width: 28px;
+  border-radius: 999px;
+  padding: 3px 7px;
+  background: var(--wh);
+  color: var(--mu);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.romaneio-accordion-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid var(--br);
+  background: var(--wh);
+  color: var(--g);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.romaneio-accordion .romaneio-catalog-list {
+  margin: 0;
+  padding: 10px;
+  border-top: 1px solid var(--br);
+}
+
+.romaneio-list,
+.romaneio-catalog-list,
+.romaneio-selected-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  min-width: 0;
+}
+
+.romaneio-catalog-row,
+.romaneio-selected-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: #fafafa;
+  min-width: 0;
+}
+
+.romaneio-catalog-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.romaneio-catalog-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.romaneio-inline-edit {
+  margin-top: 0;
+}
+
+.romaneio-catalog-row > div:first-child,
+.romaneio-selected-row > div:first-child {
+  min-width: 0;
+}
+
+.romaneio-catalog-row strong,
+.romaneio-selected-row strong {
+  display: block;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.romaneio-add-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+  max-width: 45%;
+}
+
+.romaneio-add-control input {
+  width: 92px;
+  min-width: 0;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  padding: 7px 8px;
+  background: var(--wh);
+}
+
 .project-sort-button {
   flex: 0 0 auto;
   border-radius: 999px;

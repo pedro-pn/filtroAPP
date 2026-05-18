@@ -73,6 +73,67 @@ export function buildReportApprovedEmailTemplate({ projectCode, projectName, cli
   };
 }
 
+export function buildRomaneioCreatedEmailTemplate({
+  projectCode,
+  projectName,
+  clientName,
+  romaneioDate,
+  driverName,
+  vehiclePlate,
+  itemCount,
+  categorySummary,
+  appUrl
+}) {
+  const title = 'Romaneio de equipamentos gerado';
+  const intro = `O romaneio do projeto ${projectCode} - ${projectName} foi criado no sistema Filtrovali e segue anexado em PDF.`;
+  const categories = Array.isArray(categorySummary) ? categorySummary : [];
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Cliente:</strong> ${clientName}</div>
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>Data:</strong> ${romaneioDate}</div>
+        <div><strong>Motorista:</strong> ${driverName}</div>
+        <div><strong>Placa:</strong> ${vehiclePlate}</div>
+        <div><strong>Total de itens:</strong> ${itemCount}</div>
+      </div>
+    </div>
+    ${categories.length ? `
+      <div style="margin-top:16px">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#30503a;margin-bottom:8px">Categorias</div>
+        <div style="display:grid;gap:8px">
+          ${categories.map(item => `
+            <div style="display:flex;justify-content:space-between;gap:12px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:13px">
+              <span style="font-weight:600;color:#243d2c">${item.categoryName}</span>
+              <span style="color:#6b7280">${item.count} item(ns)</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+  `;
+  const footer = 'Este envio foi gerado automaticamente pelo módulo de Romaneio da Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Romaneio - ${projectCode} - ${projectName}`,
+    text: [
+      `O romaneio do projeto ${projectCode} - ${projectName} foi criado e segue anexado em PDF.`,
+      '',
+      `Cliente: ${clientName}`,
+      `Projeto: ${projectCode} - ${projectName}`,
+      `Data: ${romaneioDate}`,
+      `Motorista: ${driverName}`,
+      `Placa: ${vehiclePlate}`,
+      `Total de itens: ${itemCount}`,
+      categories.length ? '' : '',
+      ...categories.map(item => `${item.categoryName}: ${item.count} item(ns)`),
+      appUrl ? `Acesso: ${appUrl}` : ''
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
 export function buildPasswordResetEmailTemplate({ userName, resetUrl, expiresLabel }) {
   const title = 'Recuperação de senha';
   const intro = `Recebemos uma solicitação para redefinir a senha da conta ${userName}.`;

@@ -9,6 +9,7 @@ import manometersRouter from './resources/manometers.js';
 import projectSegmentsRouter from './resources/project-segments.js';
 import projectsRouter from './resources/projects.js';
 import reportsRouter from './resources/reports.js';
+import romaneiosRouter from './resources/romaneios.js';
 import statisticsRouter from './resources/statistics.js';
 import surveysRouter from './resources/surveys.js';
 import unitsRouter from './resources/units.js';
@@ -39,6 +40,7 @@ mountRdoRoutes(rdoRouter);
 
 router.use('/auth', authRouter);
 router.use('/rdo', rdoRouter);
+router.use('/romaneio', romaneiosRouter);
 router.use('/admin/accounts', usersRouter);
 router.use('/users', usersRouter);
 mountRdoRoutes(router);

@@ -18,6 +18,8 @@ import { GestorPage } from './pages/gestor/GestorPage';
 import { LoginPage } from './pages/LoginPage';
 import { PublicSignaturePage } from './pages/PublicSignaturePage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { NewRomaneioPage } from './pages/romaneio/NewRomaneioPage';
+import { RomaneioPage } from './pages/romaneio/RomaneioPage';
 import { SignatureValidationPage } from './pages/SignatureValidationPage';
 import { SurveyPage } from './pages/SurveyPage';
 
@@ -65,6 +67,11 @@ export default function App() {
 
       <Route element={<RoleRoute allowedAccountTypes={['ADMIN']} />}>
         <Route path="/admin/accounts" element={<AdminAccountsPage />} />
+      </Route>
+
+      <Route element={<RoleRoute allowedAccountTypes={['ADMIN', 'INTERNAL']} />}>
+        <Route path="/romaneio" element={<RomaneioPage />} />
+        <Route path="/romaneio/novo" element={<NewRomaneioPage />} />
       </Route>
 
       <Route element={<RoleRoute allowedRoles={['COORDINATOR']} allowedModuleRoles={['rdo:coordinator']} />}>

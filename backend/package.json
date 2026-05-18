@@ -12,7 +12,8 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "node prisma/seed.js",
     "import:master-data": "node scripts/import-master-data.js",
-    "migrate:signatures": "node scripts/migrate-signatures-to-dataurl.js"
+    "migrate:signatures": "node scripts/migrate-signatures-to-dataurl.js",
+    "sync:romaneio-catalog": "node scripts/sync-romaneio-catalog.js"
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",
