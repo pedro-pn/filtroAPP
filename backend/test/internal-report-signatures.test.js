@@ -39,6 +39,24 @@ test('signatureEvidenceFromRequest prefers proxy real client IP', () => {
   );
 });
 
+test('signatureEvidenceFromRequest prefers public forwarded IP over Docker bridge IP', () => {
+  assert.deepEqual(
+    signatureEvidenceFromRequest({
+      headers: {
+        'x-real-ip': '172.18.0.1',
+        'x-forwarded-for': '172.18.0.1, 198.51.100.20',
+        forwarded: 'for=203.0.113.30;proto=https',
+        'user-agent': 'Node Test'
+      },
+      ip: '172.18.0.5'
+    }),
+    {
+      ipAddress: '198.51.100.20',
+      userAgent: 'Node Test'
+    }
+  );
+});
+
 test('signInternalReportVersion stores the signer name provided at signing time', async () => {
   let signatureUpdate;
   let auditLog;

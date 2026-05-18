@@ -71,11 +71,67 @@ function userAgent(req) {
   return String(req.headers['user-agent'] || '').slice(0, 1000) || null;
 }
 
+function cleanIpCandidate(value) {
+  return stringValue(value)
+    .replace(/^"|"$/g, '')
+    .replace(/^::ffff:/i, '')
+    .replace(/^\[/, '')
+    .replace(/\]$/, '')
+    .trim();
+}
+
+function forwardedHeaderIps(value) {
+  return String(value || '')
+    .split(',')
+    .flatMap(part => {
+      const match = part.match(/(?:^|;)\s*for=([^;]+)/i);
+      return match ? [cleanIpCandidate(match[1])] : [];
+    })
+    .filter(Boolean);
+}
+
+function headerIps(value) {
+  return String(value || '').split(',').map(cleanIpCandidate).filter(Boolean);
+}
+
+function isPublicIp(value) {
+  const ip = cleanIpCandidate(value);
+  const v4 = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const parts = v4.slice(1).map(Number);
+    if (parts.some(part => part < 0 || part > 255)) return false;
+    const [a, b] = parts;
+    if (a === 10 || a === 127 || a === 0) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+    if (a === 169 && b === 254) return false;
+    if (a === 100 && b >= 64 && b <= 127) return false;
+    if (a >= 224) return false;
+    return true;
+  }
+
+  const lower = ip.toLowerCase();
+  if (!lower.includes(':')) return false;
+  if (lower === '::1' || lower.startsWith('fe80:') || lower.startsWith('fc') || lower.startsWith('fd')) return false;
+  return true;
+}
+
+function clientIpFromRequest(req) {
+  const candidates = [
+    ...headerIps(req.headers['cf-connecting-ip']),
+    ...headerIps(req.headers['true-client-ip']),
+    ...headerIps(req.headers['x-real-ip']),
+    ...headerIps(req.headers['x-forwarded-for']),
+    ...forwardedHeaderIps(req.headers.forwarded),
+    cleanIpCandidate(req.ip)
+  ].filter(Boolean);
+
+  return candidates.find(isPublicIp) || candidates[0] || null;
+}
+
 export function signatureEvidenceFromRequest(req) {
-  const realIp = String(req.headers['x-real-ip'] || '').trim();
-  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   return {
-    ipAddress: realIp || forwarded || req.ip || null,
+    ipAddress: clientIpFromRequest(req),
     userAgent: userAgent(req)
   };
 }
