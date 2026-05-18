@@ -7,23 +7,33 @@ import { Shell } from '../layout/Shell';
 import { TopBar } from '../layout/TopBar';
 import { hubModulesForUser } from './hubModules';
 
+const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
+const logoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_LOGIN.png`;
+
 export function HubPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const isClient = user?.accountType === 'CLIENT' || user?.role === 'CLIENT';
+  const isAdmin = user?.accountType === 'ADMIN';
   const modules = useMemo(() => hubModulesForUser(user), [user]);
   const availableModules = useMemo(() => modules.filter(module => module.path && !module.disabled), [modules]);
+  const shouldRedirect = !isAdmin && availableModules.length === 1;
+  const firstName = user?.name?.split(' ')[0] || 'Usuario';
 
   useEffect(() => {
     const [module] = availableModules;
-    if (availableModules.length === 1 && module.path) {
+    if (shouldRedirect && module.path) {
       navigate(module.path, { replace: true });
     }
-  }, [availableModules, navigate]);
+  }, [availableModules, navigate, shouldRedirect]);
 
   if (isClient) {
     return <Navigate to={roleHomePath('CLIENT')} replace />;
+  }
+
+  if (shouldRedirect) {
+    return null;
   }
 
   return (
@@ -47,12 +57,10 @@ export function HubPage() {
           </>
         }
       />
-      <main className="page-scroll hub-page">
-        <section className="hub-header">
-          <div>
-            <h1>Filtrovali App</h1>
-            <p>Acesse os módulos liberados para sua conta.</p>
-          </div>
+      <main className="hub-page">
+        <section className="hub-logo-block" aria-label="Filtrovali App">
+          <img className="hub-logo" src={logoUrl} alt="Filtrovali" />
+          <p className="hub-greeting">Olá, {firstName}</p>
         </section>
 
         <section className="hub-module-grid" aria-label="Módulos disponíveis">
@@ -66,7 +74,6 @@ export function HubPage() {
                 type="button"
                 onClick={path ? () => navigate(path) : undefined}
               >
-                <span className="hub-module-badge">{module.badge}</span>
                 <span className="hub-module-title">{module.title}</span>
                 <span className="hub-module-copy">{module.copy}</span>
               </button>
