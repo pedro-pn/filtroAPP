@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFString, StandardFonts, rgb } from 'pdf-lib';
 import {
   ReportAuditAction,
   ReportSignatureStatus,
@@ -72,9 +72,10 @@ function userAgent(req) {
 }
 
 export function signatureEvidenceFromRequest(req) {
+  const realIp = String(req.headers['x-real-ip'] || '').trim();
   const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   return {
-    ipAddress: forwarded || req.ip || null,
+    ipAddress: realIp || forwarded || req.ip || null,
     userAgent: userAgent(req)
   };
 }
@@ -446,6 +447,64 @@ function drawText(page, text, x, y, options) {
   page.drawText(String(text || ''), { x, y, ...options });
 }
 
+function truncateText(text, maxLength) {
+  const value = stringValue(text);
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
+function formatDateTimePtBr(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '-';
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Sao_Paulo'
+  }).format(date);
+}
+
+function documentStatusLabel(report, signatures = []) {
+  const required = signatures.filter(signature => signature.isRequired !== false);
+  if (required.length && required.every(signature => signature.status === ReportSignatureStatus.SIGNED)) return 'Assinado';
+  if (report?.status === 'SIGNED') return 'Assinado';
+  if (report?.status === 'APPROVED') return 'Aprovado';
+  if (report?.status === 'RETURNED') return 'Devolvido';
+  return 'Pendente';
+}
+
+function documentName(report, sourcePdfUrl) {
+  const type = stringValue(report?.reportType) || 'RDO';
+  const number = stringValue(report?.sequenceNumber);
+  const project = [report?.project?.code, report?.project?.name].map(stringValue).filter(Boolean).join(' - ');
+  const label = [number ? `${type} ${number}` : type, project].filter(Boolean).join(' | ');
+  if (label) return label;
+
+  const source = stringValue(sourcePdfUrl);
+  const fileName = source ? decodeURIComponent(source.split('/').filter(Boolean).at(-1) || '') : '';
+  return fileName || 'Documento';
+}
+
+function addLinkAnnotation(pdf, page, { x, y, width, height, url }) {
+  if (!url) return;
+  const link = pdf.context.register(pdf.context.obj({
+    Type: PDFName.of('Annot'),
+    Subtype: PDFName.of('Link'),
+    Rect: [x, y, x + width, y + height],
+    Border: [0, 0, 0],
+    A: {
+      Type: PDFName.of('Action'),
+      S: PDFName.of('URI'),
+      URI: PDFString.of(url)
+    }
+  }));
+  const annots = page.node.Annots();
+  if (annots) {
+    annots.push(link);
+  } else {
+    page.node.set(PDFName.of('Annots'), pdf.context.obj([link]));
+  }
+}
+
 function drawValidationQrCode(page, text, x, y, size) {
   const matrix = createValidationQrCodeMatrix(text);
   if (!matrix) return false;
@@ -527,22 +586,30 @@ export async function writeFinalEvidencePdf({
   const black = rgb(0.08, 0.1, 0.16);
   const muted = rgb(0.35, 0.39, 0.46);
   let y = 790;
+  const validationUrl = validationCode ? signatureValidationUrl(validationCode) : '';
 
   await drawEvidenceLogo(pdf, page);
   drawText(page, 'ASSINATURA ELETRONICA - FILTROVALI RDO', 48, y, { font: bold, size: 15, color: black });
   y -= 30;
-  drawText(page, `Relatorio: ${report.reportType || 'RDO'} ${report.sequenceNumber || ''}`, 48, y, { font, size: 10, color: muted });
+  drawText(page, `Status do documento: ${documentStatusLabel(report, signatures)}`, 48, y, { font: bold, size: 10, color: black });
+  y -= 16;
+  drawText(page, `Nome do documento: ${truncateText(documentName(report, sourcePdfUrl), 86)}`, 48, y, { font, size: 10, color: muted });
+  y -= 16;
+  drawText(page, `Criado em: ${formatDateTimePtBr(version.createdAt || report.createdAt)}`, 48, y, { font, size: 10, color: muted });
   y -= 16;
   drawText(page, `Projeto: ${report.project?.code || '---'} - ${report.project?.name || 'Sem projeto'}`, 48, y, { font, size: 10, color: muted });
   y -= 16;
   drawText(page, `Hash PDF-base: ${version.sourceDocumentHash}`, 48, y, { font, size: 9, color: muted });
   if (validationCode) {
-    const validationUrl = signatureValidationUrl(validationCode);
     y -= 16;
     drawText(page, `Codigo de validacao: ${validationCode}`, 48, y, { font, size: 9, color: muted });
     y -= 16;
     drawText(page, `Validar documento: ${validationUrl}`, 48, y, { font, size: 9, color: muted });
-    if (drawValidationQrCode(page, validationUrl, 462, 670, 76)) {
+    const qrX = 462;
+    const qrY = 670;
+    const qrSize = 76;
+    if (drawValidationQrCode(page, validationUrl, qrX, qrY, qrSize)) {
+      addLinkAnnotation(pdf, page, { x: qrX, y: qrY, width: qrSize, height: qrSize, url: validationUrl });
       drawText(page, 'Escaneie para validar', 462, 657, { font, size: 8, color: muted });
     }
   }

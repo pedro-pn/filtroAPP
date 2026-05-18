@@ -14,12 +14,30 @@ import {
   clientSignersForReport,
   createValidationQrCodeMatrix,
   invalidateUnsignedInternalSignatureRound,
+  signatureEvidenceFromRequest,
   sha256Hex,
   signInternalReportVersion,
   writeFinalEvidencePdf
 } from '../src/lib/internal-report-signatures.js';
 
 const tinyPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+test('signatureEvidenceFromRequest prefers proxy real client IP', () => {
+  assert.deepEqual(
+    signatureEvidenceFromRequest({
+      headers: {
+        'x-real-ip': '203.0.113.10',
+        'x-forwarded-for': '198.51.100.20, 10.0.0.2',
+        'user-agent': 'Node Test'
+      },
+      ip: '172.18.0.5'
+    }),
+    {
+      ipAddress: '203.0.113.10',
+      userAgent: 'Node Test'
+    }
+  );
+});
 
 test('signInternalReportVersion stores the signer name provided at signing time', async () => {
   let signatureUpdate;
@@ -230,7 +248,8 @@ test('writeFinalEvidencePdf creates final PDF with evidence page and hash', asyn
       project: { code: 'P-001', name: 'Projeto Teste' }
     },
     version: {
-      sourceDocumentHash: sha256Hex(Buffer.from(sourceBytes))
+      sourceDocumentHash: sha256Hex(Buffer.from(sourceBytes)),
+      createdAt: new Date('2026-05-12T11:30:00.000Z')
     },
     validationCode: 'codigo-publico-teste',
     signatures: [
@@ -252,6 +271,7 @@ test('writeFinalEvidencePdf creates final PDF with evidence page and hash', asyn
   assert.equal(result.finalPdfPath, path.join(dir, 'relatorio-assinado.pdf'));
   assert.equal(result.finalPdfUrl, '/relatorios/teste/relatorio-assinado.pdf');
   assert.equal(finalPdf.getPageCount(), 2);
+  assert.equal(finalPdf.getPages()[1].node.Annots()?.size(), 1);
   assert.equal(result.finalDocumentHash, sha256Hex(finalBytes));
   assert.notEqual(result.finalDocumentHash, sha256Hex(Buffer.from(sourceBytes)));
 });
