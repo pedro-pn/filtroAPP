@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import AdmZip from 'adm-zip';
 import { ClientReviewAction, ReportStatus, ReportType } from '@prisma/client';
 import { z } from 'zod';
@@ -7,7 +8,14 @@ import { z } from 'zod';
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
 import { clientCanAccessProject, clientProjectAccessWhere } from '../../lib/client-project-access.js';
-import { buildReportApprovedEmailTemplate, buildReportReapprovedEmailTemplate, buildReportRejectedByClientEmailTemplate } from '../../lib/email-templates.js';
+import {
+  buildReportApprovedEmailTemplate,
+  buildReportReapprovedEmailTemplate,
+  buildReportRejectedByClientEmailTemplate,
+  buildReportSignatureRequestEmailTemplate,
+  buildReportSignatureCompletedEmailTemplate,
+  buildReportSignatureReceivedEmailTemplate
+} from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { saveReportDocx, organizePhotos } from '../../lib/report-docx.js';
 import { saveReportPdf } from '../../lib/report-pdf-from-docx.js';
@@ -23,10 +31,7 @@ import { saveRlqDocx, saveRlqPdf, organizeRlqPhotos } from '../../lib/report-rlq
 import { saveRcpDocx, saveRcpPdf, organizeRcpPhotos, calcServiceMinutes } from '../../lib/report-rcp.js';
 import { saveRlmDocx, saveRlmPdf, organizeRlmPhotos } from '../../lib/report-rlm.js';
 import {
-  claimZapSignRequest,
   claimZapSignRequests,
-  persistZapSignRequest,
-  releaseZapSignRequestClaim,
   releaseZapSignRequestClaims
 } from '../../lib/zapsign-request-claim.js';
 import {
@@ -43,7 +48,27 @@ import {
   isZapSignEnabled,
   sendToZapSign
 } from '../../lib/zapsign.js';
+import {
+  ReportAuditAction,
+  activeVersionWithSignatures,
+  allRequiredSignaturesCompleted,
+  createSignatureAuditLog,
+  ensureInternalSignatureRound,
+  hasActiveSignedInternalSignature,
+  internalSignatureTokenHash,
+  invalidateUnsignedInternalSignatureRound,
+  issuePendingSignatureTokens,
+  reportSourcePdfPath,
+  parseSignatureImageDataUrl,
+  resolveInternalClientSigner,
+  sha256Hex,
+  signInternalReportVersion,
+  signatureEvidenceFromRequest,
+  withInternalSignatureProgress,
+  writeFinalEvidencePdf
+} from '../../lib/internal-report-signatures.js';
 import { calculateReportOvertime } from '../../lib/overtime.js';
+import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import prisma from '../../lib/prisma.js';
 import { buildReportFileName } from '../../lib/report-filename.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
@@ -53,6 +78,11 @@ const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
 const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
 const CLIENT_REJECTION_KEY = '__clientRejectedAt';
 const CLIENT_REJECTION_RESOLVED_KEY = '__clientRejectionResolvedAt';
+const publicSignatureLimiter = createMemoryRateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  message: 'Muitas tentativas. Tente novamente mais tarde.'
+});
 
 function formatDatePtBr(date) {
   const value = date instanceof Date ? date.toISOString() : String(date || '');
@@ -223,6 +253,162 @@ function clientReviewerLabel(report, user) {
   return name || email || 'Cliente';
 }
 
+function reportManagerEmail(report) {
+  const reviewedByEmail = String(report.reviewedBy?.email || '').trim().toLowerCase();
+  if (reviewedByEmail) return reviewedByEmail;
+  if (report.createdBy?.role === 'MANAGER') {
+    return String(report.createdBy?.email || '').trim().toLowerCase();
+  }
+  return '';
+}
+
+function queueInternalSignatureNotification(report, version, signer, completed) {
+  const managerEmail = reportManagerEmail(report);
+  if (!managerEmail) return;
+
+  const missingMailerConfig = getMissingMailerConfig();
+  if (missingMailerConfig.length) {
+    console.warn('SMTP não configurado; notificação de assinatura interna não enviada.', missingMailerConfig.join(', '));
+    return;
+  }
+
+  const required = (version?.signatures || []).filter(signature => signature.isRequired !== false);
+  const signedCount = required.filter(signature => signature.status === 'SIGNED').length;
+  const requiredCount = required.length;
+  const common = {
+    projectCode: report.project?.code || '---',
+    projectName: report.project?.name || 'Sem projeto',
+    reportType: report.reportType,
+    reportNumber: reportNumberLabel(report),
+    reportDate: formatDatePtBr(report.reportDate),
+    signerName: signer?.name || 'Cliente',
+    signerEmail: signer?.email || '',
+    appUrl: env.appUrl || ''
+  };
+  const template = completed
+    ? buildReportSignatureCompletedEmailTemplate({
+      ...common,
+      finalDocumentHash: version?.finalDocumentHash || ''
+    })
+    : buildReportSignatureReceivedEmailTemplate({
+      ...common,
+      signedCount,
+      requiredCount
+    });
+
+  setImmediate(() => {
+    sendMail({ to: managerEmail, ...template }).catch(error => {
+      console.error('Falha ao enviar notificação de assinatura interna.', {
+        reportId: report.id,
+        error: error?.message || error
+      });
+    });
+  });
+}
+
+function publicSignatureUrl(token) {
+  const base = String(env.appUrl || '').replace(/\/+$/, '');
+  const pathPart = `/assinar/${encodeURIComponent(token)}`;
+  return base ? `${base}${pathPart}` : pathPart;
+}
+
+function queueSignatureRequestEmails(report, tokens) {
+  if (!tokens?.length || report.project?.managerOnly) return;
+
+  const missingMailerConfig = getMissingMailerConfig();
+  if (missingMailerConfig.length) {
+    console.warn('SMTP não configurado; e-mail de link de assinatura não enviado.', missingMailerConfig.join(', '));
+    return;
+  }
+
+  for (const tokenData of tokens) {
+    const daysValid = Math.max(1, Math.ceil((new Date(tokenData.expiresAt).getTime() - Date.now()) / 86_400_000));
+    const template = buildReportSignatureRequestEmailTemplate({
+      projectCode: report.project?.code || '---',
+      projectName: report.project?.name || 'Sem projeto',
+      reportType: report.reportType,
+      reportNumber: reportNumberLabel(report),
+      reportDate: formatDatePtBr(report.reportDate),
+      signerName: tokenData.signerName || 'Cliente',
+      signUrl: publicSignatureUrl(tokenData.token),
+      expiresLabel: `${daysValid} dia${daysValid !== 1 ? 's' : ''}`
+    });
+
+    setImmediate(() => {
+      sendMail({ to: tokenData.signerEmail, ...template }).catch(error => {
+        console.error('Falha ao enviar link de assinatura interna.', {
+          reportId: report.id,
+          signerEmail: tokenData.signerEmail,
+          error: error?.message || error
+        });
+      });
+    });
+  }
+}
+
+function publicSignaturePayload(signature, status) {
+  if (!signature || status === 'INVALID') return { status };
+  return {
+    status,
+    expiresAt: signature.tokenExpiresAt || null,
+    signer: {
+      name: signature.signerName,
+      email: signature.signerEmail,
+      status: signature.status,
+      signedAt: signature.signedAt || null,
+      rejectedAt: signature.rejectedAt || null
+    },
+    report: {
+      id: signature.report?.id || '',
+      reportType: signature.report?.reportType || '',
+      sequenceNumber: signature.report?.sequenceNumber || null,
+      reportDate: signature.report?.reportDate || null,
+      status: signature.report?.status || '',
+      sourceDocumentHash: signature.sourceDocumentHash || '',
+      project: {
+        code: signature.report?.project?.code || '',
+        name: signature.report?.project?.name || '',
+        clientName: signature.report?.project?.clientName || ''
+      }
+    }
+  };
+}
+
+function publicSignatureStatus(signature) {
+  if (!signature) return 'INVALID';
+  if (signature.status === 'SIGNED') return 'SIGNED';
+  if (signature.status === 'REJECTED') return 'REJECTED';
+  if (signature.status === 'INVALIDATED') return 'INVALIDATED';
+  if (signature.status === 'EXPIRED') return 'EXPIRED';
+  if (signature.tokenExpiresAt && new Date(signature.tokenExpiresAt).getTime() <= Date.now()) return 'EXPIRED';
+  if (signature.version?.status !== 'ACTIVE') return 'INVALIDATED';
+  if (signature.report?.status === ReportStatus.SIGNED) return 'SIGNED';
+  if (signature.report?.status !== ReportStatus.APPROVED) return 'UNAVAILABLE';
+  return 'ACTIVE';
+}
+
+async function publicSignatureFromToken(token, client = prisma) {
+  return client.reportSignature.findUnique({
+    where: { tokenHash: internalSignatureTokenHash(token) },
+    include: {
+      report: { include },
+      version: { include: { signatures: { orderBy: { createdAt: 'asc' } } } }
+    }
+  });
+}
+
+async function activePublicSignatureOrThrow(token, client = prisma) {
+  const signature = await publicSignatureFromToken(token, client);
+  const status = publicSignatureStatus(signature);
+  if (status !== 'ACTIVE') {
+    const error = new Error('Link de assinatura indisponível.');
+    error.statusCode = status === 'INVALID' ? 404 : 409;
+    error.publicStatus = status;
+    throw error;
+  }
+  return signature;
+}
+
 function contentDisposition(fileName) {
   const ascii = fileName
     .normalize('NFD')
@@ -255,6 +441,18 @@ const include = {
     }
   },
   attachments: true,
+  versions: {
+    where: { status: 'ACTIVE' },
+    orderBy: { versionNumber: 'desc' },
+    take: 1
+  },
+  reportSignatures: {
+    where: {
+      status: { not: 'INVALIDATED' },
+      version: { status: 'ACTIVE' }
+    },
+    orderBy: { createdAt: 'asc' }
+  },
   clientReviews: {
     orderBy: { createdAt: 'desc' },
     include: {
@@ -327,6 +525,11 @@ async function resolveSignerUrlFromZapSign(docToken, authUser, project) {
 function assertReportMutable(report) {
   if (report.status === ReportStatus.SIGNED) {
     const error = new Error('Relatório assinado não pode mais ser alterado.');
+    error.statusCode = 409;
+    throw error;
+  }
+  if (hasActiveSignedInternalSignature(report)) {
+    const error = new Error('Relatório com assinatura iniciada não pode mais ser alterado.');
     error.statusCode = 409;
     throw error;
   }
@@ -476,6 +679,19 @@ async function resolveSignedPdf(report) {
 }
 
 async function getReportPdfDownload(report) {
+  const finalVersion = Array.isArray(report.versions)
+    ? report.versions.find(version => version.finalPdfUrl)
+    : null;
+  if (report.status === ReportStatus.SIGNED && finalVersion?.finalPdfUrl) {
+    const finalPath = reportSourcePdfPath(finalVersion.finalPdfUrl);
+    if (finalPath) {
+      return {
+        fileName: path.basename(finalPath),
+        buffer: await fs.readFile(finalPath)
+      };
+    }
+  }
+
   if (report.status === ReportStatus.SIGNED && report.reportType === ReportType.RDO && report.zapsignDocToken) {
     return resolveSignedPdf(report);
   }
@@ -485,6 +701,96 @@ async function getReportPdfDownload(report) {
     fileName: saved.fileName,
     buffer: await fs.readFile(saved.targetPath)
   };
+}
+
+async function finalizeInternalSignatureRound(report, version, evidence, userId) {
+  const sourcePath = reportSourcePdfPath(version.sourcePdfUrl);
+  if (!sourcePath) {
+    const error = new Error('PDF-base da assinatura interna nao foi encontrado.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const finalPdf = await writeFinalEvidencePdf({
+    sourcePdfPath: sourcePath,
+    sourcePdfUrl: version.sourcePdfUrl,
+    report,
+    version,
+    signatures: version.signatures || []
+  });
+
+  await prisma.$transaction(async tx => {
+    await tx.reportVersion.update({
+      where: { id: version.id },
+      data: {
+        finalPdfUrl: finalPdf.finalPdfUrl,
+        finalDocumentHash: finalPdf.finalDocumentHash
+      }
+    });
+    await tx.reportSignature.updateMany({
+      where: { versionId: version.id, status: 'SIGNED' },
+      data: { finalDocumentHash: finalPdf.finalDocumentHash }
+    });
+    await tx.report.update({
+      where: { id: report.id },
+      data: { status: ReportStatus.SIGNED }
+    });
+    await createSignatureAuditLog(tx, {
+      reportId: report.id,
+      versionId: version.id,
+      userId,
+      action: ReportAuditAction.REPORT_LOCKED,
+      description: 'Relatorio assinado internamente e bloqueado.',
+      evidence
+    });
+  });
+
+  return prisma.report.findUniqueOrThrow({
+    where: { id: report.id },
+    include
+  });
+}
+
+async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
+  if (report.reportType !== ReportType.RDO || report.status !== ReportStatus.APPROVED || report.project?.managerOnly) return null;
+  if (hasActiveClientRejection(report)) return null;
+
+  const activeVersion = await prisma.reportVersion.findFirst({
+    where: { reportId: report.id, status: 'ACTIVE' },
+    include: { signatures: true },
+    orderBy: { versionNumber: 'desc' }
+  });
+
+  let sourcePdfUrl = activeVersion?.sourcePdfUrl || '';
+  let sourceDocumentHash = activeVersion?.sourceDocumentHash || '';
+  if (!activeVersion) {
+    const saved = await generateReportPdfAsset(report);
+    const pdfBuffer = await fs.readFile(saved.targetPath);
+    sourcePdfUrl = saved.publicUrl;
+    sourceDocumentHash = sha256Hex(pdfBuffer);
+  }
+
+  const { version, tokens } = await prisma.$transaction(async tx => {
+    const current = await tx.report.findUniqueOrThrow({
+      where: { id: report.id },
+      include
+    });
+    if (current.status !== ReportStatus.APPROVED || hasActiveClientRejection(current)) {
+      return { version: null, tokens: [] };
+    }
+    const nextVersion = await ensureInternalSignatureRound(tx, {
+      report: current,
+      sourcePdfUrl,
+      sourceDocumentHash,
+      createdByUserId: userId,
+      evidence
+    });
+    const issuedTokens = await issuePendingSignatureTokens(tx, nextVersion);
+    return { version: nextVersion, tokens: issuedTokens };
+  });
+
+  if (tokens.length) queueSignatureRequestEmails(report, tokens);
+  return version;
 }
 
 async function getReportDocxDownload(report) {
@@ -658,7 +964,16 @@ const clientReviewSchema = z.object({
   }
 });
 const requestSignatureSchema = z.object({
-  comment: z.string().trim().max(4000).optional().nullable()
+  comment: z.string().trim().max(4000).optional().nullable(),
+  signatureImageDataUrl: z.string().trim().min(1).max(2_100_000)
+    .refine(value => !!parseSignatureImageDataUrl(value), 'Assinatura visual invalida.')
+});
+const publicSignatureConfirmSchema = z.object({
+  signatureImageDataUrl: z.string().trim().min(1).max(2_100_000)
+    .refine(value => !!parseSignatureImageDataUrl(value), 'Assinatura visual invalida.')
+});
+const publicSignatureRejectSchema = z.object({
+  comment: z.string().trim().min(1).max(4000)
 });
 const batchDownloadSchema = z.object({
   ids: z.array(z.string().min(1)).min(1).max(100),
@@ -2418,6 +2733,159 @@ router.post('/batch-request-signature', requireAuth, requireRdoAccess, asyncHand
   });
 }));
 
+router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {
+  const signature = await publicSignatureFromToken(req.params.token);
+  let status = publicSignatureStatus(signature);
+
+  if (signature && status === 'EXPIRED' && signature.status === 'PENDING') {
+    await prisma.$transaction(async tx => {
+      await tx.reportSignature.update({
+        where: { id: signature.id },
+        data: { status: 'EXPIRED' }
+      });
+      await createSignatureAuditLog(tx, {
+        reportId: signature.reportId,
+        versionId: signature.versionId,
+        userId: null,
+        action: ReportAuditAction.TOKEN_EXPIRED,
+        description: 'Link publico de assinatura expirado.',
+        evidence: signatureEvidenceFromRequest(req)
+      });
+    });
+    status = 'EXPIRED';
+  } else if (signature && status === 'ACTIVE') {
+    await createSignatureAuditLog(prisma, {
+      reportId: signature.reportId,
+      versionId: signature.versionId,
+      userId: null,
+      action: ReportAuditAction.TOKEN_ACCESSED,
+      description: 'Link publico de assinatura acessado.',
+      evidence: signatureEvidenceFromRequest(req)
+    });
+  }
+
+  res.json(publicSignaturePayload(signature, status));
+}));
+
+router.get('/public-sign/:token/pdf', publicSignatureLimiter, asyncHandler(async (req, res) => {
+  const signature = await activePublicSignatureOrThrow(req.params.token);
+  const sourcePath = reportSourcePdfPath(signature.version.sourcePdfUrl);
+  if (!sourcePath) return res.status(404).json({ error: 'PDF da assinatura não encontrado.' });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', contentDisposition(reportPdfFileName(signature.report)));
+  res.send(await fs.readFile(sourcePath));
+}));
+
+router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(async (req, res) => {
+  const data = publicSignatureConfirmSchema.parse(req.body || {});
+  const evidence = signatureEvidenceFromRequest(req);
+  let signedVersion;
+  let signatureResult = { alreadySigned: false };
+  let item = await prisma.$transaction(async tx => {
+    const signature = await activePublicSignatureOrThrow(req.params.token, tx);
+    signatureResult = await signInternalReportVersion(tx, {
+      report: signature.report,
+      version: signature.version,
+      signer: {
+        name: signature.signerName,
+        email: signature.signerEmail
+      },
+      userId: null,
+      evidence,
+      signatureImageDataUrl: data.signatureImageDataUrl
+    });
+    signedVersion = await activeVersionWithSignatures(tx, signature.reportId);
+    return tx.report.findUniqueOrThrow({
+      where: { id: signature.reportId },
+      include
+    });
+  });
+
+  let completed = false;
+  if (allRequiredSignaturesCompleted(signedVersion)) {
+    item = await finalizeInternalSignatureRound(item, signedVersion, evidence, null);
+    completed = true;
+  }
+
+  if (!signatureResult.alreadySigned) {
+    const finalVersion = completed && item.versions?.[0]
+      ? { ...signedVersion, finalDocumentHash: item.versions[0].finalDocumentHash }
+      : signedVersion;
+    const signedSignature = finalVersion?.signatures?.find(signature => internalSignatureTokenHash(req.params.token) === signature.tokenHash);
+    queueInternalSignatureNotification(item, finalVersion, {
+      name: signedSignature?.signerName,
+      email: signedSignature?.signerEmail
+    }, completed);
+  }
+
+  res.json({ success: true, completed, report: withInternalSignatureProgress(item) });
+}));
+
+router.post('/public-sign/:token/reject', publicSignatureLimiter, asyncHandler(async (req, res) => {
+  const data = publicSignatureRejectSchema.parse(req.body || {});
+  const evidence = signatureEvidenceFromRequest(req);
+  const item = await prisma.$transaction(async tx => {
+    const signature = await activePublicSignatureOrThrow(req.params.token, tx);
+    await tx.reportSignature.update({
+      where: { id: signature.id },
+      data: {
+        status: 'REJECTED',
+        rejectedAt: new Date(),
+        rejectionReason: data.comment,
+        ipAddress: evidence.ipAddress,
+        userAgent: evidence.userAgent
+      }
+    });
+    await tx.reportSignature.updateMany({
+      where: {
+        versionId: signature.versionId,
+        id: { not: signature.id },
+        status: { in: ['PENDING', 'SIGNED'] }
+      },
+      data: {
+        status: 'INVALIDATED',
+        invalidatedAt: new Date(),
+        rejectionReason: data.comment
+      }
+    });
+    await tx.reportVersion.update({
+      where: { id: signature.versionId },
+      data: { status: 'REJECTED' }
+    });
+    await createSignatureAuditLog(tx, {
+      reportId: signature.reportId,
+      versionId: signature.versionId,
+      userId: null,
+      action: ReportAuditAction.REJECTED,
+      description: 'Relatorio reprovado por link publico de assinatura.',
+      evidence
+    });
+    await createSignatureAuditLog(tx, {
+      reportId: signature.reportId,
+      versionId: signature.versionId,
+      userId: null,
+      action: ReportAuditAction.SIGNATURES_INVALIDATED,
+      description: 'Assinaturas da rodada foram invalidadas por reprovacao via link publico.',
+      evidence
+    });
+    return tx.report.update({
+      where: { id: signature.reportId },
+      data: {
+        status: ReportStatus.PENDING,
+        specialConditions: {
+          ...(signature.report.specialConditions || {}),
+          [CLIENT_REJECTION_KEY]: new Date().toISOString()
+        }
+      },
+      include
+    });
+  });
+
+  queueClientRejectionNotification(item, data.comment);
+  res.json({ success: true, report: item });
+}));
+
 router.get('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
@@ -2461,19 +2929,14 @@ router.get('/:id/pdf', requireAuth, requireRdoAccess, asyncHandler(async (req, r
     }
   }
 
-  if (item.status === ReportStatus.SIGNED && item.reportType === ReportType.RDO && item.zapsignDocToken) {
-    const signed = await resolveSignedPdf(item);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', contentDisposition(signed.fileName));
-    res.send(signed.buffer);
-    return;
+  if (item.status !== ReportStatus.SIGNED) {
+    item = await refreshDerivedReportSource(item);
   }
 
-  item = await refreshDerivedReportSource(item);
-  const saved = await generateReportPdfAsset(item);
+  const file = await getReportPdfDownload(item);
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', contentDisposition(saved.fileName));
-  res.send(await fs.readFile(saved.targetPath));
+  res.setHeader('Content-Disposition', contentDisposition(file.fileName));
+  res.send(file.buffer);
 }));
 
 router.get('/:id/docx', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -2665,7 +3128,10 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
     }
   }
   console.log('[TIMING] POST /reports', { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, totalMs: Date.now() - tPost0, reportType: item.reportType, status: item.status });
-  if (item.status === ReportStatus.APPROVED) queueApprovedReportNotification(item);
+  if (item.status === ReportStatus.APPROVED) {
+    queueApprovedReportNotification(item);
+    await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, signatureEvidenceFromRequest(req));
+  }
   res.status(201).json(item);
 }));
 
@@ -2716,6 +3182,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   }
   const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);
   const isManagerFixingClientRejection = req.auth.user.role === 'MANAGER' && hasActiveClientRejection(existing);
+  const evidence = signatureEvidenceFromRequest(req);
 
   const tPut0 = Date.now();
   const item = await prisma.$transaction(async tx => {
@@ -2761,6 +3228,12 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     const sequenceSwap = (managerProvidedSequence || sequenceGroupChanged) && Number.isInteger(targetSequenceNumber)
       ? await prepareReportSequenceChange(tx, existing, data.projectId, data.reportType, targetSequenceNumber)
       : null;
+    await invalidateUnsignedInternalSignatureRound(tx, {
+      reportId: existing.id,
+      userId: req.auth.user.id,
+      evidence,
+      description: 'Rodada de assinatura invalidada por edicao do relatorio antes da primeira assinatura.'
+    });
 
     const updated = await tx.report.update({
       where: { id: req.params.id },
@@ -2848,6 +3321,9 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   }
   console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: item.reportType, status: item.status });
   if (isManagerFixingClientRejection && item.status === ReportStatus.APPROVED) queueReapprovedReportNotification(item);
+  if (item.status === ReportStatus.APPROVED) {
+    await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
+  }
   res.json(item);
 }));
 
@@ -3018,6 +3494,7 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
     return res.status(409).json({ error: 'Relatório assinado não pode mais ser alterado.' });
   }
   const wasClientRejection = hasActiveClientRejection(previous);
+  const evidence = signatureEvidenceFromRequest(req);
 
   const tPatch0 = Date.now();
   const item = await prisma.$transaction(async tx => {
@@ -3045,7 +3522,14 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
       include
     });
 
-    
+    if (data.status !== ReportStatus.APPROVED) {
+      await invalidateUnsignedInternalSignatureRound(tx, {
+        reportId: req.params.id,
+        userId: req.auth.user.id,
+        evidence,
+        description: 'Rodada de assinatura invalidada por alteracao de status do relatorio.'
+      });
+    }
 
     if (data.status === ReportStatus.APPROVED && previous?.status !== ReportStatus.APPROVED) {
       approvedTransition = true;
@@ -3074,6 +3558,7 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
         queueApprovedReportNotification(item);
       }
     }
+    await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
   }
   console.log('[TIMING] PATCH /reports/:id/status', { txMs: tPatchTx - tPatch0, totalMs: Date.now() - tPatch0, newStatus: data.status });
   res.json(item);
@@ -3084,7 +3569,6 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
     return res.status(403).json({ error: 'Apenas o cliente pode solicitar a assinatura digital.' });
   }
 
-  assertZapSignEnabled();
   const data = requestSignatureSchema.parse(req.body || {});
 
   const existing = await prisma.report.findUniqueOrThrow({
@@ -3108,139 +3592,160 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
     return res.status(409).json({ error: 'Somente relatórios aprovados pelo gestor podem ser assinados.' });
   }
   const comment = String(data.comment || '').trim();
-  const { signerName, signerEmail } = resolveZapSignSigner(existing, req.auth.user);
-  const { claimed, claimTime } = await claimZapSignRequest(prisma, existing.id);
+  const signer = resolveInternalClientSigner(existing, req.auth.user);
+  const evidence = signatureEvidenceFromRequest(req);
 
-  if (!claimed) {
-    const current = await prisma.report.findUniqueOrThrow({
-      where: { id: existing.id },
-      include
-    });
-    if (current.status === ReportStatus.APPROVED && current.zapsignDocToken && !current.zapsignSignedAt) {
-      let signUrl = resolveSignerUrlForUser(current, req.auth.user);
-      if (!signUrl) {
-        signUrl = await resolveSignerUrlFromZapSign(current.zapsignDocToken, req.auth.user, current.project);
-      }
-      if (signUrl) return res.json({ ok: true, signUrl, report: current });
-      return res.status(409).json({ error: 'Seu link de assinatura não foi encontrado para este relatório. Contate o gestor.' });
-    }
-    return res.status(409).json({ error: 'A solicitação de assinatura já está em andamento. Tente novamente em instantes.' });
-  }
-
-  let item;
-  let zapsignForResponse;
-  try {
-    const prepared = await prisma.$transaction(async tx => {
-      const approvedReview = (existing.clientReviews || []).find(item => item.action === ClientReviewAction.APPROVED);
-      if (approvedReview) {
-        if (comment !== String(approvedReview.comment || '').trim()) {
-          await tx.clientReportReview.update({
-            where: { id: approvedReview.id },
-            data: {
-              comment: comment || null,
-              ipAddress: clientIp(req),
-              userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
-            }
-          });
-        }
-      } else {
-        await tx.clientReportReview.create({
+  const prepared = await prisma.$transaction(async tx => {
+    const approvedReview = (existing.clientReviews || []).find(item => item.action === ClientReviewAction.APPROVED);
+    if (approvedReview) {
+      if (comment !== String(approvedReview.comment || '').trim()) {
+        await tx.clientReportReview.update({
+          where: { id: approvedReview.id },
           data: {
-            reportId: existing.id,
-            clientUserId: req.auth.user.id,
-            action: ClientReviewAction.APPROVED,
             comment: comment || null,
-            ipAddress: clientIp(req),
-            userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
+            ipAddress: evidence.ipAddress,
+            userAgent: evidence.userAgent
           }
         });
       }
-
-      return tx.report.findUniqueOrThrow({
-        where: { id: existing.id },
-        include
+    } else {
+      await tx.clientReportReview.create({
+        data: {
+          reportId: existing.id,
+          clientUserId: req.auth.user.id,
+          action: ClientReviewAction.APPROVED,
+          comment: comment || null,
+          ipAddress: evidence.ipAddress,
+          userAgent: evidence.userAgent
+        }
       });
-    });
+    }
 
-    if (prepared.status !== ReportStatus.APPROVED || prepared.zapsignDocToken || prepared.zapsignSignedAt) {
+    return tx.report.findUniqueOrThrow({
+      where: { id: existing.id },
+      include
+    });
+  });
+
+  const activeVersion = await prisma.reportVersion.findFirst({
+    where: { reportId: prepared.id, status: 'ACTIVE' },
+    include: { signatures: true },
+    orderBy: { versionNumber: 'desc' }
+  });
+
+  let sourcePdfUrl = activeVersion?.sourcePdfUrl || '';
+  let sourceDocumentHash = activeVersion?.sourceDocumentHash || '';
+  if (!activeVersion) {
+    const saved = await generateReportPdfAsset(prepared);
+    const pdfBuffer = await fs.readFile(saved.targetPath);
+    sourcePdfUrl = saved.publicUrl;
+    sourceDocumentHash = sha256Hex(pdfBuffer);
+  }
+
+  let signedVersion;
+  let signatureResult = { alreadySigned: false };
+  let issuedTokens = [];
+  let item = await prisma.$transaction(async tx => {
+    const current = await tx.report.findUniqueOrThrow({
+      where: { id: prepared.id },
+      include
+    });
+    if (current.status !== ReportStatus.APPROVED) {
       const error = new Error('A solicitação de assinatura foi atualizada por outra operação.');
       error.statusCode = 409;
       throw error;
     }
-    const additionalSigners = zapsignAdditionalSignersForProject(prepared.project, signerEmail);
-    const tSig0 = Date.now();
-    const saved = await generateReportPdfAsset(prepared);
-    const pdfBuffer = await fs.readFile(saved.targetPath);
-    const tSigPdf = Date.now();
-    const zapsign = await sendToZapSign({
-      pdfBuffer,
-      fileName: reportPdfFileName(prepared, saved),
-      signerName,
-      signerEmail,
-      additionalSigners,
-      externalId: prepared.id,
-      webhookUrl: buildZapSignWebhookUrl()
+    const version = await ensureInternalSignatureRound(tx, {
+      report: current,
+      sourcePdfUrl,
+      sourceDocumentHash,
+      createdByUserId: req.auth.user.id,
+      evidence
     });
-    zapsignForResponse = zapsign;
-    console.log('[TIMING] POST /reports/:id/request-signature', { pdfMs: tSigPdf - tSig0, zapMs: Date.now() - tSigPdf, totalMs: Date.now() - tSig0 });
-
-    if (!zapsign.docToken) {
-      const error = new Error('A ZapSign não retornou o token do documento.');
-      error.statusCode = 502;
-      throw error;
-    }
-    if (!zapsign.signerUrl) {
-      const error = new Error('A ZapSign não retornou o link de assinatura.');
-      error.statusCode = 502;
-      throw error;
-    }
-
-    const nextSpecialConditions = {
-      ...(prepared.specialConditions || {}),
-      ...(zapsign.allSigners?.length ? { [ZAPSIGN_SIGNERS_KEY]: zapsign.allSigners } : {})
-    };
-    const initialProgress = buildZapSignSignatureProgress(zapsign.raw);
-    if (initialProgress.total) {
-      nextSpecialConditions[ZAPSIGN_SIGNATURE_PROGRESS_KEY] = initialProgress;
-    }
-
-    const persisted = await persistZapSignRequest(
-      prisma,
-      prepared.id,
-      claimTime,
-      {
-        zapsignDocToken: zapsign.docToken,
-        zapsignSignerToken: zapsign.signerToken || null,
-        zapsignRequestedAt: new Date(),
-        zapsignSignedAt: null,
-        zapsignDocUrl: null,
-        specialConditions: nextSpecialConditions
-      }
-    );
-
-    if (!persisted) {
-      const error = new Error('A solicitação de assinatura já foi atualizada por outra operação.');
-      error.statusCode = 409;
-      throw error;
-    }
-
-    item = await prisma.report.findUniqueOrThrow({
-      where: { id: prepared.id },
+    signatureResult = await signInternalReportVersion(tx, {
+      report: current,
+      version,
+      signer,
+      userId: req.auth.user.id,
+      evidence,
+      signatureImageDataUrl: data.signatureImageDataUrl
+    });
+    signedVersion = await activeVersionWithSignatures(tx, current.id);
+    issuedTokens = await issuePendingSignatureTokens(tx, signedVersion);
+    return tx.report.findUniqueOrThrow({
+      where: { id: current.id },
       include
     });
-  } catch (error) {
-    await releaseZapSignRequestClaim(prisma, existing.id, claimTime).catch(cleanupError => {
-      console.error('Falha ao liberar solicitação ZapSign em andamento.', cleanupError);
-    });
-    throw error;
+  });
+
+  let completed = false;
+  if (allRequiredSignaturesCompleted(signedVersion)) {
+    item = await finalizeInternalSignatureRound(item, signedVersion, evidence, req.auth.user.id);
+    completed = true;
   }
 
-  const resolvedSignUrl = resolveSignerUrlForUser(item, req.auth.user) || zapsignForResponse.signerUrl;
+  if (!signatureResult.alreadySigned) {
+    const finalVersion = completed && item.versions?.[0]
+      ? { ...signedVersion, finalDocumentHash: item.versions[0].finalDocumentHash }
+      : signedVersion;
+    queueInternalSignatureNotification(item, finalVersion, signer, completed);
+  }
+  if (issuedTokens.length) queueSignatureRequestEmails(item, issuedTokens);
+
   res.json({
     ok: true,
-    signUrl: resolvedSignUrl,
-    report: item
+    signed: true,
+    completed: item.status === ReportStatus.SIGNED,
+    report: withInternalSignatureProgress(item)
   });
+}));
+
+router.get('/:id/signatures', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+  const item = await prisma.report.findUniqueOrThrow({
+    where: { id: req.params.id },
+    include
+  });
+  if (!(await canAccessReport(req.auth, item))) {
+    return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
+  }
+  res.json(item.reportSignatures || []);
+}));
+
+router.get('/:id/audit', requireAuth, asyncHandler(async (req, res) => {
+  if (req.auth.user.role !== 'MANAGER') {
+    return res.status(403).json({ error: 'Apenas o gestor pode consultar a auditoria do relatório.' });
+  }
+
+  await prisma.report.findUniqueOrThrow({
+    where: { id: req.params.id },
+    select: { id: true }
+  });
+
+  const logs = await prisma.reportAuditLog.findMany({
+    where: { reportId: req.params.id },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true
+        }
+      },
+      version: {
+        select: {
+          id: true,
+          versionNumber: true,
+          status: true,
+          sourceDocumentHash: true,
+          finalDocumentHash: true
+        }
+      }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  res.json(logs);
 }));
 
 router.post('/:id/client-review', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -3269,11 +3774,12 @@ router.post('/:id/client-review', requireAuth, requireRdoAccess, asyncHandler(as
   if (existing.status !== ReportStatus.APPROVED) {
     return res.status(409).json({ error: 'Somente relatórios aprovados pelo gestor podem ser avaliados pelo cliente.' });
   }
-  if (data.action === 'APPROVED' && isZapSignEnabled()) {
-    return res.status(409).json({ error: 'Use a assinatura digital do ZapSign para concluir a aprovação do relatório.' });
+  if (data.action === 'APPROVED') {
+    return res.status(409).json({ error: 'Use o fluxo de assinatura para concluir a aprovação do relatório.' });
   }
 
   const clientRejectionReviewer = clientReviewerLabel(existing, req.auth.user);
+  const evidence = signatureEvidenceFromRequest(req);
   const item = await prisma.$transaction(async tx => {
     await tx.clientReportReview.create({
       data: {
@@ -3281,8 +3787,8 @@ router.post('/:id/client-review', requireAuth, requireRdoAccess, asyncHandler(as
         clientUserId: req.auth.user.id,
         action: data.action === 'APPROVED' ? ClientReviewAction.APPROVED : ClientReviewAction.REJECTED,
         comment: data.comment || null,
-        ipAddress: clientIp(req),
-        userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
+        ipAddress: evidence.ipAddress,
+        userAgent: evidence.userAgent
       }
     });
 
@@ -3290,6 +3796,61 @@ router.post('/:id/client-review', requireAuth, requireRdoAccess, asyncHandler(as
     if (data.action === 'REJECTED') {
       nextSpecialConditions[CLIENT_REJECTION_KEY] = new Date().toISOString();
       delete nextSpecialConditions[CLIENT_REJECTION_RESOLVED_KEY];
+
+      const activeVersion = await tx.reportVersion.findFirst({
+        where: { reportId: existing.id, status: 'ACTIVE' },
+        include: { signatures: true },
+        orderBy: { versionNumber: 'desc' }
+      });
+      if (activeVersion) {
+        const authEmail = String(req.auth.user.email || req.auth.user.username || '').trim().toLowerCase();
+        const matchingSignature = activeVersion.signatures.find(signature => signature.signerEmail.toLowerCase() === authEmail);
+        if (matchingSignature) {
+          await tx.reportSignature.update({
+            where: { id: matchingSignature.id },
+            data: {
+              status: 'REJECTED',
+              userId: req.auth.user.id,
+              rejectedAt: new Date(),
+              rejectionReason: data.comment || null,
+              ipAddress: evidence.ipAddress,
+              userAgent: evidence.userAgent
+            }
+          });
+        }
+        await tx.reportSignature.updateMany({
+          where: {
+            versionId: activeVersion.id,
+            ...(matchingSignature ? { id: { not: matchingSignature.id } } : {}),
+            status: { in: ['PENDING', 'SIGNED'] }
+          },
+          data: {
+            status: 'INVALIDATED',
+            invalidatedAt: new Date(),
+            rejectionReason: data.comment || null
+          }
+        });
+        await tx.reportVersion.update({
+          where: { id: activeVersion.id },
+          data: { status: 'REJECTED' }
+        });
+        await createSignatureAuditLog(tx, {
+          reportId: existing.id,
+          versionId: activeVersion.id,
+          userId: req.auth.user.id,
+          action: ReportAuditAction.REJECTED,
+          description: 'Relatorio reprovado pelo cliente durante a rodada de assinatura.',
+          evidence
+        });
+        await createSignatureAuditLog(tx, {
+          reportId: existing.id,
+          versionId: activeVersion.id,
+          userId: req.auth.user.id,
+          action: ReportAuditAction.SIGNATURES_INVALIDATED,
+          description: 'Assinaturas anteriores da rodada foram invalidadas por reprovacao.',
+          evidence
+        });
+      }
     }
 
     return tx.report.update({

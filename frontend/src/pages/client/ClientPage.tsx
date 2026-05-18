@@ -7,6 +7,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { rdoReportDetailPath } from '../../auth/rolePath';
 import { ClientTutorial } from '../../components/ClientTutorial';
 import { SignatureProgress } from '../../components/reports/SignatureProgress';
+import { SignatureConsentDialog } from '../../components/reports/SignatureConsentDialog';
 import { useToast } from '../../components/ui/Toast';
 import { useReportMutations, useReports } from '../../hooks/useReports';
 import { useProjects } from '../../hooks/useProjects';
@@ -18,9 +19,9 @@ import { formatCnpj } from '../../utils/formatCnpj';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { compareReportTypes, ProjectSortButton, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
 import { reportDownloadFileName } from '../../utils/reportFileName';
+import { reportSignatureProgress } from '../../utils/signatureProgress';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
-import { closeZapSignPendingWindow, openZapSignPendingWindow, redirectZapSignWindow } from '../../utils/zapSign';
 
 const TEXT = {
   approveSignature: 'Assinar',
@@ -37,7 +38,7 @@ const TEXT = {
   requestSignatureError: 'Não foi possível solicitar a assinatura.',
   reviewError: 'Não foi possível registrar a avaliação.',
   signed: 'Assinados',
-  signatureRequested: 'Assinatura solicitada. Abra o link para concluir.',
+  signatureRequested: 'Assinatura registrada.',
   summary: 'Resumo'
 };
 
@@ -147,6 +148,7 @@ export function ClientPage() {
   const [activeProjectId, setActiveProjectId] = useState('');
   const [activeTypeByProject, setActiveTypeByProject] = useState<Record<string, string>>({});
   const [closedTypeByProject, setClosedTypeByProject] = useState<Record<string, boolean>>({});
+  const [signatureTargetIds, setSignatureTargetIds] = useState<string[]>([]);
   const [clientSortDirection, setClientSortDirection] = useState<ProjectSortDirection>('asc');
   const [clientTogglesLoaded, setClientTogglesLoaded] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
@@ -335,56 +337,39 @@ export function ClientPage() {
     }
   }
 
-  async function handleBatchSignature(ids: string[]) {
+  function handleBatchSignature(ids: string[]) {
     if (!ids.length) {
       showToast('Selecione ao menos um RDO aprovado.', 'error');
       return;
     }
-    const label = ids.length === 1 ? '1 relatório' : `${ids.length} relatórios`;
-    if (!window.confirm(`Você será redirecionado para a ZapSign para assinar ${label} de uma vez. Deseja continuar?`)) return;
+    setSignatureTargetIds(ids);
+  }
 
-    const signWindow = openZapSignPendingWindow();
+  async function confirmSignature(signatureImageDataUrl: string) {
+    const ids = signatureTargetIds;
+    if (!ids.length) return;
     try {
       const selectedComments = ids.reduce<Record<string, string>>((acc, id) => {
         const comment = commentsById[id]?.trim();
         if (comment) acc[id] = comment;
         return acc;
       }, {});
-      const response = await reportMutations.batchSignature.mutateAsync({ ids, commentsById: selectedComments });
-      if (response.signUrl) {
-        redirectZapSignWindow(signWindow, response.signUrl);
-        showToast('Lote enviado para assinatura na ZapSign.', 'success');
-        return;
+      for (const id of ids) {
+        await reportMutations.requestSignature.mutateAsync({
+          id,
+          comment: selectedComments[id] || null,
+          signatureImageDataUrl
+        });
       }
-      closeZapSignPendingWindow(signWindow);
-      throw new Error('Link de assinatura não retornado.');
+      setSignatureTargetIds([]);
+      showToast(ids.length === 1 ? TEXT.signatureRequested : 'Assinatura eletrônica registrada para os relatórios selecionados.', 'success');
     } catch (error) {
-      closeZapSignPendingWindow(signWindow);
       showToast(error instanceof Error ? error.message : TEXT.requestSignatureError, 'error');
     }
   }
 
-  async function handleRequestSignature(report: ReportSummary) {
-    const confirmText = `Você será redirecionado para a ZapSign para assinar digitalmente o ${report.reportType || 'RDO'} nº ${report.sequenceNumber ?? '---'}. Deseja continuar?`;
-    if (!window.confirm(confirmText)) return;
-
-    const signWindow = openZapSignPendingWindow();
-    try {
-      const response = await reportMutations.requestSignature.mutateAsync({
-        id: report.id,
-        comment: commentsById[report.id]?.trim() || null
-      });
-      if (response.signUrl) {
-        redirectZapSignWindow(signWindow, response.signUrl);
-        showToast('Link de assinatura aberto na ZapSign.', 'success');
-        return;
-      }
-      closeZapSignPendingWindow(signWindow);
-      throw new Error('Link de assinatura não retornado.');
-    } catch (error) {
-      closeZapSignPendingWindow(signWindow);
-      showToast(error instanceof Error ? error.message : TEXT.requestSignatureError, 'error');
-    }
+  function handleRequestSignature(report: ReportSummary) {
+    setSignatureTargetIds([report.id]);
   }
 
   async function handleReject(report: ReportSummary) {
@@ -410,7 +395,10 @@ export function ClientPage() {
     const clientRejected = isClientRejectedReport(report);
     const signable = report.reportType === 'RDO' && report.status === 'APPROVED' && !clientRejected;
     const selectable = canSelectClientReport(report);
-    const signaturePending = signable && Boolean(report.zapsignRequestedAt) && !report.zapsignSignedAt;
+    const signatureProgress = reportSignatureProgress(report);
+    const signaturePending = signable && signatureProgress
+      ? signatureProgress.signed < signatureProgress.total
+      : false;
     const status = clientStatusMeta(report);
     const rejections = clientRejectionReviews(report);
     const serviceOnly = report.specialConditions?.serviceOnly === true;
@@ -459,7 +447,7 @@ export function ClientPage() {
                 />
               </div>
               <button className="primary-button" type="button" onClick={() => void handleRequestSignature(report)}>
-                {signaturePending ? 'Continuar assinatura digital' : 'Aprovar e assinar digitalmente'}
+                {signaturePending ? 'Continuar assinatura eletrônica' : 'Aprovar e assinar eletronicamente'}
               </button>
               <button className="danger-button" type="button" onClick={() => void handleReject(report)}>
                 {TEXT.reject}
@@ -523,7 +511,7 @@ export function ClientPage() {
                 <button
                   className="primary-button"
                   type="button"
-                  disabled={reportMutations.batchSignature.isPending}
+                  disabled={reportMutations.requestSignature.isPending}
                   onClick={() => void handleBatchSignature(signableIds)}
                 >
                   {TEXT.batchSignature}
@@ -752,6 +740,13 @@ export function ClientPage() {
           </div>
         ) : null}
       </main>
+      <SignatureConsentDialog
+        open={signatureTargetIds.length > 0}
+        title={signatureTargetIds.length > 1 ? `Assinar ${signatureTargetIds.length} relatórios` : 'Assinar relatório'}
+        isSubmitting={reportMutations.requestSignature.isPending}
+        onCancel={() => setSignatureTargetIds([])}
+        onConfirm={signatureImageDataUrl => void confirmSignature(signatureImageDataUrl)}
+      />
     </Shell>
   );
 }

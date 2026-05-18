@@ -43,7 +43,8 @@ app.use(cors({
 }));
 app.use((req, res, next) => {
   const isUploadsApi = req.path.startsWith('/api/uploads') || req.path.startsWith('/api/rdo/uploads');
-  const limit = isUploadsApi ? '25mb' : '1mb';
+  const isSignatureApi = req.path.includes('/request-signature') || req.path.includes('/public-sign');
+  const limit = isUploadsApi ? '25mb' : isSignatureApi ? '3mb' : '1mb';
   return express.json({ limit })(req, res, next);
 });
 app.use(morgan('dev'));

@@ -152,6 +152,15 @@ export interface ReportSummary {
   status: ReportStatus;
   zapsignRequestedAt?: string | null;
   zapsignSignedAt?: string | null;
+  reportSignatures?: Array<{
+    id: string;
+    signerName: string;
+    signerEmail: string;
+    status: 'PENDING' | 'SIGNED' | 'REJECTED' | 'INVALIDATED' | 'EXPIRED';
+    isRequired?: boolean;
+    signedAt?: string | null;
+    rejectedAt?: string | null;
+  }>;
   clientReviews?: Array<{
     id: string;
     action: 'APPROVED' | 'REJECTED';
@@ -224,6 +233,31 @@ export interface ReportPayload {
   specialConditions?: Record<string, unknown>;
   collaboratorIds: string[];
   services: ReportServiceInput[];
+}
+
+export interface ReportAuditLog {
+  id: string;
+  reportId: string;
+  versionId?: string | null;
+  userId?: string | null;
+  action: string;
+  description?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  createdAt: string;
+  user?: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    role?: UserRole;
+  } | null;
+  version?: {
+    id: string;
+    versionNumber: number;
+    status: string;
+    sourceDocumentHash: string;
+    finalDocumentHash?: string | null;
+  } | null;
 }
 
 export interface ServiceOnlyReportPayload {

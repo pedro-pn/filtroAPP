@@ -6,6 +6,7 @@ import {
   createServiceOnlyReports,
   deleteReport as deleteReportApi,
   deleteReportService,
+  getReportAudit,
   getReport,
   listReports,
   requestReportsBatchSignature,
@@ -61,9 +62,16 @@ function removeReportFromCaches(
   ));
 }
 
+export function useReportAudit(reportId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.reportAudit(reportId),
+    queryFn: () => getReportAudit(reportId),
+    enabled: enabled && !!reportId
+  });
+}
+
 export function useReportMutations() {
   const queryClient = useQueryClient();
-
   const createMutation = useMutation({
     mutationFn: (payload: ReportPayload) => createReport(payload),
     onSuccess: report => {
@@ -101,11 +109,13 @@ export function useReportMutations() {
   });
 
   const requestSignatureMutation = useMutation({
-    mutationFn: ({ id, comment }: { id: string; comment?: string | null }) => requestReportSignature(id, { comment }),
+    mutationFn: ({ id, comment, signatureImageDataUrl }: { id: string; comment?: string | null; signatureImageDataUrl: string }) =>
+      requestReportSignature(id, { comment, signatureImageDataUrl }),
     onSuccess: data => {
       updateReportCaches(queryClient, data.report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['report', data.report.id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.reportAudit(data.report.id) });
     }
   });
 
