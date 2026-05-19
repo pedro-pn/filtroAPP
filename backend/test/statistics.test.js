@@ -6,7 +6,9 @@ import { ZodError } from 'zod';
 import { assertActiveClientSegment } from '../src/routes/resources/projects.js';
 import {
   buildDailyReport,
+  buildServiceExportRows,
   buildServiceStats,
+  isServiceFinalized,
   parseDecimal,
   parseLocalDate,
   parseTubulacoes,
@@ -85,19 +87,40 @@ test('statistics parsers normalize decimal, oil volume and tubing lengths', () =
   });
 });
 
+test('statistics service finalization recognizes field and legacy extraData values', () => {
+  assert.equal(isServiceFinalized({ finalized: true, extraData: { 'Serviço finalizado?': 'Não' } }), true);
+  assert.equal(isServiceFinalized({ finalized: false, extraData: { 'Serviço finalizado?': 'Sim' } }), false);
+  assert.equal(isServiceFinalized({ extraData: { 'Serviço finalizado?': 'Sim' } }), true);
+  assert.equal(isServiceFinalized({ extraData: { 'Servico finalizado': 'finalizado' } }), true);
+  assert.equal(isServiceFinalized({ extraData: { 'ServiÃ§o finalizado?': 'Sim' } }), true);
+  assert.equal(isServiceFinalized({ extraData: { 'Serviço finalizado?': 'Não' } }), false);
+});
+
 test('service stats count measurements, tubing flag and ignored legacy rows once per pass', () => {
   const ignoredRows = { volumeOleo: 0, tubulacao: 0 };
   const stats = buildServiceStats([
     {
       serviceType: 'filtragem',
+      finalized: true,
       extraData: { 'Volume de óleo': '1500 mL' }
     },
     {
       serviceType: 'filtragem',
+      finalized: true,
       extraData: {}
     },
     {
+      serviceType: 'filtragem',
+      finalized: false,
+      extraData: { 'Volume de óleo': '999 L' }
+    },
+    {
+      serviceType: 'filtragem',
+      extraData: { 'ServiÃ§o finalizado?': 'Sim', 'Volume de óleo': '3 L' }
+    },
+    {
       serviceType: 'flushing',
+      finalized: true,
       extraData: {
         'Flushing em tubulação?': 'Sim',
         'Diâmetros e comprimentos': [
@@ -105,13 +128,23 @@ test('service stats count measurements, tubing flag and ignored legacy rows once
           { d: '4', unit: 'pol', c: '', lengthUnit: 'm' }
         ]
       }
+    },
+    {
+      serviceType: 'flushing',
+      finalized: false,
+      extraData: {
+        'Flushing em tubulação?': 'Sim',
+        'Diâmetros e comprimentos': [
+          { d: '4', unit: 'pol', c: '999', lengthUnit: 'm' }
+        ]
+      }
     }
   ], ignoredRows);
 
   assert.deepEqual(stats, {
     filtragem: {
-      serviceCount: 2,
-      volumeOleoLiters: 1.5,
+      serviceCount: 3,
+      volumeOleoLiters: 4.5,
       tubesByDiameter: {},
       hasTubulacao: 0
     },
@@ -123,6 +156,46 @@ test('service stats count measurements, tubing flag and ignored legacy rows once
     }
   });
   assert.deepEqual(ignoredRows, { volumeOleo: 1, tubulacao: 1 });
+});
+
+test('service export rows include finalized legacy services and skip unfinished measurements', () => {
+  const rows = buildServiceExportRows({
+    id: 'rdo-1',
+    projectId: 'project-1',
+    reportDate: new Date('2026-05-13T00:00:00.000Z'),
+    sequenceNumber: 12,
+    services: [
+      {
+        serviceType: 'filtragem',
+        system: 'Sistema A',
+        equipment: { code: 'EQ-1', name: 'Unidade' },
+        extraData: { 'ServiÃ§o finalizado?': 'Sim', 'Volume de óleo': '2 L' }
+      },
+      {
+        serviceType: 'filtragem',
+        finalized: false,
+        system: 'Sistema B',
+        equipment: { code: 'EQ-2', name: 'Unidade' },
+        extraData: { 'Volume de óleo': '999 L' }
+      },
+      {
+        serviceType: 'flushing',
+        finalized: true,
+        system: 'Sistema C',
+        equipment: { code: 'EQ-3', name: 'Unidade' },
+        extraData: {
+          'Diâmetros e comprimentos': [
+            { d: '4', unit: 'pol', c: '12', lengthUnit: 'm' }
+          ]
+        }
+      }
+    ]
+  }, { code: 'PRJ-1' });
+
+  assert.deepEqual(rows, [
+    ['2026-05-13', 'PRJ-1', 12, 'filtragem', 'Sistema A', 'EQ-1 - Unidade', '2.00', '', ''],
+    ['2026-05-13', 'PRJ-1', 12, 'flushing', 'Sistema C', 'EQ-3 - Unidade', '', '4 pol', '12.00']
+  ]);
 });
 
 test('daily report summary includes per-service measurements and standby minutes', () => {
@@ -144,6 +217,7 @@ test('daily report summary includes per-service measurements and standby minutes
     services: [{
       id: 'svc-1',
       serviceType: 'filtragem',
+      finalized: true,
       system: null,
       equipment: null,
       extraData: {
