@@ -502,6 +502,66 @@ test('rejectAuthenticatedClientSignatureRound does not overwrite signed client s
   assert.equal(calls.some(([name]) => name === 'reportAuditLog.create'), false);
 });
 
+test('rejectAuthenticatedClientSignatureRound requires the client to be a configured signer', async () => {
+  const calls = [];
+  const tx = {
+    reportVersion: {
+      findFirst: async args => {
+        calls.push(['reportVersion.findFirst', args]);
+        return {
+          id: 'version-1',
+          signatures: [{
+            id: 'signature-1',
+            signerEmail: 'signer@example.com',
+            status: 'PENDING'
+          }]
+        };
+      },
+      updateMany: async args => {
+        calls.push(['reportVersion.updateMany', args]);
+        return { count: 1 };
+      }
+    },
+    reportSignature: {
+      updateMany: async args => {
+        calls.push(['reportSignature.updateMany', args]);
+        return { count: 1 };
+      }
+    },
+    report: {
+      updateMany: async args => {
+        calls.push(['report.updateMany', args]);
+        return { count: 1 };
+      },
+      findUniqueOrThrow: async args => {
+        calls.push(['report.findUniqueOrThrow', args]);
+        return args;
+      }
+    },
+    reportAuditLog: {
+      create: async args => {
+        calls.push(['reportAuditLog.create', args]);
+      }
+    }
+  };
+
+  await assert.rejects(
+    () => rejectAuthenticatedClientSignatureRound(tx, {
+      report: { id: 'report-1', specialConditions: {} },
+      authUser: { id: 'user-1', email: 'cc@example.com', username: 'cc@example.com' },
+      comment: 'Reprovado',
+      evidence: { ipAddress: '203.0.113.10', userAgent: 'Node Test' }
+    }),
+    error => error?.statusCode === 403 && /não configurado como signatário/.test(error.message)
+  );
+
+  assert.equal(calls.some(([name]) => name === 'reportSignature.updateMany'), false);
+  assert.equal(calls.some(([name]) => name === 'reportVersion.updateMany'), false);
+  assert.equal(calls.some(([name]) => name === 'report.updateMany'), false);
+  assert.equal(calls.some(([name]) => name === 'report.findUniqueOrThrow'), false);
+  assert.equal(calls.some(([name]) => name === 'reportAuditLog.create'), false);
+});
+
 test('invalidateUnsignedInternalSignatureRound can invalidate pending project-delete rounds with signed signatures', async () => {
   const calls = [];
   const tx = {

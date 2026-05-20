@@ -576,6 +576,12 @@ function staleClientSignatureRejectionError() {
   return error;
 }
 
+function unauthorizedClientSignatureRejectionError() {
+  const error = new Error('Cliente não configurado como signatário desta rodada.');
+  error.statusCode = 403;
+  return error;
+}
+
 export async function rejectAuthenticatedClientSignatureRound(tx, {
   report,
   authUser,
@@ -595,24 +601,25 @@ export async function rejectAuthenticatedClientSignatureRound(tx, {
   if (activeVersion) {
     const authEmail = String(authUser.email || authUser.username || '').trim().toLowerCase();
     const matchingSignature = activeVersion.signatures.find(signature => signature.signerEmail.toLowerCase() === authEmail);
-    if (matchingSignature) {
-      const rejected = await tx.reportSignature.updateMany({
-        where: { id: matchingSignature.id, status: ReportSignatureStatus.PENDING },
-        data: {
-          status: ReportSignatureStatus.REJECTED,
-          userId: authUser.id,
-          rejectedAt: new Date(),
-          rejectionReason: comment || null,
-          ipAddress: evidence.ipAddress,
-          userAgent: evidence.userAgent
-        }
-      });
-      if (rejected.count !== 1) throw staleClientSignatureRejectionError();
-    }
+    if (!matchingSignature) throw unauthorizedClientSignatureRejectionError();
+
+    const rejected = await tx.reportSignature.updateMany({
+      where: { id: matchingSignature.id, status: ReportSignatureStatus.PENDING },
+      data: {
+        status: ReportSignatureStatus.REJECTED,
+        userId: authUser.id,
+        rejectedAt: new Date(),
+        rejectionReason: comment || null,
+        ipAddress: evidence.ipAddress,
+        userAgent: evidence.userAgent
+      }
+    });
+    if (rejected.count !== 1) throw staleClientSignatureRejectionError();
+
     await tx.reportSignature.updateMany({
       where: {
         versionId: activeVersion.id,
-        ...(matchingSignature ? { id: { not: matchingSignature.id } } : {}),
+        id: { not: matchingSignature.id },
         status: { in: [ReportSignatureStatus.PENDING, ReportSignatureStatus.SIGNED] }
       },
       data: {
