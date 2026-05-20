@@ -205,6 +205,39 @@ test('requireModuleRole rejects RDO access for EPI-only hub admins', () => {
   assert.deepEqual(body, { error: 'Acesso restrito ao módulo.' });
 });
 
+test('report audit manager guard rejects admins without rdo manager role', () => {
+  const middleware = requireModuleRole('rdo:manager');
+  let statusCode = null;
+  const req = {
+    auth: {
+      user: { role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['epi:technician'] }
+    }
+  };
+  const res = {
+    status(code) {
+      statusCode = code;
+      return this;
+    },
+    json() {
+      return this;
+    }
+  };
+  let nextCalled = false;
+
+  middleware(req, res, () => {
+    nextCalled = true;
+  });
+
+  assert.equal(nextCalled, false);
+  assert.equal(statusCode, 403);
+
+  req.auth.user.moduleRoles = ['rdo:manager'];
+  middleware(req, res, () => {
+    nextCalled = true;
+  });
+  assert.equal(nextCalled, true);
+});
+
 test('requireManager rejects RDO manager mutations for EPI-only hub admins', () => {
   let statusCode = null;
   let body = null;

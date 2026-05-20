@@ -79,6 +79,7 @@ import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middlewa
 
 const router = Router();
 const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
+const requireRdoManager = requireModuleRole('rdo:manager');
 const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
 const CLIENT_REJECTION_KEY = '__clientRejectedAt';
 const CLIENT_REJECTION_RESOLVED_KEY = '__clientRejectionResolvedAt';
@@ -777,9 +778,10 @@ async function getReportPdfDownload(report) {
   if (report.status === ReportStatus.SIGNED && finalVersion?.finalPdfUrl) {
     const finalPath = reportSourcePdfPath(finalVersion.finalPdfUrl);
     if (finalPath) {
+      const buffer = await verifiedFinalPdfBuffer(finalPath, finalVersion);
       return {
         fileName: path.basename(finalPath),
-        buffer: await fs.readFile(finalPath)
+        buffer
       };
     }
   }
@@ -795,29 +797,20 @@ async function getReportPdfDownload(report) {
   };
 }
 
-function delay(ms) {
-  return new Promise(resolve => {
-    setTimeout(resolve, ms);
-  });
-}
-
-async function waitForInternalSignatureFinalization(versionId, reportId) {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const current = await prisma.reportVersion.findUnique({
-      where: { id: versionId },
-      select: { finalDocumentHash: true }
-    });
-    if (current?.finalDocumentHash) {
-      return prisma.report.findUniqueOrThrow({
-        where: { id: reportId },
-        include
-      });
-    }
-    await delay(50);
+export async function verifiedFinalPdfBuffer(finalPath, finalVersion) {
+  if (!finalVersion?.finalDocumentHash) {
+    const error = new Error('PDF assinado sem hash final registrado.');
+    error.statusCode = 409;
+    throw error;
   }
-  const error = new Error('Finalizacao de assinatura em andamento. Tente novamente em instantes.');
-  error.statusCode = 409;
-  throw error;
+  const buffer = await fs.readFile(finalPath);
+  const actualHash = sha256Hex(buffer);
+  if (actualHash !== finalVersion.finalDocumentHash) {
+    const error = new Error('PDF assinado diverge do hash final registrado.');
+    error.statusCode = 409;
+    throw error;
+  }
+  return buffer;
 }
 
 async function finalizeInternalSignatureRound(report, version, evidence, userId) {
@@ -831,9 +824,6 @@ async function finalizeInternalSignatureRound(report, version, evidence, userId)
       include
     });
   }
-  if (currentVersion?.finalPdfUrl) {
-    return waitForInternalSignatureFinalization(version.id, report.id);
-  }
 
   const versionForFinalPdf = currentVersion ? { ...version, ...currentVersion } : version;
   const sourcePath = reportSourcePdfPath(versionForFinalPdf.sourcePdfUrl);
@@ -843,21 +833,8 @@ async function finalizeInternalSignatureRound(report, version, evidence, userId)
     throw error;
   }
 
-  const validationCode = versionForFinalPdf.validationCode || await uniqueSignatureValidationCode();
+  const validationCode = await uniqueSignatureValidationCode();
   const target = finalEvidencePdfTarget(sourcePath, versionForFinalPdf.sourcePdfUrl, validationCode);
-  const reserved = await prisma.$transaction(async tx => {
-    const result = await tx.reportVersion.updateMany({
-      where: { id: version.id, finalDocumentHash: null, finalPdfUrl: null },
-      data: {
-        finalPdfUrl: target.finalPdfUrl,
-        validationCode
-      }
-    });
-    return result.count === 1;
-  });
-  if (!reserved) {
-    return waitForInternalSignatureFinalization(version.id, report.id);
-  }
 
   let finalPdf;
   try {
@@ -872,34 +849,25 @@ async function finalizeInternalSignatureRound(report, version, evidence, userId)
       validationCode
     });
   } catch (error) {
-    await prisma.reportVersion.updateMany({
-      where: { id: version.id, finalDocumentHash: null, finalPdfUrl: target.finalPdfUrl },
-      data: {
-        finalPdfUrl: null,
-        validationCode: versionForFinalPdf.validationCode || null
-      }
-    });
     await fs.unlink(target.finalPdfPath).catch(() => {});
     throw error;
   }
 
   try {
-    await prisma.$transaction(async tx => {
+    const wonFinalization = await prisma.$transaction(async tx => {
       const finalized = await tx.reportVersion.updateMany({
         where: {
           id: version.id,
-          finalDocumentHash: null,
-          finalPdfUrl: target.finalPdfUrl,
-          validationCode
+          finalDocumentHash: null
         },
         data: {
+          finalPdfUrl: finalPdf.finalPdfUrl,
+          validationCode,
           finalDocumentHash: finalPdf.finalDocumentHash
         }
       });
       if (finalized.count !== 1) {
-        const error = new Error('Finalizacao de assinatura ja processada por outra requisicao.');
-        error.statusCode = 409;
-        throw error;
+        return false;
       }
       await tx.reportSignature.updateMany({
         where: { versionId: version.id, status: 'SIGNED' },
@@ -917,15 +885,22 @@ async function finalizeInternalSignatureRound(report, version, evidence, userId)
         description: 'Relatorio assinado internamente e bloqueado.',
         evidence
       });
+      return true;
     });
-  } catch (error) {
-    await prisma.reportVersion.updateMany({
-      where: { id: version.id, finalDocumentHash: null, finalPdfUrl: target.finalPdfUrl },
-      data: {
-        finalPdfUrl: null,
-        validationCode: versionForFinalPdf.validationCode || null
+    if (!wonFinalization) {
+      await fs.unlink(target.finalPdfPath).catch(() => {});
+      const finalizedReport = await prisma.report.findUniqueOrThrow({
+        where: { id: report.id },
+        include
+      });
+      if (finalizedReport.versions?.some(item => item.id === version.id && item.finalDocumentHash)) {
+        return finalizedReport;
       }
-    });
+      const error = new Error('Finalizacao de assinatura ja processada por outra requisicao.');
+      error.statusCode = 409;
+      throw error;
+    }
+  } catch (error) {
     await fs.unlink(target.finalPdfPath).catch(() => {});
     throw error;
   }
@@ -3975,7 +3950,7 @@ router.get('/:id/signatures', requireAuth, requireRdoAccess, asyncHandler(async 
   res.json(item.reportSignatures || []);
 }));
 
-router.get('/:id/audit', requireAuth, asyncHandler(async (req, res) => {
+router.get('/:id/audit', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode consultar a auditoria do relatório.' });
   }

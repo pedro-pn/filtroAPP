@@ -10,7 +10,8 @@ import { PDFDocument } from 'pdf-lib';
 import {
   assertRenderableReportSignatureImageDataUrl,
   publicSignatureStatus,
-  shouldCreateInternalSignatureRound
+  shouldCreateInternalSignatureRound,
+  verifiedFinalPdfBuffer
 } from '../src/routes/resources/reports.js';
 import app from '../src/app.js';
 import { assertProductionTrustProxyConfigured } from '../src/config/env.js';
@@ -507,6 +508,28 @@ test('finalEvidencePdfTarget can reserve distinct final artifacts per validation
   assert.notEqual(
     finalEvidencePdfTarget('/tmp/relatorio.pdf', '/relatorios/teste/relatorio.pdf', 'codigo-A_1').finalPdfPath,
     finalEvidencePdfTarget('/tmp/relatorio.pdf', '/relatorios/teste/relatorio.pdf', 'codigo-B_2').finalPdfPath
+  );
+});
+
+test('verifiedFinalPdfBuffer rejects final PDF drift from stored hash', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rdo-signature-pdf-hash-'));
+  const finalPath = path.join(dir, 'relatorio-assinado.pdf');
+  const original = Buffer.from('pdf-final-original');
+  await fs.writeFile(finalPath, original);
+
+  assert.deepEqual(
+    await verifiedFinalPdfBuffer(finalPath, { finalDocumentHash: sha256Hex(original) }),
+    original
+  );
+
+  await fs.writeFile(finalPath, Buffer.from('pdf-final-corrompido'));
+  await assert.rejects(
+    () => verifiedFinalPdfBuffer(finalPath, { finalDocumentHash: sha256Hex(original) }),
+    /diverge do hash final/
+  );
+  await assert.rejects(
+    () => verifiedFinalPdfBuffer(finalPath, { finalDocumentHash: null }),
+    /sem hash final registrado/
   );
 });
 
