@@ -11,6 +11,7 @@ import { Prisma } from '@prisma/client';
 import {
   assertRenderableReportSignatureImageDataUrl,
   assertSignatureSourceCurrent,
+  completedSignatureVersionAfterCommit,
   publicSignaturePayload,
   publicValidationPayload,
   publicSignatureStatus,
@@ -23,6 +24,7 @@ import {
 import app from '../src/app.js';
 import { assertProductionTrustProxyConfigured } from '../src/config/env.js';
 import {
+  allRequiredSignaturesCompleted,
   clientSignersForReport,
   createValidationQrCodeMatrix,
   decodableSignatureImageDataUrl,
@@ -412,6 +414,36 @@ test('resetSignedSignatureForFinalizationRetry restores a just-signed signature 
     signatureImageDataUrl: null,
     signedAt: null
   });
+});
+
+test('completedSignatureVersionAfterCommit uses fresh post-commit signature state', async () => {
+  const staleVersion = {
+    id: 'version-1',
+    signatures: [
+      { id: 'signature-1', status: 'SIGNED', isRequired: true },
+      { id: 'signature-2', status: 'PENDING', isRequired: true }
+    ]
+  };
+  const freshVersion = {
+    id: 'version-1',
+    signatures: [
+      { id: 'signature-1', status: 'SIGNED', isRequired: true },
+      { id: 'signature-2', status: 'SIGNED', isRequired: true }
+    ]
+  };
+  const calls = [];
+  const client = {
+    reportVersion: {
+      findFirst: async args => {
+        calls.push(args);
+        return freshVersion;
+      }
+    }
+  };
+
+  assert.equal(allRequiredSignaturesCompleted(staleVersion), false);
+  assert.equal(await completedSignatureVersionAfterCommit(client, 'report-1'), freshVersion);
+  assert.deepEqual(calls[0].where, { reportId: 'report-1', status: 'ACTIVE' });
 });
 
 test('approved RDO without client signers does not require an internal signature round', () => {

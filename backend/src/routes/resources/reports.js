@@ -558,6 +558,11 @@ export async function resetSignedSignatureForFinalizationRetry(client, signature
   return result.count === 1;
 }
 
+export async function completedSignatureVersionAfterCommit(client, reportId) {
+  const version = await activeVersionWithSignatures(client, reportId);
+  return allRequiredSignaturesCompleted(version) ? version : null;
+}
+
 export async function rejectPublicInternalSignature({
   token,
   comment,
@@ -3307,8 +3312,10 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
     });
   });
 
+  signedVersion = await completedSignatureVersionAfterCommit(prisma, item.id) || signedVersion;
+
   let completed = false;
-  if (allRequiredSignaturesCompleted(signedVersion)) {
+  if (signedVersion && allRequiredSignaturesCompleted(signedVersion)) {
     try {
       item = await finalizeInternalSignatureRound(item, signedVersion, evidence, null, {
         signedAudit: signatureResult.alreadySigned ? null : signatureResult.signedSignature
@@ -4200,8 +4207,10 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
     throw error;
   }
 
+  signedVersion = await completedSignatureVersionAfterCommit(prisma, item.id) || signedVersion;
+
   let completed = false;
-  if (allRequiredSignaturesCompleted(signedVersion)) {
+  if (signedVersion && allRequiredSignaturesCompleted(signedVersion)) {
     try {
       item = await finalizeInternalSignatureRound(item, signedVersion, evidence, req.auth.user.id, {
         signedAudit: signatureResult.alreadySigned ? null : signatureResult.signedSignature
