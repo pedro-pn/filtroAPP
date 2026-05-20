@@ -299,6 +299,47 @@ test('public EPI confirmation rejects malformed signature image before updating 
   assert.equal(transactionStarted, false);
 });
 
+test('public EPI confirmation is idempotent after successful signing', async () => {
+  let transactionStarted = false;
+  let pdfCreated = false;
+  const signedRequest = signatureRequest({
+    status: 'SIGNED',
+    signedAt: new Date('2026-05-20T12:00:00.000Z'),
+    expiresAt: new Date(Date.now() + 60_000),
+    signedPdfPath: '/tmp/epi-signed-test.pdf',
+    signedPdfHash: 'signed-pdf-hash',
+    signedPdfFileName: 'signed-test.pdf'
+  });
+  const client = {
+    epiSignatureRequest: {
+      findUnique: async () => signedRequest
+    },
+    $transaction: async () => {
+      transactionStarted = true;
+      throw new Error('transaction should not start');
+    }
+  };
+
+  const result = await confirmPublicEpiSignatureRequest({
+    token: 'token',
+    body: {
+      signerName: 'Assinante',
+      signatureImageDataUrl: validSignatureImageDataUrl
+    },
+    req: { headers: {}, ip: '203.0.113.10' },
+    client,
+    pdfArtifactFactory: async () => {
+      pdfCreated = true;
+      return testPdfArtifact();
+    }
+  });
+
+  assert.equal(result.signed, signedRequest);
+  assert.equal(result.alreadySigned, true);
+  assert.equal(transactionStarted, false);
+  assert.equal(pdfCreated, false);
+});
+
 test('signature image parser requires decodable PNG or JPEG bytes', async () => {
   const malformedPng = `data:image/png;base64,${Buffer.from('not-a-png').toString('base64')}`;
 

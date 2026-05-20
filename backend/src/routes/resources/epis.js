@@ -757,7 +757,6 @@ export async function confirmPublicEpiSignatureRequest({
   client = prisma,
   pdfArtifactFactory = createSignedPublicPdfArtifact
 }) {
-  const data = publicSignatureConfirmSchema.parse(body || {});
   const evidence = signatureEvidenceFromRequest(req);
   const preflightRequest = await findRequestByToken(token, client);
   const preflightStatus = requestStatus(preflightRequest);
@@ -774,11 +773,10 @@ export async function confirmPublicEpiSignatureRequest({
     throw error;
   }
   if (preflightStatus === 'SIGNED') {
-    const error = new Error('Link de assinatura já utilizado.');
-    error.status = 410;
-    error.statusCode = 410;
-    throw error;
+    return { signed: preflightRequest, evidence, alreadySigned: true };
   }
+
+  const data = publicSignatureConfirmSchema.parse(body || {});
   const signatureImage = await decodableSignatureImageDataUrl(data.signatureImageDataUrl);
   if (!signatureImage) throw invalidSignatureImageError();
   const signedAt = new Date();
@@ -804,10 +802,7 @@ export async function confirmPublicEpiSignatureRequest({
       throw error;
     }
     if (status === 'SIGNED') {
-      const error = new Error('Link de assinatura já utilizado.');
-      error.status = 410;
-      error.statusCode = 410;
-      throw error;
+      return request;
     }
 
     const result = await tx.epiRecord.updateMany({

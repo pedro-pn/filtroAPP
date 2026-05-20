@@ -724,6 +724,12 @@ export async function writeFinalEvidencePdf({
   validationCode
 }) {
   const sourceBytes = await fs.readFile(sourcePdfPath);
+  const currentSourceHash = sha256Hex(sourceBytes);
+  if (!version.sourceDocumentHash || currentSourceHash !== version.sourceDocumentHash) {
+    const error = new Error('PDF-base da assinatura interna diverge do hash registrado.');
+    error.statusCode = 409;
+    throw error;
+  }
   const pdf = await PDFDocument.load(sourceBytes);
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);

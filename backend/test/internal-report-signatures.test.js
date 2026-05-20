@@ -738,6 +738,56 @@ test('writeFinalEvidencePdf rejects signed signatures with non-decodable images'
   );
 });
 
+test('writeFinalEvidencePdf rejects source PDF drift before sealing evidence', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rdo-signature-pdf-drift-'));
+  const sourcePdfPath = path.join(dir, 'relatorio.pdf');
+  const sourcePdfUrl = '/relatorios/teste/relatorio.pdf';
+
+  const original = await PDFDocument.create();
+  original.addPage([300, 300]);
+  const originalBytes = await original.save();
+  await fs.writeFile(sourcePdfPath, originalBytes);
+
+  const mutated = await PDFDocument.create();
+  mutated.addPage([400, 400]);
+  const mutatedBytes = await mutated.save();
+  await fs.writeFile(sourcePdfPath, mutatedBytes);
+
+  await assert.rejects(
+    () => writeFinalEvidencePdf({
+      sourcePdfPath,
+      sourcePdfUrl,
+      report: {
+        reportType: 'RDO',
+        sequenceNumber: 12,
+        project: { code: 'P-001', name: 'Projeto Teste' }
+      },
+      version: {
+        sourceDocumentHash: sha256Hex(Buffer.from(originalBytes)),
+        createdAt: new Date('2026-05-12T11:30:00.000Z')
+      },
+      validationCode: 'codigo-publico-teste',
+      signatures: [
+        {
+          status: 'SIGNED',
+          signerName: 'Cliente Teste',
+          signerEmail: 'cliente@example.com',
+          signedAt: new Date('2026-05-12T12:00:00.000Z'),
+          ipAddress: '192.168.0.10',
+          userAgent: 'Node Test',
+          signatureImageDataUrl: tinyPngDataUrl
+        }
+      ]
+    }),
+    error => error?.statusCode === 409 && /PDF-base/.test(error.message)
+  );
+
+  await assert.rejects(
+    () => fs.access(path.join(dir, 'relatorio-assinado.pdf')),
+    /ENOENT/
+  );
+});
+
 test('finalEvidencePdfTarget can reserve distinct final artifacts per validation code', () => {
   assert.deepEqual(
     finalEvidencePdfTarget('/tmp/relatorio.pdf', '/relatorios/teste/relatorio.pdf', 'codigo-A_1'),
