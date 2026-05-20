@@ -169,14 +169,14 @@ async function upsertCatalogRow(tx, row) {
           sourceId: row.sourceId
         }
       },
-      select: { id: true, isActive: true }
+      select: { id: true, hiddenInRomaneioAt: true }
     });
     if (existingSource) {
       await tx.romaneioCatalogItem.update({
         where: { id: existingSource.id },
         data: {
           ...row,
-          isActive: existingSource.isActive && row.isActive !== false
+          isActive: !existingSource.hiddenInRomaneioAt && row.isActive !== false
         }
       });
       return;

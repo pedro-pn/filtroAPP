@@ -333,10 +333,11 @@ test('Romaneio catalog delete hides sourced items without deleting RDO master da
   const response = await dispatchApp('DELETE', '/api/romaneio/catalog/catalog-unit-1');
 
   assert.equal(response.statusCode, 204);
-  assert.deepEqual(calls, [
-    ['romaneioCatalogItem.findUniqueOrThrow', { where: { id: 'catalog-unit-1' } }],
-    ['romaneioCatalogItem.update', { where: { id: 'catalog-unit-1' }, data: { isActive: false } }]
-  ]);
+  assert.deepEqual(calls[0], ['romaneioCatalogItem.findUniqueOrThrow', { where: { id: 'catalog-unit-1' } }]);
+  assert.equal(calls[1][0], 'romaneioCatalogItem.update');
+  assert.deepEqual(calls[1][1].where, { id: 'catalog-unit-1' });
+  assert.equal(calls[1][1].data.isActive, false);
+  assert.ok(calls[1][1].data.hiddenInRomaneioAt instanceof Date);
 });
 
 test('Romaneio catalog delete hides particle counters without deactivating RDO counters', async t => {
@@ -368,10 +369,11 @@ test('Romaneio catalog delete hides particle counters without deactivating RDO c
   const response = await dispatchApp('DELETE', '/api/romaneio/catalog/catalog-counter-1');
 
   assert.equal(response.statusCode, 204);
-  assert.deepEqual(calls, [
-    ['romaneioCatalogItem.findUniqueOrThrow', { where: { id: 'catalog-counter-1' } }],
-    ['romaneioCatalogItem.update', { where: { id: 'catalog-counter-1' }, data: { isActive: false } }]
-  ]);
+  assert.deepEqual(calls[0], ['romaneioCatalogItem.findUniqueOrThrow', { where: { id: 'catalog-counter-1' } }]);
+  assert.equal(calls[1][0], 'romaneioCatalogItem.update');
+  assert.deepEqual(calls[1][1].where, { id: 'catalog-counter-1' });
+  assert.equal(calls[1][1].data.isActive, false);
+  assert.ok(calls[1][1].data.hiddenInRomaneioAt instanceof Date);
 });
 
 test('Romaneio catalog sync does not reactivate hidden source-owned rows', async t => {
@@ -388,10 +390,10 @@ test('Romaneio catalog sync does not reactivate hidden source-owned rows', async
       findUnique: async args => {
         const source = args.where?.sourceType_sourceId;
         if (source?.sourceType === 'UNIT' && source?.sourceId === 'unit-1') {
-          return { id: 'catalog-unit-1', isActive: false };
+          return { id: 'catalog-unit-1', hiddenInRomaneioAt: new Date() };
         }
         if (source?.sourceType === 'PARTICLE_COUNTER' && source?.sourceId === 'counter-1') {
-          return { id: 'catalog-counter-1', isActive: false };
+          return { id: 'catalog-counter-1', hiddenInRomaneioAt: new Date() };
         }
         return null;
       },
@@ -413,4 +415,48 @@ test('Romaneio catalog sync does not reactivate hidden source-owned rows', async
   const counterUpdate = updates.find(item => item.where.id === 'catalog-counter-1');
   assert.equal(unitUpdate.data.isActive, false);
   assert.equal(counterUpdate.data.isActive, false);
+});
+
+test('Romaneio catalog sync restores particle counter visibility after RDO reactivation', async t => {
+  const originalTransaction = prisma.$transaction;
+  const updates = [];
+  let counterIsActive = false;
+  prisma.$transaction = async callback => callback({
+    unit: {
+      findMany: async () => []
+    },
+    particleCounter: {
+      findMany: async () => [{
+        id: 'counter-1',
+        code: 'CP-01',
+        serialNumber: 'SN-01',
+        isActive: counterIsActive
+      }]
+    },
+    romaneioCatalogItem: {
+      findUnique: async args => {
+        const source = args.where?.sourceType_sourceId;
+        if (source?.sourceType === 'PARTICLE_COUNTER' && source?.sourceId === 'counter-1') {
+          return { id: 'catalog-counter-1', hiddenInRomaneioAt: null };
+        }
+        return null;
+      },
+      findFirst: async () => null,
+      create: async args => args,
+      update: async args => {
+        updates.push(args);
+        return args;
+      }
+    }
+  });
+  t.after(() => {
+    prisma.$transaction = originalTransaction;
+  });
+
+  await syncRomaneioCatalog();
+  counterIsActive = true;
+  await syncRomaneioCatalog();
+
+  assert.equal(updates[0].data.isActive, false);
+  assert.equal(updates[1].data.isActive, true);
 });

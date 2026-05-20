@@ -423,7 +423,7 @@ router.delete('/catalog/:id', requireAuth, requireRomaneioAccess, requireRomanei
     await tx.romaneioCatalogItem.findUniqueOrThrow({ where: { id: req.params.id } });
     await tx.romaneioCatalogItem.update({
       where: { id: req.params.id },
-      data: { isActive: false }
+      data: { isActive: false, hiddenInRomaneioAt: new Date() }
     });
   });
   res.status(204).send();
