@@ -824,7 +824,7 @@ a {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 32px;
+  gap: 28px;
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -838,7 +838,7 @@ a {
 
 .hub-logo {
   width: auto;
-  height: clamp(150px, 48vw, 210px);
+  height: clamp(120px, 40vw, 176px);
   max-width: 100%;
   display: block;
   object-fit: contain;
@@ -854,15 +854,16 @@ a {
 
 .hub-module-grid {
   width: 100%;
+  max-width: 560px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 12px;
 }
 
 .hub-module-card {
   aspect-ratio: 1 / 1;
   width: 100%;
-  padding: 16px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -886,7 +887,7 @@ a {
 
 .hub-module-title {
   color: inherit;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   line-height: 1.2;
 }
