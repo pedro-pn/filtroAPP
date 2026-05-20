@@ -508,8 +508,8 @@ export async function signInternalReportVersion(tx, {
   }
   const signerName = stringValue(signer?.name) || stringValue(signature.signerName) || 'Cliente';
 
-  await tx.reportSignature.update({
-    where: { id: signature.id },
+  const updateResult = await tx.reportSignature.updateMany({
+    where: { id: signature.id, status: ReportSignatureStatus.PENDING },
     data: {
       status: ReportSignatureStatus.SIGNED,
       signerName,
@@ -520,6 +520,20 @@ export async function signInternalReportVersion(tx, {
       signedAt: new Date()
     }
   });
+  if (updateResult.count !== 1) {
+    const current = await tx.reportSignature.findUnique({ where: { id: signature.id } });
+    if (current?.status === ReportSignatureStatus.SIGNED) {
+      return { alreadySigned: true };
+    }
+    if (current?.status === ReportSignatureStatus.REJECTED || current?.status === ReportSignatureStatus.INVALIDATED) {
+      const error = new Error('Esta rodada de assinatura nao esta mais ativa.');
+      error.statusCode = 409;
+      throw error;
+    }
+    const error = new Error('Esta assinatura nao esta mais pendente.');
+    error.statusCode = 409;
+    throw error;
+  }
 
   await createSignatureAuditLog(tx, {
     reportId: report.id,

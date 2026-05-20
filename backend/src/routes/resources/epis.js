@@ -84,25 +84,22 @@ function isUniqueConstraintError(error) {
   return error?.code === 'P2002';
 }
 
-function requireEpiAccess(req, res, next) {
-  if (
-    req.auth?.user?.accountType === 'ADMIN'
-    || hasModuleRole(req.auth?.user, ['epi:technician', 'epi:collaborator'])
-  ) {
+export function requireEpiAccess(req, res, next) {
+  if (hasModuleRole(req.auth?.user, ['epi:technician', 'epi:collaborator'])) {
     return next();
   }
   return res.status(403).json({ error: 'Acesso restrito ao módulo de EPI.' });
 }
 
-function requireEpiTechnician(req, res, next) {
-  if (req.auth?.user?.accountType === 'ADMIN' || hasModuleRole(req.auth?.user, 'epi:technician')) {
+export function requireEpiTechnician(req, res, next) {
+  if (hasModuleRole(req.auth?.user, 'epi:technician')) {
     return next();
   }
   return res.status(403).json({ error: 'Acesso restrito aos técnicos de EPI.' });
 }
 
-function isEpiTechnician(user) {
-  return user?.accountType === 'ADMIN' || hasModuleRole(user, 'epi:technician');
+export function isEpiTechnician(user) {
+  return hasModuleRole(user, 'epi:technician');
 }
 
 function isEpiCollaborator(user) {

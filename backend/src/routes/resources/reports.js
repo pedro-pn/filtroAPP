@@ -547,6 +547,7 @@ export function collaboratorCanAccessProject(auth, project) {
   return !!(
     collaboratorId
     && project?.isActive
+    && !project.deletedAt
     && project.visibleToCollaborators
     && !project.managerOnly
     && project.operatorId === collaboratorId
@@ -557,13 +558,27 @@ export function collaboratorReportProjectWhere(collaboratorId) {
   if (!collaboratorId) return { id: '__NO_MATCH__' };
   return {
     isActive: true,
+    deletedAt: null,
     visibleToCollaborators: true,
     managerOnly: false,
     operatorId: collaboratorId
   };
 }
 
-async function canAccessReport(auth, report) {
+function activeReportProjectWhere(projectWhere = {}) {
+  return { ...projectWhere, deletedAt: null };
+}
+
+function assignActiveReportProjectWhere(where, projectWhere = {}) {
+  where.project = activeReportProjectWhere(projectWhere);
+}
+
+function isReportUnavailable(report) {
+  return !!(report?.deletedAt || report?.project?.deletedAt);
+}
+
+export async function canAccessReport(auth, report) {
+  if (report?.project?.deletedAt) return false;
   if (auth.user.role === 'MANAGER') return true;
   if (report.project?.managerOnly) return false;
   if (auth.user.role === 'COORDINATOR') return true;
@@ -578,6 +593,7 @@ async function canAccessReport(auth, report) {
 }
 
 function canClientSeeReport(report, allReportsById) {
+  if (report?.project?.deletedAt) return false;
   if (!report || !report.project?.clientCnpj) return false;
   if (report.reportType === ReportType.RDO) {
     return report.status === ReportStatus.APPROVED || report.status === ReportStatus.SIGNED || hasActiveClientRejection(report);
@@ -778,32 +794,45 @@ async function getReportPdfDownload(report) {
 }
 
 async function finalizeInternalSignatureRound(report, version, evidence, userId) {
-  const sourcePath = reportSourcePdfPath(version.sourcePdfUrl);
+  const currentVersion = await prisma.reportVersion.findUnique({
+    where: { id: version.id },
+    include: { signatures: { orderBy: { createdAt: 'asc' } } }
+  });
+  if (currentVersion?.finalDocumentHash) {
+    return prisma.report.findUniqueOrThrow({
+      where: { id: report.id },
+      include
+    });
+  }
+
+  const versionForFinalPdf = currentVersion ? { ...version, ...currentVersion } : version;
+  const sourcePath = reportSourcePdfPath(versionForFinalPdf.sourcePdfUrl);
   if (!sourcePath) {
     const error = new Error('PDF-base da assinatura interna nao foi encontrado.');
     error.statusCode = 409;
     throw error;
   }
 
-  const validationCode = version.validationCode || await uniqueSignatureValidationCode();
+  const validationCode = versionForFinalPdf.validationCode || await uniqueSignatureValidationCode();
   const finalPdf = await writeFinalEvidencePdf({
     sourcePdfPath: sourcePath,
-    sourcePdfUrl: version.sourcePdfUrl,
+    sourcePdfUrl: versionForFinalPdf.sourcePdfUrl,
     report,
-    version,
-    signatures: version.signatures || [],
+    version: versionForFinalPdf,
+    signatures: versionForFinalPdf.signatures || [],
     validationCode
   });
 
   await prisma.$transaction(async tx => {
-    await tx.reportVersion.update({
-      where: { id: version.id },
+    const finalized = await tx.reportVersion.updateMany({
+      where: { id: version.id, finalDocumentHash: null },
       data: {
         finalPdfUrl: finalPdf.finalPdfUrl,
         finalDocumentHash: finalPdf.finalDocumentHash,
         validationCode
       }
     });
+    if (finalized.count !== 1) return;
     await tx.reportSignature.updateMany({
       where: { versionId: version.id, status: 'SIGNED' },
       data: { finalDocumentHash: finalPdf.finalDocumentHash }
@@ -906,7 +935,7 @@ async function getReportDocxDownload(report) {
 
 async function fetchReportsForIds(ids) {
   const items = await prisma.report.findMany({
-    where: { id: { in: ids }, deletedAt: null },
+    where: { id: { in: ids }, deletedAt: null, project: activeReportProjectWhere() },
     include,
     orderBy: [{ reportDate: 'desc' }, { createdAt: 'desc' }]
   });
@@ -931,7 +960,7 @@ async function assertBatchAccess(auth, reports) {
   if (auth.user.role === 'CLIENT') {
     const projectIds = Array.from(new Set(reports.map(report => report.projectId).filter(Boolean)));
     const projectReports = await prisma.report.findMany({
-      where: { projectId: { in: projectIds } },
+      where: { projectId: { in: projectIds }, deletedAt: null, project: activeReportProjectWhere() },
       include
     });
     const byId = new Map(projectReports.map(report => [report.id, report]));
@@ -2570,7 +2599,7 @@ async function createIndependentServiceReports(tx, project, data, managerUserId)
 }
 
 router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
-  const where = { deletedAt: null };
+  const where = { deletedAt: null, project: activeReportProjectWhere() };
 
   if (req.query.status) {
     where.status = req.query.status;
@@ -2585,21 +2614,21 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
   }
 
   if (req.auth.user.role === 'CLIENT') {
-    where.project = clientProjectAccessWhere(req.auth);
+    assignActiveReportProjectWhere(where, clientProjectAccessWhere(req.auth));
   } else if (req.auth.user.role === 'COORDINATOR') {
-    where.project = { managerOnly: false };
+    assignActiveReportProjectWhere(where, { managerOnly: false });
   } else if (req.query.mine === 'true' && req.auth.user.role === 'COLLABORATOR') {
     const me = await prisma.user.findUnique({
       where: { id: req.auth.user.id },
       select: { collaboratorId: true }
     });
-    where.project = collaboratorReportProjectWhere(me?.collaboratorId);
+    assignActiveReportProjectWhere(where, collaboratorReportProjectWhere(me?.collaboratorId));
   } else if (req.query.mine === 'true') {
     where.createdByUserId = req.auth.user.id;
-    where.project = { managerOnly: false };
+    assignActiveReportProjectWhere(where, { managerOnly: false });
   }
-  if (req.auth.user.role !== 'MANAGER' && !where.project) {
-    where.project = { managerOnly: false };
+  if (req.auth.user.role !== 'MANAGER' && Object.keys(where.project || {}).length === 1) {
+    assignActiveReportProjectWhere(where, { managerOnly: false });
   }
 
   const tGet0 = Date.now();
@@ -3018,14 +3047,14 @@ router.get('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     where: { id: req.params.id },
     include
   });
-  if (item.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (isReportUnavailable(item)) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, item))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (req.auth.user.role === 'CLIENT') {
     const projectReports = await prisma.report.findMany({
-      where: { projectId: item.projectId, deletedAt: null },
+      where: { projectId: item.projectId, deletedAt: null, project: activeReportProjectWhere() },
       include
     });
     const byId = new Map(projectReports.map(report => [report.id, report]));
@@ -3042,14 +3071,14 @@ router.get('/:id/pdf', requireAuth, requireRdoAccess, asyncHandler(async (req, r
     where: { id: req.params.id },
     include
   });
-  if (item.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (isReportUnavailable(item)) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, item))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (req.auth.user.role === 'CLIENT') {
     const projectReports = await prisma.report.findMany({
-      where: { projectId: item.projectId, deletedAt: null },
+      where: { projectId: item.projectId, deletedAt: null, project: activeReportProjectWhere() },
       include
     });
     const byId = new Map(projectReports.map(report => [report.id, report]));
@@ -3073,7 +3102,7 @@ router.get('/:id/docx', requireAuth, requireRdoAccess, asyncHandler(async (req, 
     where: { id: req.params.id },
     include
   });
-  if (item.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (isReportUnavailable(item)) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, item))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
@@ -3572,7 +3601,7 @@ router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, re
     where: { id: req.params.id },
     include
   });
-  if (item.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (isReportUnavailable(item)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(item);
 
   const originalSnapshot = cloneJson(item.specialConditions?.__editOriginalSnapshot);
@@ -3862,9 +3891,9 @@ router.get('/:id/audit', requireAuth, asyncHandler(async (req, res) => {
 
   const auditReport = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
-    select: { id: true, deletedAt: true }
+    select: { id: true, deletedAt: true, project: { select: { deletedAt: true } } }
   });
-  if (auditReport.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (isReportUnavailable(auditReport)) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   const logs = await prisma.reportAuditLog.findMany({
     where: { reportId: req.params.id },
@@ -3903,7 +3932,7 @@ router.post('/:id/client-review', requireAuth, requireRdoAccess, asyncHandler(as
     where: { id: req.params.id },
     include
   });
-  if (existing.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });

@@ -21,6 +21,8 @@ import {
   parseDateOnly,
   publicPdfEpiRequestOrThrow,
   publicEpiSignaturePayload,
+  requireEpiAccess,
+  requireEpiTechnician,
   requestStatus,
   signedPublicPdfFileOrThrow
 } from '../src/routes/resources/epis.js';
@@ -100,6 +102,38 @@ test('EPI collaborator access is scoped to the linked collaborator', () => {
     epiCollaboratorAccessWhere({ user: { accountType: 'INTERNAL', moduleRoles: ['epi:collaborator'], collaboratorId: null } }),
     { id: '__NO_MATCH__' }
   );
+});
+
+test('EPI guards require explicit module roles even for admin accounts', () => {
+  const adminWithoutEpiRole = { auth: { user: { accountType: 'ADMIN', moduleRoles: [] } } };
+  const forbidden = {
+    statusCode: null,
+    body: null,
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    }
+  };
+  let nextCalled = false;
+
+  requireEpiAccess(adminWithoutEpiRole, forbidden, () => {
+    nextCalled = true;
+  });
+  assert.equal(nextCalled, false);
+  assert.equal(forbidden.statusCode, 403);
+
+  requireEpiTechnician(
+    { auth: { user: { accountType: 'ADMIN', moduleRoles: ['epi:technician'] } } },
+    forbidden,
+    () => {
+      nextCalled = true;
+    }
+  );
+  assert.equal(nextCalled, true);
 });
 
 test('public EPI signature payload omits CPF and signature image data', () => {

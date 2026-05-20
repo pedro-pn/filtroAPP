@@ -30,6 +30,7 @@ export function clientProjectAccessWhere(auth) {
 }
 
 export function clientCanAccessProject(auth, project) {
+  if (project?.deletedAt) return false;
   if (project?.managerOnly) return false;
 
   const { username, cnpj } = clientAccessKeys(auth);

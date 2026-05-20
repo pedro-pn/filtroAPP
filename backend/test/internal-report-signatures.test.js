@@ -148,9 +148,12 @@ test('signInternalReportVersion stores the signer name provided at signing time'
   let auditLog;
   const tx = {
     reportSignature: {
-      update: async payload => {
+      updateMany: async payload => {
         signatureUpdate = payload;
-        return payload;
+        return { count: 1 };
+      },
+      findUnique: async () => {
+        throw new Error('findUnique should not be called after a successful signature update');
       }
     },
     reportAuditLog: {
@@ -191,6 +194,47 @@ test('signInternalReportVersion stores the signer name provided at signing time'
   assert.equal(signatureUpdate.data.signerName, 'Nome editado');
   assert.equal(signatureUpdate.data.signatureImageDataUrl, tinyPngDataUrl);
   assert.match(auditLog.data.description, /Nome editado assinou o relatorio/);
+});
+
+test('signInternalReportVersion treats concurrent duplicate confirmation as already signed', async () => {
+  let auditLogCount = 0;
+  const tx = {
+    reportSignature: {
+      updateMany: async () => ({ count: 0 }),
+      findUnique: async () => ({ id: 'signature-1', status: 'SIGNED' })
+    },
+    reportAuditLog: {
+      create: async () => {
+        auditLogCount += 1;
+      }
+    }
+  };
+
+  const result = await signInternalReportVersion(tx, {
+    report: { id: 'report-1' },
+    version: {
+      id: 'version-1',
+      signatures: [{
+        id: 'signature-1',
+        signerName: 'Nome inicial',
+        signerEmail: 'cliente@example.com',
+        status: 'PENDING'
+      }]
+    },
+    signer: {
+      name: 'Nome editado',
+      email: 'cliente@example.com'
+    },
+    userId: 'user-1',
+    evidence: {
+      ipAddress: '192.168.0.10',
+      userAgent: 'Node Test'
+    },
+    signatureImageDataUrl: tinyPngDataUrl
+  });
+
+  assert.deepEqual(result, { alreadySigned: true });
+  assert.equal(auditLogCount, 0);
 });
 
 test('approved RDO without client signers does not require an internal signature round', () => {
