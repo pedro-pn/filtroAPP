@@ -367,8 +367,8 @@ function queueSignatureRequestEmails(report, tokens) {
   }
 }
 
-function publicSignaturePayload(signature, status) {
-  if (!signature || status === 'INVALID') return { status };
+export function publicSignaturePayload(signature, status) {
+  if (!signature || status === 'INVALID' || status === 'UNAVAILABLE') return { status };
   return {
     status,
     expiresAt: signature.tokenExpiresAt || null,

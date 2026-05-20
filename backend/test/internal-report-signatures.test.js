@@ -9,6 +9,7 @@ import { PDFDocument } from 'pdf-lib';
 
 import {
   assertRenderableReportSignatureImageDataUrl,
+  publicSignaturePayload,
   publicValidationPayload,
   publicSignatureStatus,
   rejectAuthenticatedClientSignatureRound,
@@ -311,6 +312,51 @@ test('publicSignatureStatus blocks links for deleted projects but allows archive
       }
     }
   }), 'ACTIVE');
+});
+
+test('publicSignaturePayload hides metadata for unavailable soft-deleted reports and projects', () => {
+  const signature = {
+    id: 'signature-1',
+    signerName: 'Cliente Assinante',
+    signerEmail: 'cliente@example.com',
+    status: 'PENDING',
+    signedAt: null,
+    rejectedAt: null,
+    tokenExpiresAt: new Date('2026-01-04T00:00:00.000Z'),
+    sourceDocumentHash: 'source-hash',
+    report: {
+      id: 'report-1',
+      deletedAt: null,
+      reportType: 'RDO',
+      sequenceNumber: 42,
+      reportDate: new Date('2026-01-01T00:00:00.000Z'),
+      status: 'APPROVED',
+      project: {
+        deletedAt: null,
+        code: 'P-001',
+        name: 'Projeto sigiloso',
+        clientName: 'Cliente sigiloso'
+      }
+    }
+  };
+
+  assert.deepEqual(publicSignaturePayload({
+    ...signature,
+    report: {
+      ...signature.report,
+      deletedAt: new Date('2026-01-03T00:00:00.000Z')
+    }
+  }, 'UNAVAILABLE'), { status: 'UNAVAILABLE' });
+  assert.deepEqual(publicSignaturePayload({
+    ...signature,
+    report: {
+      ...signature.report,
+      project: {
+        ...signature.report.project,
+        deletedAt: new Date('2026-01-03T00:00:00.000Z')
+      }
+    }
+  }, 'UNAVAILABLE'), { status: 'UNAVAILABLE' });
 });
 
 test('publicValidationPayload hides metadata for soft-deleted reports and projects', () => {
