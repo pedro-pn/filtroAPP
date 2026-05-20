@@ -1487,8 +1487,8 @@ function buildReportUpdateFromSnapshot(project, snapshot) {
 }
 
 async function restoreReportFromSnapshot(tx, reportId, originalSnapshot) {
-  const project = await tx.project.findUniqueOrThrow({
-    where: { id: originalSnapshot.projectId }
+  const project = await tx.project.findFirstOrThrow({
+    where: { id: originalSnapshot.projectId, ...activeReportProjectWhere() }
   });
 
   await tx.reportCollaborator.deleteMany({ where: { reportId } });
@@ -3332,7 +3332,7 @@ router.delete('/:id/services/:serviceId', requireAuth, requireRdoAccess, asyncHa
     where: { id: req.params.id },
     include
   });
-  if (existing.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(existing);
 
   if (!(await canAccessReport(req.auth, existing))) {
@@ -3376,8 +3376,8 @@ router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (
   }
 
   const createdReports = await prisma.$transaction(async tx => {
-    const project = await tx.project.findUniqueOrThrow({
-      where: { id: data.projectId },
+    const project = await tx.project.findFirstOrThrow({
+      where: { id: data.projectId, ...activeReportProjectWhere() },
       include: { operator: true }
     });
 
@@ -3405,8 +3405,8 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
   const pendingDerivedTypes = collectPendingDerivedTypes(data.services);
   const tPost0 = Date.now();
   const item = await prisma.$transaction(async tx => {
-    const project = await tx.project.findUniqueOrThrow({
-      where: { id: data.projectId },
+    const project = await tx.project.findFirstOrThrow({
+      where: { id: data.projectId, ...activeReportProjectWhere() },
       include: { operator: true }
     });
     if (project.managerOnly && req.auth.user.role !== 'MANAGER') {
@@ -3510,7 +3510,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     where: { id: req.params.id },
     include
   });
-  if (existing.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   const isServiceOnlyReport = existing.specialConditions?.serviceOnly === true;
   if (isServiceOnlyReport && req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode editar relatórios somente de serviço.' });
@@ -3529,10 +3529,11 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (req.auth.user.role !== 'MANAGER') {
-    const targetProject = await prisma.project.findUniqueOrThrow({
-      where: { id: data.projectId },
+    const targetProject = await prisma.project.findFirstOrThrow({
+      where: { id: data.projectId, ...activeReportProjectWhere() },
       select: {
         isActive: true,
+        deletedAt: true,
         visibleToCollaborators: true,
         managerOnly: true,
         operatorId: true
@@ -3551,8 +3552,8 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
 
   const tPut0 = Date.now();
   const item = await prisma.$transaction(async tx => {
-    const project = await tx.project.findUniqueOrThrow({
-      where: { id: data.projectId },
+    const project = await tx.project.findFirstOrThrow({
+      where: { id: data.projectId, ...activeReportProjectWhere() },
       include: { operator: true }
     });
     const overtime = calculateReportOvertime(project, data);
@@ -3702,7 +3703,7 @@ router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async 
     where: { id: req.params.id },
     include
   });
-  if (existing.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(existing);
 
   const item = await prisma.$transaction(async tx => {
@@ -3735,7 +3736,7 @@ router.post('/:id/cancel-edit', requireAuth, requireRdoAccess, asyncHandler(asyn
     where: { id: req.params.id },
     include
   });
-  if (existing.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(existing);
 
   if (!(await canAccessReport(req.auth, existing))) {
@@ -3772,7 +3773,7 @@ router.post('/:id/discard-edit', requireAuth, requireRdoAccess, asyncHandler(asy
     where: { id: req.params.id },
     include
   });
-  if (existing.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(existing);
 
   const originalSnapshot = cloneJson(existing.specialConditions?.__editOriginalSnapshot);
@@ -3859,9 +3860,9 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
   let approvedTransition = false;
   const previous = await prisma.report.findUnique({
     where: { id: req.params.id },
-    select: { status: true, specialConditions: true, deletedAt: true }
+    select: { status: true, specialConditions: true, deletedAt: true, project: { select: { deletedAt: true } } }
   });
-  if (!previous || previous.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (!previous || isReportUnavailable(previous)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   if (previous?.status === ReportStatus.SIGNED) {
     return res.status(409).json({ error: 'Relatório assinado não pode mais ser alterado.' });
   }
@@ -3949,7 +3950,7 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
     where: { id: req.params.id },
     include
   });
-  if (existing.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
@@ -4083,7 +4084,7 @@ router.get('/:id/signatures', requireAuth, requireRdoAccess, asyncHandler(async 
     where: { id: req.params.id },
     include
   });
-  if (item.deletedAt) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (isReportUnavailable(item)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   if (!(await canAccessReport(req.auth, item))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
