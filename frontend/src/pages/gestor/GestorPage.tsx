@@ -40,6 +40,8 @@ import type {
   Manometer,
   ParticleCounter,
   Project,
+  ProjectReportSequence,
+  ReportType,
   ReportDraft,
   ReportSummary,
   SatisfactionSurveySummary,
@@ -147,6 +149,12 @@ interface ProjectFormState {
   weekendWorkdayHours: string;
   includesSaturday: boolean;
   includesSunday: boolean;
+  reportSequences: ProjectReportSequenceFormState[];
+}
+
+interface ProjectReportSequenceFormState {
+  reportType: ReportType;
+  nextNumber: string;
 }
 
 interface CollaboratorFormState {
@@ -189,6 +197,26 @@ interface CounterFormState {
 
 const internalRoles: Array<Exclude<UserRole, 'CLIENT'>> = ['COLLABORATOR', 'COORDINATOR', 'MANAGER'];
 type ProjectVisibilityMode = 'manager-coordinator' | 'all-authorized' | 'manager-only';
+const projectReportTypes: ReportType[] = ['RDO', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLI', 'RLF'];
+
+function projectReportSequencesToForm(sequences: ProjectReportSequence[] = []): ProjectReportSequenceFormState[] {
+  const sequenceByType = new Map(sequences.map(sequence => [sequence.reportType, sequence.nextNumber]));
+  return projectReportTypes.map(reportType => ({
+    reportType,
+    nextNumber: String(sequenceByType.get(reportType) ?? 0)
+  }));
+}
+
+function normalizeProjectReportSequences(sequences: ProjectReportSequenceFormState[]) {
+  return projectReportTypes.map(reportType => {
+    const sequence = sequences.find(item => item.reportType === reportType);
+    const parsed = Number.parseInt(sequence?.nextNumber || '0', 10);
+    return {
+      reportType,
+      nextNumber: Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+    };
+  });
+}
 
 const emptyProjectForm: ProjectFormState = {
   code: '',
@@ -208,7 +236,8 @@ const emptyProjectForm: ProjectFormState = {
   workdayHours: '09:00',
   weekendWorkdayHours: '08:00',
   includesSaturday: false,
-  includesSunday: false
+  includesSunday: false,
+  reportSequences: projectReportSequencesToForm()
 };
 
 const emptyCollaboratorForm: CollaboratorFormState = {
@@ -670,7 +699,8 @@ function projectToForm(project: Project): ProjectFormState {
     workdayHours: project.workdayHours || '09:00',
     weekendWorkdayHours: project.weekendWorkdayHours || '08:00',
     includesSaturday: project.includesSaturday ?? false,
-    includesSunday: project.includesSunday ?? false
+    includesSunday: project.includesSunday ?? false,
+    reportSequences: projectReportSequencesToForm(project.reportSequences)
   };
 }
 
@@ -807,6 +837,53 @@ function ProjectClientFields({
         </div>
       </div>
     </>
+  );
+}
+
+function ProjectReportSequenceFields({
+  form,
+  idPrefix,
+  setForm
+}: {
+  form: ProjectFormState;
+  idPrefix: string;
+  setForm: Dispatch<SetStateAction<ProjectFormState>>;
+}) {
+  function updateSequence(reportType: ReportType, value: string) {
+    setForm(current => ({
+      ...current,
+      reportSequences: normalizeProjectReportSequences(current.reportSequences).map(sequence => (
+        sequence.reportType === reportType
+          ? { reportType, nextNumber: value.replace(/\D/g, '') }
+          : { reportType: sequence.reportType, nextNumber: String(sequence.nextNumber) }
+      ))
+    }));
+  }
+
+  return (
+    <div className="field-group field-group-wide">
+      <label>Sequenciais dos relatórios</label>
+      <div className="project-sequence-grid">
+        {projectReportTypes.map(reportType => {
+          const sequence = form.reportSequences.find(item => item.reportType === reportType);
+          return (
+            <label className="project-sequence-field" htmlFor={`${idPrefix}-sequence-${reportType}`} key={reportType}>
+              <span>{reportType}</span>
+              <input
+                id={`${idPrefix}-sequence-${reportType}`}
+                inputMode="numeric"
+                min="0"
+                step="1"
+                type="number"
+                value={sequence?.nextNumber ?? '0'}
+                onChange={event => updateSequence(reportType, event.target.value)}
+              />
+            </label>
+          );
+        })}
+      </div>
+      <div className="form-hint">Informe o último número usado. O próximo relatório segue a partir desse sequencial.</div>
+    </div>
   );
 }
 
@@ -1374,7 +1451,8 @@ export function GestorPage() {
       workdayHours: projectForm.workdayHours || '09:00',
       weekendWorkdayHours: projectForm.weekendWorkdayHours || '08:00',
       includesSaturday: projectForm.includesSaturday,
-      includesSunday: projectForm.includesSunday
+      includesSunday: projectForm.includesSunday,
+      reportSequences: normalizeProjectReportSequences(projectForm.reportSequences)
     };
 
     try {
@@ -2195,6 +2273,7 @@ export function GestorPage() {
                     <option value="manager-only">Somente gestor</option>
                   </select>
                 </div>
+                <ProjectReportSequenceFields form={projectForm} idPrefix="project" setForm={setProjectForm} />
                 <div className="field-group">
                   <label htmlFor="project-workday">Jornada padrão</label>
                   <input id="project-workday" type="text" placeholder="09:00" value={projectForm.workdayHours} onChange={event => setProjectForm(current => ({ ...current, workdayHours: event.target.value }))} />
@@ -2290,6 +2369,7 @@ export function GestorPage() {
                           <option value="manager-only">Somente gestor</option>
                         </select>
                       </div>
+                      <ProjectReportSequenceFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
                       <div className="field-group">
                         <label htmlFor={`project-workday-${project.id}`}>Jornada padrão</label>
                         <input id={`project-workday-${project.id}`} type="text" placeholder="09:00" value={projectForm.workdayHours} onChange={event => setProjectForm(current => ({ ...current, workdayHours: event.target.value }))} />

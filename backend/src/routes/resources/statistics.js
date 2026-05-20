@@ -175,6 +175,53 @@ function serviceSystemName(service) {
   return service.system || extra.Sistema || extra.system || null;
 }
 
+function normalizedText(value) {
+  return String(value || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function extraDataKeyMatch(value) {
+  const repaired = String(value || '')
+    .replace(/Ã§/g, 'ç')
+    .replace(/Ã£/g, 'ã')
+    .replace(/Ã¡/g, 'á')
+    .replace(/Ã©/g, 'é')
+    .replace(/Ã­/g, 'í')
+    .replace(/Ã³/g, 'ó')
+    .replace(/Ãº/g, 'ú');
+  return normalizedText(repaired)
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function getExtraDataValue(extra, keys) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(extra, key)) return extra[key];
+  }
+
+  const wanted = new Set(keys.map(extraDataKeyMatch));
+  for (const [key, value] of Object.entries(extra || {})) {
+    if (wanted.has(extraDataKeyMatch(key))) return value;
+  }
+  return undefined;
+}
+
+export function isServiceFinalized(service) {
+  if (service.finalized === true) return true;
+  if (service.finalized === false) return false;
+  const extra = service.extraData || {};
+  const stored = getExtraDataValue(extra, [
+    'Serviço finalizado?',
+    'Serviço finalizado',
+    'Servico finalizado?',
+    'Servico finalizado',
+    'ServiÃ§o finalizado?'
+  ]);
+  return ['sim', 'true', 'finalizado'].includes(normalizedText(stored));
+}
+
 function mergeServiceStats(acc, s) {
   acc.serviceCount += s.serviceCount;
   acc.volumeOleoLiters += s.volumeOleoLiters;
@@ -196,6 +243,8 @@ export function buildServiceStats(services, ignoredRows) {
 
   for (const svc of services) {
     const type = (svc.serviceType || '').toLowerCase();
+    if (!isServiceFinalized(svc)) continue;
+
     if (!result[type]) result[type] = emptyServiceStats();
     result[type].serviceCount += 1;
 
@@ -274,6 +323,9 @@ export function buildDailyReport(r) {
 
   for (const svc of (r.services || [])) {
     const type = (svc.serviceType || '').toLowerCase();
+    const finalized = isServiceFinalized(svc);
+    if (!finalized) continue;
+
     if (!servicesByType[type]) {
       servicesByType[type] = { serviceCount: 0, volumeOleoLiters: 0, tubesByDiameter: {}, hasTubulacao: 0, items: [] };
     }
@@ -340,6 +392,7 @@ function serviceSelect(includeEquipment = false) {
   return {
     id: true,
     serviceType: true,
+    finalized: true,
     system: true,
     extraData: true,
     ...(includeEquipment ? { equipment: { select: { code: true, name: true } } } : {})
@@ -365,6 +418,37 @@ function reportSelect(includeEquipment = false) {
 
 function reportLimitError(limit) {
   return `Consulta muito ampla para estatísticas. Refine por projeto, segmento ou período para até ${limit} RDOs.`;
+}
+
+export function buildServiceExportRows(report, project) {
+  const rows = [];
+  const dateStr = toLocalDateStr(report.reportDate);
+
+  for (const svc of (report.services || [])) {
+    if (!isServiceFinalized(svc)) continue;
+
+    const type = (svc.serviceType || '').toLowerCase();
+    const eqName = svc.equipment ? `${svc.equipment.code} - ${svc.equipment.name}` : '';
+    const base = [dateStr, project?.code || report.projectId, report.sequenceNumber || '', type, svc.system || '', eqName];
+
+    if (type === 'filtragem') {
+      const { liters, ignored } = parseVolumeOleo(svc);
+      if (!ignored) rows.push([...base, liters !== null ? liters.toFixed(2) : '', '', '']);
+      continue;
+    }
+
+    const { byDiameter } = parseTubulacoes(svc);
+    const entries = Object.entries(byDiameter);
+    if (entries.length === 0) {
+      rows.push([...base, '', '', '']);
+      continue;
+    }
+    for (const [d, m] of entries) {
+      rows.push([...base, '', d, m.toFixed(2)]);
+    }
+  }
+
+  return rows;
 }
 
 export function statsProjectWhere(extra = {}) {
@@ -493,6 +577,7 @@ router.get('/projects', requireAuth, requireRdoStats, asyncHandler(async (req, r
     const sc = r.specialConditions || {};
     if (sc.standby === true) slot.standbyCount += 1;
     for (const svc of (r.services || [])) {
+      if (!isServiceFinalized(svc)) continue;
       const type = (svc.serviceType || '').toLowerCase();
       slot.serviceBreakdown[type] = (slot.serviceBreakdown[type] || 0) + 1;
     }
@@ -670,28 +755,8 @@ router.get('/projects/export', requireAuth, requireRdoStats, asyncHandler(async 
       'Volume óleo (L)', 'Diâmetro', 'Comprimento (m)']) + '\n');
     for (const r of reports) {
       const proj = projects.find(p => p.id === r.projectId);
-      for (const svc of (r.services || [])) {
-        const type = (svc.serviceType || '').toLowerCase();
-        const dateStr = toLocalDateStr(r.reportDate);
-        const eqName = svc.equipment ? `${svc.equipment.code} - ${svc.equipment.name}` : '';
-        if (type === 'filtragem') {
-          const { liters, ignored } = parseVolumeOleo(svc);
-          if (!ignored) {
-            res.write(csvRow([dateStr, proj?.code || r.projectId, r.sequenceNumber || '',
-              type, svc.system || '', eqName, liters !== null ? liters.toFixed(2) : '', '', '']) + '\n');
-          }
-        } else {
-          const { byDiameter } = parseTubulacoes(svc);
-          const entries = Object.entries(byDiameter);
-          if (entries.length === 0) {
-            res.write(csvRow([dateStr, proj?.code || r.projectId, r.sequenceNumber || '',
-              type, svc.system || '', eqName, '', '', '']) + '\n');
-          }
-          for (const [d, m] of entries) {
-            res.write(csvRow([dateStr, proj?.code || r.projectId, r.sequenceNumber || '',
-              type, svc.system || '', eqName, '', d, m.toFixed(2)]) + '\n');
-          }
-        }
+      for (const row of buildServiceExportRows(r, proj)) {
+        res.write(csvRow(row) + '\n');
       }
     }
   }
