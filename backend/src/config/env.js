@@ -20,20 +20,26 @@ export function parseTrustProxy(value) {
   const raw = String(value || '').trim();
   if (!raw) return false;
   const lower = raw.toLowerCase();
-  if (['1', 'true', 'yes', 'on'].includes(lower)) return true;
   if (['0', 'false', 'no', 'off'].includes(lower)) return false;
   if (/^\d+$/.test(raw)) return Number(raw);
+  if (['true', 'yes', 'on'].includes(lower)) return true;
   return raw;
 }
 
-export function assertProductionTrustProxyConfigured({ nodeEnv, trustProxyConfigured }) {
-  if (nodeEnv !== 'production' || trustProxyConfigured) return;
-  throw new Error('TRUST_PROXY deve ser configurado explicitamente em produção. Use false apenas se o backend não estiver atrás de proxy.');
+export function assertProductionTrustProxyConfigured({ nodeEnv, trustProxyConfigured, trustProxy = false }) {
+  if (nodeEnv !== 'production') return;
+  if (!trustProxyConfigured) {
+    throw new Error('TRUST_PROXY deve ser configurado explicitamente em produção. Use false apenas se o backend não estiver atrás de proxy.');
+  }
+  if (trustProxy === true) {
+    throw new Error('TRUST_PROXY=true é inseguro em produção. Configure false, um hop count numérico ou uma lista explícita de proxies/CIDRs.');
+  }
 }
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 const trustProxyConfigured = process.env.TRUST_PROXY !== undefined && String(process.env.TRUST_PROXY).trim() !== '';
-assertProductionTrustProxyConfigured({ nodeEnv, trustProxyConfigured });
+const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
+assertProductionTrustProxyConfigured({ nodeEnv, trustProxyConfigured, trustProxy });
 
 const env = {
   port: Number(process.env.PORT || 4000),
@@ -44,7 +50,7 @@ const env = {
   appUrl: process.env.APP_URL || '',
   allowedOrigin: process.env.ALLOWED_ORIGIN || '',
   allowedOrigins: parseOrigins(process.env.ALLOWED_ORIGIN),
-  trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
+  trustProxy,
   trustProxyConfigured,
   smtpHost: process.env.SMTP_HOST || '',
   smtpPort: Number.isFinite(smtpPort) ? smtpPort : 587,

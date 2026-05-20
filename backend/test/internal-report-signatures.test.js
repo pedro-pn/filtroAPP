@@ -22,7 +22,7 @@ import {
   verifiedFinalPdfBuffer
 } from '../src/routes/resources/reports.js';
 import app from '../src/app.js';
-import { assertProductionTrustProxyConfigured } from '../src/config/env.js';
+import { assertProductionTrustProxyConfigured, parseTrustProxy } from '../src/config/env.js';
 import {
   allRequiredSignaturesCompleted,
   clientSignersForReport,
@@ -166,8 +166,22 @@ test('production startup requires explicit trust proxy configuration', () => {
     () => assertProductionTrustProxyConfigured({ nodeEnv: 'production', trustProxyConfigured: false }),
     /TRUST_PROXY/
   );
-  assert.doesNotThrow(() => assertProductionTrustProxyConfigured({ nodeEnv: 'production', trustProxyConfigured: true }));
+  assert.throws(
+    () => assertProductionTrustProxyConfigured({ nodeEnv: 'production', trustProxyConfigured: true, trustProxy: true }),
+    /TRUST_PROXY=true/
+  );
+  assert.doesNotThrow(() => assertProductionTrustProxyConfigured({ nodeEnv: 'production', trustProxyConfigured: true, trustProxy: 1 }));
+  assert.doesNotThrow(() => assertProductionTrustProxyConfigured({ nodeEnv: 'production', trustProxyConfigured: true, trustProxy: 'loopback' }));
+  assert.doesNotThrow(() => assertProductionTrustProxyConfigured({ nodeEnv: 'production', trustProxyConfigured: true, trustProxy: false }));
   assert.doesNotThrow(() => assertProductionTrustProxyConfigured({ nodeEnv: 'development', trustProxyConfigured: false }));
+});
+
+test('parseTrustProxy treats numeric values as hop counts instead of boolean true', () => {
+  assert.equal(parseTrustProxy('1'), 1);
+  assert.equal(parseTrustProxy('2'), 2);
+  assert.equal(parseTrustProxy('true'), true);
+  assert.equal(parseTrustProxy('false'), false);
+  assert.equal(parseTrustProxy('loopback'), 'loopback');
 });
 
 test('signInternalReportVersion keeps configured signer identity over submitted name', async () => {
