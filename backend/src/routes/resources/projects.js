@@ -116,24 +116,6 @@ export async function removeProjectById(projectId, prismaClient = prisma) {
     await tx.satisfactionSurvey.deleteMany({ where: { projectId } });
     await tx.projectReportSeq.deleteMany({ where: { projectId } });
 
-    if (reportIds.length > 0) {
-      await tx.reportAttachment.deleteMany({
-        where: { reportId: { in: reportIds } }
-      });
-      await tx.clientReportReview.deleteMany({
-        where: { reportId: { in: reportIds } }
-      });
-      await tx.reportCollaborator.deleteMany({
-        where: { reportId: { in: reportIds } }
-      });
-      await tx.reportService.deleteMany({
-        where: { reportId: { in: reportIds } }
-      });
-      await tx.report.deleteMany({
-        where: { id: { in: reportIds } }
-      });
-    }
-
     await tx.project.delete({ where: { id: projectId } });
   });
 }

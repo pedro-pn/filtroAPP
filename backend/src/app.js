@@ -106,8 +106,8 @@ app.use((err, _req, res, _next) => {
   }
 
   const isProduction = env.nodeEnv === 'production';
-  const status = err.status || 500;
-  res.status(err.status || 500).json({
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
     error: status >= 500 && isProduction ? 'Erro interno do servidor.' : (err.message || 'Internal server error')
   });
 });
