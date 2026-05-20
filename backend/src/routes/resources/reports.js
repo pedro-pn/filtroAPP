@@ -808,6 +808,21 @@ function assertReportMutable(report) {
   }
 }
 
+function reportUpdatedAtToken(report) {
+  const value = report?.updatedAt;
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+}
+
+export function assertSignatureSourceCurrent(currentReport, expectedUpdatedAt) {
+  if (!expectedUpdatedAt) return;
+  if (reportUpdatedAtToken(currentReport) === expectedUpdatedAt) return;
+  const error = new Error('A solicitação de assinatura foi atualizada por outra operação.');
+  error.statusCode = 409;
+  throw error;
+}
+
 function clientIp(req) {
   const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   return forwarded || req.ip || null;
@@ -1104,6 +1119,12 @@ async function finalizeInternalSignatureRound(report, version, evidence, userId)
 }
 
 async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
+  const freshReport = report?.id
+    ? await prisma.report.findUnique({ where: { id: report.id }, include })
+    : null;
+  if (freshReport) report = freshReport;
+  if (isReportUnavailable(report)) return null;
+
   if (!shouldCreateInternalSignatureRound(report)) {
     if (
       report?.reportType === ReportType.RDO
@@ -1128,8 +1149,11 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
 
   let sourcePdfUrl = activeVersion?.sourcePdfUrl || '';
   let sourceDocumentHash = activeVersion?.sourceDocumentHash || '';
+  let generatedSourcePath = '';
+  const expectedReportUpdatedAt = reportUpdatedAtToken(report);
   if (!activeVersion) {
     const saved = await generateReportPdfAsset(report);
+    generatedSourcePath = saved.targetPath;
     const pdfBuffer = await fs.readFile(saved.targetPath);
     sourcePdfUrl = saved.publicUrl;
     sourceDocumentHash = sha256Hex(pdfBuffer);
@@ -1146,6 +1170,7 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
       if (current.status !== ReportStatus.APPROVED || hasActiveClientRejection(current)) {
         return { version: null, tokens: [] };
       }
+      assertSignatureSourceCurrent(current, expectedReportUpdatedAt);
       const nextVersion = await ensureInternalSignatureRound(tx, {
         report: current,
         sourcePdfUrl,
@@ -1156,7 +1181,11 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
       const issuedTokens = await issuePendingSignatureTokens(tx, nextVersion);
       return { version: nextVersion, tokens: issuedTokens };
     }));
+    if (generatedSourcePath && version?.sourcePdfUrl !== sourcePdfUrl) {
+      await fs.unlink(generatedSourcePath).catch(() => {});
+    }
   } catch (error) {
+    if (generatedSourcePath) await fs.unlink(generatedSourcePath).catch(() => {});
     if (error?.statusCode === 409 && /Nenhum signatario cliente/.test(error.message || '')) {
       console.warn('Rodada de assinatura interna nao criada: nenhum signatario cliente configurado.', {
         reportId: report.id,
@@ -4014,8 +4043,11 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
 
   let sourcePdfUrl = activeVersion?.sourcePdfUrl || '';
   let sourceDocumentHash = activeVersion?.sourceDocumentHash || '';
+  let generatedSourcePath = '';
+  const expectedReportUpdatedAt = reportUpdatedAtToken(prepared);
   if (!activeVersion) {
     const saved = await generateReportPdfAsset(prepared);
+    generatedSourcePath = saved.targetPath;
     const pdfBuffer = await fs.readFile(saved.targetPath);
     sourcePdfUrl = saved.publicUrl;
     sourceDocumentHash = sha256Hex(pdfBuffer);
@@ -4024,38 +4056,48 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
   let signedVersion;
   let signatureResult = { alreadySigned: false };
   let issuedTokens = [];
-  let item = await prisma.$transaction(async tx => {
-    const current = await tx.report.findUniqueOrThrow({
-      where: { id: prepared.id },
-      include
+  let item;
+  try {
+    item = await prisma.$transaction(async tx => {
+      const current = await tx.report.findUniqueOrThrow({
+        where: { id: prepared.id },
+        include
+      });
+      if (current.status !== ReportStatus.APPROVED) {
+        const error = new Error('A solicitação de assinatura foi atualizada por outra operação.');
+        error.statusCode = 409;
+        throw error;
+      }
+      assertSignatureSourceCurrent(current, expectedReportUpdatedAt);
+      const version = await ensureInternalSignatureRound(tx, {
+        report: current,
+        sourcePdfUrl,
+        sourceDocumentHash,
+        createdByUserId: req.auth.user.id,
+        evidence
+      });
+      signatureResult = await signInternalReportVersion(tx, {
+        report: current,
+        version,
+        signer,
+        userId: req.auth.user.id,
+        evidence,
+        signatureImageDataUrl: data.signatureImageDataUrl
+      });
+      signedVersion = await activeVersionWithSignatures(tx, current.id);
+      issuedTokens = await issuePendingSignatureTokens(tx, signedVersion);
+      return tx.report.findUniqueOrThrow({
+        where: { id: current.id },
+        include
+      });
     });
-    if (current.status !== ReportStatus.APPROVED) {
-      const error = new Error('A solicitação de assinatura foi atualizada por outra operação.');
-      error.statusCode = 409;
-      throw error;
+    if (generatedSourcePath && signedVersion?.sourcePdfUrl !== sourcePdfUrl) {
+      await fs.unlink(generatedSourcePath).catch(() => {});
     }
-    const version = await ensureInternalSignatureRound(tx, {
-      report: current,
-      sourcePdfUrl,
-      sourceDocumentHash,
-      createdByUserId: req.auth.user.id,
-      evidence
-    });
-    signatureResult = await signInternalReportVersion(tx, {
-      report: current,
-      version,
-      signer,
-      userId: req.auth.user.id,
-      evidence,
-      signatureImageDataUrl: data.signatureImageDataUrl
-    });
-    signedVersion = await activeVersionWithSignatures(tx, current.id);
-    issuedTokens = await issuePendingSignatureTokens(tx, signedVersion);
-    return tx.report.findUniqueOrThrow({
-      where: { id: current.id },
-      include
-    });
-  });
+  } catch (error) {
+    if (generatedSourcePath) await fs.unlink(generatedSourcePath).catch(() => {});
+    throw error;
+  }
 
   let completed = false;
   if (allRequiredSignaturesCompleted(signedVersion)) {

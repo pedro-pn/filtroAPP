@@ -6,9 +6,11 @@ import { Readable, Writable } from 'node:stream';
 import test from 'node:test';
 
 import { PDFDocument } from 'pdf-lib';
+import { Prisma } from '@prisma/client';
 
 import {
   assertRenderableReportSignatureImageDataUrl,
+  assertSignatureSourceCurrent,
   publicSignaturePayload,
   publicValidationPayload,
   publicSignatureStatus,
@@ -24,6 +26,7 @@ import {
   createValidationQrCodeMatrix,
   decodableSignatureImageDataUrl,
   finalEvidencePdfTarget,
+  ensureInternalSignatureRound,
   invalidateUnsignedInternalSignatureRound,
   parseSignatureImageDataUrl,
   signatureEvidenceFromRequest,
@@ -256,6 +259,126 @@ test('signInternalReportVersion treats concurrent duplicate confirmation as alre
 
   assert.deepEqual(result, { alreadySigned: true });
   assert.equal(auditLogCount, 0);
+});
+
+test('ensureInternalSignatureRound locks per report before creating an active version', async () => {
+  const calls = [];
+  const tx = {
+    $queryRawUnsafe: async (...args) => {
+      calls.push(['lock', args]);
+    },
+    reportVersion: {
+      findFirst: async args => {
+        calls.push(['reportVersion.findFirst', args]);
+        return null;
+      },
+      aggregate: async args => {
+        calls.push(['reportVersion.aggregate', args]);
+        return { _max: { versionNumber: null } };
+      },
+      create: async args => {
+        calls.push(['reportVersion.create', args]);
+        return {
+          id: 'version-1',
+          reportId: 'report-1',
+          versionNumber: 1,
+          sourcePdfUrl: '/relatorios/source.pdf',
+          sourceDocumentHash: 'source-hash',
+          signatures: [{
+            id: 'signature-1',
+            signerEmail: 'cliente@example.com',
+            status: 'PENDING'
+          }]
+        };
+      }
+    },
+    reportAuditLog: {
+      create: async args => {
+        calls.push(['reportAuditLog.create', args]);
+        return args;
+      }
+    }
+  };
+
+  const version = await ensureInternalSignatureRound(tx, {
+    report: {
+      id: 'report-1',
+      project: {
+        clientName: 'Cliente',
+        clientEmailPrimary: 'cliente@example.com',
+        clientSigners: []
+      }
+    },
+    sourcePdfUrl: '/relatorios/source.pdf',
+    sourceDocumentHash: 'source-hash',
+    createdByUserId: 'manager-1'
+  });
+
+  assert.equal(version.id, 'version-1');
+  assert.equal(calls[0][0], 'lock');
+  assert.deepEqual(calls[0][1], ['SELECT pg_advisory_xact_lock(hashtext($1), 0)', 'report-1']);
+  assert.equal(calls.findIndex(([name]) => name === 'lock') < calls.findIndex(([name]) => name === 'reportVersion.create'), true);
+});
+
+test('ensureInternalSignatureRound returns concurrent active version after unique race', async () => {
+  let findCount = 0;
+  const activeVersion = {
+    id: 'version-active',
+    reportId: 'report-1',
+    versionNumber: 2,
+    signatures: []
+  };
+  const tx = {
+    $queryRawUnsafe: async () => {},
+    reportVersion: {
+      findFirst: async () => {
+        findCount += 1;
+        return findCount === 1 ? null : activeVersion;
+      },
+      aggregate: async () => ({ _max: { versionNumber: 1 } }),
+      create: async () => {
+        throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: 'test'
+        });
+      }
+    },
+    reportAuditLog: {
+      create: async () => {
+        throw new Error('audit log should not be created when another request won the race');
+      }
+    }
+  };
+
+  const version = await ensureInternalSignatureRound(tx, {
+    report: {
+      id: 'report-1',
+      project: {
+        clientName: 'Cliente',
+        clientEmailPrimary: 'cliente@example.com',
+        clientSigners: []
+      }
+    },
+    sourcePdfUrl: '/relatorios/source.pdf',
+    sourceDocumentHash: 'source-hash',
+    createdByUserId: 'manager-1'
+  });
+
+  assert.equal(version, activeVersion);
+});
+
+test('signature source guard aborts when report changed after PDF preparation', () => {
+  assert.doesNotThrow(() => assertSignatureSourceCurrent(
+    { updatedAt: new Date('2026-01-01T12:00:00.000Z') },
+    '2026-01-01T12:00:00.000Z'
+  ));
+  assert.throws(
+    () => assertSignatureSourceCurrent(
+      { updatedAt: new Date('2026-01-01T12:01:00.000Z') },
+      '2026-01-01T12:00:00.000Z'
+    ),
+    error => error?.statusCode === 409 && /atualizada por outra operação/.test(error.message)
+  );
 });
 
 test('approved RDO without client signers does not require an internal signature round', () => {

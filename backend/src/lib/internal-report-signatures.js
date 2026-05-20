@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { PDFDocument, PDFName, PDFString, StandardFonts, rgb } from 'pdf-lib';
 import {
+  Prisma,
   ReportAuditAction,
   ReportSignatureStatus,
   ReportSignatureType,
@@ -359,6 +360,19 @@ async function nextVersionNumber(tx, reportId) {
   return (aggregate._max.versionNumber || 0) + 1;
 }
 
+async function lockSignatureRoundForReport(tx, reportId) {
+  if (typeof tx.$queryRawUnsafe !== 'function') return;
+  await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1), 0)', String(reportId));
+}
+
+async function findActiveSignatureRound(tx, reportId) {
+  return tx.reportVersion.findFirst({
+    where: { reportId, status: ReportVersionStatus.ACTIVE },
+    include: { signatures: true },
+    orderBy: { versionNumber: 'desc' }
+  });
+}
+
 export async function ensureInternalSignatureRound(tx, {
   report,
   sourcePdfUrl,
@@ -366,11 +380,9 @@ export async function ensureInternalSignatureRound(tx, {
   createdByUserId,
   evidence
 }) {
-  const existing = await tx.reportVersion.findFirst({
-    where: { reportId: report.id, status: ReportVersionStatus.ACTIVE },
-    include: { signatures: true },
-    orderBy: { versionNumber: 'desc' }
-  });
+  await lockSignatureRoundForReport(tx, report.id);
+
+  const existing = await findActiveSignatureRound(tx, report.id);
   if (existing) return existing;
 
   const signers = clientSignersForReport(report);
@@ -380,29 +392,38 @@ export async function ensureInternalSignatureRound(tx, {
     throw error;
   }
 
-  const versionNumber = await nextVersionNumber(tx, report.id);
-  const version = await tx.reportVersion.create({
-    data: {
-      reportId: report.id,
-      versionNumber,
-      sourcePdfUrl,
-      sourceDocumentHash,
-      createdByUserId,
-      signatures: {
-        create: signers.map(signer => ({
-          reportId: report.id,
-          signerName: signer.name,
-          signerEmail: signer.email,
-          signerRole: signer.role,
-          signatureType: ReportSignatureType.ELECTRONIC,
-          status: ReportSignatureStatus.PENDING,
-          isRequired: signer.isRequired,
-          sourceDocumentHash
-        }))
-      }
-    },
-    include: { signatures: true }
-  });
+  let version;
+  try {
+    const versionNumber = await nextVersionNumber(tx, report.id);
+    version = await tx.reportVersion.create({
+      data: {
+        reportId: report.id,
+        versionNumber,
+        sourcePdfUrl,
+        sourceDocumentHash,
+        createdByUserId,
+        signatures: {
+          create: signers.map(signer => ({
+            reportId: report.id,
+            signerName: signer.name,
+            signerEmail: signer.email,
+            signerRole: signer.role,
+            signatureType: ReportSignatureType.ELECTRONIC,
+            status: ReportSignatureStatus.PENDING,
+            isRequired: signer.isRequired,
+            sourceDocumentHash
+          }))
+        }
+      },
+      include: { signatures: true }
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const active = await findActiveSignatureRound(tx, report.id);
+      if (active) return active;
+    }
+    throw error;
+  }
 
   await createSignatureAuditLog(tx, {
     reportId: report.id,
