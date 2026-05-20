@@ -70,7 +70,7 @@ export function RomaneioPage() {
   const { user } = useAuth();
   const showToast = useToast();
   const queryClient = useQueryClient();
-  const isManager = user?.accountType === 'ADMIN' || user?.moduleRoles?.includes('romaneio:manager');
+  const isManager = user?.moduleRoles?.includes('romaneio:manager');
   const [tab, setTab] = useState<Tab>('romaneios');
   const [search, setSearch] = useState('');
   const [projectId, setProjectId] = useState('');

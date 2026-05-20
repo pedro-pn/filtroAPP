@@ -72,7 +72,7 @@ export default function App() {
         <Route path="/admin/accounts" element={<AdminAccountsPage />} />
       </Route>
 
-      <Route element={<RoleRoute allowedAccountTypes={['ADMIN', 'INTERNAL']} />}>
+      <Route element={<RoleRoute allowedAccountTypes={['ADMIN', 'INTERNAL']} allowedModuleRoles={['romaneio:manager', 'romaneio:operator']} />}>
         <Route path="/romaneio" element={<RomaneioPage />} />
         <Route path="/romaneio/novo" element={<NewRomaneioPage />} />
       </Route>

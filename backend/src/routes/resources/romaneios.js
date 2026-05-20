@@ -13,16 +13,21 @@ import prisma from '../../lib/prisma.js';
 import { syncRomaneioCatalog } from '../../lib/romaneio-catalog.js';
 import { saveRomaneioDocx } from '../../lib/romaneio-docx.js';
 import { convertDocxToPdf } from '../../lib/report-pdf-from-docx.js';
-import { requireAnyInternalAccount, requireAuth } from '../../middleware/auth.js';
+import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
 const ROMANEIO_DRAFT_MODULE = 'romaneio';
+const requireRomaneioAccess = requireModuleRole('romaneio:manager', 'romaneio:operator');
 
-function requireRomaneioManager(req, res, next) {
-  if (req.auth?.user?.accountType === 'ADMIN' || hasModuleRole(req.auth?.user, 'romaneio:manager')) {
+export function requireRomaneioManager(req, res, next) {
+  if (hasModuleRole(req.auth?.user, 'romaneio:manager')) {
     return next();
   }
   return res.status(403).json({ error: 'Acesso restrito ao gestor do romaneio.' });
+}
+
+export function requireRomaneioModuleAccess(req, res, next) {
+  return requireRomaneioAccess(req, res, next);
 }
 
 const itemSchema = z.object({
@@ -280,7 +285,26 @@ async function notifyRecipients(romaneio, pdfPath) {
   return { status: 'enviado', error: null };
 }
 
-router.get('/projects', requireAuth, requireAnyInternalAccount, asyncHandler(async (req, res) => {
+export function romaneioEmailFailureResult(error) {
+  return {
+    status: 'erro no envio',
+    error: String(error?.message || error || 'Falha ao enviar e-mail.').slice(0, 1000)
+  };
+}
+
+export async function cleanupFailedRomaneioCreate({
+  romaneioId,
+  files,
+  client = prisma
+}) {
+  const paths = [files?.docx?.targetPath, files?.pdf?.targetPath].filter(Boolean);
+  await Promise.all(paths.map(filePath => fs.rm(filePath, { force: true }).catch(() => undefined)));
+  if (romaneioId) {
+    await client.romaneio.delete({ where: { id: romaneioId } }).catch(() => undefined);
+  }
+}
+
+router.get('/projects', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const activeParam = req.query.active;
   const where = { deletedAt: null };
   if (activeParam === 'true') where.isActive = true;
@@ -293,7 +317,7 @@ router.get('/projects', requireAuth, requireAnyInternalAccount, asyncHandler(asy
   res.json(items);
 }));
 
-router.get('/drafts', requireAuth, requireAnyInternalAccount, asyncHandler(async (req, res) => {
+router.get('/drafts', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const items = await prisma.reportDraft.findMany({
     where: romaneioDraftWhere(req.auth.user.id),
     include: { project: true },
@@ -302,7 +326,7 @@ router.get('/drafts', requireAuth, requireAnyInternalAccount, asyncHandler(async
   res.json(items);
 }));
 
-router.post('/drafts', requireAuth, requireAnyInternalAccount, asyncHandler(async (req, res) => {
+router.post('/drafts', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const data = draftSchema.parse(req.body);
   const payload = normalizeDraftPayload(data);
   if (data.projectId && data.reportDate) {
@@ -327,7 +351,7 @@ router.post('/drafts', requireAuth, requireAnyInternalAccount, asyncHandler(asyn
   res.status(201).json(item);
 }));
 
-router.put('/drafts/:id', requireAuth, requireAnyInternalAccount, asyncHandler(async (req, res) => {
+router.put('/drafts/:id', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const data = draftSchema.omit({ id: true }).parse(req.body);
   const current = await prisma.reportDraft.findUniqueOrThrow({ where: { id: req.params.id } });
   if (current.userId !== req.auth.user.id || current.payload?.__module !== ROMANEIO_DRAFT_MODULE) {
@@ -357,7 +381,7 @@ router.put('/drafts/:id', requireAuth, requireAnyInternalAccount, asyncHandler(a
   res.json(item);
 }));
 
-router.delete('/drafts/:id', requireAuth, requireAnyInternalAccount, asyncHandler(async (req, res) => {
+router.delete('/drafts/:id', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const current = await prisma.reportDraft.findUniqueOrThrow({ where: { id: req.params.id } });
   if (current.userId !== req.auth.user.id || current.payload?.__module !== ROMANEIO_DRAFT_MODULE) {
     return res.status(403).json({ error: 'Você não tem permissão para excluir este rascunho.' });
@@ -366,7 +390,7 @@ router.delete('/drafts/:id', requireAuth, requireAnyInternalAccount, asyncHandle
   res.status(204).end();
 }));
 
-router.get('/catalog', requireAuth, requireAnyInternalAccount, asyncHandler(async (_req, res) => {
+router.get('/catalog', requireAuth, requireRomaneioAccess, asyncHandler(async (_req, res) => {
   await syncRomaneioCatalog();
   const items = await prisma.romaneioCatalogItem.findMany({
     where: { isActive: true },
@@ -375,7 +399,7 @@ router.get('/catalog', requireAuth, requireAnyInternalAccount, asyncHandler(asyn
   res.json(items);
 }));
 
-router.post('/catalog', requireAuth, requireAnyInternalAccount, requireRomaneioManager, asyncHandler(async (req, res) => {
+router.post('/catalog', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
   const data = catalogSchema.parse(req.body);
   const item = await prisma.romaneioCatalogItem.create({
     data: {
@@ -388,7 +412,7 @@ router.post('/catalog', requireAuth, requireAnyInternalAccount, requireRomaneioM
   res.status(201).json(item);
 }));
 
-router.put('/catalog/:id', requireAuth, requireAnyInternalAccount, requireRomaneioManager, asyncHandler(async (req, res) => {
+router.put('/catalog/:id', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
   const data = catalogSchema.partial().parse(req.body);
   const item = await prisma.$transaction(async tx => {
     const existing = await tx.romaneioCatalogItem.findUniqueOrThrow({ where: { id: req.params.id } });
@@ -426,7 +450,7 @@ router.put('/catalog/:id', requireAuth, requireAnyInternalAccount, requireRomane
   res.json(item);
 }));
 
-router.delete('/catalog/:id', requireAuth, requireAnyInternalAccount, requireRomaneioManager, asyncHandler(async (req, res) => {
+router.delete('/catalog/:id', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
   await prisma.$transaction(async tx => {
     const existing = await tx.romaneioCatalogItem.findUniqueOrThrow({ where: { id: req.params.id } });
     if (existing.sourceType === 'UNIT' && existing.sourceId) {
@@ -443,12 +467,12 @@ router.delete('/catalog/:id', requireAuth, requireAnyInternalAccount, requireRom
   res.status(204).send();
 }));
 
-router.get('/notifications', requireAuth, requireAnyInternalAccount, requireRomaneioManager, asyncHandler(async (_req, res) => {
+router.get('/notifications', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (_req, res) => {
   const items = await prisma.romaneioNotificationRecipient.findMany({ orderBy: { email: 'asc' } });
   res.json(items);
 }));
 
-router.post('/notifications', requireAuth, requireAnyInternalAccount, requireRomaneioManager, asyncHandler(async (req, res) => {
+router.post('/notifications', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
   const data = recipientSchema.parse(req.body);
   const item = await prisma.romaneioNotificationRecipient.upsert({
     where: { email: data.email.toLowerCase() },
@@ -458,7 +482,7 @@ router.post('/notifications', requireAuth, requireAnyInternalAccount, requireRom
   res.status(201).json(item);
 }));
 
-router.delete('/notifications/:id', requireAuth, requireAnyInternalAccount, requireRomaneioManager, asyncHandler(async (req, res) => {
+router.delete('/notifications/:id', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
   await prisma.romaneioNotificationRecipient.update({
     where: { id: req.params.id },
     data: { isActive: false }
@@ -466,7 +490,7 @@ router.delete('/notifications/:id', requireAuth, requireAnyInternalAccount, requ
   res.status(204).send();
 }));
 
-router.get('/:id/pdf', requireAuth, requireAnyInternalAccount, asyncHandler(async (req, res) => {
+router.get('/:id/pdf', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const item = await prisma.romaneio.findUniqueOrThrow({
     where: { id: req.params.id },
     ...selectedFields()
@@ -474,7 +498,7 @@ router.get('/:id/pdf', requireAuth, requireAnyInternalAccount, asyncHandler(asyn
   return sendRomaneioStoredFile(res, item, 'pdfUrl', 'application/pdf', 'pdf');
 }));
 
-router.get('/:id/docx', requireAuth, requireAnyInternalAccount, asyncHandler(async (req, res) => {
+router.get('/:id/docx', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const item = await prisma.romaneio.findUniqueOrThrow({
     where: { id: req.params.id },
     ...selectedFields()
@@ -488,7 +512,7 @@ router.get('/:id/docx', requireAuth, requireAnyInternalAccount, asyncHandler(asy
   );
 }));
 
-router.get('/', requireAuth, requireAnyInternalAccount, asyncHandler(async (req, res) => {
+router.get('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const search = String(req.query.search || '').trim();
   const projectId = String(req.query.projectId || '').trim();
   const where = {};
@@ -512,7 +536,7 @@ router.get('/', requireAuth, requireAnyInternalAccount, asyncHandler(async (req,
   res.json(items);
 }));
 
-router.post('/', requireAuth, requireAnyInternalAccount, asyncHandler(async (req, res) => {
+router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   await syncRomaneioCatalog();
   const payload = createRomaneioSchema.parse(req.body);
   const project = await prisma.project.findFirst({
@@ -526,36 +550,46 @@ router.post('/', requireAuth, requireAnyInternalAccount, asyncHandler(async (req
     return res.status(400).json({ error: 'Todos os itens precisam de nome e categoria.' });
   }
 
-  let created = await prisma.romaneio.create({
-    data: {
-      projectId: payload.projectId,
-      createdByUserId: req.auth.user.id,
-      romaneioDate: parseDateOnly(payload.romaneioDate),
-      driverName: payload.driverName,
-      vehiclePlate: payload.vehiclePlate.toUpperCase(),
-      items: { create: itemData }
-    },
-    ...selectedFields()
-  });
-
-  const files = await saveRomaneioPdf(created);
-  const emailResult = await notifyRecipients(created, files.pdf.targetPath);
-
-  created = await prisma.romaneio.update({
-    where: { id: created.id },
-    data: {
-      docxUrl: files.docx.publicUrl,
-      pdfUrl: files.pdf.publicUrl,
-      emailStatus: emailResult.status,
-      emailError: emailResult.error
-    },
-    ...selectedFields()
-  });
-
+  let created = null;
+  let files = null;
+  let completed = false;
   try {
-    await fs.access(path.join(env.uploadDir));
-  } catch {
-    // Storage already failed earlier if paths were unavailable; keep this as a no-op health touch.
+    created = await prisma.romaneio.create({
+      data: {
+        projectId: payload.projectId,
+        createdByUserId: req.auth.user.id,
+        romaneioDate: parseDateOnly(payload.romaneioDate),
+        driverName: payload.driverName,
+        vehiclePlate: payload.vehiclePlate.toUpperCase(),
+        items: { create: itemData }
+      },
+      ...selectedFields()
+    });
+
+    files = await saveRomaneioPdf(created);
+    let emailResult;
+    try {
+      emailResult = await notifyRecipients(created, files.pdf.targetPath);
+    } catch (error) {
+      emailResult = romaneioEmailFailureResult(error);
+    }
+
+    created = await prisma.romaneio.update({
+      where: { id: created.id },
+      data: {
+        docxUrl: files.docx.publicUrl,
+        pdfUrl: files.pdf.publicUrl,
+        emailStatus: emailResult.status,
+        emailError: emailResult.error
+      },
+      ...selectedFields()
+    });
+    completed = true;
+  } catch (error) {
+    if (!completed) {
+      await cleanupFailedRomaneioCreate({ romaneioId: created?.id, files });
+    }
+    throw error;
   }
 
   res.status(201).json(created);

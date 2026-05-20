@@ -16,9 +16,7 @@ function hasAnyRole(user: Pick<AuthUser, 'moduleRoles'> | null | undefined, role
 
 export function hubModulesForUser(user: Pick<AuthUser, 'accountType' | 'moduleRoles' | 'role'> | null | undefined): HubModuleEntry[] {
   const canAccessRdo = hasAnyRole(user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator']);
-  const canAccessRomaneio = user?.accountType === 'INTERNAL'
-    || user?.accountType === 'ADMIN'
-    || hasAnyRole(user, ['romaneio:manager', 'romaneio:operator']);
+  const canAccessRomaneio = hasAnyRole(user, ['romaneio:manager', 'romaneio:operator']);
   const canAccessEpi = hasAnyRole(user, ['epi:technician', 'epi:collaborator']);
   const isAdmin = user?.accountType === 'ADMIN' || user?.role === 'MANAGER';
   const modules: HubModuleEntry[] = [

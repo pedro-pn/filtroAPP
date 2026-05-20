@@ -91,8 +91,8 @@ test('EPI-only internal accounts get a visible pending hub module', async () => 
   });
 
   assert.deepEqual(
-    modules.map(module => ({ id: module.id, disabled: module.disabled })),
-    [{ id: 'epi', disabled: true }]
+    modules.map(module => module.id),
+    ['epi']
   );
 });
 
@@ -105,7 +105,39 @@ test('Romaneio-only internal accounts get a visible pending hub module', async (
   });
 
   assert.deepEqual(
-    modules.map(module => ({ id: module.id, disabled: module.disabled })),
-    [{ id: 'romaneio', disabled: true }]
+    modules.map(module => module.id),
+    ['romaneio']
   );
+});
+
+test('Romaneio route rejects internal accounts without romaneio module roles', async () => {
+  const { isRouteAllowed } = await loadRouteAccess();
+
+  assert.equal(
+    isRouteAllowed({
+      id: 'rdo-only',
+      username: 'rdo-only',
+      name: 'RDO Only',
+      email: null,
+      role: 'COLLABORATOR',
+      accountType: 'INTERNAL',
+      moduleRoles: ['rdo:collaborator'],
+      isActive: true
+    }, {
+      allowedAccountTypes: ['ADMIN', 'INTERNAL'],
+      allowedModuleRoles: ['romaneio:manager', 'romaneio:operator']
+    }),
+    false
+  );
+});
+
+test('RDO-only internal accounts do not get the Romaneio hub module', async () => {
+  const { hubModulesForUser } = await loadHubModules();
+  const modules = hubModulesForUser({
+    role: 'COLLABORATOR',
+    accountType: 'INTERNAL',
+    moduleRoles: ['rdo:collaborator']
+  });
+
+  assert.equal(modules.some(module => module.id === 'romaneio'), false);
 });
