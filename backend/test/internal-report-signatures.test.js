@@ -16,6 +16,7 @@ import {
   publicSignatureStatus,
   rejectAuthenticatedClientSignatureRound,
   rejectPublicInternalSignature,
+  resetSignedSignatureForFinalizationRetry,
   shouldCreateInternalSignatureRound,
   verifiedFinalPdfBuffer
 } from '../src/routes/resources/reports.js';
@@ -167,7 +168,7 @@ test('production startup requires explicit trust proxy configuration', () => {
   assert.doesNotThrow(() => assertProductionTrustProxyConfigured({ nodeEnv: 'development', trustProxyConfigured: false }));
 });
 
-test('signInternalReportVersion stores the signer name provided at signing time', async () => {
+test('signInternalReportVersion keeps configured signer identity over submitted name', async () => {
   let signatureUpdate;
   let auditLog;
   const tx = {
@@ -215,9 +216,10 @@ test('signInternalReportVersion stores the signer name provided at signing time'
 
   assert.equal(result.alreadySigned, false);
   assert.equal(signatureUpdate.where.id, 'signature-1');
-  assert.equal(signatureUpdate.data.signerName, 'Nome editado');
+  assert.equal(signatureUpdate.data.signerName, 'Nome inicial');
   assert.equal(signatureUpdate.data.signatureImageDataUrl, tinyPngDataUrl);
-  assert.match(auditLog.data.description, /Nome editado assinou o relatorio/);
+  assert.equal(result.signedSignature.signerName, 'Nome inicial');
+  assert.match(auditLog.data.description, /Nome inicial assinou o relatorio/);
 });
 
 test('signInternalReportVersion treats concurrent duplicate confirmation as already signed', async () => {
@@ -257,7 +259,8 @@ test('signInternalReportVersion treats concurrent duplicate confirmation as alre
     signatureImageDataUrl: tinyPngDataUrl
   });
 
-  assert.deepEqual(result, { alreadySigned: true });
+  assert.equal(result.alreadySigned, true);
+  assert.equal(result.signedSignature.id, 'signature-1');
   assert.equal(auditLogCount, 0);
 });
 
@@ -381,6 +384,36 @@ test('signature source guard aborts when report changed after PDF preparation', 
   );
 });
 
+test('resetSignedSignatureForFinalizationRetry restores a just-signed signature to pending', async () => {
+  let updatePayload;
+  const reset = await resetSignedSignatureForFinalizationRetry({
+    reportSignature: {
+      updateMany: async payload => {
+        updatePayload = payload;
+        return { count: 1 };
+      }
+    }
+  }, {
+    alreadySigned: false,
+    signedSignature: { id: 'signature-1' }
+  });
+
+  assert.equal(reset, true);
+  assert.deepEqual(updatePayload.where, {
+    id: 'signature-1',
+    status: 'SIGNED',
+    finalDocumentHash: null
+  });
+  assert.deepEqual(updatePayload.data, {
+    status: 'PENDING',
+    userId: null,
+    ipAddress: null,
+    userAgent: null,
+    signatureImageDataUrl: null,
+    signedAt: null
+  });
+});
+
 test('approved RDO without client signers does not require an internal signature round', () => {
   const report = {
     id: 'report-no-signers',
@@ -432,6 +465,27 @@ test('publicSignatureStatus blocks links for deleted projects but allows archive
       project: {
         ...activeSignature.report.project,
         isActive: false
+      }
+    }
+  }), 'ACTIVE');
+  assert.equal(publicSignatureStatus({
+    id: 'signature-1',
+    status: 'SIGNED',
+    tokenExpiresAt: new Date(Date.now() + 60_000),
+    version: {
+      status: 'ACTIVE',
+      finalDocumentHash: null,
+      signatures: [{
+        id: 'signature-1',
+        status: 'SIGNED',
+        isRequired: true
+      }]
+    },
+    report: {
+      deletedAt: null,
+      status: 'APPROVED',
+      project: {
+        deletedAt: null
       }
     }
   }), 'ACTIVE');

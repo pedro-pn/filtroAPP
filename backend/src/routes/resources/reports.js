@@ -399,6 +399,13 @@ export function publicSignatureStatus(signature) {
   if (!signature) return 'INVALID';
   if (signature.report?.deletedAt) return 'UNAVAILABLE';
   if (signature.report?.project?.deletedAt) return 'UNAVAILABLE';
+  if (
+    signature.status === 'SIGNED'
+    && signature.version?.status === ReportVersionStatus.ACTIVE
+    && !signature.version?.finalDocumentHash
+    && signature.report?.status === ReportStatus.APPROVED
+    && allRequiredSignaturesCompleted(signature.version)
+  ) return 'ACTIVE';
   if (signature.status === 'SIGNED') return 'SIGNED';
   if (signature.status === 'REJECTED') return 'REJECTED';
   if (signature.status === 'INVALIDATED') return 'INVALIDATED';
@@ -478,13 +485,77 @@ async function publicSignatureFromToken(token, client = prisma) {
 async function activePublicSignatureOrThrow(token, client = prisma) {
   const signature = await publicSignatureFromToken(token, client);
   const status = publicSignatureStatus(signature);
-  if (status !== 'ACTIVE') {
+  if (status !== 'ACTIVE' && !isFinalizationRetryableSignature(signature)) {
     const error = new Error('Link de assinatura indisponível.');
     error.statusCode = status === 'INVALID' ? 404 : 409;
     error.publicStatus = status;
     throw error;
   }
   return signature;
+}
+
+function isFinalizationRetryableSignature(signature) {
+  return !!(
+    signature
+    && signature.status === ReportSignatureStatus.SIGNED
+    && signature.version?.status === ReportVersionStatus.ACTIVE
+    && !signature.version?.finalDocumentHash
+    && signature.report?.status === ReportStatus.APPROVED
+    && !isReportUnavailable(signature.report)
+    && allRequiredSignaturesCompleted(signature.version)
+  );
+}
+
+function signerEmailValue(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function signatureForSigner(version, signerEmail) {
+  const email = signerEmailValue(signerEmail);
+  return (version?.signatures || []).find(signature => signerEmailValue(signature.signerEmail) === email) || null;
+}
+
+function signatureWouldCompleteRequired(version, signatureId) {
+  const required = (version?.signatures || []).filter(signature => signature.isRequired !== false);
+  return required.length > 0 && required.every(signature => (
+    signature.status === ReportSignatureStatus.SIGNED || signature.id === signatureId
+  ));
+}
+
+async function assertSignatureFinalizationPreflight(version) {
+  const sourcePath = reportSourcePdfPath(version?.sourcePdfUrl);
+  if (!sourcePath) {
+    const error = new Error('PDF-base da assinatura interna nao foi encontrado.');
+    error.statusCode = 409;
+    throw error;
+  }
+  const sourceBuffer = await fs.readFile(sourcePath);
+  if (sha256Hex(sourceBuffer) !== version.sourceDocumentHash) {
+    const error = new Error('PDF-base da assinatura interna diverge do hash registrado.');
+    error.statusCode = 409;
+    throw error;
+  }
+}
+
+export async function resetSignedSignatureForFinalizationRetry(client, signatureResult) {
+  const signatureId = signatureResult?.signedSignature?.id;
+  if (!signatureId || signatureResult?.alreadySigned) return false;
+  const result = await client.reportSignature.updateMany({
+    where: {
+      id: signatureId,
+      status: ReportSignatureStatus.SIGNED,
+      finalDocumentHash: null
+    },
+    data: {
+      status: ReportSignatureStatus.PENDING,
+      userId: null,
+      ipAddress: null,
+      userAgent: null,
+      signatureImageDataUrl: null,
+      signedAt: null
+    }
+  });
+  return result.count === 1;
 }
 
 export async function rejectPublicInternalSignature({
@@ -1008,7 +1079,7 @@ export async function verifiedFinalPdfBuffer(finalPath, finalVersion) {
   return buffer;
 }
 
-async function finalizeInternalSignatureRound(report, version, evidence, userId) {
+async function finalizeInternalSignatureRound(report, version, evidence, userId, options = {}) {
   const currentVersion = await prisma.reportVersion.findUnique({
     where: { id: version.id },
     include: { signatures: { orderBy: { createdAt: 'asc' } } }
@@ -1084,6 +1155,16 @@ async function finalizeInternalSignatureRound(report, version, evidence, userId)
         where: { id: report.id },
         data: { status: ReportStatus.SIGNED }
       });
+      if (options.signedAudit?.signerName) {
+        await createSignatureAuditLog(tx, {
+          reportId: report.id,
+          versionId: version.id,
+          userId,
+          action: ReportAuditAction.SIGNED,
+          description: `${options.signedAudit.signerName} assinou o relatorio.`,
+          evidence
+        });
+      }
       await createSignatureAuditLog(tx, {
         reportId: report.id,
         versionId: version.id,
@@ -3203,6 +3284,10 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
   let signatureResult = { alreadySigned: false };
   let item = await prisma.$transaction(async tx => {
     const signature = await activePublicSignatureOrThrow(req.params.token, tx);
+    const completesRequiredSignatures = signatureWouldCompleteRequired(signature.version, signature.id);
+    if (completesRequiredSignatures) {
+      await assertSignatureFinalizationPreflight(signature.version);
+    }
     signatureResult = await signInternalReportVersion(tx, {
       report: signature.report,
       version: signature.version,
@@ -3212,7 +3297,8 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
       },
       userId: null,
       evidence,
-      signatureImageDataUrl: data.signatureImageDataUrl
+      signatureImageDataUrl: data.signatureImageDataUrl,
+      deferAuditLog: completesRequiredSignatures
     });
     signedVersion = await activeVersionWithSignatures(tx, signature.reportId);
     return tx.report.findUniqueOrThrow({
@@ -3223,8 +3309,17 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
 
   let completed = false;
   if (allRequiredSignaturesCompleted(signedVersion)) {
-    item = await finalizeInternalSignatureRound(item, signedVersion, evidence, null);
-    completed = true;
+    try {
+      item = await finalizeInternalSignatureRound(item, signedVersion, evidence, null, {
+        signedAudit: signatureResult.alreadySigned ? null : signatureResult.signedSignature
+      });
+      completed = true;
+    } catch (error) {
+      await resetSignedSignatureForFinalizationRetry(prisma, signatureResult).catch(resetError => {
+        console.error('Falha ao tornar assinatura retryable após erro de finalização.', resetError);
+      });
+      throw error;
+    }
   }
 
   if (!signatureResult.alreadySigned) {
@@ -4076,13 +4171,19 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
         createdByUserId: req.auth.user.id,
         evidence
       });
+      const signingSignature = signatureForSigner(version, signer.email);
+      const completesRequiredSignatures = signatureWouldCompleteRequired(version, signingSignature?.id);
+      if (completesRequiredSignatures) {
+        await assertSignatureFinalizationPreflight(version);
+      }
       signatureResult = await signInternalReportVersion(tx, {
         report: current,
         version,
         signer,
         userId: req.auth.user.id,
         evidence,
-        signatureImageDataUrl: data.signatureImageDataUrl
+        signatureImageDataUrl: data.signatureImageDataUrl,
+        deferAuditLog: completesRequiredSignatures
       });
       signedVersion = await activeVersionWithSignatures(tx, current.id);
       issuedTokens = await issuePendingSignatureTokens(tx, signedVersion);
@@ -4101,8 +4202,17 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
 
   let completed = false;
   if (allRequiredSignaturesCompleted(signedVersion)) {
-    item = await finalizeInternalSignatureRound(item, signedVersion, evidence, req.auth.user.id);
-    completed = true;
+    try {
+      item = await finalizeInternalSignatureRound(item, signedVersion, evidence, req.auth.user.id, {
+        signedAudit: signatureResult.alreadySigned ? null : signatureResult.signedSignature
+      });
+      completed = true;
+    } catch (error) {
+      await resetSignedSignatureForFinalizationRetry(prisma, signatureResult).catch(resetError => {
+        console.error('Falha ao tornar assinatura retryable após erro de finalização.', resetError);
+      });
+      throw error;
+    }
   }
 
   if (!signatureResult.alreadySigned) {

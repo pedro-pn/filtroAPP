@@ -526,7 +526,8 @@ export async function signInternalReportVersion(tx, {
   signer,
   userId,
   evidence,
-  signatureImageDataUrl
+  signatureImageDataUrl,
+  deferAuditLog = false
 }) {
   const signature = version.signatures.find(item => normalizeSignerEmail(item.signerEmail) === signer.email);
   if (!signature) {
@@ -540,9 +541,9 @@ export async function signInternalReportVersion(tx, {
     throw error;
   }
   if (signature.status === ReportSignatureStatus.SIGNED) {
-    return { alreadySigned: true };
+    return { alreadySigned: true, signedSignature: signature };
   }
-  const signerName = stringValue(signer?.name) || stringValue(signature.signerName) || 'Cliente';
+  const signerName = stringValue(signature.signerName) || 'Cliente';
 
   const updateResult = await tx.reportSignature.updateMany({
     where: { id: signature.id, status: ReportSignatureStatus.PENDING },
@@ -559,7 +560,7 @@ export async function signInternalReportVersion(tx, {
   if (updateResult.count !== 1) {
     const current = await tx.reportSignature.findUnique({ where: { id: signature.id } });
     if (current?.status === ReportSignatureStatus.SIGNED) {
-      return { alreadySigned: true };
+      return { alreadySigned: true, signedSignature: current };
     }
     if (current?.status === ReportSignatureStatus.REJECTED || current?.status === ReportSignatureStatus.INVALIDATED) {
       const error = new Error('Esta rodada de assinatura nao esta mais ativa.');
@@ -571,16 +572,26 @@ export async function signInternalReportVersion(tx, {
     throw error;
   }
 
-  await createSignatureAuditLog(tx, {
-    reportId: report.id,
-    versionId: version.id,
-    userId,
-    action: ReportAuditAction.SIGNED,
-    description: `${signerName} assinou o relatorio.`,
-    evidence
-  });
+  if (!deferAuditLog) {
+    await createSignatureAuditLog(tx, {
+      reportId: report.id,
+      versionId: version.id,
+      userId,
+      action: ReportAuditAction.SIGNED,
+      description: `${signerName} assinou o relatorio.`,
+      evidence
+    });
+  }
 
-  return { alreadySigned: false };
+  return {
+    alreadySigned: false,
+    signedSignature: {
+      id: signature.id,
+      signerName,
+      signerEmail: signature.signerEmail,
+      status: ReportSignatureStatus.SIGNED
+    }
+  };
 }
 
 export async function activeVersionWithSignatures(tx, reportId) {
