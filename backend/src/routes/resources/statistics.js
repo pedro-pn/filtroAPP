@@ -454,7 +454,17 @@ export function buildServiceExportRows(report, project) {
 export function statsProjectWhere(extra = {}) {
   return {
     managerOnly: false,
+    deletedAt: null,
     ...extra
+  };
+}
+
+export function statsReportWhere(extra = {}) {
+  const { project, ...rest } = extra;
+  return {
+    deletedAt: null,
+    project: statsProjectWhere(project),
+    ...rest
   };
 }
 
@@ -520,13 +530,12 @@ router.get('/projects', requireAuth, requireRdoStats, asyncHandler(async (req, r
   }
 
   const projectIds = projects.map(p => p.id);
-  const reportWhere = {
+  const reportWhere = statsReportWhere({
     reportType: 'RDO',
     status: { in: ['APPROVED', 'SIGNED'] },
     reportDate: { gte: fromDate, lte: toDate },
-    projectId: { in: projectIds },
-    project: statsProjectWhere()
-  };
+    projectId: { in: projectIds }
+  });
   const reportCount = await prisma.report.count({ where: reportWhere });
   if (reportCount > MAX_STATS_REPORTS) {
     return res.status(413).json({ error: reportLimitError(MAX_STATS_REPORTS) });
@@ -675,13 +684,12 @@ router.get('/projects/export', requireAuth, requireRdoStats, asyncHandler(async 
     select: { id: true, code: true, name: true, clientName: true, clientSegment: true }
   });
 
-  const reportWhere = {
+  const reportWhere = statsReportWhere({
     reportType: 'RDO',
     status: { in: ['APPROVED', 'SIGNED'] },
     reportDate: { gte: fromDate, lte: toDate },
-    projectId: { in: projects.map(p => p.id) },
-    project: statsProjectWhere()
-  };
+    projectId: { in: projects.map(p => p.id) }
+  });
 
   const reportCount = projects.length === 0 ? 0 : await prisma.report.count({ where: reportWhere });
   if (reportCount > MAX_STATS_REPORTS) {
@@ -777,10 +785,10 @@ router.get('/overview', requireAuth, requireRdoStats, asyncHandler(async (req, r
   const [reportGroups, projects] = await Promise.all([
     prisma.report.groupBy({
       by: ['projectId', 'reportType'],
-      where: {
+      where: statsReportWhere({
         project: baseWhere,
         status: { in: ['APPROVED', 'SIGNED'] }
-      },
+      }),
       _count: { id: true }
     }),
     prisma.project.findMany({

@@ -828,6 +828,25 @@ function activeReportProjectWhere(projectWhere = {}) {
   return { ...projectWhere, deletedAt: null };
 }
 
+export function approvedRdoHistoryWhere(projectId) {
+  return {
+    projectId,
+    deletedAt: null,
+    project: activeReportProjectWhere(),
+    reportType: ReportType.RDO,
+    status: ReportStatus.APPROVED
+  };
+}
+
+export function derivedReportsForProjectWhere(projectId) {
+  return {
+    projectId,
+    deletedAt: null,
+    project: activeReportProjectWhere(),
+    reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] }
+  };
+}
+
 function assignActiveReportProjectWhere(where, projectWhere = {}) {
   where.project = activeReportProjectWhere(projectWhere);
 }
@@ -1946,6 +1965,9 @@ async function syncApprovedRtpReports(tx, report) {
 
   const existingRtps = await tx.report.findMany({
     where: {
+      projectId: report.projectId,
+      deletedAt: null,
+      project: activeReportProjectWhere(),
       reportType: ReportType.RTP
     },
     select: {
@@ -1971,7 +1993,7 @@ async function syncApprovedRtpReports(tx, report) {
   });
 
   const allApprovedRdos = await tx.report.findMany({
-    where: { projectId: report.projectId, reportType: ReportType.RDO, status: ReportStatus.APPROVED },
+    where: approvedRdoHistoryWhere(report.projectId),
     orderBy: [{ reportDate: 'asc' }, { createdAt: 'asc' }],
     select: {
       id: true,
@@ -2135,6 +2157,9 @@ async function syncApprovedRlqReports(tx, report) {
 
   const existingRlqs = await tx.report.findMany({
     where: {
+      projectId: report.projectId,
+      deletedAt: null,
+      project: activeReportProjectWhere(),
       reportType: ReportType.RLQ
     },
     select: {
@@ -2157,7 +2182,7 @@ async function syncApprovedRlqReports(tx, report) {
   });
 
   const allApprovedRdos = await tx.report.findMany({
-    where: { projectId: report.projectId, reportType: ReportType.RDO, status: ReportStatus.APPROVED },
+    where: approvedRdoHistoryWhere(report.projectId),
     orderBy: [{ reportDate: 'asc' }, { createdAt: 'asc' }],
     select: {
       id: true,
@@ -2442,7 +2467,12 @@ async function syncApprovedRcpReports(tx, report) {
 
   // For RCPU, one report per serviceLinkKey for the whole project (not per parentRdoId).
   const existingRcps = await tx.report.findMany({
-    where: { projectId: report.projectId, reportType: ReportType.RCPU },
+    where: {
+      projectId: report.projectId,
+      deletedAt: null,
+      project: activeReportProjectWhere(),
+      reportType: ReportType.RCPU
+    },
     select: { id: true, projectId: true, reportType: true, sequenceNumber: true, status: true, specialConditions: true }
   });
 
@@ -2457,7 +2487,7 @@ async function syncApprovedRcpReports(tx, report) {
 
   // Fetch all approved RDOs once for totalMinutes calculation.
   const allApprovedRdos = await tx.report.findMany({
-    where: { projectId: report.projectId, reportType: ReportType.RDO, status: ReportStatus.APPROVED },
+    where: approvedRdoHistoryWhere(report.projectId),
     orderBy: [{ reportDate: 'asc' }, { createdAt: 'asc' }],
     select: {
       id: true,
@@ -2627,7 +2657,12 @@ async function syncApprovedRlmReports(tx, report) {
   }
 
   const existingRlms = await tx.report.findMany({
-    where: { reportType: ReportType.RLM },
+    where: {
+      projectId: report.projectId,
+      deletedAt: null,
+      project: activeReportProjectWhere(),
+      reportType: ReportType.RLM
+    },
     select: { id: true, projectId: true, reportType: true, sequenceNumber: true, status: true, specialConditions: true }
   });
 
@@ -2640,7 +2675,7 @@ async function syncApprovedRlmReports(tx, report) {
   });
 
   const allApprovedRdos = await tx.report.findMany({
-    where: { projectId: report.projectId, reportType: ReportType.RDO, status: ReportStatus.APPROVED },
+    where: approvedRdoHistoryWhere(report.projectId),
     orderBy: [{ reportDate: 'asc' }, { createdAt: 'asc' }],
     select: {
       id: true,
@@ -3615,7 +3650,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
   const tPostOrg = Date.now();
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, deletedAt: null, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
+      where: derivedReportsForProjectWhere(item.projectId),
       include
     });
     for (const d of derived) {
@@ -3809,7 +3844,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   const tPutOrg = Date.now();
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, deletedAt: null, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
+      where: derivedReportsForProjectWhere(item.projectId),
       include
     });
     for (const d of derived) {
@@ -3884,7 +3919,7 @@ router.post('/:id/cancel-edit', requireAuth, requireRdoAccess, asyncHandler(asyn
   await organizeAndPersist(item);
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
+      where: derivedReportsForProjectWhere(item.projectId),
       include
     });
     for (const d of derived) {
@@ -3917,7 +3952,7 @@ router.post('/:id/discard-edit', requireAuth, requireRdoAccess, asyncHandler(asy
   await organizeAndPersist(item);
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
+      where: derivedReportsForProjectWhere(item.projectId),
       include
     });
     for (const d of derived) {
@@ -3952,11 +3987,7 @@ router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, re
 
     if (item.reportType === ReportType.RDO) {
       const derivedReports = await tx.report.findMany({
-        where: {
-          projectId: item.projectId,
-          deletedAt: null,
-          reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] }
-        },
+        where: derivedReportsForProjectWhere(item.projectId),
         select: {
           id: true,
           specialConditions: true
@@ -4050,7 +4081,7 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
 
   if (data.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, deletedAt: null, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
+      where: derivedReportsForProjectWhere(item.projectId),
       include
     });
     for (const d of derived) {

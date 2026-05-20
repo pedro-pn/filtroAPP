@@ -6,6 +6,10 @@ import { Prisma, ReportStatus, ReportType } from '@prisma/client';
 
 import app from '../src/app.js';
 import prisma from '../src/lib/prisma.js';
+import {
+  approvedRdoHistoryWhere,
+  derivedReportsForProjectWhere
+} from '../src/routes/resources/reports.js';
 
 const bearerToken = 'test-token';
 
@@ -61,6 +65,22 @@ function activeReport(overrides = {}) {
     ...overrides
   };
 }
+
+test('derived report sync filters exclude soft-deleted reports and projects', () => {
+  assert.deepEqual(approvedRdoHistoryWhere('project-1'), {
+    projectId: 'project-1',
+    deletedAt: null,
+    project: { deletedAt: null },
+    reportType: ReportType.RDO,
+    status: ReportStatus.APPROVED
+  });
+  assert.deepEqual(derivedReportsForProjectWhere('project-1'), {
+    projectId: 'project-1',
+    deletedAt: null,
+    project: { deletedAt: null },
+    reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] }
+  });
+});
 
 function reportPayload(overrides = {}) {
   return {

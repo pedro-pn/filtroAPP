@@ -1,12 +1,37 @@
 WITH ranked_active_versions AS (
   SELECT
-    "id",
+    rv."id",
     ROW_NUMBER() OVER (
-      PARTITION BY "reportId"
-      ORDER BY "versionNumber" DESC, "createdAt" DESC, "id" DESC
+      PARTITION BY rv."reportId"
+      ORDER BY
+        CASE
+          WHEN rv."finalDocumentHash" IS NOT NULL
+            AND rv."finalPdfUrl" IS NOT NULL
+            AND EXISTS (
+              SELECT 1
+              FROM "ReportSignature" rs
+              WHERE rs."versionId" = rv."id"
+                AND rs."isRequired" = true
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM "ReportSignature" rs
+              WHERE rs."versionId" = rv."id"
+                AND rs."isRequired" = true
+                AND rs."status" <> 'SIGNED'
+            )
+            THEN 0
+          WHEN rv."finalDocumentHash" IS NOT NULL
+            AND rv."finalPdfUrl" IS NOT NULL
+            THEN 1
+          ELSE 2
+        END,
+        rv."versionNumber" DESC,
+        rv."createdAt" DESC,
+        rv."id" DESC
     ) AS rn
-  FROM "ReportVersion"
-  WHERE "status" = 'ACTIVE'
+    FROM "ReportVersion" rv
+    WHERE rv."status" = 'ACTIVE'
 )
 UPDATE "ReportVersion"
 SET "status" = 'SUPERSEDED'

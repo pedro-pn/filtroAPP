@@ -11,6 +11,7 @@ import {
   isServiceFinalized,
   parseDecimal,
   parseLocalDate,
+  statsReportWhere,
   parseTubulacoes,
   parseVolumeOleo,
   periodKey,
@@ -34,11 +35,24 @@ test('statistics date range validation rejects invalid and excessive ranges', ()
 });
 
 test('statistics project filters exclude manager-only projects', () => {
-  assert.deepEqual(statsProjectWhere(), { managerOnly: false });
-  assert.deepEqual(statsProjectWhere({ isActive: true }), { managerOnly: false, isActive: true });
+  assert.deepEqual(statsProjectWhere(), { managerOnly: false, deletedAt: null });
+  assert.deepEqual(statsProjectWhere({ isActive: true }), { managerOnly: false, deletedAt: null, isActive: true });
   assert.deepEqual(statsProjectWhere({ id: { in: ['visible-project'] } }), {
     managerOnly: false,
+    deletedAt: null,
     id: { in: ['visible-project'] }
+  });
+});
+
+test('statistics report filters exclude soft-deleted reports and projects', () => {
+  assert.deepEqual(statsReportWhere({ reportType: 'RDO' }), {
+    deletedAt: null,
+    project: { managerOnly: false, deletedAt: null },
+    reportType: 'RDO'
+  });
+  assert.deepEqual(statsReportWhere({ project: { isActive: true } }), {
+    deletedAt: null,
+    project: { managerOnly: false, deletedAt: null, isActive: true }
   });
 });
 

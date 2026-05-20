@@ -39,6 +39,10 @@ import {
 } from '../src/lib/internal-report-signatures.js';
 
 const tinyPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+const activeVersionUniqueMigrationPath = new URL(
+  '../prisma/migrations/20260520113000_add_active_report_version_unique_index/migration.sql',
+  import.meta.url
+);
 
 function malformedPngHeaderDataUrl() {
   const bytes = Buffer.alloc(33);
@@ -384,6 +388,19 @@ test('ensureInternalSignatureRound returns concurrent active version after uniqu
   });
 
   assert.equal(version, activeVersion);
+});
+
+test('active version unique migration preserves finalized signed versions first', async () => {
+  const sql = await fs.readFile(activeVersionUniqueMigrationPath, 'utf8');
+
+  assert.match(sql, /finalDocumentHash/);
+  assert.match(sql, /finalPdfUrl/);
+  assert.match(sql, /ReportSignature/);
+  assert.match(sql, /rs\."status" <> 'SIGNED'/);
+  assert.ok(
+    sql.indexOf('rv."finalDocumentHash"') < sql.indexOf('rv."versionNumber" DESC'),
+    'finalized versions must rank before newest version fallback'
+  );
 });
 
 test('signature source guard aborts when report changed after PDF preparation', () => {
