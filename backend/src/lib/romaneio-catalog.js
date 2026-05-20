@@ -169,12 +169,15 @@ async function upsertCatalogRow(tx, row) {
           sourceId: row.sourceId
         }
       },
-      select: { id: true }
+      select: { id: true, isActive: true }
     });
     if (existingSource) {
       await tx.romaneioCatalogItem.update({
         where: { id: existingSource.id },
-        data: row
+        data: {
+          ...row,
+          isActive: existingSource.isActive && row.isActive !== false
+        }
       });
       return;
     }
@@ -205,35 +208,17 @@ async function syncFileCatalog(tx) {
 async function syncUnits(tx) {
   const units = await tx.unit.findMany();
   for (const unit of units) {
-    await tx.romaneioCatalogItem.upsert({
-      where: {
-        sourceType_sourceId: {
-          sourceType: 'UNIT',
-          sourceId: unit.id
-        }
-      },
-      create: {
-        sourceType: 'UNIT',
-        sourceId: unit.id,
-        code: unit.code,
-        name: `Unidade ${unit.code}`,
-        categoryName: UNIT_CATEGORY_LABELS[unit.category] || 'UNIDADES',
-        kind: 'EQUIPMENT',
-        measureType: 'UNIT',
-        defaultUnitLabel: 'unidade',
-        isSerialized: true,
-        isActive: true
-      },
-      update: {
-        code: unit.code,
-        name: `Unidade ${unit.code}`,
-        categoryName: UNIT_CATEGORY_LABELS[unit.category] || 'UNIDADES',
-        kind: 'EQUIPMENT',
-        measureType: 'UNIT',
-        defaultUnitLabel: 'unidade',
-        isSerialized: true,
-        isActive: true
-      }
+    await upsertCatalogRow(tx, {
+      sourceType: 'UNIT',
+      sourceId: unit.id,
+      code: unit.code,
+      name: `Unidade ${unit.code}`,
+      categoryName: UNIT_CATEGORY_LABELS[unit.category] || 'UNIDADES',
+      kind: 'EQUIPMENT',
+      measureType: 'UNIT',
+      defaultUnitLabel: 'unidade',
+      isSerialized: true,
+      isActive: true
     });
   }
 }
@@ -241,31 +226,17 @@ async function syncUnits(tx) {
 async function syncParticleCounters(tx) {
   const counters = await tx.particleCounter.findMany();
   for (const counter of counters) {
-    await tx.romaneioCatalogItem.upsert({
-      where: {
-        sourceType_sourceId: {
-          sourceType: 'PARTICLE_COUNTER',
-          sourceId: counter.id
-        }
-      },
-      create: {
-        sourceType: 'PARTICLE_COUNTER',
-        sourceId: counter.id,
-        code: counter.code,
-        name: `Contador de partículas ${counter.serialNumber || counter.code}`,
-        categoryName: 'CONTADOR DE PARTICULAS',
-        kind: 'EQUIPMENT',
-        measureType: 'UNIT',
-        defaultUnitLabel: 'unidade',
-        isSerialized: true,
-        isActive: counter.isActive
-      },
-      update: {
-        code: counter.code,
-        name: `Contador de partículas ${counter.serialNumber || counter.code}`,
-        categoryName: 'CONTADOR DE PARTICULAS',
-        isActive: counter.isActive
-      }
+    await upsertCatalogRow(tx, {
+      sourceType: 'PARTICLE_COUNTER',
+      sourceId: counter.id,
+      code: counter.code,
+      name: `Contador de partículas ${counter.serialNumber || counter.code}`,
+      categoryName: 'CONTADOR DE PARTICULAS',
+      kind: 'EQUIPMENT',
+      measureType: 'UNIT',
+      defaultUnitLabel: 'unidade',
+      isSerialized: true,
+      isActive: counter.isActive
     });
   }
 }

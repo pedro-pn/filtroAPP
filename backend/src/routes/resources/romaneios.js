@@ -75,33 +75,7 @@ const draftSchema = z.object({
   payload: z.any()
 });
 
-const UNIT_CATEGORY_LABELS = {
-  FILTRAGEM: 'UNIDADE DE FILTRAGEM',
-  FLUSHING: 'UNIDADE DE FLUSHING',
-  LIMPEZA_QUIMICA: 'UNIDADE DE LIMPEZA QUIMICA',
-  DESIDRATACAO: 'UNIDADE DE DESIDRATACAO',
-  UTH: 'UNIDADE DE TESTE HIDROSTATICO',
-  OUTRA: 'UNIDADES'
-};
-
-function normalizeCategoryLabel(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toUpperCase();
-}
-
-function unitCategoryFromLabel(value) {
-  const normalized = normalizeCategoryLabel(value);
-  const found = Object.entries(UNIT_CATEGORY_LABELS).find(([, label]) => normalizeCategoryLabel(label) === normalized);
-  return found?.[0] || null;
-}
-
-function serialFromCounterName(name) {
-  return String(name || '').replace(/^Contador de part[ií]culas\s+/i, '').trim();
-}
+const RDO_OWNED_CATALOG_SOURCES = new Set(['UNIT', 'PARTICLE_COUNTER']);
 
 function parseDateOnly(value) {
   const date = new Date(`${String(value).slice(0, 10)}T12:00:00.000-03:00`);
@@ -426,31 +400,15 @@ router.put('/catalog/:id', requireAuth, requireRomaneioAccess, requireRomaneioMa
   const data = catalogSchema.partial().parse(req.body);
   const item = await prisma.$transaction(async tx => {
     const existing = await tx.romaneioCatalogItem.findUniqueOrThrow({ where: { id: req.params.id } });
+    if (RDO_OWNED_CATALOG_SOURCES.has(existing.sourceType)) {
+      const error = new Error('Itens sincronizados do RDO devem ser alterados no módulo RDO.');
+      error.statusCode = 409;
+      throw error;
+    }
     const payload = {
       ...data,
       code: data.code === undefined ? undefined : data.code || null
     };
-
-    if (existing.sourceType === 'UNIT' && existing.sourceId) {
-      const unitPayload = {};
-      if (data.code !== undefined) unitPayload.code = data.code || existing.code || '';
-      if (data.categoryName !== undefined) {
-        const category = unitCategoryFromLabel(data.categoryName);
-        if (category) unitPayload.category = category;
-      }
-      if (Object.keys(unitPayload).length) {
-        await tx.unit.update({ where: { id: existing.sourceId }, data: unitPayload });
-      }
-    }
-
-    if (existing.sourceType === 'PARTICLE_COUNTER' && existing.sourceId) {
-      const counterPayload = {};
-      if (data.code !== undefined) counterPayload.code = data.code || existing.code || '';
-      if (data.name !== undefined) counterPayload.serialNumber = serialFromCounterName(data.name) || existing.name;
-      if (Object.keys(counterPayload).length) {
-        await tx.particleCounter.update({ where: { id: existing.sourceId }, data: counterPayload });
-      }
-    }
 
     return tx.romaneioCatalogItem.update({
       where: { id: req.params.id },
@@ -462,13 +420,7 @@ router.put('/catalog/:id', requireAuth, requireRomaneioAccess, requireRomaneioMa
 
 router.delete('/catalog/:id', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
   await prisma.$transaction(async tx => {
-    const existing = await tx.romaneioCatalogItem.findUniqueOrThrow({ where: { id: req.params.id } });
-    if (existing.sourceType === 'UNIT' && existing.sourceId) {
-      await tx.unit.delete({ where: { id: existing.sourceId } });
-    }
-    if (existing.sourceType === 'PARTICLE_COUNTER' && existing.sourceId) {
-      await tx.particleCounter.update({ where: { id: existing.sourceId }, data: { isActive: false } });
-    }
+    await tx.romaneioCatalogItem.findUniqueOrThrow({ where: { id: req.params.id } });
     await tx.romaneioCatalogItem.update({
       where: { id: req.params.id },
       data: { isActive: false }
