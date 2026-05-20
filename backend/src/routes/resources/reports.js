@@ -424,17 +424,18 @@ function maskEmail(value) {
   return `${visible}@${domain}`;
 }
 
-function validationStatus(version) {
+export function validationStatus(version) {
   if (!version) return 'INVALID';
+  if (version.report?.deletedAt || version.report?.project?.deletedAt) return 'UNAVAILABLE';
   if (version.status === 'REJECTED') return 'REJECTED';
   if (version.status === 'SUPERSEDED') return 'SUPERSEDED';
   if (version.report?.status !== ReportStatus.SIGNED || !version.finalDocumentHash) return 'UNAVAILABLE';
   return 'VALID';
 }
 
-function publicValidationPayload(version) {
+export function publicValidationPayload(version) {
   const status = validationStatus(version);
-  if (!version || status === 'INVALID') return { status };
+  if (!version || status === 'INVALID' || status === 'UNAVAILABLE') return { status };
   return {
     status,
     validationCode: version.validationCode,
@@ -566,6 +567,95 @@ export async function rejectPublicInternalSignature({
       where: { id: signature.reportId },
       include
     });
+  });
+}
+
+function staleClientSignatureRejectionError() {
+  const error = new Error('Esta assinatura não está mais pendente para rejeição.');
+  error.statusCode = 409;
+  return error;
+}
+
+export async function rejectAuthenticatedClientSignatureRound(tx, {
+  report,
+  authUser,
+  comment,
+  evidence
+}) {
+  const nextSpecialConditions = { ...(report.specialConditions || {}) };
+  nextSpecialConditions[CLIENT_REJECTION_KEY] = new Date().toISOString();
+  nextSpecialConditions[CLIENT_REJECTION_COMMENT_KEY] = comment || null;
+  delete nextSpecialConditions[CLIENT_REJECTION_RESOLVED_KEY];
+
+  const activeVersion = await tx.reportVersion.findFirst({
+    where: { reportId: report.id, status: ReportVersionStatus.ACTIVE },
+    include: { signatures: true },
+    orderBy: { versionNumber: 'desc' }
+  });
+  if (activeVersion) {
+    const authEmail = String(authUser.email || authUser.username || '').trim().toLowerCase();
+    const matchingSignature = activeVersion.signatures.find(signature => signature.signerEmail.toLowerCase() === authEmail);
+    if (matchingSignature) {
+      const rejected = await tx.reportSignature.updateMany({
+        where: { id: matchingSignature.id, status: ReportSignatureStatus.PENDING },
+        data: {
+          status: ReportSignatureStatus.REJECTED,
+          userId: authUser.id,
+          rejectedAt: new Date(),
+          rejectionReason: comment || null,
+          ipAddress: evidence.ipAddress,
+          userAgent: evidence.userAgent
+        }
+      });
+      if (rejected.count !== 1) throw staleClientSignatureRejectionError();
+    }
+    await tx.reportSignature.updateMany({
+      where: {
+        versionId: activeVersion.id,
+        ...(matchingSignature ? { id: { not: matchingSignature.id } } : {}),
+        status: { in: [ReportSignatureStatus.PENDING, ReportSignatureStatus.SIGNED] }
+      },
+      data: {
+        status: ReportSignatureStatus.INVALIDATED,
+        invalidatedAt: new Date(),
+        rejectionReason: comment || null
+      }
+    });
+    const versionRejected = await tx.reportVersion.updateMany({
+      where: { id: activeVersion.id, status: ReportVersionStatus.ACTIVE },
+      data: { status: ReportVersionStatus.REJECTED }
+    });
+    if (versionRejected.count !== 1) throw staleClientSignatureRejectionError();
+    await createSignatureAuditLog(tx, {
+      reportId: report.id,
+      versionId: activeVersion.id,
+      userId: authUser.id,
+      action: ReportAuditAction.REJECTED,
+      description: 'Relatorio reprovado pelo cliente durante a rodada de assinatura.',
+      evidence
+    });
+    await createSignatureAuditLog(tx, {
+      reportId: report.id,
+      versionId: activeVersion.id,
+      userId: authUser.id,
+      action: ReportAuditAction.SIGNATURES_INVALIDATED,
+      description: 'Assinaturas anteriores da rodada foram invalidadas por reprovacao.',
+      evidence
+    });
+  }
+
+  const reportRejected = await tx.report.updateMany({
+    where: { id: report.id, status: ReportStatus.APPROVED },
+    data: {
+      status: ReportStatus.PENDING,
+      specialConditions: nextSpecialConditions
+    }
+  });
+  if (reportRejected.count !== 1) throw staleClientSignatureRejectionError();
+
+  return tx.report.findUniqueOrThrow({
+    where: { id: report.id },
+    include
   });
 }
 
@@ -4076,77 +4166,11 @@ router.post('/:id/client-review', requireAuth, requireRdoAccess, asyncHandler(as
       }
     });
 
-    const nextSpecialConditions = { ...(existing.specialConditions || {}) };
-    if (data.action === 'REJECTED') {
-      nextSpecialConditions[CLIENT_REJECTION_KEY] = new Date().toISOString();
-      nextSpecialConditions[CLIENT_REJECTION_COMMENT_KEY] = data.comment || null;
-      delete nextSpecialConditions[CLIENT_REJECTION_RESOLVED_KEY];
-
-      const activeVersion = await tx.reportVersion.findFirst({
-        where: { reportId: existing.id, status: 'ACTIVE' },
-        include: { signatures: true },
-        orderBy: { versionNumber: 'desc' }
-      });
-      if (activeVersion) {
-        const authEmail = String(req.auth.user.email || req.auth.user.username || '').trim().toLowerCase();
-        const matchingSignature = activeVersion.signatures.find(signature => signature.signerEmail.toLowerCase() === authEmail);
-        if (matchingSignature) {
-          await tx.reportSignature.update({
-            where: { id: matchingSignature.id },
-            data: {
-              status: 'REJECTED',
-              userId: req.auth.user.id,
-              rejectedAt: new Date(),
-              rejectionReason: data.comment || null,
-              ipAddress: evidence.ipAddress,
-              userAgent: evidence.userAgent
-            }
-          });
-        }
-        await tx.reportSignature.updateMany({
-          where: {
-            versionId: activeVersion.id,
-            ...(matchingSignature ? { id: { not: matchingSignature.id } } : {}),
-            status: { in: ['PENDING', 'SIGNED'] }
-          },
-          data: {
-            status: 'INVALIDATED',
-            invalidatedAt: new Date(),
-            rejectionReason: data.comment || null
-          }
-        });
-        await tx.reportVersion.update({
-          where: { id: activeVersion.id },
-          data: { status: 'REJECTED' }
-        });
-        await createSignatureAuditLog(tx, {
-          reportId: existing.id,
-          versionId: activeVersion.id,
-          userId: req.auth.user.id,
-          action: ReportAuditAction.REJECTED,
-          description: 'Relatorio reprovado pelo cliente durante a rodada de assinatura.',
-          evidence
-        });
-        await createSignatureAuditLog(tx, {
-          reportId: existing.id,
-          versionId: activeVersion.id,
-          userId: req.auth.user.id,
-          action: ReportAuditAction.SIGNATURES_INVALIDATED,
-          description: 'Assinaturas anteriores da rodada foram invalidadas por reprovacao.',
-          evidence
-        });
-      }
-    }
-
-    return tx.report.update({
-      where: { id: existing.id },
-      data: {
-        status: data.action === 'APPROVED' ? ReportStatus.SIGNED : ReportStatus.PENDING,
-        specialConditions: data.action === 'REJECTED'
-          ? nextSpecialConditions
-          : withClientRejectionCleared(existing.specialConditions)
-      },
-      include
+    return rejectAuthenticatedClientSignatureRound(tx, {
+      report: existing,
+      authUser: req.auth.user,
+      comment: data.comment || null,
+      evidence
     });
   });
 

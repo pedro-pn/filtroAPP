@@ -9,7 +9,9 @@ import { PDFDocument } from 'pdf-lib';
 
 import {
   assertRenderableReportSignatureImageDataUrl,
+  publicValidationPayload,
   publicSignatureStatus,
+  rejectAuthenticatedClientSignatureRound,
   rejectPublicInternalSignature,
   shouldCreateInternalSignatureRound,
   verifiedFinalPdfBuffer
@@ -311,6 +313,56 @@ test('publicSignatureStatus blocks links for deleted projects but allows archive
   }), 'ACTIVE');
 });
 
+test('publicValidationPayload hides metadata for soft-deleted reports and projects', () => {
+  const version = {
+    validationCode: 'codigo-publico-teste',
+    sourceDocumentHash: 'source-hash',
+    finalDocumentHash: 'final-hash',
+    createdAt: new Date('2026-01-02T03:04:05.000Z'),
+    status: 'ACTIVE',
+    report: {
+      id: 'report-1',
+      deletedAt: null,
+      reportType: 'RDO',
+      sequenceNumber: 42,
+      reportDate: new Date('2026-01-01T00:00:00.000Z'),
+      status: 'SIGNED',
+      project: {
+        deletedAt: null,
+        code: 'P-001',
+        name: 'Projeto sigiloso',
+        clientName: 'Cliente sigiloso'
+      }
+    },
+    signatures: [{
+      signerName: 'Cliente Assinante',
+      signerEmail: 'cliente@example.com',
+      signerRole: 'CLIENT',
+      status: 'SIGNED',
+      signedAt: new Date('2026-01-02T03:00:00.000Z')
+    }]
+  };
+
+  assert.equal(publicValidationPayload(version).status, 'VALID');
+  assert.deepEqual(publicValidationPayload({
+    ...version,
+    report: {
+      ...version.report,
+      deletedAt: new Date('2026-01-03T00:00:00.000Z')
+    }
+  }), { status: 'UNAVAILABLE' });
+  assert.deepEqual(publicValidationPayload({
+    ...version,
+    report: {
+      ...version.report,
+      project: {
+        ...version.report.project,
+        deletedAt: new Date('2026-01-03T00:00:00.000Z')
+      }
+    }
+  }), { status: 'UNAVAILABLE' });
+});
+
 test('RDO signature image validation rejects non-decodable image evidence', async () => {
   const malformed = malformedPngHeaderDataUrl();
 
@@ -388,6 +440,66 @@ test('rejectPublicInternalSignature aborts stale confirm/reject races without si
   assert.equal(calls.some(([name]) => name === 'report.updateMany'), false);
   assert.equal(calls.some(([name]) => name === 'reportAuditLog.create'), false);
   assert.deepEqual(calls[1][1].where, { id: 'signature-1', status: 'PENDING' });
+});
+
+test('rejectAuthenticatedClientSignatureRound does not overwrite signed client signatures', async () => {
+  const calls = [];
+  const tx = {
+    reportVersion: {
+      findFirst: async args => {
+        calls.push(['reportVersion.findFirst', args]);
+        return {
+          id: 'version-1',
+          signatures: [{
+            id: 'signature-1',
+            signerEmail: 'cliente@example.com',
+            status: 'SIGNED'
+          }]
+        };
+      },
+      updateMany: async args => {
+        calls.push(['reportVersion.updateMany', args]);
+        return { count: 1 };
+      }
+    },
+    reportSignature: {
+      updateMany: async args => {
+        calls.push(['reportSignature.updateMany', args]);
+        return { count: 0 };
+      }
+    },
+    report: {
+      updateMany: async args => {
+        calls.push(['report.updateMany', args]);
+        return { count: 1 };
+      },
+      findUniqueOrThrow: async args => {
+        calls.push(['report.findUniqueOrThrow', args]);
+        return args;
+      }
+    },
+    reportAuditLog: {
+      create: async args => {
+        calls.push(['reportAuditLog.create', args]);
+      }
+    }
+  };
+
+  await assert.rejects(
+    () => rejectAuthenticatedClientSignatureRound(tx, {
+      report: { id: 'report-1', specialConditions: {} },
+      authUser: { id: 'user-1', email: 'cliente@example.com', username: 'cliente@example.com' },
+      comment: 'Reprovado',
+      evidence: { ipAddress: '203.0.113.10', userAgent: 'Node Test' }
+    }),
+    /não está mais pendente/
+  );
+
+  assert.deepEqual(calls[1][1].where, { id: 'signature-1', status: 'PENDING' });
+  assert.equal(calls.some(([name]) => name === 'reportVersion.updateMany'), false);
+  assert.equal(calls.some(([name]) => name === 'report.updateMany'), false);
+  assert.equal(calls.some(([name]) => name === 'report.findUniqueOrThrow'), false);
+  assert.equal(calls.some(([name]) => name === 'reportAuditLog.create'), false);
 });
 
 test('invalidateUnsignedInternalSignatureRound can invalidate pending project-delete rounds with signed signatures', async () => {
