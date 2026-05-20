@@ -1,6 +1,9 @@
 export function formatDateOnlyPtBr(value?: string | null, fallback = '-') {
   if (!value) return fallback;
   const text = String(value);
+  const ptBrMatch = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (ptBrMatch) return text;
+
   const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (match) {
     const [, year, month, day] = match;

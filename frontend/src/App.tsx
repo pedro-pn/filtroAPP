@@ -11,6 +11,8 @@ import { MyReportsPage } from './pages/collaborator/MyReportsPage';
 import { NewReportPage } from './pages/collaborator/NewReportPage';
 import { OngoingServicesPage } from './pages/collaborator/OngoingServicesPage';
 import { CoordinatorPage } from './pages/coordinator/CoordinatorPage';
+import { EpiPage } from './pages/epi/EpiPage';
+import { EpiPublicSignaturePage } from './pages/epi/EpiPublicSignaturePage';
 import { HubPage } from './pages/HubPage';
 import { ReportDetailPage } from './pages/ReportDetailPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -31,6 +33,7 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/pesquisa/:token" element={<SurveyPage />} />
       <Route path="/assinar/:token" element={<PublicSignaturePage />} />
+      <Route path="/epi/assinar/:token" element={<EpiPublicSignaturePage />} />
       <Route path="/validar-assinatura/:validationCode" element={<SignatureValidationPage />} />
 
       <Route element={<PrivateRoute />}>
@@ -72,6 +75,10 @@ export default function App() {
       <Route element={<RoleRoute allowedAccountTypes={['ADMIN', 'INTERNAL']} />}>
         <Route path="/romaneio" element={<RomaneioPage />} />
         <Route path="/romaneio/novo" element={<NewRomaneioPage />} />
+      </Route>
+
+      <Route element={<RoleRoute allowedAccountTypes={['ADMIN', 'INTERNAL']} allowedModuleRoles={['epi:technician', 'epi:collaborator']} />}>
+        <Route path="/epi" element={<EpiPage />} />
       </Route>
 
       <Route element={<RoleRoute allowedRoles={['COORDINATOR']} allowedModuleRoles={['rdo:coordinator']} />}>

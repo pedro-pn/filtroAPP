@@ -55,6 +55,7 @@ Isso remove o bloqueio principal que existia para o `P3`.
 ## Subida inicial em homologação
 
 1. Preencher `backend/.env.production` com segredos e URLs reais
+   - Definir `TRUST_PROXY=uniquelocal` para a stack Docker com Nginx, ou CIDRs explícitos da rede/proxy confiável.
 2. Definir `POSTGRES_PASSWORD` no shell/ambiente antes do compose
 3. Subir:
 

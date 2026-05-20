@@ -332,6 +332,7 @@ Nginx :443 (SSL Let's Encrypt)
 | `DATABASE_URL` | Sim | Connection string PostgreSQL |
 | `APP_URL` | Sim | URL base pública (usado em links de e-mail) |
 | `ALLOWED_ORIGIN` | Sim | Origem(s) CORS permitida(s), separadas por vírgula |
+| `TRUST_PROXY` | Sim em produção | Configuração Express `trust proxy`. Na stack Docker com Nginx use `uniquelocal` ou CIDRs explícitos; use `false` apenas se o backend não estiver atrás de proxy |
 | `SMTP_HOST` | Sim | Servidor SMTP (ex: `smtp.office365.com`) |
 | `SMTP_PORT` | Sim | Porta SMTP (padrão: `587`) |
 | `SMTP_SECURE` | Não | `true` para SSL direto (porta 465) |

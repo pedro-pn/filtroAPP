@@ -16,6 +16,25 @@ function parseOrigins(value) {
     .filter(Boolean);
 }
 
+export function parseTrustProxy(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return false;
+  const lower = raw.toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(lower)) return true;
+  if (['0', 'false', 'no', 'off'].includes(lower)) return false;
+  if (/^\d+$/.test(raw)) return Number(raw);
+  return raw;
+}
+
+export function assertProductionTrustProxyConfigured({ nodeEnv, trustProxyConfigured }) {
+  if (nodeEnv !== 'production' || trustProxyConfigured) return;
+  throw new Error('TRUST_PROXY deve ser configurado explicitamente em produção. Use false apenas se o backend não estiver atrás de proxy.');
+}
+
+const nodeEnv = process.env.NODE_ENV || 'development';
+const trustProxyConfigured = process.env.TRUST_PROXY !== undefined && String(process.env.TRUST_PROXY).trim() !== '';
+assertProductionTrustProxyConfigured({ nodeEnv, trustProxyConfigured });
+
 const env = {
   port: Number(process.env.PORT || 4000),
   databaseUrl: process.env.DATABASE_URL || '',
@@ -25,6 +44,8 @@ const env = {
   appUrl: process.env.APP_URL || '',
   allowedOrigin: process.env.ALLOWED_ORIGIN || '',
   allowedOrigins: parseOrigins(process.env.ALLOWED_ORIGIN),
+  trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
+  trustProxyConfigured,
   smtpHost: process.env.SMTP_HOST || '',
   smtpPort: Number.isFinite(smtpPort) ? smtpPort : 587,
   smtpSecure: parseBoolean(process.env.SMTP_SECURE, false),
@@ -43,7 +64,7 @@ const env = {
   zapsignApiBaseUrl: process.env.ZAPSIGN_API_BASE_URL || 'https://api.zapsign.com.br/api/v1',
   zapsignSandbox: parseBoolean(process.env.ZAPSIGN_SANDBOX, false),
   libreOfficeBinary: process.env.LIBREOFFICE_BINARY || 'soffice',
-  nodeEnv: process.env.NODE_ENV || 'development'
+  nodeEnv
 };
 
 export default env;

@@ -129,6 +129,9 @@ model Collaborator {
   name             String
   role             String
   email            String?
+  cpf              String?
+  registrationNumber String?
+  admissionDate    DateTime?
   signatureImage   String?
   isActive         Boolean   @default(true)
   createdAt        DateTime  @default(now())
@@ -136,6 +139,8 @@ model Collaborator {
   projectsLed      Project[] @relation("ProjectOperator")
   reportLinks      ReportCollaborator[]
   user             User?
+  epiRecords       EpiRecord[]
+  epiSignatureRequests EpiSignatureRequest[]
 }
 
 model ClientSegment {
@@ -433,8 +438,98 @@ model User {
   reportAuditLogs ReportAuditLog[] @relation("ReportAuditLogUser")
   sentSurveys     SatisfactionSurvey[]
   createdRomaneios Romaneio[] @relation("RomaneioCreator")
+  createdEpiRecords EpiRecord[] @relation("EpiRecordCreator")
+  epiSignatureRequests EpiSignatureRequest[] @relation("EpiSignatureRequester")
 
   @@index([clientCnpj])
+}
+
+model EpiCatalogItem {
+  id        String   @id @default(cuid())
+  name      String
+  ca        String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  records   EpiRecord[]
+
+  @@unique([name, ca])
+  @@index([isActive])
+  @@index([name])
+}
+
+model EpiRecord {
+  id                 String   @id @default(cuid())
+  collaboratorId     String
+  catalogItemId      String?
+  epiName            String
+  ca                 String
+  quantity           Int      @default(1)
+  lendDate           DateTime
+  devolutionDate     DateTime?
+  signatureRequestId String?
+  signatureImageDataUrl String?
+  signatureSignerName String?
+  signedAt           DateTime?
+  pendingReturn      Boolean  @default(false)
+  returnSourceRecordId String?
+  archivedAt         DateTime?
+  createdByUserId    String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  collaborator       Collaborator @relation(fields: [collaboratorId], references: [id], onDelete: Restrict)
+  catalogItem        EpiCatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+  signatureRequest   EpiSignatureRequest? @relation(fields: [signatureRequestId], references: [id], onDelete: SetNull)
+  createdBy          User? @relation("EpiRecordCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([collaboratorId])
+  @@index([catalogItemId])
+  @@index([signatureRequestId])
+  @@index([signedAt])
+  @@index([pendingReturn])
+  @@index([returnSourceRecordId])
+  @@index([archivedAt])
+}
+
+model EpiSignatureRequest {
+  id                String   @id @default(cuid())
+  collaboratorId    String
+  requestedByUserId String?
+  tokenHash         String   @unique
+  status            String   @default("PENDING")
+  expiresAt         DateTime
+  signedAt          DateTime?
+  signatureImageDataUrl String?
+  signatureSignerName String?
+  signedPdfPath     String?
+  signedPdfHash     String?
+  signedPdfFileName String?
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  collaborator      Collaborator @relation(fields: [collaboratorId], references: [id], onDelete: Restrict)
+  requestedBy       User? @relation("EpiSignatureRequester", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  records           EpiRecord[]
+  auditLogs         EpiSignatureRequestAuditLog[]
+
+  @@index([collaboratorId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model EpiSignatureRequestAuditLog {
+  id        String   @id @default(cuid())
+  requestId String
+  action    String
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  request   EpiSignatureRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([action])
+  @@index([createdAt])
 }
 
 model Romaneio {

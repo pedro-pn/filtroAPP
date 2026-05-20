@@ -1,0 +1,16 @@
+<<collaborator>> - nome do colaborador
+<<cpf>> - cpf do colaborador
+<<admissiondate>> - data de admissão do colaborador
+<<number>> - numero da matricula do colaborador
+<<POSITION>> - cargo do colaborador
+
+<<date>> - data de criação da ficha (essa é preenchida somente uma vez, quando a ficha é gerada pela primeira vez para o colaborador)
+<<ass>> - Existem dois desse placeholder, um vai ser preenchido somente uma vez e permanecer no documento e o outro, que fica na tabela logo abaixo, é preenchido para cada EPI assinado.
+
+Tabela - cada EPI emprestado/devolvido, é adicionado uma linha da tabela e preenchida.
+<<epi>> - nome do epi
+<<ca>> - numero do C.A do epi
+<<lenddate>> - data de fornecimento do EPI
+<<devolutiondate>> - data de devolução do epi
+<<ass>> - assinatura
+

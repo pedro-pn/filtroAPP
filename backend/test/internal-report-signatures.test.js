@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { Readable, Writable } from 'node:stream';
 import test from 'node:test';
 
 import { PDFDocument } from 'pdf-lib';
@@ -10,6 +11,8 @@ import {
   publicSignatureStatus,
   shouldCreateInternalSignatureRound
 } from '../src/routes/resources/reports.js';
+import app from '../src/app.js';
+import { assertProductionTrustProxyConfigured } from '../src/config/env.js';
 import {
   clientSignersForReport,
   createValidationQrCodeMatrix,
@@ -22,7 +25,50 @@ import {
 
 const tinyPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
-test('signatureEvidenceFromRequest prefers proxy real client IP', () => {
+function dispatchAppGet(pathName, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const req = new Readable({
+      read() {
+        this.push(null);
+      }
+    });
+    req.method = 'GET';
+    req.url = pathName;
+    req.headers = headers;
+    req.socket = { remoteAddress: '127.0.0.1', encrypted: false };
+    req.connection = req.socket;
+
+    const chunks = [];
+    const responseHeaders = new Map();
+    const res = new Writable({
+      write(chunk, _encoding, callback) {
+        chunks.push(Buffer.from(chunk));
+        callback();
+      }
+    });
+    res.statusCode = 200;
+    res.setHeader = (name, value) => responseHeaders.set(String(name).toLowerCase(), value);
+    res.getHeader = name => responseHeaders.get(String(name).toLowerCase());
+    res.getHeaders = () => Object.fromEntries(responseHeaders);
+    res.removeHeader = name => responseHeaders.delete(String(name).toLowerCase());
+    res.writeHead = (statusCode, headersToSet = {}) => {
+      res.statusCode = statusCode;
+      Object.entries(headersToSet).forEach(([name, value]) => res.setHeader(name, value));
+      return res;
+    };
+    res.end = (chunk, encoding, callback) => {
+      if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
+      Writable.prototype.end.call(res, callback);
+      const body = Buffer.concat(chunks).toString('utf8');
+      resolve({ statusCode: res.statusCode, body, json: body ? JSON.parse(body) : null });
+      return res;
+    };
+
+    app.handle(req, res, reject);
+  });
+}
+
+test('signatureEvidenceFromRequest uses trusted proxy client IPs', () => {
   assert.deepEqual(
     signatureEvidenceFromRequest({
       headers: {
@@ -30,6 +76,8 @@ test('signatureEvidenceFromRequest prefers proxy real client IP', () => {
         'x-forwarded-for': '198.51.100.20, 10.0.0.2',
         'user-agent': 'Node Test'
       },
+      app: { get: key => key === 'trust proxy' },
+      ips: ['203.0.113.10'],
       ip: '172.18.0.5'
     }),
     {
@@ -39,7 +87,7 @@ test('signatureEvidenceFromRequest prefers proxy real client IP', () => {
   );
 });
 
-test('signatureEvidenceFromRequest prefers public forwarded IP over Docker bridge IP', () => {
+test('signatureEvidenceFromRequest prefers public trusted proxy IP over Docker bridge IP', () => {
   assert.deepEqual(
     signatureEvidenceFromRequest({
       headers: {
@@ -48,6 +96,8 @@ test('signatureEvidenceFromRequest prefers public forwarded IP over Docker bridg
         forwarded: 'for=203.0.113.30;proto=https',
         'user-agent': 'Node Test'
       },
+      app: { get: key => key === 'trust proxy' },
+      ips: ['172.18.0.1', '198.51.100.20'],
       ip: '172.18.0.5'
     }),
     {
@@ -55,6 +105,42 @@ test('signatureEvidenceFromRequest prefers public forwarded IP over Docker bridg
       userAgent: 'Node Test'
     }
   );
+});
+
+test('Express trust proxy setting controls signature evidence client IPs', async t => {
+  const previousTrustProxy = app.get('trust proxy');
+  const pathName = `/__test/signature-evidence-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  app.get(pathName, (req, res) => {
+    res.json(signatureEvidenceFromRequest(req));
+  });
+  t.after(() => {
+    app.set('trust proxy', previousTrustProxy);
+  });
+
+  app.set('trust proxy', false);
+  const untrusted = await dispatchAppGet(pathName, {
+    'host': '127.0.0.1',
+    'x-forwarded-for': '203.0.113.10',
+    'user-agent': 'Node Test'
+  }).then(response => response.json);
+  assert.notEqual(untrusted.ipAddress, '203.0.113.10');
+
+  app.set('trust proxy', 'loopback');
+  const trusted = await dispatchAppGet(pathName, {
+    'host': '127.0.0.1',
+    'x-forwarded-for': '203.0.113.10',
+    'user-agent': 'Node Test'
+  }).then(response => response.json);
+  assert.equal(trusted.ipAddress, '203.0.113.10');
+});
+
+test('production startup requires explicit trust proxy configuration', () => {
+  assert.throws(
+    () => assertProductionTrustProxyConfigured({ nodeEnv: 'production', trustProxyConfigured: false }),
+    /TRUST_PROXY/
+  );
+  assert.doesNotThrow(() => assertProductionTrustProxyConfigured({ nodeEnv: 'production', trustProxyConfigured: true }));
+  assert.doesNotThrow(() => assertProductionTrustProxyConfigured({ nodeEnv: 'development', trustProxyConfigured: false }));
 });
 
 test('signInternalReportVersion stores the signer name provided at signing time', async () => {

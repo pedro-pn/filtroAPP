@@ -25,6 +25,8 @@ const allowedOrigins = String(env.allowedOrigin || '')
 fs.mkdirSync(env.assetsDir, { recursive: true });
 fs.mkdirSync(env.reportsDir, { recursive: true });
 
+app.set('trust proxy', env.trustProxy);
+
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginResourcePolicy: false
@@ -76,8 +78,9 @@ app.use((err, _req, res, _next) => {
   console.error(err);
 
   if (err instanceof ZodError) {
+    const firstMessage = err.issues?.find(issue => issue.message)?.message;
     return res.status(400).json({
-      error: 'Dados inválidos',
+      error: firstMessage ? `Dados inválidos: ${firstMessage}` : 'Dados inválidos',
       details: err.flatten()
     });
   }

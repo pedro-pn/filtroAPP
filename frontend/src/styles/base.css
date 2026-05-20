@@ -6229,3 +6229,410 @@ select {
     display: none;
   }
 }
+
+.epi-page {
+  gap: 10px;
+}
+
+.app-shell:has(.epi-page) {
+  max-width: 760px;
+}
+
+.epi-panel,
+.epi-collaborator-card {
+  padding: 12px;
+}
+
+.epi-card-head {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--tx);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.epi-card-head strong,
+.epi-catalog-row strong,
+.epi-record-row strong,
+.epi-public-row strong {
+  display: block;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.epi-card-head small,
+.epi-catalog-row small,
+.epi-record-row small,
+.epi-public-row small {
+  display: block;
+  margin-top: 2px;
+  color: var(--mu);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.epi-card-count {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #eef7f0;
+  color: var(--g);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 9px;
+  white-space: nowrap;
+}
+
+.epi-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--br);
+  padding-top: 12px;
+}
+
+.epi-profile-grid,
+.epi-record-form,
+.epi-catalog-form {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.epi-profile-cpf {
+  grid-column: span 4;
+}
+
+.epi-profile-registration {
+  grid-column: span 3;
+}
+
+.epi-profile-admission {
+  grid-column: span 3;
+}
+
+.epi-profile-save {
+  grid-column: span 2;
+  min-height: 42px;
+}
+
+.epi-profile-cancel {
+  grid-column: span 2;
+  min-height: 42px;
+}
+
+.epi-profile-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 10px;
+  align-items: stretch;
+  border: 1px solid var(--br);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.epi-profile-summary > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.epi-profile-summary span {
+  color: var(--mu);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.epi-profile-summary strong {
+  color: var(--tx);
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.epi-profile-summary .secondary-button {
+  align-self: center;
+  min-height: 38px;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.epi-record-form {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.epi-record-form .field-group:nth-child(1),
+.epi-record-form .field-group:nth-child(2) {
+  grid-column: span 4;
+}
+
+.epi-record-form .field-group:nth-child(3),
+.epi-record-form .field-group:nth-child(4),
+.epi-record-form .field-group:nth-child(5),
+.epi-record-form .field-group:nth-child(6) {
+  grid-column: span 3;
+}
+
+.epi-record-form .primary-button,
+.epi-catalog-form .primary-button {
+  grid-column: span 3;
+  min-height: 42px;
+}
+
+.epi-catalog-form .field-group:first-child {
+  grid-column: span 6;
+}
+
+.epi-catalog-form .field-group:nth-child(2) {
+  grid-column: span 3;
+}
+
+.epi-record-form input,
+.epi-record-form select,
+.epi-profile-grid input,
+.epi-catalog-form input {
+  min-height: 42px;
+}
+
+.epi-record-actions,
+.epi-row-buttons,
+.epi-sign-link,
+.epi-catalog-row,
+.epi-record-row,
+.epi-public-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.epi-record-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.epi-sign-link {
+  justify-content: space-between;
+  border: 1px solid var(--br);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 8px;
+}
+
+.epi-sign-link span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--mu);
+  font-size: 12px;
+}
+
+.epi-remove-dialog .epi-remove-dialog-item {
+  border: 1px solid var(--br);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px;
+  color: var(--tx);
+  overflow-wrap: anywhere;
+}
+
+.epi-remove-dialog .epi-remove-dialog-item strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.epi-remove-dialog .epi-remove-dialog-actions {
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.epi-remove-dialog .epi-remove-dialog-actions .secondary-button,
+.epi-remove-dialog .epi-remove-dialog-actions .danger-button {
+  min-height: 38px;
+  min-width: 96px;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.epi-record-list,
+.epi-catalog-list,
+.epi-public-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.epi-catalog-list {
+  margin-top: 14px;
+}
+
+.epi-record-row,
+.epi-catalog-row,
+.epi-public-row {
+  border: 1px solid var(--br);
+  border-radius: 8px;
+  background: #fff;
+  padding: 9px;
+}
+
+.epi-record-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto auto;
+}
+
+.epi-catalog-row {
+  align-items: stretch;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.epi-catalog-row-main,
+.epi-catalog-edit-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.epi-catalog-row-main {
+  justify-content: space-between;
+}
+
+.epi-catalog-edit-form {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--br);
+}
+
+.epi-catalog-row > div,
+.epi-record-row > div,
+.epi-public-row {
+  min-width: 0;
+}
+
+.epi-catalog-edit-form input {
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: var(--wh);
+  padding: 7px 8px;
+}
+
+.epi-catalog-edit-form input:first-child {
+  flex: 1 1 auto;
+}
+
+.epi-catalog-edit-form input:nth-child(2) {
+  flex: 0 1 140px;
+}
+
+.epi-status {
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.epi-status.signed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.epi-row-buttons {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.epi-row-buttons .mini-btn,
+.epi-record-actions .primary-button,
+.epi-record-actions .secondary-button {
+  min-height: 38px;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.epi-record-actions .epi-restore-button:disabled {
+  background: transparent;
+  border-color: transparent;
+  color: var(--mu);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.epi-public-list {
+  margin-top: 12px;
+}
+
+.epi-public-row {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+@media (max-width: 720px) {
+  .epi-profile-grid,
+  .epi-record-form,
+  .epi-catalog-form {
+    grid-template-columns: 1fr;
+  }
+
+  .epi-profile-cpf,
+  .epi-profile-registration,
+  .epi-profile-admission,
+  .epi-profile-save,
+  .epi-profile-cancel,
+  .epi-record-form .field-group:nth-child(1),
+  .epi-record-form .field-group:nth-child(2),
+  .epi-record-form .field-group:nth-child(3),
+  .epi-record-form .field-group:nth-child(4),
+  .epi-record-form .field-group:nth-child(5),
+  .epi-record-form .field-group:nth-child(6),
+  .epi-record-form .primary-button,
+  .epi-catalog-form .field-group:first-child,
+  .epi-catalog-form .field-group:nth-child(2),
+  .epi-catalog-form .primary-button {
+    grid-column: 1;
+  }
+
+  .epi-profile-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .epi-profile-summary .secondary-button {
+    width: 100%;
+  }
+
+  .epi-card-head,
+  .epi-catalog-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .epi-card-count {
+    white-space: normal;
+  }
+
+  .epi-record-row {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+
+  .epi-record-row .epi-status,
+  .epi-record-row .epi-row-buttons {
+    grid-column: 2;
+  }
+}
