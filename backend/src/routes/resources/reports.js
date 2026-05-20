@@ -55,7 +55,9 @@ import {
   clientSignersForReport,
   createSignatureAuditLog,
   createSignatureValidationCode,
+  decodableSignatureImageDataUrl,
   ensureInternalSignatureRound,
+  finalEvidencePdfTarget,
   hasActiveSignedInternalSignature,
   internalSignatureTokenHash,
   invalidateUnsignedInternalSignatureRound,
@@ -793,6 +795,31 @@ async function getReportPdfDownload(report) {
   };
 }
 
+function delay(ms) {
+  return new Promise(resolve => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function waitForInternalSignatureFinalization(versionId, reportId) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const current = await prisma.reportVersion.findUnique({
+      where: { id: versionId },
+      select: { finalDocumentHash: true }
+    });
+    if (current?.finalDocumentHash) {
+      return prisma.report.findUniqueOrThrow({
+        where: { id: reportId },
+        include
+      });
+    }
+    await delay(50);
+  }
+  const error = new Error('Finalizacao de assinatura em andamento. Tente novamente em instantes.');
+  error.statusCode = 409;
+  throw error;
+}
+
 async function finalizeInternalSignatureRound(report, version, evidence, userId) {
   const currentVersion = await prisma.reportVersion.findUnique({
     where: { id: version.id },
@@ -804,6 +831,9 @@ async function finalizeInternalSignatureRound(report, version, evidence, userId)
       include
     });
   }
+  if (currentVersion?.finalPdfUrl) {
+    return waitForInternalSignatureFinalization(version.id, report.id);
+  }
 
   const versionForFinalPdf = currentVersion ? { ...version, ...currentVersion } : version;
   const sourcePath = reportSourcePdfPath(versionForFinalPdf.sourcePdfUrl);
@@ -814,42 +844,91 @@ async function finalizeInternalSignatureRound(report, version, evidence, userId)
   }
 
   const validationCode = versionForFinalPdf.validationCode || await uniqueSignatureValidationCode();
-  const finalPdf = await writeFinalEvidencePdf({
-    sourcePdfPath: sourcePath,
-    sourcePdfUrl: versionForFinalPdf.sourcePdfUrl,
-    report,
-    version: versionForFinalPdf,
-    signatures: versionForFinalPdf.signatures || [],
-    validationCode
-  });
-
-  await prisma.$transaction(async tx => {
-    const finalized = await tx.reportVersion.updateMany({
-      where: { id: version.id, finalDocumentHash: null },
+  const target = finalEvidencePdfTarget(sourcePath, versionForFinalPdf.sourcePdfUrl, validationCode);
+  const reserved = await prisma.$transaction(async tx => {
+    const result = await tx.reportVersion.updateMany({
+      where: { id: version.id, finalDocumentHash: null, finalPdfUrl: null },
       data: {
-        finalPdfUrl: finalPdf.finalPdfUrl,
-        finalDocumentHash: finalPdf.finalDocumentHash,
+        finalPdfUrl: target.finalPdfUrl,
         validationCode
       }
     });
-    if (finalized.count !== 1) return;
-    await tx.reportSignature.updateMany({
-      where: { versionId: version.id, status: 'SIGNED' },
-      data: { finalDocumentHash: finalPdf.finalDocumentHash }
-    });
-    await tx.report.update({
-      where: { id: report.id },
-      data: { status: ReportStatus.SIGNED }
-    });
-    await createSignatureAuditLog(tx, {
-      reportId: report.id,
-      versionId: version.id,
-      userId,
-      action: ReportAuditAction.REPORT_LOCKED,
-      description: 'Relatorio assinado internamente e bloqueado.',
-      evidence
-    });
+    return result.count === 1;
   });
+  if (!reserved) {
+    return waitForInternalSignatureFinalization(version.id, report.id);
+  }
+
+  let finalPdf;
+  try {
+    finalPdf = await writeFinalEvidencePdf({
+      sourcePdfPath: sourcePath,
+      sourcePdfUrl: versionForFinalPdf.sourcePdfUrl,
+      finalPdfPath: target.finalPdfPath,
+      finalPdfUrl: target.finalPdfUrl,
+      report,
+      version: { ...versionForFinalPdf, validationCode },
+      signatures: versionForFinalPdf.signatures || [],
+      validationCode
+    });
+  } catch (error) {
+    await prisma.reportVersion.updateMany({
+      where: { id: version.id, finalDocumentHash: null, finalPdfUrl: target.finalPdfUrl },
+      data: {
+        finalPdfUrl: null,
+        validationCode: versionForFinalPdf.validationCode || null
+      }
+    });
+    await fs.unlink(target.finalPdfPath).catch(() => {});
+    throw error;
+  }
+
+  try {
+    await prisma.$transaction(async tx => {
+      const finalized = await tx.reportVersion.updateMany({
+        where: {
+          id: version.id,
+          finalDocumentHash: null,
+          finalPdfUrl: target.finalPdfUrl,
+          validationCode
+        },
+        data: {
+          finalDocumentHash: finalPdf.finalDocumentHash
+        }
+      });
+      if (finalized.count !== 1) {
+        const error = new Error('Finalizacao de assinatura ja processada por outra requisicao.');
+        error.statusCode = 409;
+        throw error;
+      }
+      await tx.reportSignature.updateMany({
+        where: { versionId: version.id, status: 'SIGNED' },
+        data: { finalDocumentHash: finalPdf.finalDocumentHash }
+      });
+      await tx.report.update({
+        where: { id: report.id },
+        data: { status: ReportStatus.SIGNED }
+      });
+      await createSignatureAuditLog(tx, {
+        reportId: report.id,
+        versionId: version.id,
+        userId,
+        action: ReportAuditAction.REPORT_LOCKED,
+        description: 'Relatorio assinado internamente e bloqueado.',
+        evidence
+      });
+    });
+  } catch (error) {
+    await prisma.reportVersion.updateMany({
+      where: { id: version.id, finalDocumentHash: null, finalPdfUrl: target.finalPdfUrl },
+      data: {
+        finalPdfUrl: null,
+        validationCode: versionForFinalPdf.validationCode || null
+      }
+    });
+    await fs.unlink(target.finalPdfPath).catch(() => {});
+    throw error;
+  }
 
   return prisma.report.findUniqueOrThrow({
     where: { id: report.id },
@@ -1125,6 +1204,15 @@ function uniqueIds(values) {
 function cloneJson(value) {
   if (value == null) return value;
   return JSON.parse(JSON.stringify(value));
+}
+
+export async function assertRenderableReportSignatureImageDataUrl(value) {
+  if (await decodableSignatureImageDataUrl(value)) return;
+  throw new z.ZodError([{
+    code: z.ZodIssueCode.custom,
+    path: ['signatureImageDataUrl'],
+    message: 'Assinatura visual invalida.'
+  }]);
 }
 
 function stripInternalEditState(specialConditions) {
@@ -2913,6 +3001,7 @@ router.get('/public-sign/:token/pdf', publicSignatureLimiter, asyncHandler(async
 
 router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(async (req, res) => {
   const data = publicSignatureConfirmSchema.parse(req.body || {});
+  await assertRenderableReportSignatureImageDataUrl(data.signatureImageDataUrl);
   const evidence = signatureEvidenceFromRequest(req);
   let signedVersion;
   let signatureResult = { alreadySigned: false };
@@ -3695,7 +3784,8 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
         reportId: req.params.id,
         userId: req.auth.user.id,
         evidence,
-        description: 'Rodada de assinatura invalidada por alteracao de status do relatorio.'
+        description: 'Rodada de assinatura invalidada por alteracao de status do relatorio.',
+        invalidateSignedRound: true
       });
     }
 
@@ -3738,6 +3828,7 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
   }
 
   const data = requestSignatureSchema.parse(req.body || {});
+  await assertRenderableReportSignatureImageDataUrl(data.signatureImageDataUrl);
 
   const existing = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },

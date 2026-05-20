@@ -8,6 +8,7 @@ import test from 'node:test';
 import { PDFDocument } from 'pdf-lib';
 
 import {
+  assertRenderableReportSignatureImageDataUrl,
   publicSignatureStatus,
   shouldCreateInternalSignatureRound
 } from '../src/routes/resources/reports.js';
@@ -16,7 +17,10 @@ import { assertProductionTrustProxyConfigured } from '../src/config/env.js';
 import {
   clientSignersForReport,
   createValidationQrCodeMatrix,
+  decodableSignatureImageDataUrl,
+  finalEvidencePdfTarget,
   invalidateUnsignedInternalSignatureRound,
+  parseSignatureImageDataUrl,
   signatureEvidenceFromRequest,
   sha256Hex,
   signInternalReportVersion,
@@ -24,6 +28,18 @@ import {
 } from '../src/lib/internal-report-signatures.js';
 
 const tinyPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+function malformedPngHeaderDataUrl() {
+  const bytes = Buffer.alloc(33);
+  Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(bytes, 0);
+  bytes.writeUInt32BE(13, 8);
+  bytes.write('IHDR', 12, 'ascii');
+  bytes.writeUInt32BE(1, 16);
+  bytes.writeUInt32BE(1, 20);
+  bytes[24] = 8;
+  bytes[25] = 6;
+  return `data:image/png;base64,${bytes.toString('base64')}`;
+}
 
 function dispatchAppGet(pathName, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -293,6 +309,17 @@ test('publicSignatureStatus blocks links for deleted projects but allows archive
   }), 'ACTIVE');
 });
 
+test('RDO signature image validation rejects non-decodable image evidence', async () => {
+  const malformed = malformedPngHeaderDataUrl();
+
+  assert.equal(parseSignatureImageDataUrl(malformed)?.mimeType, 'image/png');
+  assert.equal(await decodableSignatureImageDataUrl(malformed), null);
+  await assert.rejects(
+    () => assertRenderableReportSignatureImageDataUrl(malformed),
+    /Assinatura visual invalida/
+  );
+});
+
 test('invalidateUnsignedInternalSignatureRound can invalidate pending project-delete rounds with signed signatures', async () => {
   const calls = [];
   const tx = {
@@ -422,6 +449,65 @@ test('writeFinalEvidencePdf creates final PDF with evidence page and hash', asyn
   assert.equal(finalPdf.getPages()[1].node.Annots()?.size(), 1);
   assert.equal(result.finalDocumentHash, sha256Hex(finalBytes));
   assert.notEqual(result.finalDocumentHash, sha256Hex(Buffer.from(sourceBytes)));
+});
+
+test('writeFinalEvidencePdf rejects signed signatures with non-decodable images', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rdo-signature-pdf-invalid-'));
+  const sourcePdfPath = path.join(dir, 'relatorio.pdf');
+  const sourcePdfUrl = '/relatorios/teste/relatorio.pdf';
+
+  const source = await PDFDocument.create();
+  source.addPage([300, 300]);
+  const sourceBytes = await source.save();
+  await fs.writeFile(sourcePdfPath, sourceBytes);
+
+  await assert.rejects(
+    () => writeFinalEvidencePdf({
+      sourcePdfPath,
+      sourcePdfUrl,
+      report: {
+        reportType: 'RDO',
+        sequenceNumber: 12,
+        project: { code: 'P-001', name: 'Projeto Teste' }
+      },
+      version: {
+        sourceDocumentHash: sha256Hex(Buffer.from(sourceBytes)),
+        createdAt: new Date('2026-05-12T11:30:00.000Z')
+      },
+      validationCode: 'codigo-publico-teste',
+      signatures: [
+        {
+          status: 'SIGNED',
+          signerName: 'Cliente Teste',
+          signerEmail: 'cliente@example.com',
+          signedAt: new Date('2026-05-12T12:00:00.000Z'),
+          ipAddress: '192.168.0.10',
+          userAgent: 'Node Test',
+          signatureImageDataUrl: malformedPngHeaderDataUrl()
+        }
+      ]
+    }),
+    /Assinatura visual invalida/
+  );
+
+  await assert.rejects(
+    () => fs.access(path.join(dir, 'relatorio-assinado.pdf')),
+    /ENOENT/
+  );
+});
+
+test('finalEvidencePdfTarget can reserve distinct final artifacts per validation code', () => {
+  assert.deepEqual(
+    finalEvidencePdfTarget('/tmp/relatorio.pdf', '/relatorios/teste/relatorio.pdf', 'codigo-A_1'),
+    {
+      finalPdfPath: '/tmp/relatorio-assinado-codigo-A_1.pdf',
+      finalPdfUrl: '/relatorios/teste/relatorio-assinado-codigo-A_1.pdf'
+    }
+  );
+  assert.notEqual(
+    finalEvidencePdfTarget('/tmp/relatorio.pdf', '/relatorios/teste/relatorio.pdf', 'codigo-A_1').finalPdfPath,
+    finalEvidencePdfTarget('/tmp/relatorio.pdf', '/relatorios/teste/relatorio.pdf', 'codigo-B_2').finalPdfPath
+  );
 });
 
 test('createValidationQrCodeMatrix creates a square QR matrix for validation URLs', () => {

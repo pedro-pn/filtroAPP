@@ -78,6 +78,21 @@ export async function decodableSignatureImageDataUrl(value) {
   }
 }
 
+function safeEvidenceFilePart(value) {
+  return String(value || '')
+    .replace(/[^A-Za-z0-9_-]/g, '')
+    .slice(0, 80);
+}
+
+export function finalEvidencePdfTarget(sourcePdfPath, sourcePdfUrl, suffix = '') {
+  const safeSuffix = safeEvidenceFilePart(suffix);
+  const suffixPart = safeSuffix ? `-${safeSuffix}` : '';
+  return {
+    finalPdfPath: sourcePdfPath.replace(/\.pdf$/i, `-assinado${suffixPart}.pdf`),
+    finalPdfUrl: sourcePdfUrl.replace(/\.pdf($|\?)/i, `-assinado${suffixPart}.pdf$1`)
+  };
+}
+
 function parsePngImageSize(bytes) {
   if (bytes.length < 33) return null;
   const pngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
@@ -701,6 +716,8 @@ async function embedSignatureImage(pdf, signature) {
 export async function writeFinalEvidencePdf({
   sourcePdfPath,
   sourcePdfUrl,
+  finalPdfPath,
+  finalPdfUrl,
   report,
   version,
   signatures,
@@ -762,44 +779,45 @@ export async function writeFinalEvidencePdf({
     drawText(page, `Navegador: ${summarizedUserAgent(signature.userAgent)}`, 48, y, { font, size: 10, color: black });
     y -= 18;
     const signatureImage = await embedSignatureImage(pdf, signature);
-    if (signatureImage) {
-      const maxWidth = 180;
-      const maxHeight = 64;
-      const scale = Math.min(maxWidth / signatureImage.width, maxHeight / signatureImage.height, 1);
-      const width = signatureImage.width * scale;
-      const height = signatureImage.height * scale;
-      drawText(page, 'Assinatura:', 48, y, { font, size: 10, color: black });
-      page.drawRectangle({
-        x: 120,
-        y: y - height + 10,
-        width: maxWidth,
-        height: maxHeight,
-        borderColor: rgb(0.78, 0.81, 0.85),
-        borderWidth: 0.6
-      });
-      page.drawImage(signatureImage, {
-        x: 128,
-        y: y - height + 18,
-        width,
-        height
-      });
-      y -= maxHeight + 18;
-    } else {
-      drawText(page, 'Assinatura visual: registrada no sistema, imagem indisponivel para incorporacao.', 48, y, { font, size: 9, color: muted });
-      y -= 20;
+    if (!signatureImage) {
+      const error = new Error('Assinatura visual invalida para geracao do PDF final.');
+      error.statusCode = 409;
+      throw error;
     }
+    const maxWidth = 180;
+    const maxHeight = 64;
+    const scale = Math.min(maxWidth / signatureImage.width, maxHeight / signatureImage.height, 1);
+    const width = signatureImage.width * scale;
+    const height = signatureImage.height * scale;
+    drawText(page, 'Assinatura:', 48, y, { font, size: 10, color: black });
+    page.drawRectangle({
+      x: 120,
+      y: y - height + 10,
+      width: maxWidth,
+      height: maxHeight,
+      borderColor: rgb(0.78, 0.81, 0.85),
+      borderWidth: 0.6
+    });
+    page.drawImage(signatureImage, {
+      x: 128,
+      y: y - height + 18,
+      width,
+      height
+    });
+    y -= maxHeight + 18;
   }
 
   drawText(page, 'A trilha completa de auditoria permanece registrada no sistema Filtrovali RDO.', 48, 64, { font, size: 9, color: muted });
 
   const finalBytes = await pdf.save();
   const finalHash = sha256Hex(Buffer.from(finalBytes));
-  const finalPdfPath = sourcePdfPath.replace(/\.pdf$/i, '-assinado.pdf');
-  const finalPdfUrl = sourcePdfUrl.replace(/\.pdf($|\?)/i, '-assinado.pdf$1');
-  await fs.writeFile(finalPdfPath, finalBytes);
+  const target = finalEvidencePdfTarget(sourcePdfPath, sourcePdfUrl);
+  const targetPath = finalPdfPath || target.finalPdfPath;
+  const targetUrl = finalPdfUrl || target.finalPdfUrl;
+  await fs.writeFile(targetPath, finalBytes);
   return {
-    finalPdfPath,
-    finalPdfUrl,
+    finalPdfPath: targetPath,
+    finalPdfUrl: targetUrl,
     finalDocumentHash: finalHash
   };
 }
