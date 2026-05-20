@@ -8,7 +8,8 @@ import {
   cleanupFailedRomaneioCreate,
   requireRomaneioManager,
   requireRomaneioModuleAccess,
-  romaneioEmailFailureResult
+  romaneioEmailFailureResult,
+  visibleRomaneioWhere
 } from '../src/routes/resources/romaneios.js';
 
 function responseRecorder() {
@@ -104,5 +105,22 @@ test('romaneioEmailFailureResult stores SMTP failures without failing creation',
   assert.deepEqual(
     romaneioEmailFailureResult(new Error('SMTP indisponivel')),
     { status: 'erro no envio', error: 'SMTP indisponivel' }
+  );
+});
+
+test('Romaneio visibility queries exclude soft-deleted projects', () => {
+  assert.deepEqual(
+    visibleRomaneioWhere(),
+    { project: { deletedAt: null } }
+  );
+  assert.deepEqual(
+    visibleRomaneioWhere({ id: 'romaneio-1', project: { code: { contains: 'P-001' } } }),
+    {
+      id: 'romaneio-1',
+      project: {
+        code: { contains: 'P-001' },
+        deletedAt: null
+      }
+    }
   );
 });

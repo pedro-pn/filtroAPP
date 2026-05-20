@@ -177,6 +177,16 @@ function selectedFields() {
   };
 }
 
+export function visibleRomaneioWhere(where = {}) {
+  return {
+    ...where,
+    project: {
+      ...(where.project || {}),
+      deletedAt: null
+    }
+  };
+}
+
 function romaneioDraftWhere(userId) {
   return {
     userId,
@@ -491,16 +501,16 @@ router.delete('/notifications/:id', requireAuth, requireRomaneioAccess, requireR
 }));
 
 router.get('/:id/pdf', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
-  const item = await prisma.romaneio.findUniqueOrThrow({
-    where: { id: req.params.id },
+  const item = await prisma.romaneio.findFirstOrThrow({
+    where: visibleRomaneioWhere({ id: req.params.id }),
     ...selectedFields()
   });
   return sendRomaneioStoredFile(res, item, 'pdfUrl', 'application/pdf', 'pdf');
 }));
 
 router.get('/:id/docx', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
-  const item = await prisma.romaneio.findUniqueOrThrow({
-    where: { id: req.params.id },
+  const item = await prisma.romaneio.findFirstOrThrow({
+    where: visibleRomaneioWhere({ id: req.params.id }),
     ...selectedFields()
   });
   return sendRomaneioStoredFile(
@@ -515,7 +525,7 @@ router.get('/:id/docx', requireAuth, requireRomaneioAccess, asyncHandler(async (
 router.get('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const search = String(req.query.search || '').trim();
   const projectId = String(req.query.projectId || '').trim();
-  const where = {};
+  const where = visibleRomaneioWhere();
   if (projectId) where.projectId = projectId;
   if (search) {
     where.OR = [

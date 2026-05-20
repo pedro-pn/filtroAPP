@@ -10,6 +10,7 @@ import { PDFDocument } from 'pdf-lib';
 import {
   assertRenderableReportSignatureImageDataUrl,
   publicSignatureStatus,
+  rejectPublicInternalSignature,
   shouldCreateInternalSignatureRound,
   verifiedFinalPdfBuffer
 } from '../src/routes/resources/reports.js';
@@ -319,6 +320,74 @@ test('RDO signature image validation rejects non-decodable image evidence', asyn
     () => assertRenderableReportSignatureImageDataUrl(malformed),
     /Assinatura visual invalida/
   );
+});
+
+test('rejectPublicInternalSignature aborts stale confirm/reject races without side effects', async () => {
+  const calls = [];
+  const signature = {
+    id: 'signature-1',
+    reportId: 'report-1',
+    versionId: 'version-1',
+    signerEmail: 'cliente@example.com',
+    status: 'PENDING',
+    tokenExpiresAt: new Date(Date.now() + 60_000),
+    version: { id: 'version-1', status: 'ACTIVE', signatures: [] },
+    report: {
+      id: 'report-1',
+      status: 'APPROVED',
+      deletedAt: null,
+      specialConditions: {},
+      project: { deletedAt: null }
+    }
+  };
+  const tx = {
+    reportSignature: {
+      findUnique: async args => {
+        calls.push(['reportSignature.findUnique', args]);
+        return signature;
+      },
+      updateMany: async args => {
+        calls.push(['reportSignature.updateMany', args]);
+        return { count: 0 };
+      }
+    },
+    reportVersion: {
+      updateMany: async args => {
+        calls.push(['reportVersion.updateMany', args]);
+        return { count: 1 };
+      }
+    },
+    report: {
+      updateMany: async args => {
+        calls.push(['report.updateMany', args]);
+        return { count: 1 };
+      },
+      findUniqueOrThrow: async () => ({ id: 'report-1' })
+    },
+    reportAuditLog: {
+      create: async args => {
+        calls.push(['reportAuditLog.create', args]);
+      }
+    }
+  };
+  const client = {
+    $transaction: async callback => callback(tx)
+  };
+
+  await assert.rejects(
+    () => rejectPublicInternalSignature({
+      token: 'token',
+      comment: 'Reprovado',
+      evidence: { ipAddress: '203.0.113.10', userAgent: 'Node Test' },
+      client
+    }),
+    /indisponível/
+  );
+
+  assert.equal(calls.some(([name]) => name === 'reportVersion.updateMany'), false);
+  assert.equal(calls.some(([name]) => name === 'report.updateMany'), false);
+  assert.equal(calls.some(([name]) => name === 'reportAuditLog.create'), false);
+  assert.deepEqual(calls[1][1].where, { id: 'signature-1', status: 'PENDING' });
 });
 
 test('invalidateUnsignedInternalSignatureRound can invalidate pending project-delete rounds with signed signatures', async () => {

@@ -163,8 +163,9 @@ function valueReferencesUpload(value, normalizedPath) {
   return false;
 }
 
-function canAccessReport(auth, report) {
+export function canAccessReport(auth, report) {
   if (!hasModuleRole(auth.user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator', 'rdo:client'])) return false;
+  if (report?.deletedAt || report?.project?.deletedAt) return false;
   if (auth.user.role === 'MANAGER') return true;
   if (report.project?.managerOnly) return false;
   if (auth.user.role === 'COORDINATOR') return true;
@@ -235,7 +236,7 @@ export async function authorizeStoredFile(req, normalizedPath) {
   if (!candidateIds.length) return false;
 
   const reports = await prisma.report.findMany({
-    where: { id: { in: candidateIds } },
+    where: { id: { in: candidateIds }, deletedAt: null, project: { deletedAt: null } },
     include: {
       project: true,
       collaborators: true,

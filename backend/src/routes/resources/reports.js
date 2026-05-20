@@ -2,7 +2,7 @@ import { Router } from 'express';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import AdmZip from 'adm-zip';
-import { ClientReviewAction, ReportStatus, ReportType } from '@prisma/client';
+import { ClientReviewAction, ReportSignatureStatus, ReportStatus, ReportType, ReportVersionStatus } from '@prisma/client';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
@@ -486,6 +486,89 @@ async function activePublicSignatureOrThrow(token, client = prisma) {
   return signature;
 }
 
+export async function rejectPublicInternalSignature({
+  token,
+  comment,
+  evidence,
+  client = prisma
+}) {
+  return client.$transaction(async tx => {
+    const signature = await activePublicSignatureOrThrow(token, tx);
+    const rejected = await tx.reportSignature.updateMany({
+      where: { id: signature.id, status: ReportSignatureStatus.PENDING },
+      data: {
+        status: ReportSignatureStatus.REJECTED,
+        rejectedAt: new Date(),
+        rejectionReason: comment,
+        ipAddress: evidence.ipAddress,
+        userAgent: evidence.userAgent
+      }
+    });
+    if (rejected.count !== 1) {
+      const error = new Error('Link de assinatura indisponível.');
+      error.statusCode = 409;
+      throw error;
+    }
+    await tx.reportSignature.updateMany({
+      where: {
+        versionId: signature.versionId,
+        id: { not: signature.id },
+        status: { in: [ReportSignatureStatus.PENDING, ReportSignatureStatus.SIGNED] }
+      },
+      data: {
+        status: ReportSignatureStatus.INVALIDATED,
+        invalidatedAt: new Date(),
+        rejectionReason: comment
+      }
+    });
+    const versionRejected = await tx.reportVersion.updateMany({
+      where: { id: signature.versionId, status: ReportVersionStatus.ACTIVE },
+      data: { status: ReportVersionStatus.REJECTED }
+    });
+    if (versionRejected.count !== 1) {
+      const error = new Error('Link de assinatura indisponível.');
+      error.statusCode = 409;
+      throw error;
+    }
+    await createSignatureAuditLog(tx, {
+      reportId: signature.reportId,
+      versionId: signature.versionId,
+      userId: null,
+      action: ReportAuditAction.REJECTED,
+      description: 'Relatorio reprovado por link publico de assinatura.',
+      evidence
+    });
+    await createSignatureAuditLog(tx, {
+      reportId: signature.reportId,
+      versionId: signature.versionId,
+      userId: null,
+      action: ReportAuditAction.SIGNATURES_INVALIDATED,
+      description: 'Assinaturas da rodada foram invalidadas por reprovacao via link publico.',
+      evidence
+    });
+    const updated = await tx.report.updateMany({
+      where: { id: signature.reportId, status: ReportStatus.APPROVED },
+      data: {
+        status: ReportStatus.PENDING,
+        specialConditions: {
+          ...(signature.report.specialConditions || {}),
+          [CLIENT_REJECTION_KEY]: new Date().toISOString(),
+          [CLIENT_REJECTION_COMMENT_KEY]: comment
+        }
+      }
+    });
+    if (updated.count !== 1) {
+      const error = new Error('Link de assinatura indisponível.');
+      error.statusCode = 409;
+      throw error;
+    }
+    return tx.report.findUniqueOrThrow({
+      where: { id: signature.reportId },
+      include
+    });
+  });
+}
+
 function contentDisposition(fileName) {
   const ascii = fileName
     .normalize('NFD')
@@ -858,7 +941,19 @@ async function finalizeInternalSignatureRound(report, version, evidence, userId)
       const finalized = await tx.reportVersion.updateMany({
         where: {
           id: version.id,
-          finalDocumentHash: null
+          status: ReportVersionStatus.ACTIVE,
+          finalDocumentHash: null,
+          report: {
+            status: ReportStatus.APPROVED
+          },
+          signatures: {
+            every: {
+              OR: [
+                { isRequired: false },
+                { status: ReportSignatureStatus.SIGNED }
+              ]
+            }
+          }
         },
         data: {
           finalPdfUrl: finalPdf.finalPdfUrl,
@@ -3023,62 +3118,10 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
 router.post('/public-sign/:token/reject', publicSignatureLimiter, asyncHandler(async (req, res) => {
   const data = publicSignatureRejectSchema.parse(req.body || {});
   const evidence = signatureEvidenceFromRequest(req);
-  const item = await prisma.$transaction(async tx => {
-    const signature = await activePublicSignatureOrThrow(req.params.token, tx);
-    await tx.reportSignature.update({
-      where: { id: signature.id },
-      data: {
-        status: 'REJECTED',
-        rejectedAt: new Date(),
-        rejectionReason: data.comment,
-        ipAddress: evidence.ipAddress,
-        userAgent: evidence.userAgent
-      }
-    });
-    await tx.reportSignature.updateMany({
-      where: {
-        versionId: signature.versionId,
-        id: { not: signature.id },
-        status: { in: ['PENDING', 'SIGNED'] }
-      },
-      data: {
-        status: 'INVALIDATED',
-        invalidatedAt: new Date(),
-        rejectionReason: data.comment
-      }
-    });
-    await tx.reportVersion.update({
-      where: { id: signature.versionId },
-      data: { status: 'REJECTED' }
-    });
-    await createSignatureAuditLog(tx, {
-      reportId: signature.reportId,
-      versionId: signature.versionId,
-      userId: null,
-      action: ReportAuditAction.REJECTED,
-      description: 'Relatorio reprovado por link publico de assinatura.',
-      evidence
-    });
-    await createSignatureAuditLog(tx, {
-      reportId: signature.reportId,
-      versionId: signature.versionId,
-      userId: null,
-      action: ReportAuditAction.SIGNATURES_INVALIDATED,
-      description: 'Assinaturas da rodada foram invalidadas por reprovacao via link publico.',
-      evidence
-    });
-    return tx.report.update({
-      where: { id: signature.reportId },
-      data: {
-        status: ReportStatus.PENDING,
-        specialConditions: {
-          ...(signature.report.specialConditions || {}),
-          [CLIENT_REJECTION_KEY]: new Date().toISOString(),
-          [CLIENT_REJECTION_COMMENT_KEY]: data.comment
-        }
-      },
-      include
-    });
+  const item = await rejectPublicInternalSignature({
+    token: req.params.token,
+    comment: data.comment,
+    evidence
   });
 
   queueClientRejectionNotification(item, data.comment);
