@@ -6,6 +6,7 @@ Atualizado em: 23/04/2026
 - Confirmar https://relatorios.filtrovali.com.br abrindo sem alerta de certificado
 - Confirmar backend/.env.production no servidor com APP_URL=https://relatorios.filtrovali.com.br
 - Confirmar backend/.env.production no servidor com ALLOWED_ORIGIN=https://relatorios.filtrovali.com.br
+- Confirmar backend/.env.production no servidor com TRUST_PROXY=uniquelocal ou CIDRs explicitos do proxy confiavel
 - Confirmar Security Group da EC2 com 22 liberada so para seu IP
 - Confirmar Security Group da EC2 com 80 e 443 liberadas para 0.0.0.0/0
 - Confirmar que 4000 e 5432 nao estao expostas publicamente
