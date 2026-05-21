@@ -24,6 +24,7 @@ import {
   rejectPublicInternalSignature,
   resetSignedSignatureForFinalizationRetry,
   shouldCreateInternalSignatureRound,
+  verifiedSourcePdfBuffer,
   verifiedFinalPdfBuffer
 } from '../src/routes/resources/reports.js';
 import app from '../src/app.js';
@@ -1402,6 +1403,28 @@ test('verifiedFinalPdfBuffer rejects final PDF drift from stored hash', async ()
   await assert.rejects(
     () => verifiedFinalPdfBuffer(finalPath, { finalDocumentHash: null }),
     /sem hash final registrado/
+  );
+});
+
+test('verifiedSourcePdfBuffer rejects signature source PDF drift from stored hash', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'rdo-signature-source-pdf-hash-'));
+  const sourcePath = path.join(dir, 'relatorio.pdf');
+  const original = Buffer.from('pdf-source-original');
+  await fs.writeFile(sourcePath, original);
+
+  assert.deepEqual(
+    await verifiedSourcePdfBuffer(sourcePath, { sourceDocumentHash: sha256Hex(original) }),
+    original
+  );
+
+  await fs.writeFile(sourcePath, Buffer.from('pdf-source-corrompido'));
+  await assert.rejects(
+    () => verifiedSourcePdfBuffer(sourcePath, { sourceDocumentHash: sha256Hex(original) }),
+    /diverge do hash registrado/
+  );
+  await assert.rejects(
+    () => verifiedSourcePdfBuffer(sourcePath, { sourceDocumentHash: null }),
+    /sem hash registrado/
   );
 });
 

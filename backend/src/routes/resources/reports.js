@@ -1281,11 +1281,45 @@ async function getReportPdfDownload(report) {
     return resolveSignedPdf(report);
   }
 
+  const activeSourceVersion = Array.isArray(report.versions)
+    ? report.versions.find(version => version.status === ReportVersionStatus.ACTIVE && version.sourcePdfUrl && version.sourceDocumentHash)
+    : null;
+  if (
+    report.status === ReportStatus.APPROVED &&
+    report.reportType === ReportType.RDO &&
+    activeSourceVersion
+  ) {
+    const sourcePath = reportSourcePdfPath(activeSourceVersion.sourcePdfUrl);
+    if (sourcePath) {
+      const buffer = await verifiedSourcePdfBuffer(sourcePath, activeSourceVersion);
+      return {
+        fileName: path.basename(sourcePath),
+        buffer
+      };
+    }
+  }
+
   const saved = await generateReportPdfAsset(report);
   return {
     fileName: saved.fileName,
     buffer: await fs.readFile(saved.targetPath)
   };
+}
+
+export async function verifiedSourcePdfBuffer(sourcePath, version) {
+  if (!version?.sourceDocumentHash) {
+    const error = new Error('PDF-base da assinatura sem hash registrado.');
+    error.statusCode = 409;
+    throw error;
+  }
+  const buffer = await fs.readFile(sourcePath);
+  const actualHash = sha256Hex(buffer);
+  if (actualHash !== version.sourceDocumentHash) {
+    const error = new Error('PDF-base da assinatura diverge do hash registrado.');
+    error.statusCode = 409;
+    throw error;
+  }
+  return buffer;
 }
 
 export async function verifiedFinalPdfBuffer(finalPath, finalVersion) {
