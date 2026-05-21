@@ -158,6 +158,43 @@ test('Romaneio manager guard rejects admin accounts without manager role', () =>
   assert.equal(nextCalled, true);
 });
 
+test('Romaneio catalog GET only reads active catalog rows', async t => {
+  stubRomaneioOnlyManager(t);
+  const originalFindMany = prisma.romaneioCatalogItem.findMany;
+  const originalTransaction = prisma.$transaction;
+  const calls = [];
+  prisma.romaneioCatalogItem.findMany = async args => {
+    calls.push(args);
+    return [{
+      id: 'catalog-1',
+      code: 'EQ 1',
+      name: 'Equipamento 1',
+      categoryName: 'EQUIPAMENTOS',
+      kind: 'EQUIPMENT',
+      measureType: 'UNIT',
+      defaultUnitLabel: 'unidade',
+      isSerialized: true,
+      isActive: true
+    }];
+  };
+  prisma.$transaction = async () => {
+    throw new Error('catalog GET should not run sync writes');
+  };
+  t.after(() => {
+    prisma.romaneioCatalogItem.findMany = originalFindMany;
+    prisma.$transaction = originalTransaction;
+  });
+
+  const response = await dispatchApp('GET', '/api/romaneio/catalog');
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json.length, 1);
+  assert.deepEqual(calls[0], {
+    where: { isActive: true },
+    orderBy: [{ categoryName: 'asc' }, { code: 'asc' }, { name: 'asc' }]
+  });
+});
+
 test('cleanupFailedRomaneioCreate removes generated files and the created row', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'romaneio-cleanup-'));
   const docxPath = path.join(dir, 'romaneio.docx');

@@ -12,6 +12,10 @@ import {
   assertRenderableReportSignatureImageDataUrl,
   assertSignatureSourceCurrent,
   completedSignatureVersionAfterCommit,
+  clearIssuedSignatureTokens,
+  deliverIssuedSignatureRequestEmails,
+  sendSignatureRequestEmails,
+  signatureRequestEmailRequired,
   publicSignaturePayload,
   publicValidationPayload,
   publicSignatureStatus,
@@ -32,6 +36,7 @@ import {
   finalEvidencePdfTarget,
   ensureInternalSignatureRound,
   invalidateUnsignedInternalSignatureRound,
+  internalSignatureTokenHash,
   parseSignatureImageDataUrl,
   signatureEvidenceFromRequest,
   sha256Hex,
@@ -501,13 +506,13 @@ test('signature source guard aborts when report changed after PDF preparation', 
   );
 });
 
-test('resetSignedSignatureForFinalizationRetry restores a just-signed signature to pending', async () => {
-  let updatePayload;
+test('resetSignedSignatureForFinalizationRetry preserves signed evidence for finalization retry', async () => {
+  let updateCalled = false;
   const reset = await resetSignedSignatureForFinalizationRetry({
     reportSignature: {
-      updateMany: async payload => {
-        updatePayload = payload;
-        return { count: 1 };
+      updateMany: async () => {
+        updateCalled = true;
+        throw new Error('signature evidence should not be cleared');
       }
     }
   }, {
@@ -515,19 +520,143 @@ test('resetSignedSignatureForFinalizationRetry restores a just-signed signature 
     signedSignature: { id: 'signature-1' }
   });
 
-  assert.equal(reset, true);
-  assert.deepEqual(updatePayload.where, {
+  assert.equal(reset, false);
+  assert.equal(updateCalled, false);
+});
+
+test('signatureRequestEmailRequired blocks token issuance when a pending signer needs a link', () => {
+  const report = {
+    reportType: 'RDO',
+    status: 'APPROVED',
+    project: {
+      managerOnly: false,
+      clientName: 'Cliente',
+      clientEmailPrimary: 'cliente@example.com'
+    }
+  };
+
+  assert.equal(signatureRequestEmailRequired(report, null), true);
+  assert.equal(signatureRequestEmailRequired(report, {
+    signatures: [{
+      status: 'PENDING',
+      tokenHash: null,
+      tokenExpiresAt: null
+    }]
+  }), true);
+  assert.equal(signatureRequestEmailRequired(report, {
+    signatures: [{
+      status: 'PENDING',
+      tokenHash: 'hash',
+      tokenExpiresAt: new Date(Date.now() + 60_000)
+    }]
+  }), false);
+});
+
+test('sendSignatureRequestEmails fails synchronously when SMTP config is missing', async () => {
+  await assert.rejects(
+    sendSignatureRequestEmails({
+      project: { code: 'P-1', name: 'Projeto' },
+      reportType: 'RDO',
+      reportDate: new Date('2026-01-01T12:00:00.000Z')
+    }, [{
+      signerEmail: 'cliente@example.com',
+      signerName: 'Cliente',
+      token: 'raw-token',
+      expiresAt: new Date(Date.now() + 86_400_000)
+    }], {
+      missingMailerConfig: ['smtpHost']
+    }),
+    error => error?.statusCode === 503 && /smtpHost/.test(error.message)
+  );
+});
+
+test('sendSignatureRequestEmails propagates mailer rejection', async () => {
+  await assert.rejects(
+    sendSignatureRequestEmails({
+      project: { code: 'P-1', name: 'Projeto' },
+      reportType: 'RDO',
+      reportDate: new Date('2026-01-01T12:00:00.000Z')
+    }, [{
+      signerEmail: 'cliente@example.com',
+      signerName: 'Cliente',
+      token: 'raw-token',
+      expiresAt: new Date(Date.now() + 86_400_000)
+    }], {
+      missingMailerConfig: [],
+      mailer: async () => {
+        throw new Error('SMTP rejeitou');
+      }
+    }),
+    /SMTP rejeitou/
+  );
+});
+
+test('deliverIssuedSignatureRequestEmails clears newly persisted tokens when send fails', async () => {
+  const cleanupCalls = [];
+  await assert.rejects(
+    deliverIssuedSignatureRequestEmails({
+      id: 'report-1',
+      project: { code: 'P-1', name: 'Projeto' },
+      reportType: 'RDO',
+      reportDate: new Date('2026-01-01T12:00:00.000Z')
+    }, [{
+      signatureId: 'signature-1',
+      signerEmail: 'cliente@example.com',
+      signerName: 'Cliente',
+      token: 'raw-token',
+      expiresAt: new Date(Date.now() + 86_400_000)
+    }], {
+      missingMailerConfig: [],
+      mailer: async () => {
+        throw new Error('SMTP rejeitou');
+      },
+      client: {
+        reportSignature: {
+          updateMany: async args => {
+            cleanupCalls.push(args);
+            return { count: 1 };
+          }
+        }
+      }
+    }),
+    /SMTP rejeitou/
+  );
+
+  assert.equal(cleanupCalls.length, 1);
+  assert.deepEqual(cleanupCalls[0].where, {
     id: 'signature-1',
-    status: 'SIGNED',
-    finalDocumentHash: null
-  });
-  assert.deepEqual(updatePayload.data, {
     status: 'PENDING',
-    userId: null,
-    ipAddress: null,
-    userAgent: null,
-    signatureImageDataUrl: null,
-    signedAt: null
+    tokenHash: internalSignatureTokenHash('raw-token')
+  });
+  assert.deepEqual(cleanupCalls[0].data, {
+    tokenHash: null,
+    tokenExpiresAt: null
+  });
+});
+
+test('clearIssuedSignatureTokens only clears the token hash generated for the failed send', async () => {
+  const calls = [];
+  await clearIssuedSignatureTokens({
+    reportSignature: {
+      updateMany: async args => {
+        calls.push(args);
+        return { count: 1 };
+      }
+    }
+  }, [{
+    signatureId: 'signature-1',
+    token: 'raw-token'
+  }]);
+
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].where, {
+    id: 'signature-1',
+    status: 'PENDING',
+    tokenHash: internalSignatureTokenHash('raw-token')
+  });
+  assert.deepEqual(calls[0].data, {
+    tokenHash: null,
+    tokenExpiresAt: null
   });
 });
 

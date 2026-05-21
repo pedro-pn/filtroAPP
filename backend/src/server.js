@@ -2,6 +2,7 @@ import http from 'node:http';
 
 import app from './app.js';
 import env from './config/env.js';
+import { syncRomaneioCatalog } from './lib/romaneio-catalog.js';
 import { startSurveyReminderJob } from './lib/survey-reminders.js';
 import { startLegacyZapSignReconciliationJob } from './lib/zapsign-legacy-reconciliation.js';
 
@@ -26,4 +27,7 @@ server.listen(env.port, () => {
   }
   startSurveyReminderJob();
   startLegacyZapSignReconciliationJob();
+  syncRomaneioCatalog().catch(error => {
+    console.error('Falha ao sincronizar catálogo de romaneio na inicialização.', error);
+  });
 });

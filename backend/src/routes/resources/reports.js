@@ -313,14 +313,45 @@ function publicSignatureUrl(token) {
   return base ? `${base}${pathPart}` : pathPart;
 }
 
-function queueSignatureRequestEmails(report, tokens) {
+function signatureRequestEmailDeliveryError(message, details = {}) {
+  const error = new Error(message);
+  error.statusCode = 503;
+  error.details = details;
+  return error;
+}
+
+function missingSignatureRequestEmailConfigError(missingMailerConfig) {
+  return signatureRequestEmailDeliveryError(
+    `Configuração SMTP ausente para envio dos links de assinatura: ${missingMailerConfig.join(', ')}`,
+    { missingMailerConfig }
+  );
+}
+
+export function signatureRequestEmailRequired(report, version) {
+  if (!report || report.project?.managerOnly || !shouldCreateInternalSignatureRound(report)) return false;
+  if (!version) return true;
+  const now = Date.now();
+  return (version.signatures || []).some(signature => {
+    if (signature.status !== ReportSignatureStatus.PENDING) return false;
+    if (!signature.tokenHash || !signature.tokenExpiresAt) return true;
+    return new Date(signature.tokenExpiresAt).getTime() <= now;
+  });
+}
+
+export function assertSignatureRequestEmailDeliveryConfigured(report, version) {
+  if (!signatureRequestEmailRequired(report, version)) return;
+  const missingMailerConfig = getMissingMailerConfig();
+  if (missingMailerConfig.length) throw missingSignatureRequestEmailConfigError(missingMailerConfig);
+}
+
+export async function sendSignatureRequestEmails(report, tokens, options = {}) {
   if (!tokens?.length || report.project?.managerOnly) return;
 
-  const missingMailerConfig = getMissingMailerConfig();
+  const missingMailerConfig = options.missingMailerConfig || getMissingMailerConfig();
   if (missingMailerConfig.length) {
-    console.warn('SMTP não configurado; e-mail de link de assinatura não enviado.', missingMailerConfig.join(', '));
-    return;
+    throw missingSignatureRequestEmailConfigError(missingMailerConfig);
   }
+  const mailer = options.mailer || sendMail;
 
   for (const tokenData of tokens) {
     const daysValid = Math.max(1, Math.ceil((new Date(tokenData.expiresAt).getTime() - Date.now()) / 86_400_000));
@@ -335,15 +366,40 @@ function queueSignatureRequestEmails(report, tokens) {
       expiresLabel: `${daysValid} dia${daysValid !== 1 ? 's' : ''}`
     });
 
-    setImmediate(() => {
-      sendMail({ to: tokenData.signerEmail, ...template }).catch(error => {
-        console.error('Falha ao enviar link de assinatura interna.', {
-          reportId: report.id,
-          signerEmail: tokenData.signerEmail,
-          error: error?.message || error
-        });
+    await mailer({ to: tokenData.signerEmail, ...template });
+  }
+}
+
+export async function clearIssuedSignatureTokens(client, tokens) {
+  for (const tokenData of tokens || []) {
+    if (!tokenData?.signatureId || !tokenData?.token) continue;
+    await client.reportSignature.updateMany({
+      where: {
+        id: tokenData.signatureId,
+        status: ReportSignatureStatus.PENDING,
+        tokenHash: internalSignatureTokenHash(tokenData.token)
+      },
+      data: {
+        tokenHash: null,
+        tokenExpiresAt: null
+      }
+    });
+  }
+}
+
+export async function deliverIssuedSignatureRequestEmails(report, tokens, options = {}) {
+  if (!tokens?.length) return;
+  const client = options.client || prisma;
+  try {
+    await sendSignatureRequestEmails(report, tokens, options);
+  } catch (error) {
+    await clearIssuedSignatureTokens(client, tokens).catch(cleanupError => {
+      console.error('Falha ao limpar tokens de assinatura interna após erro de envio.', {
+        reportId: report?.id,
+        error: cleanupError?.message || cleanupError
       });
     });
+    throw error;
   }
 }
 
@@ -529,25 +585,9 @@ async function assertSignatureFinalizationPreflight(version) {
   }
 }
 
-export async function resetSignedSignatureForFinalizationRetry(client, signatureResult) {
-  const signatureId = signatureResult?.signedSignature?.id;
-  if (!signatureId || signatureResult?.alreadySigned) return false;
-  const result = await client.reportSignature.updateMany({
-    where: {
-      id: signatureId,
-      status: ReportSignatureStatus.SIGNED,
-      finalDocumentHash: null
-    },
-    data: {
-      status: ReportSignatureStatus.PENDING,
-      userId: null,
-      ipAddress: null,
-      userAgent: null,
-      signatureImageDataUrl: null,
-      signedAt: null
-    }
-  });
-  return result.count === 1;
+export async function resetSignedSignatureForFinalizationRetry(_client, _signatureResult) {
+  // Retry finalization without reverting the already persisted signature evidence.
+  return false;
 }
 
 export async function persistClientSignatureApprovalReview(client, {
@@ -1284,6 +1324,7 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
     include: { signatures: true },
     orderBy: { versionNumber: 'desc' }
   });
+  assertSignatureRequestEmailDeliveryConfigured(report, activeVersion);
 
   let sourcePdfUrl = activeVersion?.sourcePdfUrl || '';
   let sourceDocumentHash = activeVersion?.sourceDocumentHash || '';
@@ -1334,7 +1375,7 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
     throw error;
   }
 
-  if (tokens.length) queueSignatureRequestEmails(report, tokens);
+  if (tokens.length) await deliverIssuedSignatureRequestEmails(report, tokens);
   return version;
 }
 
@@ -3178,7 +3219,7 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
   if (signedVersion && allRequiredSignaturesCompleted(signedVersion)) {
     try {
       item = await finalizeInternalSignatureRound(item, signedVersion, evidence, null, {
-        signedAudit: signatureResult.alreadySigned ? null : signatureResult.signedSignature
+        signedAudit: signatureResult.signedSignature
       });
       completed = true;
     } catch (error) {
@@ -3189,7 +3230,7 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
     }
   }
 
-  if (!signatureResult.alreadySigned) {
+  if (completed || !signatureResult.alreadySigned) {
     const finalVersion = completed && item.versions?.[0]
       ? { ...signedVersion, finalDocumentHash: item.versions[0].finalDocumentHash }
       : signedVersion;
@@ -4019,6 +4060,7 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
         deferAuditLog: completesRequiredSignatures
       });
       signedVersion = await activeVersionWithSignatures(tx, current.id);
+      assertSignatureRequestEmailDeliveryConfigured(current, signedVersion);
       issuedTokens = await issuePendingSignatureTokens(tx, signedVersion);
       return tx.report.findUniqueOrThrow({
         where: { id: current.id },
@@ -4039,7 +4081,7 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
   if (signedVersion && allRequiredSignaturesCompleted(signedVersion)) {
     try {
       item = await finalizeInternalSignatureRound(item, signedVersion, evidence, req.auth.user.id, {
-        signedAudit: signatureResult.alreadySigned ? null : signatureResult.signedSignature
+        signedAudit: signatureResult.signedSignature
       });
       completed = true;
     } catch (error) {
@@ -4063,13 +4105,13 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
     });
   }
 
-  if (!signatureResult.alreadySigned) {
+  if (completed || !signatureResult.alreadySigned) {
     const finalVersion = completed && item.versions?.[0]
       ? { ...signedVersion, finalDocumentHash: item.versions[0].finalDocumentHash }
       : signedVersion;
     queueInternalSignatureNotification(item, finalVersion, signer, completed);
   }
-  if (issuedTokens.length) queueSignatureRequestEmails(item, issuedTokens);
+  if (issuedTokens.length) await deliverIssuedSignatureRequestEmails(item, issuedTokens);
 
   res.json({
     ok: true,

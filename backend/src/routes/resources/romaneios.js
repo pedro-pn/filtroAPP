@@ -375,7 +375,6 @@ router.delete('/drafts/:id', requireAuth, requireRomaneioAccess, asyncHandler(as
 }));
 
 router.get('/catalog', requireAuth, requireRomaneioAccess, asyncHandler(async (_req, res) => {
-  await syncRomaneioCatalog();
   const items = await prisma.romaneioCatalogItem.findMany({
     where: { isActive: true },
     orderBy: [{ categoryName: 'asc' }, { code: 'asc' }, { name: 'asc' }]
