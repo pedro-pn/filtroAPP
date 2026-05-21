@@ -6,6 +6,7 @@ export interface PublicSignaturePayload {
   expiresAt?: string | null;
   signer?: {
     name: string;
+    declaredName?: string | null;
     email: string;
     status: string;
     signedAt?: string | null;

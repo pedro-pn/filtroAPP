@@ -285,6 +285,7 @@ model ReportSignature {
   versionId          String
   userId             String?
   signerName         String
+  declaredSignerName String?
   signerEmail        String
   signerRole         ReportSignerRole
   signatureType      ReportSignatureType   @default(ELECTRONIC)

@@ -20,6 +20,7 @@ export interface SignatureValidationPayload {
   };
   signers?: Array<{
     name: string;
+    declaredName?: string | null;
     email: string;
     role: string;
     status: string;

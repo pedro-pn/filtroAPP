@@ -2,6 +2,7 @@ import type { ReportSummary } from '../types/domain';
 
 export interface SignatureProgressSigner {
   name: string;
+  declaredName?: string | null;
   email?: string | null;
   status: 'SIGNED' | 'PENDING' | 'REJECTED';
   signedAt?: string | null;
@@ -33,6 +34,7 @@ export function reportSignatureProgress(report: ReportSummary): SignatureProgres
       pending: Math.max(total - signed, 0),
       signers: active.map(signature => ({
         name: stringValue(signature.signerName) || stringValue(signature.signerEmail) || 'Assinante',
+        declaredName: stringValue(signature.declaredSignerName) || null,
         email: stringValue(signature.signerEmail) || null,
         status: signature.status === 'SIGNED' ? 'SIGNED' : signature.status === 'REJECTED' ? 'REJECTED' : 'PENDING',
         signedAt: stringValue(signature.signedAt) || null,

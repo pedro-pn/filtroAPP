@@ -278,6 +278,7 @@ export function buildInternalSignatureProgress(signatures = []) {
   const pending = Math.max(total - signed, 0);
   const signers = active.map(signature => ({
     name: signature.signerName,
+    declaredName: signature.declaredSignerName || null,
     email: signature.signerEmail,
     status: signature.status === ReportSignatureStatus.SIGNED ? 'SIGNED' :
       signature.status === ReportSignatureStatus.REJECTED ? 'REJECTED' : 'PENDING',
@@ -548,13 +549,18 @@ export async function signInternalReportVersion(tx, {
   if (signature.status === ReportSignatureStatus.SIGNED) {
     return { alreadySigned: true, signedSignature: signature };
   }
-  const signerName = stringValue(signer.name) || stringValue(signature.signerName) || 'Cliente';
+  const signerName = stringValue(signature.signerName) || 'Cliente';
+  const declaredSignerName = stringValue(signer.name) || null;
+  const signedDescription = declaredSignerName && declaredSignerName !== signerName
+    ? `${signerName} assinou o relatorio. Nome informado no ato: ${declaredSignerName}.`
+    : `${signerName} assinou o relatorio.`;
 
   const updateResult = await tx.reportSignature.updateMany({
     where: { id: signature.id, status: ReportSignatureStatus.PENDING },
     data: {
       status: ReportSignatureStatus.SIGNED,
       signerName,
+      declaredSignerName,
       userId,
       ipAddress: evidence.ipAddress || null,
       userAgent: evidence.userAgent || null,
@@ -583,7 +589,7 @@ export async function signInternalReportVersion(tx, {
       versionId: version.id,
       userId,
       action: ReportAuditAction.SIGNED,
-      description: `${signerName} assinou o relatorio.`,
+      description: signedDescription,
       evidence
     });
   }
@@ -593,6 +599,7 @@ export async function signInternalReportVersion(tx, {
     signedSignature: {
       id: signature.id,
       signerName,
+      declaredSignerName,
       signerEmail: signature.signerEmail,
       status: ReportSignatureStatus.SIGNED
     }
@@ -809,8 +816,12 @@ export async function writeFinalEvidencePdf({
       page = pdf.addPage([595.28, 841.89]);
       y = 790;
     }
-    drawText(page, `Nome: ${signature.signerName}`, 48, y, { font: bold, size: 10, color: black });
+    drawText(page, `Signatario esperado: ${signature.signerName}`, 48, y, { font: bold, size: 10, color: black });
     y -= 15;
+    if (signature.declaredSignerName) {
+      drawText(page, `Nome informado no ato: ${signature.declaredSignerName}`, 48, y, { font, size: 10, color: black });
+      y -= 15;
+    }
     drawText(page, `E-mail: ${signature.signerEmail}`, 48, y, { font, size: 10, color: black });
     y -= 15;
     drawText(page, `Papel: Cliente`, 48, y, { font, size: 10, color: black });

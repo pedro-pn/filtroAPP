@@ -120,7 +120,12 @@ export function SignatureValidationPage() {
                 {payload.signers.map(signer => (
                   <div className="det-row" key={`${signer.email}-${signer.status}`}>
                     <span className="det-label">{signer.status}</span>
-                    <span className="det-val">{signer.name} ({signer.email}) - {formatDateTime(signer.signedAt || signer.rejectedAt)}</span>
+                    <span className="det-val">
+                      {signer.name} ({signer.email})
+                      {signer.declaredName ? ` - nome informado: ${signer.declaredName}` : ''}
+                      {' - '}
+                      {formatDateTime(signer.signedAt || signer.rejectedAt)}
+                    </span>
                   </div>
                 ))}
               </div>

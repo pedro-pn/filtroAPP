@@ -451,6 +451,7 @@ export function publicSignaturePayload(signature, status) {
     expiresAt: signature.tokenExpiresAt || null,
     signer: {
       name: signature.signerName,
+      declaredName: signature.declaredSignerName || null,
       email: signature.signerEmail,
       status: signature.status,
       signedAt: signature.signedAt || null,
@@ -540,6 +541,7 @@ export function publicValidationPayload(version) {
     },
     signers: (version.signatures || []).map(signature => ({
       name: signature.signerName,
+      declaredName: signature.declaredSignerName || null,
       email: maskEmail(signature.signerEmail),
       role: signature.signerRole,
       status: signature.status,

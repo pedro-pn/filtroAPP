@@ -157,6 +157,7 @@ export interface ReportSummary {
   reportSignatures?: Array<{
     id: string;
     signerName: string;
+    declaredSignerName?: string | null;
     signerEmail: string;
     status: 'PENDING' | 'SIGNED' | 'REJECTED' | 'INVALIDATED' | 'EXPIRED';
     isRequired?: boolean;
