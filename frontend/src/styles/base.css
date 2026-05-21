@@ -2518,6 +2518,52 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   background: var(--wh);
 }
 
+.password-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.password-input-wrap input {
+  padding-right: 42px;
+}
+
+.password-visibility-button {
+  position: absolute;
+  right: 6px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--rs);
+  background: transparent;
+  color: var(--mu);
+  cursor: pointer;
+}
+
+.password-visibility-button:hover {
+  color: var(--g);
+  background: rgba(9, 90, 44, 0.08);
+}
+
+.password-visibility-button:focus-visible {
+  outline: 3px solid rgba(9, 90, 44, 0.35);
+  outline-offset: 1px;
+}
+
+.password-visibility-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .field-invalid label {
   color: var(--rd);
 }
