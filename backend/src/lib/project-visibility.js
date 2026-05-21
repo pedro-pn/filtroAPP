@@ -1,28 +1,21 @@
-import {
-  ZAPSIGN_BATCH_DOC_TOKENS_KEY,
-  ZAPSIGN_BATCH_MAIN_DOC_TOKEN_KEY,
-  ZAPSIGN_SIGNATURE_PROGRESS_KEY,
-  ZAPSIGN_SIGNERS_KEY
-} from './zapsign-progress.js';
+const LEGACY_EXTERNAL_SIGNATURE_KEYS = [
+  '__zapSignSigners',
+  '__zapSignSignatureProgress',
+  '__zapSignBatchMainDocToken',
+  '__zapSignBatchDocTokens'
+];
 
 export function shouldProvisionProjectClientAccounts(project) {
   return !project?.managerOnly;
 }
 
-export function shouldIgnoreExternalSigningForReport(report) {
-  return !!report?.project?.managerOnly;
-}
-
-export function withoutProjectZapSignState(specialConditions) {
+export function withoutProjectLegacyExternalSignatureState(specialConditions) {
   const next = { ...(specialConditions || {}) };
-  delete next[ZAPSIGN_SIGNERS_KEY];
-  delete next[ZAPSIGN_SIGNATURE_PROGRESS_KEY];
-  delete next[ZAPSIGN_BATCH_MAIN_DOC_TOKEN_KEY];
-  delete next[ZAPSIGN_BATCH_DOC_TOKENS_KEY];
+  for (const key of LEGACY_EXTERNAL_SIGNATURE_KEYS) delete next[key];
   return next;
 }
 
-export async function clearPendingProjectZapSignState(tx, projectId) {
+export async function clearPendingProjectLegacyExternalSignatureState(tx, projectId) {
   if (!projectId) return 0;
 
   const reports = await tx.report.findMany({
@@ -51,7 +44,7 @@ export async function clearPendingProjectZapSignState(tx, projectId) {
         zapsignRequestedAt: null,
         zapsignSignedAt: null,
         zapsignDocUrl: null,
-        specialConditions: withoutProjectZapSignState(report.specialConditions)
+        specialConditions: withoutProjectLegacyExternalSignatureState(report.specialConditions)
       }
     });
   }

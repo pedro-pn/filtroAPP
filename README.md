@@ -17,7 +17,7 @@ Aplicação web para gestão de projetos de campo e relatórios técnicos da Fil
 - [Variáveis de Ambiente](#variáveis-de-ambiente)
 - [Banco de Dados](#banco-de-dados)
 - [Geração de PDF](#geração-de-pdf)
-- [Integração ZapSign](#integração-zapsign)
+- [Assinatura Interna](#assinatura-interna)
 - [Scripts Utilitários](#scripts-utilitários)
 - [Rotas da API](#rotas-da-api)
 
@@ -30,7 +30,7 @@ O sistema centraliza o ciclo completo dos relatórios técnicos de campo:
 1. Colaborador cria o relatório no campo.
 2. Gestor revisa e aprova.
 3. Cliente acessa o portal, visualiza e pode reprovar (com justificativa obrigatória) para revisão.
-4. Relatório aprovado segue para assinatura digital via ZapSign.
+4. Relatório aprovado segue para assinatura eletrônica pelo sistema interno.
 5. Relatório assinado fica disponível para download em PDF.
 6. Ao arquivar o projeto, o cliente recebe uma pesquisa de satisfação NPS por e-mail.
 
@@ -49,7 +49,7 @@ O sistema centraliza o ciclo completo dos relatórios técnicos de campo:
 | Banco | PostgreSQL 16 |
 | E-mail | Nodemailer (SMTP / Microsoft Exchange / Office 365) |
 | PDF | LibreOffice headless (Linux) |
-| Assinatura digital | ZapSign |
+| Assinatura digital | Sistema interno |
 | Proxy / SSL | Nginx + Let's Encrypt |
 | Containers | Docker + Docker Compose |
 
@@ -64,7 +64,7 @@ O sistema centraliza o ciclo completo dos relatórios técnicos de campo:
 │   ├── scripts/              # Utilitários de manutenção
 │   ├── src/
 │   │   ├── config/           # Variáveis de ambiente
-│   │   ├── lib/              # Lógica de negócio (email, PDF, ZapSign, etc.)
+│   │   ├── lib/              # Lógica de negócio (email, PDF, assinaturas, etc.)
 │   │   ├── middleware/       # Auth, requireManager, requireCoordinator
 │   │   └── routes/resources/ # Rotas REST (projects, reports, auth, users…)
 │   ├── .env.example
@@ -125,10 +125,11 @@ Cada perfil acessa uma rota raiz diferente: `/gestor`, `/coordenador`, `/cliente
 - Numeração sequencial por tipo e projeto
 - Campos obrigatórios de diâmetro e comprimento por tubulação (RDO)
 
-### Assinatura Digital (ZapSign)
+### Assinatura Interna
 - Solicitação de assinatura para relatórios aprovados
-- Processamento em lote
-- Webhook para atualização automática de status ao assinar
+- Assinatura eletrônica com evidências de auditoria
+- Download de PDFs finais assinados
+- Download legado de PDFs já assinados anteriormente pela ZapSign
 
 ### Portal do Cliente
 - Acesso sem VPN via usuário CNPJ
@@ -342,9 +343,8 @@ Nginx :443 (SSL Let's Encrypt)
 | `ASSETS_DIR` | Não | Diretório de assets estáticos |
 | `REPORTS_DIR` | Não | Diretório de relatórios gerados |
 | `LIBREOFFICE_BINARY` | Não | Caminho do LibreOffice (padrão: `soffice`) |
-| `ZAPSIGN_API_TOKEN` | Não | Token da API ZapSign |
-| `ZAPSIGN_WEBHOOK_SECRET` | Não | Secret para validação do webhook ZapSign |
-| `ZAPSIGN_ORGANIZATION_ID` | Não | ID da organização ZapSign |
+| `ZAPSIGN_API_TOKEN` | Não | Token usado apenas para baixar PDFs legados já assinados pela ZapSign quando necessário |
+| `ZAPSIGN_ORGANIZATION_ID` | Não | ID usado apenas para autenticação de download legado ZapSign quando necessário |
 | `SMTP_TEST_DEST` | Não | E-mail destino do script `test-email.js` |
 
 ### Frontend (`frontend/.env`)
@@ -397,14 +397,14 @@ Os PDFs são gerados a partir de templates DOCX localizados em `Modelos/`, proce
 
 ---
 
-## Integração ZapSign
+## Assinatura Interna
 
-Relatórios com status `APPROVED` podem ter assinatura digital solicitada via ZapSign.
+Relatórios com status `APPROVED` são assinados pelo sistema interno.
 
-- A solicitação pode ser individual (`POST /api/reports/:id/request-signature`) ou em lote (`POST /api/reports/batch-request-signature`).
-- O ZapSign notifica o backend via webhook (`POST /api/webhooks`) quando o documento é assinado, atualizando o status para `SIGNED`.
-- A identidade do signatário é validada: somente e-mails configurados em `clientSigners` do projeto podem assinar.
-- O secret do webhook é configurado via `ZAPSIGN_WEBHOOK_SECRET`.
+- A solicitação individual usa `POST /api/reports/:id/request-signature`.
+- A identidade do signatário é validada pelos e-mails configurados no projeto.
+- Evidências e hash do PDF final ficam registrados para auditoria.
+- Relatórios antigos que já foram assinados pela ZapSign continuam disponíveis para download do PDF assinado.
 
 ---
 
@@ -436,7 +436,6 @@ Prefixo base: `/api`
 | `GET/POST` | `/reports` | Listar e criar relatórios |
 | `GET/PATCH/DELETE` | `/reports/:id` | Detalhar, editar e excluir relatório |
 | `POST` | `/reports/:id/request-signature` | Solicitar assinatura individual |
-| `POST` | `/reports/batch-request-signature` | Solicitar assinatura em lote |
 | `GET` | `/statistics/projects` | Dashboard de estatísticas de RDOs |
 | `GET` | `/statistics/projects/export` | Exportar estatísticas em CSV |
 | `GET` | `/statistics/overview` | Mini-dashboard com contagem geral |
@@ -447,6 +446,5 @@ Prefixo base: `/api`
 | `GET/PUT` | `/surveys/questions` | Listar e configurar perguntas padrão |
 | `PATCH` | `/surveys/:id/follow-up` | Atualizar status de follow-up |
 | `GET/POST` | `/project-segments` | Listar e criar segmentos de cliente |
-| `POST` | `/webhooks` | Webhook do ZapSign (assinatura concluída) |
 | `GET/POST` | `/users` | Gerenciar usuários |
 | `GET/POST` | `/collaborators` | Gerenciar colaboradores |

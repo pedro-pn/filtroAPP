@@ -48,7 +48,7 @@ export async function requestReportSignature(
   id: string,
   payload: { comment?: string | null; signerName: string; signatureImageDataUrl: string }
 ) {
-  const response = await apiClient.post<{ ok: boolean; signUrl?: string; signed?: boolean; completed?: boolean; report: ReportSummary }>(
+  const response = await apiClient.post<{ ok: boolean; signed?: boolean; completed?: boolean; report: ReportSummary }>(
     rdoApiPath(`/reports/${id}/request-signature`),
     payload
   );
@@ -73,14 +73,6 @@ export async function downloadReportsBatch(ids: string[], format: 'pdf' | 'docx'
     rdoApiPath('/reports/batch-download'),
     { ids, format },
     { responseType: 'blob' }
-  );
-  return response.data;
-}
-
-export async function requestReportsBatchSignature(ids: string[], commentsById?: Record<string, string>) {
-  const response = await apiClient.post<{ ok: boolean; signUrl?: string; reportIds: string[] }>(
-    rdoApiPath('/reports/batch-request-signature'),
-    { ids, commentsById }
   );
   return response.data;
 }

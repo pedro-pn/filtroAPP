@@ -339,7 +339,9 @@ test('ensureInternalSignatureRound locks per report before creating an active ve
 
   assert.equal(version.id, 'version-1');
   assert.equal(calls[0][0], 'lock');
-  assert.deepEqual(calls[0][1], ['SELECT pg_advisory_xact_lock(hashtext($1), 0)', 'report-1']);
+  assert.match(calls[0][1][0], /WITH advisory_lock AS/);
+  assert.match(calls[0][1][0], /SELECT 1::int AS locked FROM advisory_lock/);
+  assert.equal(calls[0][1][1], 'report-1');
   assert.equal(calls.findIndex(([name]) => name === 'lock') < calls.findIndex(([name]) => name === 'reportVersion.create'), true);
 });
 

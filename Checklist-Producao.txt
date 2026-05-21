@@ -27,7 +27,7 @@ Atualizado em: 23/04/2026
 - Confirmar envio de e-mail real com SMTP configurado
 - Confirmar geracao DOCX/PDF no Linux com um relatorio real
 - Confirmar upload e leitura de imagens e assinaturas
-- Confirmar fluxo do ZapSign somente depois que dominio publico e HTTPS estiverem estaveis
+- Confirmar assinatura interna de RDO pelo cliente
 
 5. Certificado e renovacao
 - Confirmar script de renovacao do certificado criado no servidor
@@ -48,5 +48,4 @@ Atualizado em: 23/04/2026
 
 8. Proximo passo recomendado
 - Fechar backup e teste funcional completo
-- Depois disso, validar ZapSign em producao
 - So entao liberar o uso real para clientes

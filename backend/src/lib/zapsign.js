@@ -38,7 +38,7 @@ function hasCredentialAuth() {
 }
 
 function credentialAuthMissingError() {
-  const error = new Error('Credenciais ZapSign não configuradas. Defina ZAPSIGN_USERNAME, ZAPSIGN_PASSWORD e ZAPSIGN_ORGANIZATION_ID.');
+  const error = new Error('Credenciais de download legado ZapSign não configuradas. Defina ZAPSIGN_USERNAME, ZAPSIGN_PASSWORD e ZAPSIGN_ORGANIZATION_ID.');
   error.statusCode = 503;
   return error;
 }
@@ -132,7 +132,7 @@ async function getAuthHeaders() {
     token = await refreshApiToken();
   }
   if (!token) {
-    const error = new Error('Integração ZapSign não configurada. Defina ZAPSIGN_API_TOKEN ou as credenciais ZAPSIGN_USERNAME, ZAPSIGN_PASSWORD e ZAPSIGN_ORGANIZATION_ID.');
+    const error = new Error('Download legado ZapSign não configurado. Defina ZAPSIGN_API_TOKEN ou as credenciais ZAPSIGN_USERNAME, ZAPSIGN_PASSWORD e ZAPSIGN_ORGANIZATION_ID.');
     error.statusCode = 503;
     throw error;
   }
@@ -193,139 +193,13 @@ async function parseJsonResponse(response) {
   return data || {};
 }
 
-function extractSignerInfo(documentData) {
-  const signers = Array.isArray(documentData?.signers) ? documentData.signers : [];
-  const signer = signers[0] || {};
-  const signerToken = signer.token || signer.signer_token || signer.uuid || null;
-  const signerUrl =
-    signer.sign_url ||
-    signer.signer_url ||
-    documentData?.sign_url ||
-    documentData?.url ||
-    signerUrlForToken(signerToken);
-
-  return { signerToken, signerUrl };
-}
-
-function buildUploadPayload({ pdfBuffer, fileName }) {
-  return {
-    name: String(fileName || 'relatorio.pdf'),
-    base64_pdf: Buffer.from(pdfBuffer).toString('base64')
-  };
-}
-
-export function signerUrlForToken(token) {
-  const signerToken = String(token || '').trim();
-  if (!signerToken) return null;
-  return `https://app.zapsign.com.br/verificar/${encodeURIComponent(signerToken)}`;
-}
-
-export function isZapSignEnabled() {
-  return !!(currentApiToken() || currentRefreshToken() || hasCredentialAuth());
-}
-
-export function assertZapSignEnabled() {
-  if (!isZapSignEnabled()) {
-    const error = new Error('Integração ZapSign não configurada.');
-    error.statusCode = 503;
-    throw error;
-  }
-}
-
-export async function sendToZapSign({
-  pdfBuffer,
-  fileName,
-  signerName,
-  signerEmail,
-  additionalSigners = [],
-  externalId,
-  webhookUrl
-}) {
-  assertZapSignEnabled();
-
-  const payload = {
-    ...buildUploadPayload({ pdfBuffer, fileName }),
-    external_id: externalId || undefined,
-    url_webhook: webhookUrl || undefined,
-    locale: 'pt-br',
-    sandbox: !!env.zapsignSandbox,
-    signers: [
-      {
-        name: signerName,
-        email: signerEmail,
-        lock_email: true,
-        send_automatic_email: false
-      },
-      ...additionalSigners.map(s => ({
-        name: String(s.name || '').trim() || 'Assinante',
-        email: String(s.email || '').trim(),
-        lock_email: true,
-        send_automatic_email: true
-      }))
-    ]
-  };
-
-  const response = await zapsignFetch('/docs/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
-
-  const documentData = await parseJsonResponse(response);
-  const { signerToken, signerUrl } = extractSignerInfo(documentData);
-
-  const rawSigners = Array.isArray(documentData?.signers) ? documentData.signers : [];
-  const allSigners = rawSigners.slice(1).map((s, i) => ({
-    email: additionalSigners[i]?.email || String(s.email || '').trim(),
-    signerToken: s.token || s.signer_token || s.uuid || null,
-    signerUrl: s.sign_url || s.signer_url || null
-  })).filter(s => s.email && (s.signerToken || s.signerUrl));
-
-  return {
-    docToken: documentData.token || documentData.doc_token || null,
-    signerToken,
-    signerUrl,
-    allSigners,
-    raw: documentData
-  };
-}
-
-export async function addExtraDocToZapSign(originalDocToken, { pdfBuffer, fileName }) {
-  assertZapSignEnabled();
-  const token = String(originalDocToken || '').trim();
-  if (!token) {
-    const error = new Error('Token do documento principal ZapSign ausente.');
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const response = await zapsignFetch(`/docs/${encodeURIComponent(token)}/upload-extra-doc/`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(buildUploadPayload({ pdfBuffer, fileName }))
-  });
-
-  const data = await parseJsonResponse(response);
-  return {
-    docToken: data.token || null,
-    signedFile: data.signed_file || null,
-    raw: data
-  };
-}
-
 export async function getZapSignDocument(docToken) {
-  assertZapSignEnabled();
   const token = String(docToken || '').trim();
   if (!token) return null;
 
   const response = await zapsignFetch(`/docs/${encodeURIComponent(token)}/`);
 
   const documentData = await parseJsonResponse(response);
-  const { signerToken, signerUrl } = extractSignerInfo(documentData);
   return {
     token: documentData.token || token,
     status: String(documentData.status || documentData.document_status || '').toLowerCase(),
@@ -336,8 +210,6 @@ export async function getZapSignDocument(docToken) {
           signedFile: item?.signed_file || item?.original_file || null
         })).filter(item => item.token)
       : [],
-    signerToken,
-    signerUrl,
     raw: documentData
   };
 }
@@ -357,9 +229,17 @@ export async function downloadSignedZapSignDocument(fileUrl) {
   let lastStatus = 0;
 
   for (const attempt of attempts) {
-    const response = attempt.useAuth
-      ? await zapsignFetch(url, {}, { absolute: true })
-      : await fetch(url);
+    let response;
+    try {
+      response = attempt.useAuth
+        ? await zapsignFetch(url, {}, { absolute: true })
+        : await fetch(url);
+    } catch (error) {
+      if (attempt.useAuth && error?.statusCode === 503) {
+        continue;
+      }
+      throw error;
+    }
     if (response.ok) {
       const arrayBuffer = await response.arrayBuffer();
       return Buffer.from(arrayBuffer);
@@ -370,21 +250,4 @@ export async function downloadSignedZapSignDocument(fileUrl) {
   const error = new Error(`Falha ao baixar documento assinado da ZapSign (${lastStatus}).`);
   error.statusCode = lastStatus || 502;
   throw error;
-}
-
-export function verifyWebhookSignature(headers) {
-  const expected = String(env.zapsignWebhookSecret || '').trim();
-  if (!expected) {
-    const error = new Error('ZAPSIGN_WEBHOOK_SECRET não configurado.');
-    error.statusCode = 503;
-    throw error;
-  }
-
-  const headerName = String(env.zapsignWebhookHeader || 'x-zapsign-webhook-secret').trim().toLowerCase();
-  const received = String(headers?.[headerName] || '').trim();
-  if (!received || received !== expected) {
-    const error = new Error('Webhook ZapSign inválido.');
-    error.statusCode = 401;
-    throw error;
-  }
 }

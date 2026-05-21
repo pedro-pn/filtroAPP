@@ -154,8 +154,6 @@ export interface ReportSummary {
   reportType: ReportType;
   sequenceNumber?: number | null;
   status: ReportStatus;
-  zapsignRequestedAt?: string | null;
-  zapsignSignedAt?: string | null;
   reportSignatures?: Array<{
     id: string;
     signerName: string;

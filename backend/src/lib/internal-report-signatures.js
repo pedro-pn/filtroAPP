@@ -362,7 +362,12 @@ async function nextVersionNumber(tx, reportId) {
 
 async function lockSignatureRoundForReport(tx, reportId) {
   if (typeof tx.$queryRawUnsafe !== 'function') return;
-  await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1), 0)', String(reportId));
+  await tx.$queryRawUnsafe(`
+    WITH advisory_lock AS (
+      SELECT pg_advisory_xact_lock(hashtext($1), 0)
+    )
+    SELECT 1::int AS locked FROM advisory_lock
+  `, String(reportId));
 }
 
 async function findActiveSignatureRound(tx, reportId) {

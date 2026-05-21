@@ -8,7 +8,7 @@ import { clientProjectAccessWhere } from '../../lib/client-project-access.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import { invalidateUnsignedInternalSignatureRound, signatureEvidenceFromRequest } from '../../lib/internal-report-signatures.js';
 import prisma from '../../lib/prisma.js';
-import { clearPendingProjectZapSignState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
+import { clearPendingProjectLegacyExternalSignatureState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
@@ -116,7 +116,7 @@ export async function removeProjectById(projectId, prismaClient = prisma, option
           deletedAt: new Date()
         }
       });
-      await clearPendingProjectZapSignState(tx, projectId);
+      await clearPendingProjectLegacyExternalSignatureState(tx, projectId);
       return;
     }
 
@@ -129,7 +129,7 @@ export async function removeProjectById(projectId, prismaClient = prisma, option
           deletedAt: new Date()
         }
       });
-      await clearPendingProjectZapSignState(tx, projectId);
+      await clearPendingProjectLegacyExternalSignatureState(tx, projectId);
       return;
     }
 
@@ -280,7 +280,7 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
       }
     });
     if (!shouldProvisionProjectClientAccounts(updated)) {
-      await clearPendingProjectZapSignState(tx, updated.id);
+      await clearPendingProjectLegacyExternalSignatureState(tx, updated.id);
     } else {
       await ensureClientAccountForProject(tx, updated, { previousProject });
       await ensureClientCcAccounts(tx, { ...updated, id: req.params.id }, { previousProject });

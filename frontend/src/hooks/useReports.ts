@@ -9,7 +9,6 @@ import {
   getReportAudit,
   getReport,
   listReports,
-  requestReportsBatchSignature,
   requestReportSignature,
   updateReport,
   updateReportStatus,
@@ -144,15 +143,6 @@ export function useReportMutations() {
     }
   });
 
-  const batchSignatureMutation = useMutation({
-    mutationFn: ({ ids, commentsById }: { ids: string[]; commentsById?: Record<string, string> }) =>
-      requestReportsBatchSignature(ids, commentsById),
-    onSuccess: data => {
-      queryClient.invalidateQueries({ queryKey: ['reports'] });
-      data.reportIds.forEach(id => queryClient.invalidateQueries({ queryKey: ['report', id] }));
-    }
-  });
-
   const deleteReport = useMutation({
     mutationFn: (id: string) => deleteReportApi(id),
     onSuccess: (_data, reportId) => {
@@ -178,7 +168,6 @@ export function useReportMutations() {
     updateStatus: updateStatusMutation,
     requestSignature: requestSignatureMutation,
     clientReview: clientReviewMutation,
-    batchSignature: batchSignatureMutation,
     deleteReport,
     deleteService
   };

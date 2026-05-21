@@ -16,7 +16,6 @@ import surveysRouter from './resources/surveys.js';
 import unitsRouter from './resources/units.js';
 import uploadsRouter from './resources/uploads.js';
 import usersRouter from './resources/users.js';
-import webhooksRouter from './resources/webhooks.js';
 
 const router = Router();
 
@@ -33,7 +32,6 @@ function mountRdoRoutes(targetRouter) {
   targetRouter.use('/particle-counters', countersRouter);
   targetRouter.use('/drafts', draftsRouter);
   targetRouter.use('/uploads', uploadsRouter);
-  targetRouter.use('/webhooks', webhooksRouter);
 }
 
 const rdoRouter = Router();
