@@ -89,7 +89,7 @@ export async function assertActiveClientSegment(slug, prismaClient = prisma) {
   }]);
 }
 
-export async function removeProjectById(projectId, prismaClient = prisma) {
+export async function removeProjectById(projectId, prismaClient = prisma, options = {}) {
   await prismaClient.$transaction(async tx => {
     const reports = await tx.report.findMany({
       where: { projectId },
@@ -98,6 +98,30 @@ export async function removeProjectById(projectId, prismaClient = prisma) {
     const reportIds = reports.map(report => report.id);
 
     if (reportIds.length > 0) {
+      if (options.userId) {
+        for (const reportId of reportIds) {
+          await invalidateUnsignedInternalSignatureRound(tx, {
+            reportId,
+            userId: options.userId,
+            evidence: options.evidence || null,
+            description: 'Rodada de assinatura invalidada por exclusao do projeto.',
+            invalidateSignedRound: true
+          });
+        }
+      }
+      await tx.project.update({
+        where: { id: projectId },
+        data: {
+          isActive: false,
+          deletedAt: new Date()
+        }
+      });
+      await clearPendingProjectZapSignState(tx, projectId);
+      return;
+    }
+
+    const romaneioCount = await tx.romaneio.count({ where: { projectId } });
+    if (romaneioCount > 0) {
       await tx.project.update({
         where: { id: projectId },
         data: {
@@ -268,35 +292,9 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
 }));
 
 router.delete('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
-  await prisma.$transaction(async tx => {
-    const reportCount = await tx.report.count({
-      where: { projectId: req.params.id }
-    });
-    if (reportCount > 0) {
-      const reports = await tx.report.findMany({
-        where: { projectId: req.params.id },
-        select: { id: true }
-      });
-      for (const report of reports) {
-        await invalidateUnsignedInternalSignatureRound(tx, {
-          reportId: report.id,
-          userId: req.auth.user.id,
-          evidence: signatureEvidenceFromRequest(req),
-          description: 'Rodada de assinatura invalidada por exclusao do projeto.',
-          invalidateSignedRound: true
-        });
-      }
-      await tx.project.update({
-        where: { id: req.params.id },
-        data: {
-          isActive: false,
-          deletedAt: new Date()
-        }
-      });
-      await clearPendingProjectZapSignState(tx, req.params.id);
-      return;
-    }
-    await tx.project.delete({ where: { id: req.params.id } });
+  await removeProjectById(req.params.id, prisma, {
+    userId: req.auth.user.id,
+    evidence: signatureEvidenceFromRequest(req)
   });
   res.status(204).end();
 }));
