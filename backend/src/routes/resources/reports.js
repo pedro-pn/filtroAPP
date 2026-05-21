@@ -327,6 +327,22 @@ function missingSignatureRequestEmailConfigError(missingMailerConfig) {
   );
 }
 
+function signatureRequestEmailDeliveryFailure(error) {
+  return {
+    ok: false,
+    retryable: true,
+    error: error?.message || String(error || 'Falha ao enviar links de assinatura.')
+  };
+}
+
+function reportWithSignatureEmailDelivery(report, delivery) {
+  if (!delivery || delivery.ok) return report;
+  return {
+    ...report,
+    internalSignatureEmailDelivery: delivery
+  };
+}
+
 export function signatureRequestEmailRequired(report, version) {
   if (!report || report.project?.managerOnly || !shouldCreateInternalSignatureRound(report)) return false;
   if (!version) return true;
@@ -388,10 +404,11 @@ export async function clearIssuedSignatureTokens(client, tokens) {
 }
 
 export async function deliverIssuedSignatureRequestEmails(report, tokens, options = {}) {
-  if (!tokens?.length) return;
+  if (!tokens?.length) return { ok: true, sentCount: 0 };
   const client = options.client || prisma;
   try {
     await sendSignatureRequestEmails(report, tokens, options);
+    return { ok: true, sentCount: tokens.length };
   } catch (error) {
     await clearIssuedSignatureTokens(client, tokens).catch(cleanupError => {
       console.error('Falha ao limpar tokens de assinatura interna após erro de envio.', {
@@ -399,7 +416,12 @@ export async function deliverIssuedSignatureRequestEmails(report, tokens, option
         error: cleanupError?.message || cleanupError
       });
     });
-    throw error;
+    if (options.throwOnFailure) throw error;
+    console.error('Falha ao enviar links de assinatura interna; entrega marcada para retry.', {
+      reportId: report?.id,
+      error: error?.message || error
+    });
+    return signatureRequestEmailDeliveryFailure(error);
   }
 }
 
@@ -1324,8 +1346,6 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
     include: { signatures: true },
     orderBy: { versionNumber: 'desc' }
   });
-  assertSignatureRequestEmailDeliveryConfigured(report, activeVersion);
-
   let sourcePdfUrl = activeVersion?.sourcePdfUrl || '';
   let sourceDocumentHash = activeVersion?.sourceDocumentHash || '';
   let generatedSourcePath = '';
@@ -1340,8 +1360,9 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
 
   let version;
   let tokens;
+  let emailDelivery = null;
   try {
-    ({ version, tokens } = await prisma.$transaction(async tx => {
+    ({ version, tokens, emailDelivery } = await prisma.$transaction(async tx => {
       const current = await tx.report.findUniqueOrThrow({
         where: { id: report.id },
         include
@@ -1357,8 +1378,16 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
         createdByUserId: userId,
         evidence
       });
+      const missingMailerConfig = getMissingMailerConfig();
+      if (missingMailerConfig.length && signatureRequestEmailRequired(current, nextVersion)) {
+        return {
+          version: nextVersion,
+          tokens: [],
+          emailDelivery: signatureRequestEmailDeliveryFailure(missingSignatureRequestEmailConfigError(missingMailerConfig))
+        };
+      }
       const issuedTokens = await issuePendingSignatureTokens(tx, nextVersion);
-      return { version: nextVersion, tokens: issuedTokens };
+      return { version: nextVersion, tokens: issuedTokens, emailDelivery: null };
     }));
     if (generatedSourcePath && version?.sourcePdfUrl !== sourcePdfUrl) {
       await fs.unlink(generatedSourcePath).catch(() => {});
@@ -1375,8 +1404,8 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
     throw error;
   }
 
-  if (tokens.length) await deliverIssuedSignatureRequestEmails(report, tokens);
-  return version;
+  if (tokens.length) emailDelivery = await deliverIssuedSignatureRequestEmails(report, tokens);
+  return { version, emailDelivery };
 }
 
 async function getReportDocxDownload(report) {
@@ -3524,11 +3553,12 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
     }
   }
   console.log('[TIMING] POST /reports', { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, totalMs: Date.now() - tPost0, reportType: item.reportType, status: item.status });
+  let signatureRoundResult = null;
   if (item.status === ReportStatus.APPROVED) {
     queueApprovedReportNotification(item);
-    await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, signatureEvidenceFromRequest(req));
+    signatureRoundResult = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, signatureEvidenceFromRequest(req));
   }
-  res.status(201).json(item);
+  res.status(201).json(reportWithSignatureEmailDelivery(item, signatureRoundResult?.emailDelivery));
 }));
 
 router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -3719,10 +3749,11 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   }
   console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: item.reportType, status: item.status });
   if (isManagerFixingClientRejection && item.status === ReportStatus.APPROVED) queueReapprovedReportNotification(item);
+  let signatureRoundResult = null;
   if (item.status === ReportStatus.APPROVED) {
-    await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
+    signatureRoundResult = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
   }
-  res.json(item);
+  res.json(reportWithSignatureEmailDelivery(item, signatureRoundResult?.emailDelivery));
 }));
 
 router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -3945,6 +3976,7 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
   });
   const tPatchTx = Date.now();
 
+  let signatureRoundResult = null;
   if (data.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
       where: derivedReportsForProjectWhere(item.projectId),
@@ -3960,10 +3992,10 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
         queueApprovedReportNotification(item);
       }
     }
-    await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
+    signatureRoundResult = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
   }
   console.log('[TIMING] PATCH /reports/:id/status', { txMs: tPatchTx - tPatch0, totalMs: Date.now() - tPatch0, newStatus: data.status });
-  res.json(item);
+  res.json(reportWithSignatureEmailDelivery(item, signatureRoundResult?.emailDelivery));
 }));
 
 router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -4111,13 +4143,16 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
       : signedVersion;
     queueInternalSignatureNotification(item, finalVersion, signer, completed);
   }
-  if (issuedTokens.length) await deliverIssuedSignatureRequestEmails(item, issuedTokens);
+  const signatureEmailDelivery = issuedTokens.length
+    ? await deliverIssuedSignatureRequestEmails(item, issuedTokens)
+    : null;
 
   res.json({
     ok: true,
     signed: true,
     completed: item.status === ReportStatus.SIGNED,
-    report: withInternalSignatureProgress(item)
+    report: withInternalSignatureProgress(item),
+    ...(signatureEmailDelivery && !signatureEmailDelivery.ok ? { signatureEmailDelivery } : {})
   });
 }));
 

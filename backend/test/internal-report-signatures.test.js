@@ -593,35 +593,37 @@ test('sendSignatureRequestEmails propagates mailer rejection', async () => {
 
 test('deliverIssuedSignatureRequestEmails clears newly persisted tokens when send fails', async () => {
   const cleanupCalls = [];
-  await assert.rejects(
-    deliverIssuedSignatureRequestEmails({
-      id: 'report-1',
-      project: { code: 'P-1', name: 'Projeto' },
-      reportType: 'RDO',
-      reportDate: new Date('2026-01-01T12:00:00.000Z')
-    }, [{
-      signatureId: 'signature-1',
-      signerEmail: 'cliente@example.com',
-      signerName: 'Cliente',
-      token: 'raw-token',
-      expiresAt: new Date(Date.now() + 86_400_000)
-    }], {
-      missingMailerConfig: [],
-      mailer: async () => {
-        throw new Error('SMTP rejeitou');
-      },
-      client: {
-        reportSignature: {
-          updateMany: async args => {
-            cleanupCalls.push(args);
-            return { count: 1 };
-          }
+  const result = await deliverIssuedSignatureRequestEmails({
+    id: 'report-1',
+    project: { code: 'P-1', name: 'Projeto' },
+    reportType: 'RDO',
+    reportDate: new Date('2026-01-01T12:00:00.000Z')
+  }, [{
+    signatureId: 'signature-1',
+    signerEmail: 'cliente@example.com',
+    signerName: 'Cliente',
+    token: 'raw-token',
+    expiresAt: new Date(Date.now() + 86_400_000)
+  }], {
+    missingMailerConfig: [],
+    mailer: async () => {
+      throw new Error('SMTP rejeitou');
+    },
+    client: {
+      reportSignature: {
+        updateMany: async args => {
+          cleanupCalls.push(args);
+          return { count: 1 };
         }
       }
-    }),
-    /SMTP rejeitou/
-  );
+    }
+  });
 
+  assert.deepEqual(result, {
+    ok: false,
+    retryable: true,
+    error: 'SMTP rejeitou'
+  });
   assert.equal(cleanupCalls.length, 1);
   assert.deepEqual(cleanupCalls[0].where, {
     id: 'signature-1',
