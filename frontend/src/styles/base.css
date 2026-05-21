@@ -5532,16 +5532,63 @@ select {
 
 .signature-validation-file {
   display: flex;
+  gap: 14px;
   align-items: center;
-  justify-content: center;
-  min-height: 92px;
-  border: 1px dashed var(--bd);
-  border-radius: 8px;
-  background: #f3f4f6;
-  color: #0b63ce;
+  justify-content: flex-start;
+  min-height: 118px;
+  border: 1.5px dashed rgba(48, 112, 58, 0.38);
+  border-radius: 10px;
+  background: #f8fbf8;
+  color: var(--tx);
+  padding: 18px;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.signature-validation-file:hover,
+.signature-validation-file.is-dragging {
+  border-color: var(--g);
+  background: #effaf1;
+  box-shadow: 0 0 0 3px rgba(48, 112, 58, 0.08);
+}
+
+.signature-validation-file.has-file {
+  border-style: solid;
+  background: #f7faf8;
+}
+
+.signature-validation-file-icon {
+  flex: 0 0 54px;
+  width: 54px;
+  height: 54px;
+  border-radius: 10px;
+  background: #e8f3eb;
+  border: 1px solid rgba(48, 112, 58, 0.18);
+  color: var(--g);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.signature-validation-file-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.signature-validation-file-copy strong {
+  color: var(--tx);
+  overflow-wrap: anywhere;
+}
+
+.signature-validation-file-copy small {
+  color: var(--mu);
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .signature-validation-file input {

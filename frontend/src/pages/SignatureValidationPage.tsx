@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type DragEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -37,6 +37,7 @@ export function SignatureValidationPage() {
   const [fileHash, setFileHash] = useState('');
   const [fileName, setFileName] = useState('');
   const [hashing, setHashing] = useState(false);
+  const [isDraggingPdf, setIsDraggingPdf] = useState(false);
 
   const validationQuery = useQuery({
     queryKey: ['signature-validation', validationCode],
@@ -53,7 +54,8 @@ export function SignatureValidationPage() {
     setFileHash('');
     setFileName('');
     if (!file) return;
-    if (file.type && file.type !== 'application/pdf') {
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
       showToast('Envie um arquivo PDF.', 'error');
       return;
     }
@@ -66,6 +68,18 @@ export function SignatureValidationPage() {
     } finally {
       setHashing(false);
     }
+  }
+
+  function handlePdfDragOver(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    setIsDraggingPdf(true);
+  }
+
+  function handlePdfDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setIsDraggingPdf(false);
+    void handleFile(event.dataTransfer.files?.[0]);
   }
 
   return (
@@ -113,9 +127,27 @@ export function SignatureValidationPage() {
             ) : null}
             {expectedHash ? (
               <div className="signature-validation-upload">
-                <label className="signature-validation-file">
-                  <span>{hashing ? 'calculando hash...' : fileName || 'selecionar PDF recebido'}</span>
-                  <input type="file" accept="application/pdf" onChange={event => void handleFile(event.target.files?.[0])} />
+                <label
+                  className={`signature-validation-file ${isDraggingPdf ? 'is-dragging' : ''} ${fileName ? 'has-file' : ''}`}
+                  onDragEnter={handlePdfDragOver}
+                  onDragOver={handlePdfDragOver}
+                  onDragLeave={() => setIsDraggingPdf(false)}
+                  onDrop={handlePdfDrop}
+                  aria-busy={hashing}
+                >
+                  <span className="signature-validation-file-icon">PDF</span>
+                  <span className="signature-validation-file-copy">
+                    <strong>{hashing ? 'Calculando hash...' : fileName || 'Adicionar PDF assinado'}</strong>
+                    <small>{fileName ? 'Clique ou arraste outro PDF para trocar o arquivo.' : 'Clique para selecionar ou arraste o documento para esta área.'}</small>
+                  </span>
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    onChange={event => {
+                      void handleFile(event.target.files?.[0]);
+                      event.currentTarget.value = '';
+                    }}
+                  />
                 </label>
                 {hashCompared ? (
                   <div className={hashMatches ? 'inline-success' : 'inline-error'}>
