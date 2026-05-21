@@ -13,6 +13,7 @@ import {
   requireRomaneioManager,
   requireRomaneioModuleAccess,
   romaneioEmailFailureResult,
+  shouldCleanupFailedRomaneioCreate,
   visibleRomaneioWhere
 } from '../src/routes/resources/romaneios.js';
 
@@ -228,6 +229,12 @@ test('romaneioEmailFailureResult stores SMTP failures without failing creation',
     romaneioEmailFailureResult(new Error('SMTP indisponivel')),
     { status: 'erro no envio', error: 'SMTP indisponivel' }
   );
+});
+
+test('romaneio creation cleanup preserves rows after files are persisted before email status update', () => {
+  assert.equal(shouldCleanupFailedRomaneioCreate({ completed: false, filesPersisted: false }), true);
+  assert.equal(shouldCleanupFailedRomaneioCreate({ completed: false, filesPersisted: true }), false);
+  assert.equal(shouldCleanupFailedRomaneioCreate({ completed: true, filesPersisted: true }), false);
 });
 
 test('Romaneio visibility queries exclude soft-deleted projects', () => {

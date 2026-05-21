@@ -17,6 +17,7 @@ import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
 const ROMANEIO_DRAFT_MODULE = 'romaneio';
+const ROMANEIO_EMAIL_PENDING_STATUS = 'pendente';
 const requireRomaneioAccess = requireModuleRole('romaneio:manager', 'romaneio:operator');
 
 export function requireRomaneioManager(req, res, next) {
@@ -288,6 +289,10 @@ export async function cleanupFailedRomaneioCreate({
   }
 }
 
+export function shouldCleanupFailedRomaneioCreate({ completed = false, filesPersisted = false } = {}) {
+  return !completed && !filesPersisted;
+}
+
 router.get('/projects', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const activeParam = req.query.active;
   const where = { deletedAt: null };
@@ -514,6 +519,7 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
   let created = null;
   let files = null;
   let completed = false;
+  let filesPersisted = false;
   try {
     created = await prisma.romaneio.create({
       data: {
@@ -528,6 +534,18 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
     });
 
     files = await saveRomaneioPdf(created);
+    created = await prisma.romaneio.update({
+      where: { id: created.id },
+      data: {
+        docxUrl: files.docx.publicUrl,
+        pdfUrl: files.pdf.publicUrl,
+        emailStatus: ROMANEIO_EMAIL_PENDING_STATUS,
+        emailError: null
+      },
+      ...selectedFields()
+    });
+    filesPersisted = true;
+
     let emailResult;
     try {
       emailResult = await notifyRecipients(created, files.pdf.targetPath);
@@ -538,8 +556,6 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
     created = await prisma.romaneio.update({
       where: { id: created.id },
       data: {
-        docxUrl: files.docx.publicUrl,
-        pdfUrl: files.pdf.publicUrl,
         emailStatus: emailResult.status,
         emailError: emailResult.error
       },
@@ -547,7 +563,7 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
     });
     completed = true;
   } catch (error) {
-    if (!completed) {
+    if (shouldCleanupFailedRomaneioCreate({ completed, filesPersisted })) {
       await cleanupFailedRomaneioCreate({ romaneioId: created?.id, files });
     }
     throw error;
