@@ -17,6 +17,7 @@ import {
   type RomaneioMeasureType
 } from '../../api/romaneio';
 import { useToast } from '../../components/ui/Toast';
+import { Modal } from '../../components/ui/Modal';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 
@@ -62,6 +63,7 @@ export function NewRomaneioPage() {
   const [catalogSearch, setCatalogSearch] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set());
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [custom, setCustom] = useState({
     itemName: '',
@@ -309,17 +311,43 @@ export function NewRomaneioPage() {
     queryClient
   ]);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (createMutation.isPending || isSubmittingRef.current) return;
+  function selectedItemsPayload() {
+    return selectedItems.map(item => ({
+      catalogItemId: item.catalogItemId || null,
+      itemName: item.itemName,
+      itemCode: item.itemCode || null,
+      categoryName: item.categoryName,
+      kind: item.kind,
+      measureType: item.measureType,
+      quantity: item.quantity,
+      unitLabel: item.unitLabel,
+      isCustom: item.isCustom
+    }));
+  }
+
+  function canSubmitRomaneio() {
     if (!projectId || !romaneioDate || !driverName.trim() || !vehiclePlate.trim()) {
       showToast('Preencha os dados do cabeçalho.');
-      return;
+      return false;
     }
     if (!selectedItems.length) {
       showToast('Adicione ao menos um item.');
-      return;
+      return false;
     }
+    return true;
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (createMutation.isPending || isSubmittingRef.current) return;
+    if (!canSubmitRomaneio()) return;
+    setReviewOpen(true);
+  }
+
+  async function confirmSubmit() {
+    if (createMutation.isPending || isSubmittingRef.current) return;
+    if (!canSubmitRomaneio()) return;
+    setReviewOpen(false);
     isSubmittingRef.current = true;
     if (draftSaveTimerRef.current) {
       window.clearTimeout(draftSaveTimerRef.current);
@@ -332,17 +360,7 @@ export function NewRomaneioPage() {
         romaneioDate,
         driverName,
         vehiclePlate,
-        items: selectedItems.map(item => ({
-          catalogItemId: item.catalogItemId || null,
-          itemName: item.itemName,
-          itemCode: item.itemCode || null,
-          categoryName: item.categoryName,
-          kind: item.kind,
-          measureType: item.measureType,
-          quantity: item.quantity,
-          unitLabel: item.unitLabel,
-          isCustom: item.isCustom
-        }))
+        items: selectedItemsPayload()
       });
       const draftIdsToRemove = matchingDraftIds();
       if (draftId && !draftIdsToRemove.includes(draftId)) draftIdsToRemove.push(draftId);
@@ -522,10 +540,50 @@ export function NewRomaneioPage() {
 
         <section className="bottom-bar-react">
           <button className="primary-button" type="submit" disabled={createMutation.isPending}>
-            Criar romaneio
+            Enviar romaneio
           </button>
         </section>
       </form>
+      <Modal
+        open={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        ariaLabelledBy="romaneio-review-title"
+        ariaDescribedBy="romaneio-review-description"
+        panelClassName="modal-card romaneio-review-modal"
+      >
+        <div className="section-title" id="romaneio-review-title">Revisar itens do romaneio</div>
+        <p className="placeholder-copy" id="romaneio-review-description">
+          Confira os itens adicionados antes de confirmar o envio.
+        </p>
+        <div className="det-section">
+          <div className="det-row">
+            <span className="det-label">Projeto</span>
+            <span className="det-val">{selectedProject ? `Missão ${selectedProject.code} - ${selectedProject.name}` : '-'}</span>
+          </div>
+          <div className="det-row"><span className="det-label">Data</span><span className="det-val">{romaneioDate}</span></div>
+          <div className="det-row"><span className="det-label">Motorista</span><span className="det-val">{driverName || '-'}</span></div>
+          <div className="det-row"><span className="det-label">Placa</span><span className="det-val">{vehiclePlate || '-'}</span></div>
+        </div>
+        <div className="romaneio-review-list" aria-label="Itens adicionados ao romaneio">
+          {selectedItems.map(item => (
+            <div className="romaneio-review-row" key={item.key}>
+              <div>
+                <strong>{[item.itemCode, item.itemName].filter(Boolean).join(' - ')}</strong>
+                <div className="rel-meta">{item.categoryName}</div>
+              </div>
+              <span>{item.quantity} {item.unitLabel}</span>
+            </div>
+          ))}
+        </div>
+        <div className="admin-form-actions">
+          <button className="secondary-button" type="button" onClick={() => setReviewOpen(false)}>
+            Cancelar
+          </button>
+          <button className="primary-button" type="button" disabled={createMutation.isPending} onClick={() => void confirmSubmit()}>
+            Confirmar envio
+          </button>
+        </div>
+      </Modal>
     </Shell>
   );
 }

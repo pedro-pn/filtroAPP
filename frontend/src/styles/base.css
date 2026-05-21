@@ -2989,6 +2989,46 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   margin-top: 0;
 }
 
+.romaneio-review-modal {
+  width: min(100%, 680px);
+  max-height: calc(100dvh - 36px);
+  display: grid;
+  gap: 14px;
+  overflow: hidden;
+}
+
+.romaneio-review-list {
+  display: grid;
+  gap: 8px;
+  max-height: min(360px, 42dvh);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.romaneio-review-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: #fafafa;
+}
+
+.romaneio-review-row strong {
+  display: block;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.romaneio-review-row > span {
+  color: var(--tx);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .survey-question-editor-modal {
   width: min(100%, 820px);
   height: min(760px, calc(100dvh - 32px));
