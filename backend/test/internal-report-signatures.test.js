@@ -636,6 +636,27 @@ test('publicSignatureStatus blocks links for deleted projects but allows archive
       }
     }
   }), 'ACTIVE');
+  assert.equal(publicSignatureStatus({
+    id: 'signature-1',
+    status: 'SIGNED',
+    tokenExpiresAt: new Date(Date.now() - 60_000),
+    version: {
+      status: 'ACTIVE',
+      finalDocumentHash: null,
+      signatures: [{
+        id: 'signature-1',
+        status: 'SIGNED',
+        isRequired: true
+      }]
+    },
+    report: {
+      deletedAt: null,
+      status: 'APPROVED',
+      project: {
+        deletedAt: null
+      }
+    }
+  }), 'EXPIRED');
 });
 
 test('publicSignaturePayload hides metadata for unavailable soft-deleted reports and projects', () => {

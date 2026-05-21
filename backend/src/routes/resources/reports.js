@@ -379,6 +379,7 @@ export function publicSignatureStatus(signature) {
   if (!signature) return 'INVALID';
   if (signature.report?.deletedAt) return 'UNAVAILABLE';
   if (signature.report?.project?.deletedAt) return 'UNAVAILABLE';
+  if (signature.tokenExpiresAt && new Date(signature.tokenExpiresAt).getTime() <= Date.now()) return 'EXPIRED';
   if (
     signature.status === 'SIGNED'
     && signature.version?.status === ReportVersionStatus.ACTIVE
@@ -390,7 +391,6 @@ export function publicSignatureStatus(signature) {
   if (signature.status === 'REJECTED') return 'REJECTED';
   if (signature.status === 'INVALIDATED') return 'INVALIDATED';
   if (signature.status === 'EXPIRED') return 'EXPIRED';
-  if (signature.tokenExpiresAt && new Date(signature.tokenExpiresAt).getTime() <= Date.now()) return 'EXPIRED';
   if (signature.version?.status !== 'ACTIVE') return 'INVALIDATED';
   if (signature.report?.status === ReportStatus.SIGNED) return 'SIGNED';
   if (signature.report?.status !== ReportStatus.APPROVED) return 'UNAVAILABLE';
@@ -463,6 +463,18 @@ async function publicSignatureFromToken(token, client = prisma) {
 }
 
 async function activePublicSignatureOrThrow(token, client = prisma) {
+  const signature = await publicSignatureFromToken(token, client);
+  const status = publicSignatureStatus(signature);
+  if (status !== 'ACTIVE') {
+    const error = new Error('Link de assinatura indisponível.');
+    error.statusCode = status === 'INVALID' ? 404 : 409;
+    error.publicStatus = status;
+    throw error;
+  }
+  return signature;
+}
+
+async function retryablePublicSignatureForConfirmOrThrow(token, client = prisma) {
   const signature = await publicSignatureFromToken(token, client);
   const status = publicSignatureStatus(signature);
   if (status !== 'ACTIVE' && !isFinalizationRetryableSignature(signature)) {
@@ -3136,7 +3148,7 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
   let signedVersion;
   let signatureResult = { alreadySigned: false };
   let item = await prisma.$transaction(async tx => {
-    const signature = await activePublicSignatureOrThrow(req.params.token, tx);
+    const signature = await retryablePublicSignatureForConfirmOrThrow(req.params.token, tx);
     const completesRequiredSignatures = signatureWouldCompleteRequired(signature.version, signature.id);
     if (completesRequiredSignatures) {
       await assertSignatureFinalizationPreflight(signature.version);

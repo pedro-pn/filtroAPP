@@ -5,8 +5,10 @@ import { getZapSignDocument } from './zapsign.js';
 
 const LEGACY_RECONCILIATION_INTERVAL_MS = 15 * 60 * 1000;
 const DEFAULT_RECONCILIATION_LIMIT = 25;
+const DEFAULT_RECONCILIATION_SCAN_LIMIT = 100;
 let reconciliationTimer = null;
 let reconciliationInFlight = false;
+let reconciliationOffset = 0;
 
 function normalizedStatus(value) {
   return String(value || '').trim().toLowerCase();
@@ -112,16 +114,30 @@ export async function reconcileLegacyZapSignReport(report, {
 export async function processPendingLegacyZapSignReports({
   prismaClient = prisma,
   getDocument = getZapSignDocument,
-  limit = DEFAULT_RECONCILIATION_LIMIT
+  limit = DEFAULT_RECONCILIATION_LIMIT,
+  scanLimit = DEFAULT_RECONCILIATION_SCAN_LIMIT
 } = {}) {
-  const reports = await prismaClient.report.findMany({
+  const where = {
+    deletedAt: null,
+    reportType: ReportType.RDO,
+    status: ReportStatus.APPROVED,
+    zapsignDocToken: { not: null },
+    zapsignSignedAt: null,
+    project: { deletedAt: null }
+  };
+  const totalPending = typeof prismaClient.report.count === 'function'
+    ? await prismaClient.report.count({ where })
+    : null;
+  const safeTotal = Number.isFinite(totalPending) ? totalPending : 0;
+  const windowSize = Math.max(scanLimit, limit);
+  const skip = safeTotal > windowSize ? reconciliationOffset % Math.max(safeTotal, 1) : 0;
+  const take = safeTotal > windowSize
+    ? Math.min(windowSize, safeTotal - skip)
+    : windowSize;
+
+  let reports = await prismaClient.report.findMany({
     where: {
-      deletedAt: null,
-      reportType: ReportType.RDO,
-      status: ReportStatus.APPROVED,
-      zapsignDocToken: { not: null },
-      zapsignSignedAt: null,
-      project: { deletedAt: null }
+      ...where
     },
     include: {
       project: true,
@@ -130,11 +146,35 @@ export async function processPendingLegacyZapSignReports({
       }
     },
     orderBy: { zapsignRequestedAt: 'asc' },
-    take: limit
+    skip,
+    take
   });
+  if (safeTotal > windowSize && reports.length < windowSize && skip > 0) {
+    const wrapped = await prismaClient.report.findMany({
+      where: {
+        ...where
+      },
+      include: {
+        project: true,
+        clientReviews: {
+          orderBy: { createdAt: 'desc' }
+        }
+      },
+      orderBy: { zapsignRequestedAt: 'asc' },
+      take: windowSize - reports.length
+    });
+    reports = [...reports, ...wrapped];
+  }
+  if (safeTotal > 0) {
+    reconciliationOffset = (skip + windowSize) % safeTotal;
+  }
 
   let reconciled = 0;
+  let checked = 0;
+  const maxChecks = Math.max(limit, reports.length);
   for (const report of reports) {
+    if (checked >= maxChecks) break;
+    checked += 1;
     try {
       const result = await reconcileLegacyZapSignReport(report, { prismaClient, getDocument });
       if (result.reconciled) reconciled += 1;
@@ -147,7 +187,7 @@ export async function processPendingLegacyZapSignReports({
     }
   }
 
-  return { checked: reports.length, reconciled };
+  return { checked, reconciled };
 }
 
 export function startLegacyZapSignReconciliationJob() {
