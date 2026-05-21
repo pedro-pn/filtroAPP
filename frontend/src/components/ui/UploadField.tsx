@@ -62,6 +62,10 @@ function wasPreviouslyAdded(file: UploadValue) {
   return Boolean(file.previouslyAdded || file.__previouslyAdded);
 }
 
+function uploadFileKey(file: UploadValue) {
+  return rawFileUrl(file) || `${file.fileName}-${file.mimeType || ''}`;
+}
+
 function UploadListItem({ disabled, file, index, onRemove }: UploadListItemProps) {
   const [href, setHref] = useState('');
   const source = rawFileUrl(file);
@@ -197,7 +201,7 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
         <div className="upload-list">
           {value.map((file, index) => (
             <UploadListItem
-              key={`${rawFileUrl(file)}-${index}`}
+              key={uploadFileKey(file)}
               disabled={disabled}
               file={file}
               index={index}

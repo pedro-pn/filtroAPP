@@ -3302,6 +3302,17 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   line-height: 1.45;
 }
 
+.upload-final-note {
+  border: 1px solid rgba(48, 112, 58, 0.22);
+  border-radius: var(--rs);
+  background: #effaf1;
+  color: #205c2f;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
 .upload-list {
   display: flex;
   flex-direction: column;

@@ -1050,6 +1050,9 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               onChange={event => setField('dailyDescription', event.target.value)}
             />
           </div>
+          <div className="upload-final-note">
+            Não é necessário adicionar novamente as fotos já adicionadas nos serviços na página anterior.
+          </div>
           <UploadField
             label="Fotos de registro"
             value={form.generalUploads}
