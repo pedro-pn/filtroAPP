@@ -1,5 +1,5 @@
 import { apiClient, rdoApiPath } from './client';
-import type { ReportAuditLog, ReportPayload, ReportStatus, ReportSummary, ServiceOnlyReportPayload } from '../types/domain';
+import type { ReportAuditLog, ReportPayload, ReportStatus, ReportSummary, ReportType, ServiceOnlyReportPayload } from '../types/domain';
 
 export interface ReportFilters {
   status?: string;
@@ -44,11 +44,32 @@ export async function updateReportStatus(id: string, payload: { status: ReportSt
   return response.data;
 }
 
+export interface ReleasedServiceReportNotification {
+  id: string;
+  projectId: string;
+  reportType: ReportType;
+  sequenceNumber?: number | null;
+  reportDate?: string | null;
+  project?: {
+    id?: string;
+    code?: string | null;
+    name?: string | null;
+  } | null;
+}
+
+export interface RequestReportSignatureResponse {
+  ok: boolean;
+  signed?: boolean;
+  completed?: boolean;
+  report: ReportSummary;
+  releasedServiceReports?: ReleasedServiceReportNotification[];
+}
+
 export async function requestReportSignature(
   id: string,
   payload: { comment?: string | null; signerName: string; signatureImageDataUrl: string }
 ) {
-  const response = await apiClient.post<{ ok: boolean; signed?: boolean; completed?: boolean; report: ReportSummary }>(
+  const response = await apiClient.post<RequestReportSignatureResponse>(
     rdoApiPath(`/reports/${id}/request-signature`),
     payload
   );

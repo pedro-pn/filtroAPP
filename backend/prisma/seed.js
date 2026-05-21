@@ -4,7 +4,7 @@ import { hashPassword } from '../src/lib/password.js';
 import { normalizeCnpj } from '../src/lib/cnpj.js';
 import { accountTypeForLegacyRole, defaultPublicModuleRolesForLegacyRole, moduleRoleRows } from '../src/lib/module-roles.js';
 
-const { PrismaClient, ReportType, UnitCategory, UserRole } = prismaPkg;
+const { PrismaClient, ReportType, UserRole } = prismaPkg;
 
 const prisma = new PrismaClient();
 
@@ -44,16 +44,16 @@ async function main() {
   }
 
   const units = [
-    { code: 'UFG-01', category: UnitCategory.FILTRAGEM },
-    { code: 'UFG-02', category: UnitCategory.FILTRAGEM },
-    { code: 'UF-01', category: UnitCategory.FLUSHING },
-    { code: 'UF-02', category: UnitCategory.FLUSHING },
-    { code: 'ULQ-01', category: UnitCategory.LIMPEZA_QUIMICA },
-    { code: 'ULQ-02', category: UnitCategory.LIMPEZA_QUIMICA },
-    { code: 'CF-01', category: UnitCategory.DESIDRATACAO },
-    { code: 'TV-01', category: UnitCategory.DESIDRATACAO },
-    { code: 'UTH-01', category: UnitCategory.UTH },
-    { code: 'UTH-02', category: UnitCategory.UTH }
+    { code: 'UFG-01', category: 'FILTRAGEM' },
+    { code: 'UFG-02', category: 'FILTRAGEM' },
+    { code: 'UF-01', category: 'FLUSHING' },
+    { code: 'UF-02', category: 'FLUSHING' },
+    { code: 'ULQ-01', category: 'LIMPEZA_QUIMICA' },
+    { code: 'ULQ-02', category: 'LIMPEZA_QUIMICA' },
+    { code: 'CF-01', category: 'DESIDRATACAO' },
+    { code: 'TV-01', category: 'DESIDRATACAO' },
+    { code: 'UTH-01', category: 'UTH' },
+    { code: 'UTH-02', category: 'UTH' }
   ];
 
   for (const unit of units) {

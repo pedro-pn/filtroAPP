@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { UnitCategory } from '@prisma/client';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
@@ -10,8 +9,8 @@ const router = Router();
 router.use(requireAuth);
 
 const schema = z.object({
-  code: z.string().min(1),
-  category: z.nativeEnum(UnitCategory)
+  code: z.string().trim().min(1),
+  category: z.string().trim().min(1)
 });
 
 router.get('/', requireInternalUser, asyncHandler(async (_req, res) => {

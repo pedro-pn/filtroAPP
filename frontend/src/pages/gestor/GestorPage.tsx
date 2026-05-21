@@ -178,6 +178,7 @@ interface UserFormState {
 interface UnitFormState {
   code: string;
   category: UnitCategory;
+  newCategory: string;
 }
 
 interface ManometerFormState {
@@ -260,7 +261,19 @@ const emptyUserForm: UserFormState = {
 
 const emptyUnitForm: UnitFormState = {
   code: '',
-  category: 'FILTRAGEM'
+  category: 'FILTRAGEM',
+  newCategory: ''
+};
+
+const DEFAULT_UNIT_CATEGORIES = ['FILTRAGEM', 'FLUSHING', 'LIMPEZA_QUIMICA', 'DESIDRATACAO', 'UTH', 'OUTRA'];
+const NEW_UNIT_CATEGORY_VALUE = '__new_unit_category__';
+const UNIT_CATEGORY_LABELS: Record<string, string> = {
+  FILTRAGEM: 'Filtragem',
+  FLUSHING: 'Flushing',
+  LIMPEZA_QUIMICA: 'Limpeza química',
+  DESIDRATACAO: 'Desidratação',
+  UTH: 'UTH',
+  OUTRA: 'Outra'
 };
 
 const emptyManometerForm: ManometerFormState = {
@@ -284,6 +297,13 @@ function groupUnits(units: Unit[]) {
     acc[unit.category].push(unit);
     return acc;
   }, {});
+}
+
+function unitCategoryOptions(units: Unit[]) {
+  return Array.from(new Set([
+    ...DEFAULT_UNIT_CATEGORIES,
+    ...units.map(unit => unit.category).filter(Boolean)
+  ])).sort((a, b) => formatUnitCategory(a).localeCompare(formatUnitCategory(b), 'pt-BR', { sensitivity: 'base' }));
 }
 
 interface RdoServiceDraft {
@@ -374,16 +394,7 @@ function draftDateLabel(draft: ReportDraft) {
 }
 
 function formatUnitCategory(category: UnitCategory) {
-  const labels: Record<UnitCategory, string> = {
-    FILTRAGEM: 'Filtragem',
-    FLUSHING: 'Flushing',
-    LIMPEZA_QUIMICA: 'Limpeza química',
-    DESIDRATACAO: 'Desidratação',
-    UTH: 'UTH',
-    OUTRA: 'Outra'
-  };
-
-  return labels[category] || category;
+  return UNIT_CATEGORY_LABELS[category] || category;
 }
 
 function formatUserRole(role: UserRole) {
@@ -912,7 +923,8 @@ function userToForm(user: InternalUserSummary): UserFormState {
 function unitToForm(unit: Unit): UnitFormState {
   return {
     code: unit.code,
-    category: unit.category
+    category: unit.category,
+    newCategory: ''
   };
 }
 
@@ -1761,10 +1773,17 @@ export function GestorPage() {
 
   async function handleUnitSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const category = unitForm.category === NEW_UNIT_CATEGORY_VALUE
+      ? unitForm.newCategory.trim()
+      : unitForm.category.trim();
+    if (!category) {
+      showToast('Informe o tipo de equipamento da unidade.', 'error');
+      return;
+    }
 
     const payload = {
       code: unitForm.code.trim(),
-      category: unitForm.category
+      category
     };
 
     try {
@@ -3102,99 +3121,134 @@ export function GestorPage() {
   }
 
   function renderUnidadesSubTab() {
-    const units = (unitsQuery.data || [])
+    const allUnits = unitsQuery.data || [];
+    const units = allUnits
       .filter(item => matchesSearch(unitSearchParts(item), gestorSearch));
     const visibleGroupedUnits = groupUnits(units);
+    const allUnitCategories = unitCategoryOptions(allUnits);
+    const hasSearch = Boolean(gestorSearch.trim());
+    const visibleCategories = allUnitCategories.filter(category => {
+      const categoryUnits = visibleGroupedUnits[category] || [];
+      if (!hasSearch) return true;
+      return categoryUnits.length > 0 || matchesSearch([category, formatUnitCategory(category)], gestorSearch);
+    });
 
     if (unitsQuery.isLoading) {
       return <div className="page-card placeholder-copy">Carregando unidades...</div>;
     }
 
-    return units.length ? (
+    const renderUnitForm = (submitLabel: string) => (
+      <form className="admin-inline-form admin-form-grid" onSubmit={handleUnitSubmit}>
+        <div className="field-group">
+          <label>Código</label>
+          <input
+            value={unitForm.code}
+            onChange={event => setUnitForm(current => ({ ...current, code: event.target.value }))}
+            required
+          />
+        </div>
+        <div className="field-group">
+          <label>Tipo de equipamento</label>
+          <select
+            value={unitForm.category}
+            onChange={event => setUnitForm(current => ({ ...current, category: event.target.value, newCategory: '' }))}
+            required
+          >
+            {allUnitCategories.map(category => (
+              <option value={category} key={category}>{formatUnitCategory(category)}</option>
+            ))}
+            <option value={NEW_UNIT_CATEGORY_VALUE}>Criar nova categoria</option>
+          </select>
+        </div>
+        {unitForm.category === NEW_UNIT_CATEGORY_VALUE ? (
+          <div className="field-group">
+            <label>Nova categoria</label>
+            <input
+              value={unitForm.newCategory}
+              onChange={event => setUnitForm(current => ({ ...current, newCategory: event.target.value }))}
+              required
+            />
+          </div>
+        ) : null}
+        <div className="admin-form-actions">
+          <button
+            className="mini-btn"
+            type="submit"
+            disabled={unitMutations.createUnit.isPending || unitMutations.updateUnit.isPending}
+          >
+            {submitLabel}
+          </button>
+          <button className="mini-btn alt" type="button" onClick={resetUnitForm}>
+            Cancelar
+          </button>
+        </div>
+      </form>
+    );
+
+    return (
       <div className="admin-stack">
-        {Object.entries(visibleGroupedUnits).map(([category, categoryUnits]) => (
-          <article className="card admin-card" key={category}>
-            <div className="admin-section-head admin-card-toolbar">
-              <div className="admin-card-title">{formatUnitCategory(category as UnitCategory)}</div>
-              <button
-                className="mini-btn alt"
-                type="button"
-                onClick={() => {
-                  setUnitEditingId(null);
-                  setShowUnitForm(true);
-                  setUnitForm({ code: '', category: category as UnitCategory });
-                }}
-              >
-                + Nova unidade
-              </button>
+        <article className="card admin-card">
+          <div className="admin-section-head admin-card-toolbar">
+            <div>
+              <div className="admin-card-title">Unidades</div>
+              <div className="admin-card-subtitle">Cadastre a unidade e selecione o tipo de equipamento.</div>
             </div>
-            {showUnitForm && !unitEditingId && unitForm.category === category ? (
-              <form className="admin-inline-form admin-form-grid" onSubmit={handleUnitSubmit}>
-                <div className="field-group">
-                  <label>Código</label>
-                  <input
-                    value={unitForm.code}
-                    onChange={event => setUnitForm(current => ({ ...current, code: event.target.value }))}
-                    required
-                  />
-                </div>
-                <div className="field-group">
-                  <label>Categoria</label>
-                  <input value={formatUnitCategory(category as UnitCategory)} readOnly />
-                </div>
-                <div className="admin-form-actions">
-                  <button
-                    className="mini-btn"
-                    type="submit"
-                    disabled={unitMutations.createUnit.isPending || unitMutations.updateUnit.isPending}
-                  >
-                    Criar unidade
-                  </button>
-                  <button className="mini-btn alt" type="button" onClick={resetUnitForm}>
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-            ) : null}
-            <div className="admin-list">
-              {categoryUnits.map(unit => (
-                <div className="admin-list-row" key={unit.id}>
-                  <span>{unit.code}</span>
-                  <div className="admin-card-actions">
-                    <button
-                      className="mini-btn alt"
-                      type="button"
-                      onClick={() => {
-                        setUnitEditingId(unit.id);
-                        setShowUnitForm(true);
-                        setUnitForm(unitToForm(unit));
-                      }}
-                    >
-                      Editar
-                    </button>
-                    <button className="mini-btn danger" type="button" onClick={() => void handleUnitDelete(unit.id)}>
-                      Remover
-                    </button>
+            <button
+              className="mini-btn alt"
+              type="button"
+              onClick={() => {
+                setUnitEditingId(null);
+                setShowUnitForm(true);
+                setUnitForm({ ...emptyUnitForm, category: allUnitCategories[0] || 'FILTRAGEM' });
+              }}
+            >
+              + Nova unidade
+            </button>
+          </div>
+          {showUnitForm && !unitEditingId ? renderUnitForm('Criar unidade') : null}
+        </article>
+        {visibleCategories.length ? visibleCategories.map(category => {
+          const categoryUnits = visibleGroupedUnits[category] || [];
+          return (
+            <article className="card admin-card" key={category}>
+              <div className="admin-section-head admin-card-toolbar">
+                <div className="admin-card-title">{formatUnitCategory(category)}</div>
+              </div>
+              <div className="admin-list">
+                {categoryUnits.length ? categoryUnits.map(unit => (
+                  <div className="admin-list-row" key={unit.id}>
+                    <span>{unit.code}</span>
+                    <div className="admin-card-actions">
+                      <button
+                        className="mini-btn alt"
+                        type="button"
+                        onClick={() => {
+                          setUnitEditingId(unit.id);
+                          setShowUnitForm(true);
+                          setUnitForm(unitToForm(unit));
+                        }}
+                      >
+                        Editar
+                      </button>
+                      <button className="mini-btn danger" type="button" onClick={() => void handleUnitDelete(unit.id)}>
+                        Remover
+                      </button>
+                    </div>
+                    {unitEditingId === unit.id ? (
+                      renderUnitForm('Salvar unidade')
+                    ) : null}
                   </div>
-                  {unitEditingId === unit.id ? (
-                    <form className="admin-inline-form admin-form-grid" onSubmit={handleUnitSubmit}>
-                      <div className="field-group"><label>Código</label><input value={unitForm.code} onChange={event => setUnitForm(current => ({ ...current, code: event.target.value }))} required /></div>
-                      <div className="field-group"><label>Categoria</label><input value={formatUnitCategory(unit.category)} readOnly /></div>
-                      <div className="admin-form-actions">
-                        <button className="mini-btn" type="submit" disabled={unitMutations.updateUnit.isPending}>Salvar unidade</button>
-                        <button className="mini-btn alt" type="button" onClick={resetUnitForm}>Cancelar edição</button>
-                      </div>
-                    </form>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </article>
-        ))}
-      </div>
-    ) : (
-      <div className="card admin-card">
-        <p className="placeholder-copy">Nenhuma unidade cadastrada.</p>
+                )) : (
+                  <p className="placeholder-copy">Nenhuma unidade cadastrada neste tipo.</p>
+                )}
+              </div>
+            </article>
+          );
+        }) : (
+          <div className="card admin-card">
+            <p className="placeholder-copy">Nenhuma unidade encontrada.</p>
+          </div>
+        )}
       </div>
     );
   }

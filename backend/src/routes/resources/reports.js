@@ -958,6 +958,37 @@ export function derivedReportsForProjectWhere(projectId) {
   };
 }
 
+function reportDateKey(value) {
+  if (!value) return '';
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const text = String(value || '');
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+}
+
+function reportCollection(allReportsById) {
+  if (!allReportsById) return [];
+  if (Array.isArray(allReportsById)) return allReportsById;
+  if (typeof allReportsById.values === 'function') return Array.from(allReportsById.values());
+  return [];
+}
+
+export function previousRdosSignedForServiceReport(report, parentRdo, allReportsById) {
+  const parentDateKey = reportDateKey(parentRdo?.reportDate || report?.reportDate);
+  if (!parentDateKey) return false;
+  const projectId = report?.projectId || parentRdo?.projectId;
+  return reportCollection(allReportsById).every(item => {
+    if (!item || item.projectId !== projectId) return true;
+    if (item.reportType !== ReportType.RDO) return true;
+    if (item.deletedAt || item.project?.deletedAt) return true;
+    const itemDateKey = reportDateKey(item.reportDate);
+    if (!itemDateKey || itemDateKey >= parentDateKey) return true;
+    return item.status === ReportStatus.SIGNED;
+  });
+}
+
 function assignActiveReportProjectWhere(where, projectWhere = {}) {
   where.project = activeReportProjectWhere(projectWhere);
 }
@@ -971,7 +1002,10 @@ export async function canAccessReport(auth, report) {
   if (auth.user.role === 'MANAGER') return true;
   if (report.project?.managerOnly) return false;
   if (auth.user.role === 'COORDINATOR') return true;
-  if (auth.user.role === 'CLIENT') return clientCanAccessProject(auth, report.project);
+  if (auth.user.role === 'CLIENT') {
+    if (!clientCanAccessProject(auth, report.project)) return false;
+    return canClientSeeReportForAccess(report);
+  }
   if (report.createdByUserId === auth.user.id) return true;
   const collabId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
   if (collabId && report.project?.operatorId === collabId) return true;
@@ -981,7 +1015,7 @@ export async function canAccessReport(auth, report) {
   return false;
 }
 
-function canClientSeeReport(report, allReportsById) {
+export function canClientSeeReport(report, allReportsById) {
   if (report?.project?.deletedAt) return false;
   if (!report || !report.project?.clientCnpj) return false;
   if (report.reportType === ReportType.RDO) {
@@ -993,7 +1027,58 @@ function canClientSeeReport(report, allReportsById) {
   const parentId = report.specialConditions?.parentRdoId;
   if (!parentId) return false;
   const parent = allReportsById.get(parentId);
-  return !!(parent && parent.status === ReportStatus.SIGNED);
+  return !!(
+    parent
+    && parent.status === ReportStatus.SIGNED
+    && previousRdosSignedForServiceReport(report, parent, allReportsById)
+  );
+}
+
+async function projectReportsForClientVisibility(projectId, client = prisma) {
+  return client.report.findMany({
+    where: { projectId, deletedAt: null, project: activeReportProjectWhere() },
+    include
+  });
+}
+
+async function canClientSeeReportForAccess(report, client = prisma) {
+  if (!report?.projectId) return false;
+  const projectReports = await projectReportsForClientVisibility(report.projectId, client);
+  const byId = new Map(projectReports.map(item => [item.id, item]));
+  return canClientSeeReport(report, byId);
+}
+
+function releasedServiceReportPayload(report) {
+  return {
+    id: report.id,
+    projectId: report.projectId,
+    reportType: report.reportType,
+    sequenceNumber: report.sequenceNumber ?? null,
+    reportDate: report.reportDate,
+    project: {
+      id: report.project?.id || report.projectId,
+      code: report.project?.code || '',
+      name: report.project?.name || ''
+    }
+  };
+}
+
+export async function releasedServiceReportsAfterRdoSignature(rdo, client = prisma) {
+  if (!rdo || rdo.reportType !== ReportType.RDO || rdo.status !== ReportStatus.SIGNED) return [];
+  const projectReports = await projectReportsForClientVisibility(rdo.projectId, client);
+  const byId = new Map(projectReports.map(item => [item.id, item]));
+  const signedDateKey = reportDateKey(rdo.reportDate);
+  return projectReports
+    .filter(report => {
+      if (report.reportType === ReportType.RDO) return false;
+      const parentId = report.specialConditions?.parentRdoId;
+      if (!parentId) return false;
+      const parent = byId.get(parentId);
+      const parentDateKey = reportDateKey(parent?.reportDate || report.reportDate);
+      const signedRdoReleasedThisReport = parentId === rdo.id || (signedDateKey && parentDateKey && signedDateKey < parentDateKey);
+      return signedRdoReleasedThisReport && canClientSeeReport(report, byId);
+    })
+    .map(releasedServiceReportPayload);
 }
 
 function assertReportMutable(report) {
@@ -4178,12 +4263,16 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
   const signatureEmailDelivery = issuedTokens.length
     ? await deliverIssuedSignatureRequestEmails(item, issuedTokens)
     : null;
+  const releasedServiceReports = item.status === ReportStatus.SIGNED
+    ? await releasedServiceReportsAfterRdoSignature(item)
+    : [];
 
   res.json({
     ok: true,
     signed: true,
     completed: item.status === ReportStatus.SIGNED,
     report: withInternalSignatureProgress(item),
+    ...(releasedServiceReports.length ? { releasedServiceReports } : {}),
     ...(signatureEmailDelivery && !signatureEmailDelivery.ok ? { signatureEmailDelivery } : {})
   });
 }));

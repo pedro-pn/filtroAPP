@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { driver } from 'driver.js';
 
-import { downloadReportPdf, downloadReportsBatch } from '../../api/reports';
+import { downloadReportPdf, downloadReportsBatch, type ReleasedServiceReportNotification } from '../../api/reports';
 import { getClientSurveyLink } from '../../api/surveys';
 import { useAuth } from '../../auth/AuthContext';
 import { rdoReportDetailPath } from '../../auth/rolePath';
@@ -58,11 +59,15 @@ interface ClientProjectGroup {
   surveyProject?: Project;
 }
 
+function releasedReportTabKey(projectId: string, reportType: string) {
+  return `${projectId}::${reportType}`;
+}
+
 function formatDate(value: string) {
   return formatDateOnlyPtBr(value, value);
 }
 
-function reportLabel(report: ReportSummary) {
+function reportLabel(report: Pick<ReportSummary, 'reportType' | 'sequenceNumber'>) {
   return report.sequenceNumber ? `${report.reportType} ${report.sequenceNumber}` : report.reportType;
 }
 
@@ -87,6 +92,10 @@ function projectTitle(report: ReportSummary) {
 
 function projectDisplayTitle(project: Project) {
   return [project.code, project.name].filter(Boolean).join(' - ') || project.name;
+}
+
+function releasedReportProjectTitle(report: ReleasedServiceReportNotification) {
+  return [report.project?.code, report.project?.name].filter(Boolean).join(' - ') || report.projectId;
 }
 
 function latestSurvey(project: Project) {
@@ -180,6 +189,7 @@ export function ClientPage() {
   const [clientSortDirection, setClientSortDirection] = useState<ProjectSortDirection>('asc');
   const [clientTogglesLoaded, setClientTogglesLoaded] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
+  const [releasedReportCounts, setReleasedReportCounts] = useState<Record<string, number>>({});
   const tutorialTrigger = useRef<(() => void) | null>(null);
   const showToast = useToast();
   const clientToggleStorageKey = user ? `filtrovali-client-tabs:${user.id || user.username}` : '';
@@ -328,6 +338,54 @@ export function ClientPage() {
     setClosedTypeByProject(current => ({ ...current, [activeTypeKey]: !current[activeTypeKey] }));
   }
 
+  function clearReleasedReportCount(projectId: string, reportType: string) {
+    const key = releasedReportTabKey(projectId, reportType);
+    setReleasedReportCounts(current => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function selectClientReportType(projectId: string, reportType: string) {
+    setActiveProjectId(projectId);
+    setActiveTypeByProject(current => ({ ...current, [projectId]: reportType }));
+    setClosedTypeByProject(current => ({ ...current, [`${projectId}-${reportType}`]: false }));
+    clearReleasedReportCount(projectId, reportType);
+  }
+
+  function highlightReleasedReportTab(report: ReleasedServiceReportNotification) {
+    window.setTimeout(() => {
+      const selector = `[data-client-report-tab="${report.projectId}-${report.reportType}"]`;
+      const target = document.querySelector(selector);
+      const driverObj = driver({
+        showProgress: false,
+        doneBtnText: 'Entendi',
+        allowClose: true,
+        animate: true,
+        smoothScroll: true,
+        overlayOpacity: 0.55,
+        steps: [{
+          element: target ? selector : '.filter-tabs[aria-label="Tipos de relatório"]',
+          popover: {
+            title: 'Relatório de serviço liberado',
+            description: `${reportLabel(report)} está em ${releasedReportProjectTitle(report)}, na aba ${report.reportType}.`,
+            side: 'bottom',
+            align: 'center'
+          }
+        }]
+      });
+      driverObj.drive();
+    }, 250);
+  }
+
+  function revealReleasedReport(report: ReleasedServiceReportNotification) {
+    setClientSearch('');
+    selectClientReportType(report.projectId, report.reportType);
+    highlightReleasedReportTab(report);
+  }
+
   async function handleDownloadPdf(report: ReportSummary) {
     try {
       const blob = await downloadReportPdf(report.id);
@@ -388,16 +446,35 @@ export function ClientPage() {
         if (comment) acc[id] = comment;
         return acc;
       }, {});
+      const releasedReportsById = new Map<string, ReleasedServiceReportNotification>();
       for (const id of ids) {
-        await reportMutations.requestSignature.mutateAsync({
+        const result = await reportMutations.requestSignature.mutateAsync({
           id,
           comment: selectedComments[id] || null,
           signerName,
           signatureImageDataUrl
         });
+        (result.releasedServiceReports || []).forEach(report => releasedReportsById.set(report.id, report));
+      }
+      const releasedReports = Array.from(releasedReportsById.values());
+      if (releasedReports.length) {
+        setReleasedReportCounts(current => {
+          const next = { ...current };
+          releasedReports.forEach(report => {
+            const key = releasedReportTabKey(report.projectId, report.reportType);
+            next[key] = (next[key] || 0) + 1;
+          });
+          return next;
+        });
+        revealReleasedReport(releasedReports[0]);
       }
       setSignatureTargetIds([]);
-      showToast(ids.length === 1 ? TEXT.signatureRequested : 'Assinatura eletrônica registrada para os relatórios selecionados.', 'success');
+      showToast(
+        releasedReports.length
+          ? `${releasedReports.length} relatório${releasedReports.length !== 1 ? 's' : ''} de serviço liberado${releasedReports.length !== 1 ? 's' : ''}.`
+          : ids.length === 1 ? TEXT.signatureRequested : 'Assinatura eletrônica registrada para os relatórios selecionados.',
+        'success'
+      );
     } catch (error) {
       showToast(error instanceof Error ? error.message : TEXT.requestSignatureError, 'error');
     }
@@ -724,21 +801,24 @@ export function ClientPage() {
             {activeProject.reports.length ? (
               <section className="page-card compact-link-card">
                 <div className="filter-tabs" role="tablist" aria-label="Tipos de relatório" onKeyDown={handleHorizontalTabListKeyDown}>
-                  {activeTypes.map(reportType => (
-                    <button
-                      className={`filter-tab ${reportType === activeReportType ? 'active' : ''}`}
-                      type="button"
-                      key={reportType}
-                      role="tab"
-                      aria-selected={reportType === activeReportType}
-                      onClick={() => {
-                        if (!activeProject) return;
-                        setActiveTypeByProject(current => ({ ...current, [activeProject.id]: reportType }));
-                      }}
-                    >
-                      {reportType}
-                    </button>
-                  ))}
+                  {activeTypes.map(reportType => {
+                    const releasedCount = releasedReportCounts[releasedReportTabKey(activeProject.id, reportType)] || 0;
+                    return (
+                      <button
+                        className={`filter-tab client-report-type-tab ${reportType === activeReportType ? 'active' : ''}`}
+                        type="button"
+                        key={reportType}
+                        role="tab"
+                        aria-selected={reportType === activeReportType}
+                        aria-label={releasedCount ? `${reportType}, ${releasedCount} relatório liberado` : reportType}
+                        data-client-report-tab={`${activeProject.id}-${reportType}`}
+                        onClick={() => selectClientReportType(activeProject.id, reportType)}
+                      >
+                        <span>{reportType}</span>
+                        {releasedCount ? <span className="client-report-tab-badge">{releasedCount}</span> : null}
+                      </button>
+                    );
+                  })}
                 </div>
               </section>
             ) : null}

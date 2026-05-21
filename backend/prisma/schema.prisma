@@ -7,15 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UnitCategory {
-  FILTRAGEM
-  FLUSHING
-  LIMPEZA_QUIMICA
-  DESIDRATACAO
-  UTH
-  OUTRA
-}
-
 enum ReportType {
   RDO
   RTP
@@ -384,7 +375,7 @@ model Equipment {
 model Unit {
   id         String       @id @default(cuid())
   code       String       @unique
-  category   UnitCategory
+  category   String
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 }

@@ -213,7 +213,7 @@ async function syncUnits(tx) {
       sourceId: unit.id,
       code: unit.code,
       name: `Unidade ${unit.code}`,
-      categoryName: UNIT_CATEGORY_LABELS[unit.category] || 'UNIDADES',
+      categoryName: UNIT_CATEGORY_LABELS[unit.category] || `UNIDADE DE ${normalizeSpaces(unit.category).toUpperCase() || 'EQUIPAMENTO'}`,
       kind: 'EQUIPMENT',
       measureType: 'UNIT',
       defaultUnitLabel: 'unidade',

@@ -1,6 +1,6 @@
 import type { AccountType, ModuleRole, UserRole } from './auth';
 
-export type UnitCategory = 'FILTRAGEM' | 'FLUSHING' | 'LIMPEZA_QUIMICA' | 'DESIDRATACAO' | 'UTH' | 'OUTRA';
+export type UnitCategory = string;
 export type ReportType = 'RDO' | 'RTP' | 'RLQ' | 'RCPU' | 'RLM' | 'RLF' | 'RLI';
 export type ReportStatus = 'PENDING' | 'APPROVED' | 'RETURNED' | 'SIGNED';
 
