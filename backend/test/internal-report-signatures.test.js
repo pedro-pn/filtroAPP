@@ -622,7 +622,9 @@ test('deliverIssuedSignatureRequestEmails clears newly persisted tokens when sen
   assert.deepEqual(result, {
     ok: false,
     retryable: true,
-    error: 'SMTP rejeitou'
+    error: 'SMTP rejeitou',
+    sentCount: 0,
+    retryCount: 1
   });
   assert.equal(cleanupCalls.length, 1);
   assert.deepEqual(cleanupCalls[0].where, {
@@ -634,6 +636,60 @@ test('deliverIssuedSignatureRequestEmails clears newly persisted tokens when sen
     tokenHash: null,
     tokenExpiresAt: null
   });
+});
+
+test('deliverIssuedSignatureRequestEmails preserves tokens for links already delivered before a later failure', async () => {
+  const cleanupCalls = [];
+  const sentTo = [];
+  const result = await deliverIssuedSignatureRequestEmails({
+    id: 'report-1',
+    project: { code: 'P-1', name: 'Projeto' },
+    reportType: 'RDO',
+    reportDate: new Date('2026-01-01T12:00:00.000Z')
+  }, [{
+    signatureId: 'signature-1',
+    signerEmail: 'cliente-1@example.com',
+    signerName: 'Cliente 1',
+    token: 'raw-token-1',
+    expiresAt: new Date(Date.now() + 86_400_000)
+  }, {
+    signatureId: 'signature-2',
+    signerEmail: 'cliente-2@example.com',
+    signerName: 'Cliente 2',
+    token: 'raw-token-2',
+    expiresAt: new Date(Date.now() + 86_400_000)
+  }], {
+    missingMailerConfig: [],
+    mailer: async message => {
+      sentTo.push(message.to);
+      if (message.to === 'cliente-2@example.com') throw new Error('SMTP rejeitou');
+      return { messageId: 'sent-1' };
+    },
+    client: {
+      reportSignature: {
+        updateMany: async args => {
+          cleanupCalls.push(args);
+          return { count: 1 };
+        }
+      }
+    }
+  });
+
+  assert.deepEqual(sentTo, ['cliente-1@example.com', 'cliente-2@example.com']);
+  assert.deepEqual(result, {
+    ok: false,
+    retryable: true,
+    error: 'SMTP rejeitou',
+    sentCount: 1,
+    retryCount: 1
+  });
+  assert.equal(cleanupCalls.length, 1);
+  assert.deepEqual(cleanupCalls[0].where, {
+    id: 'signature-2',
+    status: 'PENDING',
+    tokenHash: internalSignatureTokenHash('raw-token-2')
+  });
+  assert.notEqual(cleanupCalls[0].where.tokenHash, internalSignatureTokenHash('raw-token-1'));
 });
 
 test('clearIssuedSignatureTokens only clears the token hash generated for the failed send', async () => {

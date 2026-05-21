@@ -327,11 +327,12 @@ function missingSignatureRequestEmailConfigError(missingMailerConfig) {
   );
 }
 
-function signatureRequestEmailDeliveryFailure(error) {
+function signatureRequestEmailDeliveryFailure(error, details = {}) {
   return {
     ok: false,
     retryable: true,
-    error: error?.message || String(error || 'Falha ao enviar links de assinatura.')
+    error: error?.message || String(error || 'Falha ao enviar links de assinatura.'),
+    ...details
   };
 }
 
@@ -361,13 +362,14 @@ export function assertSignatureRequestEmailDeliveryConfigured(report, version) {
 }
 
 export async function sendSignatureRequestEmails(report, tokens, options = {}) {
-  if (!tokens?.length || report.project?.managerOnly) return;
+  if (!tokens?.length || report.project?.managerOnly) return { ok: true, sentCount: 0, sentTokens: [] };
 
   const missingMailerConfig = options.missingMailerConfig || getMissingMailerConfig();
   if (missingMailerConfig.length) {
     throw missingSignatureRequestEmailConfigError(missingMailerConfig);
   }
   const mailer = options.mailer || sendMail;
+  const sentTokens = [];
 
   for (const tokenData of tokens) {
     const daysValid = Math.max(1, Math.ceil((new Date(tokenData.expiresAt).getTime() - Date.now()) / 86_400_000));
@@ -382,8 +384,17 @@ export async function sendSignatureRequestEmails(report, tokens, options = {}) {
       expiresLabel: `${daysValid} dia${daysValid !== 1 ? 's' : ''}`
     });
 
-    await mailer({ to: tokenData.signerEmail, ...template });
+    try {
+      await mailer({ to: tokenData.signerEmail, ...template });
+      sentTokens.push(tokenData);
+    } catch (error) {
+      error.sentTokens = sentTokens.slice();
+      error.failedToken = tokenData;
+      throw error;
+    }
   }
+
+  return { ok: true, sentCount: sentTokens.length, sentTokens };
 }
 
 export async function clearIssuedSignatureTokens(client, tokens) {
@@ -407,10 +418,15 @@ export async function deliverIssuedSignatureRequestEmails(report, tokens, option
   if (!tokens?.length) return { ok: true, sentCount: 0 };
   const client = options.client || prisma;
   try {
-    await sendSignatureRequestEmails(report, tokens, options);
-    return { ok: true, sentCount: tokens.length };
+    const delivery = await sendSignatureRequestEmails(report, tokens, options);
+    return { ok: true, sentCount: delivery.sentCount || tokens.length };
   } catch (error) {
-    await clearIssuedSignatureTokens(client, tokens).catch(cleanupError => {
+    const sentTokens = Array.isArray(error?.sentTokens) ? error.sentTokens : [];
+    const sentTokenObjects = new Set(sentTokens);
+    const sentSignatureIds = new Set(sentTokens.map(token => token?.signatureId).filter(Boolean));
+    const retryTokens = tokens.filter(token => !sentTokenObjects.has(token) && !sentSignatureIds.has(token?.signatureId));
+
+    await clearIssuedSignatureTokens(client, retryTokens).catch(cleanupError => {
       console.error('Falha ao limpar tokens de assinatura interna após erro de envio.', {
         reportId: report?.id,
         error: cleanupError?.message || cleanupError
@@ -421,7 +437,10 @@ export async function deliverIssuedSignatureRequestEmails(report, tokens, option
       reportId: report?.id,
       error: error?.message || error
     });
-    return signatureRequestEmailDeliveryFailure(error);
+    return signatureRequestEmailDeliveryFailure(error, {
+      sentCount: sentTokens.length,
+      retryCount: retryTokens.length
+    });
   }
 }
 
