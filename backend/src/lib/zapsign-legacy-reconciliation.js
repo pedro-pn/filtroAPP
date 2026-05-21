@@ -24,6 +24,7 @@ function legacySignedTimestamp(details, now = new Date()) {
 
 export function legacyZapSignCompletionData(report, details, now = new Date()) {
   if (!report || report.reportType !== ReportType.RDO) return null;
+  if (report.deletedAt || report.project?.deletedAt) return null;
   if (report.status !== ReportStatus.APPROVED) return null;
   if (!report.zapsignDocToken || report.zapsignSignedAt) return null;
   if (normalizedStatus(details?.status) !== 'signed') return null;
@@ -119,7 +120,8 @@ export async function processPendingLegacyZapSignReports({
       reportType: ReportType.RDO,
       status: ReportStatus.APPROVED,
       zapsignDocToken: { not: null },
-      zapsignSignedAt: null
+      zapsignSignedAt: null,
+      project: { deletedAt: null }
     },
     include: {
       project: true,

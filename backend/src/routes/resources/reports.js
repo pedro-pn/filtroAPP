@@ -538,6 +538,44 @@ export async function resetSignedSignatureForFinalizationRetry(client, signature
   return result.count === 1;
 }
 
+export async function persistClientSignatureApprovalReview(client, {
+  reportId,
+  clientUserId,
+  comment = null,
+  evidence = {}
+}) {
+  const normalizedComment = String(comment || '').trim();
+  const approvedReview = await client.clientReportReview.findFirst({
+    where: {
+      reportId,
+      action: ClientReviewAction.APPROVED
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  const data = {
+    comment: normalizedComment || null,
+    ipAddress: evidence.ipAddress || null,
+    userAgent: evidence.userAgent || null
+  };
+
+  if (approvedReview) {
+    return client.clientReportReview.update({
+      where: { id: approvedReview.id },
+      data
+    });
+  }
+
+  return client.clientReportReview.create({
+    data: {
+      reportId,
+      clientUserId,
+      action: ClientReviewAction.APPROVED,
+      ...data
+    }
+  });
+}
+
 export async function completedSignatureVersionAfterCommit(client, reportId) {
   const version = await activeVersionWithSignatures(client, reportId);
   return allRequiredSignaturesCompleted(version) ? version : null;
@@ -3911,37 +3949,7 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
   };
   const evidence = signatureEvidenceFromRequest(req);
 
-  const prepared = await prisma.$transaction(async tx => {
-    const approvedReview = (existing.clientReviews || []).find(item => item.action === ClientReviewAction.APPROVED);
-    if (approvedReview) {
-      if (comment !== String(approvedReview.comment || '').trim()) {
-        await tx.clientReportReview.update({
-          where: { id: approvedReview.id },
-          data: {
-            comment: comment || null,
-            ipAddress: evidence.ipAddress,
-            userAgent: evidence.userAgent
-          }
-        });
-      }
-    } else {
-      await tx.clientReportReview.create({
-        data: {
-          reportId: existing.id,
-          clientUserId: req.auth.user.id,
-          action: ClientReviewAction.APPROVED,
-          comment: comment || null,
-          ipAddress: evidence.ipAddress,
-          userAgent: evidence.userAgent
-        }
-      });
-    }
-
-    return tx.report.findUniqueOrThrow({
-      where: { id: existing.id },
-      include
-    });
-  });
+  const prepared = existing;
 
   const activeVersion = await prisma.reportVersion.findFirst({
     where: { reportId: prepared.id, status: 'ACTIVE' },
@@ -4028,6 +4036,19 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
       });
       throw error;
     }
+  }
+
+  if (completed) {
+    await persistClientSignatureApprovalReview(prisma, {
+      reportId: item.id,
+      clientUserId: req.auth.user.id,
+      comment,
+      evidence
+    });
+    item = await prisma.report.findUniqueOrThrow({
+      where: { id: item.id },
+      include
+    });
   }
 
   if (!signatureResult.alreadySigned) {

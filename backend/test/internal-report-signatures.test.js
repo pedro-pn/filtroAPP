@@ -6,7 +6,7 @@ import { Readable, Writable } from 'node:stream';
 import test from 'node:test';
 
 import { PDFDocument } from 'pdf-lib';
-import { Prisma } from '@prisma/client';
+import { ClientReviewAction, Prisma } from '@prisma/client';
 
 import {
   assertRenderableReportSignatureImageDataUrl,
@@ -15,6 +15,7 @@ import {
   publicSignaturePayload,
   publicValidationPayload,
   publicSignatureStatus,
+  persistClientSignatureApprovalReview,
   rejectAuthenticatedClientSignatureRound,
   rejectPublicInternalSignature,
   resetSignedSignatureForFinalizationRetry,
@@ -390,6 +391,87 @@ test('ensureInternalSignatureRound returns concurrent active version after uniqu
   });
 
   assert.equal(version, activeVersion);
+});
+
+test('persistClientSignatureApprovalReview creates approval only when explicitly called after signing succeeds', async () => {
+  const calls = [];
+  const client = {
+    clientReportReview: {
+      findFirst: async args => {
+        calls.push(['findFirst', args]);
+        return null;
+      },
+      create: async args => {
+        calls.push(['create', args]);
+        return { id: 'review-1', ...args.data };
+      }
+    }
+  };
+
+  const review = await persistClientSignatureApprovalReview(client, {
+    reportId: 'report-1',
+    clientUserId: 'client-1',
+    comment: 'Aprovado',
+    evidence: {
+      ipAddress: '127.0.0.1',
+      userAgent: 'Node Test'
+    }
+  });
+
+  assert.equal(review.action, ClientReviewAction.APPROVED);
+  assert.deepEqual(calls[0], ['findFirst', {
+    where: {
+      reportId: 'report-1',
+      action: ClientReviewAction.APPROVED
+    },
+    orderBy: { createdAt: 'desc' }
+  }]);
+  assert.deepEqual(calls[1], ['create', {
+    data: {
+      reportId: 'report-1',
+      clientUserId: 'client-1',
+      action: ClientReviewAction.APPROVED,
+      comment: 'Aprovado',
+      ipAddress: '127.0.0.1',
+      userAgent: 'Node Test'
+    }
+  }]);
+});
+
+test('persistClientSignatureApprovalReview updates an existing approval review after signing succeeds', async () => {
+  const calls = [];
+  const client = {
+    clientReportReview: {
+      findFirst: async args => {
+        calls.push(['findFirst', args]);
+        return { id: 'review-1', comment: 'Anterior' };
+      },
+      update: async args => {
+        calls.push(['update', args]);
+        return { id: 'review-1', ...args.data };
+      }
+    }
+  };
+
+  const review = await persistClientSignatureApprovalReview(client, {
+    reportId: 'report-1',
+    clientUserId: 'client-1',
+    comment: 'Atualizado',
+    evidence: {
+      ipAddress: '127.0.0.2',
+      userAgent: 'Node Test 2'
+    }
+  });
+
+  assert.equal(review.comment, 'Atualizado');
+  assert.deepEqual(calls[1], ['update', {
+    where: { id: 'review-1' },
+    data: {
+      comment: 'Atualizado',
+      ipAddress: '127.0.0.2',
+      userAgent: 'Node Test 2'
+    }
+  }]);
 });
 
 test('active version unique migration preserves finalized signed versions first', async () => {

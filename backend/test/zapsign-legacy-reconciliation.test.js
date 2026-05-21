@@ -31,6 +31,11 @@ test('legacyZapSignCompletionData finalizes only signed pending legacy RDOs', ()
 
   assert.equal(legacyZapSignCompletionData(report, { status: 'pending', signedFile: 'https://signed.example.com/report.pdf' }, now), null);
   assert.equal(legacyZapSignCompletionData({ ...report, status: ReportStatus.SIGNED }, { status: 'signed', signedFile: 'x' }, now), null);
+  assert.equal(legacyZapSignCompletionData(
+    { ...report, project: { deletedAt: new Date('2026-05-20T00:00:00.000Z') } },
+    { status: 'signed', signedFile: 'https://signed.example.com/report.pdf' },
+    now
+  ), null);
 });
 
 test('processPendingLegacyZapSignReports persists reports signed after ZapSign removal', async () => {
@@ -52,6 +57,7 @@ test('processPendingLegacyZapSignReports persists reports signed after ZapSign r
       findMany: async args => {
         assert.equal(args.where.status, ReportStatus.APPROVED);
         assert.deepEqual(args.where.zapsignDocToken, { not: null });
+        assert.deepEqual(args.where.project, { deletedAt: null });
         return [report];
       }
     },
@@ -97,4 +103,57 @@ test('processPendingLegacyZapSignReports persists reports signed after ZapSign r
   assert.equal(updates[0].data.zapsignSignedAt.toISOString(), '2026-05-21T11:00:00.000Z');
   assert.equal(reviews[0].data.action, 'APPROVED');
   assert.equal(reviews[0].data.userAgent, 'Legacy ZapSign Reconciliation');
+});
+
+test('processPendingLegacyZapSignReports does not mutate soft-deleted projects inside transaction', async () => {
+  const report = {
+    id: 'report-1',
+    reportType: ReportType.RDO,
+    status: ReportStatus.APPROVED,
+    zapsignDocToken: 'legacy-token',
+    zapsignSignedAt: null,
+    project: {
+      clientCnpj: '12345678000190',
+      deletedAt: new Date('2026-05-20T00:00:00.000Z')
+    },
+    clientReviews: []
+  };
+  let updateCalled = false;
+  let reviewCalled = false;
+  const prismaClient = {
+    report: {
+      findMany: async () => [report]
+    },
+    $transaction: async callback => callback({
+      report: {
+        findUnique: async () => report,
+        update: async () => {
+          updateCalled = true;
+          return report;
+        }
+      },
+      user: {
+        findFirst: async () => ({ id: 'client-user-1' })
+      },
+      clientReportReview: {
+        create: async () => {
+          reviewCalled = true;
+          return {};
+        }
+      }
+    })
+  };
+
+  const result = await processPendingLegacyZapSignReports({
+    prismaClient,
+    getDocument: async () => ({
+      status: 'signed',
+      signedFile: 'https://signed.example.com/report.pdf',
+      raw: { signed_at: '2026-05-21T11:00:00.000Z' }
+    })
+  });
+
+  assert.deepEqual(result, { checked: 1, reconciled: 0 });
+  assert.equal(updateCalled, false);
+  assert.equal(reviewCalled, false);
 });
