@@ -548,7 +548,7 @@ export async function signInternalReportVersion(tx, {
   if (signature.status === ReportSignatureStatus.SIGNED) {
     return { alreadySigned: true, signedSignature: signature };
   }
-  const signerName = stringValue(signature.signerName) || 'Cliente';
+  const signerName = stringValue(signer.name) || stringValue(signature.signerName) || 'Cliente';
 
   const updateResult = await tx.reportSignature.updateMany({
     where: { id: signature.id, status: ReportSignatureStatus.PENDING },

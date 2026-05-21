@@ -194,7 +194,7 @@ test('parseTrustProxy treats numeric values as hop counts instead of boolean tru
   assert.equal(parseTrustProxy('loopback'), 'loopback');
 });
 
-test('signInternalReportVersion keeps configured signer identity over submitted name', async () => {
+test('signInternalReportVersion persists the signer name declared at confirmation time', async () => {
   let signatureUpdate;
   let auditLog;
   const tx = {
@@ -242,10 +242,10 @@ test('signInternalReportVersion keeps configured signer identity over submitted 
 
   assert.equal(result.alreadySigned, false);
   assert.equal(signatureUpdate.where.id, 'signature-1');
-  assert.equal(signatureUpdate.data.signerName, 'Nome inicial');
+  assert.equal(signatureUpdate.data.signerName, 'Nome editado');
   assert.equal(signatureUpdate.data.signatureImageDataUrl, tinyPngDataUrl);
-  assert.equal(result.signedSignature.signerName, 'Nome inicial');
-  assert.match(auditLog.data.description, /Nome inicial assinou o relatorio/);
+  assert.equal(result.signedSignature.signerName, 'Nome editado');
+  assert.match(auditLog.data.description, /Nome editado assinou o relatorio/);
 });
 
 test('signInternalReportVersion treats concurrent duplicate confirmation as already signed', async () => {
