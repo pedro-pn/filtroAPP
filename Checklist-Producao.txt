@@ -28,6 +28,7 @@ Atualizado em: 23/04/2026
 - Confirmar geracao DOCX/PDF no Linux com um relatorio real
 - Confirmar upload e leitura de imagens e assinaturas
 - Confirmar assinatura interna de RDO pelo cliente
+- Confirmar que nao existem pendencias ZapSign antigas ou manter credenciais legadas para reconciliacao/download
 
 5. Certificado e renovacao
 - Confirmar script de renovacao do certificado criado no servidor

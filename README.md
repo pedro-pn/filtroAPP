@@ -405,6 +405,7 @@ Relatórios com status `APPROVED` são assinados pelo sistema interno.
 - A identidade do signatário é validada pelos e-mails configurados no projeto.
 - Evidências e hash do PDF final ficam registrados para auditoria.
 - Relatórios antigos que já foram assinados pela ZapSign continuam disponíveis para download do PDF assinado.
+- Relatórios antigos que já tinham token ZapSign pendente são reconciliados em background para finalizar o status local caso a assinatura externa seja concluída após o deploy.
 
 ---
 

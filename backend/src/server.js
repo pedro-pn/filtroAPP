@@ -3,6 +3,7 @@ import http from 'node:http';
 import app from './app.js';
 import env from './config/env.js';
 import { startSurveyReminderJob } from './lib/survey-reminders.js';
+import { startLegacyZapSignReconciliationJob } from './lib/zapsign-legacy-reconciliation.js';
 
 const server = http.createServer(app);
 
@@ -24,4 +25,5 @@ server.listen(env.port, () => {
     console.warn('[AVISO] SURVEY_TOKEN_SECRET não definido. Os tokens de pesquisa estão usando um fallback inseguro. Defina essa variável em produção.');
   }
   startSurveyReminderJob();
+  startLegacyZapSignReconciliationJob();
 });

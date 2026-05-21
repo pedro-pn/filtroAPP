@@ -24,6 +24,7 @@ import { saveRlqDocx, saveRlqPdf, organizeRlqPhotos } from '../../lib/report-rlq
 import { saveRcpDocx, saveRcpPdf, organizeRcpPhotos, calcServiceMinutes } from '../../lib/report-rcp.js';
 import { saveRlmDocx, saveRlmPdf, organizeRlmPhotos } from '../../lib/report-rlm.js';
 import { downloadSignedZapSignDocument, getZapSignDocument } from '../../lib/zapsign.js';
+import { reconcileLegacyZapSignReport } from '../../lib/zapsign-legacy-reconciliation.js';
 import {
   ReportAuditAction,
   activeVersionWithSignatures,
@@ -1023,6 +1024,23 @@ async function resolveSignedPdf(report) {
 }
 
 async function getReportPdfDownload(report) {
+  if (
+    report.status === ReportStatus.APPROVED &&
+    report.reportType === ReportType.RDO &&
+    report.zapsignDocToken &&
+    !report.zapsignSignedAt
+  ) {
+    try {
+      const result = await reconcileLegacyZapSignReport(report);
+      report = result.report || report;
+    } catch (error) {
+      console.warn('Reconciliação legada ZapSign ignorada durante download do relatório.', {
+        reportId: report.id,
+        message: error?.message
+      });
+    }
+  }
+
   const finalVersion = Array.isArray(report.versions)
     ? report.versions.find(version => version.finalPdfUrl)
     : null;
