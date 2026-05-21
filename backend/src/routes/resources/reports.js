@@ -2465,24 +2465,37 @@ function semanticServiceHistoryKey(service) {
   ].join('||');
 }
 
-function serviceHistoryKey(service) {
+export function serviceHistoryKey(service) {
   return explicitServiceHistoryKey(service) || semanticServiceHistoryKey(service);
 }
 
-function serviceHistoryKeys(service) {
+export function serviceHistoryKeys(service) {
   const keys = new Set();
   const explicit = explicitServiceHistoryKey(service);
-  if (explicit) keys.add(explicit);
-  else keys.add(semanticServiceHistoryKey(service));
+  if (explicit) {
+    keys.add(explicit);
+    const parts = explicit.split('||');
+    if (parts.length === 4) keys.add(parts.slice(1).join('||'));
+  } else {
+    keys.add(semanticServiceHistoryKey(service));
+  }
 
   return Array.from(keys).filter(Boolean);
 }
 
-function hasSharedServiceHistoryKey(left, right) {
+export function hasSharedServiceHistoryKey(left, right) {
   const leftExplicit = explicitServiceHistoryKey(left);
   const rightExplicit = explicitServiceHistoryKey(right);
-  if (leftExplicit || rightExplicit) {
-    return Boolean(leftExplicit && rightExplicit && leftExplicit === rightExplicit);
+  if (leftExplicit && rightExplicit) {
+    return leftExplicit === rightExplicit;
+  }
+  if (leftExplicit) {
+    const rightKeys = new Set(serviceHistoryKeys(right));
+    return serviceHistoryKeys(left).some(key => rightKeys.has(key));
+  }
+  if (rightExplicit) {
+    const rightKeys = new Set(serviceHistoryKeys(right));
+    return serviceHistoryKeys(left).some(key => rightKeys.has(key));
   }
   const rightKeys = new Set(serviceHistoryKeys(right));
   return serviceHistoryKeys(left).some(key => rightKeys.has(key));
@@ -2496,7 +2509,7 @@ function findExistingByLinkKeys(existingByLinkKey, service, serviceId) {
   return serviceId ? existingByLinkKey.get(String(serviceId)) : null;
 }
 
-function buildHistoricalServiceData(currentFields, serviceHistory) {
+export function buildHistoricalServiceData(currentFields, serviceHistory) {
   const data = { ...(currentFields || {}) };
   const firstField = names => {
     for (const item of serviceHistory) {

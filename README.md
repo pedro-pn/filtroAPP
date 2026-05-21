@@ -320,7 +320,8 @@ Nginx :443 (SSL Let's Encrypt)
 
 - Portas `4000` e `5432` **não** são expostas ao host em produção.
 - Upload máximo configurado: **30 MB**.
-- Domínio: `relatorios.filtrovali.com.br`
+- Domínio principal: `app.filtrovali.com.br`
+- Domínio legado: `relatorios.filtrovali.com.br` redireciona para o app; a raiz antiga aponta para o módulo de relatórios.
 
 ---
 
@@ -331,8 +332,8 @@ Nginx :443 (SSL Let's Encrypt)
 | Variável | Obrigatória | Descrição |
 |---|---|---|
 | `DATABASE_URL` | Sim | Connection string PostgreSQL |
-| `APP_URL` | Sim | URL base pública (usado em links de e-mail) |
-| `ALLOWED_ORIGIN` | Sim | Origem(s) CORS permitida(s), separadas por vírgula |
+| `APP_URL` | Sim | URL base pública (use `https://app.filtrovali.com.br`; usado em links de e-mail) |
+| `ALLOWED_ORIGIN` | Sim | Origem(s) CORS permitida(s), separadas por vírgula. Inclua `https://app.filtrovali.com.br` e, durante a transição, `https://relatorios.filtrovali.com.br` |
 | `TRUST_PROXY` | Sim em produção | Configuração Express `trust proxy`. Na stack Docker com Nginx use `uniquelocal` ou CIDRs explícitos; use `false` apenas se o backend não estiver atrás de proxy |
 | `SMTP_HOST` | Sim | Servidor SMTP (ex: `smtp.office365.com`) |
 | `SMTP_PORT` | Sim | Porta SMTP (padrão: `587`) |

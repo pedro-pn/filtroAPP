@@ -23,7 +23,7 @@ export function TopBar({ title, subtitle, actions, step, leading, showLogo = fal
     user
     && user.accountType !== 'CLIENT'
     && user.role !== 'CLIENT'
-    && location.pathname !== '/'
+    && location.pathname !== '/modulos'
   );
 
   return (
@@ -44,7 +44,7 @@ export function TopBar({ title, subtitle, actions, step, leading, showLogo = fal
       {canShowModulesButton || actions ? (
         <div className="topbar-actions-react">
           {canShowModulesButton ? (
-            <button className="topbar-chip" type="button" onClick={() => navigate('/')}>
+            <button className="topbar-chip" type="button" onClick={() => navigate('/modulos')}>
               Módulos
             </button>
           ) : null}

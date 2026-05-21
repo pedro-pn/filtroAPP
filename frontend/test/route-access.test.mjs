@@ -47,6 +47,21 @@ async function loadHubModules() {
   }
 }
 
+async function loadModuleNavigation() {
+  const server = await createServer({
+    configFile: false,
+    root: new URL('..', import.meta.url).pathname,
+    server: { middlewareMode: true },
+    appType: 'custom'
+  });
+
+  try {
+    return await server.ssrLoadModule('/src/auth/moduleNavigation.ts');
+  } finally {
+    await server.close();
+  }
+}
+
 const adminWithEpiOnly = {
   id: 'admin-epi',
   username: 'admin-epi',
@@ -140,4 +155,65 @@ test('RDO-only internal accounts do not get the Romaneio hub module', async () =
   });
 
   assert.equal(modules.some(module => module.id === 'romaneio'), false);
+});
+
+test('module navigation maps legacy reports paths to the RDO module', async () => {
+  const { moduleIdFromPath } = await loadModuleNavigation();
+
+  assert.equal(moduleIdFromPath('/rdo/gestor'), 'rdo');
+  assert.equal(moduleIdFromPath('/gestor'), 'rdo');
+  assert.equal(moduleIdFromPath('/relatorios/report-1'), 'rdo');
+  assert.equal(moduleIdFromPath('/romaneio'), 'romaneio');
+  assert.equal(moduleIdFromPath('/epi'), 'epi');
+  assert.equal(moduleIdFromPath('/assinar/token'), null);
+  assert.equal(moduleIdFromPath('/epi/assinar/token'), null);
+});
+
+test('preferred entry path uses the last accessible module for the signed-in account', async () => {
+  const stored = new Map();
+  globalThis.window = {
+    localStorage: {
+      getItem: key => stored.get(key) || null,
+      setItem: (key, value) => stored.set(key, value)
+    }
+  };
+
+  try {
+    const { preferredEntryPath, rememberModuleAccess } = await loadModuleNavigation();
+    const user = {
+      id: 'admin-multi',
+      username: 'admin-multi',
+      name: 'Admin Multi',
+      email: null,
+      role: 'MANAGER',
+      accountType: 'ADMIN',
+      moduleRoles: ['rdo:manager', 'romaneio:manager', 'epi:technician'],
+      isActive: true
+    };
+
+    assert.equal(preferredEntryPath(user), '/rdo/gestor');
+    rememberModuleAccess(user, '/romaneio');
+    assert.equal(preferredEntryPath(user), '/romaneio');
+    rememberModuleAccess(user, '/epi');
+    assert.equal(preferredEntryPath(user), '/epi');
+    rememberModuleAccess(user, '/conta');
+    assert.equal(preferredEntryPath(user), '/epi');
+  } finally {
+    delete globalThis.window;
+  }
+});
+
+test('preferred entry path keeps client accounts inside the reports module', async () => {
+  const { preferredEntryPath } = await loadModuleNavigation();
+
+  assert.equal(preferredEntryPath({
+    id: 'client-1',
+    username: 'client',
+    name: 'Client',
+    email: 'client@example.com',
+    role: 'CLIENT',
+    accountType: 'CLIENT',
+    moduleRoles: ['rdo:client'],
+    isActive: true
+  }), '/rdo/cliente');
 });
