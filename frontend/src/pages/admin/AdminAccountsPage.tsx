@@ -1,5 +1,7 @@
 import { FormEvent, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
+import { useAuth } from '../../auth/AuthContext';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useCollaborators } from '../../hooks/useCollaborators';
 import { Shell } from '../../layout/Shell';
@@ -116,6 +118,8 @@ function linkedProjectsLabel(user: InternalUserSummary) {
 }
 
 export function AdminAccountsPage() {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const usersQuery = useUsers();
   const collaboratorsQuery = useCollaborators();
   const userMutations = useUserMutations();
@@ -348,9 +352,28 @@ export function AdminAccountsPage() {
     }
   }
 
+  async function handleLogout() {
+    await logout();
+    navigate('/login', { replace: true });
+  }
+
   return (
     <Shell>
-      <TopBar title="Gestão de contas" subtitle="Filtrovali App" showLogo />
+      <TopBar
+        title="Gestão de contas"
+        subtitle={user?.name || 'Filtrovali App'}
+        showLogo
+        actions={
+          <>
+            <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
+              Conta
+            </button>
+            <button className="topbar-chip" type="button" onClick={handleLogout}>
+              Sair
+            </button>
+          </>
+        }
+      />
       <main className="page-scroll admin-accounts-page">
         <section className="admin-toolbar">
           <div>

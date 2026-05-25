@@ -67,7 +67,7 @@ function catalogEmpty(): RomaneioCatalogPayload {
 
 export function RomaneioPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const showToast = useToast();
   const queryClient = useQueryClient();
   const isManager = user?.moduleRoles?.includes('romaneio:manager');
@@ -212,9 +212,27 @@ export function RomaneioPage() {
     });
   }
 
+  async function handleLogout() {
+    await logout();
+    navigate('/login', { replace: true });
+  }
+
   return (
     <Shell>
-      <TopBar title="Romaneio" subtitle="Equipamentos por projeto" />
+      <TopBar
+        title="Romaneio"
+        subtitle="Equipamentos por projeto"
+        actions={
+          <>
+            <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
+              Conta
+            </button>
+            <button className="topbar-chip" type="button" onClick={handleLogout}>
+              Sair
+            </button>
+          </>
+        }
+      />
       <main className="page-scroll">
         <section className="page-card romaneio-panel">
           <div className="admin-toolbar">

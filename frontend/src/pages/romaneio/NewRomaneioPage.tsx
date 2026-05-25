@@ -16,6 +16,7 @@ import {
   type RomaneioItemKind,
   type RomaneioMeasureType
 } from '../../api/romaneio';
+import { useAuth } from '../../auth/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { Modal } from '../../components/ui/Modal';
 import { Shell } from '../../layout/Shell';
@@ -49,6 +50,7 @@ function itemLabel(item: RomaneioCatalogItem) {
 export function NewRomaneioPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { logout } = useAuth();
   const showToast = useToast();
   const queryClient = useQueryClient();
   const draftSaveTimerRef = useRef<number | null>(null);
@@ -376,9 +378,27 @@ export function NewRomaneioPage() {
     }
   }
 
+  async function handleLogout() {
+    await logout();
+    navigate('/login', { replace: true });
+  }
+
   return (
     <Shell>
-      <TopBar title="Novo romaneio" subtitle="Formulário de equipamentos" />
+      <TopBar
+        title="Novo romaneio"
+        subtitle="Formulário de equipamentos"
+        actions={
+          <>
+            <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
+              Conta
+            </button>
+            <button className="topbar-chip" type="button" onClick={handleLogout}>
+              Sair
+            </button>
+          </>
+        }
+      />
       <form className="page-scroll" onSubmit={submit}>
         <section className="page-card romaneio-panel">
           <div className="admin-toolbar">

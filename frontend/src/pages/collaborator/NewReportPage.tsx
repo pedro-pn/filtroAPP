@@ -72,7 +72,7 @@ type ReportServiceSummary = NonNullable<ReportSummary['services']>[number];
 
 export function NewReportPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const projectsQuery = useProjects(true);
   const collaboratorsQuery = useCollaborators();
   const unitsQuery = useUnits();
@@ -820,6 +820,11 @@ export function NewReportPage() {
     saveDraftNow
   ]);
 
+  const handleLogout = useCallback(async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  }, [logout, navigate]);
+
   async function handleSubmit() {
     if (isSubmitting || isSubmittingRef.current) return;
     if (!user?.id) {
@@ -914,9 +919,17 @@ export function NewReportPage() {
         subtitle={steps[step]}
         step={`${step + 1} / ${steps.length}`}
         actions={
-          <button className="topbar-chip" type="button" onClick={handleBack}>
-            {TEXT.back}
-          </button>
+          <>
+            <button className="topbar-chip" type="button" onClick={handleBack}>
+              {TEXT.back}
+            </button>
+            <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
+              Conta
+            </button>
+            <button className="topbar-chip" type="button" onClick={handleLogout}>
+              Sair
+            </button>
+          </>
         }
       />
       <main className="page-scroll">

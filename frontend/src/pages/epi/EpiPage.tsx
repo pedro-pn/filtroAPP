@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 
 import {
   archiveEpiRecords,
@@ -114,7 +115,8 @@ function hasSignatureEvidence(record: { signedAt?: string | null; signatureImage
 }
 
 export function EpiPage() {
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const showToast = useToast();
   const queryClient = useQueryClient();
   const isTechnician = user?.accountType === 'ADMIN' || user?.moduleRoles?.includes('epi:technician');
@@ -406,9 +408,27 @@ export function EpiPage() {
     });
   }
 
+  async function handleLogout() {
+    await logout();
+    navigate('/login', { replace: true });
+  }
+
   return (
     <Shell>
-      <TopBar title="EPI" subtitle="Fichas de controle por colaborador" />
+      <TopBar
+        title="EPI"
+        subtitle="Fichas de controle por colaborador"
+        actions={
+          <>
+            <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
+              Conta
+            </button>
+            <button className="topbar-chip" type="button" onClick={handleLogout}>
+              Sair
+            </button>
+          </>
+        }
+      />
       <main className="page-scroll epi-page">
         <section className="page-card epi-panel">
           <div className="admin-toolbar">
