@@ -423,6 +423,7 @@ test('Romaneio catalog delete hides particle counters without deactivating RDO c
 test('Romaneio catalog sync does not reactivate hidden source-owned rows', async t => {
   const originalTransaction = prisma.$transaction;
   const updates = [];
+  const staleFileUpdates = [];
   prisma.$transaction = async callback => callback({
     unit: {
       findMany: async () => [{ id: 'unit-1', code: 'UF-01', category: 'FILTRAGEM' }]
@@ -446,6 +447,10 @@ test('Romaneio catalog sync does not reactivate hidden source-owned rows', async
       update: async args => {
         updates.push(args);
         return args;
+      },
+      updateMany: async args => {
+        staleFileUpdates.push(args);
+        return { count: 0 };
       }
     }
   });
@@ -459,6 +464,10 @@ test('Romaneio catalog sync does not reactivate hidden source-owned rows', async
   const counterUpdate = updates.find(item => item.where.id === 'catalog-counter-1');
   assert.equal(unitUpdate.data.isActive, false);
   assert.equal(counterUpdate.data.isActive, false);
+  assert.equal(staleFileUpdates[0].where.sourceType, 'FILE');
+  assert.equal(staleFileUpdates[0].where.sourceId.notIn.includes('equipamentos:553'), false);
+  assert.equal(staleFileUpdates[0].where.sourceId.notIn.includes('equipamentos:554'), true);
+  assert.deepEqual(staleFileUpdates[0].data, { isActive: false });
 });
 
 test('Romaneio catalog sync restores particle counter visibility after RDO reactivation', async t => {
@@ -490,7 +499,8 @@ test('Romaneio catalog sync restores particle counter visibility after RDO react
       update: async args => {
         updates.push(args);
         return args;
-      }
+      },
+      updateMany: async () => ({ count: 0 })
     }
   });
   t.after(() => {

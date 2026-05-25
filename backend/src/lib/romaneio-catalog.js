@@ -228,6 +228,15 @@ async function syncFileCatalog(tx) {
   for (const row of rows) {
     await upsertCatalogRow(tx, row);
   }
+  const currentSourceIds = rows.map(row => row.sourceId).filter(Boolean);
+  await tx.romaneioCatalogItem.updateMany({
+    where: {
+      sourceType: 'FILE',
+      sourceId: { notIn: currentSourceIds },
+      hiddenInRomaneioAt: null
+    },
+    data: { isActive: false }
+  });
 }
 
 async function syncUnits(tx) {
