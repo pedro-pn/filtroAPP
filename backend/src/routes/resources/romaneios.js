@@ -62,6 +62,11 @@ const catalogSchema = z.object({
   isActive: z.boolean().default(true)
 });
 
+const catalogCategoryRenameSchema = z.object({
+  currentName: z.string().trim().min(1),
+  newName: z.string().trim().min(1)
+});
+
 const recipientSchema = z.object({
   name: z.string().trim().optional().nullable(),
   email: z.string().trim().email(),
@@ -398,6 +403,30 @@ router.post('/catalog', requireAuth, requireRomaneioAccess, requireRomaneioManag
     }
   });
   res.status(201).json(item);
+}));
+
+router.put('/catalog/categories', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
+  const data = catalogCategoryRenameSchema.parse(req.body);
+  const result = await prisma.$transaction(async tx => {
+    const rdoOwnedCount = await tx.romaneioCatalogItem.count({
+      where: {
+        categoryName: data.currentName,
+        sourceType: { in: Array.from(RDO_OWNED_CATALOG_SOURCES) }
+      }
+    });
+    if (rdoOwnedCount) {
+      const error = new Error('Categorias com itens sincronizados do RDO devem ser alteradas no módulo RDO.');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const update = await tx.romaneioCatalogItem.updateMany({
+      where: { categoryName: data.currentName },
+      data: { categoryName: data.newName }
+    });
+    return { categoryName: data.newName, updatedCount: update.count };
+  });
+  res.json(result);
 }));
 
 router.put('/catalog/:id', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {

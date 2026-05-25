@@ -149,6 +149,11 @@ export async function updateRomaneioCatalogItem(id: string, payload: Partial<Rom
   return data;
 }
 
+export async function renameRomaneioCatalogCategory(payload: { currentName: string; newName: string }) {
+  const { data } = await apiClient.put<{ categoryName: string; updatedCount: number }>(romaneioApiPath('/catalog/categories'), payload);
+  return data;
+}
+
 export async function removeRomaneioCatalogItem(id: string) {
   await apiClient.delete(romaneioApiPath(`/catalog/${id}`));
 }

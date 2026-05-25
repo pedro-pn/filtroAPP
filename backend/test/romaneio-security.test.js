@@ -342,6 +342,74 @@ test('Romaneio catalog update cannot mutate RDO-owned particle counter rows', as
   assert.deepEqual(calls.map(([name]) => name), ['romaneioCatalogItem.findUniqueOrThrow']);
 });
 
+test('Romaneio catalog category rename updates every item in the category', async t => {
+  stubRomaneioOnlyManager(t);
+  const originalTransaction = prisma.$transaction;
+  const calls = [];
+  prisma.$transaction = async callback => callback({
+    romaneioCatalogItem: {
+      count: async args => {
+        calls.push(['romaneioCatalogItem.count', args]);
+        return 0;
+      },
+      updateMany: async args => {
+        calls.push(['romaneioCatalogItem.updateMany', args]);
+        return { count: 3 };
+      }
+    }
+  });
+  t.after(() => {
+    prisma.$transaction = originalTransaction;
+  });
+
+  const response = await dispatchApp('PUT', '/api/romaneio/catalog/categories', {
+    currentName: 'Mangueiras',
+    newName: 'Mangueiras e conexões'
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json, { categoryName: 'Mangueiras e conexões', updatedCount: 3 });
+  assert.deepEqual(calls[0], ['romaneioCatalogItem.count', {
+    where: {
+      categoryName: 'Mangueiras',
+      sourceType: { in: ['UNIT', 'PARTICLE_COUNTER'] }
+    }
+  }]);
+  assert.deepEqual(calls[1], ['romaneioCatalogItem.updateMany', {
+    where: { categoryName: 'Mangueiras' },
+    data: { categoryName: 'Mangueiras e conexões' }
+  }]);
+});
+
+test('Romaneio catalog category rename rejects RDO-owned categories', async t => {
+  stubRomaneioOnlyManager(t);
+  const originalTransaction = prisma.$transaction;
+  const calls = [];
+  prisma.$transaction = async callback => callback({
+    romaneioCatalogItem: {
+      count: async args => {
+        calls.push(['romaneioCatalogItem.count', args]);
+        return 1;
+      },
+      updateMany: async args => {
+        calls.push(['romaneioCatalogItem.updateMany', args]);
+        throw new Error('catalog category should not be updated for RDO-owned rows');
+      }
+    }
+  });
+  t.after(() => {
+    prisma.$transaction = originalTransaction;
+  });
+
+  const response = await dispatchApp('PUT', '/api/romaneio/catalog/categories', {
+    currentName: 'UNIDADE DE FILTRAGEM',
+    newName: 'Unidades'
+  });
+
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(calls.map(([name]) => name), ['romaneioCatalogItem.count']);
+});
+
 test('Romaneio catalog delete hides sourced items without deleting RDO master data', async t => {
   stubRomaneioOnlyManager(t);
   const originalTransaction = prisma.$transaction;

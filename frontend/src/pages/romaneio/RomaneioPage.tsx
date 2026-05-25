@@ -13,6 +13,7 @@ import {
   removeRomaneioCatalogItem,
   removeRomaneioDraft,
   removeRomaneioRecipient,
+  renameRomaneioCatalogCategory,
   saveRomaneioRecipient,
   updateRomaneioCatalogItem,
   type RomaneioCatalogItem,
@@ -26,6 +27,7 @@ import { TopBar } from '../../layout/TopBar';
 import { downloadBlob } from '../../utils/download';
 
 type Tab = 'romaneios' | 'equipamentos' | 'notificacoes';
+const NEW_CATEGORY_VALUE = '__new_category__';
 
 const measureLabels: Record<RomaneioMeasureType, string> = {
   UNIT: 'unidade',
@@ -75,8 +77,12 @@ export function RomaneioPage() {
   const [search, setSearch] = useState('');
   const [projectId, setProjectId] = useState('');
   const [catalogForm, setCatalogForm] = useState<RomaneioCatalogPayload>(catalogEmpty());
+  const [catalogCategoryMode, setCatalogCategoryMode] = useState<'existing' | 'new'>('existing');
   const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
   const [editCatalogForm, setEditCatalogForm] = useState<RomaneioCatalogPayload>(catalogEmpty());
+  const [editCategoryMode, setEditCategoryMode] = useState<'existing' | 'new'>('existing');
+  const [editingCategory, setEditingCategory] = useState('');
+  const [editingCategoryName, setEditingCategoryName] = useState('');
   const [expandedCatalogCategories, setExpandedCatalogCategories] = useState<Set<string>>(() => new Set());
   const [recipientEmail, setRecipientEmail] = useState('');
   const [recipientName, setRecipientName] = useState('');
@@ -95,6 +101,7 @@ export function RomaneioPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['romaneio-catalog'] });
       setCatalogForm(catalogEmpty());
+      setCatalogCategoryMode('existing');
       showToast('Item salvo.');
     },
     onError: () => showToast('Não foi possível salvar o item.')
@@ -106,6 +113,7 @@ export function RomaneioPage() {
       queryClient.invalidateQueries({ queryKey: ['romaneio-catalog'] });
       setEditingCatalogId(null);
       setEditCatalogForm(catalogEmpty());
+      setEditCategoryMode('existing');
       showToast('Item atualizado.');
     },
     onError: () => showToast('Não foi possível atualizar o item.')
@@ -118,6 +126,24 @@ export function RomaneioPage() {
       showToast('Item removido.');
     },
     onError: () => showToast('Não foi possível remover o item.')
+  });
+
+  const renameCategoryMutation = useMutation({
+    mutationFn: renameRomaneioCatalogCategory,
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['romaneio-catalog'] });
+      setCatalogForm(current => current.categoryName === variables.currentName ? { ...current, categoryName: variables.newName } : current);
+      setEditCatalogForm(current => current.categoryName === variables.currentName ? { ...current, categoryName: variables.newName } : current);
+      setExpandedCatalogCategories(current => {
+        const next = new Set(current);
+        if (next.delete(variables.currentName)) next.add(variables.newName);
+        return next;
+      });
+      setEditingCategory('');
+      setEditingCategoryName('');
+      showToast('Categoria atualizada.');
+    },
+    onError: () => showToast('Não foi possível atualizar a categoria.')
   });
 
   const saveRecipientMutation = useMutation({
@@ -165,6 +191,30 @@ export function RomaneioPage() {
     return Array.from(map.entries());
   }, [catalogQuery.data]);
 
+  const catalogCategories = useMemo(() => {
+    return Array.from(new Set((catalogQuery.data || []).map(item => item.categoryName).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  }, [catalogQuery.data]);
+
+  function handleCatalogCategoryChange(value: string) {
+    if (value === NEW_CATEGORY_VALUE) {
+      setCatalogCategoryMode('new');
+      setCatalogForm(current => ({ ...current, categoryName: '' }));
+      return;
+    }
+    setCatalogCategoryMode('existing');
+    setCatalogForm(current => ({ ...current, categoryName: value }));
+  }
+
+  function handleEditCategoryChange(value: string) {
+    if (value === NEW_CATEGORY_VALUE) {
+      setEditCategoryMode('new');
+      setEditCatalogForm(current => ({ ...current, categoryName: '' }));
+      return;
+    }
+    setEditCategoryMode('existing');
+    setEditCatalogForm(current => ({ ...current, categoryName: value }));
+  }
+
   function submitCatalog(event: FormEvent) {
     event.preventDefault();
     saveCatalogMutation.mutate();
@@ -182,6 +232,7 @@ export function RomaneioPage() {
       isSerialized: item.isSerialized,
       isActive: item.isActive
     });
+    setEditCategoryMode('existing');
     setTab('equipamentos');
   }
 
@@ -210,6 +261,19 @@ export function RomaneioPage() {
       }
       return next;
     });
+  }
+
+  function startEditCategory(category: string) {
+    setEditingCategory(category);
+    setEditingCategoryName(category);
+    setExpandedCatalogCategories(current => new Set(current).add(category));
+  }
+
+  function submitCategoryEdit(event: FormEvent) {
+    event.preventDefault();
+    const newName = editingCategoryName.trim();
+    if (!editingCategory || !newName) return;
+    renameCategoryMutation.mutate({ currentName: editingCategory, newName });
   }
 
   async function handleLogout() {
@@ -349,7 +413,25 @@ export function RomaneioPage() {
                 </label>
                 <label className="field-group">
                   <span>Categoria</span>
-                  <input value={catalogForm.categoryName} onChange={event => setCatalogForm({ ...catalogForm, categoryName: event.target.value })} required />
+                  <select
+                    value={catalogCategoryMode === 'new' ? NEW_CATEGORY_VALUE : catalogForm.categoryName}
+                    onChange={event => handleCatalogCategoryChange(event.target.value)}
+                    required
+                  >
+                    <option value="">Selecione</option>
+                    {catalogCategories.map(category => (
+                      <option key={category} value={category}>{category}</option>
+                    ))}
+                    <option value={NEW_CATEGORY_VALUE}>Adicionar categoria</option>
+                  </select>
+                  {catalogCategoryMode === 'new' ? (
+                    <input
+                      value={catalogForm.categoryName}
+                      onChange={event => setCatalogForm({ ...catalogForm, categoryName: event.target.value })}
+                      placeholder="Nova categoria"
+                      required
+                    />
+                  ) : null}
                 </label>
                 <label className="field-group">
                   <span>Tipo</span>
@@ -396,6 +478,25 @@ export function RomaneioPage() {
                       </button>
                       {expanded && (
                         <div className="romaneio-catalog-list">
+                          <div className="romaneio-category-actions">
+                            <button className="mini-btn alt" type="button" onClick={() => startEditCategory(category)}>
+                              Editar categoria
+                            </button>
+                          </div>
+                          {editingCategory === category ? (
+                            <form className="admin-inline-form romaneio-category-edit" onSubmit={submitCategoryEdit}>
+                              <div className="admin-form-grid manager-header-grid">
+                                <label className="field-group">
+                                  <span>Nome da categoria</span>
+                                  <input value={editingCategoryName} onChange={event => setEditingCategoryName(event.target.value)} required />
+                                </label>
+                                <div className="admin-form-actions field-group-wide">
+                                  <button className="primary-button" type="submit" disabled={renameCategoryMutation.isPending}>Salvar categoria</button>
+                                  <button className="secondary-button" type="button" onClick={() => { setEditingCategory(''); setEditingCategoryName(''); }}>Cancelar</button>
+                                </div>
+                              </div>
+                            </form>
+                          ) : null}
                           {items.map(item => (
                             <div className="romaneio-catalog-row" key={item.id}>
                               <div className="romaneio-catalog-row-main">
@@ -421,7 +522,25 @@ export function RomaneioPage() {
                                     </label>
                                     <label className="field-group">
                                       <span>Categoria</span>
-                                      <input value={editCatalogForm.categoryName} onChange={event => setEditCatalogForm({ ...editCatalogForm, categoryName: event.target.value })} required />
+                                      <select
+                                        value={editCategoryMode === 'new' ? NEW_CATEGORY_VALUE : editCatalogForm.categoryName}
+                                        onChange={event => handleEditCategoryChange(event.target.value)}
+                                        required
+                                      >
+                                        <option value="">Selecione</option>
+                                        {catalogCategories.map(categoryOption => (
+                                          <option key={categoryOption} value={categoryOption}>{categoryOption}</option>
+                                        ))}
+                                        <option value={NEW_CATEGORY_VALUE}>Adicionar categoria</option>
+                                      </select>
+                                      {editCategoryMode === 'new' ? (
+                                        <input
+                                          value={editCatalogForm.categoryName}
+                                          onChange={event => setEditCatalogForm({ ...editCatalogForm, categoryName: event.target.value })}
+                                          placeholder="Nova categoria"
+                                          required
+                                        />
+                                      ) : null}
                                     </label>
                                     <label className="field-group">
                                       <span>Tipo</span>
@@ -447,7 +566,7 @@ export function RomaneioPage() {
                                     </label>
                                     <div className="admin-form-actions field-group-wide">
                                       <button className="primary-button" type="submit" disabled={updateCatalogMutation.isPending}>Salvar edição</button>
-                                      <button className="secondary-button" type="button" onClick={() => { setEditingCatalogId(null); setEditCatalogForm(catalogEmpty()); }}>Cancelar</button>
+                                      <button className="secondary-button" type="button" onClick={() => { setEditingCatalogId(null); setEditCatalogForm(catalogEmpty()); setEditCategoryMode('existing'); }}>Cancelar</button>
                                     </div>
                                   </div>
                                 </form>

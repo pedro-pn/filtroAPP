@@ -194,15 +194,19 @@ async function upsertCatalogRow(tx, row) {
           sourceId: row.sourceId
         }
       },
-      select: { id: true, hiddenInRomaneioAt: true }
+      select: { id: true, hiddenInRomaneioAt: true, sourceType: true }
     });
     if (existingSource) {
+      const data = {
+        ...row,
+        isActive: !existingSource.hiddenInRomaneioAt && row.isActive !== false
+      };
+      if (existingSource.sourceType === 'FILE') {
+        delete data.categoryName;
+      }
       await tx.romaneioCatalogItem.update({
         where: { id: existingSource.id },
-        data: {
-          ...row,
-          isActive: !existingSource.hiddenInRomaneioAt && row.isActive !== false
-        }
+        data
       });
       return;
     }
