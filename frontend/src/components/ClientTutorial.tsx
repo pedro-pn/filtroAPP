@@ -133,7 +133,7 @@ function buildSteps() {
       popover: {
         title: 'Assinar digitalmente',
         description:
-          'Clique aqui para aprovar e assinar o RDO digitalmente via ZapSign. Você será redirecionado para concluir a assinatura.',
+          'Clique aqui para aprovar e assinar o RDO pelo sistema interno.',
         side: 'top',
         align: 'start',
       },

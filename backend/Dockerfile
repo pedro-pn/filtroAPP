@@ -17,6 +17,7 @@ COPY backend/scripts ./scripts
 COPY backend/assets ./assets
 RUN mkdir -p /data/assets && cp -R ./assets/. /data/assets/
 COPY Modelos /workspace/Modelos
+COPY equipamentos /workspace/equipamentos
 
 ENV NODE_ENV=production
 EXPOSE 4000

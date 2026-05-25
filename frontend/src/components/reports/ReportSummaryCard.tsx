@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
-import { roleHomePath } from '../../auth/rolePath';
+import { rdoReportDetailPath } from '../../auth/rolePath';
 import type { ReportSummary } from '../../types/domain';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { serviceTypeLabels } from './ServiceFields';
@@ -105,6 +105,19 @@ function clientRejectionReviews(report: ReportSummary) {
   return rejections.filter(review => !resolvedAt || clientReviewDateValue(review.createdAt) > resolvedAt);
 }
 
+function activeSpecialRejection(report: ReportSummary) {
+  const special = report.specialConditions || {};
+  const rejectedAt = clientReviewDateValue(typeof special.__clientRejectedAt === 'string' ? special.__clientRejectedAt : null);
+  const resolvedAt = clientReviewDateValue(typeof special.__clientRejectionResolvedAt === 'string' ? special.__clientRejectionResolvedAt : null);
+  if (!rejectedAt || report.status === 'SIGNED') return null;
+  if (resolvedAt && rejectedAt <= resolvedAt) return null;
+  const comment = typeof special.__clientRejectionComment === 'string' ? special.__clientRejectionComment : '';
+  return {
+    comment,
+    createdAt: typeof special.__clientRejectedAt === 'string' ? special.__clientRejectedAt : null
+  };
+}
+
 function normalizeComment(value?: string | null) {
   return String(value || '')
     .replace(/^justificativa do cliente:\s*/i, '')
@@ -144,6 +157,8 @@ export function ReportSummaryCard({
     : (statusMap[report.status] || { label: report.status, className: 'status-pending' });
   const clientRejections = clientRejectionReviews(report);
   const rejectionComments = new Set(clientRejections.map(review => normalizeComment(review.comment)));
+  const specialRejection = activeSpecialRejection(report);
+  const specialRejectionComment = normalizeComment(specialRejection?.comment);
   const reviewNotes = normalizeComment(report.reviewNotes);
   const legacyRejectionComment =
     clientRejections.length && reviewNotes && !rejectionComments.has(reviewNotes) ? reviewNotes : '';
@@ -151,16 +166,7 @@ export function ReportSummaryCard({
   const services = summarizeServices(report.services) || 'Sem serviços';
 
   function handleOpenDetail() {
-    const base = roleHomePath(user?.role);
-    const detailPath =
-      base === '/gestor'
-        ? `/gestor/relatorio/${report.id}`
-        : base === '/coordenador'
-          ? `/coordenador/relatorio/${report.id}`
-          : base === '/cliente'
-            ? `/cliente/relatorio/${report.id}`
-            : `/relatorios/${report.id}`;
-    navigate(detailPath);
+    navigate(rdoReportDetailPath(user, report.id));
   }
 
   return (
@@ -198,7 +204,7 @@ export function ReportSummaryCard({
         </div>
       </div>
       <SignatureProgress report={report} />
-      {clientRejections.length || legacyRejectionComment ? (
+      {clientRejections.length || specialRejectionComment || legacyRejectionComment ? (
         <div className="client-rejection-list">
           {clientRejections.map((review, index) => {
             const author = clientReviewAuthor(review);
@@ -213,6 +219,14 @@ export function ReportSummaryCard({
               </div>
             );
           })}
+          {specialRejectionComment && !rejectionComments.has(specialRejectionComment) ? (
+            <div className="client-rejection-note">
+              <strong>
+                Reprovação do cliente {formatReviewDate(specialRejection?.createdAt) ? `- ${formatReviewDate(specialRejection?.createdAt)}` : ''}:
+              </strong>{' '}
+              {specialRejectionComment}
+            </div>
+          ) : null}
           {legacyRejectionComment ? (
             <div className="client-rejection-note">
               <strong>Reprovação anterior:</strong> {legacyRejectionComment}

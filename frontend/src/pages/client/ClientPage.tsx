@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { driver } from 'driver.js';
 
-import { downloadReportPdf, downloadReportsBatch } from '../../api/reports';
+import { downloadReportPdf, downloadReportsBatch, type ReleasedServiceReportNotification } from '../../api/reports';
 import { getClientSurveyLink } from '../../api/surveys';
 import { useAuth } from '../../auth/AuthContext';
+import { rdoReportDetailPath } from '../../auth/rolePath';
 import { ClientTutorial } from '../../components/ClientTutorial';
+import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { SignatureProgress } from '../../components/reports/SignatureProgress';
+import { SignatureDialog } from '../../components/reports/SignatureDialog';
 import { useToast } from '../../components/ui/Toast';
+import { SIGNATURE_RDO_NOTICE_VERSION } from '../../constants/privacy';
 import { useReportMutations, useReports } from '../../hooks/useReports';
 import { useProjects } from '../../hooks/useProjects';
 import { Shell } from '../../layout/Shell';
@@ -19,7 +24,6 @@ import { compareReportTypes, ProjectSortButton, sortReportsInGroup, type Project
 import { reportDownloadFileName } from '../../utils/reportFileName';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
-import { closeZapSignPendingWindow, openZapSignPendingWindow, redirectZapSignWindow } from '../../utils/zapSign';
 
 const TEXT = {
   approveSignature: 'Assinar',
@@ -36,7 +40,7 @@ const TEXT = {
   requestSignatureError: 'Não foi possível solicitar a assinatura.',
   reviewError: 'Não foi possível registrar a avaliação.',
   signed: 'Assinados',
-  signatureRequested: 'Assinatura solicitada. Abra o link para concluir.',
+  signatureRequested: 'Assinatura registrada.',
   summary: 'Resumo'
 };
 
@@ -56,12 +60,31 @@ interface ClientProjectGroup {
   surveyProject?: Project;
 }
 
+function releasedReportTabKey(projectId: string, reportType: string) {
+  return `${projectId}::${reportType}`;
+}
+
 function formatDate(value: string) {
   return formatDateOnlyPtBr(value, value);
 }
 
-function reportLabel(report: ReportSummary) {
+function reportLabel(report: Pick<ReportSummary, 'reportType' | 'sequenceNumber'>) {
   return report.sequenceNumber ? `${report.reportType} ${report.sequenceNumber}` : report.reportType;
+}
+
+function userSignatureEmail(user: ReturnType<typeof useAuth>['user']) {
+  const email = String(user?.email || '').trim().toLowerCase();
+  if (email) return email;
+  const username = String(user?.username || '').trim().toLowerCase();
+  return username.includes('@') ? username : '';
+}
+
+function initialSignerNameForReport(report: ReportSummary | undefined, user: ReturnType<typeof useAuth>['user']) {
+  const email = userSignatureEmail(user);
+  const matchingSignature = report?.reportSignatures?.find(signature =>
+    String(signature.signerEmail || '').trim().toLowerCase() === email
+  );
+  return matchingSignature?.signerName || user?.name || report?.project.clientName || '';
 }
 
 function projectTitle(report: ReportSummary) {
@@ -70,6 +93,10 @@ function projectTitle(report: ReportSummary) {
 
 function projectDisplayTitle(project: Project) {
   return [project.code, project.name].filter(Boolean).join(' - ') || project.name;
+}
+
+function releasedReportProjectTitle(report: ReleasedServiceReportNotification) {
+  return [report.project?.code, report.project?.name].filter(Boolean).join(' - ') || report.projectId;
 }
 
 function latestSurvey(project: Project) {
@@ -111,6 +138,19 @@ function clientRejectionReviews(report: ReportSummary) {
     .sort((a, b) => clientReviewDateValue(b.createdAt) - clientReviewDateValue(a.createdAt));
 }
 
+function activeSpecialRejection(report: ReportSummary) {
+  const special = report.specialConditions || {};
+  const rejectedAt = clientReviewDateValue(typeof special.__clientRejectedAt === 'string' ? special.__clientRejectedAt : null);
+  const resolvedAt = clientReviewDateValue(typeof special.__clientRejectionResolvedAt === 'string' ? special.__clientRejectionResolvedAt : null);
+  if (!rejectedAt || report.status === 'SIGNED') return null;
+  if (resolvedAt && rejectedAt <= resolvedAt) return null;
+  const comment = typeof special.__clientRejectionComment === 'string' ? special.__clientRejectionComment : '';
+  return {
+    comment,
+    createdAt: typeof special.__clientRejectedAt === 'string' ? special.__clientRejectedAt : null
+  };
+}
+
 function isClientRejectedReport(report: ReportSummary) {
   const special = report.specialConditions || {};
   const rejectedAt = clientReviewDateValue(typeof special.__clientRejectedAt === 'string' ? special.__clientRejectedAt : null);
@@ -146,9 +186,12 @@ export function ClientPage() {
   const [activeProjectId, setActiveProjectId] = useState('');
   const [activeTypeByProject, setActiveTypeByProject] = useState<Record<string, string>>({});
   const [closedTypeByProject, setClosedTypeByProject] = useState<Record<string, boolean>>({});
+  const [signatureTargetIds, setSignatureTargetIds] = useState<string[]>([]);
+  const [signaturePrivacyAccepted, setSignaturePrivacyAccepted] = useState(false);
   const [clientSortDirection, setClientSortDirection] = useState<ProjectSortDirection>('asc');
   const [clientTogglesLoaded, setClientTogglesLoaded] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
+  const [releasedReportCounts, setReleasedReportCounts] = useState<Record<string, number>>({});
   const tutorialTrigger = useRef<(() => void) | null>(null);
   const showToast = useToast();
   const clientToggleStorageKey = user ? `filtrovali-client-tabs:${user.id || user.username}` : '';
@@ -297,6 +340,54 @@ export function ClientPage() {
     setClosedTypeByProject(current => ({ ...current, [activeTypeKey]: !current[activeTypeKey] }));
   }
 
+  function clearReleasedReportCount(projectId: string, reportType: string) {
+    const key = releasedReportTabKey(projectId, reportType);
+    setReleasedReportCounts(current => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function selectClientReportType(projectId: string, reportType: string) {
+    setActiveProjectId(projectId);
+    setActiveTypeByProject(current => ({ ...current, [projectId]: reportType }));
+    setClosedTypeByProject(current => ({ ...current, [`${projectId}-${reportType}`]: false }));
+    clearReleasedReportCount(projectId, reportType);
+  }
+
+  function highlightReleasedReportTab(report: ReleasedServiceReportNotification) {
+    window.setTimeout(() => {
+      const selector = `[data-client-report-tab="${report.projectId}-${report.reportType}"]`;
+      const target = document.querySelector(selector);
+      const driverObj = driver({
+        showProgress: false,
+        doneBtnText: 'Entendi',
+        allowClose: true,
+        animate: true,
+        smoothScroll: true,
+        overlayOpacity: 0.55,
+        steps: [{
+          element: target ? selector : '.filter-tabs[aria-label="Tipos de relatório"]',
+          popover: {
+            title: 'Relatório de serviço liberado',
+            description: `${reportLabel(report)} está em ${releasedReportProjectTitle(report)}, na aba ${report.reportType}.`,
+            side: 'bottom',
+            align: 'center'
+          }
+        }]
+      });
+      driverObj.drive();
+    }, 250);
+  }
+
+  function revealReleasedReport(report: ReleasedServiceReportNotification) {
+    setClientSearch('');
+    selectClientReportType(report.projectId, report.reportType);
+    highlightReleasedReportTab(report);
+  }
+
   async function handleDownloadPdf(report: ReportSummary) {
     try {
       const blob = await downloadReportPdf(report.id);
@@ -334,57 +425,75 @@ export function ClientPage() {
     }
   }
 
-  async function handleBatchSignature(ids: string[]) {
+  function handleBatchSignature(ids: string[]) {
     if (!ids.length) {
       showToast('Selecione ao menos um RDO aprovado.', 'error');
       return;
     }
-    const label = ids.length === 1 ? '1 relatório' : `${ids.length} relatórios`;
-    if (!window.confirm(`Você será redirecionado para a ZapSign para assinar ${label} de uma vez. Deseja continuar?`)) return;
+    setSignatureTargetIds(ids);
+  }
 
-    const signWindow = openZapSignPendingWindow();
+  async function confirmSignature({
+    signerName,
+    signatureImageDataUrl
+  }: {
+    signerName: string;
+    signatureImageDataUrl: string;
+  }) {
+    const ids = signatureTargetIds;
+    if (!ids.length) return;
     try {
       const selectedComments = ids.reduce<Record<string, string>>((acc, id) => {
         const comment = commentsById[id]?.trim();
         if (comment) acc[id] = comment;
         return acc;
       }, {});
-      const response = await reportMutations.batchSignature.mutateAsync({ ids, commentsById: selectedComments });
-      if (response.signUrl) {
-        redirectZapSignWindow(signWindow, response.signUrl);
-        showToast('Lote enviado para assinatura na ZapSign.', 'success');
-        return;
+      const releasedReportsById = new Map<string, ReleasedServiceReportNotification>();
+      for (const id of ids) {
+        const result = await reportMutations.requestSignature.mutateAsync({
+          id,
+          comment: selectedComments[id] || null,
+          signerName,
+          signatureImageDataUrl,
+          privacyNoticeAccepted: true,
+          privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION
+        });
+        (result.releasedServiceReports || []).forEach(report => releasedReportsById.set(report.id, report));
       }
-      closeZapSignPendingWindow(signWindow);
-      throw new Error('Link de assinatura não retornado.');
+      const releasedReports = Array.from(releasedReportsById.values());
+      if (releasedReports.length) {
+        setReleasedReportCounts(current => {
+          const next = { ...current };
+          releasedReports.forEach(report => {
+            const key = releasedReportTabKey(report.projectId, report.reportType);
+            next[key] = (next[key] || 0) + 1;
+          });
+          return next;
+        });
+        revealReleasedReport(releasedReports[0]);
+      }
+      setSignatureTargetIds([]);
+      setSignaturePrivacyAccepted(false);
+      showToast(
+        releasedReports.length
+          ? `${releasedReports.length} relatório${releasedReports.length !== 1 ? 's' : ''} de serviço liberado${releasedReports.length !== 1 ? 's' : ''}.`
+          : ids.length === 1 ? TEXT.signatureRequested : 'Assinatura eletrônica registrada para os relatórios selecionados.',
+        'success'
+      );
     } catch (error) {
-      closeZapSignPendingWindow(signWindow);
       showToast(error instanceof Error ? error.message : TEXT.requestSignatureError, 'error');
     }
   }
 
-  async function handleRequestSignature(report: ReportSummary) {
-    const confirmText = `Você será redirecionado para a ZapSign para assinar digitalmente o ${report.reportType || 'RDO'} nº ${report.sequenceNumber ?? '---'}. Deseja continuar?`;
-    if (!window.confirm(confirmText)) return;
-
-    const signWindow = openZapSignPendingWindow();
-    try {
-      const response = await reportMutations.requestSignature.mutateAsync({
-        id: report.id,
-        comment: commentsById[report.id]?.trim() || null
-      });
-      if (response.signUrl) {
-        redirectZapSignWindow(signWindow, response.signUrl);
-        showToast('Link de assinatura aberto na ZapSign.', 'success');
-        return;
-      }
-      closeZapSignPendingWindow(signWindow);
-      throw new Error('Link de assinatura não retornado.');
-    } catch (error) {
-      closeZapSignPendingWindow(signWindow);
-      showToast(error instanceof Error ? error.message : TEXT.requestSignatureError, 'error');
-    }
+  function handleRequestSignature(report: ReportSummary) {
+    setSignatureTargetIds([report.id]);
   }
+
+  const signatureTargetReport = useMemo(
+    () => activeProject?.reports.find(report => report.id === signatureTargetIds[0]),
+    [activeProject?.reports, signatureTargetIds]
+  );
+  const initialSignerName = initialSignerNameForReport(signatureTargetReport, user);
 
   async function handleReject(report: ReportSummary) {
     const comment = commentsById[report.id]?.trim();
@@ -409,9 +518,11 @@ export function ClientPage() {
     const clientRejected = isClientRejectedReport(report);
     const signable = report.reportType === 'RDO' && report.status === 'APPROVED' && !clientRejected;
     const selectable = canSelectClientReport(report);
-    const signaturePending = signable && Boolean(report.zapsignRequestedAt) && !report.zapsignSignedAt;
     const status = clientStatusMeta(report);
     const rejections = clientRejectionReviews(report);
+    const specialRejection = activeSpecialRejection(report);
+    const rejectionComments = new Set(rejections.map(review => normalizeClientComment(review.comment)));
+    const specialRejectionComment = normalizeClientComment(specialRejection?.comment);
     const serviceOnly = report.specialConditions?.serviceOnly === true;
     const subtitle = clientRejected
       ? 'Reprovado. Aguarde a alteração do gestor.'
@@ -422,7 +533,7 @@ export function ClientPage() {
           : 'Relatório de serviço liberado após assinatura do RDO';
 
     return (
-      <article className="client-report-card report-card-clickable" key={report.id} onClick={() => navigate(`/cliente/relatorio/${report.id}`)}>
+      <article className="client-report-card report-card-clickable" key={report.id} onClick={() => navigate(rdoReportDetailPath(user, report.id))}>
         <div className="client-report-header">
           <div className="client-report-main">
             {selectable ? (
@@ -458,7 +569,7 @@ export function ClientPage() {
                 />
               </div>
               <button className="primary-button" type="button" onClick={() => void handleRequestSignature(report)}>
-                {signaturePending ? 'Continuar assinatura digital' : 'Aprovar e assinar digitalmente'}
+                Assinar digitalmente
               </button>
               <button className="danger-button" type="button" onClick={() => void handleReject(report)}>
                 {TEXT.reject}
@@ -467,7 +578,7 @@ export function ClientPage() {
           ) : null}
         </div>
         <SignatureProgress report={report} />
-        {rejections.length ? (
+        {rejections.length || specialRejectionComment ? (
           <div className="client-rejection-list">
             {rejections.map((review, index) => {
               const date = formatClientReviewDate(review.createdAt);
@@ -478,6 +589,12 @@ export function ClientPage() {
                 </div>
               );
             })}
+            {specialRejectionComment && !rejectionComments.has(specialRejectionComment) ? (
+              <div className="client-rejection-note">
+                <strong>Reprovação do cliente {formatClientReviewDate(specialRejection?.createdAt) ? `- ${formatClientReviewDate(specialRejection?.createdAt)}` : ''}:</strong>{' '}
+                {specialRejectionComment}
+              </div>
+            ) : null}
           </div>
         ) : null}
         {report.clientReviews?.some(review => review.action === 'APPROVED') ? (
@@ -522,7 +639,7 @@ export function ClientPage() {
                 <button
                   className="primary-button"
                   type="button"
-                  disabled={reportMutations.batchSignature.isPending}
+                  disabled={reportMutations.requestSignature.isPending}
                   onClick={() => void handleBatchSignature(signableIds)}
                 >
                   {TEXT.batchSignature}
@@ -685,21 +802,24 @@ export function ClientPage() {
             {activeProject.reports.length ? (
               <section className="page-card compact-link-card">
                 <div className="filter-tabs" role="tablist" aria-label="Tipos de relatório" onKeyDown={handleHorizontalTabListKeyDown}>
-                  {activeTypes.map(reportType => (
-                    <button
-                      className={`filter-tab ${reportType === activeReportType ? 'active' : ''}`}
-                      type="button"
-                      key={reportType}
-                      role="tab"
-                      aria-selected={reportType === activeReportType}
-                      onClick={() => {
-                        if (!activeProject) return;
-                        setActiveTypeByProject(current => ({ ...current, [activeProject.id]: reportType }));
-                      }}
-                    >
-                      {reportType}
-                    </button>
-                  ))}
+                  {activeTypes.map(reportType => {
+                    const releasedCount = releasedReportCounts[releasedReportTabKey(activeProject.id, reportType)] || 0;
+                    return (
+                      <button
+                        className={`filter-tab client-report-type-tab ${reportType === activeReportType ? 'active' : ''}`}
+                        type="button"
+                        key={reportType}
+                        role="tab"
+                        aria-selected={reportType === activeReportType}
+                        aria-label={releasedCount ? `${reportType}, ${releasedCount} relatório liberado` : reportType}
+                        data-client-report-tab={`${activeProject.id}-${reportType}`}
+                        onClick={() => selectClientReportType(activeProject.id, reportType)}
+                      >
+                        <span>{reportType}</span>
+                        {releasedCount ? <span className="client-report-tab-badge">{releasedCount}</span> : null}
+                      </button>
+                    );
+                  })}
                 </div>
               </section>
             ) : null}
@@ -751,6 +871,28 @@ export function ClientPage() {
           </div>
         ) : null}
       </main>
+      <SignatureDialog
+        open={signatureTargetIds.length > 0}
+        title={signatureTargetIds.length > 1 ? `Assinar ${signatureTargetIds.length} relatórios` : 'Assinar relatório'}
+        initialSignerName={initialSignerName}
+        cacheIdentity={user?.email || user?.username || user?.id || ''}
+        isSubmitting={reportMutations.requestSignature.isPending}
+        confirmDisabled={!signaturePrivacyAccepted}
+        confirmDisabledMessage="Confirme a ciência do aviso de privacidade para assinar."
+        notice={(
+          <PrivacyNotice
+            variant="signatureRdo"
+            checked={signaturePrivacyAccepted}
+            onCheckedChange={setSignaturePrivacyAccepted}
+            disabled={reportMutations.requestSignature.isPending}
+          />
+        )}
+        onCancel={() => {
+          setSignatureTargetIds([]);
+          setSignaturePrivacyAccepted(false);
+        }}
+        onConfirm={payload => void confirmSignature(payload)}
+      />
     </Shell>
   );
 }

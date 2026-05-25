@@ -9,6 +9,7 @@ import { normalizeCnpj } from '../../lib/cnpj.js';
 import { buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
+import { CLIENT_PRIVACY_NOTICE_VERSION } from '../../lib/privacy-consent.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
 
@@ -32,6 +33,12 @@ const changePasswordSchema = z.object({
 });
 const accountSchema = z.object({
   email: z.union([z.string().trim().email(), z.literal(''), z.null()]).optional()
+});
+const clientPrivacyConsentSchema = z.object({
+  privacyNoticeAccepted: z.literal(true, {
+    errorMap: () => ({ message: 'Aceite o termo de privacidade para continuar.' })
+  }),
+  privacyNoticeVersion: z.literal(CLIENT_PRIVACY_NOTICE_VERSION)
 });
 
 function resetUrlForToken(token) {
@@ -65,6 +72,10 @@ function passwordResetTokenStatus(tokenRow) {
     expired,
     used
   };
+}
+
+function normalizeAccountEmail(value) {
+  return String(value || '').trim().toLowerCase();
 }
 
 async function queuePasswordResetEmail({ user, emails }) {
@@ -117,7 +128,7 @@ async function findLoginCandidates(identifier) {
         { email: { equals: rawIdentifier.toLowerCase(), mode: 'insensitive' } }
       ]
     },
-    include: { collaborator: true }
+    include: { collaborator: true, moduleRoles: true }
   });
 
   const exactUsername = user => usernameCandidates.some(candidate => (
@@ -282,12 +293,43 @@ router.post('/change-password', requireAuth, asyncHandler(async (req, res) => {
 
 router.put('/account', requireAuth, asyncHandler(async (req, res) => {
   const data = accountSchema.parse(req.body);
+  const currentUser = data.email !== undefined
+    ? await prisma.user.findUniqueOrThrow({
+        where: { id: req.auth.user.id },
+        select: { email: true, emailVerifiedAt: true }
+      })
+    : null;
+  const nextEmail = data.email ? normalizeAccountEmail(data.email) : null;
+  const keepEmailVerifiedAt = !!nextEmail
+    && !!currentUser?.emailVerifiedAt
+    && normalizeAccountEmail(currentUser.email) === nextEmail;
   const user = await prisma.user.update({
     where: { id: req.auth.user.id },
     data: {
-      ...(data.email !== undefined ? { email: data.email ? data.email.toLowerCase() : null } : {})
+      ...(data.email !== undefined ? {
+        email: nextEmail,
+        emailVerifiedAt: keepEmailVerifiedAt ? currentUser.emailVerifiedAt : null
+      } : {})
     },
-    include: { collaborator: true }
+    include: { collaborator: true, moduleRoles: true }
+  });
+
+  res.json({ user: publicUser(user) });
+}));
+
+router.post('/client-privacy-consent', requireAuth, asyncHandler(async (req, res) => {
+  const data = clientPrivacyConsentSchema.parse(req.body || {});
+  if (req.auth.user.accountType !== 'CLIENT' && req.auth.user.role !== 'CLIENT') {
+    return res.status(403).json({ error: 'Aceite disponível apenas para contas de cliente.' });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: req.auth.user.id },
+    data: {
+      privacyPolicyAcceptedAt: new Date(),
+      privacyPolicyVersion: data.privacyNoticeVersion
+    },
+    include: { collaborator: true, moduleRoles: true }
   });
 
   res.json({ user: publicUser(user) });

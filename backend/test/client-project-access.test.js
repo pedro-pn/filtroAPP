@@ -63,6 +63,26 @@ test('client access allows provisioned email usernames for signer/cc projects', 
   );
 });
 
+test('client access rejects soft-deleted projects', () => {
+  const auth = {
+    user: {
+      username: 'signer@example.com',
+      email: 'changed@example.com'
+    }
+  };
+
+  assert.equal(
+    clientCanAccessProject(auth, {
+      deletedAt: new Date(),
+      managerOnly: false,
+      clientCnpj: '11222333000144',
+      clientEmailPrimary: 'client@example.com',
+      clientEmailCc: ['signer@example.com']
+    }),
+    false
+  );
+});
+
 test('client project query filter ignores self-editable email', () => {
   assert.deepEqual(
     clientProjectAccessWhere({

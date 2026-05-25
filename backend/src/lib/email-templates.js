@@ -1,4 +1,22 @@
 export const EMAIL_LOGO_CID = 'filtrovali-logo-colorido';
+const PRIVACY_CONTACT = 'privacidade@filtrovali.com.br';
+
+function privacyTextLine() {
+  return `Canal de privacidade: ${PRIVACY_CONTACT}`;
+}
+
+function privacyHtmlLine() {
+  return `<p style="font-size:12px;line-height:1.7;margin:16px 0 0;color:#4b5563">Canal de privacidade: <a href="mailto:${PRIVACY_CONTACT}" style="color:#30503a">${PRIVACY_CONTACT}</a>.</p>`;
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 function wrapEmailHtml({ title, intro, body, footer }) {
   return `
@@ -43,6 +61,96 @@ export function buildTestEmailTemplate({ host, port, user, timestamp }) {
   };
 }
 
+export function buildDataSubjectRequestCreatedEmailTemplate({ protocol, typeLabel, requesterName, requesterEmail, identifier, details, appUrl }) {
+  const safeProtocol = escapeHtml(protocol);
+  const safeTypeLabel = escapeHtml(typeLabel);
+  const safeRequesterName = escapeHtml(requesterName);
+  const safeRequesterEmail = escapeHtml(requesterEmail);
+  const safeIdentifier = escapeHtml(identifier || '---');
+  const safeDetails = escapeHtml(details);
+  const safeAppUrl = escapeHtml(appUrl);
+  const title = 'Nova solicitação LGPD registrada';
+  const intro = `Uma nova solicitação de direitos do titular foi registrada com o protocolo ${safeProtocol}.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Protocolo:</strong> ${safeProtocol}</div>
+        <div><strong>Tipo:</strong> ${safeTypeLabel}</div>
+        <div><strong>Titular:</strong> ${safeRequesterName}</div>
+        <div><strong>E-mail:</strong> ${safeRequesterEmail}</div>
+        <div><strong>Identificador:</strong> ${safeIdentifier}</div>
+      </div>
+    </div>
+    <div style="margin-top:16px;font-size:14px;line-height:1.7">
+      <strong>Detalhes:</strong>
+      <p style="margin:8px 0 0;white-space:pre-wrap">${safeDetails}</p>
+    </div>
+    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o módulo de privacidade em: <a href="${safeAppUrl}" style="color:#30503a">${safeAppUrl}</a></p>` : ''}
+    ${privacyHtmlLine()}
+  `;
+  const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Nova solicitação LGPD - ${protocol}`,
+    text: [
+      `Nova solicitação LGPD registrada: ${protocol}`,
+      '',
+      `Tipo: ${typeLabel}`,
+      `Titular: ${requesterName}`,
+      `E-mail: ${requesterEmail}`,
+      `Identificador: ${identifier || '---'}`,
+      '',
+      'Detalhes:',
+      details,
+      appUrl ? `Acesso: ${appUrl}` : '',
+      privacyTextLine()
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildDataSubjectRequestResponseEmailTemplate({ protocol, typeLabel, requesterName, message, resolved, privacyContact = PRIVACY_CONTACT }) {
+  const safeProtocol = escapeHtml(protocol);
+  const safeTypeLabel = escapeHtml(typeLabel);
+  const safeRequesterName = escapeHtml(requesterName);
+  const safeMessage = escapeHtml(message);
+  const safePrivacyContact = escapeHtml(privacyContact);
+  const statusText = resolved ? 'concluída' : 'em análise';
+  const title = `Resposta à solicitação LGPD ${safeProtocol}`;
+  const intro = `Olá, ${safeRequesterName}. Enviamos uma resposta sobre a sua solicitação LGPD.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Protocolo:</strong> ${safeProtocol}</div>
+        <div><strong>Tipo:</strong> ${safeTypeLabel}</div>
+        <div><strong>Status:</strong> ${statusText}</div>
+      </div>
+    </div>
+    <div style="margin-top:16px;font-size:14px;line-height:1.7">
+      <strong>Resposta:</strong>
+      <p style="margin:8px 0 0;white-space:pre-wrap">${safeMessage}</p>
+    </div>
+    <p style="font-size:12px;line-height:1.7;margin:16px 0 0;color:#4b5563">Para complementar esta solicitação, responda este e-mail ou entre em contato pelo canal de privacidade: <a href="mailto:${safePrivacyContact}" style="color:#30503a">${safePrivacyContact}</a>.</p>
+  `;
+  const footer = 'Este envio foi gerado pelo sistema Filtrovali para atendimento de direitos LGPD.';
+
+  return {
+    subject: `[Filtrovali] Resposta à solicitação LGPD - ${protocol}`,
+    text: [
+      `Resposta à solicitação LGPD ${protocol}`,
+      '',
+      `Tipo: ${typeLabel}`,
+      `Status: ${statusText}`,
+      '',
+      'Resposta:',
+      message,
+      '',
+      `Canal de privacidade: ${privacyContact}`
+    ].join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
 export function buildReportApprovedEmailTemplate({ projectCode, projectName, clientName, reportType, reportNumber, reportDate, appUrl }) {
   const title = 'Relatório gerado no sistema Filtrovali';
   const intro = `O relatório ${reportType} ${reportNumber} do projeto ${projectCode} - ${projectName} foi gerado e está disponível no sistema.`;
@@ -56,6 +164,7 @@ export function buildReportApprovedEmailTemplate({ projectCode, projectName, cli
       </div>
     </div>
     ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+    ${privacyHtmlLine()}
   `;
   const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
 
@@ -67,7 +176,71 @@ export function buildReportApprovedEmailTemplate({ projectCode, projectName, cli
       `Cliente: ${clientName}`,
       `Projeto: ${projectCode} - ${projectName}`,
       `Data: ${reportDate}`,
-      appUrl ? `Acesso: ${appUrl}` : ''
+      appUrl ? `Acesso: ${appUrl}` : '',
+      privacyTextLine()
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildRomaneioCreatedEmailTemplate({
+  projectCode,
+  projectName,
+  clientName,
+  romaneioDate,
+  driverName,
+  vehiclePlate,
+  itemCount,
+  categorySummary,
+  appUrl
+}) {
+  const title = 'Romaneio de equipamentos gerado';
+  const intro = `O romaneio do projeto ${projectCode} - ${projectName} foi criado no sistema Filtrovali e segue anexado em PDF.`;
+  const categories = Array.isArray(categorySummary) ? categorySummary : [];
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Cliente:</strong> ${clientName}</div>
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>Data:</strong> ${romaneioDate}</div>
+        <div><strong>Motorista:</strong> ${driverName}</div>
+        <div><strong>Placa:</strong> ${vehiclePlate}</div>
+        <div><strong>Total de itens:</strong> ${itemCount}</div>
+      </div>
+    </div>
+    ${categories.length ? `
+      <div style="margin-top:16px">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#30503a;margin-bottom:8px">Categorias</div>
+        <div style="display:grid;gap:8px">
+          ${categories.map(item => `
+            <div style="display:flex;justify-content:space-between;gap:12px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:13px">
+              <span style="font-weight:600;color:#243d2c">${item.categoryName}</span>
+              <span style="color:#6b7280">${item.count} item(ns)</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+    ${privacyHtmlLine()}
+  `;
+  const footer = 'Este envio foi gerado automaticamente pelo módulo de Romaneio da Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Romaneio - ${projectCode} - ${projectName}`,
+    text: [
+      `O romaneio do projeto ${projectCode} - ${projectName} foi criado e segue anexado em PDF.`,
+      '',
+      `Cliente: ${clientName}`,
+      `Projeto: ${projectCode} - ${projectName}`,
+      `Data: ${romaneioDate}`,
+      `Motorista: ${driverName}`,
+      `Placa: ${vehiclePlate}`,
+      `Total de itens: ${itemCount}`,
+      categories.length ? '' : '',
+      ...categories.map(item => `${item.categoryName}: ${item.count} item(ns)`),
+      appUrl ? `Acesso: ${appUrl}` : '',
+      privacyTextLine()
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
   };
@@ -110,6 +283,7 @@ export function buildClientWelcomeEmailTemplate({ clientName, cnpj, password, ap
       </div>
     </div>
     ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+    ${privacyHtmlLine()}
   `;
   const footer = 'Guarde estas informações com segurança. Depois do primeiro acesso, a senha pode ser alterada na área de conta.';
 
@@ -123,7 +297,8 @@ export function buildClientWelcomeEmailTemplate({ clientName, cnpj, password, ap
       `Senha inicial: ${password}`,
       appUrl ? `Acesso: ${appUrl}` : '',
       '',
-      'Depois do primeiro acesso, a senha pode ser alterada na área de conta.'
+      'Depois do primeiro acesso, a senha pode ser alterada na área de conta.',
+      privacyTextLine()
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
   };
@@ -141,6 +316,7 @@ export function buildInternalUserWelcomeEmailTemplate({ userName, username, pass
       </div>
     </div>
     ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+    ${privacyHtmlLine()}
   `;
   const footer = 'Guarde estas informações com segurança. Depois do primeiro acesso, a senha pode ser alterada na área de conta.';
 
@@ -154,7 +330,8 @@ export function buildInternalUserWelcomeEmailTemplate({ userName, username, pass
       `Senha inicial: ${password}`,
       appUrl ? `Acesso: ${appUrl}` : '',
       '',
-      'Depois do primeiro acesso, a senha pode ser alterada na área de conta.'
+      'Depois do primeiro acesso, a senha pode ser alterada na área de conta.',
+      privacyTextLine()
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
   };
@@ -171,6 +348,7 @@ export function buildClientProjectLinkedEmailTemplate({ clientName, appUrl, proj
       </div>
     </div>
     ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+    ${privacyHtmlLine()}
   `;
   const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
 
@@ -181,7 +359,8 @@ export function buildClientProjectLinkedEmailTemplate({ clientName, appUrl, proj
       '',
       `Projeto: ${projectCode} - ${projectName}`,
       `Contrato: ${contractCode || '---'}`,
-      appUrl ? `Acesso: ${appUrl}` : ''
+      appUrl ? `Acesso: ${appUrl}` : '',
+      privacyTextLine()
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
   };
@@ -200,6 +379,7 @@ export function buildClientAccessReminderEmailTemplate({ clientName, cnpj, newPa
     </div>
     <p style="font-size:14px;line-height:1.7;margin:16px 0 0">Após o primeiro acesso, recomendamos alterar a senha pela opção "Esqueci minha senha" na tela de login.</p>
     ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+    ${privacyHtmlLine()}
   `;
   const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
 
@@ -212,7 +392,8 @@ export function buildClientAccessReminderEmailTemplate({ clientName, cnpj, newPa
       `Senha: ${newPassword}`,
       `Projetos vinculados: ${projectCount}`,
       'Após o primeiro acesso, recomendamos alterar a senha.',
-      appUrl ? `Acesso: ${appUrl}` : ''
+      appUrl ? `Acesso: ${appUrl}` : '',
+      privacyTextLine()
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
   };
@@ -231,6 +412,7 @@ export function buildReportReapprovedEmailTemplate({ projectCode, projectName, c
       </div>
     </div>
     ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema para avaliar: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+    ${privacyHtmlLine()}
   `;
   const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
 
@@ -281,6 +463,142 @@ export function buildReportRejectedByClientEmailTemplate({ projectCode, projectN
   };
 }
 
+export function buildReportSignatureReceivedEmailTemplate({
+  projectCode,
+  projectName,
+  reportType,
+  reportNumber,
+  reportDate,
+  signerName,
+  signerEmail,
+  signedCount,
+  requiredCount,
+  appUrl
+}) {
+  const title = 'Assinatura recebida';
+  const progress = `${signedCount}/${requiredCount}`;
+  const intro = `Uma assinatura foi registrada para o relatório ${reportType} ${reportNumber} do projeto ${projectCode} - ${projectName}.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>Relatório:</strong> ${reportType} ${reportNumber}</div>
+        <div><strong>Data:</strong> ${reportDate}</div>
+        <div><strong>Signatário:</strong> ${signerName} (${signerEmail})</div>
+        <div><strong>Progresso:</strong> ${progress} assinaturas obrigatórias</div>
+      </div>
+    </div>
+    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema para acompanhar: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+  `;
+  const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] ${reportType} ${reportNumber} recebeu uma assinatura`,
+    text: [
+      `Uma assinatura foi registrada para o relatório ${reportType} ${reportNumber}.`,
+      '',
+      `Projeto: ${projectCode} - ${projectName}`,
+      `Data: ${reportDate}`,
+      `Signatário: ${signerName} (${signerEmail})`,
+      `Progresso: ${progress} assinaturas obrigatórias`,
+      appUrl ? `Acesso: ${appUrl}` : '',
+      privacyTextLine()
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildReportSignatureRequestEmailTemplate({
+  projectCode,
+  projectName,
+  reportType,
+  reportNumber,
+  reportDate,
+  signerName,
+  signUrl,
+  expiresLabel
+}) {
+  const title = 'Assinatura eletrônica disponível';
+  const intro = `O relatório ${reportType} ${reportNumber} do projeto ${projectCode} - ${projectName} está disponível para assinatura eletrônica.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Signatário:</strong> ${signerName}</div>
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>Relatório:</strong> ${reportType} ${reportNumber}</div>
+        <div><strong>Data:</strong> ${reportDate}</div>
+        <div><strong>Prazo:</strong> ${expiresLabel}</div>
+      </div>
+    </div>
+    <p style="margin:16px 0"><a href="${signUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Assinar relatório</a></p>
+    <p style="font-size:13px;line-height:1.7;margin:0 0 8px">Se preferir, copie e cole este link no navegador:</p>
+    <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0">${signUrl}</p>
+    ${privacyHtmlLine()}
+  `;
+  const footer = 'Este link é individual e foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Assinatura disponível - ${reportType} ${reportNumber}`,
+    text: [
+      `Olá, ${signerName}.`,
+      '',
+      `O relatório ${reportType} ${reportNumber} está disponível para assinatura eletrônica.`,
+      '',
+      `Projeto: ${projectCode} - ${projectName}`,
+      `Data: ${reportDate}`,
+      `Prazo: ${expiresLabel}`,
+      '',
+      `Assinar relatório: ${signUrl}`,
+      '',
+      privacyTextLine()
+    ].join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildReportSignatureCompletedEmailTemplate({
+  projectCode,
+  projectName,
+  reportType,
+  reportNumber,
+  reportDate,
+  signerName,
+  signerEmail,
+  finalDocumentHash,
+  appUrl
+}) {
+  const title = 'Relatório assinado';
+  const intro = `Todas as assinaturas obrigatórias do relatório ${reportType} ${reportNumber} foram concluídas.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>Relatório:</strong> ${reportType} ${reportNumber}</div>
+        <div><strong>Data:</strong> ${reportDate}</div>
+        <div><strong>Último signatário:</strong> ${signerName} (${signerEmail})</div>
+        ${finalDocumentHash ? `<div><strong>Hash PDF final:</strong> <span style="word-break:break-all">${finalDocumentHash}</span></div>` : ''}
+      </div>
+    </div>
+    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema para baixar o PDF assinado: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+  `;
+  const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] ${reportType} ${reportNumber} assinado`,
+    text: [
+      `Todas as assinaturas obrigatórias do relatório ${reportType} ${reportNumber} foram concluídas.`,
+      '',
+      `Projeto: ${projectCode} - ${projectName}`,
+      `Data: ${reportDate}`,
+      `Último signatário: ${signerName} (${signerEmail})`,
+      finalDocumentHash ? `Hash PDF final: ${finalDocumentHash}` : '',
+      appUrl ? `Acesso: ${appUrl}` : '',
+      privacyTextLine()
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
 export function buildSurveyInviteEmailTemplate({ clientName, projectCode, projectName, surveyUrl, optOutUrl, expiresLabel }) {
   const title = 'Pesquisa de satisfação';
   const intro = `Gostaríamos de ouvir sua opinião sobre o projeto ${projectCode} - ${projectName}.`;
@@ -296,6 +614,7 @@ export function buildSurveyInviteEmailTemplate({ clientName, projectCode, projec
     <p style="margin:0 0 16px"><a href="${surveyUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Responder pesquisa</a></p>
     <p style="font-size:13px;line-height:1.7;margin:0 0 8px">Se preferir, copie e cole este link no navegador:</p>
     <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0 0 16px">${surveyUrl}</p>
+    <p style="font-size:12px;line-height:1.7;margin:0 0 8px">Aviso de privacidade: ao responder, trataremos seu e-mail, respostas, comentários, IP e dados do navegador/dispositivo para gestão de qualidade e melhoria do serviço, com base em legítimo interesse. Canal de privacidade: <a href="mailto:${PRIVACY_CONTACT}" style="color:#30503a">${PRIVACY_CONTACT}</a>.</p>
     ${optOutUrl ? `<p style="font-size:12px;line-height:1.7;margin:0">Para parar de receber lembretes desta pesquisa, acesse: <a href="${optOutUrl}" style="color:#30503a">${optOutUrl}</a></p>` : ''}
   `;
   const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
@@ -310,6 +629,7 @@ export function buildSurveyInviteEmailTemplate({ clientName, projectCode, projec
       `Prazo: ${expiresLabel}`,
       '',
       `Responder pesquisa: ${surveyUrl}`,
+      `Aviso de privacidade: ao responder, trataremos seu e-mail, respostas, comentários, IP e dados do navegador/dispositivo para gestão de qualidade e melhoria do serviço, com base em legítimo interesse. Canal: ${PRIVACY_CONTACT}`,
       optOutUrl ? `Parar lembretes: ${optOutUrl}` : ''
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
@@ -330,6 +650,7 @@ export function buildSurveyReminderEmailTemplate({ clientName, projectCode, proj
     </div>
     <p style="margin:16px 0"><a href="${surveyUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Responder pesquisa</a></p>
     <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0 0 16px">${surveyUrl}</p>
+    <p style="font-size:12px;line-height:1.7;margin:0 0 8px">Aviso de privacidade: ao responder, trataremos seu e-mail, respostas, comentários, IP e dados do navegador/dispositivo para gestão de qualidade e melhoria do serviço, com base em legítimo interesse. Canal de privacidade: <a href="mailto:${PRIVACY_CONTACT}" style="color:#30503a">${PRIVACY_CONTACT}</a>.</p>
     ${optOutUrl ? `<p style="font-size:12px;line-height:1.7;margin:0">Para parar de receber lembretes desta pesquisa, acesse: <a href="${optOutUrl}" style="color:#30503a">${optOutUrl}</a></p>` : ''}
   `;
   const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
@@ -343,6 +664,7 @@ export function buildSurveyReminderEmailTemplate({ clientName, projectCode, proj
       `Disponível por: ${expiresLabel}`,
       '',
       `Responder pesquisa: ${surveyUrl}`,
+      `Aviso de privacidade: ao responder, trataremos seu e-mail, respostas, comentários, IP e dados do navegador/dispositivo para gestão de qualidade e melhoria do serviço, com base em legítimo interesse. Canal: ${PRIVACY_CONTACT}`,
       optOutUrl ? `Parar lembretes: ${optOutUrl}` : ''
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
@@ -361,6 +683,7 @@ export function buildSurveyRespondedEmailTemplate({ clientName, projectCode, pro
       </div>
     </div>
     ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+    ${privacyHtmlLine()}
   `;
   const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
 
@@ -371,7 +694,8 @@ export function buildSurveyRespondedEmailTemplate({ clientName, projectCode, pro
       '',
       `Projeto: ${projectCode} - ${projectName}`,
       `NPS: ${nps ?? '-'}`,
-      appUrl ? `Acesso: ${appUrl}` : ''
+      appUrl ? `Acesso: ${appUrl}` : '',
+      privacyTextLine()
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
   };
@@ -403,7 +727,8 @@ export function buildSurveyExpiredEmailTemplate({ clientName, projectCode, proje
       `E-mail enviado: ${emailTo}`,
       `Enviada em: ${sentAt}`,
       `Expirada em: ${expiresAt}`,
-      appUrl ? `Acesso: ${appUrl}` : ''
+      appUrl ? `Acesso: ${appUrl}` : '',
+      privacyTextLine()
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
   };

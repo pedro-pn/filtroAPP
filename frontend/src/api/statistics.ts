@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, rdoApiPath } from './client';
 import type { ClientSegment } from '../types/domain';
 
 export interface StatsParams {
@@ -105,22 +105,22 @@ export interface ProjectStatsResponse {
 }
 
 export async function fetchProjectStats(params: StatsParams): Promise<ProjectStatsResponse> {
-  const response = await apiClient.get<ProjectStatsResponse>('/statistics/projects', { params });
+  const response = await apiClient.get<ProjectStatsResponse>(rdoApiPath('/statistics/projects'), { params });
   return response.data;
 }
 
 export async function listProjectSegments(): Promise<ClientSegment[]> {
-  const response = await apiClient.get<ClientSegment[]>('/project-segments');
+  const response = await apiClient.get<ClientSegment[]>(rdoApiPath('/project-segments'));
   return response.data;
 }
 
 export async function createProjectSegment(payload: ClientSegmentPayload): Promise<ClientSegment> {
-  const response = await apiClient.post<ClientSegment>('/project-segments', payload);
+  const response = await apiClient.post<ClientSegment>(rdoApiPath('/project-segments'), payload);
   return response.data;
 }
 
 export async function downloadProjectStatsCsv(params: StatsParams & { section: StatsExportSection }): Promise<Blob> {
-  const response = await apiClient.get<Blob>('/statistics/projects/export', {
+  const response = await apiClient.get<Blob>(rdoApiPath('/statistics/projects/export'), {
     params,
     responseType: 'blob'
   });
@@ -148,6 +148,6 @@ export interface StatsOverviewResponse {
 }
 
 export async function fetchStatsOverview(): Promise<StatsOverviewResponse> {
-  const response = await apiClient.get<StatsOverviewResponse>('/statistics/overview');
+  const response = await apiClient.get<StatsOverviewResponse>(rdoApiPath('/statistics/overview'));
   return response.data;
 }

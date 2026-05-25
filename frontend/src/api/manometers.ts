@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, rdoApiPath } from './client';
 import type { Manometer } from '../types/domain';
 
 export interface ManometerPayload {
@@ -10,20 +10,20 @@ export interface ManometerPayload {
 }
 
 export async function listManometers() {
-  const response = await apiClient.get<Manometer[]>('/manometers');
+  const response = await apiClient.get<Manometer[]>(rdoApiPath('/manometers'));
   return response.data;
 }
 
 export async function createManometer(payload: ManometerPayload) {
-  const response = await apiClient.post<Manometer>('/manometers', payload);
+  const response = await apiClient.post<Manometer>(rdoApiPath('/manometers'), payload);
   return response.data;
 }
 
 export async function updateManometer(id: string, payload: Partial<ManometerPayload>) {
-  const response = await apiClient.put<Manometer>(`/manometers/${id}`, payload);
+  const response = await apiClient.put<Manometer>(rdoApiPath(`/manometers/${id}`), payload);
   return response.data;
 }
 
 export async function removeManometer(id: string) {
-  await apiClient.delete(`/manometers/${id}`);
+  await apiClient.delete(rdoApiPath(`/manometers/${id}`));
 }

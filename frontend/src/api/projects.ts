@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, rdoApiPath } from './client';
 import type { ClientSigner, Project, ProjectReportSequence } from '../types/domain';
 
 export interface ProjectPayload {
@@ -24,22 +24,22 @@ export interface ProjectPayload {
 }
 
 export async function listProjects(active?: boolean) {
-  const response = await apiClient.get<Project[]>('/projects', {
+  const response = await apiClient.get<Project[]>(rdoApiPath('/projects'), {
     params: active === undefined ? undefined : { active }
   });
   return response.data;
 }
 
 export async function createProject(payload: ProjectPayload) {
-  const response = await apiClient.post<Project>('/projects', payload);
+  const response = await apiClient.post<Project>(rdoApiPath('/projects'), payload);
   return response.data;
 }
 
 export async function updateProject(id: string, payload: Partial<ProjectPayload>) {
-  const response = await apiClient.put<Project>(`/projects/${id}`, payload);
+  const response = await apiClient.put<Project>(rdoApiPath(`/projects/${id}`), payload);
   return response.data;
 }
 
 export async function removeProject(id: string) {
-  await apiClient.delete(`/projects/${id}`);
+  await apiClient.delete(rdoApiPath(`/projects/${id}`));
 }

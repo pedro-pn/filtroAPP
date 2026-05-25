@@ -3,9 +3,11 @@ Atualizado em: 23/04/2026
 
 1. Infra e acesso
 - Confirmar docker compose -f docker-compose.prod.yml ps com backend, postgres e nginx em Up
-- Confirmar https://relatorios.filtrovali.com.br abrindo sem alerta de certificado
-- Confirmar backend/.env.production no servidor com APP_URL=https://relatorios.filtrovali.com.br
-- Confirmar backend/.env.production no servidor com ALLOWED_ORIGIN=https://relatorios.filtrovali.com.br
+- Confirmar https://app.filtrovali.com.br abrindo sem alerta de certificado
+- Confirmar https://relatorios.filtrovali.com.br redirecionando para https://app.filtrovali.com.br/rdo
+- Confirmar backend/.env.production no servidor com APP_URL=https://app.filtrovali.com.br
+- Confirmar backend/.env.production no servidor com ALLOWED_ORIGIN incluindo https://app.filtrovali.com.br e https://relatorios.filtrovali.com.br
+- Confirmar backend/.env.production no servidor com TRUST_PROXY=uniquelocal ou CIDRs explicitos do proxy confiavel
 - Confirmar Security Group da EC2 com 22 liberada so para seu IP
 - Confirmar Security Group da EC2 com 80 e 443 liberadas para 0.0.0.0/0
 - Confirmar que 4000 e 5432 nao estao expostas publicamente
@@ -26,7 +28,8 @@ Atualizado em: 23/04/2026
 - Confirmar envio de e-mail real com SMTP configurado
 - Confirmar geracao DOCX/PDF no Linux com um relatorio real
 - Confirmar upload e leitura de imagens e assinaturas
-- Confirmar fluxo do ZapSign somente depois que dominio publico e HTTPS estiverem estaveis
+- Confirmar assinatura interna de RDO pelo cliente
+- Confirmar que nao existem pendencias ZapSign antigas ou manter credenciais legadas para reconciliacao/download
 
 5. Certificado e renovacao
 - Confirmar script de renovacao do certificado criado no servidor
@@ -47,5 +50,4 @@ Atualizado em: 23/04/2026
 
 8. Proximo passo recomendado
 - Fechar backup e teste funcional completo
-- Depois disso, validar ZapSign em producao
 - So entao liberar o uso real para clientes

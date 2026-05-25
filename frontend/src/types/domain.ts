@@ -1,6 +1,6 @@
-import type { UserRole } from './auth';
+import type { AccountType, ModuleRole, UserRole } from './auth';
 
-export type UnitCategory = 'FILTRAGEM' | 'FLUSHING' | 'LIMPEZA_QUIMICA' | 'DESIDRATACAO' | 'UTH' | 'OUTRA';
+export type UnitCategory = string;
 export type ReportType = 'RDO' | 'RTP' | 'RLQ' | 'RCPU' | 'RLM' | 'RLF' | 'RLI';
 export type ReportStatus = 'PENDING' | 'APPROVED' | 'RETURNED' | 'SIGNED';
 
@@ -10,7 +10,12 @@ export interface Collaborator {
   name: string;
   role: string;
   email: string | null;
+  cpf?: string | null;
+  registrationNumber?: string | null;
+  admissionDate?: string | null;
   signatureImage: string | null;
+  signatureNoticeAcceptedAt?: string | null;
+  signatureNoticeVersion?: string | null;
   isActive: boolean;
 }
 
@@ -79,6 +84,7 @@ export interface Project {
   surveys?: SatisfactionSurveySummary[];
   createdAt?: string;
   updatedAt?: string;
+  deletedAt?: string | null;
 }
 
 export interface Equipment {
@@ -128,6 +134,8 @@ export interface InternalUserSummary {
   name: string;
   email: string | null;
   role: UserRole;
+  accountType?: AccountType;
+  moduleRoles?: ModuleRole[];
   isActive: boolean;
   collaboratorId?: string | null;
   collaborator?: Collaborator | null;
@@ -148,8 +156,16 @@ export interface ReportSummary {
   reportType: ReportType;
   sequenceNumber?: number | null;
   status: ReportStatus;
-  zapsignRequestedAt?: string | null;
-  zapsignSignedAt?: string | null;
+  reportSignatures?: Array<{
+    id: string;
+    signerName: string;
+    declaredSignerName?: string | null;
+    signerEmail: string;
+    status: 'PENDING' | 'SIGNED' | 'REJECTED' | 'INVALIDATED' | 'EXPIRED';
+    isRequired?: boolean;
+    signedAt?: string | null;
+    rejectedAt?: string | null;
+  }>;
   clientReviews?: Array<{
     id: string;
     action: 'APPROVED' | 'REJECTED';
@@ -175,6 +191,7 @@ export interface ReportSummary {
   returnedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
   project: Project;
   collaborators?: Array<{
     collaboratorId: string;
@@ -222,6 +239,31 @@ export interface ReportPayload {
   specialConditions?: Record<string, unknown>;
   collaboratorIds: string[];
   services: ReportServiceInput[];
+}
+
+export interface ReportAuditLog {
+  id: string;
+  reportId: string;
+  versionId?: string | null;
+  userId?: string | null;
+  action: string;
+  description?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  createdAt: string;
+  user?: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    role?: UserRole;
+  } | null;
+  version?: {
+    id: string;
+    versionNumber: number;
+    status: string;
+    sourceDocumentHash: string;
+    finalDocumentHash?: string | null;
+  } | null;
 }
 
 export interface ServiceOnlyReportPayload {

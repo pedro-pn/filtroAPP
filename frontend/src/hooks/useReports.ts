@@ -6,9 +6,9 @@ import {
   createServiceOnlyReports,
   deleteReport as deleteReportApi,
   deleteReportService,
+  getReportAudit,
   getReport,
   listReports,
-  requestReportsBatchSignature,
   requestReportSignature,
   updateReport,
   updateReportStatus,
@@ -61,9 +61,16 @@ function removeReportFromCaches(
   ));
 }
 
+export function useReportAudit(reportId: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.reportAudit(reportId),
+    queryFn: () => getReportAudit(reportId),
+    enabled: enabled && !!reportId
+  });
+}
+
 export function useReportMutations() {
   const queryClient = useQueryClient();
-
   const createMutation = useMutation({
     mutationFn: (payload: ReportPayload) => createReport(payload),
     onSuccess: report => {
@@ -101,11 +108,27 @@ export function useReportMutations() {
   });
 
   const requestSignatureMutation = useMutation({
-    mutationFn: ({ id, comment }: { id: string; comment?: string | null }) => requestReportSignature(id, { comment }),
+    mutationFn: ({
+      id,
+      comment,
+      signerName,
+      signatureImageDataUrl,
+      privacyNoticeAccepted,
+      privacyNoticeVersion
+    }: {
+      id: string;
+      comment?: string | null;
+      signerName: string;
+      signatureImageDataUrl: string;
+      privacyNoticeAccepted: true;
+      privacyNoticeVersion: string;
+    }) =>
+      requestReportSignature(id, { comment, signerName, signatureImageDataUrl, privacyNoticeAccepted, privacyNoticeVersion }),
     onSuccess: data => {
       updateReportCaches(queryClient, data.report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['report', data.report.id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.reportAudit(data.report.id) });
     }
   });
 
@@ -121,15 +144,6 @@ export function useReportMutations() {
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
-    }
-  });
-
-  const batchSignatureMutation = useMutation({
-    mutationFn: ({ ids, commentsById }: { ids: string[]; commentsById?: Record<string, string> }) =>
-      requestReportsBatchSignature(ids, commentsById),
-    onSuccess: data => {
-      queryClient.invalidateQueries({ queryKey: ['reports'] });
-      data.reportIds.forEach(id => queryClient.invalidateQueries({ queryKey: ['report', id] }));
     }
   });
 
@@ -158,7 +172,6 @@ export function useReportMutations() {
     updateStatus: updateStatusMutation,
     requestSignature: requestSignatureMutation,
     clientReview: clientReviewMutation,
-    batchSignature: batchSignatureMutation,
     deleteReport,
     deleteService
   };

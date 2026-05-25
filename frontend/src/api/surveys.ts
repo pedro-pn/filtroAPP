@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, rdoApiPath } from './client';
 import type { SatisfactionSurveySummary } from '../types/domain';
 
 export interface SurveyResponses {
@@ -45,40 +45,42 @@ export interface PublicSurveyPayload {
 
 export interface SurveyResponsePayload {
   answers: SurveyResponses;
+  privacyNoticeAccepted: true;
+  privacyNoticeVersion: string;
 }
 
 export async function sendProjectSurvey(projectId: string) {
-  const response = await apiClient.post<{ survey: SatisfactionSurveySummary; reused: boolean }>(`/surveys/${projectId}/send`);
+  const response = await apiClient.post<{ survey: SatisfactionSurveySummary; reused: boolean }>(rdoApiPath(`/surveys/${projectId}/send`));
   return response.data;
 }
 
 export async function resendSurvey(surveyId: string) {
-  const response = await apiClient.post<{ survey: SatisfactionSurveySummary; reused: boolean }>(`/surveys/${surveyId}/resend`);
+  const response = await apiClient.post<{ survey: SatisfactionSurveySummary; reused: boolean }>(rdoApiPath(`/surveys/${surveyId}/resend`));
   return response.data;
 }
 
 export async function listSurveys() {
-  const response = await apiClient.get<SurveyListItem[]>('/surveys');
+  const response = await apiClient.get<SurveyListItem[]>(rdoApiPath('/surveys'));
   return response.data;
 }
 
 export async function listProjectSurveys(projectId: string) {
-  const response = await apiClient.get<SatisfactionSurveySummary[]>(`/surveys/projects/${projectId}`);
+  const response = await apiClient.get<SatisfactionSurveySummary[]>(rdoApiPath(`/surveys/projects/${projectId}`));
   return response.data;
 }
 
 export async function listSurveyQuestions() {
-  const response = await apiClient.get<SurveyQuestion[]>('/surveys/questions');
+  const response = await apiClient.get<SurveyQuestion[]>(rdoApiPath('/surveys/questions'));
   return response.data;
 }
 
 export async function updateSurveyQuestions(questions: Array<Omit<SurveyQuestion, 'order'>>) {
-  const response = await apiClient.put<SurveyQuestion[]>('/surveys/questions', { questions });
+  const response = await apiClient.put<SurveyQuestion[]>(rdoApiPath('/surveys/questions'), { questions });
   return response.data;
 }
 
 export async function getClientSurveyLink(projectId: string) {
-  const response = await apiClient.get<{ url: string; expiresAt: string }>(`/surveys/client/projects/${projectId}/active-link`);
+  const response = await apiClient.get<{ url: string; expiresAt: string }>(rdoApiPath(`/surveys/client/projects/${projectId}/active-link`));
   return response.data;
 }
 
@@ -148,7 +150,7 @@ export interface SurveyDashboardData {
 }
 
 export async function getSurveyDashboard(year: number) {
-  const response = await apiClient.get<SurveyDashboardData>(`/surveys/dashboard?year=${year}`);
+  const response = await apiClient.get<SurveyDashboardData>(rdoApiPath(`/surveys/dashboard?year=${year}`));
   return response.data;
 }
 
@@ -156,6 +158,6 @@ export async function updateSurveyFollowUp(
   surveyId: string,
   payload: { status?: SurveyDashboardSurveyItem['followUpStatus']; notes?: string | null }
 ) {
-  const response = await apiClient.patch<SatisfactionSurveySummary>(`/surveys/${surveyId}/follow-up`, payload);
+  const response = await apiClient.patch<SatisfactionSurveySummary>(rdoApiPath(`/surveys/${surveyId}/follow-up`), payload);
   return response.data;
 }

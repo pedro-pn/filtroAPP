@@ -1,0 +1,705 @@
+UFP		Unidades de Flushing Primário
+UFP 001		Unidade de Flushing Primário - 01
+UFP 002		Unidade de Flushing Primário - 02
+UFP 003		Unidade de Flushing Primário - 03
+UFP 004		Unidade de Flushing Primário - 04
+UFP 005		Unidade de Flushing Primário - 05
+UFP 006		Unidade de Flushing Primário - 06
+UFP 007		Unidade de Flushing Primário - 07
+UFP 008		Unidade de Flushing Primário - 08
+UFP 009 	Unidade de Flushing Primário - 09
+UFP 010 	Unidade de Flushing Primário - 10
+UFP 011		Unidade de Flushing Primário - 11
+UFP 012		Unidade de Flushing Primário - 12
+UFP 013 	Unidade de Flushing Primário - 13
+UFP 014		Unidade de Flushing Primário - 14
+UFP 015		Unidade de Flushing Primário - 15
+
+ULQ		Unidades de Limpeza Química
+ULQ 001		Unidade de Limpeza Química - 01
+UlQ 002		Unidade de Limpeza Química - 02
+ULQ 003		Unidade de Limpeza Química - 03
+ULQ 004		Unidade de Limpeza Química - 04
+ULQ 005		Unidade de Limpeza Química - 05
+ULQ 006		Unidade de Limpeza Química - 06
+ULQ 007		Unidade de Limpeza Química - 07
+ULQ 008		Unidade de Limpeza Química - 08
+ULQ 009		Unidade de Limpeza Química - 09
+ULQ 010		Unidade de Limpeza Química - 10
+ULQ 011 	Unidade de Limpeza Química - 11
+ULQ 012		Unidade de Limpeza Química - 12
+ULQ 013		Unidade de Limpeza Química - 13
+ULQ 014 	Unidade de Limpeza Química - 14
+ULQ 015		Unidade de Limpeza Química - 15
+ULQ 016		Unidade de Limpeza Química - 16
+
+UBP		Unidades de Bomba Pneumática
+UBP 01		Unidade de Bomba Pneumática - 01
+UBP 02		Unidade de Bomba Pneumática - 02
+UBP 03		Unidade de Bomba Pneumática - 03
+UBP 04		Unidade de Bomba Pneumática - 04
+UBP 05		Unidade de Bomba Pneumática - 05
+UBP 06		Unidade de Bomba Pneumática - 06
+UBP 07		Unidade de Bomba Pneumática - 07
+UBP 08		Unidade de Bomba Pneumática - 08
+UBP 09		Unidade de Bomba Pneumática - 09
+UBP 10		Unidade de Bomba Pneumática - 10
+
+UFI		Unidades de Filtragem
+UFI 001		Unidade de Filtragem Absoluta - 01
+UFI 002		Unidade de Filtragem Absoluta - 02
+UFI 003		Unidade de Filtragem Absoluta - 03
+UFI 004		Unidade de Filtragem Absoluta - 04
+UFI 005		Unidade de Filtragem Absoluta - 05
+UFI 006		Unidade de Filtragem Absoluta - 06
+UFI 007		Unidade de Filtragem Absoluta - 07
+UFI 008		Unidade de Filtragem Absoluta - 08
+UFI 009		Unidade de Filtragem Absoluta - 09
+UFI 010		Unidade de Filtragem Absoluta - 10
+UFI 011		Unidade de Filtragem Absoluta - 11
+UFI 012		Unidade de Filtragem Absoluta - 12
+UFI 013		Unidade de Filtragem Absoluta - 13
+UFI 014 	Unidade de Filtragem Absoluta - 14
+UFI 015		Unidade de Filtragem Absoluta - 15
+UFI 016 	Unidade de Filtragem Absoluta - 16
+UFI 017		Unidade de Filtragem Absoluta - 17
+UFI 018		Unidade de Filtragem Absoluta - 18
+UFI 019		Unidade de Filtragem Absoluta - 19
+
+UTO		Unidades de Termovácuo
+UTO 01		Unidade de Termovácuo - 01
+UTO 02		Unidade de Termovácuo - 02
+UTO 03		Unidade de Termovácuo - 03
+UTO 04		Unidade de Termovácuo - 04
+
+UTH		Unidades de Teste Hidrostático
+UTH 01		Unidade de Teste Hidrostático - 01
+UTH 02		Unidade de Teste Hidrostático - 02
+UTH 03  	Unidade de Teste Hidrostático - 03
+UTH 04		Unidade de Teste Hidrostático - 04
+UTH 05		Unidade de Teste Hidrostático - 05
+UTH 06		Unidade de Teste Hidrostático - 06
+UTH 07		Unidade de Teste Hidrostático - 07
+UTH 08		Unidade de Teste Hidrostático - 08
+UTH 09		Unidade de Teste Hidrostático - 09
+
+URO 		UNIDADE DE RUN OUT
+URO 001		Unidade de Run Out - 01
+URO 002		Unidade de Run Out - 02
+URO 003		Unidade de Run Out - 03
+
+UMT		UNIDADE MÓVEL DE TRANSFERÊNCIA
+UMT 001		Unidade Móvel de Transferência - 01
+UMT 002		Unidade Móvel de Transferência - 02
+UMT 003		Unidade Móvel de Transferência - 03
+UMT 004 	Unidade Móvel de Transferência - 04
+
+CMR		Unidade de Compressor
+CMR 001		Compressor 10 pés
+CMR 002		Compressor 10 pés
+CMR 003		Compressor 10 pés
+CMR 004		Compressor 20/200 AP ONIX PRESSURE TRIF
+CMR 005		Compressor 20/200 AP ONIX PRESSURE TRIF
+CMR 006		Compressor ARTESIANO PSV25AP
+CMR 007		Compressor DE AR CSL10BR/100L V BRAVO - SCHULZ
+CMR 008		Compressor DE AR CSL25BR/250L BRAVO
+
+BUP		Bombas de Ultra Pressão
+BUP 001		Bomba de Ultra Pressão
+
+REO		Reservatório
+REO 001		Reservatório de Aço carbono - 7.500 L
+REO 002		Reservatório de Aço carbono - 7.500 L
+REO 003		Reservatório de Aço carbono - 15.000 L
+REO 004		Reservatório de Aço carbono - 15.000 L
+REO 005		Reservatório de Aço carbono - 3.000 L
+REO 006		Reservatório plástico - 2300L
+REO 007		Reservatório Aço Inoxidável - 3000L
+REO 008		Reservatório plástico - 5000L - FORTLEV
+REO 009		Reservatório plástico - 5000L - FORTLEV
+REO 010		Reservatório plástico - 10000L - FORTLEV
+REO 011 	Reservatório de Aço carbono - 15.000 L
+REO 012 	Reservatório plástico - 5000 L
+
+CPL		Contadores de Partículas
+CPL 006		Contador de Partículas - LCM20 Parker
+CPL 007 	Contador de Partículas - LCM20 Parker
+CPL 008 	Contador de Partículas - LCM20 Parker
+CPL 009		Contador de Partículas - LCM20 Parker
+CPL 010 	Contador de Partículas - LCM30 Parker
+CPL 012		Contador de Partículas - LCM30 Parker
+CPL 013		Contador de Partículas - LCM30 Parker
+CPL 014 	Contador de Partículas - LCM30 Parker
+
+VUF		Limpadora de Tubos
+VUF 001		VUF
+
+TRO		Trafo
+TRO 001		Trafo - 25KVA -440V/380V
+TRO 002		Trafo - 100KVA -440V/380V
+TRO 003		Trafo - TRIF.100KVA 380/440V
+TRO 004		Trafo - TRIF.100KVA-380VP/440V
+TRO 005		Trafo - TRIFASICO 50KVA 60HZ 440V/380V
+TRO 006		Trafo - TRIFASICO 250KVA 60HZ 0-380V/0-4
+TRO 007 	Trafo - TRIFASICO 50KVA 60HZ 0-380v/220V
+TRO 008 	Trafo - TRIFASICO 50KVA 60HZ 0-380/0-220
+TRO 009		Trafo - C/ 3 ENTRADAS (TF009)
+TRO 010		Trafo TRIF. 100 KVA 60 HZ 0-480V / 0-380V
+TRO 011		Trafo TRIF. 25 KVA 60 HZ 0-480V / 0-380V
+TRO 012		Trafo Trif. 30 KVA 50/60 HZ
+
+MFE		Malões de Ferramentas
+MFE 001 	Malão de Ferramenta - 3 PORTAS LATERAIS
+MFE 002		Malão de Ferramenta - 3 PORTAS LATERAIS
+MFE 003		Malão de Ferramenta - 3 PORTAS LATERAIS
+MFE 004		Malão de Ferramentas - Tampa abre para cima
+MFE 005		Malão de ferramentas - Preto pequeno
+MFE 006 	Malão de ferramentas - Preto pequeno
+MFE 007		Malão de ferramentas - Preto pequeno
+MFE 008		Malão de ferramentas - Preto pequeno
+MFE 009		Malão de Ferramentas - Tampa abre para cima
+
+CTG		Centrífuga
+CTG 001		CENTRIFUGA MPAX-205
+
+TDL		TERMOMETRO DIGITAL
+TDL 001		Termômetro digital
+TDL 002		Termômetro digital
+TDL 003 	Termômetro digital
+TDL 004 	Termômetro digital
+
+ASP		ASPIRADOR
+ASP 001		Aspirador - GT 2000 1200 W 10 L ELECTROLUX
+ASP 002		Aspirador - GT3000 1300W 20L ELECTROLUX
+ASP 003 	Aspirador - Pó/Água GT3000 1300W 20 L
+ASP 004		Aspirador - Pó/Água 1250W 220V
+ASP 005		Aspirador - Pó/Água 1250W 220V
+ASP 006		Aspirador -  Pó A10 1200W 220V ELECTROLUX
+ASP 007 	Aspirador - Pó VERT 1250W 220V BRITANIA
+ASP 008 	Aspirador de Pó e Água WAP GTW 10 10L
+ASP 009		Aspirador agua/po 1250w 10l 220v
+ASP 010 	Aspirador agua/po 1250w 10l 220v
+ASP 011 	Aspirador de Po e Agua WAP GTW 20 220V
+
+MGA			Mangueiras
+MGA 001		Mangueira limpeza química 2"
+MGA 002		Mangueira limpeza química 1"1/4
+MGA 003		Mangueira limpeza química 6"
+MGA 004		Mangueira limpeza química 2"
+MGA 005		Mangueira limpeza química 1"1/4
+MGA 006		Mangueira de óleo 1" - 90 bar
+MGA 007		Mangueira de óleo 2"
+MGA 008		Mangueira de óleo 1"1/2 - run out
+MGA 009		Mangueira de óleo 3/4"
+MGA 010		Mangueira de óleo 1/2"
+MGA 011		Mangueira de ar/água 1"
+MGA 012		Mangueira de ar/água 3/4"
+MGA 013		Mangueira de ar/água 1/2"
+MGA 014		Mangueira de ar/água 1/4"
+MGA 015		Mangueira de teste de hidrotático 1/2"
+MGA 016		Mangueira de teste de hidrotático 3/8"
+MGA 017		Mangueira de teste de hidrotático 1/4"
+MGA 018		Mangueira bypass limpeza química
+MGA 019		Mangueira bypass óleo
+MGA 020		Mangueira limpeza química 1"1/2  - 10 bar
+MGA 021		Mangueira de ar/água 3/8"
+
+BRO		Boroscópios
+BRO 001		Boroscópio - De MÃO PEQUENO
+BRO 002		Boroscópio - CA-300 RIDGID
+BRO 003		Boroscópio - L100C - 30M RIDGID
+BRO 004		Boroscópio - CA-300 RIDGID
+BRO 005		Boroscópio - RIDGID
+BRO 006		Boroscópio - SEESNAKE MAX SISTEMA DE RA
+BRO 007		Boroscópio - articulavel cabo 5,5 m Photonita
+BRO 008 	Boroscópio
+BRO 009 	Boroscópio
+
+AAO		Analisadores de Água em Óleo
+AAO 001		Analisador de água -  KIT WAKE
+AAO 002 	Analisador de água - PARKER
+AAO 003 	Analisador de água - PARKER
+AAO 004		Analisador de água - PARKER
+AAO 005		Analisador de água - PARKER
+AAO 006		Analisador de água - PARKER
+AAO 007		Analisador de água - PARKER
+
+TBD		Turbidímetro
+TBD 001		Turbidímetro Digital
+
+GER		Geradores
+GER 001		GERADOR 380V
+
+IMP		Impressoras
+IMP 001		Impressora - Jato HP multifuncional Deskjet ADV
+IMP 002		Impressora - Jato HP multifuncional Deskjet ADV
+IMP 003		Impressora - Jato HP imp multif.t DJ IA 2546
+IMP 004		Impressora - Multifuncional HP Deskjet 3546 - Wi-Fi
+IMP 005		Impressora - Multifuncional HP Deskjet 3546
+IMP 006		Impressora - Multifuncional HP Deskjet 3546
+IMP 007		Impressora
+
+RDC		Radios de Comunicação
+RDC 001		Rádio de comunicação - MOTOROLA EP450
+RDC 002		Rádio de comunicação - Baofeng-Walkie Talkie
+RDC 003		Rádio de comunicação
+
+CTA		Centrais de Tratamento de Ar
+CTA  001	Central de tratamento de ar
+
+RSP		Resistências portáteis
+RSP 001		Resistência portátil
+RSP 002		Resistência portátil
+RSP 003		Resistência portátil
+
+PDQ	Produtos Químicos
+AC001		Ácido Cítrico
+AC002		Ácido Fosfórico
+AC003		Ácido Muriátrico
+BS001		Hidróxido de Sódio (Soda)
+BS002		Carbonato de Cálcio (Barrilha)
+SL001		Nitrito de Sódio
+SL002		Tripolifosfato de Sódio
+SL003		Metassilicato de Sódio
+AC004		Banho 302 Avesta
+QM001		Quimipan
+
+LVA		Lavadoras
+LVA 001		Lavadora alta pressão - Ver codido
+LVA 002		Lavadora alta pressão - Torr.2013 220V 60 Hz Lavorwash
+LVA 003		Lavadora alta pressão - HDS 8/17-4M - 380V Easy Force - Karcher
+LVA 004		Lavadora alta pressão - HDS 8/15 Cage New - 380V
+LVA 005		Lavadora Jacto - J7 Pro-S 2,0CV 220V
+LVA 006		Lavadora alta pressão - HDS 8/15 Cage New - 380V
+LVA 007		Lavadora alta pressão - Karcher HD 585 Profi
+LVA 008		Lavadora alta pressão - Karcher HD 585 Profi
+LVA 009		Lavadora alta pressão - Karcher HD 585 Profi
+
+CTO		Contenções
+CTO 001		Contenção - Reservatório de aço carbono - tanque 7.500
+CTO 002		Contenção - Reservatório de aço carbono - tanque 15.000
+CTO 003		Contenção - Plástica
+CTO 004		Contenção - Inox
+CTO 005		Contenção - Inox
+CTO 006		Contenção - 3,40m x 2,55m x 0,40m 3468L - Spill Box
+CTO 007		Contenção - 2,55m x 2,55m x 0,20m 1300L - Spill Box
+CTO 008		Contenção - Sob medida 2,55m x 2,55m x 0,20m 1300L - Spill Box
+CTO 009		Contenção - Sob medida - Spill Box
+CTO 010		Contenção - Sob medida - Spill Box
+CTO 011		Contenção - Para 2 IBC 2,20m x 1,40m - Spill Box
+CTO 012		Contenção - Para 2 IBC 2,20m x 1,40m - Spill Box
+CTO 013		Contenção - Para 2 IBC 2,20m x 1,40m - Spill Box
+CTO 014		Contenção - Para 2 IBC 2,20m x 1,40m - Spill Box
+CTO 015		Contenção - Para 2 IBC 2,20m x 1,40m - Spill Box
+CTO 016		Contenção - Para 2 IBC 2,20m x 1,40m - Spill Box
+CTO 017		Contenção - Para 2 IBC 2,20m x 1,40m - Spill Box
+CTO 018		Contenção - Para 2 IBC 2,20m x 1,40m - Spill Box
+CTO 019		Contenção - De aço 2500 x 2200 x 150
+CTO 020		Contenção - Aço carbono 3mm
+CTO 021		Contenção - 4,60m x 9,00M x 0,40m - capacidade 16.560 L
+CTO 022		Contenção - Flexivel Pead 2,90 x2,90 x 0,40m, 3.364 Litros
+CTO 023		Contenção - Flexivel Pead 2,90 x2,90 x 0,40m, 3.364 Litros
+CTO 024		Contenção - Flexivel Pead 1,40 x 2,15 x 0,15m, 452 Litros
+CTO 025		Contenção - Flexivel Pead - 6,70 x 3,00 x 0,40 m , 8.040 Litros
+CTO 026		Contenção - Flexivel Pead 3,60 x 10,0 x 0,20 m, 7.200 Litros
+CTO 027		CTO 027 - CONTENÇÃO - 1,80M X 1,80M X 0,40M
+CTO 028		CTO 028 - CONTENÇÃO - 3,50M X 2,50M X 0,40M
+CTO 029		CTO 029 - CONTENÇÃO - 1,00M X 0,90M X 0,40M
+CTO 030		CTO 030 - CONTENÇÃO - 1,70M X 1,10M X 0,40M
+CTO 031		CTO 031 - CONTENÇÃO - 4,00M X 2,50M X 0,40M
+CTO 032		CTO 032 - CONTENÇÃO - 1,39M X 0,78M X 0,73M
+CTO 033		CTO 033 - CONTENÇÃO - 1,39M X 0,78M X 0,73M
+
+LNP		Luz negra portátil
+LNP 001		Luz negra portátil
+
+PAM		Paleteiras manuais
+PAM 001		Paleteira manual 3 ton
+PAM 002		Paleteira manual
+PAM 002		Paleteira manual
+
+EXI		Exaustores/insufladores
+EXI 001		Exaustor/insuflador axial 300 mm, 220 V 3.300 RPM
+
+
+PEL		Painéis elétricos
+PEL 001		PAINEL ELETRICO C/ 3 SAIDAS 32A - 380V
+
+KTM		Kits teste por membrana
+KTM 001		Kit de teste por membrana
+
+CFL		CARCAÇA FILTRO
+CFL 001		Carcaça filtro FRT 0500 Parker
+CFL 002		Carcaça filtro FRT 0500 Parker
+CFL 003		Carcaça filtro FRT 0500 Parker
+CFL 004		Carcaça filtro FRT 0500 Parker
+CFL 005		Carcaça filtro FRT 0500 Parker
+CFL 006		Carcaça filtro FRT 0500 Parker
+CFL 007		Carcaça filtro FRT 0500 Parker
+CFL 008		Carcaça FBLB-012H-020N-01-AC-NBR-JP-MA - filtro bag
+CFL 009		Carcaça Filtro - CIBAG 7x32 P (I) - Carcaça de Inox Bag, 7x32, e s/ 2, fechamento parafuso olhal, acabamento polido.
+CFL 010		Carcaça Filtro - CIBAG 7x32 P (I) - Carcaça de Inox Bag, 7x32, e s/ 2, fechamento parafuso olhal, acabamento polido.
+
+IBC	Unidade	Reservatório (IBC) - SKID PLÁSTICO - 1.000 L
+IBC 001		Reservatório Plástico 1000 L - Padrão
+IBC 002		Reservatório Plástico - Aberto
+
+MOD		Manifolds
+MOD 001		Manifold C/12 Ve tri PP1000 WOG1 3/4 C/cav inox
+MOD 002		Manifold C/12 Ve tri PP1000 WOG1 3/4 C/cav inox
+
+CPL 		Contenções Plásticas
+CTP 001		Contenção plástica 600 L
+
+CTR		CONTEINER
+CTR 001	 Conteiner dry 20 pés - sala e almoxarifado
+
+PHM		Phmetro
+PHM 001		Phmetro
+PHM 002		Phmetro
+
+	Equipamentos Não Listados
+ENL		Caixa de ferramentas completa
+ENL		Balde
+ENL		Bandeja
+ENL		Saco de estopa
+ENL		Galão de Passivante
+ENL		Aspirador de pó
+ENL		Pistolas de ar
+ENL		Engate rapido de ar 1/2"
+ENL		Engate rapido "agua c/borracha
+ENL		pote de amostra
+ENL		Fita (tinta de contador)
+ENL		Medidor de PH
+ENL		20 metros de estenção com plug 32
+ENL		Chave combinada 41
+ENL		Chave combinada 36
+ENL		Filtros 18"
+ENL		Filtro 36"
+ENL		Chaves de Grifo de 24"
+ENL		Chaves de Grifo de 18"
+ENL		Chave Inglesa de 24"
+ENL		Mangueiras de BY-Pass 20s
+ENL		Manifoud inox
+ENL		Flanges SAE 1"
+ENL		Extensão 220
+ENL		KIT WEY
+ENL		Filtro bag 20 micra
+ENL		Filtro bag 1 micra
+ENL		Carcaça de filtro bag
+ENL		Ant-chicotamento
+ENL		Manifoud inox
+ENL		20 metro de extenção plug 63
+ENL		Cabo antichicoteamento
+ENL		Balde
+ENL		Bandeja para pequenos vazamentos
+ENL		Chave grifo 14"
+ENL		Chave Inglesa 12"
+ENL		Chave Grifo 18"
+ENL		Chave Inglesa 15"
+ENL		Chave Inglesa 12"
+ENL		Chave Inglesa 18"
+ENL		Chave Inglesa 10"
+ENL		Chave Combinada 41
+ENL		Chave Combinada 36
+ENL		Chave Combinada 32
+ENL		Chave Combinada 30
+ENL		Chave Combinada 24
+ENL		Chave Combinada 22
+ENL		Chave Combinada 20
+ENL		Chave Combinada 10
+ENL		Chave Combinada 10/12
+ENL		Chave Combinada 13
+ENL		Chave Combinada 14
+ENL		Chave Combinada 15
+ENL		Chave Combinada 12
+ENL		Chave Combinada 11
+ENL		Chave Combinada 7
+ENL		Boca Combinada 6/7
+ENL		Boca Combinada 5/8
+ENL		Alicate Pressão
+ENL		Alicate Universal
+ENL		Alicate de Corte
+ENL		Trena
+ENL		Jogo Chave Allen
+ENL		Chave Philips
+ENL		Martelo Bola
+ENL		Marreta
+ENL		Detector de tensão
+ENL		Chave Philips
+ENL		Chave Fenda
+ENL		Alicate de Bico
+ENL		Escova de Aço
+ENL		Pneumatica 1/4" - TAG 0049
+ENL		Jogo Kit Extrator
+ENL		Filtros Cod-009253
+ENL		Lanterna Bastão
+ENL		Adapitador tomada
+ENL		15 metros de extenção 220V
+ENL		Jogo Completo de chave allen 20un
+ENL		Manometros 500 BAR
+ENL		Manometros 10 BAR
+ENL		Manometros 25 BAR
+ENL		Manometros de 600 BAR
+ENL		Lona AZul 4 mx 6m
+ENL		Lona 8mx 4m
+ENL		Lona 5mx4m
+ENL		Lona 5mx4m
+ENL		CINTO DE SEGURANÇA - EPI
+ENL		Flange "1"
+ENL		 A.C 50kg
+ENL		Met 25kg
+ENL		Tri 25kg
+ENL		Soda 50kg
+ENL		Nitrito 25kg
+ENL		Frange de 8"
+ENL		Frange de 6"
+ENL		Flange 3"
+ENL		Flange 2"
+ENL		vape de lavagem
+ENL		Flange 2"
+ENL		Fange 1" 1/2
+ENL		Fange 1" 1/4
+ENL		Filtro Parker
+ENL		Tampão SMS 1" 1/4
+ENL		Contenção - Flexivel Pead 2,90 x2,90 x 0,40m, 3.364 Litros
+ENL		Contenção - Flexivel Pead 1,40 x 2,15 x 0,15m, 452 Litros
+ENL		Contenção - Flexivel Pead - 6,70 x 3,00 x 0,40 m , 8.040 Litros
+ENL		Escada 5 degraus
+ENL		Extensão 380
+ENL		Estiletes
+ENL		Chaves combinada 8
+ENL		Chaves combinada 17
+ENL		Chaves combinada 19
+ENL		Chaves combinada 27
+ENL		Parafusadeira
+ENL		Garrafa 5L
+ENL		Jogo de soquete
+ENL		Desengripante
+ENL		Escada 5 degraus aluminio
+ENL		lichadeira bosch 64ar 603
+ENL		Bacia
+ENL		extencao 220 5 metros
+ENL		chave combinada 20
+ENL		chave combinada 16
+ENL		chave combinada 25
+ENL		cinto DE SEGURANÇA - EPI
+ENL		Balde
+ENL		chave combinada 28
+ENL		chave combinada 25/28
+ENL		chave combinada 13/16
+ENL		chave combinada 18
+ENL		chave combinad 1
+ENL		chave combinada 1 1/4
+ENL		 chave combinada 6
+ENL		chave combinada 45/50
+ENL		cachimbo 8
+ENL		cachimbo 3/8
+ENL		cachimbo 24
+ENL		cachimbo 22
+ENL		Chave grifo 24
+ENL		Filtro MFB 124407
+ENL		caixa de anel oring, milimetros
+ENL		caixa de anel oring, polegadas
+ENL		Pá
+ENL		enchada
+ENL		espatulas
+ENL		vassoura
+ENL		Jogo de caximbo e parafusadeira
+ENL		Barraca Mor 3x3
+ENL		extensao 380v
+ENL		Paleteira manual 03
+ENL		Pedestal isolomento
+ENL		metros de corrente isolamento
+ENL		jogo de chave catraca
+ENL		Parafusadeira Dewalt 20v
+ENL		Anti- chicoteamento
+ENL		flange 2 polegadas
+ENL		flange 8 polegadas
+ENL		flange 10 polegadas
+ENL		flange 6 polegadas
+ENL		ibc cheio com óleo
+ENL		Nipel de '1"
+ENL		Litros de Quimipan
+ENL		Rodo
+ENL		Filtros 36
+ENL		Pistola de hidrojato
+ENL		Bicos hidrojatos
+ENL		Flange '1'
+ENL		Flange '5'
+ENL		Flange '6'
+ENL		Flange '3'
+ENL		Filtros 36
+ENL		Filtro Parker
+ENL		Trafo 011 trifasico 440/380 trafo novo
+ENL		Martelo
+ENL		Caixa 5000L (reservatório)
+ENL		PULVERIZADOR 5L
+ENL		PULVERIZADOR 2L
+ENL		cachimbo 36
+ENL		ponteira catraca 10 alem
+ENL		ponteira catraca 6 alem
+ENL		ponteira catraca 12  alem
+ENL		ponteira catraca 8 alem
+ENL		ponteira catraca 17 alem
+ENL		ponteira catraca 19 alem
+ENL		cadeados
+ENL		adaptador 3/4 / 1 /4
+ENL		trava  parafusos e porcas
+ENL		martelo de borracha
+ENL		adaptador torque
+ENL		par botas de borracha
+
+Conexões de flushing
+Adaptador JIC 2"
+Adaptador JIC 1"1/2
+Adaptador JIC 1"
+Adaptador JIC 3/4"
+Adaptador JIC 1/2"
+União JIC 2"
+União JIC 1"1/2
+União JIC 1"
+União JIC 3/4"
+União JIC 1/2"
+Tee JIC 1"
+Joelho JIC 1" Porca Loca
+Adaptador JIC 1" Fêmea Porca Loca
+Tampão JIC 2"
+Tampão JIC 1"1/2
+Tampão JIC 1"
+
+Conexões Tupy
+	Nipel 2"
+	Nipel 1"1/2
+	Nipel 1"1/4
+	Nipel 1"
+	Nipel 3/4"
+	Nipel 1/2"
+	Nipel 1/4"
+	Luva 2"
+	Luva 1.1/2"
+	Luva 1"1/4
+	Luva 1"
+	Luva 3/4"
+	Luva 1/2"
+	Luva 1/4"
+	Bucha Red. 2" x 1"1/2
+	Bucha Red. 2" x 1"1/4
+	Bucha Red. 2" x 1"
+	Bucha Red. 1"1/2 x 1"1/4
+	Bucha Red. 1"1/2 x 1"
+	Bucha Red. 1"1/2 x 3/4"
+	Bucha Red. 1"1/4 x 1"
+	Bucha Red. 1"1/4 x 3/4"
+	Bucha Red. 1" x 3/4"
+	Bucha Red. 1" x 1/2"
+	Bucha Red. 3/4" x 1/2"
+	Bucha Red. 1/2" x 1/4"
+	Luva Red. 2" x 1"1/2
+	Luva Red. 2" x 1"1/4
+	Luva Red. 2" x 1"
+	Luva Red. 1"1/2 x 1"1/4
+	Luva Red. 1"1/2 x 1"
+	Luva Red. 1"1/2 x 3/4"
+	Luva Red. 1"1/4 x 1"
+	Luva Red. 1"1/4 x 3/4"
+	Luva Red. 1" x 3/4"
+	Luva Red. 1" x 1/2"
+	Luva Red. 3/4" x 1/2"
+	Luva Red. 1/2" x 1/4"
+	Joelho 2"
+	Joelho 1"1/2
+	Joelho 1"1/4
+	Joelho 1"
+	Joelho 3/4"
+	Joelho 1/2"
+	Tee 2"
+	Tee 1"1/2"
+	Tee 1"1/4
+	Tee 1"
+	Tee 3/4"
+	Tee 1/2"
+	Nipel Red. 2" x 1"1/2
+	Nipel Red. 2" x 1"1/4
+	Nipel Red. 2" x 1"
+	Nipel  Red. 1"1/2 x 1"1/4
+	Nipel  Red. 1"1/2 x 1"
+	Nipel  Red. 1"1/2 x 3/4"
+	Nipel  Red. 1"1/4 x 1"
+	Nipel  Red. 1"1/4 x 3/4"
+	Nipel  Red. 1" x 3/4"
+	Nipel  Red. 1" x 1/2"
+	Nipel  Red. 3/4" x 1/2"
+	Nipel  Red. 1/2" x 1/4"
+	Bujões
+	Tampões
+	Nipel 3/4
+	Nipel 1/2
+
+Conexões - Limpeza química
+	Adaptador SMS 2"
+	Adaptador SMS 1"1/4
+	União SMS 2"
+	União SMS 1"1/2
+	Tee SMS 1"1/4
+
+Vávulas
+	Válvula 2"
+	Válvula 1"1/2
+	Válvula 1"1/4
+	Válvula 1"
+	Válvula 3/4"
+	Válvula 1/2"
+	Válvula 3/8"
+	Válvula 1/4"
+
+
+Conexões DKO
+	Adaptador 42L x 1"1/2
+	Adaptador 42L x 1"1/4
+	Adaptador 42L x 1"
+	Adaptador 38S x 1"1/2
+	Adaptador 38S x 1"1/4
+	Adaptador 38S x 1"
+	Adaptador 35L x 1"
+	Adaptador 35L x 3/4"
+	Adaptador 30S x 1"
+	Adaptador 30S x 3/4"
+	Adaptador 30S x 1/2"
+	Adaptador 28L x 1"
+	Adaptador 28L x 3/4"
+	Adaptador 28L x 1/2"
+	Adaptador 25S x 1"
+	Adaptador 25S x 3/4"
+	Adaptador 25S x 1/2"
+	Adaptador 25L x 1"
+	Adaptador 25L x 3/4"
+	Adaptador 25L x 1/2"
+	Adaptador 22L x 1"
+	Adaptador 22L x 3/4"
+	Adaptador 22L x 1/2"
+	Adaptador 20S x 1"
+	Adaptador 20S x 3/4"
+	Adaptador 20S x 1/2"
+	Adaptador 18L x 1"
+	Adaptador 18L x 3/4"
+	Adaptador 18L x 1/2"
+	Adaptador 16S x 1"
+	Adaptador 16S x 3/4"
+	Adaptador 16S x 1/2"
+	Adaptador 15L x 1"
+	Adaptador 14S x 1"
+	Adaptador 12S x 3/4"
+	Adaptador 12S x 1/2"
+	Adaptador 12L x 3/4"
+	Adaptador 12L x 1/2"
+	Adaptador 10S x 3/4"
+	Adaptador 10S x 1/2"
+	Adaptador 10L x 3/4"
+	Adaptador 10L x 1/2"
+	Adaptador 8S x 1/2"
+	Adaptador 8S x 1/4"
+	Adaptador 8L x 1/2"
+	Adaptador 8L x 1/4"
+	União DKO 42L 35L 28L 22L 18L 15L 12L 10L 8L
+	União DKO 38S 30S 25S 20S 16S 14S 12S 10S 8S

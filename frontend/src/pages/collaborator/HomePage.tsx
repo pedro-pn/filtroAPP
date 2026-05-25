@@ -1,6 +1,7 @@
 ﻿import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
+import { rdoPath } from '../../auth/rolePath';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useReports } from '../../hooks/useReports';
 import { Shell } from '../../layout/Shell';
@@ -87,7 +88,7 @@ export function HomePage() {
 
   function handleNewReport() {
     reset();
-    navigate('/relatorio/novo');
+    navigate(rdoPath('/relatorio/novo'));
   }
 
   function handleResumeDraft(draft: ReportDraft) {
@@ -95,7 +96,7 @@ export function HomePage() {
 
     hydrate({
       draftId: draft.id,
-      serviceOnly: false,
+      serviceOnly: asBoolean(payload.serviceOnly),
       projectId: asString(payload.projectId, draft.projectId || '') || null,
       reportDate: asString(payload.reportDate, draft.reportDate || ''),
       arrivalTime: asString(payload.arrivalTime),
@@ -116,7 +117,7 @@ export function HomePage() {
       services: asServices(payload.services)
     });
 
-    navigate('/relatorio/novo');
+    navigate(rdoPath('/relatorio/novo'));
   }
 
   return (
@@ -154,12 +155,12 @@ export function HomePage() {
               <span className="home-action-subtitle">{TEXT.createRdo}</span>
             </div>
           </button>
-          <button className="home-action-card" type="button" onClick={() => navigate('/meus-relatorios')}>
+          <button className="home-action-card" type="button" onClick={() => navigate(rdoPath('/meus-relatorios'))}>
             <div className="home-action-icon">📁</div>
             <div className="home-action-title">{TEXT.myReports}</div>
             <div className="home-action-subtitle">{TEXT.historyByProject}</div>
           </button>
-          <button className="home-action-card" type="button" onClick={() => navigate('/andamento')} disabled={!ongoingServices.length}>
+          <button className="home-action-card" type="button" onClick={() => navigate(rdoPath('/andamento'))} disabled={!ongoingServices.length}>
             <div className="home-action-icon">⏳</div>
             <div className="home-action-title">{TEXT.inProgress}</div>
             <div className="home-action-subtitle">{ongoingServices.length} serviço(s) ativos</div>
@@ -167,7 +168,7 @@ export function HomePage() {
         </section>
 
         <section className="page-card compact-link-card">
-          <button className="secondary-button" type="button" onClick={() => navigate('/meus-relatorios/arquivados')}>
+          <button className="secondary-button" type="button" onClick={() => navigate(rdoPath('/meus-relatorios/arquivados'))}>
             {TEXT.archived} — {TEXT.archivedSubtitle}
           </button>
         </section>

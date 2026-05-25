@@ -1,16 +1,25 @@
 import { Router } from 'express';
-import { UserRole } from '@prisma/client';
+import { AccountType, UserRole } from '@prisma/client';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
 import { createPasswordResetToken, publicUser } from '../../lib/auth.js';
 import { missingClientAccessResetConfig, sendClientAccessResetEmail } from '../../lib/client-access-reset.js';
+import { normalizeCnpj } from '../../lib/cnpj.js';
 import { buildInternalUserWelcomeEmailTemplate, buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
+import {
+  accountTypeForLegacyRole,
+  defaultPublicModuleRolesForLegacyRole,
+  moduleRoleRows,
+  normalizePublicModuleRoles,
+  prismaModuleRole,
+  serializeModuleRoles
+} from '../../lib/module-roles.js';
 import { hashPassword } from '../../lib/password.js';
 import prisma from '../../lib/prisma.js';
-import { requireAuth, requireManager } from '../../middleware/auth.js';
+import { requireAuth, requireHubAdmin } from '../../middleware/auth.js';
 
 const router = Router();
 const INTERNAL_ACCOUNT_ROLES = new Set([UserRole.MANAGER, UserRole.COLLABORATOR, UserRole.COORDINATOR]);
@@ -26,9 +35,164 @@ const schema = z.object({
   email: z.union([z.string().trim().email(), z.literal(''), z.null()]).optional(),
   password: z.string().min(6).optional(),
   role: z.nativeEnum(UserRole),
-  isActive: z.boolean().default(true),
+  accountType: z.nativeEnum(AccountType).optional(),
+  moduleRoles: z.array(z.string()).optional(),
+  isActive: z.boolean().optional(),
   collaboratorId: z.string().nullable().optional()
 });
+
+function clientCnpjForAccount(username, accountType) {
+  if (accountType !== AccountType.CLIENT) return null;
+  const cnpj = normalizeCnpj(username);
+  return cnpj.length === 14 ? cnpj : null;
+}
+
+const ACCOUNT_MODULE_ROLE_COMPATIBILITY = {
+  [AccountType.ADMIN]: new Set([
+    'rdo:manager',
+    'romaneio:manager',
+    'romaneio:operator',
+    'epi:technician',
+    'epi:collaborator',
+    'privacy:admin'
+  ]),
+  [AccountType.INTERNAL]: new Set([
+    'rdo:coordinator',
+    'rdo:collaborator',
+    'romaneio:manager',
+    'romaneio:operator',
+    'epi:technician',
+    'epi:collaborator',
+    'privacy:admin'
+  ]),
+  [AccountType.CLIENT]: new Set(['rdo:client'])
+};
+
+function assertRoleAccountCompatibility(accountType, role, moduleRoles) {
+  if (accountType === AccountType.ADMIN && role !== UserRole.MANAGER) {
+    const error = new Error('Contas ADMIN devem usar role legado MANAGER.');
+    error.status = 400;
+    throw error;
+  }
+  if (accountType === AccountType.INTERNAL && (role === UserRole.MANAGER || role === UserRole.CLIENT)) {
+    const error = new Error('Contas INTERNAL não podem usar role legado MANAGER ou CLIENT.');
+    error.status = 400;
+    throw error;
+  }
+  if (accountType === AccountType.CLIENT && role !== UserRole.CLIENT) {
+    const error = new Error('Contas CLIENT devem usar role legado CLIENT.');
+    error.status = 400;
+    throw error;
+  }
+
+  const allowedRoles = ACCOUNT_MODULE_ROLE_COMPATIBILITY[accountType] || new Set();
+  const incompatibleRole = moduleRoles.find(moduleRole => !allowedRoles.has(moduleRole));
+  if (incompatibleRole) {
+    const error = new Error(`Role de módulo ${incompatibleRole} incompatível com conta ${accountType}.`);
+    error.status = 400;
+    throw error;
+  }
+
+  if (accountType === AccountType.INTERNAL) {
+    if (moduleRoles.includes('rdo:coordinator') && role !== UserRole.COORDINATOR) {
+      const error = new Error('Role de módulo rdo:coordinator exige role legado COORDINATOR.');
+      error.status = 400;
+      throw error;
+    }
+    if (moduleRoles.includes('rdo:collaborator') && role !== UserRole.COLLABORATOR) {
+      const error = new Error('Role de módulo rdo:collaborator exige role legado COLLABORATOR.');
+      error.status = 400;
+      throw error;
+    }
+  }
+}
+
+function defaultModuleRolesForAccount(accountType, role) {
+  if (accountType === AccountType.CLIENT) return ['rdo:client'];
+  if (accountType === AccountType.ADMIN) return ['rdo:manager'];
+  return defaultPublicModuleRolesForLegacyRole(role);
+}
+
+function accountShapeChanged(data, existingUser) {
+  if (!existingUser) return false;
+  return (data.role !== undefined && data.role !== existingUser.role)
+    || (data.accountType !== undefined && data.accountType !== existingUser.accountType);
+}
+
+export function resolveAccountPayload(data, existingUser = null) {
+  if (data.accountType === AccountType.ADMIN && data.role !== undefined && data.role !== UserRole.MANAGER) {
+    const error = new Error('Contas ADMIN devem usar role legado MANAGER.');
+    error.status = 400;
+    throw error;
+  }
+  if (data.accountType === AccountType.INTERNAL && (data.role === UserRole.MANAGER || data.role === UserRole.CLIENT)) {
+    const error = new Error('Contas INTERNAL não podem usar role legado MANAGER ou CLIENT.');
+    error.status = 400;
+    throw error;
+  }
+  if (data.accountType === AccountType.CLIENT && data.role !== undefined && data.role !== UserRole.CLIENT) {
+    const error = new Error('Contas CLIENT devem usar role legado CLIENT.');
+    error.status = 400;
+    throw error;
+  }
+
+  const targetAccountType = data.accountType
+    || (data.role ? accountTypeForLegacyRole(data.role) : existingUser?.accountType)
+    || accountTypeForLegacyRole(existingUser?.role);
+  let role = data.role || existingUser?.role || UserRole.COLLABORATOR;
+  let collaboratorId = data.collaboratorId !== undefined ? data.collaboratorId : existingUser?.collaboratorId || null;
+
+  if (targetAccountType === AccountType.CLIENT) {
+    role = UserRole.CLIENT;
+    collaboratorId = null;
+  } else if (targetAccountType === AccountType.ADMIN) {
+    role = UserRole.MANAGER;
+  } else if (role === UserRole.CLIENT) {
+    role = UserRole.COLLABORATOR;
+  }
+
+  let requestedModuleRoles = null;
+  if (data.moduleRoles !== undefined) {
+    const invalidRole = data.moduleRoles.find(roleCode => !prismaModuleRole(roleCode));
+    if (invalidRole) {
+      const error = new Error(`Role de módulo inválida: ${invalidRole}`);
+      error.status = 400;
+      throw error;
+    }
+    requestedModuleRoles = normalizePublicModuleRoles(data.moduleRoles);
+  }
+  const moduleRoles = requestedModuleRoles
+    || (existingUser && !accountShapeChanged(data, existingUser) && Object.prototype.hasOwnProperty.call(existingUser, 'moduleRoles')
+      ? serializeModuleRoles(existingUser)
+      : defaultModuleRolesForAccount(targetAccountType, role));
+
+  if (!moduleRoles.length) {
+    const error = new Error('A conta deve possuir ao menos uma role de módulo.');
+    error.status = 400;
+    throw error;
+  }
+
+  if (targetAccountType === AccountType.CLIENT && (moduleRoles.length !== 1 || moduleRoles[0] !== 'rdo:client')) {
+    const error = new Error('Contas CLIENT só podem receber a role rdo:client.');
+    error.status = 400;
+    throw error;
+  }
+
+  if (existingUser?.accountType === AccountType.CLIENT && targetAccountType === AccountType.ADMIN) {
+    const error = new Error('Não é permitido transformar uma conta CLIENT diretamente em ADMIN.');
+    error.status = 400;
+    throw error;
+  }
+
+  assertRoleAccountCompatibility(targetAccountType, role, moduleRoles);
+
+  return {
+    accountType: targetAccountType,
+    role,
+    collaboratorId,
+    moduleRoles
+  };
+}
 
 function queueInternalAccountMail(message, meta) {
   const missingMailerConfig = getMissingMailerConfig();
@@ -50,7 +214,7 @@ function queueInternalAccountMail(message, meta) {
   });
 }
 
-router.use(requireAuth, requireManager);
+router.use(requireAuth, requireHubAdmin);
 
 router.get('/', asyncHandler(async (req, res) => {
   const group = String(req.query.group || '').trim().toLowerCase();
@@ -63,19 +227,24 @@ router.get('/', asyncHandler(async (req, res) => {
 
   const users = await prisma.user.findMany({
     where,
-    include: { collaborator: true },
+    include: { collaborator: true, moduleRoles: true },
     orderBy: [{ role: 'asc' }, { name: 'asc' }]
   });
 
   const clientUsers = users.filter(user => user.role === UserRole.CLIENT);
 
-  const cnpjUsernames = clientUsers.map(u => u.username).filter(u => /^\d{14}$/.test(u));
+  const cnpjUsernames = clientUsers
+    .flatMap(u => [u.username, u.clientCnpj])
+    .filter(Boolean)
+    .map(value => String(value).replace(/\D/g, ''))
+    .filter(value => /^\d{14}$/.test(value));
   const ccEmails = clientUsers.map(u => u.email).filter(Boolean).map(e => e.toLowerCase());
 
   const linkedProjects = clientUsers.length
     ? await prisma.project.findMany({
         where: {
           managerOnly: false,
+          deletedAt: null,
           OR: [
             ...(cnpjUsernames.length ? [{ clientCnpj: { in: cnpjUsernames } }] : []),
             ...(ccEmails.length ? [{ clientEmailCc: { hasSome: ccEmails } }] : [])
@@ -95,16 +264,17 @@ router.get('/', asyncHandler(async (req, res) => {
 
   res.json(users.map(user => {
     const isCnpj = /^\d{14}$/.test(user.username);
+    const storedClientCnpj = String(user.clientCnpj || '').replace(/\D/g, '') || null;
     const userEmail = String(user.email || '').toLowerCase();
     const projects = linkedProjects.filter(p => {
-      if (isCnpj && p.clientCnpj === user.username) return true;
+      if ((isCnpj && p.clientCnpj === user.username) || (storedClientCnpj && p.clientCnpj === storedClientCnpj)) return true;
       if (!isCnpj && userEmail && Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail)) return true;
       return false;
     });
     return {
       ...publicUser(user),
       linkedProjects: projects,
-      clientCnpj: isCnpj ? user.username : (linkedProjects.find(p => Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail))?.clientCnpj || null)
+      clientCnpj: storedClientCnpj || (isCnpj ? user.username : (linkedProjects.find(p => Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail))?.clientCnpj || null))
     };
   }));
 }));
@@ -115,18 +285,25 @@ router.post('/', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Senha obrigatória para novo usuário.' });
   }
 
+  const accountPayload = resolveAccountPayload(data);
   const passwordHash = await hashPassword(data.password);
   const user = await prisma.user.create({
     data: {
       username: data.username,
       name: data.name,
       email: data.email || null,
+      emailVerifiedAt: data.email ? new Date() : null,
       passwordHash,
-      role: data.role,
-      isActive: data.isActive,
-      collaboratorId: data.collaboratorId || null
+      role: accountPayload.role,
+      accountType: accountPayload.accountType,
+      clientCnpj: clientCnpjForAccount(data.username, accountPayload.accountType),
+      isActive: data.isActive ?? true,
+      collaboratorId: accountPayload.collaboratorId || null,
+      moduleRoles: {
+        create: moduleRoleRows('', accountPayload.moduleRoles).map(({ module, role }) => ({ module, role }))
+      }
     },
-    include: { collaborator: true }
+    include: { collaborator: true, moduleRoles: true }
   });
 
   if (user.email && INTERNAL_ACCOUNT_ROLES.has(user.role)) {
@@ -152,20 +329,38 @@ router.post('/', asyncHandler(async (req, res) => {
 
 router.put('/:id', asyncHandler(async (req, res) => {
   const data = schema.partial().parse(req.body);
+  const currentUser = await prisma.user.findUniqueOrThrow({
+    where: { id: req.params.id },
+    include: { moduleRoles: true }
+  });
+  const accountPayload = resolveAccountPayload(data, currentUser);
   const payload = {
     ...(data.username !== undefined ? { username: data.username } : {}),
     ...(data.name !== undefined ? { name: data.name } : {}),
-    ...(data.email !== undefined ? { email: data.email || null } : {}),
-    ...(data.role !== undefined ? { role: data.role } : {}),
+    ...(data.email !== undefined ? {
+      email: data.email || null,
+      emailVerifiedAt: data.email ? new Date() : null
+    } : {}),
+    role: accountPayload.role,
+    accountType: accountPayload.accountType,
+    clientCnpj: clientCnpjForAccount(data.username !== undefined ? data.username : currentUser.username, accountPayload.accountType),
     ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
-    ...(data.collaboratorId !== undefined ? { collaboratorId: data.collaboratorId || null } : {}),
-    ...(data.password ? { passwordHash: await hashPassword(data.password) } : {})
+    collaboratorId: accountPayload.collaboratorId || null,
+    ...(data.password ? { passwordHash: await hashPassword(data.password) } : {}),
+    ...(data.moduleRoles !== undefined || accountShapeChanged(data, currentUser)
+      ? {
+          moduleRoles: {
+            deleteMany: {},
+            create: moduleRoleRows(req.params.id, accountPayload.moduleRoles).map(({ module, role }) => ({ module, role }))
+          }
+        }
+      : {})
   };
 
   const user = await prisma.user.update({
     where: { id: req.params.id },
     data: payload,
-    include: { collaborator: true }
+    include: { collaborator: true, moduleRoles: true }
   });
 
   res.json(publicUser(user));

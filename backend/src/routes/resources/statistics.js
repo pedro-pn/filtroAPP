@@ -2,9 +2,10 @@ import { Router } from 'express';
 
 import asyncHandler from '../../lib/async-handler.js';
 import prisma from '../../lib/prisma.js';
-import { requireAuth } from '../../middleware/auth.js';
+import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
+const requireRdoStats = requireModuleRole('rdo:manager', 'rdo:coordinator');
 const MAX_YEARS = 2;
 const MAX_STATS_REPORTS = 5000;
 const MAX_DAILY_REPORTS = 500;
@@ -453,11 +454,21 @@ export function buildServiceExportRows(report, project) {
 export function statsProjectWhere(extra = {}) {
   return {
     managerOnly: false,
+    deletedAt: null,
     ...extra
   };
 }
 
-router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
+export function statsReportWhere(extra = {}) {
+  const { project, ...rest } = extra;
+  return {
+    deletedAt: null,
+    project: statsProjectWhere(project),
+    ...rest
+  };
+}
+
+router.get('/projects', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
   const role = req.auth.user.role;
   if (role !== 'MANAGER' && role !== 'COORDINATOR') {
     return res.status(403).json({ error: 'Acesso restrito a gestor e coordenador.' });
@@ -519,13 +530,12 @@ router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
   }
 
   const projectIds = projects.map(p => p.id);
-  const reportWhere = {
+  const reportWhere = statsReportWhere({
     reportType: 'RDO',
     status: { in: ['APPROVED', 'SIGNED'] },
     reportDate: { gte: fromDate, lte: toDate },
-    projectId: { in: projectIds },
-    project: statsProjectWhere()
-  };
+    projectId: { in: projectIds }
+  });
   const reportCount = await prisma.report.count({ where: reportWhere });
   if (reportCount > MAX_STATS_REPORTS) {
     return res.status(413).json({ error: reportLimitError(MAX_STATS_REPORTS) });
@@ -631,7 +641,7 @@ router.get('/projects', requireAuth, asyncHandler(async (req, res) => {
 
 // ─── CSV Export ───────────────────────────────────────────────────────────────
 
-router.get('/projects/export', requireAuth, asyncHandler(async (req, res) => {
+router.get('/projects/export', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
   const role = req.auth.user.role;
   if (role !== 'MANAGER' && role !== 'COORDINATOR') {
     return res.status(403).json({ error: 'Acesso restrito a gestor e coordenador.' });
@@ -674,13 +684,12 @@ router.get('/projects/export', requireAuth, asyncHandler(async (req, res) => {
     select: { id: true, code: true, name: true, clientName: true, clientSegment: true }
   });
 
-  const reportWhere = {
+  const reportWhere = statsReportWhere({
     reportType: 'RDO',
     status: { in: ['APPROVED', 'SIGNED'] },
     reportDate: { gte: fromDate, lte: toDate },
-    projectId: { in: projects.map(p => p.id) },
-    project: statsProjectWhere()
-  };
+    projectId: { in: projects.map(p => p.id) }
+  });
 
   const reportCount = projects.length === 0 ? 0 : await prisma.report.count({ where: reportWhere });
   if (reportCount > MAX_STATS_REPORTS) {
@@ -765,7 +774,7 @@ router.get('/projects/export', requireAuth, asyncHandler(async (req, res) => {
 
 // ─── Overview (mini dashboard) ───────────────────────────────────────────────
 
-router.get('/overview', requireAuth, asyncHandler(async (req, res) => {
+router.get('/overview', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
   const role = req.auth.user.role;
   if (role !== 'MANAGER' && role !== 'COORDINATOR') {
     return res.status(403).json({ error: 'Acesso restrito a gestor e coordenador.' });
@@ -776,10 +785,10 @@ router.get('/overview', requireAuth, asyncHandler(async (req, res) => {
   const [reportGroups, projects] = await Promise.all([
     prisma.report.groupBy({
       by: ['projectId', 'reportType'],
-      where: {
+      where: statsReportWhere({
         project: baseWhere,
         status: { in: ['APPROVED', 'SIGNED'] }
-      },
+      }),
       _count: { id: true }
     }),
     prisma.project.findMany({

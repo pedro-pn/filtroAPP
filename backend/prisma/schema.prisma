@@ -7,15 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UnitCategory {
-  FILTRAGEM
-  FLUSHING
-  LIMPEZA_QUIMICA
-  DESIDRATACAO
-  UTH
-  OUTRA
-}
-
 enum ReportType {
   RDO
   RTP
@@ -38,11 +29,113 @@ enum ClientReviewAction {
   REJECTED
 }
 
+enum ReportVersionStatus {
+  DRAFT
+  ACTIVE
+  SUPERSEDED
+  REJECTED
+}
+
+enum ReportSignerRole {
+  COLLABORATOR
+  MANAGER
+  CLIENT
+}
+
+enum ReportSignatureType {
+  ELECTRONIC
+  DIGITAL_A1
+}
+
+enum ReportSignatureStatus {
+  PENDING
+  SIGNED
+  REJECTED
+  INVALIDATED
+  EXPIRED
+}
+
+enum ReportAuditAction {
+  SIGNATURE_ROUND_CREATED
+  SIGNED
+  REJECTED
+  SIGNATURES_INVALIDATED
+  VERSION_CREATED
+  TOKEN_ACCESSED
+  TOKEN_EXPIRED
+  REPORT_LOCKED
+}
+
 enum UserRole {
   COLLABORATOR
   MANAGER
   COORDINATOR
   CLIENT
+}
+
+enum AccountType {
+  ADMIN
+  INTERNAL
+  CLIENT
+}
+
+enum AppModule {
+  RDO
+  ROMANEIO
+  EPI
+  PRIVACY
+}
+
+enum ModuleRoleCode {
+  RDO_MANAGER
+  RDO_COORDINATOR
+  RDO_COLLABORATOR
+  RDO_CLIENT
+  ROMANEIO_MANAGER
+  ROMANEIO_OPERATOR
+  EPI_TECHNICIAN
+  EPI_COLLABORATOR
+  PRIVACY_ADMIN
+}
+
+enum RomaneioItemKind {
+  EQUIPMENT
+  CONNECTION
+}
+
+enum RomaneioMeasureType {
+  UNIT
+  LENGTH
+  WEIGHT
+}
+
+enum RomaneioCatalogSource {
+  FILE
+  MANUAL
+  UNIT
+  PARTICLE_COUNTER
+}
+
+enum DataSubjectRequestType {
+  CONFIRMATION
+  ACCESS
+  CORRECTION
+  ANONYMIZATION
+  BLOCKING
+  DELETION
+  PORTABILITY
+  SHARING_INFO
+  CONSENT_REVOCATION
+  OPPOSITION
+  OTHER
+}
+
+enum DataSubjectRequestStatus {
+  OPEN
+  IN_REVIEW
+  COMPLETED
+  REJECTED
+  CANCELLED
 }
 
 model Collaborator {
@@ -51,13 +144,35 @@ model Collaborator {
   name             String
   role             String
   email            String?
+  cpf              String?
+  registrationNumber String?
+  admissionDate    DateTime?
   signatureImage   String?
+  signatureNoticeAcceptedAt DateTime?
+  signatureNoticeVersion String?
   isActive         Boolean   @default(true)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   projectsLed      Project[] @relation("ProjectOperator")
   reportLinks      ReportCollaborator[]
   user             User?
+  epiRecords       EpiRecord[]
+  epiSignatureRequests EpiSignatureRequest[]
+  signatureNoticeLogs CollaboratorSignatureNoticeLog[]
+}
+
+model CollaboratorSignatureNoticeLog {
+  id             String       @id @default(cuid())
+  collaboratorId String
+  userId         String?
+  noticeVersion  String
+  createdAt      DateTime     @default(now())
+  collaborator   Collaborator @relation(fields: [collaboratorId], references: [id], onDelete: Cascade)
+  user           User?        @relation("CollaboratorSignatureNoticeUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([collaboratorId])
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model ClientSegment {
@@ -92,11 +207,15 @@ model Project {
   clientSegment         String?
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
+  deletedAt             DateTime?
   operator              Collaborator?     @relation("ProjectOperator", fields: [operatorId], references: [id], onDelete: SetNull)
   reportSequences       ProjectReportSeq[]
   reports               Report[]
   drafts                ReportDraft[]
   surveys               SatisfactionSurvey[]
+  romaneios             Romaneio[]
+
+  @@index([deletedAt])
 }
 
 model ProjectReportSeq {
@@ -141,13 +260,17 @@ model Report {
   zapsignDocUrl   String?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
-  project         Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deletedAt       DateTime?
+  project         Project              @relation(fields: [projectId], references: [id], onDelete: Restrict)
   createdBy       User?                @relation("ReportCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   reviewedBy      User?                @relation("ReportReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
   collaborators   ReportCollaborator[]
   services        ReportService[]
   attachments     ReportAttachment[]
   clientReviews   ClientReportReview[]
+  versions        ReportVersion[]
+  reportSignatures ReportSignature[]
+  auditLogs       ReportAuditLog[]
 
   @@unique([projectId, reportType, sequenceNumber])
   @@index([projectId])
@@ -159,6 +282,7 @@ model Report {
   @@index([zapsignDocToken])
   @@index([reportType, status, reportDate])
   @@index([projectId, reportType, status, reportDate])
+  @@index([deletedAt])
 }
 
 model ClientReportReview {
@@ -172,6 +296,86 @@ model ClientReportReview {
   createdAt    DateTime           @default(now())
   report       Report             @relation(fields: [reportId], references: [id], onDelete: Cascade)
   clientUser   User               @relation("ClientReportReviewer", fields: [clientUserId], references: [id], onDelete: Cascade)
+}
+
+model ReportVersion {
+  id                 String              @id @default(cuid())
+  reportId           String
+  versionNumber      Int
+  sourcePdfUrl       String
+  finalPdfUrl        String?
+  sourceDocumentHash String
+  finalDocumentHash  String?
+  validationCode     String?             @unique
+  status             ReportVersionStatus @default(ACTIVE)
+  createdByUserId    String?
+  createdAt          DateTime            @default(now())
+  report             Report              @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  createdBy          User?               @relation("ReportVersionCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  signatures         ReportSignature[]
+  auditLogs          ReportAuditLog[]
+
+  @@unique([reportId, versionNumber])
+  @@index([reportId])
+  @@index([reportId, status])
+}
+
+model ReportSignature {
+  id                 String                @id @default(cuid())
+  reportId           String
+  versionId          String
+  userId             String?
+  signerName         String
+  declaredSignerName String?
+  signerEmail        String
+  signerRole         ReportSignerRole
+  signatureType      ReportSignatureType   @default(ELECTRONIC)
+  status             ReportSignatureStatus @default(PENDING)
+  isRequired         Boolean               @default(true)
+  ipAddress          String?
+  userAgent          String?
+  signatureImageDataUrl String?
+  privacyNoticeAcceptedAt DateTime?
+  privacyNoticeVersion String?
+  sourceDocumentHash String
+  finalDocumentHash  String?
+  signedAt           DateTime?
+  rejectedAt         DateTime?
+  rejectionReason    String?
+  invalidatedAt      DateTime?
+  tokenHash          String?               @unique
+  tokenExpiresAt     DateTime?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  report             Report                @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  version            ReportVersion         @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  user               User?                 @relation("ReportSignatureUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([versionId, signerEmail])
+  @@index([reportId])
+  @@index([versionId])
+  @@index([status])
+}
+
+model ReportAuditLog {
+  id        String            @id @default(cuid())
+  reportId  String
+  versionId String?
+  userId    String?
+  action    ReportAuditAction
+  description String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime          @default(now())
+  report    Report            @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  version   ReportVersion?    @relation(fields: [versionId], references: [id], onDelete: SetNull)
+  user      User?             @relation("ReportAuditLogUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([reportId])
+  @@index([versionId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
 }
 
 model ReportCollaborator {
@@ -215,7 +419,7 @@ model Equipment {
 model Unit {
   id         String       @id @default(cuid())
   code       String       @unique
-  category   UnitCategory
+  category   String
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 }
@@ -248,20 +452,235 @@ model User {
   username        String        @unique
   name            String
   email           String?
+  emailVerifiedAt DateTime?
   passwordHash    String
   role            UserRole
+  accountType     AccountType   @default(INTERNAL)
   isActive        Boolean       @default(true)
+  clientCnpj      String?
+  privacyPolicyAcceptedAt DateTime?
+  privacyPolicyVersion String?
   collaboratorId  String?       @unique
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   collaborator    Collaborator? @relation(fields: [collaboratorId], references: [id], onDelete: SetNull)
+  moduleRoles     ModuleRole[]
   sessions        UserSession[]
   passwordResetTokens PasswordResetToken[]
   drafts          ReportDraft[]
   createdReports  Report[]      @relation("ReportCreator")
   reviewedReports Report[]      @relation("ReportReviewer")
   clientReportReviews ClientReportReview[] @relation("ClientReportReviewer")
+  reportVersions  ReportVersion[] @relation("ReportVersionCreator")
+  reportSignatures ReportSignature[] @relation("ReportSignatureUser")
+  reportAuditLogs ReportAuditLog[] @relation("ReportAuditLogUser")
+  collaboratorSignatureNoticeLogs CollaboratorSignatureNoticeLog[] @relation("CollaboratorSignatureNoticeUser")
   sentSurveys     SatisfactionSurvey[]
+  createdRomaneios Romaneio[] @relation("RomaneioCreator")
+  createdEpiRecords EpiRecord[] @relation("EpiRecordCreator")
+  epiSignatureRequests EpiSignatureRequest[] @relation("EpiSignatureRequester")
+  dataSubjectRequests DataSubjectRequest[] @relation("DataSubjectRequestUser")
+  completedDataSubjectRequests DataSubjectRequest[] @relation("DataSubjectRequestCompletedByUser")
+  identityVerifiedDataSubjectRequests DataSubjectRequest[] @relation("DataSubjectRequestIdentityVerifiedByUser")
+  dataSubjectResponseAttempts DataSubjectRequestResponseAttempt[] @relation("DataSubjectRequestResponseAttemptUser")
+
+  @@index([clientCnpj])
+}
+
+model EpiCatalogItem {
+  id        String   @id @default(cuid())
+  name      String
+  ca        String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  records   EpiRecord[]
+
+  @@unique([name, ca])
+  @@index([isActive])
+  @@index([name])
+}
+
+model EpiRecord {
+  id                 String   @id @default(cuid())
+  collaboratorId     String
+  catalogItemId      String?
+  epiName            String
+  ca                 String
+  quantity           Int      @default(1)
+  lendDate           DateTime
+  devolutionDate     DateTime?
+  signatureRequestId String?
+  signatureImageDataUrl String?
+  signatureSignerName String?
+  signedAt           DateTime?
+  pendingReturn      Boolean  @default(false)
+  returnSourceRecordId String?
+  archivedAt         DateTime?
+  createdByUserId    String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  collaborator       Collaborator @relation(fields: [collaboratorId], references: [id], onDelete: Restrict)
+  catalogItem        EpiCatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+  signatureRequest   EpiSignatureRequest? @relation(fields: [signatureRequestId], references: [id], onDelete: SetNull)
+  createdBy          User? @relation("EpiRecordCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([collaboratorId])
+  @@index([catalogItemId])
+  @@index([signatureRequestId])
+  @@index([signedAt])
+  @@index([pendingReturn])
+  @@index([returnSourceRecordId])
+  @@index([archivedAt])
+}
+
+model EpiSignatureRequest {
+  id                String   @id @default(cuid())
+  collaboratorId    String
+  requestedByUserId String?
+  tokenHash         String   @unique
+  status            String   @default("PENDING")
+  expiresAt         DateTime
+  signedAt          DateTime?
+  signatureImageDataUrl String?
+  signatureSignerName String?
+  signedPdfPath     String?
+  signedPdfHash     String?
+  signedPdfFileName String?
+  ipAddress         String?
+  userAgent         String?
+  privacyNoticeAcceptedAt DateTime?
+  privacyNoticeVersion String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  collaborator      Collaborator @relation(fields: [collaboratorId], references: [id], onDelete: Restrict)
+  requestedBy       User? @relation("EpiSignatureRequester", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  records           EpiRecord[]
+  auditLogs         EpiSignatureRequestAuditLog[]
+
+  @@index([collaboratorId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model EpiSignatureRequestAuditLog {
+  id        String   @id @default(cuid())
+  requestId String
+  action    String
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  request   EpiSignatureRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Romaneio {
+  id              String         @id @default(cuid())
+  projectId       String
+  createdByUserId String?
+  romaneioDate    DateTime
+  driverName      String
+  vehiclePlate    String
+  docxUrl         String?
+  pdfUrl          String?
+  emailStatus     String?
+  emailError      String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  project         Project        @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  createdBy       User?          @relation("RomaneioCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  items           RomaneioItem[]
+
+  @@index([projectId])
+  @@index([createdByUserId])
+  @@index([romaneioDate])
+  @@index([createdAt])
+}
+
+model RomaneioItem {
+  id            String               @id @default(cuid())
+  romaneioId    String
+  catalogItemId String?
+  itemName      String
+  itemCode      String?
+  categoryName  String
+  kind          RomaneioItemKind     @default(EQUIPMENT)
+  measureType   RomaneioMeasureType  @default(UNIT)
+  quantity      Decimal              @db.Decimal(12, 3)
+  unitLabel     String
+  isCustom      Boolean              @default(false)
+  sortOrder     Int                  @default(0)
+  romaneio      Romaneio             @relation(fields: [romaneioId], references: [id], onDelete: Cascade)
+  catalogItem   RomaneioCatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
+
+  @@index([romaneioId])
+  @@index([catalogItemId])
+}
+
+model RomaneioCatalogItem {
+  id             String                  @id @default(cuid())
+  sourceType     RomaneioCatalogSource   @default(MANUAL)
+  sourceId       String?
+  code           String?
+  name           String
+  categoryName   String
+  kind           RomaneioItemKind        @default(EQUIPMENT)
+  measureType    RomaneioMeasureType     @default(UNIT)
+  defaultUnitLabel String                 @default("unidade")
+  isSerialized   Boolean                 @default(true)
+  isActive       Boolean                 @default(true)
+  hiddenInRomaneioAt DateTime?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  romaneioItems  RomaneioItem[]
+
+  @@unique([sourceType, sourceId])
+  @@unique([categoryName, code, name])
+  @@index([categoryName])
+  @@index([kind])
+  @@index([isActive])
+}
+
+model RomaneioNotificationRecipient {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+model ModuleRole {
+  id        String         @id @default(uuid())
+  userId    String
+  module    AppModule
+  role      ModuleRoleCode
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+
+  @@unique([userId, module, role])
+}
+
+model DataRetentionRun {
+  id                    String    @id @default(cuid())
+  mode                  String    @default("APPLY")
+  status                String    @default("RUNNING")
+  deleteAbandonedDrafts Boolean   @default(false)
+  cutoffs               Json?
+  summary               Json?
+  error                 String?
+  startedAt             DateTime  @default(now())
+  finishedAt            DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([status, startedAt])
+  @@index([startedAt])
 }
 
 model SatisfactionSurvey {
@@ -287,6 +706,8 @@ model SatisfactionSurvey {
   followUpUpdatedAt  DateTime?
   submittedIp        String?
   submittedUserAgent String?
+  privacyNoticeAcceptedAt DateTime?
+  privacyNoticeVersion String?
   sentByUserId       String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -296,6 +717,7 @@ model SatisfactionSurvey {
   @@index([projectId, createdAt])
   @@index([expiresAt, respondedAt, reminderOptOutAt])
   @@index([expirationNotifiedAt, expiresAt])
+  @@index([respondedAt])
 }
 
 model SatisfactionSurveyQuestion {
@@ -320,6 +742,8 @@ model PasswordResetToken {
   usedAt    DateTime?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
 }
 
 model ReportDraft {
@@ -333,6 +757,8 @@ model ReportDraft {
   updatedAt      DateTime @updatedAt
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   project        Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([updatedAt])
 }
 
 model UserSession {
@@ -342,6 +768,70 @@ model UserSession {
   expiresAt  DateTime
   createdAt  DateTime @default(now())
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model DataSubjectRequest {
+  id              String                   @id @default(cuid())
+  protocol        String                   @unique
+  type            DataSubjectRequestType
+  status          DataSubjectRequestStatus @default(OPEN)
+  name            String
+  email           String
+  identifier      String?
+  details         String
+  source          String                   @default("PUBLIC_FORM")
+  requesterUserId String?
+  ipAddress       String?
+  userAgent       String?
+  responseNotes   String?
+  responseEmailStatus String?
+  responseEmailSentAt DateTime?
+  responseEmailError String?
+  identityVerifiedAt DateTime?
+  identityVerifiedByUserId String?
+  identityVerificationEvidence String?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  completedAt     DateTime?
+  completedByUserId String?
+  completionNotes String?
+  requesterUser   User?                    @relation("DataSubjectRequestUser", fields: [requesterUserId], references: [id], onDelete: SetNull)
+  completedByUser User?                    @relation("DataSubjectRequestCompletedByUser", fields: [completedByUserId], references: [id], onDelete: SetNull)
+  identityVerifiedByUser User?             @relation("DataSubjectRequestIdentityVerifiedByUser", fields: [identityVerifiedByUserId], references: [id], onDelete: SetNull)
+  responseAttempts DataSubjectRequestResponseAttempt[]
+
+  @@index([email])
+  @@index([requesterUserId])
+  @@index([completedByUserId])
+  @@index([identityVerifiedByUserId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model DataSubjectRequestResponseAttempt {
+  id              String             @id @default(cuid())
+  requestId       String
+  idempotencyKey  String             @unique
+  message         String
+  responseKind    String             @default("SUBSTANTIVE")
+  resolved        Boolean            @default(false)
+  status          String             @default("PENDING")
+  emailTo         String
+  emailSubject    String?
+  providerMessageId String?
+  error           String?
+  sentAt          DateTime?
+  createdByUserId String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  request         DataSubjectRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  createdByUser   User?              @relation("DataSubjectRequestResponseAttemptUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([requestId])
+  @@index([createdByUserId])
+  @@index([status])
 }
 
 model ReportAttachment {

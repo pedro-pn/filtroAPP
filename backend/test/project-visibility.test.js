@@ -2,42 +2,30 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  clearPendingProjectZapSignState,
-  shouldIgnoreExternalSigningForReport,
+  clearPendingProjectLegacyExternalSignatureState,
   shouldProvisionProjectClientAccounts,
-  withoutProjectZapSignState
+  withoutProjectLegacyExternalSignatureState
 } from '../src/lib/project-visibility.js';
-import {
-  ZAPSIGN_BATCH_DOC_TOKENS_KEY,
-  ZAPSIGN_BATCH_MAIN_DOC_TOKEN_KEY,
-  ZAPSIGN_SIGNATURE_PROGRESS_KEY,
-  ZAPSIGN_SIGNERS_KEY
-} from '../src/lib/zapsign-progress.js';
 
 test('shouldProvisionProjectClientAccounts skips manager-only projects', () => {
   assert.equal(shouldProvisionProjectClientAccounts({ managerOnly: true }), false);
   assert.equal(shouldProvisionProjectClientAccounts({ managerOnly: false }), true);
 });
 
-test('shouldIgnoreExternalSigningForReport blocks manager-only reports', () => {
-  assert.equal(shouldIgnoreExternalSigningForReport({ project: { managerOnly: true } }), true);
-  assert.equal(shouldIgnoreExternalSigningForReport({ project: { managerOnly: false } }), false);
-});
-
-test('withoutProjectZapSignState removes every ZapSign marker', () => {
+test('withoutProjectLegacyExternalSignatureState removes legacy external signature markers', () => {
   assert.deepEqual(
-    withoutProjectZapSignState({
+    withoutProjectLegacyExternalSignatureState({
       keep: 'value',
-      [ZAPSIGN_SIGNERS_KEY]: [{ email: 'client@example.com' }],
-      [ZAPSIGN_SIGNATURE_PROGRESS_KEY]: { total: 1 },
-      [ZAPSIGN_BATCH_MAIN_DOC_TOKEN_KEY]: 'main-token',
-      [ZAPSIGN_BATCH_DOC_TOKENS_KEY]: ['main-token', 'extra-token']
+      __zapSignSigners: [{ email: 'client@example.com' }],
+      __zapSignSignatureProgress: { total: 1 },
+      __zapSignBatchMainDocToken: 'main-token',
+      __zapSignBatchDocTokens: ['main-token', 'extra-token']
     }),
     { keep: 'value' }
   );
 });
 
-test('clearPendingProjectZapSignState clears pending signing data for project reports', async () => {
+test('clearPendingProjectLegacyExternalSignatureState clears pending external signing data for project reports', async () => {
   const updates = [];
   const tx = {
     report: {
@@ -57,7 +45,7 @@ test('clearPendingProjectZapSignState clears pending signing data for project re
             id: 'report-1',
             specialConditions: {
               keep: 'value',
-              [ZAPSIGN_SIGNATURE_PROGRESS_KEY]: { total: 1 }
+              __zapSignSignatureProgress: { total: 1 }
             }
           }
         ];
@@ -69,7 +57,7 @@ test('clearPendingProjectZapSignState clears pending signing data for project re
     }
   };
 
-  const count = await clearPendingProjectZapSignState(tx, 'project-1');
+  const count = await clearPendingProjectLegacyExternalSignatureState(tx, 'project-1');
 
   assert.equal(count, 1);
   assert.deepEqual(updates, [

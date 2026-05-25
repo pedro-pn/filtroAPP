@@ -41,6 +41,9 @@ function protectedUploadPath(rawUrl: string) {
   if (pathname.startsWith('/api/uploads/file/')) {
     return safeDecode(pathname.slice('/api/uploads/file/'.length));
   }
+  if (pathname.startsWith('/api/rdo/uploads/file/')) {
+    return safeDecode(pathname.slice('/api/rdo/uploads/file/'.length));
+  }
   if (pathname.startsWith('/relatorios/')) {
     return safeDecode(pathname.slice('/relatorios/'.length));
   }
@@ -68,7 +71,7 @@ export function resolveUploadAssetUrl(url: string) {
 
   const protectedPath = protectedUploadPath(url);
   if (protectedPath) {
-    return apiUrl(`/uploads/file/${encodePath(protectedPath)}`);
+    return apiUrl(`/rdo/uploads/file/${encodePath(protectedPath)}`);
   }
 
   if (/^https?:\/\//i.test(url)) return url;
@@ -78,7 +81,7 @@ export function resolveUploadAssetUrl(url: string) {
   if (isPublic && assetsBaseUrl) return `${assetsBaseUrl}${normalized}`;
   if (isPublic) return normalized;
 
-  return apiUrl(`/uploads/file/${encodePath(url)}`);
+  return apiUrl(`/rdo/uploads/file/${encodePath(url)}`);
 }
 
 export function isProtectedUploadAssetUrl(url: string) {

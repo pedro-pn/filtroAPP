@@ -1,0 +1,14 @@
+Cabeçalho:
+
+<<mission>> - Nome do projeto com o código "Missão [código] - [nome do projeto]"
+<<client>> - Nome do cliente
+<<proposal>> - numero da proposta
+<<date>> - data de preenchimento do romaneio
+<<cnpj>> - cnpj do cliente
+<<plate>> - placa do automóvel que transportará
+<<driver>> - Nome do motorista
+<<local>> local do serviço
+
+<<UNITTYPE>> - tipo de equipamento (unidade de flushing, unidade de limpeza química, conexões, produtos químicos, etc.).
+<<item>> - nome do item com o código "[sigla] - [nome do equipamento]"
+<<quantity>> - quantidade com a unidade de medida. Aquelas que só possuem uma unidade, escrever "unidade" como unidade de medida.

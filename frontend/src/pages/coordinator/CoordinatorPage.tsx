@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { downloadReportPdf } from '../../api/reports';
 import type { SurveyQuestion, SurveyResponses } from '../../api/surveys';
 import { useAuth } from '../../auth/AuthContext';
+import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { useToast } from '../../components/ui/Toast';
@@ -163,7 +164,7 @@ export function CoordinatorPage() {
 
   function handleNewReport() {
     reset();
-    navigate('/relatorio/novo');
+    navigate(rdoPath('/relatorio/novo'));
   }
 
   async function handleDownloadPdf(report: ReportSummary) {

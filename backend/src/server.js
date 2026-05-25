@@ -2,7 +2,10 @@ import http from 'node:http';
 
 import app from './app.js';
 import env from './config/env.js';
+import { startDataRetentionJob } from './lib/data-retention.js';
+import { syncRomaneioCatalog } from './lib/romaneio-catalog.js';
 import { startSurveyReminderJob } from './lib/survey-reminders.js';
+import { startLegacyZapSignReconciliationJob } from './lib/zapsign-legacy-reconciliation.js';
 
 const server = http.createServer(app);
 
@@ -23,5 +26,10 @@ server.listen(env.port, () => {
   if (!env.surveyTokenSecret) {
     console.warn('[AVISO] SURVEY_TOKEN_SECRET não definido. Os tokens de pesquisa estão usando um fallback inseguro. Defina essa variável em produção.');
   }
+  startDataRetentionJob({ enabled: env.dataRetentionJobEnabled });
   startSurveyReminderJob();
+  startLegacyZapSignReconciliationJob();
+  syncRomaneioCatalog().catch(error => {
+    console.error('Falha ao sincronizar catálogo de romaneio na inicialização.', error);
+  });
 });

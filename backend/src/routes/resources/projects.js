@@ -6,11 +6,13 @@ import asyncHandler from '../../lib/async-handler.js';
 import { ensureClientAccountForProject, ensureClientCcAccounts } from '../../lib/client-account.js';
 import { clientProjectAccessWhere } from '../../lib/client-project-access.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
+import { invalidateUnsignedInternalSignatureRound, signatureEvidenceFromRequest } from '../../lib/internal-report-signatures.js';
 import prisma from '../../lib/prisma.js';
-import { clearPendingProjectZapSignState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
-import { requireAuth, requireManager } from '../../middleware/auth.js';
+import { clearPendingProjectLegacyExternalSignatureState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
+import { RDO_ACCESS_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
+const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
 const emailSchema = z.string().trim().email();
 
 const schema = z.object({
@@ -87,13 +89,49 @@ export async function assertActiveClientSegment(slug, prismaClient = prisma) {
   }]);
 }
 
-export async function removeProjectById(projectId, prismaClient = prisma) {
+export async function removeProjectById(projectId, prismaClient = prisma, options = {}) {
   await prismaClient.$transaction(async tx => {
     const reports = await tx.report.findMany({
       where: { projectId },
       select: { id: true }
     });
     const reportIds = reports.map(report => report.id);
+
+    if (reportIds.length > 0) {
+      if (options.userId) {
+        for (const reportId of reportIds) {
+          await invalidateUnsignedInternalSignatureRound(tx, {
+            reportId,
+            userId: options.userId,
+            evidence: options.evidence || null,
+            description: 'Rodada de assinatura invalidada por exclusao do projeto.',
+            invalidateSignedRound: true
+          });
+        }
+      }
+      await tx.project.update({
+        where: { id: projectId },
+        data: {
+          isActive: false,
+          deletedAt: new Date()
+        }
+      });
+      await clearPendingProjectLegacyExternalSignatureState(tx, projectId);
+      return;
+    }
+
+    const romaneioCount = await tx.romaneio.count({ where: { projectId } });
+    if (romaneioCount > 0) {
+      await tx.project.update({
+        where: { id: projectId },
+        data: {
+          isActive: false,
+          deletedAt: new Date()
+        }
+      });
+      await clearPendingProjectLegacyExternalSignatureState(tx, projectId);
+      return;
+    }
 
     await tx.reportDraft.updateMany({
       where: { projectId },
@@ -102,31 +140,13 @@ export async function removeProjectById(projectId, prismaClient = prisma) {
     await tx.satisfactionSurvey.deleteMany({ where: { projectId } });
     await tx.projectReportSeq.deleteMany({ where: { projectId } });
 
-    if (reportIds.length > 0) {
-      await tx.reportAttachment.deleteMany({
-        where: { reportId: { in: reportIds } }
-      });
-      await tx.clientReportReview.deleteMany({
-        where: { reportId: { in: reportIds } }
-      });
-      await tx.reportCollaborator.deleteMany({
-        where: { reportId: { in: reportIds } }
-      });
-      await tx.reportService.deleteMany({
-        where: { reportId: { in: reportIds } }
-      });
-      await tx.report.deleteMany({
-        where: { id: { in: reportIds } }
-      });
-    }
-
     await tx.project.delete({ where: { id: projectId } });
   });
 }
 
-router.get('/', requireAuth, asyncHandler(async (req, res) => {
+router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const activeParam = req.query.active;
-  const where = {};
+  const where = { deletedAt: null };
   if (req.auth.user.role === 'MANAGER') {
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
@@ -173,7 +193,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
   res.json(items);
 }));
 
-router.post('/', requireAuth, requireManager, asyncHandler(async (req, res) => {
+router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
   const data = normalizeProjectInput(schema.parse(req.body));
   await assertActiveClientSegment(data.clientSegment);
   const { reportSequences, ...projectData } = data;
@@ -199,7 +219,7 @@ router.post('/', requireAuth, requireManager, asyncHandler(async (req, res) => {
   res.status(201).json(item);
 }));
 
-router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) => {
+router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
   const parsed = schema.partial().parse(req.body);
   let data = parsed;
   if (parsed.clientCnpj !== undefined || parsed.clientEmailPrimary !== undefined || parsed.clientEmailCc !== undefined || parsed.clientSigners !== undefined) {
@@ -260,7 +280,7 @@ router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) =>
       }
     });
     if (!shouldProvisionProjectClientAccounts(updated)) {
-      await clearPendingProjectZapSignState(tx, updated.id);
+      await clearPendingProjectLegacyExternalSignatureState(tx, updated.id);
     } else {
       await ensureClientAccountForProject(tx, updated, { previousProject });
       await ensureClientCcAccounts(tx, { ...updated, id: req.params.id }, { previousProject });
@@ -271,8 +291,11 @@ router.put('/:id', requireAuth, requireManager, asyncHandler(async (req, res) =>
   res.json(item);
 }));
 
-router.delete('/:id', requireAuth, requireManager, asyncHandler(async (req, res) => {
-  await removeProjectById(req.params.id);
+router.delete('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
+  await removeProjectById(req.params.id, prisma, {
+    userId: req.auth.user.id,
+    evidence: signatureEvidenceFromRequest(req)
+  });
   res.status(204).end();
 }));
 

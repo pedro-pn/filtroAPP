@@ -1,4 +1,15 @@
 export type UserRole = 'COLLABORATOR' | 'MANAGER' | 'COORDINATOR' | 'CLIENT';
+export type AccountType = 'ADMIN' | 'INTERNAL' | 'CLIENT';
+export type ModuleRole =
+  | 'rdo:manager'
+  | 'rdo:coordinator'
+  | 'rdo:collaborator'
+  | 'rdo:client'
+  | 'romaneio:manager'
+  | 'romaneio:operator'
+  | 'epi:technician'
+  | 'epi:collaborator'
+  | 'privacy:admin';
 
 export interface AuthUser {
   id: string;
@@ -6,7 +17,14 @@ export interface AuthUser {
   name: string;
   email: string | null;
   role: UserRole;
+  accountType: AccountType;
+  moduleRoles: ModuleRole[];
   isActive: boolean;
+  clientCnpj?: string | null;
+  privacyPolicyAcceptedAt?: string | null;
+  privacyPolicyVersion?: string | null;
+  privacyPolicyRequired?: boolean;
+  requiredPrivacyPolicyVersion?: string;
   collaboratorId?: string | null;
 }
 

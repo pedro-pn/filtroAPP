@@ -81,6 +81,9 @@ export function NewReportPage() {
   const reportMutations = useReportMutations();
   const draftsQuery = useDrafts();
   const draftMutations = useDraftMutations();
+  const createDraftAsync = draftMutations.createDraft.mutateAsync;
+  const updateDraftAsync = draftMutations.updateDraft.mutateAsync;
+  const removeDraftAsync = draftMutations.removeDraft.mutateAsync;
   const draftSaveTimerRef = useRef<number | null>(null);
   const lastAutoSaveSignatureRef = useRef('');
   const isSubmittingRef = useRef(false);
@@ -681,7 +684,7 @@ export function NewReportPage() {
     return parts.join(' · ') || '—';
   }
 
-  function buildDraftPayload() {
+  const buildDraftPayload = useCallback(() => {
     return {
       projectId,
       serviceOnly: effectiveServiceOnly,
@@ -703,65 +706,6 @@ export function NewReportPage() {
       generalUploads,
       services
     };
-  }
-
-  function draftProjectDateKey(draft: { projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) {
-    const payload = draft.payload || {};
-    const draftProjectId = draft.projectId || (typeof payload.projectId === 'string' ? payload.projectId : '');
-    const draftReportDate = draft.reportDate || (typeof payload.reportDate === 'string' ? payload.reportDate : '');
-    const draftServiceOnly = payload.serviceOnly === true;
-    return draftProjectId && draftReportDate ? `${draftProjectId}|${draftReportDate.slice(0, 10)}|${draftServiceOnly ? 'service' : 'rdo'}` : '';
-  }
-
-  function matchingDraftIds() {
-    const key = projectId && reportDate ? `${projectId}|${reportDate.slice(0, 10)}|${effectiveServiceOnly ? 'service' : 'rdo'}` : '';
-    if (!key) return [];
-    return (draftsQuery.data || []).filter(draft => draftProjectDateKey(draft) === key).map(draft => draft.id);
-  }
-
-  useEffect(() => {
-    if (isSubmittingRef.current) return;
-    if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
-
-    if (!projectId || !reportDate) {
-      if (draftId) setDraftId(null);
-      return;
-    }
-
-    draftSaveTimerRef.current = window.setTimeout(() => {
-      const payload = {
-        projectId,
-        reportDate,
-        title: selectedProject ? `${selectedProject.code} - ${selectedProject.name}` : 'Relatório em andamento',
-        payload: buildDraftPayload()
-      };
-      const sameProjectDateIds = matchingDraftIds();
-      const targetId = draftId && sameProjectDateIds.includes(draftId) ? draftId : sameProjectDateIds[0];
-      const signature = JSON.stringify({ targetId: targetId || '', payload });
-      if (signature === lastAutoSaveSignatureRef.current) return;
-      lastAutoSaveSignatureRef.current = signature;
-
-      void (async () => {
-        try {
-          const saved = targetId
-            ? await draftMutations.updateDraft.mutateAsync({ id: targetId, payload })
-            : await draftMutations.createDraft.mutateAsync(payload);
-          if (draftId !== saved.id) setDraftId(saved.id);
-
-          await Promise.all(
-            sameProjectDateIds
-              .filter(id => id !== saved.id)
-              .map(id => draftMutations.removeDraft.mutateAsync(id).catch(() => undefined))
-          );
-        } catch {
-          // Autosave is silent in the HTML flow.
-        }
-      })();
-    }, 150);
-
-    return () => {
-      if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
-    };
   }, [
     projectId,
     effectiveServiceOnly,
@@ -781,14 +725,99 @@ export function NewReportPage() {
     overtimeReason,
     dailyDescription,
     generalUploads,
-    services,
-    selectedProject,
+    services
+  ]);
+
+  const draftProjectDateKey = useCallback((draft: { projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) => {
+    const payload = draft.payload || {};
+    const draftProjectId = draft.projectId || (typeof payload.projectId === 'string' ? payload.projectId : '');
+    const draftReportDate = draft.reportDate || (typeof payload.reportDate === 'string' ? payload.reportDate : '');
+    const draftServiceOnly = payload.serviceOnly === true;
+    return draftProjectId && draftReportDate ? `${draftProjectId}|${draftReportDate.slice(0, 10)}|${draftServiceOnly ? 'service' : 'rdo'}` : '';
+  }, []);
+
+  const matchingDraftIds = useCallback(() => {
+    const key = projectId && reportDate ? `${projectId}|${reportDate.slice(0, 10)}|${effectiveServiceOnly ? 'service' : 'rdo'}` : '';
+    if (!key) return [];
+    return (draftsQuery.data || []).filter(draft => draftProjectDateKey(draft) === key).map(draft => draft.id);
+  }, [draftProjectDateKey, draftsQuery.data, effectiveServiceOnly, projectId, reportDate]);
+
+  const saveDraftNow = useCallback(async ({ notifyOnError = false } = {}) => {
+    if (!projectId || !reportDate) {
+      if (draftId) setDraftId(null);
+      return true;
+    }
+
+    const payload = {
+      projectId,
+      reportDate,
+      title: selectedProject ? `${selectedProject.code} - ${selectedProject.name}` : 'Relatório em andamento',
+      payload: buildDraftPayload()
+    };
+    const sameProjectDateIds = matchingDraftIds();
+    const targetId = draftId && sameProjectDateIds.includes(draftId) ? draftId : sameProjectDateIds[0];
+    const signature = JSON.stringify({ targetId: targetId || '', payload });
+    if (signature === lastAutoSaveSignatureRef.current) return true;
+    lastAutoSaveSignatureRef.current = signature;
+
+    try {
+      const saved = targetId
+        ? await updateDraftAsync({ id: targetId, payload })
+        : await createDraftAsync(payload);
+      if (draftId !== saved.id) setDraftId(saved.id);
+
+      await Promise.all(
+        sameProjectDateIds
+          .filter(id => id !== saved.id)
+          .map(id => removeDraftAsync(id).catch(() => undefined))
+      );
+      return true;
+    } catch (error) {
+      lastAutoSaveSignatureRef.current = '';
+      console.error('Falha ao salvar rascunho de relatório.', error);
+      if (notifyOnError) {
+        showToast(error instanceof Error ? error.message : 'Não foi possível salvar o rascunho.', 'error');
+      }
+      return false;
+    }
+  }, [
+    projectId,
+    reportDate,
     draftId,
-    draftsQuery.data,
-    draftMutations.createDraft,
-    draftMutations.updateDraft,
-    draftMutations.removeDraft,
-    setDraftId
+    selectedProject,
+    buildDraftPayload,
+    matchingDraftIds,
+    updateDraftAsync,
+    createDraftAsync,
+    setDraftId,
+    removeDraftAsync,
+    showToast
+  ]);
+
+  useEffect(() => {
+    if (isSubmittingRef.current) return;
+    if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
+
+    draftSaveTimerRef.current = window.setTimeout(() => {
+      void saveDraftNow();
+    }, 150);
+
+    return () => {
+      if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
+    };
+  }, [saveDraftNow]);
+
+  const handleBack = useCallback(async () => {
+    if (draftSaveTimerRef.current) {
+      window.clearTimeout(draftSaveTimerRef.current);
+      draftSaveTimerRef.current = null;
+    }
+    const saved = await saveDraftNow({ notifyOnError: true });
+    if (saved) navigate(backPath);
+  }, [
+    backPath,
+    navigate,
+    saveDraftNow
   ]);
 
   async function handleSubmit() {
@@ -865,7 +894,7 @@ export function NewReportPage() {
         });
       }
 
-      await Promise.all(draftIdsToRemove.map(id => draftMutations.removeDraft.mutateAsync(id).catch(() => undefined)));
+      await Promise.all(draftIdsToRemove.map(id => removeDraftAsync(id).catch(() => undefined)));
       setDraftId(null);
       lastAutoSaveSignatureRef.current = '';
 
@@ -885,7 +914,7 @@ export function NewReportPage() {
         subtitle={steps[step]}
         step={`${step + 1} / ${steps.length}`}
         actions={
-          <button className="topbar-chip" type="button" onClick={() => navigate(backPath)}>
+          <button className="topbar-chip" type="button" onClick={handleBack}>
             {TEXT.back}
           </button>
         }
@@ -1367,7 +1396,7 @@ export function NewReportPage() {
           <button
             className="secondary-button"
             type="button"
-            onClick={step === 0 ? () => navigate(backPath) : () => setStep(current => Math.max(current - 1, 0))}
+            onClick={step === 0 ? handleBack : () => setStep(current => Math.max(current - 1, 0))}
           >
             {step === 0 ? 'Cancelar' : `← ${TEXT.back}`}
           </button>

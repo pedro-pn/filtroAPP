@@ -16,6 +16,31 @@ function parseOrigins(value) {
     .filter(Boolean);
 }
 
+export function parseTrustProxy(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return false;
+  const lower = raw.toLowerCase();
+  if (['0', 'false', 'no', 'off'].includes(lower)) return false;
+  if (/^\d+$/.test(raw)) return Number(raw);
+  if (['true', 'yes', 'on'].includes(lower)) return true;
+  return raw;
+}
+
+export function assertProductionTrustProxyConfigured({ nodeEnv, trustProxyConfigured, trustProxy = false }) {
+  if (nodeEnv !== 'production') return;
+  if (!trustProxyConfigured) {
+    throw new Error('TRUST_PROXY deve ser configurado explicitamente em produção. Use false apenas se o backend não estiver atrás de proxy.');
+  }
+  if (trustProxy === true) {
+    throw new Error('TRUST_PROXY=true é inseguro em produção. Configure false, um hop count numérico ou uma lista explícita de proxies/CIDRs.');
+  }
+}
+
+const nodeEnv = process.env.NODE_ENV || 'development';
+const trustProxyConfigured = process.env.TRUST_PROXY !== undefined && String(process.env.TRUST_PROXY).trim() !== '';
+const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
+assertProductionTrustProxyConfigured({ nodeEnv, trustProxyConfigured, trustProxy });
+
 const env = {
   port: Number(process.env.PORT || 4000),
   databaseUrl: process.env.DATABASE_URL || '',
@@ -25,6 +50,8 @@ const env = {
   appUrl: process.env.APP_URL || '',
   allowedOrigin: process.env.ALLOWED_ORIGIN || '',
   allowedOrigins: parseOrigins(process.env.ALLOWED_ORIGIN),
+  trustProxy,
+  trustProxyConfigured,
   smtpHost: process.env.SMTP_HOST || '',
   smtpPort: Number.isFinite(smtpPort) ? smtpPort : 587,
   smtpSecure: parseBoolean(process.env.SMTP_SECURE, false),
@@ -32,18 +59,17 @@ const env = {
   smtpPass: process.env.SMTP_PASS || '',
   smtpFrom: process.env.SMTP_FROM || '',
   smtpTestDest: process.env.SMTP_TEST_DEST || '',
+  privacyNotificationEmail: process.env.PRIVACY_NOTIFICATION_EMAIL || process.env.LGPD_NOTIFICATION_EMAIL || '',
   zapsignApiToken: process.env.ZAPSIGN_API_TOKEN || '',
   zapsignRefreshToken: process.env.ZAPSIGN_REFRESH_TOKEN || process.env.APSIGN_REFRESH_TOKEN || '',
   zapsignUsername: process.env.ZAPSIGN_USERNAME || process.env.ZAPSIGN_LOGIN || process.env.ZAPSIGN_EMAIL || '',
   zapsignPassword: process.env.ZAPSIGN_PASSWORD || process.env.ZAPSIGN_SENHA || '',
   zapsignOrganizationId: process.env.ZAPSIGN_ORGANIZATION_ID || process.env.ZAPSIGN_ORG_ID || '',
-  zapsignWebhookSecret: process.env.ZAPSIGN_WEBHOOK_SECRET || '',
   surveyTokenSecret: process.env.SURVEY_TOKEN_SECRET || '',
-  zapsignWebhookHeader: process.env.ZAPSIGN_WEBHOOK_HEADER || 'x-zapsign-webhook-secret',
+  dataRetentionJobEnabled: parseBoolean(process.env.DATA_RETENTION_JOB_ENABLED, false),
   zapsignApiBaseUrl: process.env.ZAPSIGN_API_BASE_URL || 'https://api.zapsign.com.br/api/v1',
-  zapsignSandbox: parseBoolean(process.env.ZAPSIGN_SANDBOX, false),
   libreOfficeBinary: process.env.LIBREOFFICE_BINARY || 'soffice',
-  nodeEnv: process.env.NODE_ENV || 'development'
+  nodeEnv
 };
 
 export default env;

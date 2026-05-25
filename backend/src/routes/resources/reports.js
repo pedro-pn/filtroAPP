@@ -1,57 +1,93 @@
 import { Router } from 'express';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import AdmZip from 'adm-zip';
-import { ClientReviewAction, ReportStatus, ReportType } from '@prisma/client';
+import { ClientReviewAction, ReportSignatureStatus, ReportStatus, ReportType, ReportVersionStatus } from '@prisma/client';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
 import { clientCanAccessProject, clientProjectAccessWhere } from '../../lib/client-project-access.js';
-import { buildReportApprovedEmailTemplate, buildReportReapprovedEmailTemplate, buildReportRejectedByClientEmailTemplate } from '../../lib/email-templates.js';
+import {
+  buildReportApprovedEmailTemplate,
+  buildReportReapprovedEmailTemplate,
+  buildReportRejectedByClientEmailTemplate,
+  buildReportSignatureRequestEmailTemplate,
+  buildReportSignatureCompletedEmailTemplate,
+  buildReportSignatureReceivedEmailTemplate
+} from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
+import { SIGNATURE_RDO_NOTICE_VERSION, validatePrivacyNoticeAcknowledgement } from '../../lib/privacy-consent.js';
 import { saveReportDocx, organizePhotos } from '../../lib/report-docx.js';
 import { saveReportPdf } from '../../lib/report-pdf-from-docx.js';
-import {
-  buildZapSignSignatureProgress,
-  ZAPSIGN_BATCH_DOC_TOKENS_KEY,
-  ZAPSIGN_BATCH_MAIN_DOC_TOKEN_KEY,
-  ZAPSIGN_SIGNATURE_PROGRESS_KEY,
-  ZAPSIGN_SIGNERS_KEY
-} from '../../lib/zapsign-progress.js';
 import { saveRtpDocx, saveRtpPdf, organizeRtpPhotos } from '../../lib/report-rtp.js';
 import { saveRlqDocx, saveRlqPdf, organizeRlqPhotos } from '../../lib/report-rlq.js';
 import { saveRcpDocx, saveRcpPdf, organizeRcpPhotos, calcServiceMinutes } from '../../lib/report-rcp.js';
 import { saveRlmDocx, saveRlmPdf, organizeRlmPhotos } from '../../lib/report-rlm.js';
+import { downloadSignedZapSignDocument, getZapSignDocument } from '../../lib/zapsign.js';
+import { reconcileLegacyZapSignReport } from '../../lib/zapsign-legacy-reconciliation.js';
 import {
-  claimZapSignRequest,
-  claimZapSignRequests,
-  persistZapSignRequest,
-  releaseZapSignRequestClaim,
-  releaseZapSignRequestClaims
-} from '../../lib/zapsign-request-claim.js';
-import {
-  resolveSignerUrlForUser,
-  resolveSignerUrlFromZapSignDocument,
-  resolveZapSignSigner,
-  zapsignAdditionalSignersForProject
-} from '../../lib/zapsign-signer.js';
-import {
-  addExtraDocToZapSign,
-  assertZapSignEnabled,
-  downloadSignedZapSignDocument,
-  getZapSignDocument,
-  isZapSignEnabled,
-  sendToZapSign
-} from '../../lib/zapsign.js';
+  ReportAuditAction,
+  activeVersionWithSignatures,
+  allRequiredSignaturesCompleted,
+  authenticatedSignerEmailForReport,
+  clientSignersForReport,
+  createSignatureAuditLog,
+  createSignatureValidationCode,
+  decodableSignatureImageDataUrl,
+  ensureInternalSignatureRound,
+  finalEvidencePdfTarget,
+  hasActiveSignedInternalSignature,
+  internalSignatureTokenHash,
+  invalidateUnsignedInternalSignatureRound,
+  issuePendingSignatureTokens,
+  reportSourcePdfPath,
+  parseSignatureImageDataUrl,
+  resolveInternalClientSigner,
+  sha256Hex,
+  signInternalReportVersion,
+  signatureEvidenceFromRequest,
+  withInternalSignatureProgress,
+  writeFinalEvidencePdf
+} from '../../lib/internal-report-signatures.js';
 import { calculateReportOvertime } from '../../lib/overtime.js';
+import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import prisma from '../../lib/prisma.js';
 import { buildReportFileName } from '../../lib/report-filename.js';
-import { requireAuth } from '../../middleware/auth.js';
+import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
+const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
+const requireRdoManager = requireModuleRole('rdo:manager');
 const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
 const CLIENT_REJECTION_KEY = '__clientRejectedAt';
 const CLIENT_REJECTION_RESOLVED_KEY = '__clientRejectionResolvedAt';
+const CLIENT_REJECTION_COMMENT_KEY = '__clientRejectionComment';
+const LEGACY_EXTERNAL_SIGNATURE_KEYS = [
+  '__zapSignSigners',
+  '__zapSignSignatureProgress',
+  '__zapSignBatchMainDocToken',
+  '__zapSignBatchDocTokens'
+];
+const publicSignatureLimiter = createMemoryRateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  message: 'Muitas tentativas. Tente novamente mais tarde.'
+});
+
+async function uniqueSignatureValidationCode() {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const code = createSignatureValidationCode();
+    const existing = await prisma.reportVersion.findUnique({
+      where: { validationCode: code },
+      select: { id: true }
+    });
+    if (!existing) return code;
+  }
+  const error = new Error('Não foi possível gerar código de validação único.');
+  error.statusCode = 500;
+  throw error;
+}
 
 function formatDatePtBr(date) {
   const value = date instanceof Date ? date.toISOString() : String(date || '');
@@ -80,16 +116,14 @@ function hasActiveClientRejection(report) {
 function withClientRejectionCleared(specialConditions) {
   const next = { ...(specialConditions || {}) };
   delete next[CLIENT_REJECTION_KEY];
+  delete next[CLIENT_REJECTION_COMMENT_KEY];
   next[CLIENT_REJECTION_RESOLVED_KEY] = new Date().toISOString();
   return next;
 }
 
-function withoutZapSignState(specialConditions) {
+function withoutLegacyExternalSignatureState(specialConditions) {
   const next = { ...(specialConditions || {}) };
-  delete next[ZAPSIGN_SIGNERS_KEY];
-  delete next[ZAPSIGN_SIGNATURE_PROGRESS_KEY];
-  delete next[ZAPSIGN_BATCH_MAIN_DOC_TOKEN_KEY];
-  delete next[ZAPSIGN_BATCH_DOC_TOKENS_KEY];
+  for (const key of LEGACY_EXTERNAL_SIGNATURE_KEYS) delete next[key];
   return next;
 }
 
@@ -222,6 +256,630 @@ function clientReviewerLabel(report, user) {
   return name || email || 'Cliente';
 }
 
+function reportManagerEmail(report) {
+  const reviewedByEmail = String(report.reviewedBy?.email || '').trim().toLowerCase();
+  if (reviewedByEmail) return reviewedByEmail;
+  if (report.createdBy?.role === 'MANAGER') {
+    return String(report.createdBy?.email || '').trim().toLowerCase();
+  }
+  return '';
+}
+
+function queueInternalSignatureNotification(report, version, signer, completed) {
+  const managerEmail = reportManagerEmail(report);
+  if (!managerEmail) return;
+
+  const missingMailerConfig = getMissingMailerConfig();
+  if (missingMailerConfig.length) {
+    console.warn('SMTP não configurado; notificação de assinatura interna não enviada.', missingMailerConfig.join(', '));
+    return;
+  }
+
+  const required = (version?.signatures || []).filter(signature => signature.isRequired !== false);
+  const signedCount = required.filter(signature => signature.status === 'SIGNED').length;
+  const requiredCount = required.length;
+  const common = {
+    projectCode: report.project?.code || '---',
+    projectName: report.project?.name || 'Sem projeto',
+    reportType: report.reportType,
+    reportNumber: reportNumberLabel(report),
+    reportDate: formatDatePtBr(report.reportDate),
+    signerName: signer?.name || 'Cliente',
+    signerEmail: signer?.email || '',
+    appUrl: env.appUrl || ''
+  };
+  const template = completed
+    ? buildReportSignatureCompletedEmailTemplate({
+      ...common,
+      finalDocumentHash: version?.finalDocumentHash || ''
+    })
+    : buildReportSignatureReceivedEmailTemplate({
+      ...common,
+      signedCount,
+      requiredCount
+    });
+
+  setImmediate(() => {
+    sendMail({ to: managerEmail, ...template }).catch(error => {
+      console.error('Falha ao enviar notificação de assinatura interna.', {
+        reportId: report.id,
+        error: error?.message || error
+      });
+    });
+  });
+}
+
+function publicSignatureUrl(token) {
+  const base = String(env.appUrl || '').replace(/\/+$/, '');
+  const pathPart = `/assinar/${encodeURIComponent(token)}`;
+  return base ? `${base}${pathPart}` : pathPart;
+}
+
+function signatureRequestEmailDeliveryError(message, details = {}) {
+  const error = new Error(message);
+  error.statusCode = 503;
+  error.details = details;
+  return error;
+}
+
+function missingSignatureRequestEmailConfigError(missingMailerConfig) {
+  return signatureRequestEmailDeliveryError(
+    `Configuração SMTP ausente para envio dos links de assinatura: ${missingMailerConfig.join(', ')}`,
+    { missingMailerConfig }
+  );
+}
+
+function signatureRequestEmailDeliveryFailure(error, details = {}) {
+  return {
+    ok: false,
+    retryable: true,
+    error: error?.message || String(error || 'Falha ao enviar links de assinatura.'),
+    ...details
+  };
+}
+
+function reportWithSignatureEmailDelivery(report, delivery) {
+  if (!delivery || delivery.ok) return report;
+  return {
+    ...report,
+    internalSignatureEmailDelivery: delivery
+  };
+}
+
+export function signatureRequestEmailRequired(report, version) {
+  if (!report || report.project?.managerOnly || !shouldCreateInternalSignatureRound(report)) return false;
+  if (!version) return true;
+  const now = Date.now();
+  return (version.signatures || []).some(signature => {
+    if (signature.status !== ReportSignatureStatus.PENDING) return false;
+    if (!signature.tokenHash || !signature.tokenExpiresAt) return true;
+    return new Date(signature.tokenExpiresAt).getTime() <= now;
+  });
+}
+
+export function assertSignatureRequestEmailDeliveryConfigured(report, version) {
+  if (!signatureRequestEmailRequired(report, version)) return;
+  const missingMailerConfig = getMissingMailerConfig();
+  if (missingMailerConfig.length) throw missingSignatureRequestEmailConfigError(missingMailerConfig);
+}
+
+export async function sendSignatureRequestEmails(report, tokens, options = {}) {
+  if (!tokens?.length || report.project?.managerOnly) return { ok: true, sentCount: 0, sentTokens: [] };
+
+  const missingMailerConfig = options.missingMailerConfig || getMissingMailerConfig();
+  if (missingMailerConfig.length) {
+    throw missingSignatureRequestEmailConfigError(missingMailerConfig);
+  }
+  const mailer = options.mailer || sendMail;
+  const sentTokens = [];
+
+  for (const tokenData of tokens) {
+    const daysValid = Math.max(1, Math.ceil((new Date(tokenData.expiresAt).getTime() - Date.now()) / 86_400_000));
+    const template = buildReportSignatureRequestEmailTemplate({
+      projectCode: report.project?.code || '---',
+      projectName: report.project?.name || 'Sem projeto',
+      reportType: report.reportType,
+      reportNumber: reportNumberLabel(report),
+      reportDate: formatDatePtBr(report.reportDate),
+      signerName: tokenData.signerName || 'Cliente',
+      signUrl: publicSignatureUrl(tokenData.token),
+      expiresLabel: `${daysValid} dia${daysValid !== 1 ? 's' : ''}`
+    });
+
+    try {
+      await mailer({ to: tokenData.signerEmail, ...template });
+      sentTokens.push(tokenData);
+    } catch (error) {
+      error.sentTokens = sentTokens.slice();
+      error.failedToken = tokenData;
+      throw error;
+    }
+  }
+
+  return { ok: true, sentCount: sentTokens.length, sentTokens };
+}
+
+export async function clearIssuedSignatureTokens(client, tokens) {
+  for (const tokenData of tokens || []) {
+    if (!tokenData?.signatureId || !tokenData?.token) continue;
+    await client.reportSignature.updateMany({
+      where: {
+        id: tokenData.signatureId,
+        status: ReportSignatureStatus.PENDING,
+        tokenHash: internalSignatureTokenHash(tokenData.token)
+      },
+      data: {
+        tokenHash: null,
+        tokenExpiresAt: null
+      }
+    });
+  }
+}
+
+export async function deliverIssuedSignatureRequestEmails(report, tokens, options = {}) {
+  if (!tokens?.length) return { ok: true, sentCount: 0 };
+  const client = options.client || prisma;
+  try {
+    const delivery = await sendSignatureRequestEmails(report, tokens, options);
+    return { ok: true, sentCount: delivery.sentCount || tokens.length };
+  } catch (error) {
+    const sentTokens = Array.isArray(error?.sentTokens) ? error.sentTokens : [];
+    const sentTokenObjects = new Set(sentTokens);
+    const sentSignatureIds = new Set(sentTokens.map(token => token?.signatureId).filter(Boolean));
+    const retryTokens = tokens.filter(token => !sentTokenObjects.has(token) && !sentSignatureIds.has(token?.signatureId));
+
+    await clearIssuedSignatureTokens(client, retryTokens).catch(cleanupError => {
+      console.error('Falha ao limpar tokens de assinatura interna após erro de envio.', {
+        reportId: report?.id,
+        error: cleanupError?.message || cleanupError
+      });
+    });
+    if (options.throwOnFailure) throw error;
+    console.error('Falha ao enviar links de assinatura interna; entrega marcada para retry.', {
+      reportId: report?.id,
+      error: error?.message || error
+    });
+    return signatureRequestEmailDeliveryFailure(error, {
+      sentCount: sentTokens.length,
+      retryCount: retryTokens.length
+    });
+  }
+}
+
+export function publicSignaturePayload(signature, status) {
+  if (!signature || status === 'INVALID' || status === 'UNAVAILABLE') return { status };
+  return {
+    status,
+    expiresAt: signature.tokenExpiresAt || null,
+    signer: {
+      name: signature.signerName,
+      declaredName: signature.declaredSignerName || null,
+      email: signature.signerEmail,
+      status: signature.status,
+      signedAt: signature.signedAt || null,
+      rejectedAt: signature.rejectedAt || null
+    },
+    report: {
+      id: signature.report?.id || '',
+      reportType: signature.report?.reportType || '',
+      sequenceNumber: signature.report?.sequenceNumber || null,
+      reportDate: signature.report?.reportDate || null,
+      status: signature.report?.status || '',
+      sourceDocumentHash: signature.sourceDocumentHash || '',
+      project: {
+        code: signature.report?.project?.code || '',
+        name: signature.report?.project?.name || '',
+        clientName: signature.report?.project?.clientName || ''
+      }
+    }
+  };
+}
+
+export function publicSignatureStatus(signature) {
+  if (!signature) return 'INVALID';
+  if (signature.report?.deletedAt) return 'UNAVAILABLE';
+  if (signature.report?.project?.deletedAt) return 'UNAVAILABLE';
+  if (signature.tokenExpiresAt && new Date(signature.tokenExpiresAt).getTime() <= Date.now()) return 'EXPIRED';
+  if (
+    signature.status === 'SIGNED'
+    && signature.version?.status === ReportVersionStatus.ACTIVE
+    && !signature.version?.finalDocumentHash
+    && signature.report?.status === ReportStatus.APPROVED
+    && allRequiredSignaturesCompleted(signature.version)
+  ) return 'ACTIVE';
+  if (signature.status === 'SIGNED') return 'SIGNED';
+  if (signature.status === 'REJECTED') return 'REJECTED';
+  if (signature.status === 'INVALIDATED') return 'INVALIDATED';
+  if (signature.status === 'EXPIRED') return 'EXPIRED';
+  if (signature.version?.status !== 'ACTIVE') return 'INVALIDATED';
+  if (signature.report?.status === ReportStatus.SIGNED) return 'SIGNED';
+  if (signature.report?.status !== ReportStatus.APPROVED) return 'UNAVAILABLE';
+  return 'ACTIVE';
+}
+
+export async function expirePendingPublicSignature(tx, signature, evidence = {}) {
+  if (!signature?.id) return false;
+  const expired = await tx.reportSignature.updateMany({
+    where: {
+      id: signature.id,
+      status: ReportSignatureStatus.PENDING,
+      tokenExpiresAt: { lte: new Date() }
+    },
+    data: { status: ReportSignatureStatus.EXPIRED }
+  });
+  if (expired.count !== 1) return false;
+
+  await createSignatureAuditLog(tx, {
+    reportId: signature.reportId,
+    versionId: signature.versionId,
+    userId: null,
+    action: ReportAuditAction.TOKEN_EXPIRED,
+    description: 'Link publico de assinatura expirado.',
+    evidence
+  });
+  return true;
+}
+
+export function shouldCreateInternalSignatureRound(report) {
+  if (report?.reportType !== ReportType.RDO || report?.status !== ReportStatus.APPROVED || report?.project?.managerOnly) return false;
+  if (hasActiveClientRejection(report)) return false;
+  return clientSignersForReport(report).length > 0;
+}
+
+function maskEmail(value) {
+  const email = String(value || '').trim().toLowerCase();
+  const [local, domain] = email.split('@');
+  if (!local || !domain) return email ? 'registrado' : '';
+  const visible = local.length <= 2 ? local[0] : `${local.slice(0, 2)}***`;
+  return `${visible}@${domain}`;
+}
+
+export function validationStatus(version) {
+  if (!version) return 'INVALID';
+  if (version.report?.deletedAt || version.report?.project?.deletedAt) return 'UNAVAILABLE';
+  if (version.status === 'REJECTED') return 'REJECTED';
+  if (version.status === 'SUPERSEDED') return 'SUPERSEDED';
+  if (version.report?.status !== ReportStatus.SIGNED || !version.finalDocumentHash) return 'UNAVAILABLE';
+  return 'VALID';
+}
+
+export function publicValidationPayload(version) {
+  const status = validationStatus(version);
+  if (!version || status === 'INVALID' || status === 'UNAVAILABLE') return { status };
+  return {
+    status,
+    validationCode: version.validationCode,
+    sourceDocumentHash: version.sourceDocumentHash,
+    finalDocumentHash: version.finalDocumentHash,
+    finalPdfCreatedAt: version.createdAt,
+    report: {
+      id: version.report?.id || '',
+      reportType: version.report?.reportType || '',
+      sequenceNumber: version.report?.sequenceNumber || null,
+      reportDate: version.report?.reportDate || null,
+      status: version.report?.status || '',
+      project: {
+        code: version.report?.project?.code || '',
+        name: version.report?.project?.name || '',
+        clientName: version.report?.project?.clientName || ''
+      }
+    },
+    signers: (version.signatures || []).map(signature => ({
+      name: signature.signerName,
+      declaredName: signature.declaredSignerName || null,
+      email: maskEmail(signature.signerEmail),
+      role: signature.signerRole,
+      status: signature.status,
+      signedAt: signature.signedAt || null,
+      rejectedAt: signature.rejectedAt || null
+    }))
+  };
+}
+
+async function publicSignatureFromToken(token, client = prisma) {
+  return client.reportSignature.findUnique({
+    where: { tokenHash: internalSignatureTokenHash(token) },
+    include: {
+      report: { include },
+      version: { include: { signatures: { orderBy: { createdAt: 'asc' } } } }
+    }
+  });
+}
+
+async function activePublicSignatureOrThrow(token, client = prisma) {
+  const signature = await publicSignatureFromToken(token, client);
+  const status = publicSignatureStatus(signature);
+  if (status !== 'ACTIVE') {
+    const error = new Error('Link de assinatura indisponível.');
+    error.statusCode = status === 'INVALID' ? 404 : 409;
+    error.publicStatus = status;
+    throw error;
+  }
+  return signature;
+}
+
+async function retryablePublicSignatureForConfirmOrThrow(token, client = prisma) {
+  const signature = await publicSignatureFromToken(token, client);
+  const status = publicSignatureStatus(signature);
+  if (status !== 'ACTIVE' && !isFinalizationRetryableSignature(signature)) {
+    const error = new Error('Link de assinatura indisponível.');
+    error.statusCode = status === 'INVALID' ? 404 : 409;
+    error.publicStatus = status;
+    throw error;
+  }
+  return signature;
+}
+
+function isFinalizationRetryableSignature(signature) {
+  return !!(
+    signature
+    && signature.status === ReportSignatureStatus.SIGNED
+    && signature.version?.status === ReportVersionStatus.ACTIVE
+    && !signature.version?.finalDocumentHash
+    && signature.report?.status === ReportStatus.APPROVED
+    && !isReportUnavailable(signature.report)
+    && allRequiredSignaturesCompleted(signature.version)
+  );
+}
+
+function signerEmailValue(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function signatureForSigner(version, signerEmail) {
+  const email = signerEmailValue(signerEmail);
+  return (version?.signatures || []).find(signature => signerEmailValue(signature.signerEmail) === email) || null;
+}
+
+function signatureWouldCompleteRequired(version, signatureId) {
+  const required = (version?.signatures || []).filter(signature => signature.isRequired !== false);
+  return required.length > 0 && required.every(signature => (
+    signature.status === ReportSignatureStatus.SIGNED || signature.id === signatureId
+  ));
+}
+
+async function assertSignatureFinalizationPreflight(version) {
+  const sourcePath = reportSourcePdfPath(version?.sourcePdfUrl);
+  if (!sourcePath) {
+    const error = new Error('PDF-base da assinatura interna nao foi encontrado.');
+    error.statusCode = 409;
+    throw error;
+  }
+  const sourceBuffer = await fs.readFile(sourcePath);
+  if (sha256Hex(sourceBuffer) !== version.sourceDocumentHash) {
+    const error = new Error('PDF-base da assinatura interna diverge do hash registrado.');
+    error.statusCode = 409;
+    throw error;
+  }
+}
+
+export async function resetSignedSignatureForFinalizationRetry(_client, _signatureResult) {
+  // Retry finalization without reverting the already persisted signature evidence.
+  return false;
+}
+
+export async function persistClientSignatureApprovalReview(client, {
+  reportId,
+  clientUserId,
+  comment = null,
+  evidence = {}
+}) {
+  const normalizedComment = String(comment || '').trim();
+  const approvedReview = await client.clientReportReview.findFirst({
+    where: {
+      reportId,
+      action: ClientReviewAction.APPROVED
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  const data = {
+    comment: normalizedComment || null,
+    ipAddress: evidence.ipAddress || null,
+    userAgent: evidence.userAgent || null
+  };
+
+  if (approvedReview) {
+    return client.clientReportReview.update({
+      where: { id: approvedReview.id },
+      data
+    });
+  }
+
+  return client.clientReportReview.create({
+    data: {
+      reportId,
+      clientUserId,
+      action: ClientReviewAction.APPROVED,
+      ...data
+    }
+  });
+}
+
+export async function completedSignatureVersionAfterCommit(client, reportId) {
+  const version = await activeVersionWithSignatures(client, reportId);
+  return allRequiredSignaturesCompleted(version) ? version : null;
+}
+
+export async function rejectPublicInternalSignature({
+  token,
+  comment,
+  evidence,
+  client = prisma
+}) {
+  return client.$transaction(async tx => {
+    const signature = await activePublicSignatureOrThrow(token, tx);
+    const rejected = await tx.reportSignature.updateMany({
+      where: { id: signature.id, status: ReportSignatureStatus.PENDING },
+      data: {
+        status: ReportSignatureStatus.REJECTED,
+        rejectedAt: new Date(),
+        rejectionReason: comment,
+        ipAddress: evidence.ipAddress,
+        userAgent: evidence.userAgent
+      }
+    });
+    if (rejected.count !== 1) {
+      const error = new Error('Link de assinatura indisponível.');
+      error.statusCode = 409;
+      throw error;
+    }
+    await tx.reportSignature.updateMany({
+      where: {
+        versionId: signature.versionId,
+        id: { not: signature.id },
+        status: { in: [ReportSignatureStatus.PENDING, ReportSignatureStatus.SIGNED] }
+      },
+      data: {
+        status: ReportSignatureStatus.INVALIDATED,
+        invalidatedAt: new Date(),
+        rejectionReason: comment
+      }
+    });
+    const versionRejected = await tx.reportVersion.updateMany({
+      where: { id: signature.versionId, status: ReportVersionStatus.ACTIVE },
+      data: { status: ReportVersionStatus.REJECTED }
+    });
+    if (versionRejected.count !== 1) {
+      const error = new Error('Link de assinatura indisponível.');
+      error.statusCode = 409;
+      throw error;
+    }
+    await createSignatureAuditLog(tx, {
+      reportId: signature.reportId,
+      versionId: signature.versionId,
+      userId: null,
+      action: ReportAuditAction.REJECTED,
+      description: 'Relatorio reprovado por link publico de assinatura.',
+      evidence
+    });
+    await createSignatureAuditLog(tx, {
+      reportId: signature.reportId,
+      versionId: signature.versionId,
+      userId: null,
+      action: ReportAuditAction.SIGNATURES_INVALIDATED,
+      description: 'Assinaturas da rodada foram invalidadas por reprovacao via link publico.',
+      evidence
+    });
+    const updated = await tx.report.updateMany({
+      where: { id: signature.reportId, status: ReportStatus.APPROVED },
+      data: {
+        status: ReportStatus.PENDING,
+        specialConditions: {
+          ...(signature.report.specialConditions || {}),
+          [CLIENT_REJECTION_KEY]: new Date().toISOString(),
+          [CLIENT_REJECTION_COMMENT_KEY]: comment
+        }
+      }
+    });
+    if (updated.count !== 1) {
+      const error = new Error('Link de assinatura indisponível.');
+      error.statusCode = 409;
+      throw error;
+    }
+    return tx.report.findUniqueOrThrow({
+      where: { id: signature.reportId },
+      include
+    });
+  });
+}
+
+function staleClientSignatureRejectionError() {
+  const error = new Error('Esta assinatura não está mais pendente para rejeição.');
+  error.statusCode = 409;
+  return error;
+}
+
+function unauthorizedClientSignatureRejectionError() {
+  const error = new Error('Cliente não configurado como signatário desta rodada.');
+  error.statusCode = 403;
+  return error;
+}
+
+export async function rejectAuthenticatedClientSignatureRound(tx, {
+  report,
+  authUser,
+  comment,
+  evidence
+}) {
+  const nextSpecialConditions = { ...(report.specialConditions || {}) };
+  nextSpecialConditions[CLIENT_REJECTION_KEY] = new Date().toISOString();
+  nextSpecialConditions[CLIENT_REJECTION_COMMENT_KEY] = comment || null;
+  delete nextSpecialConditions[CLIENT_REJECTION_RESOLVED_KEY];
+
+  const activeVersion = await tx.reportVersion.findFirst({
+    where: { reportId: report.id, status: ReportVersionStatus.ACTIVE },
+    include: { signatures: true },
+    orderBy: { versionNumber: 'desc' }
+  });
+  if (activeVersion) {
+    const authEmail = authenticatedSignerEmailForReport(report, authUser);
+    const matchingSignature = activeVersion.signatures.find(signature => signature.signerEmail.toLowerCase() === authEmail);
+    if (!matchingSignature) throw unauthorizedClientSignatureRejectionError();
+
+    const rejected = await tx.reportSignature.updateMany({
+      where: { id: matchingSignature.id, status: ReportSignatureStatus.PENDING },
+      data: {
+        status: ReportSignatureStatus.REJECTED,
+        userId: authUser.id,
+        rejectedAt: new Date(),
+        rejectionReason: comment || null,
+        ipAddress: evidence.ipAddress,
+        userAgent: evidence.userAgent
+      }
+    });
+    if (rejected.count !== 1) throw staleClientSignatureRejectionError();
+
+    await tx.reportSignature.updateMany({
+      where: {
+        versionId: activeVersion.id,
+        id: { not: matchingSignature.id },
+        status: { in: [ReportSignatureStatus.PENDING, ReportSignatureStatus.SIGNED] }
+      },
+      data: {
+        status: ReportSignatureStatus.INVALIDATED,
+        invalidatedAt: new Date(),
+        rejectionReason: comment || null
+      }
+    });
+    const versionRejected = await tx.reportVersion.updateMany({
+      where: { id: activeVersion.id, status: ReportVersionStatus.ACTIVE },
+      data: { status: ReportVersionStatus.REJECTED }
+    });
+    if (versionRejected.count !== 1) throw staleClientSignatureRejectionError();
+    await createSignatureAuditLog(tx, {
+      reportId: report.id,
+      versionId: activeVersion.id,
+      userId: authUser.id,
+      action: ReportAuditAction.REJECTED,
+      description: 'Relatorio reprovado pelo cliente durante a rodada de assinatura.',
+      evidence
+    });
+    await createSignatureAuditLog(tx, {
+      reportId: report.id,
+      versionId: activeVersion.id,
+      userId: authUser.id,
+      action: ReportAuditAction.SIGNATURES_INVALIDATED,
+      description: 'Assinaturas anteriores da rodada foram invalidadas por reprovacao.',
+      evidence
+    });
+  }
+
+  const reportRejected = await tx.report.updateMany({
+    where: { id: report.id, status: ReportStatus.APPROVED },
+    data: {
+      status: ReportStatus.PENDING,
+      specialConditions: nextSpecialConditions
+    }
+  });
+  if (reportRejected.count !== 1) throw staleClientSignatureRejectionError();
+
+  return tx.report.findUniqueOrThrow({
+    where: { id: report.id },
+    include
+  });
+}
+
 function contentDisposition(fileName) {
   const ascii = fileName
     .normalize('NFD')
@@ -254,6 +912,18 @@ const include = {
     }
   },
   attachments: true,
+  versions: {
+    where: { status: 'ACTIVE' },
+    orderBy: { versionNumber: 'desc' },
+    take: 1
+  },
+  reportSignatures: {
+    where: {
+      status: { not: 'INVALIDATED' },
+      version: { status: 'ACTIVE' }
+    },
+    orderBy: { createdAt: 'asc' }
+  },
   clientReviews: {
     orderBy: { createdAt: 'desc' },
     include: {
@@ -274,6 +944,7 @@ export function collaboratorCanAccessProject(auth, project) {
   return !!(
     collaboratorId
     && project?.isActive
+    && !project.deletedAt
     && project.visibleToCollaborators
     && !project.managerOnly
     && project.operatorId === collaboratorId
@@ -284,17 +955,84 @@ export function collaboratorReportProjectWhere(collaboratorId) {
   if (!collaboratorId) return { id: '__NO_MATCH__' };
   return {
     isActive: true,
+    deletedAt: null,
     visibleToCollaborators: true,
     managerOnly: false,
     operatorId: collaboratorId
   };
 }
 
-async function canAccessReport(auth, report) {
+function activeReportProjectWhere(projectWhere = {}) {
+  return { ...projectWhere, deletedAt: null };
+}
+
+export function approvedRdoHistoryWhere(projectId) {
+  return {
+    projectId,
+    deletedAt: null,
+    project: activeReportProjectWhere(),
+    reportType: ReportType.RDO,
+    status: ReportStatus.APPROVED
+  };
+}
+
+export function derivedReportsForProjectWhere(projectId) {
+  return {
+    projectId,
+    deletedAt: null,
+    project: activeReportProjectWhere(),
+    reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] }
+  };
+}
+
+function reportDateKey(value) {
+  if (!value) return '';
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const text = String(value || '');
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
+}
+
+function reportCollection(allReportsById) {
+  if (!allReportsById) return [];
+  if (Array.isArray(allReportsById)) return allReportsById;
+  if (typeof allReportsById.values === 'function') return Array.from(allReportsById.values());
+  return [];
+}
+
+export function previousRdosSignedForServiceReport(report, parentRdo, allReportsById) {
+  const parentDateKey = reportDateKey(parentRdo?.reportDate || report?.reportDate);
+  if (!parentDateKey) return false;
+  const projectId = report?.projectId || parentRdo?.projectId;
+  return reportCollection(allReportsById).every(item => {
+    if (!item || item.projectId !== projectId) return true;
+    if (item.reportType !== ReportType.RDO) return true;
+    if (item.deletedAt || item.project?.deletedAt) return true;
+    const itemDateKey = reportDateKey(item.reportDate);
+    if (!itemDateKey || itemDateKey >= parentDateKey) return true;
+    return item.status === ReportStatus.SIGNED;
+  });
+}
+
+function assignActiveReportProjectWhere(where, projectWhere = {}) {
+  where.project = activeReportProjectWhere(projectWhere);
+}
+
+function isReportUnavailable(report) {
+  return !!(report?.deletedAt || report?.project?.deletedAt);
+}
+
+export async function canAccessReport(auth, report) {
+  if (report?.project?.deletedAt) return false;
   if (auth.user.role === 'MANAGER') return true;
   if (report.project?.managerOnly) return false;
   if (auth.user.role === 'COORDINATOR') return true;
-  if (auth.user.role === 'CLIENT') return clientCanAccessProject(auth, report.project);
+  if (auth.user.role === 'CLIENT') {
+    if (!clientCanAccessProject(auth, report.project)) return false;
+    return canClientSeeReportForAccess(report);
+  }
   if (report.createdByUserId === auth.user.id) return true;
   const collabId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
   if (collabId && report.project?.operatorId === collabId) return true;
@@ -304,7 +1042,8 @@ async function canAccessReport(auth, report) {
   return false;
 }
 
-function canClientSeeReport(report, allReportsById) {
+export function canClientSeeReport(report, allReportsById) {
+  if (report?.project?.deletedAt) return false;
   if (!report || !report.project?.clientCnpj) return false;
   if (report.reportType === ReportType.RDO) {
     return report.status === ReportStatus.APPROVED || report.status === ReportStatus.SIGNED || hasActiveClientRejection(report);
@@ -315,12 +1054,58 @@ function canClientSeeReport(report, allReportsById) {
   const parentId = report.specialConditions?.parentRdoId;
   if (!parentId) return false;
   const parent = allReportsById.get(parentId);
-  return !!(parent && parent.status === ReportStatus.SIGNED);
+  return !!(
+    parent
+    && parent.status === ReportStatus.SIGNED
+    && previousRdosSignedForServiceReport(report, parent, allReportsById)
+  );
 }
 
-async function resolveSignerUrlFromZapSign(docToken, authUser, project) {
-  const zapDoc = await getZapSignDocument(docToken);
-  return resolveSignerUrlFromZapSignDocument(zapDoc, authUser, project);
+async function projectReportsForClientVisibility(projectId, client = prisma) {
+  return client.report.findMany({
+    where: { projectId, deletedAt: null, project: activeReportProjectWhere() },
+    include
+  });
+}
+
+async function canClientSeeReportForAccess(report, client = prisma) {
+  if (!report?.projectId) return false;
+  const projectReports = await projectReportsForClientVisibility(report.projectId, client);
+  const byId = new Map(projectReports.map(item => [item.id, item]));
+  return canClientSeeReport(report, byId);
+}
+
+function releasedServiceReportPayload(report) {
+  return {
+    id: report.id,
+    projectId: report.projectId,
+    reportType: report.reportType,
+    sequenceNumber: report.sequenceNumber ?? null,
+    reportDate: report.reportDate,
+    project: {
+      id: report.project?.id || report.projectId,
+      code: report.project?.code || '',
+      name: report.project?.name || ''
+    }
+  };
+}
+
+export async function releasedServiceReportsAfterRdoSignature(rdo, client = prisma) {
+  if (!rdo || rdo.reportType !== ReportType.RDO || rdo.status !== ReportStatus.SIGNED) return [];
+  const projectReports = await projectReportsForClientVisibility(rdo.projectId, client);
+  const byId = new Map(projectReports.map(item => [item.id, item]));
+  const signedDateKey = reportDateKey(rdo.reportDate);
+  return projectReports
+    .filter(report => {
+      if (report.reportType === ReportType.RDO) return false;
+      const parentId = report.specialConditions?.parentRdoId;
+      if (!parentId) return false;
+      const parent = byId.get(parentId);
+      const parentDateKey = reportDateKey(parent?.reportDate || report.reportDate);
+      const signedRdoReleasedThisReport = parentId === rdo.id || (signedDateKey && parentDateKey && signedDateKey < parentDateKey);
+      return signedRdoReleasedThisReport && canClientSeeReport(report, byId);
+    })
+    .map(releasedServiceReportPayload);
 }
 
 function assertReportMutable(report) {
@@ -329,11 +1114,26 @@ function assertReportMutable(report) {
     error.statusCode = 409;
     throw error;
   }
+  if (hasActiveSignedInternalSignature(report)) {
+    const error = new Error('Relatório com assinatura iniciada não pode mais ser alterado.');
+    error.statusCode = 409;
+    throw error;
+  }
 }
 
-function clientIp(req) {
-  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  return forwarded || req.ip || null;
+function reportUpdatedAtToken(report) {
+  const value = report?.updatedAt;
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+}
+
+export function assertSignatureSourceCurrent(currentReport, expectedUpdatedAt) {
+  if (!expectedUpdatedAt) return;
+  if (reportUpdatedAtToken(currentReport) === expectedUpdatedAt) return;
+  const error = new Error('A solicitação de assinatura foi atualizada por outra operação.');
+  error.statusCode = 409;
+  throw error;
 }
 
 function reportPdfFileName(report, saved) {
@@ -409,26 +1209,15 @@ async function refreshDerivedReportSource(report) {
   });
 }
 
-function buildZapSignWebhookUrl() {
-  const base = String(env.appUrl || '').replace(/\/+$/, '');
-  if (!base) {
-    const error = new Error('APP_URL não configurado para receber webhook do ZapSign.');
-    error.statusCode = 503;
-    throw error;
-  }
-  return `${base}/api/webhooks/zapsign`;
-}
-
 async function resolveSignedPdf(report) {
-  if (!report?.zapsignDocToken) {
-    const error = new Error('Relatório assinado sem referência do documento ZapSign.');
-    error.statusCode = 409;
-    throw error;
-  }
-
   let signedUrl = String(report.zapsignDocUrl || '').trim();
 
   if (!signedUrl) {
+    if (!report?.zapsignDocToken) {
+      const error = new Error('Relatório assinado sem referência do PDF assinado legado.');
+      error.statusCode = 409;
+      throw error;
+    }
     const details = await getZapSignDocument(report.zapsignDocToken);
     signedUrl = String(details?.signedFile || '').trim();
     if (!signedUrl) {
@@ -454,6 +1243,9 @@ async function resolveSignedPdf(report) {
     if (error?.statusCode !== 403) {
       throw error;
     }
+    if (!report?.zapsignDocToken) {
+      throw error;
+    }
 
     const details = await getZapSignDocument(report.zapsignDocToken);
     const refreshedSignedUrl = String(details?.signedFile || '').trim();
@@ -475,8 +1267,61 @@ async function resolveSignedPdf(report) {
 }
 
 async function getReportPdfDownload(report) {
-  if (report.status === ReportStatus.SIGNED && report.reportType === ReportType.RDO && report.zapsignDocToken) {
+  if (
+    report.status === ReportStatus.APPROVED &&
+    report.reportType === ReportType.RDO &&
+    report.zapsignDocToken &&
+    !report.zapsignSignedAt
+  ) {
+    try {
+      const result = await reconcileLegacyZapSignReport(report);
+      report = result.report || report;
+    } catch (error) {
+      console.warn('Reconciliação legada ZapSign ignorada durante download do relatório.', {
+        reportId: report.id,
+        message: error?.message
+      });
+    }
+  }
+
+  const finalVersion = Array.isArray(report.versions)
+    ? report.versions.find(version => version.finalPdfUrl)
+    : null;
+  if (report.status === ReportStatus.SIGNED && finalVersion?.finalPdfUrl) {
+    const finalPath = reportSourcePdfPath(finalVersion.finalPdfUrl);
+    if (finalPath) {
+      const buffer = await verifiedFinalPdfBuffer(finalPath, finalVersion);
+      return {
+        fileName: path.basename(finalPath),
+        buffer
+      };
+    }
+  }
+
+  if (
+    report.status === ReportStatus.SIGNED &&
+    report.reportType === ReportType.RDO &&
+    (report.zapsignDocToken || report.zapsignDocUrl)
+  ) {
     return resolveSignedPdf(report);
+  }
+
+  const activeSourceVersion = Array.isArray(report.versions)
+    ? report.versions.find(version => version.status === ReportVersionStatus.ACTIVE && version.sourcePdfUrl && version.sourceDocumentHash)
+    : null;
+  if (
+    report.status === ReportStatus.APPROVED &&
+    report.reportType === ReportType.RDO &&
+    activeSourceVersion
+  ) {
+    const sourcePath = reportSourcePdfPath(activeSourceVersion.sourcePdfUrl);
+    if (sourcePath) {
+      const buffer = await verifiedSourcePdfBuffer(sourcePath, activeSourceVersion);
+      return {
+        fileName: path.basename(sourcePath),
+        buffer
+      };
+    }
   }
 
   const saved = await generateReportPdfAsset(report);
@@ -484,6 +1329,248 @@ async function getReportPdfDownload(report) {
     fileName: saved.fileName,
     buffer: await fs.readFile(saved.targetPath)
   };
+}
+
+export async function verifiedSourcePdfBuffer(sourcePath, version) {
+  if (!version?.sourceDocumentHash) {
+    const error = new Error('PDF-base da assinatura sem hash registrado.');
+    error.statusCode = 409;
+    throw error;
+  }
+  const buffer = await fs.readFile(sourcePath);
+  const actualHash = sha256Hex(buffer);
+  if (actualHash !== version.sourceDocumentHash) {
+    const error = new Error('PDF-base da assinatura diverge do hash registrado.');
+    error.statusCode = 409;
+    throw error;
+  }
+  return buffer;
+}
+
+export async function verifiedFinalPdfBuffer(finalPath, finalVersion) {
+  if (!finalVersion?.finalDocumentHash) {
+    const error = new Error('PDF assinado sem hash final registrado.');
+    error.statusCode = 409;
+    throw error;
+  }
+  const buffer = await fs.readFile(finalPath);
+  const actualHash = sha256Hex(buffer);
+  if (actualHash !== finalVersion.finalDocumentHash) {
+    const error = new Error('PDF assinado diverge do hash final registrado.');
+    error.statusCode = 409;
+    throw error;
+  }
+  return buffer;
+}
+
+async function finalizeInternalSignatureRound(report, version, evidence, userId, options = {}) {
+  const currentVersion = await prisma.reportVersion.findUnique({
+    where: { id: version.id },
+    include: { signatures: { orderBy: { createdAt: 'asc' } } }
+  });
+  if (currentVersion?.finalDocumentHash) {
+    return prisma.report.findUniqueOrThrow({
+      where: { id: report.id },
+      include
+    });
+  }
+
+  const versionForFinalPdf = currentVersion ? { ...version, ...currentVersion } : version;
+  const sourcePath = reportSourcePdfPath(versionForFinalPdf.sourcePdfUrl);
+  if (!sourcePath) {
+    const error = new Error('PDF-base da assinatura interna nao foi encontrado.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const validationCode = await uniqueSignatureValidationCode();
+  const target = finalEvidencePdfTarget(sourcePath, versionForFinalPdf.sourcePdfUrl, validationCode);
+
+  let finalPdf;
+  try {
+    finalPdf = await writeFinalEvidencePdf({
+      sourcePdfPath: sourcePath,
+      sourcePdfUrl: versionForFinalPdf.sourcePdfUrl,
+      finalPdfPath: target.finalPdfPath,
+      finalPdfUrl: target.finalPdfUrl,
+      report,
+      version: { ...versionForFinalPdf, validationCode },
+      signatures: versionForFinalPdf.signatures || [],
+      validationCode
+    });
+  } catch (error) {
+    await fs.unlink(target.finalPdfPath).catch(() => {});
+    throw error;
+  }
+
+  try {
+    const wonFinalization = await prisma.$transaction(async tx => {
+      const finalized = await tx.reportVersion.updateMany({
+        where: {
+          id: version.id,
+          status: ReportVersionStatus.ACTIVE,
+          finalDocumentHash: null,
+          report: {
+            status: ReportStatus.APPROVED
+          },
+          signatures: {
+            every: {
+              OR: [
+                { isRequired: false },
+                { status: ReportSignatureStatus.SIGNED }
+              ]
+            }
+          }
+        },
+        data: {
+          finalPdfUrl: finalPdf.finalPdfUrl,
+          validationCode,
+          finalDocumentHash: finalPdf.finalDocumentHash
+        }
+      });
+      if (finalized.count !== 1) {
+        return false;
+      }
+      await tx.reportSignature.updateMany({
+        where: { versionId: version.id, status: 'SIGNED' },
+        data: { finalDocumentHash: finalPdf.finalDocumentHash }
+      });
+      await tx.report.update({
+        where: { id: report.id },
+        data: { status: ReportStatus.SIGNED }
+      });
+      if (options.signedAudit?.signerName) {
+        await createSignatureAuditLog(tx, {
+          reportId: report.id,
+          versionId: version.id,
+          userId,
+          action: ReportAuditAction.SIGNED,
+          description: `${options.signedAudit.signerName} assinou o relatorio.`,
+          evidence
+        });
+      }
+      await createSignatureAuditLog(tx, {
+        reportId: report.id,
+        versionId: version.id,
+        userId,
+        action: ReportAuditAction.REPORT_LOCKED,
+        description: 'Relatorio assinado internamente e bloqueado.',
+        evidence
+      });
+      return true;
+    });
+    if (!wonFinalization) {
+      await fs.unlink(target.finalPdfPath).catch(() => {});
+      const finalizedReport = await prisma.report.findUniqueOrThrow({
+        where: { id: report.id },
+        include
+      });
+      if (finalizedReport.versions?.some(item => item.id === version.id && item.finalDocumentHash)) {
+        return finalizedReport;
+      }
+      const error = new Error('Finalizacao de assinatura ja processada por outra requisicao.');
+      error.statusCode = 409;
+      throw error;
+    }
+  } catch (error) {
+    await fs.unlink(target.finalPdfPath).catch(() => {});
+    throw error;
+  }
+
+  return prisma.report.findUniqueOrThrow({
+    where: { id: report.id },
+    include
+  });
+}
+
+async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
+  const freshReport = report?.id
+    ? await prisma.report.findUnique({ where: { id: report.id }, include })
+    : null;
+  if (freshReport) report = freshReport;
+  if (isReportUnavailable(report)) return null;
+
+  if (!shouldCreateInternalSignatureRound(report)) {
+    if (
+      report?.reportType === ReportType.RDO
+      && report?.status === ReportStatus.APPROVED
+      && !report?.project?.managerOnly
+      && !hasActiveClientRejection(report)
+      && !clientSignersForReport(report).length
+    ) {
+      console.warn('Rodada de assinatura interna nao criada: nenhum signatario cliente configurado.', {
+        reportId: report.id,
+        projectId: report.projectId
+      });
+    }
+    return null;
+  }
+
+  const activeVersion = await prisma.reportVersion.findFirst({
+    where: { reportId: report.id, status: 'ACTIVE' },
+    include: { signatures: true },
+    orderBy: { versionNumber: 'desc' }
+  });
+  let sourcePdfUrl = activeVersion?.sourcePdfUrl || '';
+  let sourceDocumentHash = activeVersion?.sourceDocumentHash || '';
+  let generatedSourcePath = '';
+  const expectedReportUpdatedAt = reportUpdatedAtToken(report);
+  if (!activeVersion) {
+    const saved = await generateReportPdfAsset(report);
+    generatedSourcePath = saved.targetPath;
+    const pdfBuffer = await fs.readFile(saved.targetPath);
+    sourcePdfUrl = saved.publicUrl;
+    sourceDocumentHash = sha256Hex(pdfBuffer);
+  }
+
+  let version;
+  let tokens;
+  let emailDelivery = null;
+  try {
+    ({ version, tokens, emailDelivery } = await prisma.$transaction(async tx => {
+      const current = await tx.report.findUniqueOrThrow({
+        where: { id: report.id },
+        include
+      });
+      if (current.status !== ReportStatus.APPROVED || hasActiveClientRejection(current)) {
+        return { version: null, tokens: [] };
+      }
+      assertSignatureSourceCurrent(current, expectedReportUpdatedAt);
+      const nextVersion = await ensureInternalSignatureRound(tx, {
+        report: current,
+        sourcePdfUrl,
+        sourceDocumentHash,
+        createdByUserId: userId,
+        evidence
+      });
+      const missingMailerConfig = getMissingMailerConfig();
+      if (missingMailerConfig.length && signatureRequestEmailRequired(current, nextVersion)) {
+        return {
+          version: nextVersion,
+          tokens: [],
+          emailDelivery: signatureRequestEmailDeliveryFailure(missingSignatureRequestEmailConfigError(missingMailerConfig))
+        };
+      }
+      const issuedTokens = await issuePendingSignatureTokens(tx, nextVersion);
+      return { version: nextVersion, tokens: issuedTokens, emailDelivery: null };
+    }));
+    if (generatedSourcePath && version?.sourcePdfUrl !== sourcePdfUrl) {
+      await fs.unlink(generatedSourcePath).catch(() => {});
+    }
+  } catch (error) {
+    if (generatedSourcePath) await fs.unlink(generatedSourcePath).catch(() => {});
+    if (error?.statusCode === 409 && /Nenhum signatario cliente/.test(error.message || '')) {
+      console.warn('Rodada de assinatura interna nao criada: nenhum signatario cliente configurado.', {
+        reportId: report.id,
+        projectId: report.projectId
+      });
+      return null;
+    }
+    throw error;
+  }
+
+  if (tokens.length) emailDelivery = await deliverIssuedSignatureRequestEmails(report, tokens);
+  return { version, emailDelivery };
 }
 
 async function getReportDocxDownload(report) {
@@ -496,7 +1583,7 @@ async function getReportDocxDownload(report) {
 
 async function fetchReportsForIds(ids) {
   const items = await prisma.report.findMany({
-    where: { id: { in: ids } },
+    where: { id: { in: ids }, deletedAt: null, project: activeReportProjectWhere() },
     include,
     orderBy: [{ reportDate: 'desc' }, { createdAt: 'desc' }]
   });
@@ -521,7 +1608,7 @@ async function assertBatchAccess(auth, reports) {
   if (auth.user.role === 'CLIENT') {
     const projectIds = Array.from(new Set(reports.map(report => report.projectId).filter(Boolean)));
     const projectReports = await prisma.report.findMany({
-      where: { projectId: { in: projectIds } },
+      where: { projectId: { in: projectIds }, deletedAt: null, project: activeReportProjectWhere() },
       include
     });
     const byId = new Map(projectReports.map(report => [report.id, report]));
@@ -531,14 +1618,6 @@ async function assertBatchAccess(auth, reports) {
       throw error;
     }
   }
-}
-
-function normalizeCommentMap(raw) {
-  const out = {};
-  Object.entries(raw || {}).forEach(([key, value]) => {
-    out[String(key)] = String(value || '').trim();
-  });
-  return out;
 }
 
 function normalizedText(value) {
@@ -656,18 +1735,34 @@ const clientReviewSchema = z.object({
     });
   }
 });
-const requestSignatureSchema = z.object({
-  comment: z.string().trim().max(4000).optional().nullable()
+export const requestSignatureSchema = z.object({
+  comment: z.string().trim().max(4000).optional().nullable(),
+  signerName: z.string().trim().min(2).max(160),
+  signatureImageDataUrl: z.string().trim().min(1).max(2_100_000)
+    .refine(value => !!parseSignatureImageDataUrl(value), 'Assinatura visual invalida.'),
+  privacyNoticeAccepted: z.boolean().optional(),
+  privacyNoticeVersion: z.string().trim().optional().nullable()
+}).superRefine((data, ctx) => {
+  const error = validatePrivacyNoticeAcknowledgement(data, SIGNATURE_RDO_NOTICE_VERSION);
+  if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['privacyNoticeVersion'], message: error });
+});
+export const publicSignatureConfirmSchema = z.object({
+  signerName: z.string().trim().min(2).max(160),
+  signatureImageDataUrl: z.string().trim().min(1).max(2_100_000)
+    .refine(value => !!parseSignatureImageDataUrl(value), 'Assinatura visual invalida.'),
+  privacyNoticeAccepted: z.boolean().optional(),
+  privacyNoticeVersion: z.string().trim().optional().nullable()
+}).superRefine((data, ctx) => {
+  const error = validatePrivacyNoticeAcknowledgement(data, SIGNATURE_RDO_NOTICE_VERSION);
+  if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['privacyNoticeVersion'], message: error });
+});
+const publicSignatureRejectSchema = z.object({
+  comment: z.string().trim().min(1).max(4000)
 });
 const batchDownloadSchema = z.object({
   ids: z.array(z.string().min(1)).min(1).max(100),
   format: z.enum(['pdf', 'docx'])
 });
-const batchSignatureSchema = z.object({
-  ids: z.array(z.string().min(1)).min(1).max(15),
-  commentsById: z.record(z.string(), z.any()).optional()
-});
-
 function uniqueIds(values) {
   return Array.from(new Set((values || []).filter(Boolean)));
 }
@@ -675,6 +1770,15 @@ function uniqueIds(values) {
 function cloneJson(value) {
   if (value == null) return value;
   return JSON.parse(JSON.stringify(value));
+}
+
+export async function assertRenderableReportSignatureImageDataUrl(value) {
+  if (await decodableSignatureImageDataUrl(value)) return;
+  throw new z.ZodError([{
+    code: z.ZodIssueCode.custom,
+    path: ['signatureImageDataUrl'],
+    message: 'Assinatura visual invalida.'
+  }]);
 }
 
 function stripInternalEditState(specialConditions) {
@@ -782,8 +1886,8 @@ function buildReportUpdateFromSnapshot(project, snapshot) {
 }
 
 async function restoreReportFromSnapshot(tx, reportId, originalSnapshot) {
-  const project = await tx.project.findUniqueOrThrow({
-    where: { id: originalSnapshot.projectId }
+  const project = await tx.project.findFirstOrThrow({
+    where: { id: originalSnapshot.projectId, ...activeReportProjectWhere() }
   });
 
   await tx.reportCollaborator.deleteMany({ where: { reportId } });
@@ -1126,6 +2230,9 @@ async function syncApprovedRtpReports(tx, report) {
 
   const existingRtps = await tx.report.findMany({
     where: {
+      projectId: report.projectId,
+      deletedAt: null,
+      project: activeReportProjectWhere(),
       reportType: ReportType.RTP
     },
     select: {
@@ -1151,7 +2258,7 @@ async function syncApprovedRtpReports(tx, report) {
   });
 
   const allApprovedRdos = await tx.report.findMany({
-    where: { projectId: report.projectId, reportType: ReportType.RDO, status: ReportStatus.APPROVED },
+    where: approvedRdoHistoryWhere(report.projectId),
     orderBy: [{ reportDate: 'asc' }, { createdAt: 'asc' }],
     select: {
       id: true,
@@ -1315,6 +2422,9 @@ async function syncApprovedRlqReports(tx, report) {
 
   const existingRlqs = await tx.report.findMany({
     where: {
+      projectId: report.projectId,
+      deletedAt: null,
+      project: activeReportProjectWhere(),
       reportType: ReportType.RLQ
     },
     select: {
@@ -1337,7 +2447,7 @@ async function syncApprovedRlqReports(tx, report) {
   });
 
   const allApprovedRdos = await tx.report.findMany({
-    where: { projectId: report.projectId, reportType: ReportType.RDO, status: ReportStatus.APPROVED },
+    where: approvedRdoHistoryWhere(report.projectId),
     orderBy: [{ reportDate: 'asc' }, { createdAt: 'asc' }],
     select: {
       id: true,
@@ -1511,24 +2621,37 @@ function semanticServiceHistoryKey(service) {
   ].join('||');
 }
 
-function serviceHistoryKey(service) {
+export function serviceHistoryKey(service) {
   return explicitServiceHistoryKey(service) || semanticServiceHistoryKey(service);
 }
 
-function serviceHistoryKeys(service) {
+export function serviceHistoryKeys(service) {
   const keys = new Set();
   const explicit = explicitServiceHistoryKey(service);
-  if (explicit) keys.add(explicit);
-  else keys.add(semanticServiceHistoryKey(service));
+  if (explicit) {
+    keys.add(explicit);
+    const parts = explicit.split('||');
+    if (parts.length === 4) keys.add(parts.slice(1).join('||'));
+  } else {
+    keys.add(semanticServiceHistoryKey(service));
+  }
 
   return Array.from(keys).filter(Boolean);
 }
 
-function hasSharedServiceHistoryKey(left, right) {
+export function hasSharedServiceHistoryKey(left, right) {
   const leftExplicit = explicitServiceHistoryKey(left);
   const rightExplicit = explicitServiceHistoryKey(right);
-  if (leftExplicit || rightExplicit) {
-    return Boolean(leftExplicit && rightExplicit && leftExplicit === rightExplicit);
+  if (leftExplicit && rightExplicit) {
+    return leftExplicit === rightExplicit;
+  }
+  if (leftExplicit) {
+    const rightKeys = new Set(serviceHistoryKeys(right));
+    return serviceHistoryKeys(left).some(key => rightKeys.has(key));
+  }
+  if (rightExplicit) {
+    const rightKeys = new Set(serviceHistoryKeys(right));
+    return serviceHistoryKeys(left).some(key => rightKeys.has(key));
   }
   const rightKeys = new Set(serviceHistoryKeys(right));
   return serviceHistoryKeys(left).some(key => rightKeys.has(key));
@@ -1542,7 +2665,7 @@ function findExistingByLinkKeys(existingByLinkKey, service, serviceId) {
   return serviceId ? existingByLinkKey.get(String(serviceId)) : null;
 }
 
-function buildHistoricalServiceData(currentFields, serviceHistory) {
+export function buildHistoricalServiceData(currentFields, serviceHistory) {
   const data = { ...(currentFields || {}) };
   const firstField = names => {
     for (const item of serviceHistory) {
@@ -1622,7 +2745,12 @@ async function syncApprovedRcpReports(tx, report) {
 
   // For RCPU, one report per serviceLinkKey for the whole project (not per parentRdoId).
   const existingRcps = await tx.report.findMany({
-    where: { projectId: report.projectId, reportType: ReportType.RCPU },
+    where: {
+      projectId: report.projectId,
+      deletedAt: null,
+      project: activeReportProjectWhere(),
+      reportType: ReportType.RCPU
+    },
     select: { id: true, projectId: true, reportType: true, sequenceNumber: true, status: true, specialConditions: true }
   });
 
@@ -1637,7 +2765,7 @@ async function syncApprovedRcpReports(tx, report) {
 
   // Fetch all approved RDOs once for totalMinutes calculation.
   const allApprovedRdos = await tx.report.findMany({
-    where: { projectId: report.projectId, reportType: ReportType.RDO, status: ReportStatus.APPROVED },
+    where: approvedRdoHistoryWhere(report.projectId),
     orderBy: [{ reportDate: 'asc' }, { createdAt: 'asc' }],
     select: {
       id: true,
@@ -1807,7 +2935,12 @@ async function syncApprovedRlmReports(tx, report) {
   }
 
   const existingRlms = await tx.report.findMany({
-    where: { reportType: ReportType.RLM },
+    where: {
+      projectId: report.projectId,
+      deletedAt: null,
+      project: activeReportProjectWhere(),
+      reportType: ReportType.RLM
+    },
     select: { id: true, projectId: true, reportType: true, sequenceNumber: true, status: true, specialConditions: true }
   });
 
@@ -1820,7 +2953,7 @@ async function syncApprovedRlmReports(tx, report) {
   });
 
   const allApprovedRdos = await tx.report.findMany({
-    where: { projectId: report.projectId, reportType: ReportType.RDO, status: ReportStatus.APPROVED },
+    where: approvedRdoHistoryWhere(report.projectId),
     orderBy: [{ reportDate: 'asc' }, { createdAt: 'asc' }],
     select: {
       id: true,
@@ -2148,8 +3281,8 @@ async function createIndependentServiceReports(tx, project, data, managerUserId)
   return createdReports;
 }
 
-router.get('/', requireAuth, asyncHandler(async (req, res) => {
-  const where = {};
+router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+  const where = { deletedAt: null, project: activeReportProjectWhere() };
 
   if (req.query.status) {
     where.status = req.query.status;
@@ -2164,21 +3297,21 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
   }
 
   if (req.auth.user.role === 'CLIENT') {
-    where.project = clientProjectAccessWhere(req.auth);
+    assignActiveReportProjectWhere(where, clientProjectAccessWhere(req.auth));
   } else if (req.auth.user.role === 'COORDINATOR') {
-    where.project = { managerOnly: false };
+    assignActiveReportProjectWhere(where, { managerOnly: false });
   } else if (req.query.mine === 'true' && req.auth.user.role === 'COLLABORATOR') {
     const me = await prisma.user.findUnique({
       where: { id: req.auth.user.id },
       select: { collaboratorId: true }
     });
-    where.project = collaboratorReportProjectWhere(me?.collaboratorId);
+    assignActiveReportProjectWhere(where, collaboratorReportProjectWhere(me?.collaboratorId));
   } else if (req.query.mine === 'true') {
     where.createdByUserId = req.auth.user.id;
-    where.project = { managerOnly: false };
+    assignActiveReportProjectWhere(where, { managerOnly: false });
   }
-  if (req.auth.user.role !== 'MANAGER' && !where.project) {
-    where.project = { managerOnly: false };
+  if (req.auth.user.role !== 'MANAGER' && Object.keys(where.project || {}).length === 1) {
+    assignActiveReportProjectWhere(where, { managerOnly: false });
   }
 
   const tGet0 = Date.now();
@@ -2195,7 +3328,7 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
   res.json(items);
 }));
 
-router.post('/batch-download', requireAuth, asyncHandler(async (req, res) => {
+router.post('/batch-download', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const data = batchDownloadSchema.parse(req.body);
   if (data.format === 'docx' && req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode baixar DOCX em lote.' });
@@ -2222,213 +3355,152 @@ router.post('/batch-download', requireAuth, asyncHandler(async (req, res) => {
   res.send(zip.toBuffer());
 }));
 
-router.post('/batch-request-signature', requireAuth, asyncHandler(async (req, res) => {
-  if (req.auth.user.role !== 'CLIENT') {
-    return res.status(403).json({ error: 'Apenas o cliente pode solicitar assinatura digital em lote.' });
-  }
+router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {
+  let signature = await publicSignatureFromToken(req.params.token);
+  let status = publicSignatureStatus(signature);
 
-  assertZapSignEnabled();
-  const data = batchSignatureSchema.parse(req.body || {});
-  const ids = uniqueIds(data.ids);
-  const reports = await fetchReportsForIds(ids);
-  if (reports.length !== ids.length) {
-    return res.status(404).json({ error: 'Um ou mais relatórios selecionados não foram encontrados.' });
-  }
-  await assertBatchAccess(req.auth, reports);
-
-  const projectIds = Array.from(new Set(reports.map(report => report.projectId).filter(Boolean)));
-  if (projectIds.length !== 1) {
-    return res.status(409).json({ error: 'A assinatura em lote do cliente exige relatórios do mesmo projeto.' });
-  }
-  if (reports.some(report => report.reportType !== ReportType.RDO || report.status !== ReportStatus.APPROVED || report.status === ReportStatus.SIGNED)) {
-    return res.status(409).json({ error: 'A assinatura em lote aceita apenas RDOs aprovados pelo gestor e ainda não assinados.' });
-  }
-  if (reports.some(report => hasActiveClientRejection(report))) {
-    return res.status(409).json({ error: 'Há relatórios reprovados pelo cliente que precisam ser alterados pelo gestor antes da assinatura.' });
-  }
-
-  const { signerName, signerEmail } = resolveZapSignSigner(reports[0], req.auth.user);
-  const additionalSigners = zapsignAdditionalSignersForProject(reports[0].project, signerEmail);
-  const pendingAlready = reports.find(report => report.zapsignDocToken && !report.zapsignSignedAt);
-  if (pendingAlready) {
-    let signUrl = resolveSignerUrlForUser(pendingAlready, req.auth.user);
-    if (!signUrl) {
-      signUrl = await resolveSignerUrlFromZapSign(pendingAlready.zapsignDocToken, req.auth.user, pendingAlready.project);
+  if (signature && status === 'EXPIRED' && signature.status === 'PENDING') {
+    const expired = await prisma.$transaction(tx => expirePendingPublicSignature(tx, signature, signatureEvidenceFromRequest(req)));
+    if (expired) {
+      status = 'EXPIRED';
+    } else {
+      signature = await publicSignatureFromToken(req.params.token);
+      status = publicSignatureStatus(signature);
     }
-    if (signUrl) {
-      return res.json({ ok: true, signUrl, reportIds: reports.map(report => report.id) });
-    }
-    return res.status(409).json({ error: 'Seu link de assinatura não foi encontrado para estes relatórios. Contate o gestor.' });
-  }
-
-  const { claimed, claimTime } = await claimZapSignRequests(prisma, ids);
-  if (!claimed) {
-    await releaseZapSignRequestClaims(prisma, ids, claimTime);
-    const currentReports = await fetchReportsForIds(ids);
-    const pendingExisting = currentReports.find(report => report.status === ReportStatus.APPROVED && report.zapsignDocToken && !report.zapsignSignedAt);
-    if (pendingExisting) {
-      let signUrl = resolveSignerUrlForUser(pendingExisting, req.auth.user);
-      if (!signUrl) {
-        signUrl = await resolveSignerUrlFromZapSign(pendingExisting.zapsignDocToken, req.auth.user, pendingExisting.project);
-      }
-      if (signUrl) {
-        return res.json({ ok: true, signUrl, reportIds: currentReports.map(report => report.id) });
-      }
-      return res.status(409).json({ error: 'Seu link de assinatura não foi encontrado para estes relatórios. Contate o gestor.' });
-    }
-    return res.status(409).json({ error: 'A solicitação de assinatura em lote já está em andamento. Tente novamente em instantes.' });
-  }
-
-  const commentsById = normalizeCommentMap(data.commentsById);
-  let preparedReports;
-  let mainResult;
-  try {
-    preparedReports = await prisma.$transaction(async tx => {
-      const prepared = [];
-      for (const report of reports) {
-        const comment = commentsById[report.id] || '';
-        const approvedReview = (report.clientReviews || []).find(item => item.action === ClientReviewAction.APPROVED);
-        if (approvedReview) {
-          if (comment !== String(approvedReview.comment || '').trim()) {
-            await tx.clientReportReview.update({
-              where: { id: approvedReview.id },
-              data: {
-                comment: comment || null,
-                ipAddress: clientIp(req),
-                userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
-              }
-            });
-          }
-        } else {
-          await tx.clientReportReview.create({
-            data: {
-              reportId: report.id,
-              clientUserId: req.auth.user.id,
-              action: ClientReviewAction.APPROVED,
-              comment: comment || null,
-              ipAddress: clientIp(req),
-              userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
-            }
-          });
-        }
-        prepared.push(await tx.report.findUniqueOrThrow({ where: { id: report.id }, include }));
-      }
-      return prepared;
+  } else if (signature && status === 'ACTIVE') {
+    await createSignatureAuditLog(prisma, {
+      reportId: signature.reportId,
+      versionId: signature.versionId,
+      userId: null,
+      action: ReportAuditAction.TOKEN_ACCESSED,
+      description: 'Link publico de assinatura acessado.',
+      evidence: signatureEvidenceFromRequest(req)
     });
-
-    const [mainReport, ...extraReports] = preparedReports;
-    if (preparedReports.some(report => report.status !== ReportStatus.APPROVED || report.zapsignDocToken || report.zapsignSignedAt)) {
-      const error = new Error('A solicitação de assinatura em lote foi atualizada por outra operação.');
-      error.statusCode = 409;
-      throw error;
-    }
-    const mainFile = await getReportPdfDownload(mainReport);
-    mainResult = await sendToZapSign({
-      pdfBuffer: mainFile.buffer,
-      fileName: reportPdfFileName(mainReport, mainFile),
-      signerName,
-      signerEmail,
-      additionalSigners,
-      externalId: mainReport.id,
-      webhookUrl: buildZapSignWebhookUrl()
-    });
-
-    if (!mainResult.docToken || !mainResult.signerUrl) {
-      const error = new Error('A ZapSign não retornou os dados esperados para a assinatura em lote.');
-      error.statusCode = 502;
-      throw error;
-    }
-
-    const initialProgress = buildZapSignSignatureProgress(mainResult.raw);
-    const mainSigners = mainResult.allSigners?.length ? mainResult.allSigners : [];
-    const updates = [{
-      id: mainReport.id,
-      docToken: mainResult.docToken,
-      signerToken: mainResult.signerToken || null,
-      allSigners: mainSigners
-    }];
-
-    for (const report of extraReports) {
-      const file = await getReportPdfDownload(report);
-      const extra = await addExtraDocToZapSign(mainResult.docToken, {
-        pdfBuffer: file.buffer,
-        fileName: reportPdfFileName(report, file)
-      });
-      if (!extra.docToken) {
-        const error = new Error('A ZapSign não retornou o token de um documento extra da assinatura em lote.');
-        error.statusCode = 502;
-        throw error;
-      }
-      updates.push({ id: report.id, docToken: extra.docToken, signerToken: null, allSigners: mainSigners });
-    }
-
-    await prisma.$transaction(async tx => {
-      const batchDocTokens = updates.map(item => item.docToken).filter(Boolean);
-      for (const item of updates) {
-        const existing = await tx.report.findUnique({ where: { id: item.id }, select: { specialConditions: true } });
-        const nextSpecialConditions = {
-          ...(existing?.specialConditions || {}),
-          ...(item.allSigners.length ? { [ZAPSIGN_SIGNERS_KEY]: item.allSigners } : {}),
-          ...(initialProgress.total ? { [ZAPSIGN_SIGNATURE_PROGRESS_KEY]: initialProgress } : {}),
-          ...(batchDocTokens.length > 1 ? {
-            [ZAPSIGN_BATCH_MAIN_DOC_TOKEN_KEY]: mainResult.docToken,
-            [ZAPSIGN_BATCH_DOC_TOKENS_KEY]: batchDocTokens
-          } : {})
-        };
-        const result = await tx.report.updateMany({
-          where: {
-            id: item.id,
-            status: ReportStatus.APPROVED,
-            zapsignDocToken: null,
-            zapsignSignedAt: null,
-            zapsignRequestedAt: claimTime
-          },
-          data: {
-            zapsignDocToken: item.docToken,
-            zapsignSignerToken: item.signerToken,
-            zapsignRequestedAt: new Date(),
-            zapsignSignedAt: null,
-            zapsignDocUrl: null,
-            specialConditions: nextSpecialConditions
-          }
-        });
-        if (result.count !== 1) {
-          const error = new Error('A solicitação de assinatura em lote foi atualizada por outra operação.');
-          error.statusCode = 409;
-          throw error;
-        }
-      }
-    });
-  } catch (error) {
-    await releaseZapSignRequestClaims(prisma, ids, claimTime).catch(cleanupError => {
-      console.error('Falha ao liberar solicitação ZapSign em lote em andamento.', cleanupError);
-    });
-    throw error;
   }
 
-  const batchSignUrl = resolveSignerUrlForUser(
-    { ...preparedReports[0], specialConditions: { ...(preparedReports[0].specialConditions || {}), [ZAPSIGN_SIGNERS_KEY]: mainResult.allSigners || [] }, zapsignSignerToken: mainResult.signerToken },
-    req.auth.user
-  ) || mainResult.signerUrl;
-  res.json({
-    ok: true,
-    signUrl: batchSignUrl,
-    reportIds: preparedReports.map(report => report.id)
-  });
+  res.json(publicSignaturePayload(signature, status));
 }));
 
-router.get('/:id', requireAuth, asyncHandler(async (req, res) => {
+router.get('/public-sign/:token/pdf', publicSignatureLimiter, asyncHandler(async (req, res) => {
+  const signature = await activePublicSignatureOrThrow(req.params.token);
+  const sourcePath = reportSourcePdfPath(signature.version.sourcePdfUrl);
+  if (!sourcePath) return res.status(404).json({ error: 'PDF da assinatura não encontrado.' });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', contentDisposition(reportPdfFileName(signature.report)));
+  res.send(await fs.readFile(sourcePath));
+}));
+
+router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(async (req, res) => {
+  const data = publicSignatureConfirmSchema.parse(req.body || {});
+  await assertRenderableReportSignatureImageDataUrl(data.signatureImageDataUrl);
+  const evidence = signatureEvidenceFromRequest(req);
+  let signedVersion;
+  let signatureResult = { alreadySigned: false };
+  let item = await prisma.$transaction(async tx => {
+    const signature = await retryablePublicSignatureForConfirmOrThrow(req.params.token, tx);
+    const completesRequiredSignatures = signatureWouldCompleteRequired(signature.version, signature.id);
+    if (completesRequiredSignatures) {
+      await assertSignatureFinalizationPreflight(signature.version);
+    }
+    signatureResult = await signInternalReportVersion(tx, {
+      report: signature.report,
+      version: signature.version,
+      signer: {
+        name: data.signerName,
+        email: signature.signerEmail
+      },
+      userId: null,
+      evidence,
+      signatureImageDataUrl: data.signatureImageDataUrl,
+      privacyNoticeVersion: data.privacyNoticeVersion,
+      deferAuditLog: completesRequiredSignatures
+    });
+    signedVersion = await activeVersionWithSignatures(tx, signature.reportId);
+    return tx.report.findUniqueOrThrow({
+      where: { id: signature.reportId },
+      include
+    });
+  });
+
+  signedVersion = await completedSignatureVersionAfterCommit(prisma, item.id) || signedVersion;
+
+  let completed = false;
+  if (signedVersion && allRequiredSignaturesCompleted(signedVersion)) {
+    try {
+      item = await finalizeInternalSignatureRound(item, signedVersion, evidence, null, {
+        signedAudit: signatureResult.signedSignature
+      });
+      completed = true;
+    } catch (error) {
+      await resetSignedSignatureForFinalizationRetry(prisma, signatureResult).catch(resetError => {
+        console.error('Falha ao tornar assinatura retryable após erro de finalização.', resetError);
+      });
+      throw error;
+    }
+  }
+
+  if (completed || !signatureResult.alreadySigned) {
+    const finalVersion = completed && item.versions?.[0]
+      ? { ...signedVersion, finalDocumentHash: item.versions[0].finalDocumentHash }
+      : signedVersion;
+    const signedSignature = finalVersion?.signatures?.find(signature => internalSignatureTokenHash(req.params.token) === signature.tokenHash);
+    queueInternalSignatureNotification(item, finalVersion, {
+      name: signedSignature?.signerName,
+      email: signedSignature?.signerEmail
+    }, completed);
+  }
+
+  res.json({ success: true, completed, report: withInternalSignatureProgress(item) });
+}));
+
+router.post('/public-sign/:token/reject', publicSignatureLimiter, asyncHandler(async (req, res) => {
+  const data = publicSignatureRejectSchema.parse(req.body || {});
+  const evidence = signatureEvidenceFromRequest(req);
+  const item = await rejectPublicInternalSignature({
+    token: req.params.token,
+    comment: data.comment,
+    evidence
+  });
+
+  queueClientRejectionNotification(item, data.comment);
+  res.json({ success: true, report: item });
+}));
+
+router.get('/validate-signature/:validationCode', publicSignatureLimiter, asyncHandler(async (req, res) => {
+  const validationCode = String(req.params.validationCode || '').trim();
+  const version = validationCode
+    ? await prisma.reportVersion.findUnique({
+      where: { validationCode },
+      include: {
+        report: {
+          include: {
+            project: true
+          }
+        },
+        signatures: {
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    })
+    : null;
+
+  res.json(publicValidationPayload(version));
+}));
+
+router.get('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
   });
+  if (isReportUnavailable(item)) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, item))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (req.auth.user.role === 'CLIENT') {
     const projectReports = await prisma.report.findMany({
-      where: { projectId: item.projectId },
+      where: { projectId: item.projectId, deletedAt: null, project: activeReportProjectWhere() },
       include
     });
     const byId = new Map(projectReports.map(report => [report.id, report]));
@@ -2440,18 +3512,19 @@ router.get('/:id', requireAuth, asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
+router.get('/:id/pdf', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   let item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
   });
+  if (isReportUnavailable(item)) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, item))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (req.auth.user.role === 'CLIENT') {
     const projectReports = await prisma.report.findMany({
-      where: { projectId: item.projectId },
+      where: { projectId: item.projectId, deletedAt: null, project: activeReportProjectWhere() },
       include
     });
     const byId = new Map(projectReports.map(report => [report.id, report]));
@@ -2460,26 +3533,22 @@ router.get('/:id/pdf', requireAuth, asyncHandler(async (req, res) => {
     }
   }
 
-  if (item.status === ReportStatus.SIGNED && item.reportType === ReportType.RDO && item.zapsignDocToken) {
-    const signed = await resolveSignedPdf(item);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', contentDisposition(signed.fileName));
-    res.send(signed.buffer);
-    return;
+  if (item.status !== ReportStatus.SIGNED) {
+    item = await refreshDerivedReportSource(item);
   }
 
-  item = await refreshDerivedReportSource(item);
-  const saved = await generateReportPdfAsset(item);
+  const file = await getReportPdfDownload(item);
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', contentDisposition(saved.fileName));
-  res.send(await fs.readFile(saved.targetPath));
+  res.setHeader('Content-Disposition', contentDisposition(file.fileName));
+  res.send(file.buffer);
 }));
 
-router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
+router.get('/:id/docx', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   let item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
   });
+  if (isReportUnavailable(item)) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, item))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
@@ -2496,7 +3565,7 @@ router.get('/:id/docx', requireAuth, asyncHandler(async (req, res) => {
   res.send(await fs.readFile(saved.targetPath));
 }));
 
-router.delete('/:id/services/:serviceId', requireAuth, asyncHandler(async (req, res) => {
+router.delete('/:id/services/:serviceId', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode editar relatórios.` });
   }
@@ -2505,6 +3574,7 @@ router.delete('/:id/services/:serviceId', requireAuth, asyncHandler(async (req, 
     where: { id: req.params.id },
     include
   });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(existing);
 
   if (!(await canAccessReport(req.auth, existing))) {
@@ -2531,7 +3601,7 @@ router.delete('/:id/services/:serviceId', requireAuth, asyncHandler(async (req, 
   res.json(item);
 }));
 
-router.post('/service-only', requireAuth, asyncHandler(async (req, res) => {
+router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode criar relatórios somente de serviço.' });
   }
@@ -2548,8 +3618,8 @@ router.post('/service-only', requireAuth, asyncHandler(async (req, res) => {
   }
 
   const createdReports = await prisma.$transaction(async tx => {
-    const project = await tx.project.findUniqueOrThrow({
-      where: { id: data.projectId },
+    const project = await tx.project.findFirstOrThrow({
+      where: { id: data.projectId, ...activeReportProjectWhere() },
       include: { operator: true }
     });
 
@@ -2566,7 +3636,7 @@ router.post('/service-only', requireAuth, asyncHandler(async (req, res) => {
   res.status(201).json(createdReports);
 }));
 
-router.post('/', requireAuth, asyncHandler(async (req, res) => {
+router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode criar relatórios.` });
   }
@@ -2577,8 +3647,8 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
   const pendingDerivedTypes = collectPendingDerivedTypes(data.services);
   const tPost0 = Date.now();
   const item = await prisma.$transaction(async tx => {
-    const project = await tx.project.findUniqueOrThrow({
-      where: { id: data.projectId },
+    const project = await tx.project.findFirstOrThrow({
+      where: { id: data.projectId, ...activeReportProjectWhere() },
       include: { operator: true }
     });
     if (project.managerOnly && req.auth.user.role !== 'MANAGER') {
@@ -2656,7 +3726,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
   const tPostOrg = Date.now();
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
+      where: derivedReportsForProjectWhere(item.projectId),
       include
     });
     for (const d of derived) {
@@ -2664,11 +3734,15 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
     }
   }
   console.log('[TIMING] POST /reports', { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, totalMs: Date.now() - tPost0, reportType: item.reportType, status: item.status });
-  if (item.status === ReportStatus.APPROVED) queueApprovedReportNotification(item);
-  res.status(201).json(item);
+  let signatureRoundResult = null;
+  if (item.status === ReportStatus.APPROVED) {
+    queueApprovedReportNotification(item);
+    signatureRoundResult = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, signatureEvidenceFromRequest(req));
+  }
+  res.status(201).json(reportWithSignatureEmailDelivery(item, signatureRoundResult?.emailDelivery));
 }));
 
-router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
+router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode editar relatórios.` });
   }
@@ -2679,6 +3753,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   const isServiceOnlyReport = existing.specialConditions?.serviceOnly === true;
   if (isServiceOnlyReport && req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode editar relatórios somente de serviço.' });
@@ -2697,10 +3772,11 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
   if (req.auth.user.role !== 'MANAGER') {
-    const targetProject = await prisma.project.findUniqueOrThrow({
-      where: { id: data.projectId },
+    const targetProject = await prisma.project.findFirstOrThrow({
+      where: { id: data.projectId, ...activeReportProjectWhere() },
       select: {
         isActive: true,
+        deletedAt: true,
         visibleToCollaborators: true,
         managerOnly: true,
         operatorId: true
@@ -2715,11 +3791,12 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   }
   const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);
   const isManagerFixingClientRejection = req.auth.user.role === 'MANAGER' && hasActiveClientRejection(existing);
+  const evidence = signatureEvidenceFromRequest(req);
 
   const tPut0 = Date.now();
   const item = await prisma.$transaction(async tx => {
-    const project = await tx.project.findUniqueOrThrow({
-      where: { id: data.projectId },
+    const project = await tx.project.findFirstOrThrow({
+      where: { id: data.projectId, ...activeReportProjectWhere() },
       include: { operator: true }
     });
     const overtime = calculateReportOvertime(project, data);
@@ -2760,6 +3837,12 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
     const sequenceSwap = (managerProvidedSequence || sequenceGroupChanged) && Number.isInteger(targetSequenceNumber)
       ? await prepareReportSequenceChange(tx, existing, data.projectId, data.reportType, targetSequenceNumber)
       : null;
+    await invalidateUnsignedInternalSignatureRound(tx, {
+      reportId: existing.id,
+      userId: req.auth.user.id,
+      evidence,
+      description: 'Rodada de assinatura invalidada por edicao do relatorio antes da primeira assinatura.'
+    });
 
     const updated = await tx.report.update({
       where: { id: req.params.id },
@@ -2838,7 +3921,7 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   const tPutOrg = Date.now();
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
+      where: derivedReportsForProjectWhere(item.projectId),
       include
     });
     for (const d of derived) {
@@ -2847,10 +3930,14 @@ router.put('/:id', requireAuth, asyncHandler(async (req, res) => {
   }
   console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: item.reportType, status: item.status });
   if (isManagerFixingClientRejection && item.status === ReportStatus.APPROVED) queueReapprovedReportNotification(item);
-  res.json(item);
+  let signatureRoundResult = null;
+  if (item.status === ReportStatus.APPROVED) {
+    signatureRoundResult = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
+  }
+  res.json(reportWithSignatureEmailDelivery(item, signatureRoundResult?.emailDelivery));
 }));
 
-router.patch('/:id/sequence', requireAuth, asyncHandler(async (req, res) => {
+router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode alterar a numeração dos relatórios.' });
   }
@@ -2860,6 +3947,7 @@ router.patch('/:id/sequence', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(existing);
 
   const item = await prisma.$transaction(async tx => {
@@ -2880,7 +3968,7 @@ router.patch('/:id/sequence', requireAuth, asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
+router.post('/:id/cancel-edit', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role === 'CLIENT' || req.auth.user.role === 'COORDINATOR') {
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode desfazer edições de relatórios.` });
   }
@@ -2892,6 +3980,7 @@ router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(existing);
 
   if (!(await canAccessReport(req.auth, existing))) {
@@ -2908,7 +3997,7 @@ router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
   await organizeAndPersist(item);
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
+      where: derivedReportsForProjectWhere(item.projectId),
       include
     });
     for (const d of derived) {
@@ -2919,7 +4008,7 @@ router.post('/:id/cancel-edit', requireAuth, asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.post('/:id/discard-edit', requireAuth, asyncHandler(async (req, res) => {
+router.post('/:id/discard-edit', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode descartar uma edição pendente.' });
   }
@@ -2928,6 +4017,7 @@ router.post('/:id/discard-edit', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(existing);
 
   const originalSnapshot = cloneJson(existing.specialConditions?.__editOriginalSnapshot);
@@ -2940,7 +4030,7 @@ router.post('/:id/discard-edit', requireAuth, asyncHandler(async (req, res) => {
   await organizeAndPersist(item);
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
+      where: derivedReportsForProjectWhere(item.projectId),
       include
     });
     for (const d of derived) {
@@ -2951,7 +4041,7 @@ router.post('/:id/discard-edit', requireAuth, asyncHandler(async (req, res) => {
   res.json(item);
 }));
 
-router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
+router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode excluir relatórios.' });
   }
@@ -2960,6 +4050,7 @@ router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     include
   });
+  if (isReportUnavailable(item)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   assertReportMutable(item);
 
   const originalSnapshot = cloneJson(item.specialConditions?.__editOriginalSnapshot);
@@ -2974,10 +4065,7 @@ router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
 
     if (item.reportType === ReportType.RDO) {
       const derivedReports = await tx.report.findMany({
-        where: {
-          projectId: item.projectId,
-          reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] }
-        },
+        where: derivedReportsForProjectWhere(item.projectId),
         select: {
           id: true,
           specialConditions: true
@@ -2992,17 +4080,18 @@ router.delete('/:id', requireAuth, asyncHandler(async (req, res) => {
       });
     }
 
-    await tx.report.deleteMany({
+    await tx.report.updateMany({
       where: {
         id: { in: Array.from(new Set(idsToDelete)) }
-      }
+      },
+      data: { deletedAt: new Date() }
     });
   });
 
   res.status(204).end();
 }));
 
-router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
+router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode revisar relatórios.' });
   }
@@ -3011,18 +4100,20 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
   let approvedTransition = false;
   const previous = await prisma.report.findUnique({
     where: { id: req.params.id },
-    select: { status: true, specialConditions: true }
+    select: { status: true, specialConditions: true, deletedAt: true, project: { select: { deletedAt: true } } }
   });
+  if (!previous || isReportUnavailable(previous)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   if (previous?.status === ReportStatus.SIGNED) {
     return res.status(409).json({ error: 'Relatório assinado não pode mais ser alterado.' });
   }
   const wasClientRejection = hasActiveClientRejection(previous);
+  const evidence = signatureEvidenceFromRequest(req);
 
   const tPatch0 = Date.now();
   const item = await prisma.$transaction(async tx => {
     const nextSpecialConditions = data.status === ReportStatus.APPROVED
       ? withClientRejectionCleared(stripInternalEditState(previous?.specialConditions || {}))
-      : withoutZapSignState(previous?.specialConditions || {});
+      : withoutLegacyExternalSignatureState(previous?.specialConditions || {});
 
     const updated = await tx.report.update({
       where: { id: req.params.id },
@@ -3044,7 +4135,15 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
       include
     });
 
-    
+    if (data.status !== ReportStatus.APPROVED) {
+      await invalidateUnsignedInternalSignatureRound(tx, {
+        reportId: req.params.id,
+        userId: req.auth.user.id,
+        evidence,
+        description: 'Rodada de assinatura invalidada por alteracao de status do relatorio.',
+        invalidateSignedRound: true
+      });
+    }
 
     if (data.status === ReportStatus.APPROVED && previous?.status !== ReportStatus.APPROVED) {
       approvedTransition = true;
@@ -3058,9 +4157,10 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
   });
   const tPatchTx = Date.now();
 
+  let signatureRoundResult = null;
   if (data.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: { projectId: item.projectId, reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] } },
+      where: derivedReportsForProjectWhere(item.projectId),
       include
     });
     for (const d of derived) {
@@ -3073,23 +4173,25 @@ router.patch('/:id/status', requireAuth, asyncHandler(async (req, res) => {
         queueApprovedReportNotification(item);
       }
     }
+    signatureRoundResult = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
   }
   console.log('[TIMING] PATCH /reports/:id/status', { txMs: tPatchTx - tPatch0, totalMs: Date.now() - tPatch0, newStatus: data.status });
-  res.json(item);
+  res.json(reportWithSignatureEmailDelivery(item, signatureRoundResult?.emailDelivery));
 }));
 
-router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res) => {
+router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'CLIENT') {
     return res.status(403).json({ error: 'Apenas o cliente pode solicitar a assinatura digital.' });
   }
 
-  assertZapSignEnabled();
   const data = requestSignatureSchema.parse(req.body || {});
+  await assertRenderableReportSignatureImageDataUrl(data.signatureImageDataUrl);
 
   const existing = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
   });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
@@ -3107,142 +4209,190 @@ router.post('/:id/request-signature', requireAuth, asyncHandler(async (req, res)
     return res.status(409).json({ error: 'Somente relatórios aprovados pelo gestor podem ser assinados.' });
   }
   const comment = String(data.comment || '').trim();
-  const { signerName, signerEmail } = resolveZapSignSigner(existing, req.auth.user);
-  const { claimed, claimTime } = await claimZapSignRequest(prisma, existing.id);
+  const signer = {
+    ...resolveInternalClientSigner(existing, req.auth.user),
+    name: data.signerName
+  };
+  const evidence = signatureEvidenceFromRequest(req);
 
-  if (!claimed) {
-    const current = await prisma.report.findUniqueOrThrow({
-      where: { id: existing.id },
-      include
-    });
-    if (current.status === ReportStatus.APPROVED && current.zapsignDocToken && !current.zapsignSignedAt) {
-      let signUrl = resolveSignerUrlForUser(current, req.auth.user);
-      if (!signUrl) {
-        signUrl = await resolveSignerUrlFromZapSign(current.zapsignDocToken, req.auth.user, current.project);
-      }
-      if (signUrl) return res.json({ ok: true, signUrl, report: current });
-      return res.status(409).json({ error: 'Seu link de assinatura não foi encontrado para este relatório. Contate o gestor.' });
-    }
-    return res.status(409).json({ error: 'A solicitação de assinatura já está em andamento. Tente novamente em instantes.' });
+  const prepared = existing;
+
+  const activeVersion = await prisma.reportVersion.findFirst({
+    where: { reportId: prepared.id, status: 'ACTIVE' },
+    include: { signatures: true },
+    orderBy: { versionNumber: 'desc' }
+  });
+
+  let sourcePdfUrl = activeVersion?.sourcePdfUrl || '';
+  let sourceDocumentHash = activeVersion?.sourceDocumentHash || '';
+  let generatedSourcePath = '';
+  const expectedReportUpdatedAt = reportUpdatedAtToken(prepared);
+  if (!activeVersion) {
+    const saved = await generateReportPdfAsset(prepared);
+    generatedSourcePath = saved.targetPath;
+    const pdfBuffer = await fs.readFile(saved.targetPath);
+    sourcePdfUrl = saved.publicUrl;
+    sourceDocumentHash = sha256Hex(pdfBuffer);
   }
 
+  let signedVersion;
+  let signatureResult = { alreadySigned: false };
+  let issuedTokens = [];
   let item;
-  let zapsignForResponse;
   try {
-    const prepared = await prisma.$transaction(async tx => {
-      const approvedReview = (existing.clientReviews || []).find(item => item.action === ClientReviewAction.APPROVED);
-      if (approvedReview) {
-        if (comment !== String(approvedReview.comment || '').trim()) {
-          await tx.clientReportReview.update({
-            where: { id: approvedReview.id },
-            data: {
-              comment: comment || null,
-              ipAddress: clientIp(req),
-              userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
-            }
-          });
-        }
-      } else {
-        await tx.clientReportReview.create({
-          data: {
-            reportId: existing.id,
-            clientUserId: req.auth.user.id,
-            action: ClientReviewAction.APPROVED,
-            comment: comment || null,
-            ipAddress: clientIp(req),
-            userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
-          }
-        });
+    item = await prisma.$transaction(async tx => {
+      const current = await tx.report.findUniqueOrThrow({
+        where: { id: prepared.id },
+        include
+      });
+      if (current.status !== ReportStatus.APPROVED) {
+        const error = new Error('A solicitação de assinatura foi atualizada por outra operação.');
+        error.statusCode = 409;
+        throw error;
       }
-
+      assertSignatureSourceCurrent(current, expectedReportUpdatedAt);
+      const version = await ensureInternalSignatureRound(tx, {
+        report: current,
+        sourcePdfUrl,
+        sourceDocumentHash,
+        createdByUserId: req.auth.user.id,
+        evidence
+      });
+      const signingSignature = signatureForSigner(version, signer.email);
+      const completesRequiredSignatures = signatureWouldCompleteRequired(version, signingSignature?.id);
+      if (completesRequiredSignatures) {
+        await assertSignatureFinalizationPreflight(version);
+      }
+      signatureResult = await signInternalReportVersion(tx, {
+        report: current,
+        version,
+        signer,
+        userId: req.auth.user.id,
+        evidence,
+        signatureImageDataUrl: data.signatureImageDataUrl,
+        privacyNoticeVersion: data.privacyNoticeVersion,
+        deferAuditLog: completesRequiredSignatures
+      });
+      signedVersion = await activeVersionWithSignatures(tx, current.id);
+      assertSignatureRequestEmailDeliveryConfigured(current, signedVersion);
+      issuedTokens = await issuePendingSignatureTokens(tx, signedVersion);
       return tx.report.findUniqueOrThrow({
-        where: { id: existing.id },
+        where: { id: current.id },
         include
       });
     });
-
-    if (prepared.status !== ReportStatus.APPROVED || prepared.zapsignDocToken || prepared.zapsignSignedAt) {
-      const error = new Error('A solicitação de assinatura foi atualizada por outra operação.');
-      error.statusCode = 409;
-      throw error;
+    if (generatedSourcePath && signedVersion?.sourcePdfUrl !== sourcePdfUrl) {
+      await fs.unlink(generatedSourcePath).catch(() => {});
     }
-    const additionalSigners = zapsignAdditionalSignersForProject(prepared.project, signerEmail);
-    const tSig0 = Date.now();
-    const saved = await generateReportPdfAsset(prepared);
-    const pdfBuffer = await fs.readFile(saved.targetPath);
-    const tSigPdf = Date.now();
-    const zapsign = await sendToZapSign({
-      pdfBuffer,
-      fileName: reportPdfFileName(prepared, saved),
-      signerName,
-      signerEmail,
-      additionalSigners,
-      externalId: prepared.id,
-      webhookUrl: buildZapSignWebhookUrl()
-    });
-    zapsignForResponse = zapsign;
-    console.log('[TIMING] POST /reports/:id/request-signature', { pdfMs: tSigPdf - tSig0, zapMs: Date.now() - tSigPdf, totalMs: Date.now() - tSig0 });
-
-    if (!zapsign.docToken) {
-      const error = new Error('A ZapSign não retornou o token do documento.');
-      error.statusCode = 502;
-      throw error;
-    }
-    if (!zapsign.signerUrl) {
-      const error = new Error('A ZapSign não retornou o link de assinatura.');
-      error.statusCode = 502;
-      throw error;
-    }
-
-    const nextSpecialConditions = {
-      ...(prepared.specialConditions || {}),
-      ...(zapsign.allSigners?.length ? { [ZAPSIGN_SIGNERS_KEY]: zapsign.allSigners } : {})
-    };
-    const initialProgress = buildZapSignSignatureProgress(zapsign.raw);
-    if (initialProgress.total) {
-      nextSpecialConditions[ZAPSIGN_SIGNATURE_PROGRESS_KEY] = initialProgress;
-    }
-
-    const persisted = await persistZapSignRequest(
-      prisma,
-      prepared.id,
-      claimTime,
-      {
-        zapsignDocToken: zapsign.docToken,
-        zapsignSignerToken: zapsign.signerToken || null,
-        zapsignRequestedAt: new Date(),
-        zapsignSignedAt: null,
-        zapsignDocUrl: null,
-        specialConditions: nextSpecialConditions
-      }
-    );
-
-    if (!persisted) {
-      const error = new Error('A solicitação de assinatura já foi atualizada por outra operação.');
-      error.statusCode = 409;
-      throw error;
-    }
-
-    item = await prisma.report.findUniqueOrThrow({
-      where: { id: prepared.id },
-      include
-    });
   } catch (error) {
-    await releaseZapSignRequestClaim(prisma, existing.id, claimTime).catch(cleanupError => {
-      console.error('Falha ao liberar solicitação ZapSign em andamento.', cleanupError);
-    });
+    if (generatedSourcePath) await fs.unlink(generatedSourcePath).catch(() => {});
     throw error;
   }
 
-  const resolvedSignUrl = resolveSignerUrlForUser(item, req.auth.user) || zapsignForResponse.signerUrl;
+  signedVersion = await completedSignatureVersionAfterCommit(prisma, item.id) || signedVersion;
+
+  let completed = false;
+  if (signedVersion && allRequiredSignaturesCompleted(signedVersion)) {
+    try {
+      item = await finalizeInternalSignatureRound(item, signedVersion, evidence, req.auth.user.id, {
+        signedAudit: signatureResult.signedSignature
+      });
+      completed = true;
+    } catch (error) {
+      await resetSignedSignatureForFinalizationRetry(prisma, signatureResult).catch(resetError => {
+        console.error('Falha ao tornar assinatura retryable após erro de finalização.', resetError);
+      });
+      throw error;
+    }
+  }
+
+  if (completed) {
+    await persistClientSignatureApprovalReview(prisma, {
+      reportId: item.id,
+      clientUserId: req.auth.user.id,
+      comment,
+      evidence
+    });
+    item = await prisma.report.findUniqueOrThrow({
+      where: { id: item.id },
+      include
+    });
+  }
+
+  if (completed || !signatureResult.alreadySigned) {
+    const finalVersion = completed && item.versions?.[0]
+      ? { ...signedVersion, finalDocumentHash: item.versions[0].finalDocumentHash }
+      : signedVersion;
+    queueInternalSignatureNotification(item, finalVersion, signer, completed);
+  }
+  const signatureEmailDelivery = issuedTokens.length
+    ? await deliverIssuedSignatureRequestEmails(item, issuedTokens)
+    : null;
+  const releasedServiceReports = item.status === ReportStatus.SIGNED
+    ? await releasedServiceReportsAfterRdoSignature(item)
+    : [];
+
   res.json({
     ok: true,
-    signUrl: resolvedSignUrl,
-    report: item
+    signed: true,
+    completed: item.status === ReportStatus.SIGNED,
+    report: withInternalSignatureProgress(item),
+    ...(releasedServiceReports.length ? { releasedServiceReports } : {}),
+    ...(signatureEmailDelivery && !signatureEmailDelivery.ok ? { signatureEmailDelivery } : {})
   });
 }));
 
-router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => {
+router.get('/:id/signatures', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+  const item = await prisma.report.findUniqueOrThrow({
+    where: { id: req.params.id },
+    include
+  });
+  if (isReportUnavailable(item)) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (!(await canAccessReport(req.auth, item))) {
+    return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
+  }
+  res.json(item.reportSignatures || []);
+}));
+
+router.get('/:id/audit', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
+  if (req.auth.user.role !== 'MANAGER') {
+    return res.status(403).json({ error: 'Apenas o gestor pode consultar a auditoria do relatório.' });
+  }
+
+  const auditReport = await prisma.report.findUniqueOrThrow({
+    where: { id: req.params.id },
+    select: { id: true, deletedAt: true, project: { select: { deletedAt: true } } }
+  });
+  if (isReportUnavailable(auditReport)) return res.status(404).json({ error: 'Relatório não encontrado.' });
+
+  const logs = await prisma.reportAuditLog.findMany({
+    where: { reportId: req.params.id },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true
+        }
+      },
+      version: {
+        select: {
+          id: true,
+          versionNumber: true,
+          status: true,
+          sourceDocumentHash: true,
+          finalDocumentHash: true
+        }
+      }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  res.json(logs);
+}));
+
+router.post('/:id/client-review', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   if (req.auth.user.role !== 'CLIENT') {
     return res.status(403).json({ error: 'Apenas o cliente pode registrar esta ação.' });
   }
@@ -3252,6 +4402,7 @@ router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => 
     where: { id: req.params.id },
     include
   });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
   if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
@@ -3268,11 +4419,12 @@ router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => 
   if (existing.status !== ReportStatus.APPROVED) {
     return res.status(409).json({ error: 'Somente relatórios aprovados pelo gestor podem ser avaliados pelo cliente.' });
   }
-  if (data.action === 'APPROVED' && isZapSignEnabled()) {
-    return res.status(409).json({ error: 'Use a assinatura digital do ZapSign para concluir a aprovação do relatório.' });
+  if (data.action === 'APPROVED') {
+    return res.status(409).json({ error: 'Use o fluxo de assinatura para concluir a aprovação do relatório.' });
   }
 
   const clientRejectionReviewer = clientReviewerLabel(existing, req.auth.user);
+  const evidence = signatureEvidenceFromRequest(req);
   const item = await prisma.$transaction(async tx => {
     await tx.clientReportReview.create({
       data: {
@@ -3280,26 +4432,16 @@ router.post('/:id/client-review', requireAuth, asyncHandler(async (req, res) => 
         clientUserId: req.auth.user.id,
         action: data.action === 'APPROVED' ? ClientReviewAction.APPROVED : ClientReviewAction.REJECTED,
         comment: data.comment || null,
-        ipAddress: clientIp(req),
-        userAgent: String(req.headers['user-agent'] || '').slice(0, 1000) || null
+        ipAddress: evidence.ipAddress,
+        userAgent: evidence.userAgent
       }
     });
 
-    const nextSpecialConditions = { ...(existing.specialConditions || {}) };
-    if (data.action === 'REJECTED') {
-      nextSpecialConditions[CLIENT_REJECTION_KEY] = new Date().toISOString();
-      delete nextSpecialConditions[CLIENT_REJECTION_RESOLVED_KEY];
-    }
-
-    return tx.report.update({
-      where: { id: existing.id },
-      data: {
-        status: data.action === 'APPROVED' ? ReportStatus.SIGNED : ReportStatus.PENDING,
-        specialConditions: data.action === 'REJECTED'
-          ? nextSpecialConditions
-          : withClientRejectionCleared(existing.specialConditions)
-      },
-      include
+    return rejectAuthenticatedClientSignatureRound(tx, {
+      report: existing,
+      authUser: req.auth.user,
+      comment: data.comment || null,
+      evidence
     });
   });
 

@@ -64,7 +64,7 @@ export function ResetPasswordPage() {
         {status === 'valid' && message ? (
           <div className="auth-form">
             <div className="inline-success">{message}</div>
-            <Link className="secondary-button auth-back-button" to="/">
+            <Link className="secondary-button auth-back-button" to="/login">
               Voltar
             </Link>
           </div>

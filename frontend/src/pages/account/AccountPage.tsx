@@ -2,10 +2,12 @@ import { FormEvent, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { changePassword, updateAccountEmail } from '../../api/account';
+import { exportMyData, requestMyDataDeletion } from '../../api/privacy';
 import { useAuth } from '../../auth/AuthContext';
 import { roleHomePath } from '../../auth/rolePath';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
+import { downloadBlob } from '../../utils/download';
 
 export function AccountPage() {
   const navigate = useNavigate();
@@ -15,11 +17,15 @@ export function AccountPage() {
   const [emailError, setEmailError] = useState('');
   const [passwordMessage, setPasswordMessage] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [privacyMessage, setPrivacyMessage] = useState('');
+  const [privacyError, setPrivacyError] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSavingEmail, setIsSavingEmail] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isExportingData, setIsExportingData] = useState(false);
+  const [isRequestingDeletion, setIsRequestingDeletion] = useState(false);
 
   const backPath = useMemo(() => roleHomePath(user?.role), [user?.role]);
 
@@ -67,6 +73,37 @@ export function AccountPage() {
   async function handleLogout() {
     await logout();
     navigate('/', { replace: true });
+  }
+
+  async function handleDataExport() {
+    setPrivacyMessage('');
+    setPrivacyError('');
+    setIsExportingData(true);
+    try {
+      const data = await exportMyData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+      downloadBlob(blob, `meus-dados-${new Date().toISOString().slice(0, 10)}.json`);
+      setPrivacyMessage('Exportação de dados gerada.');
+    } catch (err) {
+      setPrivacyError(err instanceof Error ? err.message : 'Não foi possível exportar seus dados.');
+    } finally {
+      setIsExportingData(false);
+    }
+  }
+
+  async function handleDeletionRequest() {
+    setPrivacyMessage('');
+    setPrivacyError('');
+    if (!window.confirm('Registrar solicitação de eliminação/análise manual dos seus dados?')) return;
+    setIsRequestingDeletion(true);
+    try {
+      const request = await requestMyDataDeletion();
+      setPrivacyMessage(request.protocol ? `Solicitação registrada. Protocolo: ${request.protocol}` : 'Solicitação registrada.');
+    } catch (err) {
+      setPrivacyError(err instanceof Error ? err.message : 'Não foi possível registrar a solicitação.');
+    } finally {
+      setIsRequestingDeletion(false);
+    }
   }
 
   return (
@@ -144,6 +181,23 @@ export function AccountPage() {
               {isSavingPassword ? 'Salvando...' : 'Alterar senha'}
             </button>
           </form>
+        </section>
+
+        <section className="page-card">
+          <div className="section-title">Privacidade</div>
+          <p className="placeholder-copy">
+            Exporte os dados associados à sua conta ou registre uma solicitação de eliminação/análise manual.
+          </p>
+          {privacyMessage ? <div className="inline-success">{privacyMessage}</div> : null}
+          {privacyError ? <div className="inline-error">{privacyError}</div> : null}
+          <div className="admin-form-actions">
+            <button className="secondary-button" type="button" onClick={() => void handleDataExport()} disabled={isExportingData}>
+              {isExportingData ? 'Gerando...' : 'Exportar meus dados'}
+            </button>
+            <button className="danger-button" type="button" onClick={() => void handleDeletionRequest()} disabled={isRequestingDeletion}>
+              {isRequestingDeletion ? 'Registrando...' : 'Solicitar eliminação'}
+            </button>
+          </div>
         </section>
       </main>
     </Shell>

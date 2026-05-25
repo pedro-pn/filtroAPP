@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import prisma from './prisma.js';
+import { accountTypeForLegacyRole, serializeModuleRoles } from './module-roles.js';
+import { CLIENT_PRIVACY_NOTICE_VERSION, clientPrivacyConsentRequired } from './privacy-consent.js';
 
 const SESSION_DAYS = 7;
 const REMEMBER_SESSION_DAYS = 30;
@@ -52,8 +54,16 @@ export function publicUser(user) {
     username: user.username,
     name: user.name,
     email: user.email || null,
+    emailVerifiedAt: user.emailVerifiedAt?.toISOString?.() || user.emailVerifiedAt || null,
     role: user.role,
+    accountType: user.accountType || accountTypeForLegacyRole(user.role),
+    moduleRoles: serializeModuleRoles(user),
     isActive: user.isActive,
+    clientCnpj: user.clientCnpj || null,
+    privacyPolicyAcceptedAt: user.privacyPolicyAcceptedAt?.toISOString?.() || user.privacyPolicyAcceptedAt || null,
+    privacyPolicyVersion: user.privacyPolicyVersion || null,
+    privacyPolicyRequired: clientPrivacyConsentRequired(user),
+    requiredPrivacyPolicyVersion: CLIENT_PRIVACY_NOTICE_VERSION,
     collaboratorId: user.collaboratorId || null,
     collaborator: user.collaborator
       ? {

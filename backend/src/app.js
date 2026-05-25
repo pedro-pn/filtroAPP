@@ -25,6 +25,8 @@ const allowedOrigins = String(env.allowedOrigin || '')
 fs.mkdirSync(env.assetsDir, { recursive: true });
 fs.mkdirSync(env.reportsDir, { recursive: true });
 
+app.set('trust proxy', env.trustProxy);
+
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginResourcePolicy: false
@@ -42,8 +44,9 @@ app.use(cors({
   exposedHeaders: ['Content-Disposition']
 }));
 app.use((req, res, next) => {
-  const isUploadsApi = req.path.startsWith('/api/uploads');
-  const limit = isUploadsApi ? '25mb' : '1mb';
+  const isUploadsApi = req.path.startsWith('/api/uploads') || req.path.startsWith('/api/rdo/uploads');
+  const isSignatureApi = req.path.includes('/request-signature') || req.path.includes('/public-sign');
+  const limit = isUploadsApi ? '25mb' : isSignatureApi ? '3mb' : '1mb';
   return express.json({ limit })(req, res, next);
 });
 app.use(morgan('dev'));
@@ -75,8 +78,9 @@ app.use((err, _req, res, _next) => {
   console.error(err);
 
   if (err instanceof ZodError) {
+    const firstMessage = err.issues?.find(issue => issue.message)?.message;
     return res.status(400).json({
-      error: 'Dados inválidos',
+      error: firstMessage ? `Dados inválidos: ${firstMessage}` : 'Dados inválidos',
       details: err.flatten()
     });
   }
@@ -102,8 +106,8 @@ app.use((err, _req, res, _next) => {
   }
 
   const isProduction = env.nodeEnv === 'production';
-  const status = err.status || 500;
-  res.status(err.status || 500).json({
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
     error: status >= 500 && isProduction ? 'Erro interno do servidor.' : (err.message || 'Internal server error')
   });
 });

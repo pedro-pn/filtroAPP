@@ -7,27 +7,29 @@ import { roleHomePath } from '../auth/rolePath';
 import type { UploadedFile } from '../api/uploads';
 import { ServiceCollaboratorsBlock, ServiceFields, serviceTypeLabels } from '../components/reports/ServiceFields';
 import { SignatureProgress } from '../components/reports/SignatureProgress';
+import { SignatureDialog } from '../components/reports/SignatureDialog';
+import { PrivacyNotice } from '../components/privacy/PrivacyNotice';
 import { useToast } from '../components/ui/Toast';
+import { SIGNATURE_RDO_NOTICE_VERSION } from '../constants/privacy';
 import { useCollaborators } from '../hooks/useCollaborators';
 import { useCounters } from '../hooks/useCounters';
 import { useEquipment } from '../hooks/useEquipment';
 import { useManometers } from '../hooks/useManometers';
 import { useProjects } from '../hooks/useProjects';
-import { useReport, useReportMutations, useReports } from '../hooks/useReports';
+import { useReport, useReportAudit, useReportMutations, useReports } from '../hooks/useReports';
 import { useUnits } from '../hooks/useUnits';
 import { Shell } from '../layout/Shell';
 import { TopBar } from '../layout/TopBar';
 import { Modal } from '../components/ui/Modal';
 import { ReasonDialog } from '../components/ui/ReasonDialog';
 import { UploadField } from '../components/ui/UploadField';
-import type { ReportPayload, ReportStatus, ReportSummary } from '../types/domain';
+import type { ReportAuditLog, ReportPayload, ReportStatus, ReportSummary } from '../types/domain';
 import { formatDateOnlyPtBr } from '../utils/dateOnly';
 import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
 import { reportDownloadFileName } from '../utils/reportFileName';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
 import { loadUploadAssetUrl } from '../utils/uploadAssetUrl';
-import { closeZapSignPendingWindow, openZapSignPendingWindow, redirectZapSignWindow } from '../utils/zapSign';
 
 const TEXT = {
   addService: 'Adicionar serviço',
@@ -55,6 +57,7 @@ const TEXT = {
   rejectPrompt: 'Informe o motivo da devolução do relatório:',
   rejectRequired: 'Informe um motivo para devolver o relatório.',
   reportSummary: 'Resumo',
+  reportAudit: 'Auditoria da assinatura',
   requestSignature: 'Assinar',
   requestSignatureError: 'Não foi possível solicitar a assinatura.',
   returnedAt: 'Devolvido em',
@@ -112,6 +115,13 @@ function formatDate(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString('pt-BR');
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('pt-BR');
 }
 
 function toDateInput(value?: string | null) {
@@ -1041,6 +1051,9 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               onChange={event => setField('dailyDescription', event.target.value)}
             />
           </div>
+          <div className="upload-final-note">
+            Não é necessário adicionar novamente as fotos já adicionadas nos serviços na página anterior.
+          </div>
           <UploadField
             label="Fotos de registro"
             value={form.generalUploads}
@@ -1132,9 +1145,12 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
 }
 
 function ReportDetailActions({ report, role }: { report: ReportSummary; role?: string }) {
+  const { user } = useAuth();
   const reportMutations = useReportMutations();
   const showToast = useToast();
   const [clientRejectOpen, setClientRejectOpen] = useState(false);
+  const [signatureOpen, setSignatureOpen] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [clientComment, setClientComment] = useState('');
   const canDownloadDocx = role === 'MANAGER';
   const canClientSign = role === 'CLIENT' && report.reportType === 'RDO' && report.status === 'APPROVED' && !hasActiveClientRejection(report);
@@ -1150,25 +1166,34 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
     }
   }
 
-  async function handleRequestSignature() {
-    const confirmText = `Você será redirecionado para a ZapSign para assinar digitalmente o ${report.reportType || 'RDO'} nº ${report.sequenceNumber ?? '---'}. Deseja continuar?`;
-    if (!window.confirm(confirmText)) return;
+  const initialSignerName = useMemo(() => {
+    const userEmail = String(user?.email || (user?.username?.includes('@') ? user.username : '') || '').trim().toLowerCase();
+    const matchingSignature = report.reportSignatures?.find(signature =>
+      String(signature.signerEmail || '').trim().toLowerCase() === userEmail
+    );
+    return matchingSignature?.signerName || user?.name || report.project.clientName || '';
+  }, [report.project.clientName, report.reportSignatures, user]);
 
-    const signWindow = openZapSignPendingWindow();
+  async function handleRequestSignature({
+    signerName,
+    signatureImageDataUrl
+  }: {
+    signerName: string;
+    signatureImageDataUrl: string;
+  }) {
     try {
       const response = await reportMutations.requestSignature.mutateAsync({
         id: report.id,
-        comment: clientComment.trim() || null
+        comment: clientComment.trim() || null,
+        signerName,
+        signatureImageDataUrl,
+        privacyNoticeAccepted: true,
+        privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION
       });
-      if (response.signUrl) {
-        redirectZapSignWindow(signWindow, response.signUrl);
-        showToast('Link de assinatura aberto na ZapSign.', 'success');
-        return;
-      }
-      closeZapSignPendingWindow(signWindow);
-      throw new Error('Link de assinatura não retornado.');
+      setSignatureOpen(false);
+      setPrivacyAccepted(false);
+      showToast(response.completed ? 'Relatório assinado e bloqueado.' : 'Assinatura eletrônica registrada.', 'success');
     } catch (err) {
-      closeZapSignPendingWindow(signWindow);
       showToast(err instanceof Error ? err.message : TEXT.requestSignatureError, 'error');
     }
   }
@@ -1209,8 +1234,12 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
                 onChange={event => setClientComment(event.target.value)}
               />
             </div>
-            <button className="primary-button" type="button" onClick={() => void handleRequestSignature()}>
-              {report.zapsignRequestedAt && !report.zapsignSignedAt ? 'Continuar assinatura digital' : 'Aprovar e assinar digitalmente'}
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => setSignatureOpen(true)}
+            >
+              Assinar digitalmente
             </button>
             <button className="secondary-button" type="button" onClick={() => setClientRejectOpen(true)}>
               {TEXT.rejectClient}
@@ -1228,6 +1257,28 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
         isSubmitting={reportMutations.clientReview.isPending}
         onCancel={() => setClientRejectOpen(false)}
         onConfirm={reason => void handleClientReject(reason)}
+      />
+      <SignatureDialog
+        open={signatureOpen}
+        title="Assinar relatório"
+        initialSignerName={initialSignerName}
+        cacheIdentity={user?.email || user?.username || user?.id || ''}
+        isSubmitting={reportMutations.requestSignature.isPending}
+        confirmDisabled={!privacyAccepted}
+        confirmDisabledMessage="Confirme a ciência do aviso de privacidade para assinar."
+        notice={(
+          <PrivacyNotice
+            variant="signatureRdo"
+            checked={privacyAccepted}
+            onCheckedChange={setPrivacyAccepted}
+            disabled={reportMutations.requestSignature.isPending}
+          />
+        )}
+        onCancel={() => {
+          setSignatureOpen(false);
+          setPrivacyAccepted(false);
+        }}
+        onConfirm={payload => void handleRequestSignature(payload)}
       />
     </>
   );
@@ -1323,6 +1374,80 @@ function formatDetailValue(value: unknown): string {
     if (typeof record.code === 'string') return record.code;
   }
   return '';
+}
+
+const auditActionLabels: Record<string, string> = {
+  SIGNATURE_ROUND_CREATED: 'Rodada criada',
+  SIGNED: 'Assinatura registrada',
+  REJECTED: 'Reprovação registrada',
+  SIGNATURES_INVALIDATED: 'Assinaturas invalidadas',
+  VERSION_CREATED: 'Versão criada',
+  TOKEN_ACCESSED: 'Link acessado',
+  TOKEN_EXPIRED: 'Link expirado',
+  REPORT_LOCKED: 'Relatório bloqueado'
+};
+
+function summarizeUserAgent(value?: string | null) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return text.split(/[()]/)[0].trim().slice(0, 80) || text.slice(0, 80);
+}
+
+function auditActor(log: ReportAuditLog) {
+  if (log.user?.name) return log.user.name;
+  if (log.user?.email) return log.user.email;
+  return log.userId ? 'Usuário registrado' : 'Sistema';
+}
+
+function ReportAuditHistory({ reportId }: { reportId: string }) {
+  const auditQuery = useReportAudit(reportId);
+  const logs = auditQuery.data || [];
+
+  return (
+    <section className="page-card report-audit-section">
+      <div className="section-title">{TEXT.reportAudit}</div>
+      {auditQuery.isLoading ? <p className="placeholder-copy">Carregando auditoria...</p> : null}
+      {auditQuery.isError ? (
+        <p className="inline-error">
+          {auditQuery.error instanceof Error ? auditQuery.error.message : 'Não foi possível carregar a auditoria.'}
+        </p>
+      ) : null}
+      {!auditQuery.isLoading && !auditQuery.isError && !logs.length ? (
+        <p className="placeholder-copy">Nenhum evento de assinatura registrado.</p>
+      ) : null}
+      {logs.length ? (
+        <div className="report-audit-list">
+          {logs.map(log => {
+            const sourceHash = log.version?.sourceDocumentHash || '';
+            const finalHash = log.version?.finalDocumentHash || '';
+            return (
+              <article className="report-audit-item" key={log.id}>
+                <div className="report-audit-main">
+                  <div>
+                    <div className="report-audit-title">{auditActionLabels[log.action] || log.action}</div>
+                    <div className="report-audit-description">{log.description || 'Sem descrição'}</div>
+                  </div>
+                  <time>{formatDateTime(log.createdAt)}</time>
+                </div>
+                <div className="report-audit-meta">
+                  <span>Ator: {auditActor(log)}</span>
+                  {log.version ? <span>Versão: {log.version.versionNumber} ({log.version.status})</span> : null}
+                  {log.ipAddress ? <span>IP: {log.ipAddress}</span> : null}
+                  {log.userAgent ? <span>Navegador: {summarizeUserAgent(log.userAgent)}</span> : null}
+                </div>
+                {sourceHash || finalHash ? (
+                  <div className="report-audit-hashes">
+                    {sourceHash ? <span>Hash base: {sourceHash}</span> : null}
+                    {finalHash ? <span>Hash final: {finalHash}</span> : null}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
 function buildDerivedRows(report: ReportSummary) {
@@ -1555,6 +1680,7 @@ export function ReportDetailPage() {
         {report ? (
           <>
             {showRdoEditor ? <ManagerRdoEditor report={report} /> : <ReportSummaryView report={report} />}
+            {user?.role === 'MANAGER' ? <ReportAuditHistory reportId={report.id} /> : null}
             {!showRdoEditor ? <ReportDetailActions report={report} role={user?.role} /> : null}
           </>
         ) : null}

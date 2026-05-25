@@ -55,6 +55,7 @@ Isso remove o bloqueio principal que existia para o `P3`.
 ## Subida inicial em homologação
 
 1. Preencher `backend/.env.production` com segredos e URLs reais
+   - Definir `TRUST_PROXY=uniquelocal` para a stack Docker com Nginx, ou CIDRs explícitos da rede/proxy confiável.
 2. Definir `POSTGRES_PASSWORD` no shell/ambiente antes do compose
 3. Subir:
 
@@ -76,9 +77,10 @@ docker compose -f docker-compose.prod.yml exec backend npx prisma db seed
 
 ## Certificado
 
-O `nginx` já está preparado para servir o domínio final
-`relatorios.filtrovali.com.br`, mas o certificado ainda precisa ser emitido
-no servidor antes do `443` ficar operacional.
+O `nginx` já está preparado para servir o domínio principal
+`app.filtrovali.com.br` e redirecionar o domínio legado
+`relatorios.filtrovali.com.br` para ele. Emita/renove o certificado com os
+dois nomes antes do `443` ficar operacional.
 
 ## Backup
 

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 
-import { PrismaClient, UnitCategory } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -87,8 +87,8 @@ async function importUnits(units) {
   let imported = 0;
   for (const item of units || []) {
     const code = normalizeText(item.code);
-    const category = item.category;
-    if (!code || !category || !Object.values(UnitCategory).includes(category)) {
+    const category = normalizeText(item.category);
+    if (!code || !category) {
       console.warn(`Unidade ignorada por dados obrigatorios ausentes: ${code || 'sem-codigo'}`);
       continue;
     }

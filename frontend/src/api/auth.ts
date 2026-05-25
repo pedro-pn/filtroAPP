@@ -25,6 +25,11 @@ export async function me() {
   return response.data.user;
 }
 
+export async function acceptClientPrivacyConsent(payload: { privacyNoticeAccepted: true; privacyNoticeVersion: string }) {
+  const response = await apiClient.post<MeResponse>('/auth/client-privacy-consent', payload);
+  return response.data.user;
+}
+
 export async function forgotPassword(identifier: string) {
   const response = await apiClient.post<{ ok: true; message: string }>('/auth/forgot-password', { identifier });
   return response.data;
