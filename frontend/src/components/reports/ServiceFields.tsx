@@ -53,6 +53,49 @@ type UploadGroup = { label: string; files: UploadedFile[] };
 type TubeRow = { d: string; unit: string; c: string; lengthUnit: string };
 export type ServiceCollaboratorOption = { id: string; name: string };
 
+const unitCategoryLabels: Record<string, string> = {
+  FILTRAGEM: 'Filtragem',
+  FLUSHING: 'Flushing',
+  LIMPEZA_QUIMICA: 'Limpeza química',
+  DESIDRATACAO: 'Desidratação',
+  UTH: 'UTH',
+  OUTRA: 'Outra'
+};
+
+const unitCategoryAliases: Record<string, string[]> = {
+  FILTRAGEM: ['Filtragem', 'Unidade de filtragem', 'Unidades de filtragem', 'UNIDADE DE FILTRAGEM'],
+  FLUSHING: ['Flushing', 'Unidade de flushing', 'Unidades de flushing', 'UNIDADE DE FLUSHING'],
+  LIMPEZA_QUIMICA: ['Limpeza química', 'Unidade de limpeza química', 'Unidades de limpeza química', 'UNIDADE DE LIMPEZA QUIMICA'],
+  DESIDRATACAO: ['Desidratação', 'Unidade de desidratação', 'Unidades de desidratação', 'UNIDADE DE DESIDRATACAO'],
+  UTH: ['UTH', 'Unidade de teste hidrostático', 'Unidade de teste hidrostatico', 'UNIDADE DE TESTE HIDROSTATICO'],
+  OUTRA: ['Outra', 'Outras', 'Unidades']
+};
+
+function comparableCategory(value: string) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+function unitMatchesCategory(unit: Unit, category: Unit['category']) {
+  const unitCategory = comparableCategory(unit.category);
+  const acceptedCategories = [
+    category,
+    unitCategoryLabels[category],
+    ...(unitCategoryAliases[category] || [])
+  ];
+  return unitCategory === comparableCategory(category)
+    || acceptedCategories.some(item => unitCategory === comparableCategory(item));
+}
+
+function unitOptionLabel(unit: Unit) {
+  return [unit.code, unit.name].filter(Boolean).join(' - ');
+}
+
 type StoredUploadRecord = UploadedFile & {
   name?: string;
   path?: string;
@@ -407,7 +450,7 @@ function UnitMultiField({
   required?: boolean;
 }) {
   const selected = getStringList(data[field]);
-  const options = units.filter(unit => categories.includes(unit.category));
+  const options = units.filter(unit => categories.some(category => unitMatchesCategory(unit, category)));
 
   return (
     <div className={fieldClass(invalidKey, field)}>
@@ -423,7 +466,7 @@ function UnitMultiField({
               onChange={event => onChange({ [field]: updateArrayItem(selected, index, event.target.value) })}
             >
               <option value="">Selecionar...</option>
-              {options.map(unit => <option key={unit.id} value={unit.id}>{unit.code}</option>)}
+              {options.map(unit => <option key={unit.id} value={unit.id}>{unitOptionLabel(unit)}</option>)}
             </select>
             <button
               className="unit-row-remove"
@@ -720,7 +763,7 @@ function ParticulasBlock({ data, onChange, disabled, groupKey, invalidKey, count
 function DesidratacaoBlock({ data, onChange, disabled, groupKey, units, invalidKey, upload }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'groupKey' | 'units' | 'invalidKey'> & { upload: (label: string) => ReactNode }) {
   const enabled = getString(data.houveDesidratacao) === 'Sim';
   const hasHumidity = getString(data.houveUmidade) === 'Sim';
-  const desidratacaoUnits = units.filter(u => u.category === 'DESIDRATACAO');
+  const desidratacaoUnits = units.filter(unit => unitMatchesCategory(unit, 'DESIDRATACAO'));
 
   return (
     <div className="field-group">

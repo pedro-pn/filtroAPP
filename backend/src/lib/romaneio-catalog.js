@@ -18,15 +18,6 @@ const EQUIPMENT_FILE_CANDIDATES = [
   '/workspace/equipamentos'
 ].filter(Boolean);
 
-const UNIT_CATEGORY_LABELS = {
-  FILTRAGEM: 'UNIDADE DE FILTRAGEM',
-  FLUSHING: 'UNIDADE DE FLUSHING',
-  LIMPEZA_QUIMICA: 'UNIDADE DE LIMPEZA QUIMICA',
-  DESIDRATACAO: 'UNIDADE DE DESIDRATACAO',
-  UTH: 'UNIDADE DE TESTE HIDROSTATICO',
-  OUTRA: 'UNIDADES'
-};
-
 function normalizeSpaces(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
@@ -250,8 +241,8 @@ async function syncUnits(tx) {
       sourceType: 'UNIT',
       sourceId: unit.id,
       code: unit.code,
-      name: `Unidade ${unit.code}`,
-      categoryName: UNIT_CATEGORY_LABELS[unit.category] || `UNIDADE DE ${normalizeSpaces(unit.category).toUpperCase() || 'EQUIPAMENTO'}`,
+      name: normalizeSpaces(unit.name) || unit.code,
+      categoryName: normalizeSpaces(unit.category) || 'UNIDADES',
       kind: 'EQUIPMENT',
       measureType: 'UNIT',
       defaultUnitLabel: 'unidade',

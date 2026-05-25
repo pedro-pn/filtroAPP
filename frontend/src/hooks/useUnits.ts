@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { createUnit, listUnits, removeUnit, type UnitPayload, updateUnit } from '../api/units';
+import { createUnit, listUnitCategories, listUnits, removeUnit, renameUnitCategory, type UnitPayload, updateUnit } from '../api/units';
 import { queryKeys } from './queryKeys';
 
 export function useUnits() {
@@ -10,11 +10,21 @@ export function useUnits() {
   });
 }
 
+export function useUnitCategories() {
+  return useQuery({
+    queryKey: queryKeys.unitCategories,
+    queryFn: listUnitCategories
+  });
+}
+
 export function useUnitMutations() {
   const queryClient = useQueryClient();
 
   function invalidateUnits() {
-    return queryClient.invalidateQueries({ queryKey: queryKeys.units });
+    return Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.units }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.unitCategories })
+    ]);
   }
 
   const createMutation = useMutation({
@@ -27,6 +37,11 @@ export function useUnitMutations() {
     onSuccess: invalidateUnits
   });
 
+  const renameCategoryMutation = useMutation({
+    mutationFn: renameUnitCategory,
+    onSuccess: invalidateUnits
+  });
+
   const removeMutation = useMutation({
     mutationFn: (id: string) => removeUnit(id),
     onSuccess: invalidateUnits
@@ -35,6 +50,7 @@ export function useUnitMutations() {
   return {
     createUnit: createMutation,
     updateUnit: updateMutation,
+    renameUnitCategory: renameCategoryMutation,
     removeUnit: removeMutation
   };
 }

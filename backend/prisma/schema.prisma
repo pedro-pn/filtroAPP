@@ -419,6 +419,7 @@ model Equipment {
 model Unit {
   id         String       @id @default(cuid())
   code       String       @unique
+  name       String
   category   String
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt

@@ -24,7 +24,7 @@ import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useManometerMutations, useManometers } from '../../hooks/useManometers';
 import { useProjectMutations, useProjects } from '../../hooks/useProjects';
 import { useReportMutations, useReports } from '../../hooks/useReports';
-import { useUnitMutations, useUnits } from '../../hooks/useUnits';
+import { useUnitCategories, useUnitMutations, useUnits } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useSurveyMutations, useSurveyQuestions, useSurveys } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
@@ -180,6 +180,7 @@ interface UserFormState {
 
 interface UnitFormState {
   code: string;
+  name: string;
   category: UnitCategory;
   newCategory: string;
 }
@@ -265,6 +266,7 @@ const emptyUserForm: UserFormState = {
 
 const emptyUnitForm: UnitFormState = {
   code: '',
+  name: '',
   category: 'FILTRAGEM',
   newCategory: ''
 };
@@ -303,9 +305,10 @@ function groupUnits(units: Unit[]) {
   }, {});
 }
 
-function unitCategoryOptions(units: Unit[]) {
+function unitCategoryOptions(units: Unit[], syncedCategories: UnitCategory[] = []) {
   return Array.from(new Set([
     ...DEFAULT_UNIT_CATEGORIES,
+    ...syncedCategories,
     ...units.map(unit => unit.category).filter(Boolean)
   ])).sort((a, b) => formatUnitCategory(a).localeCompare(formatUnitCategory(b), 'pt-BR', { sensitivity: 'base' }));
 }
@@ -492,7 +495,7 @@ function userSearchParts(item: InternalUserSummary) {
 }
 
 function unitSearchParts(unit: Unit) {
-  return [unit.code, formatUnitCategory(unit.category)];
+  return [unit.code, unit.name, formatUnitCategory(unit.category)];
 }
 
 function manometerSearchParts(item: Manometer) {
@@ -928,6 +931,7 @@ function userToForm(user: InternalUserSummary): UserFormState {
 function unitToForm(unit: Unit): UnitFormState {
   return {
     code: unit.code,
+    name: unit.name || unit.code,
     category: unit.category,
     newCategory: ''
   };
@@ -1123,6 +1127,8 @@ export function GestorPage() {
   const [unitForm, setUnitForm] = useState<UnitFormState>(emptyUnitForm);
   const [unitEditingId, setUnitEditingId] = useState<string | null>(null);
   const [showUnitForm, setShowUnitForm] = useState(false);
+  const [unitCategoryEditing, setUnitCategoryEditing] = useState('');
+  const [unitCategoryEditName, setUnitCategoryEditName] = useState('');
 
   const [manometerForm, setManometerForm] = useState<ManometerFormState>(emptyManometerForm);
   const [manometerEditingId, setManometerEditingId] = useState<string | null>(null);
@@ -1147,6 +1153,7 @@ export function GestorPage() {
   const internalUsersQuery = useUsers('internal');
   const clientUsersQuery = useUsers('client');
   const unitsQuery = useUnits();
+  const unitCategoriesQuery = useUnitCategories();
   const manometersQuery = useManometers();
   const countersQuery = useCounters();
   const surveysQuery = useSurveys();
@@ -1445,6 +1452,29 @@ export function GestorPage() {
     setUnitForm(emptyUnitForm);
     setUnitEditingId(null);
     setShowUnitForm(false);
+  }
+
+  function startEditUnitCategory(category: string) {
+    setUnitCategoryEditing(category);
+    setUnitCategoryEditName(formatUnitCategory(category));
+  }
+
+  async function handleUnitCategorySubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const newName = unitCategoryEditName.trim();
+    if (!unitCategoryEditing || !newName) return;
+    try {
+      await unitMutations.renameUnitCategory.mutateAsync({
+        currentName: unitCategoryEditing,
+        newName
+      });
+      setUnitCategoryEditing('');
+      setUnitCategoryEditName('');
+      setUnitForm(current => current.category === unitCategoryEditing ? { ...current, category: newName } : current);
+      showToast('Categoria atualizada.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível atualizar a categoria.', 'error');
+    }
   }
 
   function resetManometerForm() {
@@ -1810,6 +1840,7 @@ export function GestorPage() {
 
     const payload = {
       code: unitForm.code.trim(),
+      name: unitForm.name.trim(),
       category
     };
 
@@ -3152,12 +3183,12 @@ export function GestorPage() {
     const units = allUnits
       .filter(item => matchesSearch(unitSearchParts(item), gestorSearch));
     const visibleGroupedUnits = groupUnits(units);
-    const allUnitCategories = unitCategoryOptions(allUnits);
+    const allUnitCategories = unitCategoryOptions(allUnits, unitCategoriesQuery.data || []);
     const hasSearch = Boolean(gestorSearch.trim());
     const visibleCategories = allUnitCategories.filter(category => {
       const categoryUnits = visibleGroupedUnits[category] || [];
-      if (!hasSearch) return true;
-      return categoryUnits.length > 0 || matchesSearch([category, formatUnitCategory(category)], gestorSearch);
+      if (categoryUnits.length) return true;
+      return hasSearch && matchesSearch([category, formatUnitCategory(category)], gestorSearch) && (allUnits.some(unit => unit.category === category));
     });
 
     if (unitsQuery.isLoading) {
@@ -3171,6 +3202,14 @@ export function GestorPage() {
           <input
             value={unitForm.code}
             onChange={event => setUnitForm(current => ({ ...current, code: event.target.value }))}
+            required
+          />
+        </div>
+        <div className="field-group">
+          <label>Nome</label>
+          <input
+            value={unitForm.name}
+            onChange={event => setUnitForm(current => ({ ...current, name: event.target.value }))}
             required
           />
         </div>
@@ -3239,12 +3278,38 @@ export function GestorPage() {
           return (
             <article className="card admin-card" key={category}>
               <div className="admin-section-head admin-card-toolbar">
-                <div className="admin-card-title">{formatUnitCategory(category)}</div>
+                <div>
+                  <div className="admin-card-title">{formatUnitCategory(category)}</div>
+                  <div className="admin-card-subtitle">{categoryUnits.length} unidade(s)</div>
+                </div>
+                <button className="mini-btn alt" type="button" onClick={() => startEditUnitCategory(category)}>
+                  Editar categoria
+                </button>
               </div>
+              {unitCategoryEditing === category ? (
+                <form className="admin-inline-form admin-form-grid" onSubmit={handleUnitCategorySubmit}>
+                  <div className="field-group">
+                    <label>Nome da categoria</label>
+                    <input
+                      value={unitCategoryEditName}
+                      onChange={event => setUnitCategoryEditName(event.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="admin-form-actions">
+                    <button className="mini-btn" type="submit" disabled={unitMutations.renameUnitCategory.isPending}>
+                      Salvar categoria
+                    </button>
+                    <button className="mini-btn alt" type="button" onClick={() => { setUnitCategoryEditing(''); setUnitCategoryEditName(''); }}>
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              ) : null}
               <div className="admin-list">
                 {categoryUnits.length ? categoryUnits.map(unit => (
                   <div className="admin-list-row" key={unit.id}>
-                    <span>{unit.code}</span>
+                    <span>{[unit.code, unit.name].filter(Boolean).join(' - ')}</span>
                     <div className="admin-card-actions">
                       <button
                         className="mini-btn alt"

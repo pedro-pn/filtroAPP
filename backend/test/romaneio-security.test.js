@@ -583,6 +583,48 @@ test('Romaneio catalog sync restores particle counter visibility after RDO react
   assert.equal(updates[1].data.isActive, true);
 });
 
+test('Romaneio catalog sync uses RDO unit name and category', async t => {
+  const originalTransaction = prisma.$transaction;
+  const updates = [];
+  prisma.$transaction = async callback => callback({
+    unit: {
+      findMany: async () => [{
+        id: 'unit-1',
+        code: 'UF-01',
+        name: 'Unidade de filtragem Skid 01',
+        category: 'Filtragem'
+      }]
+    },
+    particleCounter: {
+      findMany: async () => []
+    },
+    romaneioCatalogItem: {
+      findUnique: async args => {
+        const source = args.where?.sourceType_sourceId;
+        if (source?.sourceType === 'UNIT' && source?.sourceId === 'unit-1') {
+          return { id: 'catalog-unit-1', hiddenInRomaneioAt: null, sourceType: 'UNIT' };
+        }
+        return null;
+      },
+      findFirst: async () => null,
+      create: async args => args,
+      update: async args => {
+        updates.push(args);
+        return args;
+      },
+      updateMany: async () => ({ count: 0 })
+    }
+  });
+  t.after(() => {
+    prisma.$transaction = originalTransaction;
+  });
+
+  await syncRomaneioCatalog();
+
+  assert.equal(updates[0].data.name, 'Unidade de filtragem Skid 01');
+  assert.equal(updates[0].data.categoryName, 'Filtragem');
+});
+
 test('Romaneio equipment parser keeps loose trailing sections in their own categories', () => {
   const rows = parseEquipmentRows([
     '\tEquipamentos Não Listados',

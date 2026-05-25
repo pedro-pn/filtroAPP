@@ -4,6 +4,7 @@ export const queryKeys = {
   projects: (active?: boolean, userId?: string | null) => ['projects', { active, userId: userId || 'anonymous' }] as const,
   equipment: ['equipment'] as const,
   units: ['units'] as const,
+  unitCategories: ['units', 'categories'] as const,
   manometers: ['manometers'] as const,
   counters: ['particle-counters'] as const,
   drafts: (userId?: string | null) => ['drafts', { userId: userId || 'anonymous' }] as const,
