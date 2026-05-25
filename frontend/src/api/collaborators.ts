@@ -7,6 +7,8 @@ export interface CollaboratorPayload {
   role: string;
   email?: string | null;
   signatureImage?: string | null;
+  signatureNoticeAccepted?: true;
+  signatureNoticeVersion?: string;
   isActive?: boolean;
 }
 

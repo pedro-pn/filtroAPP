@@ -3,7 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { getPublicSurvey, submitPublicSurvey, type SurveyQuestion, type SurveyResponsePayload } from '../api/surveys';
+import { PrivacyNotice } from '../components/privacy/PrivacyNotice';
 import { useToast } from '../components/ui/Toast';
+import { SURVEY_NOTICE_VERSION } from '../constants/privacy';
 
 const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
 const surveyLogoUrl = `${assetsBaseUrl}/assets/Logo/LOGO_VERDE.png`;
@@ -35,6 +37,7 @@ export function SurveyPage() {
   const showToast = useToast();
   const [form, setForm] = useState<SurveyFormState>({});
   const [submitted, setSubmitted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
   const surveyQuery = useQuery({
     queryKey: ['public-survey', token],
@@ -71,7 +74,15 @@ export function SurveyPage() {
       showToast(`Preencha: ${missing.label}`, 'error');
       return;
     }
-    submitMutation.mutate({ answers: form });
+    if (!privacyAccepted) {
+      showToast('Confirme a ciência do aviso de privacidade antes de enviar.', 'error');
+      return;
+    }
+    submitMutation.mutate({
+      answers: form,
+      privacyNoticeAccepted: true,
+      privacyNoticeVersion: SURVEY_NOTICE_VERSION
+    });
   }
 
   function renderQuestion(question: SurveyQuestion) {
@@ -155,9 +166,15 @@ export function SurveyPage() {
               <div className="det-row"><span className="det-label">Cliente</span><span className="det-val">{surveyQuery.data.survey.project.clientName}</span></div>
               <div className="det-row"><span className="det-label">Projeto</span><span className="det-val">{surveyQuery.data.survey.project.code} - {surveyQuery.data.survey.project.name}</span></div>
             </div>
+            <PrivacyNotice
+              variant="survey"
+              checked={privacyAccepted}
+              onCheckedChange={setPrivacyAccepted}
+              disabled={submitMutation.isPending}
+            />
             {surveyQuery.data.survey.questions.map(question => renderQuestion(question))}
             <div className="survey-actions">
-              <button className="primary-button survey-submit-button" type="submit" disabled={submitMutation.isPending}>Enviar resposta</button>
+              <button className="primary-button survey-submit-button" type="submit" disabled={submitMutation.isPending || !privacyAccepted}>Enviar resposta</button>
             </div>
           </form>
         ) : null}

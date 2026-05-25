@@ -14,6 +14,8 @@ export interface Collaborator {
   registrationNumber?: string | null;
   admissionDate?: string | null;
   signatureImage: string | null;
+  signatureNoticeAcceptedAt?: string | null;
+  signatureNoticeVersion?: string | null;
   isActive: boolean;
 }
 

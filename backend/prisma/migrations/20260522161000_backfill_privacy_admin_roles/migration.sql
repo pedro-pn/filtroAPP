@@ -1,0 +1,2 @@
+-- Intentionally no automatic backfill.
+-- PRIVACY_ADMIN grants must be assigned explicitly to named operational owners.

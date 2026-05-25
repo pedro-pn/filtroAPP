@@ -13,6 +13,7 @@ import {
 } from '../../lib/internal-report-signatures.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
 import prisma from '../../lib/prisma.js';
+import { SIGNATURE_EPI_NOTICE_VERSION, validatePrivacyNoticeAcknowledgement } from '../../lib/privacy-consent.js';
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import { requireAuth } from '../../middleware/auth.js';
 import env from '../../config/env.js';
@@ -60,9 +61,14 @@ const archiveRecordsSchema = z.object({
   archived: z.boolean().default(true)
 });
 
-const publicSignatureConfirmSchema = z.object({
+export const publicSignatureConfirmSchema = z.object({
   signerName: z.string().trim().min(2).max(160),
-  signatureImageDataUrl: z.string().trim().min(1).max(750_000)
+  signatureImageDataUrl: z.string().trim().min(1).max(750_000),
+  privacyNoticeAccepted: z.boolean().optional(),
+  privacyNoticeVersion: z.string().trim().optional().nullable()
+}).superRefine((data, ctx) => {
+  const error = validatePrivacyNoticeAcknowledgement(data, SIGNATURE_EPI_NOTICE_VERSION);
+  if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['privacyNoticeVersion'], message: error });
 });
 
 function invalidSignatureImageError() {
@@ -862,6 +868,8 @@ export async function confirmPublicEpiSignatureRequest({
         signedPdfFileName: signedPdfArtifact.signedPdfFileName || null,
         ipAddress: evidence.ipAddress || null,
         userAgent: evidence.userAgent || null,
+        privacyNoticeAcceptedAt: data.privacyNoticeAccepted === true && data.privacyNoticeVersion ? signedAt : null,
+        privacyNoticeVersion: data.privacyNoticeVersion || null,
         requestedByUserId: request.requestedByUserId || null
       },
       include: { collaborator: true, records: true }

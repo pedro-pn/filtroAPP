@@ -137,7 +137,12 @@ export async function getEpiPublicSignature(token: string) {
   return data;
 }
 
-export async function confirmEpiPublicSignature(token: string, payload: { signerName: string; signatureImageDataUrl: string }) {
+export async function confirmEpiPublicSignature(token: string, payload: {
+  signerName: string;
+  signatureImageDataUrl: string;
+  privacyNoticeAccepted: true;
+  privacyNoticeVersion: string;
+}) {
   const { data } = await apiClient.post<{ success: boolean }>(epiApiPath(`/public-sign/${encodeURIComponent(token)}/confirm`), payload);
   return data;
 }

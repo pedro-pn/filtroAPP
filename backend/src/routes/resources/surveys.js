@@ -14,6 +14,7 @@ import {
 } from '../../lib/survey-mail.js';
 import { decryptSurveyToken, surveyTokenData } from '../../lib/survey-token.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
+import { SURVEY_NOTICE_VERSION, validatePrivacyNoticeAcknowledgement } from '../../lib/privacy-consent.js';
 import { requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
@@ -117,6 +118,16 @@ function responseInput(body) {
   const answers = body?.answers;
   if (answers && typeof answers === 'object' && !Array.isArray(answers)) return answers;
   return body && typeof body === 'object' ? body : {};
+}
+
+export function validateSurveyPrivacyNotice(body) {
+  const noticeError = validatePrivacyNoticeAcknowledgement(body, SURVEY_NOTICE_VERSION);
+  if (noticeError) {
+    const error = new Error(noticeError);
+    error.status = 400;
+    throw error;
+  }
+  return body?.privacyNoticeVersion ? SURVEY_NOTICE_VERSION : null;
 }
 
 function parseQuestionValue(question, rawValue) {
@@ -597,6 +608,7 @@ router.post('/respond/:token', publicLimiter, asyncHandler(async (req, res) => {
   }
 
   const questions = await questionsForSurvey(survey);
+  const privacyNoticeVersion = validateSurveyPrivacyNotice(req.body || {});
   const responses = validateSurveyResponses(req.body, questions);
   const now = new Date();
 
@@ -610,7 +622,9 @@ router.post('/respond/:token', publicLimiter, asyncHandler(async (req, res) => {
       questions,
       respondedAt: now,
       submittedIp: req.ip || req.socket?.remoteAddress || null,
-      submittedUserAgent: String(req.headers['user-agent'] || '').slice(0, 500) || null
+      submittedUserAgent: String(req.headers['user-agent'] || '').slice(0, 500) || null,
+      privacyNoticeAcceptedAt: privacyNoticeVersion ? now : null,
+      privacyNoticeVersion
     }
   });
 

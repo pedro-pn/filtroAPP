@@ -119,6 +119,9 @@ export function LoginPage() {
             {isSubmitting ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
+        <div className="auth-footer-links">
+          <Link className="auth-link" to="/privacidade">Política de privacidade</Link>
+        </div>
       </section>
     </main>
   );

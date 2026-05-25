@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import prisma from '../../lib/prisma.js';
+import { COLLABORATOR_SIGNATURE_NOTICE_VERSION } from '../../lib/privacy-consent.js';
 import { ensureCollaboratorSignatureDataUrl, isSignatureDataUrl, normalizeSignatureValue } from '../../lib/signature-image.js';
 import { requireAuth, requireInternalUser, requireManager } from '../../middleware/auth.js';
 
@@ -22,8 +23,61 @@ export const collaboratorSchema = z.object({
   role: z.string().min(1),
   email: optionalNullableEmail,
   signatureImage: optionalNullableString,
+  signatureNoticeAccepted: z.literal(true).optional(),
+  signatureNoticeVersion: z.string().trim().min(1).max(80).optional(),
   isActive: z.boolean().default(true)
 });
+
+export function buildCollaboratorSignatureNoticeData(input, existing = null, now = new Date()) {
+  const {
+    signatureNoticeAccepted,
+    signatureNoticeVersion,
+    ...data
+  } = input;
+
+  if (!Object.hasOwn(input, 'signatureImage')) {
+    return { data, shouldLogNotice: false, noticeVersion: null };
+  }
+
+  if (!data.signatureImage) {
+    return {
+      data: {
+        ...data,
+        signatureNoticeAcceptedAt: null,
+        signatureNoticeVersion: null
+      },
+      shouldLogNotice: false,
+      noticeVersion: null
+    };
+  }
+
+  const alreadyCurrent = Boolean(
+    existing?.signatureImage === data.signatureImage &&
+    existing?.signatureNoticeAcceptedAt &&
+    existing?.signatureNoticeVersion === COLLABORATOR_SIGNATURE_NOTICE_VERSION
+  );
+
+  if (alreadyCurrent) {
+    return { data, shouldLogNotice: false, noticeVersion: null };
+  }
+
+  if (signatureNoticeAccepted !== true || signatureNoticeVersion !== COLLABORATOR_SIGNATURE_NOTICE_VERSION) {
+    const error = new Error('Aceite o aviso de privacidade da assinatura do colaborador.');
+    error.status = 400;
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return {
+    data: {
+      ...data,
+      signatureNoticeAcceptedAt: now,
+      signatureNoticeVersion: COLLABORATOR_SIGNATURE_NOTICE_VERSION
+    },
+    shouldLogNotice: true,
+    noticeVersion: COLLABORATOR_SIGNATURE_NOTICE_VERSION
+  };
+}
 
 async function generateCollaboratorCode() {
   const prefix = 'COL-';
@@ -66,23 +120,62 @@ router.post('/', requireManager, asyncHandler(async (req, res) => {
   const code = parsed.code || await generateCollaboratorCode();
   const data = await normalizeCollaboratorInput({ ...parsed, code });
   const existing = await prisma.collaborator.findUnique({ where: { code } });
+  if (existing && existing.isActive) {
+    return res.status(409).json({ error: 'Já existe um colaborador com esse identificador interno.' });
+  }
+  const notice = buildCollaboratorSignatureNoticeData(data, existing);
   if (existing && !existing.isActive) {
-    const item = await prisma.collaborator.update({
-      where: { id: existing.id },
-      data: { ...data, isActive: true }
+    const item = await prisma.$transaction(async tx => {
+      const updated = await tx.collaborator.update({
+        where: { id: existing.id },
+        data: { ...notice.data, isActive: true }
+      });
+      if (notice.shouldLogNotice) {
+        await tx.collaboratorSignatureNoticeLog.create({
+          data: {
+            collaboratorId: updated.id,
+            userId: req.auth?.user?.id || null,
+            noticeVersion: notice.noticeVersion
+          }
+        });
+      }
+      return updated;
     });
     return res.status(200).json(item);
   }
-  if (existing) {
-    return res.status(409).json({ error: 'Já existe um colaborador com esse identificador interno.' });
-  }
-  const item = await prisma.collaborator.create({ data });
+  const item = await prisma.$transaction(async tx => {
+    const created = await tx.collaborator.create({ data: notice.data });
+    if (notice.shouldLogNotice) {
+      await tx.collaboratorSignatureNoticeLog.create({
+        data: {
+          collaboratorId: created.id,
+          userId: req.auth?.user?.id || null,
+          noticeVersion: notice.noticeVersion
+        }
+      });
+    }
+    return created;
+  });
   res.status(201).json(item);
 }));
 
 router.put('/:id', requireManager, asyncHandler(async (req, res) => {
   const data = await normalizeCollaboratorInput(collaboratorSchema.partial().parse(req.body));
-  const item = await prisma.collaborator.update({ where: { id: req.params.id }, data });
+  const existing = await prisma.collaborator.findUniqueOrThrow({ where: { id: req.params.id } });
+  const notice = buildCollaboratorSignatureNoticeData(data, existing);
+  const item = await prisma.$transaction(async tx => {
+    const updated = await tx.collaborator.update({ where: { id: req.params.id }, data: notice.data });
+    if (notice.shouldLogNotice) {
+      await tx.collaboratorSignatureNoticeLog.create({
+        data: {
+          collaboratorId: updated.id,
+          userId: req.auth?.user?.id || null,
+          noticeVersion: notice.noticeVersion
+        }
+      });
+    }
+    return updated;
+  });
   res.json(item);
 }));
 

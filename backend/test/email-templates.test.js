@@ -2,12 +2,47 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  buildDataSubjectRequestCreatedEmailTemplate,
+  buildDataSubjectRequestResponseEmailTemplate,
   buildInternalUserWelcomeEmailTemplate,
   buildReportRejectedByClientEmailTemplate,
   buildReportSignatureCompletedEmailTemplate,
   buildReportSignatureReceivedEmailTemplate,
   buildSurveyExpiredEmailTemplate
 } from '../src/lib/email-templates.js';
+
+test('buildDataSubjectRequestCreatedEmailTemplate identifies protocol and requester', () => {
+  const template = buildDataSubjectRequestCreatedEmailTemplate({
+    protocol: 'LGPD-20260522-ACS-000001',
+    typeLabel: 'Acesso aos dados',
+    requesterName: 'Maria Cliente',
+    requesterEmail: 'maria@example.com',
+    identifier: 'PRJ-001',
+    details: 'Solicito acesso aos dados tratados.',
+    appUrl: 'https://app.example.com/privacidade/solicitacoes'
+  });
+
+  assert.equal(template.subject, '[Filtrovali] Nova solicitação LGPD - LGPD-20260522-ACS-000001');
+  assert.match(template.text, /Tipo: Acesso aos dados/);
+  assert.match(template.text, /Titular: Maria Cliente/);
+  assert.match(template.text, /Acesso: https:\/\/app\.example\.com\/privacidade\/solicitacoes/);
+  assert.match(template.html, /<strong>Protocolo:<\/strong> LGPD-20260522-ACS-000001/);
+});
+
+test('buildDataSubjectRequestResponseEmailTemplate includes status and response', () => {
+  const template = buildDataSubjectRequestResponseEmailTemplate({
+    protocol: 'LGPD-20260522-ACS-000001',
+    typeLabel: 'Acesso aos dados',
+    requesterName: 'Maria Cliente',
+    message: 'Encaminhamos em anexo as informações solicitadas.',
+    resolved: true
+  });
+
+  assert.equal(template.subject, '[Filtrovali] Resposta à solicitação LGPD - LGPD-20260522-ACS-000001');
+  assert.match(template.text, /Status: concluída/);
+  assert.match(template.text, /Encaminhamos em anexo/);
+  assert.match(template.html, /<strong>Status:<\/strong> concluída/);
+});
 
 test('buildInternalUserWelcomeEmailTemplate includes account credentials', () => {
   const template = buildInternalUserWelcomeEmailTemplate({

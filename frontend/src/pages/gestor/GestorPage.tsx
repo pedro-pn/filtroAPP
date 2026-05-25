@@ -17,6 +17,7 @@ import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { Modal } from '../../components/ui/Modal';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useToast } from '../../components/ui/Toast';
+import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { useCollaboratorMutations, useCollaborators } from '../../hooks/useCollaborators';
 import { useCounterMutations, useCounters } from '../../hooks/useCounters';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
@@ -32,6 +33,7 @@ import { useProjectSegmentMutations, useProjectSegments } from '../../hooks/useP
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
+import { COLLABORATOR_SIGNATURE_NOTICE_VERSION } from '../../constants/privacy';
 import type {
   Collaborator,
   ClientSegment,
@@ -162,6 +164,7 @@ interface CollaboratorFormState {
   role: string;
   email: string;
   signatureImage: string;
+  signatureNoticeAccepted: boolean;
   isActive: boolean;
 }
 
@@ -246,6 +249,7 @@ const emptyCollaboratorForm: CollaboratorFormState = {
   role: '',
   email: '',
   signatureImage: '',
+  signatureNoticeAccepted: false,
   isActive: true
 };
 
@@ -904,6 +908,7 @@ function collaboratorToForm(collaborator: Collaborator): CollaboratorFormState {
     role: collaborator.role,
     email: collaborator.email || '',
     signatureImage: normalizeSignatureImage(collaborator.signatureImage),
+    signatureNoticeAccepted: Boolean(collaborator.signatureNoticeAcceptedAt || collaborator.signatureNoticeVersion),
     isActive: collaborator.isActive
   };
 }
@@ -1380,19 +1385,21 @@ export function GestorPage() {
     if (!file) return;
     try {
       const dataUrl = await fileToDataUrl(file);
-      setCollaboratorForm(current => ({ ...current, signatureImage: dataUrl }));
+      setCollaboratorForm(current => ({ ...current, signatureImage: dataUrl, signatureNoticeAccepted: false }));
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível carregar a assinatura.', 'error');
     }
   }
 
   function renderCollaboratorSignatureField(inputId: string) {
+    const normalizedSignature = normalizeSignatureImage(collaboratorForm.signatureImage);
+
     return (
       <div className="field-group field-group-wide collaborator-signature-field">
         <label htmlFor={inputId}>Assinatura</label>
         <div className="collaborator-signature-preview">
-          {normalizeSignatureImage(collaboratorForm.signatureImage) ? (
-            <img src={normalizeSignatureImage(collaboratorForm.signatureImage)} alt="" />
+          {normalizedSignature ? (
+            <img src={normalizedSignature} alt="" />
           ) : (
             <span>Nenhuma imagem carregada</span>
           )}
@@ -1414,12 +1421,22 @@ export function GestorPage() {
           <button
             className="mini-btn alt"
             type="button"
-            onClick={() => setCollaboratorForm(current => ({ ...current, signatureImage: '' }))}
+            onClick={() => setCollaboratorForm(current => ({ ...current, signatureImage: '', signatureNoticeAccepted: false }))}
           >
             Remover
           </button>
         </div>
         <div className="form-hint">Aceita apenas uma imagem.</div>
+        {normalizedSignature ? (
+          <PrivacyNotice
+            variant="collaboratorSignature"
+            checked={collaboratorForm.signatureNoticeAccepted}
+            onCheckedChange={checked => setCollaboratorForm(current => ({
+              ...current,
+              signatureNoticeAccepted: checked
+            }))}
+          />
+        ) : null}
       </div>
     );
   }
@@ -1684,13 +1701,23 @@ export function GestorPage() {
 
   async function handleCollaboratorSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const signatureImage = collaboratorForm.signatureImage || null;
+
+    if (signatureImage && !collaboratorForm.signatureNoticeAccepted) {
+      showToast('Aceite o aviso de privacidade da assinatura do colaborador.', 'error');
+      return;
+    }
 
     const payload = {
       name: collaboratorForm.name.trim(),
       role: collaboratorForm.role.trim(),
       email: collaboratorForm.email.trim() || null,
-      signatureImage: collaboratorForm.signatureImage || null,
-      isActive: collaboratorForm.isActive
+      signatureImage,
+      isActive: collaboratorForm.isActive,
+      ...(signatureImage ? {
+        signatureNoticeAccepted: true as const,
+        signatureNoticeVersion: COLLABORATOR_SIGNATURE_NOTICE_VERSION
+      } : {})
     };
 
     try {

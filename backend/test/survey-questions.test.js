@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   storedSurveyQuestions,
   surveyQuestionSnapshot,
+  validateSurveyPrivacyNotice,
   validateSurveyResponses
 } from '../src/routes/resources/surveys.js';
 
@@ -55,5 +56,34 @@ test('dynamic survey validation rejects missing required fields and invalid sele
   assert.throws(
     () => validateSurveyResponses({ answers: { requiredText: 'Ok', choice: 'C' } }, questions),
     /Resposta inválida para: Escolha/
+  );
+});
+
+test('survey response requires privacy notice acknowledgement', () => {
+  assert.equal(
+    validateSurveyPrivacyNotice({
+      privacyNoticeAccepted: true,
+      privacyNoticeVersion: 'survey_notice_v1'
+    }),
+    'survey_notice_v1'
+  );
+  assert.throws(
+    () => validateSurveyPrivacyNotice({}),
+    /Confirme a ciência do aviso de privacidade/
+  );
+
+  assert.throws(
+    () => validateSurveyPrivacyNotice({ privacyNoticeVersion: 'survey_notice_v1' }),
+    /Confirme a ciência do aviso de privacidade/
+  );
+
+  assert.throws(
+    () => validateSurveyPrivacyNotice({ privacyNoticeAccepted: true, privacyNoticeVersion: '' }),
+    /Versão do aviso de privacidade inválida/
+  );
+
+  assert.throws(
+    () => validateSurveyPrivacyNotice({ privacyNoticeAccepted: true, privacyNoticeVersion: 'old_notice_v1' }),
+    /Versão do aviso de privacidade inválida/
   );
 });

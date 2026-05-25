@@ -8,6 +8,7 @@ import episRouter from './resources/epis.js';
 import equipmentRouter from './resources/equipment.js';
 import manometersRouter from './resources/manometers.js';
 import projectSegmentsRouter from './resources/project-segments.js';
+import privacyRouter from './resources/privacy.js';
 import projectsRouter from './resources/projects.js';
 import reportsRouter from './resources/reports.js';
 import romaneiosRouter from './resources/romaneios.js';
@@ -38,6 +39,7 @@ const rdoRouter = Router();
 mountRdoRoutes(rdoRouter);
 
 router.use('/auth', authRouter);
+router.use('/privacy', privacyRouter);
 router.use('/rdo', rdoRouter);
 router.use('/romaneio', romaneiosRouter);
 router.use('/epi', episRouter);

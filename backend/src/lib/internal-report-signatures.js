@@ -533,6 +533,7 @@ export async function signInternalReportVersion(tx, {
   userId,
   evidence,
   signatureImageDataUrl,
+  privacyNoticeVersion = null,
   deferAuditLog = false
 }) {
   const signature = version.signatures.find(item => normalizeSignerEmail(item.signerEmail) === signer.email);
@@ -565,6 +566,8 @@ export async function signInternalReportVersion(tx, {
       ipAddress: evidence.ipAddress || null,
       userAgent: evidence.userAgent || null,
       signatureImageDataUrl,
+      privacyNoticeAcceptedAt: privacyNoticeVersion ? new Date() : null,
+      privacyNoticeVersion: privacyNoticeVersion || null,
       signedAt: new Date()
     }
   });

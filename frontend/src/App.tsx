@@ -22,6 +22,9 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { GestorPage } from './pages/gestor/GestorPage';
 import { LoginPage } from './pages/LoginPage';
 import { PublicSignaturePage } from './pages/PublicSignaturePage';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { PrivacyRightsPage } from './pages/PrivacyRightsPage';
+import { PrivacyRequestsPage } from './pages/privacy/PrivacyRequestsPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { NewRomaneioPage } from './pages/romaneio/NewRomaneioPage';
 import { RomaneioPage } from './pages/romaneio/RomaneioPage';
@@ -56,6 +59,8 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/privacidade" element={<PrivacyPage />} />
+        <Route path="/privacidade/direitos" element={<PrivacyRightsPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/pesquisa/:token" element={<SurveyPage />} />
         <Route path="/assinar/:token" element={<PublicSignaturePage />} />
@@ -98,6 +103,10 @@ export default function App() {
 
         <Route element={<RoleRoute allowedAccountTypes={['ADMIN']} />}>
           <Route path="/admin/accounts" element={<AdminAccountsPage />} />
+        </Route>
+
+        <Route element={<RoleRoute allowedModuleRoles={['privacy:admin']} />}>
+          <Route path="/privacidade/solicitacoes" element={<PrivacyRequestsPage />} />
         </Route>
 
         <Route element={<RoleRoute allowedAccountTypes={['ADMIN', 'INTERNAL']} allowedModuleRoles={['romaneio:manager', 'romaneio:operator']} />}>

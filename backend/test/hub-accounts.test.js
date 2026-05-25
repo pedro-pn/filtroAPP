@@ -37,10 +37,35 @@ test('publicUser exposes hub account fields with legacy fallback', () => {
       moduleRoles: ['rdo:manager'],
       isActive: true,
       clientCnpj: null,
+      privacyPolicyAcceptedAt: null,
+      privacyPolicyVersion: null,
+      privacyPolicyRequired: false,
+      requiredPrivacyPolicyVersion: 'client_account_privacy_v1',
       collaboratorId: null,
       collaborator: null
     }
   );
+});
+
+test('publicUser flags client accounts missing current privacy acceptance', () => {
+  const user = publicUser({
+    id: 'client-1',
+    username: 'cliente@example.com',
+    name: 'Cliente',
+    email: 'cliente@example.com',
+    role: 'CLIENT',
+    accountType: 'CLIENT',
+    isActive: true,
+    clientCnpj: '11222333000144',
+    privacyPolicyAcceptedAt: null,
+    privacyPolicyVersion: null,
+    collaboratorId: null,
+    collaborator: null,
+    moduleRoles: []
+  });
+
+  assert.equal(user.privacyPolicyRequired, true);
+  assert.equal(user.requiredPrivacyPolicyVersion, 'client_account_privacy_v1');
 });
 
 test('serializeModuleRoles prefers persisted module roles', () => {
@@ -68,17 +93,20 @@ test('serializeModuleRoles preserves an explicitly loaded empty role set', () =>
 
 test('moduleRoleRows converts public role codes for Prisma writes', () => {
   assert.deepEqual(
-    moduleRoleRows('user-1', ['rdo:client', 'epi:technician']),
+    moduleRoleRows('user-1', ['rdo:client', 'epi:technician', 'privacy:admin']),
     [
       { userId: 'user-1', module: 'RDO', role: 'RDO_CLIENT' },
-      { userId: 'user-1', module: 'EPI', role: 'EPI_TECHNICIAN' }
+      { userId: 'user-1', module: 'EPI', role: 'EPI_TECHNICIAN' },
+      { userId: 'user-1', module: 'PRIVACY', role: 'PRIVACY_ADMIN' }
     ]
   );
 });
 
 test('hasModuleRole checks persisted module roles for hub admins and regular accounts', () => {
   assert.equal(hasModuleRole({ role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['epi:technician'] }, 'epi:technician'), true);
+  assert.equal(hasModuleRole({ role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['privacy:admin'] }, 'privacy:admin'), true);
   assert.equal(hasModuleRole({ role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['epi:technician'] }, 'rdo:manager'), false);
+  assert.equal(hasModuleRole({ role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['rdo:manager'] }, 'privacy:admin'), false);
   assert.equal(hasModuleRole({ role: 'MANAGER', accountType: 'ADMIN', moduleRoles: [] }, 'rdo:manager'), false);
   assert.equal(hasModuleRole({ role: 'COLLABORATOR', accountType: 'INTERNAL', moduleRoles: ['rdo:collaborator'] }, 'rdo:collaborator'), true);
   assert.equal(hasModuleRole({ role: 'COLLABORATOR', accountType: 'INTERNAL', moduleRoles: ['rdo:collaborator'] }, 'rdo:manager'), false);
@@ -375,6 +403,27 @@ test('resolveAccountPayload rejects explicit empty module role sets', () => {
       moduleRoles: []
     }),
     /ao menos uma role de módulo/
+  );
+});
+
+test('resolveAccountPayload does not grant privacy admin to new ADMIN accounts by default', () => {
+  assert.deepEqual(
+    resolveAccountPayload({
+      role: 'MANAGER',
+      accountType: 'ADMIN'
+    }).moduleRoles,
+    ['rdo:manager']
+  );
+});
+
+test('resolveAccountPayload allows explicit privacy admin role for ADMIN accounts', () => {
+  assert.deepEqual(
+    resolveAccountPayload({
+      role: 'MANAGER',
+      accountType: 'ADMIN',
+      moduleRoles: ['privacy:admin']
+    }).moduleRoles,
+    ['privacy:admin']
   );
 });
 

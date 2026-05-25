@@ -17,6 +17,7 @@ import {
   buildReportSignatureReceivedEmailTemplate
 } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
+import { SIGNATURE_RDO_NOTICE_VERSION, validatePrivacyNoticeAcknowledgement } from '../../lib/privacy-consent.js';
 import { saveReportDocx, organizePhotos } from '../../lib/report-docx.js';
 import { saveReportPdf } from '../../lib/report-pdf-from-docx.js';
 import { saveRtpDocx, saveRtpPdf, organizeRtpPhotos } from '../../lib/report-rtp.js';
@@ -1710,16 +1711,26 @@ const clientReviewSchema = z.object({
     });
   }
 });
-const requestSignatureSchema = z.object({
+export const requestSignatureSchema = z.object({
   comment: z.string().trim().max(4000).optional().nullable(),
   signerName: z.string().trim().min(2).max(160),
   signatureImageDataUrl: z.string().trim().min(1).max(2_100_000)
-    .refine(value => !!parseSignatureImageDataUrl(value), 'Assinatura visual invalida.')
+    .refine(value => !!parseSignatureImageDataUrl(value), 'Assinatura visual invalida.'),
+  privacyNoticeAccepted: z.boolean().optional(),
+  privacyNoticeVersion: z.string().trim().optional().nullable()
+}).superRefine((data, ctx) => {
+  const error = validatePrivacyNoticeAcknowledgement(data, SIGNATURE_RDO_NOTICE_VERSION);
+  if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['privacyNoticeVersion'], message: error });
 });
-const publicSignatureConfirmSchema = z.object({
+export const publicSignatureConfirmSchema = z.object({
   signerName: z.string().trim().min(2).max(160),
   signatureImageDataUrl: z.string().trim().min(1).max(2_100_000)
-    .refine(value => !!parseSignatureImageDataUrl(value), 'Assinatura visual invalida.')
+    .refine(value => !!parseSignatureImageDataUrl(value), 'Assinatura visual invalida.'),
+  privacyNoticeAccepted: z.boolean().optional(),
+  privacyNoticeVersion: z.string().trim().optional().nullable()
+}).superRefine((data, ctx) => {
+  const error = validatePrivacyNoticeAcknowledgement(data, SIGNATURE_RDO_NOTICE_VERSION);
+  if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['privacyNoticeVersion'], message: error });
 });
 const publicSignatureRejectSchema = z.object({
   comment: z.string().trim().min(1).max(4000)
@@ -3386,6 +3397,7 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
       userId: null,
       evidence,
       signatureImageDataUrl: data.signatureImageDataUrl,
+      privacyNoticeVersion: data.privacyNoticeVersion,
       deferAuditLog: completesRequiredSignatures
     });
     signedVersion = await activeVersionWithSignatures(tx, signature.reportId);
@@ -4242,6 +4254,7 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
         userId: req.auth.user.id,
         evidence,
         signatureImageDataUrl: data.signatureImageDataUrl,
+        privacyNoticeVersion: data.privacyNoticeVersion,
         deferAuditLog: completesRequiredSignatures
       });
       signedVersion = await activeVersionWithSignatures(tx, current.id);

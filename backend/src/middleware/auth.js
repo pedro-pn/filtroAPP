@@ -1,6 +1,11 @@
 import asyncHandler from '../lib/async-handler.js';
 import { hashToken, publicUser } from '../lib/auth.js';
 import { hasModuleRole } from '../lib/module-roles.js';
+import {
+  CLIENT_PRIVACY_NOTICE_VERSION,
+  clientPrivacyConsentRequired,
+  isClientPrivacyConsentAllowedRoute
+} from '../lib/privacy-consent.js';
 import prisma from '../lib/prisma.js';
 
 export const RDO_INTERNAL_ROLES = ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator'];
@@ -10,7 +15,8 @@ export const INTERNAL_ACCOUNT_ROLES = [
   'romaneio:manager',
   'romaneio:operator',
   'epi:technician',
-  'epi:collaborator'
+  'epi:collaborator',
+  'privacy:admin'
 ];
 export const ROMANEIO_ACCESS_ROLES = INTERNAL_ACCOUNT_ROLES;
 
@@ -71,6 +77,14 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
     user: publicUser(session.user),
     rawUser: session.user
   };
+
+  if (clientPrivacyConsentRequired(session.user) && !isClientPrivacyConsentAllowedRoute(req)) {
+    return res.status(428).json({
+      error: 'Aceite a política de privacidade para continuar.',
+      code: 'CLIENT_PRIVACY_CONSENT_REQUIRED',
+      privacyPolicyVersion: CLIENT_PRIVACY_NOTICE_VERSION
+    });
+  }
 
   next();
 });

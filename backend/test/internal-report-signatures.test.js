@@ -17,6 +17,8 @@ import {
   sendSignatureRequestEmails,
   signatureRequestEmailRequired,
   publicSignaturePayload,
+  publicSignatureConfirmSchema,
+  requestSignatureSchema,
   publicValidationPayload,
   publicSignatureStatus,
   persistClientSignatureApprovalReview,
@@ -28,6 +30,38 @@ import {
   verifiedFinalPdfBuffer
 } from '../src/routes/resources/reports.js';
 import app from '../src/app.js';
+
+const validSignatureImageDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+
+test('public RDO signature schema rejects missing or stale privacy notice version', () => {
+  const base = {
+    signerName: 'Cliente',
+    signatureImageDataUrl: validSignatureImageDataUrl
+  };
+
+  assert.throws(() => publicSignatureConfirmSchema.parse(base), /Confirme a ciência do aviso de privacidade/);
+  assert.throws(() => publicSignatureConfirmSchema.parse({ ...base, privacyNoticeAccepted: true }), /Versão do aviso de privacidade inválida/);
+  assert.throws(
+    () => publicSignatureConfirmSchema.parse({ ...base, privacyNoticeAccepted: true, privacyNoticeVersion: 'signature_rdo_v0' }),
+    /Versão do aviso de privacidade inválida/
+  );
+  assert.equal(publicSignatureConfirmSchema.parse({ ...base, privacyNoticeAccepted: true, privacyNoticeVersion: 'signature_rdo_v1' }).privacyNoticeVersion, 'signature_rdo_v1');
+});
+
+test('authenticated RDO signature schema rejects missing or stale privacy notice version', () => {
+  const base = {
+    signerName: 'Cliente',
+    signatureImageDataUrl: validSignatureImageDataUrl
+  };
+
+  assert.throws(() => requestSignatureSchema.parse(base), /Confirme a ciência do aviso de privacidade/);
+  assert.throws(() => requestSignatureSchema.parse({ ...base, privacyNoticeAccepted: true }), /Versão do aviso de privacidade inválida/);
+  assert.throws(
+    () => requestSignatureSchema.parse({ ...base, privacyNoticeAccepted: true, privacyNoticeVersion: 'signature_rdo_v0' }),
+    /Versão do aviso de privacidade inválida/
+  );
+  assert.equal(requestSignatureSchema.parse({ ...base, privacyNoticeAccepted: true, privacyNoticeVersion: 'signature_rdo_v1' }).privacyNoticeVersion, 'signature_rdo_v1');
+});
 import { assertProductionTrustProxyConfigured, parseTrustProxy } from '../src/config/env.js';
 import {
   allRequiredSignaturesCompleted,
@@ -238,7 +272,8 @@ test('signInternalReportVersion stores declared signer name separately from conf
       ipAddress: '192.168.0.10',
       userAgent: 'Node Test'
     },
-    signatureImageDataUrl: tinyPngDataUrl
+    signatureImageDataUrl: tinyPngDataUrl,
+    privacyNoticeVersion: 'signature_rdo_v1'
   });
 
   assert.equal(result.alreadySigned, false);
@@ -246,6 +281,8 @@ test('signInternalReportVersion stores declared signer name separately from conf
   assert.equal(signatureUpdate.data.signerName, 'Nome inicial');
   assert.equal(signatureUpdate.data.declaredSignerName, 'Nome editado');
   assert.equal(signatureUpdate.data.signatureImageDataUrl, tinyPngDataUrl);
+  assert.equal(signatureUpdate.data.privacyNoticeVersion, 'signature_rdo_v1');
+  assert.equal(signatureUpdate.data.privacyNoticeAcceptedAt instanceof Date, true);
   assert.equal(result.signedSignature.signerName, 'Nome inicial');
   assert.equal(result.signedSignature.declaredSignerName, 'Nome editado');
   assert.match(auditLog.data.description, /Nome inicial assinou o relatorio/);

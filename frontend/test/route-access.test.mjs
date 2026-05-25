@@ -79,6 +79,53 @@ test('admin accounts route accepts ADMIN accounts without rdo:manager', async ()
   assert.equal(isRouteAllowed(adminWithEpiOnly, { allowedAccountTypes: ['ADMIN'] }), true);
 });
 
+test('privacy requests route requires the dedicated privacy admin module role', async () => {
+  const { isRouteAllowed } = await loadRouteAccess();
+  const privacyRouteRule = {
+    allowedModuleRoles: ['privacy:admin']
+  };
+
+  assert.equal(
+    isRouteAllowed({
+      id: 'privacy-admin',
+      username: 'privacy-admin',
+      name: 'Admin',
+      email: null,
+      role: 'MANAGER',
+      accountType: 'ADMIN',
+      moduleRoles: ['privacy:admin'],
+      isActive: true
+    }, privacyRouteRule),
+    true
+  );
+  assert.equal(
+    isRouteAllowed({
+      id: 'internal-manager',
+      username: 'internal-manager',
+      name: 'Gestor',
+      email: null,
+      role: 'MANAGER',
+      accountType: 'ADMIN',
+      moduleRoles: ['rdo:manager'],
+      isActive: true
+    }, privacyRouteRule),
+    false
+  );
+  assert.equal(
+    isRouteAllowed({
+      id: 'plain-admin',
+      username: 'plain-admin',
+      name: 'Admin sem LGPD',
+      email: null,
+      role: 'MANAGER',
+      accountType: 'ADMIN',
+      moduleRoles: [],
+      isActive: true
+    }, privacyRouteRule),
+    false
+  );
+});
+
 test('RDO manager route still rejects ADMIN accounts without rdo:manager', async () => {
   const { isRouteAllowed } = await loadRouteAccess();
 
@@ -165,8 +212,21 @@ test('module navigation maps legacy reports paths to the RDO module', async () =
   assert.equal(moduleIdFromPath('/relatorios/report-1'), 'rdo');
   assert.equal(moduleIdFromPath('/romaneio'), 'romaneio');
   assert.equal(moduleIdFromPath('/epi'), 'epi');
+  assert.equal(moduleIdFromPath('/privacidade/solicitacoes'), 'privacy');
+  assert.equal(moduleIdFromPath('/privacidade/direitos'), null);
   assert.equal(moduleIdFromPath('/assinar/token'), null);
   assert.equal(moduleIdFromPath('/epi/assinar/token'), null);
+});
+
+test('ADMIN accounts get the privacy hub module', async () => {
+  const { hubModulesForUser } = await loadHubModules();
+  const modules = hubModulesForUser({
+    ...adminWithEpiOnly,
+    moduleRoles: ['privacy:admin']
+  });
+
+  assert.equal(modules.some(module => module.id === 'privacy' && module.path === '/privacidade/solicitacoes'), true);
+  assert.equal(hubModulesForUser(adminWithEpiOnly).some(module => module.id === 'privacy'), false);
 });
 
 test('preferred entry path uses the last accessible module for the signed-in account', async () => {

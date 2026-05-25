@@ -7,8 +7,10 @@ import { roleHomePath } from '../auth/rolePath';
 import type { UploadedFile } from '../api/uploads';
 import { ServiceCollaboratorsBlock, ServiceFields, serviceTypeLabels } from '../components/reports/ServiceFields';
 import { SignatureProgress } from '../components/reports/SignatureProgress';
-import { SignatureConsentDialog } from '../components/reports/SignatureConsentDialog';
+import { SignatureDialog } from '../components/reports/SignatureDialog';
+import { PrivacyNotice } from '../components/privacy/PrivacyNotice';
 import { useToast } from '../components/ui/Toast';
+import { SIGNATURE_RDO_NOTICE_VERSION } from '../constants/privacy';
 import { useCollaborators } from '../hooks/useCollaborators';
 import { useCounters } from '../hooks/useCounters';
 import { useEquipment } from '../hooks/useEquipment';
@@ -27,7 +29,6 @@ import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
 import { reportDownloadFileName } from '../utils/reportFileName';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
-import { reportSignatureProgress } from '../utils/signatureProgress';
 import { loadUploadAssetUrl } from '../utils/uploadAssetUrl';
 
 const TEXT = {
@@ -1149,6 +1150,7 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
   const showToast = useToast();
   const [clientRejectOpen, setClientRejectOpen] = useState(false);
   const [signatureOpen, setSignatureOpen] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [clientComment, setClientComment] = useState('');
   const canDownloadDocx = role === 'MANAGER';
   const canClientSign = role === 'CLIENT' && report.reportType === 'RDO' && report.status === 'APPROVED' && !hasActiveClientRejection(report);
@@ -1184,9 +1186,12 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
         id: report.id,
         comment: clientComment.trim() || null,
         signerName,
-        signatureImageDataUrl
+        signatureImageDataUrl,
+        privacyNoticeAccepted: true,
+        privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION
       });
       setSignatureOpen(false);
+      setPrivacyAccepted(false);
       showToast(response.completed ? 'Relatório assinado e bloqueado.' : 'Assinatura eletrônica registrada.', 'success');
     } catch (err) {
       showToast(err instanceof Error ? err.message : TEXT.requestSignatureError, 'error');
@@ -1205,11 +1210,6 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
       showToast(err instanceof Error ? err.message : TEXT.updateError, 'error');
     }
   }
-
-  const signatureProgress = reportSignatureProgress(report);
-  const signaturePending = canClientSign && signatureProgress
-    ? signatureProgress.signed < signatureProgress.total
-    : false;
 
   return (
     <>
@@ -1234,8 +1234,12 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
                 onChange={event => setClientComment(event.target.value)}
               />
             </div>
-            <button className="primary-button" type="button" onClick={() => setSignatureOpen(true)}>
-              {signaturePending ? 'Continuar assinatura eletrônica' : 'Aprovar e assinar eletronicamente'}
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => setSignatureOpen(true)}
+            >
+              Assinar digitalmente
             </button>
             <button className="secondary-button" type="button" onClick={() => setClientRejectOpen(true)}>
               {TEXT.rejectClient}
@@ -1254,13 +1258,26 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
         onCancel={() => setClientRejectOpen(false)}
         onConfirm={reason => void handleClientReject(reason)}
       />
-      <SignatureConsentDialog
+      <SignatureDialog
         open={signatureOpen}
         title="Assinar relatório"
         initialSignerName={initialSignerName}
         cacheIdentity={user?.email || user?.username || user?.id || ''}
         isSubmitting={reportMutations.requestSignature.isPending}
-        onCancel={() => setSignatureOpen(false)}
+        confirmDisabled={!privacyAccepted}
+        confirmDisabledMessage="Confirme a ciência do aviso de privacidade para assinar."
+        notice={(
+          <PrivacyNotice
+            variant="signatureRdo"
+            checked={privacyAccepted}
+            onCheckedChange={setPrivacyAccepted}
+            disabled={reportMutations.requestSignature.isPending}
+          />
+        )}
+        onCancel={() => {
+          setSignatureOpen(false);
+          setPrivacyAccepted(false);
+        }}
         onConfirm={payload => void handleRequestSignature(payload)}
       />
     </>

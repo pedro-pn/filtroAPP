@@ -45,6 +45,8 @@ export interface PublicSurveyPayload {
 
 export interface SurveyResponsePayload {
   answers: SurveyResponses;
+  privacyNoticeAccepted: true;
+  privacyNoticeVersion: string;
 }
 
 export async function sendProjectSurvey(projectId: string) {

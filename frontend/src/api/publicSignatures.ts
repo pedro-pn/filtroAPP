@@ -35,6 +35,8 @@ export async function getPublicSignature(token: string) {
 export interface PublicSignatureConfirmPayload {
   signerName: string;
   signatureImageDataUrl: string;
+  privacyNoticeAccepted: true;
+  privacyNoticeVersion: string;
 }
 
 export async function confirmPublicSignature(token: string, payload: PublicSignatureConfirmPayload) {

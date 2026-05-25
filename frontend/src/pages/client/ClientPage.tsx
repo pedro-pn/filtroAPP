@@ -7,9 +7,11 @@ import { getClientSurveyLink } from '../../api/surveys';
 import { useAuth } from '../../auth/AuthContext';
 import { rdoReportDetailPath } from '../../auth/rolePath';
 import { ClientTutorial } from '../../components/ClientTutorial';
+import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { SignatureProgress } from '../../components/reports/SignatureProgress';
-import { SignatureConsentDialog } from '../../components/reports/SignatureConsentDialog';
+import { SignatureDialog } from '../../components/reports/SignatureDialog';
 import { useToast } from '../../components/ui/Toast';
+import { SIGNATURE_RDO_NOTICE_VERSION } from '../../constants/privacy';
 import { useReportMutations, useReports } from '../../hooks/useReports';
 import { useProjects } from '../../hooks/useProjects';
 import { Shell } from '../../layout/Shell';
@@ -20,7 +22,6 @@ import { formatCnpj } from '../../utils/formatCnpj';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { compareReportTypes, ProjectSortButton, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
 import { reportDownloadFileName } from '../../utils/reportFileName';
-import { reportSignatureProgress } from '../../utils/signatureProgress';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
@@ -186,6 +187,7 @@ export function ClientPage() {
   const [activeTypeByProject, setActiveTypeByProject] = useState<Record<string, string>>({});
   const [closedTypeByProject, setClosedTypeByProject] = useState<Record<string, boolean>>({});
   const [signatureTargetIds, setSignatureTargetIds] = useState<string[]>([]);
+  const [signaturePrivacyAccepted, setSignaturePrivacyAccepted] = useState(false);
   const [clientSortDirection, setClientSortDirection] = useState<ProjectSortDirection>('asc');
   const [clientTogglesLoaded, setClientTogglesLoaded] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
@@ -452,7 +454,9 @@ export function ClientPage() {
           id,
           comment: selectedComments[id] || null,
           signerName,
-          signatureImageDataUrl
+          signatureImageDataUrl,
+          privacyNoticeAccepted: true,
+          privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION
         });
         (result.releasedServiceReports || []).forEach(report => releasedReportsById.set(report.id, report));
       }
@@ -469,6 +473,7 @@ export function ClientPage() {
         revealReleasedReport(releasedReports[0]);
       }
       setSignatureTargetIds([]);
+      setSignaturePrivacyAccepted(false);
       showToast(
         releasedReports.length
           ? `${releasedReports.length} relatório${releasedReports.length !== 1 ? 's' : ''} de serviço liberado${releasedReports.length !== 1 ? 's' : ''}.`
@@ -513,10 +518,6 @@ export function ClientPage() {
     const clientRejected = isClientRejectedReport(report);
     const signable = report.reportType === 'RDO' && report.status === 'APPROVED' && !clientRejected;
     const selectable = canSelectClientReport(report);
-    const signatureProgress = reportSignatureProgress(report);
-    const signaturePending = signable && signatureProgress
-      ? signatureProgress.signed < signatureProgress.total
-      : false;
     const status = clientStatusMeta(report);
     const rejections = clientRejectionReviews(report);
     const specialRejection = activeSpecialRejection(report);
@@ -568,7 +569,7 @@ export function ClientPage() {
                 />
               </div>
               <button className="primary-button" type="button" onClick={() => void handleRequestSignature(report)}>
-                {signaturePending ? 'Continuar assinatura eletrônica' : 'Aprovar e assinar eletronicamente'}
+                Assinar digitalmente
               </button>
               <button className="danger-button" type="button" onClick={() => void handleReject(report)}>
                 {TEXT.reject}
@@ -870,13 +871,26 @@ export function ClientPage() {
           </div>
         ) : null}
       </main>
-      <SignatureConsentDialog
+      <SignatureDialog
         open={signatureTargetIds.length > 0}
         title={signatureTargetIds.length > 1 ? `Assinar ${signatureTargetIds.length} relatórios` : 'Assinar relatório'}
         initialSignerName={initialSignerName}
         cacheIdentity={user?.email || user?.username || user?.id || ''}
         isSubmitting={reportMutations.requestSignature.isPending}
-        onCancel={() => setSignatureTargetIds([])}
+        confirmDisabled={!signaturePrivacyAccepted}
+        confirmDisabledMessage="Confirme a ciência do aviso de privacidade para assinar."
+        notice={(
+          <PrivacyNotice
+            variant="signatureRdo"
+            checked={signaturePrivacyAccepted}
+            onCheckedChange={setSignaturePrivacyAccepted}
+            disabled={reportMutations.requestSignature.isPending}
+          />
+        )}
+        onCancel={() => {
+          setSignatureTargetIds([]);
+          setSignaturePrivacyAccepted(false);
+        }}
         onConfirm={payload => void confirmSignature(payload)}
       />
     </Shell>

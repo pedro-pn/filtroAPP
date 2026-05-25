@@ -112,14 +112,18 @@ export function useReportMutations() {
       id,
       comment,
       signerName,
-      signatureImageDataUrl
+      signatureImageDataUrl,
+      privacyNoticeAccepted,
+      privacyNoticeVersion
     }: {
       id: string;
       comment?: string | null;
       signerName: string;
       signatureImageDataUrl: string;
+      privacyNoticeAccepted: true;
+      privacyNoticeVersion: string;
     }) =>
-      requestReportSignature(id, { comment, signerName, signatureImageDataUrl }),
+      requestReportSignature(id, { comment, signerName, signatureImageDataUrl, privacyNoticeAccepted, privacyNoticeVersion }),
     onSuccess: data => {
       updateReportCaches(queryClient, data.report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });

@@ -5,11 +5,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   confirmPublicSignature,
   getPublicSignature,
+  type PublicSignatureConfirmPayload,
   publicSignaturePdfUrl,
   rejectPublicSignature
 } from '../api/publicSignatures';
-import { SignatureConsentDialog } from '../components/reports/SignatureConsentDialog';
+import { PrivacyNotice } from '../components/privacy/PrivacyNotice';
+import { SignatureDialog } from '../components/reports/SignatureDialog';
 import { useToast } from '../components/ui/Toast';
+import { SIGNATURE_RDO_NOTICE_VERSION } from '../constants/privacy';
 import { formatDateOnlyPtBr } from '../utils/dateOnly';
 
 const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
@@ -32,6 +35,7 @@ export function PublicSignaturePage() {
   const [signatureOpen, setSignatureOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
   const signatureQuery = useQuery({
     queryKey: ['public-signature', token],
@@ -40,7 +44,7 @@ export function PublicSignaturePage() {
   });
 
   const confirmMutation = useMutation({
-    mutationFn: (payload: { signerName: string; signatureImageDataUrl: string }) => confirmPublicSignature(token, payload),
+    mutationFn: (payload: PublicSignatureConfirmPayload) => confirmPublicSignature(token, payload),
     onSuccess: data => {
       setSignatureOpen(false);
       showToast(data.completed ? 'Relatório assinado.' : 'Assinatura registrada.', 'success');
@@ -76,6 +80,14 @@ export function PublicSignaturePage() {
     rejectMutation.mutate(reason);
   }
 
+  function openSignatureDialog() {
+    if (!privacyAccepted) {
+      showToast('Confirme a ciência do aviso de privacidade antes de assinar.', 'error');
+      return;
+    }
+    setSignatureOpen(true);
+  }
+
   return (
     <main className="survey-page-shell public-signature-page">
       <header className="survey-header">
@@ -106,11 +118,17 @@ export function PublicSignaturePage() {
             )}
             {canSign ? (
               <>
+                <PrivacyNotice
+                  variant="signatureRdo"
+                  checked={privacyAccepted}
+                  onCheckedChange={setPrivacyAccepted}
+                  disabled={confirmMutation.isPending}
+                />
                 <div className="public-signature-actions">
                   <a className="secondary-button" href={publicSignaturePdfUrl(token)} target="_blank" rel="noopener noreferrer">
                     Abrir PDF
                   </a>
-                  <button className="primary-button" type="button" onClick={() => setSignatureOpen(true)}>
+                  <button className="primary-button" type="button" onClick={openSignatureDialog} disabled={!privacyAccepted}>
                     Assinar
                   </button>
                   <button className="secondary-button" type="button" onClick={() => setRejectOpen(current => !current)}>
@@ -139,14 +157,18 @@ export function PublicSignaturePage() {
           </>
         ) : null}
       </section>
-      <SignatureConsentDialog
+      <SignatureDialog
         open={signatureOpen}
         title="Assinar relatório"
         initialSignerName={signer?.name || ''}
         cacheIdentity={signer?.email || token}
         isSubmitting={confirmMutation.isPending}
         onCancel={() => setSignatureOpen(false)}
-        onConfirm={payload => confirmMutation.mutate(payload)}
+        onConfirm={payload => confirmMutation.mutate({
+          ...payload,
+          privacyNoticeAccepted: true,
+          privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION
+        })}
       />
     </main>
   );

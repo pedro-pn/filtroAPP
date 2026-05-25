@@ -1,7 +1,7 @@
 import { hubModulesForUser } from '../pages/hubModules';
 import type { AuthUser } from '../types/auth';
 
-export type AppModuleId = 'rdo' | 'admin' | 'romaneio' | 'epi';
+export type AppModuleId = 'rdo' | 'admin' | 'romaneio' | 'epi' | 'privacy';
 
 const LAST_MODULE_KEY_PREFIX = 'filtrovali:last-module:';
 const LEGACY_RDO_PATHS = [
@@ -40,6 +40,7 @@ export function moduleIdFromPath(pathname: string): AppModuleId | null {
   if (path === '/epi/assinar' || path.startsWith('/epi/assinar/')) return null;
   if (path === '/rdo' || path.startsWith('/rdo/')) return 'rdo';
   if (path === '/admin' || path.startsWith('/admin/')) return 'admin';
+  if (path === '/privacidade/solicitacoes' || path.startsWith('/privacidade/solicitacoes/')) return 'privacy';
   if (path === '/romaneio' || path.startsWith('/romaneio/')) return 'romaneio';
   if (path === '/epi' || path.startsWith('/epi/')) return 'epi';
   if (LEGACY_RDO_PATHS.some(prefix => path === prefix || path.startsWith(`${prefix}/`))) return 'rdo';

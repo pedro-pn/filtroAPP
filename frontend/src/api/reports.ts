@@ -67,7 +67,13 @@ export interface RequestReportSignatureResponse {
 
 export async function requestReportSignature(
   id: string,
-  payload: { comment?: string | null; signerName: string; signatureImageDataUrl: string }
+  payload: {
+    comment?: string | null;
+    signerName: string;
+    signatureImageDataUrl: string;
+    privacyNoticeAccepted: true;
+    privacyNoticeVersion: string;
+  }
 ) {
   const response = await apiClient.post<RequestReportSignatureResponse>(
     rdoApiPath(`/reports/${id}/request-signature`),

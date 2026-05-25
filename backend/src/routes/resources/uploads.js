@@ -11,6 +11,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import { hashToken, publicUser } from '../../lib/auth.js';
 import { clientCanAccessProject } from '../../lib/client-project-access.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
+import { CLIENT_PRIVACY_NOTICE_VERSION, clientPrivacyConsentRequired } from '../../lib/privacy-consent.js';
 import { RDO_INTERNAL_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import prisma from '../../lib/prisma.js';
 
@@ -280,6 +281,13 @@ async function authenticateFileRequest(req, res, next) {
   }
 
   req.auth = { token, sessionId: session.id, user: publicUser(session.user), rawUser: session.user };
+  if (clientPrivacyConsentRequired(session.user)) {
+    return res.status(428).json({
+      error: 'Aceite a política de privacidade para continuar.',
+      code: 'CLIENT_PRIVACY_CONSENT_REQUIRED',
+      privacyPolicyVersion: CLIENT_PRIVACY_NOTICE_VERSION
+    });
+  }
   return next();
 }
 

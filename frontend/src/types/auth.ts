@@ -8,7 +8,8 @@ export type ModuleRole =
   | 'romaneio:manager'
   | 'romaneio:operator'
   | 'epi:technician'
-  | 'epi:collaborator';
+  | 'epi:collaborator'
+  | 'privacy:admin';
 
 export interface AuthUser {
   id: string;
@@ -20,6 +21,10 @@ export interface AuthUser {
   moduleRoles: ModuleRole[];
   isActive: boolean;
   clientCnpj?: string | null;
+  privacyPolicyAcceptedAt?: string | null;
+  privacyPolicyVersion?: string | null;
+  privacyPolicyRequired?: boolean;
+  requiredPrivacyPolicyVersion?: string;
   collaboratorId?: string | null;
 }
 

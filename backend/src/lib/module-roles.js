@@ -7,7 +7,8 @@ export const AccountTypes = {
 export const AppModules = {
   RDO: 'RDO',
   ROMANEIO: 'ROMANEIO',
-  EPI: 'EPI'
+  EPI: 'EPI',
+  PRIVACY: 'PRIVACY'
 };
 
 export const ModuleRoleCodes = {
@@ -18,7 +19,8 @@ export const ModuleRoleCodes = {
   ROMANEIO_MANAGER: 'ROMANEIO_MANAGER',
   ROMANEIO_OPERATOR: 'ROMANEIO_OPERATOR',
   EPI_TECHNICIAN: 'EPI_TECHNICIAN',
-  EPI_COLLABORATOR: 'EPI_COLLABORATOR'
+  EPI_COLLABORATOR: 'EPI_COLLABORATOR',
+  PRIVACY_ADMIN: 'PRIVACY_ADMIN'
 };
 
 const LEGACY_ROLE_TO_ACCOUNT_TYPE = {
@@ -43,7 +45,8 @@ const MODULE_ROLE_TO_PUBLIC = {
   [ModuleRoleCodes.ROMANEIO_MANAGER]: 'romaneio:manager',
   [ModuleRoleCodes.ROMANEIO_OPERATOR]: 'romaneio:operator',
   [ModuleRoleCodes.EPI_TECHNICIAN]: 'epi:technician',
-  [ModuleRoleCodes.EPI_COLLABORATOR]: 'epi:collaborator'
+  [ModuleRoleCodes.EPI_COLLABORATOR]: 'epi:collaborator',
+  [ModuleRoleCodes.PRIVACY_ADMIN]: 'privacy:admin'
 };
 
 const PUBLIC_TO_MODULE_ROLE = Object.fromEntries(
@@ -58,7 +61,8 @@ const MODULE_BY_ROLE = {
   [ModuleRoleCodes.ROMANEIO_MANAGER]: AppModules.ROMANEIO,
   [ModuleRoleCodes.ROMANEIO_OPERATOR]: AppModules.ROMANEIO,
   [ModuleRoleCodes.EPI_TECHNICIAN]: AppModules.EPI,
-  [ModuleRoleCodes.EPI_COLLABORATOR]: AppModules.EPI
+  [ModuleRoleCodes.EPI_COLLABORATOR]: AppModules.EPI,
+  [ModuleRoleCodes.PRIVACY_ADMIN]: AppModules.PRIVACY
 };
 
 export function accountTypeForLegacyRole(role) {

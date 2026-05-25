@@ -3,8 +3,10 @@ import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { confirmEpiPublicSignature, epiPublicSignaturePdfUrl, getEpiPublicSignature } from '../../api/epi';
-import { SignatureConsentDialog } from '../../components/reports/SignatureConsentDialog';
+import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
+import { SignatureDialog } from '../../components/reports/SignatureDialog';
 import { useToast } from '../../components/ui/Toast';
+import { SIGNATURE_EPI_NOTICE_VERSION } from '../../constants/privacy';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 
 const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
@@ -17,11 +19,14 @@ const statusText: Record<string, string> = {
   INVALID: 'Link inválido'
 };
 
+type EpiPublicSignatureConfirmPayload = Parameters<typeof confirmEpiPublicSignature>[1];
+
 export function EpiPublicSignaturePage() {
   const { token = '' } = useParams();
   const queryClient = useQueryClient();
   const showToast = useToast();
   const [signatureOpen, setSignatureOpen] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
   const signatureQuery = useQuery({
     queryKey: ['epi-public-signature', token],
@@ -30,7 +35,7 @@ export function EpiPublicSignaturePage() {
   });
 
   const confirmMutation = useMutation({
-    mutationFn: (payload: { signerName: string; signatureImageDataUrl: string }) => confirmEpiPublicSignature(token, payload),
+    mutationFn: (payload: EpiPublicSignatureConfirmPayload) => confirmEpiPublicSignature(token, payload),
     onSuccess: () => {
       setSignatureOpen(false);
       showToast('Assinatura registrada.', 'success');
@@ -42,6 +47,14 @@ export function EpiPublicSignaturePage() {
   const payload = signatureQuery.data;
   const status = payload?.status || 'INVALID';
   const canSign = status === 'ACTIVE';
+
+  function openSignatureDialog() {
+    if (!privacyAccepted) {
+      showToast('Confirme a ciência do aviso de privacidade antes de assinar.', 'error');
+      return;
+    }
+    setSignatureOpen(true);
+  }
 
   return (
     <main className="survey-page-shell public-signature-page">
@@ -84,34 +97,48 @@ export function EpiPublicSignaturePage() {
             ) : null}
 
             {payload?.collaborator || status === 'SIGNED' ? (
-              <div className="public-signature-actions">
+              <>
                 {canSign ? (
-                  <a className="secondary-button" href={epiPublicSignaturePdfUrl(token)} target="_blank" rel="noopener noreferrer">
-                    Abrir PDF
-                  </a>
+                  <PrivacyNotice
+                    variant="signatureEpi"
+                    checked={privacyAccepted}
+                    onCheckedChange={setPrivacyAccepted}
+                    disabled={confirmMutation.isPending}
+                  />
                 ) : null}
-                {canSign ? (
-                  <button className="primary-button" type="button" onClick={() => setSignatureOpen(true)}>
-                    Assinar
-                  </button>
-                ) : status === 'SIGNED' ? (
-                  <a className="primary-button" href={epiPublicSignaturePdfUrl(token)} target="_blank" rel="noopener noreferrer">
-                    Baixar PDF assinado
-                  </a>
-                ) : null}
-              </div>
+                <div className="public-signature-actions">
+                  {canSign ? (
+                    <a className="secondary-button" href={epiPublicSignaturePdfUrl(token)} target="_blank" rel="noopener noreferrer">
+                      Abrir PDF
+                    </a>
+                  ) : null}
+                  {canSign ? (
+                    <button className="primary-button" type="button" onClick={openSignatureDialog} disabled={!privacyAccepted}>
+                      Assinar
+                    </button>
+                  ) : status === 'SIGNED' ? (
+                    <a className="primary-button" href={epiPublicSignaturePdfUrl(token)} target="_blank" rel="noopener noreferrer">
+                      Baixar PDF assinado
+                    </a>
+                  ) : null}
+                </div>
+              </>
             ) : null}
           </>
         ) : null}
       </section>
-      <SignatureConsentDialog
+      <SignatureDialog
         open={signatureOpen}
         title="Assinar EPIs"
         initialSignerName={payload?.collaborator?.name || ''}
         cacheIdentity={payload?.collaborator?.id || token}
         isSubmitting={confirmMutation.isPending}
         onCancel={() => setSignatureOpen(false)}
-        onConfirm={form => confirmMutation.mutate(form)}
+        onConfirm={form => confirmMutation.mutate({
+          ...form,
+          privacyNoticeAccepted: true,
+          privacyNoticeVersion: SIGNATURE_EPI_NOTICE_VERSION
+        })}
       />
     </main>
   );

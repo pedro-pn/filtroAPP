@@ -1,13 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 import { Modal } from '../ui/Modal';
 
-interface SignatureConsentDialogProps {
+interface SignatureDialogProps {
   open: boolean;
   title: string;
   initialSignerName?: string | null;
   cacheIdentity?: string | null;
   isSubmitting?: boolean;
+  confirmDisabled?: boolean;
+  confirmDisabledMessage?: string;
+  notice?: ReactNode;
   onCancel: () => void;
   onConfirm: (payload: { signerName: string; signatureImageDataUrl: string }) => void;
 }
@@ -15,10 +18,9 @@ interface SignatureConsentDialogProps {
 type SignatureMode = 'draw' | 'upload';
 type SignatureCache = {
   signerName?: string;
-  drawnSignatureDataUrl?: string;
 };
 
-const SIGNATURE_CACHE_PREFIX = 'filtrovali.signatureConsent.v1';
+const SIGNATURE_CACHE_PREFIX = 'filtrovali.signature.v1';
 
 function cacheKey(identity?: string | null) {
   const normalized = String(identity || '').trim().toLowerCase();
@@ -32,9 +34,13 @@ function readSignatureCache(identity?: string | null): SignatureCache | null {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(key) || 'null');
     if (!parsed || typeof parsed !== 'object') return null;
+    if (typeof parsed.drawnSignatureDataUrl === 'string') {
+      window.localStorage.setItem(key, JSON.stringify({
+        signerName: typeof parsed.signerName === 'string' ? parsed.signerName : ''
+      }));
+    }
     return {
-      signerName: typeof parsed.signerName === 'string' ? parsed.signerName : '',
-      drawnSignatureDataUrl: typeof parsed.drawnSignatureDataUrl === 'string' ? parsed.drawnSignatureDataUrl : ''
+      signerName: typeof parsed.signerName === 'string' ? parsed.signerName : ''
     };
   } catch {
     return null;
@@ -80,21 +86,23 @@ function canvasPoint(canvas: HTMLCanvasElement, event: PointerEvent) {
   };
 }
 
-export function SignatureConsentDialog({
+export function SignatureDialog({
   open,
   title,
   initialSignerName = '',
   cacheIdentity = '',
   isSubmitting = false,
+  confirmDisabled = false,
+  confirmDisabledMessage = 'Confirme os termos para continuar.',
+  notice = null,
   onCancel,
   onConfirm
-}: SignatureConsentDialogProps) {
+}: SignatureDialogProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [mode, setMode] = useState<SignatureMode>('draw');
   const [signerName, setSignerName] = useState('');
   const [rememberSignature, setRememberSignature] = useState(false);
-  const [savedSignatureDataUrl, setSavedSignatureDataUrl] = useState('');
   const [uploadedDataUrl, setUploadedDataUrl] = useState('');
   const [hasDrawing, setHasDrawing] = useState(false);
   const [error, setError] = useState('');
@@ -149,45 +157,16 @@ export function SignatureConsentDialog({
     if (open) {
       const cached = readSignatureCache(cacheIdentity);
       setSignerName(String(cached?.signerName || initialSignerName || '').trim());
-      setSavedSignatureDataUrl(cached?.drawnSignatureDataUrl || '');
       setRememberSignature(!!cached);
     } else {
       setMode('draw');
       setSignerName('');
       setRememberSignature(false);
-      setSavedSignatureDataUrl('');
       setUploadedDataUrl('');
       setHasDrawing(false);
       setError('');
     }
   }, [cacheIdentity, initialSignerName, open]);
-
-  function drawSignatureDataUrl(dataUrl: string) {
-    const canvas = canvasRef.current;
-    const context = canvas?.getContext('2d');
-    if (!canvas || !context || !dataUrl) return;
-    const image = new Image();
-    image.onload = () => {
-      const prepared = prepareCanvas(canvas);
-      if (!prepared) return;
-      const padding = 20;
-      const availableWidth = canvas.width - padding * 2;
-      const availableHeight = canvas.height - padding * 2;
-      const scale = Math.min(availableWidth / image.width, availableHeight / image.height, 1);
-      const width = image.width * scale;
-      const height = image.height * scale;
-      prepared.drawImage(image, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
-      setHasDrawing(true);
-      setError('');
-    };
-    image.src = dataUrl;
-  }
-
-  function restoreSavedDrawing() {
-    if (!savedSignatureDataUrl) return;
-    setMode('draw');
-    window.requestAnimationFrame(() => drawSignatureDataUrl(savedSignatureDataUrl));
-  }
 
   function clearDrawing() {
     const canvas = canvasRef.current;
@@ -224,13 +203,16 @@ export function SignatureConsentDialog({
 
   function removeSavedSignature() {
     removeSignatureCache(cacheIdentity);
-    setSavedSignatureDataUrl('');
     setRememberSignature(false);
     setError('');
   }
 
   function confirm() {
     setError('');
+    if (confirmDisabled) {
+      setError(confirmDisabledMessage);
+      return;
+    }
     const trimmedSignerName = signerName.trim();
     if (trimmedSignerName.length < 2) {
       setError('Informe o nome do signatário.');
@@ -261,20 +243,18 @@ export function SignatureConsentDialog({
     const drawnSignatureDataUrl = canvas.toDataURL('image/png');
     if (cacheKey(cacheIdentity)) {
       if (rememberSignature) {
-        writeSignatureCache(cacheIdentity, { signerName: trimmedSignerName, drawnSignatureDataUrl });
-        setSavedSignatureDataUrl(drawnSignatureDataUrl);
+        writeSignatureCache(cacheIdentity, { signerName: trimmedSignerName });
       } else {
         removeSignatureCache(cacheIdentity);
-        setSavedSignatureDataUrl('');
       }
     }
     onConfirm({ signerName: trimmedSignerName, signatureImageDataUrl: drawnSignatureDataUrl });
   }
 
   return (
-    <Modal open={open} onClose={onCancel} ariaLabelledBy="signature-consent-title" panelClassName="modal-card signature-consent-modal">
+    <Modal open={open} onClose={onCancel} ariaLabelledBy="signature-dialog-title" panelClassName="modal-card signature-modal">
       <div className="modal-head">
-        <h2 id="signature-consent-title">{title}</h2>
+        <h2 id="signature-dialog-title">{title}</h2>
         <button className="icon-button" type="button" aria-label="Fechar" onClick={onCancel}>×</button>
       </div>
       <div className="field-group signature-name-field">
@@ -288,24 +268,13 @@ export function SignatureConsentDialog({
           onChange={event => setSignerName(event.target.value)}
         />
       </div>
-      <p className="signature-consent-text">Declaro que revisei e concordo com o conteúdo deste relatório.</p>
+      <p className="signature-statement-text">Declaro que revisei e concordo com o conteúdo deste documento.</p>
       <div className="signature-mode-tabs" role="tablist" aria-label="Modo de assinatura">
         <button className={mode === 'draw' ? 'active' : ''} type="button" onClick={() => setMode('draw')}>Desenhar</button>
         <button className={mode === 'upload' ? 'active' : ''} type="button" onClick={() => setMode('upload')}>Enviar imagem</button>
       </div>
       {mode === 'draw' ? (
         <div className="signature-draw-area">
-          {savedSignatureDataUrl ? (
-            <div className="signature-saved-preview">
-              <button type="button" className="signature-saved-card" onClick={restoreSavedDrawing}>
-                <span>Assinatura salva</span>
-                <img src={savedSignatureDataUrl} alt="Prévia da assinatura salva" />
-              </button>
-              <button className="signature-saved-remove" type="button" onClick={removeSavedSignature}>
-                Remover salva
-              </button>
-            </div>
-          ) : null}
           <div className="signature-canvas-shell">
             <canvas ref={canvasRef} width={560} height={180} aria-label="Área para desenhar assinatura" />
           </div>
@@ -341,15 +310,23 @@ export function SignatureConsentDialog({
         </div>
       )}
       {cacheKey(cacheIdentity) ? (
-        <label className="signature-remember-option">
-          <input
-            type="checkbox"
-            checked={rememberSignature}
-            onChange={event => setRememberSignature(event.target.checked)}
-          />
-          <span>Lembrar neste dispositivo</span>
-        </label>
+        <div className="signature-remember-option">
+          <label>
+            <input
+              type="checkbox"
+              checked={rememberSignature}
+              onChange={event => setRememberSignature(event.target.checked)}
+            />
+            <span>Lembrar nome neste dispositivo</span>
+          </label>
+          {rememberSignature ? (
+            <button className="signature-saved-remove" type="button" onClick={removeSavedSignature}>
+              Esquecer nome
+            </button>
+          ) : null}
+        </div>
       ) : null}
+      {notice}
       {error ? <div className="form-error">{error}</div> : null}
       <div className="modal-actions">
         <button className="secondary-button" type="button" onClick={onCancel} disabled={isSubmitting}>Cancelar</button>

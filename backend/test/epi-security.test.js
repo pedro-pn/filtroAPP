@@ -20,6 +20,7 @@ import {
   isSignedEpiReturnUpdate,
   parseDateOnly,
   publicPdfEpiRequestOrThrow,
+  publicSignatureConfirmSchema,
   publicEpiSignaturePayload,
   requireEpiAccess,
   requireEpiTechnician,
@@ -34,10 +35,29 @@ import {
 } from '../src/lib/internal-report-signatures.js';
 
 const validSignatureImageDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+const privacyAcceptance = {
+  privacyNoticeAccepted: true,
+  privacyNoticeVersion: 'signature_epi_v1'
+};
 const testPdfArtifact = async () => ({
   signedPdfPath: '/tmp/epi-signed-test.pdf',
   signedPdfHash: 'signed-pdf-hash',
   signedPdfFileName: 'signed-test.pdf'
+});
+
+test('public EPI signature schema rejects missing or stale privacy notice version', () => {
+  const base = {
+    signerName: 'Colaborador',
+    signatureImageDataUrl: validSignatureImageDataUrl
+  };
+
+  assert.throws(() => publicSignatureConfirmSchema.parse(base), /Confirme a ciência do aviso de privacidade/);
+  assert.throws(() => publicSignatureConfirmSchema.parse({ ...base, privacyNoticeAccepted: true }), /Versão do aviso de privacidade inválida/);
+  assert.throws(
+    () => publicSignatureConfirmSchema.parse({ ...base, privacyNoticeAccepted: true, privacyNoticeVersion: 'signature_epi_v0' }),
+    /Versão do aviso de privacidade inválida/
+  );
+  assert.equal(publicSignatureConfirmSchema.parse({ ...base, privacyNoticeAccepted: true, privacyNoticeVersion: 'signature_epi_v1' }).privacyNoticeVersion, 'signature_epi_v1');
 });
 
 const technicianAuth = {
@@ -262,6 +282,7 @@ test('public EPI confirmation rejects invalid token before decoding signature im
       token: 'token',
       body: {
         signerName: 'Assinante',
+        ...privacyAcceptance,
         signatureImageDataUrl: `data:image/png;base64,${Buffer.from('not-a-png').toString('base64')}`
       },
       req: { headers: {}, ip: '203.0.113.10' },
@@ -289,6 +310,7 @@ test('public EPI confirmation rejects malformed signature image before updating 
       token: 'token',
       body: {
         signerName: 'Assinante',
+        ...privacyAcceptance,
         signatureImageDataUrl: `data:image/png;base64,${Buffer.from('not-a-png').toString('base64')}`
       },
       req: { headers: {}, ip: '203.0.113.10' },
@@ -324,6 +346,7 @@ test('public EPI confirmation is idempotent after successful signing', async () 
     token: 'token',
     body: {
       signerName: 'Assinante',
+      ...privacyAcceptance,
       signatureImageDataUrl: validSignatureImageDataUrl
     },
     req: { headers: {}, ip: '203.0.113.10' },
@@ -395,6 +418,7 @@ test('public EPI confirmation persists trusted proxy signer IP evidence and audi
     token: 'token',
     body: {
       signerName: 'Assinante',
+      ...privacyAcceptance,
       signatureImageDataUrl: validSignatureImageDataUrl
     },
     req: {
@@ -421,6 +445,8 @@ test('public EPI confirmation persists trusted proxy signer IP evidence and audi
   assert.equal(updates[0].data.signedPdfFileName, 'signed-test.pdf');
   assert.equal(updates[0].data.ipAddress, '8.8.8.8');
   assert.equal(updates[0].data.userAgent, 'Unit Test Browser');
+  assert.equal(updates[0].data.privacyNoticeVersion, 'signature_epi_v1');
+  assert.equal(updates[0].data.privacyNoticeAcceptedAt instanceof Date, true);
   assert.equal(auditLogs[0].data.action, 'SIGNED');
   assert.equal(auditLogs[0].data.ipAddress, '8.8.8.8');
   assert.equal(auditLogs[0].data.userAgent, 'Unit Test Browser');
@@ -472,6 +498,7 @@ test('public EPI confirmation promotes signed pending return revisions', async (
     token: 'token',
     body: {
       signerName: 'Assinante',
+      ...privacyAcceptance,
       signatureImageDataUrl: validSignatureImageDataUrl
     },
     req: { headers: {}, ip: '198.51.100.7' },
@@ -532,6 +559,7 @@ test('public EPI confirmation rejects stale pending return revisions when source
       token: 'token',
       body: {
         signerName: 'Assinante',
+        ...privacyAcceptance,
         signatureImageDataUrl: validSignatureImageDataUrl
       },
       req: { headers: {}, ip: '198.51.100.7' },
