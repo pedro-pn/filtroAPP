@@ -6,7 +6,7 @@ import { PassThrough, Readable, Writable } from 'node:stream';
 import test from 'node:test';
 
 import app from '../src/app.js';
-import { syncRomaneioCatalog } from '../src/lib/romaneio-catalog.js';
+import { parseEquipmentRows, syncRomaneioCatalog } from '../src/lib/romaneio-catalog.js';
 import prisma from '../src/lib/prisma.js';
 import {
   cleanupFailedRomaneioCreate,
@@ -503,4 +503,29 @@ test('Romaneio catalog sync restores particle counter visibility after RDO react
 
   assert.equal(updates[0].data.isActive, false);
   assert.equal(updates[1].data.isActive, true);
+});
+
+test('Romaneio equipment parser keeps loose trailing sections in their own categories', () => {
+  const rows = parseEquipmentRows([
+    '\tEquipamentos Não Listados',
+    'ENL\t\tpar botas de borracha',
+    '',
+    'Conexões de flushing',
+    'Adaptador JIC 2"',
+    '',
+    'Vávulas',
+    '\tVálvula 2"'
+  ].join('\n'));
+
+  const boots = rows.find(row => row.name === 'par botas de borracha');
+  const flushing = rows.find(row => row.name === 'Adaptador JIC 2"');
+  const valve = rows.find(row => row.name === 'Válvula 2"');
+
+  assert.equal(boots.categoryName, 'Equipamentos Não Listados');
+  assert.equal(boots.code, 'ENL');
+  assert.equal(boots.isSerialized, false);
+  assert.equal(flushing.categoryName, 'Conexões de flushing');
+  assert.equal(flushing.kind, 'CONNECTION');
+  assert.equal(valve.categoryName, 'Vávulas');
+  assert.equal(valve.kind, 'CONNECTION');
 });

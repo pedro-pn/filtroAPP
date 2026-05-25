@@ -43,7 +43,7 @@ function kindFromCategory(categoryName) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase();
-  return normalized.includes('CONEX') || normalized.includes('VALVULA') ? 'CONNECTION' : 'EQUIPMENT';
+  return normalized.includes('CONEX') || normalized.includes('VALVULA') || normalized.includes('VAVULA') ? 'CONNECTION' : 'EQUIPMENT';
 }
 
 function normalizeComparable(value) {
@@ -61,7 +61,20 @@ function looksLikeItemCode(value) {
   return /^[A-Z]{2,5}\s*\d{1,4}$/i.test(normalizeSpaces(value)) || /^[A-Z]{2}\d{3}$/i.test(normalizeSpaces(value));
 }
 
-function parseEquipmentRows(content) {
+function looksLikeStandaloneSectionTitle(value) {
+  const normalized = normalizeComparable(value);
+  return normalized.startsWith('EQUIPAMENTOS')
+    || normalized.startsWith('CONEXOES')
+    || normalized.startsWith('VALVULAS')
+    || normalized.startsWith('VAVULAS');
+}
+
+function isReusableSectionItemCode(value, section) {
+  return normalizeComparable(value) === 'ENL'
+    && normalizeComparable(section?.categoryName) === 'EQUIPAMENTOS NAO LISTADOS';
+}
+
+export function parseEquipmentRows(content) {
   const rows = [];
   let section = null;
 
@@ -73,6 +86,16 @@ function parseEquipmentRows(content) {
     const first = parts[0];
     const second = parts[1] || '';
     const third = parts[2] || '';
+
+    if (parts.length === 1 && looksLikeStandaloneSectionTitle(first)) {
+      section = {
+        categoryName: first,
+        kind: kindFromCategory(first),
+        measureType: 'UNIT',
+        defaultUnitLabel: 'unidade'
+      };
+      return;
+    }
 
     if (normalizeComparable(first) === 'CONEXOES NAO LISTADAS') {
       section = {
@@ -95,7 +118,7 @@ function parseEquipmentRows(content) {
       return;
     }
 
-    if (looksLikeSectionCode(first) && (second || third) && !looksLikeItemCode(first)) {
+    if (looksLikeSectionCode(first) && (second || third) && !looksLikeItemCode(first) && !isReusableSectionItemCode(first, section)) {
       const measure = third ? measureFromLabel(second) : measureFromLabel('');
       const categoryName = third || second;
       section = {
@@ -116,7 +139,8 @@ function parseEquipmentRows(content) {
     }
     if (!section) return;
 
-    const code = looksLikeItemCode(first) ? normalizeSpaces(first).toUpperCase() : null;
+    const reusableSectionItemCode = isReusableSectionItemCode(first, section);
+    const code = looksLikeItemCode(first) || reusableSectionItemCode ? normalizeSpaces(first).toUpperCase() : null;
     const candidateName = code ? parts.slice(1).find(part => part.toUpperCase() !== 'FALSE') : parts.find(part => part.toUpperCase() !== 'FALSE');
     const name = normalizeSpaces(candidateName);
     if (!name) return;
@@ -124,6 +148,7 @@ function parseEquipmentRows(content) {
     const isSerialized = section.kind === 'EQUIPMENT'
       && section.measureType === 'UNIT'
       && Boolean(code)
+      && !reusableSectionItemCode
       && !section.categoryName.toUpperCase().includes('PRODUTOS');
 
     rows.push({
