@@ -43,7 +43,7 @@ const emptyForm: AccountFormState = {
   password: '',
   isActive: true,
   collaboratorId: '',
-  moduleRoles: ['rdo:collaborator']
+  moduleRoles: []
 };
 
 function accountTypeLabel(accountType?: AccountType) {
@@ -415,9 +415,13 @@ export function AdminAccountsPage() {
                   </span>
                 </div>
                 <div className="admin-account-role-list">
-                  {(user.moduleRoles || []).map(role => (
-                    <span className="admin-account-role-pill" key={role}>{moduleRoleLabel(role)}</span>
-                  ))}
+                  {(user.moduleRoles || []).length ? (
+                    (user.moduleRoles || []).map(role => (
+                      <span className="admin-account-role-pill" key={role}>{moduleRoleLabel(role)}</span>
+                    ))
+                  ) : (
+                    <span className="admin-account-role-pill">Sem módulos</span>
+                  )}
                 </div>
                 {user.accountType === 'CLIENT' ? (
                   <div className="admin-account-projects">

@@ -397,7 +397,19 @@ test('resolveAccountPayload recomputes module roles when MANAGER changes to COOR
   assert.deepEqual(payload.moduleRoles, ['rdo:coordinator']);
 });
 
-test('resolveAccountPayload rejects explicit empty module role sets', () => {
+test('resolveAccountPayload allows explicit empty module role sets for INTERNAL accounts', () => {
+  const payload = resolveAccountPayload({
+    role: 'COLLABORATOR',
+    accountType: 'INTERNAL',
+    moduleRoles: []
+  });
+
+  assert.equal(payload.accountType, 'INTERNAL');
+  assert.equal(payload.role, 'COLLABORATOR');
+  assert.deepEqual(payload.moduleRoles, []);
+});
+
+test('resolveAccountPayload rejects explicit empty module role sets for ADMIN accounts', () => {
   assert.throws(
     () => resolveAccountPayload({
       role: 'MANAGER',

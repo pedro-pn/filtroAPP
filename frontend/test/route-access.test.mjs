@@ -144,6 +144,13 @@ test('ADMIN role normalization does not add rdo:manager to EPI-only admins', asy
   assert.deepEqual(rolesForAccountType('ADMIN', ['epi:technician']), ['epi:technician']);
 });
 
+test('INTERNAL role normalization allows accounts without RDO roles', async () => {
+  const { rolesForAccountType } = await loadAccountRoleRules();
+
+  assert.deepEqual(rolesForAccountType('INTERNAL', []), []);
+  assert.deepEqual(rolesForAccountType('INTERNAL', ['epi:technician']), ['epi:technician']);
+});
+
 test('EPI-only internal accounts get a visible pending hub module', async () => {
   const { hubModulesForUser } = await loadHubModules();
   const modules = hubModulesForUser({

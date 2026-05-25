@@ -166,7 +166,7 @@ export function resolveAccountPayload(data, existingUser = null) {
       ? serializeModuleRoles(existingUser)
       : defaultModuleRolesForAccount(targetAccountType, role));
 
-  if (!moduleRoles.length) {
+  if (!moduleRoles.length && targetAccountType !== AccountType.INTERNAL) {
     const error = new Error('A conta deve possuir ao menos uma role de módulo.');
     error.status = 400;
     throw error;

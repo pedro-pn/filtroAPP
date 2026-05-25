@@ -7,5 +7,5 @@ export function rolesForAccountType(accountType: AccountType, currentRoles: Modu
     return Array.from(new Set<ModuleRole>(roles));
   }
   const roles = currentRoles.filter(role => role !== 'rdo:client' && role !== 'rdo:manager');
-  return roles.length ? roles : ['rdo:collaborator'];
+  return Array.from(new Set<ModuleRole>(roles));
 }
