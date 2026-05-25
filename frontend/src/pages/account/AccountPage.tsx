@@ -1,15 +1,17 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { changePassword, updateAccountEmail } from '../../api/account';
 import { exportMyData, requestMyDataDeletion } from '../../api/privacy';
 import { useAuth } from '../../auth/AuthContext';
+import { accountBackPath } from '../../auth/moduleNavigation';
 import { roleHomePath } from '../../auth/rolePath';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { downloadBlob } from '../../utils/download';
 
 export function AccountPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, replaceUser } = useAuth();
   const [email, setEmail] = useState(user?.email || '');
@@ -27,7 +29,7 @@ export function AccountPage() {
   const [isExportingData, setIsExportingData] = useState(false);
   const [isRequestingDeletion, setIsRequestingDeletion] = useState(false);
 
-  const backPath = useMemo(() => roleHomePath(user?.role), [user?.role]);
+  const backPath = useMemo(() => accountBackPath(user, location.state, roleHomePath(user?.role)), [location.state, user]);
 
   async function handleEmailSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

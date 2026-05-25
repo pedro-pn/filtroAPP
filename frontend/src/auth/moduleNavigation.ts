@@ -74,3 +74,13 @@ export function preferredEntryPath(user: AuthUser | null | undefined) {
   const modules = hubModulesForUser(user).filter(module => module.path && !module.disabled);
   return modules[0]?.path || '/modulos';
 }
+
+export function accountPageStateFromPath(pathname: string) {
+  const path = pathname || '/';
+  return path === '/conta' ? undefined : { from: path };
+}
+
+export function accountBackPath(user: AuthUser | null | undefined, state: unknown, fallbackPath: string) {
+  const from = state && typeof state === 'object' && 'from' in state ? (state as { from?: unknown }).from : null;
+  return typeof from === 'string' && from && from !== '/conta' ? from : fallbackPath || preferredEntryPath(user);
+}

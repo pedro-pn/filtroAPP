@@ -284,3 +284,12 @@ test('preferred entry path keeps client accounts inside the reports module', asy
     isActive: true
   }), '/rdo/cliente');
 });
+
+test('account page back path prefers the route that opened account settings', async () => {
+  const { accountBackPath, accountPageStateFromPath } = await loadModuleNavigation();
+
+  assert.deepEqual(accountPageStateFromPath('/admin/accounts'), { from: '/admin/accounts' });
+  assert.equal(accountBackPath(adminWithEpiOnly, { from: '/admin/accounts' }, '/rdo/gestor'), '/admin/accounts');
+  assert.equal(accountBackPath(adminWithEpiOnly, undefined, '/rdo/gestor'), '/rdo/gestor');
+  assert.equal(accountPageStateFromPath('/conta'), undefined);
+});

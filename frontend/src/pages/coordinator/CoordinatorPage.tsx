@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 
 import { downloadReportPdf } from '../../api/reports';
 import type { SurveyQuestion, SurveyResponses } from '../../api/surveys';
+
 import { useAuth } from '../../auth/AuthContext';
+import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
@@ -547,7 +549,7 @@ export function CoordinatorPage() {
         showLogo
         actions={
           <>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
+            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location.pathname) })}>
               Conta
             </button>
             <button className="topbar-chip" type="button" onClick={handleLogout}>

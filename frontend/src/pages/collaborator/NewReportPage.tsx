@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
+
 import { useAuth } from '../../auth/AuthContext';
+import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { listReports } from '../../api/reports';
 import { ServiceCollaboratorsBlock, ServiceFields, serviceTypeLabels } from '../../components/reports/ServiceFields';
 import { Modal } from '../../components/ui/Modal';
@@ -923,7 +925,7 @@ export function NewReportPage() {
             <button className="topbar-chip" type="button" onClick={handleBack}>
               {TEXT.back}
             </button>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
+            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location.pathname) })}>
               Conta
             </button>
             <button className="topbar-chip" type="button" onClick={handleLogout}>

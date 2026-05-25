@@ -4,7 +4,9 @@ import { driver } from 'driver.js';
 
 import { downloadReportPdf, downloadReportsBatch, type ReleasedServiceReportNotification } from '../../api/reports';
 import { getClientSurveyLink } from '../../api/surveys';
+
 import { useAuth } from '../../auth/AuthContext';
+import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { rdoReportDetailPath } from '../../auth/rolePath';
 import { ClientTutorial } from '../../components/ClientTutorial';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
@@ -669,7 +671,7 @@ export function ClientPage() {
         showLogo
         actions={
           <>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
+            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location.pathname) })}>
               Conta
             </button>
             <button className="topbar-chip" type="button" onClick={handleLogout}>

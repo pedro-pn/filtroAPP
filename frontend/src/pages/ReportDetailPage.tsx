@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { downloadReportDocx, downloadReportPdf } from '../api/reports';
+
 import { useAuth } from '../auth/AuthContext';
+import { accountPageStateFromPath } from '../auth/moduleNavigation';
 import { roleHomePath } from '../auth/rolePath';
 import type { UploadedFile } from '../api/uploads';
 import { ServiceCollaboratorsBlock, ServiceFields, serviceTypeLabels } from '../components/reports/ServiceFields';
@@ -1659,7 +1661,7 @@ export function ReportDetailPage() {
             <button className="topbar-chip" type="button" onClick={() => navigate(-1)}>
               {TEXT.back}
             </button>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
+            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location.pathname) })}>
               Conta
             </button>
             <button className="topbar-chip" type="button" onClick={handleLogout}>

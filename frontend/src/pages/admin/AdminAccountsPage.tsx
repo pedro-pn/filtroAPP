@@ -1,7 +1,9 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+
 import { useAuth } from '../../auth/AuthContext';
+import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useCollaborators } from '../../hooks/useCollaborators';
 import { Shell } from '../../layout/Shell';
@@ -365,7 +367,7 @@ export function AdminAccountsPage() {
         showLogo
         actions={
           <>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/conta')}>
+            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location.pathname) })}>
               Conta
             </button>
             <button className="topbar-chip" type="button" onClick={handleLogout}>
