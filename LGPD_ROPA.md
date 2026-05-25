@@ -1,8 +1,8 @@
 # Registro de Atividades de Tratamento (ROPA) — NewRDO
 
-**Versão:** ropa_v1  
-**Data:** 2026-05-22  
-**Controlador:** Filtrovali Serviços de Filtragem de Óleos Industriais e Limpeza de Tubulações Ltda.  
+**Versão:** ropa_v1
+**Data:** 2026-05-22
+**Controlador:** Filtrovali Serviços de Filtragem de Óleos Industriais e Limpeza de Tubulações Ltda.
 **Canal de privacidade:** privacidade@filtrovali.com.br
 
 Este documento resume as principais operações de tratamento de dados pessoais do NewRDO para revisão operacional e jurídica periódica.

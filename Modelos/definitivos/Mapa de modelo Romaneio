@@ -12,4 +12,3 @@ Cabeçalho:
 <<UNITTYPE>> - tipo de equipamento (unidade de flushing, unidade de limpeza química, conexões, produtos químicos, etc.).
 <<item>> - nome do item com o código "[sigla] - [nome do equipamento]"
 <<quantity>> - quantidade com a unidade de medida. Aquelas que só possuem uma unidade, escrever "unidade" como unidade de medida.
-

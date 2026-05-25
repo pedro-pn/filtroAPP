@@ -13,4 +13,3 @@ Tabela - cada EPI emprestado/devolvido, é adicionado uma linha da tabela e pree
 <<lenddate>> - data de fornecimento do EPI
 <<devolutiondate>> - data de devolução do epi
 <<ass>> - assinatura
-

@@ -14,7 +14,7 @@ UFP 012		Unidade de Flushing Primário - 12
 UFP 013 	Unidade de Flushing Primário - 13
 UFP 014		Unidade de Flushing Primário - 14
 UFP 015		Unidade de Flushing Primário - 15
-		
+
 ULQ		Unidades de Limpeza Química
 ULQ 001		Unidade de Limpeza Química - 01
 UlQ 002		Unidade de Limpeza Química - 02
@@ -32,7 +32,7 @@ ULQ 013		Unidade de Limpeza Química - 13
 ULQ 014 	Unidade de Limpeza Química - 14
 ULQ 015		Unidade de Limpeza Química - 15
 ULQ 016		Unidade de Limpeza Química - 16
-		
+
 UBP		Unidades de Bomba Pneumática
 UBP 01		Unidade de Bomba Pneumática - 01
 UBP 02		Unidade de Bomba Pneumática - 02
@@ -65,14 +65,14 @@ UFI 016 	Unidade de Filtragem Absoluta - 16
 UFI 017		Unidade de Filtragem Absoluta - 17
 UFI 018		Unidade de Filtragem Absoluta - 18
 UFI 019		Unidade de Filtragem Absoluta - 19
-			
+
 UTO		Unidades de Termovácuo
 UTO 01		Unidade de Termovácuo - 01
 UTO 02		Unidade de Termovácuo - 02
 UTO 03		Unidade de Termovácuo - 03
 UTO 04		Unidade de Termovácuo - 04
-			
-UTH		Unidades de Teste Hidrostático	
+
+UTH		Unidades de Teste Hidrostático
 UTH 01		Unidade de Teste Hidrostático - 01
 UTH 02		Unidade de Teste Hidrostático - 02
 UTH 03  	Unidade de Teste Hidrostático - 03
@@ -82,19 +82,19 @@ UTH 06		Unidade de Teste Hidrostático - 06
 UTH 07		Unidade de Teste Hidrostático - 07
 UTH 08		Unidade de Teste Hidrostático - 08
 UTH 09		Unidade de Teste Hidrostático - 09
-			
-URO 		UNIDADE DE RUN OUT	
+
+URO 		UNIDADE DE RUN OUT
 URO 001		Unidade de Run Out - 01
 URO 002		Unidade de Run Out - 02
 URO 003		Unidade de Run Out - 03
-			
-UMT		UNIDADE MÓVEL DE TRANSFERÊNCIA	
+
+UMT		UNIDADE MÓVEL DE TRANSFERÊNCIA
 UMT 001		Unidade Móvel de Transferência - 01
 UMT 002		Unidade Móvel de Transferência - 02
 UMT 003		Unidade Móvel de Transferência - 03
 UMT 004 	Unidade Móvel de Transferência - 04
 
-CMR		Unidade de Compressor 	
+CMR		Unidade de Compressor
 CMR 001		Compressor 10 pés
 CMR 002		Compressor 10 pés
 CMR 003		Compressor 10 pés
@@ -103,35 +103,35 @@ CMR 005		Compressor 20/200 AP ONIX PRESSURE TRIF
 CMR 006		Compressor ARTESIANO PSV25AP
 CMR 007		Compressor DE AR CSL10BR/100L V BRAVO - SCHULZ
 CMR 008		Compressor DE AR CSL25BR/250L BRAVO
-			
-BUP		Bombas de Ultra Pressão	
+
+BUP		Bombas de Ultra Pressão
 BUP 001		Bomba de Ultra Pressão
-			
-REO		Reservatório	
-REO 001		Reservatório de Aço carbono - 7.500 L	
-REO 002		Reservatório de Aço carbono - 7.500 L	
-REO 003		Reservatório de Aço carbono - 15.000 L	
-REO 004		Reservatório de Aço carbono - 15.000 L	
-REO 005		Reservatório de Aço carbono - 3.000 L	
-REO 006		Reservatório plástico - 2300L	
-REO 007		Reservatório Aço Inoxidável - 3000L	
-REO 008		Reservatório plástico - 5000L - FORTLEV	
-REO 009		Reservatório plástico - 5000L - FORTLEV	
-REO 010		Reservatório plástico - 10000L - FORTLEV	
-REO 011 	Reservatório de Aço carbono - 15.000 L	
-REO 012 	Reservatório plástico - 5000 L	
-			
+
+REO		Reservatório
+REO 001		Reservatório de Aço carbono - 7.500 L
+REO 002		Reservatório de Aço carbono - 7.500 L
+REO 003		Reservatório de Aço carbono - 15.000 L
+REO 004		Reservatório de Aço carbono - 15.000 L
+REO 005		Reservatório de Aço carbono - 3.000 L
+REO 006		Reservatório plástico - 2300L
+REO 007		Reservatório Aço Inoxidável - 3000L
+REO 008		Reservatório plástico - 5000L - FORTLEV
+REO 009		Reservatório plástico - 5000L - FORTLEV
+REO 010		Reservatório plástico - 10000L - FORTLEV
+REO 011 	Reservatório de Aço carbono - 15.000 L
+REO 012 	Reservatório plástico - 5000 L
+
 CPL		Contadores de Partículas
-CPL 006		Contador de Partículas - LCM20 Parker	
-CPL 007 	Contador de Partículas - LCM20 Parker	
-CPL 008 	Contador de Partículas - LCM20 Parker	
-CPL 009		Contador de Partículas - LCM20 Parker	
-CPL 010 	Contador de Partículas - LCM30 Parker	
-CPL 012		Contador de Partículas - LCM30 Parker	
-CPL 013		Contador de Partículas - LCM30 Parker	
-CPL 014 	Contador de Partículas - LCM30 Parker	
-			
-VUF		Limpadora de Tubos	
+CPL 006		Contador de Partículas - LCM20 Parker
+CPL 007 	Contador de Partículas - LCM20 Parker
+CPL 008 	Contador de Partículas - LCM20 Parker
+CPL 009		Contador de Partículas - LCM20 Parker
+CPL 010 	Contador de Partículas - LCM30 Parker
+CPL 012		Contador de Partículas - LCM30 Parker
+CPL 013		Contador de Partículas - LCM30 Parker
+CPL 014 	Contador de Partículas - LCM30 Parker
+
+VUF		Limpadora de Tubos
 VUF 001		VUF
 
 TRO		Trafo
@@ -158,16 +158,16 @@ MFE 006 	Malão de ferramentas - Preto pequeno
 MFE 007		Malão de ferramentas - Preto pequeno
 MFE 008		Malão de ferramentas - Preto pequeno
 MFE 009		Malão de Ferramentas - Tampa abre para cima
-		
+
 CTG		Centrífuga
 CTG 001		CENTRIFUGA MPAX-205
-		
+
 TDL		TERMOMETRO DIGITAL
 TDL 001		Termômetro digital
 TDL 002		Termômetro digital
 TDL 003 	Termômetro digital
 TDL 004 	Termômetro digital
-		
+
 ASP		ASPIRADOR
 ASP 001		Aspirador - GT 2000 1200 W 10 L ELECTROLUX
 ASP 002		Aspirador - GT3000 1300W 20L ELECTROLUX
@@ -203,7 +203,7 @@ MGA 018		Mangueira bypass limpeza química
 MGA 019		Mangueira bypass óleo
 MGA 020		Mangueira limpeza química 1"1/2  - 10 bar
 MGA 021		Mangueira de ar/água 3/8"
-		
+
 BRO		Boroscópios
 BRO 001		Boroscópio - De MÃO PEQUENO
 BRO 002		Boroscópio - CA-300 RIDGID
@@ -214,7 +214,7 @@ BRO 006		Boroscópio - SEESNAKE MAX SISTEMA DE RA
 BRO 007		Boroscópio - articulavel cabo 5,5 m Photonita
 BRO 008 	Boroscópio
 BRO 009 	Boroscópio
-		
+
 AAO		Analisadores de Água em Óleo
 AAO 001		Analisador de água -  KIT WAKE
 AAO 002 	Analisador de água - PARKER
@@ -223,10 +223,10 @@ AAO 004		Analisador de água - PARKER
 AAO 005		Analisador de água - PARKER
 AAO 006		Analisador de água - PARKER
 AAO 007		Analisador de água - PARKER
-		
+
 TBD		Turbidímetro
 TBD 001		Turbidímetro Digital
-		
+
 GER		Geradores
 GER 001		GERADOR 380V
 
@@ -238,20 +238,20 @@ IMP 004		Impressora - Multifuncional HP Deskjet 3546 - Wi-Fi
 IMP 005		Impressora - Multifuncional HP Deskjet 3546
 IMP 006		Impressora - Multifuncional HP Deskjet 3546
 IMP 007		Impressora
-		
+
 RDC		Radios de Comunicação
 RDC 001		Rádio de comunicação - MOTOROLA EP450
 RDC 002		Rádio de comunicação - Baofeng-Walkie Talkie
 RDC 003		Rádio de comunicação
-		
+
 CTA		Centrais de Tratamento de Ar
 CTA  001	Central de tratamento de ar
-		
+
 RSP		Resistências portáteis
 RSP 001		Resistência portátil
 RSP 002		Resistência portátil
 RSP 003		Resistência portátil
-		
+
 PDQ	Produtos Químicos
 AC001		Ácido Cítrico
 AC002		Ácido Fosfórico
@@ -263,7 +263,7 @@ SL002		Tripolifosfato de Sódio
 SL003		Metassilicato de Sódio
 AC004		Banho 302 Avesta
 QM001		Quimipan
-		
+
 LVA		Lavadoras
 LVA 001		Lavadora alta pressão - Ver codido
 LVA 002		Lavadora alta pressão - Torr.2013 220V 60 Hz Lavorwash
@@ -309,25 +309,25 @@ CTO 030		CTO 030 - CONTENÇÃO - 1,70M X 1,10M X 0,40M
 CTO 031		CTO 031 - CONTENÇÃO - 4,00M X 2,50M X 0,40M
 CTO 032		CTO 032 - CONTENÇÃO - 1,39M X 0,78M X 0,73M
 CTO 033		CTO 033 - CONTENÇÃO - 1,39M X 0,78M X 0,73M
-		
+
 LNP		Luz negra portátil
 LNP 001		Luz negra portátil
-		
+
 PAM		Paleteiras manuais
 PAM 001		Paleteira manual 3 ton
 PAM 002		Paleteira manual
 PAM 002		Paleteira manual
-		
+
 EXI		Exaustores/insufladores
 EXI 001		Exaustor/insuflador axial 300 mm, 220 V 3.300 RPM
 
-		
+
 PEL		Painéis elétricos
 PEL 001		PAINEL ELETRICO C/ 3 SAIDAS 32A - 380V
-		
+
 KTM		Kits teste por membrana
 KTM 001		Kit de teste por membrana
-		
+
 CFL		CARCAÇA FILTRO
 CFL 001		Carcaça filtro FRT 0500 Parker
 CFL 002		Carcaça filtro FRT 0500 Parker
@@ -339,22 +339,22 @@ CFL 007		Carcaça filtro FRT 0500 Parker
 CFL 008		Carcaça FBLB-012H-020N-01-AC-NBR-JP-MA - filtro bag
 CFL 009		Carcaça Filtro - CIBAG 7x32 P (I) - Carcaça de Inox Bag, 7x32, e s/ 2, fechamento parafuso olhal, acabamento polido.
 CFL 010		Carcaça Filtro - CIBAG 7x32 P (I) - Carcaça de Inox Bag, 7x32, e s/ 2, fechamento parafuso olhal, acabamento polido.
-		
+
 IBC	Unidade	Reservatório (IBC) - SKID PLÁSTICO - 1.000 L
 IBC 001		Reservatório Plástico 1000 L - Padrão
 IBC 002		Reservatório Plástico - Aberto
-		
+
 MOD		Manifolds
 MOD 001		Manifold C/12 Ve tri PP1000 WOG1 3/4 C/cav inox
 MOD 002		Manifold C/12 Ve tri PP1000 WOG1 3/4 C/cav inox
-		
+
 CPL 		Contenções Plásticas
 CTP 001		Contenção plástica 600 L
-		
+
 CTR		CONTEINER
 CTR 001	 Conteiner dry 20 pés - sala e almoxarifado
-		
-PHM		Phmetro 
+
+PHM		Phmetro
 PHM 001		Phmetro
 PHM 002		Phmetro
 
@@ -472,7 +472,7 @@ ENL		Chaves combinada 8
 ENL		Chaves combinada 17
 ENL		Chaves combinada 19
 ENL		Chaves combinada 27
-ENL		Parafusadeira 
+ENL		Parafusadeira
 ENL		Garrafa 5L
 ENL		Jogo de soquete
 ENL		Desengripante
@@ -499,10 +499,10 @@ ENL		cachimbo 24
 ENL		cachimbo 22
 ENL		Chave grifo 24
 ENL		Filtro MFB 124407
-ENL		caixa de anel oring, milimetros 
+ENL		caixa de anel oring, milimetros
 ENL		caixa de anel oring, polegadas
 ENL		Pá
-ENL		enchada 
+ENL		enchada
 ENL		espatulas
 ENL		vassoura
 ENL		Jogo de caximbo e parafusadeira
@@ -531,7 +531,7 @@ ENL		Flange '6'
 ENL		Flange '3'
 ENL		Filtros 36
 ENL		Filtro Parker
-ENL		Trafo 011 trifasico 440/380 trafo novo 
+ENL		Trafo 011 trifasico 440/380 trafo novo
 ENL		Martelo
 ENL		Caixa 5000L (reservatório)
 ENL		PULVERIZADOR 5L
@@ -567,7 +567,7 @@ Adaptador JIC 1" Fêmea Porca Loca
 Tampão JIC 2"
 Tampão JIC 1"1/2
 Tampão JIC 1"
-	
+
 Conexões Tupy
 	Nipel 2"
 	Nipel 1"1/2
@@ -642,7 +642,7 @@ Conexões - Limpeza química
 	União SMS 2"
 	União SMS 1"1/2
 	Tee SMS 1"1/4
-	
+
 Vávulas
 	Válvula 2"
 	Válvula 1"1/2
@@ -652,7 +652,7 @@ Vávulas
 	Válvula 1/2"
 	Válvula 3/8"
 	Válvula 1/4"
-	
+
 
 Conexões DKO
 	Adaptador 42L x 1"1/2
