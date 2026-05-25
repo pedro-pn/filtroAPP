@@ -16,6 +16,7 @@ import {
   buildDataSubjectRequestResponseEmailTemplate
 } from '../../lib/email-templates.js';
 import { publicUser } from '../../lib/auth.js';
+import { normalizeCnpj } from '../../lib/cnpj.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
 import prisma from '../../lib/prisma.js';
@@ -25,6 +26,9 @@ import { requireAuth } from '../../middleware/auth.js';
 const router = Router();
 const PUBLIC_REQUEST_DEDUPE_HOURS = 24;
 const RESPONSE_ATTEMPT_STALE_MS = 15 * 60 * 1000;
+export const SELF_SERVICE_PROJECT_EMAIL_SCOPE_BATCH_SIZE = 50;
+export const SELF_SERVICE_PROJECT_EMAIL_SCOPE_QUERY_CONCURRENCY = 1;
+export const SELF_SERVICE_PROJECT_EMAIL_SCOPE_MAX_SCOPES = 1000;
 const publicRequestLimiter = createMemoryRateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
@@ -824,18 +828,153 @@ function dataExportEmailWhere(field, emails) {
   };
 }
 
+function selfServiceClientCnpj(user) {
+  if (!user?.isActive) return '';
+  if (user?.accountType !== 'CLIENT' || user?.role !== 'CLIENT') return '';
+  if (!hasModuleRole(user, 'rdo:client')) return '';
+  const usernameCnpj = normalizeCnpj(user?.username);
+  if (usernameCnpj.length !== 14) return '';
+  const clientCnpj = normalizeCnpj(user?.clientCnpj);
+  if (clientCnpj && clientCnpj !== usernameCnpj) return '';
+  return usernameCnpj;
+}
+
 export function selfServiceDataExportIdentifiers(user) {
+  const username = String(user.username || '').trim();
+  const verifiedEmail = user.emailVerifiedAt ? normalizeEmail(user.email) : '';
   const emails = Array.from(new Set([
-    normalizeEmail(user.email),
-    String(user.username || '').includes('@') ? normalizeEmail(user.username) : ''
+    username.includes('@') ? normalizeEmail(username) : '',
+    verifiedEmail
   ].filter(Boolean)));
   return {
     userId: user.id,
     emails,
-    username: user.username || null,
+    username: username || null,
     collaboratorId: user.collaboratorId || user.collaborator?.id || null,
     clientCnpj: user.clientCnpj || null
   };
+}
+
+async function selfServicePrimaryProjectEmailScopes(user, prismaClient) {
+  const clientCnpj = selfServiceClientCnpj(user);
+  if (!clientCnpj) return [];
+  const projects = await prismaClient.project.findMany({
+    where: {
+      clientCnpj,
+      managerOnly: false,
+      deletedAt: null
+    },
+    select: { id: true, clientEmailPrimary: true },
+    orderBy: { id: 'asc' },
+    take: SELF_SERVICE_PROJECT_EMAIL_SCOPE_MAX_SCOPES + 1
+  });
+  if (projects.length > SELF_SERVICE_PROJECT_EMAIL_SCOPE_MAX_SCOPES) {
+    const error = new Error('Exportação LGPD excede o limite de projetos vinculados para processamento automático.');
+    error.statusCode = 413;
+    throw error;
+  }
+  return projects
+    .map(project => ({
+      projectId: project.id,
+      email: normalizeEmail(project.clientEmailPrimary)
+    }))
+    .filter(scope => scope.projectId && scope.email);
+}
+
+function chunkArray(items, size) {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+async function mapWithConcurrency(items, concurrency, task) {
+  const results = [];
+  let nextIndex = 0;
+  const workerCount = Math.min(concurrency, items.length);
+  async function worker() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await task(items[currentIndex], currentIndex);
+    }
+  }
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
+
+function reportSignatureProjectEmailWhere(scopes) {
+  if (!scopes.length) return null;
+  return {
+    OR: scopes.map(scope => ({
+      signerEmail: { equals: scope.email, mode: 'insensitive' },
+      report: { projectId: scope.projectId }
+    }))
+  };
+}
+
+const reportSignatureDataExportSelect = {
+  id: true,
+  reportId: true,
+  versionId: true,
+  signerName: true,
+  declaredSignerName: true,
+  signerEmail: true,
+  signerRole: true,
+  signatureType: true,
+  status: true,
+  signedAt: true,
+  rejectedAt: true,
+  rejectionReason: true,
+  privacyNoticeAcceptedAt: true,
+  privacyNoticeVersion: true,
+  createdAt: true,
+  updatedAt: true
+};
+
+const surveyDataExportSelect = {
+  id: true,
+  projectId: true,
+  emailTo: true,
+  sentAt: true,
+  respondedAt: true,
+  responses: true,
+  questions: true,
+  followUpStatus: true,
+  followUpNotes: true,
+  privacyNoticeAcceptedAt: true,
+  privacyNoticeVersion: true,
+  createdAt: true,
+  updatedAt: true
+};
+
+function surveyProjectEmailWhere(scopes) {
+  if (!scopes.length) return null;
+  return {
+    OR: scopes.map(scope => ({
+      projectId: scope.projectId,
+      emailTo: { equals: scope.email, mode: 'insensitive' }
+    }))
+  };
+}
+
+async function findProjectEmailScopedReportSignatures(prismaClient, scopes) {
+  const chunks = chunkArray(scopes, SELF_SERVICE_PROJECT_EMAIL_SCOPE_BATCH_SIZE);
+  const results = await mapWithConcurrency(chunks, SELF_SERVICE_PROJECT_EMAIL_SCOPE_QUERY_CONCURRENCY, chunk => prismaClient.reportSignature.findMany({
+    where: reportSignatureProjectEmailWhere(chunk),
+    select: reportSignatureDataExportSelect
+  }));
+  return results.flat();
+}
+
+async function findProjectEmailScopedSurveyResponses(prismaClient, scopes) {
+  const chunks = chunkArray(scopes, SELF_SERVICE_PROJECT_EMAIL_SCOPE_BATCH_SIZE);
+  const results = await mapWithConcurrency(chunks, SELF_SERVICE_PROJECT_EMAIL_SCOPE_QUERY_CONCURRENCY, chunk => prismaClient.satisfactionSurvey.findMany({
+    where: surveyProjectEmailWhere(chunk),
+    select: surveyDataExportSelect
+  }));
+  return results.flat();
 }
 
 export async function buildSelfServiceDataExport(user, {
@@ -843,6 +982,12 @@ export async function buildSelfServiceDataExport(user, {
   now = new Date()
 } = {}) {
   const identifiers = selfServiceDataExportIdentifiers(user);
+  const primaryProjectEmailScopes = await selfServicePrimaryProjectEmailScopes(user, prismaClient);
+  if (primaryProjectEmailScopes.length > SELF_SERVICE_PROJECT_EMAIL_SCOPE_MAX_SCOPES) {
+    const error = new Error('Exportação LGPD excede o limite de projetos vinculados para processamento automático.');
+    error.statusCode = 413;
+    throw error;
+  }
   const signatureEmailWhere = dataExportEmailWhere('signerEmail', identifiers.emails);
   const surveyEmailWhere = dataExportEmailWhere('emailTo', identifiers.emails);
   const requestEmailWhere = dataExportEmailWhere('email', identifiers.emails);
@@ -864,42 +1009,11 @@ export async function buildSelfServiceDataExport(user, {
   ] = await Promise.all([
     signatureEmailWhere ? prismaClient.reportSignature.findMany({
       where: signatureEmailWhere,
-      select: {
-        id: true,
-        reportId: true,
-        versionId: true,
-        signerName: true,
-        declaredSignerName: true,
-        signerEmail: true,
-        signerRole: true,
-        signatureType: true,
-        status: true,
-        signedAt: true,
-        rejectedAt: true,
-        rejectionReason: true,
-        privacyNoticeAcceptedAt: true,
-        privacyNoticeVersion: true,
-        createdAt: true,
-        updatedAt: true
-      }
+      select: reportSignatureDataExportSelect
     }) : [],
     surveyEmailWhere ? prismaClient.satisfactionSurvey.findMany({
       where: surveyEmailWhere,
-      select: {
-        id: true,
-        projectId: true,
-        emailTo: true,
-        sentAt: true,
-        respondedAt: true,
-        responses: true,
-        questions: true,
-        followUpStatus: true,
-        followUpNotes: true,
-        privacyNoticeAcceptedAt: true,
-        privacyNoticeVersion: true,
-        createdAt: true,
-        updatedAt: true
-      }
+      select: surveyDataExportSelect
     }) : [],
     requestEmailWhere ? prismaClient.dataSubjectRequest.findMany({
       where: requestEmailWhere,
@@ -953,6 +1067,12 @@ export async function buildSelfServiceDataExport(user, {
       }
     }) : null
   ]);
+  const reportSignaturesByProjectEmail = primaryProjectEmailScopes.length
+    ? await findProjectEmailScopedReportSignatures(prismaClient, primaryProjectEmailScopes)
+    : [];
+  const surveyResponsesByProjectEmail = primaryProjectEmailScopes.length
+    ? await findProjectEmailScopedSurveyResponses(prismaClient, primaryProjectEmailScopes)
+    : [];
 
   return {
     exportedAt: now.toISOString(),
@@ -960,10 +1080,10 @@ export async function buildSelfServiceDataExport(user, {
     user: publicUser(user),
     drafts: user.drafts,
     clientReportReviews: user.clientReportReviews,
-    reportSignatures: uniqueById([...(user.reportSignatures || []), ...reportSignaturesByEmail]),
+    reportSignatures: uniqueById([...(user.reportSignatures || []), ...reportSignaturesByEmail, ...reportSignaturesByProjectEmail]),
     createdReports: user.createdReports,
     sentSurveys: user.sentSurveys,
-    surveyResponses: surveyResponsesByEmail,
+    surveyResponses: uniqueById([...surveyResponsesByEmail, ...surveyResponsesByProjectEmail]),
     collaboratorDetails,
     dataSubjectRequests: uniqueById([...(user.dataSubjectRequests || []), ...dataSubjectRequestsByEmail])
   };

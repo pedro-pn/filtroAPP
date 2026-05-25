@@ -6,6 +6,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
 import { createPasswordResetToken, publicUser } from '../../lib/auth.js';
 import { missingClientAccessResetConfig, sendClientAccessResetEmail } from '../../lib/client-access-reset.js';
+import { normalizeCnpj } from '../../lib/cnpj.js';
 import { buildInternalUserWelcomeEmailTemplate, buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import {
@@ -39,6 +40,12 @@ const schema = z.object({
   isActive: z.boolean().optional(),
   collaboratorId: z.string().nullable().optional()
 });
+
+function clientCnpjForAccount(username, accountType) {
+  if (accountType !== AccountType.CLIENT) return null;
+  const cnpj = normalizeCnpj(username);
+  return cnpj.length === 14 ? cnpj : null;
+}
 
 const ACCOUNT_MODULE_ROLE_COMPATIBILITY = {
   [AccountType.ADMIN]: new Set([
@@ -285,9 +292,11 @@ router.post('/', asyncHandler(async (req, res) => {
       username: data.username,
       name: data.name,
       email: data.email || null,
+      emailVerifiedAt: data.email ? new Date() : null,
       passwordHash,
       role: accountPayload.role,
       accountType: accountPayload.accountType,
+      clientCnpj: clientCnpjForAccount(data.username, accountPayload.accountType),
       isActive: data.isActive ?? true,
       collaboratorId: accountPayload.collaboratorId || null,
       moduleRoles: {
@@ -328,9 +337,13 @@ router.put('/:id', asyncHandler(async (req, res) => {
   const payload = {
     ...(data.username !== undefined ? { username: data.username } : {}),
     ...(data.name !== undefined ? { name: data.name } : {}),
-    ...(data.email !== undefined ? { email: data.email || null } : {}),
+    ...(data.email !== undefined ? {
+      email: data.email || null,
+      emailVerifiedAt: data.email ? new Date() : null
+    } : {}),
     role: accountPayload.role,
     accountType: accountPayload.accountType,
+    clientCnpj: clientCnpjForAccount(data.username !== undefined ? data.username : currentUser.username, accountPayload.accountType),
     ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
     collaboratorId: accountPayload.collaboratorId || null,
     ...(data.password ? { passwordHash: await hashPassword(data.password) } : {}),

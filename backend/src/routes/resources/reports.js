@@ -30,6 +30,7 @@ import {
   ReportAuditAction,
   activeVersionWithSignatures,
   allRequiredSignaturesCompleted,
+  authenticatedSignerEmailForReport,
   clientSignersForReport,
   createSignatureAuditLog,
   createSignatureValidationCode,
@@ -789,7 +790,7 @@ export async function rejectAuthenticatedClientSignatureRound(tx, {
     orderBy: { versionNumber: 'desc' }
   });
   if (activeVersion) {
-    const authEmail = String(authUser.email || authUser.username || '').trim().toLowerCase();
+    const authEmail = authenticatedSignerEmailForReport(report, authUser);
     const matchingSignature = activeVersion.signatures.find(signature => signature.signerEmail.toLowerCase() === authEmail);
     if (!matchingSignature) throw unauthorizedClientSignatureRejectionError();
 

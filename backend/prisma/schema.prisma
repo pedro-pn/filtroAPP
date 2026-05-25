@@ -452,6 +452,7 @@ model User {
   username        String        @unique
   name            String
   email           String?
+  emailVerifiedAt DateTime?
   passwordHash    String
   role            UserRole
   accountType     AccountType   @default(INTERNAL)

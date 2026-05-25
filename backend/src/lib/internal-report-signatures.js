@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 
 import env from '../config/env.js';
+import { normalizeCnpj } from './cnpj.js';
 import { createValidationQrCodeMatrix } from './qr-code.js';
 
 export const INTERNAL_SIGNATURE_PROGRESS_KEY = '__internalSignatureProgress';
@@ -234,15 +235,28 @@ export function clientSignersForReport(report) {
   return signers;
 }
 
-function authSignerEmail(authUser) {
-  const email = normalizeSignerEmail(authUser?.email);
-  if (email) return email;
+export function authenticatedSignerEmail(authUser) {
   const username = stringValue(authUser?.username);
   return username.includes('@') ? normalizeSignerEmail(username) : '';
 }
 
+export function authenticatedSignerEmailForReport(report, authUser) {
+  const usernameEmail = authenticatedSignerEmail(authUser);
+  if (usernameEmail) return usernameEmail;
+
+  const projectCnpj = normalizeCnpj(report?.project?.clientCnpj);
+  const accountCnpjs = [
+    normalizeCnpj(authUser?.username),
+    normalizeCnpj(authUser?.clientCnpj)
+  ].filter(cnpj => cnpj.length === 14);
+  if (projectCnpj && accountCnpjs.includes(projectCnpj)) {
+    return normalizeSignerEmail(report?.project?.clientEmailPrimary);
+  }
+  return '';
+}
+
 export function resolveInternalClientSigner(report, authUser) {
-  const email = authSignerEmail(authUser);
+  const email = authenticatedSignerEmailForReport(report, authUser);
   if (!email) {
     const error = new Error('Usuario sem e-mail para assinar o relatorio.');
     error.statusCode = 403;

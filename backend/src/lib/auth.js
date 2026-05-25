@@ -54,6 +54,7 @@ export function publicUser(user) {
     username: user.username,
     name: user.name,
     email: user.email || null,
+    emailVerifiedAt: user.emailVerifiedAt?.toISOString?.() || user.emailVerifiedAt || null,
     role: user.role,
     accountType: user.accountType || accountTypeForLegacyRole(user.role),
     moduleRoles: serializeModuleRoles(user),

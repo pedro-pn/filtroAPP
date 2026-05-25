@@ -74,6 +74,10 @@ function passwordResetTokenStatus(tokenRow) {
   };
 }
 
+function normalizeAccountEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 async function queuePasswordResetEmail({ user, emails }) {
   const uniqueEmails = Array.from(new Set((emails || []).map(email => String(email || '').trim().toLowerCase()).filter(Boolean)));
   if (!uniqueEmails.length) return;
@@ -289,10 +293,23 @@ router.post('/change-password', requireAuth, asyncHandler(async (req, res) => {
 
 router.put('/account', requireAuth, asyncHandler(async (req, res) => {
   const data = accountSchema.parse(req.body);
+  const currentUser = data.email !== undefined
+    ? await prisma.user.findUniqueOrThrow({
+        where: { id: req.auth.user.id },
+        select: { email: true, emailVerifiedAt: true }
+      })
+    : null;
+  const nextEmail = data.email ? normalizeAccountEmail(data.email) : null;
+  const keepEmailVerifiedAt = !!nextEmail
+    && !!currentUser?.emailVerifiedAt
+    && normalizeAccountEmail(currentUser.email) === nextEmail;
   const user = await prisma.user.update({
     where: { id: req.auth.user.id },
     data: {
-      ...(data.email !== undefined ? { email: data.email ? data.email.toLowerCase() : null } : {})
+      ...(data.email !== undefined ? {
+        email: nextEmail,
+        emailVerifiedAt: keepEmailVerifiedAt ? currentUser.emailVerifiedAt : null
+      } : {})
     },
     include: { collaborator: true, moduleRoles: true }
   });

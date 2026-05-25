@@ -65,6 +65,8 @@ test('authenticated RDO signature schema rejects missing or stale privacy notice
 import { assertProductionTrustProxyConfigured, parseTrustProxy } from '../src/config/env.js';
 import {
   allRequiredSignaturesCompleted,
+  authenticatedSignerEmail,
+  authenticatedSignerEmailForReport,
   clientSignersForReport,
   createValidationQrCodeMatrix,
   decodableSignatureImageDataUrl,
@@ -73,6 +75,7 @@ import {
   invalidateUnsignedInternalSignatureRound,
   internalSignatureTokenHash,
   parseSignatureImageDataUrl,
+  resolveInternalClientSigner,
   signatureEvidenceFromRequest,
   sha256Hex,
   signInternalReportVersion,
@@ -84,6 +87,91 @@ const activeVersionUniqueMigrationPath = new URL(
   '../prisma/migrations/20260520113000_add_active_report_version_unique_index/migration.sql',
   import.meta.url
 );
+
+test('authenticated signer identity ignores self-editable account email', () => {
+  assert.equal(authenticatedSignerEmail({
+    username: '11222333000144',
+    email: 'signer@example.com'
+  }), '');
+
+  assert.equal(authenticatedSignerEmail({
+    username: ' Signer@Example.com ',
+    email: 'changed@example.com'
+  }), 'signer@example.com');
+});
+
+test('authenticated signer identity resolves primary project email for matching CNPJ accounts', () => {
+  const report = {
+    project: {
+      clientCnpj: '11222333000144',
+      clientEmailPrimary: ' Cliente@Example.com '
+    }
+  };
+
+  assert.equal(authenticatedSignerEmailForReport(report, {
+    username: '11.222.333/0001-44',
+    email: 'changed@example.com'
+  }), 'cliente@example.com');
+
+  assert.equal(authenticatedSignerEmailForReport(report, {
+    username: '00999888000177',
+    clientCnpj: '00.999.888/0001-77',
+    email: 'cliente@example.com'
+  }), '');
+});
+
+test('resolveInternalClientSigner rejects impersonation through account email changes', () => {
+  const report = {
+    project: {
+      clientCnpj: '00999888000177',
+      clientName: 'Cliente',
+      clientEmailPrimary: 'signer@example.com',
+      clientSigners: []
+    }
+  };
+
+  assert.throws(
+    () => resolveInternalClientSigner(report, {
+      username: '11222333000144',
+      email: 'signer@example.com',
+      name: 'Impostor'
+    }),
+    error => error?.statusCode === 403
+  );
+
+  assert.deepEqual(resolveInternalClientSigner(report, {
+    username: 'signer@example.com',
+    email: 'changed@example.com',
+    name: 'Cliente'
+  }), {
+    name: 'Cliente',
+    email: 'signer@example.com',
+    role: 'CLIENT',
+    isRequired: true
+  });
+});
+
+test('resolveInternalClientSigner allows matching CNPJ account as primary client signer', () => {
+  const report = {
+    project: {
+      clientCnpj: '11222333000144',
+      clientName: 'Cliente Primario',
+      clientEmailPrimary: 'cliente@example.com',
+      clientSigners: [{ name: 'Fiscal', email: 'fiscal@example.com' }]
+    }
+  };
+
+  assert.deepEqual(resolveInternalClientSigner(report, {
+    username: '11.222.333/0001-44',
+    email: 'attacker@example.com',
+    name: 'Cliente'
+  }), {
+    name: 'Cliente Primario',
+    email: 'cliente@example.com',
+    role: 'CLIENT',
+    isRequired: true
+  });
+});
 
 function malformedPngHeaderDataUrl() {
   const bytes = Buffer.alloc(33);
@@ -1179,6 +1267,129 @@ test('rejectAuthenticatedClientSignatureRound requires the client to be a config
   assert.equal(calls.some(([name]) => name === 'report.updateMany'), false);
   assert.equal(calls.some(([name]) => name === 'report.findUniqueOrThrow'), false);
   assert.equal(calls.some(([name]) => name === 'reportAuditLog.create'), false);
+});
+
+test('rejectAuthenticatedClientSignatureRound ignores self-editable account email', async () => {
+  const calls = [];
+  const tx = {
+    reportVersion: {
+      findFirst: async args => {
+        calls.push(['reportVersion.findFirst', args]);
+        return {
+          id: 'version-1',
+          signatures: [{
+            id: 'signature-1',
+            signerEmail: 'signer@example.com',
+            status: 'PENDING'
+          }]
+        };
+      },
+      updateMany: async args => {
+        calls.push(['reportVersion.updateMany', args]);
+        return { count: 1 };
+      }
+    },
+    reportSignature: {
+      updateMany: async args => {
+        calls.push(['reportSignature.updateMany', args]);
+        return { count: 1 };
+      }
+    },
+    report: {
+      updateMany: async args => {
+        calls.push(['report.updateMany', args]);
+        return { count: 1 };
+      },
+      findUniqueOrThrow: async args => {
+        calls.push(['report.findUniqueOrThrow', args]);
+        return args;
+      }
+    },
+    reportAuditLog: {
+      create: async args => {
+        calls.push(['reportAuditLog.create', args]);
+      }
+    }
+  };
+
+  await assert.rejects(
+    () => rejectAuthenticatedClientSignatureRound(tx, {
+      report: { id: 'report-1', specialConditions: {} },
+      authUser: { id: 'user-1', email: 'signer@example.com', username: '11222333000144' },
+      comment: 'Reprovado',
+      evidence: { ipAddress: '203.0.113.10', userAgent: 'Node Test' }
+    }),
+    error => error?.statusCode === 403 && /não configurado como signatário/.test(error.message)
+  );
+
+  assert.equal(calls.some(([name]) => name === 'reportSignature.updateMany'), false);
+  assert.equal(calls.some(([name]) => name === 'reportVersion.updateMany'), false);
+  assert.equal(calls.some(([name]) => name === 'report.updateMany'), false);
+  assert.equal(calls.some(([name]) => name === 'report.findUniqueOrThrow'), false);
+  assert.equal(calls.some(([name]) => name === 'reportAuditLog.create'), false);
+});
+
+test('rejectAuthenticatedClientSignatureRound allows matching CNPJ primary client', async () => {
+  const calls = [];
+  const tx = {
+    reportVersion: {
+      findFirst: async args => {
+        calls.push(['reportVersion.findFirst', args]);
+        return {
+          id: 'version-1',
+          signatures: [{
+            id: 'signature-1',
+            signerEmail: 'cliente@example.com',
+            status: 'PENDING'
+          }]
+        };
+      },
+      updateMany: async args => {
+        calls.push(['reportVersion.updateMany', args]);
+        return { count: 1 };
+      }
+    },
+    reportSignature: {
+      updateMany: async args => {
+        calls.push(['reportSignature.updateMany', args]);
+        return { count: 1 };
+      }
+    },
+    report: {
+      updateMany: async args => {
+        calls.push(['report.updateMany', args]);
+        return { count: 1 };
+      },
+      findUniqueOrThrow: async args => {
+        calls.push(['report.findUniqueOrThrow', args]);
+        return args;
+      }
+    },
+    reportAuditLog: {
+      create: async args => {
+        calls.push(['reportAuditLog.create', args]);
+      }
+    }
+  };
+
+  await rejectAuthenticatedClientSignatureRound(tx, {
+    report: {
+      id: 'report-1',
+      status: 'APPROVED',
+      specialConditions: {},
+      project: {
+        clientCnpj: '11222333000144',
+        clientEmailPrimary: 'cliente@example.com'
+      }
+    },
+    authUser: { id: 'user-1', email: 'changed@example.com', username: '11.222.333/0001-44' },
+    comment: 'Reprovado',
+    evidence: { ipAddress: '203.0.113.10', userAgent: 'Node Test' }
+  });
+
+  assert.deepEqual(calls[1][1].where, { id: 'signature-1', status: 'PENDING' });
+  assert.equal(calls.filter(([name]) => name === 'reportAuditLog.create').length, 2);
+  assert.equal(calls.some(([name]) => name === 'report.findUniqueOrThrow'), true);
 });
 
 test('invalidateUnsignedInternalSignatureRound can invalidate pending project-delete rounds with signed signatures', async () => {
