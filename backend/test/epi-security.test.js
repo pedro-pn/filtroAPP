@@ -16,6 +16,7 @@ import {
   canAccessEpiCollaborator,
   confirmPublicEpiSignatureRequest,
   epiCollaboratorAccessWhere,
+  expirePendingPublicEpiRequest,
   expiredEpiSignatureRequestIdsForRecords,
   isSignedEpiReturnUpdate,
   parseDateOnly,
@@ -204,6 +205,39 @@ test('active public EPI request guard rejects expired and consumed links', async
   await assert.rejects(() => activePublicEpiRequestOrThrow('token', signedClient), /indisponível/);
   await assert.rejects(() => activePublicEpiRequestOrThrow('token', expiredClient), /indisponível/);
   assert.equal((await activePublicEpiRequestOrThrow('token', activeClient)).id, 'request-1');
+});
+
+test('public EPI expiration does not overwrite a concurrently signed request', async () => {
+  const calls = [];
+  const tx = {
+    epiSignatureRequest: {
+      updateMany: async args => {
+        calls.push(['epiSignatureRequest.updateMany', args]);
+        return { count: 0 };
+      }
+    },
+    epiSignatureRequestAuditLog: {
+      create: async args => {
+        calls.push(['epiSignatureRequestAuditLog.create', args]);
+        throw new Error('lost expiration race must not create audit log');
+      }
+    }
+  };
+
+  const expired = await expirePendingPublicEpiRequest(tx, {
+    id: 'request-1'
+  }, {
+    ipAddress: '203.0.113.10',
+    userAgent: 'Node Test'
+  });
+
+  assert.equal(expired, false);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], 'epiSignatureRequest.updateMany');
+  assert.deepEqual(calls[0][1].where.id, 'request-1');
+  assert.deepEqual(calls[0][1].where.status, 'PENDING');
+  assert.equal(calls[0][1].where.expiresAt.lte instanceof Date, true);
+  assert.deepEqual(calls[0][1].data, { status: 'EXPIRED' });
 });
 
 test('public EPI PDF guard allows signed links until public download expiry', async () => {

@@ -497,6 +497,29 @@ export function publicSignatureStatus(signature) {
   return 'ACTIVE';
 }
 
+export async function expirePendingPublicSignature(tx, signature, evidence = {}) {
+  if (!signature?.id) return false;
+  const expired = await tx.reportSignature.updateMany({
+    where: {
+      id: signature.id,
+      status: ReportSignatureStatus.PENDING,
+      tokenExpiresAt: { lte: new Date() }
+    },
+    data: { status: ReportSignatureStatus.EXPIRED }
+  });
+  if (expired.count !== 1) return false;
+
+  await createSignatureAuditLog(tx, {
+    reportId: signature.reportId,
+    versionId: signature.versionId,
+    userId: null,
+    action: ReportAuditAction.TOKEN_EXPIRED,
+    description: 'Link publico de assinatura expirado.',
+    evidence
+  });
+  return true;
+}
+
 export function shouldCreateInternalSignatureRound(report) {
   if (report?.reportType !== ReportType.RDO || report?.status !== ReportStatus.APPROVED || report?.project?.managerOnly) return false;
   if (hasActiveClientRejection(report)) return false;
@@ -3333,25 +3356,17 @@ router.post('/batch-download', requireAuth, requireRdoAccess, asyncHandler(async
 }));
 
 router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {
-  const signature = await publicSignatureFromToken(req.params.token);
+  let signature = await publicSignatureFromToken(req.params.token);
   let status = publicSignatureStatus(signature);
 
   if (signature && status === 'EXPIRED' && signature.status === 'PENDING') {
-    await prisma.$transaction(async tx => {
-      await tx.reportSignature.update({
-        where: { id: signature.id },
-        data: { status: 'EXPIRED' }
-      });
-      await createSignatureAuditLog(tx, {
-        reportId: signature.reportId,
-        versionId: signature.versionId,
-        userId: null,
-        action: ReportAuditAction.TOKEN_EXPIRED,
-        description: 'Link publico de assinatura expirado.',
-        evidence: signatureEvidenceFromRequest(req)
-      });
-    });
-    status = 'EXPIRED';
+    const expired = await prisma.$transaction(tx => expirePendingPublicSignature(tx, signature, signatureEvidenceFromRequest(req)));
+    if (expired) {
+      status = 'EXPIRED';
+    } else {
+      signature = await publicSignatureFromToken(req.params.token);
+      status = publicSignatureStatus(signature);
+    }
   } else if (signature && status === 'ACTIVE') {
     await createSignatureAuditLog(prisma, {
       reportId: signature.reportId,

@@ -14,6 +14,7 @@ import {
   completedSignatureVersionAfterCommit,
   clearIssuedSignatureTokens,
   deliverIssuedSignatureRequestEmails,
+  expirePendingPublicSignature,
   sendSignatureRequestEmails,
   signatureRequestEmailRequired,
   publicSignaturePayload,
@@ -1018,6 +1019,41 @@ test('publicSignaturePayload hides metadata for unavailable soft-deleted reports
       }
     }
   }, 'UNAVAILABLE'), { status: 'UNAVAILABLE' });
+});
+
+test('public RDO signature expiration does not overwrite a concurrently signed request', async () => {
+  const calls = [];
+  const tx = {
+    reportSignature: {
+      updateMany: async args => {
+        calls.push(['reportSignature.updateMany', args]);
+        return { count: 0 };
+      }
+    },
+    reportAuditLog: {
+      create: async args => {
+        calls.push(['reportAuditLog.create', args]);
+        throw new Error('lost expiration race must not create audit log');
+      }
+    }
+  };
+
+  const expired = await expirePendingPublicSignature(tx, {
+    id: 'signature-1',
+    reportId: 'report-1',
+    versionId: 'version-1'
+  }, {
+    ipAddress: '203.0.113.10',
+    userAgent: 'Node Test'
+  });
+
+  assert.equal(expired, false);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], 'reportSignature.updateMany');
+  assert.deepEqual(calls[0][1].where.id, 'signature-1');
+  assert.deepEqual(calls[0][1].where.status, 'PENDING');
+  assert.equal(calls[0][1].where.tokenExpiresAt.lte instanceof Date, true);
+  assert.deepEqual(calls[0][1].data, { status: 'EXPIRED' });
 });
 
 test('publicValidationPayload hides metadata for soft-deleted reports and projects', () => {

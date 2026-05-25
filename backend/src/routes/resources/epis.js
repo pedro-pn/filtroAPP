@@ -328,6 +328,22 @@ export function requestStatus(request) {
   return 'ACTIVE';
 }
 
+export async function expirePendingPublicEpiRequest(tx, request, evidence = {}) {
+  if (!request?.id) return false;
+  const expired = await tx.epiSignatureRequest.updateMany({
+    where: {
+      id: request.id,
+      status: 'PENDING',
+      expiresAt: { lte: new Date() }
+    },
+    data: { status: 'EXPIRED' }
+  });
+  if (expired.count !== 1) return false;
+
+  await logEpiSignatureRequestEvent(tx, request, 'EXPIRED', evidence);
+  return true;
+}
+
 function isActivePendingRequest(request) {
   if (!request) return false;
   return request.status === 'PENDING' && request.expiresAt > new Date();
@@ -736,13 +752,16 @@ async function sendPublicRequestPdf(res, request) {
 
 router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {
   const evidence = signatureEvidenceFromRequest(req);
-  const request = await findRequestByToken(req.params.token);
-  const status = requestStatus(request);
+  let request = await findRequestByToken(req.params.token);
+  let status = requestStatus(request);
   if (request && status === 'EXPIRED' && request.status === 'PENDING') {
-    await prisma.$transaction(async tx => {
-      await tx.epiSignatureRequest.update({ where: { id: request.id }, data: { status: 'EXPIRED' } });
-      await logEpiSignatureRequestEvent(tx, request, 'EXPIRED', evidence);
-    });
+    const expired = await prisma.$transaction(tx => expirePendingPublicEpiRequest(tx, request, evidence));
+    if (expired) {
+      status = 'EXPIRED';
+    } else {
+      request = await findRequestByToken(req.params.token);
+      status = requestStatus(request);
+    }
   } else if (request && status === 'ACTIVE') {
     await logEpiSignatureRequestEvent(prisma, request, 'VIEWED', evidence);
   }
