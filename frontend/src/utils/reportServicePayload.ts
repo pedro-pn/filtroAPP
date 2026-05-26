@@ -119,7 +119,7 @@ function commonExtraData(
     'Hora de início': getString(data.startTime),
     'Hora de término/pausa': getString(data.endTime),
     'Serviço finalizado?': finalizedLabel(data.finalized),
-    'Aprovado pelo cliente?': getString(data.aprovadoCliente) || '',
+    'Aprovado pelo cliente?': getString(data.aprovadoCliente) || (data.finalized === true ? 'Sim' : ''),
     'Etapas realizadas no dia': getStrings(data.etapas),
     Observações: getString(data.notes),
     'Desenhos / TAGs': getString(data.drawingsTags),
@@ -195,10 +195,13 @@ export function buildReportServicePayload(
   }
 
   if (type === 'inibicao') {
-    extraData['ID da embarcação'] = getString(data.embarcacaoId);
+    extraData['Embarcação'] = getString(data.equipmentId);
+    extraData['ID da embarcação'] = getString(data.equipmentId);
     extraData.Linhas = getString(data.linhas);
     extraData.Steps = getString(data.steps);
     extraData['Tipo de relatório'] = getStrings(data.tipoRelatorio);
+    delete extraData['Colaboradores do serviço'];
+    delete extraData['Desenhos / TAGs'];
   }
 
   return {

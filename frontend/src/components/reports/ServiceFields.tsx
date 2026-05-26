@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { inhibitionSystemValue, type InhibitionOptions } from '../../api/inhibitionOptions';
 import type { Manometer, ParticleCounter, Unit } from '../../types/domain';
 import type { UploadedFile } from '../../api/uploads';
 import { UploadField } from '../ui/UploadField';
@@ -45,7 +46,7 @@ const etapasPorTipo: Record<string, string[]> = {
   INIBICAO: [
     'Montagem do sistema', 'Teste de estanqueidade', 'Desengraxe',
     'Flushing', 'Circulação do inibidor', 'Lavagem',
-    'Drenagem do sistema', 'Desmontagem do sistema', 'Coleta de amostra'
+    'Drenagem do sistema', 'Desmontagem do sistema', 'Montagem definitiva do sistema', 'Coleta de amostra'
   ]
 };
 
@@ -278,6 +279,7 @@ interface ServiceFieldsProps {
   units: Unit[];
   manometers: Manometer[];
   counters?: ParticleCounter[];
+  inhibitionOptions?: InhibitionOptions;
   collaboratorOptions?: ServiceCollaboratorOption[];
   groupKey: string;
   projectId?: string | null;
@@ -307,7 +309,7 @@ function MaterialField({
 }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey' | 'groupKey'> & { label?: string }) {
   const material = getString(data.material);
   const materialOther = getString(data.materialOther);
-  const selected = ['Aço carbono', 'Inox'].includes(material) ? material : material ? 'Outro' : '';
+  const selected = ['Aço carbono', 'Inox', 'CuNiFe'].includes(material) ? material : material ? 'Outro' : '';
   const isPre = Boolean(data._prefilled && material);
   const materialId = fieldId(groupKey, 'material');
   const materialOtherId = fieldId(groupKey, 'material-outro');
@@ -332,6 +334,7 @@ function MaterialField({
           <option value="">Selecionar...</option>
           <option value="Aço carbono">Aço carbono</option>
           <option value="Inox">Inox</option>
+          <option value="CuNiFe">CuNiFe</option>
           <option value="Outro">Outro</option>
         </select>
       </div>
@@ -865,7 +868,7 @@ export function ServiceFields({
   units,
   manometers,
   counters = [],
-  collaboratorOptions = [],
+  inhibitionOptions,
   groupKey,
   projectId,
   invalidKey,
@@ -1108,46 +1111,62 @@ export function ServiceFields({
 
     return (
       <>
-        <div className={fieldClass(invalidKey, 'embarcacaoId')}>
-          <label htmlFor={fieldId(groupKey, 'embarcacaoId')}>ID da embarcação</label>
-          <select id={fieldId(groupKey, 'embarcacaoId')} value={getString(data.embarcacaoId)} disabled={disabled} onChange={event => onChange({ embarcacaoId: event.target.value })}>
+        <div className={fieldClass(invalidKey, 'equipmentId')}>
+          <label htmlFor={fieldId(groupKey, 'equipmentId')}>Embarcação {requiredMark()}</label>
+          <select id={fieldId(groupKey, 'equipmentId')} value={getString(data.equipmentId)} disabled={disabled} onChange={event => onChange({ equipmentId: event.target.value })}>
             <option value="">Selecionar...</option>
-            <option value="EMB-001">EMB-001 — Navio Cisterna Alpha</option>
-            <option value="EMB-002">EMB-002 — Corveta Beta</option>
-            <option value="EMB-003">EMB-003 — Fragata Gama</option>
+            {(inhibitionOptions?.vessels || []).map(vessel => (
+              <option value={vessel.code} key={vessel.id || vessel.code}>{vessel.code}</option>
+            ))}
           </select>
         </div>
         <div className={fieldClass(invalidKey, 'system')}>
-          <label htmlFor={fieldId(groupKey, 'system')}>Sistema</label>
+          <label htmlFor={fieldId(groupKey, 'system')}>Sistema {requiredMark()}</label>
           <select id={fieldId(groupKey, 'system')} value={getString(data.system)} disabled={disabled} onChange={event => onChange({ system: event.target.value })}>
             <option value="">Selecionar...</option>
-            <option value="Sistema de resfriamento">Sistema de resfriamento</option>
-            <option value="Sistema de combustível">Sistema de combustível</option>
-            <option value="Sistema hidráulico">Sistema hidráulico</option>
+            {(inhibitionOptions?.systems || []).map(system => {
+              const value = inhibitionSystemValue(system);
+              return <option value={value} key={system.id || system.code}>{value}</option>;
+            })}
           </select>
         </div>
-        <ServiceCollaboratorsBlock
-          data={data}
-          onChange={onChange}
-          disabled={disabled}
-          invalidKey={invalidKey}
-          collaboratorOptions={collaboratorOptions}
-        />
         <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
         <div className="field-group">
           <label htmlFor={fieldId(groupKey, 'linhas')}>Linhas</label>
-          <input id={fieldId(groupKey, 'linhas')} value={getString(data.linhas)} placeholder="Campo livre..." disabled={disabled} onChange={event => onChange({ linhas: event.target.value })} />
+          <textarea id={fieldId(groupKey, 'linhas')} value={getString(data.linhas)} placeholder="Campo livre..." disabled={disabled} onChange={event => onChange({ linhas: event.target.value })} style={{ resize: 'vertical' }} />
         </div>
-        <div className="field-group">
-          <label htmlFor={fieldId(groupKey, 'steps')}>Steps</label>
-          <textarea id={fieldId(groupKey, 'steps')} value={getString(data.steps)} placeholder="Campo livre..." disabled={disabled} onChange={event => onChange({ steps: event.target.value })} />
+        <div className={fieldClass(invalidKey, 'steps')}>
+          <label htmlFor={fieldId(groupKey, 'steps')}>Steps {requiredMark()}</label>
+          <textarea id={fieldId(groupKey, 'steps')} value={getString(data.steps)} placeholder="Campo livre..." disabled={disabled} onChange={event => onChange({ steps: event.target.value })} style={{ resize: 'none' }} />
+        </div>
+        <div className="fg-r2 service-time-grid">
+          <div className={fieldClass(invalidKey, 'startTime')}>
+            <label htmlFor={fieldId(groupKey, 'startTime')}>Hora de início {requiredMark()}</label>
+            <input
+              id={fieldId(groupKey, 'startTime')}
+              type="time"
+              value={getString(data.startTime)}
+              disabled={disabled}
+              onChange={event => onChange({ startTime: event.target.value })}
+            />
+          </div>
+          <div className={fieldClass(invalidKey, 'endTime')}>
+            <label htmlFor={fieldId(groupKey, 'endTime')}>Hora de término/pausa {requiredMark()}</label>
+            <input
+              id={fieldId(groupKey, 'endTime')}
+              type="time"
+              value={getString(data.endTime)}
+              disabled={disabled}
+              onChange={event => onChange({ endTime: event.target.value })}
+            />
+          </div>
         </div>
         {hideFinalization ? null : (
           <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
         )}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        <div className="field-group">
-          <label>Tipo de relatório</label>
+        <div className={fieldClass(invalidKey, 'tipoRelatorio')}>
+          <label>Tipo de relatório {requiredMark()}</label>
           <div className="rdo-pill-list">
             {['RLI', 'RLF'].map(tipo => (
               <label className={pillOptionClass(tipoRelatorio.includes(tipo))} key={tipo}>
@@ -1159,7 +1178,10 @@ export function ServiceFields({
         </div>
         {upload('Fotos do filtro')}
         {upload('Fotos das plaquetas')}
-        <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
+        <div className={`${fieldClass(invalidKey, 'notes')} fg-r2`}>
+          <label htmlFor={fieldId(groupKey, 'notes')}>Observações</label>
+          <textarea id={fieldId(groupKey, 'notes')} value={getString(data.notes)} disabled={disabled} onChange={event => onChange({ notes: event.target.value })} />
+        </div>
       </>
     );
   }

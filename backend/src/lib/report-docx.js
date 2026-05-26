@@ -131,6 +131,18 @@ function getField(fields, names) {
   return '';
 }
 
+function splitSemicolonParts(value) {
+  return stringify(value)
+    .split(';')
+    .map(part => part.trim())
+    .filter(Boolean);
+}
+
+function formatInhibitionSystem(value) {
+  const [code = '', description = '', diagram = ''] = splitSemicolonParts(value);
+  return [code, description, diagram].filter(Boolean).join(' - ');
+}
+
 export function stringifyReportDocxValue(value) {
   if (value == null) return '';
   if (Array.isArray(value)) return value.filter(Boolean).join(', ');
@@ -210,7 +222,8 @@ function serviceTemplateData(service, index) {
   const common = {
     servicecount: String(index + 1),
     servicename: SERVICE_NAMES[service.serviceType] || service.serviceType,
-    equipament: stringify(getField(fields, ['Equipamento(s)', 'Equipamento', 'ID da embarcação'])),
+    equipmentlabel: 'Equipamento:',
+    equipament: stringify(getField(fields, ['Equipamento(s)', 'Equipamento', 'Embarcação', 'Embarcacao', 'ID da embarcação', 'ID da embarcacao'])),
     system: stringify(getField(fields, ['Sistema'])),
     starttime: stringify(getField(fields, ['Hora de início'])),
     endtime: stringify(getField(fields, ['Hora de término/pausa'])),
@@ -275,7 +288,9 @@ function serviceTemplateData(service, index) {
       return {
         ...common,
         servicename: 'Flushing/Inibição',
-        equipament: stringify(getField(fields, ['ID da embarcação'])),
+        equipmentlabel: 'Embarcação:',
+        equipament: stringify(getField(fields, ['Embarcação', 'Embarcacao', 'ID da embarcação', 'ID da embarcacao'])),
+        system: formatInhibitionSystem(getField(fields, ['Sistema'])),
         statementone: 'Material da tubulação',
         statementdataone: stringify(getField(fields, ['Material da tubulação'])),
         statementtwo: '',
@@ -482,7 +497,9 @@ function buildDocxData(report) {
     overtimecomment: report.overtimeReason || '',
     standbymotive: standby.motivo || '',
     activities: report.dailyDescription || '',
-    system: stringify(getField(primaryFields, ['Sistema'])) || primaryService?.system || '',
+    system: primaryService?.serviceType === 'inibicao'
+      ? formatInhibitionSystem(getField(primaryFields, ['Sistema']) || primaryService?.system || '')
+      : (stringify(getField(primaryFields, ['Sistema'])) || primaryService?.system || ''),
     leadername: projectLeader.name || report.createdBy?.collaborator?.name || report.createdBy?.name || '',
     leaderposition: projectLeader.role || report.createdBy?.collaborator?.role || ''
   };
@@ -791,6 +808,7 @@ function expandServices(doc, report) {
 
   const clones = services.map(item => {
     const clone = templateTable.cloneNode(true);
+    if (item.equipmentlabel) replaceTokenInElement(clone, 'Equipamento:', item.equipmentlabel);
     replacePlaceholders(clone, item);
     return clone;
   });
@@ -856,7 +874,6 @@ export async function buildReportDocx(report) {
 
   updateXmlEntry(zip, 'word/document.xml', doc => {
     setPlaceholderCellParagraphs(doc, '{{activities}}', baseData.activities);
-    replacePlaceholders(doc, baseData);
     expandCollaborators(doc, report);
     expandServices(doc, report);
     replacePlaceholders(doc, baseData);

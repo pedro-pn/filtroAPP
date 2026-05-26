@@ -2,6 +2,7 @@ import prismaPkg from '@prisma/client';
 
 import { hashPassword } from '../src/lib/password.js';
 import { normalizeCnpj } from '../src/lib/cnpj.js';
+import { seedInhibitionOptions } from '../src/lib/inhibition-options.js';
 import { accountTypeForLegacyRole, defaultPublicModuleRolesForLegacyRole, moduleRoleRows } from '../src/lib/module-roles.js';
 
 const { PrismaClient, ReportType, UserRole } = prismaPkg;
@@ -89,6 +90,8 @@ async function main() {
       create: counter
     });
   }
+
+  await seedInhibitionOptions(prisma);
 
   const projects = [
     {

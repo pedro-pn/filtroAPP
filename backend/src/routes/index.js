@@ -6,6 +6,7 @@ import countersRouter from './resources/counters.js';
 import draftsRouter from './resources/drafts.js';
 import episRouter from './resources/epis.js';
 import equipmentRouter from './resources/equipment.js';
+import inhibitionOptionsRouter from './resources/inhibition-options.js';
 import manometersRouter from './resources/manometers.js';
 import projectSegmentsRouter from './resources/project-segments.js';
 import privacyRouter from './resources/privacy.js';
@@ -28,6 +29,7 @@ function mountRdoRoutes(targetRouter) {
   targetRouter.use('/statistics', statisticsRouter);
   targetRouter.use('/surveys', surveysRouter);
   targetRouter.use('/equipment', equipmentRouter);
+  targetRouter.use('/inhibition-options', inhibitionOptionsRouter);
   targetRouter.use('/units', unitsRouter);
   targetRouter.use('/manometers', manometersRouter);
   targetRouter.use('/particle-counters', countersRouter);

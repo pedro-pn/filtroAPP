@@ -192,6 +192,7 @@ model Project {
   isActive              Boolean           @default(true)
   visibleToCollaborators Boolean          @default(true)
   managerOnly           Boolean           @default(false)
+  inhibitionServiceEnabled Boolean        @default(false)
   clientName            String
   clientCnpj            String
   clientEmailPrimary    String            @default("")
@@ -414,6 +415,26 @@ model Equipment {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   reportServices ReportService[]
+}
+
+model InhibitionVessel {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model InhibitionSystem {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  description String
+  diagram     String
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Unit {

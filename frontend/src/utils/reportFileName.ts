@@ -74,7 +74,7 @@ function serviceData(report: ReportSummary) {
 
 function serviceEquipment(report: ReportSummary) {
   const fields = serviceData(report);
-  return stringify(getField(fields, ['Equipamento(s)', 'Equipamento', 'ID da embarcação', 'ID da embarcacao']))
+  return stringify(getField(fields, ['Equipamento(s)', 'Equipamento', 'Embarcação', 'Embarcacao', 'ID da embarcação', 'ID da embarcacao']))
     || report.services?.[0]?.equipmentId
     || 'Equipamento';
 }
@@ -86,11 +86,23 @@ function serviceSystem(report: ReportSummary) {
     || 'Sistema';
 }
 
+function serviceStep(report: ReportSummary) {
+  const fields = serviceData(report);
+  return stringify(getField(fields, ['Steps', 'Step']))
+    || 'STEP';
+}
+
 export function reportDownloadFileName(report: ReportSummary, extension: 'pdf' | 'docx') {
   const mission = `Missão ${report.project?.code || '---'} ${report.project?.name || 'Sem projeto'}`;
-  const base = report.reportType === 'RDO'
-    ? `${mission} - RDO ${reportNumber(report)} - ${dateFilePart(report.reportDate)} - ${weekdayName(report.reportDate)}`
-    : `${mission} - ${report.reportType} ${reportNumber(report)} - ${serviceEquipment(report)} - ${serviceSystem(report)}`;
+  let base: string;
+  if (report.reportType === 'RDO') {
+    base = `${mission} - RDO ${reportNumber(report)} - ${dateFilePart(report.reportDate)} - ${weekdayName(report.reportDate)}`;
+  } else if (report.reportType === 'RLF') {
+    const vessel = serviceEquipment(report);
+    base = `${mission} - RLF ${reportNumber(report)} - ${vessel} - ${vessel}M00${serviceStep(report)}`;
+  } else {
+    base = `${mission} - ${report.reportType} ${reportNumber(report)} - ${serviceEquipment(report)} - ${serviceSystem(report)}`;
+  }
 
   return `${safePart(base)}.${extension}`;
 }

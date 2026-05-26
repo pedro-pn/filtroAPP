@@ -16,6 +16,7 @@ import { SIGNATURE_RDO_NOTICE_VERSION } from '../constants/privacy';
 import { useCollaborators } from '../hooks/useCollaborators';
 import { useCounters } from '../hooks/useCounters';
 import { useEquipment } from '../hooks/useEquipment';
+import { useInhibitionOptions } from '../hooks/useInhibitionOptions';
 import { useManometers } from '../hooks/useManometers';
 import { useProjects } from '../hooks/useProjects';
 import { useReport, useReportAudit, useReportMutations, useReports } from '../hooks/useReports';
@@ -311,7 +312,7 @@ function GeneralUploadThumb({ file }: { file: UploadedFile }) {
 
 function serviceEquipmentValue(service: NonNullable<ReportSummary['services']>[number]) {
   const extra = service.extraData || {};
-  const value = extra['Equipamento(s)'] || extra.Equipamentos || extra.Equipamento || extra['ID da embarcação'] || extra['ID da embarcacao'];
+  const value = extra['Equipamento(s)'] || extra.Equipamentos || extra.Equipamento || extra['Embarcação'] || extra.Embarcacao || extra['ID da embarcação'] || extra['ID da embarcacao'];
   if (Array.isArray(value)) return value.filter(Boolean).join(', ');
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>;
@@ -400,7 +401,7 @@ function legacyServiceData(service: NonNullable<ReportSummary['services']>[numbe
   }
 
   if (type === 'inibicao') {
-    data.embarcacaoId = getLegacyString(extra, ['embarcacaoId', 'ID da embarcação', 'ID da embarcacao']);
+    data.equipmentId = getLegacyString(extra, ['equipmentId', 'Embarcação', 'Embarcacao', 'embarcacaoId', 'ID da embarcação', 'ID da embarcacao']);
     data.linhas = getLegacyString(extra, ['linhas', 'Linhas']);
     data.steps = getLegacyString(extra, ['steps', 'Steps']);
     data.tipoRelatorio = getLegacyStrings(extra, ['tipoRelatorio', 'Tipo de relatório', 'Tipo de relatorio']);
@@ -528,6 +529,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const unitsQuery = useUnits();
   const manometersQuery = useManometers();
   const countersQuery = useCounters();
+  const inhibitionOptionsQuery = useInhibitionOptions();
   const reportMutations = useReportMutations();
   const showToast = useToast();
   const [form, setForm] = useState<RdoFormState>(() => reportToForm(report));
@@ -564,6 +566,12 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const sequenceHint = sequenceConflict
     ? `Número já usado no relatório ${sequenceConflict.reportType} ${sequenceConflict.sequenceNumber}.`
     : 'Usado para manter a sequência do projeto e dos relatórios derivados.';
+  const serviceOptions = useMemo(() => {
+    const allowed = serviceOnly
+      ? serviceTypeModalOptions.filter(option => serviceOnlySupportedTypes.has(option.type))
+      : serviceTypeModalOptions;
+    return allowed.filter(option => option.type !== 'inibicao' || selectedProject?.inhibitionServiceEnabled === true);
+  }, [serviceOnly, selectedProject?.inhibitionServiceEnabled]);
   const selectedCollaboratorIds = useMemo(
     () => new Set(serviceOnly ? form.collaboratorIds : [...form.collaboratorIds, ...form.nightCollaboratorIds]),
     [serviceOnly, form.collaboratorIds, form.nightCollaboratorIds]
@@ -582,6 +590,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const units = unitsQuery.data || [];
   const manometers = manometersQuery.data || [];
   const counters = countersQuery.data || [];
+  const inhibitionOptions = inhibitionOptionsQuery.data;
 
   function setField<K extends keyof RdoFormState>(field: K, value: RdoFormState[K]) {
     setForm(current => ({ ...current, [field]: value }));
@@ -949,6 +958,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                   ) : null}
                 </div>
                 <div className="admin-form-grid">
+                  {normalizeServiceType(service.type) !== 'inibicao' ? (
                   <div className="field-group">
                     <label>Equipamento(s)</label>
                     <input
@@ -958,6 +968,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                       onChange={event => updateService(service.id, { data: { equipmentId: event.target.value } })}
                     />
                   </div>
+                  ) : null}
                   {normalizeServiceType(service.type) !== 'inibicao' ? (
                     <div className="field-group">
                       <label>Sistema</label>
@@ -976,6 +987,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                       collaboratorOptions={serviceCollaboratorOptions}
                     />
                   ) : null}
+                  {normalizeServiceType(service.type) !== 'inibicao' ? (
                   <div className="fg-r2 service-time-grid">
                     <div className="field-group">
                       <label>Hora de início</label>
@@ -996,6 +1008,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                       />
                     </div>
                   </div>
+                  ) : null}
                   <ServiceFields
                     serviceType={service.type}
                     data={service.data}
@@ -1004,6 +1017,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     units={units}
                     manometers={manometers}
                     counters={counters}
+                    inhibitionOptions={inhibitionOptions}
                     collaboratorOptions={serviceCollaboratorOptions}
                     groupKey={service.id}
                     projectId={form.projectId}
@@ -1129,7 +1143,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             <div className="stype-modal-handle" />
             <div className="stype-modal-title" id="detail-service-type-title">Tipo de serviço</div>
             <div className="stype-grid">
-              {(serviceOnly ? serviceTypeModalOptions.filter(option => serviceOnlySupportedTypes.has(option.type)) : serviceTypeModalOptions).map(({ type, icon, name }) => (
+              {serviceOptions.map(({ type, icon, name }) => (
                 <button
                   className="stype-btn"
                   key={type}
@@ -1479,7 +1493,7 @@ function buildDerivedRows(report: ReportSummary) {
       'Equipamento(s)', 'Sistema', 'Material do equipamento', 'Etapas realizadas no dia',
       'Hora de início', 'Hora de término/pausa', 'Aprovado pelo cliente?', 'Observações'
     ],
-    RLF: ['Equipamento(s)', 'Sistema', 'Material da tubulação', 'Etapas realizadas no dia', 'Observações'],
+    RLF: ['Embarcação', 'Sistema', 'Material da tubulação', 'Steps', 'Linhas', 'Observações'],
     RLI: ['Equipamento(s)', 'Sistema', 'Material da tubulação', 'Etapas realizadas no dia', 'Observações']
   };
 

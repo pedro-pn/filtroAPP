@@ -3,6 +3,7 @@ export const queryKeys = {
   collaborators: ['collaborators'] as const,
   projects: (active?: boolean, userId?: string | null) => ['projects', { active, userId: userId || 'anonymous' }] as const,
   equipment: ['equipment'] as const,
+  inhibitionOptions: ['inhibition-options'] as const,
   units: ['units'] as const,
   unitCategories: ['units', 'categories'] as const,
   manometers: ['manometers'] as const,

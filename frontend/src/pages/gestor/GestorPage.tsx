@@ -148,6 +148,7 @@ interface ProjectFormState {
   clientSegment: string;
   visibleToCollaborators: boolean;
   managerOnly: boolean;
+  inhibitionServiceEnabled: boolean;
   isActive: boolean;
   workdayHours: string;
   weekendWorkdayHours: string;
@@ -241,6 +242,7 @@ const emptyProjectForm: ProjectFormState = {
   clientSegment: '',
   visibleToCollaborators: true,
   managerOnly: false,
+  inhibitionServiceEnabled: false,
   isActive: true,
   workdayHours: '09:00',
   weekendWorkdayHours: '08:00',
@@ -738,6 +740,7 @@ function projectToForm(project: Project): ProjectFormState {
     clientSegment: project.clientSegment || '',
     visibleToCollaborators: project.visibleToCollaborators,
     managerOnly: project.managerOnly,
+    inhibitionServiceEnabled: project.inhibitionServiceEnabled ?? false,
     isActive: project.isActive,
     workdayHours: project.workdayHours || '09:00',
     weekendWorkdayHours: project.weekendWorkdayHours || '08:00',
@@ -903,11 +906,15 @@ function ProjectReportSequenceFields({
     }));
   }
 
+  const visibleReportTypes = form.inhibitionServiceEnabled
+    ? projectReportTypes
+    : projectReportTypes.filter(reportType => reportType !== 'RLI' && reportType !== 'RLF');
+
   return (
     <div className="field-group field-group-wide">
       <label>Sequenciais dos relatórios</label>
       <div className="project-sequence-grid">
-        {projectReportTypes.map(reportType => {
+        {visibleReportTypes.map(reportType => {
           const sequence = form.reportSequences.find(item => item.reportType === reportType);
           return (
             <label className="project-sequence-field" htmlFor={`${idPrefix}-sequence-${reportType}`} key={reportType}>
@@ -1556,6 +1563,7 @@ export function GestorPage() {
       location: projectForm.location.trim(),
       visibleToCollaborators: projectForm.visibleToCollaborators,
       managerOnly: projectForm.managerOnly,
+      inhibitionServiceEnabled: projectForm.inhibitionServiceEnabled,
       isActive: projectForm.isActive,
       operatorId: projectForm.operatorId || null,
       clientSegment: projectForm.clientSegment || null,
@@ -2410,6 +2418,17 @@ export function GestorPage() {
                     <option value="manager-only">Somente gestor</option>
                   </select>
                 </div>
+                <div className="field-group">
+                  <label htmlFor="project-inhibition-service">Serviço de inibição</label>
+                  <select
+                    id="project-inhibition-service"
+                    value={projectForm.inhibitionServiceEnabled ? 'true' : 'false'}
+                    onChange={event => setProjectForm(current => ({ ...current, inhibitionServiceEnabled: event.target.value === 'true' }))}
+                  >
+                    <option value="false">Não</option>
+                    <option value="true">Sim</option>
+                  </select>
+                </div>
                 <ProjectReportSequenceFields form={projectForm} idPrefix="project" setForm={setProjectForm} />
                 <div className="field-group">
                   <label htmlFor="project-workday">Jornada padrão</label>
@@ -2504,6 +2523,17 @@ export function GestorPage() {
                           <option value="manager-coordinator">Gestor e coordenador</option>
                           <option value="all-authorized">Gestor, coordenador e colaboradores responsáveis</option>
                           <option value="manager-only">Somente gestor</option>
+                        </select>
+                      </div>
+                      <div className="field-group">
+                        <label htmlFor={`project-inhibition-service-${project.id}`}>Serviço de inibição</label>
+                        <select
+                          id={`project-inhibition-service-${project.id}`}
+                          value={projectForm.inhibitionServiceEnabled ? 'true' : 'false'}
+                          onChange={event => setProjectForm(current => ({ ...current, inhibitionServiceEnabled: event.target.value === 'true' }))}
+                        >
+                          <option value="false">Não</option>
+                          <option value="true">Sim</option>
                         </select>
                       </div>
                       <ProjectReportSequenceFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />

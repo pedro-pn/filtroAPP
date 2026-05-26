@@ -23,7 +23,7 @@ function serviceFinalized(service: ReportServiceSummary) {
 
 function serviceEquipmentName(service: ReportServiceSummary) {
   const extra = service.extraData || {};
-  const value = extra['Equipamento(s)'] || extra.Equipamentos || extra.Equipamento || extra['ID da embarcação'] || '';
+  const value = extra['Equipamento(s)'] || extra.Equipamentos || extra.Equipamento || extra['Embarcação'] || extra.Embarcacao || extra['ID da embarcação'] || '';
   if (Array.isArray(value)) return value.filter(Boolean).join(', ');
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>;

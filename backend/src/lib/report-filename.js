@@ -77,7 +77,7 @@ function missionLabel(report) {
 
 function serviceEquipment(report) {
   const fields = report?.specialConditions?.serviceData || report?.services?.[0]?.extraData || {};
-  return stringify(getField(fields, ['Equipamento(s)', 'Equipamento', 'ID da embarcação', 'ID da embarcacao']))
+  return stringify(getField(fields, ['Equipamento(s)', 'Equipamento', 'Embarcação', 'Embarcacao', 'ID da embarcação', 'ID da embarcacao']))
     || report?.services?.[0]?.equipmentId
     || 'Equipamento';
 }
@@ -89,10 +89,21 @@ function serviceSystem(report) {
     || 'Sistema';
 }
 
+function serviceStep(report) {
+  const fields = report?.specialConditions?.serviceData || report?.services?.[0]?.extraData || {};
+  return stringify(getField(fields, ['Steps', 'Step']))
+    || 'STEP';
+}
+
 export function buildReportFileBaseName(report) {
   const type = report?.reportType || 'RDO';
   if (type === 'RDO') {
     return safePath(`${missionLabel(report)} - RDO ${reportNumber(report)} - ${dateFilePart(report?.reportDate)} - ${weekdayNamePt(report?.reportDate)}`);
+  }
+
+  if (type === 'RLF') {
+    const vessel = serviceEquipment(report) || 'Embarcação';
+    return safePath(`${missionLabel(report)} - RLF ${reportNumber(report)} - ${vessel} - ${vessel}M00${serviceStep(report)}`);
   }
 
   return safePath(`${missionLabel(report)} - ${type} ${reportNumber(report)} - ${serviceEquipment(report)} - ${serviceSystem(report)}`);

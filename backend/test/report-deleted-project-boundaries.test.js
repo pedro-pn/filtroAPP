@@ -78,7 +78,7 @@ test('derived report sync filters exclude soft-deleted reports and projects', ()
     projectId: 'project-1',
     deletedAt: null,
     project: { deletedAt: null },
-    reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] }
+    reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM, ReportType.RLF] }
   });
 });
 

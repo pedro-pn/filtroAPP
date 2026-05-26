@@ -105,6 +105,7 @@ Inibição
 
 {{servicename}} - caso especial, deve aparecer Flushing/inibição
 {{equipament}} - caso especial, deve aparecer Embarcação
+{{system}} - preencher com os 3 itens separados por ';' do sistema porem separados por ' - ' com os espaços entre cada
 {{statementdataone}} - Material da tubulação:
 {{statementdataone}} - material preenchido
 {{statementtwo}} - não tem
