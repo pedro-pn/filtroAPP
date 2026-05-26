@@ -36,6 +36,7 @@ const measureLabels: Record<RomaneioMeasureType, string> = {
   LENGTH: 'm',
   WEIGHT: 'kg'
 };
+const rdoOwnedCatalogSources = new Set(['UNIT', 'PARTICLE_COUNTER']);
 
 function formatDate(value: string) {
   if (!value) return '';
@@ -67,6 +68,10 @@ function catalogEmpty(): RomaneioCatalogPayload {
     isSerialized: true,
     isActive: true
   };
+}
+
+function isRdoOwnedCatalogItem(item: RomaneioCatalogItem) {
+  return rdoOwnedCatalogSources.has(item.sourceType);
 }
 
 export function RomaneioPage() {
@@ -466,6 +471,7 @@ export function RomaneioPage() {
               <div className="romaneio-accordion-list">
                 {groupedCatalog.map(([category, items]) => {
                   const expanded = expandedCatalogCategories.has(category);
+                  const hasRdoOwnedItems = items.some(isRdoOwnedCatalogItem);
                   return (
                     <div className="romaneio-accordion" key={category}>
                       <button
@@ -480,11 +486,13 @@ export function RomaneioPage() {
                       </button>
                       {expanded && (
                         <div className="romaneio-catalog-list">
-                          <div className="romaneio-category-actions">
-                            <button className="mini-btn alt" type="button" onClick={() => startEditCategory(category)}>
-                              Editar categoria
-                            </button>
-                          </div>
+                          {!hasRdoOwnedItems ? (
+                            <div className="romaneio-category-actions">
+                              <button className="mini-btn alt" type="button" onClick={() => startEditCategory(category)}>
+                                Editar categoria
+                              </button>
+                            </div>
+                          ) : null}
                           {editingCategory === category ? (
                             <form className="admin-inline-form romaneio-category-edit" onSubmit={submitCategoryEdit}>
                               <div className="admin-form-grid manager-header-grid">
@@ -506,10 +514,14 @@ export function RomaneioPage() {
                                   <strong>{[item.code, item.name].filter(Boolean).join(' - ')}</strong>
                                   <div className="rel-meta">{item.kind === 'CONNECTION' ? 'Conexão' : 'Equipamento'} · {item.defaultUnitLabel}</div>
                                 </div>
-                                <div className="report-card-actions">
-                                  <button className="mini-btn alt" type="button" onClick={() => editCatalog(item)}>Editar</button>
-                                  <button className="mini-btn danger" type="button" onClick={() => removeCatalogMutation.mutate(item.id)}>Remover</button>
-                                </div>
+                                {!isRdoOwnedCatalogItem(item) ? (
+                                  <div className="report-card-actions">
+                                    <button className="mini-btn alt" type="button" onClick={() => editCatalog(item)}>Editar</button>
+                                    <button className="mini-btn danger" type="button" onClick={() => removeCatalogMutation.mutate(item.id)}>Remover</button>
+                                  </div>
+                                ) : (
+                                  <div className="rel-meta">Gerenciado no RDO</div>
+                                )}
                               </div>
                               {editingCatalogId === item.id && (
                                 <form className="admin-inline-form romaneio-inline-edit" onSubmit={event => submitCatalogEdit(event, item.id)}>

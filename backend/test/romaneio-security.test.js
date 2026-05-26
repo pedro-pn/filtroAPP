@@ -410,7 +410,7 @@ test('Romaneio catalog category rename rejects RDO-owned categories', async t =>
   assert.deepEqual(calls.map(([name]) => name), ['romaneioCatalogItem.count']);
 });
 
-test('Romaneio catalog delete hides sourced items without deleting RDO master data', async t => {
+test('Romaneio catalog delete rejects RDO-owned unit rows', async t => {
   stubRomaneioOnlyManager(t);
   const originalTransaction = prisma.$transaction;
   const calls = [];
@@ -422,7 +422,7 @@ test('Romaneio catalog delete hides sourced items without deleting RDO master da
       },
       update: async args => {
         calls.push(['romaneioCatalogItem.update', args]);
-        return { id: args.where.id, isActive: false };
+        throw new Error('unit catalog row should not be hidden from Romaneio catalog');
       }
     },
     unit: {
@@ -444,15 +444,12 @@ test('Romaneio catalog delete hides sourced items without deleting RDO master da
 
   const response = await dispatchApp('DELETE', '/api/romaneio/catalog/catalog-unit-1');
 
-  assert.equal(response.statusCode, 204);
+  assert.equal(response.statusCode, 409);
   assert.deepEqual(calls[0], ['romaneioCatalogItem.findUniqueOrThrow', { where: { id: 'catalog-unit-1' } }]);
-  assert.equal(calls[1][0], 'romaneioCatalogItem.update');
-  assert.deepEqual(calls[1][1].where, { id: 'catalog-unit-1' });
-  assert.equal(calls[1][1].data.isActive, false);
-  assert.ok(calls[1][1].data.hiddenInRomaneioAt instanceof Date);
+  assert.deepEqual(calls.map(([name]) => name), ['romaneioCatalogItem.findUniqueOrThrow']);
 });
 
-test('Romaneio catalog delete hides particle counters without deactivating RDO counters', async t => {
+test('Romaneio catalog delete rejects RDO-owned particle counter rows', async t => {
   stubRomaneioOnlyManager(t);
   const originalTransaction = prisma.$transaction;
   const calls = [];
@@ -464,7 +461,7 @@ test('Romaneio catalog delete hides particle counters without deactivating RDO c
       },
       update: async args => {
         calls.push(['romaneioCatalogItem.update', args]);
-        return { id: args.where.id, isActive: false };
+        throw new Error('counter catalog row should not be hidden from Romaneio catalog');
       }
     },
     particleCounter: {
@@ -480,15 +477,12 @@ test('Romaneio catalog delete hides particle counters without deactivating RDO c
 
   const response = await dispatchApp('DELETE', '/api/romaneio/catalog/catalog-counter-1');
 
-  assert.equal(response.statusCode, 204);
+  assert.equal(response.statusCode, 409);
   assert.deepEqual(calls[0], ['romaneioCatalogItem.findUniqueOrThrow', { where: { id: 'catalog-counter-1' } }]);
-  assert.equal(calls[1][0], 'romaneioCatalogItem.update');
-  assert.deepEqual(calls[1][1].where, { id: 'catalog-counter-1' });
-  assert.equal(calls[1][1].data.isActive, false);
-  assert.ok(calls[1][1].data.hiddenInRomaneioAt instanceof Date);
+  assert.deepEqual(calls.map(([name]) => name), ['romaneioCatalogItem.findUniqueOrThrow']);
 });
 
-test('Romaneio catalog sync does not reactivate hidden source-owned rows', async t => {
+test('Romaneio catalog sync restores hidden RDO-owned rows and keeps hidden file rows inactive', async t => {
   const originalTransaction = prisma.$transaction;
   const updates = [];
   const staleFileUpdates = [];
@@ -497,16 +491,16 @@ test('Romaneio catalog sync does not reactivate hidden source-owned rows', async
       findMany: async () => [{ id: 'unit-1', code: 'UF-01', category: 'FILTRAGEM' }]
     },
     particleCounter: {
-      findMany: async () => [{ id: 'counter-1', code: 'CP-01', serialNumber: 'SN-01', isActive: true }]
+      findMany: async () => [{ id: 'counter-1', code: 'CP-01', serialNumber: 'SN-01', category: 'Instrumentos', isActive: true }]
     },
     romaneioCatalogItem: {
       findUnique: async args => {
         const source = args.where?.sourceType_sourceId;
         if (source?.sourceType === 'UNIT' && source?.sourceId === 'unit-1') {
-          return { id: 'catalog-unit-1', hiddenInRomaneioAt: new Date() };
+          return { id: 'catalog-unit-1', hiddenInRomaneioAt: new Date(), sourceType: 'UNIT' };
         }
         if (source?.sourceType === 'PARTICLE_COUNTER' && source?.sourceId === 'counter-1') {
-          return { id: 'catalog-counter-1', hiddenInRomaneioAt: new Date() };
+          return { id: 'catalog-counter-1', hiddenInRomaneioAt: new Date(), sourceType: 'PARTICLE_COUNTER' };
         }
         return null;
       },
@@ -530,8 +524,10 @@ test('Romaneio catalog sync does not reactivate hidden source-owned rows', async
 
   const unitUpdate = updates.find(item => item.where.id === 'catalog-unit-1');
   const counterUpdate = updates.find(item => item.where.id === 'catalog-counter-1');
-  assert.equal(unitUpdate.data.isActive, false);
-  assert.equal(counterUpdate.data.isActive, false);
+  assert.equal(unitUpdate.data.isActive, true);
+  assert.equal(unitUpdate.data.hiddenInRomaneioAt, null);
+  assert.equal(counterUpdate.data.isActive, true);
+  assert.equal(counterUpdate.data.hiddenInRomaneioAt, null);
   assert.equal(staleFileUpdates[0].where.sourceType, 'FILE');
   assert.equal(staleFileUpdates[0].where.sourceId.notIn.includes('equipamentos:553'), false);
   assert.equal(staleFileUpdates[0].where.sourceId.notIn.includes('equipamentos:554'), true);

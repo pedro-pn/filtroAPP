@@ -17,6 +17,7 @@ const EQUIPMENT_FILE_CANDIDATES = [
   '/workspace/equipamentos.txt',
   '/workspace/equipamentos'
 ].filter(Boolean);
+const RDO_OWNED_CATALOG_SOURCES = new Set(['UNIT', 'PARTICLE_COUNTER']);
 
 function normalizeSpaces(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -194,6 +195,10 @@ async function upsertCatalogRow(tx, row) {
       };
       if (existingSource.sourceType === 'FILE') {
         delete data.categoryName;
+      }
+      if (RDO_OWNED_CATALOG_SOURCES.has(existingSource.sourceType)) {
+        data.isActive = row.isActive !== false;
+        data.hiddenInRomaneioAt = null;
       }
       await tx.romaneioCatalogItem.update({
         where: { id: existingSource.id },

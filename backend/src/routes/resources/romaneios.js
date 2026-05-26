@@ -453,7 +453,12 @@ router.put('/catalog/:id', requireAuth, requireRomaneioAccess, requireRomaneioMa
 
 router.delete('/catalog/:id', requireAuth, requireRomaneioAccess, requireRomaneioManager, asyncHandler(async (req, res) => {
   await prisma.$transaction(async tx => {
-    await tx.romaneioCatalogItem.findUniqueOrThrow({ where: { id: req.params.id } });
+    const existing = await tx.romaneioCatalogItem.findUniqueOrThrow({ where: { id: req.params.id } });
+    if (RDO_OWNED_CATALOG_SOURCES.has(existing.sourceType)) {
+      const error = new Error('Itens sincronizados do RDO devem ser removidos no módulo RDO.');
+      error.statusCode = 409;
+      throw error;
+    }
     await tx.romaneioCatalogItem.update({
       where: { id: req.params.id },
       data: { isActive: false, hiddenInRomaneioAt: new Date() }
