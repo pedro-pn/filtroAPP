@@ -1,9 +1,10 @@
 import { apiClient, rdoApiPath } from './client';
-import type { ParticleCounter } from '../types/domain';
+import type { ParticleCounter, UnitCategory } from '../types/domain';
 
 export interface ParticleCounterPayload {
   code: string;
   serialNumber: string;
+  category: UnitCategory;
   calibratedAt: string;
   expiresAt: string;
 }
@@ -20,6 +21,11 @@ export async function createParticleCounter(payload: ParticleCounterPayload) {
 
 export async function updateParticleCounter(id: string, payload: Partial<ParticleCounterPayload>) {
   const response = await apiClient.put<ParticleCounter>(rdoApiPath(`/particle-counters/${id}`), payload);
+  return response.data;
+}
+
+export async function renameParticleCounterCategory(payload: { currentName: string; newName: string }) {
+  const response = await apiClient.put<{ category: UnitCategory; updatedCount: number }>(rdoApiPath('/particle-counters/categories/rename'), payload);
   return response.data;
 }
 

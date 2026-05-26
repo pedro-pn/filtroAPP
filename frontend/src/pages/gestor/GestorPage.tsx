@@ -198,6 +198,8 @@ interface ManometerFormState {
 interface CounterFormState {
   code: string;
   serialNumber: string;
+  category: UnitCategory;
+  newCategory: string;
   calibratedAt: string;
   expiresAt: string;
 }
@@ -275,6 +277,8 @@ const emptyUnitForm: UnitFormState = {
 
 const DEFAULT_UNIT_CATEGORIES = ['FILTRAGEM', 'FLUSHING', 'LIMPEZA_QUIMICA', 'DESIDRATACAO', 'UTH', 'OUTRA'];
 const NEW_UNIT_CATEGORY_VALUE = '__new_unit_category__';
+const DEFAULT_COUNTER_CATEGORY = 'CONTADOR DE PARTICULAS';
+const NEW_COUNTER_CATEGORY_VALUE = '__new_counter_category__';
 const UNIT_CATEGORY_LABELS: Record<string, string> = {
   FILTRAGEM: 'Filtragem',
   FLUSHING: 'Flushing',
@@ -295,6 +299,8 @@ const emptyManometerForm: ManometerFormState = {
 const emptyCounterForm: CounterFormState = {
   code: '',
   serialNumber: '',
+  category: DEFAULT_COUNTER_CATEGORY,
+  newCategory: '',
   calibratedAt: '',
   expiresAt: ''
 };
@@ -307,11 +313,28 @@ function groupUnits(units: Unit[]) {
   }, {});
 }
 
+function groupCounters(counters: ParticleCounter[]) {
+  return counters.reduce<Record<string, ParticleCounter[]>>((acc, counter) => {
+    const category = counter.category || DEFAULT_COUNTER_CATEGORY;
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(counter);
+    return acc;
+  }, {});
+}
+
 function unitCategoryOptions(units: Unit[], syncedCategories: UnitCategory[] = []) {
   return Array.from(new Set([
     ...DEFAULT_UNIT_CATEGORIES,
     ...syncedCategories,
     ...units.map(unit => unit.category).filter(Boolean)
+  ])).sort((a, b) => formatUnitCategory(a).localeCompare(formatUnitCategory(b), 'pt-BR', { sensitivity: 'base' }));
+}
+
+function counterCategoryOptions(counters: ParticleCounter[], syncedCategories: UnitCategory[] = []) {
+  return Array.from(new Set([
+    DEFAULT_COUNTER_CATEGORY,
+    ...syncedCategories,
+    ...counters.map(counter => counter.category).filter(Boolean)
   ])).sort((a, b) => formatUnitCategory(a).localeCompare(formatUnitCategory(b), 'pt-BR', { sensitivity: 'base' }));
 }
 
@@ -505,7 +528,7 @@ function manometerSearchParts(item: Manometer) {
 }
 
 function counterSearchParts(item: ParticleCounter) {
-  return [item.code, item.serialNumber, formatDate(item.calibratedAt), formatDate(item.expiresAt)];
+  return [item.code, item.serialNumber, formatUnitCategory(item.category), formatDate(item.calibratedAt), formatDate(item.expiresAt)];
 }
 
 function formatDate(value?: string | null) {
@@ -958,6 +981,8 @@ function counterToForm(item: ParticleCounter): CounterFormState {
   return {
     code: item.code,
     serialNumber: item.serialNumber,
+    category: item.category || DEFAULT_COUNTER_CATEGORY,
+    newCategory: '',
     calibratedAt: toDateInput(item.calibratedAt),
     expiresAt: toDateInput(item.expiresAt)
   };
@@ -1138,6 +1163,8 @@ export function GestorPage() {
 
   const [counterForm, setCounterForm] = useState<CounterFormState>(emptyCounterForm);
   const [counterEditingId, setCounterEditingId] = useState<string | null>(null);
+  const [counterCategoryEditing, setCounterCategoryEditing] = useState('');
+  const [counterCategoryEditName, setCounterCategoryEditName] = useState('');
   const [showCounterForm, setShowCounterForm] = useState(false);
   const [returnReport, setReturnReport] = useState<ReportSummary | null>(null);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
@@ -1489,6 +1516,29 @@ export function GestorPage() {
     setCounterForm(emptyCounterForm);
     setCounterEditingId(null);
     setShowCounterForm(false);
+  }
+
+  function startEditCounterCategory(category: string) {
+    setCounterCategoryEditing(category);
+    setCounterCategoryEditName(formatUnitCategory(category));
+  }
+
+  async function handleCounterCategorySubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const newName = counterCategoryEditName.trim();
+    if (!counterCategoryEditing || !newName) return;
+    try {
+      await counterMutations.renameCounterCategory.mutateAsync({
+        currentName: counterCategoryEditing,
+        newName
+      });
+      setCounterCategoryEditing('');
+      setCounterCategoryEditName('');
+      setCounterForm(current => current.category === counterCategoryEditing ? { ...current, category: newName } : current);
+      showToast('Categoria atualizada.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível atualizar a categoria.', 'error');
+    }
   }
 
   async function handleProjectSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1907,10 +1957,18 @@ export function GestorPage() {
 
   async function handleCounterSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const category = counterForm.category === NEW_COUNTER_CATEGORY_VALUE
+      ? counterForm.newCategory.trim()
+      : counterForm.category.trim();
+    if (!category) {
+      showToast('Informe o tipo de equipamento do contador.', 'error');
+      return;
+    }
 
     const payload = {
       code: counterForm.code.trim(),
       serialNumber: counterForm.serialNumber.trim(),
+      category,
       calibratedAt: counterForm.calibratedAt,
       expiresAt: counterForm.expiresAt
     };
@@ -3498,103 +3556,160 @@ export function GestorPage() {
   }
 
   function renderContadoresTab() {
-    const counters = (countersQuery.data || [])
-      .filter(item => item.isActive !== false)
+    const allCounters = (countersQuery.data || []).filter(item => item.isActive !== false);
+    const counters = allCounters
       .filter(item => matchesSearch(counterSearchParts(item), gestorSearch));
+    const allCounterCategories = counterCategoryOptions(allCounters, unitCategoriesQuery.data || []);
+    const visibleGroupedCounters = groupCounters(counters);
+    const hasSearch = Boolean(gestorSearch.trim());
+    const visibleCategories = allCounterCategories.filter(category => {
+      const categoryCounters = visibleGroupedCounters[category] || [];
+      if (categoryCounters.length) return true;
+      return hasSearch
+        && matchesSearch([category, formatUnitCategory(category)], gestorSearch)
+        && allCounters.some(counter => (counter.category || DEFAULT_COUNTER_CATEGORY) === category);
+    });
 
     if (countersQuery.isLoading) {
       return <div className="page-card placeholder-copy">Carregando contadores...</div>;
     }
 
+    const renderCounterForm = (submitLabel: string) => (
+      <form className="admin-inline-form admin-form-grid" onSubmit={handleCounterSubmit}>
+        <div className="field-group">
+          <label>Código</label>
+          <input
+            value={counterForm.code}
+            onChange={event => setCounterForm(current => ({ ...current, code: event.target.value }))}
+            required
+          />
+        </div>
+        <div className="field-group">
+          <label>Serial</label>
+          <input
+            value={counterForm.serialNumber}
+            onChange={event => setCounterForm(current => ({ ...current, serialNumber: event.target.value }))}
+            required
+          />
+        </div>
+        <div className="field-group">
+          <label>Tipo de equipamento</label>
+          <select
+            value={counterForm.category}
+            onChange={event => setCounterForm(current => ({ ...current, category: event.target.value, newCategory: '' }))}
+            required
+          >
+            {allCounterCategories.map(category => (
+              <option value={category} key={category}>{formatUnitCategory(category)}</option>
+            ))}
+            <option value={NEW_COUNTER_CATEGORY_VALUE}>Criar nova categoria</option>
+          </select>
+        </div>
+        {counterForm.category === NEW_COUNTER_CATEGORY_VALUE ? (
+          <div className="field-group">
+            <label>Nova categoria</label>
+            <input
+              value={counterForm.newCategory}
+              onChange={event => setCounterForm(current => ({ ...current, newCategory: event.target.value }))}
+              required
+            />
+          </div>
+        ) : null}
+        <div className="field-group">
+          <label>Calibração</label>
+          <input
+            type="date"
+            value={counterForm.calibratedAt}
+            onChange={event => setCounterForm(current => ({ ...current, calibratedAt: event.target.value }))}
+            required
+          />
+        </div>
+        <div className="field-group">
+          <label>Vencimento</label>
+          <input
+            type="date"
+            value={counterForm.expiresAt}
+            onChange={event => setCounterForm(current => ({ ...current, expiresAt: event.target.value }))}
+            required
+          />
+        </div>
+        <div className="admin-form-actions">
+          <button
+            className="mini-btn"
+            type="submit"
+            disabled={counterMutations.createCounter.isPending || counterMutations.updateCounter.isPending}
+          >
+            {submitLabel}
+          </button>
+          <button className="mini-btn alt" type="button" onClick={resetCounterForm}>
+            Cancelar
+          </button>
+        </div>
+      </form>
+    );
+
     return (
-      <>
-        <div className="admin-toolbar">
-          <div className="sec">{counterEditingId ? 'Editar contador' : 'Contadores'}</div>
-          {!showCounterForm && !counterEditingId ? (
+      <div className="admin-stack">
+        <article className="card admin-card">
+          <div className="admin-section-head admin-card-toolbar">
+            <div>
+              <div className="admin-card-title">Contadores</div>
+              <div className="admin-card-subtitle">Cadastre o contador e selecione o tipo de equipamento.</div>
+            </div>
             <button
-              className="mini-btn"
+              className="mini-btn alt"
               type="button"
               onClick={() => {
+                setCounterEditingId(null);
                 setShowCounterForm(true);
+                setCounterForm({ ...emptyCounterForm, category: allCounterCategories.includes(DEFAULT_COUNTER_CATEGORY) ? DEFAULT_COUNTER_CATEGORY : allCounterCategories[0] || DEFAULT_COUNTER_CATEGORY });
               }}
             >
               + Novo contador
             </button>
-          ) : null}
-        </div>
-          {showCounterForm && !counterEditingId ? (
-          <form className="admin-inline-form admin-form-grid" onSubmit={handleCounterSubmit}>
-            <div className="field-group">
-              <label htmlFor="counter-code">Código</label>
-              <input
-                id="counter-code"
-                value={counterForm.code}
-                onChange={event => setCounterForm(current => ({ ...current, code: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="counter-serial">Serial</label>
-              <input
-                id="counter-serial"
-                value={counterForm.serialNumber}
-                onChange={event => setCounterForm(current => ({ ...current, serialNumber: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="counter-calibrated">Calibração</label>
-              <input
-                id="counter-calibrated"
-                type="date"
-                value={counterForm.calibratedAt}
-                onChange={event => setCounterForm(current => ({ ...current, calibratedAt: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="counter-expires">Vencimento</label>
-              <input
-                id="counter-expires"
-                type="date"
-                value={counterForm.expiresAt}
-                onChange={event => setCounterForm(current => ({ ...current, expiresAt: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="admin-form-actions">
-              <button
-                className="mini-btn"
-                type="submit"
-                disabled={counterMutations.createCounter.isPending || counterMutations.updateCounter.isPending}
-              >
-                {counterEditingId ? 'Salvar contador' : 'Criar contador'}
-              </button>
-              {counterEditingId ? (
-                <button className="mini-btn alt" type="button" onClick={resetCounterForm}>
-                  {'Cancelar edição'}
+          </div>
+          {showCounterForm && !counterEditingId ? renderCounterForm('Criar contador') : null}
+        </article>
+        {visibleCategories.length ? visibleCategories.map(category => {
+          const categoryCounters = visibleGroupedCounters[category] || [];
+          return (
+            <article className="card admin-card" key={category}>
+              <div className="admin-section-head admin-card-toolbar">
+                <div>
+                  <div className="admin-card-title">{formatUnitCategory(category)}</div>
+                  <div className="admin-card-subtitle">{categoryCounters.length} contador(es)</div>
+                </div>
+                <button className="mini-btn alt" type="button" onClick={() => startEditCounterCategory(category)}>
+                  Editar categoria
                 </button>
-              ) : (
-                <button className="mini-btn alt" type="button" onClick={resetCounterForm}>
-                  Cancelar
-                </button>
-              )}
-            </div>
-          </form>
-          ) : null}
-
-          {counters.length ? (
-            <div className="admin-stack">
-              {counters.map(item => (
-                <article className="card admin-card" key={item.id}>
-                  <div className="admin-item-row">
-                    <div className="admin-item-main">
-                      <div className="admin-item-title">{item.code}</div>
-                      <div className="admin-item-sub">
-                        Serial {item.serialNumber} - Calibração: {formatDate(item.calibratedAt)} - Vencimento: {formatDate(item.expiresAt)}
-                      </div>
-                    </div>
-                    <div className="admin-actions">
+              </div>
+              {counterCategoryEditing === category ? (
+                <form className="admin-inline-form admin-form-grid" onSubmit={handleCounterCategorySubmit}>
+                  <div className="field-group">
+                    <label>Nome da categoria</label>
+                    <input
+                      value={counterCategoryEditName}
+                      onChange={event => setCounterCategoryEditName(event.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="admin-form-actions">
+                    <button className="mini-btn" type="submit" disabled={counterMutations.renameCounterCategory.isPending}>
+                      Salvar categoria
+                    </button>
+                    <button className="mini-btn alt" type="button" onClick={() => { setCounterCategoryEditing(''); setCounterCategoryEditName(''); }}>
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+              <div className="admin-list">
+                {categoryCounters.length ? categoryCounters.map(item => (
+                  <div className="admin-list-row" key={item.id}>
+                    <span>
+                      <strong>{item.code}</strong> - Serial {item.serialNumber} - Calibração: {formatDate(item.calibratedAt)} - Vencimento: {formatDate(item.expiresAt)}
+                    </span>
+                    <div className="admin-card-actions">
                       <button
                         className="mini-btn alt"
                         type="button"
@@ -3610,28 +3725,22 @@ export function GestorPage() {
                         Remover
                       </button>
                     </div>
+                    {counterEditingId === item.id ? (
+                      renderCounterForm('Salvar contador')
+                    ) : null}
                   </div>
-                  {counterEditingId === item.id ? (
-                    <form className="admin-inline-form admin-form-grid" onSubmit={handleCounterSubmit}>
-                      <div className="field-group"><label>Código</label><input value={counterForm.code} onChange={event => setCounterForm(current => ({ ...current, code: event.target.value }))} required /></div>
-                      <div className="field-group"><label>Serial</label><input value={counterForm.serialNumber} onChange={event => setCounterForm(current => ({ ...current, serialNumber: event.target.value }))} required /></div>
-                      <div className="field-group"><label>Calibração</label><input type="date" value={counterForm.calibratedAt} onChange={event => setCounterForm(current => ({ ...current, calibratedAt: event.target.value }))} required /></div>
-                      <div className="field-group"><label>Vencimento</label><input type="date" value={counterForm.expiresAt} onChange={event => setCounterForm(current => ({ ...current, expiresAt: event.target.value }))} required /></div>
-                      <div className="admin-form-actions">
-                        <button className="mini-btn" type="submit" disabled={counterMutations.updateCounter.isPending}>Salvar contador</button>
-                        <button className="mini-btn alt" type="button" onClick={resetCounterForm}>Cancelar edição</button>
-                      </div>
-                    </form>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="card admin-card">
-              <p className="placeholder-copy">Nenhum contador cadastrado.</p>
-            </div>
-          )}
-      </>
+                )) : (
+                  <p className="placeholder-copy">Nenhum contador cadastrado neste tipo.</p>
+                )}
+              </div>
+            </article>
+          );
+        }) : (
+          <div className="card admin-card">
+            <p className="placeholder-copy">Nenhum contador encontrado.</p>
+          </div>
+        )}
+      </div>
     );
   }
 

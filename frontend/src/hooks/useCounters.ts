@@ -4,6 +4,7 @@ import {
   createParticleCounter,
   listParticleCounters,
   removeParticleCounter,
+  renameParticleCounterCategory,
   type ParticleCounterPayload,
   updateParticleCounter
 } from '../api/counters';
@@ -34,6 +35,11 @@ export function useCounterMutations() {
     onSuccess: invalidateCounters
   });
 
+  const renameCategoryMutation = useMutation({
+    mutationFn: renameParticleCounterCategory,
+    onSuccess: invalidateCounters
+  });
+
   const removeMutation = useMutation({
     mutationFn: (id: string) => removeParticleCounter(id),
     onSuccess: invalidateCounters
@@ -42,6 +48,7 @@ export function useCounterMutations() {
   return {
     createCounter: createMutation,
     updateCounter: updateMutation,
+    renameCounterCategory: renameCategoryMutation,
     removeCounter: removeMutation
   };
 }

@@ -78,8 +78,8 @@ async function main() {
   }
 
   const counters = [
-    { code: 'PC-01', serialNumber: 'SN-88451', calibratedAt: new Date('2026-01-10T00:00:00.000Z'), expiresAt: new Date('2027-01-10T00:00:00.000Z') },
-    { code: 'PC-02', serialNumber: 'SN-77214', calibratedAt: new Date('2025-11-02T00:00:00.000Z'), expiresAt: new Date('2026-11-02T00:00:00.000Z') }
+    { code: 'PC-01', serialNumber: 'SN-88451', category: 'CONTADOR DE PARTICULAS', calibratedAt: new Date('2026-01-10T00:00:00.000Z'), expiresAt: new Date('2027-01-10T00:00:00.000Z') },
+    { code: 'PC-02', serialNumber: 'SN-77214', category: 'CONTADOR DE PARTICULAS', calibratedAt: new Date('2025-11-02T00:00:00.000Z'), expiresAt: new Date('2026-11-02T00:00:00.000Z') }
   ];
 
   for (const counter of counters) {

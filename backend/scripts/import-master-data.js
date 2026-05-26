@@ -116,6 +116,7 @@ async function importParticleCounters(counters) {
     const payload = {
       code,
       serialNumber,
+      category: normalizeText(item.category) || 'CONTADOR DE PARTICULAS',
       calibratedAt: parseIsoDate(calibratedAt),
       expiresAt: parseIsoDate(expiresAt),
       isActive: true

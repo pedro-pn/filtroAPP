@@ -116,6 +116,7 @@ export interface ParticleCounter {
   id: string;
   code: string;
   serialNumber: string;
+  category: UnitCategory;
   calibratedAt: string;
   expiresAt: string;
   isActive: boolean;

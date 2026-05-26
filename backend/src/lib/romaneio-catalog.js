@@ -260,7 +260,7 @@ async function syncParticleCounters(tx) {
       sourceId: counter.id,
       code: counter.code,
       name: `Contador de partículas ${counter.serialNumber || counter.code}`,
-      categoryName: 'CONTADOR DE PARTICULAS',
+      categoryName: normalizeSpaces(counter.category) || 'CONTADOR DE PARTICULAS',
       kind: 'EQUIPMENT',
       measureType: 'UNIT',
       defaultUnitLabel: 'unidade',
