@@ -64,7 +64,30 @@ function extractApiErrorMessage(error: unknown) {
     const message = payload.error;
     if (typeof message === 'string' && message.trim()) return message;
   }
-  return error.message || null;
+  return translateAxiosErrorMessage(error.message, error.response?.status);
+}
+
+function translateAxiosErrorMessage(message: string | undefined, status?: number) {
+  const text = String(message || '').trim();
+  if (!text) return null;
+
+  if (/^Network Error$/i.test(text)) return 'Não foi possível conectar ao servidor.';
+  if (/^Failed to fetch$/i.test(text)) return 'Não foi possível conectar ao servidor.';
+  if (/^Load failed$/i.test(text)) return 'Não foi possível carregar os dados.';
+  if (/timeout of \d+ms exceeded/i.test(text)) return 'A solicitação excedeu o tempo limite.';
+  if (/Request failed with status code/i.test(text)) {
+    if (status === 400) return 'Requisição inválida.';
+    if (status === 401) return 'Sessão inválida ou expirada.';
+    if (status === 403) return 'Você não tem permissão para executar esta ação.';
+    if (status === 404) return 'Recurso não encontrado.';
+    if (status === 409) return 'Conflito ao salvar os dados.';
+    if (status === 413) return 'Arquivo muito grande.';
+    if (status === 429) return 'Muitas tentativas. Tente novamente mais tarde.';
+    if (status && status >= 500) return 'Erro interno do servidor.';
+    return 'Falha na comunicação com a API.';
+  }
+
+  return text;
 }
 
 apiClient.interceptors.request.use(config => {

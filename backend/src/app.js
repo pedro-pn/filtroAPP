@@ -8,6 +8,7 @@ import { ZodError } from 'zod';
 
 import env from './config/env.js';
 import asyncHandler from './lib/async-handler.js';
+import { localizedZodErrorDetails, localizedZodIssues } from './lib/zod-error.js';
 import { requireAuth } from './middleware/auth.js';
 import apiRouter from './routes/index.js';
 import {
@@ -78,10 +79,11 @@ app.use((err, _req, res, _next) => {
   console.error(err);
 
   if (err instanceof ZodError) {
-    const firstMessage = err.issues?.find(issue => issue.message)?.message;
+    const issues = localizedZodIssues(err.issues || []);
+    const firstMessage = issues.find(issue => issue.message)?.message;
     return res.status(400).json({
       error: firstMessage ? `Dados inválidos: ${firstMessage}` : 'Dados inválidos',
-      details: err.flatten()
+      details: localizedZodErrorDetails(err)
     });
   }
 
@@ -108,7 +110,7 @@ app.use((err, _req, res, _next) => {
   const isProduction = env.nodeEnv === 'production';
   const status = err.status || err.statusCode || 500;
   res.status(status).json({
-    error: status >= 500 && isProduction ? 'Erro interno do servidor.' : (err.message || 'Internal server error')
+    error: status >= 500 && isProduction ? 'Erro interno do servidor.' : (err.message || 'Erro interno do servidor.')
   });
 });
 

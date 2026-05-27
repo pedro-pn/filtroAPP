@@ -16,23 +16,23 @@ import { requireAuth } from '../../middleware/auth.js';
 const router = Router();
 
 const loginSchema = z.object({
-  username: z.string().min(1),
-  password: z.string().min(1),
+  username: z.string().min(1, 'Informe o usuário.'),
+  password: z.string().min(1, 'Informe a senha.'),
   rememberMe: z.boolean().optional()
 });
 const forgotPasswordSchema = z.object({
-  identifier: z.string().min(1)
+  identifier: z.string().min(1, 'Informe o usuário, e-mail ou CNPJ.')
 });
 const resetPasswordSchema = z.object({
-  token: z.string().min(1),
-  password: z.string().min(6)
+  token: z.string().min(1, 'Token obrigatório.'),
+  password: z.string().min(6, 'A senha deve ter pelo menos 6 caracteres.')
 });
 const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1),
-  newPassword: z.string().min(6)
+  currentPassword: z.string().min(1, 'Informe a senha atual.'),
+  newPassword: z.string().min(6, 'A nova senha deve ter pelo menos 6 caracteres.')
 });
 const accountSchema = z.object({
-  email: z.union([z.string().trim().email(), z.literal(''), z.null()]).optional()
+  email: z.union([z.string().trim().email('Informe um e-mail válido.'), z.literal(''), z.null()]).optional()
 });
 const clientPrivacyConsentSchema = z.object({
   privacyNoticeAccepted: z.literal(true, {
