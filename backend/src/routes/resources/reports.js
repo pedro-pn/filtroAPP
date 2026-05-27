@@ -25,6 +25,7 @@ import { saveRlqDocx, saveRlqPdf, organizeRlqPhotos } from '../../lib/report-rlq
 import { saveRcpDocx, saveRcpPdf, organizeRcpPhotos, calcServiceMinutes } from '../../lib/report-rcp.js';
 import { saveRlmDocx, saveRlmPdf, organizeRlmPhotos } from '../../lib/report-rlm.js';
 import { saveRlfDocx, saveRlfPdf, organizeRlfPhotos } from '../../lib/report-rlf.js';
+import { saveRliDocx, saveRliPdf, organizeRliPhotos } from '../../lib/report-rli.js';
 import { downloadSignedZapSignDocument, getZapSignDocument } from '../../lib/zapsign.js';
 import { reconcileLegacyZapSignReport } from '../../lib/zapsign-legacy-reconciliation.js';
 import {
@@ -982,7 +983,7 @@ export function derivedReportsForProjectWhere(projectId) {
     projectId,
     deletedAt: null,
     project: activeReportProjectWhere(),
-    reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM, ReportType.RLF] }
+    reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM, ReportType.RLF, ReportType.RLI] }
   };
 }
 
@@ -1173,6 +1174,7 @@ async function generateReportPdfAsset(report) {
   if (report.reportType === 'RCPU') return saveRcpPdf(report);
   if (report.reportType === 'RLM') return saveRlmPdf(report);
   if (report.reportType === 'RLF') return saveRlfPdf(report);
+  if (report.reportType === 'RLI') return saveRliPdf(report);
   return saveReportPdf(report);
 }
 
@@ -1184,11 +1186,12 @@ async function generateReportDocxAsset(report) {
   if (report.reportType === 'RCPU') return saveRcpDocx(report);
   if (report.reportType === 'RLM') return saveRlmDocx(report);
   if (report.reportType === 'RLF') return saveRlfDocx(report);
+  if (report.reportType === 'RLI') return saveRliDocx(report);
   return saveReportDocx(report);
 }
 
 async function refreshDerivedReportSource(report) {
-  if (![ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM, ReportType.RLF].includes(report.reportType)) {
+  if (![ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM, ReportType.RLF, ReportType.RLI].includes(report.reportType)) {
     return report;
   }
   const parentRdoId = report.specialConditions?.parentRdoId;
@@ -1205,6 +1208,7 @@ async function refreshDerivedReportSource(report) {
     if (report.reportType === ReportType.RCPU) await syncApprovedRcpReports(tx, parent);
     if (report.reportType === ReportType.RLM) await syncApprovedRlmReports(tx, parent);
     if (report.reportType === ReportType.RLF) await syncApprovedRlfReports(tx, parent);
+    if (report.reportType === ReportType.RLI) await syncApprovedRliReports(tx, parent);
   });
 
   return prisma.report.findUniqueOrThrow({
@@ -1916,6 +1920,7 @@ async function restoreReportFromSnapshot(tx, reportId, originalSnapshot) {
   await syncApprovedRcpReports(tx, restored);
   await syncApprovedRlmReports(tx, restored);
   await syncApprovedRlfReports(tx, restored);
+  await syncApprovedRliReports(tx, restored);
   return restored;
 }
 
@@ -1998,6 +2003,8 @@ async function organizeAndPersist(report) {
     urlMap = await organizeRlmPhotos(report, projectFolderName);
   } else if (report.reportType === 'RLF') {
     urlMap = await organizeRlfPhotos(report, projectFolderName);
+  } else if (report.reportType === 'RLI') {
+    urlMap = await organizeRliPhotos(report, projectFolderName);
   } else {
     urlMap = await organizePhotos(report, projectFolderName);
   }
@@ -2019,7 +2026,7 @@ async function organizeAndPersist(report) {
     // Para RTP/RLQ, também atualiza o extraData do serviço-fonte do RDO para que
     // re-edições do RDO não percam as URLs organizadas das fotos.
     const sourceServiceId = report.specialConditions?.serviceId;
-    if (sourceServiceId && (report.reportType === 'RTP' || report.reportType === 'RLQ' || report.reportType === 'RCPU' || report.reportType === 'RLM' || report.reportType === 'RLF')) {
+    if (sourceServiceId && (report.reportType === 'RTP' || report.reportType === 'RLQ' || report.reportType === 'RCPU' || report.reportType === 'RLM' || report.reportType === 'RLF' || report.reportType === 'RLI')) {
       try {
         const sourceService = await prisma.reportService.findUnique({
           where: { id: sourceServiceId },
@@ -3107,31 +3114,31 @@ async function syncApprovedRlmReports(tx, report) {
   }
 }
 
-async function syncApprovedRlfReports(tx, report) {
+async function syncApprovedInhibitionReports(tx, report, targetReportType) {
   if (!report || report.reportType !== ReportType.RDO || report.status !== ReportStatus.APPROVED) {
     return;
   }
 
   const inibicaoServices = (report.services || []).filter(
-    s => s.serviceType === 'inibicao' && s.finalized === true && serviceWantsReportType(s, ReportType.RLF)
+    s => s.serviceType === 'inibicao' && s.finalized === true && serviceWantsReportType(s, targetReportType)
   );
 
   if (!inibicaoServices.length) {
     return;
   }
 
-  const existingRlfs = await tx.report.findMany({
+  const existingReports = await tx.report.findMany({
     where: {
       projectId: report.projectId,
       deletedAt: null,
       project: activeReportProjectWhere(),
-      reportType: ReportType.RLF
+      reportType: targetReportType
     },
     select: { id: true, projectId: true, reportType: true, sequenceNumber: true, status: true, specialConditions: true }
   });
 
   const existingByLinkKey = new Map();
-  existingRlfs.forEach(item => {
+  existingReports.forEach(item => {
     const special = item.specialConditions || {};
     const linkKey = String(special.serviceLinkKey || '').trim();
     const serviceId = String(special.serviceId || '').trim();
@@ -3176,11 +3183,11 @@ async function syncApprovedRlfReports(tx, report) {
       : [];
     const resolvedCollaborators = resolveCollaboratorsByShift(report, collaborators);
 
-    const rlfPayload = {
+    const payload = {
       projectId: report.projectId,
       createdByUserId: report.createdByUserId,
       reviewedByUserId: report.reviewedByUserId,
-      reportType: ReportType.RLF,
+      reportType: targetReportType,
       status: ReportStatus.APPROVED,
       reportDate: report.reportDate,
       arrivalTime: service.startTime || report.arrivalTime,
@@ -3204,16 +3211,16 @@ async function syncApprovedRlfReports(tx, report) {
       }
     };
 
-    const existingRlf = serviceLinkKey ? findExistingByLinkKeys(existingByLinkKey, service, service.id) : null;
+    const existingReport = serviceLinkKey ? findExistingByLinkKeys(existingByLinkKey, service, service.id) : null;
 
-    if (existingRlf) {
-      await validateDerivedReportSequenceMove(tx, existingRlf, report.projectId, ReportType.RLF);
-      await tx.reportCollaborator.deleteMany({ where: { reportId: existingRlf.id } });
-      await tx.reportService.deleteMany({ where: { reportId: existingRlf.id } });
+    if (existingReport) {
+      await validateDerivedReportSequenceMove(tx, existingReport, report.projectId, targetReportType);
+      await tx.reportCollaborator.deleteMany({ where: { reportId: existingReport.id } });
+      await tx.reportService.deleteMany({ where: { reportId: existingReport.id } });
       await tx.report.update({
-        where: { id: existingRlf.id },
+        where: { id: existingReport.id },
         data: {
-          ...rlfPayload,
+          ...payload,
           collaborators: {
             create: collabIds.map(id => ({ collaboratorId: id }))
           },
@@ -3234,11 +3241,11 @@ async function syncApprovedRlfReports(tx, report) {
       continue;
     }
 
-    const rlfSeq = await reserveSequence(tx, report.projectId, ReportType.RLF);
+    const sequenceNumber = await reserveSequence(tx, report.projectId, targetReportType);
     await tx.report.create({
       data: {
-        ...rlfPayload,
-        sequenceNumber: rlfSeq,
+        ...payload,
+        sequenceNumber,
         collaborators: {
           create: collabIds.map(id => ({ collaboratorId: id }))
         },
@@ -3257,6 +3264,14 @@ async function syncApprovedRlfReports(tx, report) {
       }
     });
   }
+}
+
+async function syncApprovedRlfReports(tx, report) {
+  return syncApprovedInhibitionReports(tx, report, ReportType.RLF);
+}
+
+async function syncApprovedRliReports(tx, report) {
+  return syncApprovedInhibitionReports(tx, report, ReportType.RLI);
 }
 
 function independentReportTypesForService(service) {
@@ -3900,6 +3915,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
     await syncApprovedRcpReports(tx, created);
     await syncApprovedRlmReports(tx, created);
     await syncApprovedRlfReports(tx, created);
+    await syncApprovedRliReports(tx, created);
     return created;
   });
   const tPostTx = Date.now();
@@ -4096,6 +4112,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     await syncApprovedRcpReports(tx, updated);
     await syncApprovedRlmReports(tx, updated);
     await syncApprovedRlfReports(tx, updated);
+    await syncApprovedRliReports(tx, updated);
     return updated;
   });
   const tPutTx = Date.now();
@@ -4335,6 +4352,7 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
       await syncApprovedRcpReports(tx, updated);
       await syncApprovedRlmReports(tx, updated);
       await syncApprovedRlfReports(tx, updated);
+      await syncApprovedRliReports(tx, updated);
     }
 
     return updated;

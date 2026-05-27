@@ -1494,7 +1494,7 @@ function buildDerivedRows(report: ReportSummary) {
       'Hora de início', 'Hora de término/pausa', 'Aprovado pelo cliente?', 'Observações'
     ],
     RLF: ['Embarcação', 'Sistema', 'Material da tubulação', 'Steps', 'Linhas', 'Observações'],
-    RLI: ['Equipamento(s)', 'Sistema', 'Material da tubulação', 'Etapas realizadas no dia', 'Observações']
+    RLI: ['Embarcação', 'Sistema', 'Material da tubulação', 'Linhas', 'Observações']
   };
 
   for (const label of fieldsByType[report.reportType] || []) {
