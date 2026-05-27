@@ -502,7 +502,7 @@ export function NewRomaneioPage() {
                                   <input
                                     type="number"
                                     min="0"
-                                    step="0.001"
+                                    step="1"
                                     value={quantities[item.id] || ''}
                                     onChange={event => setQuantities(current => ({ ...current, [item.id]: event.target.value }))}
                                     placeholder={item.defaultUnitLabel}
@@ -548,7 +548,7 @@ export function NewRomaneioPage() {
             </label>
             <label className="field-group">
               <span>Quantidade</span>
-              <input type="number" min="0" step="0.001" value={custom.quantity} onChange={event => setCustom({ ...custom, quantity: event.target.value })} />
+              <input type="number" min="0" step="1" value={custom.quantity} onChange={event => setCustom({ ...custom, quantity: event.target.value })} />
             </label>
             <label className="field-group">
               <span>Unidade</span>
