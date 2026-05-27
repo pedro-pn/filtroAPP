@@ -1641,6 +1641,15 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
   );
 }
 
+function collaboratorCanEditReport(user: ReturnType<typeof useAuth>['user'], report: ReportSummary) {
+  if (!user || user.role !== 'COLLABORATOR') return false;
+  if (report.createdByUserId === user.id) return true;
+  const collaboratorId = user.collaboratorId;
+  if (!collaboratorId) return false;
+  if (report.project?.operatorId === collaboratorId) return true;
+  return (report.collaborators || []).some(link => link.collaboratorId === collaboratorId);
+}
+
 export function ReportDetailPage() {
   const navigate = useNavigate();
   const { id = '' } = useParams();
@@ -1659,7 +1668,7 @@ export function ReportDetailPage() {
     && (
       (report.reportType === 'RDO' && (
         user?.role === 'MANAGER'
-        || user?.role === 'COLLABORATOR'
+        || collaboratorCanEditReport(user, report)
         || (user?.role === 'COORDINATOR' && report.createdByUserId === user.id)
       ))
       || (user?.role === 'MANAGER' && isServiceOnlyReport(report))

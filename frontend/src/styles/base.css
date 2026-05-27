@@ -2192,7 +2192,8 @@ a {
   background: var(--wh);
 }
 
-.cc-add-row input {
+.cc-add-row input,
+.cc-add-row select {
   min-width: 0;
   flex: 1;
   border: 0;

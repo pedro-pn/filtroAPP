@@ -142,7 +142,7 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
         selected.map(async file => ({
           label: uploadLabel,
           fileName: file.name,
-          mimeType: file.type || 'image/jpeg',
+          mimeType: file.type || (/\.(hei[cf])$/i.test(file.name) ? 'image/heic' : 'image/jpeg'),
           dataUrl: await fileToDataUrl(file),
           projectId
         }))
@@ -188,7 +188,7 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
         ref={inputRef}
         className="visually-hidden"
         type="file"
-        accept="image/*"
+        accept="image/*,.heic,.heif"
         multiple
         disabled={disabled || isUploading}
         onChange={event => void handleFiles(event.target.files)}

@@ -893,7 +893,8 @@ function contentDisposition(fileName) {
 const include = {
   project: {
     include: {
-      operator: true
+      operator: true,
+      authorizedUsers: true
     }
   },
   createdBy: {
@@ -943,24 +944,40 @@ const include = {
 
 export function collaboratorCanAccessProject(auth, project) {
   const collaboratorId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
+  const authorized = Array.isArray(project?.authorizedUsers)
+    && project.authorizedUsers.some(link => link.userId === auth.user?.id);
   return !!(
-    collaboratorId
-    && project?.isActive
+    project?.isActive
     && !project.deletedAt
-    && project.visibleToCollaborators
     && !project.managerOnly
-    && project.operatorId === collaboratorId
+    && (
+      authorized
+      || (
+        collaboratorId
+        && project.visibleToCollaborators
+        && project.operatorId === collaboratorId
+      )
+    )
   );
 }
 
-export function collaboratorReportProjectWhere(collaboratorId) {
-  if (!collaboratorId) return { id: '__NO_MATCH__' };
+export function collaboratorReportProjectWhere(collaboratorId, userId) {
+  if (!collaboratorId && !userId) return { id: '__NO_MATCH__' };
   return {
     isActive: true,
     deletedAt: null,
-    visibleToCollaborators: true,
     managerOnly: false,
-    operatorId: collaboratorId
+    OR: [
+      {
+        visibleToCollaborators: true,
+        operatorId: collaboratorId || '__NO_MATCH__'
+      },
+      {
+        authorizedUsers: {
+          some: { userId: userId || '__NO_MATCH__' }
+        }
+      }
+    ]
   };
 }
 
@@ -1035,6 +1052,14 @@ export async function canAccessReport(auth, report) {
     if (!clientCanAccessProject(auth, report.project)) return false;
     return canClientSeeReportForAccess(report);
   }
+  if (collaboratorCanMutateReport(auth, report)) return true;
+  if (Array.isArray(report.project?.authorizedUsers)) {
+    if (report.project.authorizedUsers.some(link => link.userId === auth.user.id)) return true;
+  }
+  return false;
+}
+
+export function collaboratorCanMutateReport(auth, report) {
   if (report.createdByUserId === auth.user.id) return true;
   const collabId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
   if (collabId && report.project?.operatorId === collabId) return true;
@@ -3493,12 +3518,12 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
     assignActiveReportProjectWhere(where, clientProjectAccessWhere(req.auth));
   } else if (req.auth.user.role === 'COORDINATOR') {
     assignActiveReportProjectWhere(where, { managerOnly: false });
-  } else if (req.query.mine === 'true' && req.auth.user.role === 'COLLABORATOR') {
+  } else if (req.auth.user.role === 'COLLABORATOR') {
     const me = await prisma.user.findUnique({
       where: { id: req.auth.user.id },
       select: { collaboratorId: true }
     });
-    assignActiveReportProjectWhere(where, collaboratorReportProjectWhere(me?.collaboratorId));
+    assignActiveReportProjectWhere(where, collaboratorReportProjectWhere(me?.collaboratorId, req.auth.user.id));
   } else if (req.query.mine === 'true') {
     where.createdByUserId = req.auth.user.id;
     assignActiveReportProjectWhere(where, { managerOnly: false });
@@ -3773,6 +3798,9 @@ router.delete('/:id/services/:serviceId', requireAuth, requireRdoAccess, asyncHa
   if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
+  if (req.auth.user.role === 'COLLABORATOR' && !collaboratorCanMutateReport(req.auth, existing)) {
+    return res.status(403).json({ error: 'Você pode visualizar este relatório, mas não pode editá-lo.' });
+  }
 
   const service = await prisma.reportService.findFirst({
     where: { id: req.params.serviceId, reportId: req.params.id },
@@ -3813,7 +3841,7 @@ router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (
   const createdReports = await prisma.$transaction(async tx => {
     const project = await tx.project.findFirstOrThrow({
       where: { id: data.projectId, ...activeReportProjectWhere() },
-      include: { operator: true }
+      include: { operator: true, authorizedUsers: true }
     });
     assertProjectAllowsInhibition(project, data.services);
 
@@ -3843,7 +3871,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
   const item = await prisma.$transaction(async tx => {
     const project = await tx.project.findFirstOrThrow({
       where: { id: data.projectId, ...activeReportProjectWhere() },
-      include: { operator: true }
+      include: { operator: true, authorizedUsers: true }
     });
     assertProjectAllowsInhibition(project, data.services);
     if (project.managerOnly && req.auth.user.role !== 'MANAGER') {
@@ -3968,6 +3996,9 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
+  if (req.auth.user.role === 'COLLABORATOR' && !collaboratorCanMutateReport(req.auth, existing)) {
+    return res.status(403).json({ error: 'Você pode visualizar este relatório, mas não pode editá-lo.' });
+  }
   if (req.auth.user.role !== 'MANAGER') {
     const targetProject = await prisma.project.findFirstOrThrow({
       where: { id: data.projectId, ...activeReportProjectWhere() },
@@ -3976,7 +4007,8 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
         deletedAt: true,
         visibleToCollaborators: true,
         managerOnly: true,
-        operatorId: true
+        operatorId: true,
+        authorizedUsers: true
       }
     });
     if (targetProject.managerOnly) {
@@ -3994,7 +4026,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   const item = await prisma.$transaction(async tx => {
     const project = await tx.project.findFirstOrThrow({
       where: { id: data.projectId, ...activeReportProjectWhere() },
-      include: { operator: true }
+      include: { operator: true, authorizedUsers: true }
     });
     assertProjectAllowsInhibition(project, data.services);
     const overtime = calculateReportOvertime(project, data);
@@ -4185,6 +4217,9 @@ router.post('/:id/cancel-edit', requireAuth, requireRdoAccess, asyncHandler(asyn
 
   if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
+  }
+  if (!collaboratorCanMutateReport(req.auth, existing)) {
+    return res.status(403).json({ error: 'Você pode visualizar este relatório, mas não pode desfazer esta edição.' });
   }
 
   const originalSnapshot = cloneJson(existing.specialConditions?.__editOriginalSnapshot);

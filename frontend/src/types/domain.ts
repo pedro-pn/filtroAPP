@@ -81,6 +81,11 @@ export interface Project {
   operatorId: string | null;
   clientSegment?: string | null;
   operator?: Collaborator | null;
+  authorizedUsers?: Array<{
+    projectId?: string;
+    userId: string;
+    user?: InternalUserSummary;
+  }>;
   reportSequences?: ProjectReportSequence[];
   surveys?: SatisfactionSurveySummary[];
   createdAt?: string;

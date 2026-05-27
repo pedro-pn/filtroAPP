@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { ReportType } from '@prisma/client';
+import { AccountType, ReportType, UserRole } from '@prisma/client';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
@@ -7,6 +7,7 @@ import { ensureClientAccountForProject, ensureClientCcAccounts } from '../../lib
 import { clientProjectAccessWhere } from '../../lib/client-project-access.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import { invalidateUnsignedInternalSignatureRound, signatureEvidenceFromRequest } from '../../lib/internal-report-signatures.js';
+import { ModuleRoleCodes } from '../../lib/module-roles.js';
 import prisma from '../../lib/prisma.js';
 import { clearPendingProjectLegacyExternalSignatureState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
@@ -38,6 +39,7 @@ const schema = z.object({
   includesSunday: z.boolean().default(false),
   operatorId: z.string().nullable().optional(),
   clientSegment: z.string().nullable().optional(),
+  authorizedUserIds: z.array(z.string()).default([]),
   reportSequences: z.array(z.object({
     reportType: z.nativeEnum(ReportType),
     nextNumber: z.number().int().nonnegative()
@@ -74,6 +76,31 @@ function normalizeProjectInput(data) {
     clientEmailCc,
     clientSigners
   };
+}
+
+function uniqueIds(values = []) {
+  return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))];
+}
+
+async function assertAuthorizedProjectUsers(userIds, prismaClient = prisma) {
+  const ids = uniqueIds(userIds);
+  if (!ids.length) return ids;
+  const users = await prismaClient.user.findMany({
+    where: {
+      id: { in: ids },
+      isActive: true,
+      role: UserRole.COLLABORATOR,
+      accountType: { in: [AccountType.INTERNAL, AccountType.ADMIN] },
+      moduleRoles: { some: { role: ModuleRoleCodes.RDO_COLLABORATOR } }
+    },
+    select: { id: true }
+  });
+  if (users.length === ids.length) return ids;
+  throw new z.ZodError([{
+    code: z.ZodIssueCode.custom,
+    path: ['authorizedUserIds'],
+    message: 'Selecione apenas usuários internos ativos com perfil de colaborador RDO.'
+  }]);
 }
 
 export async function assertActiveClientSegment(slug, prismaClient = prisma) {
@@ -162,15 +189,42 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
   } else {
     const collaboratorId = req.auth.user.collaboratorId;
     where.isActive = true;
-    where.visibleToCollaborators = true;
     where.managerOnly = false;
-    where.operatorId = collaboratorId || '__NO_MATCH__';
+    where.OR = [
+      {
+        visibleToCollaborators: true,
+        operatorId: collaboratorId || '__NO_MATCH__'
+      },
+      {
+        authorizedUsers: {
+          some: { userId: req.auth.user.id }
+        }
+      }
+    ];
   }
 
   const items = await prisma.project.findMany({
     where,
     include: {
       operator: true,
+      authorizedUsers: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              name: true,
+              email: true,
+              role: true,
+              accountType: true,
+              isActive: true,
+              collaboratorId: true,
+              collaborator: true,
+              moduleRoles: true
+            }
+          }
+        }
+      },
       reportSequences: true,
       surveys: {
         orderBy: { createdAt: 'desc' },
@@ -197,17 +251,39 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
 router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
   const data = normalizeProjectInput(schema.parse(req.body));
   await assertActiveClientSegment(data.clientSegment);
-  const { reportSequences, ...projectData } = data;
+  const authorizedUserIds = await assertAuthorizedProjectUsers(data.authorizedUserIds);
+  const { reportSequences, authorizedUserIds: _authorizedUserIds, ...projectData } = data;
   const item = await prisma.$transaction(async tx => {
     const created = await tx.project.create({
       data: {
         ...projectData,
+        authorizedUsers: {
+          create: authorizedUserIds.map(userId => ({ userId }))
+        },
         reportSequences: {
           create: reportSequences
         }
       },
       include: {
         operator: true,
+        authorizedUsers: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                name: true,
+                email: true,
+                role: true,
+                accountType: true,
+                isActive: true,
+                collaboratorId: true,
+                collaborator: true,
+                moduleRoles: true
+              }
+            }
+          }
+        },
         reportSequences: true
       }
     });
@@ -247,7 +323,10 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
   if (data.clientSegment !== undefined) {
     await assertActiveClientSegment(data.clientSegment);
   }
-  const { reportSequences, ...projectData } = data;
+  const authorizedUserIds = data.authorizedUserIds !== undefined
+    ? await assertAuthorizedProjectUsers(data.authorizedUserIds)
+    : null;
+  const { reportSequences, authorizedUserIds: _authorizedUserIds, ...projectData } = data;
 
   const item = await prisma.$transaction(async tx => {
     const previousProject = await tx.project.findUniqueOrThrow({
@@ -262,11 +341,21 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
     if (reportSequences) {
       await tx.projectReportSeq.deleteMany({ where: { projectId: req.params.id } });
     }
+    if (authorizedUserIds) {
+      await tx.projectAuthorizedUser.deleteMany({ where: { projectId: req.params.id } });
+    }
 
     const updated = await tx.project.update({
       where: { id: req.params.id },
       data: {
         ...projectData,
+        ...(authorizedUserIds
+          ? {
+              authorizedUsers: {
+                create: authorizedUserIds.map(userId => ({ userId }))
+              }
+            }
+          : {}),
         ...(reportSequences
           ? {
               reportSequences: {
@@ -277,6 +366,24 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
       },
       include: {
         operator: true,
+        authorizedUsers: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                name: true,
+                email: true,
+                role: true,
+                accountType: true,
+                isActive: true,
+                collaboratorId: true,
+                collaborator: true,
+                moduleRoles: true
+              }
+            }
+          }
+        },
         reportSequences: true
       }
     });

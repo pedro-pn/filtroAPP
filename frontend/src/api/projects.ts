@@ -21,6 +21,7 @@ export interface ProjectPayload {
   includesSunday?: boolean;
   operatorId?: string | null;
   clientSegment?: string | null;
+  authorizedUserIds?: string[];
   reportSequences?: Array<Pick<ProjectReportSequence, 'reportType' | 'nextNumber'>>;
 }
 

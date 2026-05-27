@@ -5,6 +5,7 @@ import {
   assertCompleteTubeRows,
   canAccessReport,
   collaboratorCanAccessProject,
+  collaboratorCanMutateReport,
   collaboratorReportProjectWhere
 } from '../src/routes/resources/reports.js';
 
@@ -50,15 +51,52 @@ test('collaborator access requires an active visible non-manager project', () =>
   assert.equal(collaboratorCanAccessProject(auth, { ...baseProject, managerOnly: true }), false);
 });
 
-test('collaborator report list filters by led project only', () => {
-  assert.deepEqual(collaboratorReportProjectWhere('collab-carlos'), {
+test('collaborator access allows explicit authorized project users', () => {
+  const project = {
+    isActive: true,
+    visibleToCollaborators: false,
+    managerOnly: false,
+    operatorId: 'collab-ana',
+    authorizedUsers: [{ userId: 'user-carlos' }]
+  };
+
+  assert.equal(collaboratorCanAccessProject(auth, project), true);
+});
+
+test('project authorization grants report viewing without edit ownership', async () => {
+  const report = {
+    id: 'report-1',
+    createdByUserId: 'user-ana',
+    project: {
+      managerOnly: false,
+      operatorId: 'collab-ana',
+      authorizedUsers: [{ userId: 'user-carlos' }]
+    },
+    collaborators: []
+  };
+
+  assert.equal(await canAccessReport(auth, report), true);
+  assert.equal(collaboratorCanMutateReport(auth, report), false);
+});
+
+test('collaborator report list filters by led or explicitly authorized project', () => {
+  assert.deepEqual(collaboratorReportProjectWhere('collab-carlos', 'user-carlos'), {
     isActive: true,
     deletedAt: null,
-    visibleToCollaborators: true,
     managerOnly: false,
-    operatorId: 'collab-carlos'
+    OR: [
+      {
+        visibleToCollaborators: true,
+        operatorId: 'collab-carlos'
+      },
+      {
+        authorizedUsers: {
+          some: { userId: 'user-carlos' }
+        }
+      }
+    ]
   });
-  assert.deepEqual(collaboratorReportProjectWhere(null), { id: '__NO_MATCH__' });
+  assert.deepEqual(collaboratorReportProjectWhere(null, null), { id: '__NO_MATCH__' });
 });
 
 test('report access rejects reports under soft-deleted projects', async () => {

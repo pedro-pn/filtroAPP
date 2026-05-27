@@ -146,6 +146,7 @@ interface ProjectFormState {
   location: string;
   operatorId: string;
   clientSegment: string;
+  authorizedUserIds: string[];
   visibleToCollaborators: boolean;
   managerOnly: boolean;
   inhibitionServiceEnabled: boolean;
@@ -240,6 +241,7 @@ const emptyProjectForm: ProjectFormState = {
   location: '',
   operatorId: '',
   clientSegment: '',
+  authorizedUserIds: [],
   visibleToCollaborators: true,
   managerOnly: false,
   inhibitionServiceEnabled: false,
@@ -738,6 +740,7 @@ function projectToForm(project: Project): ProjectFormState {
     location: project.location,
     operatorId: project.operatorId || '',
     clientSegment: project.clientSegment || '',
+    authorizedUserIds: (project.authorizedUsers || []).map(link => link.userId).filter(Boolean),
     visibleToCollaborators: project.visibleToCollaborators,
     managerOnly: project.managerOnly,
     inhibitionServiceEnabled: project.inhibitionServiceEnabled ?? false,
@@ -748,6 +751,101 @@ function projectToForm(project: Project): ProjectFormState {
     includesSunday: project.includesSunday ?? false,
     reportSequences: projectReportSequencesToForm(project.reportSequences)
   };
+}
+
+function canBeAuthorizedProjectUser(user: InternalUserSummary) {
+  return Boolean(
+    user.isActive
+    && user.role === 'COLLABORATOR'
+    && user.collaboratorId
+    && (user.moduleRoles || []).includes('rdo:collaborator')
+  );
+}
+
+function userProjectAccessLabel(user: InternalUserSummary) {
+  const collaboratorName = user.collaborator?.name || '';
+  if (collaboratorName && collaboratorName !== user.name) return `${collaboratorName} (${user.name})`;
+  return user.name || user.username;
+}
+
+function ProjectAuthorizedUsersFields({
+  form,
+  idPrefix,
+  setForm,
+  users
+}: {
+  form: ProjectFormState;
+  idPrefix: string;
+  setForm: Dispatch<SetStateAction<ProjectFormState>>;
+  users: InternalUserSummary[];
+}) {
+  const selected = new Set(form.authorizedUserIds);
+  const options = users
+    .filter(user => canBeAuthorizedProjectUser(user) || selected.has(user.id))
+    .sort((a, b) => userProjectAccessLabel(a).localeCompare(userProjectAccessLabel(b), 'pt-BR'));
+  const byId = new Map(options.map(user => [user.id, user]));
+  const selectedUsers = form.authorizedUserIds.map(userId => byId.get(userId)).filter((user): user is InternalUserSummary => Boolean(user));
+  const availableUsers = options.filter(user => !selected.has(user.id) && canBeAuthorizedProjectUser(user));
+
+  function addUser(select: HTMLSelectElement | null) {
+    const userId = select?.value || '';
+    if (!userId) return;
+    setForm(current => ({
+      ...current,
+      authorizedUserIds: Array.from(new Set([...current.authorizedUserIds, userId]))
+    }));
+    if (select) select.value = '';
+  }
+
+  function removeUser(userId: string) {
+    setForm(current => ({
+      ...current,
+      authorizedUserIds: current.authorizedUserIds.filter(id => id !== userId)
+    }));
+  }
+
+  return (
+    <div className="field-group field-group-wide">
+      <label htmlFor={`${idPrefix}-authorized-users-select`}>Usuários internos autorizados</label>
+      {options.length ? (
+        <div className="cc-list">
+          {selectedUsers.map(user => (
+            <div className="cc-row" key={user.id}>
+              <div className="cc-row-main">
+                <div className="cc-email">{userProjectAccessLabel(user)}</div>
+                <div className="cc-row-actions">
+                  <button
+                    className="email-chip-rm"
+                    type="button"
+                    aria-label={`Remover ${userProjectAccessLabel(user)}`}
+                    onClick={() => removeUser(user.id)}
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+          <div className="cc-add-row">
+            <select id={`${idPrefix}-authorized-users-select`} defaultValue="">
+              <option value="">Selecionar usuário...</option>
+              {availableUsers.map(user => (
+                <option key={user.id} value={user.id}>{userProjectAccessLabel(user)}</option>
+              ))}
+            </select>
+            <button className="cc-add-btn" type="button" disabled={!availableUsers.length} onClick={event => {
+              const select = event.currentTarget.parentElement?.querySelector('select');
+              addUser(select || null);
+            }}>
+              + Adicionar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="form-hint">Nenhum usuário interno de colaborador disponível.</div>
+      )}
+    </div>
+  );
 }
 
 function ProjectClientFields({
@@ -1567,6 +1665,7 @@ export function GestorPage() {
       isActive: projectForm.isActive,
       operatorId: projectForm.operatorId || null,
       clientSegment: projectForm.clientSegment || null,
+      authorizedUserIds: projectForm.authorizedUserIds,
       workdayHours: projectForm.workdayHours || '09:00',
       weekendWorkdayHours: projectForm.weekendWorkdayHours || '08:00',
       includesSaturday: projectForm.includesSaturday,
@@ -2393,6 +2492,12 @@ export function GestorPage() {
                     ))}
                   </select>
                 </div>
+                <ProjectAuthorizedUsersFields
+                  form={projectForm}
+                  idPrefix="project"
+                  setForm={setProjectForm}
+                  users={internalUsersQuery.data || []}
+                />
                 <div className="field-group">
                   <label htmlFor="project-segment">Segmento do cliente</label>
                   <select id="project-segment" value={projectForm.clientSegment} onChange={event => setProjectForm(current => ({ ...current, clientSegment: event.target.value }))}>
@@ -2500,6 +2605,12 @@ export function GestorPage() {
                           ))}
                         </select>
                       </div>
+                      <ProjectAuthorizedUsersFields
+                        form={projectForm}
+                        idPrefix={`project-${project.id}`}
+                        setForm={setProjectForm}
+                        users={internalUsersQuery.data || []}
+                      />
                       <div className="field-group">
                         <label htmlFor={`project-segment-${project.id}`}>Segmento do cliente</label>
                         <select id={`project-segment-${project.id}`} value={projectForm.clientSegment} onChange={event => setProjectForm(current => ({ ...current, clientSegment: event.target.value }))}>

@@ -211,6 +211,7 @@ model Project {
   deletedAt             DateTime?
   operator              Collaborator?     @relation("ProjectOperator", fields: [operatorId], references: [id], onDelete: SetNull)
   reportSequences       ProjectReportSeq[]
+  authorizedUsers       ProjectAuthorizedUser[]
   reports               Report[]
   drafts                ReportDraft[]
   surveys               SatisfactionSurvey[]
@@ -227,6 +228,17 @@ model ProjectReportSeq {
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, reportType])
+}
+
+model ProjectAuthorizedUser {
+  projectId String
+  userId    String
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, userId])
+  @@index([userId])
 }
 
 model Report {
@@ -493,6 +505,7 @@ model User {
   sessions        UserSession[]
   passwordResetTokens PasswordResetToken[]
   drafts          ReportDraft[]
+  authorizedProjects ProjectAuthorizedUser[]
   createdReports  Report[]      @relation("ReportCreator")
   reviewedReports Report[]      @relation("ReportReviewer")
   clientReportReviews ClientReportReview[] @relation("ClientReportReviewer")

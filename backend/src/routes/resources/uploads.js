@@ -4,6 +4,8 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import { Router } from 'express';
+import heicConvert from 'heic-convert';
+import sharp from 'sharp';
 import { z } from 'zod';
 
 import env from '../../config/env.js';
@@ -38,6 +40,77 @@ function safeDecode(value) {
   } catch {
     return value;
   }
+}
+
+function isHeicUpload(fileName, mimeType) {
+  const ext = path.extname(String(fileName || '')).toLowerCase();
+  const mime = String(mimeType || '').toLowerCase();
+  return ext === '.heic' || ext === '.heif' || mime === 'image/heic' || mime === 'image/heif';
+}
+
+function jpegFileName(fileName) {
+  const baseName = path.basename(String(fileName || 'imagem'), path.extname(String(fileName || '')));
+  return `${safePathLocal(baseName) || 'imagem'}.jpg`;
+}
+
+async function convertHeicWithSharp(bytes) {
+  return sharp(bytes, { failOn: 'none' })
+    .rotate()
+    .jpeg({ quality: 90 })
+    .toBuffer();
+}
+
+async function convertHeicWithFallback(bytes) {
+  const converted = await heicConvert({
+    buffer: bytes,
+    format: 'JPEG',
+    quality: 0.9
+  });
+  return Buffer.from(converted);
+}
+
+async function normalizeUploadedImage(data, bytes) {
+  if (!isHeicUpload(data.fileName, data.mimeType)) {
+    return {
+      fileName: data.fileName,
+      mimeType: data.mimeType,
+      extension: path.extname(data.fileName) || '',
+      bytes
+    };
+  }
+
+  let converted = null;
+  let conversionError = null;
+  try {
+    converted = await convertHeicWithSharp(bytes);
+  } catch (error) {
+    conversionError = error;
+    try {
+      converted = await convertHeicWithFallback(bytes);
+    } catch (fallbackError) {
+      conversionError = fallbackError || conversionError;
+    }
+  }
+
+  if (!converted?.length) {
+    if (conversionError) {
+      console.warn('Falha ao converter HEIC.', {
+        fileName: data.fileName,
+        mimeType: data.mimeType,
+        error: conversionError?.message || conversionError
+      });
+    }
+    const error = new Error('Não foi possível converter a imagem HEIC. Envie outra imagem ou tente novamente.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return {
+    fileName: jpegFileName(data.fileName),
+    mimeType: 'image/jpeg',
+    extension: '.jpg',
+    bytes: converted
+  };
 }
 
 function uniquePaths(paths) {
@@ -174,6 +247,9 @@ export function canAccessReport(auth, report) {
   if (report.createdByUserId === auth.user.id) return true;
   const collabId = auth.rawUser?.collaboratorId;
   if (collabId && report.project?.operatorId === collabId) return true;
+  if (Array.isArray(report.project?.authorizedUsers)) {
+    if (report.project.authorizedUsers.some(link => link.userId === auth.user.id)) return true;
+  }
   if (collabId && Array.isArray(report.collaborators)) {
     return report.collaborators.some(rc => rc.collaboratorId === collabId);
   }
@@ -233,7 +309,7 @@ export async function authorizeStoredFile(req, normalizedPath) {
   const reports = await prisma.report.findMany({
     where: { id: { in: candidateIds }, deletedAt: null, project: { deletedAt: null } },
     include: {
-      project: true,
+      project: { include: { authorizedUsers: true } },
       collaborators: true,
       attachments: true,
       services: {
@@ -307,8 +383,9 @@ router.post('/', requireRdoInternal, asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Formato de imagem inválido.' });
   }
 
-  const ext = path.extname(data.fileName) || '';
-  const safeName = `${Date.now()}-${randomUUID()}${ext}`;
+  const uploadedBytes = Buffer.from(match[2], 'base64');
+  const normalizedImage = await normalizeUploadedImage(data, uploadedBytes);
+  const safeName = `${Date.now()}-${randomUUID()}${normalizedImage.extension}`;
 
   let targetDir = env.reportsDir;
 
@@ -328,7 +405,7 @@ router.post('/', requireRdoInternal, asyncHandler(async (req, res) => {
   }
 
   const targetPath = path.join(targetDir, safeName);
-  await fs.writeFile(targetPath, Buffer.from(match[2], 'base64'));
+  await fs.writeFile(targetPath, normalizedImage.bytes);
 
   // URL relativa ao diretório de relatórios
   const relativePath = path.relative(env.reportsDir, targetPath)
@@ -339,8 +416,8 @@ router.post('/', requireRdoInternal, asyncHandler(async (req, res) => {
 
   res.status(201).json({
     label: data.label,
-    fileName: data.fileName,
-    mimeType: data.mimeType,
+    fileName: normalizedImage.fileName,
+    mimeType: normalizedImage.mimeType,
     url: `/relatorios/${relativePath}`
   });
 }));
