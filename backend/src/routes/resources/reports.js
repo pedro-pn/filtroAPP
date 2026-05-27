@@ -19,7 +19,7 @@ import {
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { SIGNATURE_RDO_NOTICE_VERSION, validatePrivacyNoticeAcknowledgement } from '../../lib/privacy-consent.js';
 import { saveReportDocx, organizePhotos } from '../../lib/report-docx.js';
-import { saveReportPdf } from '../../lib/report-pdf-from-docx.js';
+import { isLikelyCompletePdf, runWithPdfAbortSignal, saveReportPdf } from '../../lib/report-pdf-from-docx.js';
 import { saveRtpDocx, saveRtpPdf, organizeRtpPhotos } from '../../lib/report-rtp.js';
 import { saveRlqDocx, saveRlqPdf, organizeRlqPhotos } from '../../lib/report-rlq.js';
 import { saveRcpDocx, saveRcpPdf, organizeRcpPhotos, calcServiceMinutes } from '../../lib/report-rcp.js';
@@ -77,6 +77,7 @@ const publicSignatureLimiter = createMemoryRateLimit({
   message: 'Muitas tentativas. Tente novamente mais tarde.'
 });
 const pdfDownloadJobs = new Map();
+let activeGeneratedPdfDownloads = 0;
 
 async function uniqueSignatureValidationCode() {
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -1187,6 +1188,7 @@ async function getFreshGeneratedReportPdf(report) {
 
   const reportUpdatedAt = reportContentUpdatedAtMs(report);
   if (reportUpdatedAt && stat.mtimeMs < reportUpdatedAt) return null;
+  if (!(await isLikelyCompletePdf(target.targetPath))) return null;
 
   return {
     fileName: target.fileName,
@@ -1195,11 +1197,29 @@ async function getFreshGeneratedReportPdf(report) {
 }
 
 async function generateReportPdfDownload(report) {
-  const saved = await generateReportPdfAsset(report);
-  return {
-    fileName: saved.fileName,
-    buffer: await fs.readFile(saved.targetPath)
-  };
+  if (activeGeneratedPdfDownloads > 0) {
+    const error = new Error('Outra geração de PDF está em andamento. Tente novamente em alguns segundos.');
+    error.statusCode = 503;
+    throw error;
+  }
+  activeGeneratedPdfDownloads += 1;
+  const startedAt = Date.now();
+  try {
+    const saved = await generateReportPdfAsset(report);
+    const buffer = await fs.readFile(saved.targetPath);
+    console.log('[TIMING] PDF generated', {
+      reportId: report.id,
+      reportType: report.reportType,
+      ms: Date.now() - startedAt,
+      bytes: buffer.length
+    });
+    return {
+      fileName: saved.fileName,
+      buffer
+    };
+  } finally {
+    activeGeneratedPdfDownloads = Math.max(0, activeGeneratedPdfDownloads - 1);
+  }
 }
 
 async function getOrCreateGeneratedReportPdf(report) {
@@ -3808,6 +3828,11 @@ router.get('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
 }));
 
 router.get('/:id/pdf', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+  const abortController = new AbortController();
+  res.on('close', () => {
+    if (!res.writableEnded) abortController.abort();
+  });
+
   let item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
@@ -3832,7 +3857,7 @@ router.get('/:id/pdf', requireAuth, requireRdoAccess, asyncHandler(async (req, r
     item = await refreshDerivedReportSource(item);
   }
 
-  const file = await getReportPdfDownload(item);
+  const file = await runWithPdfAbortSignal(abortController.signal, () => getReportPdfDownload(item));
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', contentDisposition(file.fileName));
   res.send(file.buffer);

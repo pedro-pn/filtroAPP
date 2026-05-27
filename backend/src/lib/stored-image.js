@@ -85,12 +85,14 @@ function reportImageCacheKey(targetPath, stat) {
     .slice(0, 32);
 }
 
-function isReportNativeImage(meta, extension) {
+function shouldUseOriginalImage(meta, extension, stat) {
   const ext = String(extension || '').toLowerCase();
+  if (!['jpg', 'jpeg', 'png', 'gif'].includes(ext) || !meta?.width || !meta?.height) return false;
+  if (ext === 'gif') return true;
   return (
-    ['jpg', 'jpeg', 'png', 'gif'].includes(ext)
-    && meta?.width
-    && meta?.height
+    meta.width <= REPORT_IMAGE_MAX_DIMENSION
+    && meta.height <= REPORT_IMAGE_MAX_DIMENSION
+    && stat.size <= 1.5 * 1024 * 1024
   );
 }
 
@@ -239,7 +241,7 @@ export async function readStoredImageAsset(source) {
   const bytes = await fs.readFile(targetPath);
   const extension = path.extname(targetPath).replace('.', '').toLowerCase();
   const meta = metaForExtension(bytes, extension);
-  if (isReportNativeImage(meta, extension)) {
+  if (shouldUseOriginalImage(meta, extension, stat)) {
     return {
       bytes,
       fileName: path.basename(targetPath),

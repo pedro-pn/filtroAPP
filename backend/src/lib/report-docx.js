@@ -323,9 +323,11 @@ function elementText(element) {
 }
 
 function replaceTokenInElement(element, token, replacement) {
+  if (!token || token === replacement) return;
   const nodes = getTextNodes(element);
   let full = nodes.map(node => node.data || '').join('');
-  let idx = full.indexOf(token);
+  let searchFrom = 0;
+  let idx = full.indexOf(token, searchFrom);
 
   while (idx >= 0) {
     const end = idx + token.length;
@@ -351,7 +353,8 @@ function replaceTokenInElement(element, token, replacement) {
     }
 
     full = nodes.map(node => node.data || '').join('');
-    idx = full.indexOf(token);
+    searchFrom = idx + String(replacement || '').length;
+    idx = full.indexOf(token, searchFrom);
   }
 }
 
