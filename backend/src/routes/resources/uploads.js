@@ -4,8 +4,6 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import { Router } from 'express';
-import heicConvert from 'heic-convert';
-import sharp from 'sharp';
 import { z } from 'zod';
 
 import env from '../../config/env.js';
@@ -14,6 +12,7 @@ import { hashToken, publicUser } from '../../lib/auth.js';
 import { clientCanAccessProject } from '../../lib/client-project-access.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
 import { CLIENT_PRIVACY_NOTICE_VERSION, clientPrivacyConsentRequired } from '../../lib/privacy-consent.js';
+import { optimizeImageForReport } from '../../lib/stored-image.js';
 import { RDO_INTERNAL_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import prisma from '../../lib/prisma.js';
 
@@ -42,74 +41,50 @@ function safeDecode(value) {
   }
 }
 
+function jpegFileName(fileName) {
+  const baseName = path.basename(String(fileName || 'imagem'), path.extname(String(fileName || '')));
+  return `${safePathLocal(baseName) || 'imagem'}.jpg`;
+}
+
 function isHeicUpload(fileName, mimeType) {
   const ext = path.extname(String(fileName || '')).toLowerCase();
   const mime = String(mimeType || '').toLowerCase();
   return ext === '.heic' || ext === '.heif' || mime === 'image/heic' || mime === 'image/heif';
 }
 
-function jpegFileName(fileName) {
-  const baseName = path.basename(String(fileName || 'imagem'), path.extname(String(fileName || '')));
-  return `${safePathLocal(baseName) || 'imagem'}.jpg`;
-}
-
-async function convertHeicWithSharp(bytes) {
-  return sharp(bytes, { failOn: 'none' })
-    .rotate()
-    .jpeg({ quality: 90 })
-    .toBuffer();
-}
-
-async function convertHeicWithFallback(bytes) {
-  const converted = await heicConvert({
-    buffer: bytes,
-    format: 'JPEG',
-    quality: 0.9
-  });
-  return Buffer.from(converted);
-}
-
 async function normalizeUploadedImage(data, bytes) {
-  if (!isHeicUpload(data.fileName, data.mimeType)) {
+  const extension = path.extname(data.fileName) || '';
+  const optimized = await optimizeImageForReport(bytes, {
+    extension,
+    mimeType: data.mimeType
+  }).catch(error => {
+    console.warn('Falha ao otimizar imagem enviada.', {
+      fileName: data.fileName,
+      mimeType: data.mimeType,
+      error: error?.message || error
+    });
+    return null;
+  });
+
+  if (!optimized) {
+    if (isHeicUpload(data.fileName, data.mimeType)) {
+      const error = new Error('Não foi possível converter a imagem HEIC. Envie outra imagem ou tente novamente.');
+      error.statusCode = 400;
+      throw error;
+    }
     return {
       fileName: data.fileName,
       mimeType: data.mimeType,
-      extension: path.extname(data.fileName) || '',
+      extension,
       bytes
     };
   }
 
-  let converted = null;
-  let conversionError = null;
-  try {
-    converted = await convertHeicWithSharp(bytes);
-  } catch (error) {
-    conversionError = error;
-    try {
-      converted = await convertHeicWithFallback(bytes);
-    } catch (fallbackError) {
-      conversionError = fallbackError || conversionError;
-    }
-  }
-
-  if (!converted?.length) {
-    if (conversionError) {
-      console.warn('Falha ao converter HEIC.', {
-        fileName: data.fileName,
-        mimeType: data.mimeType,
-        error: conversionError?.message || conversionError
-      });
-    }
-    const error = new Error('Não foi possível converter a imagem HEIC. Envie outra imagem ou tente novamente.');
-    error.statusCode = 400;
-    throw error;
-  }
-
   return {
     fileName: jpegFileName(data.fileName),
-    mimeType: 'image/jpeg',
+    mimeType: optimized.mimeType,
     extension: '.jpg',
-    bytes: converted
+    bytes: optimized.bytes
   };
 }
 

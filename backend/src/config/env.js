@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const reportsDir = process.env.REPORTS_DIR || process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'Relatórios');
 const smtpPort = Number(process.env.SMTP_PORT || 587);
-const docxToPdfTimeoutMs = Number(process.env.DOCX_TO_PDF_TIMEOUT_MS || 120000);
+const docxToPdfTimeoutMs = Number(process.env.DOCX_TO_PDF_TIMEOUT_MS || 60000);
 
 function parseBoolean(value, fallback = false) {
   if (value === undefined || value === null || value === '') return fallback;
@@ -70,7 +70,7 @@ const env = {
   dataRetentionJobEnabled: parseBoolean(process.env.DATA_RETENTION_JOB_ENABLED, false),
   zapsignApiBaseUrl: process.env.ZAPSIGN_API_BASE_URL || 'https://api.zapsign.com.br/api/v1',
   libreOfficeBinary: process.env.LIBREOFFICE_BINARY || 'soffice',
-  docxToPdfTimeoutMs: Number.isFinite(docxToPdfTimeoutMs) && docxToPdfTimeoutMs > 0 ? docxToPdfTimeoutMs : 120000,
+  docxToPdfTimeoutMs: Number.isFinite(docxToPdfTimeoutMs) && docxToPdfTimeoutMs > 0 ? docxToPdfTimeoutMs : 60000,
   nodeEnv
 };
 

@@ -2,7 +2,13 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 
+import heicConvert from 'heic-convert';
+import sharp from 'sharp';
+
 import env from '../config/env.js';
+
+const REPORT_IMAGE_MAX_DIMENSION = 1280;
+const REPORT_IMAGE_QUALITY = 72;
 
 function parsePngSize(buf) {
   if (buf.length < 24) return null;
@@ -51,6 +57,57 @@ function mimeToExtension(mimeType) {
   return 'png';
 }
 
+function isOptimizableImage(extension, mimeType) {
+  const ext = String(extension || '').toLowerCase();
+  const mime = String(mimeType || '').toLowerCase();
+  return ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'].includes(ext)
+    || ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif'].includes(mime);
+}
+
+async function convertHeicToJpeg(bytes) {
+  const converted = await heicConvert({
+    buffer: bytes,
+    format: 'JPEG',
+    quality: REPORT_IMAGE_QUALITY / 100
+  });
+  return Buffer.from(converted);
+}
+
+export async function optimizeImageForReport(bytes, options = {}) {
+  const extension = String(options.extension || '').replace(/^\./, '').toLowerCase();
+  const mimeType = String(options.mimeType || '').toLowerCase();
+  if (!isOptimizableImage(extension, mimeType)) return null;
+
+  let sourceBytes = bytes;
+  if (extension === 'heic' || extension === 'heif' || mimeType === 'image/heic' || mimeType === 'image/heif') {
+    try {
+      sourceBytes = await sharp(bytes, { failOn: 'none' }).rotate().jpeg({ quality: REPORT_IMAGE_QUALITY }).toBuffer();
+    } catch {
+      sourceBytes = await convertHeicToJpeg(bytes);
+    }
+  }
+
+  const optimized = await sharp(sourceBytes, { failOn: 'none' })
+    .rotate()
+    .resize({
+      width: REPORT_IMAGE_MAX_DIMENSION,
+      height: REPORT_IMAGE_MAX_DIMENSION,
+      fit: 'inside',
+      withoutEnlargement: true
+    })
+    .jpeg({ quality: REPORT_IMAGE_QUALITY, mozjpeg: true })
+    .toBuffer();
+  const meta = metaForExtension(optimized, 'jpeg');
+  if (!meta.width || !meta.height) return null;
+  return {
+    bytes: optimized,
+    extension: 'jpeg',
+    mimeType: 'image/jpeg',
+    width: meta.width,
+    height: meta.height
+  };
+}
+
 function relativeUploadPath(source) {
   if (!source || source.startsWith('data:')) return '';
   try {
@@ -93,6 +150,13 @@ export async function readStoredImageAsset(source) {
   if (!fsSync.existsSync(targetPath)) return null;
   const bytes = await fs.readFile(targetPath);
   const extension = path.extname(targetPath).replace('.', '').toLowerCase();
+  const optimized = await optimizeImageForReport(bytes, { extension }).catch(() => null);
+  if (optimized) {
+    return {
+      fileName: path.basename(targetPath).replace(/\.[^.]+$/, '.jpg'),
+      ...optimized
+    };
+  }
   const meta = metaForExtension(bytes, extension);
   if (!meta.width || !meta.height) return null;
   return {
@@ -101,4 +165,3 @@ export async function readStoredImageAsset(source) {
     ...meta
   };
 }
-

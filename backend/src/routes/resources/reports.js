@@ -340,14 +340,6 @@ function signatureRequestEmailDeliveryFailure(error, details = {}) {
   };
 }
 
-function reportWithSignatureEmailDelivery(report, delivery) {
-  if (!delivery || delivery.ok) return report;
-  return {
-    ...report,
-    internalSignatureEmailDelivery: delivery
-  };
-}
-
 export function signatureRequestEmailRequired(report, version) {
   if (!report || report.project?.managerOnly || !shouldCreateInternalSignatureRound(report)) return false;
   if (!version) return true;
@@ -1604,6 +1596,19 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
 
   if (tokens.length) emailDelivery = await deliverIssuedSignatureRequestEmails(report, tokens);
   return { version, emailDelivery };
+}
+
+function queueInternalSignatureRoundAndNotify(report, userId, evidence) {
+  if (!report || report.status !== ReportStatus.APPROVED) return;
+  setImmediate(() => {
+    ensureInternalSignatureRoundAndNotify(report, userId, evidence).catch(error => {
+      console.error('Falha ao preparar rodada de assinatura interna em background.', {
+        reportId: report?.id,
+        projectId: report?.projectId,
+        error: error?.message || error
+      });
+    });
+  });
 }
 
 async function getReportDocxDownload(report) {
@@ -3959,12 +3964,11 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
     }
   }
   console.log('[TIMING] POST /reports', { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, totalMs: Date.now() - tPost0, reportType: item.reportType, status: item.status });
-  let signatureRoundResult = null;
   if (item.status === ReportStatus.APPROVED) {
     queueApprovedReportNotification(item);
-    signatureRoundResult = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, signatureEvidenceFromRequest(req));
+    queueInternalSignatureRoundAndNotify(item, req.auth.user.id, signatureEvidenceFromRequest(req));
   }
-  res.status(201).json(reportWithSignatureEmailDelivery(item, signatureRoundResult?.emailDelivery));
+  res.status(201).json(item);
 }));
 
 router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -4162,11 +4166,10 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   }
   console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: item.reportType, status: item.status });
   if (isManagerFixingClientRejection && item.status === ReportStatus.APPROVED) queueReapprovedReportNotification(item);
-  let signatureRoundResult = null;
   if (item.status === ReportStatus.APPROVED) {
-    signatureRoundResult = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
+    queueInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
   }
-  res.json(reportWithSignatureEmailDelivery(item, signatureRoundResult?.emailDelivery));
+  res.json(item);
 }));
 
 router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -4394,7 +4397,6 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
   });
   const tPatchTx = Date.now();
 
-  let signatureRoundResult = null;
   if (data.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
       where: derivedReportsForProjectWhere(item.projectId),
@@ -4410,10 +4412,10 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
         queueApprovedReportNotification(item);
       }
     }
-    signatureRoundResult = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
+    queueInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
   }
   console.log('[TIMING] PATCH /reports/:id/status', { txMs: tPatchTx - tPatch0, totalMs: Date.now() - tPatch0, newStatus: data.status });
-  res.json(reportWithSignatureEmailDelivery(item, signatureRoundResult?.emailDelivery));
+  res.json(item);
 }));
 
 router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
