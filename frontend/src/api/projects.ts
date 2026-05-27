@@ -7,6 +7,7 @@ export interface ProjectPayload {
   isActive?: boolean;
   visibleToCollaborators?: boolean;
   managerOnly?: boolean;
+  inhibitionServiceEnabled?: boolean;
   clientName: string;
   clientCnpj: string;
   clientEmailPrimary?: string;

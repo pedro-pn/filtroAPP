@@ -21,6 +21,7 @@ const schema = z.object({
   isActive: z.boolean().default(true),
   visibleToCollaborators: z.boolean().default(true),
   managerOnly: z.boolean().default(false),
+  inhibitionServiceEnabled: z.boolean().default(false),
   clientName: z.string().min(1),
   clientCnpj: z.string().min(1),
   clientEmailPrimary: z.union([emailSchema, z.literal('')]).default(''),

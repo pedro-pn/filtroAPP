@@ -13,6 +13,7 @@
     "prisma:seed": "node prisma/seed.js",
     "import:master-data": "node scripts/import-master-data.js",
     "import:collaborators-csv": "node scripts/import-collaborators-csv.js",
+    "import:inhibition-systems-csv": "node scripts/import-inhibition-systems-csv.js",
     "migrate:signatures": "node scripts/migrate-signatures-to-dataurl.js",
     "retention:dry-run": "node scripts/run-data-retention.js",
     "retention:apply": "node scripts/run-data-retention.js --apply",

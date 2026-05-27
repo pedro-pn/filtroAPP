@@ -24,6 +24,8 @@ import { saveRtpDocx, saveRtpPdf, organizeRtpPhotos } from '../../lib/report-rtp
 import { saveRlqDocx, saveRlqPdf, organizeRlqPhotos } from '../../lib/report-rlq.js';
 import { saveRcpDocx, saveRcpPdf, organizeRcpPhotos, calcServiceMinutes } from '../../lib/report-rcp.js';
 import { saveRlmDocx, saveRlmPdf, organizeRlmPhotos } from '../../lib/report-rlm.js';
+import { saveRlfDocx, saveRlfPdf, organizeRlfPhotos } from '../../lib/report-rlf.js';
+import { saveRliDocx, saveRliPdf, organizeRliPhotos } from '../../lib/report-rli.js';
 import { downloadSignedZapSignDocument, getZapSignDocument } from '../../lib/zapsign.js';
 import { reconcileLegacyZapSignReport } from '../../lib/zapsign-legacy-reconciliation.js';
 import {
@@ -981,7 +983,7 @@ export function derivedReportsForProjectWhere(projectId) {
     projectId,
     deletedAt: null,
     project: activeReportProjectWhere(),
-    reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM] }
+    reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM, ReportType.RLF, ReportType.RLI] }
   };
 }
 
@@ -1171,6 +1173,8 @@ async function generateReportPdfAsset(report) {
   if (report.reportType === 'RLQ') return saveRlqPdf(report);
   if (report.reportType === 'RCPU') return saveRcpPdf(report);
   if (report.reportType === 'RLM') return saveRlmPdf(report);
+  if (report.reportType === 'RLF') return saveRlfPdf(report);
+  if (report.reportType === 'RLI') return saveRliPdf(report);
   return saveReportPdf(report);
 }
 
@@ -1181,11 +1185,13 @@ async function generateReportDocxAsset(report) {
   if (report.reportType === 'RLQ') return saveRlqDocx(report);
   if (report.reportType === 'RCPU') return saveRcpDocx(report);
   if (report.reportType === 'RLM') return saveRlmDocx(report);
+  if (report.reportType === 'RLF') return saveRlfDocx(report);
+  if (report.reportType === 'RLI') return saveRliDocx(report);
   return saveReportDocx(report);
 }
 
 async function refreshDerivedReportSource(report) {
-  if (![ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM].includes(report.reportType)) {
+  if (![ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM, ReportType.RLF, ReportType.RLI].includes(report.reportType)) {
     return report;
   }
   const parentRdoId = report.specialConditions?.parentRdoId;
@@ -1201,6 +1207,8 @@ async function refreshDerivedReportSource(report) {
     if (report.reportType === ReportType.RLQ) await syncApprovedRlqReports(tx, parent);
     if (report.reportType === ReportType.RCPU) await syncApprovedRcpReports(tx, parent);
     if (report.reportType === ReportType.RLM) await syncApprovedRlmReports(tx, parent);
+    if (report.reportType === ReportType.RLF) await syncApprovedRlfReports(tx, parent);
+    if (report.reportType === ReportType.RLI) await syncApprovedRliReports(tx, parent);
   });
 
   return prisma.report.findUniqueOrThrow({
@@ -1667,6 +1675,14 @@ export function assertCompleteTubeRows(services) {
   throw error;
 }
 
+function assertProjectAllowsInhibition(project, services) {
+  const hasInhibition = (services || []).some(service => service.serviceType === 'inibicao');
+  if (!hasInhibition || project?.inhibitionServiceEnabled) return;
+  const error = new Error('Serviço de inibição não está habilitado para este projeto.');
+  error.statusCode = 400;
+  throw error;
+}
+
 const serviceSchema = z.object({
   serviceType: z.string().min(1),
   equipmentId: z.string().nullable().optional(),
@@ -1903,6 +1919,8 @@ async function restoreReportFromSnapshot(tx, reportId, originalSnapshot) {
   await syncApprovedRlqReports(tx, restored);
   await syncApprovedRcpReports(tx, restored);
   await syncApprovedRlmReports(tx, restored);
+  await syncApprovedRlfReports(tx, restored);
+  await syncApprovedRliReports(tx, restored);
   return restored;
 }
 
@@ -1983,6 +2001,10 @@ async function organizeAndPersist(report) {
     urlMap = await organizeRcpPhotos(report, projectFolderName);
   } else if (report.reportType === 'RLM') {
     urlMap = await organizeRlmPhotos(report, projectFolderName);
+  } else if (report.reportType === 'RLF') {
+    urlMap = await organizeRlfPhotos(report, projectFolderName);
+  } else if (report.reportType === 'RLI') {
+    urlMap = await organizeRliPhotos(report, projectFolderName);
   } else {
     urlMap = await organizePhotos(report, projectFolderName);
   }
@@ -2004,7 +2026,7 @@ async function organizeAndPersist(report) {
     // Para RTP/RLQ, também atualiza o extraData do serviço-fonte do RDO para que
     // re-edições do RDO não percam as URLs organizadas das fotos.
     const sourceServiceId = report.specialConditions?.serviceId;
-    if (sourceServiceId && (report.reportType === 'RTP' || report.reportType === 'RLQ' || report.reportType === 'RCPU' || report.reportType === 'RLM')) {
+    if (sourceServiceId && (report.reportType === 'RTP' || report.reportType === 'RLQ' || report.reportType === 'RCPU' || report.reportType === 'RLM' || report.reportType === 'RLF' || report.reportType === 'RLI')) {
       try {
         const sourceService = await prisma.reportService.findUnique({
           where: { id: sourceServiceId },
@@ -2045,8 +2067,8 @@ function collectPendingDerivedTypes(services) {
         derived.add(ReportType.RLM);
         break;
       case 'inibicao':
-        derived.add(ReportType.RLI);
-        derived.add(ReportType.RLF);
+        if (serviceWantsReportType(service, ReportType.RLI)) derived.add(ReportType.RLI);
+        if (serviceWantsReportType(service, ReportType.RLF)) derived.add(ReportType.RLF);
         break;
       default:
         break;
@@ -2657,6 +2679,17 @@ export function hasSharedServiceHistoryKey(left, right) {
   return serviceHistoryKeys(left).some(key => rightKeys.has(key));
 }
 
+function serviceSelectedReportTypes(service) {
+  const fields = service?.extraData || {};
+  const raw = getReportField(fields, ['Tipo de relatório', 'Tipo de relatorio', 'tipoRelatorio']);
+  const values = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+  return values.map(value => String(value || '').trim().toUpperCase()).filter(Boolean);
+}
+
+function serviceWantsReportType(service, reportType) {
+  return serviceSelectedReportTypes(service).includes(String(reportType).toUpperCase());
+}
+
 function findExistingByLinkKeys(existingByLinkKey, service, serviceId) {
   for (const key of serviceHistoryKeys(service)) {
     const existing = existingByLinkKey.get(key);
@@ -3079,6 +3112,166 @@ async function syncApprovedRlmReports(tx, report) {
       }
     });
   }
+}
+
+async function syncApprovedInhibitionReports(tx, report, targetReportType) {
+  if (!report || report.reportType !== ReportType.RDO || report.status !== ReportStatus.APPROVED) {
+    return;
+  }
+
+  const inibicaoServices = (report.services || []).filter(
+    s => s.serviceType === 'inibicao' && s.finalized === true && serviceWantsReportType(s, targetReportType)
+  );
+
+  if (!inibicaoServices.length) {
+    return;
+  }
+
+  const existingReports = await tx.report.findMany({
+    where: {
+      projectId: report.projectId,
+      deletedAt: null,
+      project: activeReportProjectWhere(),
+      reportType: targetReportType
+    },
+    select: { id: true, projectId: true, reportType: true, sequenceNumber: true, status: true, specialConditions: true }
+  });
+
+  const existingByLinkKey = new Map();
+  existingReports.forEach(item => {
+    const special = item.specialConditions || {};
+    const linkKey = String(special.serviceLinkKey || '').trim();
+    const serviceId = String(special.serviceId || '').trim();
+    if (linkKey) existingByLinkKey.set(linkKey, item);
+    if (serviceId) existingByLinkKey.set(serviceId, item);
+  });
+
+  const allApprovedRdos = await tx.report.findMany({
+    where: approvedRdoHistoryWhere(report.projectId),
+    orderBy: [{ reportDate: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true,
+      reportDate: true,
+      createdAt: true,
+      services: {
+        select: { id: true, serviceType: true, equipmentId: true, system: true, material: true, startTime: true, endTime: true, extraData: true }
+      }
+    }
+  });
+
+  for (const service of inibicaoServices) {
+    const fields = service.extraData || {};
+    const serviceLinkKey = serviceHistoryKey(service) || String(service.id || '').trim();
+
+    const serviceHistory = [];
+    for (const rdo of allApprovedRdos) {
+      for (const svc of rdo.services || []) {
+        if (svc.serviceType !== service.serviceType) continue;
+        if (hasSharedServiceHistoryKey(service, svc) || svc.id === service.id) {
+          serviceHistory.push({ rdo, svc, fields: svc.extraData || {} });
+        }
+      }
+    }
+    if (!serviceHistory.length) {
+      serviceHistory.push({ rdo: report, svc: service, fields });
+    }
+    const consolidatedFields = buildHistoricalServiceData(fields, serviceHistory);
+
+    const collabIds = uniqueIds((report.collaborators || []).map(link => link.collaboratorId).filter(Boolean));
+    const collaborators = collabIds.length
+      ? await tx.collaborator.findMany({ where: { id: { in: collabIds } } })
+      : [];
+    const resolvedCollaborators = resolveCollaboratorsByShift(report, collaborators);
+
+    const payload = {
+      projectId: report.projectId,
+      createdByUserId: report.createdByUserId,
+      reviewedByUserId: report.reviewedByUserId,
+      reportType: targetReportType,
+      status: ReportStatus.APPROVED,
+      reportDate: report.reportDate,
+      arrivalTime: service.startTime || report.arrivalTime,
+      departureTime: service.endTime || report.departureTime,
+      lunchBreak: report.lunchBreak,
+      daytimeCount: resolvedCollaborators.length || report.daytimeCount,
+      daytimeWorkedMinutes: 0,
+      nighttimeWorkedMinutes: 0,
+      daytimeOvertimeMinutes: 0,
+      nighttimeOvertimeMinutes: 0,
+      totalOvertimeMinutes: 0,
+      approvedAt: report.approvedAt || new Date(),
+      specialConditions: {
+        parentRdoId: report.id,
+        serviceId: service.id,
+        serviceLinkKey: serviceLinkKey || String(service.id),
+        serviceType: service.serviceType,
+        serviceData: consolidatedFields,
+        resolvedCollaborators,
+        __leaderSnapshot: report.specialConditions?.__leaderSnapshot || null
+      }
+    };
+
+    const existingReport = serviceLinkKey ? findExistingByLinkKeys(existingByLinkKey, service, service.id) : null;
+
+    if (existingReport) {
+      await validateDerivedReportSequenceMove(tx, existingReport, report.projectId, targetReportType);
+      await tx.reportCollaborator.deleteMany({ where: { reportId: existingReport.id } });
+      await tx.reportService.deleteMany({ where: { reportId: existingReport.id } });
+      await tx.report.update({
+        where: { id: existingReport.id },
+        data: {
+          ...payload,
+          collaborators: {
+            create: collabIds.map(id => ({ collaboratorId: id }))
+          },
+          services: {
+            create: [{
+              serviceType: service.serviceType,
+              equipmentId: service.equipmentId || null,
+              system: service.system || null,
+              material: service.material || null,
+              startTime: service.startTime || null,
+              endTime: service.endTime || null,
+              finalized: true,
+              extraData: consolidatedFields
+            }]
+          }
+        }
+      });
+      continue;
+    }
+
+    const sequenceNumber = await reserveSequence(tx, report.projectId, targetReportType);
+    await tx.report.create({
+      data: {
+        ...payload,
+        sequenceNumber,
+        collaborators: {
+          create: collabIds.map(id => ({ collaboratorId: id }))
+        },
+        services: {
+          create: [{
+            serviceType: service.serviceType,
+            equipmentId: service.equipmentId || null,
+            system: service.system || null,
+            material: service.material || null,
+            startTime: service.startTime || null,
+            endTime: service.endTime || null,
+            finalized: true,
+            extraData: consolidatedFields
+          }]
+        }
+      }
+    });
+  }
+}
+
+async function syncApprovedRlfReports(tx, report) {
+  return syncApprovedInhibitionReports(tx, report, ReportType.RLF);
+}
+
+async function syncApprovedRliReports(tx, report) {
+  return syncApprovedInhibitionReports(tx, report, ReportType.RLI);
 }
 
 function independentReportTypesForService(service) {
@@ -3622,6 +3815,7 @@ router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (
       where: { id: data.projectId, ...activeReportProjectWhere() },
       include: { operator: true }
     });
+    assertProjectAllowsInhibition(project, data.services);
 
     return createIndependentServiceReports(tx, project, {
       ...data,
@@ -3651,6 +3845,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
       where: { id: data.projectId, ...activeReportProjectWhere() },
       include: { operator: true }
     });
+    assertProjectAllowsInhibition(project, data.services);
     if (project.managerOnly && req.auth.user.role !== 'MANAGER') {
       const error = new Error('Este projeto é visível somente para o gestor.');
       error.statusCode = 403;
@@ -3719,6 +3914,8 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
     await syncApprovedRlqReports(tx, created);
     await syncApprovedRcpReports(tx, created);
     await syncApprovedRlmReports(tx, created);
+    await syncApprovedRlfReports(tx, created);
+    await syncApprovedRliReports(tx, created);
     return created;
   });
   const tPostTx = Date.now();
@@ -3799,6 +3996,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
       where: { id: data.projectId, ...activeReportProjectWhere() },
       include: { operator: true }
     });
+    assertProjectAllowsInhibition(project, data.services);
     const overtime = calculateReportOvertime(project, data);
     const leaderSnapshot = projectLeaderSnapshot(project);
     const serviceOnlySpecialConditions = isServiceOnlyReport
@@ -3913,6 +4111,8 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     await syncApprovedRlqReports(tx, updated);
     await syncApprovedRcpReports(tx, updated);
     await syncApprovedRlmReports(tx, updated);
+    await syncApprovedRlfReports(tx, updated);
+    await syncApprovedRliReports(tx, updated);
     return updated;
   });
   const tPutTx = Date.now();
@@ -4151,6 +4351,8 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
       await syncApprovedRlqReports(tx, updated);
       await syncApprovedRcpReports(tx, updated);
       await syncApprovedRlmReports(tx, updated);
+      await syncApprovedRlfReports(tx, updated);
+      await syncApprovedRliReports(tx, updated);
     }
 
     return updated;

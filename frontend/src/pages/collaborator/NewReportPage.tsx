@@ -13,6 +13,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useCollaborators } from '../../hooks/useCollaborators';
 import { useCounters } from '../../hooks/useCounters';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
+import { useInhibitionOptions } from '../../hooks/useInhibitionOptions';
 import { useManometers } from '../../hooks/useManometers';
 import { useProjects } from '../../hooks/useProjects';
 import { useReportMutations } from '../../hooks/useReports';
@@ -80,6 +81,7 @@ export function NewReportPage() {
   const unitsQuery = useUnits();
   const manometersQuery = useManometers();
   const countersQuery = useCounters();
+  const inhibitionOptionsQuery = useInhibitionOptions();
   const reportMutations = useReportMutations();
   const draftsQuery = useDrafts();
   const draftMutations = useDraftMutations();
@@ -133,9 +135,6 @@ export function NewReportPage() {
   const canCreateServiceOnly = user?.role === 'MANAGER';
   const effectiveServiceOnly = canCreateServiceOnly && serviceOnly;
   const steps = effectiveServiceOnly ? serviceOnlySteps : rdoSteps;
-  const serviceOptions = effectiveServiceOnly
-    ? serviceTypeModalOptions.filter(option => serviceOnlySupportedTypes.has(option.type))
-    : serviceTypeModalOptions;
 
   const projects = useMemo(() => sortProjects(projectsQuery.data || [], 'asc'), [projectsQuery.data]);
   const collaborators = (collaboratorsQuery.data || []).filter(item => item.isActive);
@@ -155,6 +154,12 @@ export function NewReportPage() {
     () => (projectsQuery.data || []).find(project => project.id === projectId) || null,
     [projectId, projectsQuery.data]
   );
+  const serviceOptions = useMemo(() => {
+    const allowed = effectiveServiceOnly
+      ? serviceTypeModalOptions.filter(option => serviceOnlySupportedTypes.has(option.type))
+      : serviceTypeModalOptions;
+    return allowed.filter(option => option.type !== 'inibicao' || selectedProject?.inhibitionServiceEnabled === true);
+  }, [effectiveServiceOnly, selectedProject?.inhibitionServiceEnabled]);
   const backPath = roleHomePath(user?.role);
 
   function firstIdFromField(value: unknown) {
@@ -198,7 +203,7 @@ export function NewReportPage() {
 
   const serviceEquipmentName = useCallback((service: ReportServiceSummary) => {
     const extra = service.extraData || {};
-    const value = extra['Equipamento(s)'] || extra.Equipamentos || extra.Equipamento || extra['ID da embarcação'] || '';
+    const value = extra['Equipamento(s)'] || extra.Equipamentos || extra.Equipamento || extra['Embarcação'] || extra.Embarcacao || extra['ID da embarcação'] || '';
     if (Array.isArray(value)) return value.filter(Boolean).join(', ');
     if (value && typeof value === 'object') {
       const record = value as Record<string, unknown>;
@@ -307,6 +312,7 @@ export function NewReportPage() {
 
   function continueService(service: ReportServiceSummary, ongoingKey: string) {
       const extra = markPreviouslyAddedUploads(service.extraData || {});
+      const type = normalizeServiceType(service.serviceType);
       const contadorUtilizado = firstIdFromField(extra['Contador utilizado'] || extra.contadorUtilizado);
       const previousDesidratacaoUnit = firstIdFromField(
         extra.desidratacaoUnit
@@ -314,24 +320,24 @@ export function NewReportPage() {
         || extra['Equipamento de desidratacao']
         || extra['Equipamento de desidrataÃ§Ã£o']
       );
-      addService(normalizeServiceType(service.serviceType), {
+      addService(type, {
         ...extra,
         __ongoingKey: ongoingKey,
         __serviceLinkKey: String(extra.__serviceLinkKey || ongoingKey),
         etapas: [],
         customEtapa: '',
-        aprovadoCliente: 'Sim',
+        aprovadoCliente: type === 'inibicao' ? String(extra.aprovadoCliente || extra['Aprovado pelo cliente?'] || 'Sim') : 'Sim',
         houveParticulas: contadorUtilizado ? 'Sim' : String(extra['Houve contagem de partículas?'] || extra.houveParticulas || 'Não'),
         contadorUtilizado,
-        contagemInicialNas: '',
-        contagemFinalNas: '',
-        contagemInicialIso: '',
-        contagemFinalIso: '',
-        houveDesidratacao: 'Não',
+        contagemInicialNas: type === 'inibicao' ? String(extra.contagemInicialNas || extra['Contagem inicial NAS'] || '') : '',
+        contagemFinalNas: type === 'inibicao' ? String(extra.contagemFinalNas || extra['Contagem final NAS'] || '') : '',
+        contagemInicialIso: type === 'inibicao' ? String(extra.contagemInicialIso || extra['Contagem inicial ISO'] || '') : '',
+        contagemFinalIso: type === 'inibicao' ? String(extra.contagemFinalIso || extra['Contagem final ISO'] || '') : '',
+        houveDesidratacao: type === 'inibicao' ? String(extra.houveDesidratacao || extra['Houve desidratação?'] || 'Não') : 'Não',
         desidratacaoUnit: previousDesidratacaoUnit,
         houveUmidade: String(extra['Houve análise de umidade?'] || extra.houveUmidade || 'Não'),
-        umidadeInicial: '',
-        umidadeFinal: '',
+        umidadeInicial: type === 'inibicao' ? String(extra.umidadeInicial || extra['Umidade inicial (ppm)'] || '') : '',
+        umidadeFinal: type === 'inibicao' ? String(extra.umidadeFinal || extra['Umidade final (ppm)'] || '') : '',
         equipmentId: service.equipmentId || serviceEquipmentName(service),
         system: service.system || String(extra.Sistema || ''),
         material: service.material || String(extra['Material da tubulação'] || extra['Material do equipamento'] || ''),
@@ -602,13 +608,15 @@ export function NewReportPage() {
       if (effectiveServiceOnly && !serviceOnlySupportedTypes.has(type)) {
         return failRequired('Tipo de serviço com relatório independente disponível', target('serviceType'), 1);
       }
-      if (!hasText(data.equipmentId)) return failRequired('Equipamento(s)', target('equipmentId'), 1);
+      if (!hasText(data.equipmentId)) return failRequired(type === 'inibicao' ? 'Embarcação' : 'Equipamento(s)', target('equipmentId'), 1);
       if (!hasText(data.system)) return failRequired('Sistema', target('system'), 1);
       if (!hasText(data.startTime)) return failRequired('Hora de início', target('startTime'), 1);
       if (!hasText(data.endTime)) return failRequired('Hora de término/pausa', target('endTime'), 1);
-      if (!hasStringItem(data.serviceCollaboratorIds)) return failRequired('Colaboradores do serviço', target('serviceCollaboratorIds'), 1);
+      if (type !== 'inibicao' && !hasStringItem(data.serviceCollaboratorIds)) return failRequired('Colaboradores do serviço', target('serviceCollaboratorIds'), 1);
       if (!effectiveServiceOnly && typeof data.finalized !== 'boolean') return failRequired('Serviço finalizado', target('finalized'), 1);
       if (!hasStringItem(data.etapas)) return failRequired('Etapas realizadas no dia', target('etapas'), 1);
+      if (type === 'inibicao' && !hasText(data.steps)) return failRequired('Steps', target('steps'), 1);
+      if (type === 'inibicao' && !hasStringItem(data.tipoRelatorio)) return failRequired('Tipo de relatório', target('tipoRelatorio'), 1);
 
       if (['limpeza', 'pressao', 'mecanica', 'inibicao'].includes(type) && !hasText(data.material)) {
         return failRequired(type === 'mecanica' ? 'Material do equipamento' : 'Material da tubulação', target('material'), 1);
@@ -1248,6 +1256,7 @@ export function NewReportPage() {
                     </div>
                   </div>
                   <div className="admin-form-grid">
+                    {normalizeServiceType(service.type) !== 'inibicao' ? (
                     <div className={serviceFieldState(service.id, 'equipmentId')}>
                       <label>
                         Equipamento(s) <span style={{ color: 'var(--rd)' }}>*</span>
@@ -1260,6 +1269,7 @@ export function NewReportPage() {
                         onChange={event => updateService(service.id, { equipmentId: event.target.value })}
                       />
                     </div>
+                    ) : null}
                     {normalizeServiceType(service.type) !== 'inibicao' ? (
                       <div className={serviceFieldState(service.id, 'system')}>
                         <label>
@@ -1281,6 +1291,7 @@ export function NewReportPage() {
                         collaboratorOptions={serviceCollaboratorOptions}
                       />
                     ) : null}
+                    {normalizeServiceType(service.type) !== 'inibicao' ? (
                     <div className="fg-r2 service-time-grid">
                       <div className={serviceFieldState(service.id, 'startTime')}>
                         <label>Hora de início <span style={{ color: 'var(--rd)' }}>*</span></label>
@@ -1299,6 +1310,7 @@ export function NewReportPage() {
                         />
                       </div>
                     </div>
+                    ) : null}
                     <ServiceFields
                       serviceType={service.type}
                       data={service.data}
@@ -1306,6 +1318,7 @@ export function NewReportPage() {
                       units={units}
                       manometers={manometers}
                       counters={countersQuery.data || []}
+                      inhibitionOptions={inhibitionOptionsQuery.data}
                       collaboratorOptions={serviceCollaboratorOptions}
                       groupKey={service.id}
                       projectId={projectId}
