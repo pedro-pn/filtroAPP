@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
 
 import heicConvert from 'heic-convert';
 import sharp from 'sharp';
@@ -9,6 +10,8 @@ import env from '../config/env.js';
 
 const REPORT_IMAGE_MAX_DIMENSION = 1280;
 const REPORT_IMAGE_QUALITY = 72;
+const REPORT_IMAGE_CACHE_VERSION = 1;
+const reportImageCacheJobs = new Map();
 
 function parsePngSize(buf) {
   if (buf.length < 24) return null;
@@ -62,6 +65,89 @@ function isOptimizableImage(extension, mimeType) {
   const mime = String(mimeType || '').toLowerCase();
   return ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'].includes(ext)
     || ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif'].includes(mime);
+}
+
+function reportImageCacheDir() {
+  return path.join(env.uploadDir, '.cache', 'report-images');
+}
+
+function reportImageCacheKey(targetPath, stat) {
+  return createHash('sha256')
+    .update([
+      REPORT_IMAGE_CACHE_VERSION,
+      path.resolve(targetPath),
+      stat.size,
+      Math.trunc(stat.mtimeMs),
+      REPORT_IMAGE_MAX_DIMENSION,
+      REPORT_IMAGE_QUALITY
+    ].join('|'))
+    .digest('hex')
+    .slice(0, 32);
+}
+
+function isReportNativeImage(meta, extension) {
+  const ext = String(extension || '').toLowerCase();
+  return (
+    ['jpg', 'jpeg', 'png', 'gif'].includes(ext)
+    && meta?.width
+    && meta?.height
+  );
+}
+
+async function readCachedOptimizedImage(targetPath, stat) {
+  const cacheDir = reportImageCacheDir();
+  const cachePath = path.join(cacheDir, `${reportImageCacheKey(targetPath, stat)}.jpg`);
+  const cached = await fs.readFile(cachePath).catch(() => null);
+  if (cached) {
+    const meta = metaForExtension(cached, 'jpeg');
+    if (meta.width && meta.height) {
+      return {
+        bytes: cached,
+        extension: 'jpeg',
+        mimeType: 'image/jpeg',
+        width: meta.width,
+        height: meta.height
+      };
+    }
+  }
+  return null;
+}
+
+async function writeCachedOptimizedImage(targetPath, stat, optimized) {
+  if (!optimized?.bytes?.length) return;
+  const cacheDir = reportImageCacheDir();
+  const cachePath = path.join(cacheDir, `${reportImageCacheKey(targetPath, stat)}.jpg`);
+  const tempPath = `${cachePath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await fs.mkdir(cacheDir, { recursive: true });
+    await fs.writeFile(tempPath, optimized.bytes);
+    await fs.rename(tempPath, cachePath);
+  } catch {
+    await fs.rm(tempPath, { force: true }).catch(() => {});
+  }
+}
+
+async function optimizeStoredImageForReport(targetPath, bytes, extension, stat) {
+  const cacheKey = reportImageCacheKey(targetPath, stat);
+  const existingJob = reportImageCacheJobs.get(cacheKey);
+  if (existingJob) return existingJob;
+
+  const job = (async () => {
+    const cached = await readCachedOptimizedImage(targetPath, stat);
+    if (cached) return cached;
+
+    const optimized = await optimizeImageForReport(bytes, { extension }).catch(() => null);
+    if (!optimized) return null;
+    await writeCachedOptimizedImage(targetPath, stat, optimized);
+    return optimized;
+  })();
+
+  reportImageCacheJobs.set(cacheKey, job);
+  try {
+    return await job;
+  } finally {
+    reportImageCacheJobs.delete(cacheKey);
+  }
 }
 
 async function convertHeicToJpeg(bytes) {
@@ -148,16 +234,26 @@ export async function readStoredImageAsset(source) {
   if (!relativePath) return null;
   const targetPath = path.join(env.uploadDir, relativePath);
   if (!fsSync.existsSync(targetPath)) return null;
+  const stat = await fs.stat(targetPath).catch(() => null);
+  if (!stat?.isFile()) return null;
   const bytes = await fs.readFile(targetPath);
   const extension = path.extname(targetPath).replace('.', '').toLowerCase();
-  const optimized = await optimizeImageForReport(bytes, { extension }).catch(() => null);
+  const meta = metaForExtension(bytes, extension);
+  if (isReportNativeImage(meta, extension)) {
+    return {
+      bytes,
+      fileName: path.basename(targetPath),
+      ...meta
+    };
+  }
+
+  const optimized = await optimizeStoredImageForReport(targetPath, bytes, extension, stat);
   if (optimized) {
     return {
       fileName: path.basename(targetPath).replace(/\.[^.]+$/, '.jpg'),
       ...optimized
     };
   }
-  const meta = metaForExtension(bytes, extension);
   if (!meta.width || !meta.height) return null;
   return {
     bytes,

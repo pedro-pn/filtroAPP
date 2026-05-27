@@ -9,7 +9,6 @@ import env from '../config/env.js';
 import { saveReportDocx } from './report-docx.js';
 
 const execFileAsync = promisify(execFile);
-let pdfConversionQueue = Promise.resolve();
 
 function pdfNameFromDocx(fileName) {
   return fileName.replace(/\.docx$/i, '.pdf');
@@ -33,20 +32,6 @@ function conversionTimeoutError(error, engine) {
     return next;
   }
   return error;
-}
-
-async function runPdfConversion(task) {
-  const previous = pdfConversionQueue.catch(() => {});
-  let release;
-  pdfConversionQueue = new Promise(resolve => {
-    release = resolve;
-  });
-  await previous;
-  try {
-    return await task();
-  } finally {
-    release();
-  }
 }
 
 async function convertWithWord(docxPath, pdfPath) {
@@ -124,14 +109,12 @@ async function convertWithLibreOffice(docxPath, pdfPath) {
 }
 
 export async function convertDocxToPdf(docxPath, pdfPath) {
-  return runPdfConversion(async () => {
-    if (process.platform === 'win32') {
-      await convertWithWord(docxPath, pdfPath);
-      return;
-    }
+  if (process.platform === 'win32') {
+    await convertWithWord(docxPath, pdfPath);
+    return;
+  }
 
-    await convertWithLibreOffice(docxPath, pdfPath);
-  });
+  await convertWithLibreOffice(docxPath, pdfPath);
 }
 
 export async function saveReportPdf(report) {

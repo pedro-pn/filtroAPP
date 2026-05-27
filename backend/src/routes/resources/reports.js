@@ -55,7 +55,7 @@ import {
 import { calculateReportOvertime } from '../../lib/overtime.js';
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import prisma from '../../lib/prisma.js';
-import { buildReportFileName } from '../../lib/report-filename.js';
+import { buildReportFileName, safePath } from '../../lib/report-filename.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
@@ -76,6 +76,7 @@ const publicSignatureLimiter = createMemoryRateLimit({
   max: 60,
   message: 'Muitas tentativas. Tente novamente mais tarde.'
 });
+const pdfDownloadJobs = new Map();
 
 async function uniqueSignatureValidationCode() {
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -1160,6 +1161,64 @@ function reportPdfFileName(report, saved) {
   return buildReportFileName(report, 'pdf');
 }
 
+function generatedReportPdfTarget(report) {
+  if (!report?.project) return null;
+  const projectFolderName = safePath(`Missão ${report.project.code} - ${report.project.name}`);
+  const fileName = buildReportFileName(report, 'pdf');
+  return {
+    fileName,
+    targetPath: path.join(env.uploadDir, projectFolderName, report.reportType, fileName)
+  };
+}
+
+function reportContentUpdatedAtMs(report) {
+  const value = report?.updatedAt || report?.createdAt;
+  const date = value instanceof Date ? value : new Date(value);
+  const time = date.getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+async function getFreshGeneratedReportPdf(report) {
+  const target = generatedReportPdfTarget(report);
+  if (!target) return null;
+
+  const stat = await fs.stat(target.targetPath).catch(() => null);
+  if (!stat?.isFile() || stat.size < 1024) return null;
+
+  const reportUpdatedAt = reportContentUpdatedAtMs(report);
+  if (reportUpdatedAt && stat.mtimeMs < reportUpdatedAt) return null;
+
+  return {
+    fileName: target.fileName,
+    buffer: await fs.readFile(target.targetPath)
+  };
+}
+
+async function generateReportPdfDownload(report) {
+  const saved = await generateReportPdfAsset(report);
+  return {
+    fileName: saved.fileName,
+    buffer: await fs.readFile(saved.targetPath)
+  };
+}
+
+async function getOrCreateGeneratedReportPdf(report) {
+  const cached = await getFreshGeneratedReportPdf(report);
+  if (cached) return cached;
+
+  const key = `${report.id}:${reportContentUpdatedAtMs(report)}:${report.reportType}:${report.sequenceNumber ?? ''}`;
+  const existingJob = pdfDownloadJobs.get(key);
+  if (existingJob) return existingJob;
+
+  const job = generateReportPdfDownload(report);
+  pdfDownloadJobs.set(key, job);
+  try {
+    return await job;
+  } finally {
+    pdfDownloadJobs.delete(key);
+  }
+}
+
 async function withCurrentServiceLeaderSnapshot(report) {
   const parentRdoId = report?.specialConditions?.parentRdoId;
   if (!parentRdoId || report.reportType === ReportType.RDO) return report;
@@ -1213,6 +1272,23 @@ async function refreshDerivedReportSource(report) {
   }
   const parentRdoId = report.specialConditions?.parentRdoId;
   if (!parentRdoId) return report;
+
+  const parentMeta = await prisma.report.findUnique({
+    where: { id: parentRdoId },
+    select: {
+      id: true,
+      reportType: true,
+      status: true,
+      updatedAt: true,
+      deletedAt: true
+    }
+  });
+  if (!parentMeta || parentMeta.deletedAt || parentMeta.reportType !== ReportType.RDO || parentMeta.status !== ReportStatus.APPROVED) {
+    return report;
+  }
+  if (reportContentUpdatedAtMs(parentMeta) <= reportContentUpdatedAtMs(report)) {
+    return report;
+  }
 
   await prisma.$transaction(async tx => {
     const parent = await tx.report.findUnique({
@@ -1349,11 +1425,7 @@ async function getReportPdfDownload(report) {
     }
   }
 
-  const saved = await generateReportPdfAsset(report);
-  return {
-    fileName: saved.fileName,
-    buffer: await fs.readFile(saved.targetPath)
-  };
+  return getOrCreateGeneratedReportPdf(report);
 }
 
 export async function verifiedSourcePdfBuffer(sourcePath, version) {
