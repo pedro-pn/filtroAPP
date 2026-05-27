@@ -9,6 +9,7 @@ import env from '../config/env.js';
 import { saveReportDocx } from './report-docx.js';
 
 const execFileAsync = promisify(execFile);
+let pdfConversionQueue = Promise.resolve();
 
 function pdfNameFromDocx(fileName) {
   return fileName.replace(/\.docx$/i, '.pdf');
@@ -21,6 +22,30 @@ async function ensurePdfCreated(pdfPath) {
     const error = new Error('Conversão DOCX -> PDF não gerou o arquivo esperado.');
     error.statusCode = 500;
     throw error;
+  }
+}
+
+function conversionTimeoutError(error, engine) {
+  if (error?.killed || error?.signal === 'SIGTERM' || error?.code === 'ETIMEDOUT') {
+    const timeoutSeconds = Math.round(env.docxToPdfTimeoutMs / 1000);
+    const next = new Error(`Conversão DOCX -> PDF excedeu ${timeoutSeconds}s (${engine}).`);
+    next.statusCode = 504;
+    return next;
+  }
+  return error;
+}
+
+async function runPdfConversion(task) {
+  const previous = pdfConversionQueue.catch(() => {});
+  let release;
+  pdfConversionQueue = new Promise(resolve => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    return await task();
+  } finally {
+    release();
   }
 }
 
@@ -49,8 +74,15 @@ try {
     await execFileAsync(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath, docxPath, pdfPath],
-      { windowsHide: true, maxBuffer: 10 * 1024 * 1024 }
+      {
+        windowsHide: true,
+        maxBuffer: 10 * 1024 * 1024,
+        timeout: env.docxToPdfTimeoutMs,
+        killSignal: 'SIGTERM'
+      }
     );
+  } catch (error) {
+    throw conversionTimeoutError(error, 'Word');
   } finally {
     await fs.rm(scriptPath, { force: true });
   }
@@ -76,21 +108,30 @@ async function convertWithLibreOffice(docxPath, pdfPath) {
         outDir,
         docxPath
       ],
-      { windowsHide: true, maxBuffer: 10 * 1024 * 1024 }
+      {
+        windowsHide: true,
+        maxBuffer: 10 * 1024 * 1024,
+        timeout: env.docxToPdfTimeoutMs,
+        killSignal: 'SIGTERM'
+      }
     );
     await ensurePdfCreated(pdfPath);
+  } catch (error) {
+    throw conversionTimeoutError(error, 'LibreOffice');
   } finally {
     await fs.rm(profileDir, { recursive: true, force: true });
   }
 }
 
 export async function convertDocxToPdf(docxPath, pdfPath) {
-  if (process.platform === 'win32') {
-    await convertWithWord(docxPath, pdfPath);
-    return;
-  }
+  return runPdfConversion(async () => {
+    if (process.platform === 'win32') {
+      await convertWithWord(docxPath, pdfPath);
+      return;
+    }
 
-  await convertWithLibreOffice(docxPath, pdfPath);
+    await convertWithLibreOffice(docxPath, pdfPath);
+  });
 }
 
 export async function saveReportPdf(report) {
