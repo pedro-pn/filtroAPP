@@ -1414,7 +1414,49 @@ async function refreshDerivedReportSource(report) {
   });
 }
 
-async function resolveSignedPdf(report) {
+function legacyZapSignSignedPdfCachePath(report) {
+  const id = safePathLocal(report?.id);
+  if (!id) return '';
+  return path.join(env.reportsDir, '_zapsign-assinados', `${id}.pdf`);
+}
+
+async function readCachedLegacyZapSignSignedPdf(report) {
+  const cachePath = legacyZapSignSignedPdfCachePath(report);
+  if (!cachePath) return null;
+
+  const stat = await fs.stat(cachePath).catch(() => null);
+  if (!stat?.isFile() || stat.size < 16) return null;
+  if (!(await isLikelyCompletePdf(cachePath))) {
+    await fs.unlink(cachePath).catch(() => undefined);
+    return null;
+  }
+  return fs.readFile(cachePath);
+}
+
+async function cacheLegacyZapSignSignedPdf(report, buffer) {
+  const cachePath = legacyZapSignSignedPdfCachePath(report);
+  if (!cachePath || !Buffer.isBuffer(buffer) || buffer.length < 16) return;
+
+  await fs.mkdir(path.dirname(cachePath), { recursive: true });
+  const tempPath = `${cachePath}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    await fs.writeFile(tempPath, buffer);
+    if (!(await isLikelyCompletePdf(tempPath))) return;
+    await fs.rename(tempPath, cachePath);
+  } finally {
+    await fs.unlink(tempPath).catch(() => undefined);
+  }
+}
+
+export async function resolveSignedPdf(report) {
+  const cachedBuffer = await readCachedLegacyZapSignSignedPdf(report);
+  if (cachedBuffer) {
+    return {
+      fileName: buildReportFileName(report, 'pdf'),
+      buffer: cachedBuffer
+    };
+  }
+
   let signedUrl = String(report.zapsignDocUrl || '').trim();
 
   if (!signedUrl) {
@@ -1444,6 +1486,7 @@ async function resolveSignedPdf(report) {
   let buffer;
   try {
     buffer = await downloadSignedZapSignDocument(signedUrl);
+    await cacheLegacyZapSignSignedPdf(report, buffer);
   } catch (error) {
     if (error?.statusCode !== 403) {
       throw error;
@@ -1467,6 +1510,7 @@ async function resolveSignedPdf(report) {
     });
 
     buffer = await downloadSignedZapSignDocument(refreshedSignedUrl);
+    await cacheLegacyZapSignSignedPdf(report, buffer);
   }
   return { fileName, buffer };
 }
