@@ -834,20 +834,13 @@ test('PUT /auth/account preserves verified email when normalized email is unchan
     user
   });
   prisma.user.findUniqueOrThrow = async args => {
-    if (args.select) {
-      assert.deepEqual(args.select, { email: true, emailVerifiedAt: true });
-      return { email: ' Joao@Example.com ', emailVerifiedAt: verifiedAt };
+    if (args.include && Object.keys(args.include).length === 2) {
+      assert.deepEqual(args.include, { collaborator: true, moduleRoles: true });
     }
     return user;
   };
   prisma.user.update = async args => {
-    assert.deepEqual(args.data, {
-      email: 'joao@example.com',
-      emailVerifiedAt: verifiedAt
-    });
-    user.email = args.data.email;
-    user.emailVerifiedAt = args.data.emailVerifiedAt;
-    return user;
+    throw new Error(`E-mail já verificado não deveria ser atualizado: ${JSON.stringify(args)}`);
   };
   prisma.reportSignature.findMany = async args => {
     assert.deepEqual(args.where, {

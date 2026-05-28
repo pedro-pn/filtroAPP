@@ -7,6 +7,7 @@ import { CLIENT_PRIVACY_NOTICE_VERSION, clientPrivacyConsentRequired } from './p
 const SESSION_DAYS = 7;
 const REMEMBER_SESSION_DAYS = 30;
 const PASSWORD_RESET_HOURS = 1;
+const EMAIL_CHANGE_HOURS = 1;
 
 export function hashToken(token) {
   return createHash('sha256').update(token).digest('hex');
@@ -39,6 +40,23 @@ export async function createPasswordResetToken(userId) {
     data: {
       tokenHash,
       userId,
+      expiresAt
+    }
+  });
+
+  return { token, expiresAt };
+}
+
+export async function createEmailChangeToken(userId, email) {
+  const token = randomBytes(32).toString('hex');
+  const tokenHash = hashToken(token);
+  const expiresAt = new Date(Date.now() + EMAIL_CHANGE_HOURS * 60 * 60 * 1000);
+
+  await prisma.emailChangeToken.create({
+    data: {
+      tokenHash,
+      userId,
+      email,
       expiresAt
     }
   });

@@ -7,14 +7,15 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
-import { clientCanAccessProject, clientProjectAccessWhere } from '../../lib/client-project-access.js';
+import { clientCanAccessProject, clientProjectAccessWhereWithSigners } from '../../lib/client-project-access.js';
 import {
   buildReportApprovedEmailTemplate,
   buildReportReapprovedEmailTemplate,
   buildReportRejectedByClientEmailTemplate,
   buildReportSignatureRequestEmailTemplate,
   buildReportSignatureCompletedEmailTemplate,
-  buildReportSignatureReceivedEmailTemplate
+  buildReportSignatureReceivedEmailTemplate,
+  buildReleasedServiceReportsEmailTemplate
 } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { SIGNATURE_RDO_NOTICE_VERSION, validatePrivacyNoticeAcknowledgement } from '../../lib/privacy-consent.js';
@@ -136,14 +137,20 @@ function reportNumberLabel(report) {
   return String(report.sequenceNumber);
 }
 
-function queueApprovedReportNotification(report) {
-  if (report.project?.managerOnly) return;
-  const primary = String(report.project?.clientEmailPrimary || '').trim().toLowerCase();
-  const cc = Array.from(new Set((report.project?.clientEmailCc || [])
+export function projectEmailRecipients(project) {
+  const primary = String(project?.clientEmailPrimary || '').trim().toLowerCase();
+  const cc = Array.from(new Set((project?.clientEmailCc || [])
     .map(email => String(email || '').trim().toLowerCase())
     .filter(Boolean)
     .filter(email => email !== primary)));
   const recipients = [primary, ...cc].filter(Boolean);
+  if (primary) return { to: primary, cc, recipients };
+  return { to: cc[0] || '', cc: cc.slice(1), recipients };
+}
+
+function queueApprovedReportNotification(report) {
+  if (report.project?.managerOnly) return;
+  const { to, cc, recipients } = projectEmailRecipients(report.project);
   if (!recipients.length) return;
 
   const missingMailerConfig = getMissingMailerConfig();
@@ -164,7 +171,7 @@ function queueApprovedReportNotification(report) {
 
   setImmediate(() => {
     sendMail({
-      to: primary,
+      to,
       ...(cc.length ? { cc } : {}),
       ...template
     }).catch(error => {
@@ -179,12 +186,7 @@ function queueApprovedReportNotification(report) {
 
 function queueReapprovedReportNotification(report) {
   if (report.project?.managerOnly) return;
-  const primary = String(report.project?.clientEmailPrimary || '').trim().toLowerCase();
-  const cc = Array.from(new Set((report.project?.clientEmailCc || [])
-    .map(email => String(email || '').trim().toLowerCase())
-    .filter(Boolean)
-    .filter(email => email !== primary)));
-  const recipients = [primary, ...cc].filter(Boolean);
+  const { to, cc, recipients } = projectEmailRecipients(report.project);
   if (!recipients.length) return;
 
   const missingMailerConfig = getMissingMailerConfig();
@@ -205,7 +207,7 @@ function queueReapprovedReportNotification(report) {
 
   setImmediate(() => {
     sendMail({
-      to: primary,
+      to,
       ...(cc.length ? { cc } : {}),
       ...template
     }).catch(error => {
@@ -440,6 +442,51 @@ export async function deliverIssuedSignatureRequestEmails(report, tokens, option
       retryCount: retryTokens.length
     });
   }
+}
+
+export async function releasedServiceReportEmailAttachments(serviceReports, options = {}) {
+  const getPdfDownload = options.getPdfDownload || getReportPdfDownload;
+  return Promise.all((serviceReports || []).map(async report => {
+    const file = await getPdfDownload(report);
+    return {
+      filename: file.fileName,
+      content: file.buffer,
+      contentType: 'application/pdf'
+    };
+  }));
+}
+
+export async function sendReleasedServiceReportsEmail(rdo, serviceReports, options = {}) {
+  if (!rdo || rdo.reportType !== ReportType.RDO || rdo.project?.managerOnly || !serviceReports?.length) {
+    return { ok: true, sentCount: 0, attachmentCount: 0 };
+  }
+
+  const { to, cc, recipients } = projectEmailRecipients(rdo.project);
+  if (!recipients.length) return { ok: true, sentCount: 0, attachmentCount: 0 };
+
+  const missingMailerConfig = options.missingMailerConfig || getMissingMailerConfig();
+  if (missingMailerConfig.length) {
+    throw new Error(`Configuração SMTP ausente para envio dos relatórios de serviço liberados: ${missingMailerConfig.join(', ')}`);
+  }
+
+  const template = buildReleasedServiceReportsEmailTemplate({
+    projectCode: rdo.project?.code || '---',
+    projectName: rdo.project?.name || 'Sem projeto',
+    rdoNumber: reportNumberLabel(rdo),
+    rdoDate: formatDatePtBr(rdo.reportDate),
+    reports: serviceReports,
+    appUrl: env.appUrl || ''
+  });
+  const attachments = await releasedServiceReportEmailAttachments(serviceReports, options);
+  const mailer = options.mailer || sendMail;
+  await mailer({
+    to,
+    ...(cc.length ? { cc } : {}),
+    ...template,
+    attachments
+  });
+
+  return { ok: true, sentCount: recipients.length, attachmentCount: attachments.length };
 }
 
 export function publicSignaturePayload(signature, status) {
@@ -1033,12 +1080,17 @@ function assignActiveReportProjectWhere(where, projectWhere = {}) {
   where.project = activeReportProjectWhere(projectWhere);
 }
 
+function assignClientReportProjectWhere(where, projectWhere = {}) {
+  where.project = projectWhere;
+}
+
 function isReportUnavailable(report) {
   return !!(report?.deletedAt || report?.project?.deletedAt);
 }
 
 export async function canAccessReport(auth, report) {
-  if (report?.project?.deletedAt) return false;
+  if (report?.deletedAt) return false;
+  if (report?.project?.deletedAt && auth.user.role !== 'CLIENT') return false;
   if (auth.user.role === 'MANAGER') return true;
   if (report.project?.managerOnly) return false;
   if (auth.user.role === 'COORDINATOR') return true;
@@ -1064,7 +1116,6 @@ export function collaboratorCanMutateReport(auth, report) {
 }
 
 export function canClientSeeReport(report, allReportsById) {
-  if (report?.project?.deletedAt) return false;
   if (!report || !report.project?.clientCnpj) return false;
   if (report.reportType === ReportType.RDO) {
     return report.status === ReportStatus.APPROVED || report.status === ReportStatus.SIGNED || hasActiveClientRejection(report);
@@ -1084,7 +1135,7 @@ export function canClientSeeReport(report, allReportsById) {
 
 async function projectReportsForClientVisibility(projectId, client = prisma) {
   return client.report.findMany({
-    where: { projectId, deletedAt: null, project: activeReportProjectWhere() },
+    where: { projectId, deletedAt: null },
     include
   });
 }
@@ -1127,6 +1178,39 @@ export async function releasedServiceReportsAfterRdoSignature(rdo, client = pris
       return signedRdoReleasedThisReport && canClientSeeReport(report, byId);
     })
     .map(releasedServiceReportPayload);
+}
+
+function queueReleasedServiceReportsEmailAfterRdoSignature(rdo, releasedReports = null) {
+  if (!rdo || rdo.reportType !== ReportType.RDO || rdo.status !== ReportStatus.SIGNED) return;
+
+  setImmediate(async () => {
+    try {
+      const released = Array.isArray(releasedReports)
+        ? releasedReports
+        : await releasedServiceReportsAfterRdoSignature(rdo);
+      const releasedIds = released.map(report => report.id).filter(Boolean);
+      if (!releasedIds.length) return;
+
+      const serviceReports = await prisma.report.findMany({
+        where: {
+          id: { in: releasedIds },
+          deletedAt: null
+        },
+        include
+      });
+      const byId = new Map(serviceReports.map(report => [report.id, report]));
+      const orderedReports = releasedIds.map(id => byId.get(id)).filter(Boolean);
+      if (!orderedReports.length) return;
+
+      await sendReleasedServiceReportsEmail(rdo, orderedReports);
+    } catch (error) {
+      console.error('Falha ao enviar relatórios de serviço liberados por e-mail.', {
+        reportId: rdo?.id,
+        projectId: rdo?.projectId,
+        error: error?.message || error
+      });
+    }
+  });
 }
 
 function assertReportMutable(report) {
@@ -2345,6 +2429,15 @@ function projectLeaderSnapshot(project) {
   };
 }
 
+function withLeaderSnapshot(specialConditions, leaderSnapshot) {
+  const { __leaderSnapshot, ...rest } = specialConditions || {};
+  if (!leaderSnapshot) return rest;
+  return {
+    ...rest,
+    __leaderSnapshot: leaderSnapshot
+  };
+}
+
 async function validateDerivedReportSequenceMove(tx, existingReport, targetProjectId, targetReportType) {
   if (!existingReport || existingReport.projectId === targetProjectId) return;
   if (!Number.isInteger(existingReport.sequenceNumber) || existingReport.sequenceNumber < 1) return;
@@ -3445,9 +3538,7 @@ function sourceReportForIndependentService(project, data, collaboratorIds, revie
     approvedAt: new Date(),
     project,
     collaborators: collaboratorIds.map(collaboratorId => ({ collaboratorId })),
-    specialConditions: {
-      __leaderSnapshot: projectLeaderSnapshot(project)
-    }
+    specialConditions: withLeaderSnapshot({}, projectLeaderSnapshot(project))
   };
 }
 
@@ -3612,7 +3703,7 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
   }
 
   if (req.auth.user.role === 'CLIENT') {
-    assignActiveReportProjectWhere(where, clientProjectAccessWhere(req.auth));
+    assignClientReportProjectWhere(where, await clientProjectAccessWhereWithSigners(prisma, req.auth));
   } else if (req.auth.user.role === 'COORDINATOR') {
     assignActiveReportProjectWhere(where, { managerOnly: false });
   } else if (req.auth.user.role === 'COLLABORATOR') {
@@ -3764,6 +3855,7 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
       name: signedSignature?.signerName,
       email: signedSignature?.signerEmail
     }, completed);
+    if (completed) queueReleasedServiceReportsEmailAfterRdoSignature(item);
   }
 
   res.json({ success: true, completed, report: withInternalSignatureProgress(item) });
@@ -4015,11 +4107,10 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
         dailyDescription: data.dailyDescription || null,
         reviewedByUserId: reportStatus === ReportStatus.APPROVED ? req.auth.user.id : null,
         approvedAt: reportStatus === ReportStatus.APPROVED ? new Date() : null,
-        specialConditions: {
+        specialConditions: withLeaderSnapshot({
           ...(data.specialConditions || {}),
           overtimeSummary: overtime,
-          ...(leaderSnapshot ? { __leaderSnapshot: leaderSnapshot } : {})
-        },
+        }, leaderSnapshot),
         pendingDerivedTypes,
         collaborators: {
           create: collaboratorIds.map(collaboratorId => ({ collaboratorId }))
@@ -4193,15 +4284,14 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
         totalOvertimeMinutes: overtime.totalOvertimeMinutes,
         overtimeReason: data.overtimeReason || null,
         dailyDescription: data.dailyDescription || null,
-        specialConditions: {
+        specialConditions: withLeaderSnapshot({
           ...(req.auth.user.role === 'MANAGER'
             ? withClientRejectionCleared(stripInternalEditState(data.specialConditions || {}))
             : stripInternalEditState(data.specialConditions || {})),
           ...(serviceOnlySpecialConditions || {}),
           overtimeSummary: overtime,
-          ...internalEditState,
-          __leaderSnapshot: leaderSnapshot
-        },
+          ...internalEditState
+        }, leaderSnapshot),
         pendingDerivedTypes: isServiceOnlyReport ? [] : collectPendingDerivedTypes(data.services),
         status: req.auth.user.role === 'MANAGER'
           ? (isManagerFixingClientRejection ? ReportStatus.APPROVED : existing.status)
@@ -4545,8 +4635,16 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
     return res.status(409).json({ error: 'Somente relatórios aprovados pelo gestor podem ser assinados.' });
   }
   const comment = String(data.comment || '').trim();
+  const resolvedSigner = resolveInternalClientSigner(existing, req.auth.user);
+  const alreadySignedSignature = (existing.reportSignatures || []).find(signature =>
+    signerEmailValue(signature.signerEmail) === resolvedSigner.email
+    && signature.status === ReportSignatureStatus.SIGNED
+  );
+  if (alreadySignedSignature) {
+    return res.status(409).json({ error: 'Este assinante já assinou o relatório.' });
+  }
   const signer = {
-    ...resolveInternalClientSigner(existing, req.auth.user),
+    ...resolvedSigner,
     name: data.signerName
   };
   const evidence = signatureEvidenceFromRequest(req);
@@ -4595,6 +4693,11 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
         evidence
       });
       const signingSignature = signatureForSigner(version, signer.email);
+      if (signingSignature?.status === ReportSignatureStatus.SIGNED) {
+        const error = new Error('Este assinante já assinou o relatório.');
+        error.statusCode = 409;
+        throw error;
+      }
       const completesRequiredSignatures = signatureWouldCompleteRequired(version, signingSignature?.id);
       if (completesRequiredSignatures) {
         await assertSignatureFinalizationPreflight(version);
@@ -4667,6 +4770,9 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
   const releasedServiceReports = item.status === ReportStatus.SIGNED
     ? await releasedServiceReportsAfterRdoSignature(item)
     : [];
+  if (releasedServiceReports.length) {
+    queueReleasedServiceReportsEmailAfterRdoSignature(item, releasedServiceReports);
+  }
 
   res.json({
     ok: true,

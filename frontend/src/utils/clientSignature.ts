@@ -1,0 +1,55 @@
+import type { ReportSummary } from '../types/domain';
+
+type ClientUser = {
+  email?: string | null;
+  username?: string | null;
+  clientCnpj?: string | null;
+};
+
+function normalizeEmail(value: unknown) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function cnpjDigits(value: unknown) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+export function clientSignerEmailForReport(report: ReportSummary | undefined, user: ClientUser | null | undefined) {
+  const username = normalizeEmail(user?.username);
+  if (username.includes('@')) return username;
+
+  const projectCnpj = cnpjDigits(report?.project.clientCnpj);
+  const accountCnpjs = [user?.username, user?.clientCnpj]
+    .map(cnpjDigits)
+    .filter(value => value.length === 14);
+  if (projectCnpj && accountCnpjs.includes(projectCnpj)) {
+    return normalizeEmail(report?.project.clientEmailPrimary);
+  }
+
+  const email = normalizeEmail(user?.email);
+  return email || '';
+}
+
+export function clientSignatureForReport(report: ReportSummary | undefined, user: ClientUser | null | undefined) {
+  const email = clientSignerEmailForReport(report, user);
+  if (!email) return null;
+  return report?.reportSignatures?.find(signature => normalizeEmail(signature.signerEmail) === email) || null;
+}
+
+export function clientHasSignedReport(report: ReportSummary | undefined, user: ClientUser | null | undefined) {
+  return clientSignatureForReport(report, user)?.status === 'SIGNED';
+}
+
+export function clientCanSignReport(report: ReportSummary, user: ClientUser | null | undefined, clientRejected = false) {
+  if (report.reportType !== 'RDO' || report.status !== 'APPROVED' || clientRejected) return false;
+  const signerEmail = clientSignerEmailForReport(report, user);
+  if (!signerEmail) return false;
+
+  const allowedSigners = new Set([
+    normalizeEmail(report.project.clientEmailPrimary),
+    ...(report.project.clientSigners || []).map(signer => normalizeEmail(signer.email))
+  ].filter(Boolean));
+  if (allowedSigners.size && !allowedSigners.has(signerEmail)) return false;
+
+  return !clientHasSignedReport(report, user);
+}

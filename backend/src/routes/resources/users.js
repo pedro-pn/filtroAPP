@@ -6,6 +6,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
 import { createPasswordResetToken, publicUser } from '../../lib/auth.js';
 import { missingClientAccessResetConfig, sendClientAccessResetEmail } from '../../lib/client-access-reset.js';
+import { projectHasClientSignerEmail } from '../../lib/client-project-access.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import { buildInternalUserWelcomeEmailTemplate, buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
@@ -117,6 +118,36 @@ function accountShapeChanged(data, existingUser) {
   if (!existingUser) return false;
   return (data.role !== undefined && data.role !== existingUser.role)
     || (data.accountType !== undefined && data.accountType !== existingUser.accountType);
+}
+
+function normalizeAccountEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function emailIdentifier(value) {
+  const normalized = normalizeAccountEmail(value);
+  return normalized.includes('@') ? normalized : '';
+}
+
+async function assertAccountEmailAvailable(email, currentUserId = null) {
+  const normalizedEmail = emailIdentifier(email);
+  if (!normalizedEmail) return;
+
+  const conflict = await prisma.user.findFirst({
+    where: {
+      ...(currentUserId ? { id: { not: currentUserId } } : {}),
+      OR: [
+        { username: { equals: normalizedEmail, mode: 'insensitive' } },
+        { email: { equals: normalizedEmail, mode: 'insensitive' } }
+      ]
+    },
+    select: { id: true }
+  });
+  if (conflict) {
+    const error = new Error('Já existe uma conta cadastrada para este e-mail.');
+    error.status = 409;
+    throw error;
+  }
 }
 
 export function resolveAccountPayload(data, existingUser = null) {
@@ -238,29 +269,54 @@ router.get('/', asyncHandler(async (req, res) => {
     .filter(Boolean)
     .map(value => String(value).replace(/\D/g, ''))
     .filter(value => /^\d{14}$/.test(value));
-  const ccEmails = clientUsers.map(u => u.email).filter(Boolean).map(e => e.toLowerCase());
+  const accountEmails = Array.from(new Set(clientUsers
+    .flatMap(u => [u.username, u.email])
+    .filter(Boolean)
+    .map(e => String(e).trim().toLowerCase())
+    .filter(e => e.includes('@'))));
 
-  const linkedProjects = clientUsers.length
+  const linkedProjectSelect = {
+    id: true,
+    clientCnpj: true,
+    clientEmailPrimary: true,
+    clientEmailCc: true,
+    clientSigners: true,
+    code: true,
+    name: true,
+    contractCode: true,
+    isActive: true
+  };
+  const directLinkedProjects = clientUsers.length
     ? await prisma.project.findMany({
         where: {
           managerOnly: false,
           deletedAt: null,
           OR: [
             ...(cnpjUsernames.length ? [{ clientCnpj: { in: cnpjUsernames } }] : []),
-            ...(ccEmails.length ? [{ clientEmailCc: { hasSome: ccEmails } }] : [])
+            ...(accountEmails.length ? [
+              ...accountEmails.map(email => ({ clientEmailPrimary: { equals: email, mode: 'insensitive' } })),
+              { clientEmailCc: { hasSome: accountEmails } }
+            ] : [])
           ]
         },
         orderBy: [{ name: 'asc' }],
-        select: {
-          clientCnpj: true,
-          clientEmailCc: true,
-          code: true,
-          name: true,
-          contractCode: true,
-          isActive: true
-        }
+        select: linkedProjectSelect
       })
     : [];
+  const signerLinkedProjects = clientUsers.length && accountEmails.length
+    ? (await prisma.project.findMany({
+        where: {
+          managerOnly: false,
+          deletedAt: null
+        },
+        orderBy: [{ name: 'asc' }],
+        select: linkedProjectSelect
+      })).filter(project => projectHasClientSignerEmail(project, accountEmails))
+    : [];
+  const linkedProjects = Array.from(new Map([
+    ...directLinkedProjects,
+    ...signerLinkedProjects
+  ].map(project => [project.id, project])).values());
 
   res.json(users.map(user => {
     const isCnpj = /^\d{14}$/.test(user.username);
@@ -268,13 +324,19 @@ router.get('/', asyncHandler(async (req, res) => {
     const userEmail = String(user.email || '').toLowerCase();
     const projects = linkedProjects.filter(p => {
       if ((isCnpj && p.clientCnpj === user.username) || (storedClientCnpj && p.clientCnpj === storedClientCnpj)) return true;
+      if (!isCnpj && userEmail && String(p.clientEmailPrimary || '').toLowerCase() === userEmail) return true;
       if (!isCnpj && userEmail && Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail)) return true;
+      if (!isCnpj && userEmail && projectHasClientSignerEmail(p, [userEmail])) return true;
       return false;
     });
     return {
       ...publicUser(user),
       linkedProjects: projects,
-      clientCnpj: storedClientCnpj || (isCnpj ? user.username : (linkedProjects.find(p => Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail))?.clientCnpj || null))
+      clientCnpj: storedClientCnpj || (isCnpj ? user.username : (linkedProjects.find(p =>
+        String(p.clientEmailPrimary || '').toLowerCase() === userEmail
+        || (Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail))
+        || projectHasClientSignerEmail(p, [userEmail])
+      )?.clientCnpj || null))
     };
   }));
 }));
@@ -286,6 +348,8 @@ router.post('/', asyncHandler(async (req, res) => {
   }
 
   const accountPayload = resolveAccountPayload(data);
+  await assertAccountEmailAvailable(data.email);
+  await assertAccountEmailAvailable(data.username);
   const passwordHash = await hashPassword(data.password);
   const user = await prisma.user.create({
     data: {
@@ -334,6 +398,12 @@ router.put('/:id', asyncHandler(async (req, res) => {
     include: { moduleRoles: true }
   });
   const accountPayload = resolveAccountPayload(data, currentUser);
+  if (data.email !== undefined) {
+    await assertAccountEmailAvailable(data.email, req.params.id);
+  }
+  if (data.username !== undefined) {
+    await assertAccountEmailAvailable(data.username, req.params.id);
+  }
   const payload = {
     ...(data.username !== undefined ? { username: data.username } : {}),
     ...(data.name !== undefined ? { name: data.name } : {}),

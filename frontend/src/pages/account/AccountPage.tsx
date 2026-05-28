@@ -37,10 +37,12 @@ export function AccountPage() {
     setEmailError('');
     setIsSavingEmail(true);
     try {
-      const updatedUser = await updateAccountEmail(email.trim() || null);
-      replaceUser(updatedUser);
-      setEmail(updatedUser.email || '');
-      setEmailMessage('E-mail atualizado com sucesso.');
+      const response = await updateAccountEmail(email.trim() || null);
+      replaceUser(response.user);
+      setEmail(response.user.email || email.trim());
+      setEmailMessage(response.emailChangePending
+        ? response.message || 'Enviamos um link de confirmação para o novo e-mail.'
+        : 'E-mail atualizado com sucesso.');
     } catch (err) {
       setEmailError(err instanceof Error ? err.message : 'Falha ao atualizar e-mail.');
     } finally {

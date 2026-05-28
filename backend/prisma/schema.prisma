@@ -504,6 +504,7 @@ model User {
   moduleRoles     ModuleRole[]
   sessions        UserSession[]
   passwordResetTokens PasswordResetToken[]
+  emailChangeTokens EmailChangeToken[]
   drafts          ReportDraft[]
   authorizedProjects ProjectAuthorizedUser[]
   createdReports  Report[]      @relation("ReportCreator")
@@ -781,6 +782,21 @@ model PasswordResetToken {
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([expiresAt])
+}
+
+model EmailChangeToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  email     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([email])
   @@index([expiresAt])
 }
 

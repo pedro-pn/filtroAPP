@@ -8,6 +8,7 @@ import { useAuth } from './auth/AuthContext';
 import { AccountPage } from './pages/account/AccountPage';
 import { AdminAccountsPage } from './pages/admin/AdminAccountsPage';
 import { ClientPage } from './pages/client/ClientPage';
+import { ConfirmEmailChangePage } from './pages/ConfirmEmailChangePage';
 import { HomePage } from './pages/collaborator/HomePage';
 import { MyArchivedReportsPage } from './pages/collaborator/MyArchivedReportsPage';
 import { MyReportsPage } from './pages/collaborator/MyReportsPage';
@@ -62,6 +63,7 @@ export default function App() {
         <Route path="/privacidade" element={<PrivacyPage />} />
         <Route path="/privacidade/direitos" element={<PrivacyRightsPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/confirmar-email" element={<ConfirmEmailChangePage />} />
         <Route path="/pesquisa/:token" element={<SurveyPage />} />
         <Route path="/assinar/:token" element={<PublicSignaturePage />} />
         <Route path="/epi/assinar/:token" element={<EpiPublicSignaturePage />} />

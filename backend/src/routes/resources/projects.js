@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { ensureClientAccountForProject, ensureClientCcAccounts } from '../../lib/client-account.js';
-import { clientProjectAccessWhere } from '../../lib/client-project-access.js';
+import { clientProjectAccessWhereWithSigners } from '../../lib/client-project-access.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import { invalidateUnsignedInternalSignatureRound, signatureEvidenceFromRequest } from '../../lib/internal-report-signatures.js';
 import { ModuleRoleCodes } from '../../lib/module-roles.js';
@@ -67,13 +67,16 @@ function normalizeProjectInput(data) {
     .map(s => ({ name: String(s.name || '').trim(), email: String(s.email || '').trim().toLowerCase() }))
     .filter(s => s.name && s.email && s.email !== primary)
     .filter(s => { if (seenSignerEmails.has(s.email)) return false; seenSignerEmails.add(s.email); return true; });
+  const signerEmails = clientSigners.map(s => s.email);
+  const allClientEmailCc = Array.from(new Set([...clientEmailCc, ...signerEmails]))
+    .filter(email => email !== primary);
 
   return {
     ...data,
     visibleToCollaborators: data.managerOnly ? false : data.visibleToCollaborators,
     clientCnpj: normalizedCnpj,
     clientEmailPrimary: primary,
-    clientEmailCc,
+    clientEmailCc: allClientEmailCc,
     clientSigners
   };
 }
@@ -183,7 +186,8 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
   } else if (req.auth.user.role === 'CLIENT') {
-    Object.assign(where, clientProjectAccessWhere(req.auth));
+    delete where.deletedAt;
+    Object.assign(where, await clientProjectAccessWhereWithSigners(prisma, req.auth));
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
   } else {

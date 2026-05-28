@@ -19,6 +19,7 @@ import { useProjects } from '../../hooks/useProjects';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import type { Project, ReportSummary, SatisfactionSurveySummary } from '../../types/domain';
+import { clientCanSignReport, clientSignerEmailForReport } from '../../utils/clientSignature';
 import { downloadBlob } from '../../utils/download';
 import { formatCnpj } from '../../utils/formatCnpj';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
@@ -82,7 +83,7 @@ function userSignatureEmail(user: ReturnType<typeof useAuth>['user']) {
 }
 
 function initialSignerNameForReport(report: ReportSummary | undefined, user: ReturnType<typeof useAuth>['user']) {
-  const email = userSignatureEmail(user);
+  const email = clientSignerEmailForReport(report, user) || userSignatureEmail(user);
   const matchingSignature = report?.reportSignatures?.find(signature =>
     String(signature.signerEmail || '').trim().toLowerCase() === email
   );
@@ -518,7 +519,7 @@ export function ClientPage() {
 
   function renderClientReportCard(report: ReportSummary) {
     const clientRejected = isClientRejectedReport(report);
-    const signable = report.reportType === 'RDO' && report.status === 'APPROVED' && !clientRejected;
+    const signable = clientCanSignReport(report, user, clientRejected);
     const selectable = canSelectClientReport(report);
     const status = clientStatusMeta(report);
     const rejections = clientRejectionReviews(report);
@@ -617,7 +618,7 @@ export function ClientPage() {
     const typeIds = typeReports.map(report => report.id);
     const selectedTypeIds = selectedIds.filter(id => typeIds.includes(id));
     const signableIds = selectedTypeIds.filter(id =>
-      typeReports.some(report => report.id === id && report.reportType === 'RDO' && report.status === 'APPROVED' && !isClientRejectedReport(report))
+      typeReports.some(report => report.id === id && clientCanSignReport(report, user, isClientRejectedReport(report)))
     );
     const selectableTypeIds = typeReports.filter(canSelectClientReport).map(report => report.id);
     const hasSelection = selectedTypeIds.length > 0;
@@ -641,7 +642,7 @@ export function ClientPage() {
                 <button
                   className="primary-button"
                   type="button"
-                  disabled={reportMutations.requestSignature.isPending}
+                  disabled={reportMutations.requestSignature.isPending || !signableIds.length}
                   onClick={() => void handleBatchSignature(signableIds)}
                 >
                   {TEXT.batchSignature}

@@ -32,6 +32,32 @@ test('stored upload access rejects soft-deleted reports and projects', () => {
   );
 });
 
+test('stored upload access allows clients to read reports under archived linked projects', () => {
+  assert.equal(
+    canAccessReport({
+      user: {
+        id: 'client-1',
+        username: 'client@example.com',
+        role: 'CLIENT',
+        accountType: 'CLIENT',
+        moduleRoles: ['rdo:client']
+      },
+      rawUser: {}
+    }, {
+      id: 'report-1',
+      deletedAt: null,
+      project: {
+        deletedAt: new Date(),
+        managerOnly: false,
+        clientCnpj: '11222333000144',
+        clientEmailPrimary: 'client@example.com',
+        clientEmailCc: []
+      }
+    }),
+    true
+  );
+});
+
 test('stored upload access ignores arbitrary self-owned draft payload references', async t => {
   const originalDraftFindMany = prisma.reportDraft.findMany;
   const originalQueryRaw = prisma.$queryRaw;

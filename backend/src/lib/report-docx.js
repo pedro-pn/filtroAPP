@@ -503,8 +503,8 @@ function buildDocxData(report) {
     system: primaryService?.serviceType === 'inibicao'
       ? formatInhibitionSystem(getField(primaryFields, ['Sistema']) || primaryService?.system || '')
       : (stringify(getField(primaryFields, ['Sistema'])) || primaryService?.system || ''),
-    leadername: projectLeader.name || report.createdBy?.collaborator?.name || report.createdBy?.name || '',
-    leaderposition: projectLeader.role || report.createdBy?.collaborator?.role || ''
+    leadername: projectLeader.name || '',
+    leaderposition: projectLeader.role || ''
   };
 }
 
@@ -575,8 +575,7 @@ function nextRelationshipId(relsDoc) {
 
 async function getSignatureAsset(report) {
   const source = report.specialConditions?.__leaderSnapshot?.signatureImage
-    || report.project?.operator?.signatureImage
-    || report.createdBy?.collaborator?.signatureImage;
+    || report.project?.operator?.signatureImage;
   return getUploadAsset(source);
 }
 

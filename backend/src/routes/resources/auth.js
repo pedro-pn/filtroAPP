@@ -3,10 +3,10 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
-import { createPasswordResetToken, createSession, hashToken, publicUser } from '../../lib/auth.js';
+import { createEmailChangeToken, createPasswordResetToken, createSession, hashToken, publicUser } from '../../lib/auth.js';
 import { ensureClientAccountForCnpj } from '../../lib/client-account.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
-import { buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
+import { buildEmailChangeConfirmationTemplate, buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { CLIENT_PRIVACY_NOTICE_VERSION } from '../../lib/privacy-consent.js';
@@ -14,6 +14,7 @@ import prisma from '../../lib/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
+const EMAIL_CHANGE_TOKEN_MAX_AGE_MS = 60 * 60 * 1000;
 
 const loginSchema = z.object({
   username: z.string().min(1, 'Informe o usuário.'),
@@ -26,6 +27,9 @@ const forgotPasswordSchema = z.object({
 const resetPasswordSchema = z.object({
   token: z.string().min(1, 'Token obrigatório.'),
   password: z.string().min(6, 'A senha deve ter pelo menos 6 caracteres.')
+});
+const emailChangeTokenSchema = z.object({
+  token: z.string().min(1, 'Token obrigatório.')
 });
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Informe a senha atual.'),
@@ -47,6 +51,12 @@ function resetUrlForToken(token) {
   return `${base}/reset-password?token=${encodeURIComponent(token)}`;
 }
 
+function emailChangeConfirmUrlForToken(token) {
+  const base = String(env.appUrl || '').replace(/\/+$/, '');
+  if (!base) return '';
+  return `${base}/confirmar-email?token=${encodeURIComponent(token)}`;
+}
+
 function passwordResetSuccessMessage(res) {
   res.json({
     ok: true,
@@ -57,6 +67,14 @@ function passwordResetSuccessMessage(res) {
 async function findPasswordResetToken(token) {
   const tokenHash = hashToken(token);
   return prisma.passwordResetToken.findUnique({
+    where: { tokenHash },
+    include: { user: true }
+  });
+}
+
+async function findEmailChangeToken(token) {
+  const tokenHash = hashToken(token);
+  return prisma.emailChangeToken.findUnique({
     where: { tokenHash },
     include: { user: true }
   });
@@ -74,8 +92,150 @@ function passwordResetTokenStatus(tokenRow) {
   };
 }
 
+function emailChangeTokenStatus(tokenRow) {
+  if (!tokenRow) return { valid: false, expired: false, used: false };
+  const now = new Date();
+  const createdAt = tokenRow.createdAt ? new Date(tokenRow.createdAt) : null;
+  const maxAgeExpired = createdAt && !Number.isNaN(createdAt.getTime())
+    ? now.getTime() - createdAt.getTime() > EMAIL_CHANGE_TOKEN_MAX_AGE_MS
+    : false;
+  const expired = tokenRow.expiresAt <= now || maxAgeExpired;
+  const used = !!tokenRow.usedAt;
+  const activeUser = !!tokenRow.user?.isActive;
+  return {
+    valid: !expired && !used && activeUser,
+    expired,
+    used
+  };
+}
+
 function normalizeAccountEmail(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function isEmailLikeUsername(value) {
+  return normalizeAccountEmail(value).includes('@');
+}
+
+function parseClientSigner(value) {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return typeof value === 'object' ? value : null;
+}
+
+function replaceProjectEmailLinks(project, oldEmails, nextEmail) {
+  const normalizedOldEmails = new Set((Array.isArray(oldEmails) ? oldEmails : [oldEmails])
+    .map(normalizeAccountEmail)
+    .filter(Boolean));
+  const normalizedNext = normalizeAccountEmail(nextEmail);
+  const data = {};
+  normalizedOldEmails.delete(normalizedNext);
+  if (!normalizedOldEmails.size || !normalizedNext) return data;
+
+  let nextPrimary = project.clientEmailPrimary || '';
+  if (normalizedOldEmails.has(normalizeAccountEmail(nextPrimary))) {
+    nextPrimary = normalizedNext;
+    data.clientEmailPrimary = normalizedNext;
+  }
+
+  if (Array.isArray(project.clientEmailCc)) {
+    const nextCc = [];
+    let ccChanged = false;
+    for (const email of project.clientEmailCc) {
+      const normalizedEmail = normalizeAccountEmail(email);
+      const value = normalizedOldEmails.has(normalizedEmail) ? normalizedNext : normalizedEmail;
+      if (normalizedOldEmails.has(normalizedEmail) || value !== email) ccChanged = true;
+      if (value && value !== normalizeAccountEmail(nextPrimary) && !nextCc.includes(value)) {
+        nextCc.push(value);
+      }
+    }
+    if (ccChanged || nextCc.length !== project.clientEmailCc.length) {
+      data.clientEmailCc = nextCc;
+    }
+  }
+
+  if (Array.isArray(project.clientSigners)) {
+    const seenSignerEmails = new Set();
+    const nextSigners = [];
+    let signerChanged = false;
+    for (const rawSigner of project.clientSigners) {
+      const signer = parseClientSigner(rawSigner);
+      if (!signer) {
+        nextSigners.push(rawSigner);
+        continue;
+      }
+      const normalizedEmail = normalizeAccountEmail(signer.email);
+      const signerEmail = normalizedOldEmails.has(normalizedEmail) ? normalizedNext : normalizedEmail;
+      if (normalizedOldEmails.has(normalizedEmail) || signerEmail !== signer.email) signerChanged = true;
+      if (!signerEmail || signerEmail === normalizeAccountEmail(nextPrimary) || seenSignerEmails.has(signerEmail)) {
+        signerChanged = true;
+        continue;
+      }
+      seenSignerEmails.add(signerEmail);
+      nextSigners.push({
+        ...signer,
+        email: signerEmail
+      });
+    }
+    if (signerChanged) {
+      data.clientSigners = nextSigners;
+    }
+  }
+
+  return data;
+}
+
+async function migrateClientProjectEmailLinks(tx, oldEmails, nextEmail) {
+  const normalizedOldEmails = new Set((Array.isArray(oldEmails) ? oldEmails : [oldEmails])
+    .map(normalizeAccountEmail)
+    .filter(Boolean));
+  const normalizedNext = normalizeAccountEmail(nextEmail);
+  normalizedOldEmails.delete(normalizedNext);
+  if (!normalizedOldEmails.size || !normalizedNext || typeof tx.project?.findMany !== 'function') {
+    return 0;
+  }
+
+  const projects = await tx.project.findMany({
+    select: {
+      id: true,
+      clientEmailPrimary: true,
+      clientEmailCc: true,
+      clientSigners: true
+    }
+  });
+  let updatedCount = 0;
+  for (const project of projects) {
+    const data = replaceProjectEmailLinks(project, Array.from(normalizedOldEmails), normalizedNext);
+    if (!Object.keys(data).length) continue;
+    await tx.project.update({
+      where: { id: project.id },
+      data
+    });
+    updatedCount += 1;
+  }
+  return updatedCount;
+}
+
+async function findAccountEmailConflict(email, currentUserId) {
+  const normalizedEmail = normalizeAccountEmail(email);
+  if (!normalizedEmail) return null;
+  return prisma.user.findFirst({
+    where: {
+      id: { not: currentUserId },
+      OR: [
+        { username: { equals: normalizedEmail, mode: 'insensitive' } },
+        { email: { equals: normalizedEmail, mode: 'insensitive' } }
+      ]
+    },
+    select: { id: true }
+  });
 }
 
 async function queuePasswordResetEmail({ user, emails }) {
@@ -113,8 +273,54 @@ async function queuePasswordResetEmail({ user, emails }) {
   });
 }
 
+async function queueEmailChangeConfirmationEmail({ user, email }) {
+  const missingMailerConfig = getMissingMailerConfig();
+  if (missingMailerConfig.length || !env.appUrl) {
+    const error = new Error('Não foi possível enviar a confirmação de e-mail no momento.');
+    error.status = 503;
+    error.details = {
+      missingMailerConfig,
+      hasAppUrl: !!env.appUrl
+    };
+    throw error;
+  }
+
+  await prisma.emailChangeToken.deleteMany({
+    where: {
+      userId: user.id,
+      usedAt: null
+    }
+  });
+
+  const { token, expiresAt } = await createEmailChangeToken(user.id, email);
+  const confirmUrl = emailChangeConfirmUrlForToken(token);
+  const template = buildEmailChangeConfirmationTemplate({
+    userName: user.name || user.username,
+    email,
+    confirmUrl,
+    expiresLabel: '1 hora'
+  });
+
+  setImmediate(() => {
+    sendMail({
+      to: email,
+      ...template
+    }).catch(error => {
+      console.error('Falha ao enviar confirmação de troca de e-mail.', {
+        userId: user.id,
+        email,
+        expiresAt,
+        error: error?.message || error
+      });
+    });
+  });
+
+  return { expiresAt };
+}
+
 async function findLoginCandidates(identifier) {
   const rawIdentifier = String(identifier || '').trim();
+  const normalizedEmailIdentifier = rawIdentifier.toLowerCase();
   const normalizedIdentifier = normalizeCnpj(rawIdentifier);
   const usernameCandidates = Array.from(new Set([
     rawIdentifier,
@@ -136,10 +342,33 @@ async function findLoginCandidates(identifier) {
   ));
   const exactEmail = user => (
     rawIdentifier.includes('@')
-      && String(user.email || '').toLowerCase() === rawIdentifier.toLowerCase()
+      && String(user.email || '').toLowerCase() === normalizedEmailIdentifier
   );
 
-  return users.sort((a, b) => {
+  let filteredUsers = users;
+  if (rawIdentifier.includes('@')) {
+    const clientEmailMatches = users.filter(user => (
+      user.role === 'CLIENT'
+      && String(user.email || '').toLowerCase() === normalizedEmailIdentifier
+    ));
+    if (clientEmailMatches.length > 1) {
+      const canonicalClient = clientEmailMatches.slice().sort((a, b) => {
+        const usernameDelta = Number(String(b.username || '').toLowerCase() === normalizedEmailIdentifier)
+          - Number(String(a.username || '').toLowerCase() === normalizedEmailIdentifier);
+        if (usernameDelta) return usernameDelta;
+        const activeDelta = Number(b.isActive) - Number(a.isActive);
+        if (activeDelta) return activeDelta;
+        return new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime();
+      })[0];
+      filteredUsers = users.filter(user => (
+        user.role !== 'CLIENT'
+        || String(user.email || '').toLowerCase() !== normalizedEmailIdentifier
+        || user.id === canonicalClient.id
+      ));
+    }
+  }
+
+  return filteredUsers.sort((a, b) => {
     const usernameDelta = Number(exactUsername(b)) - Number(exactUsername(a));
     if (usernameDelta) return usernameDelta;
     const emailDelta = Number(exactEmail(b)) - Number(exactEmail(a));
@@ -187,14 +416,20 @@ router.post('/forgot-password', asyncHandler(async (req, res) => {
 
   if (rawIdentifier.includes('@')) {
     user = await prisma.user.findFirst({
-      where: { email: { equals: rawIdentifier.toLowerCase(), mode: 'insensitive' } }
+      where: { username: { equals: rawIdentifier.toLowerCase(), mode: 'insensitive' } }
     });
+    if (!user) {
+      user = await prisma.user.findFirst({
+        where: { email: { equals: rawIdentifier.toLowerCase(), mode: 'insensitive' } },
+        orderBy: [{ isActive: 'desc' }, { updatedAt: 'desc' }, { createdAt: 'asc' }]
+      });
+    }
     if (user?.email) emails = [user.email];
   } else if (normalizedIdentifier.length === 14) {
     user = await prisma.user.findFirst({
       where: { username: { equals: normalizedIdentifier, mode: 'insensitive' } }
     });
-    if (!user) {
+    if (!user || (user.role === 'CLIENT' && !user.isActive)) {
       const ensured = await ensureClientAccountForCnpj(prisma, normalizedIdentifier, { notify: false });
       user = ensured.user;
     }
@@ -293,28 +528,132 @@ router.post('/change-password', requireAuth, asyncHandler(async (req, res) => {
 
 router.put('/account', requireAuth, asyncHandler(async (req, res) => {
   const data = accountSchema.parse(req.body);
-  const currentUser = data.email !== undefined
-    ? await prisma.user.findUniqueOrThrow({
-        where: { id: req.auth.user.id },
-        select: { email: true, emailVerifiedAt: true }
-      })
-    : null;
-  const nextEmail = data.email ? normalizeAccountEmail(data.email) : null;
-  const keepEmailVerifiedAt = !!nextEmail
-    && !!currentUser?.emailVerifiedAt
-    && normalizeAccountEmail(currentUser.email) === nextEmail;
-  const user = await prisma.user.update({
+  const currentUser = await prisma.user.findUniqueOrThrow({
     where: { id: req.auth.user.id },
-    data: {
-      ...(data.email !== undefined ? {
-        email: nextEmail,
-        emailVerifiedAt: keepEmailVerifiedAt ? currentUser.emailVerifiedAt : null
-      } : {})
-    },
     include: { collaborator: true, moduleRoles: true }
   });
 
-  res.json({ user: publicUser(user) });
+  if (data.email === undefined) {
+    return res.json({ user: publicUser(currentUser) });
+  }
+
+  const nextEmail = data.email ? normalizeAccountEmail(data.email) : '';
+  if (!nextEmail) {
+    return res.status(400).json({ error: 'Informe um e-mail válido para confirmar a alteração.' });
+  }
+
+  const currentEmail = normalizeAccountEmail(currentUser.email);
+  if (currentEmail === nextEmail && currentUser.emailVerifiedAt) {
+    return res.json({ user: publicUser(currentUser), emailChangePending: false });
+  }
+
+  const conflict = await findAccountEmailConflict(nextEmail, currentUser.id);
+  if (conflict) {
+    return res.status(409).json({ error: 'Já existe uma conta cadastrada para este e-mail.' });
+  }
+
+  const { expiresAt } = await queueEmailChangeConfirmationEmail({
+    user: currentUser,
+    email: nextEmail
+  });
+
+  res.status(202).json({
+    user: publicUser(currentUser),
+    emailChangePending: true,
+    pendingEmail: nextEmail,
+    expiresAt,
+    message: 'Enviamos um link de confirmação para o novo e-mail.'
+  });
+}));
+
+router.get('/email-change-status', asyncHandler(async (req, res) => {
+  const token = String(req.query.token || '').trim();
+  if (!token) {
+    return res.status(400).json({ error: 'Token ausente.' });
+  }
+
+  const tokenRow = await findEmailChangeToken(token);
+  const status = emailChangeTokenStatus(tokenRow);
+  res.json({
+    ...status,
+    email: status.valid ? tokenRow.email : null
+  });
+}));
+
+router.post('/confirm-email-change', asyncHandler(async (req, res) => {
+  const data = emailChangeTokenSchema.parse(req.body);
+  const tokenRow = await findEmailChangeToken(data.token);
+  const status = emailChangeTokenStatus(tokenRow);
+
+  if (!status.valid) {
+    return res.status(400).json({ error: 'Token inválido, expirado ou já utilizado.' });
+  }
+
+  const nextEmail = normalizeAccountEmail(tokenRow.email);
+  if (!nextEmail) {
+    return res.status(400).json({ error: 'Token inválido, expirado ou já utilizado.' });
+  }
+
+  const conflict = await findAccountEmailConflict(nextEmail, tokenRow.userId);
+  if (conflict) {
+    return res.status(409).json({ error: 'Já existe uma conta cadastrada para este e-mail.' });
+  }
+
+  const confirmedAt = new Date();
+  const user = await prisma.$transaction(async tx => {
+    const consume = await tx.emailChangeToken.updateMany({
+      where: {
+        id: tokenRow.id,
+        usedAt: null,
+        expiresAt: { gt: confirmedAt }
+      },
+      data: { usedAt: confirmedAt }
+    });
+
+    if (consume.count !== 1) {
+      const error = new Error('Token inválido, expirado ou já utilizado.');
+      error.status = 400;
+      throw error;
+    }
+
+    const txConflict = await tx.user.findFirst({
+      where: {
+        id: { not: tokenRow.userId },
+        OR: [
+          { username: { equals: nextEmail, mode: 'insensitive' } },
+          { email: { equals: nextEmail, mode: 'insensitive' } }
+        ]
+      },
+      select: { id: true }
+    });
+    if (txConflict) {
+      const error = new Error('Já existe uma conta cadastrada para este e-mail.');
+      error.status = 409;
+      throw error;
+    }
+
+    const currentUsername = normalizeAccountEmail(tokenRow.user.username);
+    const currentEmail = normalizeAccountEmail(tokenRow.user.email);
+    const shouldUpdateUsername = isEmailLikeUsername(currentUsername);
+    const migrationSources = Array.from(new Set([
+      currentEmail,
+      shouldUpdateUsername ? currentUsername : ''
+    ].filter(email => email && email !== nextEmail)));
+
+    await migrateClientProjectEmailLinks(tx, migrationSources, nextEmail);
+
+    return tx.user.update({
+      where: { id: tokenRow.userId },
+      data: {
+        ...(shouldUpdateUsername ? { username: nextEmail } : {}),
+        email: nextEmail,
+        emailVerifiedAt: confirmedAt
+      },
+      include: { collaborator: true, moduleRoles: true }
+    });
+  });
+
+  res.json({ ok: true, user: publicUser(user) });
 }));
 
 router.post('/client-privacy-consent', requireAuth, asyncHandler(async (req, res) => {

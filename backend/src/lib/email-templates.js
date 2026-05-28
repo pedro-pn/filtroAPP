@@ -18,6 +18,14 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+function formatEmailDate(value) {
+  const raw = value instanceof Date ? value.toISOString() : String(value || '');
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('pt-BR');
+}
+
 function wrapEmailHtml({ title, intro, body, footer }) {
   return `
     <div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1a1a1a">
@@ -263,6 +271,36 @@ export function buildPasswordResetEmailTemplate({ userName, resetUrl, expiresLab
       `Recebemos uma solicitação para redefinir a senha da conta ${userName}.`,
       '',
       `Use este link para redefinir a senha: ${resetUrl}`,
+      '',
+      `Este link expira em ${expiresLabel}.`,
+      'Se você não solicitou esta alteração, ignore este e-mail.'
+    ].join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildEmailChangeConfirmationTemplate({ userName, email, confirmUrl, expiresLabel }) {
+  const title = 'Confirmação de troca de e-mail';
+  const intro = `Recebemos uma solicitação para vincular este e-mail à conta ${userName}.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Novo e-mail:</strong> ${email}</div>
+      </div>
+    </div>
+    <p style="font-size:14px;line-height:1.7;margin:16px 0">Use o link abaixo para confirmar a alteração:</p>
+    <p style="margin:0 0 16px"><a href="${confirmUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Confirmar e-mail</a></p>
+    <p style="font-size:13px;line-height:1.7;margin:0 0 8px">Se preferir, copie e cole este link no navegador:</p>
+    <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0">${confirmUrl}</p>
+  `;
+  const footer = `Este link expira em ${expiresLabel}. Se você não solicitou esta alteração, ignore este e-mail.`;
+
+  return {
+    subject: '[Filtrovali] Confirme seu novo e-mail',
+    text: [
+      `Recebemos uma solicitação para vincular ${email} à conta ${userName}.`,
+      '',
+      `Confirme a alteração neste link: ${confirmUrl}`,
       '',
       `Este link expira em ${expiresLabel}.`,
       'Se você não solicitou esta alteração, ignore este e-mail.'
@@ -592,6 +630,65 @@ export function buildReportSignatureCompletedEmailTemplate({
       `Data: ${reportDate}`,
       `Último signatário: ${signerName} (${signerEmail})`,
       finalDocumentHash ? `Hash PDF final: ${finalDocumentHash}` : '',
+      appUrl ? `Acesso: ${appUrl}` : '',
+      privacyTextLine()
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildReleasedServiceReportsEmailTemplate({
+  projectCode,
+  projectName,
+  rdoNumber,
+  rdoDate,
+  reports = [],
+  appUrl
+}) {
+  const safeProjectCode = escapeHtml(projectCode || '---');
+  const safeProjectName = escapeHtml(projectName || 'Sem projeto');
+  const safeRdoNumber = escapeHtml(rdoNumber || '');
+  const safeRdoDate = escapeHtml(rdoDate || '');
+  const safeAppUrl = escapeHtml(appUrl || '');
+  const rdoLabel = safeRdoNumber ? `RDO ${safeRdoNumber}` : 'RDO';
+  const reportCount = reports.length;
+  const plural = reportCount === 1 ? '' : 's';
+  const title = 'Relatórios de serviço liberados';
+  const intro = `Com a assinatura do ${rdoLabel}, ${reportCount} relatório${plural} de serviço do projeto ${safeProjectCode} - ${safeProjectName} foram liberados.`;
+  const reportLines = reports.map(report => {
+    const number = report.sequenceNumber == null ? '' : ` ${report.sequenceNumber}`;
+    const date = report.reportDate ? ` - ${formatEmailDate(report.reportDate)}` : '';
+    return `${report.reportType}${number}${date}`;
+  });
+  const reportItems = reportLines
+    .map(line => `<li>${escapeHtml(line)}</li>`)
+    .join('');
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Projeto:</strong> ${safeProjectCode} - ${safeProjectName}</div>
+        <div><strong>RDO assinado:</strong> ${rdoLabel}</div>
+        <div><strong>Data do RDO:</strong> ${safeRdoDate}</div>
+        <div><strong>Relatórios liberados:</strong></div>
+        <ul style="margin:8px 0 0 20px;padding:0">${reportItems}</ul>
+      </div>
+    </div>
+    <p style="font-size:14px;line-height:1.7;margin:16px 0 0">Os PDFs dos relatórios liberados seguem anexados a este e-mail.</p>
+    ${safeAppUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema: <a href="${safeAppUrl}" style="color:#30503a">${safeAppUrl}</a></p>` : ''}
+  `;
+  const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Relatórios de serviço liberados - ${projectCode || 'Projeto'}`,
+    text: [
+      `Com a assinatura do ${rdoNumber ? `RDO ${rdoNumber}` : 'RDO'}, ${reportCount} relatório${plural} de serviço foram liberados.`,
+      '',
+      `Projeto: ${projectCode || '---'} - ${projectName || 'Sem projeto'}`,
+      `Data do RDO: ${rdoDate || '-'}`,
+      'Relatórios liberados:',
+      ...reportLines.map(line => `- ${line}`),
+      '',
+      'Os PDFs dos relatórios liberados seguem anexados a este e-mail.',
       appUrl ? `Acesso: ${appUrl}` : '',
       privacyTextLine()
     ].filter(Boolean).join('\n'),

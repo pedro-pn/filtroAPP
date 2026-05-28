@@ -367,8 +367,8 @@ function buildRlqBaseData(report) {
     status,
     tags: stringify(getField(sd, ['Desenhos / TAGs', 'Desenhos / Tags'])),
     obs: stringify(getField(sd, ['Observações', 'Observacoes'])),
-    leadername: safeText(sc.__leaderSnapshot?.name || report.project?.operator?.name || report.createdBy?.collaborator?.name || report.createdBy?.name),
-    leaderposition: safeText(sc.__leaderSnapshot?.role || report.project?.operator?.role || report.createdBy?.collaborator?.role)
+    leadername: safeText(sc.__leaderSnapshot?.name || report.project?.operator?.name),
+    leaderposition: safeText(sc.__leaderSnapshot?.role || report.project?.operator?.role)
   };
 }
 
@@ -562,7 +562,7 @@ export async function buildRlqDocx(report) {
   const collabs = sc.resolvedCollaborators || [];
 
   const baseData = buildRlqBaseData(report);
-  const signatureAsset = await getUploadAsset(sc.__leaderSnapshot?.signatureImage || report.project?.operator?.signatureImage || report.createdBy?.collaborator?.signatureImage);
+  const signatureAsset = await getUploadAsset(sc.__leaderSnapshot?.signatureImage || report.project?.operator?.signatureImage);
 
   const corpoUploads = (() => {
     const v = getField(sd, ['Imagens — corpo de prova', 'Imagens - corpo de prova', 'Imagens â€" corpo de prova']);

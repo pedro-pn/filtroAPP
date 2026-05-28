@@ -1,5 +1,6 @@
 import asyncHandler from '../lib/async-handler.js';
 import { hashToken, publicUser } from '../lib/auth.js';
+import { trustedClientAccessScopeForUser } from '../lib/client-project-access.js';
 import { hasModuleRole } from '../lib/module-roles.js';
 import {
   CLIENT_PRIVACY_NOTICE_VERSION,
@@ -71,10 +72,15 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
     return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
   }
 
+  const user = publicUser(session.user);
+  const trustedClientScope = await trustedClientAccessScopeForUser(prisma, session.user);
+
   req.auth = {
     token,
     sessionId: session.id,
-    user: publicUser(session.user),
+    user: trustedClientScope.emails.length || trustedClientScope.cnpjs.length
+      ? { ...user, trustedClientEmails: trustedClientScope.emails, trustedClientCnpjs: trustedClientScope.cnpjs }
+      : user,
     rawUser: session.user
   };
 

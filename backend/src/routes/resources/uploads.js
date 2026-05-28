@@ -214,7 +214,8 @@ function valueReferencesUpload(value, normalizedPath) {
 
 export function canAccessReport(auth, report) {
   if (!hasModuleRole(auth.user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator', 'rdo:client'])) return false;
-  if (report?.deletedAt || report?.project?.deletedAt) return false;
+  if (report?.deletedAt) return false;
+  if (report?.project?.deletedAt && auth.user.role !== 'CLIENT') return false;
   if (auth.user.role === 'MANAGER') return true;
   if (report.project?.managerOnly) return false;
   if (auth.user.role === 'COORDINATOR') return true;

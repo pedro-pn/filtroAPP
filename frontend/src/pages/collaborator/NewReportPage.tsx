@@ -44,6 +44,7 @@ const TEXT = {
   noService: 'Nenhum serviço adicionado.',
   photos: 'Fotos de registro',
   projectTimeRequired: 'Preencha projeto, data e horários antes de enviar.',
+  projectWithoutLeader: 'Este projeto não possui líder cadastrado. O relatório ficará sem assinatura do líder.',
   remove: 'Remover',
   select: 'Selecione',
   service: 'Serviço',
@@ -133,6 +134,7 @@ export function NewReportPage() {
   const [collaboratorsPrefilled, setCollaboratorsPrefilled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const canCreateServiceOnly = user?.role === 'MANAGER';
+  const canCreateReportWithoutLeader = user?.role === 'MANAGER' || user?.role === 'COORDINATOR';
   const effectiveServiceOnly = canCreateServiceOnly && serviceOnly;
   const steps = effectiveServiceOnly ? serviceOnlySteps : rdoSteps;
 
@@ -154,6 +156,8 @@ export function NewReportPage() {
     () => (projectsQuery.data || []).find(project => project.id === projectId) || null,
     [projectId, projectsQuery.data]
   );
+  const selectedProjectHasLeader = Boolean(selectedProject?.operatorId || selectedProject?.operator);
+  const showProjectWithoutLeaderWarning = canCreateReportWithoutLeader && Boolean(selectedProject) && !selectedProjectHasLeader;
   const serviceOptions = useMemo(() => {
     const allowed = effectiveServiceOnly
       ? serviceTypeModalOptions.filter(option => serviceOnlySupportedTypes.has(option.type))
@@ -161,6 +165,14 @@ export function NewReportPage() {
     return allowed.filter(option => option.type !== 'inibicao' || selectedProject?.inhibitionServiceEnabled === true);
   }, [effectiveServiceOnly, selectedProject?.inhibitionServiceEnabled]);
   const backPath = roleHomePath(user?.role);
+
+  function handleProjectChange(nextProjectId: string) {
+    const nextProject = projects.find(project => project.id === nextProjectId) || null;
+    setHeaderField('projectId', nextProjectId || null);
+    if (canCreateReportWithoutLeader && nextProject && !nextProject.operatorId && !nextProject.operator) {
+      showToast(TEXT.projectWithoutLeader, 'info');
+    }
+  }
 
   function firstIdFromField(value: unknown) {
     if (typeof value === 'string') return value;
@@ -1001,7 +1013,7 @@ export function NewReportPage() {
               <select
                 id="rdo-project"
                 value={projectId || ''}
-                onChange={event => setHeaderField('projectId', event.target.value || null)}
+                onChange={event => handleProjectChange(event.target.value)}
                 required
               >
                 <option value="">Selecionar projeto...</option>
@@ -1011,6 +1023,11 @@ export function NewReportPage() {
                   </option>
                 ))}
               </select>
+              {showProjectWithoutLeaderWarning ? (
+                <div className="form-hint" role="status">
+                  {TEXT.projectWithoutLeader}
+                </div>
+              ) : null}
             </div>
             <div className={fieldState('header:reportDate')} data-invalid-target="header:reportDate">
               <label htmlFor="rdo-date">Data do relatório <span style={{ color: 'var(--rd)' }}>*</span></label>

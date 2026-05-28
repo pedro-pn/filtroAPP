@@ -27,6 +27,7 @@ import { Modal } from '../components/ui/Modal';
 import { ReasonDialog } from '../components/ui/ReasonDialog';
 import { UploadField } from '../components/ui/UploadField';
 import type { ReportAuditLog, ReportPayload, ReportStatus, ReportSummary } from '../types/domain';
+import { clientCanSignReport, clientSignerEmailForReport } from '../utils/clientSignature';
 import { formatDateOnlyPtBr } from '../utils/dateOnly';
 import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
@@ -1169,7 +1170,7 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [clientComment, setClientComment] = useState('');
   const canDownloadDocx = role === 'MANAGER';
-  const canClientSign = role === 'CLIENT' && report.reportType === 'RDO' && report.status === 'APPROVED' && !hasActiveClientRejection(report);
+  const canClientSign = role === 'CLIENT' && clientCanSignReport(report, user, hasActiveClientRejection(report));
 
   async function handleDownload(format: 'pdf' | 'docx') {
     showToast(format === 'pdf' ? 'Gerando PDF...' : 'Gerando DOCX...', 'info');
@@ -1183,7 +1184,7 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
   }
 
   const initialSignerName = useMemo(() => {
-    const userEmail = String(user?.email || (user?.username?.includes('@') ? user.username : '') || '').trim().toLowerCase();
+    const userEmail = clientSignerEmailForReport(report, user);
     const matchingSignature = report.reportSignatures?.find(signature =>
       String(signature.signerEmail || '').trim().toLowerCase() === userEmail
     );

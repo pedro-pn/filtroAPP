@@ -351,8 +351,8 @@ function buildRlfBaseData(report) {
     step: stringify(getField(sd, ['Steps'])),
     lines: stringify(getField(sd, ['Linhas'])),
     obs: stringify(getField(sd, ['Observações', 'Observacoes'])),
-    leadername: safeText(sc.__leaderSnapshot?.name || report.project?.operator?.name || report.createdBy?.collaborator?.name || report.createdBy?.name),
-    leaderposition: safeText(sc.__leaderSnapshot?.role || report.project?.operator?.role || report.createdBy?.collaborator?.role)
+    leadername: safeText(sc.__leaderSnapshot?.name || report.project?.operator?.name),
+    leaderposition: safeText(sc.__leaderSnapshot?.role || report.project?.operator?.role)
   };
 }
 
@@ -484,7 +484,7 @@ export async function buildRlfDocx(report) {
   const collabs = sc.resolvedCollaborators || [];
 
   const baseData = buildRlfBaseData(report);
-  const signatureAsset = await getUploadAsset(sc.__leaderSnapshot?.signatureImage || report.project?.operator?.signatureImage || report.createdBy?.collaborator?.signatureImage);
+  const signatureAsset = await getUploadAsset(sc.__leaderSnapshot?.signatureImage || report.project?.operator?.signatureImage);
 
   const cleaningUploads = (() => {
     const v = getField(sd, ['Fotos do filtro']);
