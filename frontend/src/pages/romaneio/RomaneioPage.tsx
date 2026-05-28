@@ -314,7 +314,7 @@ export function RomaneioPage() {
           </div>
           <div className="filter-tabs" role="tablist" aria-label="Áreas do romaneio">
             <button className={`filter-tab ${tab === 'romaneios' ? 'active' : ''}`} type="button" onClick={() => setTab('romaneios')}>Romaneios</button>
-            {isManager && <button className={`filter-tab ${tab === 'equipamentos' ? 'active' : ''}`} type="button" onClick={() => setTab('equipamentos')}>Equipamentos</button>}
+            <button className={`filter-tab ${tab === 'equipamentos' ? 'active' : ''}`} type="button" onClick={() => setTab('equipamentos')}>Equipamentos</button>
             {isManager && <button className={`filter-tab ${tab === 'notificacoes' ? 'active' : ''}`} type="button" onClick={() => setTab('notificacoes')}>E-mails</button>}
           </div>
         </section>
@@ -406,67 +406,69 @@ export function RomaneioPage() {
           </>
         )}
 
-        {tab === 'equipamentos' && isManager && (
+        {tab === 'equipamentos' && (
           <>
-            <section className="page-card romaneio-panel">
-              <form className="admin-form-grid manager-header-grid" onSubmit={submitCatalog}>
-                <label className="field-group">
-                  <span>Código</span>
-                  <input value={catalogForm.code || ''} onChange={event => setCatalogForm({ ...catalogForm, code: event.target.value })} placeholder="Opcional" />
-                </label>
-                <label className="field-group">
-                  <span>Item</span>
-                  <input value={catalogForm.name} onChange={event => setCatalogForm({ ...catalogForm, name: event.target.value })} required />
-                </label>
-                <label className="field-group">
-                  <span>Categoria</span>
-                  <select
-                    value={catalogCategoryMode === 'new' ? NEW_CATEGORY_VALUE : catalogForm.categoryName}
-                    onChange={event => handleCatalogCategoryChange(event.target.value)}
-                    required
-                  >
-                    <option value="">Selecione</option>
-                    {catalogCategories.map(category => (
-                      <option key={category} value={category}>{category}</option>
-                    ))}
-                    <option value={NEW_CATEGORY_VALUE}>Adicionar categoria</option>
-                  </select>
-                  {catalogCategoryMode === 'new' ? (
-                    <input
-                      value={catalogForm.categoryName}
-                      onChange={event => setCatalogForm({ ...catalogForm, categoryName: event.target.value })}
-                      placeholder="Nova categoria"
+            {isManager ? (
+              <section className="page-card romaneio-panel">
+                <form className="admin-form-grid manager-header-grid" onSubmit={submitCatalog}>
+                  <label className="field-group">
+                    <span>Código</span>
+                    <input value={catalogForm.code || ''} onChange={event => setCatalogForm({ ...catalogForm, code: event.target.value })} placeholder="Opcional" />
+                  </label>
+                  <label className="field-group">
+                    <span>Item</span>
+                    <input value={catalogForm.name} onChange={event => setCatalogForm({ ...catalogForm, name: event.target.value })} required />
+                  </label>
+                  <label className="field-group">
+                    <span>Categoria</span>
+                    <select
+                      value={catalogCategoryMode === 'new' ? NEW_CATEGORY_VALUE : catalogForm.categoryName}
+                      onChange={event => handleCatalogCategoryChange(event.target.value)}
                       required
-                    />
-                  ) : null}
-                </label>
-                <label className="field-group">
-                  <span>Tipo</span>
-                  <select value={catalogForm.kind} onChange={event => setCatalogForm({ ...catalogForm, kind: event.target.value as RomaneioCatalogPayload['kind'] })}>
-                    <option value="EQUIPMENT">Equipamento</option>
-                    <option value="CONNECTION">Conexão</option>
-                  </select>
-                </label>
-                <label className="field-group">
-                  <span>Unidade</span>
-                  <select value={catalogForm.measureType} onChange={event => {
-                    const measureType = event.target.value as RomaneioMeasureType;
-                    setCatalogForm({ ...catalogForm, measureType, defaultUnitLabel: measureLabels[measureType] });
-                  }}>
-                    <option value="UNIT">Unidade</option>
-                    <option value="LENGTH">Comprimento</option>
-                    <option value="WEIGHT">Peso</option>
-                  </select>
-                </label>
-                <label className="checkbox-line">
-                  <input type="checkbox" checked={catalogForm.isSerialized} onChange={event => setCatalogForm({ ...catalogForm, isSerialized: event.target.checked })} />
-                  item único
-                </label>
-                <div className="admin-form-actions field-group-wide">
-                  <button className="primary-button" type="submit" disabled={saveCatalogMutation.isPending}>Adicionar item</button>
-                </div>
-              </form>
-            </section>
+                    >
+                      <option value="">Selecione</option>
+                      {catalogCategories.map(category => (
+                        <option key={category} value={category}>{category}</option>
+                      ))}
+                      <option value={NEW_CATEGORY_VALUE}>Adicionar categoria</option>
+                    </select>
+                    {catalogCategoryMode === 'new' ? (
+                      <input
+                        value={catalogForm.categoryName}
+                        onChange={event => setCatalogForm({ ...catalogForm, categoryName: event.target.value })}
+                        placeholder="Nova categoria"
+                        required
+                      />
+                    ) : null}
+                  </label>
+                  <label className="field-group">
+                    <span>Tipo</span>
+                    <select value={catalogForm.kind} onChange={event => setCatalogForm({ ...catalogForm, kind: event.target.value as RomaneioCatalogPayload['kind'] })}>
+                      <option value="EQUIPMENT">Equipamento</option>
+                      <option value="CONNECTION">Conexão</option>
+                    </select>
+                  </label>
+                  <label className="field-group">
+                    <span>Unidade</span>
+                    <select value={catalogForm.measureType} onChange={event => {
+                      const measureType = event.target.value as RomaneioMeasureType;
+                      setCatalogForm({ ...catalogForm, measureType, defaultUnitLabel: measureLabels[measureType] });
+                    }}>
+                      <option value="UNIT">Unidade</option>
+                      <option value="LENGTH">Comprimento</option>
+                      <option value="WEIGHT">Peso</option>
+                    </select>
+                  </label>
+                  <label className="checkbox-line">
+                    <input type="checkbox" checked={catalogForm.isSerialized} onChange={event => setCatalogForm({ ...catalogForm, isSerialized: event.target.checked })} />
+                    item único
+                  </label>
+                  <div className="admin-form-actions field-group-wide">
+                    <button className="primary-button" type="submit" disabled={saveCatalogMutation.isPending}>Adicionar item</button>
+                  </div>
+                </form>
+              </section>
+            ) : null}
             <section className="page-card romaneio-panel">
               <div className="romaneio-accordion-list">
                 {groupedCatalog.map(([category, items]) => {
@@ -486,14 +488,14 @@ export function RomaneioPage() {
                       </button>
                       {expanded && (
                         <div className="romaneio-catalog-list">
-                          {!hasRdoOwnedItems ? (
+                          {isManager && !hasRdoOwnedItems ? (
                             <div className="romaneio-category-actions">
                               <button className="mini-btn alt" type="button" onClick={() => startEditCategory(category)}>
                                 Editar categoria
                               </button>
                             </div>
                           ) : null}
-                          {editingCategory === category ? (
+                          {isManager && editingCategory === category ? (
                             <form className="admin-inline-form romaneio-category-edit" onSubmit={submitCategoryEdit}>
                               <div className="admin-form-grid manager-header-grid">
                                 <label className="field-group">
@@ -514,16 +516,16 @@ export function RomaneioPage() {
                                   <strong>{[item.code, item.name].filter(Boolean).join(' - ')}</strong>
                                   <div className="rel-meta">{item.kind === 'CONNECTION' ? 'Conexão' : 'Equipamento'} · {item.defaultUnitLabel}</div>
                                 </div>
-                                {!isRdoOwnedCatalogItem(item) ? (
+                                {isManager && !isRdoOwnedCatalogItem(item) ? (
                                   <div className="report-card-actions">
                                     <button className="mini-btn alt" type="button" onClick={() => editCatalog(item)}>Editar</button>
                                     <button className="mini-btn danger" type="button" onClick={() => removeCatalogMutation.mutate(item.id)}>Remover</button>
                                   </div>
-                                ) : (
+                                ) : isManager && isRdoOwnedCatalogItem(item) ? (
                                   <div className="rel-meta">Gerenciado no RDO</div>
-                                )}
+                                ) : null}
                               </div>
-                              {editingCatalogId === item.id && (
+                              {isManager && editingCatalogId === item.id && (
                                 <form className="admin-inline-form romaneio-inline-edit" onSubmit={event => submitCatalogEdit(event, item.id)}>
                                   <div className="admin-form-grid manager-header-grid">
                                     <label className="field-group">
