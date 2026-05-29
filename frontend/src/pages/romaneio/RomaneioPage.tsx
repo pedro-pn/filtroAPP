@@ -75,6 +75,14 @@ function isRdoOwnedCatalogItem(item: RomaneioCatalogItem) {
   return rdoOwnedCatalogSources.has(item.sourceType);
 }
 
+function normalizeSearch(value: unknown) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 export function RomaneioPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -84,6 +92,7 @@ export function RomaneioPage() {
   const [tab, setTab] = useState<Tab>('romaneios');
   const [search, setSearch] = useState('');
   const [projectId, setProjectId] = useState('');
+  const [catalogSearch, setCatalogSearch] = useState('');
   const [catalogForm, setCatalogForm] = useState<RomaneioCatalogPayload>(catalogEmpty());
   const [catalogCategoryMode, setCatalogCategoryMode] = useState<'existing' | 'new'>('existing');
   const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
@@ -193,12 +202,21 @@ export function RomaneioPage() {
 
   const groupedCatalog = useMemo(() => {
     const map = new Map<string, RomaneioCatalogItem[]>();
+    const term = normalizeSearch(catalogSearch);
     (catalogQuery.data || []).forEach(item => {
+      const searchable = normalizeSearch([
+        item.code,
+        item.name,
+        item.categoryName,
+        item.kind === 'CONNECTION' ? 'Conexão' : 'Equipamento',
+        item.defaultUnitLabel
+      ].filter(Boolean).join(' '));
+      if (term && !searchable.includes(term)) return;
       if (!map.has(item.categoryName)) map.set(item.categoryName, []);
       map.get(item.categoryName)?.push(item);
     });
     return Array.from(map.entries());
-  }, [catalogQuery.data]);
+  }, [catalogQuery.data, catalogSearch]);
 
   const catalogCategories = useMemo(() => {
     return Array.from(new Set((catalogQuery.data || []).map(item => item.categoryName).filter(Boolean))).sort((a, b) => a.localeCompare(b));
@@ -489,9 +507,19 @@ export function RomaneioPage() {
               </section>
             ) : null}
             <section className="page-card romaneio-panel">
+              <div className="admin-form-grid manager-header-grid">
+                <label className="field-group">
+                  <span>Pesquisar equipamento</span>
+                  <input
+                    value={catalogSearch}
+                    onChange={event => setCatalogSearch(event.target.value)}
+                    placeholder="Código, item, categoria, tipo ou unidade"
+                  />
+                </label>
+              </div>
               <div className="romaneio-accordion-list">
                 {groupedCatalog.map(([category, items]) => {
-                  const expanded = expandedCatalogCategories.has(category);
+                  const expanded = !!catalogSearch.trim() || expandedCatalogCategories.has(category);
                   const hasRdoOwnedItems = items.some(isRdoOwnedCatalogItem);
                   return (
                     <div className="romaneio-accordion" key={category}>
@@ -614,7 +642,7 @@ export function RomaneioPage() {
                   );
                 })}
                 {!catalogQuery.isLoading && !groupedCatalog.length && (
-                  <div className="rel-meta">Nenhum item cadastrado.</div>
+                  <div className="rel-meta">{catalogSearch.trim() ? 'Nenhum item encontrado.' : 'Nenhum item cadastrado.'}</div>
                 )}
                 {catalogQuery.isLoading && (
                   <div className="rel-meta">Carregando equipamentos...</div>
