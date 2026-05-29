@@ -101,9 +101,9 @@ export function buildReportFileBaseName(report) {
     return safePath(`${missionLabel(report)} - RDO ${reportNumber(report)} - ${dateFilePart(report?.reportDate)} - ${weekdayNamePt(report?.reportDate)}`);
   }
 
-  if (type === 'RLF') {
+  if (type === 'RLF' || type === 'RLI') {
     const vessel = serviceEquipment(report) || 'Embarcação';
-    return safePath(`${missionLabel(report)} - RLF ${reportNumber(report)} - ${vessel} - ${vessel}M00${serviceStep(report)}`);
+    return safePath(`${missionLabel(report)} - ${type} ${reportNumber(report)} - ${vessel} - ${vessel}M00${serviceStep(report)}`);
   }
 
   return safePath(`${missionLabel(report)} - ${type} ${reportNumber(report)} - ${serviceEquipment(report)} - ${serviceSystem(report)}`);

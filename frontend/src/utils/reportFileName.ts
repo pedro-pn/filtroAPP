@@ -97,9 +97,9 @@ export function reportDownloadFileName(report: ReportSummary, extension: 'pdf' |
   let base: string;
   if (report.reportType === 'RDO') {
     base = `${mission} - RDO ${reportNumber(report)} - ${dateFilePart(report.reportDate)} - ${weekdayName(report.reportDate)}`;
-  } else if (report.reportType === 'RLF') {
+  } else if (report.reportType === 'RLF' || report.reportType === 'RLI') {
     const vessel = serviceEquipment(report);
-    base = `${mission} - RLF ${reportNumber(report)} - ${vessel} - ${vessel}M00${serviceStep(report)}`;
+    base = `${mission} - ${report.reportType} ${reportNumber(report)} - ${vessel} - ${vessel}M00${serviceStep(report)}`;
   } else {
     base = `${mission} - ${report.reportType} ${reportNumber(report)} - ${serviceEquipment(report)} - ${serviceSystem(report)}`;
   }
