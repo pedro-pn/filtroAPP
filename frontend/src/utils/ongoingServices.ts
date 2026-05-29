@@ -33,9 +33,26 @@ function serviceEquipmentName(service: ReportServiceSummary) {
   return String(value || service.equipmentId || '');
 }
 
+function serviceStepName(service: ReportServiceSummary) {
+  if (normalizeServiceType(service.serviceType || '') !== 'inibicao') return '';
+  const extra = service.extraData || {};
+  const value = extra.Steps || extra.steps || extra.Step || extra.step || '';
+  if (Array.isArray(value)) return value.filter(Boolean).join(', ');
+  return String(value || '');
+}
+
 function serviceSemanticKey(report: ReportSummary, service: ReportServiceSummary) {
   const extra = service.extraData || {};
-  return `${report.projectId || ''}||${service.serviceType || ''}||${serviceEquipmentName(service).trim().toLowerCase()}||${String(service.system || extra.Sistema || '').trim().toLowerCase()}`;
+  const base = [
+    report.projectId || '',
+    service.serviceType || '',
+    serviceEquipmentName(service).trim().toLowerCase(),
+    String(service.system || extra.Sistema || '').trim().toLowerCase()
+  ];
+  const step = serviceStepName(service).trim().toLowerCase();
+  return normalizeServiceType(service.serviceType || '') === 'inibicao'
+    ? [...base, step].join('||')
+    : base.join('||');
 }
 
 function serviceOngoingKeys(report: ReportSummary, service: ReportServiceSummary) {

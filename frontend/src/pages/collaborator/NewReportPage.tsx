@@ -253,10 +253,27 @@ export function NewReportPage() {
     return String(value || service.equipmentId || '');
   }, []);
 
+  const serviceStepName = useCallback((service: ReportServiceSummary) => {
+    if (normalizeServiceType(service.serviceType || '') !== 'inibicao') return '';
+    const extra = service.extraData || {};
+    const value = extra.Steps || extra.steps || extra.Step || extra.step || '';
+    if (Array.isArray(value)) return value.filter(Boolean).join(', ');
+    return String(value || '');
+  }, []);
+
   const serviceSemanticKey = useCallback((report: ReportSummary, service: ReportServiceSummary) => {
     const extra = service.extraData || {};
-    return `${report.projectId || ''}||${service.serviceType || ''}||${serviceEquipmentName(service).trim().toLowerCase()}||${String(service.system || extra.Sistema || '').trim().toLowerCase()}`;
-  }, [serviceEquipmentName]);
+    const base = [
+      report.projectId || '',
+      service.serviceType || '',
+      serviceEquipmentName(service).trim().toLowerCase(),
+      String(service.system || extra.Sistema || '').trim().toLowerCase()
+    ];
+    const step = serviceStepName(service).trim().toLowerCase();
+    return normalizeServiceType(service.serviceType || '') === 'inibicao'
+      ? [...base, step].join('||')
+      : base.join('||');
+  }, [serviceEquipmentName, serviceStepName]);
 
   const serviceOngoingKey = useCallback((report: ReportSummary, service: ReportServiceSummary) => {
     const extra = service.extraData || {};

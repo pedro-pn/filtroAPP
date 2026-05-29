@@ -2986,11 +2986,16 @@ function semanticServiceHistoryKey(service) {
   const fields = service?.extraData || {};
   const equipment = getReportField(fields, ['Equipamento(s)', 'Equipamento', 'ID da embarcação', 'ID da embarcacao']) || service?.equipmentId || '';
   const system = getReportField(fields, ['Sistema']) || service?.system || '';
-  return [
+  const base = [
     service?.serviceType || '',
     String(equipment || '').trim().toLowerCase(),
     String(system || '').trim().toLowerCase()
-  ].join('||');
+  ];
+  if (service?.serviceType === 'inibicao') {
+    const step = getReportField(fields, ['Steps', 'Step', 'steps', 'step']) || '';
+    base.push(String(step || '').trim().toLowerCase());
+  }
+  return base.join('||');
 }
 
 export function serviceHistoryKey(service) {
@@ -3003,7 +3008,7 @@ export function serviceHistoryKeys(service) {
   if (explicit) {
     keys.add(explicit);
     const parts = explicit.split('||');
-    if (parts.length === 4) keys.add(parts.slice(1).join('||'));
+    if (parts.length >= 4) keys.add(parts.slice(1).join('||'));
   } else {
     keys.add(semanticServiceHistoryKey(service));
   }
