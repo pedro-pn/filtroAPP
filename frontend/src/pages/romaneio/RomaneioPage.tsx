@@ -507,8 +507,8 @@ export function RomaneioPage() {
               </section>
             ) : null}
             <section className="page-card romaneio-panel">
-              <div className="admin-form-grid manager-header-grid">
-                <label className="field-group">
+              <div className="admin-form-grid manager-header-grid romaneio-catalog-search">
+                <label className="field-group field-group-wide">
                   <span>Pesquisar equipamento</span>
                   <input
                     value={catalogSearch}
