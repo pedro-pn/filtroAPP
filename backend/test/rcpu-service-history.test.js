@@ -14,6 +14,7 @@ test('RCPU service history joins final explicit key to legacy semantic initial s
     extraData: {
       'Equipamento(s)': 'UF-01',
       Sistema: 'Sistema A',
+      'Colaboradores do serviço': { ids: ['carlos-id'], names: ['Carlos'] },
       'Houve contagem de partículas?': 'Sim',
       'Contagem inicial NAS': '99',
       'Contagem final NAS': '12',
@@ -30,6 +31,7 @@ test('RCPU service history joins final explicit key to legacy semantic initial s
       __serviceLinkKey: semanticKey,
       'Equipamento(s)': 'UF-01',
       Sistema: 'Sistema A',
+      'Colaboradores do serviço': { ids: ['maria-id'], names: ['Maria'] },
       'Houve contagem de partículas?': 'Sim',
       'Contagem inicial NAS': '9',
       'Contagem final NAS': '4',
@@ -50,6 +52,10 @@ test('RCPU service history joins final explicit key to legacy semantic initial s
   assert.equal(consolidated['Contagem final NAS'], '4');
   assert.equal(consolidated['Umidade inicial (ppm)'], '80');
   assert.equal(consolidated['Umidade final (ppm)'], '20');
+  assert.deepEqual(consolidated['Colaboradores do serviço'], {
+    ids: ['carlos-id', 'maria-id'],
+    names: ['Carlos', 'Maria']
+  });
 });
 
 test('service history does not merge services with different explicit keys', () => {

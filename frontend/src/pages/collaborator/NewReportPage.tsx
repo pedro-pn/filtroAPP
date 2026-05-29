@@ -74,6 +74,16 @@ const serviceOnlySteps = [TEXT.header, TEXT.services];
 const serviceOnlySupportedTypes = new Set(['limpeza', 'pressao', 'filtragem', 'flushing', 'mecanica']);
 type ReportServiceSummary = NonNullable<ReportSummary['services']>[number];
 
+function stringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && Boolean(item)) : [];
+}
+
+function sameStringSet(a: string[], b: string[]) {
+  if (a.length !== b.length) return false;
+  const bSet = new Set(b);
+  return a.every(item => bSet.has(item));
+}
+
 export function NewReportPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -151,6 +161,11 @@ export function NewReportPage() {
       })
       .filter((item): item is { id: string; name: string } => Boolean(item));
   }, [collaboratorIds, nightCollaboratorIds, collaborators]);
+  const serviceCollaboratorOptionIds = useMemo(
+    () => serviceCollaboratorOptions.map(item => item.id),
+    [serviceCollaboratorOptions]
+  );
+  const previousServiceCollaboratorOptionIdsRef = useRef<string[]>([]);
 
   const selectedProject = useMemo(
     () => (projectsQuery.data || []).find(project => project.id === projectId) || null,
@@ -168,6 +183,18 @@ export function NewReportPage() {
 
   function handleProjectChange(nextProjectId: string) {
     const nextProject = projects.find(project => project.id === nextProjectId) || null;
+    if ((projectId || '') !== nextProjectId) {
+      setCollaborators([]);
+      setNightCollaborators([]);
+      setCollaboratorsPrefilled(false);
+      previousServiceCollaboratorOptionIdsRef.current = [];
+      for (const service of services) {
+        if (normalizeServiceType(service.type) === 'inibicao') continue;
+        if (stringArray(service.data.serviceCollaboratorIds).length) {
+          updateService(service.id, { serviceCollaboratorIds: [] });
+        }
+      }
+    }
     setHeaderField('projectId', nextProjectId || null);
     if (canCreateReportWithoutLeader && nextProject && !nextProject.operatorId && !nextProject.operator) {
       showToast(TEXT.projectWithoutLeader, 'info');
@@ -198,11 +225,12 @@ export function NewReportPage() {
     const cutoffTime = Number.isNaN(cutoff.getTime()) ? Number.POSITIVE_INFINITY : cutoff.getTime();
     return reports.filter(report => (
       report.reportType === 'RDO'
+      && report.projectId === projectId
       && new Date(report.reportDate || report.createdAt || 0).getTime() <= cutoffTime
     )).sort(
       (a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime()
     );
-  }, [lastProjectReportQuery.data, reportDate]);
+  }, [lastProjectReportQuery.data, projectId, reportDate]);
   const lastReport = projectReports[0] || null;
 
   const serviceFinalized = useCallback((service: ReportServiceSummary) => {
@@ -321,6 +349,29 @@ export function NewReportPage() {
       : [];
     if (ids.length) setNightCollaborators(ids);
   }, [projectId, noturno, nightCollaboratorIds.length, lastReport, setNightCollaborators]);
+
+  useEffect(() => {
+    const previousIds = previousServiceCollaboratorOptionIdsRef.current;
+    previousServiceCollaboratorOptionIdsRef.current = serviceCollaboratorOptionIds;
+    if (!serviceCollaboratorOptionIds.length || sameStringSet(previousIds, serviceCollaboratorOptionIds)) return;
+
+    const available = new Set(serviceCollaboratorOptionIds);
+    for (const service of services) {
+      if (normalizeServiceType(service.type) === 'inibicao') continue;
+      const selected = stringArray(service.data.serviceCollaboratorIds);
+      const selectedHadRemovedCollaborator = selected.some(id => !available.has(id));
+      const selectedFollowedPreviousShift = previousIds.length > 0 && sameStringSet(selected, previousIds);
+      const nextSelected = !selected.length || selectedFollowedPreviousShift
+        ? serviceCollaboratorOptionIds
+        : selectedHadRemovedCollaborator
+          ? selected.filter(id => available.has(id))
+          : selected;
+      const fallbackSelected = nextSelected.length ? nextSelected : serviceCollaboratorOptionIds;
+      if (!sameStringSet(selected, fallbackSelected)) {
+        updateService(service.id, { serviceCollaboratorIds: fallbackSelected });
+      }
+    }
+  }, [serviceCollaboratorOptionIds, services, updateService]);
 
   function continueService(service: ReportServiceSummary, ongoingKey: string) {
       const extra = markPreviouslyAddedUploads(service.extraData || {});

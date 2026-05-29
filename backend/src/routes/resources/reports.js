@@ -139,7 +139,10 @@ function reportNumberLabel(report) {
 
 export function projectEmailRecipients(project) {
   const primary = String(project?.clientEmailPrimary || '').trim().toLowerCase();
-  const cc = Array.from(new Set((project?.clientEmailCc || [])
+  const signerEmails = (project?.clientSigners || [])
+    .map(signer => String(signer?.email || '').trim().toLowerCase())
+    .filter(Boolean);
+  const cc = Array.from(new Set([...(project?.clientEmailCc || []), ...signerEmails]
     .map(email => String(email || '').trim().toLowerCase())
     .filter(Boolean)
     .filter(email => email !== primary)));
@@ -1180,6 +1183,89 @@ export async function releasedServiceReportsAfterRdoSignature(rdo, client = pris
     .map(releasedServiceReportPayload);
 }
 
+export function removedPendingRequiredClientSignatureIds(report, version = null) {
+  const activeVersion = version || (Array.isArray(report?.versions)
+    ? report.versions.find(item => item.status === ReportVersionStatus.ACTIVE)
+    : null);
+  const currentSignerEmails = new Set(clientSignersForReport(report).map(signer => signer.email));
+  const roundHasCurrentSigner = (activeVersion?.signatures || [])
+    .some(signature => signature.isRequired !== false && currentSignerEmails.has(signerEmailValue(signature.signerEmail)));
+  if (!roundHasCurrentSigner) return [];
+  return (activeVersion?.signatures || [])
+    .filter(signature => (
+      signature.status === ReportSignatureStatus.PENDING
+      && signature.isRequired !== false
+      && !currentSignerEmails.has(signerEmailValue(signature.signerEmail))
+    ))
+    .map(signature => signature.id);
+}
+
+export async function reconcileProjectClientSignatureRequirements(projectId, options = {}) {
+  if (!projectId) return { updatedReports: 0, finalizedReports: 0 };
+  const evidence = options.evidence || {};
+  const userId = options.userId || null;
+  const sendReleasedEmails = options.sendReleasedEmails !== false;
+  const reports = await prisma.report.findMany({
+    where: {
+      projectId,
+      deletedAt: null,
+      reportType: ReportType.RDO,
+      status: ReportStatus.APPROVED,
+      versions: { some: { status: ReportVersionStatus.ACTIVE } }
+    },
+    include
+  });
+
+  let updatedReports = 0;
+  let finalizedReports = 0;
+  for (const report of reports) {
+    if (isReportUnavailable(report) || report.project?.managerOnly || hasActiveClientRejection(report)) continue;
+    const version = Array.isArray(report.versions)
+      ? report.versions.find(item => item.status === ReportVersionStatus.ACTIVE)
+      : null;
+    const removedSignatureIds = removedPendingRequiredClientSignatureIds(report, version);
+    if (!version || !removedSignatureIds.length) continue;
+
+    const nextVersion = await prisma.$transaction(async tx => {
+      await tx.reportSignature.updateMany({
+        where: {
+          id: { in: removedSignatureIds },
+          versionId: version.id,
+          status: ReportSignatureStatus.PENDING
+        },
+        data: {
+          status: ReportSignatureStatus.INVALIDATED,
+          isRequired: false,
+          invalidatedAt: new Date(),
+          tokenHash: null,
+          tokenExpiresAt: null
+        }
+      });
+      await createSignatureAuditLog(tx, {
+        reportId: report.id,
+        versionId: version.id,
+        userId,
+        action: ReportAuditAction.SIGNATURES_INVALIDATED,
+        description: 'Assinaturas pendentes de signatarios removidos deixaram de ser obrigatorias.',
+        evidence
+      });
+      return activeVersionWithSignatures(tx, report.id);
+    });
+    updatedReports += 1;
+
+    if (allRequiredSignaturesCompleted(nextVersion)) {
+      const finalized = await finalizeInternalSignatureRound(report, nextVersion, evidence, userId);
+      finalizedReports += finalized?.status === ReportStatus.SIGNED ? 1 : 0;
+      if (sendReleasedEmails && finalized?.status === ReportStatus.SIGNED) {
+        const released = await releasedServiceReportsAfterRdoSignature(finalized);
+        if (released.length) queueReleasedServiceReportsEmailAfterRdoSignature(finalized, released);
+      }
+    }
+  }
+
+  return { updatedReports, finalizedReports };
+}
+
 function queueReleasedServiceReportsEmailAfterRdoSignature(rdo, releasedReports = null) {
   if (!rdo || rdo.reportType !== ReportType.RDO || rdo.status !== ReportStatus.SIGNED) return;
 
@@ -1198,11 +1284,16 @@ function queueReleasedServiceReportsEmailAfterRdoSignature(rdo, releasedReports 
         },
         include
       });
+      const emailRdo = await prisma.report.findUnique({
+        where: { id: rdo.id },
+        include
+      });
+      if (!emailRdo) return;
       const byId = new Map(serviceReports.map(report => [report.id, report]));
       const orderedReports = releasedIds.map(id => byId.get(id)).filter(Boolean);
       if (!orderedReports.length) return;
 
-      await sendReleasedServiceReportsEmail(rdo, orderedReports);
+      await sendReleasedServiceReportsEmail(emailRdo, orderedReports);
     } catch (error) {
       console.error('Falha ao enviar relatórios de serviço liberados por e-mail.', {
         reportId: rdo?.id,
@@ -2183,7 +2274,7 @@ function resolveCollaboratorsByShift(report, collaborators) {
   return collaborators.flatMap(c => {
     const inDay = daytimeIds.has(c.id);
     const inNight = nighttimeIds.has(c.id);
-    if (!inDay && !inNight) return [];
+    if (!inDay && !inNight) return [{ id: c.id, name: c.name, role: c.role, shift: 'Diurno' }];
     const shift = inDay && inNight ? 'Diurno e Noturno' : (inNight ? 'Noturno' : 'Diurno');
     return [{ id: c.id, name: c.name, role: c.role, shift }];
   });
@@ -2569,9 +2660,9 @@ async function syncApprovedRtpReports(tx, report) {
     const consolidatedFields = buildHistoricalServiceData(fields, serviceHistory);
 
     const collabField =
-      fields['Colaboradores do serviço'] ||
-      fields['Colaboradores do serviÃ§o'] ||
-      fields['Colaboradores do servico'];
+      consolidatedFields['Colaboradores do serviço'] ||
+      consolidatedFields['Colaboradores do serviÃ§o'] ||
+      consolidatedFields['Colaboradores do servico'];
     const collabIds = [...new Set(Array.isArray(collabField?.ids) ? collabField.ids.filter(Boolean) : [])];
 
     const manoField =
@@ -2959,6 +3050,11 @@ function findExistingByLinkKeys(existingByLinkKey, service, serviceId) {
 
 export function buildHistoricalServiceData(currentFields, serviceHistory) {
   const data = { ...(currentFields || {}) };
+  const serviceCollaboratorFieldNames = [
+    'Colaboradores do serviço',
+    'Colaboradores do serviÃ§o',
+    'Colaboradores do servico'
+  ];
   const firstField = names => {
     for (const item of serviceHistory) {
       const value = getReportField(item.fields, names);
@@ -2976,6 +3072,31 @@ export function buildHistoricalServiceData(currentFields, serviceHistory) {
   const copyIfPresent = (targetKey, value) => {
     if (value !== undefined) data[targetKey] = value;
   };
+  const historicalCollaboratorIds = [];
+  const historicalCollaboratorNamesById = new Map();
+  const seenHistoricalCollaborators = new Set();
+  for (const item of serviceHistory) {
+    const value = getReportField(item.fields, serviceCollaboratorFieldNames);
+    const ids = Array.isArray(value?.ids) ? value.ids.filter(Boolean) : [];
+    const names = Array.isArray(value?.names) ? value.names : [];
+    ids.forEach((id, index) => {
+      const key = String(id || '').trim();
+      if (!key) return;
+      const name = String(names[index] || '').trim();
+      if (name && !historicalCollaboratorNamesById.has(key)) {
+        historicalCollaboratorNamesById.set(key, name);
+      }
+      if (seenHistoricalCollaborators.has(key)) return;
+      seenHistoricalCollaborators.add(key);
+      historicalCollaboratorIds.push(key);
+    });
+  }
+  if (historicalCollaboratorIds.length) {
+    data['Colaboradores do serviço'] = {
+      ids: historicalCollaboratorIds,
+      names: historicalCollaboratorIds.map(id => historicalCollaboratorNamesById.get(id) || id)
+    };
+  }
 
   copyIfPresent('Contagem inicial NAS', firstField(['Contagem inicial NAS', 'NAS inicial', 'Valor NAS inicial']));
   copyIfPresent('Contagem inicial ISO', firstField(['Contagem inicial ISO', 'ISO inicial', 'Classe ISO inicial', 'Valor ISO inicial']));
@@ -3280,9 +3401,9 @@ async function syncApprovedRlmReports(tx, report) {
     const consolidatedFields = buildHistoricalServiceData(fields, serviceHistory);
 
     const collabField =
-      fields['Colaboradores do serviço'] ||
-      fields['Colaboradores do serviÃ§o'] ||
-      fields['Colaboradores do servico'];
+      consolidatedFields['Colaboradores do serviço'] ||
+      consolidatedFields['Colaboradores do serviÃ§o'] ||
+      consolidatedFields['Colaboradores do servico'];
     const collabIds = [...new Set(Array.isArray(collabField?.ids) ? collabField.ids.filter(Boolean) : [])];
 
     const collaborators = collabIds.length
@@ -3899,7 +4020,18 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
       name: signedSignature?.signerName,
       email: signedSignature?.signerEmail
     }, completed);
-    if (completed) queueReleasedServiceReportsEmailAfterRdoSignature(item);
+  }
+
+  if (completed) {
+    await reconcileProjectClientSignatureRequirements(item.projectId, {
+      userId: null,
+      evidence,
+      sendReleasedEmails: false
+    });
+    const releasedServiceReports = await releasedServiceReportsAfterRdoSignature(item);
+    if (releasedServiceReports.length) {
+      queueReleasedServiceReportsEmailAfterRdoSignature(item, releasedServiceReports);
+    }
   }
 
   res.json({ success: true, completed, report: withInternalSignatureProgress(item) });
@@ -4811,6 +4943,13 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
   const signatureEmailDelivery = issuedTokens.length
     ? await deliverIssuedSignatureRequestEmails(item, issuedTokens)
     : null;
+  if (item.status === ReportStatus.SIGNED) {
+    await reconcileProjectClientSignatureRequirements(item.projectId, {
+      userId: req.auth.user.id,
+      evidence,
+      sendReleasedEmails: false
+    });
+  }
   const releasedServiceReports = item.status === ReportStatus.SIGNED
     ? await releasedServiceReportsAfterRdoSignature(item)
     : [];

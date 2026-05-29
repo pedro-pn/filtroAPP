@@ -11,6 +11,7 @@ import { ModuleRoleCodes } from '../../lib/module-roles.js';
 import prisma from '../../lib/prisma.js';
 import { clearPendingProjectLegacyExternalSignatureState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
+import { reconcileProjectClientSignatureRequirements } from './reports.js';
 
 const router = Router();
 const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
@@ -302,6 +303,8 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
 
 router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
   const parsed = schema.partial().parse(req.body);
+  const shouldReconcileClientSigners = parsed.clientEmailPrimary !== undefined || parsed.clientSigners !== undefined;
+  const evidence = shouldReconcileClientSigners ? signatureEvidenceFromRequest(req) : null;
   let data = parsed;
   if (parsed.clientCnpj !== undefined || parsed.clientEmailPrimary !== undefined || parsed.clientEmailCc !== undefined || parsed.clientSigners !== undefined) {
     const existingProject = await prisma.project.findUniqueOrThrow({
@@ -399,6 +402,13 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
     }
     return updated;
   });
+
+  if (shouldReconcileClientSigners) {
+    await reconcileProjectClientSignatureRequirements(item.id, {
+      userId: req.auth.user.id,
+      evidence
+    });
+  }
 
   res.json(item);
 }));

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { ReportStatus, ReportType } from '@prisma/client';
+import { ReportSignatureStatus, ReportStatus, ReportType, ReportVersionStatus } from '@prisma/client';
 
 import {
   canClientSeeReport,
+  removedPendingRequiredClientSignatureIds,
   previousRdosSignedForServiceReport,
   projectEmailRecipients,
   releasedServiceReportsAfterRdoSignature,
@@ -87,6 +88,68 @@ test('service report is visible when parent and all previous project RDOs are si
   assert.equal(canClientSeeReport(serviceReport, reports), true);
 });
 
+test('removed pending signer no longer blocks an existing RDO signature round', () => {
+  const oldRound = report({
+    project: {
+      id: 'project-1',
+      code: 'P-1',
+      name: 'Projeto 1',
+      clientCnpj: '12345678000190',
+      clientEmailPrimary: 'responsavel@example.com',
+      clientEmailCc: ['novo@example.com'],
+      clientSigners: [{ name: 'Novo signatario', email: 'novo@example.com' }],
+      deletedAt: null
+    },
+    versions: [{
+      id: 'version-1',
+      status: ReportVersionStatus.ACTIVE,
+      signatures: [
+        {
+          id: 'signature-primary',
+          signerEmail: 'responsavel@example.com',
+          status: ReportSignatureStatus.SIGNED,
+          isRequired: true
+        },
+        {
+          id: 'signature-removed',
+          signerEmail: 'removido@example.com',
+          status: ReportSignatureStatus.PENDING,
+          isRequired: true
+        }
+      ]
+    }]
+  });
+
+  assert.deepEqual(removedPendingRequiredClientSignatureIds(oldRound), ['signature-removed']);
+});
+
+test('removed pending signer is kept when the old round has no current project signer', () => {
+  const oldRound = report({
+    project: {
+      id: 'project-1',
+      code: 'P-1',
+      name: 'Projeto 1',
+      clientCnpj: '12345678000190',
+      clientEmailPrimary: 'novo@example.com',
+      clientEmailCc: [],
+      clientSigners: [],
+      deletedAt: null
+    },
+    versions: [{
+      id: 'version-1',
+      status: ReportVersionStatus.ACTIVE,
+      signatures: [{
+        id: 'signature-old-primary',
+        signerEmail: 'antigo@example.com',
+        status: ReportSignatureStatus.PENDING,
+        isRequired: true
+      }]
+    }]
+  });
+
+  assert.deepEqual(removedPendingRequiredClientSignatureIds(oldRound), []);
+});
+
 test('client can see approved reports under archived projects', () => {
   const archivedReport = report({
     status: ReportStatus.APPROVED,
@@ -153,13 +216,17 @@ test('signing an earlier RDO reports service documents that become visible', asy
 test('project email recipients include primary and cc without duplicates', () => {
   const recipients = projectEmailRecipients({
     clientEmailPrimary: ' Responsavel@Example.com ',
-    clientEmailCc: ['copia@example.com', 'responsavel@example.com', 'COPIA@example.com', '']
+    clientEmailCc: ['copia@example.com', 'responsavel@example.com', 'COPIA@example.com', ''],
+    clientSigners: [
+      { name: 'Assinante', email: 'assinante@example.com' },
+      { name: 'Duplicado', email: 'copia@example.com' }
+    ]
   });
 
   assert.deepEqual(recipients, {
     to: 'responsavel@example.com',
-    cc: ['copia@example.com'],
-    recipients: ['responsavel@example.com', 'copia@example.com']
+    cc: ['copia@example.com', 'assinante@example.com'],
+    recipients: ['responsavel@example.com', 'copia@example.com', 'assinante@example.com']
   });
 });
 
