@@ -11,6 +11,7 @@ import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
 import prisma from '../../lib/prisma.js';
 import { syncRomaneioCatalog } from '../../lib/romaneio-catalog.js';
+import { buildRomaneioCatalogPdf } from '../../lib/romaneio-catalog-pdf.js';
 import { saveRomaneioDocx } from '../../lib/romaneio-docx.js';
 import { convertDocxToPdf } from '../../lib/report-pdf-from-docx.js';
 import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
@@ -382,6 +383,19 @@ router.delete('/drafts/:id', requireAuth, requireRomaneioAccess, asyncHandler(as
   }
   await prisma.reportDraft.delete({ where: { id: req.params.id } });
   res.status(204).end();
+}));
+
+router.get('/catalog/pdf', requireAuth, requireRomaneioAccess, asyncHandler(async (_req, res) => {
+  await syncRomaneioCatalog();
+  const items = await prisma.romaneioCatalogItem.findMany({
+    where: { isActive: true },
+    orderBy: [{ categoryName: 'asc' }, { code: 'asc' }, { name: 'asc' }]
+  });
+  const pdf = await buildRomaneioCatalogPdf(items);
+  const fileName = `Lista de materiais romaneio ${new Date().toISOString().slice(0, 10)}.pdf`;
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', contentDisposition(fileName));
+  return res.send(pdf);
 }));
 
 router.get('/catalog', requireAuth, requireRomaneioAccess, asyncHandler(async (_req, res) => {

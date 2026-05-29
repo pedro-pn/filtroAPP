@@ -139,6 +139,11 @@ export async function listRomaneioCatalog() {
   return data;
 }
 
+export async function downloadRomaneioCatalogPdf() {
+  const { data } = await apiClient.get<Blob>(romaneioApiPath('/catalog/pdf'), { responseType: 'blob' });
+  return data;
+}
+
 export async function createRomaneioCatalogItem(payload: RomaneioCatalogPayload) {
   const { data } = await apiClient.post<RomaneioCatalogItem>(romaneioApiPath('/catalog'), payload);
   return data;

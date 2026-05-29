@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 import {
   createRomaneioCatalogItem,
+  downloadRomaneioCatalogPdf,
   downloadRomaneioFile,
   listRomaneioCatalog,
   listRomaneioDrafts,
@@ -93,6 +94,7 @@ export function RomaneioPage() {
   const [expandedCatalogCategories, setExpandedCatalogCategories] = useState<Set<string>>(() => new Set());
   const [recipientEmail, setRecipientEmail] = useState('');
   const [recipientName, setRecipientName] = useState('');
+  const [isDownloadingCatalogPdf, setIsDownloadingCatalogPdf] = useState(false);
 
   const projectsQuery = useQuery({ queryKey: ['romaneio-projects'], queryFn: () => listRomaneioProjects(true) });
   const romaneiosQuery = useQuery({
@@ -258,6 +260,18 @@ export function RomaneioPage() {
     }
   }
 
+  async function downloadCatalogPdf() {
+    setIsDownloadingCatalogPdf(true);
+    try {
+      const blob = await downloadRomaneioCatalogPdf();
+      downloadBlob(blob, `Lista de materiais romaneio ${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch {
+      showToast('Não foi possível gerar o PDF de materiais.');
+    } finally {
+      setIsDownloadingCatalogPdf(false);
+    }
+  }
+
   function toggleCatalogCategory(category: string) {
     setExpandedCatalogCategories(current => {
       const next = new Set(current);
@@ -308,9 +322,14 @@ export function RomaneioPage() {
         <section className="page-card romaneio-panel">
           <div className="admin-toolbar">
             <div className="sec">Romaneios</div>
-            <button className="primary-button" type="button" onClick={() => navigate('/romaneio/novo')}>
-              Criar romaneio
-            </button>
+            <div className="report-card-actions">
+              <button className="secondary-button" type="button" onClick={downloadCatalogPdf} disabled={isDownloadingCatalogPdf}>
+                {isDownloadingCatalogPdf ? 'Gerando PDF...' : 'PDF modelo'}
+              </button>
+              <button className="primary-button" type="button" onClick={() => navigate('/romaneio/novo')}>
+                Criar romaneio
+              </button>
+            </div>
           </div>
           <div className="filter-tabs" role="tablist" aria-label="Áreas do romaneio">
             <button className={`filter-tab ${tab === 'romaneios' ? 'active' : ''}`} type="button" onClick={() => setTab('romaneios')}>Romaneios</button>
