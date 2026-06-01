@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 
+import { trustedClientAccessScopeForUser } from '../src/lib/client-project-access.js';
 import prisma from '../src/lib/prisma.js';
 import { authorizeStoredFile, canAccessReport } from '../src/routes/resources/uploads.js';
 
@@ -82,4 +84,102 @@ test('stored upload access ignores arbitrary self-owned draft payload references
   }, 'private/report.pdf');
 
   assert.equal(allowed, false);
+});
+
+test('protected upload route uses shared auth middleware', () => {
+  const source = fs.readFileSync(new URL('../src/routes/resources/uploads.js', import.meta.url), 'utf8');
+
+  assert.match(source, /router\.get\('\/file\/\*', requireAuth,/);
+  assert.doesNotMatch(source, /function authenticateFileRequest/);
+});
+
+test('stored upload access allows trusted legacy client email scope', async t => {
+  const originals = {
+    projectFindMany: prisma.project.findMany,
+    userFindMany: prisma.user.findMany,
+    queryRaw: prisma.$queryRaw,
+    reportFindMany: prisma.report.findMany
+  };
+  const rawUser = {
+    id: 'client-1',
+    username: '11222333000144',
+    name: 'Cliente',
+    email: 'cliente@example.com',
+    role: 'CLIENT',
+    accountType: 'CLIENT',
+    isActive: true,
+    moduleRoles: [{ role: 'RDO_CLIENT' }]
+  };
+  prisma.project.findMany = async args => {
+    if (args?.select?.clientEmailPrimary) {
+      return [{
+        clientEmailPrimary: 'cliente@example.com',
+        clientEmailCc: [],
+        clientSigners: []
+      }];
+    }
+    return [];
+  };
+  prisma.user.findMany = async () => [];
+  prisma.$queryRaw = async () => [{ id: 'report-1' }];
+  prisma.report.findMany = async () => [{
+    id: 'report-1',
+    deletedAt: null,
+    createdByUserId: 'other-user',
+    specialConditions: {
+      photo: '/api/rdo/uploads/file/protected/photo.jpg'
+    },
+    project: {
+      deletedAt: null,
+      managerOnly: false,
+      clientCnpj: '00999000199',
+      clientEmailPrimary: 'cliente@example.com',
+      clientEmailCc: [],
+      clientSigners: [],
+      authorizedUsers: []
+    },
+    collaborators: [],
+    attachments: [],
+    services: []
+  }];
+  t.after(() => {
+    prisma.project.findMany = originals.projectFindMany;
+    prisma.user.findMany = originals.userFindMany;
+    prisma.$queryRaw = originals.queryRaw;
+    prisma.report.findMany = originals.reportFindMany;
+  });
+
+  const trustedScope = await trustedClientAccessScopeForUser(prisma, rawUser);
+  const allowedWithoutTrustedScope = await authorizeStoredFile({
+    auth: {
+      user: {
+        id: rawUser.id,
+        username: rawUser.username,
+        email: rawUser.email,
+        role: rawUser.role,
+        accountType: rawUser.accountType,
+        moduleRoles: ['rdo:client']
+      },
+      rawUser
+    }
+  }, 'protected/photo.jpg');
+  const allowedWithTrustedScope = await authorizeStoredFile({
+    auth: {
+      user: {
+        id: rawUser.id,
+        username: rawUser.username,
+        email: rawUser.email,
+        role: rawUser.role,
+        accountType: rawUser.accountType,
+        moduleRoles: ['rdo:client'],
+        trustedClientEmails: trustedScope.emails,
+        trustedClientCnpjs: trustedScope.cnpjs
+      },
+      rawUser
+    }
+  }, 'protected/photo.jpg');
+
+  assert.deepEqual(trustedScope.emails, ['cliente@example.com']);
+  assert.equal(allowedWithoutTrustedScope, false);
+  assert.equal(allowedWithTrustedScope, true);
 });

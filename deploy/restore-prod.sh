@@ -55,8 +55,8 @@ echo "[restore] restoring postgres database from $BACKUP_SOURCE/postgres.sql.gz"
 gunzip -c "$BACKUP_SOURCE/postgres.sql.gz" | docker compose -f "$COMPOSE_FILE" exec -T "$POSTGRES_SERVICE" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 
 if [ "$RUN_MIGRATIONS" = "true" ]; then
-  echo "[restore] applying prisma schema"
-  docker compose -f "$COMPOSE_FILE" exec -T "$BACKEND_SERVICE" npx prisma db push --accept-data-loss
+  echo "[restore] applying prisma migrations"
+  docker compose -f "$COMPOSE_FILE" exec -T "$BACKEND_SERVICE" npx prisma migrate deploy
 fi
 
 if [ "$RESTORE_REPORTS" = "true" ] && [ -f "$BACKUP_SOURCE/relatorios.tar.gz" ]; then

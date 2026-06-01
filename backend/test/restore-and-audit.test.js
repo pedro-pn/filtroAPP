@@ -22,6 +22,14 @@ test('restore script clears reports volume before extracting backup archive', ()
   );
 });
 
+test('restore script applies versioned migrations without data-loss db push', () => {
+  const script = fs.readFileSync(new URL('../../deploy/restore-prod.sh', import.meta.url), 'utf8');
+
+  assert.match(script, /npx prisma migrate deploy/);
+  assert.doesNotMatch(script, /--accept-data-loss/);
+  assert.doesNotMatch(script, /npx prisma db push/);
+});
+
 test('client report review keeps audit evidence when client account is deleted', () => {
   const schema = fs.readFileSync(new URL('../prisma/schema.prisma', import.meta.url), 'utf8');
   const migration = fs.readFileSync(

@@ -8,10 +8,8 @@ import { z } from 'zod';
 
 import env from '../../config/env.js';
 import asyncHandler from '../../lib/async-handler.js';
-import { hashToken, publicUser } from '../../lib/auth.js';
 import { clientCanAccessProject } from '../../lib/client-project-access.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
-import { CLIENT_PRIVACY_NOTICE_VERSION, clientPrivacyConsentRequired } from '../../lib/privacy-consent.js';
 import { optimizeImageForReport } from '../../lib/stored-image.js';
 import { RDO_INTERNAL_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import prisma from '../../lib/prisma.js';
@@ -307,37 +305,7 @@ export async function authorizeStoredFile(req, normalizedPath) {
   });
 }
 
-async function authenticateFileRequest(req, res, next) {
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
-  if (!token) return res.status(401).json({ error: 'Acesso negado.' });
-
-  const session = await prisma.userSession.findUnique({
-    where: { tokenHash: hashToken(token) },
-    include: {
-      user: {
-        include: {
-          collaborator: true,
-          moduleRoles: true
-        }
-      }
-    }
-  });
-  if (!session || session.expiresAt <= new Date() || !session.user.isActive) {
-    return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
-  }
-
-  req.auth = { token, sessionId: session.id, user: publicUser(session.user), rawUser: session.user };
-  if (clientPrivacyConsentRequired(session.user)) {
-    return res.status(428).json({
-      error: 'Aceite a política de privacidade para continuar.',
-      code: 'CLIENT_PRIVACY_CONSENT_REQUIRED',
-      privacyPolicyVersion: CLIENT_PRIVACY_NOTICE_VERSION
-    });
-  }
-  return next();
-}
-
-router.get('/file/*', asyncHandler(authenticateFileRequest), asyncHandler(async (req, res) => {
+router.get('/file/*', requireAuth, asyncHandler(async (req, res) => {
   const normalizedPath = normalizeRelativeUploadPath(req.params[0]);
   const targetPath = resolveStoredFilePath(normalizedPath);
   if (!targetPath) {
