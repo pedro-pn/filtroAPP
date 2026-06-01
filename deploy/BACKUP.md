@@ -90,6 +90,7 @@ docker run --rm -v filtrovali_relatorios:/to -v /caminho/do/backup:/backup alpin
 O arquivo `deploy/restore-prod.sh` automatiza:
 
 - validação de `SHA256SUMS`
+- preflight obrigatório de `postgres.sql.gz`, `relatorios.tar.gz` e `certs.tar.gz` quando seus restores estão habilitados
 - subida apenas do Postgres e parada de backend/nginx antes das mutações
 - restore do banco
 - `prisma migrate deploy` em container one-off (aplica migrations versionadas)
@@ -111,6 +112,12 @@ Sem restaurar certificados:
 
 ```bash
 BACKUP_SOURCE=/home/ubuntu/restore/filtrovali/2026-04-24-030001 RESTORE_CERTS=false ./deploy/restore-prod.sh
+```
+
+Restore parcial explícito (uso excepcional, pois o banco pode referenciar arquivos ausentes):
+
+```bash
+BACKUP_SOURCE=/home/ubuntu/restore/filtrovali/2026-04-24-030001 ALLOW_PARTIAL_RESTORE=true ./deploy/restore-prod.sh
 ```
 
 Sem rodar migrations:

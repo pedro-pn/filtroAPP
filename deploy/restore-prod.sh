@@ -15,6 +15,7 @@ RUN_MIGRATIONS="${RUN_MIGRATIONS:-false}"
 RESTORE_REPORTS="${RESTORE_REPORTS:-true}"
 RESTORE_CERTS="${RESTORE_CERTS:-true}"
 REQUIRE_CHECKSUMS="${REQUIRE_CHECKSUMS:-true}"
+ALLOW_PARTIAL_RESTORE="${ALLOW_PARTIAL_RESTORE:-false}"
 
 if [ -z "$BACKUP_SOURCE" ]; then
   echo "[restore] set BACKUP_SOURCE to the directory containing postgres.sql.gz" >&2
@@ -24,6 +25,17 @@ fi
 if [ ! -f "$BACKUP_SOURCE/postgres.sql.gz" ]; then
   echo "[restore] file not found: $BACKUP_SOURCE/postgres.sql.gz" >&2
   exit 1
+fi
+
+if [ "$ALLOW_PARTIAL_RESTORE" != "true" ]; then
+  if [ "$RESTORE_REPORTS" = "true" ] && [ ! -f "$BACKUP_SOURCE/relatorios.tar.gz" ]; then
+    echo "[restore] file not found: $BACKUP_SOURCE/relatorios.tar.gz; set RESTORE_REPORTS=false or ALLOW_PARTIAL_RESTORE=true for an explicit partial restore" >&2
+    exit 1
+  fi
+  if [ "$RESTORE_CERTS" = "true" ] && [ ! -f "$BACKUP_SOURCE/certs.tar.gz" ]; then
+    echo "[restore] file not found: $BACKUP_SOURCE/certs.tar.gz; set RESTORE_CERTS=false or ALLOW_PARTIAL_RESTORE=true for an explicit partial restore" >&2
+    exit 1
+  fi
 fi
 
 if [ "$REQUIRE_CHECKSUMS" = "true" ]; then
@@ -66,12 +78,14 @@ if [ "$RESTORE_REPORTS" = "true" ] && [ -f "$BACKUP_SOURCE/relatorios.tar.gz" ];
   echo "[restore] staging reports volume $REPORTS_VOLUME"
   docker run --rm -v "${REPORTS_VOLUME}:/to" -v "${BACKUP_SOURCE}:/backup:ro" alpine sh -eu -c "rm -rf /to/.restore-staging && mkdir /to/.restore-staging && tar -xzf /backup/relatorios.tar.gz -C /to/.restore-staging && find /to -mindepth 1 -maxdepth 1 ! -name .restore-staging -exec rm -rf {} + && find /to/.restore-staging -mindepth 1 -maxdepth 1 -exec mv {} /to/ \\; && rmdir /to/.restore-staging"
 else
-  echo "[restore] skipping reports volume restore (file not found or RESTORE_REPORTS=false)"
+  echo "[restore] skipping reports volume restore (RESTORE_REPORTS=false or explicit partial restore)"
 fi
 
 if [ "$RESTORE_CERTS" = "true" ] && [ -f "$BACKUP_SOURCE/certs.tar.gz" ]; then
   echo "[restore] staging cert volume $CERTS_VOLUME"
   docker run --rm -v "${CERTS_VOLUME}:/to" -v "${BACKUP_SOURCE}:/backup:ro" alpine sh -eu -c "rm -rf /to/.restore-staging && mkdir /to/.restore-staging && tar -xzf /backup/certs.tar.gz -C /to/.restore-staging && find /to -mindepth 1 -maxdepth 1 ! -name .restore-staging -exec rm -rf {} + && find /to/.restore-staging -mindepth 1 -maxdepth 1 -exec mv {} /to/ \\; && rmdir /to/.restore-staging"
+elif [ "$RESTORE_CERTS" = "true" ]; then
+  echo "[restore] skipping cert volume restore (explicit partial restore)"
 fi
 
 echo "[restore] starting application services"

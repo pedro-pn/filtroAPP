@@ -916,4 +916,6 @@ model ReportAttachment {
   createdAt       DateTime      @default(now())
   report          Report?       @relation(fields: [reportId], references: [id], onDelete: Cascade)
   reportService   ReportService? @relation(fields: [reportServiceId], references: [id], onDelete: Cascade)
+
+  @@index([storagePath])
 }

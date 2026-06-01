@@ -1,6 +1,38 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
+
+function runRestoreWithFakeDocker(env = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'restore-preflight-'));
+  const backup = path.join(root, 'backup');
+  const bin = path.join(root, 'bin');
+  const dockerLog = path.join(root, 'docker.log');
+  fs.mkdirSync(backup);
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(backup, 'postgres.sql.gz'), '');
+  fs.writeFileSync(path.join(bin, 'docker'), `#!/usr/bin/env bash\necho "$@" >> "${dockerLog}"\nexit 97\n`);
+  fs.chmodSync(path.join(bin, 'docker'), 0o755);
+
+  const result = spawnSync('bash', [new URL('../../deploy/restore-prod.sh', import.meta.url).pathname], {
+    cwd: root,
+    env: {
+      ...process.env,
+      PATH: `${bin}${path.delimiter}${process.env.PATH || ''}`,
+      BACKUP_SOURCE: backup,
+      PROJECT_DIR: root,
+      REQUIRE_CHECKSUMS: 'false',
+      ...env
+    },
+    encoding: 'utf8'
+  });
+
+  const dockerCalls = fs.existsSync(dockerLog) ? fs.readFileSync(dockerLog, 'utf8') : '';
+  fs.rmSync(root, { recursive: true, force: true });
+  return { result, dockerCalls };
+}
 
 test('restore script validates checksums before mutating restored services', () => {
   const script = fs.readFileSync(new URL('../../deploy/restore-prod.sh', import.meta.url), 'utf8');
@@ -10,6 +42,28 @@ test('restore script validates checksums before mutating restored services', () 
     script.indexOf('sha256sum -c SHA256SUMS') < script.indexOf('docker compose -f "$COMPOSE_FILE" up -d --no-recreate "$POSTGRES_SERVICE"'),
     'backup checksums must be validated before starting restore mutations'
   );
+});
+
+test('restore script aborts before docker when reports archive is required and missing', () => {
+  const { result, dockerCalls } = runRestoreWithFakeDocker({
+    RESTORE_REPORTS: 'true',
+    RESTORE_CERTS: 'false'
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /relatorios\.tar\.gz/);
+  assert.equal(dockerCalls, '');
+});
+
+test('restore script aborts before docker when cert archive is required and missing', () => {
+  const { result, dockerCalls } = runRestoreWithFakeDocker({
+    RESTORE_REPORTS: 'false',
+    RESTORE_CERTS: 'true'
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /certs\.tar\.gz/);
+  assert.equal(dockerCalls, '');
 });
 
 test('restore script stops public services before mutating database or volumes', () => {

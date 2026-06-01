@@ -146,13 +146,18 @@ test('stored upload access rejects client reports under soft-deleted linked proj
 test('stored upload access ignores arbitrary self-owned draft payload references', async t => {
   const originalDraftFindMany = prisma.reportDraft.findMany;
   const originalQueryRaw = prisma.$queryRaw;
+  const originalAttachmentFindMany = prisma.reportAttachment.findMany;
   prisma.reportDraft.findMany = async () => {
     throw new Error('draft payloads must not authorize stored-file access');
   };
-  prisma.$queryRaw = async () => [];
+  prisma.$queryRaw = async () => {
+    throw new Error('stored-file access must not use raw JSON/text scans');
+  };
+  prisma.reportAttachment.findMany = async () => [];
   t.after(() => {
     prisma.reportDraft.findMany = originalDraftFindMany;
     prisma.$queryRaw = originalQueryRaw;
+    prisma.reportAttachment.findMany = originalAttachmentFindMany;
   });
 
   const allowed = await authorizeStoredFile({
@@ -234,6 +239,7 @@ test('stored upload access allows trusted legacy client email scope', async t =>
     projectFindMany: prisma.project.findMany,
     userFindMany: prisma.user.findMany,
     queryRaw: prisma.$queryRaw,
+    attachmentFindMany: prisma.reportAttachment.findMany,
     reportFindMany: prisma.report.findMany
   };
   const rawUser = {
@@ -257,7 +263,16 @@ test('stored upload access allows trusted legacy client email scope', async t =>
     return [];
   };
   prisma.user.findMany = async () => [];
-  prisma.$queryRaw = async () => [{ id: 'report-1' }];
+  prisma.$queryRaw = async () => {
+    throw new Error('stored-file access must not use raw JSON/text scans');
+  };
+  prisma.reportAttachment.findMany = async args => {
+    assert.equal(args.where.storagePath.in.includes('protected/photo.jpg'), true);
+    return [{
+      reportId: 'report-1',
+      reportService: null
+    }];
+  };
   prisma.report.findMany = async () => [{
     id: 'report-1',
     projectId: 'project-1',
@@ -285,6 +300,7 @@ test('stored upload access allows trusted legacy client email scope', async t =>
     prisma.project.findMany = originals.projectFindMany;
     prisma.user.findMany = originals.userFindMany;
     prisma.$queryRaw = originals.queryRaw;
+    prisma.reportAttachment.findMany = originals.attachmentFindMany;
     prisma.report.findMany = originals.reportFindMany;
   });
 
@@ -326,9 +342,16 @@ test('stored upload access allows trusted legacy client email scope', async t =>
 test('stored upload access applies client report visibility before serving attachments', async t => {
   const originals = {
     queryRaw: prisma.$queryRaw,
+    attachmentFindMany: prisma.reportAttachment.findMany,
     reportFindMany: prisma.report.findMany
   };
-  prisma.$queryRaw = async () => [{ id: 'report-1' }];
+  prisma.$queryRaw = async () => {
+    throw new Error('stored-file access must not use raw JSON/text scans');
+  };
+  prisma.reportAttachment.findMany = async () => [{
+    reportId: 'report-1',
+    reportService: null
+  }];
   const reportsByStatus = {
     PENDING: [{
       id: 'report-1',
@@ -363,6 +386,7 @@ test('stored upload access applies client report visibility before serving attac
   prisma.report.findMany = async () => reportsByStatus[currentStatus];
   t.after(() => {
     prisma.$queryRaw = originals.queryRaw;
+    prisma.reportAttachment.findMany = originals.attachmentFindMany;
     prisma.report.findMany = originals.reportFindMany;
   });
 
@@ -380,4 +404,60 @@ test('stored upload access applies client report visibility before serving attac
   assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), false);
   currentStatus = 'APPROVED';
   assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), true);
+});
+
+test('stored upload access uses exact indexed attachment path, not repeated basename scans', async t => {
+  const originals = {
+    queryRaw: prisma.$queryRaw,
+    attachmentFindMany: prisma.reportAttachment.findMany,
+    reportFindMany: prisma.report.findMany
+  };
+  prisma.$queryRaw = async () => {
+    throw new Error('stored-file access must not use raw JSON/text scans');
+  };
+  prisma.reportAttachment.findMany = async args => {
+    assert.equal(args.where.storagePath.in.includes('reports/a/photo.jpg'), true);
+    assert.equal(args.where.storagePath.in.includes('photo.jpg'), false);
+    return [{
+      reportId: null,
+      reportService: { reportId: 'report-service-exact' }
+    }];
+  };
+  prisma.report.findMany = async args => {
+    assert.deepEqual(args.where.id.in, ['report-service-exact']);
+    return [{
+      id: 'report-service-exact',
+      projectId: 'project-1',
+      reportType: 'RDO',
+      status: 'APPROVED',
+      deletedAt: null,
+      createdByUserId: 'manager-1',
+      project: {
+        deletedAt: null,
+        managerOnly: false,
+        authorizedUsers: []
+      },
+      collaborators: [],
+      attachments: [],
+      services: []
+    }];
+  };
+  t.after(() => {
+    prisma.$queryRaw = originals.queryRaw;
+    prisma.reportAttachment.findMany = originals.attachmentFindMany;
+    prisma.report.findMany = originals.reportFindMany;
+  });
+
+  const allowed = await authorizeStoredFile({
+    auth: {
+      user: {
+        id: 'manager-1',
+        role: 'MANAGER',
+        moduleRoles: ['rdo:manager']
+      },
+      rawUser: {}
+    }
+  }, 'reports/a/photo.jpg');
+
+  assert.equal(allowed, true);
 });

@@ -234,44 +234,54 @@ async function canAccessStoredUploadReport(auth, report) {
   return true;
 }
 
+function encodedUploadPath(normalizedPath) {
+  return normalizedPath
+    .split('/')
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join('/');
+}
+
+function uploadStoragePathCandidates(normalizedPath) {
+  const cleanPath = normalizeRelativeUploadPath(normalizedPath);
+  if (!cleanPath) return [];
+  const encodedPath = encodedUploadPath(cleanPath);
+  return [...new Set([
+    cleanPath,
+    encodedPath,
+    `/relatorios/${cleanPath}`,
+    `/relatorios/${encodedPath}`,
+    `/uploads/${cleanPath}`,
+    `/uploads/${encodedPath}`,
+    `/api/uploads/file/${cleanPath}`,
+    `/api/uploads/file/${encodedPath}`,
+    `/api/rdo/uploads/file/${cleanPath}`,
+    `/api/rdo/uploads/file/${encodedPath}`
+  ])];
+}
+
 async function candidateReportIdsForUpload(normalizedPath) {
-  const searchTerm = normalizedPath.split('/').filter(Boolean).pop() || normalizedPath;
-  const searchTerms = [...new Set([
-    searchTerm,
-    encodeURIComponent(searchTerm)
-  ].filter(Boolean))];
+  const candidates = uploadStoragePathCandidates(normalizedPath);
+  if (!candidates.length) return [];
   const ids = new Set();
 
-  for (const term of searchTerms) {
-    const like = `%${term}%`;
-    const rows = await prisma.$queryRaw`
-      SELECT DISTINCT id
-      FROM (
-        SELECT r.id
-        FROM "Report" r
-        WHERE r."specialConditions"::text ILIKE ${like}
-        UNION
-        SELECT s."reportId" AS id
-        FROM "ReportService" s
-        WHERE s."extraData"::text ILIKE ${like}
-        UNION
-        SELECT a."reportId" AS id
-        FROM "ReportAttachment" a
-        WHERE a."reportId" IS NOT NULL AND a."storagePath" ILIKE ${like}
-        UNION
-        SELECT s."reportId" AS id
-        FROM "ReportAttachment" a
-        JOIN "ReportService" s ON s.id = a."reportServiceId"
-        WHERE a."reportServiceId" IS NOT NULL AND a."storagePath" ILIKE ${like}
-      ) matches
-      WHERE id IS NOT NULL
-      LIMIT 100
-    `;
-    for (const row of rows) {
-      if (row.id) ids.add(row.id);
-      if (ids.size >= 100) break;
+  const attachments = await prisma.reportAttachment.findMany({
+    where: {
+      storagePath: { in: candidates }
+    },
+    select: {
+      reportId: true,
+      reportService: {
+        select: {
+          reportId: true
+        }
+      }
     }
-    if (ids.size >= 100) break;
+  });
+
+  for (const attachment of attachments) {
+    if (attachment.reportId) ids.add(attachment.reportId);
+    if (attachment.reportService?.reportId) ids.add(attachment.reportService.reportId);
   }
 
   return [...ids];
@@ -300,12 +310,7 @@ export async function authorizeStoredFile(req, normalizedPath) {
 
   for (const report of reports) {
     if (!(await canAccessStoredUploadReport(req.auth, report))) continue;
-    if (valueReferencesUpload(report.specialConditions, normalizedPath)) return true;
-    if (valueReferencesUpload(report.attachments, normalizedPath)) return true;
-    if ((report.services || []).some(service => (
-      valueReferencesUpload(service.extraData, normalizedPath)
-      || valueReferencesUpload(service.attachments, normalizedPath)
-    ))) return true;
+    return true;
   }
   return false;
 }
