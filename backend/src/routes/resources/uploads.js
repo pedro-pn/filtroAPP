@@ -13,6 +13,7 @@ import { hasModuleRole } from '../../lib/module-roles.js';
 import { optimizeImageForReport } from '../../lib/stored-image.js';
 import { RDO_INTERNAL_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import prisma from '../../lib/prisma.js';
+import { canClientSeeReportForAccess } from './reports.js';
 
 const router = Router();
 const requireRdoInternal = requireModuleRole(...RDO_INTERNAL_ROLES);
@@ -70,12 +71,9 @@ async function normalizeUploadedImage(data, bytes) {
       error.statusCode = 400;
       throw error;
     }
-    return {
-      fileName: data.fileName,
-      mimeType: data.mimeType,
-      extension,
-      bytes
-    };
+    const error = new Error('Formato de imagem inválido. Envie uma imagem PNG, JPG, WebP ou HEIC válida.');
+    error.statusCode = 400;
+    throw error;
   }
 
   return {
@@ -230,6 +228,12 @@ export function canAccessReport(auth, report) {
   return false;
 }
 
+async function canAccessStoredUploadReport(auth, report) {
+  if (!canAccessReport(auth, report)) return false;
+  if (auth.user.role === 'CLIENT') return canClientSeeReportForAccess(report);
+  return true;
+}
+
 async function candidateReportIdsForUpload(normalizedPath) {
   const searchTerm = normalizedPath.split('/').filter(Boolean).pop() || normalizedPath;
   const searchTerms = [...new Set([
@@ -294,15 +298,16 @@ export async function authorizeStoredFile(req, normalizedPath) {
     }
   });
 
-  return reports.some(report => {
-    if (!canAccessReport(req.auth, report)) return false;
+  for (const report of reports) {
+    if (!(await canAccessStoredUploadReport(req.auth, report))) continue;
     if (valueReferencesUpload(report.specialConditions, normalizedPath)) return true;
     if (valueReferencesUpload(report.attachments, normalizedPath)) return true;
-    return (report.services || []).some(service => (
+    if ((report.services || []).some(service => (
       valueReferencesUpload(service.extraData, normalizedPath)
       || valueReferencesUpload(service.attachments, normalizedPath)
-    ));
-  });
+    ))) return true;
+  }
+  return false;
 }
 
 router.get('/file/*', requireAuth, asyncHandler(async (req, res) => {

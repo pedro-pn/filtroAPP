@@ -1,11 +1,19 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { PassThrough, Readable, Writable } from 'node:stream';
 import test from 'node:test';
 
+import app from '../src/app.js';
+import env from '../src/config/env.js';
 import { trustedClientAccessScopeForUser } from '../src/lib/client-project-access.js';
 import prisma from '../src/lib/prisma.js';
 import { authorizeStoredFile, canAccessReport } from '../src/routes/resources/uploads.js';
 
+const validPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+const bearerToken = 'upload-security-token';
 const managerAuth = {
   user: {
     id: 'manager-1',
@@ -14,6 +22,81 @@ const managerAuth = {
   },
   rawUser: {}
 };
+
+function dispatchApp(method, pathName, body) {
+  return new Promise((resolve, reject) => {
+    const payload = body === undefined ? null : Buffer.from(JSON.stringify(body));
+    const req = new Readable({
+      read() {
+        if (payload) this.push(payload);
+        this.push(null);
+      }
+    });
+    req.method = method;
+    req.url = pathName;
+    req.headers = {
+      authorization: `Bearer ${bearerToken}`,
+      host: '127.0.0.1',
+      ...(payload ? {
+        'content-type': 'application/json',
+        'content-length': String(payload.length)
+      } : {})
+    };
+    req.socket = new PassThrough();
+    req.socket.remoteAddress = '127.0.0.1';
+    req.socket.encrypted = false;
+    req.connection = req.socket;
+
+    const chunks = [];
+    const responseHeaders = new Map();
+    const res = new Writable({
+      write(chunk, _encoding, callback) {
+        chunks.push(Buffer.from(chunk));
+        callback();
+      }
+    });
+    res.statusCode = 200;
+    res.setHeader = (name, value) => responseHeaders.set(String(name).toLowerCase(), value);
+    res.getHeader = name => responseHeaders.get(String(name).toLowerCase());
+    res.getHeaders = () => Object.fromEntries(responseHeaders);
+    res.removeHeader = name => responseHeaders.delete(String(name).toLowerCase());
+    res.writeHead = (statusCode, headersToSet = {}) => {
+      res.statusCode = statusCode;
+      Object.entries(headersToSet).forEach(([name, value]) => res.setHeader(name, value));
+      return res;
+    };
+    res.end = (chunk, encoding, callback) => {
+      if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
+      Writable.prototype.end.call(res, callback);
+      const rawBody = Buffer.concat(chunks).toString('utf8');
+      resolve({ statusCode: res.statusCode, body: rawBody, json: rawBody ? JSON.parse(rawBody) : null });
+      return res;
+    };
+
+    app.handle(req, res, reject);
+  });
+}
+
+function stubUploadManagerSession(t) {
+  const originalFindUnique = prisma.userSession.findUnique;
+  prisma.userSession.findUnique = async () => ({
+    id: 'session-manager',
+    expiresAt: new Date(Date.now() + 60_000),
+    user: {
+      id: 'manager-1',
+      username: 'manager',
+      name: 'Manager',
+      email: 'manager@example.com',
+      role: 'MANAGER',
+      accountType: 'ADMIN',
+      isActive: true,
+      moduleRoles: [{ role: 'RDO_MANAGER' }]
+    }
+  });
+  t.after(() => {
+    prisma.userSession.findUnique = originalFindUnique;
+  });
+}
 
 test('stored upload access rejects soft-deleted reports and projects', () => {
   assert.equal(
@@ -93,6 +176,59 @@ test('protected upload route uses shared auth middleware', () => {
   assert.doesNotMatch(source, /function authenticateFileRequest/);
 });
 
+test('upload endpoint rejects active content and invalid images before writing files', async t => {
+  stubUploadManagerSession(t);
+  const originalReportsDir = env.reportsDir;
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'rdo-upload-validation-'));
+  env.reportsDir = dir;
+  t.after(async () => {
+    env.reportsDir = originalReportsDir;
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  });
+
+  const htmlResponse = await dispatchApp('POST', '/api/uploads', {
+    fileName: 'payload.html',
+    mimeType: 'text/html',
+    dataUrl: `data:text/html;base64,${Buffer.from('<script>localStorage.token</script>').toString('base64')}`,
+    label: 'HTML'
+  });
+  const invalidPngResponse = await dispatchApp('POST', '/api/uploads', {
+    fileName: 'broken.png',
+    mimeType: 'image/png',
+    dataUrl: `data:image/png;base64,${Buffer.from('not-a-png').toString('base64')}`,
+    label: 'PNG quebrado'
+  });
+
+  assert.equal(htmlResponse.statusCode, 400);
+  assert.equal(invalidPngResponse.statusCode, 400);
+  assert.deepEqual(await fsPromises.readdir(dir), []);
+});
+
+test('upload endpoint stores valid images as sanitized jpeg files', async t => {
+  stubUploadManagerSession(t);
+  const originalReportsDir = env.reportsDir;
+  const dir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'rdo-upload-valid-'));
+  env.reportsDir = dir;
+  t.after(async () => {
+    env.reportsDir = originalReportsDir;
+    await fsPromises.rm(dir, { recursive: true, force: true });
+  });
+
+  const response = await dispatchApp('POST', '/api/uploads', {
+    fileName: 'foto.png',
+    mimeType: 'image/png',
+    dataUrl: validPngDataUrl,
+    label: 'Foto'
+  });
+  const files = await fsPromises.readdir(dir);
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.json.mimeType, 'image/jpeg');
+  assert.match(response.json.fileName, /\.jpg$/);
+  assert.equal(files.length, 1);
+  assert.match(files[0], /\.jpg$/);
+});
+
 test('stored upload access allows trusted legacy client email scope', async t => {
   const originals = {
     projectFindMany: prisma.project.findMany,
@@ -124,6 +260,9 @@ test('stored upload access allows trusted legacy client email scope', async t =>
   prisma.$queryRaw = async () => [{ id: 'report-1' }];
   prisma.report.findMany = async () => [{
     id: 'report-1',
+    projectId: 'project-1',
+    reportType: 'RDO',
+    status: 'APPROVED',
     deletedAt: null,
     createdByUserId: 'other-user',
     specialConditions: {
@@ -182,4 +321,63 @@ test('stored upload access allows trusted legacy client email scope', async t =>
   assert.deepEqual(trustedScope.emails, ['cliente@example.com']);
   assert.equal(allowedWithoutTrustedScope, false);
   assert.equal(allowedWithTrustedScope, true);
+});
+
+test('stored upload access applies client report visibility before serving attachments', async t => {
+  const originals = {
+    queryRaw: prisma.$queryRaw,
+    reportFindMany: prisma.report.findMany
+  };
+  prisma.$queryRaw = async () => [{ id: 'report-1' }];
+  const reportsByStatus = {
+    PENDING: [{
+      id: 'report-1',
+      projectId: 'project-1',
+      reportType: 'RDO',
+      status: 'PENDING',
+      deletedAt: null,
+      createdByUserId: 'other-user',
+      specialConditions: {
+        photo: '/api/rdo/uploads/file/protected/photo.jpg'
+      },
+      project: {
+        deletedAt: null,
+        managerOnly: false,
+        clientCnpj: '11222333000144',
+        clientEmailPrimary: '',
+        clientEmailCc: [],
+        clientSigners: [],
+        authorizedUsers: []
+      },
+      collaborators: [],
+      attachments: [],
+      services: []
+    }],
+    APPROVED: []
+  };
+  reportsByStatus.APPROVED = [{
+    ...reportsByStatus.PENDING[0],
+    status: 'APPROVED'
+  }];
+  let currentStatus = 'PENDING';
+  prisma.report.findMany = async () => reportsByStatus[currentStatus];
+  t.after(() => {
+    prisma.$queryRaw = originals.queryRaw;
+    prisma.report.findMany = originals.reportFindMany;
+  });
+
+  const auth = {
+    user: {
+      id: 'client-1',
+      username: '11222333000144',
+      role: 'CLIENT',
+      accountType: 'CLIENT',
+      moduleRoles: ['rdo:client']
+    },
+    rawUser: {}
+  };
+
+  assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), false);
+  currentStatus = 'APPROVED';
+  assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), true);
 });

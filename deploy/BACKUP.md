@@ -89,12 +89,13 @@ docker run --rm -v filtrovali_relatorios:/to -v /caminho/do/backup:/backup alpin
 
 O arquivo `deploy/restore-prod.sh` automatiza:
 
-- subida da stack
-- `prisma migrate deploy` (aplica migrations versionadas)
-- restore do banco
 - validação de `SHA256SUMS`
-- restore do volume `filtrovali_relatorios` em volume previamente limpo (opcional, se arquivo presente)
-- restore opcional de `filtrovali_certs`
+- subida apenas do Postgres e parada de backend/nginx antes das mutações
+- restore do banco
+- `prisma migrate deploy` em container one-off (aplica migrations versionadas)
+- restore do volume `filtrovali_relatorios` com extração em staging antes de substituir o volume ativo
+- restore opcional de `filtrovali_certs` com extração em staging
+- subida de backend/nginx somente após banco, migrations e arquivos concluírem
 
 Uso:
 

@@ -1189,7 +1189,7 @@ async function projectReportsForClientVisibility(projectId, client = prisma) {
   });
 }
 
-async function canClientSeeReportForAccess(report, client = prisma) {
+export async function canClientSeeReportForAccess(report, client = prisma) {
   if (!report?.projectId) return false;
   const projectReports = await projectReportsForClientVisibility(report.projectId, client);
   const byId = new Map(projectReports.map(item => [item.id, item]));

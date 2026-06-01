@@ -7,18 +7,53 @@ test('restore script validates checksums before mutating restored services', () 
 
   assert.match(script, /sha256sum -c SHA256SUMS/);
   assert.ok(
-    script.indexOf('sha256sum -c SHA256SUMS') < script.indexOf('docker compose -f "$COMPOSE_FILE" up -d --no-recreate'),
+    script.indexOf('sha256sum -c SHA256SUMS') < script.indexOf('docker compose -f "$COMPOSE_FILE" up -d --no-recreate "$POSTGRES_SERVICE"'),
     'backup checksums must be validated before starting restore mutations'
   );
 });
 
-test('restore script clears reports volume before extracting backup archive', () => {
+test('restore script stops public services before mutating database or volumes', () => {
   const script = fs.readFileSync(new URL('../../deploy/restore-prod.sh', import.meta.url), 'utf8');
 
-  assert.match(script, /find \/to -mindepth 1 -maxdepth 1 -exec rm -rf \{\} \+/);
+  assert.match(script, /docker compose -f "\$COMPOSE_FILE" stop "\$NGINX_SERVICE" "\$BACKEND_SERVICE"/);
   assert.ok(
-    script.indexOf('find /to -mindepth 1 -maxdepth 1 -exec rm -rf {} +') < script.indexOf('tar -xzf /backup/relatorios.tar.gz'),
-    'reports volume must be cleaned before backup extraction'
+    script.indexOf('docker compose -f "$COMPOSE_FILE" stop "$NGINX_SERVICE" "$BACKEND_SERVICE"')
+      < script.indexOf('DROP DATABASE IF EXISTS $POSTGRES_DB'),
+    'public services must stop before database is dropped'
+  );
+  assert.ok(
+    script.indexOf('docker compose -f "$COMPOSE_FILE" stop "$NGINX_SERVICE" "$BACKEND_SERVICE"')
+      < script.indexOf('tar -xzf /backup/relatorios.tar.gz -C /to/.restore-staging'),
+    'public services must stop before report volume staging'
+  );
+});
+
+test('restore script stages reports before replacing active volume contents', () => {
+  const script = fs.readFileSync(new URL('../../deploy/restore-prod.sh', import.meta.url), 'utf8');
+  const extractIndex = script.indexOf('tar -xzf /backup/relatorios.tar.gz -C /to/.restore-staging');
+  const removeIndex = script.indexOf('find /to -mindepth 1 -maxdepth 1 ! -name .restore-staging -exec rm -rf {} +');
+
+  assert.match(script, /mkdir \/to\/\.restore-staging/);
+  assert.ok(extractIndex !== -1, 'reports backup must extract into staging');
+  assert.ok(removeIndex !== -1, 'active reports volume contents must be replaced after staging');
+  assert.ok(
+    extractIndex < removeIndex,
+    'reports backup must be fully extracted before active volume contents are removed'
+  );
+});
+
+test('restore script starts application services only after restore steps', () => {
+  const script = fs.readFileSync(new URL('../../deploy/restore-prod.sh', import.meta.url), 'utf8');
+  const startIndex = script.indexOf('docker compose -f "$COMPOSE_FILE" up -d --no-recreate "$BACKEND_SERVICE" "$NGINX_SERVICE"');
+
+  assert.ok(startIndex !== -1, 'backend/nginx must be started at the end');
+  assert.ok(
+    script.indexOf('npx prisma migrate deploy') < startIndex,
+    'application services must start after migrations'
+  );
+  assert.ok(
+    script.indexOf('tar -xzf /backup/relatorios.tar.gz -C /to/.restore-staging') < startIndex,
+    'application services must start after report volume restore'
   );
 });
 

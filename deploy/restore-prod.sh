@@ -37,8 +37,11 @@ fi
 
 cd "$PROJECT_DIR"
 
-echo "[restore] starting compose stack"
-docker compose -f "$COMPOSE_FILE" up -d --no-recreate
+echo "[restore] starting postgres service"
+docker compose -f "$COMPOSE_FILE" up -d --no-recreate "$POSTGRES_SERVICE"
+
+echo "[restore] stopping public application services"
+docker compose -f "$COMPOSE_FILE" stop "$NGINX_SERVICE" "$BACKEND_SERVICE" || true
 
 echo "[restore] waiting for postgres to be ready"
 until docker compose -f "$COMPOSE_FILE" exec -T "$POSTGRES_SERVICE" pg_isready -U "$POSTGRES_USER" -q; do
@@ -56,21 +59,22 @@ gunzip -c "$BACKUP_SOURCE/postgres.sql.gz" | docker compose -f "$COMPOSE_FILE" e
 
 if [ "$RUN_MIGRATIONS" = "true" ]; then
   echo "[restore] applying prisma migrations"
-  docker compose -f "$COMPOSE_FILE" exec -T "$BACKEND_SERVICE" npx prisma migrate deploy
+  docker compose -f "$COMPOSE_FILE" run --rm --no-deps "$BACKEND_SERVICE" npx prisma migrate deploy
 fi
 
 if [ "$RESTORE_REPORTS" = "true" ] && [ -f "$BACKUP_SOURCE/relatorios.tar.gz" ]; then
-  echo "[restore] restoring reports volume $REPORTS_VOLUME"
-  docker run --rm -v "${REPORTS_VOLUME}:/to" -v "${BACKUP_SOURCE}:/backup:ro" alpine sh -c "find /to -mindepth 1 -maxdepth 1 -exec rm -rf {} + && cd /to && tar -xzf /backup/relatorios.tar.gz"
+  echo "[restore] staging reports volume $REPORTS_VOLUME"
+  docker run --rm -v "${REPORTS_VOLUME}:/to" -v "${BACKUP_SOURCE}:/backup:ro" alpine sh -eu -c "rm -rf /to/.restore-staging && mkdir /to/.restore-staging && tar -xzf /backup/relatorios.tar.gz -C /to/.restore-staging && find /to -mindepth 1 -maxdepth 1 ! -name .restore-staging -exec rm -rf {} + && find /to/.restore-staging -mindepth 1 -maxdepth 1 -exec mv {} /to/ \\; && rmdir /to/.restore-staging"
 else
   echo "[restore] skipping reports volume restore (file not found or RESTORE_REPORTS=false)"
 fi
 
 if [ "$RESTORE_CERTS" = "true" ] && [ -f "$BACKUP_SOURCE/certs.tar.gz" ]; then
-  echo "[restore] restoring cert volume $CERTS_VOLUME"
-  docker run --rm -v "${CERTS_VOLUME}:/to" -v "${BACKUP_SOURCE}:/backup:ro" alpine sh -c "find /to -mindepth 1 -maxdepth 1 -exec rm -rf {} + && cd /to && tar -xzf /backup/certs.tar.gz"
-  echo "[restore] reloading nginx"
-  docker compose -f "$COMPOSE_FILE" exec -T "$NGINX_SERVICE" nginx -s reload
+  echo "[restore] staging cert volume $CERTS_VOLUME"
+  docker run --rm -v "${CERTS_VOLUME}:/to" -v "${BACKUP_SOURCE}:/backup:ro" alpine sh -eu -c "rm -rf /to/.restore-staging && mkdir /to/.restore-staging && tar -xzf /backup/certs.tar.gz -C /to/.restore-staging && find /to -mindepth 1 -maxdepth 1 ! -name .restore-staging -exec rm -rf {} + && find /to/.restore-staging -mindepth 1 -maxdepth 1 -exec mv {} /to/ \\; && rmdir /to/.restore-staging"
 fi
+
+echo "[restore] starting application services"
+docker compose -f "$COMPOSE_FILE" up -d --no-recreate "$BACKEND_SERVICE" "$NGINX_SERVICE"
 
 echo "[restore] done"
