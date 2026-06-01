@@ -135,7 +135,7 @@ function replacePlaceholders(element, values) {
 
 function preserveWordTextLineBreaks(element) {
   Array.from(element.getElementsByTagName('w:t')).forEach(node => {
-    const content = node.textContent || '';
+    const content = elementText(node);
     if (!/[\r\n]/.test(content)) return;
     const doc = node.ownerDocument;
     const parent = node.parentNode;

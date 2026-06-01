@@ -293,8 +293,9 @@ function getServiceSummary(service, lookups) {
   }
 }
 
-function wrapText(text, font, size, width) {
-  const source = String(text || '—').replace(/\s+/g, ' ').trim() || '—';
+function wrapTextSegment(text, font, size, width) {
+  const source = String(text || '').replace(/[^\S\r\n]+/g, ' ').trim();
+  if (!source) return [''];
   const words = source.split(' ');
   const lines = [];
   let current = '';
@@ -308,7 +309,26 @@ function wrapText(text, font, size, width) {
     }
   }
   if (current) lines.push(current);
-  return lines.length ? lines : ['—'];
+  return lines.length ? lines : [''];
+}
+
+export function wrapPdfText(text, font, size, width) {
+  const raw = String(text || '');
+  if (!raw) return ['—'];
+  const lines = raw
+    .replace(/\r\n|\r/g, '\n')
+    .split('\n')
+    .flatMap(line => wrapTextSegment(line, font, size, width));
+  return lines.some(line => line.trim()) ? lines : ['—'];
+}
+
+function splitPdfTextLines(text) {
+  const raw = String(text || '');
+  return raw ? raw.replace(/\r\n|\r/g, '\n').split('\n') : [''];
+}
+
+function wrapText(text, font, size, width) {
+  return wrapPdfText(text, font, size, width);
 }
 
 async function loadImageBytes(src) {
@@ -375,7 +395,7 @@ export async function buildReportPdf(report, prisma) {
   }
 
   function drawText(text, x, topY, size, usedFont = font, color = COLORS.blue, maxWidth = null, lineGap = 2) {
-    const lines = maxWidth ? wrapText(text, usedFont, size, maxWidth) : [String(text || '')];
+    const lines = maxWidth ? wrapText(text, usedFont, size, maxWidth) : splitPdfTextLines(text);
     let cursor = topY - size;
     for (const line of lines) {
       page.drawText(line, { x, y: cursor, size, font: usedFont, color });
