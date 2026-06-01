@@ -16,6 +16,7 @@ import {
 import env from '../config/env.js';
 import { normalizeCnpj } from './cnpj.js';
 import { createValidationQrCodeMatrix } from './qr-code.js';
+import { resolveStoredUploadPath } from './stored-image.js';
 
 export const INTERNAL_SIGNATURE_PROGRESS_KEY = '__internalSignatureProgress';
 export const INTERNAL_SIGNATURE_TOKEN_DAYS = 30;
@@ -332,18 +333,7 @@ export function withInternalSignatureProgressList(reports) {
 export function reportSourcePdfPath(sourcePdfUrl) {
   const source = stringValue(sourcePdfUrl);
   if (!source) return '';
-  try {
-    const pathname = /^https?:\/\//i.test(source) ? new URL(source).pathname : source;
-    if (pathname.startsWith('/relatorios/')) {
-      return path.join(env.reportsDir, decodeURIComponent(pathname.slice('/relatorios/'.length)));
-    }
-    if (pathname.startsWith('/uploads/')) {
-      return path.join(env.reportsDir, decodeURIComponent(pathname.slice('/uploads/'.length)));
-    }
-  } catch {
-    return '';
-  }
-  return '';
+  return resolveStoredUploadPath(source) || '';
 }
 
 export async function createSignatureAuditLog(tx, {

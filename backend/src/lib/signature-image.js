@@ -1,8 +1,7 @@
 import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import path from 'node:path';
 
-import env from '../config/env.js';
+import { resolveStoredUploadPath } from './stored-image.js';
 
 function extToMime(ext) {
   const normalized = String(ext || '').toLowerCase();
@@ -11,23 +10,6 @@ function extToMime(ext) {
   if (normalized === '.gif') return 'image/gif';
   if (normalized === '.webp') return 'image/webp';
   return 'application/octet-stream';
-}
-
-function resolveRelativeUploadPath(source) {
-  if (!source || source.startsWith('data:')) return '';
-  try {
-    if (/^https?:\/\//i.test(source)) {
-      const pathname = new URL(source).pathname;
-      if (pathname.startsWith('/relatorios/')) return decodeURIComponent(pathname.slice('/relatorios/'.length));
-      if (pathname.startsWith('/uploads/')) return decodeURIComponent(pathname.slice('/uploads/'.length));
-      return '';
-    }
-    if (source.startsWith('/relatorios/')) return decodeURIComponent(source.slice('/relatorios/'.length));
-    if (source.startsWith('/uploads/')) return decodeURIComponent(source.slice('/uploads/'.length));
-  } catch {
-    return '';
-  }
-  return '';
 }
 
 export function isSignatureDataUrl(value) {
@@ -43,10 +25,8 @@ export function parseSignatureDataUrl(value) {
 }
 
 export async function fileSignatureToDataUrl(source) {
-  const relativePath = resolveRelativeUploadPath(source);
-  if (!relativePath) return null;
-  const filePath = path.join(env.reportsDir, relativePath);
-  if (!fsSync.existsSync(filePath)) return null;
+  const filePath = resolveStoredUploadPath(source);
+  if (!filePath) return null;
   const bytes = await fs.readFile(filePath);
   const mimeType = extToMime(path.extname(filePath));
   return `data:${mimeType};base64,${bytes.toString('base64')}`;
@@ -68,4 +48,3 @@ export async function ensureCollaboratorSignatureDataUrl(prisma, collaborator) {
     data: { signatureImage: dataUrl }
   });
 }
-

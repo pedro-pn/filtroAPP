@@ -71,6 +71,75 @@ function reportImageCacheDir() {
   return path.join(env.uploadDir, '.cache', 'report-images');
 }
 
+function uniquePaths(paths) {
+  return [...new Set(paths.filter(Boolean).map(item => path.resolve(item)))];
+}
+
+function storedFileRoots() {
+  return uniquePaths([env.uploadDir, env.reportsDir]);
+}
+
+function isInside(root, targetPath) {
+  const relative = path.relative(root, targetPath);
+  return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+export function uploadRelativePathFromSource(source) {
+  const raw = String(source || '').trim();
+  if (!raw || raw.startsWith('data:')) return '';
+
+  let pathname = raw;
+  try {
+    if (/^https?:\/\//i.test(raw)) {
+      pathname = new URL(raw).pathname;
+    }
+  } catch {
+    return '';
+  }
+
+  let relativePath = '';
+  if (pathname.startsWith('/relatorios/')) {
+    relativePath = pathname.slice('/relatorios/'.length);
+  } else if (pathname.startsWith('/uploads/')) {
+    relativePath = pathname.slice('/uploads/'.length);
+  } else if (pathname.startsWith('relatorios/')) {
+    relativePath = pathname.slice('relatorios/'.length);
+  } else if (pathname.startsWith('uploads/')) {
+    relativePath = pathname.slice('uploads/'.length);
+  } else if (!pathname.startsWith('/')) {
+    relativePath = pathname;
+  }
+
+  if (!relativePath) return '';
+
+  let decoded = '';
+  try {
+    decoded = decodeURIComponent(relativePath);
+  } catch {
+    return '';
+  }
+
+  const parts = decoded
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter(Boolean);
+  if (!parts.length || parts.some(part => part === '..' || part.includes('\0'))) return '';
+  return parts.join('/');
+}
+
+export function resolveStoredUploadPath(source) {
+  const relativePath = uploadRelativePathFromSource(source);
+  if (!relativePath) return null;
+
+  for (const root of storedFileRoots()) {
+    const targetPath = path.resolve(root, ...relativePath.split('/'));
+    if (isInside(root, targetPath) && fsSync.existsSync(targetPath) && fsSync.statSync(targetPath).isFile()) {
+      return targetPath;
+    }
+  }
+  return null;
+}
+
 function reportImageCacheKey(targetPath, stat) {
   return createHash('sha256')
     .update([
@@ -196,23 +265,6 @@ export async function optimizeImageForReport(bytes, options = {}) {
   };
 }
 
-function relativeUploadPath(source) {
-  if (!source || source.startsWith('data:')) return '';
-  try {
-    if (/^https?:\/\//i.test(source)) {
-      const pathname = new URL(source).pathname;
-      if (pathname.startsWith('/relatorios/')) return decodeURIComponent(pathname.slice('/relatorios/'.length));
-      if (pathname.startsWith('/uploads/')) return decodeURIComponent(pathname.slice('/uploads/'.length));
-      return '';
-    }
-    if (source.startsWith('/relatorios/')) return decodeURIComponent(source.slice('/relatorios/'.length));
-    if (source.startsWith('/uploads/')) return decodeURIComponent(source.slice('/uploads/'.length));
-  } catch {
-    return '';
-  }
-  return '';
-}
-
 export async function readStoredImageAsset(source) {
   if (!source) return null;
 
@@ -232,10 +284,8 @@ export async function readStoredImageAsset(source) {
     };
   }
 
-  const relativePath = relativeUploadPath(source);
-  if (!relativePath) return null;
-  const targetPath = path.join(env.uploadDir, relativePath);
-  if (!fsSync.existsSync(targetPath)) return null;
+  const targetPath = resolveStoredUploadPath(source);
+  if (!targetPath) return null;
   const stat = await fs.stat(targetPath).catch(() => null);
   if (!stat?.isFile()) return null;
   const bytes = await fs.readFile(targetPath);

@@ -118,6 +118,115 @@ test('POST /auth/forgot-password rate limits by IP and identifier before account
   assert.equal(otherIdentifier.statusCode, 200);
 });
 
+test('POST /auth/forgot-password by CNPJ does not provision or reactivate inactive clients', async t => {
+  const originals = {
+    userFindFirst: prisma.user.findFirst,
+    userUpdate: prisma.user.update,
+    projectFindMany: prisma.project.findMany,
+    tokenDeleteMany: prisma.passwordResetToken.deleteMany,
+    tokenCreate: prisma.passwordResetToken.create
+  };
+  const calls = [];
+  prisma.user.findFirst = async args => {
+    calls.push(['user.findFirst', args]);
+    return null;
+  };
+  prisma.user.update = async args => {
+    calls.push(['user.update', args]);
+    throw new Error('forgot-password must not reactivate client accounts');
+  };
+  prisma.project.findMany = async args => {
+    calls.push(['project.findMany', args]);
+    return [{
+      clientEmailPrimary: 'cliente@example.com',
+      deletedAt: new Date(),
+      managerOnly: false,
+      isActive: false
+    }];
+  };
+  prisma.passwordResetToken.deleteMany = async args => {
+    calls.push(['passwordResetToken.deleteMany', args]);
+    throw new Error('forgot-password must not create reset flow for inactive CNPJ clients');
+  };
+  prisma.passwordResetToken.create = async args => {
+    calls.push(['passwordResetToken.create', args]);
+    throw new Error('forgot-password must not create reset tokens for inactive CNPJ clients');
+  };
+  t.after(() => {
+    prisma.user.findFirst = originals.userFindFirst;
+    prisma.user.update = originals.userUpdate;
+    prisma.project.findMany = originals.projectFindMany;
+    prisma.passwordResetToken.deleteMany = originals.tokenDeleteMany;
+    prisma.passwordResetToken.create = originals.tokenCreate;
+  });
+
+  const response = await dispatchApp('POST', '/api/auth/forgot-password', {
+    identifier: '11.222.333/0001-44'
+  }, '198.51.100.31');
+
+  assert.equal(response.statusCode, 200);
+  const cnpjLookup = calls.find(([name]) => name === 'user.findFirst')?.[1];
+  assert.equal(cnpjLookup.where.username.equals, '11222333000144');
+  assert.equal(cnpjLookup.where.role, 'CLIENT');
+  assert.equal(cnpjLookup.where.isActive, true);
+  assert.equal(calls.some(([name]) => name === 'user.update'), false);
+  assert.equal(calls.some(([name]) => name === 'project.findMany'), false);
+  assert.equal(calls.some(([name]) => name.startsWith('passwordResetToken.')), false);
+});
+
+test('POST /auth/forgot-password by CNPJ ignores deleted manager-only inactive projects', async t => {
+  const originals = {
+    userFindFirst: prisma.user.findFirst,
+    projectFindMany: prisma.project.findMany,
+    tokenDeleteMany: prisma.passwordResetToken.deleteMany,
+    tokenCreate: prisma.passwordResetToken.create
+  };
+  const calls = [];
+  prisma.user.findFirst = async args => {
+    calls.push(['user.findFirst', args]);
+    return {
+      id: 'client-active',
+      username: '11222333000144',
+      email: null,
+      role: 'CLIENT',
+      accountType: 'CLIENT',
+      isActive: true
+    };
+  };
+  prisma.project.findMany = async args => {
+    calls.push(['project.findMany', args]);
+    return [];
+  };
+  prisma.passwordResetToken.deleteMany = async args => {
+    calls.push(['passwordResetToken.deleteMany', args]);
+    throw new Error('forgot-password must not create reset flow without eligible active client projects');
+  };
+  prisma.passwordResetToken.create = async args => {
+    calls.push(['passwordResetToken.create', args]);
+    throw new Error('forgot-password must not create reset token without eligible active client projects');
+  };
+  t.after(() => {
+    prisma.user.findFirst = originals.userFindFirst;
+    prisma.project.findMany = originals.projectFindMany;
+    prisma.passwordResetToken.deleteMany = originals.tokenDeleteMany;
+    prisma.passwordResetToken.create = originals.tokenCreate;
+  });
+
+  const response = await dispatchApp('POST', '/api/auth/forgot-password', {
+    identifier: '11.222.333/0001-44'
+  }, '198.51.100.32');
+
+  assert.equal(response.statusCode, 200);
+  const projectLookup = calls.find(([name]) => name === 'project.findMany')?.[1];
+  assert.deepEqual(projectLookup.where, {
+    clientCnpj: '11222333000144',
+    deletedAt: null,
+    managerOnly: false,
+    isActive: true
+  });
+  assert.equal(calls.some(([name]) => name.startsWith('passwordResetToken.')), false);
+});
+
 test('POST /auth/reset-password rate limits by IP and token before token lookup', async t => {
   const originalFindUnique = prisma.passwordResetToken.findUnique;
   const tokenHashes = [];

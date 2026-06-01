@@ -10,7 +10,7 @@ import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
 import { buildReportCollaboratorRows } from './report-collaborators.js';
 import { buildReportFileName } from './report-filename.js';
-import { readStoredImageAsset } from './stored-image.js';
+import { readStoredImageAsset, resolveStoredUploadPath } from './stored-image.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -861,24 +861,7 @@ export async function buildReportDocx(report) {
 }
 
 function resolveUploadSourcePath(source) {
-  if (!source) return null;
-  let fileName = source;
-  try {
-    if (/^https?:\/\//i.test(source)) {
-      const pathname = new URL(source).pathname;
-      if (pathname.startsWith('/relatorios/')) fileName = decodeURIComponent(pathname.slice('/relatorios/'.length));
-      else if (pathname.startsWith('/uploads/')) fileName = decodeURIComponent(pathname.slice('/uploads/'.length));
-    } else if (source.startsWith('/relatorios/')) {
-      fileName = decodeURIComponent(source.slice('/relatorios/'.length));
-    } else if (source.startsWith('/uploads/')) {
-      fileName = decodeURIComponent(source.slice('/uploads/'.length));
-    }
-  } catch {
-    return null;
-  }
-  if (!fileName) return null;
-  const targetPath = path.join(env.uploadDir, fileName);
-  return fsSync.existsSync(targetPath) ? targetPath : null;
+  return resolveStoredUploadPath(source);
 }
 
 function extractUrlBase(source) {

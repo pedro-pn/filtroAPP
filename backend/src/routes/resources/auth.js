@@ -5,7 +5,6 @@ import { z } from 'zod';
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
 import { createEmailChangeToken, createPasswordResetToken, createSession, hashToken, publicUser } from '../../lib/auth.js';
-import { ensureClientAccountForCnpj } from '../../lib/client-account.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import { buildEmailChangeConfirmationTemplate, buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
@@ -491,15 +490,20 @@ router.post('/forgot-password', forgotPasswordRateLimit, asyncHandler(async (req
     if (user?.email) emails = [user.email];
   } else if (normalizedIdentifier.length === 14) {
     user = await prisma.user.findFirst({
-      where: { username: { equals: normalizedIdentifier, mode: 'insensitive' } }
+      where: {
+        username: { equals: normalizedIdentifier, mode: 'insensitive' },
+        role: 'CLIENT',
+        isActive: true
+      }
     });
-    if (!user || (user.role === 'CLIENT' && !user.isActive)) {
-      const ensured = await ensureClientAccountForCnpj(prisma, normalizedIdentifier, { notify: false });
-      user = ensured.user;
-    }
     if (user) {
       const projects = await prisma.project.findMany({
-        where: { clientCnpj: normalizedIdentifier },
+        where: {
+          clientCnpj: normalizedIdentifier,
+          deletedAt: null,
+          managerOnly: false,
+          isActive: true
+        },
         select: { clientEmailPrimary: true }
       });
       emails = Array.from(new Set(projects.map(project => project.clientEmailPrimary).filter(Boolean)));
