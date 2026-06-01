@@ -11,6 +11,7 @@ import { ClientReviewAction, Prisma } from '@prisma/client';
 import {
   assertRenderableReportSignatureImageDataUrl,
   assertSignatureSourceCurrent,
+  authenticatedSignatureFinalizationRetryable,
   completedSignatureVersionAfterCommit,
   clearIssuedSignatureTokens,
   deliverIssuedSignatureRequestEmails,
@@ -652,6 +653,47 @@ test('resetSignedSignatureForFinalizationRetry preserves signed evidence for fin
 
   assert.equal(reset, false);
   assert.equal(updateCalled, false);
+});
+
+test('authenticated signer can resume finalization after persisted signature failure', () => {
+  const report = {
+    id: 'report-1',
+    status: 'APPROVED',
+    reportType: 'RDO',
+    deletedAt: null
+  };
+  const signature = {
+    id: 'signature-1',
+    versionId: 'version-1',
+    status: 'SIGNED',
+    signerEmail: 'cliente@example.com'
+  };
+  const version = {
+    id: 'version-1',
+    status: 'ACTIVE',
+    finalDocumentHash: null,
+    signatures: [signature]
+  };
+
+  assert.equal(authenticatedSignatureFinalizationRetryable(report, version, signature), true);
+  assert.equal(
+    authenticatedSignatureFinalizationRetryable(report, {
+      ...version,
+      finalDocumentHash: 'hash-final'
+    }, signature),
+    false
+  );
+  assert.equal(
+    authenticatedSignatureFinalizationRetryable(report, {
+      ...version,
+      signatures: [{ ...signature, status: 'PENDING' }]
+    }, signature),
+    false
+  );
+  assert.equal(
+    authenticatedSignatureFinalizationRetryable({ ...report, status: 'SIGNED' }, version, signature),
+    false
+  );
 });
 
 test('signatureRequestEmailRequired blocks token issuance when a pending signer needs a link', () => {

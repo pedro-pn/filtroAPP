@@ -699,6 +699,21 @@ function isFinalizationRetryableSignature(signature) {
   );
 }
 
+export function authenticatedSignatureFinalizationRetryable(report, version, signature) {
+  return !!(
+    report
+    && version
+    && signature
+    && signature.status === ReportSignatureStatus.SIGNED
+    && signature.versionId === version.id
+    && version.status === ReportVersionStatus.ACTIVE
+    && !version.finalDocumentHash
+    && report.status === ReportStatus.APPROVED
+    && !isReportUnavailable(report)
+    && allRequiredSignaturesCompleted(version)
+  );
+}
+
 function signerEmailValue(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -4908,9 +4923,6 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
     signerEmailValue(signature.signerEmail) === resolvedSigner.email
     && signature.status === ReportSignatureStatus.SIGNED
   );
-  if (alreadySignedSignature) {
-    return res.status(409).json({ error: 'Este assinante já assinou o relatório.' });
-  }
   const signer = {
     ...resolvedSigner,
     name: data.signerName
@@ -4924,6 +4936,10 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
     include: { signatures: true },
     orderBy: { versionNumber: 'desc' }
   });
+  const retryFinalization = authenticatedSignatureFinalizationRetryable(existing, activeVersion, alreadySignedSignature);
+  if (alreadySignedSignature && !retryFinalization) {
+    return res.status(409).json({ error: 'Este assinante já assinou o relatório.' });
+  }
 
   let sourcePdfUrl = activeVersion?.sourcePdfUrl || '';
   let sourceDocumentHash = activeVersion?.sourceDocumentHash || '';
@@ -4941,59 +4957,66 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
   let signatureResult = { alreadySigned: false };
   let issuedTokens = [];
   let item;
-  try {
-    item = await prisma.$transaction(async tx => {
-      const current = await tx.report.findUniqueOrThrow({
-        where: { id: prepared.id },
-        include
+  if (retryFinalization) {
+    await assertSignatureFinalizationPreflight(activeVersion);
+    signedVersion = activeVersion;
+    signatureResult = { alreadySigned: true, signedSignature: alreadySignedSignature };
+    item = existing;
+  } else {
+    try {
+      item = await prisma.$transaction(async tx => {
+        const current = await tx.report.findUniqueOrThrow({
+          where: { id: prepared.id },
+          include
+        });
+        if (current.status !== ReportStatus.APPROVED) {
+          const error = new Error('A solicitação de assinatura foi atualizada por outra operação.');
+          error.statusCode = 409;
+          throw error;
+        }
+        assertSignatureSourceCurrent(current, expectedReportUpdatedAt);
+        const version = await ensureInternalSignatureRound(tx, {
+          report: current,
+          sourcePdfUrl,
+          sourceDocumentHash,
+          createdByUserId: req.auth.user.id,
+          evidence
+        });
+        const signingSignature = signatureForSigner(version, signer.email);
+        if (signingSignature?.status === ReportSignatureStatus.SIGNED) {
+          const error = new Error('Este assinante já assinou o relatório.');
+          error.statusCode = 409;
+          throw error;
+        }
+        const completesRequiredSignatures = signatureWouldCompleteRequired(version, signingSignature?.id);
+        if (completesRequiredSignatures) {
+          await assertSignatureFinalizationPreflight(version);
+        }
+        signatureResult = await signInternalReportVersion(tx, {
+          report: current,
+          version,
+          signer,
+          userId: req.auth.user.id,
+          evidence,
+          signatureImageDataUrl: data.signatureImageDataUrl,
+          privacyNoticeVersion: data.privacyNoticeVersion,
+          deferAuditLog: completesRequiredSignatures
+        });
+        signedVersion = await activeVersionWithSignatures(tx, current.id);
+        assertSignatureRequestEmailDeliveryConfigured(current, signedVersion);
+        issuedTokens = await issuePendingSignatureTokens(tx, signedVersion);
+        return tx.report.findUniqueOrThrow({
+          where: { id: current.id },
+          include
+        });
       });
-      if (current.status !== ReportStatus.APPROVED) {
-        const error = new Error('A solicitação de assinatura foi atualizada por outra operação.');
-        error.statusCode = 409;
-        throw error;
+      if (generatedSourcePath && signedVersion?.sourcePdfUrl !== sourcePdfUrl) {
+        await fs.unlink(generatedSourcePath).catch(() => {});
       }
-      assertSignatureSourceCurrent(current, expectedReportUpdatedAt);
-      const version = await ensureInternalSignatureRound(tx, {
-        report: current,
-        sourcePdfUrl,
-        sourceDocumentHash,
-        createdByUserId: req.auth.user.id,
-        evidence
-      });
-      const signingSignature = signatureForSigner(version, signer.email);
-      if (signingSignature?.status === ReportSignatureStatus.SIGNED) {
-        const error = new Error('Este assinante já assinou o relatório.');
-        error.statusCode = 409;
-        throw error;
-      }
-      const completesRequiredSignatures = signatureWouldCompleteRequired(version, signingSignature?.id);
-      if (completesRequiredSignatures) {
-        await assertSignatureFinalizationPreflight(version);
-      }
-      signatureResult = await signInternalReportVersion(tx, {
-        report: current,
-        version,
-        signer,
-        userId: req.auth.user.id,
-        evidence,
-        signatureImageDataUrl: data.signatureImageDataUrl,
-        privacyNoticeVersion: data.privacyNoticeVersion,
-        deferAuditLog: completesRequiredSignatures
-      });
-      signedVersion = await activeVersionWithSignatures(tx, current.id);
-      assertSignatureRequestEmailDeliveryConfigured(current, signedVersion);
-      issuedTokens = await issuePendingSignatureTokens(tx, signedVersion);
-      return tx.report.findUniqueOrThrow({
-        where: { id: current.id },
-        include
-      });
-    });
-    if (generatedSourcePath && signedVersion?.sourcePdfUrl !== sourcePdfUrl) {
-      await fs.unlink(generatedSourcePath).catch(() => {});
+    } catch (error) {
+      if (generatedSourcePath) await fs.unlink(generatedSourcePath).catch(() => {});
+      throw error;
     }
-  } catch (error) {
-    if (generatedSourcePath) await fs.unlink(generatedSourcePath).catch(() => {});
-    throw error;
   }
 
   signedVersion = await completedSignatureVersionAfterCommit(prisma, item.id) || signedVersion;
