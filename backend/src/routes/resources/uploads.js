@@ -11,14 +11,18 @@ import asyncHandler from '../../lib/async-handler.js';
 import { clientCanAccessProject } from '../../lib/client-project-access.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
 import { optimizeImageForReport } from '../../lib/stored-image.js';
+import {
+  hasTransientUploadAccess,
+  normalizeRelativeUploadPath,
+  rememberTransientUploadAccess
+} from '../../lib/transient-upload-access.js';
 import { RDO_INTERNAL_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import prisma from '../../lib/prisma.js';
 import { canClientSeeReportForAccess } from './reports.js';
 
 const router = Router();
 const requireRdoInternal = requireModuleRole(...RDO_INTERNAL_ROLES);
-const TRANSIENT_UPLOAD_ACCESS_MS = 30 * 60 * 1000;
-const transientUploadAccess = new Map();
+export { normalizeRelativeUploadPath };
 
 const schema = z.object({
   fileName: z.string().min(1),
@@ -30,14 +34,6 @@ const schema = z.object({
 
 function safePathLocal(value) {
   return String(value ?? '').replace(/[<>:"/\\|?*\n\r]/g, '_').trim();
-}
-
-function safeDecode(value) {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
 }
 
 function jpegFileName(fileName) {
@@ -104,37 +100,6 @@ function isInside(root, targetPath) {
   return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
-function cleanupTransientUploadAccess(now = Date.now()) {
-  for (const [key, grant] of transientUploadAccess) {
-    if (!grant || grant.expiresAt <= now) transientUploadAccess.delete(key);
-  }
-}
-
-function rememberTransientUploadAccess(normalizedPath, userId) {
-  if (!normalizedPath || !userId) return;
-  cleanupTransientUploadAccess();
-  transientUploadAccess.set(normalizedPath, {
-    userId,
-    expiresAt: Date.now() + TRANSIENT_UPLOAD_ACCESS_MS
-  });
-}
-
-function hasTransientUploadAccess(normalizedPath, auth) {
-  cleanupTransientUploadAccess();
-  const grant = transientUploadAccess.get(normalizedPath);
-  return !!(grant && grant.userId === auth.user.id && grant.expiresAt > Date.now());
-}
-
-export function normalizeRelativeUploadPath(rawPath) {
-  const normalizedPath = String(rawPath || '')
-    .replace(/\\/g, '/')
-    .split('/')
-    .filter(Boolean)
-    .map(part => safeDecode(part))
-    .join('/');
-  return normalizedPath || '';
-}
-
 export function resolveStoredFilePath(rawPath) {
   const normalizedPath = normalizeRelativeUploadPath(rawPath).split('/').join(path.sep);
   if (!normalizedPath) return null;
@@ -148,64 +113,6 @@ export function resolveStoredFilePath(rawPath) {
   }
 
   return null;
-}
-
-function normalizeUploadReference(value) {
-  const raw = String(value || '').trim();
-  if (!raw || raw.startsWith('data:')) return '';
-
-  let pathname = raw;
-  if (/^https?:\/\//i.test(raw)) {
-    try {
-      pathname = new URL(raw).pathname;
-    } catch {
-      return '';
-    }
-  }
-
-  if (pathname.startsWith('/api/uploads/file/')) {
-    return normalizeRelativeUploadPath(pathname.slice('/api/uploads/file/'.length));
-  }
-  if (pathname.startsWith('/api/rdo/uploads/file/')) {
-    return normalizeRelativeUploadPath(pathname.slice('/api/rdo/uploads/file/'.length));
-  }
-  if (pathname.startsWith('/relatorios/')) {
-    return normalizeRelativeUploadPath(pathname.slice('/relatorios/'.length));
-  }
-  if (pathname.startsWith('/uploads/')) {
-    return normalizeRelativeUploadPath(pathname.slice('/uploads/'.length));
-  }
-  if (pathname.startsWith('relatorios/')) {
-    return normalizeRelativeUploadPath(pathname.slice('relatorios/'.length));
-  }
-  if (pathname.startsWith('uploads/')) {
-    return normalizeRelativeUploadPath(pathname.slice('uploads/'.length));
-  }
-  if (pathname.includes('/')) {
-    return normalizeRelativeUploadPath(pathname);
-  }
-  return '';
-}
-
-function valueReferencesUpload(value, normalizedPath) {
-  if (!value) return false;
-  if (typeof value === 'string') {
-    return normalizeUploadReference(value) === normalizedPath;
-  }
-  if (Array.isArray(value)) {
-    return value.some(item => valueReferencesUpload(item, normalizedPath));
-  }
-  if (typeof value === 'object') {
-    for (const key of ['url', 'path', 'storagePath']) {
-      if (Object.prototype.hasOwnProperty.call(value, key)) {
-        const raw = String(value[key] || '').trim();
-        if (normalizeUploadReference(raw) === normalizedPath) return true;
-        if (normalizeRelativeUploadPath(raw) === normalizedPath) return true;
-      }
-    }
-    return Object.values(value).some(item => valueReferencesUpload(item, normalizedPath));
-  }
-  return false;
 }
 
 function collaboratorHasAuthorizedProjectLink(auth, project) {

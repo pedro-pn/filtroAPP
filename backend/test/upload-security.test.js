@@ -10,6 +10,7 @@ import app from '../src/app.js';
 import env from '../src/config/env.js';
 import { trustedClientAccessScopeForUser } from '../src/lib/client-project-access.js';
 import prisma from '../src/lib/prisma.js';
+import { grantReportUploadAccess } from '../src/lib/transient-upload-access.js';
 import { authorizeStoredFile, canAccessReport } from '../src/routes/resources/uploads.js';
 
 const validPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
@@ -198,6 +199,42 @@ test('stored upload access rejects collaborator attachments for hidden or inacti
   assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), false);
   projectOverride = { visibleToCollaborators: true, isActive: true };
   assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), true);
+});
+
+test('stored upload access allows legacy report image previews after report authorization grant', async t => {
+  const originals = {
+    attachmentFindMany: prisma.reportAttachment.findMany,
+    reportFindMany: prisma.report.findMany
+  };
+  prisma.reportAttachment.findMany = async () => {
+    throw new Error('legacy preview grant should bypass attachment lookup');
+  };
+  prisma.report.findMany = async () => {
+    throw new Error('legacy preview grant should bypass report lookup');
+  };
+  t.after(() => {
+    prisma.reportAttachment.findMany = originals.attachmentFindMany;
+    prisma.report.findMany = originals.reportFindMany;
+  });
+  const auth = {
+    user: {
+      id: 'manager-preview',
+      role: 'MANAGER',
+      moduleRoles: ['rdo:manager']
+    },
+    rawUser: {}
+  };
+
+  grantReportUploadAccess(auth, {
+    id: 'report-preview',
+    specialConditions: {
+      generalUploads: [{ url: '/relatorios/legacy-preview/foto.jpg' }]
+    },
+    attachments: [],
+    services: []
+  });
+
+  assert.equal(await authorizeStoredFile({ auth }, 'legacy-preview/foto.jpg'), true);
 });
 
 test('stored upload access ignores arbitrary self-owned draft payload references', async t => {

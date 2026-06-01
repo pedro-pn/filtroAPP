@@ -59,6 +59,7 @@ import { coordinatorNotificationEmails, NotificationEmailCategory, notificationR
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import prisma from '../../lib/prisma.js';
 import { buildReportFileName, safePath } from '../../lib/report-filename.js';
+import { grantReportUploadAccess, grantReportsUploadAccess } from '../../lib/transient-upload-access.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
@@ -4013,8 +4014,11 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
   console.log('[TIMING] GET /reports', { queryMs: Date.now() - tGet0, count: items.length, role: req.auth.user.role });
   if (req.auth.user.role === 'CLIENT') {
     const byId = new Map(items.map(item => [item.id, item]));
-    return res.json(items.filter(item => canClientSeeReport(item, byId)));
+    const visibleItems = items.filter(item => canClientSeeReport(item, byId));
+    grantReportsUploadAccess(req.auth, visibleItems);
+    return res.json(visibleItems);
   }
+  grantReportsUploadAccess(req.auth, items);
   res.json(items);
 }));
 
@@ -4209,6 +4213,7 @@ router.get('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     }
   }
 
+  grantReportUploadAccess(req.auth, item);
   res.json(item);
 }));
 
