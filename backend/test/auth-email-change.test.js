@@ -368,9 +368,11 @@ test('POST /auth/confirm-email-change updates username for any account when user
       }
     },
     project: {
-      findMany: async () => [],
+      findMany: async () => {
+        throw new Error('Conta interna não deve migrar vínculos de projeto.');
+      },
       update: async () => {
-        throw new Error('Não deve atualizar projetos sem vínculo com o e-mail antigo.');
+        throw new Error('Conta interna não deve atualizar projetos.');
       }
     }
   });
@@ -386,6 +388,87 @@ test('POST /auth/confirm-email-change updates username for any account when user
   assert.equal(response.json.ok, true);
   assert.equal(response.json.user.username, 'novo.interno@example.com');
   assert.equal(response.json.user.email, 'novo.interno@example.com');
+});
+
+test('POST /auth/confirm-email-change does not migrate project links for internal accounts', async t => {
+  const token = 'internal-project-link-token';
+  const tokenRow = {
+    id: 'token-internal-project',
+    tokenHash: hashToken(token),
+    userId: 'internal-project-user',
+    email: 'novo.interno@example.com',
+    expiresAt: new Date(Date.now() + 60_000),
+    usedAt: null,
+    user: authUser({
+      id: 'internal-project-user',
+      username: 'contato.cliente@example.com',
+      email: 'contato.cliente@example.com',
+      role: 'COLLABORATOR',
+      accountType: 'INTERNAL',
+      isActive: true
+    })
+  };
+  const confirmedUser = authUser({
+    id: 'internal-project-user',
+    username: 'novo.interno@example.com',
+    email: 'novo.interno@example.com',
+    role: 'COLLABORATOR',
+    accountType: 'INTERNAL'
+  });
+
+  const originals = {
+    emailChangeTokenFindUnique: prisma.emailChangeToken.findUnique,
+    userFindFirst: prisma.user.findFirst,
+    transaction: prisma.$transaction
+  };
+  let projectFindManyCalled = false;
+  let projectUpdateCalled = false;
+  prisma.emailChangeToken.findUnique = async args => {
+    assert.equal(args.where.tokenHash, hashToken(token));
+    return tokenRow;
+  };
+  prisma.user.findFirst = async () => null;
+  prisma.$transaction = async callback => callback({
+    emailChangeToken: {
+      updateMany: async () => ({ count: 1 })
+    },
+    user: {
+      findFirst: async () => null,
+      update: async args => {
+        assert.equal(args.where.id, 'internal-project-user');
+        assert.equal(args.data.username, 'novo.interno@example.com');
+        assert.equal(args.data.email, 'novo.interno@example.com');
+        return confirmedUser;
+      }
+    },
+    project: {
+      findMany: async () => {
+        projectFindManyCalled = true;
+        return [{
+          id: 'project-1',
+          clientEmailPrimary: 'contato.cliente@example.com',
+          clientEmailCc: ['contato.cliente@example.com'],
+          clientSigners: [{ name: 'Fiscal', email: 'contato.cliente@example.com' }]
+        }];
+      },
+      update: async () => {
+        projectUpdateCalled = true;
+        throw new Error('Conta interna não deve atualizar projetos.');
+      }
+    }
+  });
+  t.after(() => {
+    prisma.emailChangeToken.findUnique = originals.emailChangeTokenFindUnique;
+    prisma.user.findFirst = originals.userFindFirst;
+    prisma.$transaction = originals.transaction;
+  });
+
+  const response = await dispatchApp('POST', '/api/auth/confirm-email-change', { token }, '');
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json.user.email, 'novo.interno@example.com');
+  assert.equal(projectFindManyCalled, false);
+  assert.equal(projectUpdateCalled, false);
 });
 
 test('POST /auth/confirm-email-change migrates project links from both current email and email-like username', async t => {

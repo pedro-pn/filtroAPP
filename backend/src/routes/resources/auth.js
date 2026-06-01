@@ -8,6 +8,7 @@ import { ensureClientAccountForCnpj } from '../../lib/client-account.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import { buildEmailChangeConfirmationTemplate, buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
+import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import {
   consumeNotificationPreferenceToken,
   findNotificationPreferenceToken,
@@ -22,6 +23,7 @@ import { requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
 const EMAIL_CHANGE_TOKEN_MAX_AGE_MS = 60 * 60 * 1000;
+const AUTH_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 
 const loginSchema = z.object({
   username: z.string().min(1, 'Informe o usuário.'),
@@ -80,6 +82,38 @@ function passwordResetSuccessMessage(res) {
     message: 'Se houver uma conta correspondente, o link de recuperação será enviado.'
   });
 }
+
+function authRateLimitIdentifier(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return 'missing';
+  const normalizedCnpj = normalizeCnpj(raw);
+  return normalizedCnpj.length === 14 ? normalizedCnpj : raw;
+}
+
+function authRateLimitIp(req) {
+  return req.ip || req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown';
+}
+
+const loginRateLimit = createMemoryRateLimit({
+  windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+  max: 8,
+  message: 'Muitas tentativas de login. Tente novamente mais tarde.',
+  keyGenerator: req => `${authRateLimitIp(req)}:login:${authRateLimitIdentifier(req.body?.username)}`
+});
+
+const forgotPasswordRateLimit = createMemoryRateLimit({
+  windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+  max: 5,
+  message: 'Muitas tentativas de recuperação de senha. Tente novamente mais tarde.',
+  keyGenerator: req => `${authRateLimitIp(req)}:forgot-password:${authRateLimitIdentifier(req.body?.identifier)}`
+});
+
+const resetPasswordRateLimit = createMemoryRateLimit({
+  windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+  max: 8,
+  message: 'Muitas tentativas de redefinição de senha. Tente novamente mais tarde.',
+  keyGenerator: req => `${authRateLimitIp(req)}:reset-password:${hashToken(String(req.body?.token || '').trim())}`
+});
 
 async function findPasswordResetToken(token) {
   const tokenHash = hashToken(token);
@@ -394,7 +428,7 @@ async function findLoginCandidates(identifier) {
   });
 }
 
-router.post('/login', asyncHandler(async (req, res) => {
+router.post('/login', loginRateLimit, asyncHandler(async (req, res) => {
   const data = loginSchema.parse(req.body);
   const candidates = await findLoginCandidates(data.username);
   let user = null;
@@ -421,7 +455,7 @@ router.post('/login', asyncHandler(async (req, res) => {
   });
 }));
 
-router.post('/forgot-password', asyncHandler(async (req, res) => {
+router.post('/forgot-password', forgotPasswordRateLimit, asyncHandler(async (req, res) => {
   const data = forgotPasswordSchema.parse(req.body);
   const rawIdentifier = String(data.identifier || '').trim();
   const normalizedIdentifier = normalizeCnpj(rawIdentifier);
@@ -487,7 +521,7 @@ router.get('/reset-password-status', asyncHandler(async (req, res) => {
   res.json(passwordResetTokenStatus(tokenRow));
 }));
 
-router.post('/reset-password', asyncHandler(async (req, res) => {
+router.post('/reset-password', resetPasswordRateLimit, asyncHandler(async (req, res) => {
   const data = resetPasswordSchema.parse(req.body);
   const tokenRow = await findPasswordResetToken(data.token);
   const status = passwordResetTokenStatus(tokenRow);
@@ -690,7 +724,9 @@ router.post('/confirm-email-change', asyncHandler(async (req, res) => {
       shouldUpdateUsername ? currentUsername : ''
     ].filter(email => email && email !== nextEmail)));
 
-    await migrateClientProjectEmailLinks(tx, migrationSources, nextEmail);
+    if (tokenRow.user.role === 'CLIENT' && tokenRow.user.accountType === 'CLIENT') {
+      await migrateClientProjectEmailLinks(tx, migrationSources, nextEmail);
+    }
 
     return tx.user.update({
       where: { id: tokenRow.userId },
