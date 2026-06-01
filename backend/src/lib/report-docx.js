@@ -8,6 +8,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
+import { buildReportCollaboratorRows } from './report-collaborators.js';
 import { buildReportFileName } from './report-filename.js';
 import { readStoredImageAsset } from './stored-image.js';
 
@@ -181,40 +182,6 @@ function particleAnalysisText(fields, stage) {
   return stringify(getField(fields, stage === 'inicial'
     ? ['Contagem inicial', 'Classe ISO inicial', 'NAS inicial']
     : ['Contagem final', 'Classe ISO final', 'NAS final']));
-}
-
-function buildCollaboratorRows(report) {
-  const byName = new Map();
-  (report.collaborators || []).forEach(link => {
-    const name = link.collaborator?.name || '';
-    if (!name) return;
-    byName.set(name, {
-      collaboratorname: name,
-      collaboratorname0: name,
-      collaboratorposition: link.collaborator?.role || '',
-      shifts: new Set(['Diurno'])
-    });
-  });
-  (((report.specialConditions || {}).noturnoDetails || {}).colaboradores || []).forEach(name => {
-    if (!name) return;
-    const existing = byName.get(name);
-    if (existing) {
-      existing.shifts.add('Noturno');
-    } else {
-      byName.set(name, {
-        collaboratorname: name,
-        collaboratorname0: name,
-        collaboratorposition: '',
-        shifts: new Set(['Noturno'])
-      });
-    }
-  });
-  return Array.from(byName.values()).map(item => ({
-    collaboratorname: item.collaboratorname,
-    collaboratorname0: item.collaboratorname0,
-    collaboratorposition: item.collaboratorposition,
-    collaboratorshift: item.shifts.size === 2 ? 'Diurno e Noturno' : Array.from(item.shifts)[0]
-  }));
 }
 
 function serviceTemplateData(service, index) {
@@ -761,7 +728,7 @@ function expandCollaborators(doc, report) {
   const templateRow = findFirstByText(doc, 'w:tr', '{{collaboratorname}}')
     || findFirstByText(doc, 'w:tr', '{{collaboratorname0}}');
   if (!templateRow) return;
-  const collaborators = buildCollaboratorRows(report);
+  const collaborators = buildReportCollaboratorRows(report);
 
   if (!collaborators.length) {
     replacePlaceholders(templateRow, {

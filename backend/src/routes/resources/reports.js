@@ -2129,6 +2129,57 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function plainObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function textValue(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function nightCollaboratorInput(value) {
+  if (typeof value === 'string') return { name: value.trim(), role: '' };
+  const record = plainObject(value);
+  return {
+    id: textValue(record.id),
+    name: textValue(record.name),
+    role: textValue(record.role)
+  };
+}
+
+export async function enrichNightCollaboratorsInSpecialConditions(tx, specialConditions) {
+  const next = cloneJson(plainObject(specialConditions));
+  const noturnoDetails = plainObject(next.noturnoDetails);
+  const collaboratorIds = Array.isArray(noturnoDetails.collaboratorIds)
+    ? uniqueIds(noturnoDetails.collaboratorIds.filter(id => typeof id === 'string'))
+    : [];
+  if (!collaboratorIds.length) return next;
+
+  const collaborators = await tx.collaborator.findMany({
+    where: { id: { in: collaboratorIds } },
+    select: { id: true, name: true, role: true }
+  });
+  const byId = new Map(collaborators.map(collaborator => [collaborator.id, collaborator]));
+  const existing = Array.isArray(noturnoDetails.colaboradores)
+    ? noturnoDetails.colaboradores.map(nightCollaboratorInput)
+    : [];
+
+  next.noturnoDetails = {
+    ...noturnoDetails,
+    collaboratorIds,
+    colaboradores: collaboratorIds.map((id, index) => {
+      const current = existing[index] || {};
+      const collaborator = byId.get(id);
+      return {
+        id,
+        name: current.name || collaborator?.name || id,
+        role: current.role || collaborator?.role || ''
+      };
+    })
+  };
+  return next;
+}
+
 export async function assertRenderableReportSignatureImageDataUrl(value) {
   if (await decodableSignatureImageDataUrl(value)) return;
   throw new z.ZodError([{
@@ -4266,6 +4317,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
       role: project.operator.role || null,
       signatureImage: project.operator.signatureImage || null
     } : null;
+    const specialConditions = await enrichNightCollaboratorsInSpecialConditions(tx, data.specialConditions || {});
 
     const created = await tx.report.create({
       data: {
@@ -4289,7 +4341,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
         reviewedByUserId: reportStatus === ReportStatus.APPROVED ? req.auth.user.id : null,
         approvedAt: reportStatus === ReportStatus.APPROVED ? new Date() : null,
         specialConditions: withLeaderSnapshot({
-          ...(data.specialConditions || {}),
+          ...specialConditions,
           overtimeSummary: overtime,
         }, leaderSnapshot),
         pendingDerivedTypes,
@@ -4423,6 +4475,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     const managerProvidedSequence = req.auth.user.role === 'MANAGER' && data.sequenceNumber;
     const targetSequenceNumber = managerProvidedSequence ? data.sequenceNumber : existing.sequenceNumber;
     const sequenceGroupChanged = existing.projectId !== data.projectId || existing.reportType !== data.reportType;
+    const specialConditions = await enrichNightCollaboratorsInSpecialConditions(tx, data.specialConditions || {});
     const internalEditState = req.auth.user.role === 'MANAGER'
       ? extractInternalEditState(existing.specialConditions)
       : (hasApprovedVersion
@@ -4467,8 +4520,8 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
         dailyDescription: data.dailyDescription || null,
         specialConditions: withLeaderSnapshot({
           ...(req.auth.user.role === 'MANAGER'
-            ? withClientRejectionCleared(stripInternalEditState(data.specialConditions || {}))
-            : stripInternalEditState(data.specialConditions || {})),
+            ? withClientRejectionCleared(stripInternalEditState(specialConditions))
+            : stripInternalEditState(specialConditions)),
           ...(serviceOnlySpecialConditions || {}),
           overtimeSummary: overtime,
           ...internalEditState
@@ -4718,7 +4771,10 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
   const tPatch0 = Date.now();
   const item = await prisma.$transaction(async tx => {
     const nextSpecialConditions = data.status === ReportStatus.APPROVED
-      ? withClientRejectionCleared(stripInternalEditState(previous?.specialConditions || {}))
+      ? await enrichNightCollaboratorsInSpecialConditions(
+          tx,
+          withClientRejectionCleared(stripInternalEditState(previous?.specialConditions || {}))
+        )
       : withoutLegacyExternalSignatureState(previous?.specialConditions || {});
 
     const updated = await tx.report.update({

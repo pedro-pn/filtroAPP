@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { formatCnpj } from './cnpj.js';
+import { buildReportCollaboratorRows } from './report-collaborators.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -497,16 +498,11 @@ export async function buildReportPdf(report, prisma) {
   }
 
   function drawCollaboratorsSection() {
-    const special = report.specialConditions || {};
-    const nightNames = (special.noturnoDetails || {}).colaboradores || [];
-    const rows = [
-      ...(report.collaborators || []).map(link => ({
-        name: link.collaborator?.name || '—',
-        role: link.collaborator?.role || '—',
-        shift: 'Diurno'
-      })),
-      ...nightNames.map(name => ({ name, role: '—', shift: 'Noturno' }))
-    ];
+    const rows = buildReportCollaboratorRows(report).map(row => ({
+      name: row.collaboratorname || '—',
+      role: row.collaboratorposition || '—',
+      shift: row.collaboratorshift || '—'
+    }));
 
     sectionBand('Colaboradores');
     const widths = [245, 190, 104];
