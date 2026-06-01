@@ -1138,8 +1138,7 @@ function isReportUnavailable(report) {
 }
 
 export async function canAccessReport(auth, report) {
-  if (report?.deletedAt) return false;
-  if (report?.project?.deletedAt && auth.user.role !== 'CLIENT') return false;
+  if (isReportUnavailable(report)) return false;
   if (auth.user.role === 'MANAGER') return true;
   if (report.project?.managerOnly) return false;
   if (auth.user.role === 'COORDINATOR') return true;
@@ -1165,6 +1164,7 @@ export function collaboratorCanMutateReport(auth, report) {
 }
 
 export function canClientSeeReport(report, allReportsById) {
+  if (isReportUnavailable(report)) return false;
   if (!report || !report.project?.clientCnpj) return false;
   if (report.reportType === ReportType.RDO) {
     return report.status === ReportStatus.APPROVED || report.status === ReportStatus.SIGNED || hasActiveClientRejection(report);

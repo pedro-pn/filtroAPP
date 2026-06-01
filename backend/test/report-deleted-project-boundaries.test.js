@@ -8,6 +8,8 @@ import app from '../src/app.js';
 import prisma from '../src/lib/prisma.js';
 import {
   approvedRdoHistoryWhere,
+  canAccessReport,
+  canClientSeeReport,
   derivedReportsForProjectWhere
 } from '../src/routes/resources/reports.js';
 
@@ -33,6 +35,20 @@ function managerSession() {
       accountType: 'ADMIN',
       isActive: true,
       moduleRoles: [{ role: 'RDO_MANAGER' }]
+    }
+  };
+}
+
+function clientAuth() {
+  return {
+    user: {
+      id: 'client-1',
+      username: '11222333000144',
+      email: 'client@example.com',
+      role: 'CLIENT',
+      accountType: 'CLIENT',
+      isActive: true,
+      moduleRoles: [{ role: 'RDO_CLIENT' }]
     }
   };
 }
@@ -80,6 +96,22 @@ test('derived report sync filters exclude soft-deleted reports and projects', ()
     project: { deletedAt: null },
     reportType: { in: [ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM, ReportType.RLF, ReportType.RLI] }
   });
+});
+
+test('client report guards reject reports from soft-deleted projects', async () => {
+  const report = activeReport({
+    status: ReportStatus.APPROVED,
+    project: {
+      ...activeReport().project,
+      deletedAt: new Date(),
+      clientCnpj: '11222333000144',
+      clientEmailPrimary: 'client@example.com',
+      clientEmailCc: []
+    }
+  });
+
+  assert.equal(canClientSeeReport(report, new Map([[report.id, report]])), false);
+  assert.equal(await canAccessReport(clientAuth(), report), false);
 });
 
 function reportPayload(overrides = {}) {

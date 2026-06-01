@@ -87,6 +87,58 @@ function stubAuthenticatedManager(t) {
   });
 }
 
+function stubAuthenticatedClient(t) {
+  const originalFindUnique = prisma.userSession.findUnique;
+  prisma.userSession.findUnique = async () => ({
+    id: 'session-client',
+    expiresAt: new Date(Date.now() + 60_000),
+    user: {
+      id: 'client-1',
+      username: '11222333000144',
+      name: 'Cliente',
+      email: 'client@example.com',
+      role: 'CLIENT',
+      accountType: 'CLIENT',
+      isActive: true,
+      privacyPolicyAcceptedAt: new Date(),
+      privacyPolicyVersion: 'client_account_privacy_v1',
+      moduleRoles: [{ role: 'RDO_CLIENT' }]
+    }
+  });
+  t.after(() => {
+    prisma.userSession.findUnique = originalFindUnique;
+  });
+}
+
+test('GET /projects keeps client listings scoped to non-deleted projects', async t => {
+  stubAuthenticatedClient(t);
+  const originals = {
+    projectFindMany: prisma.project.findMany,
+    userFindMany: prisma.user.findMany
+  };
+  const calls = [];
+  prisma.project.findMany = async args => {
+    calls.push(args);
+    return [];
+  };
+  prisma.user.findMany = async args => {
+    calls.push(args);
+    return [];
+  };
+  t.after(() => {
+    prisma.project.findMany = originals.projectFindMany;
+    prisma.user.findMany = originals.userFindMany;
+  });
+
+  const response = await dispatchApp('GET', '/api/projects', undefined);
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json, []);
+  const projectListQuery = calls.find(call => call.include?.operator === true);
+  assert.equal(projectListQuery.where.deletedAt, null);
+  assert.equal(projectListQuery.where.managerOnly, false);
+});
+
 test('removeProjectById preserves projects with reports before hiding the project', async () => {
   const calls = [];
   const tx = {

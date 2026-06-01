@@ -150,7 +150,7 @@ test('removed pending signer is kept when the old round has no current project s
   assert.deepEqual(removedPendingRequiredClientSignatureIds(oldRound), []);
 });
 
-test('client can see approved reports under archived projects', () => {
+test('client cannot see approved reports under soft-deleted projects', () => {
   const archivedReport = report({
     status: ReportStatus.APPROVED,
     project: {
@@ -164,7 +164,7 @@ test('client can see approved reports under archived projects', () => {
     }
   });
 
-  assert.equal(canClientSeeReport(archivedReport, byId([archivedReport])), true);
+  assert.equal(canClientSeeReport(archivedReport, byId([archivedReport])), false);
 });
 
 test('signing an earlier RDO reports service documents that become visible', async () => {

@@ -187,7 +187,6 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
   } else if (req.auth.user.role === 'CLIENT') {
-    delete where.deletedAt;
     Object.assign(where, await clientProjectAccessWhereWithSigners(prisma, req.auth));
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;

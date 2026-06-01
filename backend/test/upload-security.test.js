@@ -32,7 +32,7 @@ test('stored upload access rejects soft-deleted reports and projects', () => {
   );
 });
 
-test('stored upload access allows clients to read reports under archived linked projects', () => {
+test('stored upload access rejects client reports under soft-deleted linked projects', () => {
   assert.equal(
     canAccessReport({
       user: {
@@ -54,7 +54,7 @@ test('stored upload access allows clients to read reports under archived linked 
         clientEmailCc: []
       }
     }),
-    true
+    false
   );
 });
 

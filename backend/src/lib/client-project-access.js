@@ -157,6 +157,7 @@ export function clientProjectAccessWhere(auth) {
   ];
 
   return {
+    deletedAt: null,
     managerOnly: false,
     ...(OR.length ? { OR } : { id: '__NO_CLIENT_PROJECT_MATCH__' })
   };
@@ -173,6 +174,7 @@ export async function clientProjectAccessWhereWithSigners(prisma, auth) {
 
   const signerProjects = await prisma.project.findMany({
     where: {
+      deletedAt: null,
       managerOnly: false
     },
     select: {
@@ -197,6 +199,7 @@ export async function clientProjectAccessWhereWithSigners(prisma, auth) {
 }
 
 export function clientCanAccessProject(auth, project) {
+  if (project?.deletedAt) return false;
   if (project?.managerOnly) return false;
 
   const { cnpjs, emails } = clientAccessKeys(auth);

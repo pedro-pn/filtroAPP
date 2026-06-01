@@ -105,19 +105,22 @@ test('client access allows provisioned email usernames for primary projects', ()
   );
 });
 
-test('client project query filter includes signer-only projects for email usernames', async () => {
+test('client project query filter includes active signer-only projects for email usernames', async () => {
   const prisma = {
     project: {
-      findMany: async () => [
-        {
-          id: 'project-signer',
-          clientSigners: [{ name: 'Fiscal', email: 'signer@example.com' }]
-        },
-        {
-          id: 'project-other',
-          clientSigners: [{ name: 'Fiscal', email: 'other@example.com' }]
-        }
-      ]
+      findMany: async args => {
+        assert.deepEqual(args.where, { deletedAt: null, managerOnly: false });
+        return [
+          {
+            id: 'project-signer',
+            clientSigners: [{ name: 'Fiscal', email: 'signer@example.com' }]
+          },
+          {
+            id: 'project-other',
+            clientSigners: [{ name: 'Fiscal', email: 'other@example.com' }]
+          }
+        ];
+      }
     }
   };
 
@@ -129,6 +132,7 @@ test('client project query filter includes signer-only projects for email userna
       }
     }),
     {
+      deletedAt: null,
       managerOnly: false,
       OR: [
         { clientEmailPrimary: { equals: 'signer@example.com', mode: 'insensitive' } },
@@ -170,7 +174,7 @@ test('client access allows verified provisioned email on legacy CNPJ username ac
   );
 });
 
-test('client access allows archived projects linked to the client', () => {
+test('client access rejects soft-deleted projects linked to the client', () => {
   const auth = {
     user: {
       username: 'signer@example.com',
@@ -186,7 +190,7 @@ test('client access allows archived projects linked to the client', () => {
       clientEmailPrimary: 'client@example.com',
       clientEmailCc: ['signer@example.com']
     }),
-    true
+    false
   );
 });
 
@@ -199,6 +203,7 @@ test('client project query filter ignores self-editable email', () => {
       }
     }),
     {
+      deletedAt: null,
       managerOnly: false,
       OR: [
         { clientCnpj: { in: ['11222333000144'] } }
@@ -216,6 +221,7 @@ test('client project query filter includes primary and cc projects for email use
       }
     }),
     {
+      deletedAt: null,
       managerOnly: false,
       OR: [
         { clientEmailPrimary: { equals: 'client@example.com', mode: 'insensitive' } },
@@ -237,6 +243,7 @@ test('client project query filter includes verified provisioned email for legacy
       }
     }),
     {
+      deletedAt: null,
       managerOnly: false,
       OR: [
         { clientCnpj: { in: ['11222333000144'] } },
@@ -275,6 +282,7 @@ test('client project query filter trusts legacy CNPJ account email when a projec
       }
     }),
     {
+      deletedAt: null,
       managerOnly: false,
       OR: [
         { clientCnpj: { in: ['11222333000144'] } },
@@ -284,6 +292,8 @@ test('client project query filter trusts legacy CNPJ account email when a projec
     }
   );
   assert.deepEqual(calls[0].where.clientCnpj, { in: ['11222333000144'] });
+  assert.equal(calls[1].where.deletedAt, null);
+  assert.equal(calls[1].where.managerOnly, false);
 });
 
 test('client project access can use trusted emails populated by authentication middleware', () => {
