@@ -9,6 +9,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
 import { clientCanAccessProject, clientProjectAccessWhereWithSigners } from '../../lib/client-project-access.js';
 import {
+  addNotificationPreferencesLink,
   buildReportApprovedEmailTemplate,
   buildReportReapprovedEmailTemplate,
   buildReportRejectedByClientEmailTemplate,
@@ -54,6 +55,7 @@ import {
   writeFinalEvidencePdf
 } from '../../lib/internal-report-signatures.js';
 import { calculateReportOvertime } from '../../lib/overtime.js';
+import { coordinatorNotificationEmails, NotificationEmailCategory, notificationRecipientsForEmails } from '../../lib/notification-preferences.js';
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import prisma from '../../lib/prisma.js';
 import { buildReportFileName, safePath } from '../../lib/report-filename.js';
@@ -153,7 +155,7 @@ export function projectEmailRecipients(project) {
 
 function queueApprovedReportNotification(report) {
   if (report.project?.managerOnly) return;
-  const { to, cc, recipients } = projectEmailRecipients(report.project);
+  const { recipients } = projectEmailRecipients(report.project);
   if (!recipients.length) return;
 
   const missingMailerConfig = getMissingMailerConfig();
@@ -172,24 +174,26 @@ function queueApprovedReportNotification(report) {
     appUrl: env.appUrl || ''
   });
 
-  setImmediate(() => {
-    sendMail({
-      to,
-      ...(cc.length ? { cc } : {}),
-      ...template
-    }).catch(error => {
+  setImmediate(async () => {
+    try {
+      const enabledRecipients = await notificationRecipientsForEmails(recipients, NotificationEmailCategory.REPORTS);
+      await Promise.all(enabledRecipients.map(recipient => sendMail({
+        to: recipient.email,
+        ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
+      })));
+    } catch (error) {
       console.error('Falha ao enviar notificação de aprovação do relatório.', {
         reportId: report.id,
         projectId: report.projectId,
         error: error?.message || error
       });
-    });
+    }
   });
 }
 
 function queueReapprovedReportNotification(report) {
   if (report.project?.managerOnly) return;
-  const { to, cc, recipients } = projectEmailRecipients(report.project);
+  const { recipients } = projectEmailRecipients(report.project);
   if (!recipients.length) return;
 
   const missingMailerConfig = getMissingMailerConfig();
@@ -208,18 +212,20 @@ function queueReapprovedReportNotification(report) {
     appUrl: env.appUrl || ''
   });
 
-  setImmediate(() => {
-    sendMail({
-      to,
-      ...(cc.length ? { cc } : {}),
-      ...template
-    }).catch(error => {
+  setImmediate(async () => {
+    try {
+      const enabledRecipients = await notificationRecipientsForEmails(recipients, NotificationEmailCategory.REPORTS);
+      await Promise.all(enabledRecipients.map(recipient => sendMail({
+        to: recipient.email,
+        ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
+      })));
+    } catch (error) {
       console.error('Falha ao enviar notificação de reaprovação do relatório.', {
         reportId: report.id,
         projectId: report.projectId,
         error: error?.message || error
       });
-    });
+    }
   });
 }
 
@@ -244,13 +250,20 @@ function queueClientRejectionNotification(report, comment) {
     appUrl: env.appUrl || ''
   });
 
-  setImmediate(() => {
-    sendMail({ to: managerEmail, ...template }).catch(error => {
+  setImmediate(async () => {
+    try {
+      const [recipient] = await notificationRecipientsForEmails([managerEmail], NotificationEmailCategory.REPORTS);
+      if (!recipient) return;
+      await sendMail({
+        to: recipient.email,
+        ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
+      });
+    } catch (error) {
       console.error('Falha ao enviar notificação de reprovação do relatório.', {
         reportId: report.id,
         error: error?.message || error
       });
-    });
+    }
   });
 }
 
@@ -276,7 +289,6 @@ function reportManagerEmail(report) {
 
 function queueInternalSignatureNotification(report, version, signer, completed) {
   const managerEmail = reportManagerEmail(report);
-  if (!managerEmail) return;
 
   const missingMailerConfig = getMissingMailerConfig();
   if (missingMailerConfig.length) {
@@ -308,13 +320,23 @@ function queueInternalSignatureNotification(report, version, signer, completed) 
       requiredCount
     });
 
-  setImmediate(() => {
-    sendMail({ to: managerEmail, ...template }).catch(error => {
+  setImmediate(async () => {
+    try {
+      const coordinatorEmails = await coordinatorNotificationEmails();
+      const recipients = await notificationRecipientsForEmails(
+        [managerEmail, ...coordinatorEmails],
+        NotificationEmailCategory.SIGNATURES
+      );
+      await Promise.all(recipients.map(recipient => sendMail({
+        to: recipient.email,
+        ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
+      })));
+    } catch (error) {
       console.error('Falha ao enviar notificação de assinatura interna.', {
         reportId: report.id,
         error: error?.message || error
       });
-    });
+    }
   });
 }
 
@@ -375,6 +397,12 @@ export async function sendSignatureRequestEmails(report, tokens, options = {}) {
   const sentTokens = [];
 
   for (const tokenData of tokens) {
+    const [recipient] = await notificationRecipientsForEmails(
+      [tokenData.signerEmail],
+      NotificationEmailCategory.SIGNATURES,
+      { client: options.client || prisma }
+    );
+    if (!recipient) continue;
     const daysValid = Math.max(1, Math.ceil((new Date(tokenData.expiresAt).getTime() - Date.now()) / 86_400_000));
     const template = buildReportSignatureRequestEmailTemplate({
       projectCode: report.project?.code || '---',
@@ -388,7 +416,10 @@ export async function sendSignatureRequestEmails(report, tokens, options = {}) {
     });
 
     try {
-      await mailer({ to: tokenData.signerEmail, ...template });
+      await mailer({
+        to: recipient.email,
+        ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
+      });
       sentTokens.push(tokenData);
     } catch (error) {
       error.sentTokens = sentTokens.slice();
@@ -464,7 +495,7 @@ export async function sendReleasedServiceReportsEmail(rdo, serviceReports, optio
     return { ok: true, sentCount: 0, attachmentCount: 0 };
   }
 
-  const { to, cc, recipients } = projectEmailRecipients(rdo.project);
+  const { recipients } = projectEmailRecipients(rdo.project);
   if (!recipients.length) return { ok: true, sentCount: 0, attachmentCount: 0 };
 
   const missingMailerConfig = options.missingMailerConfig || getMissingMailerConfig();
@@ -482,14 +513,14 @@ export async function sendReleasedServiceReportsEmail(rdo, serviceReports, optio
   });
   const attachments = await releasedServiceReportEmailAttachments(serviceReports, options);
   const mailer = options.mailer || sendMail;
-  await mailer({
-    to,
-    ...(cc.length ? { cc } : {}),
-    ...template,
+  const enabledRecipients = await notificationRecipientsForEmails(recipients, NotificationEmailCategory.REPORTS, { client: options.client || prisma });
+  await Promise.all(enabledRecipients.map(recipient => mailer({
+    to: recipient.email,
+    ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl),
     attachments
-  });
+  })));
 
-  return { ok: true, sentCount: recipients.length, attachmentCount: attachments.length };
+  return { ok: true, sentCount: enabledRecipients.length, attachmentCount: attachments.length };
 }
 
 export function publicSignaturePayload(signature, status) {

@@ -670,7 +670,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     if (readOnly) return false;
     if (!validateSequence()) return false;
 
-    const { navigateAfter = true, showSuccess = true } = options;
+    const { navigateAfter = false, showSuccess = true } = options;
 
     try {
       await reportMutations.updateReport.mutateAsync({
@@ -691,21 +691,26 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   async function handleStatus(status: Extract<ReportStatus, 'APPROVED' | 'RETURNED'>, reviewNotes?: string | null) {
-    if (readOnly) return;
+    if (readOnly) return false;
 
     try {
       await reportMutations.updateStatus.mutateAsync({ id: report.id, payload: { status, reviewNotes } });
       if (status === 'RETURNED') setReturnDialogOpen(false);
       showToast(status === 'APPROVED' ? 'Relatório aprovado.' : 'Relatório devolvido.', 'success');
+      return true;
     } catch (err) {
       showToast(err instanceof Error ? err.message : TEXT.updateError, 'error');
+      return false;
     }
   }
 
   async function handleSaveAndStatus(status: Extract<ReportStatus, 'APPROVED' | 'RETURNED'>, reviewNotes?: string | null) {
     const saved = await handleSave({ navigateAfter: false, showSuccess: false });
     if (!saved) return;
-    await handleStatus(status, reviewNotes);
+    const updated = await handleStatus(status, reviewNotes);
+    if (updated && status === 'APPROVED' && user?.role === 'MANAGER') {
+      navigate(roleHomePath(user.role));
+    }
   }
 
   async function handleDownload(format: 'pdf' | 'docx') {

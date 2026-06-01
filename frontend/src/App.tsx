@@ -18,6 +18,7 @@ import { CoordinatorPage } from './pages/coordinator/CoordinatorPage';
 import { EpiPage } from './pages/epi/EpiPage';
 import { EpiPublicSignaturePage } from './pages/epi/EpiPublicSignaturePage';
 import { HubPage } from './pages/HubPage';
+import { NotificationPreferencesPage } from './pages/NotificationPreferencesPage';
 import { ReportDetailPage } from './pages/ReportDetailPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { GestorPage } from './pages/gestor/GestorPage';
@@ -64,6 +65,7 @@ export default function App() {
         <Route path="/privacidade/direitos" element={<PrivacyRightsPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/confirmar-email" element={<ConfirmEmailChangePage />} />
+        <Route path="/notificacoes/:token" element={<NotificationPreferencesPage />} />
         <Route path="/pesquisa/:token" element={<SurveyPage />} />
         <Route path="/assinar/:token" element={<PublicSignaturePage />} />
         <Route path="/epi/assinar/:token" element={<EpiPublicSignaturePage />} />

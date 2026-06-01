@@ -265,13 +265,14 @@ test('released service reports email sends project recipients with pdf attachmen
     getPdfDownload: async reportItem => ({
       fileName: `${reportItem.reportType}-${reportItem.sequenceNumber}.pdf`,
       buffer: Buffer.from(`pdf-${reportItem.id}`)
-    })
+    }),
+    client: {}
   });
 
   assert.deepEqual(result, { ok: true, sentCount: 2, attachmentCount: 1 });
-  assert.equal(sent.length, 1);
+  assert.equal(sent.length, 2);
   assert.equal(sent[0].to, 'responsavel@example.com');
-  assert.deepEqual(sent[0].cc, ['copia@example.com']);
+  assert.equal(sent[1].to, 'copia@example.com');
   assert.match(sent[0].subject, /Relatórios de serviço liberados/);
   assert.equal(sent[0].attachments.length, 1);
   assert.equal(sent[0].attachments[0].filename, 'RCPU-7.pdf');

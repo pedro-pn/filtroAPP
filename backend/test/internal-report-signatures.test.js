@@ -713,6 +713,7 @@ test('sendSignatureRequestEmails propagates mailer rejection', async () => {
       expiresAt: new Date(Date.now() + 86_400_000)
     }], {
       missingMailerConfig: [],
+      client: {},
       mailer: async () => {
         throw new Error('SMTP rejeitou');
       }
@@ -740,6 +741,7 @@ test('deliverIssuedSignatureRequestEmails clears newly persisted tokens when sen
       throw new Error('SMTP rejeitou');
     },
     client: {
+      user: {},
       reportSignature: {
         updateMany: async args => {
           cleanupCalls.push(args);
@@ -796,6 +798,7 @@ test('deliverIssuedSignatureRequestEmails preserves tokens for links already del
       return { messageId: 'sent-1' };
     },
     client: {
+      user: {},
       reportSignature: {
         updateMany: async args => {
           cleanupCalls.push(args);

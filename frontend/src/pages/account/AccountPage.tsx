@@ -1,7 +1,7 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import { changePassword, updateAccountEmail } from '../../api/account';
+import { changePassword, updateAccountEmail, updateAccountNotificationPreferences, type NotificationPreferences } from '../../api/account';
 import { exportMyData, requestMyDataDeletion } from '../../api/privacy';
 import { useAuth } from '../../auth/AuthContext';
 import { accountBackPath } from '../../auth/moduleNavigation';
@@ -21,6 +21,13 @@ export function AccountPage() {
   const [passwordError, setPasswordError] = useState('');
   const [privacyMessage, setPrivacyMessage] = useState('');
   const [privacyError, setPrivacyError] = useState('');
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>({
+    reports: user?.notificationPreferences?.reports ?? true,
+    signatures: user?.notificationPreferences?.signatures ?? true,
+    surveyReminders: user?.notificationPreferences?.surveyReminders ?? true
+  });
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [notificationError, setNotificationError] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -28,6 +35,7 @@ export function AccountPage() {
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isExportingData, setIsExportingData] = useState(false);
   const [isRequestingDeletion, setIsRequestingDeletion] = useState(false);
+  const [isSavingNotifications, setIsSavingNotifications] = useState(false);
 
   const backPath = useMemo(() => accountBackPath(user, location.state, roleHomePath(user?.role)), [location.state, user]);
 
@@ -77,6 +85,31 @@ export function AccountPage() {
   async function handleLogout() {
     await logout();
     navigate('/', { replace: true });
+  }
+
+  function setNotificationPreference(field: keyof NotificationPreferences, checked: boolean) {
+    setNotificationPreferences(current => ({ ...current, [field]: checked }));
+  }
+
+  async function handleNotificationSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setNotificationMessage('');
+    setNotificationError('');
+    setIsSavingNotifications(true);
+    try {
+      const response = await updateAccountNotificationPreferences(notificationPreferences);
+      replaceUser(response.user);
+      setNotificationPreferences({
+        reports: response.user.notificationPreferences?.reports ?? true,
+        signatures: response.user.notificationPreferences?.signatures ?? true,
+        surveyReminders: response.user.notificationPreferences?.surveyReminders ?? true
+      });
+      setNotificationMessage('Preferências de notificação atualizadas.');
+    } catch (err) {
+      setNotificationError(err instanceof Error ? err.message : 'Falha ao atualizar notificações.');
+    } finally {
+      setIsSavingNotifications(false);
+    }
   }
 
   async function handleDataExport() {
@@ -183,6 +216,41 @@ export function AccountPage() {
             {passwordError ? <div className="inline-error">{passwordError}</div> : null}
             <button className="primary-button" type="submit" disabled={isSavingPassword}>
               {isSavingPassword ? 'Salvando...' : 'Alterar senha'}
+            </button>
+          </form>
+        </section>
+
+        <section className="page-card">
+          <div className="section-title">Notificações por e-mail</div>
+          <form className="auth-form" onSubmit={handleNotificationSubmit}>
+            <label className="notification-option">
+              <input
+                type="checkbox"
+                checked={notificationPreferences.reports}
+                onChange={event => setNotificationPreference('reports', event.target.checked)}
+              />
+              <span>Relatórios</span>
+            </label>
+            <label className="notification-option">
+              <input
+                type="checkbox"
+                checked={notificationPreferences.signatures}
+                onChange={event => setNotificationPreference('signatures', event.target.checked)}
+              />
+              <span>Assinaturas</span>
+            </label>
+            <label className="notification-option">
+              <input
+                type="checkbox"
+                checked={notificationPreferences.surveyReminders}
+                onChange={event => setNotificationPreference('surveyReminders', event.target.checked)}
+              />
+              <span>Pesquisas de satisfação</span>
+            </label>
+            {notificationMessage ? <div className="inline-success">{notificationMessage}</div> : null}
+            {notificationError ? <div className="inline-error">{notificationError}</div> : null}
+            <button className="primary-button" type="submit" disabled={isSavingNotifications}>
+              {isSavingNotifications ? 'Salvando...' : 'Salvar notificações'}
             </button>
           </form>
         </section>

@@ -2564,6 +2564,22 @@ a {
   white-space: nowrap;
 }
 
+.notification-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 8px 0;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.notification-option input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
 .auth-link {
   color: var(--g);
   font-size: 12px;

@@ -40,6 +40,28 @@ function wrapEmailHtml({ title, intro, body, footer }) {
   `.trim();
 }
 
+export function addNotificationPreferencesLink(template, url) {
+  if (!url) return template;
+  const safeUrl = escapeHtml(url);
+  const html = [
+    template.html || '',
+    `<div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:16px auto 0;padding:0 24px 24px;color:#1a1a1a">
+      <a href="${safeUrl}" style="display:inline-block;background:#eef4ef;color:#30503a;text-decoration:none;padding:10px 14px;border-radius:8px;font-weight:700">Não receber notificações</a>
+      <p style="font-size:12px;line-height:1.6;color:#6b7280;margin:10px 0 0">Este link permite alterar apenas suas preferências de notificação.</p>
+    </div>`
+  ].filter(Boolean).join('\n');
+  return {
+    ...template,
+    text: [
+      template.text || '',
+      '',
+      `Não receber notificações: ${url}`,
+      'Este link permite alterar apenas suas preferências de notificação.'
+    ].filter(Boolean).join('\n'),
+    html
+  };
+}
+
 export function buildTestEmailTemplate({ host, port, user, timestamp }) {
   const title = 'Teste de conexão SMTP';
   const intro = 'Este é um e-mail de teste gerado pelo diagnóstico do sistema Filtrovali.';

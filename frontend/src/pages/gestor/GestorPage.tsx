@@ -94,6 +94,18 @@ function parseGestorTab(value: string | null): GestorTab {
   return gestorTabs.includes(value as GestorTab) ? value as GestorTab : 'pendentes';
 }
 
+function restoreScrollTop(container: HTMLElement, top: number) {
+  let attempts = 0;
+  const apply = () => {
+    container.scrollTop = top;
+    attempts += 1;
+    if (attempts < 8 && Math.abs(container.scrollTop - top) > 2) {
+      window.requestAnimationFrame(apply);
+    }
+  };
+  window.requestAnimationFrame(apply);
+}
+
 type GestorUiPrefs = {
   projectSortDir: 'asc' | 'desc';
   closedArchivedProjectIds: string[];
@@ -1222,6 +1234,8 @@ export function GestorPage() {
   const { user, logout } = useAuth();
   const { hydrate, reset } = useRdoStore();
   const showToast = useToast();
+  const pageScrollRef = useRef<HTMLDivElement | null>(null);
+  const restoredScrollKeysRef = useRef<Set<string>>(new Set());
   const [tab, setTab] = useState<GestorTab>(() => parseGestorTab(searchParams.get('tab')));
   const [gestorSearch, setGestorSearch] = useState('');
   const projectDetailsStorageKey = `gestor-project-details-collapsed:${user?.id || 'anonymous'}`;
@@ -1349,6 +1363,44 @@ export function GestorPage() {
       ),
     [reportsQuery.data]
   );
+
+  const gestorScrollStorageKey = `gestor-scroll:${user?.id || user?.username || 'anonymous'}:${tab}`;
+
+  useEffect(() => {
+    const container = pageScrollRef.current;
+    if (!container) return;
+
+    const saveScroll = () => {
+      sessionStorage.setItem(gestorScrollStorageKey, String(container.scrollTop));
+    };
+    container.addEventListener('scroll', saveScroll, { passive: true });
+    return () => {
+      saveScroll();
+      container.removeEventListener('scroll', saveScroll);
+    };
+  }, [gestorScrollStorageKey]);
+
+  useEffect(() => {
+    const container = pageScrollRef.current;
+    if (!container || reportsQuery.isLoading) return;
+    if (restoredScrollKeysRef.current.has(gestorScrollStorageKey)) return;
+
+    const stored = Number(sessionStorage.getItem(gestorScrollStorageKey) || '0');
+    if (!Number.isFinite(stored) || stored <= 0) {
+      restoredScrollKeysRef.current.add(gestorScrollStorageKey);
+      return;
+    }
+
+    restoredScrollKeysRef.current.add(gestorScrollStorageKey);
+    restoreScrollTop(container, stored);
+  }, [
+    gestorScrollStorageKey,
+    reportsQuery.isLoading,
+    pendingReports.length,
+    approvedReports.length,
+    archivedReports.length,
+    draftsQuery.data?.length
+  ]);
 
   const clientGroupingProjects = useMemo(
     () => [...(activeProjectsQuery.data || []), ...(archivedProjectsQuery.data || [])],
@@ -4206,7 +4258,7 @@ export function GestorPage() {
         </div>
       </div>
 
-      <main className="page-scroll">
+      <main className="page-scroll" ref={pageScrollRef}>
         {renderReportSummary()}
         {renderGestorSearch()}
         {renderTabContent()}

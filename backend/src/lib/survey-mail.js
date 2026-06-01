@@ -1,11 +1,13 @@
 import env from '../config/env.js';
 import {
+  addNotificationPreferencesLink,
   buildSurveyExpiredEmailTemplate,
   buildSurveyInviteEmailTemplate,
   buildSurveyReminderEmailTemplate,
   buildSurveyRespondedEmailTemplate
 } from './email-templates.js';
 import { sendMail } from './mailer.js';
+import { coordinatorNotificationEmails, NotificationEmailCategory, notificationRecipientsForEmails } from './notification-preferences.js';
 
 function appBaseUrl() {
   return String(env.appUrl || '').replace(/\/+$/, '');
@@ -54,6 +56,8 @@ export function surveyProjectLabel(project) {
 }
 
 export async function sendSurveyInvite({ survey, project, token }) {
+  const [recipient] = await notificationRecipientsForEmails([survey.emailTo], NotificationEmailCategory.SURVEY_REMINDERS);
+  if (!recipient) return;
   const surveyUrl = surveyResponseUrl(token);
   const optOutUrl = surveyOptOutUrl(token);
   const daysValid = Math.max(1, Math.ceil((new Date(survey.expiresAt).getTime() - Date.now()) / 86_400_000));
@@ -65,10 +69,15 @@ export async function sendSurveyInvite({ survey, project, token }) {
     optOutUrl,
     expiresLabel: `${daysValid} dia${daysValid !== 1 ? 's' : ''}`
   });
-  await sendMail({ to: survey.emailTo, ...template });
+  await sendMail({
+    to: recipient.email,
+    ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
+  });
 }
 
 export async function sendSurveyReminder({ survey, project, token }) {
+  const [recipient] = await notificationRecipientsForEmails([survey.emailTo], NotificationEmailCategory.SURVEY_REMINDERS);
+  if (!recipient) return;
   const surveyUrl = surveyResponseUrl(token);
   const optOutUrl = surveyOptOutUrl(token);
   const daysRemaining = Math.max(0, Math.ceil((new Date(survey.expiresAt).getTime() - Date.now()) / 86_400_000));
@@ -80,12 +89,13 @@ export async function sendSurveyReminder({ survey, project, token }) {
     optOutUrl,
     daysRemaining
   });
-  await sendMail({ to: survey.emailTo, ...template });
+  await sendMail({
+    to: recipient.email,
+    ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
+  });
 }
 
 export async function notifySurveyResponded({ survey, project }) {
-  const recipient = survey.sentBy?.email;
-  if (!recipient) return;
   const responses = survey.responses && typeof survey.responses === 'object' ? survey.responses : {};
   const questions = Array.isArray(survey.questions) ? survey.questions : [];
   const npsQuestion = questions.find(q => q.type === 'NPS');
@@ -97,7 +107,15 @@ export async function notifySurveyResponded({ survey, project }) {
     nps,
     appUrl: env.appUrl || ''
   });
-  await sendMail({ to: recipient, ...template });
+  const coordinatorEmails = await coordinatorNotificationEmails();
+  const recipients = await notificationRecipientsForEmails(
+    [survey.sentBy?.email, ...coordinatorEmails],
+    NotificationEmailCategory.SURVEY_REMINDERS
+  );
+  await Promise.all(recipients.map(recipient => sendMail({
+    to: recipient.email,
+    ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
+  })));
 }
 
 function formatDatePtBr(value) {
@@ -112,6 +130,8 @@ export async function notifySurveyExpired({ survey, project, recipients }) {
     .map(email => String(email || '').trim().toLowerCase())
     .filter(Boolean)));
   if (!uniqueRecipients.length) return;
+  const enabledRecipients = await notificationRecipientsForEmails(uniqueRecipients, NotificationEmailCategory.SURVEY_REMINDERS);
+  if (!enabledRecipients.length) return;
 
   const template = buildSurveyExpiredEmailTemplate({
     clientName: project.clientName,
@@ -122,5 +142,8 @@ export async function notifySurveyExpired({ survey, project, recipients }) {
     expiresAt: formatDatePtBr(survey.expiresAt),
     appUrl: env.appUrl || ''
   });
-  await sendMail({ to: uniqueRecipients, ...template });
+  await Promise.all(enabledRecipients.map(recipient => sendMail({
+    to: recipient.email,
+    ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
+  })));
 }

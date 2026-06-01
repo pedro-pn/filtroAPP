@@ -146,6 +146,48 @@ test('PUT /auth/account rejects email already used by another account before cre
   assert.equal(response.json.error, 'Já existe uma conta cadastrada para este e-mail.');
 });
 
+test('PUT /auth/account updates notification preferences without email change', async t => {
+  const user = authUser();
+  stubSession(t, user);
+
+  const originals = {
+    userFindUniqueOrThrow: prisma.user.findUniqueOrThrow,
+    userUpdate: prisma.user.update
+  };
+  prisma.user.findUniqueOrThrow = async args => {
+    assert.deepEqual(args.include, { collaborator: true, moduleRoles: true });
+    return user;
+  };
+  prisma.user.update = async args => {
+    assert.equal(args.where.id, user.id);
+    assert.deepEqual(args.data, {
+      notifyReportsByEmail: false,
+      notifySignaturesByEmail: true,
+      notifySurveyRemindersByEmail: false
+    });
+    return { ...user, ...args.data };
+  };
+  t.after(() => {
+    prisma.user.findUniqueOrThrow = originals.userFindUniqueOrThrow;
+    prisma.user.update = originals.userUpdate;
+  });
+
+  const response = await dispatchApp('PUT', '/api/auth/account', {
+    notificationPreferences: {
+      reports: false,
+      signatures: true,
+      surveyReminders: false
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json.user.notificationPreferences, {
+    reports: false,
+    signatures: true,
+    surveyReminders: false
+  });
+});
+
 test('POST /auth/confirm-email-change consumes token once and verifies the new email', async t => {
   const token = 'confirm-token';
   const confirmedUser = authUser({

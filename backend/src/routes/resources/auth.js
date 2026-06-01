@@ -8,6 +8,13 @@ import { ensureClientAccountForCnpj } from '../../lib/client-account.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import { buildEmailChangeConfirmationTemplate, buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
+import {
+  consumeNotificationPreferenceToken,
+  findNotificationPreferenceToken,
+  notificationPreferenceData,
+  notificationPreferences,
+  notificationPreferenceTokenStatus
+} from '../../lib/notification-preferences.js';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { CLIENT_PRIVACY_NOTICE_VERSION } from '../../lib/privacy-consent.js';
 import prisma from '../../lib/prisma.js';
@@ -36,7 +43,17 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(6, 'A nova senha deve ter pelo menos 6 caracteres.')
 });
 const accountSchema = z.object({
-  email: z.union([z.string().trim().email('Informe um e-mail válido.'), z.literal(''), z.null()]).optional()
+  email: z.union([z.string().trim().email('Informe um e-mail válido.'), z.literal(''), z.null()]).optional(),
+  notificationPreferences: z.object({
+    reports: z.boolean(),
+    signatures: z.boolean(),
+    surveyReminders: z.boolean()
+  }).optional()
+});
+const notificationPreferenceSchema = z.object({
+  reports: z.boolean(),
+  signatures: z.boolean(),
+  surveyReminders: z.boolean()
 });
 const clientPrivacyConsentSchema = z.object({
   privacyNoticeAccepted: z.literal(true, {
@@ -528,10 +545,21 @@ router.post('/change-password', requireAuth, asyncHandler(async (req, res) => {
 
 router.put('/account', requireAuth, asyncHandler(async (req, res) => {
   const data = accountSchema.parse(req.body);
-  const currentUser = await prisma.user.findUniqueOrThrow({
+  let currentUser = await prisma.user.findUniqueOrThrow({
     where: { id: req.auth.user.id },
     include: { collaborator: true, moduleRoles: true }
   });
+
+  if (data.notificationPreferences) {
+    currentUser = await prisma.user.update({
+      where: { id: currentUser.id },
+      data: notificationPreferenceData(data.notificationPreferences),
+      include: { collaborator: true, moduleRoles: true }
+    });
+    if (data.email === undefined) {
+      return res.json({ user: publicUser(currentUser) });
+    }
+  }
 
   if (data.email === undefined) {
     return res.json({ user: publicUser(currentUser) });
@@ -563,6 +591,28 @@ router.put('/account', requireAuth, asyncHandler(async (req, res) => {
     pendingEmail: nextEmail,
     expiresAt,
     message: 'Enviamos um link de confirmação para o novo e-mail.'
+  });
+}));
+
+router.get('/notification-preferences/:token', asyncHandler(async (req, res) => {
+  const token = String(req.params.token || '').trim();
+  const tokenRow = await findNotificationPreferenceToken(token);
+  const status = notificationPreferenceTokenStatus(tokenRow);
+  res.json({
+    ...status,
+    userName: status.valid ? tokenRow.user.name : '',
+    email: status.valid ? tokenRow.user.email || tokenRow.user.username : '',
+    preferences: status.valid ? notificationPreferences(tokenRow.user) : null
+  });
+}));
+
+router.put('/notification-preferences/:token', asyncHandler(async (req, res) => {
+  const token = String(req.params.token || '').trim();
+  const preferences = notificationPreferenceSchema.parse(req.body || {});
+  const user = await consumeNotificationPreferenceToken(token, preferences);
+  res.json({
+    ok: true,
+    preferences: notificationPreferences(user)
   });
 }));
 

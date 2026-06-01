@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 
 import prisma from './prisma.js';
 import { accountTypeForLegacyRole, serializeModuleRoles } from './module-roles.js';
+import { notificationPreferences } from './notification-preferences.js';
 import { CLIENT_PRIVACY_NOTICE_VERSION, clientPrivacyConsentRequired } from './privacy-consent.js';
 
 const SESSION_DAYS = 7;
@@ -80,6 +81,7 @@ export function publicUser(user) {
     clientCnpj: user.clientCnpj || null,
     privacyPolicyAcceptedAt: user.privacyPolicyAcceptedAt?.toISOString?.() || user.privacyPolicyAcceptedAt || null,
     privacyPolicyVersion: user.privacyPolicyVersion || null,
+    notificationPreferences: notificationPreferences(user),
     privacyPolicyRequired: clientPrivacyConsentRequired(user),
     requiredPrivacyPolicyVersion: CLIENT_PRIVACY_NOTICE_VERSION,
     collaboratorId: user.collaboratorId || null,

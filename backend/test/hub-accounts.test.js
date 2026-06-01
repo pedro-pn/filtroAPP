@@ -41,6 +41,11 @@ test('publicUser exposes hub account fields with legacy fallback', () => {
       clientCnpj: null,
       privacyPolicyAcceptedAt: null,
       privacyPolicyVersion: null,
+      notificationPreferences: {
+        reports: true,
+        signatures: true,
+        surveyReminders: true
+      },
       privacyPolicyRequired: false,
       requiredPrivacyPolicyVersion: 'client_account_privacy_v1',
       collaboratorId: null,

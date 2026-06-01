@@ -23,6 +23,11 @@ export interface AuthUser {
   clientCnpj?: string | null;
   privacyPolicyAcceptedAt?: string | null;
   privacyPolicyVersion?: string | null;
+  notificationPreferences?: {
+    reports: boolean;
+    signatures: boolean;
+    surveyReminders: boolean;
+  };
   privacyPolicyRequired?: boolean;
   requiredPrivacyPolicyVersion?: string;
   collaboratorId?: string | null;

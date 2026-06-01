@@ -497,6 +497,9 @@ model User {
   clientCnpj      String?
   privacyPolicyAcceptedAt DateTime?
   privacyPolicyVersion String?
+  notifyReportsByEmail Boolean @default(true)
+  notifySignaturesByEmail Boolean @default(true)
+  notifySurveyRemindersByEmail Boolean @default(true)
   collaboratorId  String?       @unique
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -522,8 +525,22 @@ model User {
   completedDataSubjectRequests DataSubjectRequest[] @relation("DataSubjectRequestCompletedByUser")
   identityVerifiedDataSubjectRequests DataSubjectRequest[] @relation("DataSubjectRequestIdentityVerifiedByUser")
   dataSubjectResponseAttempts DataSubjectRequestResponseAttempt[] @relation("DataSubjectRequestResponseAttemptUser")
+  notificationPreferenceTokens NotificationPreferenceToken[]
 
   @@index([clientCnpj])
+}
+
+model NotificationPreferenceToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt, expiresAt])
+  @@index([expiresAt])
 }
 
 model EpiCatalogItem {
