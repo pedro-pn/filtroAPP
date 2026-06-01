@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
@@ -81,6 +82,18 @@ function passwordResetSuccessMessage(res) {
     ok: true,
     message: 'Se houver uma conta correspondente, o link de recuperação será enviado.'
   });
+}
+
+function isUniqueConstraintError(error) {
+  return error instanceof Prisma.PrismaClientKnownRequestError
+    ? error.code === 'P2002'
+    : error?.code === 'P2002' || error?.code === '23505';
+}
+
+function accountEmailConflictError() {
+  const error = new Error('Já existe uma conta cadastrada para este e-mail.');
+  error.status = 409;
+  return error;
 }
 
 function authRateLimitIdentifier(value) {
@@ -684,60 +697,66 @@ router.post('/confirm-email-change', asyncHandler(async (req, res) => {
   }
 
   const confirmedAt = new Date();
-  const user = await prisma.$transaction(async tx => {
-    const consume = await tx.emailChangeToken.updateMany({
-      where: {
-        id: tokenRow.id,
-        usedAt: null,
-        expiresAt: { gt: confirmedAt }
-      },
-      data: { usedAt: confirmedAt }
+  let user;
+  try {
+    user = await prisma.$transaction(async tx => {
+      const consume = await tx.emailChangeToken.updateMany({
+        where: {
+          id: tokenRow.id,
+          usedAt: null,
+          expiresAt: { gt: confirmedAt }
+        },
+        data: { usedAt: confirmedAt }
+      });
+
+      if (consume.count !== 1) {
+        const error = new Error('Token inválido, expirado ou já utilizado.');
+        error.status = 400;
+        throw error;
+      }
+
+      const txConflict = await tx.user.findFirst({
+        where: {
+          id: { not: tokenRow.userId },
+          OR: [
+            { username: { equals: nextEmail, mode: 'insensitive' } },
+            { email: { equals: nextEmail, mode: 'insensitive' } }
+          ]
+        },
+        select: { id: true }
+      });
+      if (txConflict) {
+        throw accountEmailConflictError();
+      }
+
+      const currentUsername = normalizeAccountEmail(tokenRow.user.username);
+      const currentEmail = normalizeAccountEmail(tokenRow.user.email);
+      const shouldUpdateUsername = isEmailLikeUsername(currentUsername);
+      const migrationSources = Array.from(new Set([
+        currentEmail,
+        shouldUpdateUsername ? currentUsername : ''
+      ].filter(email => email && email !== nextEmail)));
+
+      if (tokenRow.user.role === 'CLIENT' && tokenRow.user.accountType === 'CLIENT') {
+        await migrateClientProjectEmailLinks(tx, migrationSources, nextEmail);
+      }
+
+      return tx.user.update({
+        where: { id: tokenRow.userId },
+        data: {
+          ...(shouldUpdateUsername ? { username: nextEmail } : {}),
+          email: nextEmail,
+          emailVerifiedAt: confirmedAt
+        },
+        include: { collaborator: true, moduleRoles: true }
+      });
     });
-
-    if (consume.count !== 1) {
-      const error = new Error('Token inválido, expirado ou já utilizado.');
-      error.status = 400;
-      throw error;
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      throw accountEmailConflictError();
     }
-
-    const txConflict = await tx.user.findFirst({
-      where: {
-        id: { not: tokenRow.userId },
-        OR: [
-          { username: { equals: nextEmail, mode: 'insensitive' } },
-          { email: { equals: nextEmail, mode: 'insensitive' } }
-        ]
-      },
-      select: { id: true }
-    });
-    if (txConflict) {
-      const error = new Error('Já existe uma conta cadastrada para este e-mail.');
-      error.status = 409;
-      throw error;
-    }
-
-    const currentUsername = normalizeAccountEmail(tokenRow.user.username);
-    const currentEmail = normalizeAccountEmail(tokenRow.user.email);
-    const shouldUpdateUsername = isEmailLikeUsername(currentUsername);
-    const migrationSources = Array.from(new Set([
-      currentEmail,
-      shouldUpdateUsername ? currentUsername : ''
-    ].filter(email => email && email !== nextEmail)));
-
-    if (tokenRow.user.role === 'CLIENT' && tokenRow.user.accountType === 'CLIENT') {
-      await migrateClientProjectEmailLinks(tx, migrationSources, nextEmail);
-    }
-
-    return tx.user.update({
-      where: { id: tokenRow.userId },
-      data: {
-        ...(shouldUpdateUsername ? { username: nextEmail } : {}),
-        email: nextEmail,
-        emailVerifiedAt: confirmedAt
-      },
-      include: { collaborator: true, moduleRoles: true }
-    });
-  });
+    throw error;
+  }
 
   res.json({ ok: true, user: publicUser(user) });
 }));

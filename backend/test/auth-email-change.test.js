@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { PassThrough, Readable, Writable } from 'node:stream';
 import test from 'node:test';
 
@@ -572,6 +573,66 @@ test('POST /auth/confirm-email-change migrates project links from both current e
   ]);
 });
 
+test('POST /auth/confirm-email-change maps concurrent email unique collision to conflict', async t => {
+  const token = 'concurrent-email-token';
+  const tokenRow = {
+    id: 'token-concurrent',
+    tokenHash: hashToken(token),
+    userId: 'client-concurrent',
+    email: 'duplicado@example.com',
+    expiresAt: new Date(Date.now() + 60_000),
+    usedAt: null,
+    user: authUser({
+      id: 'client-concurrent',
+      username: 'antigo@example.com',
+      email: 'antigo@example.com',
+      role: 'CLIENT',
+      accountType: 'CLIENT',
+      isActive: true
+    })
+  };
+
+  const originals = {
+    emailChangeTokenFindUnique: prisma.emailChangeToken.findUnique,
+    userFindFirst: prisma.user.findFirst,
+    transaction: prisma.$transaction
+  };
+  prisma.emailChangeToken.findUnique = async args => {
+    assert.equal(args.where.tokenHash, hashToken(token));
+    return tokenRow;
+  };
+  prisma.user.findFirst = async () => null;
+  prisma.$transaction = async callback => callback({
+    emailChangeToken: {
+      updateMany: async () => ({ count: 1 })
+    },
+    user: {
+      findFirst: async () => null,
+      update: async () => {
+        const error = new Error('Unique constraint failed');
+        error.code = 'P2002';
+        throw error;
+      }
+    },
+    project: {
+      findMany: async () => [],
+      update: async () => {
+        throw new Error('Não deve atualizar projetos neste teste.');
+      }
+    }
+  });
+  t.after(() => {
+    prisma.emailChangeToken.findUnique = originals.emailChangeTokenFindUnique;
+    prisma.user.findFirst = originals.userFindFirst;
+    prisma.$transaction = originals.transaction;
+  });
+
+  const response = await dispatchApp('POST', '/api/auth/confirm-email-change', { token }, '');
+
+  assert.equal(response.statusCode, 409);
+  assert.equal(response.json.error, 'Já existe uma conta cadastrada para este e-mail.');
+});
+
 test('GET /auth/email-change-status hides email for invalid token', async t => {
   const originalFindUnique = prisma.emailChangeToken.findUnique;
   prisma.emailChangeToken.findUnique = async () => null;
@@ -588,4 +649,32 @@ test('GET /auth/email-change-status hides email for invalid token', async t => {
     used: false,
     email: null
   });
+});
+
+test('verified email uniqueness migration creates a partial normalized unique index', () => {
+  const migration = fs.readFileSync(
+    new URL('../prisma/migrations/20260601123000_add_verified_user_email_unique_index/migration.sql', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(migration, /CREATE UNIQUE INDEX "User_verifiedEmail_lower_key"/);
+  assert.match(migration, /lower\(btrim\("email"\)\)/);
+  assert.match(migration, /"emailVerifiedAt" IS NOT NULL/);
+  assert.match(migration, /duplicate verified email/);
+});
+
+test('repair email username migration skips accounts with conflicting target identity', () => {
+  const migration = fs.readFileSync(
+    new URL('../prisma/migrations/20260528123000_repair_email_username_project_links/migration.sql', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(migration, /NOT EXISTS \(\s*SELECT 1\s*FROM "User" conflicting_user/);
+  assert.match(migration, /conflicting_user\.id <> u\.id/);
+  assert.match(migration, /lower\(conflicting_user\.username\) = lower\(u\.email\)/);
+  assert.match(migration, /lower\(COALESCE\(conflicting_user\.email, ''\)\) = lower\(u\.email\)/);
+  assert.ok(
+    migration.indexOf('NOT EXISTS') < migration.indexOf('UPDATE "Project"'),
+    'conflicting accounts must be filtered before project mutation'
+  );
 });

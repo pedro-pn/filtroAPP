@@ -13,11 +13,20 @@ DECLARE
   changed BOOLEAN;
 BEGIN
   FOR account_record IN
-    SELECT id, lower(username) AS old_email, lower(email) AS new_email
-    FROM "User"
-    WHERE email IS NOT NULL
-      AND username ILIKE '%@%'
-      AND lower(username) <> lower(email)
+    SELECT u.id, lower(u.username) AS old_email, lower(u.email) AS new_email
+    FROM "User" u
+    WHERE u.email IS NOT NULL
+      AND u.username ILIKE '%@%'
+      AND lower(u.username) <> lower(u.email)
+      AND NOT EXISTS (
+        SELECT 1
+        FROM "User" conflicting_user
+        WHERE conflicting_user.id <> u.id
+          AND (
+            lower(conflicting_user.username) = lower(u.email)
+            OR lower(COALESCE(conflicting_user.email, '')) = lower(u.email)
+          )
+      )
   LOOP
     FOR project_record IN
       SELECT id, "clientEmailPrimary", "clientEmailCc", "clientSigners"
@@ -111,6 +120,15 @@ BEGIN
       "updatedAt" = NOW()
     WHERE id = account_record.id
       AND lower(username) = account_record.old_email
-      AND lower(email) = account_record.new_email;
+      AND lower(email) = account_record.new_email
+      AND NOT EXISTS (
+        SELECT 1
+        FROM "User" conflicting_user
+        WHERE conflicting_user.id <> account_record.id
+          AND (
+            lower(conflicting_user.username) = account_record.new_email
+            OR lower(COALESCE(conflicting_user.email, '')) = account_record.new_email
+          )
+      );
   END LOOP;
 END $$;
