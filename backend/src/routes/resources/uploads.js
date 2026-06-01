@@ -208,6 +208,23 @@ function valueReferencesUpload(value, normalizedPath) {
   return false;
 }
 
+function collaboratorHasAuthorizedProjectLink(auth, project) {
+  return Array.isArray(project?.authorizedUsers)
+    && project.authorizedUsers.some(link => link.userId === auth.user?.id);
+}
+
+function collaboratorCanAccessReportProject(auth, project) {
+  return !!(
+    project?.isActive
+    && !project.deletedAt
+    && !project.managerOnly
+    && (
+      project.visibleToCollaborators
+      || collaboratorHasAuthorizedProjectLink(auth, project)
+    )
+  );
+}
+
 export function canAccessReport(auth, report) {
   if (!hasModuleRole(auth.user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator', 'rdo:client'])) return false;
   if (report?.deletedAt) return false;
@@ -216,12 +233,11 @@ export function canAccessReport(auth, report) {
   if (report.project?.managerOnly) return false;
   if (auth.user.role === 'COORDINATOR') return true;
   if (auth.user.role === 'CLIENT') return clientCanAccessProject(auth, report.project);
+  if (auth.user.role === 'COLLABORATOR' && !collaboratorCanAccessReportProject(auth, report.project)) return false;
   if (report.createdByUserId === auth.user.id) return true;
   const collabId = auth.rawUser?.collaboratorId;
   if (collabId && report.project?.operatorId === collabId) return true;
-  if (Array.isArray(report.project?.authorizedUsers)) {
-    if (report.project.authorizedUsers.some(link => link.userId === auth.user.id)) return true;
-  }
+  if (collaboratorHasAuthorizedProjectLink(auth, report.project)) return true;
   if (collabId && Array.isArray(report.collaborators)) {
     return report.collaborators.some(rc => rc.collaboratorId === collabId);
   }

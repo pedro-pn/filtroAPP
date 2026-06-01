@@ -143,6 +143,63 @@ test('stored upload access rejects client reports under soft-deleted linked proj
   );
 });
 
+test('stored upload access rejects collaborator attachments for hidden or inactive projects', async t => {
+  const originals = {
+    attachmentFindMany: prisma.reportAttachment.findMany,
+    reportFindMany: prisma.report.findMany
+  };
+  prisma.reportAttachment.findMany = async () => [{
+    reportId: 'report-hidden',
+    reportService: null
+  }];
+  const baseReport = {
+    id: 'report-hidden',
+    projectId: 'project-hidden',
+    reportType: 'RDO',
+    status: 'APPROVED',
+    deletedAt: null,
+    createdByUserId: 'user-collab',
+    project: {
+      deletedAt: null,
+      managerOnly: false,
+      isActive: true,
+      visibleToCollaborators: false,
+      operatorId: 'collab-1',
+      authorizedUsers: []
+    },
+    collaborators: [{ collaboratorId: 'collab-1' }],
+    attachments: [],
+    services: []
+  };
+  let projectOverride = {};
+  prisma.report.findMany = async () => [{
+    ...baseReport,
+    project: {
+      ...baseReport.project,
+      ...projectOverride
+    }
+  }];
+  t.after(() => {
+    prisma.reportAttachment.findMany = originals.attachmentFindMany;
+    prisma.report.findMany = originals.reportFindMany;
+  });
+  const auth = {
+    user: {
+      id: 'user-collab',
+      role: 'COLLABORATOR',
+      collaboratorId: 'collab-1',
+      moduleRoles: ['rdo:collaborator']
+    },
+    rawUser: { collaboratorId: 'collab-1' }
+  };
+
+  assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), false);
+  projectOverride = { visibleToCollaborators: true, isActive: false };
+  assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), false);
+  projectOverride = { visibleToCollaborators: true, isActive: true };
+  assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), true);
+});
+
 test('stored upload access ignores arbitrary self-owned draft payload references', async t => {
   const originalDraftFindMany = prisma.reportDraft.findMany;
   const originalQueryRaw = prisma.$queryRaw;

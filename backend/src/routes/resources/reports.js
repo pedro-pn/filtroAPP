@@ -1051,6 +1051,23 @@ export function collaboratorCanAccessProject(auth, project) {
   );
 }
 
+function collaboratorHasAuthorizedProjectLink(auth, project) {
+  return Array.isArray(project?.authorizedUsers)
+    && project.authorizedUsers.some(link => link.userId === auth.user?.id);
+}
+
+export function collaboratorCanAccessReportProject(auth, project) {
+  return !!(
+    project?.isActive
+    && !project.deletedAt
+    && !project.managerOnly
+    && (
+      project.visibleToCollaborators
+      || collaboratorHasAuthorizedProjectLink(auth, project)
+    )
+  );
+}
+
 export function collaboratorReportProjectWhere(collaboratorId, userId) {
   if (!collaboratorId && !userId) return { id: '__NO_MATCH__' };
   return {
@@ -1146,14 +1163,14 @@ export async function canAccessReport(auth, report) {
     if (!clientCanAccessProject(auth, report.project)) return false;
     return canClientSeeReportForAccess(report);
   }
+  if (auth.user.role === 'COLLABORATOR' && !collaboratorCanAccessReportProject(auth, report.project)) return false;
   if (collaboratorCanMutateReport(auth, report)) return true;
-  if (Array.isArray(report.project?.authorizedUsers)) {
-    if (report.project.authorizedUsers.some(link => link.userId === auth.user.id)) return true;
-  }
+  if (collaboratorHasAuthorizedProjectLink(auth, report.project)) return true;
   return false;
 }
 
 export function collaboratorCanMutateReport(auth, report) {
+  if (auth.user?.role === 'COLLABORATOR' && !collaboratorCanAccessReportProject(auth, report.project)) return false;
   if (report.createdByUserId === auth.user.id) return true;
   const collabId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
   if (collabId && report.project?.operatorId === collabId) return true;

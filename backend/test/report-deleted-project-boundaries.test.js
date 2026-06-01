@@ -39,6 +39,24 @@ function managerSession() {
   };
 }
 
+function collaboratorSession() {
+  return {
+    id: 'session-collaborator',
+    expiresAt: new Date(Date.now() + 60_000),
+    user: {
+      id: 'user-collab',
+      username: 'collab',
+      name: 'Collaborator',
+      email: 'collab@example.com',
+      role: 'COLLABORATOR',
+      accountType: 'INTERNAL',
+      isActive: true,
+      collaboratorId: 'collab-1',
+      moduleRoles: [{ role: 'RDO_COLLABORATOR' }]
+    }
+  };
+}
+
 function clientAuth() {
   return {
     user: {
@@ -80,6 +98,24 @@ function activeReport(overrides = {}) {
     versions: [],
     ...overrides
   };
+}
+
+function hiddenCollaboratorReport(overrides = {}) {
+  return activeReport({
+    id: 'report-hidden',
+    createdByUserId: 'user-collab',
+    project: {
+      id: 'project-hidden',
+      deletedAt: null,
+      managerOnly: false,
+      isActive: true,
+      visibleToCollaborators: false,
+      operatorId: 'collab-1',
+      authorizedUsers: []
+    },
+    collaborators: [{ collaboratorId: 'collab-1' }],
+    ...overrides
+  });
 }
 
 test('derived report sync filters exclude soft-deleted reports and projects', () => {
@@ -211,6 +247,69 @@ function stubAuthenticatedManager(t) {
     prisma.userSession.findUnique = originalFindUnique;
   });
 }
+
+function stubAuthenticatedCollaborator(t) {
+  const originalFindUnique = prisma.userSession.findUnique;
+  prisma.userSession.findUnique = async () => collaboratorSession();
+  t.after(() => {
+    prisma.userSession.findUnique = originalFindUnique;
+  });
+}
+
+test('collaborator direct report routes reject hidden projects for operator participants', async t => {
+  stubAuthenticatedCollaborator(t);
+  const originals = {
+    reportFindUniqueOrThrow: prisma.report.findUniqueOrThrow,
+    transaction: prisma.$transaction
+  };
+  const calls = [];
+  prisma.report.findUniqueOrThrow = async args => {
+    calls.push(['report.findUniqueOrThrow', args]);
+    return hiddenCollaboratorReport();
+  };
+  prisma.$transaction = async () => {
+    calls.push(['transaction']);
+    throw new Error('hidden project report mutation should not run');
+  };
+  t.after(() => {
+    prisma.report.findUniqueOrThrow = originals.reportFindUniqueOrThrow;
+    prisma.$transaction = originals.transaction;
+  });
+
+  const getResponse = await dispatchApp('GET', '/api/reports/report-hidden', undefined);
+  const pdfResponse = await dispatchApp('GET', '/api/reports/report-hidden/pdf', undefined);
+  const putResponse = await dispatchApp('PUT', '/api/reports/report-hidden', reportPayload({
+    projectId: 'project-hidden',
+    status: undefined
+  }));
+
+  assert.equal(getResponse.statusCode, 403);
+  assert.equal(pdfResponse.statusCode, 403);
+  assert.equal(putResponse.statusCode, 403);
+  assert.equal(calls.some(([name]) => name === 'transaction'), false);
+});
+
+test('collaborator direct report route allows explicit authorized user on hidden active project', async t => {
+  stubAuthenticatedCollaborator(t);
+  const originalFindUniqueOrThrow = prisma.report.findUniqueOrThrow;
+  prisma.report.findUniqueOrThrow = async () => hiddenCollaboratorReport({
+    createdByUserId: 'other-user',
+    project: {
+      ...hiddenCollaboratorReport().project,
+      operatorId: 'other-collab',
+      authorizedUsers: [{ userId: 'user-collab' }]
+    },
+    collaborators: []
+  });
+  t.after(() => {
+    prisma.report.findUniqueOrThrow = originalFindUniqueOrThrow;
+  });
+
+  const response = await dispatchApp('GET', '/api/reports/report-hidden', undefined);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json.id, 'report-hidden');
+});
 
 test('PATCH report status rejects reports under soft-deleted projects before mutation', async t => {
   stubAuthenticatedManager(t);

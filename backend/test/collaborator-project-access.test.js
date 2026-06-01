@@ -68,6 +68,60 @@ test('project authorization grants report viewing without edit ownership', async
     id: 'report-1',
     createdByUserId: 'user-ana',
     project: {
+      isActive: true,
+      visibleToCollaborators: false,
+      managerOnly: false,
+      operatorId: 'collab-ana',
+      authorizedUsers: [{ userId: 'user-carlos' }]
+    },
+    collaborators: []
+  };
+
+  assert.equal(await canAccessReport(auth, report), true);
+  assert.equal(collaboratorCanMutateReport(auth, report), false);
+});
+
+test('collaborator report access rejects hidden or inactive projects even for operator and participant', async () => {
+  const baseReport = {
+    id: 'report-1',
+    createdByUserId: 'user-ana',
+    project: {
+      isActive: true,
+      visibleToCollaborators: true,
+      managerOnly: false,
+      operatorId: 'collab-carlos',
+      authorizedUsers: []
+    },
+    collaborators: [{ collaboratorId: 'collab-carlos' }]
+  };
+
+  assert.equal(
+    await canAccessReport(auth, {
+      ...baseReport,
+      project: { ...baseReport.project, visibleToCollaborators: false }
+    }),
+    false
+  );
+  assert.equal(
+    await canAccessReport(auth, {
+      ...baseReport,
+      project: { ...baseReport.project, isActive: false }
+    }),
+    false
+  );
+  assert.equal(collaboratorCanMutateReport(auth, {
+    ...baseReport,
+    project: { ...baseReport.project, visibleToCollaborators: false }
+  }), false);
+});
+
+test('collaborator report access still allows explicit authorized users on hidden active projects', async () => {
+  const report = {
+    id: 'report-1',
+    createdByUserId: 'user-ana',
+    project: {
+      isActive: true,
+      visibleToCollaborators: false,
       managerOnly: false,
       operatorId: 'collab-ana',
       authorizedUsers: [{ userId: 'user-carlos' }]
