@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { Readable, Writable } from 'node:stream';
+import { PassThrough, Readable, Writable } from 'node:stream';
 import test from 'node:test';
 
 import { PDFDocument } from 'pdf-lib';
@@ -32,6 +32,7 @@ import {
   verifiedFinalPdfBuffer
 } from '../src/routes/resources/reports.js';
 import app from '../src/app.js';
+import prisma from '../src/lib/prisma.js';
 
 const validSignatureImageDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
 
@@ -64,7 +65,7 @@ test('authenticated RDO signature schema rejects missing or stale privacy notice
   );
   assert.equal(requestSignatureSchema.parse({ ...base, privacyNoticeAccepted: true, privacyNoticeVersion: 'signature_rdo_v1' }).privacyNoticeVersion, 'signature_rdo_v1');
 });
-import { assertProductionTrustProxyConfigured, parseTrustProxy } from '../src/config/env.js';
+import env, { assertProductionTrustProxyConfigured, parseTrustProxy } from '../src/config/env.js';
 import {
   allRequiredSignaturesCompleted,
   authenticatedSignerEmail,
@@ -187,17 +188,27 @@ function malformedPngHeaderDataUrl() {
   return `data:image/png;base64,${bytes.toString('base64')}`;
 }
 
-function dispatchAppGet(pathName, headers = {}) {
+function dispatchApp(method, pathName, body = undefined, headers = {}) {
   return new Promise((resolve, reject) => {
+    const payload = body === undefined ? null : Buffer.from(JSON.stringify(body));
     const req = new Readable({
       read() {
+        if (payload) this.push(payload);
         this.push(null);
       }
     });
-    req.method = 'GET';
+    req.method = method;
     req.url = pathName;
-    req.headers = headers;
-    req.socket = { remoteAddress: '127.0.0.1', encrypted: false };
+    req.headers = {
+      ...headers,
+      ...(payload ? {
+        'content-type': 'application/json',
+        'content-length': String(payload.length)
+      } : {})
+    };
+    req.socket = new PassThrough();
+    req.socket.remoteAddress = '127.0.0.1';
+    req.socket.encrypted = false;
     req.connection = req.socket;
 
     const chunks = [];
@@ -221,13 +232,19 @@ function dispatchAppGet(pathName, headers = {}) {
     res.end = (chunk, encoding, callback) => {
       if (chunk) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
       Writable.prototype.end.call(res, callback);
-      const body = Buffer.concat(chunks).toString('utf8');
-      resolve({ statusCode: res.statusCode, body, json: body ? JSON.parse(body) : null });
+      const buffer = Buffer.concat(chunks);
+      const bodyText = buffer.toString('utf8');
+      const json = /^[\s]*[\[{]/.test(bodyText) ? JSON.parse(bodyText) : null;
+      resolve({ statusCode: res.statusCode, body: bodyText, buffer, json });
       return res;
     };
 
     app.handle(req, res, reject);
   });
+}
+
+function dispatchAppGet(pathName, headers = {}) {
+  return dispatchApp('GET', pathName, undefined, headers);
 }
 
 test('signatureEvidenceFromRequest uses trusted proxy client IPs', () => {
@@ -1755,6 +1772,130 @@ test('verifiedSourcePdfBuffer rejects signature source PDF drift from stored has
     () => verifiedSourcePdfBuffer(sourcePath, { sourceDocumentHash: null }),
     /sem hash registrado/
   );
+});
+
+function publicSignatureFixture(overrides = {}) {
+  const sourcePdfUrl = overrides.sourcePdfUrl || '/relatorios/public-sign-hash/source.pdf';
+  const signature = {
+    id: 'signature-public-1',
+    reportId: 'report-public-1',
+    versionId: 'version-public-1',
+    signerName: 'Cliente Teste',
+    signerEmail: 'cliente@example.com',
+    status: 'PENDING',
+    isRequired: true,
+    tokenExpiresAt: new Date(Date.now() + 60_000),
+    report: {
+      id: 'report-public-1',
+      reportType: 'RDO',
+      sequenceNumber: 12,
+      reportDate: new Date('2026-06-01T00:00:00.000Z'),
+      status: 'APPROVED',
+      deletedAt: null,
+      project: {
+        code: 'P-001',
+        name: 'Projeto Teste',
+        clientName: 'Cliente Teste',
+        deletedAt: null
+      }
+    },
+    version: {
+      id: 'version-public-1',
+      reportId: 'report-public-1',
+      status: 'ACTIVE',
+      sourcePdfUrl,
+      sourceDocumentHash: overrides.sourceDocumentHash || '',
+      finalDocumentHash: null,
+      signatures: []
+    }
+  };
+  signature.version.signatures = overrides.signatures || [
+    signature,
+    {
+      id: 'signature-public-2',
+      versionId: 'version-public-1',
+      signerName: 'Fiscal',
+      signerEmail: 'fiscal@example.com',
+      status: 'PENDING',
+      isRequired: true
+    }
+  ];
+  return signature;
+}
+
+test('public signature PDF download validates the source document hash', async t => {
+  const originalReportsDir = env.reportsDir;
+  env.reportsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'rdo-public-sign-get-'));
+  t.after(() => {
+    env.reportsDir = originalReportsDir;
+  });
+  const dir = path.join(env.reportsDir, 'public-sign-hash-get');
+  await fs.mkdir(dir, { recursive: true });
+  const sourcePath = path.join(dir, 'source.pdf');
+  const original = Buffer.from('pdf-source-original');
+  await fs.writeFile(sourcePath, Buffer.from('pdf-source-corrompido'));
+
+  const originalFindUnique = prisma.reportSignature.findUnique;
+  prisma.reportSignature.findUnique = async args => {
+    assert.equal(args.where.tokenHash, internalSignatureTokenHash('public-hash-get-token'));
+    return publicSignatureFixture({
+      sourcePdfUrl: '/relatorios/public-sign-hash-get/source.pdf',
+      sourceDocumentHash: sha256Hex(original)
+    });
+  };
+  t.after(() => {
+    prisma.reportSignature.findUnique = originalFindUnique;
+  });
+
+  const response = await dispatchAppGet('/api/reports/public-sign/public-hash-get-token/pdf');
+
+  assert.equal(response.statusCode, 409);
+  assert.match(response.json.error, /PDF-base da assinatura diverge do hash registrado/);
+});
+
+test('public signature confirm rejects source PDF drift before persisting a signature', async t => {
+  const originalReportsDir = env.reportsDir;
+  env.reportsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'rdo-public-sign-confirm-'));
+  t.after(() => {
+    env.reportsDir = originalReportsDir;
+  });
+  const dir = path.join(env.reportsDir, 'public-sign-hash-confirm');
+  await fs.mkdir(dir, { recursive: true });
+  const sourcePath = path.join(dir, 'source.pdf');
+  const original = Buffer.from('pdf-source-original');
+  await fs.writeFile(sourcePath, Buffer.from('pdf-source-corrompido'));
+
+  const originalTransaction = prisma.$transaction;
+  let updateManyCalls = 0;
+  prisma.$transaction = async callback => callback({
+    reportSignature: {
+      findUnique: async args => {
+        assert.equal(args.where.tokenHash, internalSignatureTokenHash('public-hash-confirm-token'));
+        return publicSignatureFixture({
+          sourcePdfUrl: '/relatorios/public-sign-hash-confirm/source.pdf',
+          sourceDocumentHash: sha256Hex(original)
+        });
+      },
+      updateMany: async () => {
+        updateManyCalls += 1;
+        throw new Error('Assinatura não deve ser persistida com PDF-base divergente.');
+      }
+    }
+  });
+  t.after(() => {
+    prisma.$transaction = originalTransaction;
+  });
+
+  const response = await dispatchApp('POST', '/api/reports/public-sign/public-hash-confirm-token/confirm', {
+    signerName: 'Cliente Teste',
+    signatureImageDataUrl: tinyPngDataUrl,
+    privacyNoticeAccepted: true,
+    privacyNoticeVersion: 'signature_rdo_v1'
+  });
+
+  assert.equal(response.statusCode, 409);
+  assert.match(response.json.error, /PDF-base da assinatura interna diverge do hash registrado/);
+  assert.equal(updateManyCalls, 0);
 });
 
 test('createValidationQrCodeMatrix creates a square QR matrix for validation URLs', () => {

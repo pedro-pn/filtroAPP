@@ -4061,7 +4061,7 @@ router.get('/public-sign/:token/pdf', publicSignatureLimiter, asyncHandler(async
 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', contentDisposition(reportPdfFileName(signature.report)));
-  res.send(await fs.readFile(sourcePath));
+  res.send(await verifiedSourcePdfBuffer(sourcePath, signature.version));
 }));
 
 router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(async (req, res) => {
@@ -4073,9 +4073,7 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
   let item = await prisma.$transaction(async tx => {
     const signature = await retryablePublicSignatureForConfirmOrThrow(req.params.token, tx);
     const completesRequiredSignatures = signatureWouldCompleteRequired(signature.version, signature.id);
-    if (completesRequiredSignatures) {
-      await assertSignatureFinalizationPreflight(signature.version);
-    }
+    await assertSignatureFinalizationPreflight(signature.version);
     signatureResult = await signInternalReportVersion(tx, {
       report: signature.report,
       version: signature.version,
@@ -4989,9 +4987,7 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
           throw error;
         }
         const completesRequiredSignatures = signatureWouldCompleteRequired(version, signingSignature?.id);
-        if (completesRequiredSignatures) {
-          await assertSignatureFinalizationPreflight(version);
-        }
+        await assertSignatureFinalizationPreflight(version);
         signatureResult = await signInternalReportVersion(tx, {
           report: current,
           version,

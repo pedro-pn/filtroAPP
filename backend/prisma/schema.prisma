@@ -301,14 +301,14 @@ model Report {
 model ClientReportReview {
   id           String             @id @default(cuid())
   reportId     String
-  clientUserId String
+  clientUserId String?
   action       ClientReviewAction
   comment      String?
   ipAddress    String?
   userAgent    String?
   createdAt    DateTime           @default(now())
   report       Report             @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  clientUser   User               @relation("ClientReportReviewer", fields: [clientUserId], references: [id], onDelete: Cascade)
+  clientUser   User?              @relation("ClientReportReviewer", fields: [clientUserId], references: [id], onDelete: SetNull)
 }
 
 model ReportVersion {

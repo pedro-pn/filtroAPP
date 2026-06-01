@@ -82,7 +82,7 @@ gunzip -c /caminho/do/postgres.sql.gz | docker compose -f docker-compose.prod.ym
 ## Restore dos relatórios
 
 ```bash
-docker run --rm -v filtrovali_relatorios:/to -v /caminho/do/backup:/backup alpine sh -c "cd /to && tar -xzf /backup/relatorios.tar.gz"
+docker run --rm -v filtrovali_relatorios:/to -v /caminho/do/backup:/backup alpine sh -c "find /to -mindepth 1 -maxdepth 1 -exec rm -rf {} + && cd /to && tar -xzf /backup/relatorios.tar.gz"
 ```
 
 ## Restore automatizado
@@ -92,7 +92,8 @@ O arquivo `deploy/restore-prod.sh` automatiza:
 - subida da stack
 - `prisma db push` (aplica schema)
 - restore do banco
-- restore do volume `filtrovali_relatorios` (opcional, se arquivo presente)
+- validação de `SHA256SUMS`
+- restore do volume `filtrovali_relatorios` em volume previamente limpo (opcional, se arquivo presente)
 - restore opcional de `filtrovali_certs`
 
 Uso:

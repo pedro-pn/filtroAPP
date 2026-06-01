@@ -14,6 +14,7 @@ BACKUP_SOURCE="${BACKUP_SOURCE:-}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-false}"
 RESTORE_REPORTS="${RESTORE_REPORTS:-true}"
 RESTORE_CERTS="${RESTORE_CERTS:-true}"
+REQUIRE_CHECKSUMS="${REQUIRE_CHECKSUMS:-true}"
 
 if [ -z "$BACKUP_SOURCE" ]; then
   echo "[restore] set BACKUP_SOURCE to the directory containing postgres.sql.gz" >&2
@@ -23,6 +24,15 @@ fi
 if [ ! -f "$BACKUP_SOURCE/postgres.sql.gz" ]; then
   echo "[restore] file not found: $BACKUP_SOURCE/postgres.sql.gz" >&2
   exit 1
+fi
+
+if [ "$REQUIRE_CHECKSUMS" = "true" ]; then
+  if [ ! -f "$BACKUP_SOURCE/SHA256SUMS" ]; then
+    echo "[restore] file not found: $BACKUP_SOURCE/SHA256SUMS" >&2
+    exit 1
+  fi
+  echo "[restore] validating backup checksums"
+  (cd "$BACKUP_SOURCE" && sha256sum -c SHA256SUMS)
 fi
 
 cd "$PROJECT_DIR"
@@ -51,14 +61,14 @@ fi
 
 if [ "$RESTORE_REPORTS" = "true" ] && [ -f "$BACKUP_SOURCE/relatorios.tar.gz" ]; then
   echo "[restore] restoring reports volume $REPORTS_VOLUME"
-  docker run --rm -v "${REPORTS_VOLUME}:/to" -v "${BACKUP_SOURCE}:/backup:ro" alpine sh -c "cd /to && tar -xzf /backup/relatorios.tar.gz"
+  docker run --rm -v "${REPORTS_VOLUME}:/to" -v "${BACKUP_SOURCE}:/backup:ro" alpine sh -c "find /to -mindepth 1 -maxdepth 1 -exec rm -rf {} + && cd /to && tar -xzf /backup/relatorios.tar.gz"
 else
   echo "[restore] skipping reports volume restore (file not found or RESTORE_REPORTS=false)"
 fi
 
 if [ "$RESTORE_CERTS" = "true" ] && [ -f "$BACKUP_SOURCE/certs.tar.gz" ]; then
   echo "[restore] restoring cert volume $CERTS_VOLUME"
-  docker run --rm -v "${CERTS_VOLUME}:/to" -v "${BACKUP_SOURCE}:/backup:ro" alpine sh -c "cd /to && tar -xzf /backup/certs.tar.gz"
+  docker run --rm -v "${CERTS_VOLUME}:/to" -v "${BACKUP_SOURCE}:/backup:ro" alpine sh -c "find /to -mindepth 1 -maxdepth 1 -exec rm -rf {} + && cd /to && tar -xzf /backup/certs.tar.gz"
   echo "[restore] reloading nginx"
   docker compose -f "$COMPOSE_FILE" exec -T "$NGINX_SERVICE" nginx -s reload
 fi
