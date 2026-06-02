@@ -11,6 +11,7 @@ import { ClientReviewAction, Prisma } from '@prisma/client';
 import {
   assertRenderableReportSignatureImageDataUrl,
   assertSignatureSourceCurrent,
+  assertApprovedReportSignatureEmailPreflight,
   authenticatedSignatureFinalizationRetryable,
   completedSignatureVersionAfterCommit,
   clearIssuedSignatureTokens,
@@ -32,6 +33,7 @@ import {
   verifiedFinalPdfBuffer
 } from '../src/routes/resources/reports.js';
 import app from '../src/app.js';
+import env, { assertProductionTrustProxyConfigured, parseTrustProxy } from '../src/config/env.js';
 import prisma from '../src/lib/prisma.js';
 
 const validSignatureImageDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
@@ -43,9 +45,44 @@ test('manager approval waits for public signature link delivery', async () => {
   const statusRoute = source.slice(statusRouteStart, statusRouteEnd);
 
   assert.ok(statusRouteStart !== -1 && statusRouteEnd !== -1, 'status route must be located');
-  assert.doesNotMatch(statusRoute, /queueInternalSignatureRoundAndNotify/);
+  assert.match(statusRoute, /await assertApprovedReportSignatureEmailPreflight/);
   assert.match(statusRoute, /await ensureInternalSignatureRoundAndNotify/);
-  assert.match(statusRoute, /throwOnEmailFailure:\s*true/);
+  assert.doesNotMatch(statusRoute, /throwOnEmailFailure:\s*true/);
+});
+
+test('approval signature preflight blocks missing mailer config before status commit', async t => {
+  const keys = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFrom'];
+  const original = Object.fromEntries(keys.map(key => [key, env[key]]));
+  t.after(() => {
+    for (const [key, value] of Object.entries(original)) env[key] = value;
+  });
+  env.smtpHost = '';
+  env.smtpPort = 587;
+  env.smtpUser = '';
+  env.smtpPass = '';
+  env.smtpFrom = '';
+
+  await assert.rejects(
+    () => assertApprovedReportSignatureEmailPreflight({
+      id: 'report-approval-preflight',
+      reportType: 'RDO',
+      status: 'APPROVED',
+      project: {
+        deletedAt: null,
+        managerOnly: false,
+        clientName: 'Cliente',
+        clientEmailPrimary: 'cliente@example.com',
+        clientSigners: []
+      }
+    }, {
+      reportVersion: {
+        async findFirst() {
+          return null;
+        }
+      }
+    }),
+    /Configuração SMTP ausente/
+  );
 });
 
 test('public RDO signature schema rejects missing or stale privacy notice version', () => {
@@ -77,7 +114,6 @@ test('authenticated RDO signature schema rejects missing or stale privacy notice
   );
   assert.equal(requestSignatureSchema.parse({ ...base, privacyNoticeAccepted: true, privacyNoticeVersion: 'signature_rdo_v1' }).privacyNoticeVersion, 'signature_rdo_v1');
 });
-import env, { assertProductionTrustProxyConfigured, parseTrustProxy } from '../src/config/env.js';
 import {
   allRequiredSignaturesCompleted,
   authenticatedSignerEmail,

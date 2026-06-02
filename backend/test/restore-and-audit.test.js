@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-function runRestoreWithFakeDocker(env = {}) {
+function runRestoreWithFakeDocker(env = {}, options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'restore-preflight-'));
   const backup = path.join(root, 'backup');
   const bin = path.join(root, 'bin');
@@ -13,7 +13,10 @@ function runRestoreWithFakeDocker(env = {}) {
   fs.mkdirSync(backup);
   fs.mkdirSync(bin);
   fs.writeFileSync(path.join(backup, 'postgres.sql.gz'), '');
-  fs.writeFileSync(path.join(bin, 'docker'), `#!/usr/bin/env bash\necho "$@" >> "${dockerLog}"\nexit 97\n`);
+  if (options.reportsArchive) fs.writeFileSync(path.join(backup, 'relatorios.tar.gz'), '');
+  if (options.certsArchive) fs.writeFileSync(path.join(backup, 'certs.tar.gz'), '');
+  const dockerScript = options.dockerScript || `#!/usr/bin/env bash\necho "$@" >> "${dockerLog}"\nexit 97\n`;
+  fs.writeFileSync(path.join(bin, 'docker'), dockerScript);
   fs.chmodSync(path.join(bin, 'docker'), 0o755);
 
   const result = spawnSync('bash', [new URL('../../deploy/restore-prod.sh', import.meta.url).pathname], {
@@ -87,23 +90,71 @@ test('restore script stops public services before mutating database or volumes',
   );
   assert.ok(
     script.indexOf('docker compose -f "$COMPOSE_FILE" stop "$NGINX_SERVICE" "$BACKEND_SERVICE"')
-      < script.indexOf('tar -xzf /backup/relatorios.tar.gz -C /to/.restore-staging'),
-    'public services must stop before report volume staging'
+      < script.indexOf('cp -a /staging/relatorios/. /to/.restore-staging/'),
+    'public services must stop before active report volume replacement'
   );
 });
 
-test('restore script stages reports before replacing active volume contents', () => {
+test('restore script validates report archive before replacing active volume or database', () => {
   const script = fs.readFileSync(new URL('../../deploy/restore-prod.sh', import.meta.url), 'utf8');
-  const extractIndex = script.indexOf('tar -xzf /backup/relatorios.tar.gz -C /to/.restore-staging');
+  const extractIndex = script.indexOf('tar -xzf /backup/relatorios.tar.gz -C /staging/relatorios');
+  const copyIndex = script.indexOf('cp -a /staging/relatorios/. /to/.restore-staging/');
   const removeIndex = script.indexOf('find /to -mindepth 1 -maxdepth 1 ! -name .restore-staging -exec rm -rf {} +');
+  const dropIndex = script.indexOf('DROP DATABASE IF EXISTS $POSTGRES_DB');
 
-  assert.match(script, /mkdir \/to\/\.restore-staging/);
-  assert.ok(extractIndex !== -1, 'reports backup must extract into staging');
+  assert.match(script, /mkdir -p \/staging\/relatorios/);
+  assert.ok(extractIndex !== -1, 'reports backup must extract into temporary staging');
+  assert.ok(copyIndex !== -1, 'staged reports must be copied into active volume staging');
   assert.ok(removeIndex !== -1, 'active reports volume contents must be replaced after staging');
   assert.ok(
-    extractIndex < removeIndex,
-    'reports backup must be fully extracted before active volume contents are removed'
+    extractIndex < copyIndex && copyIndex < removeIndex,
+    'reports backup must be fully staged before active volume contents are removed'
   );
+  assert.ok(
+    extractIndex < dropIndex && removeIndex < dropIndex,
+    'reports archive must be staged and active volume replaced before database drop'
+  );
+});
+
+test('restore script does not drop database when report archive staging fails', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'restore-tar-fail-'));
+  const backup = path.join(root, 'backup');
+  const bin = path.join(root, 'bin');
+  const dockerLog = path.join(root, 'docker.log');
+  const dockerScript = `#!/usr/bin/env bash
+echo "$@" >> "${dockerLog}"
+if [[ "$*" == *"tar -xzf /backup/relatorios.tar.gz"* ]]; then
+  exit 42
+fi
+exit 0
+`;
+  fs.mkdirSync(backup);
+  fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(backup, 'postgres.sql.gz'), '');
+  fs.writeFileSync(path.join(backup, 'relatorios.tar.gz'), '');
+  fs.writeFileSync(path.join(bin, 'docker'), dockerScript);
+  fs.chmodSync(path.join(bin, 'docker'), 0o755);
+
+  const result = spawnSync('bash', [new URL('../../deploy/restore-prod.sh', import.meta.url).pathname], {
+    cwd: root,
+    env: {
+      ...process.env,
+      PATH: `${bin}${path.delimiter}${process.env.PATH || ''}`,
+      BACKUP_SOURCE: backup,
+      PROJECT_DIR: root,
+      REQUIRE_CHECKSUMS: 'false',
+      RESTORE_REPORTS: 'true',
+      RESTORE_CERTS: 'false'
+    },
+    encoding: 'utf8'
+  });
+
+  const dockerCalls = fs.existsSync(dockerLog) ? fs.readFileSync(dockerLog, 'utf8') : '';
+  fs.rmSync(root, { recursive: true, force: true });
+
+  assert.notEqual(result.status, 0);
+  assert.match(dockerCalls, /tar -xzf \/backup\/relatorios\.tar\.gz/);
+  assert.doesNotMatch(dockerCalls, /DROP DATABASE IF EXISTS/);
 });
 
 test('restore script starts application services only after restore steps', () => {

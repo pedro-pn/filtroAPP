@@ -387,6 +387,19 @@ export function assertSignatureRequestEmailDeliveryConfigured(report, version) {
   if (missingMailerConfig.length) throw missingSignatureRequestEmailConfigError(missingMailerConfig);
 }
 
+export async function assertApprovedReportSignatureEmailPreflight(report, client = prisma) {
+  if (!report || report.status !== ReportStatus.APPROVED) return;
+  if (!shouldCreateInternalSignatureRound(report)) return;
+  const activeVersion = report.id
+    ? await client.reportVersion.findFirst({
+        where: { reportId: report.id, status: ReportVersionStatus.ACTIVE },
+        include: { signatures: true },
+        orderBy: { versionNumber: 'desc' }
+      })
+    : null;
+  assertSignatureRequestEmailDeliveryConfigured(report, activeVersion);
+}
+
 export async function sendSignatureRequestEmails(report, tokens, options = {}) {
   if (!tokens?.length || report.project?.managerOnly) return { ok: true, sentCount: 0, sentTokens: [] };
 
@@ -2122,6 +2135,15 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence, o
     });
   }
   return { version, emailDelivery };
+}
+
+function reportWithSignatureEmailDelivery(item, signaturePreparation) {
+  const delivery = signaturePreparation?.emailDelivery;
+  if (!delivery || delivery.ok !== false) return item;
+  return {
+    ...item,
+    signatureEmailDelivery: delivery
+  };
 }
 
 async function getReportDocxDownload(report) {
@@ -4530,6 +4552,11 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
       error.statusCode = 403;
       throw error;
     }
+    await assertApprovedReportSignatureEmailPreflight({
+      reportType: data.reportType,
+      status: reportStatus,
+      project
+    }, tx);
     const sequenceNumber = await reserveSequence(tx, data.projectId, data.reportType);
     const overtime = calculateReportOvertime(project, data);
     const leaderSnapshot = project.operator ? {
@@ -4605,13 +4632,12 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
     }
   }
   console.log('[TIMING] POST /reports', { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, totalMs: Date.now() - tPost0, reportType: item.reportType, status: item.status });
+  let signaturePreparation = null;
   if (item.status === ReportStatus.APPROVED) {
-    await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, signatureEvidenceFromRequest(req), {
-      throwOnEmailFailure: true
-    });
+    signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, signatureEvidenceFromRequest(req));
     queueApprovedReportNotification(item);
   }
-  res.status(201).json(item);
+  res.status(201).json(reportWithSignatureEmailDelivery(item, signaturePreparation));
 }));
 
 router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -4721,6 +4747,15 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
       evidence,
       description: 'Rodada de assinatura invalidada por edicao do relatorio antes da primeira assinatura.'
     });
+    const nextStatus = req.auth.user.role === 'MANAGER'
+      ? (isManagerFixingClientRejection ? ReportStatus.APPROVED : existing.status)
+      : ReportStatus.PENDING;
+    await assertApprovedReportSignatureEmailPreflight({
+      ...existing,
+      project,
+      reportType: data.reportType,
+      status: nextStatus
+    }, tx);
 
     const updated = await tx.report.update({
       where: { id: req.params.id },
@@ -4749,9 +4784,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
           ...internalEditState
         }, leaderSnapshot),
         pendingDerivedTypes: isServiceOnlyReport ? [] : collectPendingDerivedTypes(data.services),
-        status: req.auth.user.role === 'MANAGER'
-          ? (isManagerFixingClientRejection ? ReportStatus.APPROVED : existing.status)
-          : ReportStatus.PENDING,
+        status: nextStatus,
         reviewNotes: req.auth.user.role === 'MANAGER'
           ? existing.reviewNotes
           : (hasApprovedVersion ? COLLABORATOR_EDIT_NOTE : null),
@@ -4808,13 +4841,12 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     }
   }
   console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: item.reportType, status: item.status });
+  let signaturePreparation = null;
   if (item.status === ReportStatus.APPROVED) {
-    await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence, {
-      throwOnEmailFailure: true
-    });
+    signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
     if (isManagerFixingClientRejection) queueReapprovedReportNotification(item);
   }
-  res.json(item);
+  res.json(reportWithSignatureEmailDelivery(item, signaturePreparation));
 }));
 
 router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -4983,7 +5015,7 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
   let approvedTransition = false;
   const previous = await prisma.report.findUnique({
     where: { id: req.params.id },
-    select: { status: true, specialConditions: true, deletedAt: true, project: { select: { deletedAt: true } } }
+    include
   });
   if (!previous || isReportUnavailable(previous)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   if (previous?.status === ReportStatus.SIGNED) {
@@ -5000,6 +5032,11 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
           withClientRejectionCleared(stripInternalEditState(previous?.specialConditions || {}))
         )
       : withoutLegacyExternalSignatureState(previous?.specialConditions || {});
+    await assertApprovedReportSignatureEmailPreflight({
+      ...previous,
+      status: data.status,
+      specialConditions: nextSpecialConditions
+    }, tx);
 
     const updated = await tx.report.update({
       where: { id: req.params.id },
@@ -5045,6 +5082,7 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
   });
   const tPatchTx = Date.now();
 
+  let signaturePreparation = null;
   if (data.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
       where: derivedReportsForProjectWhere(item.projectId),
@@ -5054,22 +5092,18 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
       if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
     }
     if (approvedTransition) {
-      await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence, {
-        throwOnEmailFailure: true
-      });
+      signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
       if (wasClientRejection) {
         queueReapprovedReportNotification(item);
       } else {
         queueApprovedReportNotification(item);
       }
     } else {
-      await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence, {
-        throwOnEmailFailure: true
-      });
+      signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
     }
   }
   console.log('[TIMING] PATCH /reports/:id/status', { txMs: tPatchTx - tPatch0, totalMs: Date.now() - tPatch0, newStatus: data.status });
-  res.json(item);
+  res.json(reportWithSignatureEmailDelivery(item, signaturePreparation));
 }));
 
 router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {

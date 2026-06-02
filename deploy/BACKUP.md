@@ -93,11 +93,12 @@ O arquivo `deploy/restore-prod.sh` automatiza:
 
 - validação de `SHA256SUMS`
 - preflight obrigatório de `postgres.sql.gz`, `relatorios.tar.gz` e `certs.tar.gz` quando seus restores estão habilitados
-- subida apenas do Postgres e parada de backend/nginx antes das mutações
+- extração de `relatorios.tar.gz` e `certs.tar.gz` em staging temporário antes de tocar no banco
+- subida apenas do Postgres e parada de backend/nginx antes de trocar volumes e banco
+- restore do volume `filtrovali_relatorios` a partir do staging antes do drop do banco
+- restore opcional de `filtrovali_certs` a partir do staging antes do drop do banco
 - restore do banco
 - `prisma migrate deploy` em container one-off (aplica migrations versionadas)
-- restore do volume `filtrovali_relatorios` com extração em staging antes de substituir o volume ativo
-- restore opcional de `filtrovali_certs` com extração em staging
 - subida de backend/nginx somente após banco, migrations e arquivos concluírem
 
 Uso:
