@@ -616,6 +616,54 @@ export function buildReportSignatureRequestEmailTemplate({
   };
 }
 
+export function buildReportSignatureReminderEmailTemplate({
+  projectCode,
+  projectName,
+  reportType,
+  reportNumber,
+  reportDate,
+  signerName,
+  signUrl,
+  expiresLabel
+}) {
+  const title = 'Lembrete de assinatura eletrônica';
+  const intro = `O relatório ${reportType} ${reportNumber} do projeto ${projectCode} - ${projectName} ainda está pendente de assinatura.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Signatário:</strong> ${signerName}</div>
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>Relatório:</strong> ${reportType} ${reportNumber}</div>
+        <div><strong>Data:</strong> ${reportDate}</div>
+        <div><strong>Link válido por:</strong> ${expiresLabel}</div>
+      </div>
+    </div>
+    <p style="margin:16px 0"><a href="${signUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Assinar relatório</a></p>
+    <p style="font-size:13px;line-height:1.7;margin:0 0 8px">Se preferir, copie e cole este link no navegador:</p>
+    <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0">${signUrl}</p>
+    ${privacyHtmlLine()}
+  `;
+  const footer = 'Este lembrete foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Lembrete de assinatura - ${reportType} ${reportNumber}`,
+    text: [
+      `Olá, ${signerName}.`,
+      '',
+      `O relatório ${reportType} ${reportNumber} ainda está pendente de assinatura eletrônica.`,
+      '',
+      `Projeto: ${projectCode} - ${projectName}`,
+      `Data: ${reportDate}`,
+      `Link válido por: ${expiresLabel}`,
+      '',
+      `Assinar relatório: ${signUrl}`,
+      '',
+      privacyTextLine()
+    ].join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
 export function buildReportSignatureCompletedEmailTemplate({
   projectCode,
   projectName,

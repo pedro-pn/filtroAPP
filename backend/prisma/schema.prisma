@@ -357,7 +357,13 @@ model ReportSignature {
   rejectionReason    String?
   invalidatedAt      DateTime?
   tokenHash          String?               @unique
+  tokenEncrypted     String?
+  tokenIv            String?
+  tokenAuthTag       String?
   tokenExpiresAt     DateTime?
+  lastReminderAt     DateTime?
+  reminderClaimedAt  DateTime?
+  reminderCount      Int                   @default(0)
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
   report             Report                @relation(fields: [reportId], references: [id], onDelete: Cascade)
@@ -368,6 +374,7 @@ model ReportSignature {
   @@index([reportId])
   @@index([versionId])
   @@index([status])
+  @@index([status, lastReminderAt, reminderClaimedAt])
 }
 
 model ReportAuditLog {
@@ -499,6 +506,7 @@ model User {
   privacyPolicyVersion String?
   notifyReportsByEmail Boolean @default(true)
   notifySignaturesByEmail Boolean @default(true)
+  notifySignatureRemindersByEmail Boolean @default(true)
   notifySurveyRemindersByEmail Boolean @default(true)
   collaboratorId  String?       @unique
   createdAt       DateTime      @default(now())

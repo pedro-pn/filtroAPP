@@ -4,6 +4,7 @@ import type { AuthUser } from '../types/auth';
 export interface NotificationPreferences {
   reports: boolean;
   signatures: boolean;
+  signatureReminders: boolean;
   surveyReminders: boolean;
 }
 

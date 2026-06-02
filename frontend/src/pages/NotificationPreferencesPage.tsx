@@ -19,6 +19,7 @@ export function NotificationPreferencesPage() {
   const [preferences, setPreferences] = useState<NotificationPreferences>({
     reports: true,
     signatures: true,
+    signatureReminders: true,
     surveyReminders: true
   });
   const [error, setError] = useState('');
@@ -90,6 +91,10 @@ export function NotificationPreferencesPage() {
             <label className="notification-option">
               <input type="checkbox" checked={preferences.signatures} onChange={event => setPreference('signatures', event.target.checked)} />
               <span>Assinaturas</span>
+            </label>
+            <label className="notification-option">
+              <input type="checkbox" checked={preferences.signatureReminders} onChange={event => setPreference('signatureReminders', event.target.checked)} />
+              <span>Lembretes de assinatura</span>
             </label>
             <label className="notification-option">
               <input type="checkbox" checked={preferences.surveyReminders} onChange={event => setPreference('surveyReminders', event.target.checked)} />

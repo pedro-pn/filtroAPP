@@ -4,6 +4,7 @@ import app from './app.js';
 import env from './config/env.js';
 import { startDataRetentionJob } from './lib/data-retention.js';
 import { syncRomaneioCatalog } from './lib/romaneio-catalog.js';
+import { startSignatureReminderJob } from './lib/signature-reminders.js';
 import { startSurveyReminderJob } from './lib/survey-reminders.js';
 import { startLegacyZapSignReconciliationJob } from './lib/zapsign-legacy-reconciliation.js';
 
@@ -28,6 +29,7 @@ server.listen(env.port, () => {
   }
   startDataRetentionJob({ enabled: env.dataRetentionJobEnabled });
   startSurveyReminderJob();
+  startSignatureReminderJob();
   startLegacyZapSignReconciliationJob();
   syncRomaneioCatalog().catch(error => {
     console.error('Falha ao sincronizar catálogo de romaneio na inicialização.', error);

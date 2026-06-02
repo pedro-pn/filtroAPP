@@ -26,6 +26,7 @@ export interface AuthUser {
   notificationPreferences?: {
     reports: boolean;
     signatures: boolean;
+    signatureReminders: boolean;
     surveyReminders: boolean;
   };
   privacyPolicyRequired?: boolean;

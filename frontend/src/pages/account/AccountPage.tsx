@@ -24,6 +24,7 @@ export function AccountPage() {
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>({
     reports: user?.notificationPreferences?.reports ?? true,
     signatures: user?.notificationPreferences?.signatures ?? true,
+    signatureReminders: user?.notificationPreferences?.signatureReminders ?? true,
     surveyReminders: user?.notificationPreferences?.surveyReminders ?? true
   });
   const [notificationMessage, setNotificationMessage] = useState('');
@@ -102,6 +103,7 @@ export function AccountPage() {
       setNotificationPreferences({
         reports: response.user.notificationPreferences?.reports ?? true,
         signatures: response.user.notificationPreferences?.signatures ?? true,
+        signatureReminders: response.user.notificationPreferences?.signatureReminders ?? true,
         surveyReminders: response.user.notificationPreferences?.surveyReminders ?? true
       });
       setNotificationMessage('Preferências de notificação atualizadas.');
@@ -238,6 +240,14 @@ export function AccountPage() {
                 onChange={event => setNotificationPreference('signatures', event.target.checked)}
               />
               <span>Assinaturas</span>
+            </label>
+            <label className="notification-option">
+              <input
+                type="checkbox"
+                checked={notificationPreferences.signatureReminders}
+                onChange={event => setNotificationPreference('signatureReminders', event.target.checked)}
+              />
+              <span>Lembretes de assinatura</span>
             </label>
             <label className="notification-option">
               <input

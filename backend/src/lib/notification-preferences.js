@@ -8,12 +8,14 @@ const TOKEN_DAYS = 30;
 export const NotificationEmailCategory = {
   REPORTS: 'reports',
   SIGNATURES: 'signatures',
+  SIGNATURE_REMINDERS: 'signatureReminders',
   SURVEY_REMINDERS: 'surveyReminders'
 };
 
 const CATEGORY_FIELDS = {
   [NotificationEmailCategory.REPORTS]: 'notifyReportsByEmail',
   [NotificationEmailCategory.SIGNATURES]: 'notifySignaturesByEmail',
+  [NotificationEmailCategory.SIGNATURE_REMINDERS]: 'notifySignatureRemindersByEmail',
   [NotificationEmailCategory.SURVEY_REMINDERS]: 'notifySurveyRemindersByEmail'
 };
 
@@ -21,6 +23,7 @@ export function notificationPreferences(user = {}) {
   return {
     reports: user.notifyReportsByEmail !== false,
     signatures: user.notifySignaturesByEmail !== false,
+    signatureReminders: user.notifySignatureRemindersByEmail !== false,
     surveyReminders: user.notifySurveyRemindersByEmail !== false
   };
 }
@@ -29,6 +32,7 @@ export function notificationPreferenceData(value = {}) {
   return {
     notifyReportsByEmail: value.reports !== false,
     notifySignaturesByEmail: value.signatures !== false,
+    notifySignatureRemindersByEmail: value.signatureReminders !== false,
     notifySurveyRemindersByEmail: value.surveyReminders !== false
   };
 }
@@ -156,6 +160,7 @@ export async function notificationRecipientsForEmails(emails, category, options 
       email: true,
       notifyReportsByEmail: true,
       notifySignaturesByEmail: true,
+      notifySignatureRemindersByEmail: true,
       notifySurveyRemindersByEmail: true
     }
   });

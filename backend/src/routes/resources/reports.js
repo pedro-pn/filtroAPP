@@ -443,6 +443,9 @@ export async function clearIssuedSignatureTokens(client, tokens) {
       },
       data: {
         tokenHash: null,
+        tokenEncrypted: null,
+        tokenIv: null,
+        tokenAuthTag: null,
         tokenExpiresAt: null
       }
     });

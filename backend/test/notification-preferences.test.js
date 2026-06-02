@@ -14,6 +14,7 @@ test('notification preferences default to enabled', () => {
   assert.deepEqual(notificationPreferences({}), {
     reports: true,
     signatures: true,
+    signatureReminders: true,
     surveyReminders: true
   });
 });
@@ -29,6 +30,7 @@ test('notification recipients skip users opted out for the category', async () =
           username: 'cliente@example.com',
           notifyReportsByEmail: false,
           notifySignaturesByEmail: true,
+          notifySignatureRemindersByEmail: true,
           notifySurveyRemindersByEmail: true
         }];
       }
@@ -91,6 +93,7 @@ test('notification preference token is consumed once when saving public settings
   const user = await consumeNotificationPreferenceToken('token-1', {
     reports: false,
     signatures: true,
+    signatureReminders: false,
     surveyReminders: false
   }, client, now);
 
@@ -99,6 +102,7 @@ test('notification preference token is consumed once when saving public settings
     id: 'user-1',
     notifyReportsByEmail: false,
     notifySignaturesByEmail: true,
+    notifySignatureRemindersByEmail: false,
     notifySurveyRemindersByEmail: false
   });
 });

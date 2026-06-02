@@ -825,6 +825,9 @@ test('deliverIssuedSignatureRequestEmails clears newly persisted tokens when sen
   });
   assert.deepEqual(cleanupCalls[0].data, {
     tokenHash: null,
+    tokenEncrypted: null,
+    tokenIv: null,
+    tokenAuthTag: null,
     tokenExpiresAt: null
   });
 });
@@ -906,6 +909,9 @@ test('clearIssuedSignatureTokens only clears the token hash generated for the fa
   });
   assert.deepEqual(calls[0].data, {
     tokenHash: null,
+    tokenEncrypted: null,
+    tokenIv: null,
+    tokenAuthTag: null,
     tokenExpiresAt: null
   });
 });

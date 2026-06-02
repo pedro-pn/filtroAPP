@@ -16,6 +16,7 @@ import {
 import env from '../config/env.js';
 import { normalizeCnpj } from './cnpj.js';
 import { createValidationQrCodeMatrix } from './qr-code.js';
+import { createSignatureToken, encryptSignatureToken, signatureTokenHash } from './signature-token.js';
 import { resolveStoredUploadPath } from './stored-image.js';
 
 export const INTERNAL_SIGNATURE_PROGRESS_KEY = '__internalSignatureProgress';
@@ -30,7 +31,7 @@ export function sha256Hex(buffer) {
 }
 
 export function createInternalSignatureToken() {
-  return crypto.randomBytes(32).toString('hex');
+  return createSignatureToken();
 }
 
 export function createSignatureValidationCode() {
@@ -46,7 +47,7 @@ export function signatureValidationUrl(validationCode) {
 }
 
 export function internalSignatureTokenHash(token) {
-  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+  return signatureTokenHash(token);
 }
 
 export function internalSignatureTokenExpiresAt(days = INTERNAL_SIGNATURE_TOKEN_DAYS) {
@@ -468,10 +469,14 @@ export async function issuePendingSignatureTokens(tx, version, options = {}) {
     if (!needsToken) continue;
 
     const token = createInternalSignatureToken();
+    const encryptedToken = encryptSignatureToken(token);
     await tx.reportSignature.update({
       where: { id: signature.id },
       data: {
         tokenHash: internalSignatureTokenHash(token),
+        tokenEncrypted: encryptedToken.tokenEncrypted,
+        tokenIv: encryptedToken.tokenIv,
+        tokenAuthTag: encryptedToken.tokenAuthTag,
         tokenExpiresAt: expiresAt,
         status: ReportSignatureStatus.PENDING
       }

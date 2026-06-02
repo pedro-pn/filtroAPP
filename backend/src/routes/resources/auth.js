@@ -49,12 +49,14 @@ const accountSchema = z.object({
   notificationPreferences: z.object({
     reports: z.boolean(),
     signatures: z.boolean(),
+    signatureReminders: z.boolean().optional().default(true),
     surveyReminders: z.boolean()
   }).optional()
 });
 const notificationPreferenceSchema = z.object({
   reports: z.boolean(),
   signatures: z.boolean(),
+  signatureReminders: z.boolean().optional().default(true),
   surveyReminders: z.boolean()
 });
 const clientPrivacyConsentSchema = z.object({

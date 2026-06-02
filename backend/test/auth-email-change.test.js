@@ -164,6 +164,7 @@ test('PUT /auth/account updates notification preferences without email change', 
     assert.deepEqual(args.data, {
       notifyReportsByEmail: false,
       notifySignaturesByEmail: true,
+      notifySignatureRemindersByEmail: false,
       notifySurveyRemindersByEmail: false
     });
     return { ...user, ...args.data };
@@ -177,6 +178,7 @@ test('PUT /auth/account updates notification preferences without email change', 
     notificationPreferences: {
       reports: false,
       signatures: true,
+      signatureReminders: false,
       surveyReminders: false
     }
   });
@@ -185,6 +187,7 @@ test('PUT /auth/account updates notification preferences without email change', 
   assert.deepEqual(response.json.user.notificationPreferences, {
     reports: false,
     signatures: true,
+    signatureReminders: false,
     surveyReminders: false
   });
 });
