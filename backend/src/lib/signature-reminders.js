@@ -1,7 +1,7 @@
 import { ReportSignatureStatus, ReportStatus, ReportType, ReportVersionStatus } from '@prisma/client';
 
 import env from '../config/env.js';
-import { addNotificationPreferencesLink, buildReportSignatureReminderEmailTemplate } from './email-templates.js';
+import { addNotificationPreferencesLink, buildBatchReportSignatureReminderEmailTemplate, buildReportSignatureReminderEmailTemplate } from './email-templates.js';
 import { getMissingMailerConfig, sendMail } from './mailer.js';
 import { NotificationEmailCategory, notificationRecipientsForEmails } from './notification-preferences.js';
 import prisma from './prisma.js';
@@ -152,6 +152,51 @@ export async function sendSignatureReminder({ signature, token, expiresAt, maile
   return true;
 }
 
+function reminderGroupKey(signature) {
+  return [
+    signature.report?.projectId || signature.report?.project?.id || '',
+    String(signature.signerEmail || '').trim().toLowerCase()
+  ].join('|');
+}
+
+function reportReminderItem(signature) {
+  const report = signature.report || {};
+  return {
+    reportType: report.reportType || 'RDO',
+    reportNumber: reportNumberLabel(report),
+    reportDate: formatDatePtBr(report.reportDate)
+  };
+}
+
+export async function sendBatchSignatureReminder({ signatures, token, expiresAt, mailer = sendMail, client = prisma }) {
+  const first = signatures?.[0];
+  if (!first) return false;
+  const [recipient] = await notificationRecipientsForEmails(
+    [first.signerEmail],
+    NotificationEmailCategory.SIGNATURE_REMINDERS,
+    { client }
+  );
+  if (!recipient) return false;
+
+  const report = first.report || {};
+  const project = report.project || {};
+  const daysValid = Math.max(1, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000));
+  const template = buildBatchReportSignatureReminderEmailTemplate({
+    projectCode: project.code || '---',
+    projectName: project.name || 'Sem projeto',
+    signerName: first.signerName || 'Cliente',
+    reports: signatures.map(reportReminderItem),
+    signUrl: publicSignatureUrl(token),
+    expiresLabel: `${daysValid} dia${daysValid !== 1 ? 's' : ''}`
+  });
+
+  await mailer({
+    to: recipient.email,
+    ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
+  });
+  return true;
+}
+
 export async function processSignatureReminders({ limit = 25, mailer = sendMail, client = prisma, missingMailerConfig = getMissingMailerConfig() } = {}) {
   if (mailer === sendMail && missingMailerConfig.length) return { checked: 0, sent: 0, skipped: true };
 
@@ -166,28 +211,64 @@ export async function processSignatureReminders({ limit = 25, mailer = sendMail,
     }
   });
 
-  let sent = 0;
+  const groups = new Map();
   for (const signature of candidates) {
+    const key = reminderGroupKey(signature);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(signature);
+  }
+
+  let sent = 0;
+  for (const group of groups.values()) {
+    const signatureIds = group.map(signature => signature.id);
+    const claimedAt = new Date();
     const claim = await client.reportSignature.updateMany({
       where: {
-        id: signature.id,
+        id: { in: signatureIds },
         ...signatureReminderDueWhere(now)
       },
-      data: { reminderClaimedAt: new Date() }
+      data: { reminderClaimedAt: claimedAt }
     });
-    if (claim.count !== 1) continue;
+    if (claim.count === 0) continue;
+
+    let claimed = group;
+    if (claim.count !== group.length) {
+      claimed = await client.reportSignature.findMany({
+        where: {
+          id: { in: signatureIds },
+          reminderClaimedAt: claimedAt
+        },
+        include: {
+          report: { include: { project: true } },
+          version: true
+        }
+      });
+    }
+    if (!claimed.length) continue;
 
     try {
-      const tokenData = await ensureReminderSignatureToken(signature, client);
-      const delivered = await sendSignatureReminder({
-        signature,
-        token: tokenData.token,
-        expiresAt: tokenData.expiresAt,
-        mailer,
-        client
-      });
-      await client.reportSignature.update({
-        where: { id: signature.id },
+      const tokenData = [];
+      for (const signature of claimed) {
+        tokenData.push(await ensureReminderSignatureToken(signature, client));
+      }
+      const firstToken = tokenData[0];
+      const delivered = claimed.length > 1
+        ? await sendBatchSignatureReminder({
+            signatures: claimed,
+            token: firstToken.token,
+            expiresAt: firstToken.expiresAt,
+            mailer,
+            client
+          })
+        : await sendSignatureReminder({
+            signature: claimed[0],
+            token: firstToken.token,
+            expiresAt: firstToken.expiresAt,
+            mailer,
+            client
+          });
+      await client.reportSignature.updateMany({
+        where: { id: { in: claimed.map(signature => signature.id) } },
         data: {
           lastReminderAt: new Date(),
           reminderClaimedAt: null,
@@ -196,11 +277,11 @@ export async function processSignatureReminders({ limit = 25, mailer = sendMail,
       });
       if (delivered) sent += 1;
     } catch (error) {
-      await client.reportSignature.update({
-        where: { id: signature.id },
+      await client.reportSignature.updateMany({
+        where: { id: { in: claimed.map(signature => signature.id) } },
         data: { reminderClaimedAt: null }
       }).catch(() => {});
-      console.error('Falha ao enviar lembrete de assinatura.', { signatureId: signature.id, error: error?.message || error });
+      console.error('Falha ao enviar lembrete de assinatura.', { signatureIds: claimed.map(signature => signature.id), error: error?.message || error });
     }
   }
 

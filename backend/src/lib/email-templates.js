@@ -739,6 +739,66 @@ export function buildReportSignatureReminderEmailTemplate({
   };
 }
 
+export function buildBatchReportSignatureReminderEmailTemplate({
+  projectCode,
+  projectName,
+  signerName,
+  reports,
+  signUrl,
+  expiresLabel
+}) {
+  const safeReports = Array.isArray(reports) ? reports : [];
+  const title = 'Lembrete de assinaturas eletrônicas';
+  const intro = `Existem ${safeReports.length} RDOs do projeto ${projectCode} - ${projectName} pendentes de assinatura.`;
+  const reportRows = safeReports.map(report => `
+    <tr>
+      <td style="padding:8px;border-bottom:1px solid #e5e7eb">${report.reportType || 'RDO'} ${report.reportNumber || '---'}</td>
+      <td style="padding:8px;border-bottom:1px solid #e5e7eb">${report.reportDate || '---'}</td>
+    </tr>
+  `).join('');
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Signatário:</strong> ${signerName}</div>
+        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
+        <div><strong>RDOs pendentes:</strong> ${safeReports.length}</div>
+        <div><strong>Link válido por:</strong> ${expiresLabel}</div>
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:8px;background:#eef4ef;color:#30503a">Relatório</th>
+          <th style="text-align:left;padding:8px;background:#eef4ef;color:#30503a">Data</th>
+        </tr>
+      </thead>
+      <tbody>${reportRows}</tbody>
+    </table>
+    <p style="margin:16px 0"><a href="${signUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Assinar RDOs pendentes</a></p>
+    <p style="font-size:13px;line-height:1.7;margin:0 0 8px">Se preferir, copie e cole este link no navegador:</p>
+    <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0">${signUrl}</p>
+    ${privacyHtmlLine()}
+  `;
+  const footer = 'Este lembrete foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Lembrete de assinatura - ${safeReports.length} RDOs pendentes`,
+    text: [
+      `Olá, ${signerName}.`,
+      '',
+      `${safeReports.length} RDOs do projeto ${projectCode} - ${projectName} ainda estão pendentes de assinatura eletrônica.`,
+      '',
+      ...safeReports.map(report => `- ${report.reportType || 'RDO'} ${report.reportNumber || '---'} - ${report.reportDate || '---'}`),
+      '',
+      `Link válido por: ${expiresLabel}`,
+      `Assinar RDOs pendentes: ${signUrl}`,
+      '',
+      privacyTextLine()
+    ].join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
 export function buildReportSignatureCompletedEmailTemplate({
   projectCode,
   projectName,

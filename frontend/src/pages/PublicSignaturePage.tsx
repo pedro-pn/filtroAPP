@@ -6,6 +6,7 @@ import {
   confirmPublicSignature,
   getPublicSignature,
   type PublicSignatureConfirmPayload,
+  type PublicSignatureReportPayload,
   publicSignaturePdfUrl,
   rejectPublicSignature
 } from '../api/publicSignatures';
@@ -34,6 +35,7 @@ export function PublicSignaturePage() {
   const showToast = useToast();
   const [signatureOpen, setSignatureOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [selectedSignatureId, setSelectedSignatureId] = useState<string | undefined>();
   const [rejectionReason, setRejectionReason] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
@@ -54,9 +56,10 @@ export function PublicSignaturePage() {
   });
 
   const rejectMutation = useMutation({
-    mutationFn: (comment: string) => rejectPublicSignature(token, comment),
+    mutationFn: ({ comment, signatureId }: { comment: string; signatureId?: string }) => rejectPublicSignature(token, comment, signatureId),
     onSuccess: () => {
       setRejectOpen(false);
+      setSelectedSignatureId(undefined);
       setRejectionReason('');
       showToast('Reprovação registrada.', 'success');
       queryClient.invalidateQueries({ queryKey: ['public-signature', token] });
@@ -68,7 +71,20 @@ export function PublicSignaturePage() {
   const status = payload?.status || 'INVALID';
   const report = payload?.report;
   const signer = payload?.signer;
-  const canSign = status === 'ACTIVE';
+  const reportItems: PublicSignatureReportPayload[] = payload?.batch?.reports?.length
+    ? payload.batch.reports
+    : report && signer
+      ? [{
+          signatureId: signer.signatureId,
+          status,
+          expiresAt: payload.expiresAt || null,
+          signer,
+          report
+        }]
+      : [];
+  const batchMode = reportItems.length > 1;
+  const selectedItem = reportItems.find(item => item.signatureId === selectedSignatureId) || reportItems[0];
+  const canSign = reportItems.some(item => item.status === 'ACTIVE');
 
   function handleRejectSubmit(event: FormEvent) {
     event.preventDefault();
@@ -77,15 +93,26 @@ export function PublicSignaturePage() {
       showToast('Informe o motivo da reprovação.', 'error');
       return;
     }
-    rejectMutation.mutate(reason);
+    rejectMutation.mutate({ comment: reason, signatureId: selectedSignatureId });
   }
 
-  function openSignatureDialog() {
+  function openSignatureDialog(signatureId?: string) {
     if (!privacyAccepted) {
       showToast('Confirme a ciência do aviso de privacidade antes de assinar.', 'error');
       return;
     }
+    setSelectedSignatureId(signatureId);
     setSignatureOpen(true);
+  }
+
+  function openRejectForm(signatureId?: string) {
+    setSelectedSignatureId(signatureId);
+    setRejectOpen(true);
+  }
+
+  function reportLabel(item?: PublicSignatureReportPayload) {
+    if (!item) return 'Relatório';
+    return `${item.report.reportType} ${item.report.sequenceNumber || ''}`.trim();
   }
 
   return (
@@ -109,8 +136,14 @@ export function PublicSignaturePage() {
             {report ? (
               <div className="det-section">
                 <div className="det-row"><span className="det-label">Projeto</span><span className="det-val">{report.project.code} - {report.project.name}</span></div>
-                <div className="det-row"><span className="det-label">Relatório</span><span className="det-val">{report.reportType} {report.sequenceNumber || ''}</span></div>
-                <div className="det-row"><span className="det-label">Data</span><span className="det-val">{formatDateOnlyPtBr(report.reportDate || '')}</span></div>
+                {batchMode ? (
+                  <div className="det-row"><span className="det-label">Pendências</span><span className="det-val">{reportItems.length} RDOs para assinatura</span></div>
+                ) : (
+                  <>
+                    <div className="det-row"><span className="det-label">Relatório</span><span className="det-val">{report.reportType} {report.sequenceNumber || ''}</span></div>
+                    <div className="det-row"><span className="det-label">Data</span><span className="det-val">{formatDateOnlyPtBr(report.reportDate || '')}</span></div>
+                  </>
+                )}
                 <div className="det-row"><span className="det-label">Signatário</span><span className="det-val">{signer?.name || '-'} ({signer?.email || '-'})</span></div>
               </div>
             ) : (
@@ -124,21 +157,33 @@ export function PublicSignaturePage() {
                   onCheckedChange={setPrivacyAccepted}
                   disabled={confirmMutation.isPending}
                 />
-                <div className="public-signature-actions">
-                  <a className="secondary-button" href={publicSignaturePdfUrl(token)} target="_blank" rel="noopener noreferrer">
-                    Abrir PDF
-                  </a>
-                  <button className="primary-button" type="button" onClick={openSignatureDialog} disabled={!privacyAccepted}>
-                    Assinar
-                  </button>
-                  <button className="secondary-button" type="button" onClick={() => setRejectOpen(current => !current)}>
-                    Reprovar
-                  </button>
+                <div className={batchMode ? 'public-signature-report-list' : 'public-signature-actions'}>
+                  {reportItems.map(item => (
+                    <div className={batchMode ? 'public-signature-report-card' : 'public-signature-single-actions'} key={item.signatureId || item.report.id}>
+                      {batchMode ? (
+                        <div className="public-signature-report-meta">
+                          <strong>{reportLabel(item)}</strong>
+                          <span>{formatDateOnlyPtBr(item.report.reportDate || '')}</span>
+                        </div>
+                      ) : null}
+                      <div className="public-signature-actions">
+                        <a className="secondary-button" href={publicSignaturePdfUrl(token, item.signatureId)} target="_blank" rel="noopener noreferrer">
+                          Abrir PDF
+                        </a>
+                        <button className="primary-button" type="button" onClick={() => openSignatureDialog(item.signatureId)} disabled={!privacyAccepted || item.status !== 'ACTIVE'}>
+                          Assinar
+                        </button>
+                        <button className="secondary-button" type="button" onClick={() => openRejectForm(item.signatureId)} disabled={item.status !== 'ACTIVE'}>
+                          Reprovar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
                 {rejectOpen ? (
                   <form className="public-signature-reject" onSubmit={handleRejectSubmit}>
                     <div className="field-group">
-                      <label htmlFor="public-signature-reason">Motivo da reprovação</label>
+                      <label htmlFor="public-signature-reason">Motivo da reprovação de {reportLabel(selectedItem)}</label>
                       <textarea
                         id="public-signature-reason"
                         rows={4}
@@ -159,13 +204,14 @@ export function PublicSignaturePage() {
       </section>
       <SignatureDialog
         open={signatureOpen}
-        title="Assinar relatório"
-        initialSignerName={signer?.name || ''}
-        cacheIdentity={signer?.email || token}
+        title={`Assinar ${reportLabel(selectedItem)}`}
+        initialSignerName={selectedItem?.signer.name || signer?.name || ''}
+        cacheIdentity={`${selectedItem?.signer.email || signer?.email || token}:${selectedItem?.signatureId || ''}`}
         isSubmitting={confirmMutation.isPending}
         onCancel={() => setSignatureOpen(false)}
         onConfirm={payload => confirmMutation.mutate({
           ...payload,
+          signatureId: selectedSignatureId,
           privacyNoticeAccepted: true,
           privacyNoticeVersion: SIGNATURE_RDO_NOTICE_VERSION
         })}

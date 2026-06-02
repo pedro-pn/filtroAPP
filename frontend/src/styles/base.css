@@ -5902,6 +5902,38 @@ select {
   text-decoration: none;
 }
 
+.public-signature-report-list {
+  display: grid;
+  gap: 10px;
+}
+
+.public-signature-report-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: #fff;
+}
+
+.public-signature-report-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--tx);
+  font-size: 13px;
+}
+
+.public-signature-report-meta span {
+  color: var(--mut);
+  white-space: nowrap;
+}
+
+.public-signature-single-actions {
+  width: 100%;
+}
+
 .public-signature-reject {
   display: grid;
   gap: 10px;

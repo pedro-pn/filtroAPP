@@ -529,7 +529,38 @@ export async function sendReleasedServiceReportsEmail(rdo, serviceReports, optio
 
 export function publicSignaturePayload(signature, status) {
   if (!signature || status === 'INVALID' || status === 'UNAVAILABLE') return { status };
+  const payload = {
+    status,
+    expiresAt: signature.tokenExpiresAt || null,
+    signer: {
+      signatureId: signature.id,
+      name: signature.signerName,
+      declaredName: signature.declaredSignerName || null,
+      email: signature.signerEmail,
+      status: signature.status,
+      signedAt: signature.signedAt || null,
+      rejectedAt: signature.rejectedAt || null
+    },
+    report: {
+      id: signature.report?.id || '',
+      reportType: signature.report?.reportType || '',
+      sequenceNumber: signature.report?.sequenceNumber || null,
+      reportDate: signature.report?.reportDate || null,
+      status: signature.report?.status || '',
+      sourceDocumentHash: signature.sourceDocumentHash || '',
+      project: {
+        code: signature.report?.project?.code || '',
+        name: signature.report?.project?.name || '',
+        clientName: signature.report?.project?.clientName || ''
+      }
+    }
+  };
+  return payload;
+}
+
+function publicSignatureReportPayload(signature, status = publicSignatureStatus(signature)) {
   return {
+    signatureId: signature.id,
     status,
     expiresAt: signature.tokenExpiresAt || null,
     signer: {
@@ -553,6 +584,19 @@ export function publicSignaturePayload(signature, status) {
         clientName: signature.report?.project?.clientName || ''
       }
     }
+  };
+}
+
+function publicSignatureBatchPayload(anchor, signatures) {
+  const reports = (signatures || []).map(signature => publicSignatureReportPayload(signature));
+  return {
+    project: {
+      code: anchor.report?.project?.code || '',
+      name: anchor.report?.project?.name || '',
+      clientName: anchor.report?.project?.clientName || ''
+    },
+    pendingCount: reports.length,
+    reports
   };
 }
 
@@ -665,6 +709,99 @@ async function publicSignatureFromToken(token, client = prisma) {
       version: { include: { signatures: { orderBy: { createdAt: 'asc' } } } }
     }
   });
+}
+
+async function publicSignatureFromId(signatureId, client = prisma) {
+  return client.reportSignature.findUnique({
+    where: { id: signatureId },
+    include: {
+      report: { include },
+      version: { include: { signatures: { orderBy: { createdAt: 'asc' } } } }
+    }
+  });
+}
+
+function samePublicSignatureBatchScope(anchor, signature) {
+  const anchorProjectId = anchor?.report?.projectId || anchor?.report?.project?.id || '';
+  const signatureProjectId = signature?.report?.projectId || signature?.report?.project?.id || '';
+  return Boolean(
+    anchorProjectId
+    && signatureProjectId
+    && anchorProjectId === signatureProjectId
+    && signerEmailValue(anchor?.signerEmail) === signerEmailValue(signature?.signerEmail)
+  );
+}
+
+function publicSignatureBatchScopeUnavailable(status) {
+  return ['INVALID', 'UNAVAILABLE', 'EXPIRED', 'INVALIDATED', 'REJECTED'].includes(status);
+}
+
+async function activePublicSignatureBatchFromAnchor(anchor, client = prisma) {
+  if (!anchor || publicSignatureBatchScopeUnavailable(publicSignatureStatus(anchor))) return [];
+  const projectId = anchor.report?.projectId || anchor.report?.project?.id;
+  const signerEmail = signerEmailValue(anchor.signerEmail);
+  if (!projectId || !signerEmail) return publicSignatureStatus(anchor) === 'ACTIVE' ? [anchor] : [];
+
+  const signatures = await client.reportSignature.findMany({
+    where: {
+      signerEmail: { equals: signerEmail, mode: 'insensitive' },
+      status: ReportSignatureStatus.PENDING,
+      isRequired: true,
+      tokenExpiresAt: { gt: new Date() },
+      report: {
+        projectId,
+        reportType: ReportType.RDO,
+        status: ReportStatus.APPROVED,
+        deletedAt: null,
+        project: {
+          deletedAt: null,
+          managerOnly: false
+        }
+      },
+      version: {
+        status: ReportVersionStatus.ACTIVE,
+        finalDocumentHash: null
+      }
+    },
+    orderBy: [
+      { report: { reportDate: 'asc' } },
+      { report: { sequenceNumber: 'asc' } },
+      { createdAt: 'asc' }
+    ],
+    include: {
+      report: { include },
+      version: { include: { signatures: { orderBy: { createdAt: 'asc' } } } }
+    }
+  });
+
+  return signatures.filter(signature => publicSignatureStatus(signature) === 'ACTIVE');
+}
+
+async function publicSignatureForTokenScopeOrThrow(token, signatureId, client = prisma, { retryable = false } = {}) {
+  if (!signatureId) {
+    return retryable
+      ? retryablePublicSignatureForConfirmOrThrow(token, client)
+      : activePublicSignatureOrThrow(token, client);
+  }
+
+  const anchor = await publicSignatureFromToken(token, client);
+  const anchorStatus = publicSignatureStatus(anchor);
+  if (publicSignatureBatchScopeUnavailable(anchorStatus)) {
+    const error = new Error('Link de assinatura indisponível.');
+    error.statusCode = anchorStatus === 'INVALID' ? 404 : 409;
+    error.publicStatus = anchorStatus;
+    throw error;
+  }
+
+  const signature = await publicSignatureFromId(signatureId, client);
+  const status = publicSignatureStatus(signature);
+  if (!samePublicSignatureBatchScope(anchor, signature) || (status !== 'ACTIVE' && !(retryable && isFinalizationRetryableSignature(signature)))) {
+    const error = new Error('Link de assinatura indisponível.');
+    error.statusCode = !signature ? 404 : 409;
+    error.publicStatus = !signature ? 'INVALID' : status;
+    throw error;
+  }
+  return signature;
 }
 
 async function activePublicSignatureOrThrow(token, client = prisma) {
@@ -799,12 +936,13 @@ export async function completedSignatureVersionAfterCommit(client, reportId) {
 
 export async function rejectPublicInternalSignature({
   token,
+  signatureId = null,
   comment,
   evidence,
   client = prisma
 }) {
   return client.$transaction(async tx => {
-    const signature = await activePublicSignatureOrThrow(token, tx);
+    const signature = await publicSignatureForTokenScopeOrThrow(token, signatureId, tx);
     const rejected = await tx.reportSignature.updateMany({
       where: { id: signature.id, status: ReportSignatureStatus.PENDING },
       data: {
@@ -2171,6 +2309,7 @@ export const requestSignatureSchema = z.object({
   if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['privacyNoticeVersion'], message: error });
 });
 export const publicSignatureConfirmSchema = z.object({
+  signatureId: z.string().trim().min(1).optional(),
   signerName: z.string().trim().min(2).max(160),
   signatureImageDataUrl: z.string().trim().min(1).max(2_100_000)
     .refine(value => !!parseSignatureImageDataUrl(value), 'Assinatura visual invalida.'),
@@ -2181,6 +2320,7 @@ export const publicSignatureConfirmSchema = z.object({
   if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['privacyNoticeVersion'], message: error });
 });
 const publicSignatureRejectSchema = z.object({
+  signatureId: z.string().trim().min(1).optional(),
   comment: z.string().trim().min(1).max(4000)
 });
 const batchDownloadSchema = z.object({
@@ -4055,6 +4195,7 @@ router.post('/batch-download', requireAuth, requireRdoAccess, asyncHandler(async
 router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {
   let signature = await publicSignatureFromToken(req.params.token);
   let status = publicSignatureStatus(signature);
+  let batchSignatures = [];
 
   if (signature && status === 'EXPIRED' && signature.status === 'PENDING') {
     const expired = await prisma.$transaction(tx => expirePendingPublicSignature(tx, signature, signatureEvidenceFromRequest(req)));
@@ -4075,11 +4216,22 @@ router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (re
     });
   }
 
-  res.json(publicSignaturePayload(signature, status));
+  if (signature && !publicSignatureBatchScopeUnavailable(status)) {
+    batchSignatures = await activePublicSignatureBatchFromAnchor(signature);
+  }
+
+  const responseSignature = batchSignatures[0] || signature;
+  const responseStatus = batchSignatures.length ? 'ACTIVE' : status;
+  const payload = publicSignaturePayload(responseSignature, responseStatus);
+  if (payload.report && batchSignatures.length > 1) {
+    payload.batch = publicSignatureBatchPayload(signature, batchSignatures);
+  }
+  res.json(payload);
 }));
 
 router.get('/public-sign/:token/pdf', publicSignatureLimiter, asyncHandler(async (req, res) => {
-  const signature = await activePublicSignatureOrThrow(req.params.token);
+  const signatureId = String(req.query.signatureId || '').trim() || null;
+  const signature = await publicSignatureForTokenScopeOrThrow(req.params.token, signatureId);
   const sourcePath = reportSourcePdfPath(signature.version.sourcePdfUrl);
   if (!sourcePath) return res.status(404).json({ error: 'PDF da assinatura não encontrado.' });
 
@@ -4095,7 +4247,7 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
   let signedVersion;
   let signatureResult = { alreadySigned: false };
   let item = await prisma.$transaction(async tx => {
-    const signature = await retryablePublicSignatureForConfirmOrThrow(req.params.token, tx);
+    const signature = await publicSignatureForTokenScopeOrThrow(req.params.token, data.signatureId, tx, { retryable: true });
     const completesRequiredSignatures = signatureWouldCompleteRequired(signature.version, signature.id);
     await assertSignatureFinalizationPreflight(signature.version);
     signatureResult = await signInternalReportVersion(tx, {
@@ -4139,7 +4291,8 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
     const finalVersion = completed && item.versions?.[0]
       ? { ...signedVersion, finalDocumentHash: item.versions[0].finalDocumentHash }
       : signedVersion;
-    const signedSignature = finalVersion?.signatures?.find(signature => internalSignatureTokenHash(req.params.token) === signature.tokenHash);
+    const signedSignature = signatureResult.signedSignature
+      || finalVersion?.signatures?.find(signature => data.signatureId ? signature.id === data.signatureId : internalSignatureTokenHash(req.params.token) === signature.tokenHash);
     queueInternalSignatureNotification(item, finalVersion, {
       name: signedSignature?.signerName,
       email: signedSignature?.signerEmail
@@ -4166,6 +4319,7 @@ router.post('/public-sign/:token/reject', publicSignatureLimiter, asyncHandler(a
   const evidence = signatureEvidenceFromRequest(req);
   const item = await rejectPublicInternalSignature({
     token: req.params.token,
+    signatureId: data.signatureId,
     comment: data.comment,
     evidence
   });

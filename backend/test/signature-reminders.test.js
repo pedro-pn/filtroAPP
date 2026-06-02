@@ -147,6 +147,94 @@ test('processSignatureReminders sends a reusable public signing link and records
   assert.equal(updates.some(item => item.args.data.reminderCount?.increment === 1), true);
 });
 
+test('processSignatureReminders groups pending RDO reminders by project and signer', async () => {
+  const sent = [];
+  const updates = [];
+  const createdAt = new Date('2026-05-25T12:00:00.000Z');
+  const project = {
+    id: 'project-1',
+    code: 'P-001',
+    name: 'Projeto Teste',
+    deletedAt: null,
+    managerOnly: false
+  };
+  const signatures = [12, 13].map(sequenceNumber => ({
+    id: `sig-${sequenceNumber}`,
+    status: ReportSignatureStatus.PENDING,
+    isRequired: true,
+    signerName: 'Cliente',
+    signerEmail: 'cliente@example.com',
+    createdAt,
+    tokenHash: null,
+    tokenExpiresAt: null,
+    report: {
+      id: `report-${sequenceNumber}`,
+      projectId: project.id,
+      reportType: 'RDO',
+      sequenceNumber,
+      reportDate: new Date(`2026-05-${sequenceNumber}T00:00:00.000Z`),
+      status: ReportStatus.APPROVED,
+      project
+    },
+    version: {
+      id: `version-${sequenceNumber}`,
+      status: ReportVersionStatus.ACTIVE,
+      finalDocumentHash: null
+    }
+  }));
+  const client = {
+    reportSignature: {
+      async findMany() {
+        return signatures;
+      },
+      async updateMany(args) {
+        updates.push({ type: 'updateMany', args });
+        return { count: args.where.id?.in?.length || signatures.length };
+      },
+      async update(args) {
+        updates.push({ type: 'update', args });
+        return { id: args.where.id, ...args.data };
+      }
+    },
+    user: {
+      async findMany() {
+        return [{
+          id: 'user-1',
+          email: 'cliente@example.com',
+          username: 'cliente@example.com',
+          notifyReportsByEmail: true,
+          notifySignaturesByEmail: true,
+          notifySignatureRemindersByEmail: true,
+          notifySurveyRemindersByEmail: true
+        }];
+      }
+    },
+    notificationPreferenceToken: {
+      async findFirst() {
+        return { tokenHash: 'pref-token' };
+      }
+    }
+  };
+
+  const result = await processSignatureReminders({
+    client,
+    missingMailerConfig: [],
+    mailer: async message => {
+      sent.push(message);
+    }
+  });
+
+  assert.deepEqual(result, { checked: 2, sent: 1 });
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].to, 'cliente@example.com');
+  assert.match(sent[0].subject, /2 RDOs pendentes/);
+  assert.match(sent[0].text, /RDO 012/);
+  assert.match(sent[0].text, /RDO 013/);
+  assert.match(sent[0].text, /Assinar RDOs pendentes: .*\/assinar\//);
+  assert.equal(updates.filter(item => item.type === 'update').length, 2);
+  assert.equal(updates.some(item => item.args.data.reminderCount?.increment === 1), true);
+});
+
 test('publicSignatureUrl keeps the token in the signing route', () => {
   assert.match(publicSignatureUrl('token with spaces'), /\/assinar\/token%20with%20spaces$/);
 });

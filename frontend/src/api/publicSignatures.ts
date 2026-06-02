@@ -1,10 +1,38 @@
 import { apiClient } from './client';
 import type { ReportSummary } from '../types/domain';
 
+export interface PublicSignatureReportPayload {
+  signatureId?: string;
+  status: 'ACTIVE' | 'SIGNED' | 'REJECTED' | 'INVALIDATED' | 'EXPIRED' | 'UNAVAILABLE' | 'INVALID';
+  expiresAt?: string | null;
+  signer: {
+    name: string;
+    declaredName?: string | null;
+    email: string;
+    status: string;
+    signedAt?: string | null;
+    rejectedAt?: string | null;
+  };
+  report: {
+    id: string;
+    reportType: string;
+    sequenceNumber?: number | null;
+    reportDate?: string | null;
+    status: string;
+    sourceDocumentHash: string;
+    project: {
+      code: string;
+      name: string;
+      clientName: string;
+    };
+  };
+}
+
 export interface PublicSignaturePayload {
   status: 'ACTIVE' | 'SIGNED' | 'REJECTED' | 'INVALIDATED' | 'EXPIRED' | 'UNAVAILABLE' | 'INVALID';
   expiresAt?: string | null;
   signer?: {
+    signatureId?: string;
     name: string;
     declaredName?: string | null;
     email: string;
@@ -25,6 +53,15 @@ export interface PublicSignaturePayload {
       clientName: string;
     };
   };
+  batch?: {
+    pendingCount: number;
+    project: {
+      code: string;
+      name: string;
+      clientName: string;
+    };
+    reports: PublicSignatureReportPayload[];
+  };
 }
 
 export async function getPublicSignature(token: string) {
@@ -33,6 +70,7 @@ export async function getPublicSignature(token: string) {
 }
 
 export interface PublicSignatureConfirmPayload {
+  signatureId?: string;
   signerName: string;
   signatureImageDataUrl: string;
   privacyNoticeAccepted: true;
@@ -47,15 +85,16 @@ export async function confirmPublicSignature(token: string, payload: PublicSigna
   return response.data;
 }
 
-export async function rejectPublicSignature(token: string, comment: string) {
+export async function rejectPublicSignature(token: string, comment: string, signatureId?: string) {
   const response = await apiClient.post<{ success: boolean; report: ReportSummary }>(
     `/reports/public-sign/${encodeURIComponent(token)}/reject`,
-    { comment }
+    { comment, signatureId }
   );
   return response.data;
 }
 
-export function publicSignaturePdfUrl(token: string) {
+export function publicSignaturePdfUrl(token: string, signatureId?: string) {
   const baseUrl = String(apiClient.defaults.baseURL || '/api').replace(/\/+$/, '');
-  return `${baseUrl}/reports/public-sign/${encodeURIComponent(token)}/pdf`;
+  const url = `${baseUrl}/reports/public-sign/${encodeURIComponent(token)}/pdf`;
+  return signatureId ? `${url}?signatureId=${encodeURIComponent(signatureId)}` : url;
 }
