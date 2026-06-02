@@ -28,28 +28,69 @@ function formatEmailDate(value) {
 
 function wrapEmailHtml({ title, intro, body, footer }) {
   return `
-    <div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1a1a1a">
-      <div style="border-bottom:1px solid #e5e7eb;padding-bottom:12px;margin-bottom:20px">
-        <img src="cid:${EMAIL_LOGO_CID}" alt="Filtrovali" width="220" style="display:block;max-width:220px;width:100%;height:auto;border:0">
-      </div>
-      <h1 style="font-size:22px;line-height:1.3;margin:0 0 16px;color:#243d2c">${title}</h1>
-      <p style="font-size:14px;line-height:1.7;margin:0 0 16px">${intro}</p>
-      ${body}
-      <p style="font-size:12px;line-height:1.6;color:#6b7280;margin-top:24px">${footer}</p>
-    </div>
+<style>
+  /* Instrui clientes que suportam color-scheme a não aplicar dark mode automático */
+  :root { color-scheme: light only; }
+
+  /* Outlook.com dark mode: injeta [data-ogsc] no body ao ativar dark mode */
+  [data-ogsc] .ew-outer  { background-color: #eef4ef !important; }
+  [data-ogsc] .ew-header { background-color: #243d2c !important; }
+  [data-ogsc] .ew-card   { background-color: #ffffff !important; color: #1a1a1a !important; }
+  [data-ogsc] .ew-title  { color: #243d2c !important; }
+  [data-ogsc] .ew-intro  { color: #374151 !important; }
+  [data-ogsc] .ew-footer { background-color: #f3f6f4 !important; }
+  [data-ogsc] .ew-footer-text { color: #6b7280 !important; }
+
+  /* Apple Mail, iOS Mail, Thunderbird — força as mesmas cores no dark mode */
+  @media (prefers-color-scheme: dark) {
+    .ew-outer  { background-color: #eef4ef !important; }
+    .ew-header { background-color: #243d2c !important; }
+    .ew-card   { background-color: #ffffff !important; color: #1a1a1a !important; }
+    .ew-title  { color: #243d2c !important; }
+    .ew-intro  { color: #374151 !important; }
+    .ew-footer { background-color: #f3f6f4 !important; }
+    .ew-footer-text { color: #6b7280 !important; }
+  }
+</style>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#eef4ef" style="background-color:#eef4ef;font-family:Segoe UI,Arial,sans-serif">
+  <tr>
+    <td class="ew-outer" align="center" style="padding:32px 16px;background-color:#eef4ef">
+      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px">
+        <tr>
+          <td class="ew-header" bgcolor="#243d2c" style="background-color:#243d2c;padding:20px 32px;border-radius:12px 12px 0 0">
+            <img src="cid:${EMAIL_LOGO_CID}" alt="Filtrovali" width="180" style="display:block;max-width:180px;width:100%;height:auto;border:0">
+          </td>
+        </tr>
+        <tr>
+          <td class="ew-card" style="padding:32px;color:#1a1a1a;background-color:#ffffff">
+            <h1 class="ew-title" style="font-size:22px;line-height:1.3;margin:0 0 12px;color:#243d2c">${title}</h1>
+            <p class="ew-intro" style="font-size:14px;line-height:1.7;margin:0 0 20px;color:#374151">${intro}</p>
+            ${body}
+            <!--PREFS_PLACEHOLDER-->
+          </td>
+        </tr>
+        <tr>
+          <td class="ew-footer" bgcolor="#f3f6f4" style="background-color:#f3f6f4;border-top:3px solid #d1e0d5;padding:20px 32px;border-radius:0 0 12px 12px">
+            <p class="ew-footer-text" style="font-size:12px;line-height:1.6;color:#6b7280;margin:0">${footer}</p>
+            <p style="font-size:11px;line-height:1.5;color:#9ca3af;margin:8px 0 0">Este e-mail foi gerado automaticamente. Por favor, não responda diretamente a esta mensagem.</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
   `.trim();
 }
 
 export function addNotificationPreferencesLink(template, url) {
   if (!url) return template;
   const safeUrl = escapeHtml(url);
-  const html = [
-    template.html || '',
-    `<div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:16px auto 0;padding:0 24px 24px;color:#1a1a1a">
-      <a href="${safeUrl}" style="display:inline-block;background:#eef4ef;color:#30503a;text-decoration:none;padding:10px 14px;border-radius:8px;font-weight:700">Não receber notificações</a>
+  const prefsHtml = `
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e5e7eb">
+      <a href="${safeUrl}" style="display:inline-block;background:#eef4ef;color:#30503a;text-decoration:none;padding:10px 14px;border-radius:8px;font-weight:700;font-size:13px">Não receber notificações</a>
       <p style="font-size:12px;line-height:1.6;color:#6b7280;margin:10px 0 0">Este link permite alterar apenas suas preferências de notificação.</p>
-    </div>`
-  ].filter(Boolean).join('\n');
+    </div>`;
+  const html = (template.html || '').replace('<!--PREFS_PLACEHOLDER-->', prefsHtml);
   return {
     ...template,
     text: [

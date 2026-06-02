@@ -9,7 +9,7 @@ import { EMAIL_LOGO_CID } from './email-templates.js';
 const requiredConfig = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFrom'];
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const emailLogoPath = path.resolve(__dirname, '../../assets/Logo/LOGO_COLORIDO.png');
+const emailLogoPath = path.resolve(__dirname, '../../assets/Logo/LOGO_BRANCA.png');
 
 export function getMissingMailerConfig() {
   return requiredConfig.filter(key => !env[key]);
@@ -49,7 +49,7 @@ export async function sendMail(message) {
   const attachments = Array.isArray(message.attachments) ? message.attachments.slice() : [];
   if (fs.existsSync(emailLogoPath) && !attachments.some(item => item && item.cid === EMAIL_LOGO_CID)) {
     attachments.push({
-      filename: 'LOGO_COLORIDO.png',
+      filename: 'LOGO_BRANCA.png',
       path: emailLogoPath,
       cid: EMAIL_LOGO_CID
     });

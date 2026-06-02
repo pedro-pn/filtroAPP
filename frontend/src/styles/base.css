@@ -6815,7 +6815,7 @@ select {
 
 .stats-alloc-actions {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
   flex-wrap: wrap;
 }
