@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import asyncHandler from '../../lib/async-handler.js';
+import { buildMonthlyAllocationPdf, buildMonthlyAllocationSummary, sendMonthlyAllocationReport, validateYearMonth } from '../../lib/allocation-monthly-report.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
@@ -420,6 +421,22 @@ function reportLimitError(limit) {
   return `Consulta muito ampla para estatísticas. Refine por projeto, segmento ou período para até ${limit} RDOs.`;
 }
 
+function currentYearMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function normalizeRecipientEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function recipientEmailError(value) {
+  const email = normalizeRecipientEmail(value);
+  if (!email) return 'E-mail é obrigatório.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'E-mail inválido.';
+  return null;
+}
+
 export function buildServiceExportRows(report, project) {
   const rows = [];
   const dateStr = toLocalDateStr(report.reportDate);
@@ -770,6 +787,89 @@ router.get('/projects/export', requireAuth, requireRdoStats, asyncHandler(async 
   }
 
   res.end();
+}));
+
+// ─── Monthly collaborator allocation report ──────────────────────────────────
+
+router.get('/allocation-report', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+  const yearMonth = String(req.query.yearMonth || currentYearMonth());
+  if (!validateYearMonth(yearMonth)) {
+    return res.status(400).json({ error: 'Mês inválido. Use o formato YYYY-MM.' });
+  }
+
+  const data = await buildMonthlyAllocationSummary({ yearMonth });
+  res.json(data);
+}));
+
+router.get('/allocation-report/pdf', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+  const yearMonth = String(req.query.yearMonth || currentYearMonth());
+  if (!validateYearMonth(yearMonth)) {
+    return res.status(400).json({ error: 'Mês inválido. Use o formato YYYY-MM.' });
+  }
+
+  const data = await buildMonthlyAllocationSummary({ yearMonth });
+  const pdf = await buildMonthlyAllocationPdf(data);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="alocacao-colaboradores-${yearMonth}.pdf"`);
+  res.send(pdf);
+}));
+
+router.post('/allocation-report/send', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+  const yearMonth = String(req.body?.yearMonth || currentYearMonth());
+  if (!validateYearMonth(yearMonth)) {
+    return res.status(400).json({ error: 'Mês inválido. Use o formato YYYY-MM.' });
+  }
+
+  const result = await sendMonthlyAllocationReport({ yearMonth });
+  res.json({ yearMonth, ...result });
+}));
+
+router.get('/allocation-report/recipients', requireAuth, requireRdoStats, asyncHandler(async (_req, res) => {
+  const recipients = await prisma.allocationReportRecipient.findMany({
+    orderBy: [{ isActive: 'desc' }, { email: 'asc' }]
+  });
+  res.json(recipients);
+}));
+
+router.post('/allocation-report/recipients', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+  const email = normalizeRecipientEmail(req.body?.email);
+  const emailError = recipientEmailError(email);
+  if (emailError) return res.status(400).json({ error: emailError });
+
+  const name = String(req.body?.name || '').trim() || null;
+  const recipient = await prisma.allocationReportRecipient.upsert({
+    where: { email },
+    create: { email, name, isActive: true },
+    update: { name, isActive: true }
+  });
+  res.status(201).json(recipient);
+}));
+
+router.patch('/allocation-report/recipients/:id', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+  const data = {};
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, 'name')) {
+    data.name = String(req.body.name || '').trim() || null;
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, 'email')) {
+    const email = normalizeRecipientEmail(req.body.email);
+    const emailError = recipientEmailError(email);
+    if (emailError) return res.status(400).json({ error: emailError });
+    data.email = email;
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, 'isActive')) {
+    data.isActive = Boolean(req.body.isActive);
+  }
+
+  const recipient = await prisma.allocationReportRecipient.update({
+    where: { id: req.params.id },
+    data
+  });
+  res.json(recipient);
+}));
+
+router.delete('/allocation-report/recipients/:id', requireAuth, requireRdoStats, asyncHandler(async (req, res) => {
+  await prisma.allocationReportRecipient.delete({ where: { id: req.params.id } });
+  res.status(204).end();
 }));
 
 // ─── Overview (mini dashboard) ───────────────────────────────────────────────

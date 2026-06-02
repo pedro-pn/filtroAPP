@@ -1,7 +1,28 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from 'react';
 
-import { downloadProjectStatsCsv, statsExportFileName, type StatsExportSection, type StatsOverviewProject, type StatsParams, type StatsProjectData, type StatsServiceStats, type StatsSummary, type StatsTimelineSlot } from '../../api/statistics';
-import { useProjectStats, useProjectSegments, useStatsOverview } from '../../hooks/useProjectStats';
+import {
+  allocationReportPdfFileName,
+  downloadAllocationReportPdf,
+  downloadProjectStatsCsv,
+  statsExportFileName,
+  type AllocationReportCollaborator,
+  type AllocationReportDay,
+  type StatsExportSection,
+  type StatsOverviewProject,
+  type StatsParams,
+  type StatsProjectData,
+  type StatsServiceStats,
+  type StatsSummary,
+  type StatsTimelineSlot
+} from '../../api/statistics';
+import {
+  useAllocationReport,
+  useAllocationReportRecipientMutations,
+  useAllocationReportRecipients,
+  useProjectStats,
+  useProjectSegments,
+  useStatsOverview
+} from '../../hooks/useProjectStats';
 import { useProjects } from '../../hooks/useProjects';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { downloadBlob } from '../../utils/download';
@@ -42,6 +63,14 @@ function startOfWeek(): string {
 function startOfMonth(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+function currentMonthNumber(): string {
+  return String(new Date().getMonth() + 1).padStart(2, '0');
+}
+
+function currentYearValue(): string {
+  return String(new Date().getFullYear());
 }
 
 function startOfYear(): string {
@@ -870,6 +899,21 @@ const REPORT_TYPE_LABELS: Record<string, string> = {
 
 const ALL_REPORT_TYPES = ['RDO', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLF', 'RLI'];
 
+const MONTH_OPTIONS = [
+  ['01', 'Janeiro'],
+  ['02', 'Fevereiro'],
+  ['03', 'Março'],
+  ['04', 'Abril'],
+  ['05', 'Maio'],
+  ['06', 'Junho'],
+  ['07', 'Julho'],
+  ['08', 'Agosto'],
+  ['09', 'Setembro'],
+  ['10', 'Outubro'],
+  ['11', 'Novembro'],
+  ['12', 'Dezembro']
+];
+
 function OverviewCountCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="stats-ov-count-card">
@@ -932,6 +976,283 @@ function ReportTypeTable({ rows }: { rows: StatsOverviewProject[] }) {
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function formatAllocationDate(value: string) {
+  return formatDateOnlyPtBr(value);
+}
+
+function AllocationDayList({ days }: { days: AllocationReportDay[] }) {
+  if (days.length === 0) return <span className="stats-alloc-empty-cell">Sem alocação</span>;
+  return (
+    <div className="stats-alloc-day-list">
+      {days.map((day, index) => (
+        <div key={`${day.date}-${day.projectId}-${day.shift}-${index}`} className="stats-alloc-day-item">
+          <span className="stats-alloc-date">{formatAllocationDate(day.date)}</span>
+          <span className="stats-alloc-shift">{day.shift}</span>
+          <span className="stats-alloc-project">{day.projectName}</span>
+          <span className="stats-alloc-cnpj">{day.clientCnpj || '-'}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AllocationTable({ collaborators }: { collaborators: AllocationReportCollaborator[] }) {
+  if (collaborators.length === 0) {
+    return <div className="stats-empty">Nenhuma alocação encontrada para o mês selecionado.</div>;
+  }
+
+  return (
+    <div className="stats-alloc-table-wrap">
+      <table className="stats-alloc-table">
+        <thead>
+          <tr>
+            <th>Colaborador</th>
+            <th>Cargo</th>
+            <th>Alocações do mês</th>
+          </tr>
+        </thead>
+        <tbody>
+          {collaborators.map(collaborator => (
+            <tr key={collaborator.collaboratorId || collaborator.collaboratorName}>
+              <td className="stats-alloc-person">{collaborator.collaboratorName}</td>
+              <td>{collaborator.collaboratorRole || '-'}</td>
+              <td><AllocationDayList days={collaborator.days} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MonthlyAllocationDashboard() {
+  const [selectedYear, setSelectedYear] = useState(currentYearValue());
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthNumber());
+  const [activeTab, setActiveTab] = useState<'summary' | 'recipients'>('summary');
+  const [recipientName, setRecipientName] = useState('');
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [message, setMessage] = useState('');
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const yearMonth = `${selectedYear}-${selectedMonth}`;
+  const yearOptions = useMemo(() => {
+    const current = new Date().getFullYear();
+    return Array.from({ length: 8 }, (_, index) => String(current + 1 - index));
+  }, []);
+  const allocationQuery = useAllocationReport(yearMonth);
+  const recipientsQuery = useAllocationReportRecipients();
+  const recipientMutations = useAllocationReportRecipientMutations();
+
+  async function handleDownloadPdf() {
+    setMessage('');
+    setPdfLoading(true);
+    try {
+      const blob = await downloadAllocationReportPdf(yearMonth);
+      downloadBlob(blob, allocationReportPdfFileName(yearMonth));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível baixar o PDF.');
+    } finally {
+      setPdfLoading(false);
+    }
+  }
+
+  async function handleAddRecipient(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage('');
+    try {
+      await recipientMutations.saveRecipient.mutateAsync({
+        name: recipientName.trim() || undefined,
+        email: recipientEmail.trim()
+      });
+      setRecipientName('');
+      setRecipientEmail('');
+      setMessage('Destinatário salvo.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível salvar o destinatário.');
+    }
+  }
+
+  async function handleToggleRecipient(id: string, isActive: boolean) {
+    setMessage('');
+    try {
+      await recipientMutations.updateRecipient.mutateAsync({ id, payload: { isActive: !isActive } });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível atualizar o destinatário.');
+    }
+  }
+
+  async function handleRemoveRecipient(id: string) {
+    setMessage('');
+    try {
+      await recipientMutations.removeRecipient.mutateAsync(id);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível remover o destinatário.');
+    }
+  }
+
+  async function handleSendNow() {
+    setMessage('');
+    try {
+      const result = await recipientMutations.sendNow.mutateAsync(yearMonth);
+      if (result.skipped) {
+        setMessage(result.reason === 'no_recipients'
+          ? 'Nenhum destinatário ativo cadastrado.'
+          : 'Envio não realizado.');
+        return;
+      }
+      setMessage(`E-mail enviado para ${result.sent} destinatário${result.sent === 1 ? '' : 's'}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível enviar o relatório agora.');
+    }
+  }
+
+  const data = allocationQuery.data;
+  const recipients = recipientsQuery.data || [];
+  const activeRecipients = recipients.filter(item => item.isActive).length;
+
+  return (
+    <div className="stats-alloc-dashboard">
+      <div className="survey-dash-card stats-alloc-section">
+        <div className="stats-card-header">
+          <div>
+            <div className="survey-dash-card-title">Alocação mensal de colaboradores</div>
+            <div className="stats-alloc-subtitle">Resumo dia a dia por projeto e CNPJ.</div>
+          </div>
+          <div className="stats-alloc-actions">
+            <label className="stats-alloc-select-field">
+              <span>Ano</span>
+              <select className="stats-filter-select stats-alloc-year" value={selectedYear} onChange={event => setSelectedYear(event.target.value)}>
+                {yearOptions.map(year => <option key={year} value={year}>{year}</option>)}
+              </select>
+            </label>
+            <label className="stats-alloc-select-field">
+              <span>Mês</span>
+              <select className="stats-filter-select stats-alloc-month" value={selectedMonth} onChange={event => setSelectedMonth(event.target.value)}>
+                {MONTH_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            <button className="mini-btn" type="button" onClick={handleDownloadPdf} disabled={pdfLoading || allocationQuery.isLoading}>
+              {pdfLoading ? 'Gerando...' : 'Baixar PDF'}
+            </button>
+          </div>
+        </div>
+
+        <div className="stats-alloc-tabs" role="tablist" aria-label="Seções da alocação mensal">
+          <button type="button" role="tab" aria-selected={activeTab === 'summary'} className={`stats-tab-btn${activeTab === 'summary' ? ' active' : ''}`} onClick={() => setActiveTab('summary')}>
+            Resumo
+          </button>
+          <button type="button" role="tab" aria-selected={activeTab === 'recipients'} className={`stats-tab-btn${activeTab === 'recipients' ? ' active' : ''}`} onClick={() => setActiveTab('recipients')}>
+            Destinatários
+          </button>
+        </div>
+
+        {activeTab === 'summary' && (
+          <>
+            {allocationQuery.isLoading && <div className="stats-empty">Carregando alocações...</div>}
+            {allocationQuery.isError && <div className="stats-empty">Erro ao carregar alocações do mês.</div>}
+            {data && (
+              <>
+                <div className="stats-alloc-kpis">
+                  <OverviewCountCard label="RDOs" value={data.summary.reportCount} />
+                  <OverviewCountCard label="Colaboradores" value={data.summary.collaboratorCount} />
+                  <OverviewCountCard label="Alocações" value={data.summary.allocationCount} />
+                  <OverviewCountCard label="Projetos" value={data.summary.projectCount} />
+                </div>
+                <AllocationTable collaborators={data.collaborators} />
+              </>
+            )}
+          </>
+        )}
+      </div>
+
+      {activeTab === 'recipients' && <div className="survey-dash-card stats-alloc-section">
+        <div className="stats-card-header">
+          <div>
+            <div className="survey-dash-card-title">Destinatários do envio mensal</div>
+            <div className="stats-alloc-subtitle">O envio automático ocorre no dia 1 para o mês anterior. Ativos: {activeRecipients}</div>
+          </div>
+          <button
+            className="mini-btn"
+            type="button"
+            onClick={handleSendNow}
+            disabled={recipientMutations.sendNow.isPending || recipientsQuery.isLoading || activeRecipients === 0}
+          >
+            {recipientMutations.sendNow.isPending ? 'Enviando...' : 'Enviar agora'}
+          </button>
+        </div>
+
+        <form className="stats-alloc-recipient-form" onSubmit={handleAddRecipient}>
+          <input
+            type="text"
+            value={recipientName}
+            onChange={event => setRecipientName(event.target.value)}
+            placeholder="Nome opcional"
+          />
+          <input
+            type="email"
+            value={recipientEmail}
+            onChange={event => setRecipientEmail(event.target.value)}
+            placeholder="email@empresa.com"
+            required
+          />
+          <button className="mini-btn" type="submit" disabled={recipientMutations.saveRecipient.isPending}>
+            Salvar e-mail
+          </button>
+        </form>
+
+        {message && <div className="stats-alloc-message">{message}</div>}
+        {recipientsQuery.isLoading && <div className="stats-empty">Carregando destinatários...</div>}
+        {recipientsQuery.isError && <div className="stats-empty">Erro ao carregar destinatários.</div>}
+        {recipients.length > 0 ? (
+          <div className="stats-alloc-recipient-list">
+            {recipients.map(recipient => (
+              <div key={recipient.id} className={`stats-alloc-recipient${recipient.isActive ? '' : ' inactive'}`}>
+                <div>
+                  <strong>{recipient.name || recipient.email}</strong>
+                  {recipient.name && <span>{recipient.email}</span>}
+                </div>
+                <div className="stats-alloc-recipient-actions">
+                  <button className="mini-btn alt" type="button" onClick={() => handleToggleRecipient(recipient.id, recipient.isActive)}>
+                    {recipient.isActive ? 'Desativar' : 'Ativar'}
+                  </button>
+                  <button className="mini-btn danger" type="button" onClick={() => handleRemoveRecipient(recipient.id)}>
+                    Remover
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          !recipientsQuery.isLoading && <div className="stats-empty">Nenhum destinatário cadastrado.</div>
+        )}
+      </div>}
+    </div>
+  );
+}
+
+export function MonthlyAllocationDashboardOverlay({ onClose }: StatsDashboardOverlayProps) {
+  useEffect(() => {
+    const handle = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handle);
+    return () => document.removeEventListener('keydown', handle);
+  }, [onClose]);
+
+  return (
+    <div className="survey-dash-overlay" role="dialog" aria-modal="true" aria-label="Alocação mensal de colaboradores">
+      <div className="survey-dash-overlay-topbar">
+        <img className="survey-dash-overlay-logo" src={headerLogoUrl} alt="Filtrovali" />
+        <span className="survey-dash-overlay-title">Alocação Mensal</span>
+        <button className="survey-dash-overlay-back" type="button" onClick={onClose}>← Voltar</button>
+      </div>
+      <div className="survey-dash-overlay-scroll">
+        <div className="survey-dash-overlay-content">
+          <MonthlyAllocationDashboard />
+        </div>
+      </div>
     </div>
   );
 }

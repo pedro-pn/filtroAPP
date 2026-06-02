@@ -276,6 +276,40 @@ export function buildRomaneioCreatedEmailTemplate({
   };
 }
 
+export function buildMonthlyAllocationReportEmailTemplate({ monthLabel, summary }) {
+  const safeMonth = escapeHtml(monthLabel);
+  const counts = summary || {};
+  const title = 'Relatório mensal de alocação';
+  const intro = `Segue em anexo o relatório mensal de alocação de colaboradores referente a ${safeMonth}.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Competência:</strong> ${safeMonth}</div>
+        <div><strong>RDOs considerados:</strong> ${counts.reportCount || 0}</div>
+        <div><strong>Colaboradores:</strong> ${counts.collaboratorCount || 0}</div>
+        <div><strong>Alocações:</strong> ${counts.allocationCount || 0}</div>
+        <div><strong>Projetos:</strong> ${counts.projectCount || 0}</div>
+      </div>
+    </div>
+  `;
+  const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Relatório mensal de alocação - ${monthLabel}`,
+    text: [
+      `Relatório mensal de alocação - ${monthLabel}`,
+      '',
+      'Segue em anexo o PDF com o resumo dia a dia por colaborador, projeto e CNPJ.',
+      '',
+      `RDOs considerados: ${counts.reportCount || 0}`,
+      `Colaboradores: ${counts.collaboratorCount || 0}`,
+      `Alocações: ${counts.allocationCount || 0}`,
+      `Projetos: ${counts.projectCount || 0}`
+    ].join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
 export function buildPasswordResetEmailTemplate({ userName, resetUrl, expiresLabel }) {
   const title = 'Recuperação de senha';
   const intro = `Recebemos uma solicitação para redefinir a senha da conta ${userName}.`;

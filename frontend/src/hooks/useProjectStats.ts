@@ -1,6 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { createProjectSegment, fetchProjectStats, fetchStatsOverview, listProjectSegments, type ClientSegmentPayload, type StatsParams } from '../api/statistics';
+import {
+  createProjectSegment,
+  fetchAllocationReport,
+  fetchProjectStats,
+  fetchStatsOverview,
+  listAllocationReportRecipients,
+  listProjectSegments,
+  removeAllocationReportRecipient,
+  saveAllocationReportRecipient,
+  sendAllocationReportNow,
+  updateAllocationReportRecipient,
+  type AllocationReportRecipientPayload,
+  type ClientSegmentPayload,
+  type StatsParams
+} from '../api/statistics';
 
 export function useProjectStats(params: StatsParams, enabled = true) {
   return useQuery({
@@ -27,6 +41,23 @@ export function useStatsOverview() {
   });
 }
 
+export function useAllocationReport(yearMonth: string) {
+  return useQuery({
+    queryKey: ['allocationReport', yearMonth],
+    queryFn: () => fetchAllocationReport(yearMonth),
+    staleTime: 5 * 60 * 1000,
+    enabled: Boolean(yearMonth)
+  });
+}
+
+export function useAllocationReportRecipients() {
+  return useQuery({
+    queryKey: ['allocationReportRecipients'],
+    queryFn: listAllocationReportRecipients,
+    staleTime: 5 * 60 * 1000
+  });
+}
+
 export function useProjectSegmentMutations() {
   const queryClient = useQueryClient();
 
@@ -34,6 +65,29 @@ export function useProjectSegmentMutations() {
     createSegment: useMutation({
       mutationFn: (payload: ClientSegmentPayload) => createProjectSegment(payload),
       onSuccess: () => queryClient.invalidateQueries({ queryKey: ['projectSegments'] })
+    })
+  };
+}
+
+export function useAllocationReportRecipientMutations() {
+  const queryClient = useQueryClient();
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['allocationReportRecipients'] });
+
+  return {
+    saveRecipient: useMutation({
+      mutationFn: (payload: AllocationReportRecipientPayload) => saveAllocationReportRecipient(payload),
+      onSuccess: invalidate
+    }),
+    updateRecipient: useMutation({
+      mutationFn: ({ id, payload }: { id: string; payload: Partial<AllocationReportRecipientPayload> }) => updateAllocationReportRecipient(id, payload),
+      onSuccess: invalidate
+    }),
+    removeRecipient: useMutation({
+      mutationFn: (id: string) => removeAllocationReportRecipient(id),
+      onSuccess: invalidate
+    }),
+    sendNow: useMutation({
+      mutationFn: (yearMonth: string) => sendAllocationReportNow(yearMonth)
     })
   };
 }

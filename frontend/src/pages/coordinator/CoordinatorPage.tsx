@@ -14,7 +14,7 @@ import { useProjects } from '../../hooks/useProjects';
 import { useReports } from '../../hooks/useReports';
 import { useSurveys } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
-import { StatsDashboardOverlay, StatsOverview } from '../../components/stats/StatsDashboard';
+import { MonthlyAllocationDashboardOverlay, StatsDashboardOverlay, StatsOverview } from '../../components/stats/StatsDashboard';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
@@ -120,6 +120,7 @@ export function CoordinatorPage() {
   const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
   const [npsDashboardOpen, setNpsDashboardOpen] = useState(false);
   const [statsDashboardOpen, setStatsDashboardOpen] = useState(false);
+  const [allocationDashboardOpen, setAllocationDashboardOpen] = useState(false);
   const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>([]);
   const [closedArchivedTypeKeys, setClosedArchivedTypeKeys] = useState<string[]>([]);
   const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, ProjectSortDirection>>({});
@@ -371,9 +372,13 @@ export function CoordinatorPage() {
     return (
       <>
         {statsDashboardOpen && <StatsDashboardOverlay onClose={() => setStatsDashboardOpen(false)} />}
+        {allocationDashboardOpen && <MonthlyAllocationDashboardOverlay onClose={() => setAllocationDashboardOpen(false)} />}
         <div className="nps-tab-toolbar">
           <div className="nps-tab-toolbar-left" />
           <div className="nps-tab-toolbar-right">
+            <button className="mini-btn alt" type="button" onClick={() => setAllocationDashboardOpen(true)}>
+              Alocação mensal
+            </button>
             <button className="mini-btn" type="button" onClick={() => setStatsDashboardOpen(true)}>
               Dashboard detalhado
             </button>

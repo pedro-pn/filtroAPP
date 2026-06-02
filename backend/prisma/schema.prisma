@@ -719,6 +719,31 @@ model RomaneioNotificationRecipient {
   @@index([isActive])
 }
 
+model AllocationReportRecipient {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+model AllocationReportDelivery {
+  id             String   @id @default(cuid())
+  yearMonth      String   @unique
+  recipientCount Int      @default(0)
+  status         String   @default("SENT")
+  error          String?
+  sentAt         DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([sentAt])
+  @@index([status])
+}
+
 model ModuleRole {
   id        String         @id @default(uuid())
   userId    String

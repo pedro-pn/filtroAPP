@@ -30,7 +30,7 @@ import { useUnitCategories, useUnitMutations, useUnits } from '../../hooks/useUn
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useSurveyMutations, useSurveyQuestions, useSurveys } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
-import { StatsDashboardOverlay, StatsOverview } from '../../components/stats/StatsDashboard';
+import { MonthlyAllocationDashboardOverlay, StatsDashboardOverlay, StatsOverview } from '../../components/stats/StatsDashboard';
 import { useProjectSegmentMutations, useProjectSegments } from '../../hooks/useProjectStats';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -1252,6 +1252,7 @@ export function GestorPage() {
   const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
   const [npsDashboardOpen, setNpsDashboardOpen] = useState(false);
   const [statsDashboardOpen, setStatsDashboardOpen] = useState(false);
+  const [allocationDashboardOpen, setAllocationDashboardOpen] = useState(false);
   const [equipmentSubTab, setEquipmentSubTab] = useState<EquipmentSubTab>('unidades');
   const [npsSortDir, setNpsSortDir] = useState<'asc' | 'desc'>('asc');
   const [showSurveyQuestionEditor, setShowSurveyQuestionEditor] = useState(false);
@@ -4153,9 +4154,13 @@ export function GestorPage() {
     return (
       <>
         {statsDashboardOpen && <StatsDashboardOverlay onClose={() => setStatsDashboardOpen(false)} />}
+        {allocationDashboardOpen && <MonthlyAllocationDashboardOverlay onClose={() => setAllocationDashboardOpen(false)} />}
         <div className="nps-tab-toolbar">
           <div className="nps-tab-toolbar-left" />
           <div className="nps-tab-toolbar-right">
+            <button className="mini-btn alt" type="button" onClick={() => setAllocationDashboardOpen(true)}>
+              Alocação mensal
+            </button>
             <button className="mini-btn" type="button" onClick={() => setStatsDashboardOpen(true)}>
               Dashboard detalhado
             </button>
