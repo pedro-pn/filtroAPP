@@ -9,7 +9,7 @@ import { missingClientAccessResetConfig, sendClientAccessResetEmail } from '../.
 import { projectHasClientSignerEmail } from '../../lib/client-project-access.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import { buildInternalUserWelcomeEmailTemplate, buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
-import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
+import { clientEmailsEnabled, getMissingMailerConfig, sendClientMail, sendMail } from '../../lib/mailer.js';
 import {
   accountTypeForLegacyRole,
   defaultPublicModuleRolesForLegacyRole,
@@ -455,7 +455,7 @@ router.post('/:id/resend-client-access', asyncHandler(async (req, res) => {
   }
 
   const missingConfig = missingClientAccessResetConfig(env, getMissingMailerConfig());
-  if (missingConfig.length) {
+  if (clientEmailsEnabled() && missingConfig.length) {
     return res.status(400).json({
       error: `Configuração ausente: ${missingConfig.join(', ')}`
     });
@@ -466,7 +466,7 @@ router.post('/:id/resend-client-access', asyncHandler(async (req, res) => {
     prismaClient: prisma,
     envConfig: env,
     createToken: createPasswordResetToken,
-    mailer: sendMail,
+    mailer: sendClientMail,
     templateBuilder: buildPasswordResetEmailTemplate
   });
 

@@ -76,6 +76,7 @@ const env = {
   smtpPass: process.env.SMTP_PASS || '',
   smtpFrom: process.env.SMTP_FROM || '',
   smtpTestDest: process.env.SMTP_TEST_DEST || '',
+  sendClientEmails: parseBoolean(process.env.SEND_CLIENT_EMAILS, true),
   privacyNotificationEmail: process.env.PRIVACY_NOTIFICATION_EMAIL || process.env.LGPD_NOTIFICATION_EMAIL || '',
   zapsignApiToken: process.env.ZAPSIGN_API_TOKEN || '',
   zapsignRefreshToken: process.env.ZAPSIGN_REFRESH_TOKEN || process.env.APSIGN_REFRESH_TOKEN || '',

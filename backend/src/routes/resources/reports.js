@@ -18,7 +18,7 @@ import {
   buildReportSignatureReceivedEmailTemplate,
   buildReleasedServiceReportsEmailTemplate
 } from '../../lib/email-templates.js';
-import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
+import { clientEmailsEnabled, getMissingMailerConfig, sendClientMail, sendMail } from '../../lib/mailer.js';
 import { SIGNATURE_RDO_NOTICE_VERSION, validatePrivacyNoticeAcknowledgement } from '../../lib/privacy-consent.js';
 import { saveReportDocx, organizePhotos } from '../../lib/report-docx.js';
 import { isLikelyCompletePdf, runWithPdfAbortSignal, saveReportPdf } from '../../lib/report-pdf-from-docx.js';
@@ -161,7 +161,7 @@ function queueApprovedReportNotification(report) {
   if (!recipients.length) return;
 
   const missingMailerConfig = getMissingMailerConfig();
-  if (missingMailerConfig.length) {
+  if (clientEmailsEnabled() && missingMailerConfig.length) {
     console.warn('SMTP não configurado; notificação de aprovação não enviada.', missingMailerConfig.join(', '));
     return;
   }
@@ -179,7 +179,7 @@ function queueApprovedReportNotification(report) {
   setImmediate(async () => {
     try {
       const enabledRecipients = await notificationRecipientsForEmails(recipients, NotificationEmailCategory.REPORTS);
-      await Promise.all(enabledRecipients.map(recipient => sendMail({
+      await Promise.all(enabledRecipients.map(recipient => sendClientMail({
         to: recipient.email,
         ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
       })));
@@ -199,7 +199,7 @@ function queueReapprovedReportNotification(report) {
   if (!recipients.length) return;
 
   const missingMailerConfig = getMissingMailerConfig();
-  if (missingMailerConfig.length) {
+  if (clientEmailsEnabled() && missingMailerConfig.length) {
     console.warn('SMTP não configurado; notificação de reaprovação não enviada.', missingMailerConfig.join(', '));
     return;
   }
@@ -217,7 +217,7 @@ function queueReapprovedReportNotification(report) {
   setImmediate(async () => {
     try {
       const enabledRecipients = await notificationRecipientsForEmails(recipients, NotificationEmailCategory.REPORTS);
-      await Promise.all(enabledRecipients.map(recipient => sendMail({
+      await Promise.all(enabledRecipients.map(recipient => sendClientMail({
         to: recipient.email,
         ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
       })));
@@ -385,7 +385,7 @@ export function signatureRequestEmailRequired(report, version) {
 export function assertSignatureRequestEmailDeliveryConfigured(report, version) {
   if (!signatureRequestEmailRequired(report, version)) return;
   const missingMailerConfig = getMissingMailerConfig();
-  if (missingMailerConfig.length) throw missingSignatureRequestEmailConfigError(missingMailerConfig);
+  if (clientEmailsEnabled() && missingMailerConfig.length) throw missingSignatureRequestEmailConfigError(missingMailerConfig);
 }
 
 export async function assertApprovedReportSignatureEmailPreflight(report, client = prisma) {
@@ -405,10 +405,10 @@ export async function sendSignatureRequestEmails(report, tokens, options = {}) {
   if (!tokens?.length || report.project?.managerOnly) return { ok: true, sentCount: 0, sentTokens: [] };
 
   const missingMailerConfig = options.missingMailerConfig || getMissingMailerConfig();
-  if (missingMailerConfig.length) {
+  if (clientEmailsEnabled() && missingMailerConfig.length) {
     throw missingSignatureRequestEmailConfigError(missingMailerConfig);
   }
-  const mailer = options.mailer || sendMail;
+  const mailer = options.mailer || sendClientMail;
   const sentTokens = [];
 
   for (const tokenData of tokens) {
@@ -517,7 +517,7 @@ export async function sendReleasedServiceReportsEmail(rdo, serviceReports, optio
   if (!recipients.length) return { ok: true, sentCount: 0, attachmentCount: 0 };
 
   const missingMailerConfig = options.missingMailerConfig || getMissingMailerConfig();
-  if (missingMailerConfig.length) {
+  if (clientEmailsEnabled() && missingMailerConfig.length) {
     throw new Error(`Configuração SMTP ausente para envio dos relatórios de serviço liberados: ${missingMailerConfig.join(', ')}`);
   }
 
@@ -530,7 +530,7 @@ export async function sendReleasedServiceReportsEmail(rdo, serviceReports, optio
     appUrl: env.appUrl || ''
   });
   const attachments = await releasedServiceReportEmailAttachments(serviceReports, options);
-  const mailer = options.mailer || sendMail;
+  const mailer = options.mailer || sendClientMail;
   const enabledRecipients = await notificationRecipientsForEmails(recipients, NotificationEmailCategory.REPORTS, { client: options.client || prisma });
   await Promise.all(enabledRecipients.map(recipient => mailer({
     to: recipient.email,

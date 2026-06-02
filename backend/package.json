@@ -18,7 +18,8 @@
     "retention:dry-run": "node scripts/run-data-retention.js",
     "retention:apply": "node scripts/run-data-retention.js --apply",
     "sync:romaneio-catalog": "node scripts/sync-romaneio-catalog.js",
-    "backfill:report-attachments": "node scripts/backfill-report-attachments.js"
+    "backfill:report-attachments": "node scripts/backfill-report-attachments.js",
+    "audit:report-files": "node scripts/audit-report-files.js"
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",

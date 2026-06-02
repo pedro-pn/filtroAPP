@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import env from '../config/env.js';
 import { buildClientProjectLinkedEmailTemplate, buildClientWelcomeEmailTemplate } from './email-templates.js';
-import { getMissingMailerConfig, sendMail } from './mailer.js';
+import { clientEmailsEnabled, getMissingMailerConfig, sendClientMail } from './mailer.js';
 import { defaultPublicModuleRolesForLegacyRole, moduleRoleRows } from './module-roles.js';
 import { hashPassword } from './password.js';
 
@@ -22,7 +22,7 @@ function generateClientPassword() {
 
 function queueClientMail(message, meta) {
   const missingMailerConfig = getMissingMailerConfig();
-  if (missingMailerConfig.length) {
+  if (clientEmailsEnabled() && missingMailerConfig.length) {
     console.warn('Notificação de conta CLIENT não enviada por falta de configuração SMTP.', {
       missingMailerConfig,
       meta
@@ -31,7 +31,7 @@ function queueClientMail(message, meta) {
   }
 
   setImmediate(() => {
-    sendMail(message).catch(error => {
+    sendClientMail(message).catch(error => {
       console.error('Falha ao enviar notificação da conta CLIENT.', {
         meta,
         error: error?.message || error

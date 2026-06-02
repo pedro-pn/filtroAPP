@@ -6,7 +6,7 @@ import {
   buildSurveyReminderEmailTemplate,
   buildSurveyRespondedEmailTemplate
 } from './email-templates.js';
-import { sendMail } from './mailer.js';
+import { sendClientMail, sendMail } from './mailer.js';
 import { coordinatorNotificationEmails, NotificationEmailCategory, notificationRecipientsForEmails } from './notification-preferences.js';
 
 function appBaseUrl() {
@@ -69,7 +69,7 @@ export async function sendSurveyInvite({ survey, project, token }) {
     optOutUrl,
     expiresLabel: `${daysValid} dia${daysValid !== 1 ? 's' : ''}`
   });
-  await sendMail({
+  await sendClientMail({
     to: recipient.email,
     ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
   });
@@ -89,7 +89,7 @@ export async function sendSurveyReminder({ survey, project, token }) {
     optOutUrl,
     daysRemaining
   });
-  await sendMail({
+  await sendClientMail({
     to: recipient.email,
     ...addNotificationPreferencesLink(template, recipient.notificationPreferencesUrl)
   });

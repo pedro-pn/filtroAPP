@@ -60,3 +60,17 @@ export async function sendMail(message) {
     attachments
   });
 }
+
+export function clientEmailsEnabled(envConfig = env) {
+  return envConfig.sendClientEmails !== false;
+}
+
+export async function sendClientMail(message) {
+  if (!clientEmailsEnabled()) {
+    return {
+      skipped: true,
+      reason: 'client_emails_disabled'
+    };
+  }
+  return sendMail(message);
+}

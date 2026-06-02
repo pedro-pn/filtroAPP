@@ -8,7 +8,7 @@ import test from 'node:test';
 import AdmZip from 'adm-zip';
 
 import app from '../src/app.js';
-import { buildRomaneioDocx } from '../src/lib/romaneio-docx.js';
+import { buildRomaneioDocx, buildRomaneioFileName } from '../src/lib/romaneio-docx.js';
 import { parseEquipmentRows, syncRomaneioCatalog } from '../src/lib/romaneio-catalog.js';
 import prisma from '../src/lib/prisma.js';
 import {
@@ -244,6 +244,19 @@ test('Romaneio DOCX header includes cargo weight', async () => {
   assert.match(xml, /150 kg/);
   assert.doesNotMatch(xml, /15 kg/);
   assert.doesNotMatch(xml, /&lt;&lt;weight&gt;&gt;|<<weight>>/);
+});
+
+test('Romaneio generated file name uses project mission and date', () => {
+  const fileName = buildRomaneioFileName({
+    project: {
+      code: 'FG-K2-101-KW',
+      name: 'Projeto Teste'
+    },
+    romaneioDate: new Date('2026-06-02T12:00:00.000-03:00')
+  });
+
+  assert.equal(fileName, 'Romaneio - Missão FG-K2-101-KW - Projeto Teste - 02-06-2026.docx');
+  assert.equal(fileName.replace(/\.docx$/i, '.pdf'), 'Romaneio - Missão FG-K2-101-KW - Projeto Teste - 02-06-2026.pdf');
 });
 
 test('Romaneio item builder allows only previously linked inactive catalog items', async t => {

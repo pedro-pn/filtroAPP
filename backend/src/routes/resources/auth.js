@@ -7,7 +7,7 @@ import env from '../../config/env.js';
 import { createEmailChangeToken, createPasswordResetToken, createSession, hashToken, publicUser } from '../../lib/auth.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import { buildEmailChangeConfirmationTemplate, buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
-import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
+import { getMissingMailerConfig, sendClientMail, sendMail } from '../../lib/mailer.js';
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import {
   consumeNotificationPreferenceToken,
@@ -324,7 +324,8 @@ async function queuePasswordResetEmail({ user, emails }) {
   });
 
   setImmediate(() => {
-    sendMail({
+    const mailer = user.role === 'CLIENT' || user.accountType === 'CLIENT' ? sendClientMail : sendMail;
+    mailer({
       to: uniqueEmails[0],
       ...(uniqueEmails.length > 1 ? { cc: uniqueEmails.slice(1) } : {}),
       ...template
@@ -367,7 +368,8 @@ async function queueEmailChangeConfirmationEmail({ user, email }) {
   });
 
   setImmediate(() => {
-    sendMail({
+    const mailer = user.role === 'CLIENT' || user.accountType === 'CLIENT' ? sendClientMail : sendMail;
+    mailer({
       to: email,
       ...template
     }).catch(error => {

@@ -58,6 +58,7 @@ Isso remove o bloqueio principal que existia para o `P3`.
    - Definir `TRUST_PROXY=uniquelocal` para a stack Docker com Nginx, ou CIDRs explícitos da rede/proxy confiável.
    - Definir `SIGNATURE_TOKEN_SECRET` com um segredo longo e estável para os links de assinatura de RDO.
    - Em upgrades de versões antigas, definir `SIGNATURE_TOKEN_SECRET_PREVIOUS` com a chave anterior. Se não havia `SURVEY_TOKEN_SECRET`, a chave anterior era o `DATABASE_URL`.
+   - Em homologação/teste com banco de produção, definir `SEND_CLIENT_EMAILS=false` para bloquear e-mails destinados a clientes.
 2. Definir `POSTGRES_PASSWORD` no shell/ambiente antes do compose
 3. Subir:
 

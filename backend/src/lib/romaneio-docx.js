@@ -31,6 +31,15 @@ function formatDatePt(value, withTime = false) {
   });
 }
 
+export function buildRomaneioFileName(romaneio, extension = 'docx') {
+  const project = romaneio.project || {};
+  const projectCode = safePath(project.code || '');
+  const projectName = safePath(project.name || '');
+  const datePrefix = formatDatePt(romaneio.romaneioDate).replace(/\//g, '-');
+  const cleanExtension = safePath(extension).replace(/^\.+/, '') || 'docx';
+  return `Romaneio - Missão ${projectCode} - ${projectName} - ${datePrefix}.${cleanExtension}`;
+}
+
 function getTextNodes(node, out = []) {
   if (!node) return out;
   if (node.nodeType === 3) out.push(node);
@@ -207,8 +216,7 @@ export async function saveRomaneioDocx(romaneio) {
   const projectFolderName = safePath(`Missão ${romaneio.project.code} - ${romaneio.project.name}`);
   const dir = path.join(env.uploadDir, projectFolderName, 'ROMANEIO');
   await fs.mkdir(dir, { recursive: true });
-  const datePrefix = formatDatePt(romaneio.romaneioDate).replace(/\//g, '-');
-  const fileName = `Romaneio ${datePrefix} - ${safePath(romaneio.vehiclePlate)} - ${romaneio.id.slice(-6)}.docx`;
+  const fileName = buildRomaneioFileName(romaneio, 'docx');
   const targetPath = path.join(dir, fileName);
   await fs.writeFile(targetPath, bytes);
   return {

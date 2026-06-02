@@ -51,11 +51,12 @@ test('manager approval waits for public signature link delivery', async () => {
 });
 
 test('approval signature preflight blocks missing mailer config before status commit', async t => {
-  const keys = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFrom'];
+  const keys = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFrom', 'sendClientEmails'];
   const original = Object.fromEntries(keys.map(key => [key, env[key]]));
   t.after(() => {
     for (const [key, value] of Object.entries(original)) env[key] = value;
   });
+  env.sendClientEmails = true;
   env.smtpHost = '';
   env.smtpPort = 587;
   env.smtpUser = '';
@@ -83,6 +84,39 @@ test('approval signature preflight blocks missing mailer config before status co
     }),
     /Configuração SMTP ausente/
   );
+});
+
+test('approval signature preflight ignores missing SMTP when client emails are disabled', async t => {
+  const keys = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpPass', 'smtpFrom', 'sendClientEmails'];
+  const original = Object.fromEntries(keys.map(key => [key, env[key]]));
+  t.after(() => {
+    for (const [key, value] of Object.entries(original)) env[key] = value;
+  });
+  env.sendClientEmails = false;
+  env.smtpHost = '';
+  env.smtpPort = 587;
+  env.smtpUser = '';
+  env.smtpPass = '';
+  env.smtpFrom = '';
+
+  await assert.doesNotReject(() => assertApprovedReportSignatureEmailPreflight({
+    id: 'report-approval-preflight-disabled-client-email',
+    reportType: 'RDO',
+    status: 'APPROVED',
+    project: {
+      deletedAt: null,
+      managerOnly: false,
+      clientName: 'Cliente',
+      clientEmailPrimary: 'cliente@example.com',
+      clientSigners: []
+    }
+  }, {
+    reportVersion: {
+      async findFirst() {
+        return null;
+      }
+    }
+  }));
 });
 
 test('public RDO signature schema rejects missing or stale privacy notice version', () => {

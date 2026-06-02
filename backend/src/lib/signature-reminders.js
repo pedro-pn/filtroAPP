@@ -2,7 +2,7 @@ import { ReportSignatureStatus, ReportStatus, ReportType, ReportVersionStatus } 
 
 import env from '../config/env.js';
 import { addNotificationPreferencesLink, buildBatchReportSignatureReminderEmailTemplate, buildReportSignatureReminderEmailTemplate } from './email-templates.js';
-import { getMissingMailerConfig, sendMail } from './mailer.js';
+import { clientEmailsEnabled, getMissingMailerConfig, sendClientMail, sendMail } from './mailer.js';
 import { NotificationEmailCategory, notificationRecipientsForEmails } from './notification-preferences.js';
 import prisma from './prisma.js';
 import {
@@ -123,7 +123,7 @@ export async function ensureReminderSignatureToken(signature, client = prisma, n
   return { token, expiresAt };
 }
 
-export async function sendSignatureReminder({ signature, token, expiresAt, mailer = sendMail, client = prisma }) {
+export async function sendSignatureReminder({ signature, token, expiresAt, mailer = sendClientMail, client = prisma }) {
   const [recipient] = await notificationRecipientsForEmails(
     [signature.signerEmail],
     NotificationEmailCategory.SIGNATURE_REMINDERS,
@@ -168,7 +168,7 @@ function reportReminderItem(signature) {
   };
 }
 
-export async function sendBatchSignatureReminder({ signatures, token, expiresAt, mailer = sendMail, client = prisma }) {
+export async function sendBatchSignatureReminder({ signatures, token, expiresAt, mailer = sendClientMail, client = prisma }) {
   const first = signatures?.[0];
   if (!first) return false;
   const [recipient] = await notificationRecipientsForEmails(
@@ -197,8 +197,8 @@ export async function sendBatchSignatureReminder({ signatures, token, expiresAt,
   return true;
 }
 
-export async function processSignatureReminders({ limit = 25, mailer = sendMail, client = prisma, missingMailerConfig = getMissingMailerConfig() } = {}) {
-  if (mailer === sendMail && missingMailerConfig.length) return { checked: 0, sent: 0, skipped: true };
+export async function processSignatureReminders({ limit = 25, mailer = sendClientMail, client = prisma, missingMailerConfig = getMissingMailerConfig() } = {}) {
+  if (clientEmailsEnabled() && (mailer === sendMail || mailer === sendClientMail) && missingMailerConfig.length) return { checked: 0, sent: 0, skipped: true };
 
   const now = new Date();
   const candidates = await client.reportSignature.findMany({
