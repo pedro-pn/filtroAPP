@@ -17,6 +17,9 @@ function argValue(name, fallback = '') {
 const projectFilter = argValue('--project').toLowerCase();
 const reportFilter = argValue('--report').toLowerCase();
 const limit = Math.max(1, Number(argValue('--limit', '50')) || 50);
+const only = argValue('--only').toLowerCase();
+const manualAttachmentId = argValue('--attachment-id');
+const manualNewPath = argValue('--new-path');
 
 if (help) {
   console.log(`Uso: npm run repair:report-file-paths -- [opcoes]
@@ -26,6 +29,9 @@ Opcoes:
   --apply               Aplica somente reparos com candidato unico e seguro
   --project=texto       Filtra por codigo/nome do projeto
   --report=RDO29        Filtra por relatorio, ex.: RDO29, RCPU11
+  --only=ambiguous      Mostra somente amostras ambiguas
+  --attachment-id=ID    Seleciona uma referencia especifica para reparo manual
+  --new-path=caminho    Caminho escolhido para --attachment-id
   --limit=N             Limite de amostras por categoria (padrao: 50)
   --help, -h            Mostra esta ajuda
 `);
@@ -295,6 +301,55 @@ async function applyRepair(repair) {
   });
 }
 
+function printManualResult(result) {
+  console.log(JSON.stringify(result, null, 2));
+}
+
+async function handleManualRepair(attachments, reportFolders) {
+  if (!manualAttachmentId && !manualNewPath) return false;
+  if (!manualAttachmentId || !manualNewPath) {
+    throw new Error('Use --attachment-id e --new-path juntos para reparo manual.');
+  }
+
+  const attachment = attachments.find(item => item.id === manualAttachmentId);
+  if (!attachment) {
+    throw new Error(`ReportAttachment nao encontrado: ${manualAttachmentId}`);
+  }
+
+  const report = attachment.report || attachment.reportService?.report || null;
+  const project = report?.project || null;
+  const normalizedNewPath = normalizeRelativeUploadPath(manualNewPath);
+  const newAbsolutePath = path.resolve(env.reportsDir, normalizedNewPath);
+  const allowedFolders = projectFolderCandidates(project, attachment.storagePath, reportFolders);
+  const newFolder = firstPathSegment(normalizedNewPath);
+
+  if (!fs.existsSync(newAbsolutePath)) {
+    throw new Error(`Arquivo escolhido nao existe em ${newAbsolutePath}`);
+  }
+  if (!allowedFolders.includes(newFolder)) {
+    throw new Error(`Arquivo escolhido esta fora das pastas esperadas do projeto: ${allowedFolders.join(', ')}`);
+  }
+
+  const result = {
+    mode: apply ? 'manual-apply' : 'manual-dry-run',
+    applied: false,
+    attachmentId: attachment.id,
+    report: reportLabel(report),
+    project: projectLabel(project),
+    fileName: attachment.fileName,
+    oldPath: attachment.storagePath,
+    newPath: normalizedNewPath
+  };
+
+  if (apply) {
+    await applyRepair({ attachment, candidate: { storagePath: normalizedNewPath } });
+    result.applied = true;
+  }
+
+  printManualResult(result);
+  return true;
+}
+
 async function main() {
   const attachments = await fetchAttachments();
   const existingCandidatesByProject = new Map();
@@ -321,6 +376,8 @@ async function main() {
     });
     existingCandidatesByProject.set(key, candidates);
   }
+
+  if (await handleManualRepair(attachments, reportFolders)) return;
 
   for (const attachment of attachments) {
     const report = attachment.report || attachment.reportService?.report || null;
@@ -381,9 +438,9 @@ async function main() {
     ambiguous: ambiguous.length,
     unmatched: unmatched.length,
     applied: apply ? repairable.length : 0,
-    repairableSamples: repairable.slice(0, limit).map(({ attachment: _attachment, candidate: _candidate, ...item }) => item),
+    repairableSamples: only === 'ambiguous' ? [] : repairable.slice(0, limit).map(({ attachment: _attachment, candidate: _candidate, ...item }) => item),
     ambiguousSamples: ambiguous.slice(0, limit),
-    unmatchedSamples: unmatched.slice(0, limit)
+    unmatchedSamples: only === 'ambiguous' ? [] : unmatched.slice(0, limit)
   }, null, 2));
 }
 
