@@ -176,6 +176,32 @@ export async function removeProjectById(projectId, prismaClient = prisma, option
   });
 }
 
+async function invalidateProjectInternalSignatureRounds(tx, projectId, {
+  userId = null,
+  evidence = {},
+  description = 'Rodada de assinatura invalidada por alteracao de visibilidade do projeto.'
+} = {}) {
+  const reports = await tx.report.findMany({
+    where: {
+      projectId,
+      reportType: ReportType.RDO,
+      status: { in: ['APPROVED', 'SIGNED'] },
+      versions: { some: { status: 'ACTIVE', finalDocumentHash: null } }
+    },
+    select: { id: true }
+  });
+
+  for (const report of reports) {
+    await invalidateUnsignedInternalSignatureRound(tx, {
+      reportId: report.id,
+      userId,
+      evidence,
+      description,
+      invalidateSignedRound: true
+    });
+  }
+}
+
 router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const activeParam = req.query.active;
   const where = { deletedAt: null };
@@ -303,7 +329,8 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
 router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
   const parsed = schema.partial().parse(req.body);
   const shouldReconcileClientSigners = parsed.clientEmailPrimary !== undefined || parsed.clientSigners !== undefined;
-  const evidence = shouldReconcileClientSigners ? signatureEvidenceFromRequest(req) : null;
+  const shouldUpdateProjectVisibility = parsed.managerOnly !== undefined || parsed.isActive !== undefined;
+  const evidence = shouldReconcileClientSigners || shouldUpdateProjectVisibility ? signatureEvidenceFromRequest(req) : null;
   let data = parsed;
   if (parsed.clientCnpj !== undefined || parsed.clientEmailPrimary !== undefined || parsed.clientEmailCc !== undefined || parsed.clientSigners !== undefined) {
     const existingProject = await prisma.project.findUniqueOrThrow({
@@ -394,6 +421,11 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
       }
     });
     if (!shouldProvisionProjectClientAccounts(updated)) {
+      await invalidateProjectInternalSignatureRounds(tx, updated.id, {
+        userId: req.auth.user.id,
+        evidence,
+        description: 'Rodada de assinatura invalidada por projeto oculto ou inativo.'
+      });
       await clearPendingProjectLegacyExternalSignatureState(tx, updated.id);
     } else {
       await ensureClientAccountForProject(tx, updated, { previousProject });

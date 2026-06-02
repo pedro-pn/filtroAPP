@@ -83,6 +83,34 @@ const draftSchema = z.object({
 });
 
 const RDO_OWNED_CATALOG_SOURCES = new Set(['UNIT', 'PARTICLE_COUNTER']);
+const romaneioProjectSelect = {
+  id: true,
+  code: true,
+  name: true,
+  clientName: true,
+  isActive: true,
+  managerOnly: true
+};
+
+export function romaneioProjectWhereForUser(user, projectWhere = {}) {
+  const where = {
+    ...projectWhere,
+    deletedAt: null
+  };
+  if (user && user.role !== 'MANAGER') {
+    where.isActive = true;
+    where.managerOnly = false;
+  }
+  return where;
+}
+
+async function assertRomaneioProjectAccess(projectId, authUser, client = prisma) {
+  if (!projectId) return null;
+  return client.project.findFirst({
+    where: romaneioProjectWhereForUser(authUser, { id: projectId }),
+    select: { id: true }
+  });
+}
 
 function parseDateOnly(value) {
   const date = new Date(`${String(value).slice(0, 10)}T12:00:00.000-03:00`);
@@ -146,7 +174,9 @@ async function sendRomaneioStoredFile(res, romaneio, field, contentType, fallbac
 function selectedFields() {
   return {
     include: {
-      project: true,
+      project: {
+        select: romaneioProjectSelect
+      },
       createdBy: {
         select: { id: true, name: true, email: true }
       },
@@ -158,13 +188,19 @@ function selectedFields() {
   };
 }
 
-export function visibleRomaneioWhere(where = {}) {
+export function visibleRomaneioWhere(where = {}, authUser = null) {
   return {
     ...where,
-    project: {
-      ...(where.project || {}),
-      deletedAt: null
-    }
+    project: romaneioProjectWhereForUser(authUser, where.project || {})
+  };
+}
+
+function romaneioDraftProjectWhere(user) {
+  return {
+    OR: [
+      { projectId: null },
+      { project: romaneioProjectWhereForUser(user) }
+    ]
   };
 }
 
@@ -301,12 +337,18 @@ export function shouldCleanupFailedRomaneioCreate({ completed = false, filesPers
 
 router.get('/projects', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const activeParam = req.query.active;
-  const where = { deletedAt: null };
+  const where = romaneioProjectWhereForUser(req.auth.user);
   if (activeParam === 'true') where.isActive = true;
-  if (activeParam === 'false') where.isActive = false;
+  if (activeParam === 'false' && req.auth.user.role === 'MANAGER') where.isActive = false;
+  if (activeParam === 'false' && req.auth.user.role !== 'MANAGER') where.id = '__NO_MATCH__';
   const items = await prisma.project.findMany({
     where,
-    include: { operator: true },
+    select: {
+      ...romaneioProjectSelect,
+      operator: {
+        select: { id: true, name: true, role: true }
+      }
+    },
     orderBy: [{ code: 'asc' }, { name: 'asc' }]
   });
   res.json(items);
@@ -314,8 +356,15 @@ router.get('/projects', requireAuth, requireRomaneioAccess, asyncHandler(async (
 
 router.get('/drafts', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const items = await prisma.reportDraft.findMany({
-    where: romaneioDraftWhere(req.auth.user.id),
-    include: { project: true },
+    where: {
+      ...romaneioDraftWhere(req.auth.user.id),
+      ...romaneioDraftProjectWhere(req.auth.user)
+    },
+    include: {
+      project: {
+        select: romaneioProjectSelect
+      }
+    },
     orderBy: { updatedAt: 'desc' }
   });
   res.json(items);
@@ -324,6 +373,10 @@ router.get('/drafts', requireAuth, requireRomaneioAccess, asyncHandler(async (re
 router.post('/drafts', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const data = draftSchema.parse(req.body);
   const payload = normalizeDraftPayload(data);
+  if (data.projectId) {
+    const project = await assertRomaneioProjectAccess(data.projectId, req.auth.user);
+    if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
+  }
   if (data.projectId && data.reportDate) {
     await prisma.reportDraft.deleteMany({
       where: {
@@ -341,7 +394,11 @@ router.post('/drafts', requireAuth, requireRomaneioAccess, asyncHandler(async (r
       reportDate: data.reportDate || null,
       payload
     },
-    include: { project: true }
+    include: {
+      project: {
+        select: romaneioProjectSelect
+      }
+    }
   });
   res.status(201).json(item);
 }));
@@ -353,6 +410,10 @@ router.put('/drafts/:id', requireAuth, requireRomaneioAccess, asyncHandler(async
     return res.status(403).json({ error: 'Você não tem permissão para alterar este rascunho.' });
   }
   const payload = normalizeDraftPayload(data);
+  if (data.projectId) {
+    const project = await assertRomaneioProjectAccess(data.projectId, req.auth.user);
+    if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
+  }
   if (data.projectId && data.reportDate) {
     await prisma.reportDraft.deleteMany({
       where: {
@@ -371,7 +432,11 @@ router.put('/drafts/:id', requireAuth, requireRomaneioAccess, asyncHandler(async
       reportDate: data.reportDate || null,
       payload
     },
-    include: { project: true }
+    include: {
+      project: {
+        select: romaneioProjectSelect
+      }
+    }
   });
   res.json(item);
 }));
@@ -506,7 +571,7 @@ router.delete('/notifications/:id', requireAuth, requireRomaneioAccess, requireR
 
 router.get('/:id/pdf', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const item = await prisma.romaneio.findFirstOrThrow({
-    where: visibleRomaneioWhere({ id: req.params.id }),
+    where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
     ...selectedFields()
   });
   return sendRomaneioStoredFile(res, item, 'pdfUrl', 'application/pdf', 'pdf');
@@ -514,7 +579,7 @@ router.get('/:id/pdf', requireAuth, requireRomaneioAccess, asyncHandler(async (r
 
 router.get('/:id/docx', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const item = await prisma.romaneio.findFirstOrThrow({
-    where: visibleRomaneioWhere({ id: req.params.id }),
+    where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
     ...selectedFields()
   });
   return sendRomaneioStoredFile(
@@ -529,7 +594,7 @@ router.get('/:id/docx', requireAuth, requireRomaneioAccess, asyncHandler(async (
 router.get('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const search = String(req.query.search || '').trim();
   const projectId = String(req.query.projectId || '').trim();
-  const where = visibleRomaneioWhere();
+  const where = visibleRomaneioWhere({}, req.auth.user);
   if (projectId) where.projectId = projectId;
   if (search) {
     where.OR = [
@@ -553,10 +618,7 @@ router.get('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res
 router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   await syncRomaneioCatalog();
   const payload = createRomaneioSchema.parse(req.body);
-  const project = await prisma.project.findFirst({
-    where: { id: payload.projectId, deletedAt: null },
-    select: { id: true }
-  });
+  const project = await assertRomaneioProjectAccess(payload.projectId, req.auth.user);
   if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
 
   const itemData = await buildRomaneioItems(payload.items);

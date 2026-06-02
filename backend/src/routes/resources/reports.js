@@ -617,6 +617,7 @@ export function publicSignatureStatus(signature) {
   if (!signature) return 'INVALID';
   if (signature.report?.deletedAt) return 'UNAVAILABLE';
   if (signature.report?.project?.deletedAt) return 'UNAVAILABLE';
+  if (signature.report?.project?.managerOnly) return 'UNAVAILABLE';
   if (signature.tokenExpiresAt && new Date(signature.tokenExpiresAt).getTime() <= Date.now()) return 'EXPIRED';
   if (
     signature.status === 'SIGNED'
@@ -675,6 +676,7 @@ function maskEmail(value) {
 export function validationStatus(version) {
   if (!version) return 'INVALID';
   if (version.report?.deletedAt || version.report?.project?.deletedAt) return 'UNAVAILABLE';
+  if (version.report?.project?.managerOnly) return 'UNAVAILABLE';
   if (version.status === 'REJECTED') return 'REJECTED';
   if (version.status === 'SUPERSEDED') return 'SUPERSEDED';
   if (version.report?.status !== ReportStatus.SIGNED || !version.finalDocumentHash) return 'UNAVAILABLE';

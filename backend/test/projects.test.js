@@ -139,6 +139,110 @@ test('GET /projects keeps client listings scoped to non-deleted projects', async
   assert.equal(projectListQuery.where.managerOnly, false);
 });
 
+test('PUT /projects/:id invalidates pending internal signature rounds when project becomes manager-only', async t => {
+  stubAuthenticatedManager(t);
+  const originalTransaction = prisma.$transaction;
+  const calls = [];
+  const tx = {
+    project: {
+      findUniqueOrThrow: async args => {
+        calls.push(['project.findUniqueOrThrow', args]);
+        return {
+          id: 'project-1',
+          clientCnpj: '11222333000144',
+          clientEmailPrimary: 'client@example.com',
+          clientEmailCc: [],
+          managerOnly: false
+        };
+      },
+      update: async args => {
+        calls.push(['project.update', args]);
+        return {
+          id: 'project-1',
+          managerOnly: true,
+          isActive: true,
+          clientCnpj: '11222333000144',
+          clientEmailPrimary: 'client@example.com',
+          clientEmailCc: [],
+          clientSigners: [],
+          authorizedUsers: [],
+          reportSequences: []
+        };
+      }
+    },
+    report: {
+      findMany: async args => {
+        calls.push(['report.findMany', args]);
+        if (args.where?.versions) {
+          return [{ id: 'report-1' }];
+        }
+        return [];
+      }
+    },
+    reportVersion: {
+      findFirst: async args => {
+        calls.push(['reportVersion.findFirst', args]);
+        return {
+          id: 'version-1',
+          signatures: [{
+            id: 'signature-1',
+            status: 'PENDING',
+            isRequired: true
+          }]
+        };
+      },
+      update: async args => {
+        calls.push(['reportVersion.update', args]);
+        return {};
+      }
+    },
+    reportSignature: {
+      updateMany: async args => {
+        calls.push(['reportSignature.updateMany', args]);
+        return { count: 1 };
+      }
+    },
+    reportAuditLog: {
+      create: async args => {
+        calls.push(['reportAuditLog.create', args]);
+        return {};
+      }
+    }
+  };
+  prisma.$transaction = async callback => callback(tx);
+  t.after(() => {
+    prisma.$transaction = originalTransaction;
+  });
+
+  const response = await dispatchApp('PUT', '/api/projects/project-1', {
+    managerOnly: true
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(calls.map(([name]) => name), [
+    'project.findUniqueOrThrow',
+    'project.update',
+    'report.findMany',
+    'reportVersion.findFirst',
+    'reportSignature.updateMany',
+    'reportVersion.update',
+    'reportAuditLog.create',
+    'report.findMany'
+  ]);
+  assert.deepEqual(calls[1][1].data, {
+    managerOnly: true,
+    visibleToCollaborators: false
+  });
+  assert.deepEqual(calls[2][1].where, {
+    projectId: 'project-1',
+    reportType: 'RDO',
+    status: { in: ['APPROVED', 'SIGNED'] },
+    versions: { some: { status: 'ACTIVE', finalDocumentHash: null } }
+  });
+  assert.equal(calls[6][1].data.description, 'Rodada de assinatura invalidada por projeto oculto ou inativo.');
+  assert.equal(calls[6][1].data.userId, 'manager-1');
+});
+
 test('removeProjectById preserves projects with reports before hiding the project', async () => {
   const calls = [];
   const tx = {

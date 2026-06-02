@@ -12,6 +12,7 @@ import {
   cleanupFailedRomaneioCreate,
   requireRomaneioManager,
   requireRomaneioModuleAccess,
+  romaneioProjectWhereForUser,
   romaneioEmailFailureResult,
   shouldCleanupFailedRomaneioCreate,
   visibleRomaneioWhere
@@ -47,6 +48,23 @@ function romaneioOnlyManagerSession() {
       accountType: 'INTERNAL',
       isActive: true,
       moduleRoles: [{ role: 'ROMANEIO_MANAGER' }]
+    }
+  };
+}
+
+function romaneioOnlyOperatorSession() {
+  return {
+    id: 'session-romaneio-operator',
+    expiresAt: new Date(Date.now() + 60_000),
+    user: {
+      id: 'romaneio-operator-1',
+      username: 'romaneio-operator',
+      name: 'Romaneio Operator',
+      email: 'romaneio-operator@example.com',
+      role: 'COORDINATOR',
+      accountType: 'INTERNAL',
+      isActive: true,
+      moduleRoles: [{ role: 'ROMANEIO_OPERATOR' }]
     }
   };
 }
@@ -108,6 +126,14 @@ function dispatchApp(method, pathName, body) {
 function stubRomaneioOnlyManager(t) {
   const originalFindUnique = prisma.userSession.findUnique;
   prisma.userSession.findUnique = async () => romaneioOnlyManagerSession();
+  t.after(() => {
+    prisma.userSession.findUnique = originalFindUnique;
+  });
+}
+
+function stubRomaneioOnlyOperator(t) {
+  const originalFindUnique = prisma.userSession.findUnique;
+  prisma.userSession.findUnique = async () => romaneioOnlyOperatorSession();
   t.after(() => {
     prisma.userSession.findUnique = originalFindUnique;
   });
@@ -252,6 +278,83 @@ test('Romaneio visibility queries exclude soft-deleted projects', () => {
       }
     }
   );
+  assert.deepEqual(
+    romaneioProjectWhereForUser({ role: 'COORDINATOR' }),
+    { deletedAt: null, isActive: true, managerOnly: false }
+  );
+  assert.deepEqual(
+    visibleRomaneioWhere({ id: 'romaneio-1' }, { role: 'COORDINATOR' }),
+    {
+      id: 'romaneio-1',
+      project: { deletedAt: null, isActive: true, managerOnly: false }
+    }
+  );
+});
+
+test('Romaneio project list hides manager-only and inactive projects from operators', async t => {
+  stubRomaneioOnlyOperator(t);
+  const originalFindMany = prisma.project.findMany;
+  const calls = [];
+  prisma.project.findMany = async args => {
+    calls.push(args);
+    return [];
+  };
+  t.after(() => {
+    prisma.project.findMany = originalFindMany;
+  });
+
+  const response = await dispatchApp('GET', '/api/romaneio/projects');
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(calls[0].where, {
+    deletedAt: null,
+    isActive: true,
+    managerOnly: false
+  });
+  assert.equal(calls[0].select.clientCnpj, undefined);
+  assert.equal(calls[0].select.clientEmailPrimary, undefined);
+});
+
+test('Romaneio list keeps operator project visibility filters when filtering by project', async t => {
+  stubRomaneioOnlyOperator(t);
+  const originalFindMany = prisma.romaneio.findMany;
+  const calls = [];
+  prisma.romaneio.findMany = async args => {
+    calls.push(args);
+    return [];
+  };
+  t.after(() => {
+    prisma.romaneio.findMany = originalFindMany;
+  });
+
+  const response = await dispatchApp('GET', '/api/romaneio?projectId=hidden-project');
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(calls[0].where, {
+    project: { deletedAt: null, isActive: true, managerOnly: false },
+    projectId: 'hidden-project'
+  });
+});
+
+test('Romaneio PDF download checks operator project visibility', async t => {
+  stubRomaneioOnlyOperator(t);
+  const originalFindFirstOrThrow = prisma.romaneio.findFirstOrThrow;
+  const calls = [];
+  prisma.romaneio.findFirstOrThrow = async args => {
+    calls.push(args);
+    return { id: 'romaneio-1', pdfUrl: null };
+  };
+  t.after(() => {
+    prisma.romaneio.findFirstOrThrow = originalFindFirstOrThrow;
+  });
+
+  const response = await dispatchApp('GET', '/api/romaneio/romaneio-1/pdf');
+
+  assert.equal(response.statusCode, 404);
+  assert.deepEqual(calls[0].where, {
+    id: 'romaneio-1',
+    project: { deletedAt: null, isActive: true, managerOnly: false }
+  });
 });
 
 test('Romaneio catalog update cannot mutate RDO-owned unit rows', async t => {

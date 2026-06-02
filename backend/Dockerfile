@@ -22,4 +22,4 @@ COPY equipamentos /workspace/equipamentos
 ENV NODE_ENV=production
 EXPOSE 4000
 
-CMD ["node", "src/server.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node src/server.js"]

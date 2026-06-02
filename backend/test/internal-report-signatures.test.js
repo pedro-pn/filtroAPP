@@ -1012,7 +1012,7 @@ test('approved RDO without client signers does not require an internal signature
   assert.equal(shouldCreateInternalSignatureRound(report), false);
 });
 
-test('publicSignatureStatus blocks links for deleted projects but allows archived projects', () => {
+test('publicSignatureStatus blocks links for deleted and manager-only projects but allows archived projects', () => {
   const activeSignature = {
     status: 'PENDING',
     tokenExpiresAt: new Date(Date.now() + 60_000),
@@ -1035,6 +1035,16 @@ test('publicSignatureStatus blocks links for deleted projects but allows archive
       project: {
         ...activeSignature.report.project,
         deletedAt: new Date()
+      }
+    }
+  }), 'UNAVAILABLE');
+  assert.equal(publicSignatureStatus({
+    ...activeSignature,
+    report: {
+      ...activeSignature.report,
+      project: {
+        ...activeSignature.report.project,
+        managerOnly: true
       }
     }
   }), 'UNAVAILABLE');
@@ -1217,6 +1227,16 @@ test('publicValidationPayload hides metadata for soft-deleted reports and projec
       project: {
         ...version.report.project,
         deletedAt: new Date('2026-01-03T00:00:00.000Z')
+      }
+    }
+  }), { status: 'UNAVAILABLE' });
+  assert.deepEqual(publicValidationPayload({
+    ...version,
+    report: {
+      ...version.report,
+      project: {
+        ...version.report.project,
+        managerOnly: true
       }
     }
   }), { status: 'UNAVAILABLE' });

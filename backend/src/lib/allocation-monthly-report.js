@@ -57,7 +57,7 @@ function monthLabel(yearMonth) {
   return start.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 }
 
-function previousYearMonth(now = new Date()) {
+export function previousYearMonth(now = new Date()) {
   const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   return `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, '0')}`;
 }

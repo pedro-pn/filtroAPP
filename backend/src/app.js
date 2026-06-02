@@ -105,6 +105,10 @@ app.use((err, _req, res, _next) => {
     if (err.code === 'P2025') {
       return res.status(404).json({ error: 'Registro não encontrado.' });
     }
+
+    if (err.code === 'P2021') {
+      return res.status(503).json({ error: 'Banco de dados não está atualizado. Execute as migrações e tente novamente.' });
+    }
   }
 
   const isProduction = env.nodeEnv === 'production';
