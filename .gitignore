@@ -10,6 +10,7 @@ frontend/vite.config.d.ts
 backend/node_modules/
 backend/.env
 backend/.env.*
+!backend/.env.example
 frontend/.env
 frontend/.env.*
 backend/prisma/dev.db

@@ -56,6 +56,8 @@ Isso remove o bloqueio principal que existia para o `P3`.
 
 1. Preencher `backend/.env.production` com segredos e URLs reais
    - Definir `TRUST_PROXY=uniquelocal` para a stack Docker com Nginx, ou CIDRs explícitos da rede/proxy confiável.
+   - Definir `SIGNATURE_TOKEN_SECRET` com um segredo longo e estável para os links de assinatura de RDO.
+   - Em upgrades de versões antigas, definir `SIGNATURE_TOKEN_SECRET_PREVIOUS` com a chave anterior. Se não havia `SURVEY_TOKEN_SECRET`, a chave anterior era o `DATABASE_URL`.
 2. Definir `POSTGRES_PASSWORD` no shell/ambiente antes do compose
 3. Subir:
 
