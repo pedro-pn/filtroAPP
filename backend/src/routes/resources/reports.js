@@ -59,6 +59,7 @@ import { coordinatorNotificationEmails, NotificationEmailCategory, notificationR
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import prisma from '../../lib/prisma.js';
 import { buildReportFileName, safePath } from '../../lib/report-filename.js';
+import { syncReportUploadAttachments } from '../../lib/report-upload-attachments.js';
 import { grantReportUploadAccess, grantReportsUploadAccess } from '../../lib/transient-upload-access.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
@@ -2723,42 +2724,28 @@ function collectPendingDerivedTypes(services) {
   return Array.from(derived);
 }
 
-async function reserveSequence(tx, projectId, reportType) {
-  const existing = await tx.projectReportSeq.findUnique({
-    where: {
-      projectId_reportType: {
-        projectId,
-        reportType
-      }
-    }
-  });
-
-  if (!existing) {
-    await tx.projectReportSeq.create({
-      data: {
-        projectId,
-        reportType,
-        nextNumber: 1
-      }
-    });
-    return 1;
-  }
-
-  const sequenceNumber = (existing.nextNumber > 0 ? existing.nextNumber : 0) + 1;
-
-  await tx.projectReportSeq.update({
+export async function reserveSequence(tx, projectId, reportType) {
+  const reservation = await tx.projectReportSeq.upsert({
     where: {
       projectId_reportType: {
         projectId,
         reportType
       }
     },
-    data: {
-      nextNumber: sequenceNumber
+    create: {
+      projectId,
+      reportType,
+      nextNumber: 1
+    },
+    update: {
+      nextNumber: { increment: 1 }
+    },
+    select: {
+      nextNumber: true
     }
   });
 
-  return sequenceNumber;
+  return Math.max(1, reservation.nextNumber || 0);
 }
 
 async function syncProjectReportSequence(tx, projectId, reportType, sequenceNumber) {
@@ -4648,6 +4635,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
   });
   const tPostTx = Date.now();
   await organizeAndPersist(item);
+  await syncReportUploadAttachments(prisma, item.id);
   const tPostOrg = Date.now();
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
@@ -4655,7 +4643,10 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
       include
     });
     for (const d of derived) {
-      if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
+      if (d.specialConditions?.parentRdoId === item.id) {
+        await organizeAndPersist(d);
+        await syncReportUploadAttachments(prisma, d.id);
+      }
     }
   }
   console.log('[TIMING] POST /reports', { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, totalMs: Date.now() - tPost0, reportType: item.reportType, status: item.status });
@@ -4857,6 +4848,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   const tPutTx = Date.now();
 
   await organizeAndPersist(item);
+  await syncReportUploadAttachments(prisma, item.id);
   const tPutOrg = Date.now();
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
@@ -4864,7 +4856,10 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
       include
     });
     for (const d of derived) {
-      if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
+      if (d.specialConditions?.parentRdoId === item.id) {
+        await organizeAndPersist(d);
+        await syncReportUploadAttachments(prisma, d.id);
+      }
     }
   }
   console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: item.reportType, status: item.status });

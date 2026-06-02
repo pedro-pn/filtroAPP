@@ -77,25 +77,15 @@ export function hasTransientUploadAccess(normalizedPath, auth) {
   return !!(grant && grant.userId === auth.user.id && grant.expiresAt > Date.now());
 }
 
-function collectUploadReferences(value, paths) {
-  if (!value) return;
-  if (typeof value === 'string') {
-    const normalized = normalizeUploadReference(value);
-    if (normalized) paths.add(normalized);
-    return;
-  }
-  if (Array.isArray(value)) {
-    value.forEach(item => collectUploadReferences(item, paths));
-    return;
-  }
-  if (typeof value === 'object') {
-    for (const key of ['url', 'path', 'storagePath']) {
-      if (Object.prototype.hasOwnProperty.call(value, key)) {
-        const normalized = normalizeUploadReference(value[key]);
-        if (normalized) paths.add(normalized);
-      }
+function collectPersistedAttachmentReferences(attachments, paths) {
+  if (!Array.isArray(attachments)) return;
+  for (const attachment of attachments) {
+    if (!attachment || typeof attachment !== 'object') continue;
+    for (const key of ['storagePath', 'url', 'path']) {
+      if (!Object.prototype.hasOwnProperty.call(attachment, key)) continue;
+      const normalized = normalizeUploadReference(attachment[key]);
+      if (normalized) paths.add(normalized);
     }
-    Object.values(value).forEach(item => collectUploadReferences(item, paths));
   }
 }
 
@@ -104,11 +94,9 @@ export function grantReportUploadAccess(auth, report) {
   if (!userId || !report) return;
 
   const paths = new Set();
-  collectUploadReferences(report.specialConditions, paths);
-  collectUploadReferences(report.attachments, paths);
+  collectPersistedAttachmentReferences(report.attachments, paths);
   for (const service of report.services || []) {
-    collectUploadReferences(service.extraData, paths);
-    collectUploadReferences(service.attachments, paths);
+    collectPersistedAttachmentReferences(service.attachments, paths);
   }
   for (const normalizedPath of paths) {
     rememberTransientUploadAccess(normalizedPath, userId);

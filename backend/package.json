@@ -17,7 +17,8 @@
     "migrate:signatures": "node scripts/migrate-signatures-to-dataurl.js",
     "retention:dry-run": "node scripts/run-data-retention.js",
     "retention:apply": "node scripts/run-data-retention.js --apply",
-    "sync:romaneio-catalog": "node scripts/sync-romaneio-catalog.js"
+    "sync:romaneio-catalog": "node scripts/sync-romaneio-catalog.js",
+    "backfill:report-attachments": "node scripts/backfill-report-attachments.js"
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",

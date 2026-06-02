@@ -201,16 +201,14 @@ test('stored upload access rejects collaborator attachments for hidden or inacti
   assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), true);
 });
 
-test('stored upload access allows legacy report image previews after report authorization grant', async t => {
+test('stored upload access does not trust report JSON upload references', async t => {
   const originals = {
     attachmentFindMany: prisma.reportAttachment.findMany,
     reportFindMany: prisma.report.findMany
   };
-  prisma.reportAttachment.findMany = async () => {
-    throw new Error('legacy preview grant should bypass attachment lookup');
-  };
+  prisma.reportAttachment.findMany = async () => [];
   prisma.report.findMany = async () => {
-    throw new Error('legacy preview grant should bypass report lookup');
+    throw new Error('arbitrary report JSON references must not authorize stored-file access');
   };
   t.after(() => {
     prisma.reportAttachment.findMany = originals.attachmentFindMany;
@@ -228,13 +226,55 @@ test('stored upload access allows legacy report image previews after report auth
   grantReportUploadAccess(auth, {
     id: 'report-preview',
     specialConditions: {
-      generalUploads: [{ url: '/relatorios/legacy-preview/foto.jpg' }]
+      generalUploads: [{ url: '/relatorios/private-other-project/foto.jpg' }]
     },
     attachments: [],
-    services: []
+    services: [{
+      extraData: {
+        evidence: { storagePath: '/relatorios/private-other-project/service.jpg' }
+      },
+      attachments: []
+    }]
   });
 
-  assert.equal(await authorizeStoredFile({ auth }, 'legacy-preview/foto.jpg'), true);
+  assert.equal(await authorizeStoredFile({ auth }, 'private-other-project/foto.jpg'), false);
+  assert.equal(await authorizeStoredFile({ auth }, 'private-other-project/service.jpg'), false);
+});
+
+test('stored upload access allows persisted report attachments after report authorization grant', async t => {
+  const originals = {
+    attachmentFindMany: prisma.reportAttachment.findMany,
+    reportFindMany: prisma.report.findMany
+  };
+  prisma.reportAttachment.findMany = async () => {
+    throw new Error('persisted attachment grant should bypass attachment lookup');
+  };
+  prisma.report.findMany = async () => {
+    throw new Error('persisted attachment grant should bypass report lookup');
+  };
+  t.after(() => {
+    prisma.reportAttachment.findMany = originals.attachmentFindMany;
+    prisma.report.findMany = originals.reportFindMany;
+  });
+  const auth = {
+    user: {
+      id: 'manager-persisted-attachment',
+      role: 'MANAGER',
+      moduleRoles: ['rdo:manager']
+    },
+    rawUser: {}
+  };
+
+  grantReportUploadAccess(auth, {
+    id: 'report-preview',
+    attachments: [{ storagePath: '/relatorios/report-attachments/foto.jpg' }],
+    services: [{
+      attachments: [{ storagePath: 'service-attachments/foto.jpg' }]
+    }]
+  });
+
+  assert.equal(await authorizeStoredFile({ auth }, 'report-attachments/foto.jpg'), true);
+  assert.equal(await authorizeStoredFile({ auth }, 'service-attachments/foto.jpg'), true);
 });
 
 test('stored upload access ignores arbitrary self-owned draft payload references', async t => {
