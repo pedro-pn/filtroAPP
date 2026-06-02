@@ -498,17 +498,8 @@ router.post('/forgot-password', forgotPasswordRateLimit, asyncHandler(async (req
         isActive: true
       }
     });
-    if (user) {
-      const projects = await prisma.project.findMany({
-        where: {
-          clientCnpj: normalizedIdentifier,
-          deletedAt: null,
-          managerOnly: false,
-          isActive: true
-        },
-        select: { clientEmailPrimary: true }
-      });
-      emails = Array.from(new Set(projects.map(project => project.clientEmailPrimary).filter(Boolean)));
+    if (user?.email && user.emailVerifiedAt) {
+      emails = [user.email];
     }
   } else {
     user = await prisma.user.findFirst({
@@ -572,6 +563,10 @@ router.post('/reset-password', resetPasswordRateLimit, asyncHandler(async (req, 
       where: { id: tokenRow.userId },
       data: { passwordHash }
     });
+
+    await tx.userSession.deleteMany({
+      where: { userId: tokenRow.userId }
+    });
   });
 
   res.json({ ok: true });
@@ -588,9 +583,17 @@ router.post('/change-password', requireAuth, asyncHandler(async (req, res) => {
   }
 
   const passwordHash = await hashPassword(data.newPassword);
-  await prisma.user.update({
-    where: { id: currentUser.id },
-    data: { passwordHash }
+  await prisma.$transaction(async tx => {
+    await tx.user.update({
+      where: { id: currentUser.id },
+      data: { passwordHash }
+    });
+    await tx.userSession.deleteMany({
+      where: {
+        userId: currentUser.id,
+        id: { not: req.auth.sessionId }
+      }
+    });
   });
 
   res.json({ ok: true });

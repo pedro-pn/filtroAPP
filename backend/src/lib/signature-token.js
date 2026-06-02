@@ -5,11 +5,22 @@ import env from '../config/env.js';
 const ALGORITHM = 'aes-256-gcm';
 
 function secretMaterial() {
-  return env.surveyTokenSecret || env.databaseUrl || 'dev-signature-token-secret';
+  if (env.signatureTokenSecret) return env.signatureTokenSecret;
+  if (env.nodeEnv === 'production') {
+    throw new Error('SIGNATURE_TOKEN_SECRET deve ser configurado explicitamente em produção.');
+  }
+  return env.surveyTokenSecret || 'dev-signature-token-secret';
 }
 
-function key() {
-  return createHash('sha256').update(secretMaterial()).digest();
+function key(material = secretMaterial()) {
+  return createHash('sha256').update(material).digest();
+}
+
+function decryptionSecrets() {
+  return [
+    secretMaterial(),
+    ...(Array.isArray(env.previousSignatureTokenSecrets) ? env.previousSignatureTokenSecrets : [])
+  ].filter(Boolean);
 }
 
 export function createSignatureToken() {
@@ -33,13 +44,21 @@ export function encryptSignatureToken(token) {
 }
 
 export function decryptSignatureToken({ tokenEncrypted, tokenIv, tokenAuthTag }) {
-  const decipher = createDecipheriv(ALGORITHM, key(), Buffer.from(tokenIv, 'base64'));
-  decipher.setAuthTag(Buffer.from(tokenAuthTag, 'base64'));
-  const decrypted = Buffer.concat([
-    decipher.update(Buffer.from(tokenEncrypted, 'base64')),
-    decipher.final()
-  ]);
-  return decrypted.toString('utf8');
+  let lastError = null;
+  for (const material of decryptionSecrets()) {
+    try {
+      const decipher = createDecipheriv(ALGORITHM, key(material), Buffer.from(tokenIv, 'base64'));
+      decipher.setAuthTag(Buffer.from(tokenAuthTag, 'base64'));
+      const decrypted = Buffer.concat([
+        decipher.update(Buffer.from(tokenEncrypted, 'base64')),
+        decipher.final()
+      ]);
+      return decrypted.toString('utf8');
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error('Token de assinatura indecifrável.');
 }
 
 export function signatureTokenData() {

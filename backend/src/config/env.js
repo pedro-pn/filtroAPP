@@ -17,6 +17,13 @@ function parseOrigins(value) {
     .filter(Boolean);
 }
 
+function parseList(value) {
+  return String(value || '')
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
 export function parseTrustProxy(value) {
   const raw = String(value || '').trim();
   if (!raw) return false;
@@ -37,10 +44,19 @@ export function assertProductionTrustProxyConfigured({ nodeEnv, trustProxyConfig
   }
 }
 
+export function assertProductionSignatureTokenSecretConfigured({ nodeEnv, signatureTokenSecret }) {
+  if (nodeEnv !== 'production') return;
+  if (!signatureTokenSecret) {
+    throw new Error('SIGNATURE_TOKEN_SECRET deve ser configurado explicitamente em produção.');
+  }
+}
+
 const nodeEnv = process.env.NODE_ENV || 'development';
 const trustProxyConfigured = process.env.TRUST_PROXY !== undefined && String(process.env.TRUST_PROXY).trim() !== '';
 const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
+const signatureTokenSecret = process.env.SIGNATURE_TOKEN_SECRET || '';
 assertProductionTrustProxyConfigured({ nodeEnv, trustProxyConfigured, trustProxy });
+assertProductionSignatureTokenSecretConfigured({ nodeEnv, signatureTokenSecret });
 
 const env = {
   port: Number(process.env.PORT || 4000),
@@ -67,6 +83,8 @@ const env = {
   zapsignPassword: process.env.ZAPSIGN_PASSWORD || process.env.ZAPSIGN_SENHA || '',
   zapsignOrganizationId: process.env.ZAPSIGN_ORGANIZATION_ID || process.env.ZAPSIGN_ORG_ID || '',
   surveyTokenSecret: process.env.SURVEY_TOKEN_SECRET || '',
+  signatureTokenSecret,
+  previousSignatureTokenSecrets: parseList(process.env.SIGNATURE_TOKEN_SECRET_PREVIOUS),
   dataRetentionJobEnabled: parseBoolean(process.env.DATA_RETENTION_JOB_ENABLED, false),
   zapsignApiBaseUrl: process.env.ZAPSIGN_API_BASE_URL || 'https://api.zapsign.com.br/api/v1',
   libreOfficeBinary: process.env.LIBREOFFICE_BINARY || 'soffice',
