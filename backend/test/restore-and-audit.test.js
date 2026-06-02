@@ -44,6 +44,16 @@ test('restore script validates checksums before mutating restored services', () 
   );
 });
 
+test('backup default includes certs required by restore default', () => {
+  const backupScript = fs.readFileSync(new URL('../../deploy/backup-prod.sh', import.meta.url), 'utf8');
+  const restoreScript = fs.readFileSync(new URL('../../deploy/restore-prod.sh', import.meta.url), 'utf8');
+
+  assert.match(backupScript, /INCLUDE_CERTS="\$\{INCLUDE_CERTS:-true\}"/);
+  assert.match(restoreScript, /RESTORE_CERTS="\$\{RESTORE_CERTS:-true\}"/);
+  assert.match(backupScript, /certs\.tar\.gz/);
+  assert.match(restoreScript, /certs\.tar\.gz/);
+});
+
 test('restore script aborts before docker when reports archive is required and missing', () => {
   const { result, dockerCalls } = runRestoreWithFakeDocker({
     RESTORE_REPORTS: 'true',

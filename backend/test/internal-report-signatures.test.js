@@ -36,6 +36,18 @@ import prisma from '../src/lib/prisma.js';
 
 const validSignatureImageDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
 
+test('manager approval waits for public signature link delivery', async () => {
+  const source = await fs.readFile(new URL('../src/routes/resources/reports.js', import.meta.url), 'utf8');
+  const statusRouteStart = source.indexOf("router.patch('/:id/status'");
+  const statusRouteEnd = source.indexOf("router.post('/:id/request-signature'", statusRouteStart);
+  const statusRoute = source.slice(statusRouteStart, statusRouteEnd);
+
+  assert.ok(statusRouteStart !== -1 && statusRouteEnd !== -1, 'status route must be located');
+  assert.doesNotMatch(statusRoute, /queueInternalSignatureRoundAndNotify/);
+  assert.match(statusRoute, /await ensureInternalSignatureRoundAndNotify/);
+  assert.match(statusRoute, /throwOnEmailFailure:\s*true/);
+});
+
 test('public RDO signature schema rejects missing or stale privacy notice version', () => {
   const base = {
     signerName: 'Cliente',

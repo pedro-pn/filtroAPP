@@ -2024,7 +2024,7 @@ async function finalizeInternalSignatureRound(report, version, evidence, userId,
   });
 }
 
-async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
+async function ensureInternalSignatureRoundAndNotify(report, userId, evidence, options = {}) {
   const freshReport = report?.id
     ? await prisma.report.findUnique({ where: { id: report.id }, include })
     : null;
@@ -2086,6 +2086,7 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
       });
       const missingMailerConfig = getMissingMailerConfig();
       if (missingMailerConfig.length && signatureRequestEmailRequired(current, nextVersion)) {
+        if (options.throwOnEmailFailure) throw missingSignatureRequestEmailConfigError(missingMailerConfig);
         return {
           version: nextVersion,
           tokens: [],
@@ -2110,21 +2111,17 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence) {
     throw error;
   }
 
-  if (tokens.length) emailDelivery = await deliverIssuedSignatureRequestEmails(report, tokens);
-  return { version, emailDelivery };
-}
-
-function queueInternalSignatureRoundAndNotify(report, userId, evidence) {
-  if (!report || report.status !== ReportStatus.APPROVED) return;
-  setImmediate(() => {
-    ensureInternalSignatureRoundAndNotify(report, userId, evidence).catch(error => {
-      console.error('Falha ao preparar rodada de assinatura interna em background.', {
-        reportId: report?.id,
-        projectId: report?.projectId,
-        error: error?.message || error
-      });
+  if (tokens.length) {
+    emailDelivery = await deliverIssuedSignatureRequestEmails(report, tokens, {
+      throwOnFailure: options.throwOnEmailFailure
     });
-  });
+  }
+  if (options.throwOnEmailFailure && emailDelivery && emailDelivery.ok === false) {
+    throw signatureRequestEmailDeliveryError(emailDelivery.error || 'Falha ao enviar links de assinatura interna.', {
+      emailDelivery
+    });
+  }
+  return { version, emailDelivery };
 }
 
 async function getReportDocxDownload(report) {
@@ -4609,8 +4606,10 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
   }
   console.log('[TIMING] POST /reports', { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, totalMs: Date.now() - tPost0, reportType: item.reportType, status: item.status });
   if (item.status === ReportStatus.APPROVED) {
+    await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, signatureEvidenceFromRequest(req), {
+      throwOnEmailFailure: true
+    });
     queueApprovedReportNotification(item);
-    queueInternalSignatureRoundAndNotify(item, req.auth.user.id, signatureEvidenceFromRequest(req));
   }
   res.status(201).json(item);
 }));
@@ -4809,9 +4808,11 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     }
   }
   console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: item.reportType, status: item.status });
-  if (isManagerFixingClientRejection && item.status === ReportStatus.APPROVED) queueReapprovedReportNotification(item);
   if (item.status === ReportStatus.APPROVED) {
-    queueInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
+    await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence, {
+      throwOnEmailFailure: true
+    });
+    if (isManagerFixingClientRejection) queueReapprovedReportNotification(item);
   }
   res.json(item);
 }));
@@ -5053,13 +5054,19 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
       if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
     }
     if (approvedTransition) {
+      await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence, {
+        throwOnEmailFailure: true
+      });
       if (wasClientRejection) {
         queueReapprovedReportNotification(item);
       } else {
         queueApprovedReportNotification(item);
       }
+    } else {
+      await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence, {
+        throwOnEmailFailure: true
+      });
     }
-    queueInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
   }
   console.log('[TIMING] PATCH /reports/:id/status', { txMs: tPatchTx - tPatch0, totalMs: Date.now() - tPatch0, newStatus: data.status });
   res.json(item);

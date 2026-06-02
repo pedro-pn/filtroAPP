@@ -44,7 +44,7 @@ POSTGRES_USER="${POSTGRES_USER:-postgres}"
 REPORTS_VOLUME="${REPORTS_VOLUME:-filtrovali_relatorios}"
 CERTS_VOLUME="${CERTS_VOLUME:-filtrovali_certs}"
 BACKUP_ROOT="${BACKUP_ROOT:-/home/ubuntu/backups/filtrovali}"
-INCLUDE_CERTS="${INCLUDE_CERTS:-false}"
+INCLUDE_CERTS="${INCLUDE_CERTS:-true}"
 INCLUDE_REPORTS="${INCLUDE_REPORTS:-true}"
 AWS_S3_URI="${AWS_S3_URI:-}"
 

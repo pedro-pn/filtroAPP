@@ -569,17 +569,26 @@ export function buildReportRejectedByClientEmailTemplate({ projectCode, projectN
   const title = 'Relatório reprovado pelo cliente';
   const reviewer = clientName || 'Cliente';
   const intro = `O relatório ${reportType} ${reportNumber} do projeto ${projectCode} - ${projectName} foi reprovado por ${reviewer} e precisa ser revisado.`;
+  const safeProjectCode = escapeHtml(projectCode);
+  const safeProjectName = escapeHtml(projectName);
+  const safeReviewer = escapeHtml(reviewer);
+  const safeReportType = escapeHtml(reportType);
+  const safeReportNumber = escapeHtml(reportNumber);
+  const safeReportDate = escapeHtml(reportDate);
+  const safeComment = escapeHtml(comment);
+  const safeAppUrl = escapeHtml(appUrl);
+  const safeIntro = `O relatório ${safeReportType} ${safeReportNumber} do projeto ${safeProjectCode} - ${safeProjectName} foi reprovado por ${safeReviewer} e precisa ser revisado.`;
   const body = `
     <div style="background:#fff8f8;border:1px solid #f5c6c6;border-radius:12px;padding:16px">
       <div style="font-size:14px;line-height:1.8">
-        <div><strong>Cliente que reprovou:</strong> ${reviewer}</div>
-        <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
-        <div><strong>Relatório:</strong> ${reportType} ${reportNumber}</div>
-        <div><strong>Data:</strong> ${reportDate}</div>
-        ${comment ? `<div style="margin-top:12px"><strong>Justificativa do cliente:</strong><br><span style="white-space:pre-wrap">${comment}</span></div>` : ''}
+        <div><strong>Cliente que reprovou:</strong> ${safeReviewer}</div>
+        <div><strong>Projeto:</strong> ${safeProjectCode} - ${safeProjectName}</div>
+        <div><strong>Relatório:</strong> ${safeReportType} ${safeReportNumber}</div>
+        <div><strong>Data:</strong> ${safeReportDate}</div>
+        ${comment ? `<div style="margin-top:12px"><strong>Justificativa do cliente:</strong><br><span style="white-space:pre-wrap">${safeComment}</span></div>` : ''}
       </div>
     </div>
-    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema para revisar: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema para revisar: <a href="${safeAppUrl}" style="color:#30503a">${safeAppUrl}</a></p>` : ''}
   `;
   const footer = 'Este envio foi gerado automaticamente pelo sistema Filtrovali.';
 
@@ -594,7 +603,7 @@ export function buildReportRejectedByClientEmailTemplate({ projectCode, projectN
       comment ? `Justificativa: ${comment}` : '',
       appUrl ? `Acesso: ${appUrl}` : ''
     ].filter(Boolean).join('\n'),
-    html: wrapEmailHtml({ title, intro, body, footer })
+    html: wrapEmailHtml({ title, intro: safeIntro, body, footer })
   };
 }
 

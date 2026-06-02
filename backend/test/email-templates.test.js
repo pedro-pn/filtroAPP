@@ -80,6 +80,26 @@ test('buildReportRejectedByClientEmailTemplate identifies the rejecting client',
   assert.match(template.html, /<strong>Cliente que reprovou:<\/strong> Maria Cliente \(maria@example\.com\)/);
 });
 
+test('buildReportRejectedByClientEmailTemplate escapes client-provided HTML', () => {
+  const template = buildReportRejectedByClientEmailTemplate({
+    projectCode: 'PRJ-<001>',
+    projectName: 'Projeto <Teste>',
+    clientName: 'Cliente <script>alert(1)</script>',
+    reportType: 'RDO',
+    reportNumber: '12',
+    reportDate: '13/05/2026',
+    comment: 'Corrigir<br><img src=x onerror=alert(1)>',
+    appUrl: 'https://app.example.com/reports?x=<script>'
+  });
+
+  assert.doesNotMatch(template.html, /<script>/);
+  assert.doesNotMatch(template.html, /<img src=x/);
+  assert.doesNotMatch(template.html, /Corrigir<br>/);
+  assert.match(template.html, /Cliente &lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(template.html, /Corrigir&lt;br&gt;&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.match(template.html, /https:\/\/app\.example\.com\/reports\?x=&lt;script&gt;/);
+});
+
 test('buildReportSignatureReceivedEmailTemplate includes signer and progress', () => {
   const template = buildReportSignatureReceivedEmailTemplate({
     projectCode: 'P-001',

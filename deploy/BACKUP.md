@@ -4,7 +4,7 @@
 
 - Banco PostgreSQL
 - Volume `filtrovali_relatorios`
-- Opcional: certificados em `filtrovali_certs`
+- Certificados em `filtrovali_certs`
 - Arquivo `backend/.env.production`
 
 Os dados do banco em produção ficam no volume Docker `filtrovali_pgdata`, mas isso
@@ -16,6 +16,7 @@ O arquivo `deploy/backup-prod.sh` faz:
 
 - `pg_dump` do banco
 - compactação do volume `filtrovali_relatorios`
+- compactação do volume `filtrovali_certs`
 - checksum SHA256
 - envio opcional para S3
 - limpeza dos backups locais antigos quando o envio ao S3 termina com sucesso
@@ -42,13 +43,14 @@ Por padrão ele usa:
 - `POSTGRES_USER=postgres`
 - `REPORTS_VOLUME=filtrovali_relatorios`
 - `INCLUDE_REPORTS=true`
+- `INCLUDE_CERTS=true`
 - mantém localmente o backup mais recente em `latest`
 
 ## Variáveis opcionais
 
 ```bash
 AWS_S3_URI=s3://meu-bucket/filtrovali-backups
-INCLUDE_CERTS=true
+INCLUDE_CERTS=false
 INCLUDE_REPORTS=true
 ```
 
@@ -128,7 +130,7 @@ BACKUP_SOURCE=/home/ubuntu/restore/filtrovali/2026-04-24-030001 RUN_MIGRATIONS=f
 
 ## Estratégia recomendada
 
-- Backup horário completo (banco + relatórios) com retenção curta no S3
-- Backup diário com certificados e retenção longa
+- Backup horário completo (banco + relatórios + certificados) com retenção curta no S3
+- Backup diário completo com retenção longa
 - Snapshot periódico do disco EBS
 - Teste de restore pelo menos uma vez
