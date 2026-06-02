@@ -1276,6 +1276,35 @@ function reportDateKey(value) {
   return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
 }
 
+function reportSequenceValue(report) {
+  const value = Number(report?.sequenceNumber);
+  return Number.isInteger(value) ? value : null;
+}
+
+function reportCreatedAtKey(value) {
+  if (!value) return '';
+  if (value instanceof Date) return value.toISOString();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value || '') : date.toISOString();
+}
+
+function compareProjectReportOrder(left, right) {
+  const leftDate = reportDateKey(left?.reportDate);
+  const rightDate = reportDateKey(right?.reportDate);
+  if (leftDate && rightDate && leftDate !== rightDate) return leftDate < rightDate ? -1 : 1;
+
+  const leftSequence = reportSequenceValue(left);
+  const rightSequence = reportSequenceValue(right);
+  if (leftSequence !== null && rightSequence !== null && leftSequence !== rightSequence) {
+    return leftSequence < rightSequence ? -1 : 1;
+  }
+
+  const leftCreated = reportCreatedAtKey(left?.createdAt);
+  const rightCreated = reportCreatedAtKey(right?.createdAt);
+  if (leftCreated && rightCreated && leftCreated !== rightCreated) return leftCreated < rightCreated ? -1 : 1;
+  return 0;
+}
+
 function reportCollection(allReportsById) {
   if (!allReportsById) return [];
   if (Array.isArray(allReportsById)) return allReportsById;
@@ -1284,15 +1313,13 @@ function reportCollection(allReportsById) {
 }
 
 export function previousRdosSignedForServiceReport(report, parentRdo, allReportsById) {
-  const parentDateKey = reportDateKey(parentRdo?.reportDate || report?.reportDate);
-  if (!parentDateKey) return false;
+  if (!parentRdo && !report?.reportDate) return false;
   const projectId = report?.projectId || parentRdo?.projectId;
   return reportCollection(allReportsById).every(item => {
     if (!item || item.projectId !== projectId) return true;
     if (item.reportType !== ReportType.RDO) return true;
     if (item.deletedAt || item.project?.deletedAt) return true;
-    const itemDateKey = reportDateKey(item.reportDate);
-    if (!itemDateKey || itemDateKey >= parentDateKey) return true;
+    if (compareProjectReportOrder(item, parentRdo || report) >= 0) return true;
     return item.status === ReportStatus.SIGNED;
   });
 }
@@ -1387,15 +1414,13 @@ export async function releasedServiceReportsAfterRdoSignature(rdo, client = pris
   if (!rdo || rdo.reportType !== ReportType.RDO || rdo.status !== ReportStatus.SIGNED) return [];
   const projectReports = await projectReportsForClientVisibility(rdo.projectId, client);
   const byId = new Map(projectReports.map(item => [item.id, item]));
-  const signedDateKey = reportDateKey(rdo.reportDate);
   return projectReports
     .filter(report => {
       if (report.reportType === ReportType.RDO) return false;
       const parentId = report.specialConditions?.parentRdoId;
       if (!parentId) return false;
       const parent = byId.get(parentId);
-      const parentDateKey = reportDateKey(parent?.reportDate || report.reportDate);
-      const signedRdoReleasedThisReport = parentId === rdo.id || (signedDateKey && parentDateKey && signedDateKey < parentDateKey);
+      const signedRdoReleasedThisReport = parentId === rdo.id || compareProjectReportOrder(rdo, parent || report) < 0;
       return signedRdoReleasedThisReport && canClientSeeReport(report, byId);
     })
     .map(releasedServiceReportPayload);

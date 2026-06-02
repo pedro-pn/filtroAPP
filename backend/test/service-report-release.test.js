@@ -213,6 +213,58 @@ test('signing an earlier RDO reports service documents that become visible', asy
   }]);
 });
 
+test('signing the last same-day pending RDO releases later service reports by sequence', async () => {
+  const sameDate = '2026-05-20';
+  const makeRdo = (sequenceNumber, status) => report({
+    id: `rdo-${sequenceNumber}`,
+    status,
+    sequenceNumber,
+    reportDate: sameDate
+  });
+  const makeServiceReport = sequenceNumber => report({
+    id: `rcpu-${sequenceNumber}`,
+    reportType: ReportType.RCPU,
+    sequenceNumber: 100 + sequenceNumber,
+    status: ReportStatus.APPROVED,
+    reportDate: sameDate,
+    specialConditions: { parentRdoId: `rdo-${sequenceNumber}` }
+  });
+
+  const beforeLastSignature = [
+    makeRdo(1, ReportStatus.SIGNED),
+    makeRdo(2, ReportStatus.SIGNED),
+    makeRdo(3, ReportStatus.APPROVED),
+    ...[4, 5, 6, 7, 8, 9, 10].map(sequenceNumber => makeRdo(sequenceNumber, ReportStatus.SIGNED)),
+    ...[3, 4, 5, 6, 7, 8, 9, 10].map(makeServiceReport)
+  ];
+  const afterLastSignature = beforeLastSignature.map(item => (
+    item.id === 'rdo-3' ? { ...item, status: ReportStatus.SIGNED } : item
+  ));
+
+  const releaseAfterRdo2 = await releasedServiceReportsAfterRdoSignature(makeRdo(2, ReportStatus.SIGNED), {
+    report: {
+      findMany: async () => beforeLastSignature
+    }
+  });
+  const releaseAfterRdo3 = await releasedServiceReportsAfterRdoSignature(makeRdo(3, ReportStatus.SIGNED), {
+    report: {
+      findMany: async () => afterLastSignature
+    }
+  });
+
+  assert.deepEqual(releaseAfterRdo2.map(item => item.id), []);
+  assert.deepEqual(releaseAfterRdo3.map(item => item.id), [
+    'rcpu-3',
+    'rcpu-4',
+    'rcpu-5',
+    'rcpu-6',
+    'rcpu-7',
+    'rcpu-8',
+    'rcpu-9',
+    'rcpu-10'
+  ]);
+});
+
 test('project email recipients include primary and cc without duplicates', () => {
   const recipients = projectEmailRecipients({
     clientEmailPrimary: ' Responsavel@Example.com ',
