@@ -23,6 +23,7 @@ test('buildMonthlyAllocationSummary groups day and night allocations by collabor
       id: 'project-1',
       code: 'P-100',
       name: 'Parada Programada',
+      clientName: 'Cliente Acme',
       clientCnpj: '12345678000190'
     },
     collaborators: [{
@@ -42,6 +43,7 @@ test('buildMonthlyAllocationSummary groups day and night allocations by collabor
       id: 'project-1',
       code: 'P-100',
       name: 'Parada Programada',
+      clientName: 'Cliente Acme',
       clientCnpj: '12345678000190'
     },
     collaborators: [{
@@ -62,6 +64,7 @@ test('buildMonthlyAllocationSummary groups day and night allocations by collabor
   assert.equal(data.summary.collaboratorCount, 2);
   assert.equal(data.summary.allocationCount, 3);
   assert.equal(data.summary.dayCount, 1);
+  assert.equal(data.entries[0].clientName, 'Cliente Acme');
   assert.equal(data.entries[0].clientCnpj, '12.345.678/0001-90');
 
   const ana = data.collaborators.find(item => item.collaboratorName === 'Ana Lima');
@@ -88,6 +91,7 @@ test('processMonthlyAllocationReport sends the previous month on the first day',
       id: 'project-1',
       code: 'P-100',
       name: 'Projeto Junho',
+      clientName: 'Cliente Junho',
       clientCnpj: '12345678000190'
     },
     collaborators: [{

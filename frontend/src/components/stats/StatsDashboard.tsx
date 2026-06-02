@@ -993,6 +993,7 @@ function AllocationDayList({ days }: { days: AllocationReportDay[] }) {
           <span className="stats-alloc-date">{formatAllocationDate(day.date)}</span>
           <span className="stats-alloc-shift">{day.shift}</span>
           <span className="stats-alloc-project">{day.projectName}</span>
+          <span className="stats-alloc-client">{day.clientName || '-'}</span>
           <span className="stats-alloc-cnpj">{day.clientCnpj || '-'}</span>
         </div>
       ))}

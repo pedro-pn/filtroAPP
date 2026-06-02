@@ -6939,21 +6939,25 @@ select {
 
 .stats-alloc-day-item {
   display: grid;
-  grid-template-columns: 74px 64px minmax(220px, 1fr) 128px;
+  grid-template-columns: 74px 64px minmax(190px, 1fr) minmax(140px, 0.8fr) 128px;
   gap: 8px;
   align-items: baseline;
 }
 
 .stats-alloc-date,
 .stats-alloc-shift,
+.stats-alloc-client,
 .stats-alloc-cnpj {
   color: var(--mu);
   white-space: nowrap;
 }
 
-.stats-alloc-project {
+.stats-alloc-project,
+.stats-alloc-client {
   color: var(--tx);
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stats-alloc-empty-cell {
@@ -7043,6 +7047,10 @@ select {
 
   .stats-alloc-day-item {
     grid-template-columns: 70px 56px minmax(160px, 1fr);
+  }
+
+  .stats-alloc-client {
+    grid-column: 3;
   }
 
   .stats-alloc-cnpj {

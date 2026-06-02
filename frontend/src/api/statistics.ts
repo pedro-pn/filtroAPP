@@ -125,6 +125,7 @@ export interface AllocationReportDay {
   projectId: string;
   projectCode: string;
   projectName: string;
+  clientName: string;
   clientCnpj: string;
   reportId: string;
   sequenceNumber: number | null;

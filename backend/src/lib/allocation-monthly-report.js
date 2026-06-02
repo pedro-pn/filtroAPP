@@ -86,6 +86,7 @@ function reportAllocationEntries(report) {
   const date = toDateKey(report.reportDate);
   const project = report.project || {};
   const projectName = [project.code, project.name].filter(Boolean).join(' - ');
+  const clientName = stringValue(project.clientName);
   const projectCnpj = formatCnpj(project.clientCnpj);
   const collaboratorById = new Map();
 
@@ -100,6 +101,7 @@ function reportAllocationEntries(report) {
       projectId: report.projectId,
       projectCode: project.code || '',
       projectName,
+      clientName,
       clientCnpj: projectCnpj,
       reportId: report.id,
       sequenceNumber: report.sequenceNumber
@@ -132,6 +134,7 @@ function reportAllocationEntries(report) {
       projectId: report.projectId,
       projectCode: project.code || '',
       projectName,
+      clientName,
       clientCnpj: projectCnpj,
       reportId: report.id,
       sequenceNumber: report.sequenceNumber
@@ -149,6 +152,7 @@ function reportAllocationEntries(report) {
       projectId: report.projectId,
       projectCode: project.code || '',
       projectName,
+      clientName,
       clientCnpj: projectCnpj,
       reportId: report.id,
       sequenceNumber: report.sequenceNumber
@@ -185,7 +189,7 @@ export async function buildMonthlyAllocationSummary({ yearMonth, client = prisma
       reportDate: true,
       sequenceNumber: true,
       specialConditions: true,
-      project: { select: { id: true, code: true, name: true, clientCnpj: true } },
+      project: { select: { id: true, code: true, name: true, clientName: true, clientCnpj: true } },
       collaborators: {
         select: {
           collaboratorId: true,
@@ -228,6 +232,7 @@ export async function buildMonthlyAllocationSummary({ yearMonth, client = prisma
       projectId: entry.projectId,
       projectCode: entry.projectCode,
       projectName: entry.projectName,
+      clientName: entry.clientName,
       clientCnpj: entry.clientCnpj,
       reportId: entry.reportId,
       sequenceNumber: entry.sequenceNumber
@@ -271,8 +276,9 @@ function drawAllocationTableHeader(page, fonts, y) {
   const opts = { size: 8, font: fonts.bold, color: rgb(0.2, 0.31, 0.23) };
   drawText(page, 'Data', 42, y, opts);
   drawText(page, 'Turno', 92, y, opts);
-  drawText(page, 'Projeto', 160, y, opts);
-  drawText(page, 'CNPJ', 660, y, opts);
+  drawText(page, 'Projeto', 150, y, opts);
+  drawText(page, 'Cliente', 460, y, opts);
+  drawText(page, 'CNPJ', 650, y, opts);
 }
 
 async function embedLogo(pdf) {
@@ -388,8 +394,9 @@ export async function buildMonthlyAllocationPdf(data) {
       page.drawLine({ start: { x: margin, y: y - 5 }, end: { x: 806, y: y - 5 }, thickness: 0.3, color: rgb(0.88, 0.9, 0.89) });
       drawText(page, formatDatePt(day.date), 42, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
       drawText(page, day.shift, 92, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
-      drawText(page, truncateText(day.projectName, 78), 160, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
-      drawText(page, day.clientCnpj || '-', 660, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
+      drawText(page, truncateText(day.projectName, 52), 150, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
+      drawText(page, truncateText(day.clientName || '-', 30), 460, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
+      drawText(page, day.clientCnpj || '-', 650, y, { size: 8, font: fonts.regular, color: rgb(0.1, 0.1, 0.1) });
       y -= 14;
     }
     y -= 10;
