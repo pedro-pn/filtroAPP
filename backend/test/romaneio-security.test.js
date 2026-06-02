@@ -5,11 +5,16 @@ import path from 'node:path';
 import { PassThrough, Readable, Writable } from 'node:stream';
 import test from 'node:test';
 
+import AdmZip from 'adm-zip';
+
 import app from '../src/app.js';
+import { buildRomaneioDocx } from '../src/lib/romaneio-docx.js';
 import { parseEquipmentRows, syncRomaneioCatalog } from '../src/lib/romaneio-catalog.js';
 import prisma from '../src/lib/prisma.js';
 import {
+  buildRomaneioItems,
   cleanupFailedRomaneioCreate,
+  requireRomaneioEditor,
   requireRomaneioManager,
   requireRomaneioModuleAccess,
   romaneioProjectWhereForUser,
@@ -183,6 +188,102 @@ test('Romaneio manager guard rejects admin accounts without manager role', () =>
     nextCalled = true;
   });
   assert.equal(nextCalled, true);
+});
+
+test('Romaneio editor guard allows only managers and coordinators', () => {
+  const req = {
+    auth: {
+      user: { role: 'COLLABORATOR', moduleRoles: ['romaneio:operator'] }
+    }
+  };
+  const res = responseRecorder();
+  let nextCalled = false;
+
+  requireRomaneioEditor(req, res, () => {
+    nextCalled = true;
+  });
+
+  assert.equal(nextCalled, false);
+  assert.equal(res.statusCode, 403);
+
+  req.auth.user.role = 'COORDINATOR';
+  requireRomaneioEditor(req, res, () => {
+    nextCalled = true;
+  });
+  assert.equal(nextCalled, true);
+});
+
+test('Romaneio DOCX header includes cargo weight', async () => {
+  const bytes = await buildRomaneioDocx({
+    id: 'romaneio-weight',
+    project: {
+      code: 'P-001',
+      name: 'Projeto',
+      clientName: 'Cliente',
+      contractCode: 'PROP-1',
+      clientCnpj: '11222333000144',
+      location: 'Base'
+    },
+    romaneioDate: new Date('2026-06-02T12:00:00.000-03:00'),
+    vehiclePlate: 'ABC1234',
+    driverName: 'Motorista',
+    cargoWeight: 150,
+    cargoWeightUnit: 'kg',
+    items: [{
+      itemName: 'Item',
+      itemCode: 'I-1',
+      categoryName: 'Categoria',
+      quantity: 1,
+      unitLabel: 'unidade',
+      sortOrder: 0
+    }]
+  });
+  const xml = new AdmZip(Buffer.from(bytes)).readAsText('word/document.xml');
+
+  assert.match(xml, /Peso da carga/);
+  assert.match(xml, /150 kg/);
+  assert.doesNotMatch(xml, /15 kg/);
+  assert.doesNotMatch(xml, /&lt;&lt;weight&gt;&gt;|<<weight>>/);
+});
+
+test('Romaneio item builder allows only previously linked inactive catalog items', async t => {
+  const originalFindMany = prisma.romaneioCatalogItem.findMany;
+  let allowInactive = false;
+  prisma.romaneioCatalogItem.findMany = async args => {
+    const allowedIds = args.where.OR.flatMap(condition => condition.id?.in || []);
+    allowInactive = allowedIds.includes('catalog-inactive');
+    return allowInactive ? [{
+      id: 'catalog-inactive',
+      code: 'OLD-1',
+      name: 'Item antigo',
+      categoryName: 'Categoria',
+      kind: 'EQUIPMENT',
+      measureType: 'UNIT',
+      defaultUnitLabel: 'unidade',
+      isSerialized: true,
+      isActive: false
+    }] : [];
+  };
+  t.after(() => {
+    prisma.romaneioCatalogItem.findMany = originalFindMany;
+  });
+  const item = {
+    catalogItemId: 'catalog-inactive',
+    quantity: 1
+  };
+
+  await assert.rejects(
+    () => buildRomaneioItems([item]),
+    /Item do catálogo inválido ou inativo/
+  );
+
+  const result = await buildRomaneioItems([item], {
+    allowedInactiveCatalogItemIds: ['catalog-inactive']
+  });
+
+  assert.equal(allowInactive, true);
+  assert.equal(result[0].catalogItemId, 'catalog-inactive');
+  assert.equal(result[0].itemName, 'Item antigo');
 });
 
 test('Romaneio catalog GET only reads active catalog rows', async t => {

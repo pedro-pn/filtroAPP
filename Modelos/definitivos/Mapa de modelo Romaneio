@@ -8,6 +8,7 @@ Cabeçalho:
 <<plate>> - placa do automóvel que transportará
 <<driver>> - Nome do motorista
 <<local>> local do serviço
+<<weight>> - peso da carga
 
 <<UNITTYPE>> - tipo de equipamento (unidade de flushing, unidade de limpeza química, conexões, produtos químicos, etc.).
 <<item>> - nome do item com o código "[sigla] - [nome do equipamento]"

@@ -43,6 +43,8 @@ export interface Romaneio {
   romaneioDate: string;
   driverName: string;
   vehiclePlate: string;
+  cargoWeight?: string | number | null;
+  cargoWeightUnit?: 'kg' | 'ton' | null;
   docxUrl?: string | null;
   pdfUrl?: string | null;
   emailStatus?: string | null;
@@ -68,6 +70,8 @@ export interface RomaneioCreatePayload {
   romaneioDate: string;
   driverName: string;
   vehiclePlate: string;
+  cargoWeight?: number | null;
+  cargoWeightUnit?: 'kg' | 'ton';
   items: Array<{
     catalogItemId?: string | null;
     itemName?: string;
@@ -110,8 +114,18 @@ export async function listRomaneios(filters: { search?: string; projectId?: stri
   return data;
 }
 
+export async function getRomaneio(id: string) {
+  const { data } = await apiClient.get<Romaneio>(romaneioApiPath(`/${id}`));
+  return data;
+}
+
 export async function createRomaneio(payload: RomaneioCreatePayload) {
   const { data } = await apiClient.post<Romaneio>(romaneioApiPath('/'), payload);
+  return data;
+}
+
+export async function updateRomaneio(id: string, payload: RomaneioCreatePayload) {
+  const { data } = await apiClient.put<Romaneio>(romaneioApiPath(`/${id}`), payload);
   return data;
 }
 

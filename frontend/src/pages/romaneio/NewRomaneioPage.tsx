@@ -5,11 +5,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   createRomaneio,
   createRomaneioDraft,
+  getRomaneio,
   listRomaneioCatalog,
   listRomaneioDrafts,
   listRomaneioProjects,
   removeRomaneioDraft,
+  updateRomaneio,
   updateRomaneioDraft,
+  type Romaneio,
   type RomaneioCatalogItem,
   type RomaneioCreatePayload,
   type RomaneioDraftPayload,
@@ -49,6 +52,21 @@ function itemLabel(item: RomaneioCatalogItem) {
   return [item.code, item.name].filter(Boolean).join(' - ');
 }
 
+function romaneioItemsToSelectedItems(romaneio: Romaneio): SelectedItem[] {
+  return (romaneio.items || []).map(item => ({
+    key: item.id,
+    catalogItemId: item.catalogItemId || null,
+    itemCode: item.itemCode || null,
+    itemName: item.itemName,
+    categoryName: item.categoryName,
+    kind: item.kind,
+    measureType: item.measureType,
+    quantity: Number(item.quantity),
+    unitLabel: item.unitLabel,
+    isCustom: item.isCustom
+  }));
+}
+
 export function NewRomaneioPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -64,6 +82,8 @@ export function NewRomaneioPage() {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [driverName, setDriverName] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
+  const [cargoWeight, setCargoWeight] = useState('');
+  const [cargoWeightUnit, setCargoWeightUnit] = useState<'kg' | 'ton'>('kg');
   const [catalogSearch, setCatalogSearch] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set());
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
@@ -78,18 +98,34 @@ export function NewRomaneioPage() {
     unitLabel: 'unidade'
   });
 
+  const draftParam = searchParams.get('draft') || '';
+  const editId = searchParams.get('edit') || '';
+  const isEditing = Boolean(editId);
   const projectsQuery = useQuery({ queryKey: ['romaneio-projects'], queryFn: () => listRomaneioProjects(true) });
   const catalogQuery = useQuery({ queryKey: ['romaneio-catalog'], queryFn: listRomaneioCatalog });
-  const draftsQuery = useQuery({ queryKey: ['romaneio-drafts'], queryFn: listRomaneioDrafts });
-  const createMutation = useMutation({
-    mutationFn: (payload: RomaneioCreatePayload) => createRomaneio(payload)
+  const draftsQuery = useQuery({ queryKey: ['romaneio-drafts'], queryFn: listRomaneioDrafts, enabled: !isEditing });
+  const editQuery = useQuery({
+    queryKey: ['romaneio', editId],
+    queryFn: () => getRomaneio(editId),
+    enabled: isEditing
+  });
+  const saveMutation = useMutation({
+    mutationFn: (payload: RomaneioCreatePayload) => (
+      isEditing ? updateRomaneio(editId, payload) : createRomaneio(payload)
+    )
   });
 
+  const projectOptions = useMemo(() => {
+    const projects = [...(projectsQuery.data || [])];
+    const editProject = editQuery.data?.project;
+    if (editProject && !projects.some(project => project.id === editProject.id)) projects.push(editProject);
+    return projects;
+  }, [editQuery.data?.project, projectsQuery.data]);
+
   const selectedProject = useMemo(
-    () => (projectsQuery.data || []).find(project => project.id === projectId) || null,
-    [projectId, projectsQuery.data]
+    () => projectOptions.find(project => project.id === projectId) || null,
+    [projectId, projectOptions]
   );
-  const draftParam = searchParams.get('draft') || '';
 
   const activeCatalog = useMemo(() => {
     const needle = catalogSearch.trim().toLowerCase();
@@ -204,6 +240,8 @@ export function NewRomaneioPage() {
         romaneioDate,
         driverName,
         vehiclePlate,
+        cargoWeight,
+        cargoWeightUnit,
         selectedItems,
         quantities,
         custom
@@ -225,6 +263,8 @@ export function NewRomaneioPage() {
     setRomaneioDate(nextDate.slice(0, 10));
     setDriverName(typeof payload.driverName === 'string' ? payload.driverName : '');
     setVehiclePlate(typeof payload.vehiclePlate === 'string' ? payload.vehiclePlate : '');
+    setCargoWeight(typeof payload.cargoWeight === 'string' || typeof payload.cargoWeight === 'number' ? String(payload.cargoWeight) : '');
+    setCargoWeightUnit(payload.cargoWeightUnit === 'ton' ? 'ton' : 'kg');
     setSelectedItems(Array.isArray(payload.selectedItems) ? payload.selectedItems as SelectedItem[] : []);
     setQuantities(
       payload.quantities && typeof payload.quantities === 'object' && !Array.isArray(payload.quantities)
@@ -240,16 +280,29 @@ export function NewRomaneioPage() {
   }
 
   useEffect(() => {
-    if (!draftParam || !draftsQuery.data?.length) return;
+    if (isEditing || !draftParam || !draftsQuery.data?.length) return;
     if (draftId === draftParam) return;
     const draft = draftsQuery.data.find(item => item.id === draftParam);
     if (!draft) return;
     hydrateDraft(draft);
     showToast('Rascunho carregado.');
-  }, [draftParam, draftsQuery.data, draftId]);
+  }, [isEditing, draftParam, draftsQuery.data, draftId]);
 
   useEffect(() => {
-    if (draftParam) return;
+    const romaneio = editQuery.data;
+    if (!romaneio || !isEditing) return;
+    setProjectId(romaneio.projectId);
+    setRomaneioDate(romaneio.romaneioDate.slice(0, 10));
+    setDriverName(romaneio.driverName || '');
+    setVehiclePlate(romaneio.vehiclePlate || '');
+    setCargoWeight(romaneio.cargoWeight == null ? '' : String(romaneio.cargoWeight));
+    setCargoWeightUnit(romaneio.cargoWeightUnit === 'ton' ? 'ton' : 'kg');
+    setSelectedItems(romaneioItemsToSelectedItems(romaneio));
+    setDraftId(null);
+  }, [editQuery.data, isEditing]);
+
+  useEffect(() => {
+    if (isEditing || draftParam) return;
     const key = currentDraftKey();
     if (!key || hydratedDraftKeyRef.current === key) return;
     const draft = (draftsQuery.data || []).find(item => draftProjectDateKey(item) === key);
@@ -261,9 +314,10 @@ export function NewRomaneioPage() {
 
     hydrateDraft(draft);
     showToast('Rascunho carregado.');
-  }, [projectId, romaneioDate, draftsQuery.data, draftParam]);
+  }, [isEditing, projectId, romaneioDate, draftsQuery.data, draftParam]);
 
   useEffect(() => {
+    if (isEditing) return;
     if (isSubmittingRef.current) return;
     if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
 
@@ -306,13 +360,16 @@ export function NewRomaneioPage() {
     romaneioDate,
     driverName,
     vehiclePlate,
+    cargoWeight,
+    cargoWeightUnit,
     selectedItems,
     quantities,
     custom,
     selectedProject,
     draftId,
     draftsQuery.data,
-    queryClient
+    queryClient,
+    isEditing
   ]);
 
   function selectedItemsPayload() {
@@ -334,6 +391,10 @@ export function NewRomaneioPage() {
       showToast('Preencha os dados do cabeçalho.');
       return false;
     }
+    if (cargoWeight && Number(cargoWeight) <= 0) {
+      showToast('Informe um peso de carga válido.');
+      return false;
+    }
     if (!selectedItems.length) {
       showToast('Adicione ao menos um item.');
       return false;
@@ -343,13 +404,13 @@ export function NewRomaneioPage() {
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (createMutation.isPending || isSubmittingRef.current) return;
+    if (saveMutation.isPending || isSubmittingRef.current) return;
     if (!canSubmitRomaneio()) return;
     setReviewOpen(true);
   }
 
   async function confirmSubmit() {
-    if (createMutation.isPending || isSubmittingRef.current) return;
+    if (saveMutation.isPending || isSubmittingRef.current) return;
     if (!canSubmitRomaneio()) return;
     setReviewOpen(false);
     isSubmittingRef.current = true;
@@ -359,24 +420,33 @@ export function NewRomaneioPage() {
     }
 
     try {
-      await createMutation.mutateAsync({
+      await saveMutation.mutateAsync({
         projectId,
         romaneioDate,
         driverName,
         vehiclePlate,
+        cargoWeight: cargoWeight ? Number(cargoWeight) : null,
+        cargoWeightUnit,
         items: selectedItemsPayload()
       });
-      const draftIdsToRemove = matchingDraftIds();
-      if (draftId && !draftIdsToRemove.includes(draftId)) draftIdsToRemove.push(draftId);
-      await Promise.all(draftIdsToRemove.map(id => removeRomaneioDraft(id).catch(() => undefined)));
-      queryClient.invalidateQueries({ queryKey: ['romaneio-drafts'] });
+      if (!isEditing) {
+        const draftIdsToRemove = matchingDraftIds();
+        if (draftId && !draftIdsToRemove.includes(draftId)) draftIdsToRemove.push(draftId);
+        await Promise.all(draftIdsToRemove.map(id => removeRomaneioDraft(id).catch(() => undefined)));
+        queryClient.invalidateQueries({ queryKey: ['romaneio-drafts'] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['romaneios'] });
+      if (isEditing) queryClient.invalidateQueries({ queryKey: ['romaneio', editId] });
       setDraftId(null);
       lastAutoSaveSignatureRef.current = '';
-      showToast('Romaneio criado.');
+      showToast(isEditing ? 'Romaneio atualizado.' : 'Romaneio criado.');
       navigate('/romaneio');
-    } catch {
+    } catch (error) {
       isSubmittingRef.current = false;
-      showToast('Não foi possível criar o romaneio.');
+      const message = error instanceof Error
+        ? error.message
+        : (isEditing ? 'Não foi possível atualizar o romaneio.' : 'Não foi possível criar o romaneio.');
+      showToast(message);
     }
   }
 
@@ -388,8 +458,8 @@ export function NewRomaneioPage() {
   return (
     <Shell>
       <TopBar
-        title="Novo romaneio"
-        subtitle="Formulário de equipamentos"
+        title={isEditing ? 'Editar romaneio' : 'Novo romaneio'}
+        subtitle={isEditing ? 'Atualização de dados e materiais' : 'Formulário de equipamentos'}
         actions={
           <>
             <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location.pathname) })}>
@@ -406,7 +476,7 @@ export function NewRomaneioPage() {
           <div className="admin-toolbar">
             <div>
               <div className="sec">Cabeçalho</div>
-              {draftId && <div className="rel-meta">Rascunho salvo na nuvem</div>}
+              {!isEditing && draftId && <div className="rel-meta">Rascunho salvo na nuvem</div>}
             </div>
             <button className="secondary-button" type="button" onClick={() => navigate('/romaneio')}>Voltar</button>
           </div>
@@ -415,7 +485,7 @@ export function NewRomaneioPage() {
               <span>Projeto</span>
               <select value={projectId} onChange={event => setProjectId(event.target.value)} required>
                 <option value="">Selecione</option>
-                {(projectsQuery.data || []).map(project => (
+                {projectOptions.map(project => (
                   <option key={project.id} value={project.id}>Missão {project.code} - {project.name}</option>
                 ))}
               </select>
@@ -432,6 +502,19 @@ export function NewRomaneioPage() {
               <span>Placa do veículo</span>
               <input value={vehiclePlate} onChange={event => setVehiclePlate(event.target.value.toUpperCase())} required />
             </label>
+            <div className="romaneio-cargo-weight-field">
+              <label className="field-group">
+                <span>Peso da carga</span>
+                <input type="number" min="0" step="1" value={cargoWeight} onChange={event => setCargoWeight(event.target.value)} />
+              </label>
+              <label className="field-group romaneio-cargo-unit-field">
+                <span>Unidade</span>
+                <select value={cargoWeightUnit} onChange={event => setCargoWeightUnit(event.target.value as 'kg' | 'ton')}>
+                  <option value="kg">kg</option>
+                  <option value="ton">ton</option>
+                </select>
+              </label>
+            </div>
           </div>
         </section>
 
@@ -561,8 +644,8 @@ export function NewRomaneioPage() {
         </section>
 
         <section className="bottom-bar-react">
-          <button className="primary-button" type="submit" disabled={createMutation.isPending}>
-            Enviar romaneio
+          <button className="primary-button" type="submit" disabled={saveMutation.isPending || (isEditing && editQuery.isLoading)}>
+            {isEditing ? 'Salvar alterações' : 'Enviar romaneio'}
           </button>
         </section>
       </form>
@@ -585,6 +668,7 @@ export function NewRomaneioPage() {
           <div className="det-row"><span className="det-label">Data</span><span className="det-val">{romaneioDate}</span></div>
           <div className="det-row"><span className="det-label">Motorista</span><span className="det-val">{driverName || '-'}</span></div>
           <div className="det-row"><span className="det-label">Placa</span><span className="det-val">{vehiclePlate || '-'}</span></div>
+          <div className="det-row"><span className="det-label">Peso da carga</span><span className="det-val">{cargoWeight ? `${cargoWeight} ${cargoWeightUnit}` : '-'}</span></div>
         </div>
         <div className="romaneio-review-list" aria-label="Itens adicionados ao romaneio">
           {selectedItems.map(item => (
@@ -601,8 +685,8 @@ export function NewRomaneioPage() {
           <button className="secondary-button" type="button" onClick={() => setReviewOpen(false)}>
             Cancelar
           </button>
-          <button className="primary-button" type="button" disabled={createMutation.isPending} onClick={() => void confirmSubmit()}>
-            Confirmar envio
+          <button className="primary-button" type="button" disabled={saveMutation.isPending} onClick={() => void confirmSubmit()}>
+            {isEditing ? 'Confirmar alterações' : 'Confirmar envio'}
           </button>
         </div>
       </Modal>

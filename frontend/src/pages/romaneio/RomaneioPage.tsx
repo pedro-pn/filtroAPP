@@ -17,6 +17,7 @@ import {
   renameRomaneioCatalogCategory,
   saveRomaneioRecipient,
   updateRomaneioCatalogItem,
+  type Romaneio,
   type RomaneioCatalogItem,
   type RomaneioCatalogPayload,
   type RomaneioMeasureType
@@ -58,6 +59,15 @@ function draftItemCount(draft: { payload?: Record<string, unknown> }) {
   return Array.isArray(items) ? items.length : 0;
 }
 
+function cargoWeightLabel(item: Romaneio) {
+  if (item.cargoWeight == null || item.cargoWeight === '') return '';
+  const value = Number(item.cargoWeight);
+  const normalized = Number.isFinite(value)
+    ? value.toLocaleString('pt-BR', { maximumFractionDigits: 3, useGrouping: false })
+    : String(item.cargoWeight);
+  return `${normalized} ${item.cargoWeightUnit || 'kg'}`;
+}
+
 function catalogEmpty(): RomaneioCatalogPayload {
   return {
     code: '',
@@ -89,6 +99,7 @@ export function RomaneioPage() {
   const showToast = useToast();
   const queryClient = useQueryClient();
   const isManager = user?.moduleRoles?.includes('romaneio:manager');
+  const canEditRomaneio = user?.role === 'MANAGER' || user?.role === 'COORDINATOR';
   const [tab, setTab] = useState<Tab>('romaneios');
   const [search, setSearch] = useState('');
   const [projectId, setProjectId] = useState('');
@@ -426,10 +437,17 @@ export function RomaneioPage() {
                       <div className="report-card-head">
                         <div>
                           <div className="report-title">{formatDate(item.romaneioDate)} · {item.vehiclePlate}</div>
-                          <div className="report-subtitle">{item.driverName} · {item.items.length} item(ns)</div>
+                          <div className="report-subtitle">
+                            {[item.driverName, cargoWeightLabel(item) ? `Peso ${cargoWeightLabel(item)}` : '', `${item.items.length} item(ns)`].filter(Boolean).join(' · ')}
+                          </div>
                           {item.emailStatus && <div className="rel-meta">E-mail: {item.emailStatus}{item.emailError ? ` (${item.emailError})` : ''}</div>}
                         </div>
                         <div className="report-download-actions">
+                          {canEditRomaneio && (
+                            <button className="secondary-button" type="button" onClick={() => navigate(`/romaneio/novo?edit=${item.id}`)}>
+                              Editar
+                            </button>
+                          )}
                           {item.pdfUrl && <button className="secondary-button" type="button" onClick={() => downloadFile(item.id, 'pdf', item.pdfUrl)}>PDF</button>}
                           {item.docxUrl && <button className="secondary-button" type="button" onClick={() => downloadFile(item.id, 'docx', item.docxUrl)}>DOCX</button>}
                         </div>

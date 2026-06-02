@@ -95,12 +95,25 @@ function cloneBefore(node, clones) {
   clones.forEach(clone => parent.insertBefore(clone, node));
 }
 
+function formatDecimalPt(value) {
+  const quantity = Number(value);
+  if (!Number.isFinite(quantity)) return safeText(value);
+  return quantity.toLocaleString('pt-BR', {
+    maximumFractionDigits: 3,
+    useGrouping: false
+  });
+}
+
 function quantityText(item) {
-  const quantity = Number(item.quantity);
-  const normalized = Number.isFinite(quantity)
-    ? String(quantity).replace(/\.?0+$/, '').replace('.', ',')
-    : safeText(item.quantity);
+  const normalized = formatDecimalPt(item.quantity);
   return `${normalized || '1'} ${item.unitLabel || 'unidade'}`.trim();
+}
+
+function cargoWeightText(romaneio) {
+  const quantity = Number(romaneio.cargoWeight);
+  if (!Number.isFinite(quantity) || quantity <= 0) return '';
+  const normalized = formatDecimalPt(quantity);
+  return `${normalized} ${romaneio.cargoWeightUnit || 'kg'}`;
 }
 
 function itemText(item) {
@@ -169,7 +182,9 @@ function buildDocxData(romaneio) {
     cnpj: formatCnpj(project.clientCnpj) || project.clientCnpj || '',
     plate: romaneio.vehiclePlate || '',
     driver: romaneio.driverName || '',
-    local: project.location || ''
+    local: project.location || '',
+    weight: cargoWeightText(romaneio),
+    cargoWeight: cargoWeightText(romaneio)
   };
 }
 

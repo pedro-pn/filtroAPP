@@ -20,6 +20,7 @@ const router = Router();
 const ROMANEIO_DRAFT_MODULE = 'romaneio';
 const ROMANEIO_EMAIL_PENDING_STATUS = 'pendente';
 const requireRomaneioAccess = requireModuleRole('romaneio:manager', 'romaneio:operator');
+const cargoWeightUnits = ['kg', 'ton'];
 
 export function requireRomaneioManager(req, res, next) {
   if (hasModuleRole(req.auth?.user, 'romaneio:manager')) {
@@ -28,9 +29,21 @@ export function requireRomaneioManager(req, res, next) {
   return res.status(403).json({ error: 'Acesso restrito ao gestor do romaneio.' });
 }
 
+export function requireRomaneioEditor(req, res, next) {
+  if (['MANAGER', 'COORDINATOR'].includes(req.auth?.user?.role)) {
+    return next();
+  }
+  return res.status(403).json({ error: 'Apenas gerente e coordenador podem editar romaneios.' });
+}
+
 export function requireRomaneioModuleAccess(req, res, next) {
   return requireRomaneioAccess(req, res, next);
 }
+
+const cargoWeightSchema = z.preprocess(value => {
+  if (value === '' || value === null || value === undefined) return null;
+  return value;
+}, z.coerce.number().positive().nullable().optional());
 
 const itemSchema = z.object({
   catalogItemId: z.string().optional().nullable(),
@@ -49,6 +62,8 @@ const createRomaneioSchema = z.object({
   romaneioDate: z.string().min(1),
   driverName: z.string().trim().min(1),
   vehiclePlate: z.string().trim().min(1),
+  cargoWeight: cargoWeightSchema,
+  cargoWeightUnit: z.enum(cargoWeightUnits).default('kg'),
   items: z.array(itemSchema).min(1)
 });
 
@@ -90,6 +105,12 @@ const romaneioProjectSelect = {
   clientName: true,
   isActive: true,
   managerOnly: true
+};
+const romaneioDocumentProjectSelect = {
+  ...romaneioProjectSelect,
+  clientCnpj: true,
+  contractCode: true,
+  location: true
 };
 
 export function romaneioProjectWhereForUser(user, projectWhere = {}) {
@@ -143,6 +164,14 @@ function contentDisposition(fileName) {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
 
+function romaneioCargoWeightData(payload) {
+  const weight = payload.cargoWeight == null ? null : payload.cargoWeight;
+  return {
+    cargoWeight: weight,
+    cargoWeightUnit: weight == null ? null : payload.cargoWeightUnit
+  };
+}
+
 function storagePathFromPublicUrl(publicUrl) {
   const raw = String(publicUrl || '');
   if (!raw.startsWith('/relatorios/')) return null;
@@ -171,11 +200,24 @@ async function sendRomaneioStoredFile(res, romaneio, field, contentType, fallbac
   return res.send(buffer);
 }
 
+async function removeStoredFile(publicUrl) {
+  const targetPath = storagePathFromPublicUrl(publicUrl);
+  if (!targetPath) return;
+  await fs.unlink(targetPath).catch(() => undefined);
+}
+
+async function removeGeneratedRomaneioFiles(files) {
+  await Promise.all([
+    files?.docx?.targetPath ? fs.unlink(files.docx.targetPath).catch(() => undefined) : undefined,
+    files?.pdf?.targetPath ? fs.unlink(files.pdf.targetPath).catch(() => undefined) : undefined
+  ]);
+}
+
 function selectedFields() {
   return {
     include: {
       project: {
-        select: romaneioProjectSelect
+        select: romaneioDocumentProjectSelect
       },
       createdBy: {
         select: { id: true, name: true, email: true }
@@ -223,10 +265,19 @@ function normalizeDraftPayload(data) {
   };
 }
 
-async function buildRomaneioItems(inputItems) {
+export async function buildRomaneioItems(inputItems, { allowedInactiveCatalogItemIds = [] } = {}) {
   const catalogIds = inputItems.map(item => item.catalogItemId).filter(Boolean);
+  const allowedInactiveIds = [...new Set(allowedInactiveCatalogItemIds.filter(Boolean))];
   const catalogItems = catalogIds.length
-    ? await prisma.romaneioCatalogItem.findMany({ where: { id: { in: catalogIds }, isActive: true } })
+    ? await prisma.romaneioCatalogItem.findMany({
+        where: {
+          id: { in: catalogIds },
+          OR: [
+            { isActive: true },
+            ...(allowedInactiveIds.length ? [{ id: { in: allowedInactiveIds } }] : [])
+          ]
+        }
+      })
     : [];
   const byId = new Map(catalogItems.map(item => [item.id, item]));
 
@@ -615,6 +666,14 @@ router.get('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res
   res.json(items);
 }));
 
+router.get('/:id', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+  const item = await prisma.romaneio.findFirstOrThrow({
+    where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
+    ...selectedFields()
+  });
+  res.json(item);
+}));
+
 router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   await syncRomaneioCatalog();
   const payload = createRomaneioSchema.parse(req.body);
@@ -638,6 +697,7 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
         romaneioDate: parseDateOnly(payload.romaneioDate),
         driverName: payload.driverName,
         vehiclePlate: payload.vehiclePlate.toUpperCase(),
+        ...romaneioCargoWeightData(payload),
         items: { create: itemData }
       },
       ...selectedFields()
@@ -680,6 +740,69 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
   }
 
   res.status(201).json(created);
+}));
+
+router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, asyncHandler(async (req, res) => {
+  await syncRomaneioCatalog();
+  const payload = createRomaneioSchema.parse(req.body);
+  const existing = await prisma.romaneio.findFirstOrThrow({
+    where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
+    ...selectedFields()
+  });
+  const project = await assertRomaneioProjectAccess(payload.projectId, req.auth.user);
+  if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
+
+  const itemData = await buildRomaneioItems(payload.items, {
+    allowedInactiveCatalogItemIds: existing.items.map(item => item.catalogItemId).filter(Boolean)
+  });
+  if (itemData.some(item => !item.itemName || !item.categoryName)) {
+    return res.status(400).json({ error: 'Todos os itens precisam de nome e categoria.' });
+  }
+
+  const preview = {
+    ...existing,
+    projectId: payload.projectId,
+    project: payload.projectId === existing.projectId
+      ? existing.project
+      : await prisma.project.findUniqueOrThrow({ where: { id: payload.projectId }, select: romaneioDocumentProjectSelect }),
+    romaneioDate: parseDateOnly(payload.romaneioDate),
+    driverName: payload.driverName,
+    vehiclePlate: payload.vehiclePlate.toUpperCase(),
+    ...romaneioCargoWeightData(payload),
+    items: itemData
+  };
+
+  let files = null;
+  try {
+    files = await saveRomaneioPdf(preview);
+    const updated = await prisma.$transaction(async tx => {
+      await tx.romaneioItem.deleteMany({ where: { romaneioId: existing.id } });
+      return tx.romaneio.update({
+        where: { id: existing.id },
+        data: {
+          projectId: payload.projectId,
+          romaneioDate: preview.romaneioDate,
+          driverName: payload.driverName,
+          vehiclePlate: payload.vehiclePlate.toUpperCase(),
+          ...romaneioCargoWeightData(payload),
+          docxUrl: files.docx.publicUrl,
+          pdfUrl: files.pdf.publicUrl,
+          items: { create: itemData }
+        },
+        ...selectedFields()
+      });
+    });
+
+    await Promise.all([
+      existing.docxUrl && existing.docxUrl !== files.docx.publicUrl ? removeStoredFile(existing.docxUrl) : undefined,
+      existing.pdfUrl && existing.pdfUrl !== files.pdf.publicUrl ? removeStoredFile(existing.pdfUrl) : undefined
+    ]);
+
+    res.json(updated);
+  } catch (error) {
+    await removeGeneratedRomaneioFiles(files);
+    throw error;
+  }
 }));
 
 export default router;

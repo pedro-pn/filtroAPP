@@ -648,6 +648,8 @@ model Romaneio {
   romaneioDate    DateTime
   driverName      String
   vehiclePlate    String
+  cargoWeight     Decimal?       @db.Decimal(12, 3)
+  cargoWeightUnit String?
   docxUrl         String?
   pdfUrl          String?
   emailStatus     String?
