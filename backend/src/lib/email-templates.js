@@ -30,7 +30,7 @@ function wrapEmailHtml({ title, intro, body, footer }) {
   return `
     <div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1a1a1a">
       <div style="border-bottom:1px solid #e5e7eb;padding-bottom:12px;margin-bottom:20px">
-        <img src="cid:${EMAIL_LOGO_CID}" alt="Filtrovali" style="display:block;max-width:220px;width:100%;height:auto">
+        <img src="cid:${EMAIL_LOGO_CID}" alt="Filtrovali" width="220" style="display:block;max-width:220px;width:100%;height:auto;border:0">
       </div>
       <h1 style="font-size:22px;line-height:1.3;margin:0 0 16px;color:#243d2c">${title}</h1>
       <p style="font-size:14px;line-height:1.7;margin:0 0 16px">${intro}</p>
