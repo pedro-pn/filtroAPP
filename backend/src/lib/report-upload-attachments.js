@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import prisma from './prisma.js';
-import { normalizeRelativeUploadPath } from './transient-upload-access.js';
+import { hasTransientUploadAccess, normalizeRelativeUploadPath } from './transient-upload-access.js';
 
 function safeDecode(value) {
   try {
@@ -15,7 +15,29 @@ function stringValue(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function uploadPathFromReference(value) {
+function safePath(value) {
+  return String(value ?? '').replace(/[<>:"/\\|?*\n\r]/g, '_').trim();
+}
+
+function projectFolderName(report) {
+  const code = stringValue(report?.project?.code);
+  const name = stringValue(report?.project?.name);
+  if (!code || !name) return '';
+  return safePath(`Missão ${code} - ${name}`);
+}
+
+function isProjectScopedAttachment(record, report) {
+  const folder = projectFolderName(report);
+  if (!folder) return false;
+  const normalizedPath = normalizeRelativeUploadPath(record.storagePath);
+  if (normalizedPath === folder || normalizedPath.startsWith(`${folder}/`)) return true;
+
+  const code = safePath(stringValue(report?.project?.code));
+  const firstFolder = normalizedPath.split('/').filter(Boolean)[0] || '';
+  return Boolean(code && firstFolder.startsWith(`Missão ${code} - `));
+}
+
+export function normalizeReportUploadReference(value) {
   const raw = stringValue(value);
   if (!raw || raw.startsWith('data:')) return '';
 
@@ -58,7 +80,7 @@ function mimeTypeFor(source, explicitMimeType = '') {
 
 function uploadRecord(value, defaultLabel) {
   if (typeof value === 'string') {
-    const storagePath = uploadPathFromReference(value);
+    const storagePath = normalizeReportUploadReference(value);
     if (!storagePath) return null;
     return {
       label: defaultLabel,
@@ -70,7 +92,7 @@ function uploadRecord(value, defaultLabel) {
 
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const source = value.url || value.storagePath || value.path || value.publicUrl || '';
-  const storagePath = uploadPathFromReference(source);
+  const storagePath = normalizeReportUploadReference(source);
   if (!storagePath) return null;
 
   return {
@@ -110,11 +132,11 @@ function serviceUploadRecords(service) {
   return records;
 }
 
-export function extractReportUploadAttachments(report) {
+export function extractReportUploadAttachments(report, { requireProjectScope = false } = {}) {
   const records = [
     ...reportUploadRecords(report),
     ...(report?.services || []).flatMap(serviceUploadRecords)
-  ];
+  ].filter(record => !requireProjectScope || isProjectScopedAttachment(record, report));
   const seen = new Set();
   return records.filter(record => {
     const key = `${record.reportId || ''}:${record.reportServiceId || ''}:${record.storagePath}`;
@@ -124,12 +146,53 @@ export function extractReportUploadAttachments(report) {
   });
 }
 
-export async function syncReportUploadAttachments(client = prisma, reportOrId) {
+function normalizePathSet(paths) {
+  const set = new Set();
+  for (const pathValue of paths || []) {
+    const normalized = normalizeRelativeUploadPath(pathValue);
+    if (normalized) set.add(normalized);
+  }
+  return set;
+}
+
+function existingAttachmentPaths(rows) {
+  return normalizePathSet((rows || []).map(row => row.storagePath));
+}
+
+function trustedAttachmentPathsFromUrlMap(urlMap, { auth, trustedPaths }) {
+  const next = new Set();
+  if (!urlMap || typeof urlMap[Symbol.iterator] !== 'function') return next;
+
+  for (const [source, target] of urlMap) {
+    const sourcePath = normalizeReportUploadReference(source);
+    const targetPath = normalizeReportUploadReference(target);
+    if (!sourcePath || !targetPath) continue;
+    if (trustedPaths.has(sourcePath) || (auth && hasTransientUploadAccess(sourcePath, auth))) {
+      next.add(targetPath);
+    }
+  }
+
+  return next;
+}
+
+function isTrustedAttachment(record, { auth, trustedPaths, trustLegacyProjectScoped }) {
+  if (trustLegacyProjectScoped) return true;
+  const normalizedPath = normalizeRelativeUploadPath(record.storagePath);
+  return trustedPaths.has(normalizedPath) || Boolean(auth && hasTransientUploadAccess(normalizedPath, auth));
+}
+
+export async function syncReportUploadAttachments(client = prisma, reportOrId, options = {}) {
   const report = typeof reportOrId === 'string'
     ? await client.report.findUnique({
         where: { id: reportOrId },
         select: {
           id: true,
+          project: {
+            select: {
+              code: true,
+              name: true
+            }
+          },
           specialConditions: true,
           services: {
             select: {
@@ -143,10 +206,30 @@ export async function syncReportUploadAttachments(client = prisma, reportOrId) {
   if (!report?.id) return { reportId: reportOrId, deleted: 0, created: 0 };
 
   const serviceIds = (report.services || []).map(service => service.id).filter(Boolean);
-  const attachments = extractReportUploadAttachments(report);
   const deleteWhere = serviceIds.length
     ? { OR: [{ reportId: report.id }, { reportServiceId: { in: serviceIds } }] }
     : { reportId: report.id };
+  const existingRows = await client.reportAttachment.findMany({
+    where: deleteWhere,
+    select: { storagePath: true }
+  });
+  const trustedPaths = existingAttachmentPaths(existingRows);
+  for (const pathValue of options.trustedStoragePaths || []) {
+    const normalized = normalizeRelativeUploadPath(pathValue);
+    if (normalized) trustedPaths.add(normalized);
+  }
+  for (const targetPath of trustedAttachmentPathsFromUrlMap(options.trustedUrlMap, {
+    auth: options.auth,
+    trustedPaths
+  })) {
+    trustedPaths.add(targetPath);
+  }
+  const attachments = extractReportUploadAttachments(report, { requireProjectScope: true })
+    .filter(attachment => isTrustedAttachment(attachment, {
+      auth: options.auth,
+      trustedPaths,
+      trustLegacyProjectScoped: options.trustLegacyProjectScoped === true
+    }));
 
   const deleted = await client.reportAttachment.deleteMany({ where: deleteWhere });
   if (attachments.length) {
@@ -167,4 +250,25 @@ export async function syncReportUploadAttachments(client = prisma, reportOrId) {
     deleted: deleted.count || 0,
     created: attachments.length
   };
+}
+
+export function reportUploadAttachmentsNeedSync(report) {
+  if (!report?.id) return false;
+  const expected = extractReportUploadAttachments(report, { requireProjectScope: true });
+  if (!expected.length) return false;
+
+  const existing = new Set([
+    ...(report.attachments || []).map(attachment => `report:${normalizeRelativeUploadPath(attachment.storagePath)}`),
+    ...(report.services || []).flatMap(service => (
+      service.attachments || []
+    ).map(attachment => `service:${service.id}:${normalizeRelativeUploadPath(attachment.storagePath)}`))
+  ]);
+
+  return expected.some(attachment => {
+    const normalizedPath = normalizeRelativeUploadPath(attachment.storagePath);
+    const key = attachment.reportId
+      ? `report:${normalizedPath}`
+      : `service:${attachment.reportServiceId}:${normalizedPath}`;
+    return !existing.has(key);
+  });
 }

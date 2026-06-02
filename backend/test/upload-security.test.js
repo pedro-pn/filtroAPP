@@ -10,6 +10,7 @@ import app from '../src/app.js';
 import env from '../src/config/env.js';
 import { trustedClientAccessScopeForUser } from '../src/lib/client-project-access.js';
 import prisma from '../src/lib/prisma.js';
+import { syncReportUploadAttachments } from '../src/lib/report-upload-attachments.js';
 import { grantReportUploadAccess } from '../src/lib/transient-upload-access.js';
 import { authorizeStoredFile, canAccessReport } from '../src/routes/resources/uploads.js';
 
@@ -239,6 +240,61 @@ test('stored upload access does not trust report JSON upload references', async 
 
   assert.equal(await authorizeStoredFile({ auth }, 'private-other-project/foto.jpg'), false);
   assert.equal(await authorizeStoredFile({ auth }, 'private-other-project/service.jpg'), false);
+});
+
+test('stored upload access stays denied after syncing injected report upload references', async t => {
+  const indexedAttachments = [];
+  const client = {
+    reportAttachment: {
+      findMany: async () => [],
+      deleteMany: async () => ({ count: 0 }),
+      createMany: async args => {
+        indexedAttachments.push(...args.data);
+        return { count: args.data.length };
+      }
+    }
+  };
+  const report = {
+    id: 'report-injected',
+    project: {
+      code: 'P-100',
+      name: 'Projeto Seguro'
+    },
+    specialConditions: {
+      generalUploads: ['/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto-injetada.jpg']
+    },
+    services: []
+  };
+  const result = await syncReportUploadAttachments(client, report);
+  assert.deepEqual(result, { reportId: 'report-injected', deleted: 0, created: 0 });
+  assert.deepEqual(indexedAttachments, []);
+
+  const originals = {
+    attachmentFindMany: prisma.reportAttachment.findMany,
+    reportFindMany: prisma.report.findMany
+  };
+  prisma.reportAttachment.findMany = async () => indexedAttachments.map(attachment => ({
+    reportId: attachment.reportId,
+    reportService: null
+  }));
+  prisma.report.findMany = async () => {
+    throw new Error('injected upload references must not create downloadable attachment indexes');
+  };
+  t.after(() => {
+    prisma.reportAttachment.findMany = originals.attachmentFindMany;
+    prisma.report.findMany = originals.reportFindMany;
+  });
+
+  const auth = {
+    user: {
+      id: 'manager-injected',
+      role: 'MANAGER',
+      moduleRoles: ['rdo:manager']
+    },
+    rawUser: {}
+  };
+
+  assert.equal(await authorizeStoredFile({ auth }, 'Missão P-100 - Projeto Seguro/rdo/foto-injetada.jpg'), false);
 });
 
 test('stored upload access allows persisted report attachments after report authorization grant', async t => {

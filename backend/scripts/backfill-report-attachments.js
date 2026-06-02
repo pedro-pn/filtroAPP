@@ -29,6 +29,12 @@ async function fetchBatch(cursorId) {
       id: true,
       sequenceNumber: true,
       reportType: true,
+      project: {
+        select: {
+          code: true,
+          name: true
+        }
+      },
       specialConditions: true,
       services: {
         select: {
@@ -55,13 +61,13 @@ async function main() {
 
     for (const report of reports) {
       processed += 1;
-      const attachments = extractReportUploadAttachments(report);
+      const attachments = extractReportUploadAttachments(report, { requireProjectScope: true });
       if (attachments.length) reportsWithUploads += 1;
 
       if (dryRun) {
         created += attachments.length;
       } else {
-        const result = await syncReportUploadAttachments(prisma, report);
+        const result = await syncReportUploadAttachments(prisma, report, { trustLegacyProjectScoped: true });
         created += result.created;
         deleted += result.deleted;
       }

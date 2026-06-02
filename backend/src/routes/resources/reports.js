@@ -59,7 +59,7 @@ import { coordinatorNotificationEmails, NotificationEmailCategory, notificationR
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import prisma from '../../lib/prisma.js';
 import { buildReportFileName, safePath } from '../../lib/report-filename.js';
-import { syncReportUploadAttachments } from '../../lib/report-upload-attachments.js';
+import { normalizeReportUploadReference, syncReportUploadAttachments } from '../../lib/report-upload-attachments.js';
 import { grantReportUploadAccess, grantReportsUploadAccess } from '../../lib/transient-upload-access.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
@@ -2465,6 +2465,26 @@ function extractInternalEditState(specialConditions) {
   return state;
 }
 
+function reportSnapshotUploadAttachments(report) {
+  const records = [];
+  for (const attachment of report.attachments || []) {
+    if (attachment?.storagePath) records.push({ storagePath: attachment.storagePath });
+  }
+  for (const service of report.services || []) {
+    for (const attachment of service.attachments || []) {
+      if (attachment?.storagePath) records.push({ storagePath: attachment.storagePath });
+    }
+  }
+  return records;
+}
+
+function trustedStoragePathsFromSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return [];
+  return (Array.isArray(snapshot.uploadAttachments) ? snapshot.uploadAttachments : [])
+    .map(attachment => normalizeReportUploadReference(attachment?.storagePath || attachment?.url || attachment?.path))
+    .filter(Boolean);
+}
+
 function buildReportSnapshot(report) {
   return {
     projectId: report.projectId,
@@ -2489,6 +2509,7 @@ function buildReportSnapshot(report) {
       name: link.collaborator?.name || null,
       role: link.collaborator?.role || null
     })),
+    uploadAttachments: reportSnapshotUploadAttachments(report),
     services: (report.services || []).map(service => ({
       serviceType: service.serviceType,
       equipmentId: service.equipmentId || null,
@@ -2567,6 +2588,9 @@ async function restoreReportFromSnapshot(tx, reportId, originalSnapshot) {
   await syncApprovedRlmReports(tx, restored);
   await syncApprovedRlfReports(tx, restored);
   await syncApprovedRliReports(tx, restored);
+  await syncReportUploadAttachments(tx, restored, {
+    trustedStoragePaths: trustedStoragePathsFromSnapshot(originalSnapshot)
+  });
   return restored;
 }
 
@@ -2688,6 +2712,16 @@ async function organizeAndPersist(report) {
       } catch { /* best effort */ }
     }
   }
+
+  return urlMap || new Map();
+}
+
+async function organizeAndSyncReportUploadAttachments(report, options = {}) {
+  const trustedUrlMap = await organizeAndPersist(report);
+  await syncReportUploadAttachments(prisma, report.id, {
+    ...options,
+    trustedUrlMap
+  });
 }
 
 function collectPendingDerivedTypes(services) {
@@ -4383,7 +4417,7 @@ router.get('/validate-signature/:validationCode', publicSignatureLimiter, asyncH
 }));
 
 router.get('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
-  const item = await prisma.report.findUniqueOrThrow({
+  let item = await prisma.report.findUniqueOrThrow({
     where: { id: req.params.id },
     include
   });
@@ -4500,7 +4534,7 @@ router.delete('/:id/services/:serviceId', requireAuth, requireRdoAccess, asyncHa
     });
   });
 
-  await organizeAndPersist(item);
+  await organizeAndSyncReportUploadAttachments(item);
   res.json(item);
 }));
 
@@ -4534,7 +4568,7 @@ router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (
   });
 
   for (const report of createdReports) {
-    await organizeAndPersist(report);
+    await organizeAndSyncReportUploadAttachments(report, { auth: req.auth });
   }
 
   res.status(201).json(createdReports);
@@ -4634,8 +4668,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
     return created;
   });
   const tPostTx = Date.now();
-  await organizeAndPersist(item);
-  await syncReportUploadAttachments(prisma, item.id);
+  await organizeAndSyncReportUploadAttachments(item, { auth: req.auth });
   const tPostOrg = Date.now();
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
@@ -4644,8 +4677,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
     });
     for (const d of derived) {
       if (d.specialConditions?.parentRdoId === item.id) {
-        await organizeAndPersist(d);
-        await syncReportUploadAttachments(prisma, d.id);
+        await organizeAndSyncReportUploadAttachments(d, { auth: req.auth });
       }
     }
   }
@@ -4847,8 +4879,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   });
   const tPutTx = Date.now();
 
-  await organizeAndPersist(item);
-  await syncReportUploadAttachments(prisma, item.id);
+  await organizeAndSyncReportUploadAttachments(item, { auth: req.auth });
   const tPutOrg = Date.now();
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
@@ -4857,8 +4888,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     });
     for (const d of derived) {
       if (d.specialConditions?.parentRdoId === item.id) {
-        await organizeAndPersist(d);
-        await syncReportUploadAttachments(prisma, d.id);
+        await organizeAndSyncReportUploadAttachments(d, { auth: req.auth });
       }
     }
   }
@@ -4898,7 +4928,7 @@ router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async 
     return updated;
   });
 
-  await organizeAndPersist(item);
+  await organizeAndSyncReportUploadAttachments(item);
   res.json(item);
 }));
 
@@ -4931,14 +4961,15 @@ router.post('/:id/cancel-edit', requireAuth, requireRdoAccess, asyncHandler(asyn
 
   const item = await prisma.$transaction(async tx => restoreReportFromSnapshot(tx, req.params.id, originalSnapshot));
 
-  await organizeAndPersist(item);
+  const trustedStoragePaths = trustedStoragePathsFromSnapshot(originalSnapshot);
+  await organizeAndSyncReportUploadAttachments(item, { trustedStoragePaths });
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
       where: derivedReportsForProjectWhere(item.projectId),
       include
     });
     for (const d of derived) {
-      if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
+      if (d.specialConditions?.parentRdoId === item.id) await organizeAndSyncReportUploadAttachments(d);
     }
   }
 
@@ -4964,14 +4995,15 @@ router.post('/:id/discard-edit', requireAuth, requireRdoAccess, asyncHandler(asy
 
   const item = await prisma.$transaction(async tx => restoreReportFromSnapshot(tx, req.params.id, originalSnapshot));
 
-  await organizeAndPersist(item);
+  const trustedStoragePaths = trustedStoragePathsFromSnapshot(originalSnapshot);
+  await organizeAndSyncReportUploadAttachments(item, { trustedStoragePaths });
   if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
       where: derivedReportsForProjectWhere(item.projectId),
       include
     });
     for (const d of derived) {
-      if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
+      if (d.specialConditions?.parentRdoId === item.id) await organizeAndSyncReportUploadAttachments(d);
     }
   }
 
@@ -5111,7 +5143,7 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
       include
     });
     for (const d of derived) {
-      if (d.specialConditions?.parentRdoId === item.id) await organizeAndPersist(d);
+      if (d.specialConditions?.parentRdoId === item.id) await organizeAndSyncReportUploadAttachments(d);
     }
     if (approvedTransition) {
       signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
