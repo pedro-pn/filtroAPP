@@ -30,6 +30,7 @@ Opcoes:
   --project=texto       Filtra por codigo/nome do projeto
   --report=RDO29        Filtra por relatorio, ex.: RDO29, RCPU11
   --only=ambiguous      Mostra somente amostras ambiguas
+  --only=unmatched      Mostra somente amostras sem candidato automatico
   --attachment-id=ID    Seleciona uma referencia especifica para reparo manual
   --new-path=caminho    Caminho escolhido para --attachment-id
   --limit=N             Limite de amostras por categoria (padrao: 50)
@@ -438,8 +439,8 @@ async function main() {
     ambiguous: ambiguous.length,
     unmatched: unmatched.length,
     applied: apply ? repairable.length : 0,
-    repairableSamples: only === 'ambiguous' ? [] : repairable.slice(0, limit).map(({ attachment: _attachment, candidate: _candidate, ...item }) => item),
-    ambiguousSamples: ambiguous.slice(0, limit),
+    repairableSamples: only ? [] : repairable.slice(0, limit).map(({ attachment: _attachment, candidate: _candidate, ...item }) => item),
+    ambiguousSamples: only === 'unmatched' ? [] : ambiguous.slice(0, limit),
     unmatchedSamples: only === 'ambiguous' ? [] : unmatched.slice(0, limit)
   }, null, 2));
 }
