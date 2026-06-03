@@ -8,6 +8,7 @@ import { ZodError } from 'zod';
 
 import env from './config/env.js';
 import asyncHandler from './lib/async-handler.js';
+import { resolvePublicCalibrationCertificate } from './lib/calibration-certificates.js';
 import { localizedZodErrorDetails, localizedZodIssues } from './lib/zod-error.js';
 import { requireAuth } from './middleware/auth.js';
 import apiRouter from './routes/index.js';
@@ -46,8 +47,14 @@ app.use(cors({
 }));
 app.use((req, res, next) => {
   const isUploadsApi = req.path.startsWith('/api/uploads') || req.path.startsWith('/api/rdo/uploads');
+  const isCalibrationEquipmentApi = [
+    '/api/manometers',
+    '/api/rdo/manometers',
+    '/api/particle-counters',
+    '/api/rdo/particle-counters'
+  ].some(prefix => req.path === prefix || req.path.startsWith(`${prefix}/`));
   const isSignatureApi = req.path.includes('/request-signature') || req.path.includes('/public-sign');
-  const limit = isUploadsApi ? '25mb' : isSignatureApi ? '3mb' : '1mb';
+  const limit = isUploadsApi || isCalibrationEquipmentApi ? '25mb' : isSignatureApi ? '3mb' : '1mb';
   return express.json({ limit })(req, res, next);
 });
 app.use(morgan('dev'));
@@ -66,6 +73,14 @@ async function serveAuthorizedStoredFile(req, res) {
 }
 
 app.use('/assets', express.static(env.assetsDir));
+app.get('/certificados-calibracao/:token', asyncHandler(async (req, res) => {
+  const resolved = await resolvePublicCalibrationCertificate(req.params.token);
+  if (!resolved) {
+    return res.status(404).json({ error: 'Certificado não encontrado.' });
+  }
+  res.type(resolved.certificate.mimeType || 'application/pdf');
+  return res.sendFile(resolved.targetPath);
+}));
 app.get('/relatorios/*', requireAuth, asyncHandler(serveAuthorizedStoredFile));
 app.get('/uploads/*', requireAuth, asyncHandler(serveAuthorizedStoredFile));
 

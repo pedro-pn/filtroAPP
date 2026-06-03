@@ -24,6 +24,10 @@ export default defineConfig(() => {
         '/relatorios': {
           target: 'http://localhost:4000',
           changeOrigin: true
+        },
+        '/certificados-calibracao': {
+          target: 'http://localhost:4000',
+          changeOrigin: true
         }
       }
     },

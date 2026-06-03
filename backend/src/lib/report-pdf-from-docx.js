@@ -238,7 +238,7 @@ async function convertWithLibreOffice(docxPath, pdfPath) {
         '--nodefault',
         `-env:UserInstallation=${pathToFileURL(profileDir).href}`,
         '--convert-to',
-        'pdf',
+        'pdf:writer_pdf_Export:{"ExportLinksRelativeFsys":{"type":"boolean","value":"false"},"ConvertOOoTargetToPDFTarget":{"type":"boolean","value":"true"}}',
         '--outdir',
         outDir,
         docxPath

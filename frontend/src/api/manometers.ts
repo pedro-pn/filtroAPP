@@ -1,12 +1,19 @@
 import { apiClient, rdoApiPath } from './client';
 import type { Manometer } from '../types/domain';
 
+export interface CalibrationCertificateUpload {
+  fileName: string;
+  mimeType: string;
+  dataUrl: string;
+}
+
 export interface ManometerPayload {
   code: string;
   scale: string;
   calibrationCertCode: string;
   calibratedAt: string;
   expiresAt: string;
+  calibrationCertificate?: CalibrationCertificateUpload | null;
 }
 
 export async function listManometers() {
