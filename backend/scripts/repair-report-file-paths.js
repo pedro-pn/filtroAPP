@@ -32,6 +32,7 @@ Opcoes:
   --only=ambiguous      Mostra somente amostras ambiguas
   --only=referenced     Mostra somente pendencias ainda referenciadas no JSON atual
   --only=stale          Mostra somente pendencias antigas sem referencia no JSON atual
+  --only=thumbnail      Mostra somente pendencias com impacto provavel na miniatura
   --only=unmatched      Mostra somente amostras sem candidato automatico
   --attachment-id=ID    Seleciona uma referencia especifica para reparo manual
   --new-path=caminho    Caminho escolhido para --attachment-id
@@ -195,24 +196,42 @@ function replaceUploadReferences(value, oldPath, newPath) {
   return { changed, value: next };
 }
 
-function jsonReferencesPath(value, storagePath) {
+function jsonReferenceImpact(value, storagePath) {
   const target = normalizeRelativeUploadPath(storagePath);
   let referenced = false;
+  let hasExistingAlternative = false;
+  let hasMissingOnlyReference = false;
 
   function visit(node) {
-    if (referenced) return;
     if (Array.isArray(node)) {
       for (const item of node) visit(item);
       return;
     }
     if (!isUploadObject(node)) return;
 
+    const references = [];
+    let nodeReferencesTarget = false;
     for (const key of ['url', 'storagePath', 'path', 'publicUrl']) {
       const current = text(node[key]);
       if (!current) continue;
-      if (normalizeReportUploadReference(current) === target) {
+      const normalized = normalizeReportUploadReference(current);
+      if (!normalized) continue;
+      references.push(normalized);
+      if (normalized === target) {
         referenced = true;
-        return;
+        nodeReferencesTarget = true;
+      }
+    }
+
+    if (nodeReferencesTarget) {
+      const existingAlternative = references.some(reference => {
+        if (reference === target) return false;
+        return fs.existsSync(path.resolve(env.reportsDir, reference));
+      });
+      if (existingAlternative) {
+        hasExistingAlternative = true;
+      } else {
+        hasMissingOnlyReference = true;
       }
     }
 
@@ -220,16 +239,27 @@ function jsonReferencesPath(value, storagePath) {
   }
 
   visit(value);
-  return referenced;
+  return { referenced, hasExistingAlternative, hasMissingOnlyReference };
 }
 
-function attachmentReferencesCurrentJson(attachment) {
+function mergeReferenceImpacts(impacts) {
+  const referenced = impacts.some(impact => impact.referenced);
+  const hasExistingAlternative = impacts.some(impact => impact.hasExistingAlternative);
+  const hasMissingOnlyReference = impacts.some(impact => impact.hasMissingOnlyReference);
+  return {
+    referenceStatus: referenced ? 'referenced' : 'stale',
+    thumbnailImpact: referenced && hasMissingOnlyReference ? 'possible' : 'unlikely',
+    hasExistingAlternative
+  };
+}
+
+function attachmentReferenceImpact(attachment) {
   const report = attachment.report || attachment.reportService?.report || null;
   const service = attachment.reportService || null;
-  return Boolean(
-    (attachment.reportId && jsonReferencesPath(report?.specialConditions, attachment.storagePath))
-    || (attachment.reportServiceId && jsonReferencesPath(service?.extraData, attachment.storagePath))
-  );
+  return mergeReferenceImpacts([
+    attachment.reportId ? jsonReferenceImpact(report?.specialConditions, attachment.storagePath) : {},
+    attachment.reportServiceId ? jsonReferenceImpact(service?.extraData, attachment.storagePath) : {}
+  ]);
 }
 
 function uniqueByPath(candidates) {
@@ -518,14 +548,16 @@ async function main() {
 
     const projectFiles = projectFilesForAttachment(attachment);
     const choice = chooseCandidate(attachment, projectFiles, existingCandidatesByProject.get(projectKey(project)) || []);
-    const referencedInCurrentJson = attachmentReferencesCurrentJson(attachment);
+    const referenceImpact = attachmentReferenceImpact(attachment);
     const item = {
       attachmentId: attachment.id,
       report: reportLabel(report),
       project: projectName,
       fileName: attachment.fileName,
       oldPath: attachment.storagePath,
-      referenceStatus: referencedInCurrentJson ? 'referenced' : 'stale',
+      referenceStatus: referenceImpact.referenceStatus,
+      thumbnailImpact: referenceImpact.thumbnailImpact,
+      hasExistingAlternative: referenceImpact.hasExistingAlternative,
       strategy: choice.strategy,
       ...(choice.candidate ? { newPath: choice.candidate.storagePath } : {}),
       ...(choice.candidates?.length ? { candidates: choice.candidates.slice(0, 10).map(candidate => candidate.storagePath) } : {})
@@ -592,8 +624,10 @@ async function main() {
   ];
   const referencedItems = missingItems.filter(item => item.referenceStatus === 'referenced');
   const staleItems = missingItems.filter(item => item.referenceStatus === 'stale');
+  const thumbnailImpactItems = missingItems.filter(item => item.thumbnailImpact === 'possible');
   const shouldShowReferenced = !only || only === 'referenced';
   const shouldShowStale = !only || only === 'stale';
+  const shouldShowThumbnailImpact = !only || only === 'thumbnail';
   const shouldShowRepairable = !only;
   const shouldShowAmbiguous = !only || only === 'ambiguous';
   const shouldShowUnmatched = !only || only === 'unmatched';
@@ -610,12 +644,14 @@ async function main() {
     unmatched: remainingUnmatched.length,
     referenced: referencedItems.length,
     stale: staleItems.length,
+    thumbnailImpact: thumbnailImpactItems.length,
     applied: apply ? repairable.length : 0,
     repairableSamples: shouldShowRepairable ? repairable.slice(0, limit).map(publicRepairItem) : [],
     ambiguousSamples: shouldShowAmbiguous ? ambiguous.slice(0, limit).map(publicRepairItem) : [],
     unmatchedSamples: shouldShowUnmatched ? remainingUnmatched.slice(0, limit).map(publicRepairItem) : [],
     referencedSamples: shouldShowReferenced ? referencedItems.slice(0, limit) : [],
-    staleSamples: shouldShowStale ? staleItems.slice(0, limit) : []
+    staleSamples: shouldShowStale ? staleItems.slice(0, limit) : [],
+    thumbnailImpactSamples: shouldShowThumbnailImpact ? thumbnailImpactItems.slice(0, limit) : []
   }, null, 2));
 }
 
