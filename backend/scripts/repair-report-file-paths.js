@@ -61,6 +61,10 @@ function reportLabel(report) {
   return `${report.reportType || 'REL'} ${report.sequenceNumber ?? report.id}`;
 }
 
+function reportKey(report) {
+  return report?.id || reportLabel(report);
+}
+
 function compactReportLabel(report) {
   return reportLabel(report).replace(/\s+/g, '').toLowerCase();
 }
@@ -111,6 +115,18 @@ function normalizeSearchName(value) {
 
 function fileStem(value) {
   return path.basename(text(value), path.extname(text(value)));
+}
+
+function leadingNumber(value) {
+  const match = path.basename(text(value)).match(/^(\d+)/);
+  return match ? Number(match[1]) : Number.POSITIVE_INFINITY;
+}
+
+function naturalPathCompare(left, right) {
+  return text(left.storagePath || left).localeCompare(text(right.storagePath || right), 'pt-BR', {
+    numeric: true,
+    sensitivity: 'base'
+  });
 }
 
 function firstPathSegment(value) {
@@ -186,6 +202,52 @@ function uniqueByPath(candidates) {
   });
 }
 
+function filesToRecords(files) {
+  return files.map(filePath => ({
+    filePath,
+    storagePath: relativePathForAbsolute(filePath),
+    base: path.basename(filePath).toLowerCase(),
+    stem: normalizeSearchName(fileStem(filePath))
+  }));
+}
+
+function extractReportDocumentDescriptor(file, report) {
+  const reportType = text(report?.reportType).toUpperCase();
+  const sequenceNumber = text(report?.sequenceNumber);
+  if (!reportType || !sequenceNumber) return '';
+  const base = path.basename(file.storagePath, path.extname(file.storagePath));
+  const marker = `${reportType} ${sequenceNumber} - `;
+  const index = normalizeSearchName(base).indexOf(normalizeSearchName(marker));
+  if (index === -1) return '';
+  return base.slice(index + marker.length).trim();
+}
+
+function organizedPhotoCandidates(report, files) {
+  const reportType = text(report?.reportType).toUpperCase();
+  if (!reportType) return [];
+
+  const records = filesToRecords(files);
+  const reportTypeFolder = normalizeSearchName(`/Registros Fotográficos/${reportType}/`);
+  const documentFolder = normalizeSearchName(`/${reportType}/`);
+  const documents = records.filter(file => {
+    const normalizedPath = normalizeSearchName(`/${file.storagePath}`);
+    return normalizedPath.includes(documentFolder) && /\.(pdf|docx)$/i.test(file.storagePath);
+  });
+  const descriptors = [...new Set(documents
+    .map(file => extractReportDocumentDescriptor(file, report))
+    .filter(Boolean)
+    .map(descriptor => normalizeSearchName(descriptor)))];
+
+  if (!descriptors.length) return [];
+
+  return uniqueByPath(records.filter(file => {
+    const normalizedPath = normalizeSearchName(`/${file.storagePath}`);
+    const normalizedBase = normalizeSearchName(fileStem(file.storagePath));
+    return normalizedPath.includes(reportTypeFolder)
+      && descriptors.some(descriptor => normalizedBase.startsWith(`${descriptor} - foto `));
+  })).sort(naturalPathCompare);
+}
+
 function chooseCandidate(attachment, files, existingAttachmentCandidates = []) {
   const currentPath = normalizeRelativeUploadPath(attachment.storagePath);
   const currentBase = path.basename(currentPath).toLowerCase();
@@ -202,12 +264,7 @@ function chooseCandidate(attachment, files, existingAttachmentCandidates = []) {
     return { status: 'ambiguous', strategy: 'existing_attachment_fileName', candidates: sameExistingFileName };
   }
 
-  const fileRecords = files.map(filePath => ({
-    filePath,
-    storagePath: relativePathForAbsolute(filePath),
-    base: path.basename(filePath).toLowerCase(),
-    stem: normalizeSearchName(fileStem(filePath))
-  }));
+  const fileRecords = filesToRecords(files);
 
   const sameBase = uniqueByPath(fileRecords.filter(file => file.base === currentBase));
   if (sameBase.length === 1) return { status: 'repairable', strategy: 'same_basename', candidate: sameBase[0] };
@@ -232,6 +289,7 @@ async function fetchAttachments() {
       id: true,
       reportId: true,
       reportServiceId: true,
+      createdAt: true,
       label: true,
       fileName: true,
       mimeType: true,
@@ -304,6 +362,19 @@ async function applyRepair(repair) {
 
 function printManualResult(result) {
   console.log(JSON.stringify(result, null, 2));
+}
+
+function publicRepairItem(item) {
+  const {
+    attachment: _attachment,
+    candidate: _candidate,
+    candidates: rawCandidates,
+    ...publicItem
+  } = item;
+  return {
+    ...publicItem,
+    ...(rawCandidates?.length ? { candidates: rawCandidates.slice(0, 10).map(candidate => candidate.storagePath || candidate) } : {})
+  };
 }
 
 async function handleManualRepair(attachments, reportFolders) {
@@ -380,6 +451,17 @@ async function main() {
 
   if (await handleManualRepair(attachments, reportFolders)) return;
 
+  function projectFilesForAttachment(attachment) {
+    const report = attachment.report || attachment.reportService?.report || null;
+    const project = report?.project || null;
+    const folders = projectFolderCandidates(project, attachment.storagePath, reportFolders);
+    return folders.flatMap(folder => {
+      const folderPath = path.resolve(env.reportsDir, folder);
+      if (!filesByProjectFolder.has(folder)) filesByProjectFolder.set(folder, walkFiles(folderPath));
+      return filesByProjectFolder.get(folder);
+    });
+  }
+
   for (const attachment of attachments) {
     const report = attachment.report || attachment.reportService?.report || null;
     const project = report?.project || null;
@@ -395,12 +477,7 @@ async function main() {
     }
     missing += 1;
 
-    const folders = projectFolderCandidates(project, attachment.storagePath, reportFolders);
-    const projectFiles = folders.flatMap(folder => {
-      const folderPath = path.resolve(env.reportsDir, folder);
-      if (!filesByProjectFolder.has(folder)) filesByProjectFolder.set(folder, walkFiles(folderPath));
-      return filesByProjectFolder.get(folder);
-    });
+    const projectFiles = projectFilesForAttachment(attachment);
     const choice = chooseCandidate(attachment, projectFiles, existingCandidatesByProject.get(projectKey(project)) || []);
     const item = {
       attachmentId: attachment.id,
@@ -418,7 +495,46 @@ async function main() {
     } else if (choice.status === 'ambiguous') {
       ambiguous.push(item);
     } else {
-      unmatched.push(item);
+      unmatched.push({ ...item, attachment });
+    }
+  }
+
+  const remainingUnmatched = [];
+  const unmatchedByReport = new Map();
+  for (const item of unmatched) {
+    const report = item.attachment.report || item.attachment.reportService?.report || null;
+    const key = reportKey(report);
+    const items = unmatchedByReport.get(key) || [];
+    items.push(item);
+    unmatchedByReport.set(key, items);
+  }
+
+  for (const group of unmatchedByReport.values()) {
+    const report = group[0]?.attachment.report || group[0]?.attachment.reportService?.report || null;
+    const projectFiles = projectFilesForAttachment(group[0].attachment);
+    const candidates = organizedPhotoCandidates(report, projectFiles);
+
+    if (candidates.length && candidates.length === group.length) {
+      const sortedGroup = [...group].sort((left, right) => {
+        const leftNumber = leadingNumber(left.oldPath);
+        const rightNumber = leadingNumber(right.oldPath);
+        if (leftNumber !== rightNumber) return leftNumber - rightNumber;
+        return naturalPathCompare(left.oldPath, right.oldPath);
+      });
+      const sortedCandidates = [...candidates].sort(naturalPathCompare);
+      sortedGroup.forEach((item, index) => {
+        repairable.push({
+          ...item,
+          strategy: 'organized_report_photos',
+          newPath: sortedCandidates[index].storagePath,
+          candidate: sortedCandidates[index]
+        });
+      });
+    } else {
+      remainingUnmatched.push(...group.map(item => ({
+        ...item,
+        ...(candidates.length ? { candidates } : {})
+      })));
     }
   }
 
@@ -437,11 +553,11 @@ async function main() {
     missing,
     repairable: repairable.length,
     ambiguous: ambiguous.length,
-    unmatched: unmatched.length,
+    unmatched: remainingUnmatched.length,
     applied: apply ? repairable.length : 0,
-    repairableSamples: only ? [] : repairable.slice(0, limit).map(({ attachment: _attachment, candidate: _candidate, ...item }) => item),
+    repairableSamples: only ? [] : repairable.slice(0, limit).map(publicRepairItem),
     ambiguousSamples: only === 'unmatched' ? [] : ambiguous.slice(0, limit),
-    unmatchedSamples: only === 'ambiguous' ? [] : unmatched.slice(0, limit)
+    unmatchedSamples: only === 'ambiguous' ? [] : remainingUnmatched.slice(0, limit).map(publicRepairItem)
   }, null, 2));
 }
 
