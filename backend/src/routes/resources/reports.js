@@ -500,8 +500,9 @@ export async function releasedServiceReportEmailAttachments(serviceReports, opti
   const getPdfDownload = options.getPdfDownload || getReportPdfDownload;
   return Promise.all((serviceReports || []).map(async report => {
     const file = await getPdfDownload(report);
+    const fallbackFileName = buildReportFileName(report, 'pdf');
     return {
-      filename: file.fileName,
+      filename: safePath(file.fileName || fallbackFileName) || fallbackFileName,
       content: file.buffer,
       contentType: 'application/pdf'
     };

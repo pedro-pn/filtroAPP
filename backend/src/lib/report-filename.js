@@ -1,6 +1,19 @@
 function safeText(value) {
   if (value == null) return '';
-  return String(value);
+  const text = String(value);
+  if (!/%[0-9a-fA-F]{2}/.test(text)) return text;
+
+  let decoded = text;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    } catch {
+      break;
+    }
+  }
+  return decoded;
 }
 
 export function safePath(value) {

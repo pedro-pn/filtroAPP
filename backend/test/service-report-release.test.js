@@ -330,3 +330,54 @@ test('released service reports email sends project recipients with pdf attachmen
   assert.equal(sent[0].attachments[0].filename, 'RCPU-7.pdf');
   assert.equal(sent[0].attachments[0].content.toString(), 'pdf-rcpu-1');
 });
+
+test('released service reports email decodes percent-encoded attachment filenames', async () => {
+  const rdo = report({
+    id: 'rdo-1',
+    status: ReportStatus.SIGNED,
+    sequenceNumber: 12,
+    project: {
+      id: 'project-1',
+      code: '5719',
+      name: 'Ilha Solteira',
+      clientCnpj: '12345678000190',
+      clientEmailPrimary: 'responsavel@example.com',
+      clientEmailCc: [],
+      deletedAt: null
+    }
+  });
+  const serviceReport = report({
+    id: 'rcpu-1',
+    reportType: ReportType.RCPU,
+    sequenceNumber: 53,
+    status: ReportStatus.APPROVED,
+    reportDate: '2026-05-21',
+    specialConditions: {
+      parentRdoId: rdo.id,
+      serviceData: {
+        'Equipamento(s)': 'UG01',
+        Sistema: 'Unidade hidr%C3%A1ulica do RV'
+      }
+    },
+    project: rdo.project
+  });
+  const sent = [];
+
+  await sendReleasedServiceReportsEmail(rdo, [serviceReport], {
+    missingMailerConfig: [],
+    mailer: async message => {
+      sent.push(message);
+      return { messageId: 'mail-1' };
+    },
+    getPdfDownload: async () => ({
+      fileName: 'Missão 5719 Ilha Solteira - RCPU 53 - UG01 - Unidade hidr%C3%A1ulica do RV.pdf',
+      buffer: Buffer.from('pdf-rcpu-1')
+    }),
+    client: {}
+  });
+
+  assert.equal(
+    sent[0].attachments[0].filename,
+    'Missão 5719 Ilha Solteira - RCPU 53 - UG01 - Unidade hidráulica do RV.pdf'
+  );
+});

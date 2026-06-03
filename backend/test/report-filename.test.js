@@ -35,3 +35,20 @@ test('RLI stored filename follows RLF naming pattern with only the report type c
     'Missão 123 Teste - RLF 7 - 51632 - 51632M004.docx'
   );
 });
+
+test('service report filename decodes percent-encoded service text', () => {
+  assert.equal(
+    buildReportFileName({
+      reportType: 'RCPU',
+      sequenceNumber: 53,
+      project: { code: '5719', name: 'Ilha Solteira' },
+      specialConditions: {
+        serviceData: {
+          'Equipamento(s)': 'UG01',
+          Sistema: 'Unidade hidr%C3%A1ulica do RV'
+        }
+      }
+    }, 'pdf'),
+    'Missão 5719 Ilha Solteira - RCPU 53 - UG01 - Unidade hidráulica do RV.pdf'
+  );
+});
