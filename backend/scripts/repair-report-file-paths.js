@@ -30,6 +30,8 @@ Opcoes:
   --project=texto       Filtra por codigo/nome do projeto
   --report=RDO29        Filtra por relatorio, ex.: RDO29, RCPU11
   --only=ambiguous      Mostra somente amostras ambiguas
+  --only=referenced     Mostra somente pendencias ainda referenciadas no JSON atual
+  --only=stale          Mostra somente pendencias antigas sem referencia no JSON atual
   --only=unmatched      Mostra somente amostras sem candidato automatico
   --attachment-id=ID    Seleciona uma referencia especifica para reparo manual
   --new-path=caminho    Caminho escolhido para --attachment-id
@@ -191,6 +193,43 @@ function replaceUploadReferences(value, oldPath, newPath) {
   const next = cloneJson(value);
   visit(next);
   return { changed, value: next };
+}
+
+function jsonReferencesPath(value, storagePath) {
+  const target = normalizeRelativeUploadPath(storagePath);
+  let referenced = false;
+
+  function visit(node) {
+    if (referenced) return;
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item);
+      return;
+    }
+    if (!isUploadObject(node)) return;
+
+    for (const key of ['url', 'storagePath', 'path', 'publicUrl']) {
+      const current = text(node[key]);
+      if (!current) continue;
+      if (normalizeReportUploadReference(current) === target) {
+        referenced = true;
+        return;
+      }
+    }
+
+    for (const value of Object.values(node)) visit(value);
+  }
+
+  visit(value);
+  return referenced;
+}
+
+function attachmentReferencesCurrentJson(attachment) {
+  const report = attachment.report || attachment.reportService?.report || null;
+  const service = attachment.reportService || null;
+  return Boolean(
+    (attachment.reportId && jsonReferencesPath(report?.specialConditions, attachment.storagePath))
+    || (attachment.reportServiceId && jsonReferencesPath(service?.extraData, attachment.storagePath))
+  );
 }
 
 function uniqueByPath(candidates) {
@@ -479,12 +518,14 @@ async function main() {
 
     const projectFiles = projectFilesForAttachment(attachment);
     const choice = chooseCandidate(attachment, projectFiles, existingCandidatesByProject.get(projectKey(project)) || []);
+    const referencedInCurrentJson = attachmentReferencesCurrentJson(attachment);
     const item = {
       attachmentId: attachment.id,
       report: reportLabel(report),
       project: projectName,
       fileName: attachment.fileName,
       oldPath: attachment.storagePath,
+      referenceStatus: referencedInCurrentJson ? 'referenced' : 'stale',
       strategy: choice.strategy,
       ...(choice.candidate ? { newPath: choice.candidate.storagePath } : {}),
       ...(choice.candidates?.length ? { candidates: choice.candidates.slice(0, 10).map(candidate => candidate.storagePath) } : {})
@@ -544,6 +585,19 @@ async function main() {
     }
   }
 
+  const missingItems = [
+    ...repairable.map(publicRepairItem),
+    ...ambiguous.map(publicRepairItem),
+    ...remainingUnmatched.map(publicRepairItem)
+  ];
+  const referencedItems = missingItems.filter(item => item.referenceStatus === 'referenced');
+  const staleItems = missingItems.filter(item => item.referenceStatus === 'stale');
+  const shouldShowReferenced = !only || only === 'referenced';
+  const shouldShowStale = !only || only === 'stale';
+  const shouldShowRepairable = !only;
+  const shouldShowAmbiguous = !only || only === 'ambiguous';
+  const shouldShowUnmatched = !only || only === 'unmatched';
+
   console.log(JSON.stringify({
     mode: apply ? 'apply' : 'dry-run',
     reportsDir: env.reportsDir,
@@ -554,10 +608,14 @@ async function main() {
     repairable: repairable.length,
     ambiguous: ambiguous.length,
     unmatched: remainingUnmatched.length,
+    referenced: referencedItems.length,
+    stale: staleItems.length,
     applied: apply ? repairable.length : 0,
-    repairableSamples: only ? [] : repairable.slice(0, limit).map(publicRepairItem),
-    ambiguousSamples: only === 'unmatched' ? [] : ambiguous.slice(0, limit),
-    unmatchedSamples: only === 'ambiguous' ? [] : remainingUnmatched.slice(0, limit).map(publicRepairItem)
+    repairableSamples: shouldShowRepairable ? repairable.slice(0, limit).map(publicRepairItem) : [],
+    ambiguousSamples: shouldShowAmbiguous ? ambiguous.slice(0, limit).map(publicRepairItem) : [],
+    unmatchedSamples: shouldShowUnmatched ? remainingUnmatched.slice(0, limit).map(publicRepairItem) : [],
+    referencedSamples: shouldShowReferenced ? referencedItems.slice(0, limit) : [],
+    staleSamples: shouldShowStale ? staleItems.slice(0, limit) : []
   }, null, 2));
 }
 
