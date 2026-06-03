@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { downloadReportDocx, downloadReportPdf } from '../api/reports';
@@ -232,6 +232,19 @@ function serviceFinalizedValue(service: NonNullable<ReportSummary['services']>[n
     if (['não', 'nao', 'false', 'em andamento'].includes(normalized)) return false;
   }
   return undefined;
+}
+
+const derivedReportServiceTypes = new Set(['limpeza', 'pressao', 'filtragem', 'flushing', 'mecanica', 'inibicao']);
+
+function hasFinalizedServiceDemotion(report: ReportSummary, form: RdoFormState) {
+  if (report.reportType !== 'RDO' || report.status !== 'APPROVED') return false;
+  const previousById = new Map((report.services || []).map(service => [service.id, service]));
+
+  return form.services.some(service => {
+    const previous = previousById.get(service.id);
+    if (!previous || !derivedReportServiceTypes.has(normalizeServiceType(previous.serviceType || ''))) return false;
+    return serviceFinalizedValue(previous) === true && service.data.finalized !== true;
+  });
 }
 
 function toPositiveInteger(value: string) {
@@ -538,6 +551,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const [collaboratorToAdd, setCollaboratorToAdd] = useState('');
   const [nightCollaboratorToAdd, setNightCollaboratorToAdd] = useState('');
   const [showServiceModal, setShowServiceModal] = useState(false);
+  const [derivedDeletionPromptOpen, setDerivedDeletionPromptOpen] = useState(false);
+  const derivedDeletionResolverRef = useRef<((deleteReports: boolean | null) => void) | null>(null);
   const readOnly = report.status === 'SIGNED';
   const serviceOnly = isServiceOnlyReport(report);
   const isManager = user?.role === 'MANAGER';
@@ -666,6 +681,20 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     return true;
   }
 
+  function requestDerivedDeletionChoice() {
+    return new Promise<boolean | null>(resolve => {
+      derivedDeletionResolverRef.current = resolve;
+      setDerivedDeletionPromptOpen(true);
+    });
+  }
+
+  function resolveDerivedDeletionPrompt(deleteReports: boolean | null) {
+    setDerivedDeletionPromptOpen(false);
+    const resolve = derivedDeletionResolverRef.current;
+    derivedDeletionResolverRef.current = null;
+    resolve?.(deleteReports);
+  }
+
   async function handleSave(options: { navigateAfter?: boolean; showSuccess?: boolean } = {}) {
     if (readOnly) return false;
     if (!validateSequence()) return false;
@@ -673,13 +702,23 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     const { navigateAfter = false, showSuccess = true } = options;
 
     try {
+      const shouldAskDerivedDeletion = hasFinalizedServiceDemotion(report, form);
+      const deleteUnfinalizedDerivedReports = shouldAskDerivedDeletion
+        ? await requestDerivedDeletionChoice()
+        : false;
+      if (deleteUnfinalizedDerivedReports === null) return false;
+      const payload = buildPayload(report, form, {
+        collaborators,
+        equipment,
+        units
+      });
+      if (shouldAskDerivedDeletion) {
+        payload.deleteUnfinalizedDerivedReports = deleteUnfinalizedDerivedReports;
+      }
+
       await reportMutations.updateReport.mutateAsync({
         id: report.id,
-        payload: buildPayload(report, form, {
-          collaborators,
-          equipment,
-          units
-        })
+        payload
       });
       if (showSuccess) showToast(TEXT.saved, 'success');
       if (navigateAfter) navigate(roleHomePath(user?.role));
@@ -1138,6 +1177,42 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           ) : null}
         </div>
       ) : null}
+
+      <Modal
+        open={derivedDeletionPromptOpen}
+        onClose={() => resolveDerivedDeletionPrompt(null)}
+        ariaLabelledBy="derived-deletion-title"
+        ariaDescribedBy="derived-deletion-description"
+        closeOnBackdrop={false}
+      >
+        <h2 id="derived-deletion-title">Excluir relatório de serviço?</h2>
+        <p className="placeholder-copy" id="derived-deletion-description">
+          Um ou mais serviços finalizados foram alterados para não finalizados. Deseja excluir os relatórios de serviço vinculados?
+        </p>
+        <div className="admin-form-actions segment-dialog-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => resolveDerivedDeletionPrompt(null)}
+          >
+            Cancelar
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => resolveDerivedDeletionPrompt(false)}
+          >
+            Manter
+          </button>
+          <button
+            className="danger-button"
+            type="button"
+            onClick={() => resolveDerivedDeletionPrompt(true)}
+          >
+            Excluir vinculados
+          </button>
+        </div>
+      </Modal>
 
       <Modal
         open={showServiceModal}

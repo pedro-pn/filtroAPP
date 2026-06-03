@@ -2322,7 +2322,8 @@ const updateSchema = schema.omit({
   createdByUserId: true,
   status: true
 }).extend({
-  sequenceNumber: positiveIntSchema.optional()
+  sequenceNumber: positiveIntSchema.optional(),
+  deleteUnfinalizedDerivedReports: z.boolean().optional()
 });
 
 const statusSchema = z.object({
@@ -2724,35 +2725,34 @@ async function organizeAndSyncReportUploadAttachments(report, options = {}) {
   });
 }
 
+function derivedReportTypesForService(service) {
+  switch (service?.serviceType) {
+    case 'limpeza':
+      return [ReportType.RLQ];
+    case 'pressao':
+      return [ReportType.RTP];
+    case 'filtragem':
+    case 'flushing':
+      return [ReportType.RCPU];
+    case 'mecanica':
+      return [ReportType.RLM];
+    case 'inibicao': {
+      const types = [];
+      if (serviceWantsReportType(service, ReportType.RLI)) types.push(ReportType.RLI);
+      if (serviceWantsReportType(service, ReportType.RLF)) types.push(ReportType.RLF);
+      return types;
+    }
+    default:
+      return [];
+  }
+}
+
 function collectPendingDerivedTypes(services) {
   const derived = new Set();
 
   for (const service of services || []) {
     if (service.finalized !== true) continue;
-
-    switch (service.serviceType) {
-      case 'limpeza':
-        derived.add(ReportType.RLQ);
-        break;
-      case 'pressao':
-        derived.add(ReportType.RTP);
-        break;
-      case 'filtragem':
-        derived.add(ReportType.RCPU);
-        break;
-      case 'flushing':
-        derived.add(ReportType.RCPU);
-        break;
-      case 'mecanica':
-        derived.add(ReportType.RLM);
-        break;
-      case 'inibicao':
-        if (serviceWantsReportType(service, ReportType.RLI)) derived.add(ReportType.RLI);
-        if (serviceWantsReportType(service, ReportType.RLF)) derived.add(ReportType.RLF);
-        break;
-      default:
-        break;
-    }
+    derivedReportTypesForService(service).forEach(type => derived.add(type));
   }
 
   return Array.from(derived);
@@ -2823,6 +2823,80 @@ async function syncProjectReportSequence(tx, projectId, reportType, sequenceNumb
       nextNumber: lastUsedNumber
     }
   });
+}
+
+async function setProjectReportLastSequence(tx, projectId, reportType, lastUsedNumber) {
+  if (!projectId || !reportType || !Number.isInteger(lastUsedNumber) || lastUsedNumber < 0) return;
+  await tx.projectReportSeq.upsert({
+    where: {
+      projectId_reportType: {
+        projectId,
+        reportType
+      }
+    },
+    create: {
+      projectId,
+      reportType,
+      nextNumber: lastUsedNumber
+    },
+    update: {
+      nextNumber: lastUsedNumber
+    }
+  });
+}
+
+async function renumberProjectReports(tx, projectId, reportType) {
+  const reports = await tx.report.findMany({
+    where: {
+      projectId,
+      reportType,
+      deletedAt: null
+    },
+    orderBy: [
+      { sequenceNumber: 'asc' },
+      { reportDate: 'asc' },
+      { createdAt: 'asc' }
+    ],
+    select: {
+      id: true,
+      sequenceNumber: true,
+      status: true
+    }
+  });
+
+  for (let index = 0; index < reports.length; index += 1) {
+    const nextNumber = index + 1;
+    const report = reports[index];
+    if (report.sequenceNumber === nextNumber) continue;
+    if (report.status === ReportStatus.SIGNED) {
+      const error = new Error('Nao e possivel corrigir numeracao automaticamente com relatorio assinado na sequencia.');
+      error.statusCode = 409;
+      throw error;
+    }
+  }
+
+  if (!reports.length) {
+    await setProjectReportLastSequence(tx, projectId, reportType, 0);
+    return;
+  }
+
+  await tx.report.updateMany({
+    where: {
+      id: { in: reports.map(report => report.id) }
+    },
+    data: {
+      sequenceNumber: null
+    }
+  });
+
+  for (let index = 0; index < reports.length; index += 1) {
+    await tx.report.update({
+      where: { id: reports[index].id },
+      data: { sequenceNumber: index + 1 }
+    });
+  }
+
+  await setProjectReportLastSequence(tx, projectId, reportType, reports.length);
 }
 
 async function prepareReportSequenceChange(tx, currentReport, targetProjectId, targetReportType, targetSequenceNumber) {
@@ -3376,6 +3450,155 @@ function findExistingByLinkKeys(existingByLinkKey, service, serviceId) {
     if (existing) return existing;
   }
   return serviceId ? existingByLinkKey.get(String(serviceId)) : null;
+}
+
+function serviceReferenceKeys(service) {
+  const keys = new Set(serviceHistoryKeys(service));
+  const fields = service?.extraData || {};
+  [service?.id, fields.__serviceLinkKey, fields.__sourceServiceId, fields.serviceId].forEach(value => {
+    const key = String(value || '').trim();
+    if (key) keys.add(key);
+  });
+  return Array.from(keys).filter(Boolean);
+}
+
+function servicesShareReference(left, right) {
+  if (!left || !right) return false;
+  if (left.serviceType !== right.serviceType) return false;
+  if (left.id && right.id && left.id === right.id) return true;
+  const rightKeys = new Set(serviceReferenceKeys(right));
+  return serviceReferenceKeys(left).some(key => rightKeys.has(key));
+}
+
+function demotedFinalizedServiceRefs(existingServices = [], nextServices = []) {
+  const refs = [];
+  const matchedNextIndexes = new Set();
+
+  for (let index = 0; index < existingServices.length; index += 1) {
+    const existingService = existingServices[index];
+    if (existingService?.finalized !== true) continue;
+    const reportTypes = derivedReportTypesForService(existingService);
+    if (!reportTypes.length) continue;
+
+    let nextIndex = nextServices.findIndex((candidate, candidateIndex) => (
+      !matchedNextIndexes.has(candidateIndex) && servicesShareReference(existingService, candidate)
+    ));
+
+    if (nextIndex < 0) {
+      const candidate = nextServices[index];
+      if (candidate?.serviceType === existingService.serviceType) {
+        nextIndex = index;
+      }
+    }
+
+    const nextService = nextIndex >= 0 ? nextServices[nextIndex] : null;
+    if (!nextService || nextService.finalized === true) continue;
+    matchedNextIndexes.add(nextIndex);
+    refs.push({
+      service: existingService,
+      serviceType: existingService.serviceType,
+      reportTypes,
+      keys: serviceReferenceKeys(existingService)
+    });
+  }
+
+  return refs;
+}
+
+function derivedReportMatchesServiceRef(report, ref) {
+  if (!report || !ref?.reportTypes?.includes(report.reportType)) return false;
+  const special = report.specialConditions || {};
+  if (special.serviceOnly === true || !special.parentRdoId) return false;
+  const reportKeys = [
+    special.serviceLinkKey,
+    special.serviceId,
+    special.serviceData?.__serviceLinkKey,
+    special.serviceData?.__sourceServiceId
+  ].map(value => String(value || '').trim()).filter(Boolean);
+  if (!reportKeys.length) return false;
+  return reportKeys.some(key => ref.keys.includes(key));
+}
+
+async function serviceHasFinalizedContinuation(tx, projectId, currentReportId, ref) {
+  const approvedRdos = await tx.report.findMany({
+    where: approvedRdoHistoryWhere(projectId),
+    select: {
+      id: true,
+      services: {
+        select: {
+          id: true,
+          serviceType: true,
+          finalized: true,
+          extraData: true
+        }
+      }
+    }
+  });
+
+  return approvedRdos.some(report => (
+    report.id !== currentReportId &&
+    (report.services || []).some(service => service.finalized === true && servicesShareReference(ref.service, service))
+  ));
+}
+
+async function deleteUnfinalizedDerivedReports(tx, sourceReport, serviceRefs) {
+  if (!sourceReport?.id || sourceReport.reportType !== ReportType.RDO || !serviceRefs.length) return [];
+
+  const candidates = await tx.report.findMany({
+    where: {
+      projectId: sourceReport.projectId,
+      deletedAt: null,
+      reportType: { in: Array.from(new Set(serviceRefs.flatMap(ref => ref.reportTypes))) }
+    },
+    select: {
+      id: true,
+      projectId: true,
+      reportType: true,
+      sequenceNumber: true,
+      status: true,
+      specialConditions: true,
+      reportSignatures: {
+        select: {
+          status: true
+        }
+      }
+    }
+  });
+
+  const idsToDelete = new Set();
+  const affectedTypes = new Set();
+
+  for (const ref of serviceRefs) {
+    if (await serviceHasFinalizedContinuation(tx, sourceReport.projectId, sourceReport.id, ref)) {
+      continue;
+    }
+
+    for (const candidate of candidates) {
+      if (!derivedReportMatchesServiceRef(candidate, ref)) continue;
+      assertReportMutable(candidate);
+      idsToDelete.add(candidate.id);
+      affectedTypes.add(candidate.reportType);
+    }
+  }
+
+  if (!idsToDelete.size) return [];
+
+  const deletedAt = new Date();
+  await tx.report.updateMany({
+    where: {
+      id: { in: Array.from(idsToDelete) }
+    },
+    data: {
+      deletedAt,
+      sequenceNumber: null
+    }
+  });
+
+  for (const reportType of affectedTypes) {
+    await renumberProjectReports(tx, sourceReport.projectId, reportType);
+  }
+
+  return Array.from(idsToDelete);
 }
 
 export function buildHistoricalServiceData(currentFields, serviceHistory) {
@@ -4744,6 +4967,9 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);
   const isManagerFixingClientRejection = req.auth.user.role === 'MANAGER' && hasActiveClientRejection(existing);
   const evidence = signatureEvidenceFromRequest(req);
+  const unfinalizedDerivedRefs = data.deleteUnfinalizedDerivedReports === true
+    ? demotedFinalizedServiceRefs(existing.services || [], data.services || [])
+    : [];
 
   const tPut0 = Date.now();
   const item = await prisma.$transaction(async tx => {
@@ -4875,6 +5101,9 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     await syncApprovedRlmReports(tx, updated);
     await syncApprovedRlfReports(tx, updated);
     await syncApprovedRliReports(tx, updated);
+    if (unfinalizedDerivedRefs.length) {
+      await deleteUnfinalizedDerivedReports(tx, existing, unfinalizedDerivedRefs);
+    }
     return updated;
   });
   const tPutTx = Date.now();

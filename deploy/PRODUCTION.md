@@ -30,6 +30,28 @@ O cutover para React em produção é feito pelo nginx:
 - `deploy/nginx/default.conf` usa `try_files` para rotas da SPA
 - chamadas `/api`, arquivos `/assets`, `/uploads` e `/relatorios` continuam no backend
 
+## Modo manutenção
+
+Durante migrações ou janelas programadas, o frontend pode ser compilado para
+exibir somente a página temporária de manutenção. A página não depende de
+autenticação nem de chamadas ao backend.
+
+Para ativar:
+
+```bash
+docker compose -f docker-compose.prod.yml build --build-arg VITE_MAINTENANCE_MODE=true nginx
+docker compose -f docker-compose.prod.yml up -d nginx
+```
+
+Para voltar ao app normal:
+
+```bash
+docker compose -f docker-compose.prod.yml build --build-arg VITE_MAINTENANCE_MODE=false nginx
+docker compose -f docker-compose.prod.yml up -d nginx
+```
+
+No modo normal, a página de manutenção não fica disponível em nenhuma rota.
+
 ## Conversão DOCX -> PDF em produção
 
 O backend agora suporta dois caminhos:

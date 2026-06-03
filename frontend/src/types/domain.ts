@@ -237,6 +237,7 @@ export interface ReportPayload {
   reportType: ReportType;
   sequenceNumber?: number | null;
   status: ReportStatus;
+  deleteUnfinalizedDerivedReports?: boolean;
   reportDate: string;
   arrivalTime: string;
   departureTime: string;
