@@ -78,6 +78,42 @@ docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
 docker compose -f docker-compose.prod.yml exec backend npx prisma db seed
 ```
 
+## Gate de anexos e miniaturas
+
+Sempre que o deploy alterar uploads, anexos, `/relatorios`, miniaturas,
+autorização de arquivos ou organização de fotos, trate `ReportAttachment`
+como fonte crítica de autorização. Antes de publicar em produção, rode em
+homologação com uma cópia do banco e do volume `relatorios`:
+
+```bash
+docker compose -f docker-compose.prod.yml exec backend npm run backfill:report-attachments -- --dry-run
+docker compose -f docker-compose.prod.yml exec backend npm run audit:report-files
+docker compose -f docker-compose.prod.yml exec backend npm run repair:report-file-paths -- --limit=500
+```
+
+O deploy só deve seguir se:
+
+- anexos referenciados no JSON tiverem índice `ReportAttachment` compatível;
+- `audit:report-files` não mostrar arquivos ausentes que afetem relatórios ativos;
+- divergências reparáveis tiverem sido aplicadas ou justificadas;
+- casos ambíguos tiverem sido revisados manualmente quando afetarem miniaturas;
+- não houver dependência de grants transitórios para anexos já persistidos.
+
+Se houver divergência, corrija primeiro em dry-run e só depois aplique:
+
+```bash
+docker compose -f docker-compose.prod.yml exec backend npm run repair:report-file-paths -- --apply --limit=500
+```
+
+Após aplicar, rode novamente `audit:report-files`. Mudanças que endurecem
+autorização de arquivos não devem remover fallback legado sem esse gate.
+Para bloquear o deploy automaticamente quando ainda houver arquivo ausente,
+use:
+
+```bash
+docker compose -f docker-compose.prod.yml exec backend npm run audit:report-files -- --fail-on-missing
+```
+
 ## Certificado
 
 O `nginx` já está preparado para servir o domínio principal

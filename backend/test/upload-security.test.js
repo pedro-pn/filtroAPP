@@ -297,16 +297,39 @@ test('stored upload access stays denied after syncing injected report upload ref
   assert.equal(await authorizeStoredFile({ auth }, 'Missão P-100 - Projeto Seguro/rdo/foto-injetada.jpg'), false);
 });
 
-test('stored upload access allows persisted report attachments after report authorization grant', async t => {
+test('stored upload access revalidates persisted attachments after report authorization grant', async t => {
   const originals = {
     attachmentFindMany: prisma.reportAttachment.findMany,
     reportFindMany: prisma.report.findMany
   };
-  prisma.reportAttachment.findMany = async () => {
-    throw new Error('persisted attachment grant should bypass attachment lookup');
+  const lookups = [];
+  let reportVisible = true;
+  prisma.reportAttachment.findMany = async args => {
+    lookups.push(['attachmentFindMany', args]);
+    return [{
+      reportId: 'report-preview',
+      reportService: null
+    }];
   };
-  prisma.report.findMany = async () => {
-    throw new Error('persisted attachment grant should bypass report lookup');
+  prisma.report.findMany = async args => {
+    lookups.push(['reportFindMany', args]);
+    if (!reportVisible) return [];
+    return [{
+      id: 'report-preview',
+      projectId: 'project-1',
+      reportType: 'RDO',
+      status: 'APPROVED',
+      deletedAt: null,
+      createdByUserId: 'manager-persisted-attachment',
+      project: {
+        deletedAt: null,
+        managerOnly: false,
+        authorizedUsers: []
+      },
+      collaborators: [],
+      attachments: [],
+      services: []
+    }];
   };
   t.after(() => {
     prisma.reportAttachment.findMany = originals.attachmentFindMany;
@@ -330,7 +353,14 @@ test('stored upload access allows persisted report attachments after report auth
   });
 
   assert.equal(await authorizeStoredFile({ auth }, 'report-attachments/foto.jpg'), true);
-  assert.equal(await authorizeStoredFile({ auth }, 'service-attachments/foto.jpg'), true);
+  reportVisible = false;
+  assert.equal(await authorizeStoredFile({ auth }, 'report-attachments/foto.jpg'), false);
+  assert.deepEqual(lookups.map(([name]) => name), [
+    'attachmentFindMany',
+    'reportFindMany',
+    'attachmentFindMany',
+    'reportFindMany'
+  ]);
 });
 
 test('stored upload access ignores arbitrary self-owned draft payload references', async t => {

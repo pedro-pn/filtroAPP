@@ -159,6 +159,14 @@ function existingAttachmentPaths(rows) {
   return normalizePathSet((rows || []).map(row => row.storagePath));
 }
 
+function attachmentKey(attachment) {
+  return [
+    attachment.reportId || '',
+    attachment.reportServiceId || '',
+    normalizeRelativeUploadPath(attachment.storagePath)
+  ].join(':');
+}
+
 function trustedAttachmentPathsFromUrlMap(urlMap, { auth, trustedPaths }) {
   const next = new Set();
   if (!urlMap || typeof urlMap[Symbol.iterator] !== 'function') return next;
@@ -211,7 +219,12 @@ export async function syncReportUploadAttachments(client = prisma, reportOrId, o
     : { reportId: report.id };
   const existingRows = await client.reportAttachment.findMany({
     where: deleteWhere,
-    select: { storagePath: true }
+    select: {
+      id: true,
+      reportId: true,
+      reportServiceId: true,
+      storagePath: true
+    }
   });
   const trustedPaths = existingAttachmentPaths(existingRows);
   for (const pathValue of options.trustedStoragePaths || []) {
@@ -231,10 +244,17 @@ export async function syncReportUploadAttachments(client = prisma, reportOrId, o
       trustLegacyProjectScoped: options.trustLegacyProjectScoped === true
     }));
 
-  const deleted = await client.reportAttachment.deleteMany({ where: deleteWhere });
-  if (attachments.length) {
+  const expectedKeys = new Set(attachments.map(attachmentKey));
+  const existingKeys = new Set(existingRows.map(attachmentKey));
+  const attachmentsToCreate = attachments.filter(attachment => !existingKeys.has(attachmentKey(attachment)));
+  const staleIds = existingRows
+    .filter(row => !expectedKeys.has(attachmentKey(row)))
+    .map(row => row.id)
+    .filter(Boolean);
+
+  if (attachmentsToCreate.length) {
     await client.reportAttachment.createMany({
-      data: attachments.map(attachment => ({
+      data: attachmentsToCreate.map(attachment => ({
         reportId: attachment.reportId,
         reportServiceId: attachment.reportServiceId,
         label: attachment.label,
@@ -244,11 +264,14 @@ export async function syncReportUploadAttachments(client = prisma, reportOrId, o
       }))
     });
   }
+  const deleted = staleIds.length
+    ? await client.reportAttachment.deleteMany({ where: { id: { in: staleIds } } })
+    : { count: 0 };
 
   return {
     reportId: report.id,
     deleted: deleted.count || 0,
-    created: attachments.length
+    created: attachmentsToCreate.length
   };
 }
 

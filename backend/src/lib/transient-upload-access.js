@@ -19,43 +19,6 @@ export function normalizeRelativeUploadPath(rawPath) {
   return normalizedPath || '';
 }
 
-function normalizeUploadReference(value) {
-  const raw = String(value || '').trim();
-  if (!raw || raw.startsWith('data:')) return '';
-
-  let pathname = raw;
-  if (/^https?:\/\//i.test(raw)) {
-    try {
-      pathname = new URL(raw).pathname;
-    } catch {
-      return '';
-    }
-  }
-
-  if (pathname.startsWith('/api/uploads/file/')) {
-    return normalizeRelativeUploadPath(pathname.slice('/api/uploads/file/'.length));
-  }
-  if (pathname.startsWith('/api/rdo/uploads/file/')) {
-    return normalizeRelativeUploadPath(pathname.slice('/api/rdo/uploads/file/'.length));
-  }
-  if (pathname.startsWith('/relatorios/')) {
-    return normalizeRelativeUploadPath(pathname.slice('/relatorios/'.length));
-  }
-  if (pathname.startsWith('/uploads/')) {
-    return normalizeRelativeUploadPath(pathname.slice('/uploads/'.length));
-  }
-  if (pathname.startsWith('relatorios/')) {
-    return normalizeRelativeUploadPath(pathname.slice('relatorios/'.length));
-  }
-  if (pathname.startsWith('uploads/')) {
-    return normalizeRelativeUploadPath(pathname.slice('uploads/'.length));
-  }
-  if (pathname.includes('/')) {
-    return normalizeRelativeUploadPath(pathname);
-  }
-  return '';
-}
-
 function cleanupTransientUploadAccess(now = Date.now()) {
   for (const [key, grant] of transientUploadAccess) {
     if (!grant || grant.expiresAt <= now) transientUploadAccess.delete(key);
@@ -77,30 +40,9 @@ export function hasTransientUploadAccess(normalizedPath, auth) {
   return !!(grant && grant.userId === auth.user.id && grant.expiresAt > Date.now());
 }
 
-function collectPersistedAttachmentReferences(attachments, paths) {
-  if (!Array.isArray(attachments)) return;
-  for (const attachment of attachments) {
-    if (!attachment || typeof attachment !== 'object') continue;
-    for (const key of ['storagePath', 'url', 'path']) {
-      if (!Object.prototype.hasOwnProperty.call(attachment, key)) continue;
-      const normalized = normalizeUploadReference(attachment[key]);
-      if (normalized) paths.add(normalized);
-    }
-  }
-}
-
 export function grantReportUploadAccess(auth, report) {
-  const userId = auth?.user?.id;
-  if (!userId || !report) return;
-
-  const paths = new Set();
-  collectPersistedAttachmentReferences(report.attachments, paths);
-  for (const service of report.services || []) {
-    collectPersistedAttachmentReferences(service.attachments, paths);
-  }
-  for (const normalizedPath of paths) {
-    rememberTransientUploadAccess(normalizedPath, userId);
-  }
+  void auth;
+  void report;
 }
 
 export function grantReportsUploadAccess(auth, reports) {

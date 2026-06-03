@@ -25,6 +25,7 @@ function projectLabel(project) {
 
 const projectFilter = argValue('--project').toLowerCase();
 const limit = Math.max(1, Number(argValue('--limit', '20')) || 20);
+const failOnMissing = process.argv.includes('--fail-on-missing');
 
 async function main() {
   const rows = await prisma.reportAttachment.findMany({
@@ -112,6 +113,10 @@ async function main() {
     missing,
     projects
   }, null, 2));
+
+  if (failOnMissing && missing > 0) {
+    process.exitCode = 2;
+  }
 }
 
 main()
@@ -122,4 +127,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

@@ -17,6 +17,7 @@ function attachmentClient(calls, existing = []) {
       },
       deleteMany: async args => {
         calls.push(['deleteMany', args]);
+        if (Array.isArray(args?.where?.id?.in)) return { count: args.where.id.in.length };
         return { count: existing.length };
       },
       createMany: async args => {
@@ -78,11 +79,11 @@ test('extractReportUploadAttachments only accepts known upload containers', () =
   }]);
 });
 
-test('syncReportUploadAttachments replaces managed report and service attachments', async () => {
+test('syncReportUploadAttachments creates expected attachments before removing stale rows', async () => {
   const calls = [];
   const client = attachmentClient(calls, [
-    { storagePath: 'Missão P-100 - Projeto Seguro/rdo/foto.jpg' },
-    { storagePath: 'Missão P-100 - Projeto Seguro/servico.jpg' }
+    { id: 'old-report-attachment', reportId: 'report-1', reportServiceId: null, storagePath: 'Missão P-100 - Projeto Seguro/rdo/foto-antiga.jpg' },
+    { id: 'old-service-attachment', reportId: null, reportServiceId: 'service-1', storagePath: 'Missão P-100 - Projeto Seguro/servico-antigo.jpg' }
   ]);
   const report = {
     id: 'report-1',
@@ -104,18 +105,17 @@ test('syncReportUploadAttachments replaces managed report and service attachment
     }]
   };
 
-  const result = await syncReportUploadAttachments(client, report);
+  const result = await syncReportUploadAttachments(client, report, {
+    trustedStoragePaths: [
+      'Missão P-100 - Projeto Seguro/rdo/foto.jpg',
+      'Missão P-100 - Projeto Seguro/servico.jpg'
+    ]
+  });
 
   assert.deepEqual(result, { reportId: 'report-1', deleted: 2, created: 2 });
-  assert.deepEqual(calls[1], ['deleteMany', {
-    where: {
-      OR: [
-        { reportId: 'report-1' },
-        { reportServiceId: { in: ['service-1'] } }
-      ]
-    }
-  }]);
-  assert.deepEqual(calls[2][1].data.map(item => ({
+  assert.equal(calls[0][0], 'findMany');
+  assert.equal(calls[1][0], 'createMany');
+  assert.deepEqual(calls[1][1].data.map(item => ({
     reportId: item.reportId,
     reportServiceId: item.reportServiceId,
     storagePath: item.storagePath
@@ -128,6 +128,50 @@ test('syncReportUploadAttachments replaces managed report and service attachment
     reportServiceId: 'service-1',
     storagePath: 'Missão P-100 - Projeto Seguro/servico.jpg'
   }]);
+  assert.deepEqual(calls[2], ['deleteMany', {
+    where: {
+      id: {
+        in: ['old-report-attachment', 'old-service-attachment']
+      }
+    }
+  }]);
+});
+
+test('syncReportUploadAttachments keeps existing index if createMany fails', async () => {
+  const calls = [];
+  const client = {
+    reportAttachment: {
+      findMany: async args => {
+        calls.push(['findMany', args]);
+        return [{ id: 'old-valid-index', reportId: 'report-1', reportServiceId: null, storagePath: 'Missão P-100 - Projeto Seguro/rdo/foto-antiga.jpg' }];
+      },
+      createMany: async args => {
+        calls.push(['createMany', args]);
+        throw new Error('create failed');
+      },
+      deleteMany: async args => {
+        calls.push(['deleteMany', args]);
+        return { count: 1 };
+      }
+    }
+  };
+  const report = {
+    id: 'report-1',
+    project: {
+      code: 'P-100',
+      name: 'Projeto Seguro'
+    },
+    specialConditions: {
+      generalUploads: ['/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto.jpg']
+    },
+    services: []
+  };
+
+  await assert.rejects(
+    () => syncReportUploadAttachments(client, report, { trustedStoragePaths: ['Missão P-100 - Projeto Seguro/rdo/foto.jpg'] }),
+    /create failed/
+  );
+  assert.deepEqual(calls.map(([name]) => name), ['findMany', 'createMany']);
 });
 
 test('syncReportUploadAttachments ignores known upload containers outside the report project folder', async () => {
@@ -148,7 +192,7 @@ test('syncReportUploadAttachments ignores known upload containers outside the re
   const result = await syncReportUploadAttachments(client, report);
 
   assert.deepEqual(result, { reportId: 'report-1', deleted: 0, created: 0 });
-  assert.deepEqual(calls.map(([name]) => name), ['findMany', 'deleteMany']);
+  assert.deepEqual(calls.map(([name]) => name), ['findMany']);
 });
 
 test('syncReportUploadAttachments rejects untrusted JSON paths even inside the same project folder', async () => {
@@ -169,7 +213,7 @@ test('syncReportUploadAttachments rejects untrusted JSON paths even inside the s
   const result = await syncReportUploadAttachments(client, report);
 
   assert.deepEqual(result, { reportId: 'report-1', deleted: 0, created: 0 });
-  assert.deepEqual(calls.map(([name]) => name), ['findMany', 'deleteMany']);
+  assert.deepEqual(calls.map(([name]) => name), ['findMany']);
 });
 
 test('syncReportUploadAttachments accepts old project folder names only in explicit legacy backfill mode', async () => {
@@ -190,7 +234,7 @@ test('syncReportUploadAttachments accepts old project folder names only in expli
   const result = await syncReportUploadAttachments(client, report, { trustLegacyProjectScoped: true });
 
   assert.deepEqual(result, { reportId: 'report-1', deleted: 0, created: 1 });
-  assert.equal(calls[2][1].data[0].storagePath, 'Missão P-100 - Nome Antigo/rdo/foto.jpg');
+  assert.equal(calls[1][1].data[0].storagePath, 'Missão P-100 - Nome Antigo/rdo/foto.jpg');
 });
 
 test('syncReportUploadAttachments accepts recently uploaded paths for the same authenticated user', async () => {
@@ -214,7 +258,7 @@ test('syncReportUploadAttachments accepts recently uploaded paths for the same a
   const result = await syncReportUploadAttachments(client, report, { auth });
 
   assert.deepEqual(result, { reportId: 'report-1', deleted: 0, created: 1 });
-  assert.equal(calls[2][1].data[0].storagePath, storagePath);
+  assert.equal(calls[1][1].data[0].storagePath, storagePath);
 });
 
 test('syncReportUploadAttachments trusts organized target when source path was trusted', async () => {
@@ -244,13 +288,13 @@ test('syncReportUploadAttachments trusts organized target when source path was t
   });
 
   assert.deepEqual(result, { reportId: 'report-1', deleted: 0, created: 1 });
-  assert.equal(calls[2][1].data[0].storagePath, targetPath);
+  assert.equal(calls[1][1].data[0].storagePath, targetPath);
 });
 
 test('syncReportUploadAttachments restores snapshot-trusted paths over edited attachments', async () => {
   const calls = [];
   const client = attachmentClient(calls, [
-    { storagePath: 'Missão P-100 - Projeto Seguro/rdo/foto-editada.jpg' }
+    { id: 'edited-attachment', reportId: 'report-1', reportServiceId: null, storagePath: 'Missão P-100 - Projeto Seguro/rdo/foto-editada.jpg' }
   ]);
   const restoredPath = 'Missão P-100 - Projeto Seguro/rdo/foto-original.jpg';
   const report = {
@@ -270,7 +314,8 @@ test('syncReportUploadAttachments restores snapshot-trusted paths over edited at
   });
 
   assert.deepEqual(result, { reportId: 'report-1', deleted: 1, created: 1 });
-  assert.equal(calls[2][1].data[0].storagePath, restoredPath);
+  assert.equal(calls[1][1].data[0].storagePath, restoredPath);
+  assert.deepEqual(calls[2], ['deleteMany', { where: { id: { in: ['edited-attachment'] } } }]);
 });
 
 test('reportUploadAttachmentsNeedSync detects legacy JSON uploads missing persisted attachments', () => {
