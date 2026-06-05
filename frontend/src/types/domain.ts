@@ -116,6 +116,7 @@ export interface Manometer {
   calibratedAt: string;
   expiresAt: string;
   isActive: boolean;
+  currentCalibrationCertificate?: CalibrationCertificate | null;
 }
 
 export interface ParticleCounter {
@@ -126,6 +127,16 @@ export interface ParticleCounter {
   calibratedAt: string;
   expiresAt: string;
   isActive: boolean;
+  currentCalibrationCertificate?: CalibrationCertificate | null;
+}
+
+export interface CalibrationCertificate {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  publicToken: string;
+  publicUrl: string;
+  createdAt: string;
 }
 
 export interface LinkedClientProject {

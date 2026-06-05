@@ -207,6 +207,7 @@ interface ManometerFormState {
   calibrationCertCode: string;
   calibratedAt: string;
   expiresAt: string;
+  calibrationCertificateFile: File | null;
 }
 
 interface CounterFormState {
@@ -216,6 +217,7 @@ interface CounterFormState {
   newCategory: string;
   calibratedAt: string;
   expiresAt: string;
+  calibrationCertificateFile: File | null;
 }
 
 const internalRoles: Array<Exclude<UserRole, 'CLIENT'>> = ['COLLABORATOR', 'COORDINATOR', 'MANAGER'];
@@ -309,7 +311,8 @@ const emptyManometerForm: ManometerFormState = {
   scale: '',
   calibrationCertCode: '',
   calibratedAt: '',
-  expiresAt: ''
+  expiresAt: '',
+  calibrationCertificateFile: null
 };
 
 const emptyCounterForm: CounterFormState = {
@@ -318,7 +321,8 @@ const emptyCounterForm: CounterFormState = {
   category: DEFAULT_COUNTER_CATEGORY,
   newCategory: '',
   calibratedAt: '',
-  expiresAt: ''
+  expiresAt: '',
+  calibrationCertificateFile: null
 };
 
 function groupUnits(units: Unit[]) {
@@ -1084,13 +1088,26 @@ function toDateInput(value?: string | null) {
   return new Date(value).toISOString().slice(0, 10);
 }
 
+async function calibrationCertificateUpload(file: File | null) {
+  if (!file) return undefined;
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    throw new Error('Envie o certificado em PDF.');
+  }
+  return {
+    fileName: file.name,
+    mimeType: file.type || 'application/pdf',
+    dataUrl: await fileToDataUrl(file)
+  };
+}
+
 function manometerToForm(item: Manometer): ManometerFormState {
   return {
     code: item.code,
     scale: item.scale,
     calibrationCertCode: item.calibrationCertCode,
     calibratedAt: toDateInput(item.calibratedAt),
-    expiresAt: toDateInput(item.expiresAt)
+    expiresAt: toDateInput(item.expiresAt),
+    calibrationCertificateFile: null
   };
 }
 
@@ -1101,7 +1118,8 @@ function counterToForm(item: ParticleCounter): CounterFormState {
     category: item.category || DEFAULT_COUNTER_CATEGORY,
     newCategory: '',
     calibratedAt: toDateInput(item.calibratedAt),
-    expiresAt: toDateInput(item.expiresAt)
+    expiresAt: toDateInput(item.expiresAt),
+    calibrationCertificateFile: null
   };
 }
 
@@ -2083,15 +2101,16 @@ export function GestorPage() {
   async function handleManometerSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const payload = {
-      code: manometerForm.code.trim(),
-      scale: manometerForm.scale.trim(),
-      calibrationCertCode: manometerForm.calibrationCertCode.trim(),
-      calibratedAt: manometerForm.calibratedAt,
-      expiresAt: manometerForm.expiresAt
-    };
-
     try {
+      const calibrationCertificate = await calibrationCertificateUpload(manometerForm.calibrationCertificateFile);
+      const payload = {
+        code: manometerForm.code.trim(),
+        scale: manometerForm.scale.trim(),
+        calibrationCertCode: manometerForm.calibrationCertCode.trim(),
+        calibratedAt: manometerForm.calibratedAt,
+        expiresAt: manometerForm.expiresAt,
+        ...(calibrationCertificate ? { calibrationCertificate } : {})
+      };
       if (manometerEditingId) {
         await manometerMutations.updateManometer.mutateAsync({ id: manometerEditingId, payload });
         showToast('Manômetro atualizado.', 'success');
@@ -2125,15 +2144,16 @@ export function GestorPage() {
       return;
     }
 
-    const payload = {
-      code: counterForm.code.trim(),
-      serialNumber: counterForm.serialNumber.trim(),
-      category,
-      calibratedAt: counterForm.calibratedAt,
-      expiresAt: counterForm.expiresAt
-    };
-
     try {
+      const calibrationCertificate = await calibrationCertificateUpload(counterForm.calibrationCertificateFile);
+      const payload = {
+        code: counterForm.code.trim(),
+        serialNumber: counterForm.serialNumber.trim(),
+        category,
+        calibratedAt: counterForm.calibratedAt,
+        expiresAt: counterForm.expiresAt,
+        ...(calibrationCertificate ? { calibrationCertificate } : {})
+      };
       if (counterEditingId) {
         await counterMutations.updateCounter.mutateAsync({ id: counterEditingId, payload });
         showToast('Contador atualizado.', 'success');
@@ -3656,6 +3676,18 @@ export function GestorPage() {
               />
             </div>
             <div className="field-group">
+              <label htmlFor="manometer-cert-file">PDF do certificado</label>
+              <input
+                id="manometer-cert-file"
+                type="file"
+                accept="application/pdf,.pdf"
+                onChange={event => setManometerForm(current => ({
+                  ...current,
+                  calibrationCertificateFile: event.target.files?.[0] || null
+                }))}
+              />
+            </div>
+            <div className="field-group">
               <label htmlFor="manometer-calibrated">Calibração</label>
               <input
                 id="manometer-calibrated"
@@ -3705,6 +3737,9 @@ export function GestorPage() {
                       <div className="admin-item-title">{item.code} - {item.scale}</div>
                       <div className="admin-item-sub">
                         Certificado {item.calibrationCertCode} - Calibração: {formatDate(item.calibratedAt)} - Vencimento: {formatDate(item.expiresAt)}
+                        {item.currentCalibrationCertificate?.publicUrl ? (
+                          <> - <a href={item.currentCalibrationCertificate.publicUrl} target="_blank" rel="noreferrer">PDF atual</a></>
+                        ) : null}
                       </div>
                     </div>
                     <div className="admin-actions">
@@ -3729,6 +3764,7 @@ export function GestorPage() {
                       <div className="field-group"><label>Código</label><input value={manometerForm.code} onChange={event => setManometerForm(current => ({ ...current, code: event.target.value }))} required /></div>
                       <div className="field-group"><label>Escala</label><input value={manometerForm.scale} onChange={event => setManometerForm(current => ({ ...current, scale: event.target.value }))} required /></div>
                       <div className="field-group"><label>Certificado</label><input value={manometerForm.calibrationCertCode} onChange={event => setManometerForm(current => ({ ...current, calibrationCertCode: event.target.value }))} required /></div>
+                      <div className="field-group"><label>Novo PDF do certificado</label><input type="file" accept="application/pdf,.pdf" onChange={event => setManometerForm(current => ({ ...current, calibrationCertificateFile: event.target.files?.[0] || null }))} /></div>
                       <div className="field-group"><label>Calibração</label><input type="date" value={manometerForm.calibratedAt} onChange={event => setManometerForm(current => ({ ...current, calibratedAt: event.target.value }))} required /></div>
                       <div className="field-group"><label>Vencimento</label><input type="date" value={manometerForm.expiresAt} onChange={event => setManometerForm(current => ({ ...current, expiresAt: event.target.value }))} required /></div>
                       <div className="admin-form-actions">
@@ -3827,6 +3863,17 @@ export function GestorPage() {
             required
           />
         </div>
+        <div className="field-group">
+          <label>{counterEditingId ? 'Novo PDF do certificado' : 'PDF do certificado'}</label>
+          <input
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={event => setCounterForm(current => ({
+              ...current,
+              calibrationCertificateFile: event.target.files?.[0] || null
+            }))}
+          />
+        </div>
         <div className="admin-form-actions">
           <button
             className="mini-btn"
@@ -3902,6 +3949,9 @@ export function GestorPage() {
                   <div className="admin-list-row" key={item.id}>
                     <span>
                       <strong>{item.code}</strong> - Serial {item.serialNumber} - Calibração: {formatDate(item.calibratedAt)} - Vencimento: {formatDate(item.expiresAt)}
+                      {item.currentCalibrationCertificate?.publicUrl ? (
+                        <> - <a href={item.currentCalibrationCertificate.publicUrl} target="_blank" rel="noreferrer">PDF atual</a></>
+                      ) : null}
                     </span>
                     <div className="admin-card-actions">
                       <button

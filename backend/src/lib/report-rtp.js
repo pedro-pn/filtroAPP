@@ -10,6 +10,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
+import { addPdfAnnotationsToHyperlinkText } from './pdf-link-annotations.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
 import { buildReportFileName } from './report-filename.js';
 import { readStoredImageAsset, resolveStoredUploadPath } from './stored-image.js';
@@ -233,6 +234,53 @@ function addImageRel(zip, relsDoc, asset, prefix) {
   return relId;
 }
 
+function textRun(doc, text, { hyperlink = false } = {}) {
+  const run = doc.createElement('w:r');
+  const t = doc.createElement('w:t');
+  if (/^\s|\s$/.test(text)) t.setAttribute('xml:space', 'preserve');
+  t.appendChild(doc.createTextNode(text));
+  run.appendChild(t);
+  if (hyperlink) applyHyperlinkStyle(run);
+  return run;
+}
+
+function applyHyperlinkStyle(run) {
+  const doc = run.ownerDocument;
+  let rPr = Array.from(run.childNodes || []).find(node => node.tagName === 'w:rPr') || null;
+  if (!rPr) {
+    rPr = doc.createElement('w:rPr');
+    run.insertBefore(rPr, run.firstChild);
+  }
+  const rStyle = doc.createElement('w:rStyle');
+  rStyle.setAttribute('w:val', 'Hyperlink');
+  rPr.appendChild(rStyle);
+  const color = doc.createElement('w:color');
+  color.setAttribute('w:val', '0563C1');
+  rPr.appendChild(color);
+  const underline = doc.createElement('w:u');
+  underline.setAttribute('w:val', 'single');
+  rPr.appendChild(underline);
+}
+
+function addHyperlinkToText(element, text, url) {
+  const label = safeText(text);
+  const href = safeText(url);
+  if (!label || !href) return;
+  const run = Array.from(element.getElementsByTagName('w:r')).find(candidate => elementText(candidate).includes(label));
+  if (!run || run.parentNode?.tagName === 'w:hyperlink' || run.parentNode?.tagName === 'w:fldSimple') return;
+  const fullText = elementText(run);
+  const index = fullText.indexOf(label);
+  if (index < 0) return;
+  const hyperlink = element.ownerDocument.createElement('w:fldSimple');
+  hyperlink.setAttribute('w:instr', `HYPERLINK "${href}"`);
+  hyperlink.appendChild(textRun(element.ownerDocument, label, { hyperlink: true }));
+  if (index > 0) run.parentNode.insertBefore(textRun(element.ownerDocument, fullText.slice(0, index)), run);
+  run.parentNode.insertBefore(hyperlink, run);
+  const after = fullText.slice(index + label.length);
+  if (after) run.parentNode.insertBefore(textRun(element.ownerDocument, after), run);
+  run.parentNode.removeChild(run);
+}
+
 function inlineImageXml(relId, cx, cy, name) {
   const n = safeText(name || 'Foto');
   return `<w:r xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="5010" name="${n}"/><wp:cNvGraphicFramePr/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="${n}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
@@ -425,6 +473,7 @@ function expandManometerRows(doc, manometers) {
       manometercalibration: m.calibratedAt ? formatDatePt(m.calibratedAt) : '',
       manometerexpiring: m.expiresAt ? formatDatePt(m.expiresAt) : ''
     });
+    addHyperlinkToText(clone, m.certCode, m.certificate?.publicUrl);
     return clone;
   });
   cloneBefore(templateRow, clones);
@@ -587,6 +636,10 @@ export async function saveRtpPdf(report) {
   const pdfFileName = docx.fileName.replace(/\.docx$/i, '.pdf');
   const pdfPath = path.join(path.dirname(docx.targetPath), pdfFileName);
   await convertDocxToPdf(docx.targetPath, pdfPath);
+  await addPdfAnnotationsToHyperlinkText(pdfPath, (report.specialConditions?.resolvedManometers || []).map(item => ({
+    label: item?.certCode || '',
+    url: item?.certificate?.publicUrl
+  })));
   return {
     fileName: pdfFileName,
     targetPath: pdfPath,

@@ -475,6 +475,7 @@ model Manometer {
   isActive            Boolean  @default(true)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+  calibrationCertificates CalibrationCertificate[]
 }
 
 model ParticleCounter {
@@ -487,8 +488,44 @@ model ParticleCounter {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  calibrationCertificates CalibrationCertificate[]
 
   @@index([category])
+}
+
+enum CalibrationEquipmentType {
+  MANOMETER
+  PARTICLE_COUNTER
+}
+
+model CalibrationCertificate {
+  id                String                   @id @default(cuid())
+  equipmentType     CalibrationEquipmentType
+  fileName          String
+  mimeType          String                   @default("application/pdf")
+  storagePath       String
+  publicToken       String                   @unique
+  manometerId       String?
+  particleCounterId String?
+  manometer         Manometer?               @relation(fields: [manometerId], references: [id], onDelete: Cascade)
+  particleCounter   ParticleCounter?         @relation(fields: [particleCounterId], references: [id], onDelete: Cascade)
+  createdAt         DateTime                 @default(now())
+
+  @@index([manometerId, createdAt])
+  @@index([particleCounterId, createdAt])
+}
+
+model CalibrationNotificationLog {
+  id            String   @id @default(cuid())
+  equipmentType String
+  equipmentId   String
+  category      String
+  milestone     String
+  targetDate    DateTime
+  sentAt        DateTime @default(now())
+
+  @@unique([equipmentType, equipmentId, milestone, targetDate])
+  @@index([category, milestone, sentAt])
 }
 
 model User {
@@ -508,6 +545,7 @@ model User {
   notifySignaturesByEmail Boolean @default(true)
   notifySignatureRemindersByEmail Boolean @default(true)
   notifySurveyRemindersByEmail Boolean @default(true)
+  notifyCalibrationRemindersByEmail Boolean @default(true)
   collaboratorId  String?       @unique
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

@@ -45,7 +45,8 @@ test('publicUser exposes hub account fields with legacy fallback', () => {
         reports: true,
         signatures: true,
         signatureReminders: true,
-        surveyReminders: true
+        surveyReminders: true,
+        calibrationReminders: true
       },
       privacyPolicyRequired: false,
       requiredPrivacyPolicyVersion: 'client_account_privacy_v1',

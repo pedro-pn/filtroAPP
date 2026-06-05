@@ -28,6 +28,7 @@ export interface AuthUser {
     signatures: boolean;
     signatureReminders: boolean;
     surveyReminders: boolean;
+    calibrationReminders: boolean;
   };
   privacyPolicyRequired?: boolean;
   requiredPrivacyPolicyVersion?: string;

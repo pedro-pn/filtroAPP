@@ -1,5 +1,6 @@
 import { apiClient, rdoApiPath } from './client';
 import type { ParticleCounter, UnitCategory } from '../types/domain';
+import type { CalibrationCertificateUpload } from './manometers';
 
 export interface ParticleCounterPayload {
   code: string;
@@ -7,6 +8,7 @@ export interface ParticleCounterPayload {
   category: UnitCategory;
   calibratedAt: string;
   expiresAt: string;
+  calibrationCertificate?: CalibrationCertificateUpload | null;
 }
 
 export async function listParticleCounters() {

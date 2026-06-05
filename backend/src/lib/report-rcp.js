@@ -10,6 +10,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
+import { addPdfAnnotationsToHyperlinkText } from './pdf-link-annotations.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
 import { buildReportFileName } from './report-filename.js';
 import { readStoredImageAsset, resolveStoredUploadPath } from './stored-image.js';
@@ -245,6 +246,53 @@ function addImageRel(zip, relsDoc, asset, prefix) {
   rel.setAttribute('Target', `media/${mediaName}`);
   relsDoc.documentElement.appendChild(rel);
   return relId;
+}
+
+function textRun(doc, text, { hyperlink = false } = {}) {
+  const run = doc.createElement('w:r');
+  const t = doc.createElement('w:t');
+  if (/^\s|\s$/.test(text)) t.setAttribute('xml:space', 'preserve');
+  t.appendChild(doc.createTextNode(text));
+  run.appendChild(t);
+  if (hyperlink) applyHyperlinkStyle(run);
+  return run;
+}
+
+function applyHyperlinkStyle(run) {
+  const doc = run.ownerDocument;
+  let rPr = Array.from(run.childNodes || []).find(node => node.tagName === 'w:rPr') || null;
+  if (!rPr) {
+    rPr = doc.createElement('w:rPr');
+    run.insertBefore(rPr, run.firstChild);
+  }
+  const rStyle = doc.createElement('w:rStyle');
+  rStyle.setAttribute('w:val', 'Hyperlink');
+  rPr.appendChild(rStyle);
+  const color = doc.createElement('w:color');
+  color.setAttribute('w:val', '0563C1');
+  rPr.appendChild(color);
+  const underline = doc.createElement('w:u');
+  underline.setAttribute('w:val', 'single');
+  rPr.appendChild(underline);
+}
+
+function addHyperlinkToText(element, text, url) {
+  const label = safeText(text);
+  const href = safeText(url);
+  if (!label || !href) return;
+  const run = Array.from(element.getElementsByTagName('w:r')).find(candidate => elementText(candidate).includes(label));
+  if (!run || run.parentNode?.tagName === 'w:hyperlink' || run.parentNode?.tagName === 'w:fldSimple') return;
+  const fullText = elementText(run);
+  const index = fullText.indexOf(label);
+  if (index < 0) return;
+  const hyperlink = element.ownerDocument.createElement('w:fldSimple');
+  hyperlink.setAttribute('w:instr', `HYPERLINK "${href}"`);
+  hyperlink.appendChild(textRun(element.ownerDocument, label, { hyperlink: true }));
+  if (index > 0) run.parentNode.insertBefore(textRun(element.ownerDocument, fullText.slice(0, index)), run);
+  run.parentNode.insertBefore(hyperlink, run);
+  const after = fullText.slice(index + label.length);
+  if (after) run.parentNode.insertBefore(textRun(element.ownerDocument, after), run);
+  run.parentNode.removeChild(run);
 }
 
 function inlineImageXml(relId, cx, cy, name) {
@@ -609,6 +657,7 @@ export async function buildRcpDocx(report) {
 
   updateXmlEntry(zip, 'word/document.xml', doc => {
     replacePlaceholders(doc, baseData);
+    addHyperlinkToText(doc, sc.resolvedCounter?.serialNumber, sc.resolvedCounter?.certificate?.publicUrl);
     expandTubeRows(doc, sd, serviceType);
     expandRcpCollaborators(doc, collabs);
     embedPhotos(zip, doc, '{{countphotos}}', countAssets);
@@ -649,6 +698,10 @@ export async function saveRcpPdf(report) {
   const pdfFileName = docx.fileName.replace(/\.docx$/i, '.pdf');
   const pdfPath = path.join(path.dirname(docx.targetPath), pdfFileName);
   await convertDocxToPdf(docx.targetPath, pdfPath);
+  await addPdfAnnotationsToHyperlinkText(pdfPath, [{
+    label: report.specialConditions?.resolvedCounter?.serialNumber || '',
+    url: report.specialConditions?.resolvedCounter?.certificate?.publicUrl
+  }]);
   return {
     fileName: pdfFileName,
     targetPath: pdfPath,

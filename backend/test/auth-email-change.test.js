@@ -165,7 +165,8 @@ test('PUT /auth/account updates notification preferences without email change', 
       notifyReportsByEmail: false,
       notifySignaturesByEmail: true,
       notifySignatureRemindersByEmail: false,
-      notifySurveyRemindersByEmail: false
+      notifySurveyRemindersByEmail: false,
+      notifyCalibrationRemindersByEmail: false
     });
     return { ...user, ...args.data };
   };
@@ -179,7 +180,8 @@ test('PUT /auth/account updates notification preferences without email change', 
       reports: false,
       signatures: true,
       signatureReminders: false,
-      surveyReminders: false
+      surveyReminders: false,
+      calibrationReminders: false
     }
   });
 
@@ -188,7 +190,8 @@ test('PUT /auth/account updates notification preferences without email change', 
     reports: false,
     signatures: true,
     signatureReminders: false,
-    surveyReminders: false
+    surveyReminders: false,
+    calibrationReminders: false
   });
 });
 

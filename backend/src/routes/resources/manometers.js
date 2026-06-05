@@ -2,6 +2,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
+import {
+  createCalibrationCertificate,
+  currentCalibrationCertificateInclude,
+  withCurrentCalibrationCertificate
+} from '../../lib/calibration-certificates.js';
+import { notifyCalibrationUpdatedSafely } from '../../lib/calibration-reminders.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth, requireInternalUser, requireManager } from '../../middleware/auth.js';
 
@@ -15,39 +21,89 @@ const schema = z.object({
   scale: z.string().min(1),
   calibrationCertCode: z.string().min(1),
   calibratedAt: dateField,
-  expiresAt: dateField
+  expiresAt: dateField,
+  calibrationCertificate: z.object({
+    fileName: z.string().min(1),
+    mimeType: z.string().optional(),
+    dataUrl: z.string().min(1)
+  }).optional().nullable()
 });
 
 router.get('/', requireInternalUser, asyncHandler(async (_req, res) => {
-  const items = await prisma.manometer.findMany({ orderBy: { code: 'asc' } });
-  res.json(items);
+  const items = await prisma.manometer.findMany({
+    orderBy: { code: 'asc' },
+    include: currentCalibrationCertificateInclude
+  });
+  res.json(items.map(withCurrentCalibrationCertificate));
 }));
 
 router.post('/', requireManager, asyncHandler(async (req, res) => {
   const data = schema.parse(req.body);
+  const { calibrationCertificate, ...fields } = data;
   const existing = await prisma.manometer.findUnique({ where: { code: data.code } });
   if (existing && !existing.isActive) {
     const item = await prisma.manometer.update({
       where: { id: existing.id },
-      data: { ...data, isActive: true, calibratedAt: new Date(data.calibratedAt), expiresAt: new Date(data.expiresAt) }
+      data: { ...fields, isActive: true, calibratedAt: new Date(fields.calibratedAt), expiresAt: new Date(fields.expiresAt) }
     });
-    return res.status(200).json(item);
+    await createCalibrationCertificate(prisma, {
+      equipmentType: 'MANOMETER',
+      manometerId: item.id,
+      upload: calibrationCertificate
+    });
+    await notifyCalibrationUpdatedSafely({
+      equipmentType: 'MANOMETER',
+      equipment: item,
+      previousExpiresAt: existing.expiresAt
+    });
+    const freshItem = await prisma.manometer.findUnique({
+      where: { id: item.id },
+      include: currentCalibrationCertificateInclude
+    });
+    return res.status(200).json(withCurrentCalibrationCertificate(freshItem));
   }
   const item = await prisma.manometer.create({
-    data: { ...data, calibratedAt: new Date(data.calibratedAt), expiresAt: new Date(data.expiresAt) }
+    data: { ...fields, calibratedAt: new Date(fields.calibratedAt), expiresAt: new Date(fields.expiresAt) }
   });
-  res.status(201).json(item);
+  await createCalibrationCertificate(prisma, {
+    equipmentType: 'MANOMETER',
+    manometerId: item.id,
+    upload: calibrationCertificate
+  });
+  const freshItem = await prisma.manometer.findUnique({
+    where: { id: item.id },
+    include: currentCalibrationCertificateInclude
+  });
+  res.status(201).json(withCurrentCalibrationCertificate(freshItem));
 }));
 
 router.put('/:id', requireManager, asyncHandler(async (req, res) => {
   const data = schema.partial().parse(req.body);
+  const { calibrationCertificate, ...fields } = data;
+  const previous = fields.expiresAt
+    ? await prisma.manometer.findUnique({ where: { id: req.params.id }, select: { expiresAt: true } })
+    : null;
   const payload = {
-    ...data,
-    ...(data.calibratedAt ? { calibratedAt: new Date(data.calibratedAt) } : {}),
-    ...(data.expiresAt ? { expiresAt: new Date(data.expiresAt) } : {})
+    ...fields,
+    ...(fields.calibratedAt ? { calibratedAt: new Date(fields.calibratedAt) } : {}),
+    ...(fields.expiresAt ? { expiresAt: new Date(fields.expiresAt) } : {})
   };
   const item = await prisma.manometer.update({ where: { id: req.params.id }, data: payload });
-  res.json(item);
+  await createCalibrationCertificate(prisma, {
+    equipmentType: 'MANOMETER',
+    manometerId: item.id,
+    upload: calibrationCertificate
+  });
+  await notifyCalibrationUpdatedSafely({
+    equipmentType: 'MANOMETER',
+    equipment: item,
+    previousExpiresAt: previous?.expiresAt
+  });
+  const freshItem = await prisma.manometer.findUnique({
+    where: { id: item.id },
+    include: currentCalibrationCertificateInclude
+  });
+  res.json(withCurrentCalibrationCertificate(freshItem));
 }));
 
 router.delete('/:id', requireManager, asyncHandler(async (req, res) => {
