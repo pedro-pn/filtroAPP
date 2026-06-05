@@ -95,6 +95,29 @@ function collaboratorLinks(ids: string[], collaborators: Collaborator[] = []) {
   };
 }
 
+function stripPreviouslyAddedUploads(value: unknown) {
+  if (!Array.isArray(value)) return value;
+
+  return value
+    .map(group => {
+      if (!group || typeof group !== 'object' || Array.isArray(group)) return group;
+      const record = group as Record<string, unknown>;
+      const files = Array.isArray(record.files)
+        ? record.files.filter(file => {
+            if (!file || typeof file !== 'object' || Array.isArray(file)) return true;
+            const item = file as Record<string, unknown>;
+            return item.__previouslyAdded !== true && item.previouslyAdded !== true;
+          })
+        : record.files;
+      return { ...record, files };
+    })
+    .filter(group => {
+      if (!group || typeof group !== 'object' || Array.isArray(group)) return true;
+      const files = (group as Record<string, unknown>).files;
+      return !Array.isArray(files) || files.length > 0;
+    });
+}
+
 function commonExtraData(
   type: string,
   data: Record<string, unknown>,
@@ -107,7 +130,7 @@ function commonExtraData(
     ? []
     : (Array.isArray(data.tubes) ? data.tubes : []);
 
-  return {
+  const extraData: Record<string, unknown> = {
     ...data,
     'Equipamento(s)': equipmentId ? labelForEquipment(equipmentId, options.equipment) : '',
     Sistema: getString(data.system),
@@ -126,6 +149,8 @@ function commonExtraData(
     'Diâmetros e comprimentos': tubes,
     'Colaboradores do serviço': collaboratorLinks(collaboratorIds, options.collaborators)
   };
+  extraData.__uploads__ = stripPreviouslyAddedUploads(extraData.__uploads__);
+  return extraData;
 }
 
 export function normalizeServiceType(type: string) {
