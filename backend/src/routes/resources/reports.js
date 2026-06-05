@@ -5331,6 +5331,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   const unfinalizedDerivedRefs = data.deleteUnfinalizedDerivedReports === true
     ? demotedFinalizedServiceRefs(existing.services || [], data.services || [])
     : [];
+  const trustedStoragePaths = trustedStoragePathsFromSnapshot(buildReportSnapshot(existing));
 
   const tPut0 = Date.now();
   const item = await prisma.$transaction(async tx => {
@@ -5472,7 +5473,10 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   });
   const tPutTx = Date.now();
 
-  const organizedItem = await organizeAndSyncReportUploadAttachments(item, { auth: req.auth }) || item;
+  const organizedItem = await organizeAndSyncReportUploadAttachments(item, {
+    auth: req.auth,
+    trustedStoragePaths
+  }) || item;
   const tPutOrg = Date.now();
   if (organizedItem.reportType === 'RDO' && organizedItem.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({

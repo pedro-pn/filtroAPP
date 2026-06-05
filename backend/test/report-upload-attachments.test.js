@@ -361,6 +361,55 @@ test('syncReportUploadAttachments restores snapshot-trusted paths over edited at
   assert.deepEqual(calls[2], ['deleteMany', { where: { id: { in: ['edited-attachment'] } } }]);
 });
 
+test('syncReportUploadAttachments recreates trusted service attachment after services are replaced', async () => {
+  const calls = [];
+  const client = attachmentClient(calls);
+  const storagePath = 'Missão P-100 - Projeto Seguro/Registros Fotográficos/RCPU/servico.jpg';
+  const report = {
+    id: 'report-1',
+    project: {
+      code: 'P-100',
+      name: 'Projeto Seguro'
+    },
+    specialConditions: {},
+    services: [{
+      id: 'new-service-1',
+      extraData: {
+        __uploads__: [{
+          label: 'Foto do laudo',
+          files: [{
+            fileName: 'servico-original.jpg',
+            mimeType: 'image/jpeg',
+            storagePath
+          }]
+        }]
+      }
+    }]
+  };
+
+  const result = await syncReportUploadAttachments(client, report, {
+    trustedStoragePaths: [storagePath]
+  });
+
+  assert.deepEqual(result, { reportId: 'report-1', deleted: 0, created: 1 });
+  assert.equal(calls[1][0], 'createMany');
+  assert.deepEqual(calls[1][1].data.map(item => ({
+    reportId: item.reportId,
+    reportServiceId: item.reportServiceId,
+    label: item.label,
+    fileName: item.fileName,
+    mimeType: item.mimeType,
+    storagePath: item.storagePath
+  })), [{
+    reportId: null,
+    reportServiceId: 'new-service-1',
+    label: 'Foto do laudo',
+    fileName: 'servico-original.jpg',
+    mimeType: 'image/jpeg',
+    storagePath
+  }]);
+});
+
 test('reportUploadAttachmentsNeedSync detects legacy JSON uploads missing persisted attachments', () => {
   const report = {
     id: 'report-1',
