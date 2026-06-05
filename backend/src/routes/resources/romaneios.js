@@ -10,7 +10,7 @@ import { buildRomaneioCreatedEmailTemplate } from '../../lib/email-templates.js'
 import { getMissingMailerConfig, sendMail } from '../../lib/mailer.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
 import prisma from '../../lib/prisma.js';
-import { syncRomaneioCatalog } from '../../lib/romaneio-catalog.js';
+import { ensureRomaneioCatalogSynced } from '../../lib/romaneio-catalog.js';
 import { buildRomaneioCatalogPdf } from '../../lib/romaneio-catalog-pdf.js';
 import { saveRomaneioDocx } from '../../lib/romaneio-docx.js';
 import { convertDocxToPdf } from '../../lib/report-pdf-from-docx.js';
@@ -502,7 +502,7 @@ router.delete('/drafts/:id', requireAuth, requireRomaneioAccess, asyncHandler(as
 }));
 
 router.get('/catalog/pdf', requireAuth, requireRomaneioAccess, asyncHandler(async (_req, res) => {
-  await syncRomaneioCatalog();
+  await ensureRomaneioCatalogSynced();
   const items = await prisma.romaneioCatalogItem.findMany({
     where: { isActive: true },
     orderBy: [{ categoryName: 'asc' }, { code: 'asc' }, { name: 'asc' }]
@@ -675,7 +675,7 @@ router.get('/:id', requireAuth, requireRomaneioAccess, asyncHandler(async (req, 
 }));
 
 router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
-  await syncRomaneioCatalog();
+  await ensureRomaneioCatalogSynced();
   const payload = createRomaneioSchema.parse(req.body);
   const project = await assertRomaneioProjectAccess(payload.projectId, req.auth.user);
   if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
@@ -743,7 +743,7 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
 }));
 
 router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, asyncHandler(async (req, res) => {
-  await syncRomaneioCatalog();
+  await ensureRomaneioCatalogSynced();
   const payload = createRomaneioSchema.parse(req.body);
   const existing = await prisma.romaneio.findFirstOrThrow({
     where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),

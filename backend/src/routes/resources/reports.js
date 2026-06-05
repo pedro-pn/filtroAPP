@@ -62,6 +62,8 @@ import { calculateReportOvertime } from '../../lib/overtime.js';
 import { coordinatorNotificationEmails, NotificationEmailCategory, notificationRecipientsForEmails } from '../../lib/notification-preferences.js';
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import prisma from '../../lib/prisma.js';
+import { logSlowOperation } from '../../lib/performance-logging.js';
+import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
 import { buildReportFileName, safePath } from '../../lib/report-filename.js';
 import {
   normalizeReportUploadReference,
@@ -74,6 +76,8 @@ import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middlewa
 const router = Router();
 const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
 const requireRdoManager = requireModuleRole('rdo:manager');
+const REPORT_LIST_DEFAULT_PAGE_SIZE = 50;
+const REPORT_LIST_MAX_PAGE_SIZE = 100;
 const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
 const CLIENT_REJECTION_KEY = '__clientRejectedAt';
 
@@ -1259,6 +1263,113 @@ const include = {
   }
 };
 
+const listSummarySelect = {
+  id: true,
+  projectId: true,
+  createdByUserId: true,
+  reviewedByUserId: true,
+  reportType: true,
+  sequenceNumber: true,
+  status: true,
+  reportDate: true,
+  arrivalTime: true,
+  departureTime: true,
+  lunchBreak: true,
+  daytimeCount: true,
+  overtimeReason: true,
+  dailyDescription: true,
+  reviewNotes: true,
+  specialConditions: true,
+  approvedAt: true,
+  returnedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  project: {
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      isActive: true,
+      visibleToCollaborators: true,
+      managerOnly: true,
+      deletedAt: true,
+      clientName: true,
+      clientCnpj: true,
+      clientEmailPrimary: true,
+      clientEmailCc: true,
+      clientSigners: true,
+      operatorId: true
+    }
+  },
+  createdBy: {
+    select: {
+      id: true,
+      name: true,
+      collaborator: {
+        select: {
+          id: true,
+          name: true
+        }
+      }
+    }
+  },
+  collaborators: {
+    select: {
+      collaboratorId: true,
+      collaborator: true
+    }
+  },
+  services: {
+    select: {
+      id: true,
+      serviceType: true,
+      equipmentId: true,
+      equipment: true,
+      system: true,
+      material: true,
+      startTime: true,
+      endTime: true,
+      finalized: true,
+      extraData: true
+    }
+  },
+  reportSignatures: {
+    where: {
+      status: { not: 'INVALIDATED' },
+      version: { status: 'ACTIVE' }
+    },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true,
+      signerName: true,
+      declaredSignerName: true,
+      signerEmail: true,
+      status: true,
+      isRequired: true,
+      signedAt: true,
+      rejectedAt: true
+    }
+  },
+  clientReviews: {
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      action: true,
+      comment: true,
+      createdAt: true,
+      clientUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          username: true
+        }
+      }
+    }
+  }
+};
+
 export function collaboratorCanAccessProject(auth, project) {
   const collaboratorId = auth.rawUser?.collaboratorId || auth.user?.collaboratorId;
   const authorized = Array.isArray(project?.authorizedUsers)
@@ -1408,13 +1519,57 @@ function isReportUnavailable(report) {
   return !!(report?.deletedAt || report?.project?.deletedAt);
 }
 
-export async function canAccessReport(auth, report) {
+function parseReportListPagination(query) {
+  if (query.page === undefined && query.pageSize === undefined) return null;
+
+  const page = Number.parseInt(String(query.page || '1'), 10);
+  const pageSize = Number.parseInt(String(query.pageSize || REPORT_LIST_DEFAULT_PAGE_SIZE), 10);
+  if (!Number.isInteger(page) || page < 1) {
+    const error = new Error('Página inválida.');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > REPORT_LIST_MAX_PAGE_SIZE) {
+    const error = new Error(`Tamanho de página inválido. Use um valor entre 1 e ${REPORT_LIST_MAX_PAGE_SIZE}.`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return {
+    page,
+    pageSize,
+    skip: (page - 1) * pageSize,
+    take: pageSize
+  };
+}
+
+function paginatedReportResponse(items, total, pagination) {
+  return {
+    items,
+    pagination: {
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pagination.pageSize))
+    }
+  };
+}
+
+function reportListUsesSummarySelect(query) {
+  const value = String(query.summary || '').trim().toLowerCase();
+  return value === 'true' || value === '1';
+}
+
+export async function canAccessReport(auth, report, options = {}) {
   if (isReportUnavailable(report)) return false;
   if (auth.user.role === 'MANAGER') return true;
   if (report.project?.managerOnly) return false;
   if (auth.user.role === 'COORDINATOR') return true;
   if (auth.user.role === 'CLIENT') {
     if (!clientCanAccessProject(auth, report.project)) return false;
+    if (options.clientVisibilityById) {
+      return canClientSeeReport(report, options.clientVisibilityById);
+    }
     return canClientSeeReportForAccess(report);
   }
   if (auth.user.role === 'COLLABORATOR' && !collaboratorCanAccessReportProject(auth, report.project)) return false;
@@ -1455,9 +1610,24 @@ export function canClientSeeReport(report, allReportsById) {
 
 async function projectReportsForClientVisibility(projectId, client = prisma) {
   return client.report.findMany({
-    where: { projectId, deletedAt: null },
+    where: { projectId, deletedAt: null, project: activeReportProjectWhere() },
     include
   });
+}
+
+async function projectReportsForClientVisibilityProjectIds(projectIds, client = prisma) {
+  const ids = Array.from(new Set((projectIds || []).filter(Boolean)));
+  if (!ids.length) return [];
+  return client.report.findMany({
+    where: { projectId: { in: ids }, deletedAt: null, project: activeReportProjectWhere() },
+    include
+  });
+}
+
+async function clientVisibilityMapForReports(reports, client = prisma) {
+  const projectIds = reports.map(report => report?.projectId).filter(Boolean);
+  const projectReports = await projectReportsForClientVisibilityProjectIds(projectIds, client);
+  return new Map(projectReports.map(item => [item.id, item]));
 }
 
 export async function canClientSeeReportForAccess(report, client = prisma) {
@@ -1810,10 +1980,9 @@ async function generateReportPdfDownload(report) {
     const saved = await generateReportPdfAsset(report);
     await writePdfCacheMetadata(saved.targetPath, report);
     const buffer = await fs.readFile(saved.targetPath);
-    console.log('[TIMING] PDF generated', {
+    logSlowOperation('reports.pdf.generate', Date.now() - startedAt, {
       reportId: report.id,
       reportType: report.reportType,
-      ms: Date.now() - startedAt,
       bytes: buffer.length
     });
     return {
@@ -2382,25 +2551,32 @@ async function assertBatchAccess(auth, reports) {
     throw error;
   }
 
-  const access = await Promise.all(reports.map(report => canAccessReport(auth, report)));
-  if (access.some(allowed => !allowed)) {
-    const error = new Error('Você não tem permissão para acessar um ou mais relatórios selecionados.');
-    error.statusCode = 403;
-    throw error;
-  }
-
   if (auth.user.role === 'CLIENT') {
-    const projectIds = Array.from(new Set(reports.map(report => report.projectId).filter(Boolean)));
-    const projectReports = await prisma.report.findMany({
-      where: { projectId: { in: projectIds }, deletedAt: null, project: activeReportProjectWhere() },
-      include
-    });
-    const byId = new Map(projectReports.map(report => [report.id, report]));
+    const projectAccessDenied = reports.some(report => (
+      isReportUnavailable(report)
+      || report.project?.managerOnly
+      || !clientCanAccessProject(auth, report.project)
+    ));
+    if (projectAccessDenied) {
+      const error = new Error('Você não tem permissão para acessar um ou mais relatórios selecionados.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const byId = await clientVisibilityMapForReports(reports);
     if (reports.some(report => !canClientSeeReport(report, byId))) {
       const error = new Error('Você não tem permissão para acessar um ou mais relatórios selecionados.');
       error.statusCode = 403;
       throw error;
     }
+    return;
+  }
+
+  const access = await Promise.all(reports.map(report => canAccessReport(auth, report)));
+  if (access.some(allowed => !allowed)) {
+    const error = new Error('Você não tem permissão para acessar um ou mais relatórios selecionados.');
+    error.statusCode = 403;
+    throw error;
   }
 }
 
@@ -4793,6 +4969,8 @@ async function createIndependentServiceReports(tx, project, data, managerUserId)
 
 router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
   const where = { deletedAt: null, project: activeReportProjectWhere() };
+  const pagination = parseReportListPagination(req.query);
+  const useSummarySelect = reportListUsesSummarySelect(req.query);
 
   if (req.query.status) {
     where.status = req.query.status;
@@ -4825,19 +5003,46 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
   }
 
   const tGet0 = Date.now();
-  const items = await prisma.report.findMany({
-    where,
-    include,
-    orderBy: [{ reportDate: 'desc' }, { createdAt: 'desc' }]
-  });
-  console.log('[TIMING] GET /reports', { queryMs: Date.now() - tGet0, count: items.length, role: req.auth.user.role });
+  const orderBy = [{ reportDate: 'desc' }, { createdAt: 'desc' }];
+  const reportListQueryShape = useSummarySelect
+    ? { select: listSummarySelect }
+    : { include };
+  const canPaginateInDatabase = pagination && req.auth.user.role !== 'CLIENT';
+  const [items, total] = pagination && canPaginateInDatabase
+    ? await Promise.all([
+        prisma.report.findMany({
+          where,
+          ...reportListQueryShape,
+          orderBy,
+          skip: pagination.skip,
+          take: pagination.take
+        }),
+        prisma.report.count({ where })
+      ])
+    : [
+        await prisma.report.findMany({
+          where,
+          ...reportListQueryShape,
+          orderBy
+        }),
+        null
+      ];
+  logSlowOperation('reports.list.query', Date.now() - tGet0, { count: items.length, role: req.auth.user.role });
   if (req.auth.user.role === 'CLIENT') {
     const byId = new Map(items.map(item => [item.id, item]));
     const visibleItems = items.filter(item => canClientSeeReport(item, byId));
+    if (pagination) {
+      const pageItems = visibleItems.slice(pagination.skip, pagination.skip + pagination.take);
+      grantReportsUploadAccess(req.auth, pageItems);
+      return res.json(paginatedReportResponse(pageItems, visibleItems.length, pagination));
+    }
     grantReportsUploadAccess(req.auth, visibleItems);
     return res.json(visibleItems);
   }
   grantReportsUploadAccess(req.auth, items);
+  if (pagination) {
+    return res.json(paginatedReportResponse(items, total ?? items.length, pagination));
+  }
   res.json(items);
 }));
 
@@ -5036,18 +5241,11 @@ router.get('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   });
   if (isReportUnavailable(item)) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
-  if (!(await canAccessReport(req.auth, item))) {
+  const clientVisibilityById = req.auth.user.role === 'CLIENT'
+    ? await clientVisibilityMapForReports([item])
+    : null;
+  if (!(await canAccessReport(req.auth, item, { clientVisibilityById }))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
-  }
-  if (req.auth.user.role === 'CLIENT') {
-    const projectReports = await prisma.report.findMany({
-      where: { projectId: item.projectId, deletedAt: null, project: activeReportProjectWhere() },
-      include
-    });
-    const byId = new Map(projectReports.map(report => [report.id, report]));
-    if (!canClientSeeReport(item, byId)) {
-      return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
-    }
   }
 
   grantReportUploadAccess(req.auth, item);
@@ -5066,18 +5264,11 @@ router.get('/:id/pdf', requireAuth, requireRdoAccess, asyncHandler(async (req, r
   });
   if (isReportUnavailable(item)) return res.status(404).json({ error: 'Relatório não encontrado.' });
 
-  if (!(await canAccessReport(req.auth, item))) {
+  const clientVisibilityById = req.auth.user.role === 'CLIENT'
+    ? await clientVisibilityMapForReports([item])
+    : null;
+  if (!(await canAccessReport(req.auth, item, { clientVisibilityById }))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
-  }
-  if (req.auth.user.role === 'CLIENT') {
-    const projectReports = await prisma.report.findMany({
-      where: { projectId: item.projectId, deletedAt: null, project: activeReportProjectWhere() },
-      include
-    });
-    const byId = new Map(projectReports.map(report => [report.id, report]));
-    if (!canClientSeeReport(item, byId)) {
-      return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
-    }
   }
 
   if (item.status !== ReportStatus.SIGNED) {
@@ -5152,6 +5343,7 @@ router.delete('/:id/services/:serviceId', requireAuth, requireRdoAccess, asyncHa
   });
 
   await organizeAndSyncReportUploadAttachments(item);
+  statisticsProjectsCache.clear();
   res.json(item);
 }));
 
@@ -5188,6 +5380,7 @@ router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (
     await organizeAndSyncReportUploadAttachments(report, { auth: req.auth });
   }
 
+  statisticsProjectsCache.clear();
   res.status(201).json(createdReports);
 }));
 
@@ -5301,12 +5494,13 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
       }
     }
   }
-  console.log('[TIMING] POST /reports', { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, totalMs: Date.now() - tPost0, reportType: organizedItem.reportType, status: organizedItem.status });
+  logSlowOperation('reports.create', Date.now() - tPost0, { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, reportType: organizedItem.reportType, status: organizedItem.status });
   let signaturePreparation = null;
   if (organizedItem.status === ReportStatus.APPROVED) {
     signaturePreparation = await ensureInternalSignatureRoundAndNotify(organizedItem, req.auth.user.id, signatureEvidenceFromRequest(req));
     queueApprovedReportNotification(organizedItem);
   }
+  statisticsProjectsCache.clear();
   res.status(201).json(reportWithSignatureEmailDelivery(organizedItem, signaturePreparation));
 }));
 
@@ -5525,12 +5719,13 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
       }
     }
   }
-  console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: organizedItem.reportType, status: organizedItem.status });
+  logSlowOperation('reports.update', Date.now() - tPut0, { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, reportType: organizedItem.reportType, status: organizedItem.status });
   let signaturePreparation = null;
   if (organizedItem.status === ReportStatus.APPROVED) {
     signaturePreparation = await ensureInternalSignatureRoundAndNotify(organizedItem, req.auth.user.id, evidence);
     if (isManagerFixingClientRejection) queueReapprovedReportNotification(organizedItem);
   }
+  statisticsProjectsCache.clear();
   res.json(reportWithSignatureEmailDelivery(organizedItem, signaturePreparation));
 }));
 
@@ -5700,6 +5895,7 @@ router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, re
     }
   });
 
+  statisticsProjectsCache.clear();
   res.status(204).end();
 }));
 
@@ -5799,7 +5995,8 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
       signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
     }
   }
-  console.log('[TIMING] PATCH /reports/:id/status', { txMs: tPatchTx - tPatch0, totalMs: Date.now() - tPatch0, newStatus: data.status });
+  logSlowOperation('reports.status.update', Date.now() - tPatch0, { txMs: tPatchTx - tPatch0, newStatus: data.status });
+  statisticsProjectsCache.clear();
   res.json(reportWithSignatureEmailDelivery(item, signaturePreparation));
 }));
 

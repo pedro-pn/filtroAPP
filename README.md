@@ -332,6 +332,9 @@ Nginx :443 (SSL Let's Encrypt)
 | Variável | Obrigatória | Descrição |
 |---|---|---|
 | `DATABASE_URL` | Sim | Connection string PostgreSQL |
+| `DATABASE_CONNECTION_LIMIT` | Não | Limite de conexões do pool Prisma anexado à `DATABASE_URL` quando `connection_limit` ainda não estiver definido |
+| `PRISMA_SLOW_QUERY_MS` | Não | Ativa log de queries Prisma acima do limite informado em ms |
+| `SLOW_OPERATION_LOG_MS` | Não | Ativa log de operações internas lentas acima do limite informado em ms |
 | `APP_URL` | Sim | URL base pública (use `https://app.filtrovali.com.br`; usado em links de e-mail) |
 | `ALLOWED_ORIGIN` | Sim | Origem(s) CORS permitida(s), separadas por vírgula. Inclua `https://app.filtrovali.com.br` e, durante a transição, `https://relatorios.filtrovali.com.br` |
 | `TRUST_PROXY` | Sim em produção | Configuração Express `trust proxy`. Na stack Docker com Nginx use `uniquelocal` ou CIDRs explícitos; use `false` apenas se o backend não estiver atrás de proxy |

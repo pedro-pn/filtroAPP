@@ -4,6 +4,9 @@ import path from 'node:path';
 const reportsDir = process.env.REPORTS_DIR || process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'Relatórios');
 const smtpPort = Number(process.env.SMTP_PORT || 587);
 const docxToPdfTimeoutMs = Number(process.env.DOCX_TO_PDF_TIMEOUT_MS || 60000);
+const databaseConnectionLimit = Number(process.env.DATABASE_CONNECTION_LIMIT || 0);
+const prismaSlowQueryMs = Number(process.env.PRISMA_SLOW_QUERY_MS || 0);
+const slowOperationLogMs = Number(process.env.SLOW_OPERATION_LOG_MS || 0);
 
 function parseBoolean(value, fallback = false) {
   if (value === undefined || value === null || value === '') return fallback;
@@ -61,6 +64,9 @@ assertProductionSignatureTokenSecretConfigured({ nodeEnv, signatureTokenSecret }
 const env = {
   port: Number(process.env.PORT || 4000),
   databaseUrl: process.env.DATABASE_URL || '',
+  databaseConnectionLimit: Number.isInteger(databaseConnectionLimit) && databaseConnectionLimit > 0
+    ? databaseConnectionLimit
+    : 0,
   assetsDir: process.env.ASSETS_DIR || path.resolve(process.cwd(), 'assets'),
   reportsDir,
   uploadDir: reportsDir,
@@ -90,6 +96,8 @@ const env = {
   zapsignApiBaseUrl: process.env.ZAPSIGN_API_BASE_URL || 'https://api.zapsign.com.br/api/v1',
   libreOfficeBinary: process.env.LIBREOFFICE_BINARY || 'soffice',
   docxToPdfTimeoutMs: Number.isFinite(docxToPdfTimeoutMs) && docxToPdfTimeoutMs > 0 ? docxToPdfTimeoutMs : 60000,
+  prismaSlowQueryMs: Number.isFinite(prismaSlowQueryMs) && prismaSlowQueryMs > 0 ? prismaSlowQueryMs : 0,
+  slowOperationLogMs: Number.isFinite(slowOperationLogMs) && slowOperationLogMs > 0 ? slowOperationLogMs : 0,
   nodeEnv
 };
 

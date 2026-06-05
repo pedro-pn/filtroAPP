@@ -3,6 +3,7 @@ import { Router } from 'express';
 import asyncHandler from '../../lib/async-handler.js';
 import { buildMonthlyAllocationPdf, buildMonthlyAllocationSummary, sendMonthlyAllocationReport, validateYearMonth } from '../../lib/allocation-monthly-report.js';
 import prisma from '../../lib/prisma.js';
+import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
 import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
@@ -519,141 +520,162 @@ router.get('/projects', requireAuth, requireRdoStats, asyncHandler(async (req, r
   const projectIdFilter = normalizeProjectIds(req.query.projectId);
   if (projectIdFilter.length) projectWhere.id = { in: projectIdFilter };
 
-  const projects = await prisma.project.findMany({
-    where: projectWhere,
-    select: { id: true, code: true, name: true, clientSegment: true, clientName: true }
-  });
-
-  if (projects.length === 0) {
-    return res.json({
-      projects: [],
-      meta: {
-        from: fromStr,
-        to: toStr,
-        granularity,
-        projectStatus,
-        includedStatuses: ['APPROVED', 'SIGNED'],
-        generatedAt: new Date(),
-        ignoredLegacyRows: { volumeOleo: 0, tubulacao: 0 },
-        reportCountLimit: MAX_STATS_REPORTS,
-        dailyReportLimit: MAX_DAILY_REPORTS,
-        dailyReportsIncluded: false
-      },
-      summary: summarize([]),
-      services: {},
-      timeline: [],
-      byProject: []
-    });
-  }
-
-  const projectIds = projects.map(p => p.id);
-  const reportWhere = statsReportWhere({
-    reportType: 'RDO',
-    status: { in: ['APPROVED', 'SIGNED'] },
-    reportDate: { gte: fromDate, lte: toDate },
-    projectId: { in: projectIds }
-  });
-  const reportCount = await prisma.report.count({ where: reportWhere });
-  if (reportCount > MAX_STATS_REPORTS) {
-    return res.status(413).json({ error: reportLimitError(MAX_STATS_REPORTS) });
-  }
-
   const wantsDailyReports = req.query.includeDailyReports === 'true' || projectIdFilter.length > 0;
-  const includeDailyReports = wantsDailyReports && reportCount <= MAX_DAILY_REPORTS;
-
-  const reports = await prisma.report.findMany({
-    where: reportWhere,
-    select: reportSelect(includeDailyReports),
-    orderBy: { reportDate: 'asc' }
+  const cacheKey = JSON.stringify({
+    from: fromStr,
+    to: toStr,
+    granularity,
+    projectStatus,
+    role,
+    segment: segment || '',
+    projectIds: [...projectIdFilter].sort(),
+    wantsDailyReports
   });
 
-  const ignoredRows = { volumeOleo: 0, tubulacao: 0 };
+  const result = await statisticsProjectsCache.get(cacheKey, async () => {
+    const projects = await prisma.project.findMany({
+      where: projectWhere,
+      select: { id: true, code: true, name: true, clientSegment: true, clientName: true }
+    });
 
-  // Global summary & services
-  const globalSummary = summarize(reports);
-  const globalServices = {};
-  for (const r of reports) {
-    const s = buildServiceStats(r.services, ignoredRows);
-    mergeServicesMap(globalServices, s);
-  }
-
-  // Timeline
-  const timelineMap = new Map();
-  for (const r of reports) {
-    const key = periodKey(r.reportDate, granularity);
-    if (!timelineMap.has(key)) {
-      timelineMap.set(key, {
-        period: key,
-        label: periodLabel(key, granularity),
-        reportCount: 0,
-        daytimeWorkedMinutes: 0,
-        nighttimeWorkedMinutes: 0,
-        daytimeOvertimeMinutes: 0,
-        nighttimeOvertimeMinutes: 0,
-        standbyCount: 0,
-        serviceBreakdown: {}
-      });
+    if (projects.length === 0) {
+      return {
+        statusCode: 200,
+        body: {
+          projects: [],
+          meta: {
+            from: fromStr,
+            to: toStr,
+            granularity,
+            projectStatus,
+            includedStatuses: ['APPROVED', 'SIGNED'],
+            generatedAt: new Date(),
+            ignoredLegacyRows: { volumeOleo: 0, tubulacao: 0 },
+            reportCountLimit: MAX_STATS_REPORTS,
+            dailyReportLimit: MAX_DAILY_REPORTS,
+            dailyReportsIncluded: false
+          },
+          summary: summarize([]),
+          services: {},
+          timeline: [],
+          byProject: []
+        }
+      };
     }
-    const slot = timelineMap.get(key);
-    slot.reportCount += 1;
-    slot.daytimeWorkedMinutes += r.daytimeWorkedMinutes || 0;
-    slot.nighttimeWorkedMinutes += r.nighttimeWorkedMinutes || 0;
-    slot.daytimeOvertimeMinutes += r.daytimeOvertimeMinutes || 0;
-    slot.nighttimeOvertimeMinutes += r.nighttimeOvertimeMinutes || 0;
-    const sc = r.specialConditions || {};
-    if (sc.standby === true) slot.standbyCount += 1;
-    for (const svc of (r.services || [])) {
-      if (!isServiceFinalized(svc)) continue;
-      const type = (svc.serviceType || '').toLowerCase();
-      slot.serviceBreakdown[type] = (slot.serviceBreakdown[type] || 0) + 1;
-    }
-  }
-  const timeline = Array.from(timelineMap.values()).sort((a, b) => a.period.localeCompare(b.period));
 
-  // By project
-  const reportsByProject = new Map();
-  for (const r of reports) {
-    if (!reportsByProject.has(r.projectId)) reportsByProject.set(r.projectId, []);
-    reportsByProject.get(r.projectId).push(r);
-  }
-
-  const byProject = projects.map(p => {
-    const pReports = reportsByProject.get(p.id) || [];
-    const pIgnored = { volumeOleo: 0, tubulacao: 0 };
-    const pServices = {};
-    for (const r of pReports) {
-      mergeServicesMap(pServices, buildServiceStats(r.services, pIgnored));
+    const projectIds = projects.map(p => p.id);
+    const reportWhere = statsReportWhere({
+      reportType: 'RDO',
+      status: { in: ['APPROVED', 'SIGNED'] },
+      reportDate: { gte: fromDate, lte: toDate },
+      projectId: { in: projectIds }
+    });
+    const reportCount = await prisma.report.count({ where: reportWhere });
+    if (reportCount > MAX_STATS_REPORTS) {
+      return { statusCode: 413, body: { error: reportLimitError(MAX_STATS_REPORTS) } };
     }
+
+    const includeDailyReports = wantsDailyReports && reportCount <= MAX_DAILY_REPORTS;
+
+    const reports = await prisma.report.findMany({
+      where: reportWhere,
+      select: reportSelect(includeDailyReports),
+      orderBy: { reportDate: 'asc' }
+    });
+
+    const ignoredRows = { volumeOleo: 0, tubulacao: 0 };
+
+    // Global summary & services
+    const globalSummary = summarize(reports);
+    const globalServices = {};
+    for (const r of reports) {
+      const s = buildServiceStats(r.services, ignoredRows);
+      mergeServicesMap(globalServices, s);
+    }
+
+    // Timeline
+    const timelineMap = new Map();
+    for (const r of reports) {
+      const key = periodKey(r.reportDate, granularity);
+      if (!timelineMap.has(key)) {
+        timelineMap.set(key, {
+          period: key,
+          label: periodLabel(key, granularity),
+          reportCount: 0,
+          daytimeWorkedMinutes: 0,
+          nighttimeWorkedMinutes: 0,
+          daytimeOvertimeMinutes: 0,
+          nighttimeOvertimeMinutes: 0,
+          standbyCount: 0,
+          serviceBreakdown: {}
+        });
+      }
+      const slot = timelineMap.get(key);
+      slot.reportCount += 1;
+      slot.daytimeWorkedMinutes += r.daytimeWorkedMinutes || 0;
+      slot.nighttimeWorkedMinutes += r.nighttimeWorkedMinutes || 0;
+      slot.daytimeOvertimeMinutes += r.daytimeOvertimeMinutes || 0;
+      slot.nighttimeOvertimeMinutes += r.nighttimeOvertimeMinutes || 0;
+      const sc = r.specialConditions || {};
+      if (sc.standby === true) slot.standbyCount += 1;
+      for (const svc of (r.services || [])) {
+        if (!isServiceFinalized(svc)) continue;
+        const type = (svc.serviceType || '').toLowerCase();
+        slot.serviceBreakdown[type] = (slot.serviceBreakdown[type] || 0) + 1;
+      }
+    }
+    const timeline = Array.from(timelineMap.values()).sort((a, b) => a.period.localeCompare(b.period));
+
+    // By project
+    const reportsByProject = new Map();
+    for (const r of reports) {
+      if (!reportsByProject.has(r.projectId)) reportsByProject.set(r.projectId, []);
+      reportsByProject.get(r.projectId).push(r);
+    }
+
+    const byProject = projects.map(p => {
+      const pReports = reportsByProject.get(p.id) || [];
+      const pIgnored = { volumeOleo: 0, tubulacao: 0 };
+      const pServices = {};
+      for (const r of pReports) {
+        mergeServicesMap(pServices, buildServiceStats(r.services, pIgnored));
+      }
+      return {
+        projectId: p.id,
+        code: p.code,
+        name: p.name,
+        summary: summarize(pReports),
+        services: pServices,
+        dailyReports: includeDailyReports ? pReports.map(r => buildDailyReport(r)) : []
+      };
+    });
+
+    // Re-compute globalServices without double-counting (already done above per report)
     return {
-      projectId: p.id,
-      code: p.code,
-      name: p.name,
-      summary: summarize(pReports),
-      services: pServices,
-      dailyReports: includeDailyReports ? pReports.map(r => buildDailyReport(r)) : []
+      statusCode: 200,
+      body: {
+        projects: projects.map(p => ({ id: p.id, code: p.code, name: p.name, clientName: p.clientName, clientSegment: p.clientSegment })),
+        meta: {
+          from: fromStr,
+          to: toStr,
+          granularity,
+          projectStatus,
+          includedStatuses: ['APPROVED', 'SIGNED'],
+          generatedAt: new Date(),
+          ignoredLegacyRows: ignoredRows,
+          reportCountLimit: MAX_STATS_REPORTS,
+          dailyReportLimit: MAX_DAILY_REPORTS,
+          dailyReportsIncluded: includeDailyReports
+        },
+        summary: globalSummary,
+        services: globalServices,
+        timeline,
+        byProject
+      }
     };
   });
 
-  // Re-compute globalServices without double-counting (already done above per report)
-  res.json({
-    projects: projects.map(p => ({ id: p.id, code: p.code, name: p.name, clientName: p.clientName, clientSegment: p.clientSegment })),
-    meta: {
-      from: fromStr,
-      to: toStr,
-      granularity,
-      projectStatus,
-      includedStatuses: ['APPROVED', 'SIGNED'],
-      generatedAt: new Date(),
-      ignoredLegacyRows: ignoredRows,
-      reportCountLimit: MAX_STATS_REPORTS,
-      dailyReportLimit: MAX_DAILY_REPORTS,
-      dailyReportsIncluded: includeDailyReports
-    },
-    summary: globalSummary,
-    services: globalServices,
-    timeline,
-    byProject
-  });
+  res.status(result.statusCode).json(result.body);
 }));
 
 // ─── CSV Export ───────────────────────────────────────────────────────────────

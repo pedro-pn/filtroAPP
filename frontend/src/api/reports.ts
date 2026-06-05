@@ -8,6 +8,24 @@ export interface ReportFilters {
   mine?: boolean;
 }
 
+export interface ReportPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface PaginatedReports {
+  items: ReportSummary[];
+  pagination: ReportPagination;
+}
+
+export interface ReportPageFilters extends ReportFilters {
+  page?: number;
+  pageSize?: number;
+  summary?: boolean;
+}
+
 export async function listReports(filters?: ReportFilters) {
   const params = {
     ...(filters ?? {}),
@@ -26,6 +44,18 @@ export async function getReport(id: string) {
 
 export async function createReport(payload: ReportPayload) {
   const response = await apiClient.post<ReportSummary>(rdoApiPath('/reports'), payload);
+  return response.data;
+}
+
+export async function listReportsPage(filters?: ReportPageFilters) {
+  const params = {
+    ...(filters ?? {}),
+    ...(filters?.mine !== undefined ? { mine: String(filters.mine) } : {}),
+    ...(filters?.summary !== undefined ? { summary: String(filters.summary) } : {})
+  };
+  const response = await apiClient.get<PaginatedReports>(rdoApiPath('/reports'), {
+    params
+  });
   return response.data;
 }
 

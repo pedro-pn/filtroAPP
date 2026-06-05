@@ -9,10 +9,13 @@ import {
   getReportAudit,
   getReport,
   listReports,
+  listReportsPage,
   requestReportSignature,
   updateReport,
   updateReportStatus,
-  type ReportFilters
+  type PaginatedReports,
+  type ReportFilters,
+  type ReportPageFilters
 } from '../api/reports';
 import { useAuth } from '../auth/AuthContext';
 import type { ReportPayload, ReportStatus, ReportSummary, ServiceOnlyReportPayload } from '../types/domain';
@@ -26,6 +29,14 @@ export function useReports(filters?: ReportFilters) {
   });
 }
 
+export function useReportsPage(filters: ReportPageFilters) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.reportPage(filters, user?.id),
+    queryFn: () => listReportsPage(filters)
+  });
+}
+
 export function useReport(reportId: string, enabled = true) {
   return useQuery({
     queryKey: ['report', reportId],
@@ -34,20 +45,28 @@ export function useReport(reportId: string, enabled = true) {
   });
 }
 
+function isPaginatedReports(value: ReportSummary[] | PaginatedReports | undefined): value is PaginatedReports {
+  return !!value && !Array.isArray(value) && Array.isArray(value.items) && !!value.pagination;
+}
+
 function updateReportCaches(
   queryClient: ReturnType<typeof useQueryClient>,
   report: ReportSummary
 ) {
   queryClient.setQueryData(['report', report.id], report);
-  queryClient.setQueriesData<ReportSummary[]>({ queryKey: ['reports'] }, current => {
-    if (!current?.length) return current;
+  queryClient.setQueriesData<ReportSummary[] | PaginatedReports>({ queryKey: ['reports'] }, current => {
+    const list = Array.isArray(current) ? current : isPaginatedReports(current) ? current.items : undefined;
+    if (!list?.length) return current;
     let found = false;
-    const next = current.map(item => {
+    const nextItems = list.map(item => {
       if (item.id !== report.id) return item;
       found = true;
       return report;
     });
-    return found ? next : current;
+    if (!found) return current;
+    if (Array.isArray(current)) return nextItems;
+    if (!isPaginatedReports(current)) return current;
+    return { ...current, items: nextItems };
   });
 }
 
@@ -56,9 +75,24 @@ function removeReportFromCaches(
   reportId: string
 ) {
   queryClient.removeQueries({ queryKey: ['report', reportId] });
-  queryClient.setQueriesData<ReportSummary[]>({ queryKey: ['reports'] }, current => (
-    current?.filter(report => report.id !== reportId) ?? current
-  ));
+  queryClient.setQueriesData<ReportSummary[] | PaginatedReports>({ queryKey: ['reports'] }, current => {
+    const list = Array.isArray(current) ? current : isPaginatedReports(current) ? current.items : undefined;
+    if (!list?.length) return current;
+    const nextItems = list.filter(report => report.id !== reportId);
+    if (nextItems.length === list.length) return current;
+    if (Array.isArray(current)) return nextItems;
+    if (!isPaginatedReports(current)) return current;
+    const total = Math.max(0, current.pagination.total - 1);
+    return {
+      ...current,
+      items: nextItems,
+      pagination: {
+        ...current.pagination,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / current.pagination.pageSize))
+      }
+    };
+  });
 }
 
 export function useReportAudit(reportId: string, enabled = true) {

@@ -576,45 +576,182 @@ ORDER BY n_dead_tup DESC
 LIMIT 20;
 ```
 
+## Status da implementação
+
+Atualizado em: 2026-06-05, branch `database_performance`.
+
+### Aplicado nesta branch
+
+1. N+1 de autorização de cliente em relatórios.
+   - `canAccessReport()` passou a aceitar contexto de visibilidade de cliente já carregado.
+   - Batch download de relatórios de cliente passou a carregar a visibilidade uma vez por conjunto de projetos.
+   - Endpoints de detalhe e PDF reaproveitam o contexto de visibilidade, evitando a segunda consulta redundante.
+   - Teste adicionado: `client report access can reuse preloaded project visibility context`.
+
+2. Índices de performance.
+   - Adicionados índices em `ClientReportReview(reportId, createdAt)`, `ReportService(reportId)`, `ReportAttachment(reportId)` e `ReportAttachment(reportServiceId)`.
+   - Adicionados índices compostos secundários para `EpiRecord`, `Romaneio`, `SatisfactionSurvey` e `DataSubjectRequest`.
+   - Migrations criadas:
+     - `backend/prisma/migrations/20260605130000_add_report_relation_performance_indexes/`
+     - `backend/prisma/migrations/20260605133000_add_secondary_performance_indexes/`
+
+3. Cache local de listas mestres.
+   - Implementado cache TTL curto em memória para colaboradores, equipamentos, opções de inibição, manômetros, contadores de partículas, unidades e categorias de unidades.
+   - Invalidação explícita adicionada nas mutações dessas listas.
+   - Observação: por ser cache em memória, múltiplas instâncias podem ter até 60 segundos de defasagem entre si.
+
+4. Otimização inicial de `syncRomaneioCatalog()`.
+   - Chamadas concorrentes agora compartilham a mesma sincronização em andamento.
+   - Rotas de romaneio passaram a usar `ensureRomaneioCatalogSynced()` com TTL curto para evitar sync completo a cada requisição.
+   - Mutações de unidades e contadores continuam chamando sync forçado para preservar consistência.
+
+5. Observabilidade e pool Prisma.
+   - Adicionada configuração opcional `DATABASE_CONNECTION_LIMIT` para anexar `connection_limit` à `DATABASE_URL` quando ainda não configurado.
+   - Adicionada configuração opcional `PRISMA_SLOW_QUERY_MS` para logar queries Prisma lentas.
+   - Adicionada configuração opcional `SLOW_OPERATION_LOG_MS` para logar operações internas lentas.
+   - Logs diretos de timing em `reports.js` foram substituídos por logging controlado por env.
+
+6. Cache de estatísticas.
+   - `GET /statistics/projects` passou a usar cache TTL por chave de filtros.
+   - A chave considera período, granularidade, status do projeto, papel do usuário, segmento, projetos selecionados e inclusão de relatórios diários.
+   - Cache é invalidado em mutações principais de relatórios e projetos.
+
+7. Testes.
+   - Suíte backend executada com sucesso: `npm test`.
+   - Testes adicionados para configuração de performance, URL do Prisma, logger lento e cache por chave.
+
+8. Paginação opcional em `GET /reports`.
+   - Sem `page`/`pageSize`, a rota mantém o retorno legado em array.
+   - Com `page` ou `pageSize`, a rota retorna `{ items, pagination }`.
+   - Para usuários internos, paginação usa `skip`, `take` e `count` no banco.
+   - Para cliente, a paginação preserva o filtro final de visibilidade em memória.
+   - API frontend adicionada: `listReportsPage()`, sem alterar `listReports()` nem as telas atuais.
+
+9. `select` resumido opcional em `GET /reports`.
+   - Com `summary=true`, a rota usa `select` de listagem em vez do `include` completo.
+   - O resumo mantém campos necessários para cards/listas: projeto básico, criador, colaboradores, serviços, assinaturas e revisões de cliente.
+   - Relações pesadas como anexos e versões ficam fora do resumo.
+   - API frontend `listReportsPage()` aceita `summary`.
+
+10. Base frontend para listagem paginada.
+   - Adicionado hook `useReportsPage()` para consumir `listReportsPage()`.
+   - Query key separada evita colisão entre cache legado em array e cache paginado.
+   - Atualização/remoção de relatórios no cache agora trata tanto arrays legados quanto payloads paginados.
+
+### Parcialmente aplicado
+
+1. Cache de listas mestres e bootstrap por tela.
+   - Cache de listas mestres foi aplicado.
+   - Endpoints de bootstrap por tela ainda não foram criados.
+
+2. Otimização de `syncRomaneioCatalog()`.
+   - TTL e deduplicação concorrente foram aplicados.
+   - Controle persistente por versão/hash e batching real de upserts ainda estão pendentes.
+
+3. Cache/agregação de estatísticas.
+   - Cache TTL do endpoint principal foi aplicado.
+   - Agregações SQL/materializações ainda estão pendentes.
+
+4. Paginação e `select` resumido em `GET /reports`.
+   - Paginação opcional foi aplicada.
+   - `select` resumido opcional foi aplicado.
+   - Hook de consumo paginado foi adicionado.
+   - Adaptação visual das telas para paginação ainda está pendente.
+
+### Pendente
+
+1. Adoção de paginação e resumo pelas telas.
+   - `GestorPage`, `CoordinatorPage`, `ClientPage` e listagens de colaborador ainda usam o modo legado.
+   - Falta migrar gradualmente para `useReportsPage({ page, pageSize, summary: true })`.
+   - Ao migrar `NewReportPage`, preservar os campos de `extraData` usados para diferenciar serviços pendentes ambíguos.
+   - Ao migrar `NewReportPage`, validar fotos herdadas, miniaturas e marcadores de UI removidos do payload de serviços.
+   - O modo resumido não deve ser usado para edição/detalhe quando anexos, versões ou dados completos de fotos de serviços forem necessários.
+
+2. Bootstrap por tela.
+   - Criar endpoints de bootstrap para `GestorPage`, `NewReportPage` e `ReportDetailPage`.
+   - Adaptar frontend para consumir bootstrap sem quebrar endpoints existentes.
+
+3. Agregações SQL ou materializações para estatísticas.
+   - Migrar métricas simples para agregações no banco quando validado por `EXPLAIN ANALYZE`.
+   - Manter parsing de campos legados/JSON em Node quando necessário.
+
+4. Validação operacional dos índices.
+   - Rodar `EXPLAIN ANALYZE` em staging/produção antes de confirmar ganho real.
+   - Avaliar criação com `CREATE INDEX CONCURRENTLY` em produção para evitar locks longos.
+
+5. Cache distribuído.
+   - Avaliar Redis ou equivalente se houver múltiplas instâncias de backend.
+
+6. Busca textual e índices funcionais.
+   - Avaliar `pg_trgm` para busca de romaneios.
+   - Avaliar índices funcionais para e-mail/username quando os planos reais justificarem.
+
+### Impacto do merge da `main`
+
+Atualizado em: 2026-06-05 após merge dos commits:
+
+- `2fd36f4f fix: diferenciar serviços pendentes ambíguos`
+- `b517c42f fix: preservar anexos de serviços ao salvar relatório`
+- `7bc718ba fix: não persistir fotos antigas ao continuar serviço`
+- `9969cae1 fix: preservar fotos herdadas e renumerar relatórios deletados`
+- `b7e108ad fix: manter miniaturas de fotos herdadas em serviços continuados`
+- `2533a0fd fix: atualizar miniaturas ao organizar fotos de serviços`
+
+Impacto avaliado:
+
+- A implementação de performance não exigiu correção de conflito textual.
+- O `include` completo de relatórios continua carregando `services.attachments`, `attachments` e `versions`; portanto os fluxos de detalhe, edição e preservação de anexos continuam usando dados completos.
+- O `select` resumido permanece opt-in por `summary=true` e omite anexos/versões apenas para listagem. Ele mantém `extraData`, `serviceType`, `equipment`, `system`, `material`, horários e status de finalização, que são os campos necessários para chaves de continuidade de serviços pendentes.
+- Os commits novos da `main` reforçam que `NewReportPage` depende de dados de continuidade de serviços, fotos herdadas e miniaturas. Antes de migrar essa tela para listagem resumida, validar novamente `frontend/test/ongoing-services.test.mjs`, `frontend/test/report-service-payload.test.mjs`, `backend/test/report-upload-attachments.test.js` e `backend/test/rcpu-service-history.test.js`.
+- A renumeração de relatórios deletados permanece no caminho de exclusão com dados completos e não conflita com paginação/listagem resumida.
+
 ## Ranking final
 
-1. Corrigir N+1 de autorização de cliente em relatórios.
+1. Corrigir N+1 de autorização de cliente em relatórios. Status: aplicado.
    - Ganho: Muito alto.
    - Redução de latência: Muito alta.
    - Risco: Baixo.
    - Facilidade: Média.
 
-2. Adicionar índices FK faltantes em `ReportService`, `ReportAttachment` e `ClientReportReview`.
+2. Adicionar índices FK faltantes em `ReportService`, `ReportAttachment` e `ClientReportReview`. Status: aplicado.
    - Ganho: Alto.
    - Redução de latência: Média.
    - Risco: Baixo.
    - Facilidade: Alta.
 
-3. Cache de listas mestres e bootstrap por tela.
+3. Cache de listas mestres e bootstrap por tela. Status: parcialmente aplicado.
    - Ganho: Alto.
    - Redução de latência: Alta.
    - Risco: Baixo/Médio.
    - Facilidade: Média.
+   - Aplicado: cache TTL de listas mestres.
+   - Pendente: endpoints de bootstrap e adaptação do frontend.
 
-4. Otimizar `syncRomaneioCatalog()`.
+4. Otimizar `syncRomaneioCatalog()`. Status: parcialmente aplicado.
    - Ganho: Alto.
    - Redução de latência: Alta.
    - Risco: Médio.
    - Facilidade: Média.
+   - Aplicado: TTL e deduplicação de sync concorrente.
+   - Pendente: versionamento/hash persistente e batching de upserts.
 
-5. Paginação e `select` resumido em `GET /reports`.
+5. Paginação e `select` resumido em `GET /reports`. Status: parcialmente aplicado.
    - Ganho: Alto em bases grandes.
    - Redução de latência: Média.
    - Risco: Médio.
    - Facilidade: Média.
+   - Aplicado: modo paginado opcional e `select` resumido opcional preservando retorno legado.
+   - Pendente: adaptação da UI para consumir páginas/resumo.
 
-6. Cache/agregação SQL para estatísticas.
+6. Cache/agregação SQL para estatísticas. Status: parcialmente aplicado.
    - Ganho: Médio/Alto.
    - Redução de latência: Média/Alta.
    - Risco: Médio.
    - Facilidade: Média/Alta.
+   - Aplicado: cache TTL por chave em `/statistics/projects`.
+   - Pendente: agregações SQL/materializações.
 
-7. Índices compostos adicionais para EPI, romaneio, pesquisas e LGPD.
+7. Índices compostos adicionais para EPI, romaneio, pesquisas e LGPD. Status: aplicado.
    - Ganho: Médio.
    - Redução de latência: Média.
    - Risco: Baixo.
@@ -624,26 +761,34 @@ LIMIT 20;
 
 ### Fase 1: baixo risco e alto impacto
 
-1. Corrigir N+1 de autorização de cliente.
-2. Adicionar índices FK faltantes.
-3. Adicionar logs controlados de queries lentas ou usar `pg_stat_statements`.
-4. Cachear listas mestres com TTL curto e invalidação em mutações.
-5. Configurar pool e limites de conexão do Prisma.
+- [x] Corrigir N+1 de autorização de cliente.
+- [x] Adicionar índices FK faltantes.
+- [x] Adicionar logs controlados de queries lentas e operações lentas.
+- [x] Cachear listas mestres com TTL curto e invalidação em mutações.
+- [x] Configurar pool e limites de conexão do Prisma via env.
 
 ### Fase 2: melhorias estruturais
 
-1. Criar endpoint de bootstrap para `GestorPage`, `NewReportPage` e `ReportDetailPage`.
-2. Introduzir modo paginado em `GET /reports`, mantendo compatibilidade com o modo atual.
-3. Separar `select` de listagem e `include` completo de detalhe.
-4. Otimizar `syncRomaneioCatalog()` com controle de versão/hash e batching.
-5. Adicionar índices compostos validados por `EXPLAIN ANALYZE`.
+- [ ] Criar endpoint de bootstrap para `GestorPage`, `NewReportPage` e `ReportDetailPage`.
+- [x] Introduzir modo paginado em `GET /reports`, mantendo compatibilidade com o modo atual.
+- [x] Separar `select` opcional de listagem e `include` completo de detalhe.
+- [x] Adicionar API/hook frontend para listagem paginada/resumida.
+- [ ] Migrar telas para usar `useReportsPage({ page, pageSize, summary: true })`.
+- [ ] Adicionar controles visuais de paginação nas telas migradas.
+- [ ] Validar migração de `NewReportPage` contra serviços pendentes ambíguos, anexos de serviços, fotos herdadas e miniaturas.
+- [ ] Otimizar `syncRomaneioCatalog()` com controle de versão/hash persistente.
+- [ ] Otimizar `syncRomaneioCatalog()` com batching/diff de upserts.
+- [x] Adicionar índices compostos secundários.
+- [ ] Validar uso real dos índices com `EXPLAIN ANALYZE`.
+- [x] Adicionar cache TTL de `/statistics/projects`.
+- [ ] Migrar métricas simples de estatísticas para agregações SQL quando validado.
 
 ### Fase 3: otimizações avançadas
 
-1. Migrar parte das estatísticas para agregações SQL ou materializações.
-2. Avaliar Redis para cache distribuído se houver múltiplas instâncias.
-3. Avaliar `pg_trgm` para buscas textuais de romaneio.
-4. Avaliar particionamento apenas se tabelas como `Report`, `ReportAuditLog`, `EpiRecord` ou `SatisfactionSurvey` chegarem a milhões de linhas e os planos reais indicarem benefício.
+- [ ] Migrar parte das estatísticas para agregações SQL ou materializações.
+- [ ] Avaliar Redis para cache distribuído se houver múltiplas instâncias.
+- [ ] Avaliar `pg_trgm` para buscas textuais de romaneio.
+- [ ] Avaliar particionamento apenas se tabelas como `Report`, `ReportAuditLog`, `EpiRecord` ou `SatisfactionSurvey` chegarem a milhões de linhas e os planos reais indicarem benefício.
 
 ## Validação de segurança
 
