@@ -2962,7 +2962,8 @@ async function organizeAndSyncReportUploadAttachments(report, options = {}) {
   const trustedUrlMap = await organizeAndPersist(report);
   await syncReportUploadAttachments(prisma, report.id, {
     ...options,
-    trustedUrlMap
+    trustedUrlMap,
+    trustProjectExistingAttachments: true
   });
   return prisma.report.findUnique({
     where: { id: report.id },

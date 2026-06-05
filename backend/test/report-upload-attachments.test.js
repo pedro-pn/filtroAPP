@@ -410,6 +410,77 @@ test('syncReportUploadAttachments recreates trusted service attachment after ser
   }]);
 });
 
+test('syncReportUploadAttachments trusts inherited service uploads already attached in the same project', async () => {
+  const calls = [];
+  const storagePath = 'Missão P-100 - Projeto Seguro/Registros Fotográficos/RCPU/servico-herdado.jpg';
+  const client = {
+    reportAttachment: {
+      findMany: async args => {
+        calls.push(['findMany', args]);
+        if (args.where?.storagePath?.in) {
+          return [{ storagePath }];
+        }
+        return [];
+      },
+      deleteMany: async args => {
+        calls.push(['deleteMany', args]);
+        return { count: 0 };
+      },
+      createMany: async args => {
+        calls.push(['createMany', args]);
+        return { count: args.data.length };
+      }
+    }
+  };
+  const report = {
+    id: 'report-30',
+    projectId: 'project-1',
+    project: {
+      code: 'P-100',
+      name: 'Projeto Seguro'
+    },
+    specialConditions: {},
+    services: [{
+      id: 'continued-service',
+      extraData: {
+        __uploads__: [{
+          label: 'Foto do laudo',
+          files: [{
+            fileName: 'servico-herdado.jpg',
+            mimeType: 'image/jpeg',
+            storagePath
+          }]
+        }]
+      }
+    }]
+  };
+
+  const result = await syncReportUploadAttachments(client, report, {
+    trustProjectExistingAttachments: true
+  });
+
+  assert.deepEqual(result, { reportId: 'report-30', deleted: 0, created: 1 });
+  assert.equal(calls[0][0], 'findMany');
+  assert.equal(calls[1][0], 'findMany');
+  assert.deepEqual(calls[1][1].where.storagePath.in, [storagePath]);
+  assert.deepEqual(calls[1][1].where.OR, [
+    { report: { projectId: 'project-1', deletedAt: null } },
+    { reportService: { report: { projectId: 'project-1', deletedAt: null } } }
+  ]);
+  assert.equal(calls[2][0], 'createMany');
+  assert.deepEqual(calls[2][1].data.map(item => ({
+    reportId: item.reportId,
+    reportServiceId: item.reportServiceId,
+    fileName: item.fileName,
+    storagePath: item.storagePath
+  })), [{
+    reportId: null,
+    reportServiceId: 'continued-service',
+    fileName: 'servico-herdado.jpg',
+    storagePath
+  }]);
+});
+
 test('reportUploadAttachmentsNeedSync detects legacy JSON uploads missing persisted attachments', () => {
   const report = {
     id: 'report-1',

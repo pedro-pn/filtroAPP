@@ -210,12 +210,42 @@ function isTrustedAttachment(record, { auth, trustedPaths, trustLegacyProjectSco
   return trustedPaths.has(normalizedPath) || Boolean(auth && hasTransientUploadAccess(normalizedPath, auth));
 }
 
+async function addTrustedProjectAttachmentPaths(client, report, attachments, trustedPaths) {
+  if (!report?.projectId || !attachments.length) return;
+
+  const referencedPaths = Array.from(new Set(
+    attachments
+      .map(attachment => normalizeRelativeUploadPath(attachment.storagePath))
+      .filter(Boolean)
+  ));
+  if (!referencedPaths.length) return;
+
+  const rows = await client.reportAttachment.findMany({
+    where: {
+      storagePath: { in: referencedPaths },
+      OR: [
+        { report: { projectId: report.projectId, deletedAt: null } },
+        { reportService: { report: { projectId: report.projectId, deletedAt: null } } }
+      ]
+    },
+    select: {
+      storagePath: true
+    }
+  });
+
+  for (const row of rows) {
+    const normalized = normalizeRelativeUploadPath(row.storagePath);
+    if (normalized) trustedPaths.add(normalized);
+  }
+}
+
 export async function syncReportUploadAttachments(client = prisma, reportOrId, options = {}) {
   const report = typeof reportOrId === 'string'
     ? await client.report.findUnique({
         where: { id: reportOrId },
         select: {
           id: true,
+          projectId: true,
           project: {
             select: {
               code: true,
@@ -258,7 +288,13 @@ export async function syncReportUploadAttachments(client = prisma, reportOrId, o
   })) {
     trustedPaths.add(targetPath);
   }
-  const attachments = extractReportUploadAttachments(report, { requireProjectScope: true })
+
+  const projectScopedAttachments = extractReportUploadAttachments(report, { requireProjectScope: true });
+  if (options.trustProjectExistingAttachments === true) {
+    await addTrustedProjectAttachmentPaths(client, report, projectScopedAttachments, trustedPaths);
+  }
+
+  const attachments = projectScopedAttachments
     .filter(attachment => isTrustedAttachment(attachment, {
       auth: options.auth,
       trustedPaths,
