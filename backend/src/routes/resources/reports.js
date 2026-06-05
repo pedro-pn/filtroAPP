@@ -1760,6 +1760,18 @@ function pdfCacheMetadataMatches(report, metadata) {
   );
 }
 
+async function activeSourceVersionMatchesCurrentPdf(report, version) {
+  if (!reportVersionMatchesCurrentContent(report, version)) return false;
+  const sourcePath = reportSourcePdfPath(version.sourcePdfUrl);
+  if (!sourcePath) return false;
+  if (!pdfCacheMetadataMatches(report, await readPdfCacheMetadata(sourcePath))) return false;
+  try {
+    return sha256Hex(await fs.readFile(sourcePath)) === version.sourceDocumentHash;
+  } catch {
+    return false;
+  }
+}
+
 function pdfBufferContainsExpectedLinks(buffer, expectedUrls) {
   if (!expectedUrls.length) return true;
   const content = buffer.toString('latin1');
@@ -2069,7 +2081,7 @@ async function getReportPdfDownload(report) {
     report.status === ReportStatus.APPROVED &&
     report.reportType === ReportType.RDO &&
     activeSourceVersion &&
-    reportVersionMatchesCurrentContent(report, activeSourceVersion)
+    await activeSourceVersionMatchesCurrentPdf(report, activeSourceVersion)
   ) {
     const sourcePath = reportSourcePdfPath(activeSourceVersion.sourcePdfUrl);
     if (sourcePath) {
