@@ -2688,12 +2688,71 @@ function safePathLocal(value) {
 function applyUrlMap(obj, urlMap) {
   if (!urlMap || !urlMap.size) return obj;
   let json = JSON.stringify(obj);
-  for (const [oldUrl, newUrl] of urlMap.entries()) {
+  if (typeof json !== 'string') return obj;
+  for (const [oldUrl, newUrl] of expandedUrlMapEntries(urlMap)) {
     const escapedOld = JSON.stringify(oldUrl).slice(1, -1);
     const escapedNew = JSON.stringify(newUrl).slice(1, -1);
     json = json.split(escapedOld).join(escapedNew);
   }
   try { return JSON.parse(json); } catch { return obj; }
+}
+
+function encodedUploadPathForUrlMap(pathValue) {
+  const normalized = normalizeReportUploadReference(pathValue);
+  if (!normalized) return '';
+  return normalized
+    .split('/')
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join('/');
+}
+
+function decodedUploadPathForUrlMap(pathValue) {
+  return normalizeReportUploadReference(pathValue);
+}
+
+function urlMapSourceVariants(source) {
+  const variants = new Set();
+  const rawSource = typeof source === 'string' ? source.trim() : '';
+  if (rawSource) variants.add(rawSource);
+
+  const decodedPath = decodedUploadPathForUrlMap(rawSource);
+  const encodedPath = encodedUploadPathForUrlMap(rawSource);
+  if (decodedPath) {
+    variants.add(decodedPath);
+    variants.add(`/relatorios/${decodedPath}`);
+    variants.add(`relatorios/${decodedPath}`);
+    variants.add(`/uploads/${decodedPath}`);
+    variants.add(`uploads/${decodedPath}`);
+  }
+  if (encodedPath) {
+    variants.add(`/relatorios/${encodedPath}`);
+    variants.add(`relatorios/${encodedPath}`);
+    variants.add(`/uploads/${encodedPath}`);
+    variants.add(`uploads/${encodedPath}`);
+    variants.add(`/api/uploads/file/${encodedPath}`);
+    variants.add(`/api/rdo/uploads/file/${encodedPath}`);
+  }
+
+  return variants;
+}
+
+function expandedUrlMapEntries(urlMap) {
+  const entries = [];
+  const seen = new Set();
+  for (const [source, target] of urlMap.entries()) {
+    if (typeof target !== 'string' || !target) continue;
+    for (const variant of urlMapSourceVariants(source)) {
+      if (!variant || seen.has(variant)) continue;
+      seen.add(variant);
+      entries.push([variant, target]);
+    }
+  }
+  return entries.sort((a, b) => b[0].length - a[0].length);
+}
+
+function jsonChanged(before, after) {
+  return JSON.stringify(before ?? null) !== JSON.stringify(after ?? null);
 }
 
 function expandUploadGroupsInServiceData(serviceData, fallbackData) {
@@ -2754,15 +2813,14 @@ async function organizeAndPersist(report) {
     const newSC = applyUrlMap(report.specialConditions, urlMap);
     await prisma.report.update({ where: { id: report.id }, data: { specialConditions: newSC } });
 
-    if (report.specialConditions?.serviceOnly === true) {
-      for (const service of (report.services || [])) {
-        if (!service.id) continue;
-        const newExtraData = applyUrlMap(service.extraData, urlMap);
-        await prisma.reportService.update({
-          where: { id: service.id },
-          data: { extraData: newExtraData }
-        });
-      }
+    for (const service of (report.services || [])) {
+      if (!service.id) continue;
+      const newExtraData = applyUrlMap(service.extraData, urlMap);
+      if (!jsonChanged(service.extraData, newExtraData)) continue;
+      await prisma.reportService.update({
+        where: { id: service.id },
+        data: { extraData: newExtraData }
+      });
     }
 
     // Para RTP/RLQ, também atualiza o extraData do serviço-fonte do RDO para que
