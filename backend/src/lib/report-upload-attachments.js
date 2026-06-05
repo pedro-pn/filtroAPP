@@ -49,6 +49,10 @@ export function normalizeReportUploadReference(value) {
       return '';
     }
   }
+  if (pathname.startsWith('//api/uploads/file/')) pathname = pathname.slice(1);
+  if (pathname.startsWith('//api/rdo/uploads/file/')) pathname = pathname.slice(1);
+  if (pathname.startsWith('//relatorios/')) pathname = pathname.slice(1);
+  if (pathname.startsWith('//uploads/')) pathname = pathname.slice(1);
 
   if (pathname.startsWith('/api/uploads/file/')) return normalizeRelativeUploadPath(pathname.slice('/api/uploads/file/'.length));
   if (pathname.startsWith('/api/rdo/uploads/file/')) return normalizeRelativeUploadPath(pathname.slice('/api/rdo/uploads/file/'.length));

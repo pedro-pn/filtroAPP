@@ -41,6 +41,11 @@ test('extractReportUploadAttachments only accepts known upload containers', () =
         fileName: 'foto.jpg',
         mimeType: 'image/jpeg',
         url: '/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto.jpg'
+      }, {
+        label: 'Registro',
+        fileName: 'foto-protocol-relative.jpg',
+        mimeType: 'image/jpeg',
+        url: '//relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto-protocol-relative.jpg'
       }],
       injected: {
         url: '/relatorios/outro-projeto/privado.jpg'
@@ -67,6 +72,13 @@ test('extractReportUploadAttachments only accepts known upload containers', () =
     fileName: 'foto.jpg',
     mimeType: 'image/jpeg',
     storagePath: 'Missão P-100 - Projeto Seguro/rdo/foto.jpg',
+    reportId: 'report-1',
+    reportServiceId: null
+  }, {
+    label: 'Registro',
+    fileName: 'foto-protocol-relative.jpg',
+    mimeType: 'image/jpeg',
+    storagePath: 'Missão P-100 - Projeto Seguro/rdo/foto-protocol-relative.jpg',
     reportId: 'report-1',
     reportServiceId: null
   }, {
