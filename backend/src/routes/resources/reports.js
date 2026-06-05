@@ -1195,6 +1195,18 @@ function contentDisposition(fileName) {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
 
+function sendDownloadBuffer(res, { contentType, fileName, buffer }) {
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', contentDisposition(fileName));
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  res.setHeader('Content-Length', buffer.length);
+  res.removeHeader('ETag');
+  return res.end(buffer);
+}
+
 const include = {
   project: {
     include: {
@@ -4719,9 +4731,11 @@ router.post('/batch-download', requireAuth, requireRdoAccess, asyncHandler(async
   }
 
   const archiveName = `relatorios_${data.format}_${new Date().toISOString().slice(0, 10)}.zip`;
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', contentDisposition(archiveName));
-  res.send(zip.toBuffer());
+  sendDownloadBuffer(res, {
+    contentType: 'application/zip',
+    fileName: archiveName,
+    buffer: zip.toBuffer()
+  });
 }));
 
 router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {
@@ -4767,9 +4781,11 @@ router.get('/public-sign/:token/pdf', publicSignatureLimiter, asyncHandler(async
   const sourcePath = reportSourcePdfPath(signature.version.sourcePdfUrl);
   if (!sourcePath) return res.status(404).json({ error: 'PDF da assinatura não encontrado.' });
 
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', contentDisposition(reportPdfFileName(signature.report)));
-  res.send(await verifiedSourcePdfBuffer(sourcePath, signature.version));
+  sendDownloadBuffer(res, {
+    contentType: 'application/pdf',
+    fileName: reportPdfFileName(signature.report),
+    buffer: await verifiedSourcePdfBuffer(sourcePath, signature.version)
+  });
 }));
 
 router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(async (req, res) => {
@@ -4937,9 +4953,11 @@ router.get('/:id/pdf', requireAuth, requireRdoAccess, asyncHandler(async (req, r
   }
 
   const file = await runWithPdfAbortSignal(abortController.signal, () => getReportPdfDownload(item));
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', contentDisposition(file.fileName));
-  res.send(file.buffer);
+  sendDownloadBuffer(res, {
+    contentType: 'application/pdf',
+    fileName: file.fileName,
+    buffer: file.buffer
+  });
 }));
 
 router.get('/:id/docx', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -4959,9 +4977,11 @@ router.get('/:id/docx', requireAuth, requireRdoAccess, asyncHandler(async (req, 
 
   item = await refreshDerivedReportSource(item);
   const saved = await generateReportDocxAsset(item);
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-  res.setHeader('Content-Disposition', contentDisposition(saved.fileName));
-  res.send(await fs.readFile(saved.targetPath));
+  sendDownloadBuffer(res, {
+    contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    fileName: saved.fileName,
+    buffer: await fs.readFile(saved.targetPath)
+  });
 }));
 
 router.delete('/:id/services/:serviceId', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
