@@ -2809,6 +2809,40 @@ function applyUrlMap(obj, urlMap) {
   try { return JSON.parse(json); } catch { return obj; }
 }
 
+export function storagePathUpdatesFromUrlMap(urlMap) {
+  const updates = [];
+  const seen = new Set();
+  if (!urlMap || !urlMap.size) return updates;
+
+  for (const [source, target] of urlMap.entries()) {
+    const oldPath = normalizeReportUploadReference(source);
+    const newPath = normalizeReportUploadReference(target);
+    if (!oldPath || !newPath || oldPath === newPath) continue;
+    const key = `${oldPath}\n${newPath}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    updates.push({ oldPath, newPath });
+  }
+
+  return updates;
+}
+
+async function updateSourceServiceAttachmentPaths(sourceServiceId, urlMap) {
+  if (!sourceServiceId) return;
+  const updates = storagePathUpdatesFromUrlMap(urlMap);
+  for (const { oldPath, newPath } of updates) {
+    await prisma.reportAttachment.updateMany({
+      where: {
+        reportServiceId: sourceServiceId,
+        storagePath: oldPath
+      },
+      data: {
+        storagePath: newPath
+      }
+    });
+  }
+}
+
 function encodedUploadPathForUrlMap(pathValue) {
   const normalized = normalizeReportUploadReference(pathValue);
   if (!normalized) return '';
@@ -2950,6 +2984,7 @@ async function organizeAndPersist(report) {
             where: { id: sourceServiceId },
             data: { extraData: newExtraData }
           });
+          await updateSourceServiceAttachmentPaths(sourceServiceId, urlMap);
         }
       } catch { /* best effort */ }
     }
