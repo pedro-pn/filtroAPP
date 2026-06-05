@@ -7,6 +7,7 @@ import {
   currentCalibrationCertificateInclude,
   withCurrentCalibrationCertificate
 } from '../../lib/calibration-certificates.js';
+import { notifyCalibrationUpdatedSafely } from '../../lib/calibration-reminders.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth, requireInternalUser, requireManager } from '../../middleware/auth.js';
 
@@ -50,6 +51,11 @@ router.post('/', requireManager, asyncHandler(async (req, res) => {
       manometerId: item.id,
       upload: calibrationCertificate
     });
+    await notifyCalibrationUpdatedSafely({
+      equipmentType: 'MANOMETER',
+      equipment: item,
+      previousExpiresAt: existing.expiresAt
+    });
     const freshItem = await prisma.manometer.findUnique({
       where: { id: item.id },
       include: currentCalibrationCertificateInclude
@@ -74,6 +80,9 @@ router.post('/', requireManager, asyncHandler(async (req, res) => {
 router.put('/:id', requireManager, asyncHandler(async (req, res) => {
   const data = schema.partial().parse(req.body);
   const { calibrationCertificate, ...fields } = data;
+  const previous = fields.expiresAt
+    ? await prisma.manometer.findUnique({ where: { id: req.params.id }, select: { expiresAt: true } })
+    : null;
   const payload = {
     ...fields,
     ...(fields.calibratedAt ? { calibratedAt: new Date(fields.calibratedAt) } : {}),
@@ -84,6 +93,11 @@ router.put('/:id', requireManager, asyncHandler(async (req, res) => {
     equipmentType: 'MANOMETER',
     manometerId: item.id,
     upload: calibrationCertificate
+  });
+  await notifyCalibrationUpdatedSafely({
+    equipmentType: 'MANOMETER',
+    equipment: item,
+    previousExpiresAt: previous?.expiresAt
   });
   const freshItem = await prisma.manometer.findUnique({
     where: { id: item.id },

@@ -15,7 +15,8 @@ test('notification preferences default to enabled', () => {
     reports: true,
     signatures: true,
     signatureReminders: true,
-    surveyReminders: true
+    surveyReminders: true,
+    calibrationReminders: true
   });
 });
 
@@ -31,7 +32,8 @@ test('notification recipients skip users opted out for the category', async () =
           notifyReportsByEmail: false,
           notifySignaturesByEmail: true,
           notifySignatureRemindersByEmail: true,
-          notifySurveyRemindersByEmail: true
+          notifySurveyRemindersByEmail: true,
+          notifyCalibrationRemindersByEmail: true
         }];
       }
     },
@@ -94,7 +96,8 @@ test('notification preference token is consumed once when saving public settings
     reports: false,
     signatures: true,
     signatureReminders: false,
-    surveyReminders: false
+    surveyReminders: false,
+    calibrationReminders: false
   }, client, now);
 
   assert.equal(updates[0].data.usedAt, now);
@@ -103,7 +106,8 @@ test('notification preference token is consumed once when saving public settings
     notifyReportsByEmail: false,
     notifySignaturesByEmail: true,
     notifySignatureRemindersByEmail: false,
-    notifySurveyRemindersByEmail: false
+    notifySurveyRemindersByEmail: false,
+    notifyCalibrationRemindersByEmail: false
   });
 });
 

@@ -25,7 +25,8 @@ export function AccountPage() {
     reports: user?.notificationPreferences?.reports ?? true,
     signatures: user?.notificationPreferences?.signatures ?? true,
     signatureReminders: user?.notificationPreferences?.signatureReminders ?? true,
-    surveyReminders: user?.notificationPreferences?.surveyReminders ?? true
+    surveyReminders: user?.notificationPreferences?.surveyReminders ?? true,
+    calibrationReminders: user?.notificationPreferences?.calibrationReminders ?? true
   });
   const [notificationMessage, setNotificationMessage] = useState('');
   const [notificationError, setNotificationError] = useState('');
@@ -104,7 +105,8 @@ export function AccountPage() {
         reports: response.user.notificationPreferences?.reports ?? true,
         signatures: response.user.notificationPreferences?.signatures ?? true,
         signatureReminders: response.user.notificationPreferences?.signatureReminders ?? true,
-        surveyReminders: response.user.notificationPreferences?.surveyReminders ?? true
+        surveyReminders: response.user.notificationPreferences?.surveyReminders ?? true,
+        calibrationReminders: response.user.notificationPreferences?.calibrationReminders ?? true
       });
       setNotificationMessage('Preferências de notificação atualizadas.');
     } catch (err) {
@@ -256,6 +258,14 @@ export function AccountPage() {
                 onChange={event => setNotificationPreference('surveyReminders', event.target.checked)}
               />
               <span>Pesquisas de satisfação</span>
+            </label>
+            <label className="notification-option">
+              <input
+                type="checkbox"
+                checked={notificationPreferences.calibrationReminders}
+                onChange={event => setNotificationPreference('calibrationReminders', event.target.checked)}
+              />
+              <span>Calibração de equipamentos</span>
             </label>
             {notificationMessage ? <div className="inline-success">{notificationMessage}</div> : null}
             {notificationError ? <div className="inline-error">{notificationError}</div> : null}

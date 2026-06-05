@@ -3,6 +3,7 @@ import http from 'node:http';
 import app from './app.js';
 import env from './config/env.js';
 import { startMonthlyAllocationReportJob } from './lib/allocation-monthly-report.js';
+import { startCalibrationReminderJob } from './lib/calibration-reminders.js';
 import { startDataRetentionJob } from './lib/data-retention.js';
 import { syncRomaneioCatalog } from './lib/romaneio-catalog.js';
 import { startSignatureReminderJob } from './lib/signature-reminders.js';
@@ -31,6 +32,7 @@ server.listen(env.port, () => {
   startDataRetentionJob({ enabled: env.dataRetentionJobEnabled });
   startSurveyReminderJob();
   startSignatureReminderJob();
+  startCalibrationReminderJob();
   startMonthlyAllocationReportJob();
   startLegacyZapSignReconciliationJob();
   syncRomaneioCatalog().catch(error => {

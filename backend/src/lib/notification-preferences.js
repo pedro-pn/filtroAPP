@@ -9,14 +9,16 @@ export const NotificationEmailCategory = {
   REPORTS: 'reports',
   SIGNATURES: 'signatures',
   SIGNATURE_REMINDERS: 'signatureReminders',
-  SURVEY_REMINDERS: 'surveyReminders'
+  SURVEY_REMINDERS: 'surveyReminders',
+  CALIBRATION_REMINDERS: 'calibrationReminders'
 };
 
 const CATEGORY_FIELDS = {
   [NotificationEmailCategory.REPORTS]: 'notifyReportsByEmail',
   [NotificationEmailCategory.SIGNATURES]: 'notifySignaturesByEmail',
   [NotificationEmailCategory.SIGNATURE_REMINDERS]: 'notifySignatureRemindersByEmail',
-  [NotificationEmailCategory.SURVEY_REMINDERS]: 'notifySurveyRemindersByEmail'
+  [NotificationEmailCategory.SURVEY_REMINDERS]: 'notifySurveyRemindersByEmail',
+  [NotificationEmailCategory.CALIBRATION_REMINDERS]: 'notifyCalibrationRemindersByEmail'
 };
 
 export function notificationPreferences(user = {}) {
@@ -24,7 +26,8 @@ export function notificationPreferences(user = {}) {
     reports: user.notifyReportsByEmail !== false,
     signatures: user.notifySignaturesByEmail !== false,
     signatureReminders: user.notifySignatureRemindersByEmail !== false,
-    surveyReminders: user.notifySurveyRemindersByEmail !== false
+    surveyReminders: user.notifySurveyRemindersByEmail !== false,
+    calibrationReminders: user.notifyCalibrationRemindersByEmail !== false
   };
 }
 
@@ -33,7 +36,8 @@ export function notificationPreferenceData(value = {}) {
     notifyReportsByEmail: value.reports !== false,
     notifySignaturesByEmail: value.signatures !== false,
     notifySignatureRemindersByEmail: value.signatureReminders !== false,
-    notifySurveyRemindersByEmail: value.surveyReminders !== false
+    notifySurveyRemindersByEmail: value.surveyReminders !== false,
+    notifyCalibrationRemindersByEmail: value.calibrationReminders !== false
   };
 }
 
@@ -161,7 +165,8 @@ export async function notificationRecipientsForEmails(emails, category, options 
       notifyReportsByEmail: true,
       notifySignaturesByEmail: true,
       notifySignatureRemindersByEmail: true,
-      notifySurveyRemindersByEmail: true
+      notifySurveyRemindersByEmail: true,
+      notifyCalibrationRemindersByEmail: true
     }
   });
 
@@ -195,6 +200,29 @@ export async function coordinatorNotificationEmails(options = {}) {
       isActive: true,
       OR: [
         { role: 'COORDINATOR' },
+        { moduleRoles: { some: { role: 'RDO_COORDINATOR' } } }
+      ]
+    },
+    select: {
+      email: true,
+      username: true
+    }
+  });
+
+  return Array.from(new Set(users.map(notificationEmailForUser).filter(Boolean)));
+}
+
+export async function managerCoordinatorNotificationEmails(options = {}) {
+  const client = options.client || prisma;
+  if (!client.user?.findMany) return [];
+
+  const users = await client.user.findMany({
+    where: {
+      isActive: true,
+      OR: [
+        { role: 'MANAGER' },
+        { role: 'COORDINATOR' },
+        { moduleRoles: { some: { role: 'RDO_MANAGER' } } },
         { moduleRoles: { some: { role: 'RDO_COORDINATOR' } } }
       ]
     },

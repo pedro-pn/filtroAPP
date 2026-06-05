@@ -748,6 +748,114 @@ export function buildReportSignatureReminderEmailTemplate({
   };
 }
 
+export function buildCalibrationReminderEmailTemplate({
+  category,
+  milestoneLabel,
+  introLabel,
+  equipments
+}) {
+  const safeCategory = escapeHtml(category || 'Equipamentos');
+  const safeMilestoneLabel = escapeHtml(milestoneLabel || 'calibração');
+  const safeIntroLabel = escapeHtml(introLabel || 'Verifique os equipamentos abaixo.');
+  const safeEquipments = Array.isArray(equipments) ? equipments : [];
+  const rows = safeEquipments.map(equipment => `
+    <tr>
+      <td style="padding:8px;border-bottom:1px solid #e5e7eb">${escapeHtml(equipment.code || '---')}</td>
+      <td style="padding:8px;border-bottom:1px solid #e5e7eb">${escapeHtml(equipment.serialNumber || '---')}</td>
+      <td style="padding:8px;border-bottom:1px solid #e5e7eb">${escapeHtml(formatEmailDate(equipment.expiresAt) || '---')}</td>
+    </tr>
+  `).join('');
+  const title = `Calibração de ${safeCategory}`;
+  const intro = safeIntroLabel;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Categoria:</strong> ${safeCategory}</div>
+        <div><strong>Situação:</strong> ${safeMilestoneLabel}</div>
+        <div><strong>Equipamentos:</strong> ${safeEquipments.length}</div>
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:8px;background:#eef4ef;color:#30503a">Código</th>
+          <th style="text-align:left;padding:8px;background:#eef4ef;color:#30503a">Serial</th>
+          <th style="text-align:left;padding:8px;background:#eef4ef;color:#30503a">Vencimento</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${privacyHtmlLine()}
+  `;
+  const footer = 'Este lembrete foi gerado automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Calibração ${milestoneLabel || ''} - ${category || 'Equipamentos'}`,
+    text: [
+      introLabel || 'Verifique os equipamentos abaixo.',
+      '',
+      `Categoria: ${category || 'Equipamentos'}`,
+      `Situação: ${milestoneLabel || 'calibração'}`,
+      `Equipamentos: ${safeEquipments.length}`,
+      '',
+      ...safeEquipments.map(equipment => [
+        `Código: ${equipment.code || '---'}`,
+        equipment.serialNumber ? `Serial: ${equipment.serialNumber}` : '',
+        `Vencimento: ${formatEmailDate(equipment.expiresAt) || '---'}`
+      ].filter(Boolean).join(' | ')),
+      '',
+      privacyTextLine()
+    ].join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildCalibrationUpdatedEmailTemplate({
+  category,
+  equipment,
+  previousExpiresAt
+}) {
+  const safeCategory = escapeHtml(category || 'Equipamentos');
+  const safeCode = escapeHtml(equipment?.code || '---');
+  const safeSerial = escapeHtml(equipment?.serialNumber || '---');
+  const expiresAt = formatEmailDate(equipment?.expiresAt) || '---';
+  const calibratedAt = formatEmailDate(equipment?.calibratedAt) || '---';
+  const previousExpiration = previousExpiresAt ? formatEmailDate(previousExpiresAt) : '';
+  const title = `Equipamento calibrado - ${safeCategory}`;
+  const intro = `O equipamento ${safeCode} teve a calibração atualizada no sistema.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Categoria:</strong> ${safeCategory}</div>
+        <div><strong>Código:</strong> ${safeCode}</div>
+        <div><strong>Serial:</strong> ${safeSerial}</div>
+        <div><strong>Calibrado em:</strong> ${escapeHtml(calibratedAt)}</div>
+        <div><strong>Nova validade:</strong> ${escapeHtml(expiresAt)}</div>
+        ${previousExpiration ? `<div><strong>Validade anterior:</strong> ${escapeHtml(previousExpiration)}</div>` : ''}
+      </div>
+    </div>
+    ${privacyHtmlLine()}
+  `;
+  const footer = 'Esta notificação foi gerada automaticamente pelo sistema Filtrovali.';
+
+  return {
+    subject: `[Filtrovali] Equipamento calibrado - ${category || 'Equipamentos'} ${equipment?.code || ''}`.trim(),
+    text: [
+      `O equipamento ${equipment?.code || '---'} teve a calibração atualizada no sistema.`,
+      '',
+      `Categoria: ${category || 'Equipamentos'}`,
+      `Código: ${equipment?.code || '---'}`,
+      equipment?.serialNumber ? `Serial: ${equipment.serialNumber}` : '',
+      `Calibrado em: ${calibratedAt}`,
+      `Nova validade: ${expiresAt}`,
+      previousExpiration ? `Validade anterior: ${previousExpiration}` : '',
+      '',
+      privacyTextLine()
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
 export function buildBatchReportSignatureReminderEmailTemplate({
   projectCode,
   projectName,

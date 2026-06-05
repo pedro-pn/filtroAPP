@@ -50,14 +50,16 @@ const accountSchema = z.object({
     reports: z.boolean(),
     signatures: z.boolean(),
     signatureReminders: z.boolean().optional().default(true),
-    surveyReminders: z.boolean()
+    surveyReminders: z.boolean(),
+    calibrationReminders: z.boolean().optional().default(true)
   }).optional()
 });
 const notificationPreferenceSchema = z.object({
   reports: z.boolean(),
   signatures: z.boolean(),
   signatureReminders: z.boolean().optional().default(true),
-  surveyReminders: z.boolean()
+  surveyReminders: z.boolean(),
+  calibrationReminders: z.boolean().optional().default(true)
 });
 const clientPrivacyConsentSchema = z.object({
   privacyNoticeAccepted: z.literal(true, {

@@ -515,6 +515,19 @@ model CalibrationCertificate {
   @@index([particleCounterId, createdAt])
 }
 
+model CalibrationNotificationLog {
+  id            String   @id @default(cuid())
+  equipmentType String
+  equipmentId   String
+  category      String
+  milestone     String
+  targetDate    DateTime
+  sentAt        DateTime @default(now())
+
+  @@unique([equipmentType, equipmentId, milestone, targetDate])
+  @@index([category, milestone, sentAt])
+}
+
 model User {
   id              String        @id @default(cuid())
   username        String        @unique
@@ -532,6 +545,7 @@ model User {
   notifySignaturesByEmail Boolean @default(true)
   notifySignatureRemindersByEmail Boolean @default(true)
   notifySurveyRemindersByEmail Boolean @default(true)
+  notifyCalibrationRemindersByEmail Boolean @default(true)
   collaboratorId  String?       @unique
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

@@ -20,7 +20,8 @@ export function NotificationPreferencesPage() {
     reports: true,
     signatures: true,
     signatureReminders: true,
-    surveyReminders: true
+    surveyReminders: true,
+    calibrationReminders: true
   });
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -99,6 +100,10 @@ export function NotificationPreferencesPage() {
             <label className="notification-option">
               <input type="checkbox" checked={preferences.surveyReminders} onChange={event => setPreference('surveyReminders', event.target.checked)} />
               <span>Pesquisas de satisfação</span>
+            </label>
+            <label className="notification-option">
+              <input type="checkbox" checked={preferences.calibrationReminders} onChange={event => setPreference('calibrationReminders', event.target.checked)} />
+              <span>Calibração de equipamentos</span>
             </label>
             {error ? <div className="inline-error">{error}</div> : null}
             <button className="primary-button" type="submit" disabled={isSaving}>

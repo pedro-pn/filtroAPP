@@ -6,6 +6,7 @@ export interface NotificationPreferences {
   signatures: boolean;
   signatureReminders: boolean;
   surveyReminders: boolean;
+  calibrationReminders: boolean;
 }
 
 export interface AccountEmailUpdateResponse {
