@@ -17,7 +17,7 @@ async function loadReportServicePayload() {
   }
 }
 
-test('buildReportServicePayload does not persist uploads copied from previous service continuations', async () => {
+test('buildReportServicePayload persists uploads copied from previous service continuations', async () => {
   const { buildReportServicePayload } = await loadReportServicePayload();
 
   const payload = buildReportServicePayload({
@@ -47,6 +47,10 @@ test('buildReportServicePayload does not persist uploads copied from previous se
   assert.deepEqual(payload.extraData.__uploads__, [{
     label: 'Foto do laudo',
     files: [{
+      fileName: 'foto-antiga.jpg',
+      mimeType: 'image/jpeg',
+      storagePath: 'Missão 1 - Projeto/Registros Fotográficos/RCPU/foto-antiga.jpg'
+    }, {
       fileName: 'foto-nova.jpg',
       mimeType: 'image/jpeg',
       storagePath: 'Missão 1 - Projeto/Registros Fotográficos/RCPU/foto-nova.jpg'
@@ -54,7 +58,7 @@ test('buildReportServicePayload does not persist uploads copied from previous se
   }]);
 });
 
-test('buildReportServicePayload removes upload groups with only previous-service files', async () => {
+test('buildReportServicePayload removes only UI markers from inherited upload files', async () => {
   const { buildReportServicePayload } = await loadReportServicePayload();
 
   const payload = buildReportServicePayload({
@@ -74,5 +78,12 @@ test('buildReportServicePayload removes upload groups with only previous-service
     }
   });
 
-  assert.deepEqual(payload.extraData.__uploads__, []);
+  assert.deepEqual(payload.extraData.__uploads__, [{
+    label: 'Foto do laudo',
+    files: [{
+      fileName: 'foto-antiga.jpg',
+      mimeType: 'image/jpeg',
+      storagePath: 'Missão 1 - Projeto/Registros Fotográficos/RCPU/foto-antiga.jpg'
+    }]
+  }]);
 });

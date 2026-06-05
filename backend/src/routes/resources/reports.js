@@ -5628,12 +5628,14 @@ router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, re
 
   await prisma.$transaction(async tx => {
     const idsToDelete = [item.id];
+    const affectedTypes = new Set([item.reportType]);
 
     if (item.reportType === ReportType.RDO) {
       const derivedReports = await tx.report.findMany({
         where: derivedReportsForProjectWhere(item.projectId),
         select: {
           id: true,
+          reportType: true,
           specialConditions: true
         }
       });
@@ -5642,6 +5644,7 @@ router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, re
         const special = report.specialConditions || {};
         if (special.parentRdoId === item.id) {
           idsToDelete.push(report.id);
+          affectedTypes.add(report.reportType);
         }
       });
     }
@@ -5650,8 +5653,15 @@ router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, re
       where: {
         id: { in: Array.from(new Set(idsToDelete)) }
       },
-      data: { deletedAt: new Date() }
+      data: {
+        deletedAt: new Date(),
+        sequenceNumber: null
+      }
     });
+
+    for (const reportType of affectedTypes) {
+      await renumberProjectReports(tx, item.projectId, reportType);
+    }
   });
 
   res.status(204).end();

@@ -95,27 +95,21 @@ function collaboratorLinks(ids: string[], collaborators: Collaborator[] = []) {
   };
 }
 
-function stripPreviouslyAddedUploads(value: unknown) {
+function normalizePersistedUploads(value: unknown) {
   if (!Array.isArray(value)) return value;
 
-  return value
-    .map(group => {
-      if (!group || typeof group !== 'object' || Array.isArray(group)) return group;
-      const record = group as Record<string, unknown>;
-      const files = Array.isArray(record.files)
-        ? record.files.filter(file => {
-            if (!file || typeof file !== 'object' || Array.isArray(file)) return true;
-            const item = file as Record<string, unknown>;
-            return item.__previouslyAdded !== true && item.previouslyAdded !== true;
-          })
-        : record.files;
-      return { ...record, files };
-    })
-    .filter(group => {
-      if (!group || typeof group !== 'object' || Array.isArray(group)) return true;
-      const files = (group as Record<string, unknown>).files;
-      return !Array.isArray(files) || files.length > 0;
-    });
+  return value.map(group => {
+    if (!group || typeof group !== 'object' || Array.isArray(group)) return group;
+    const record = group as Record<string, unknown>;
+    const files = Array.isArray(record.files)
+      ? record.files.map(file => {
+          if (!file || typeof file !== 'object' || Array.isArray(file)) return file;
+          const { __previouslyAdded, previouslyAdded, ...persistedFile } = file as Record<string, unknown>;
+          return persistedFile;
+        })
+      : record.files;
+    return { ...record, files };
+  });
 }
 
 function commonExtraData(
@@ -149,7 +143,7 @@ function commonExtraData(
     'Diâmetros e comprimentos': tubes,
     'Colaboradores do serviço': collaboratorLinks(collaboratorIds, options.collaborators)
   };
-  extraData.__uploads__ = stripPreviouslyAddedUploads(extraData.__uploads__);
+  extraData.__uploads__ = normalizePersistedUploads(extraData.__uploads__);
   return extraData;
 }
 
