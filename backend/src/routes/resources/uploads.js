@@ -18,7 +18,9 @@ import {
 } from '../../lib/transient-upload-access.js';
 import { RDO_INTERNAL_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import prisma from '../../lib/prisma.js';
+import { normalizeReportUploadReference } from '../../lib/report-upload-attachments.js';
 import { canClientSeeReportForAccess } from './reports.js';
+import { isRdoDraftPayload } from './drafts.js';
 
 const router = Router();
 const requireRdoInternal = requireModuleRole(...RDO_INTERNAL_ROLES);
@@ -183,6 +185,67 @@ function uploadStoragePathCandidates(normalizedPath) {
   ])];
 }
 
+function stringValue(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function uploadReferencePath(value) {
+  if (typeof value === 'string') return normalizeReportUploadReference(value);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+  return normalizeReportUploadReference(
+    value.url || value.storagePath || value.path || value.publicUrl || value.href || value.src || ''
+  );
+}
+
+function collectDraftUploadPathsFromList(items, paths) {
+  if (!Array.isArray(items)) return;
+  for (const item of items) {
+    const normalizedPath = uploadReferencePath(item);
+    if (normalizedPath) paths.add(normalizedPath);
+  }
+}
+
+function draftUploadReferencePaths(payload) {
+  const paths = new Set();
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return paths;
+
+  collectDraftUploadPathsFromList(payload.generalUploads, paths);
+
+  const services = Array.isArray(payload.services) ? payload.services : [];
+  for (const service of services) {
+    if (!service || typeof service !== 'object' || Array.isArray(service)) continue;
+    const data = service.data && typeof service.data === 'object' && !Array.isArray(service.data)
+      ? service.data
+      : service.extraData && typeof service.extraData === 'object' && !Array.isArray(service.extraData)
+        ? service.extraData
+        : service;
+    const groups = Array.isArray(data.__uploads__) ? data.__uploads__ : [];
+    for (const group of groups) {
+      if (!group || typeof group !== 'object' || Array.isArray(group)) continue;
+      collectDraftUploadPathsFromList(group.files, paths);
+    }
+  }
+
+  return paths;
+}
+
+function projectFolderName(project) {
+  const code = stringValue(project?.code);
+  const name = stringValue(project?.name);
+  if (!code || !name) return '';
+  return safePathLocal(`Missão ${code} - ${name}`);
+}
+
+function isProjectScopedDraftPath(normalizedPath, project) {
+  const folder = projectFolderName(project);
+  if (!folder) return false;
+  if (normalizedPath === folder || normalizedPath.startsWith(`${folder}/`)) return true;
+
+  const code = safePathLocal(stringValue(project?.code));
+  const firstFolder = normalizedPath.split('/').filter(Boolean)[0] || '';
+  return Boolean(code && firstFolder.startsWith(`Missão ${code} - `));
+}
+
 async function candidateReportIdsForUpload(normalizedPath) {
   const candidates = uploadStoragePathCandidates(normalizedPath);
   if (!candidates.length) return [];
@@ -210,32 +273,78 @@ async function candidateReportIdsForUpload(normalizedPath) {
   return [...ids];
 }
 
-export async function authorizeStoredFile(req, normalizedPath) {
-  if (hasTransientUploadAccess(normalizedPath, req.auth)) return true;
-  if (!hasModuleRole(req.auth.user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator', 'rdo:client'])) return false;
-
-  const candidateIds = await candidateReportIdsForUpload(normalizedPath);
-  if (!candidateIds.length) return false;
-
-  const reports = await prisma.report.findMany({
-    where: { id: { in: candidateIds }, deletedAt: null, project: { deletedAt: null } },
-    include: {
-      project: { include: { authorizedUsers: true } },
-      collaborators: true,
-      attachments: true,
-      services: {
-        include: {
-          attachments: true
+async function canAccessDraftUpload(auth, normalizedPath) {
+  const drafts = await prisma.reportDraft.findMany({
+    where: { userId: auth.user.id },
+    select: {
+      id: true,
+      userId: true,
+      payload: true,
+      project: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          isActive: true,
+          deletedAt: true,
+          managerOnly: true,
+          visibleToCollaborators: true,
+          authorizedUsers: {
+            select: {
+              userId: true
+            }
+          }
         }
       }
     }
   });
 
-  for (const report of reports) {
-    if (!(await canAccessStoredUploadReport(req.auth, report))) continue;
+  for (const draft of drafts) {
+    if (!isRdoDraftPayload(draft.payload) || !draft.project) continue;
+    if (!isProjectScopedDraftPath(normalizedPath, draft.project)) continue;
+    if (!draftUploadReferencePaths(draft.payload).has(normalizedPath)) continue;
+    if (!canAccessReport(auth, {
+      id: draft.id,
+      deletedAt: null,
+      createdByUserId: draft.userId,
+      project: draft.project,
+      collaborators: []
+    })) continue;
     return true;
   }
+
   return false;
+}
+
+export async function authorizeStoredFile(req, normalizedPath) {
+  if (hasTransientUploadAccess(normalizedPath, req.auth)) return true;
+  if (!hasModuleRole(req.auth.user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator', 'rdo:client'])) return false;
+
+  const candidateIds = await candidateReportIdsForUpload(normalizedPath);
+  if (candidateIds.length) {
+    const reports = await prisma.report.findMany({
+      where: { id: { in: candidateIds }, deletedAt: null, project: { deletedAt: null } },
+      include: {
+        project: { include: { authorizedUsers: true } },
+        collaborators: true,
+        attachments: true,
+        services: {
+          include: {
+            attachments: true
+          }
+        }
+      }
+    });
+
+    for (const report of reports) {
+      if (!(await canAccessStoredUploadReport(req.auth, report))) continue;
+      return true;
+    }
+
+    return false;
+  }
+
+  return hasModuleRole(req.auth.user, RDO_INTERNAL_ROLES) && await canAccessDraftUpload(req.auth, normalizedPath);
 }
 
 router.get('/file/*', requireAuth, asyncHandler(async (req, res) => {

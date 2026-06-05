@@ -116,6 +116,21 @@ test('restore script validates report archive before replacing active volume or 
   );
 });
 
+test('restore script extracts staging archives as host user and can clean container-owned leftovers', () => {
+  const script = fs.readFileSync(new URL('../../deploy/restore-prod.sh', import.meta.url), 'utf8');
+
+  assert.match(
+    script,
+    /docker run --rm --user "\$\(id -u\):\$\(id -g\)" -v "\$\{BACKUP_SOURCE\}:\/backup:ro" -v "\$\{RESTORE_STAGING_DIR\}:\/staging" alpine sh -eu -c "rm -rf \/staging\/relatorios/
+  );
+  assert.match(
+    script,
+    /docker run --rm --user "\$\(id -u\):\$\(id -g\)" -v "\$\{BACKUP_SOURCE\}:\/backup:ro" -v "\$\{RESTORE_STAGING_DIR\}:\/staging" alpine sh -eu -c "rm -rf \/staging\/certs/
+  );
+  assert.match(script, /rm -rf "\$RESTORE_STAGING_DIR" 2>\/dev\/null \|\| docker run --rm/);
+  assert.match(script, /rm -rf -- "\/cleanup\/\$1"/);
+});
+
 test('restore script does not drop database when report archive staging fails', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'restore-tar-fail-'));
   const backup = path.join(root, 'backup');

@@ -205,14 +205,17 @@ test('stored upload access rejects collaborator attachments for hidden or inacti
 test('stored upload access does not trust report JSON upload references', async t => {
   const originals = {
     attachmentFindMany: prisma.reportAttachment.findMany,
+    draftFindMany: prisma.reportDraft.findMany,
     reportFindMany: prisma.report.findMany
   };
   prisma.reportAttachment.findMany = async () => [];
+  prisma.reportDraft.findMany = async () => [];
   prisma.report.findMany = async () => {
     throw new Error('arbitrary report JSON references must not authorize stored-file access');
   };
   t.after(() => {
     prisma.reportAttachment.findMany = originals.attachmentFindMany;
+    prisma.reportDraft.findMany = originals.draftFindMany;
     prisma.report.findMany = originals.reportFindMany;
   });
   const auth = {
@@ -271,17 +274,20 @@ test('stored upload access stays denied after syncing injected report upload ref
 
   const originals = {
     attachmentFindMany: prisma.reportAttachment.findMany,
+    draftFindMany: prisma.reportDraft.findMany,
     reportFindMany: prisma.report.findMany
   };
   prisma.reportAttachment.findMany = async () => indexedAttachments.map(attachment => ({
     reportId: attachment.reportId,
     reportService: null
   }));
+  prisma.reportDraft.findMany = async () => [];
   prisma.report.findMany = async () => {
     throw new Error('injected upload references must not create downloadable attachment indexes');
   };
   t.after(() => {
     prisma.reportAttachment.findMany = originals.attachmentFindMany;
+    prisma.reportDraft.findMany = originals.draftFindMany;
     prisma.report.findMany = originals.reportFindMany;
   });
 
@@ -363,12 +369,55 @@ test('stored upload access revalidates persisted attachments after report author
   ]);
 });
 
-test('stored upload access ignores arbitrary self-owned draft payload references', async t => {
+test('stored upload access allows exact project-scoped files referenced by self-owned RDO drafts', async t => {
   const originalDraftFindMany = prisma.reportDraft.findMany;
   const originalQueryRaw = prisma.$queryRaw;
   const originalAttachmentFindMany = prisma.reportAttachment.findMany;
-  prisma.reportDraft.findMany = async () => {
-    throw new Error('draft payloads must not authorize stored-file access');
+  const draftPath = 'Missão P-100 - Projeto Seguro/rdo/foto.jpg';
+  const draftAuth = {
+    user: {
+      id: 'collaborator-1',
+      role: 'COLLABORATOR',
+      moduleRoles: ['rdo:collaborator']
+    },
+    rawUser: { collaboratorId: 'collab-1' }
+  };
+  prisma.reportDraft.findMany = async args => {
+    assert.deepEqual(args.where, { userId: 'collaborator-1' });
+    return [{
+      id: 'draft-1',
+      userId: 'collaborator-1',
+      payload: {
+        __module: 'rdo',
+        generalUploads: [{
+          fileName: 'foto.jpg',
+          mimeType: 'image/jpeg',
+          url: `/relatorios/${draftPath.split('/').map(encodeURIComponent).join('/')}`
+        }],
+        services: [{
+          data: {
+            __uploads__: [{
+              label: 'Fotos do serviço',
+              files: [{
+                fileName: 'servico.jpg',
+                mimeType: 'image/jpeg',
+                url: '/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/servico.jpg'
+              }]
+            }]
+          }
+        }]
+      },
+      project: {
+        id: 'project-1',
+        code: 'P-100',
+        name: 'Projeto Seguro',
+        isActive: true,
+        deletedAt: null,
+        managerOnly: false,
+        visibleToCollaborators: true,
+        authorizedUsers: []
+      }
+    }];
   };
   prisma.$queryRaw = async () => {
     throw new Error('stored-file access must not use raw JSON/text scans');
@@ -380,18 +429,43 @@ test('stored upload access ignores arbitrary self-owned draft payload references
     prisma.reportAttachment.findMany = originalAttachmentFindMany;
   });
 
-  const allowed = await authorizeStoredFile({
-    auth: {
-      user: {
-        id: 'collaborator-1',
-        role: 'COLLABORATOR',
-        moduleRoles: ['rdo:collaborator']
-      },
-      rawUser: { collaboratorId: 'collab-1' }
-    }
-  }, 'private/report.pdf');
+  assert.equal(await authorizeStoredFile({ auth: draftAuth }, draftPath), true);
+  assert.equal(await authorizeStoredFile({ auth: draftAuth }, 'Missão P-100 - Projeto Seguro/servico.jpg'), true);
+  assert.equal(await authorizeStoredFile({ auth: draftAuth }, 'private/report.pdf'), false);
+  assert.equal(await authorizeStoredFile({ auth: draftAuth }, 'Missão P-999 - Outro Projeto/foto.jpg'), false);
+});
 
-  assert.equal(allowed, false);
+test('stored upload access ignores non-RDO draft upload references', async t => {
+  const originalDraftFindMany = prisma.reportDraft.findMany;
+  const originalAttachmentFindMany = prisma.reportAttachment.findMany;
+  prisma.reportDraft.findMany = async () => [{
+    id: 'draft-romaneio',
+    userId: 'manager-1',
+    payload: {
+      __module: 'romaneio',
+      generalUploads: [{ url: '/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/foto.jpg' }]
+    },
+    project: {
+      id: 'project-1',
+      code: 'P-100',
+      name: 'Projeto Seguro',
+      isActive: true,
+      deletedAt: null,
+      managerOnly: false,
+      visibleToCollaborators: true,
+      authorizedUsers: []
+    }
+  }];
+  prisma.reportAttachment.findMany = async () => [];
+  t.after(() => {
+    prisma.reportDraft.findMany = originalDraftFindMany;
+    prisma.reportAttachment.findMany = originalAttachmentFindMany;
+  });
+
+  assert.equal(
+    await authorizeStoredFile({ auth: managerAuth }, 'Missão P-100 - Projeto Seguro/foto.jpg'),
+    false
+  );
 });
 
 test('protected upload route uses shared auth middleware', () => {

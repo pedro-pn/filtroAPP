@@ -21,7 +21,7 @@ CLEANUP_RESTORE_STAGING=false
 
 cleanup_restore_staging() {
   if [ "$CLEANUP_RESTORE_STAGING" = "true" ] && [ -n "$RESTORE_STAGING_DIR" ]; then
-    rm -rf "$RESTORE_STAGING_DIR"
+    rm -rf "$RESTORE_STAGING_DIR" 2>/dev/null || docker run --rm -v "$(dirname "$RESTORE_STAGING_DIR"):/cleanup" alpine sh -eu -c 'rm -rf -- "/cleanup/$1"' sh "$(basename "$RESTORE_STAGING_DIR")"
   fi
 }
 trap cleanup_restore_staging EXIT
@@ -67,14 +67,14 @@ cd "$PROJECT_DIR"
 
 if [ "$RESTORE_REPORTS" = "true" ] && [ -f "$BACKUP_SOURCE/relatorios.tar.gz" ]; then
   echo "[restore] validating reports archive into staging"
-  docker run --rm -v "${BACKUP_SOURCE}:/backup:ro" -v "${RESTORE_STAGING_DIR}:/staging" alpine sh -eu -c "rm -rf /staging/relatorios && mkdir -p /staging/relatorios && tar -xzf /backup/relatorios.tar.gz -C /staging/relatorios"
+  docker run --rm --user "$(id -u):$(id -g)" -v "${BACKUP_SOURCE}:/backup:ro" -v "${RESTORE_STAGING_DIR}:/staging" alpine sh -eu -c "rm -rf /staging/relatorios && mkdir -p /staging/relatorios && tar -xzf /backup/relatorios.tar.gz -C /staging/relatorios"
 else
   echo "[restore] skipping reports archive staging (RESTORE_REPORTS=false or explicit partial restore)"
 fi
 
 if [ "$RESTORE_CERTS" = "true" ] && [ -f "$BACKUP_SOURCE/certs.tar.gz" ]; then
   echo "[restore] validating cert archive into staging"
-  docker run --rm -v "${BACKUP_SOURCE}:/backup:ro" -v "${RESTORE_STAGING_DIR}:/staging" alpine sh -eu -c "rm -rf /staging/certs && mkdir -p /staging/certs && tar -xzf /backup/certs.tar.gz -C /staging/certs"
+  docker run --rm --user "$(id -u):$(id -g)" -v "${BACKUP_SOURCE}:/backup:ro" -v "${RESTORE_STAGING_DIR}:/staging" alpine sh -eu -c "rm -rf /staging/certs && mkdir -p /staging/certs && tar -xzf /backup/certs.tar.gz -C /staging/certs"
 elif [ "$RESTORE_CERTS" = "true" ]; then
   echo "[restore] skipping cert archive staging (explicit partial restore)"
 fi
