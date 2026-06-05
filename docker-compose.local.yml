@@ -1,3 +1,5 @@
+name: filtrovali
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -41,4 +43,6 @@ services:
 
 volumes:
   filtrovali_local_pgdata:
+    name: filtrovali_local_pgdata
   filtrovali_local_relatorios:
+    name: filtrovali_local_relatorios
