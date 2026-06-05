@@ -37,6 +37,23 @@ function isProjectScopedAttachment(record, report) {
   return Boolean(code && firstFolder.startsWith(`Missão ${code} - `));
 }
 
+function normalizeProtocolRelativeUploadUrl(value) {
+  return value.replace(
+    /^\/\/(api\/uploads\/file\/|api\/rdo\/uploads\/file\/|relatorios\/|uploads\/)/i,
+    '/$1'
+  );
+}
+
+export function normalizeStoredReportUploadUrls(value) {
+  if (typeof value === 'string') return normalizeProtocolRelativeUploadUrl(value);
+  if (Array.isArray(value)) return value.map(item => normalizeStoredReportUploadUrls(item));
+  if (!value || typeof value !== 'object') return value;
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, normalizeStoredReportUploadUrls(item)])
+  );
+}
+
 export function normalizeReportUploadReference(value) {
   const raw = stringValue(value);
   if (!raw || raw.startsWith('data:')) return '';

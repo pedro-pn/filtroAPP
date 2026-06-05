@@ -63,7 +63,11 @@ import { coordinatorNotificationEmails, NotificationEmailCategory, notificationR
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import prisma from '../../lib/prisma.js';
 import { buildReportFileName, safePath } from '../../lib/report-filename.js';
-import { normalizeReportUploadReference, syncReportUploadAttachments } from '../../lib/report-upload-attachments.js';
+import {
+  normalizeReportUploadReference,
+  normalizeStoredReportUploadUrls,
+  syncReportUploadAttachments
+} from '../../lib/report-upload-attachments.js';
 import { grantReportUploadAccess, grantReportsUploadAccess } from '../../lib/transient-upload-access.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
@@ -2618,7 +2622,7 @@ function buildReportUpdateFromSnapshot(project, snapshot) {
     approvedAt: snapshot.approvedAt ? new Date(snapshot.approvedAt) : null,
     returnedAt: snapshot.returnedAt ? new Date(snapshot.returnedAt) : null,
     specialConditions: {
-      ...(stripInternalEditState(snapshot.specialConditions || {})),
+      ...normalizeStoredReportUploadUrls(stripInternalEditState(snapshot.specialConditions || {})),
       overtimeSummary: overtime
     },
     pendingDerivedTypes: collectPendingDerivedTypes(snapshot.services || []),
@@ -2634,7 +2638,7 @@ function buildReportUpdateFromSnapshot(project, snapshot) {
         startTime: service.startTime || null,
         endTime: service.endTime || null,
         finalized: typeof service.finalized === 'boolean' ? service.finalized : null,
-        extraData: service.extraData || {}
+        extraData: normalizeStoredReportUploadUrls(service.extraData || {})
       }))
     }
   };
@@ -4502,7 +4506,7 @@ async function createIndependentServiceReports(tx, project, data, managerUserId)
       ...service,
       id: String(service.extraData?.__serviceLinkKey || service.extraData?.__sourceServiceId || ''),
       finalized: true,
-      extraData: service.extraData || {}
+      extraData: normalizeStoredReportUploadUrls(service.extraData || {})
     };
     const reportTypes = independentReportTypesForService(normalizedService);
     for (const reportType of reportTypes) {
@@ -4985,7 +4989,10 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
       role: project.operator.role || null,
       signatureImage: project.operator.signatureImage || null
     } : null;
-    const specialConditions = await enrichNightCollaboratorsInSpecialConditions(tx, data.specialConditions || {});
+    const specialConditions = await enrichNightCollaboratorsInSpecialConditions(
+      tx,
+      normalizeStoredReportUploadUrls(data.specialConditions || {})
+    );
 
     const created = await tx.report.create({
       data: {
@@ -5025,7 +5032,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
             startTime: service.startTime || null,
             endTime: service.endTime || null,
             finalized: typeof service.finalized === 'boolean' ? service.finalized : null,
-            extraData: service.extraData || {}
+            extraData: normalizeStoredReportUploadUrls(service.extraData || {})
           }))
         }
       },
@@ -5142,14 +5149,17 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
             ...data.services[0],
             id: String(data.specialConditions?.serviceLinkKey || data.specialConditions?.serviceId || existing.services?.[0]?.id || ''),
             finalized: true,
-            extraData: data.services[0]?.extraData || {}
+            extraData: normalizeStoredReportUploadUrls(data.services[0]?.extraData || {})
           }
         )
       : null;
     const managerProvidedSequence = req.auth.user.role === 'MANAGER' && data.sequenceNumber;
     const targetSequenceNumber = managerProvidedSequence ? data.sequenceNumber : existing.sequenceNumber;
     const sequenceGroupChanged = existing.projectId !== data.projectId || existing.reportType !== data.reportType;
-    const specialConditions = await enrichNightCollaboratorsInSpecialConditions(tx, data.specialConditions || {});
+    const specialConditions = await enrichNightCollaboratorsInSpecialConditions(
+      tx,
+      normalizeStoredReportUploadUrls(data.specialConditions || {})
+    );
     const internalEditState = req.auth.user.role === 'MANAGER'
       ? extractInternalEditState(existing.specialConditions)
       : (hasApprovedVersion
@@ -5233,7 +5243,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
             startTime: service.startTime || null,
             endTime: service.endTime || null,
             finalized: isServiceOnlyReport ? true : (typeof service.finalized === 'boolean' ? service.finalized : null),
-            extraData: service.extraData || {}
+            extraData: normalizeStoredReportUploadUrls(service.extraData || {})
           }))
         }
       },

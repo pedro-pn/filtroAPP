@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   extractReportUploadAttachments,
+  normalizeStoredReportUploadUrls,
   reportUploadAttachmentsNeedSync,
   syncReportUploadAttachments
 } from '../src/lib/report-upload-attachments.js';
@@ -89,6 +90,36 @@ test('extractReportUploadAttachments only accepts known upload containers', () =
     reportId: null,
     reportServiceId: 'service-1'
   }]);
+});
+
+test('normalizeStoredReportUploadUrls persists local upload urls with a single leading slash', () => {
+  assert.deepEqual(normalizeStoredReportUploadUrls({
+    note: '  manter espacos  ',
+    external: '//cdn.example.com/image.jpg',
+    generalUploads: [{
+      url: '//relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto.jpg',
+      fileName: 'foto.jpg'
+    }],
+    groups: [{
+      files: [
+        '//api/rdo/uploads/file/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/servico.jpg',
+        '//uploads/tmp/foto.jpg'
+      ]
+    }]
+  }), {
+    note: '  manter espacos  ',
+    external: '//cdn.example.com/image.jpg',
+    generalUploads: [{
+      url: '/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto.jpg',
+      fileName: 'foto.jpg'
+    }],
+    groups: [{
+      files: [
+        '/api/rdo/uploads/file/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/servico.jpg',
+        '/uploads/tmp/foto.jpg'
+      ]
+    }]
+  });
 });
 
 test('syncReportUploadAttachments creates expected attachments before removing stale rows', async () => {
