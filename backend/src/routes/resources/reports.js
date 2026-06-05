@@ -1657,6 +1657,19 @@ function reportContentUpdatedAtMs(report) {
   return Number.isNaN(time) ? 0 : time;
 }
 
+function reportVersionCreatedAtMs(version) {
+  const value = version?.createdAt;
+  const date = value instanceof Date ? value : new Date(value);
+  const time = date.getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function reportVersionMatchesCurrentContent(report, version) {
+  const reportUpdatedAt = reportContentUpdatedAtMs(report);
+  const versionCreatedAt = reportVersionCreatedAtMs(version);
+  return Boolean(versionCreatedAt && (!reportUpdatedAt || versionCreatedAt >= reportUpdatedAt));
+}
+
 function calibrationCertificateUrlsForReport(report) {
   const sc = report?.specialConditions || {};
   const urls = [];
@@ -1665,6 +1678,74 @@ function calibrationCertificateUrlsForReport(report) {
   }
   urls.push(sc.resolvedCounter?.certificate?.publicUrl);
   return [...new Set(urls.map(url => String(url || '').trim()).filter(Boolean))];
+}
+
+function pdfUploadUrlsForReport(report) {
+  const urls = [];
+  const special = report?.specialConditions || {};
+  if (Array.isArray(special.generalUploads)) {
+    urls.push(...special.generalUploads.map(item => (
+      typeof item === 'string'
+        ? item
+        : item?.url || item?.storagePath || item?.path || item?.publicUrl || item?.href || item?.src || ''
+    )));
+  }
+  for (const service of report?.services || []) {
+    const groups = Array.isArray(service?.extraData?.__uploads__) ? service.extraData.__uploads__ : [];
+    for (const group of groups) {
+      if (Array.isArray(group?.files)) {
+        urls.push(...group.files.map(item => (
+          typeof item === 'string'
+            ? item
+            : item?.url || item?.storagePath || item?.path || item?.publicUrl || item?.href || item?.src || ''
+        )));
+      }
+    }
+  }
+  return [...new Set(urls.map(url => String(url || '').trim()).filter(Boolean))];
+}
+
+function pdfCacheMetadataForReport(report) {
+  return {
+    version: 1,
+    reportId: report.id,
+    reportUpdatedAt: reportUpdatedAtToken(report),
+    fingerprint: sha256Hex(JSON.stringify({
+      photos: pdfUploadUrlsForReport(report).sort(),
+      calibrationLinks: calibrationCertificateUrlsForReport(report).sort()
+    }))
+  };
+}
+
+function pdfCacheMetadataPath(pdfPath) {
+  return `${pdfPath}.meta.json`;
+}
+
+async function readPdfCacheMetadata(pdfPath) {
+  try {
+    return JSON.parse(await fs.readFile(pdfCacheMetadataPath(pdfPath), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+async function writePdfCacheMetadata(pdfPath, report) {
+  await fs.writeFile(
+    pdfCacheMetadataPath(pdfPath),
+    JSON.stringify(pdfCacheMetadataForReport(report), null, 2),
+    'utf8'
+  );
+}
+
+function pdfCacheMetadataMatches(report, metadata) {
+  const expected = pdfCacheMetadataForReport(report);
+  return Boolean(
+    metadata
+    && metadata.version === expected.version
+    && metadata.reportId === expected.reportId
+    && metadata.reportUpdatedAt === expected.reportUpdatedAt
+    && metadata.fingerprint === expected.fingerprint
+  );
 }
 
 function pdfBufferContainsExpectedLinks(buffer, expectedUrls) {
@@ -1683,6 +1764,7 @@ async function getFreshGeneratedReportPdf(report) {
   const reportUpdatedAt = reportContentUpdatedAtMs(report);
   if (reportUpdatedAt && stat.mtimeMs < reportUpdatedAt) return null;
   if (!(await isLikelyCompletePdf(target.targetPath))) return null;
+  if (!pdfCacheMetadataMatches(report, await readPdfCacheMetadata(target.targetPath))) return null;
   const buffer = await fs.readFile(target.targetPath);
   if (!pdfBufferContainsExpectedLinks(buffer, calibrationCertificateUrlsForReport(report))) return null;
 
@@ -1702,6 +1784,7 @@ async function generateReportPdfDownload(report) {
   const startedAt = Date.now();
   try {
     const saved = await generateReportPdfAsset(report);
+    await writePdfCacheMetadata(saved.targetPath, report);
     const buffer = await fs.readFile(saved.targetPath);
     console.log('[TIMING] PDF generated', {
       reportId: report.id,
@@ -1973,7 +2056,8 @@ async function getReportPdfDownload(report) {
   if (
     report.status === ReportStatus.APPROVED &&
     report.reportType === ReportType.RDO &&
-    activeSourceVersion
+    activeSourceVersion &&
+    reportVersionMatchesCurrentContent(report, activeSourceVersion)
   ) {
     const sourcePath = reportSourcePdfPath(activeSourceVersion.sourcePdfUrl);
     if (sourcePath) {
