@@ -51,3 +51,31 @@ test('stored upload resolver rejects traversal outside reports volume', async t 
   assert.equal(urlMap.size, 0);
   assert.deepEqual(organizedFiles, []);
 });
+
+test('stored upload resolver accepts protected upload file urls', async t => {
+  const originalReportsDir = env.reportsDir;
+  const originalUploadDir = env.uploadDir;
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'rdo-upload-root-'));
+  const relativePath = 'Missão P-100 - Projeto Seguro/foto.jpg';
+  const targetPath = path.join(root, ...relativePath.split('/'));
+  await fs.mkdir(path.dirname(targetPath), { recursive: true });
+  await fs.writeFile(targetPath, 'image-bytes');
+  env.reportsDir = root;
+  env.uploadDir = root;
+  t.after(async () => {
+    env.reportsDir = originalReportsDir;
+    env.uploadDir = originalUploadDir;
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  const encodedPath = relativePath.split('/').map(encodeURIComponent).join('/');
+
+  assert.equal(uploadRelativePathFromSource(`/api/rdo/uploads/file/${encodedPath}`), relativePath);
+  assert.equal(uploadRelativePathFromSource(`/api/uploads/file/${encodedPath}`), relativePath);
+  assert.equal(uploadRelativePathFromSource(`//relatorios/${encodedPath}`), relativePath);
+  assert.equal(uploadRelativePathFromSource(`//api/rdo/uploads/file/${encodedPath}`), relativePath);
+  assert.equal(resolveStoredUploadPath(`/api/rdo/uploads/file/${encodedPath}`), targetPath);
+  assert.equal(resolveStoredUploadPath(`/api/uploads/file/${encodedPath}`), targetPath);
+  assert.equal(resolveStoredUploadPath(`//relatorios/${encodedPath}`), targetPath);
+  assert.equal(resolveStoredUploadPath(`//api/rdo/uploads/file/${encodedPath}`), targetPath);
+});

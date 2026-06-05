@@ -96,12 +96,24 @@ export function uploadRelativePathFromSource(source) {
   } catch {
     return '';
   }
+  if (pathname.startsWith('//api/uploads/file/')) pathname = pathname.slice(1);
+  if (pathname.startsWith('//api/rdo/uploads/file/')) pathname = pathname.slice(1);
+  if (pathname.startsWith('//relatorios/')) pathname = pathname.slice(1);
+  if (pathname.startsWith('//uploads/')) pathname = pathname.slice(1);
 
   let relativePath = '';
   if (pathname.startsWith('/relatorios/')) {
     relativePath = pathname.slice('/relatorios/'.length);
+  } else if (pathname.startsWith('/api/uploads/file/')) {
+    relativePath = pathname.slice('/api/uploads/file/'.length);
+  } else if (pathname.startsWith('/api/rdo/uploads/file/')) {
+    relativePath = pathname.slice('/api/rdo/uploads/file/'.length);
   } else if (pathname.startsWith('/uploads/')) {
     relativePath = pathname.slice('/uploads/'.length);
+  } else if (pathname.startsWith('api/uploads/file/')) {
+    relativePath = pathname.slice('api/uploads/file/'.length);
+  } else if (pathname.startsWith('api/rdo/uploads/file/')) {
+    relativePath = pathname.slice('api/rdo/uploads/file/'.length);
   } else if (pathname.startsWith('relatorios/')) {
     relativePath = pathname.slice('relatorios/'.length);
   } else if (pathname.startsWith('uploads/')) {

@@ -2856,6 +2856,10 @@ async function organizeAndSyncReportUploadAttachments(report, options = {}) {
     ...options,
     trustedUrlMap
   });
+  return prisma.report.findUnique({
+    where: { id: report.id },
+    include
+  });
 }
 
 function derivedReportTypesForService(service) {
@@ -5048,26 +5052,26 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
     return created;
   });
   const tPostTx = Date.now();
-  await organizeAndSyncReportUploadAttachments(item, { auth: req.auth });
+  const organizedItem = await organizeAndSyncReportUploadAttachments(item, { auth: req.auth }) || item;
   const tPostOrg = Date.now();
-  if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
+  if (organizedItem.reportType === 'RDO' && organizedItem.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: derivedReportsForProjectWhere(item.projectId),
+      where: derivedReportsForProjectWhere(organizedItem.projectId),
       include
     });
     for (const d of derived) {
-      if (d.specialConditions?.parentRdoId === item.id) {
+      if (d.specialConditions?.parentRdoId === organizedItem.id) {
         await organizeAndSyncReportUploadAttachments(d, { auth: req.auth });
       }
     }
   }
-  console.log('[TIMING] POST /reports', { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, totalMs: Date.now() - tPost0, reportType: item.reportType, status: item.status });
+  console.log('[TIMING] POST /reports', { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, totalMs: Date.now() - tPost0, reportType: organizedItem.reportType, status: organizedItem.status });
   let signaturePreparation = null;
-  if (item.status === ReportStatus.APPROVED) {
-    signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, signatureEvidenceFromRequest(req));
-    queueApprovedReportNotification(item);
+  if (organizedItem.status === ReportStatus.APPROVED) {
+    signaturePreparation = await ensureInternalSignatureRoundAndNotify(organizedItem, req.auth.user.id, signatureEvidenceFromRequest(req));
+    queueApprovedReportNotification(organizedItem);
   }
-  res.status(201).json(reportWithSignatureEmailDelivery(item, signaturePreparation));
+  res.status(201).json(reportWithSignatureEmailDelivery(organizedItem, signaturePreparation));
 }));
 
 router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -5268,26 +5272,26 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   });
   const tPutTx = Date.now();
 
-  await organizeAndSyncReportUploadAttachments(item, { auth: req.auth });
+  const organizedItem = await organizeAndSyncReportUploadAttachments(item, { auth: req.auth }) || item;
   const tPutOrg = Date.now();
-  if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
+  if (organizedItem.reportType === 'RDO' && organizedItem.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: derivedReportsForProjectWhere(item.projectId),
+      where: derivedReportsForProjectWhere(organizedItem.projectId),
       include
     });
     for (const d of derived) {
-      if (d.specialConditions?.parentRdoId === item.id) {
+      if (d.specialConditions?.parentRdoId === organizedItem.id) {
         await organizeAndSyncReportUploadAttachments(d, { auth: req.auth });
       }
     }
   }
-  console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: item.reportType, status: item.status });
+  console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: organizedItem.reportType, status: organizedItem.status });
   let signaturePreparation = null;
-  if (item.status === ReportStatus.APPROVED) {
-    signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
-    if (isManagerFixingClientRejection) queueReapprovedReportNotification(item);
+  if (organizedItem.status === ReportStatus.APPROVED) {
+    signaturePreparation = await ensureInternalSignatureRoundAndNotify(organizedItem, req.auth.user.id, evidence);
+    if (isManagerFixingClientRejection) queueReapprovedReportNotification(organizedItem);
   }
-  res.json(reportWithSignatureEmailDelivery(item, signaturePreparation));
+  res.json(reportWithSignatureEmailDelivery(organizedItem, signaturePreparation));
 }));
 
 router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
