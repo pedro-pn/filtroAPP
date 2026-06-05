@@ -33,7 +33,7 @@ import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
 import { reportDownloadFileName } from '../utils/reportFileName';
 import { buildReportServicePayload, normalizeServiceType } from '../utils/reportServicePayload';
-import { loadUploadAssetUrl } from '../utils/uploadAssetUrl';
+import { loadUploadAssetUrl, normalizeLocalUploadUrl } from '../utils/uploadAssetUrl';
 
 const TEXT = {
   addService: 'Adicionar serviço',
@@ -282,7 +282,7 @@ function asUploadedFiles(value: unknown): UploadedFile[] {
           label: getString(item.label) || 'Arquivo',
           fileName: getString(item.fileName) || getString(item.name) || url || 'arquivo',
           mimeType: getString(item.mimeType) || getString(item.type) || 'image/jpeg',
-          url
+          url: normalizeLocalUploadUrl(url)
         };
       })
       .filter((item): item is UploadedFile => Boolean(item.url))
