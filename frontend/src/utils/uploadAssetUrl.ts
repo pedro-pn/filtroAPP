@@ -25,8 +25,15 @@ function apiUrl(path: string) {
   return `/api${path}`;
 }
 
+export function normalizeLocalUploadUrl(url: string) {
+  return String(url || '').replace(
+    /^\/\/(api\/uploads\/file\/|api\/rdo\/uploads\/file\/|relatorios\/|uploads\/)/i,
+    '/$1'
+  );
+}
+
 function protectedUploadPath(rawUrl: string) {
-  const value = String(rawUrl || '').trim();
+  const value = normalizeLocalUploadUrl(rawUrl).trim();
   if (!value || value.startsWith('data:')) return '';
 
   let pathname = value;
@@ -66,29 +73,31 @@ function isPublicAssetUrl(url: string) {
 }
 
 export function resolveUploadAssetUrl(url: string) {
-  if (!url) return '';
-  if (url.startsWith('data:')) return url;
+  const normalizedUrl = normalizeLocalUploadUrl(url);
+  if (!normalizedUrl) return '';
+  if (normalizedUrl.startsWith('data:')) return normalizedUrl;
 
-  const protectedPath = protectedUploadPath(url);
+  const protectedPath = protectedUploadPath(normalizedUrl);
   if (protectedPath) {
     return apiUrl(`/rdo/uploads/file/${encodePath(protectedPath)}`);
   }
 
-  if (/^https?:\/\//i.test(url)) return url;
+  if (/^https?:\/\//i.test(normalizedUrl)) return normalizedUrl;
 
-  const normalized = url.startsWith('/') ? url : `/relatorios/${url}`;
-  const isPublic = isPublicAssetUrl(url);
+  const normalized = normalizedUrl.startsWith('/') ? normalizedUrl : `/relatorios/${normalizedUrl}`;
+  const isPublic = isPublicAssetUrl(normalizedUrl);
   if (isPublic && assetsBaseUrl) return `${assetsBaseUrl}${normalized}`;
   if (isPublic) return normalized;
 
-  return apiUrl(`/rdo/uploads/file/${encodePath(url)}`);
+  return apiUrl(`/rdo/uploads/file/${encodePath(normalizedUrl)}`);
 }
 
 export function isProtectedUploadAssetUrl(url: string) {
-  if (!url || url.startsWith('data:')) return false;
-  if (protectedUploadPath(url)) return true;
-  if (/^https?:\/\//i.test(url)) return false;
-  return !isPublicAssetUrl(url);
+  const normalizedUrl = normalizeLocalUploadUrl(url);
+  if (!normalizedUrl || normalizedUrl.startsWith('data:')) return false;
+  if (protectedUploadPath(normalizedUrl)) return true;
+  if (/^https?:\/\//i.test(normalizedUrl)) return false;
+  return !isPublicAssetUrl(normalizedUrl);
 }
 
 export async function loadUploadAssetUrl(url: string) {

@@ -37,6 +37,23 @@ function isProjectScopedAttachment(record, report) {
   return Boolean(code && firstFolder.startsWith(`Missão ${code} - `));
 }
 
+function normalizeProtocolRelativeUploadUrl(value) {
+  return value.replace(
+    /^\/\/(api\/uploads\/file\/|api\/rdo\/uploads\/file\/|relatorios\/|uploads\/)/i,
+    '/$1'
+  );
+}
+
+export function normalizeStoredReportUploadUrls(value) {
+  if (typeof value === 'string') return normalizeProtocolRelativeUploadUrl(value);
+  if (Array.isArray(value)) return value.map(item => normalizeStoredReportUploadUrls(item));
+  if (!value || typeof value !== 'object') return value;
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, normalizeStoredReportUploadUrls(item)])
+  );
+}
+
 export function normalizeReportUploadReference(value) {
   const raw = stringValue(value);
   if (!raw || raw.startsWith('data:')) return '';
@@ -49,6 +66,10 @@ export function normalizeReportUploadReference(value) {
       return '';
     }
   }
+  if (pathname.startsWith('//api/uploads/file/')) pathname = pathname.slice(1);
+  if (pathname.startsWith('//api/rdo/uploads/file/')) pathname = pathname.slice(1);
+  if (pathname.startsWith('//relatorios/')) pathname = pathname.slice(1);
+  if (pathname.startsWith('//uploads/')) pathname = pathname.slice(1);
 
   if (pathname.startsWith('/api/uploads/file/')) return normalizeRelativeUploadPath(pathname.slice('/api/uploads/file/'.length));
   if (pathname.startsWith('/api/rdo/uploads/file/')) return normalizeRelativeUploadPath(pathname.slice('/api/rdo/uploads/file/'.length));

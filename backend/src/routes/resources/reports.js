@@ -63,7 +63,11 @@ import { coordinatorNotificationEmails, NotificationEmailCategory, notificationR
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import prisma from '../../lib/prisma.js';
 import { buildReportFileName, safePath } from '../../lib/report-filename.js';
-import { normalizeReportUploadReference, syncReportUploadAttachments } from '../../lib/report-upload-attachments.js';
+import {
+  normalizeReportUploadReference,
+  normalizeStoredReportUploadUrls,
+  syncReportUploadAttachments
+} from '../../lib/report-upload-attachments.js';
 import { grantReportUploadAccess, grantReportsUploadAccess } from '../../lib/transient-upload-access.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
@@ -1191,6 +1195,18 @@ function contentDisposition(fileName) {
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
 
+function sendDownloadBuffer(res, { contentType, fileName, buffer }) {
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', contentDisposition(fileName));
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  res.setHeader('Content-Length', buffer.length);
+  res.removeHeader('ETag');
+  return res.end(buffer);
+}
+
 const include = {
   project: {
     include: {
@@ -1653,6 +1669,19 @@ function reportContentUpdatedAtMs(report) {
   return Number.isNaN(time) ? 0 : time;
 }
 
+function reportVersionCreatedAtMs(version) {
+  const value = version?.createdAt;
+  const date = value instanceof Date ? value : new Date(value);
+  const time = date.getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function reportVersionMatchesCurrentContent(report, version) {
+  const reportUpdatedAt = reportContentUpdatedAtMs(report);
+  const versionCreatedAt = reportVersionCreatedAtMs(version);
+  return Boolean(versionCreatedAt && (!reportUpdatedAt || versionCreatedAt >= reportUpdatedAt));
+}
+
 function calibrationCertificateUrlsForReport(report) {
   const sc = report?.specialConditions || {};
   const urls = [];
@@ -1661,6 +1690,86 @@ function calibrationCertificateUrlsForReport(report) {
   }
   urls.push(sc.resolvedCounter?.certificate?.publicUrl);
   return [...new Set(urls.map(url => String(url || '').trim()).filter(Boolean))];
+}
+
+function pdfUploadUrlsForReport(report) {
+  const urls = [];
+  const special = report?.specialConditions || {};
+  if (Array.isArray(special.generalUploads)) {
+    urls.push(...special.generalUploads.map(item => (
+      typeof item === 'string'
+        ? item
+        : item?.url || item?.storagePath || item?.path || item?.publicUrl || item?.href || item?.src || ''
+    )));
+  }
+  for (const service of report?.services || []) {
+    const groups = Array.isArray(service?.extraData?.__uploads__) ? service.extraData.__uploads__ : [];
+    for (const group of groups) {
+      if (Array.isArray(group?.files)) {
+        urls.push(...group.files.map(item => (
+          typeof item === 'string'
+            ? item
+            : item?.url || item?.storagePath || item?.path || item?.publicUrl || item?.href || item?.src || ''
+        )));
+      }
+    }
+  }
+  return [...new Set(urls.map(url => String(url || '').trim()).filter(Boolean))];
+}
+
+function pdfCacheMetadataForReport(report) {
+  return {
+    version: 1,
+    reportId: report.id,
+    reportUpdatedAt: reportUpdatedAtToken(report),
+    fingerprint: sha256Hex(JSON.stringify({
+      photos: pdfUploadUrlsForReport(report).sort(),
+      calibrationLinks: calibrationCertificateUrlsForReport(report).sort()
+    }))
+  };
+}
+
+function pdfCacheMetadataPath(pdfPath) {
+  return `${pdfPath}.meta.json`;
+}
+
+async function readPdfCacheMetadata(pdfPath) {
+  try {
+    return JSON.parse(await fs.readFile(pdfCacheMetadataPath(pdfPath), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+async function writePdfCacheMetadata(pdfPath, report) {
+  await fs.writeFile(
+    pdfCacheMetadataPath(pdfPath),
+    JSON.stringify(pdfCacheMetadataForReport(report), null, 2),
+    'utf8'
+  );
+}
+
+function pdfCacheMetadataMatches(report, metadata) {
+  const expected = pdfCacheMetadataForReport(report);
+  return Boolean(
+    metadata
+    && metadata.version === expected.version
+    && metadata.reportId === expected.reportId
+    && metadata.reportUpdatedAt === expected.reportUpdatedAt
+    && metadata.fingerprint === expected.fingerprint
+  );
+}
+
+async function activeSourceVersionMatchesCurrentPdf(report, version) {
+  if (!reportVersionMatchesCurrentContent(report, version)) return false;
+  const sourcePath = reportSourcePdfPath(version.sourcePdfUrl);
+  if (!sourcePath) return false;
+  if (!pdfCacheMetadataMatches(report, await readPdfCacheMetadata(sourcePath))) return false;
+  try {
+    return sha256Hex(await fs.readFile(sourcePath)) === version.sourceDocumentHash;
+  } catch {
+    return false;
+  }
 }
 
 function pdfBufferContainsExpectedLinks(buffer, expectedUrls) {
@@ -1679,6 +1788,7 @@ async function getFreshGeneratedReportPdf(report) {
   const reportUpdatedAt = reportContentUpdatedAtMs(report);
   if (reportUpdatedAt && stat.mtimeMs < reportUpdatedAt) return null;
   if (!(await isLikelyCompletePdf(target.targetPath))) return null;
+  if (!pdfCacheMetadataMatches(report, await readPdfCacheMetadata(target.targetPath))) return null;
   const buffer = await fs.readFile(target.targetPath);
   if (!pdfBufferContainsExpectedLinks(buffer, calibrationCertificateUrlsForReport(report))) return null;
 
@@ -1698,6 +1808,7 @@ async function generateReportPdfDownload(report) {
   const startedAt = Date.now();
   try {
     const saved = await generateReportPdfAsset(report);
+    await writePdfCacheMetadata(saved.targetPath, report);
     const buffer = await fs.readFile(saved.targetPath);
     console.log('[TIMING] PDF generated', {
       reportId: report.id,
@@ -1969,7 +2080,8 @@ async function getReportPdfDownload(report) {
   if (
     report.status === ReportStatus.APPROVED &&
     report.reportType === ReportType.RDO &&
-    activeSourceVersion
+    activeSourceVersion &&
+    await activeSourceVersionMatchesCurrentPdf(report, activeSourceVersion)
   ) {
     const sourcePath = reportSourcePdfPath(activeSourceVersion.sourcePdfUrl);
     if (sourcePath) {
@@ -2618,7 +2730,7 @@ function buildReportUpdateFromSnapshot(project, snapshot) {
     approvedAt: snapshot.approvedAt ? new Date(snapshot.approvedAt) : null,
     returnedAt: snapshot.returnedAt ? new Date(snapshot.returnedAt) : null,
     specialConditions: {
-      ...(stripInternalEditState(snapshot.specialConditions || {})),
+      ...normalizeStoredReportUploadUrls(stripInternalEditState(snapshot.specialConditions || {})),
       overtimeSummary: overtime
     },
     pendingDerivedTypes: collectPendingDerivedTypes(snapshot.services || []),
@@ -2634,7 +2746,7 @@ function buildReportUpdateFromSnapshot(project, snapshot) {
         startTime: service.startTime || null,
         endTime: service.endTime || null,
         finalized: typeof service.finalized === 'boolean' ? service.finalized : null,
-        extraData: service.extraData || {}
+        extraData: normalizeStoredReportUploadUrls(service.extraData || {})
       }))
     }
   };
@@ -2688,12 +2800,71 @@ function safePathLocal(value) {
 function applyUrlMap(obj, urlMap) {
   if (!urlMap || !urlMap.size) return obj;
   let json = JSON.stringify(obj);
-  for (const [oldUrl, newUrl] of urlMap.entries()) {
+  if (typeof json !== 'string') return obj;
+  for (const [oldUrl, newUrl] of expandedUrlMapEntries(urlMap)) {
     const escapedOld = JSON.stringify(oldUrl).slice(1, -1);
     const escapedNew = JSON.stringify(newUrl).slice(1, -1);
     json = json.split(escapedOld).join(escapedNew);
   }
   try { return JSON.parse(json); } catch { return obj; }
+}
+
+function encodedUploadPathForUrlMap(pathValue) {
+  const normalized = normalizeReportUploadReference(pathValue);
+  if (!normalized) return '';
+  return normalized
+    .split('/')
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join('/');
+}
+
+function decodedUploadPathForUrlMap(pathValue) {
+  return normalizeReportUploadReference(pathValue);
+}
+
+function urlMapSourceVariants(source) {
+  const variants = new Set();
+  const rawSource = typeof source === 'string' ? source.trim() : '';
+  if (rawSource) variants.add(rawSource);
+
+  const decodedPath = decodedUploadPathForUrlMap(rawSource);
+  const encodedPath = encodedUploadPathForUrlMap(rawSource);
+  if (decodedPath) {
+    variants.add(decodedPath);
+    variants.add(`/relatorios/${decodedPath}`);
+    variants.add(`relatorios/${decodedPath}`);
+    variants.add(`/uploads/${decodedPath}`);
+    variants.add(`uploads/${decodedPath}`);
+  }
+  if (encodedPath) {
+    variants.add(`/relatorios/${encodedPath}`);
+    variants.add(`relatorios/${encodedPath}`);
+    variants.add(`/uploads/${encodedPath}`);
+    variants.add(`uploads/${encodedPath}`);
+    variants.add(`/api/uploads/file/${encodedPath}`);
+    variants.add(`/api/rdo/uploads/file/${encodedPath}`);
+  }
+
+  return variants;
+}
+
+function expandedUrlMapEntries(urlMap) {
+  const entries = [];
+  const seen = new Set();
+  for (const [source, target] of urlMap.entries()) {
+    if (typeof target !== 'string' || !target) continue;
+    for (const variant of urlMapSourceVariants(source)) {
+      if (!variant || seen.has(variant)) continue;
+      seen.add(variant);
+      entries.push([variant, target]);
+    }
+  }
+  return entries.sort((a, b) => b[0].length - a[0].length);
+}
+
+function jsonChanged(before, after) {
+  return JSON.stringify(before ?? null) !== JSON.stringify(after ?? null);
 }
 
 function expandUploadGroupsInServiceData(serviceData, fallbackData) {
@@ -2754,15 +2925,14 @@ async function organizeAndPersist(report) {
     const newSC = applyUrlMap(report.specialConditions, urlMap);
     await prisma.report.update({ where: { id: report.id }, data: { specialConditions: newSC } });
 
-    if (report.specialConditions?.serviceOnly === true) {
-      for (const service of (report.services || [])) {
-        if (!service.id) continue;
-        const newExtraData = applyUrlMap(service.extraData, urlMap);
-        await prisma.reportService.update({
-          where: { id: service.id },
-          data: { extraData: newExtraData }
-        });
-      }
+    for (const service of (report.services || [])) {
+      if (!service.id) continue;
+      const newExtraData = applyUrlMap(service.extraData, urlMap);
+      if (!jsonChanged(service.extraData, newExtraData)) continue;
+      await prisma.reportService.update({
+        where: { id: service.id },
+        data: { extraData: newExtraData }
+      });
     }
 
     // Para RTP/RLQ, também atualiza o extraData do serviço-fonte do RDO para que
@@ -2793,6 +2963,10 @@ async function organizeAndSyncReportUploadAttachments(report, options = {}) {
   await syncReportUploadAttachments(prisma, report.id, {
     ...options,
     trustedUrlMap
+  });
+  return prisma.report.findUnique({
+    where: { id: report.id },
+    include
   });
 }
 
@@ -4444,7 +4618,7 @@ async function createIndependentServiceReports(tx, project, data, managerUserId)
       ...service,
       id: String(service.extraData?.__serviceLinkKey || service.extraData?.__sourceServiceId || ''),
       finalized: true,
-      extraData: service.extraData || {}
+      extraData: normalizeStoredReportUploadUrls(service.extraData || {})
     };
     const reportTypes = independentReportTypesForService(normalizedService);
     for (const reportType of reportTypes) {
@@ -4569,9 +4743,11 @@ router.post('/batch-download', requireAuth, requireRdoAccess, asyncHandler(async
   }
 
   const archiveName = `relatorios_${data.format}_${new Date().toISOString().slice(0, 10)}.zip`;
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', contentDisposition(archiveName));
-  res.send(zip.toBuffer());
+  sendDownloadBuffer(res, {
+    contentType: 'application/zip',
+    fileName: archiveName,
+    buffer: zip.toBuffer()
+  });
 }));
 
 router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {
@@ -4617,9 +4793,11 @@ router.get('/public-sign/:token/pdf', publicSignatureLimiter, asyncHandler(async
   const sourcePath = reportSourcePdfPath(signature.version.sourcePdfUrl);
   if (!sourcePath) return res.status(404).json({ error: 'PDF da assinatura não encontrado.' });
 
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', contentDisposition(reportPdfFileName(signature.report)));
-  res.send(await verifiedSourcePdfBuffer(sourcePath, signature.version));
+  sendDownloadBuffer(res, {
+    contentType: 'application/pdf',
+    fileName: reportPdfFileName(signature.report),
+    buffer: await verifiedSourcePdfBuffer(sourcePath, signature.version)
+  });
 }));
 
 router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(async (req, res) => {
@@ -4787,9 +4965,11 @@ router.get('/:id/pdf', requireAuth, requireRdoAccess, asyncHandler(async (req, r
   }
 
   const file = await runWithPdfAbortSignal(abortController.signal, () => getReportPdfDownload(item));
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', contentDisposition(file.fileName));
-  res.send(file.buffer);
+  sendDownloadBuffer(res, {
+    contentType: 'application/pdf',
+    fileName: file.fileName,
+    buffer: file.buffer
+  });
 }));
 
 router.get('/:id/docx', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -4809,9 +4989,11 @@ router.get('/:id/docx', requireAuth, requireRdoAccess, asyncHandler(async (req, 
 
   item = await refreshDerivedReportSource(item);
   const saved = await generateReportDocxAsset(item);
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-  res.setHeader('Content-Disposition', contentDisposition(saved.fileName));
-  res.send(await fs.readFile(saved.targetPath));
+  sendDownloadBuffer(res, {
+    contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    fileName: saved.fileName,
+    buffer: await fs.readFile(saved.targetPath)
+  });
 }));
 
 router.delete('/:id/services/:serviceId', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -4927,7 +5109,10 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
       role: project.operator.role || null,
       signatureImage: project.operator.signatureImage || null
     } : null;
-    const specialConditions = await enrichNightCollaboratorsInSpecialConditions(tx, data.specialConditions || {});
+    const specialConditions = await enrichNightCollaboratorsInSpecialConditions(
+      tx,
+      normalizeStoredReportUploadUrls(data.specialConditions || {})
+    );
 
     const created = await tx.report.create({
       data: {
@@ -4967,7 +5152,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
             startTime: service.startTime || null,
             endTime: service.endTime || null,
             finalized: typeof service.finalized === 'boolean' ? service.finalized : null,
-            extraData: service.extraData || {}
+            extraData: normalizeStoredReportUploadUrls(service.extraData || {})
           }))
         }
       },
@@ -4983,26 +5168,26 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
     return created;
   });
   const tPostTx = Date.now();
-  await organizeAndSyncReportUploadAttachments(item, { auth: req.auth });
+  const organizedItem = await organizeAndSyncReportUploadAttachments(item, { auth: req.auth }) || item;
   const tPostOrg = Date.now();
-  if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
+  if (organizedItem.reportType === 'RDO' && organizedItem.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: derivedReportsForProjectWhere(item.projectId),
+      where: derivedReportsForProjectWhere(organizedItem.projectId),
       include
     });
     for (const d of derived) {
-      if (d.specialConditions?.parentRdoId === item.id) {
+      if (d.specialConditions?.parentRdoId === organizedItem.id) {
         await organizeAndSyncReportUploadAttachments(d, { auth: req.auth });
       }
     }
   }
-  console.log('[TIMING] POST /reports', { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, totalMs: Date.now() - tPost0, reportType: item.reportType, status: item.status });
+  console.log('[TIMING] POST /reports', { txMs: tPostTx - tPost0, organizeMs: tPostOrg - tPostTx, totalMs: Date.now() - tPost0, reportType: organizedItem.reportType, status: organizedItem.status });
   let signaturePreparation = null;
-  if (item.status === ReportStatus.APPROVED) {
-    signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, signatureEvidenceFromRequest(req));
-    queueApprovedReportNotification(item);
+  if (organizedItem.status === ReportStatus.APPROVED) {
+    signaturePreparation = await ensureInternalSignatureRoundAndNotify(organizedItem, req.auth.user.id, signatureEvidenceFromRequest(req));
+    queueApprovedReportNotification(organizedItem);
   }
-  res.status(201).json(reportWithSignatureEmailDelivery(item, signaturePreparation));
+  res.status(201).json(reportWithSignatureEmailDelivery(organizedItem, signaturePreparation));
 }));
 
 router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -5084,14 +5269,17 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
             ...data.services[0],
             id: String(data.specialConditions?.serviceLinkKey || data.specialConditions?.serviceId || existing.services?.[0]?.id || ''),
             finalized: true,
-            extraData: data.services[0]?.extraData || {}
+            extraData: normalizeStoredReportUploadUrls(data.services[0]?.extraData || {})
           }
         )
       : null;
     const managerProvidedSequence = req.auth.user.role === 'MANAGER' && data.sequenceNumber;
     const targetSequenceNumber = managerProvidedSequence ? data.sequenceNumber : existing.sequenceNumber;
     const sequenceGroupChanged = existing.projectId !== data.projectId || existing.reportType !== data.reportType;
-    const specialConditions = await enrichNightCollaboratorsInSpecialConditions(tx, data.specialConditions || {});
+    const specialConditions = await enrichNightCollaboratorsInSpecialConditions(
+      tx,
+      normalizeStoredReportUploadUrls(data.specialConditions || {})
+    );
     const internalEditState = req.auth.user.role === 'MANAGER'
       ? extractInternalEditState(existing.specialConditions)
       : (hasApprovedVersion
@@ -5175,7 +5363,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
             startTime: service.startTime || null,
             endTime: service.endTime || null,
             finalized: isServiceOnlyReport ? true : (typeof service.finalized === 'boolean' ? service.finalized : null),
-            extraData: service.extraData || {}
+            extraData: normalizeStoredReportUploadUrls(service.extraData || {})
           }))
         }
       },
@@ -5200,26 +5388,26 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   });
   const tPutTx = Date.now();
 
-  await organizeAndSyncReportUploadAttachments(item, { auth: req.auth });
+  const organizedItem = await organizeAndSyncReportUploadAttachments(item, { auth: req.auth }) || item;
   const tPutOrg = Date.now();
-  if (item.reportType === 'RDO' && item.status === ReportStatus.APPROVED) {
+  if (organizedItem.reportType === 'RDO' && organizedItem.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
-      where: derivedReportsForProjectWhere(item.projectId),
+      where: derivedReportsForProjectWhere(organizedItem.projectId),
       include
     });
     for (const d of derived) {
-      if (d.specialConditions?.parentRdoId === item.id) {
+      if (d.specialConditions?.parentRdoId === organizedItem.id) {
         await organizeAndSyncReportUploadAttachments(d, { auth: req.auth });
       }
     }
   }
-  console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: item.reportType, status: item.status });
+  console.log('[TIMING] PUT /reports/:id', { txMs: tPutTx - tPut0, organizeMs: tPutOrg - tPutTx, totalMs: Date.now() - tPut0, reportType: organizedItem.reportType, status: organizedItem.status });
   let signaturePreparation = null;
-  if (item.status === ReportStatus.APPROVED) {
-    signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
-    if (isManagerFixingClientRejection) queueReapprovedReportNotification(item);
+  if (organizedItem.status === ReportStatus.APPROVED) {
+    signaturePreparation = await ensureInternalSignatureRoundAndNotify(organizedItem, req.auth.user.id, evidence);
+    if (isManagerFixingClientRejection) queueReapprovedReportNotification(organizedItem);
   }
-  res.json(reportWithSignatureEmailDelivery(item, signaturePreparation));
+  res.json(reportWithSignatureEmailDelivery(organizedItem, signaturePreparation));
 }));
 
 router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {

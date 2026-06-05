@@ -106,6 +106,7 @@ export async function downloadReportsBatch(ids: string[], format: 'pdf' | 'docx'
 
 export async function downloadReportPdf(id: string) {
   const response = await apiClient.get<Blob>(rdoApiPath(`/reports/${id}/pdf`), {
+    params: { _ts: Date.now() },
     responseType: 'blob'
   });
   return response.data;
@@ -113,6 +114,7 @@ export async function downloadReportPdf(id: string) {
 
 export async function downloadReportDocx(id: string) {
   const response = await apiClient.get<Blob>(rdoApiPath(`/reports/${id}/docx`), {
+    params: { _ts: Date.now() },
     responseType: 'blob'
   });
   return response.data;
