@@ -63,3 +63,41 @@ test('ongoing inhibition services with same system but different steps remain se
   assert.equal(services.length, 2);
   assert.deepEqual(services.map(item => item.service.id).sort(), ['svc-1', 'svc-2']);
 });
+
+test('finalized filtration does not clear pending filtration with same equipment and system but different oil', async () => {
+  const { collectOngoingServices } = await loadOngoingServices();
+  const services = collectOngoingServices([
+    rdoWithServices([
+      {
+        id: 'svc-pending',
+        serviceType: 'filtragem',
+        system: 'Sistema óleo',
+        finalized: false,
+        extraData: {
+          'Equipamento(s)': 'UFG-01',
+          Sistema: 'Sistema óleo',
+          'Tipo de óleo': 'ISO VG 46',
+          'Volume de óleo': '120 L',
+          'Serviço finalizado?': 'Não'
+        }
+      },
+      {
+        id: 'svc-finalized',
+        serviceType: 'filtragem',
+        system: 'Sistema óleo',
+        finalized: true,
+        extraData: {
+          __serviceLinkKey: 'project-1||filtragem||ufg-01||sistema óleo',
+          'Equipamento(s)': 'UFG-01',
+          Sistema: 'Sistema óleo',
+          'Tipo de óleo': 'ISO VG 68',
+          'Volume de óleo': '300 L',
+          'Serviço finalizado?': 'Sim'
+        }
+      }
+    ])
+  ], '2026-05-29T12:00:00.000Z');
+
+  assert.equal(services.length, 1);
+  assert.equal(services[0].service.id, 'svc-pending');
+});

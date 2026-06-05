@@ -3621,6 +3621,83 @@ function getReportField(fields, names) {
   return undefined;
 }
 
+function stringifyHistoryKeyValue(value) {
+  if (Array.isArray(value)) return value.map(stringifyHistoryKeyValue).filter(Boolean).join('|');
+  if (value && typeof value === 'object') {
+    return Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => {
+        const text = stringifyHistoryKeyValue(item);
+        return text ? `${key}:${text}` : '';
+      })
+      .filter(Boolean)
+      .join('|');
+  }
+  return String(value || '');
+}
+
+function historyKeyPart(value) {
+  return stringifyHistoryKeyValue(value)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/\s+/g, ' ');
+}
+
+function firstHistoryKeyPart(fields, names) {
+  const value = getReportField(fields, names);
+  return historyKeyPart(value);
+}
+
+function serviceHistoryDisambiguatorParts(service) {
+  const fields = service?.extraData || {};
+  const type = String(service?.serviceType || '').trim().toLowerCase();
+  const material = historyKeyPart(service?.material) || firstHistoryKeyPart(fields, [
+    'Material da tubulação',
+    'Material da tubulacao',
+    'Material do equipamento'
+  ]);
+  const parts = material ? [`material:${material}`] : [];
+
+  if (type === 'filtragem' || type === 'flushing') {
+    const oilType = firstHistoryKeyPart(fields, ['Tipo de óleo', 'Tipo de oleo', 'Tipo de Ã³leo', 'tipoOleo']);
+    const oilVolume = firstHistoryKeyPart(fields, ['Volume de óleo', 'Volume de oleo', 'Volume de Ã³leo', 'volumeOleo']);
+    if (oilType) parts.push(`oleo:${oilType}`);
+    if (oilVolume) parts.push(`volume:${oilVolume}`);
+    if (type === 'flushing') {
+      const flushingTubing = firstHistoryKeyPart(fields, ['Flushing em tubulação?', 'Flushing em tubulacao?', 'flushingTubulacao']);
+      const flushingType = firstHistoryKeyPart(fields, ['Tipo de flushing', 'tipoFlushing']);
+      if (flushingTubing) parts.push(`tubulacao:${flushingTubing}`);
+      if (flushingType) parts.push(`flushing:${flushingType}`);
+    }
+  }
+
+  if (type === 'pressao') {
+    const workPressure = firstHistoryKeyPart(fields, ['Pressão de trabalho', 'Pressao de trabalho', 'pressaoTrabalho']);
+    const testPressure = firstHistoryKeyPart(fields, ['Pressão de teste', 'Pressao de teste', 'pressaoTeste']);
+    const testFluid = firstHistoryKeyPart(fields, ['Fluido de teste', 'fluidoTeste']);
+    const testOil = firstHistoryKeyPart(fields, ['Qual óleo?', 'Qual oleo?', 'qualOleo']);
+    if (workPressure) parts.push(`ptrabalho:${workPressure}`);
+    if (testPressure) parts.push(`pteste:${testPressure}`);
+    if (testFluid) parts.push(`fluido:${testFluid}`);
+    if (testOil) parts.push(`oleo:${testOil}`);
+  }
+
+  if (type === 'limpeza') {
+    const tubing = firstHistoryKeyPart(fields, ['Limpeza de tubulação?', 'Limpeza de tubulacao?', 'limpezaTubulacao']);
+    const method = firstHistoryKeyPart(fields, ['Método de limpeza', 'Metodo de limpeza', 'metodos']);
+    const location = firstHistoryKeyPart(fields, ['Local de limpeza', 'local']);
+    const inspection = firstHistoryKeyPart(fields, ['Tipo de inspeção', 'Tipo de inspecao', 'tipoInspecao']);
+    if (tubing) parts.push(`tubulacao:${tubing}`);
+    if (method) parts.push(`metodo:${method}`);
+    if (location) parts.push(`local:${location}`);
+    if (inspection) parts.push(`inspecao:${inspection}`);
+  }
+
+  return parts;
+}
+
 function isYesReportField(value) {
   return /sim/i.test(Array.isArray(value) ? value.filter(Boolean).join(', ') : String(value || ''));
 }
@@ -3634,31 +3711,38 @@ function semanticServiceHistoryKey(service) {
   const fields = service?.extraData || {};
   const equipment = getReportField(fields, ['Equipamento(s)', 'Equipamento', 'ID da embarcação', 'ID da embarcacao']) || service?.equipmentId || '';
   const system = getReportField(fields, ['Sistema']) || service?.system || '';
+  const serviceType = String(service?.serviceType || '').trim().toLowerCase();
   const base = [
-    service?.serviceType || '',
-    String(equipment || '').trim().toLowerCase(),
-    String(system || '').trim().toLowerCase()
+    serviceType,
+    historyKeyPart(equipment),
+    historyKeyPart(system)
   ];
-  if (service?.serviceType === 'inibicao') {
+  if (serviceType === 'inibicao') {
     const step = getReportField(fields, ['Steps', 'Step', 'steps', 'step']) || '';
-    base.push(String(step || '').trim().toLowerCase());
+    base.push(historyKeyPart(step));
+  } else {
+    base.push(...serviceHistoryDisambiguatorParts(service));
   }
   return base.join('||');
 }
 
 export function serviceHistoryKey(service) {
-  return explicitServiceHistoryKey(service) || semanticServiceHistoryKey(service);
+  const explicit = explicitServiceHistoryKey(service);
+  if (explicit && !explicit.includes('||')) return explicit;
+  return semanticServiceHistoryKey(service) || explicit;
 }
 
 export function serviceHistoryKeys(service) {
   const keys = new Set();
   const explicit = explicitServiceHistoryKey(service);
+  const semantic = semanticServiceHistoryKey(service);
   if (explicit) {
+    if (semantic) keys.add(semantic);
     keys.add(explicit);
     const parts = explicit.split('||');
     if (parts.length >= 4) keys.add(parts.slice(1).join('||'));
   } else {
-    keys.add(semanticServiceHistoryKey(service));
+    keys.add(semantic);
   }
 
   return Array.from(keys).filter(Boolean);
@@ -5247,6 +5331,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   const unfinalizedDerivedRefs = data.deleteUnfinalizedDerivedReports === true
     ? demotedFinalizedServiceRefs(existing.services || [], data.services || [])
     : [];
+  const trustedStoragePaths = trustedStoragePathsFromSnapshot(buildReportSnapshot(existing));
 
   const tPut0 = Date.now();
   const item = await prisma.$transaction(async tx => {
@@ -5388,7 +5473,10 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   });
   const tPutTx = Date.now();
 
-  const organizedItem = await organizeAndSyncReportUploadAttachments(item, { auth: req.auth }) || item;
+  const organizedItem = await organizeAndSyncReportUploadAttachments(item, {
+    auth: req.auth,
+    trustedStoragePaths
+  }) || item;
   const tPutOrg = Date.now();
   if (organizedItem.reportType === 'RDO' && organizedItem.status === ReportStatus.APPROVED) {
     const derived = await prisma.report.findMany({
