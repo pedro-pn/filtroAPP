@@ -2809,6 +2809,40 @@ function applyUrlMap(obj, urlMap) {
   try { return JSON.parse(json); } catch { return obj; }
 }
 
+export function storagePathUpdatesFromUrlMap(urlMap) {
+  const updates = [];
+  const seen = new Set();
+  if (!urlMap || !urlMap.size) return updates;
+
+  for (const [source, target] of urlMap.entries()) {
+    const oldPath = normalizeReportUploadReference(source);
+    const newPath = normalizeReportUploadReference(target);
+    if (!oldPath || !newPath || oldPath === newPath) continue;
+    const key = `${oldPath}\n${newPath}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    updates.push({ oldPath, newPath });
+  }
+
+  return updates;
+}
+
+async function updateSourceServiceAttachmentPaths(sourceServiceId, urlMap) {
+  if (!sourceServiceId) return;
+  const updates = storagePathUpdatesFromUrlMap(urlMap);
+  for (const { oldPath, newPath } of updates) {
+    await prisma.reportAttachment.updateMany({
+      where: {
+        reportServiceId: sourceServiceId,
+        storagePath: oldPath
+      },
+      data: {
+        storagePath: newPath
+      }
+    });
+  }
+}
+
 function encodedUploadPathForUrlMap(pathValue) {
   const normalized = normalizeReportUploadReference(pathValue);
   if (!normalized) return '';
@@ -2950,6 +2984,7 @@ async function organizeAndPersist(report) {
             where: { id: sourceServiceId },
             data: { extraData: newExtraData }
           });
+          await updateSourceServiceAttachmentPaths(sourceServiceId, urlMap);
         }
       } catch { /* best effort */ }
     }
@@ -2962,7 +2997,8 @@ async function organizeAndSyncReportUploadAttachments(report, options = {}) {
   const trustedUrlMap = await organizeAndPersist(report);
   await syncReportUploadAttachments(prisma, report.id, {
     ...options,
-    trustedUrlMap
+    trustedUrlMap,
+    trustProjectExistingAttachments: true
   });
   return prisma.report.findUnique({
     where: { id: report.id },
@@ -5628,12 +5664,14 @@ router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, re
 
   await prisma.$transaction(async tx => {
     const idsToDelete = [item.id];
+    const affectedTypes = new Set([item.reportType]);
 
     if (item.reportType === ReportType.RDO) {
       const derivedReports = await tx.report.findMany({
         where: derivedReportsForProjectWhere(item.projectId),
         select: {
           id: true,
+          reportType: true,
           specialConditions: true
         }
       });
@@ -5642,6 +5680,7 @@ router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, re
         const special = report.specialConditions || {};
         if (special.parentRdoId === item.id) {
           idsToDelete.push(report.id);
+          affectedTypes.add(report.reportType);
         }
       });
     }
@@ -5650,8 +5689,15 @@ router.delete('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, re
       where: {
         id: { in: Array.from(new Set(idsToDelete)) }
       },
-      data: { deletedAt: new Date() }
+      data: {
+        deletedAt: new Date(),
+        sequenceNumber: null
+      }
     });
+
+    for (const reportType of affectedTypes) {
+      await renumberProjectReports(tx, item.projectId, reportType);
+    }
   });
 
   res.status(204).end();

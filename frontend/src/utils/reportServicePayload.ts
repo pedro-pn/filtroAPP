@@ -95,6 +95,23 @@ function collaboratorLinks(ids: string[], collaborators: Collaborator[] = []) {
   };
 }
 
+function normalizePersistedUploads(value: unknown) {
+  if (!Array.isArray(value)) return value;
+
+  return value.map(group => {
+    if (!group || typeof group !== 'object' || Array.isArray(group)) return group;
+    const record = group as Record<string, unknown>;
+    const files = Array.isArray(record.files)
+      ? record.files.map(file => {
+          if (!file || typeof file !== 'object' || Array.isArray(file)) return file;
+          const { __previouslyAdded, previouslyAdded, ...persistedFile } = file as Record<string, unknown>;
+          return persistedFile;
+        })
+      : record.files;
+    return { ...record, files };
+  });
+}
+
 function commonExtraData(
   type: string,
   data: Record<string, unknown>,
@@ -107,7 +124,7 @@ function commonExtraData(
     ? []
     : (Array.isArray(data.tubes) ? data.tubes : []);
 
-  return {
+  const extraData: Record<string, unknown> = {
     ...data,
     'Equipamento(s)': equipmentId ? labelForEquipment(equipmentId, options.equipment) : '',
     Sistema: getString(data.system),
@@ -126,6 +143,8 @@ function commonExtraData(
     'Diâmetros e comprimentos': tubes,
     'Colaboradores do serviço': collaboratorLinks(collaboratorIds, options.collaborators)
   };
+  extraData.__uploads__ = normalizePersistedUploads(extraData.__uploads__);
+  return extraData;
 }
 
 export function normalizeServiceType(type: string) {

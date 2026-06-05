@@ -4,8 +4,28 @@ import test from 'node:test';
 import {
   buildHistoricalServiceData,
   hasSharedServiceHistoryKey,
-  serviceHistoryKey
+  serviceHistoryKey,
+  storagePathUpdatesFromUrlMap
 } from '../src/routes/resources/reports.js';
+
+test('storagePathUpdatesFromUrlMap maps organized source uploads to relative storage paths', () => {
+  const oldPath = 'Missão 5762 - Karoon/1780693884524-5d2902ea-8abc-47a3-b8b4-365626817988.jpg';
+  const newPath = 'Missão 5762 - Karoon/Registros Fotográficos/RCPU/Guindaste de popa - Água de injeção - foto 1.jpg';
+  const urlMap = new Map([
+    [
+      `/relatorios/${oldPath.split('/').map(encodeURIComponent).join('/')}`,
+      `/relatorios/${newPath.split('/').map(encodeURIComponent).join('/')}`
+    ],
+    [
+      oldPath,
+      `/relatorios/${newPath.split('/').map(encodeURIComponent).join('/')}`
+    ]
+  ]);
+
+  assert.deepEqual(storagePathUpdatesFromUrlMap(urlMap), [
+    { oldPath, newPath }
+  ]);
+});
 
 test('RCPU service history joins final explicit key to legacy semantic initial service', () => {
   const initialService = {

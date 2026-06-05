@@ -463,3 +463,98 @@ test('PUT report rejects moves to soft-deleted target projects before rewriting 
   assert.deepEqual(calls.map(([name]) => name), ['report.findUniqueOrThrow', 'project.findFirstOrThrow']);
   assert.deepEqual(calls[1][1].where, { id: 'deleted-project', deletedAt: null });
 });
+
+test('DELETE report clears deleted sequence numbers and renumbers remaining project reports', async t => {
+  stubAuthenticatedManager(t);
+  const originals = {
+    reportFindUniqueOrThrow: prisma.report.findUniqueOrThrow,
+    transaction: prisma.$transaction
+  };
+  const calls = [];
+  prisma.report.findUniqueOrThrow = async args => {
+    calls.push(['report.findUniqueOrThrow', args]);
+    return activeReport({
+      id: 'rdo-29',
+      projectId: 'project-1',
+      reportType: ReportType.RDO,
+      sequenceNumber: 29,
+      status: ReportStatus.APPROVED
+    });
+  };
+  prisma.$transaction = async callback => callback({
+    report: {
+      findMany: async args => {
+        calls.push(['tx.report.findMany', args]);
+        if (typeof args.where.reportType === 'object') {
+          return [{
+            id: 'rcpu-12',
+            reportType: ReportType.RCPU,
+            specialConditions: { parentRdoId: 'rdo-29' }
+          }, {
+            id: 'rcpu-other',
+            reportType: ReportType.RCPU,
+            specialConditions: { parentRdoId: 'other-rdo' }
+          }];
+        }
+        if (args.where.reportType === ReportType.RDO) {
+          return [
+            { id: 'rdo-30', sequenceNumber: 30, status: ReportStatus.APPROVED },
+            { id: 'rdo-31', sequenceNumber: 31, status: ReportStatus.PENDING }
+          ];
+        }
+        if (args.where.reportType === ReportType.RCPU) {
+          return [{ id: 'rcpu-13', sequenceNumber: 13, status: ReportStatus.PENDING }];
+        }
+        return [];
+      },
+      updateMany: async args => {
+        calls.push(['tx.report.updateMany', args]);
+        return { count: args.where.id.in.length };
+      },
+      update: async args => {
+        calls.push(['tx.report.update', args]);
+        return { id: args.where.id, ...args.data };
+      }
+    },
+    projectReportSeq: {
+      upsert: async args => {
+        calls.push(['tx.projectReportSeq.upsert', args]);
+        return args.create;
+      }
+    }
+  });
+  t.after(() => {
+    prisma.report.findUniqueOrThrow = originals.reportFindUniqueOrThrow;
+    prisma.$transaction = originals.transaction;
+  });
+
+  const response = await dispatchApp('DELETE', '/api/reports/rdo-29');
+
+  assert.equal(response.statusCode, 204);
+  const deleteCall = calls.find(([name, args]) => (
+    name === 'tx.report.updateMany'
+    && Array.isArray(args.where?.id?.in)
+    && args.where.id.in.includes('rdo-29')
+  ));
+  assert.ok(deleteCall);
+  assert.deepEqual(deleteCall[1].where.id.in.sort(), ['rcpu-12', 'rdo-29']);
+  assert.equal(deleteCall[1].data.sequenceNumber, null);
+  assert.ok(deleteCall[1].data.deletedAt instanceof Date);
+
+  const sequenceUpdates = calls
+    .filter(([name]) => name === 'tx.report.update')
+    .map(([, args]) => [args.where.id, args.data.sequenceNumber]);
+  assert.deepEqual(sequenceUpdates, [
+    ['rdo-30', 1],
+    ['rdo-31', 2],
+    ['rcpu-13', 1]
+  ]);
+
+  const sequenceReservations = calls
+    .filter(([name]) => name === 'tx.projectReportSeq.upsert')
+    .map(([, args]) => [args.where.projectId_reportType.reportType, args.update.nextNumber]);
+  assert.deepEqual(sequenceReservations, [
+    [ReportType.RDO, 2],
+    [ReportType.RCPU, 1]
+  ]);
+});
