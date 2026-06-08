@@ -83,6 +83,50 @@ sql_escape() {
   printf "%s" "$1" | sed "s/'/''/g"
 }
 
+sql_identifier() {
+  printf "%s" "$1" | sed 's/"/""/g'
+}
+
+cleanup_failed_restore() {
+  if [ -n "${PREVIOUS_DB:-}" ]; then
+    local previous_db_sql
+    local postgres_db_sql
+    local postgres_db_literal
+    local target_exists
+
+    previous_db_sql="$(sql_identifier "$PREVIOUS_DB")"
+    postgres_db_sql="$(sql_identifier "$POSTGRES_DB")"
+    postgres_db_literal="$(sql_escape "$POSTGRES_DB")"
+    target_exists="$(
+      docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
+        psql -At -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+        -c "SELECT 1 FROM pg_database WHERE datname = '${postgres_db_literal}' LIMIT 1;" \
+        2>/dev/null | tr -d '[:space:]'
+    )" || true
+
+    if [ "$target_exists" != "1" ]; then
+      docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
+        psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+        -c "ALTER DATABASE \"${previous_db_sql}\" RENAME TO \"${postgres_db_sql}\";" \
+        >/dev/null 2>&1 || true
+    else
+      docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
+        psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+        -c "DROP DATABASE IF EXISTS \"${previous_db_sql}\";" \
+        >/dev/null 2>&1 || true
+    fi
+  fi
+
+  if [ -n "${RESTORE_DB:-}" ]; then
+    local restore_db_sql
+    restore_db_sql="$(sql_identifier "$RESTORE_DB")"
+    docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
+      psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+      -c "DROP DATABASE IF EXISTS \"${restore_db_sql}\";" \
+      >/dev/null 2>&1 || true
+  fi
+}
+
 ensure_staging_admin_password_hash() {
   if [ -n "$STAGING_ADMIN_PASSWORD_HASH" ]; then
     return
@@ -336,6 +380,7 @@ notify_failure() {
   local cmd="${BASH_COMMAND}"
 
   log "falhou com exit code $exit_code na linha $line_no: $cmd" >&2
+  cleanup_failed_restore
 
   if [ -n "$TELEGRAM_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
     local host
@@ -386,18 +431,21 @@ fi
 
 BACKUP_DIR="$(readlink -f "$LATEST_BACKUP")"
 
-if [ ! -f "$LATEST_BACKUP/postgres.sql.gz" ]; then
-  log "arquivo não encontrado: $LATEST_BACKUP/postgres.sql.gz" >&2
+if [ ! -f "$BACKUP_DIR/postgres.sql.gz" ]; then
+  log "arquivo não encontrado: $BACKUP_DIR/postgres.sql.gz" >&2
   exit 1
 fi
 
-if [ "$RESTORE_REPORTS" = "true" ] && [ ! -f "$LATEST_BACKUP/relatorios.tar.gz" ] && [ "$ALLOW_PARTIAL_RESTORE" != "true" ]; then
-  log "arquivo não encontrado: $LATEST_BACKUP/relatorios.tar.gz; defina RESTORE_REPORTS=false ou ALLOW_PARTIAL_RESTORE=true para sincronizar somente o banco." >&2
+log "validando integridade gzip do dump do banco"
+gzip -t "$BACKUP_DIR/postgres.sql.gz"
+
+if [ "$RESTORE_REPORTS" = "true" ] && [ ! -f "$BACKUP_DIR/relatorios.tar.gz" ] && [ "$ALLOW_PARTIAL_RESTORE" != "true" ]; then
+  log "arquivo não encontrado: $BACKUP_DIR/relatorios.tar.gz; defina RESTORE_REPORTS=false ou ALLOW_PARTIAL_RESTORE=true para sincronizar somente o banco." >&2
   exit 1
 fi
 
 # Alerta se o backup tiver mais de 48 horas (problema no script de backup).
-BACKUP_AGE_HOURS=$(( ( $(date +%s) - $(stat -c %Y "$LATEST_BACKUP/postgres.sql.gz") ) / 3600 ))
+BACKUP_AGE_HOURS=$(( ( $(date +%s) - $(stat -c %Y "$BACKUP_DIR/postgres.sql.gz") ) / 3600 ))
 if [ "$BACKUP_AGE_HOURS" -gt 48 ]; then
   log "AVISO: backup mais recente tem ${BACKUP_AGE_HOURS}h — verifique o script de backup." >&2
 fi
@@ -447,26 +495,48 @@ log "postgres pronto"
 # Restauração do banco
 # ---------------------------------------------------------------------------
 
-log "descartando e recriando o banco $POSTGRES_DB em homologação"
+RESTORE_DB="${POSTGRES_DB}_restore_$(date +%s)_$$"
+PREVIOUS_DB="${POSTGRES_DB}_previous_$(date +%s)_$$"
+RESTORE_DB_SQL="$(sql_identifier "$RESTORE_DB")"
+PREVIOUS_DB_SQL="$(sql_identifier "$PREVIOUS_DB")"
+POSTGRES_DB_SQL="$(sql_identifier "$POSTGRES_DB")"
+RESTORE_DB_LITERAL="$(sql_escape "$RESTORE_DB")"
+POSTGRES_DB_LITERAL="$(sql_escape "$POSTGRES_DB")"
+
+log "criando banco temporário $RESTORE_DB para restaurar o snapshot"
 docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
-  psql -U "$POSTGRES_USER" -d postgres \
-  -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$POSTGRES_DB' AND pid <> pg_backend_pid();" \
-  -c "DROP DATABASE IF EXISTS $POSTGRES_DB;" \
-  -c "CREATE DATABASE $POSTGRES_DB;" \
+  psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+  -c "DROP DATABASE IF EXISTS \"${RESTORE_DB_SQL}\";" \
+  -c "CREATE DATABASE \"${RESTORE_DB_SQL}\";" \
   >/dev/null
 
-log "restaurando banco a partir de $LATEST_BACKUP/postgres.sql.gz"
-gunzip -c "$LATEST_BACKUP/postgres.sql.gz" \
+log "restaurando banco temporário a partir de $BACKUP_DIR/postgres.sql.gz"
+gunzip -c "$BACKUP_DIR/postgres.sql.gz" \
   | docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
-      psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -q
+      psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$RESTORE_DB" -q
 
-log "banco restaurado"
+log "ativando banco restaurado"
+docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres <<SQL
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE datname IN ('${POSTGRES_DB_LITERAL}', '${RESTORE_DB_LITERAL}')
+  AND pid <> pg_backend_pid();
+DROP DATABASE IF EXISTS "${PREVIOUS_DB_SQL}";
+ALTER DATABASE "${POSTGRES_DB_SQL}" RENAME TO "${PREVIOUS_DB_SQL}";
+ALTER DATABASE "${RESTORE_DB_SQL}" RENAME TO "${POSTGRES_DB_SQL}";
+DROP DATABASE "${PREVIOUS_DB_SQL}";
+SQL
+
+RESTORE_DB=""
+PREVIOUS_DB=""
+log "banco restaurado e ativado"
 
 # ---------------------------------------------------------------------------
 # Restauração dos arquivos de relatórios
 # ---------------------------------------------------------------------------
 
-if [ "$RESTORE_REPORTS" = "true" ] && [ -f "$LATEST_BACKUP/relatorios.tar.gz" ]; then
+if [ "$RESTORE_REPORTS" = "true" ] && [ -f "$BACKUP_DIR/relatorios.tar.gz" ]; then
   log "restaurando arquivos de relatórios no volume $REPORTS_VOLUME"
   docker run --rm \
     -v "${REPORTS_VOLUME}:/to" \

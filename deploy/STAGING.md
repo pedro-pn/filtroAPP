@@ -124,6 +124,12 @@ ambiente está rodando ou parado e age de acordo:
 - **Ambiente parado**: sobe o banco, aplica o snapshot, restaura arquivos, builda backend/Nginx, roda migrations, sanitiza o banco, desliga tudo.
 - **Ambiente rodando**: para backend e Nginx, aplica o snapshot, restaura arquivos, builda backend/Nginx, roda migrations, sanitiza o banco, recria os serviços.
 
+O diretório apontado por `latest` é resolvido uma vez no início da execução. Banco e
+arquivos sempre vêm desse mesmo diretório, mesmo que o backup de produção atualize o
+symlink durante o sync. O dump `.gz` é validado antes de qualquer mutação e restaurado
+primeiro em um banco temporário com `ON_ERROR_STOP`; o banco de staging só é trocado
+após o restore completo retornar sucesso.
+
 O build é feito por padrão para garantir que migrations, backend e bundle React do Nginx
 usem o código atual do branch. Para pular o build em um caso excepcional:
 

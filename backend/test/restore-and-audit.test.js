@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import zlib from 'node:zlib';
 
 function runRestoreWithFakeDocker(env = {}, options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'restore-preflight-'));
@@ -35,6 +36,76 @@ function runRestoreWithFakeDocker(env = {}, options = {}) {
   const dockerCalls = fs.existsSync(dockerLog) ? fs.readFileSync(dockerLog, 'utf8') : '';
   fs.rmSync(root, { recursive: true, force: true });
   return { result, dockerCalls };
+}
+
+function writeGzip(filePath, content) {
+  fs.writeFileSync(filePath, zlib.gzipSync(content));
+}
+
+function runSyncWithFakeDocker(options = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-staging-'));
+  const backupRoot = path.join(root, 'backups');
+  const bin = path.join(root, 'bin');
+  const dockerLog = path.join(root, 'docker.log');
+  const restoreSqlLog = path.join(root, 'restore.sql');
+  const snapshotA = path.join(backupRoot, '2026-06-08-010000');
+  const snapshotB = path.join(backupRoot, '2026-06-08-020000');
+  const latest = path.join(backupRoot, 'latest');
+
+  fs.mkdirSync(bin, { recursive: true });
+  fs.mkdirSync(snapshotA, { recursive: true });
+  fs.mkdirSync(snapshotB, { recursive: true });
+  fs.mkdirSync(path.join(root, 'backend'), { recursive: true });
+  writeGzip(path.join(snapshotA, 'postgres.sql.gz'), options.snapshotASql || 'SELECT 1 AS snapshot_a;');
+  writeGzip(path.join(snapshotB, 'postgres.sql.gz'), options.snapshotBSql || 'SELECT 2 AS snapshot_b;');
+  fs.writeFileSync(path.join(snapshotA, 'relatorios.tar.gz'), 'reports-a');
+  fs.writeFileSync(path.join(snapshotB, 'relatorios.tar.gz'), 'reports-b');
+  fs.symlinkSync(snapshotA, latest);
+
+  const dockerScript = options.dockerScript || `#!/usr/bin/env bash
+echo "$@" >> "${dockerLog}"
+if [[ "$*" == *"ps --quiet --status running"* ]]; then
+  exit 1
+fi
+if [[ "$*" == *"up -d postgres"* ]]; then
+  ${options.switchLatestOnPostgresUp ? `ln -sfn "${snapshotB}" "${latest}"` : ':'}
+  exit 0
+fi
+if [[ "$*" == *"pg_isready"* ]]; then
+  exit 0
+fi
+if [[ "$*" == *"psql -v ON_ERROR_STOP=1"* && "$*" == *" -d filtrovali_restore_"* ]]; then
+  cat > "${restoreSqlLog}"
+  ${options.failRestore ? 'exit 42' : 'exit 0'}
+fi
+if [[ "$*" == *"run --rm --no-deps backend sh -c npx prisma migrate deploy"* ]]; then
+  exit 0
+fi
+exit 0
+`;
+  fs.writeFileSync(path.join(bin, 'docker'), dockerScript);
+  fs.chmodSync(path.join(bin, 'docker'), 0o755);
+
+  const result = spawnSync('bash', [new URL('../../deploy/sync-staging.sh', import.meta.url).pathname], {
+    cwd: root,
+    env: {
+      ...process.env,
+      PATH: `${bin}${path.delimiter}${process.env.PATH || ''}`,
+      PROJECT_DIR: root,
+      BACKUP_ROOT: backupRoot,
+      LOCKFILE: path.join(root, 'sync.lock'),
+      STAGING_POSTGRES_PASSWORD: 'postgres-secret',
+      STAGING_ADMIN_PASSWORD_HASH: 'salt:hash',
+      BUILD_SERVICES: 'false',
+      ...options.env
+    },
+    encoding: 'utf8'
+  });
+
+  const dockerCalls = fs.existsSync(dockerLog) ? fs.readFileSync(dockerLog, 'utf8') : '';
+  const restoreSql = fs.existsSync(restoreSqlLog) ? fs.readFileSync(restoreSqlLog, 'utf8') : '';
+  fs.rmSync(root, { recursive: true, force: true });
+  return { result, dockerCalls, restoreSql, snapshotA, snapshotB };
 }
 
 test('restore script validates checksums before mutating restored services', () => {
@@ -220,6 +291,34 @@ test('staging sync sanitizes production credentials and tokens before starting s
     migrationIndex < sanitizeIndex && sanitizeIndex < startIndex,
     'staging app services must start only after migrations and production-token scrub'
   );
+});
+
+test('staging sync aborts before migrations or service start when dump restore fails', () => {
+  const { result, dockerCalls } = runSyncWithFakeDocker({ failRestore: true });
+
+  assert.notEqual(result.status, 0);
+  assert.match(dockerCalls, /psql -v ON_ERROR_STOP=1/);
+  assert.match(dockerCalls, /-d filtrovali_restore_/);
+  assert.doesNotMatch(dockerCalls, /npx prisma migrate deploy/);
+  assert.doesNotMatch(dockerCalls, /up -d --force-recreate backend nginx/);
+  assert.doesNotMatch(dockerCalls, /relatorios\.tar\.gz -C \/to/);
+});
+
+test('staging sync uses the resolved backup directory for database and report files', () => {
+  const script = fs.readFileSync(new URL('../../deploy/sync-staging.sh', import.meta.url), 'utf8');
+  const { result, dockerCalls, restoreSql, snapshotA, snapshotB } = runSyncWithFakeDocker({
+    switchLatestOnPostgresUp: true,
+    snapshotASql: 'SELECT 10 AS snapshot_a;',
+    snapshotBSql: 'SELECT 20 AS snapshot_b;'
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.doesNotMatch(script, /\$LATEST_BACKUP\/postgres\.sql\.gz/);
+  assert.doesNotMatch(script, /\$LATEST_BACKUP\/relatorios\.tar\.gz/);
+  assert.match(restoreSql, /snapshot_a/);
+  assert.doesNotMatch(restoreSql, /snapshot_b/);
+  assert.match(dockerCalls, new RegExp(snapshotA.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.doesNotMatch(dockerCalls, new RegExp(snapshotB.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
 test('production docs provide concurrent index preflight before prisma migrations', () => {
