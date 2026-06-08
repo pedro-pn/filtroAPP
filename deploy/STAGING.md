@@ -54,14 +54,18 @@ IPs fora da lista recebem `403` antes de qualquer processamento pelo backend.
 nano backend/.env.staging
 ```
 
-Substitua todos os valores `CHANGE_ME`. Há apenas uma senha para definir —
-`STAGING_POSTGRES_PASSWORD` — e ela deve aparecer duas vezes no arquivo: uma como
+Substitua todos os valores `CHANGE_ME`. A senha do banco —
+`STAGING_POSTGRES_PASSWORD` — deve aparecer duas vezes no arquivo: uma como
 variável explícita (usada pelo compose ao inicializar o Postgres) e outra dentro do
-`DATABASE_URL` (usada pelo backend para conectar). Mantenha os dois valores iguais:
+`DATABASE_URL` (usada pelo backend para conectar). Mantenha os dois valores iguais.
+Defina também um login exclusivo de homologação, que será recriado pelo sync após
+invalidar as credenciais vindas do dump de produção:
 
 ```
 STAGING_POSTGRES_PASSWORD=escolha-uma-senha-forte
 DATABASE_URL="postgresql://postgres:escolha-uma-senha-forte@postgres:5432/filtrovali?schema=public"
+STAGING_ADMIN_USERNAME=staging-admin
+STAGING_ADMIN_PASSWORD=outra-senha-forte
 ```
 
 Confirme que `SEND_CLIENT_EMAILS=false` está presente. Nunca altere para `true`
@@ -102,12 +106,23 @@ docker compose --env-file backend/.env.staging -f docker-compose.staging.yml exe
 ## Sincronização diária com produção
 
 O script `deploy/sync-staging.sh` aplica o último snapshot de backup de prod ao banco
-de homologação e restaura o volume de relatórios (`relatorios.tar.gz`) para que
-miniaturas, anexos e PDFs apontados pelo banco existam no staging. Ele detecta se o
+de homologação, restaura o volume de relatórios (`relatorios.tar.gz`) para que
+miniaturas, anexos e PDFs apontados pelo banco existam no staging, aplica migrations
+e executa um scrub obrigatório antes de subir backend/Nginx. Esse scrub:
+
+- apaga sessões, tokens de reset/e-mail e tokens de preferência de notificação;
+- invalida senhas de usuários restaurados de produção;
+- remove tokens públicos de assinatura, pesquisa, certificado e validação;
+- expira solicitações pendentes com link público;
+- mascara e-mails, nomes, CNPJs/CPFs, assinaturas e dados de contato sensíveis;
+- recria o usuário `STAGING_ADMIN_USERNAME` com a senha/hash de staging.
+
+Se `STAGING_ADMIN_PASSWORD` ou `STAGING_ADMIN_PASSWORD_HASH` não estiver configurado,
+o sync falha fechado e não publica o banco restaurado no app. Ele detecta se o
 ambiente está rodando ou parado e age de acordo:
 
-- **Ambiente parado**: sobe o banco, aplica o snapshot, restaura arquivos, builda backend/Nginx, roda migrations, desliga tudo.
-- **Ambiente rodando**: para backend e Nginx, aplica o snapshot, restaura arquivos, builda backend/Nginx, roda migrations, recria os serviços.
+- **Ambiente parado**: sobe o banco, aplica o snapshot, restaura arquivos, builda backend/Nginx, roda migrations, sanitiza o banco, desliga tudo.
+- **Ambiente rodando**: para backend e Nginx, aplica o snapshot, restaura arquivos, builda backend/Nginx, roda migrations, sanitiza o banco, recria os serviços.
 
 O build é feito por padrão para garantir que migrations, backend e bundle React do Nginx
 usem o código atual do branch. Para pular o build em um caso excepcional:

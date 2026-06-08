@@ -12,8 +12,9 @@
 #
 # Variáveis configuráveis via ambiente ou backend/.env.staging:
 #   PROJECT_DIR, BACKUP_ROOT, STAGING_COMPOSE_FILE, POSTGRES_DB, POSTGRES_USER,
-#   STAGING_POSTGRES_PASSWORD, REPORTS_VOLUME, RESTORE_REPORTS, BUILD_SERVICES,
-#   ALLOW_PARTIAL_RESTORE, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
+#   STAGING_POSTGRES_PASSWORD, STAGING_ADMIN_USERNAME, STAGING_ADMIN_PASSWORD
+#   ou STAGING_ADMIN_PASSWORD_HASH, REPORTS_VOLUME, RESTORE_REPORTS,
+#   BUILD_SERVICES, ALLOW_PARTIAL_RESTORE, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
 
 set -euo pipefail
 
@@ -53,12 +54,280 @@ if [ -z "$STAGING_POSTGRES_PASSWORD" ]; then
   exit 1
 fi
 
+STAGING_ADMIN_USERNAME="${STAGING_ADMIN_USERNAME:-staging-admin}"
+STAGING_ADMIN_NAME="${STAGING_ADMIN_NAME:-Administrador Staging}"
+STAGING_ADMIN_EMAIL="${STAGING_ADMIN_EMAIL:-staging-admin@filtrovali.invalid}"
+STAGING_ADMIN_PASSWORD="${STAGING_ADMIN_PASSWORD:-}"
+STAGING_ADMIN_PASSWORD_HASH="${STAGING_ADMIN_PASSWORD_HASH:-}"
+
+export STAGING_ADMIN_USERNAME
+export STAGING_ADMIN_NAME
+export STAGING_ADMIN_EMAIL
+export STAGING_ADMIN_PASSWORD
+export STAGING_ADMIN_PASSWORD_HASH
+
+if [ -z "$STAGING_ADMIN_PASSWORD" ] && [ -z "$STAGING_ADMIN_PASSWORD_HASH" ]; then
+  echo "[sync-staging] configure STAGING_ADMIN_PASSWORD ou STAGING_ADMIN_PASSWORD_HASH em $STAGING_ENV_FILE. O sync não restaura credenciais de produção em homologação." >&2
+  exit 1
+fi
+
 # ---------------------------------------------------------------------------
 # Funções auxiliares
 # ---------------------------------------------------------------------------
 
 log() {
   echo "[sync-staging] $(date '+%Y-%m-%d %H:%M:%S') $*"
+}
+
+sql_escape() {
+  printf "%s" "$1" | sed "s/'/''/g"
+}
+
+ensure_staging_admin_password_hash() {
+  if [ -n "$STAGING_ADMIN_PASSWORD_HASH" ]; then
+    return
+  fi
+
+  log "gerando hash do usuário administrador exclusivo de homologação"
+  STAGING_ADMIN_PASSWORD_HASH="$(
+    docker compose -f "$STAGING_COMPOSE_FILE" run --rm --no-deps \
+      -e STAGING_ADMIN_PASSWORD \
+      backend node --input-type=module -e "import { hashPassword } from './src/lib/password.js'; const password = process.env.STAGING_ADMIN_PASSWORD; if (!password) process.exit(1); console.log(await hashPassword(password));" \
+      | tail -n 1
+  )"
+  export STAGING_ADMIN_PASSWORD_HASH
+
+  if [ -z "$STAGING_ADMIN_PASSWORD_HASH" ]; then
+    log "não foi possível gerar STAGING_ADMIN_PASSWORD_HASH" >&2
+    exit 1
+  fi
+}
+
+sanitize_staging_database() {
+  local admin_username_sql
+  local admin_name_sql
+  local admin_email_sql
+  local admin_password_hash_sql
+
+  admin_username_sql="$(sql_escape "$STAGING_ADMIN_USERNAME")"
+  admin_name_sql="$(sql_escape "$STAGING_ADMIN_NAME")"
+  admin_email_sql="$(sql_escape "$STAGING_ADMIN_EMAIL")"
+  admin_password_hash_sql="$(sql_escape "$STAGING_ADMIN_PASSWORD_HASH")"
+
+  log "sanitizando credenciais, sessões e tokens públicos restaurados de produção"
+  docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
+    psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<SQL
+BEGIN;
+
+DELETE FROM "UserSession";
+DELETE FROM "PasswordResetToken";
+DELETE FROM "EmailChangeToken";
+DELETE FROM "NotificationPreferenceToken";
+DELETE FROM "ReportDraft";
+
+UPDATE "User"
+SET
+  "username" = 'staging-user-' || "id",
+  "name" = 'Usuário Staging ' || "id",
+  "email" = NULL,
+  "clientCnpj" = NULL,
+  "passwordHash" = 'staging-disabled',
+  "emailVerifiedAt" = NULL,
+  "updatedAt" = CURRENT_TIMESTAMP;
+
+UPDATE "Collaborator"
+SET
+  "name" = 'Colaborador Staging ' || "code",
+  "email" = NULL,
+  "cpf" = NULL,
+  "registrationNumber" = NULL,
+  "signatureImage" = NULL,
+  "updatedAt" = CURRENT_TIMESTAMP;
+
+UPDATE "Project"
+SET
+  "clientName" = 'Cliente Staging',
+  "clientCnpj" = '00.000.000/0000-00',
+  "clientEmailPrimary" = '',
+  "clientEmailCc" = ARRAY[]::text[],
+  "clientSigners" = ARRAY[]::jsonb[],
+  "updatedAt" = CURRENT_TIMESTAMP;
+
+UPDATE "Report"
+SET
+  "zapsignDocToken" = NULL,
+  "zapsignSignerToken" = NULL,
+  "zapsignDocUrl" = NULL;
+
+UPDATE "ReportSignature"
+SET
+  "signerName" = 'Assinante Staging ' || "id",
+  "declaredSignerName" = NULL,
+  "signerEmail" = 'assinatura-' || "id" || '@staging.invalid',
+  "ipAddress" = NULL,
+  "userAgent" = NULL,
+  "signatureImageDataUrl" = NULL,
+  "tokenHash" = NULL,
+  "tokenEncrypted" = NULL,
+  "tokenIv" = NULL,
+  "tokenAuthTag" = NULL,
+  "tokenExpiresAt" = NULL;
+
+UPDATE "ClientReportReview"
+SET
+  "comment" = NULL,
+  "ipAddress" = NULL,
+  "userAgent" = NULL;
+
+UPDATE "ReportAuditLog"
+SET
+  "description" = NULL,
+  "ipAddress" = NULL,
+  "userAgent" = NULL;
+
+UPDATE "EpiSignatureRequest"
+SET
+  "tokenHash" = 'staging-scrubbed-' || "id",
+  "status" = CASE WHEN "status" = 'PENDING' THEN 'EXPIRED' ELSE "status" END,
+  "expiresAt" = LEAST("expiresAt", CURRENT_TIMESTAMP),
+  "signatureImageDataUrl" = NULL,
+  "signatureSignerName" = NULL,
+  "ipAddress" = NULL,
+  "userAgent" = NULL;
+
+UPDATE "SatisfactionSurvey"
+SET
+  "tokenHash" = 'staging-scrubbed-' || "id",
+  "tokenEncrypted" = '',
+  "tokenIv" = '',
+  "tokenAuthTag" = '',
+  "emailTo" = 'pesquisa-' || "id" || '@staging.invalid',
+  "expiresAt" = LEAST("expiresAt", CURRENT_TIMESTAMP),
+  "reminderOptOutAt" = COALESCE("reminderOptOutAt", CURRENT_TIMESTAMP),
+  "expirationNotifiedAt" = COALESCE("expirationNotifiedAt", CURRENT_TIMESTAMP),
+  "submittedIp" = NULL,
+  "submittedUserAgent" = NULL;
+
+UPDATE "RomaneioNotificationRecipient"
+SET
+  "name" = NULL,
+  "email" = 'romaneio-' || "id" || '@staging.invalid',
+  "updatedAt" = CURRENT_TIMESTAMP;
+
+UPDATE "AllocationReportRecipient"
+SET
+  "name" = NULL,
+  "email" = 'alocacao-' || "id" || '@staging.invalid',
+  "updatedAt" = CURRENT_TIMESTAMP;
+
+UPDATE "DataSubjectRequest"
+SET
+  "name" = 'Titular Staging ' || "id",
+  "email" = 'titular-' || "id" || '@staging.invalid',
+  "identifier" = NULL,
+  "details" = 'Sanitizado em homologação',
+  "ipAddress" = NULL,
+  "userAgent" = NULL,
+  "responseNotes" = NULL,
+  "responseEmailError" = NULL,
+  "identityVerificationEvidence" = NULL,
+  "completionNotes" = NULL,
+  "updatedAt" = CURRENT_TIMESTAMP;
+
+UPDATE "DataSubjectRequestResponseAttempt"
+SET
+  "message" = 'Sanitizado em homologação',
+  "emailTo" = 'resposta-' || "id" || '@staging.invalid',
+  "emailSubject" = NULL,
+  "providerMessageId" = NULL,
+  "error" = NULL,
+  "updatedAt" = CURRENT_TIMESTAMP;
+
+UPDATE "CalibrationCertificate"
+SET "publicToken" = 'staging-scrubbed-' || "id";
+
+UPDATE "ReportVersion"
+SET "validationCode" = CASE
+  WHEN "validationCode" IS NULL THEN NULL
+  ELSE 'STAGING-' || "id"
+END;
+
+WITH admin_user AS (
+  INSERT INTO "User" (
+    "id",
+    "username",
+    "name",
+    "email",
+    "passwordHash",
+    "role",
+    "accountType",
+    "isActive",
+    "emailVerifiedAt",
+    "notifyReportsByEmail",
+    "notifySignaturesByEmail",
+    "notifySignatureRemindersByEmail",
+    "notifySurveyRemindersByEmail",
+    "notifyCalibrationRemindersByEmail",
+    "createdAt",
+    "updatedAt"
+  )
+  VALUES (
+    'staging-admin-user',
+    '${admin_username_sql}',
+    '${admin_name_sql}',
+    '${admin_email_sql}',
+    '${admin_password_hash_sql}',
+    'MANAGER'::"UserRole",
+    'ADMIN'::"AccountType",
+    true,
+    CURRENT_TIMESTAMP,
+    false,
+    false,
+    false,
+    false,
+    false,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+  )
+  ON CONFLICT ("username") DO UPDATE
+  SET
+    "name" = EXCLUDED."name",
+    "email" = EXCLUDED."email",
+    "passwordHash" = EXCLUDED."passwordHash",
+    "role" = EXCLUDED."role",
+    "accountType" = EXCLUDED."accountType",
+    "isActive" = true,
+    "emailVerifiedAt" = CURRENT_TIMESTAMP,
+    "notifyReportsByEmail" = false,
+    "notifySignaturesByEmail" = false,
+    "notifySignatureRemindersByEmail" = false,
+    "notifySurveyRemindersByEmail" = false,
+    "notifyCalibrationRemindersByEmail" = false,
+    "collaboratorId" = NULL,
+    "updatedAt" = CURRENT_TIMESTAMP
+  RETURNING "id"
+),
+admin_roles("module", "role") AS (
+  VALUES
+    ('RDO'::"AppModule", 'RDO_MANAGER'::"ModuleRoleCode"),
+    ('ROMANEIO'::"AppModule", 'ROMANEIO_MANAGER'::"ModuleRoleCode"),
+    ('EPI'::"AppModule", 'EPI_TECHNICIAN'::"ModuleRoleCode"),
+    ('PRIVACY'::"AppModule", 'PRIVACY_ADMIN'::"ModuleRoleCode")
+)
+INSERT INTO "ModuleRole" ("id", "userId", "module", "role", "createdAt")
+SELECT
+  'staging-admin-' || admin_roles."module"::text || '-' || admin_roles."role"::text,
+  admin_user."id",
+  admin_roles."module",
+  admin_roles."role",
+  CURRENT_TIMESTAMP
+FROM admin_user
+CROSS JOIN admin_roles
+ON CONFLICT ("userId", "module", "role") DO NOTHING;
+
+COMMIT;
+SQL
+  log "sanitização de homologação concluída"
 }
 
 notify_failure() {
@@ -224,6 +493,9 @@ fi
 log "aplicando migrations pendentes"
 docker compose -f "$STAGING_COMPOSE_FILE" run --rm --no-deps \
   backend sh -c "npx prisma migrate deploy"
+
+ensure_staging_admin_password_hash
+sanitize_staging_database
 
 # ---------------------------------------------------------------------------
 # Restauração do estado do ambiente

@@ -88,13 +88,27 @@ Isso remove o bloqueio principal que existia para o `P3`.
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-4. Aplicar migrations:
+4. Antes das migrations de performance, criar os índices de produção de forma
+   concorrente para evitar bloqueio de escrita em tabelas ativas:
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T postgres \
+  psql -U postgres -d filtrovali -v ON_ERROR_STOP=1 \
+  < deploy/create-performance-indexes-concurrently.sql
+```
+
+`CREATE INDEX CONCURRENTLY` não pode rodar dentro de transação. Não execute esse
+arquivo via Prisma. Depois que os índices existirem, as migrations com
+`CREATE INDEX IF NOT EXISTS` passam a ser no-op para esses índices e não seguram
+writes de produção durante o deploy.
+
+5. Aplicar migrations:
 
 ```bash
 docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
 ```
 
-5. Popular dados iniciais de homologação, incluindo usuários de login:
+6. Popular dados iniciais de homologação, incluindo usuários de login:
 
 ```bash
 docker compose -f docker-compose.prod.yml exec backend npx prisma db seed

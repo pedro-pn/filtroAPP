@@ -195,6 +195,51 @@ test('restore script applies versioned migrations without data-loss db push', ()
   assert.doesNotMatch(script, /npx prisma db push/);
 });
 
+test('staging sync sanitizes production credentials and tokens before starting services', () => {
+  const script = fs.readFileSync(new URL('../../deploy/sync-staging.sh', import.meta.url), 'utf8');
+  const migrationIndex = script.indexOf('npx prisma migrate deploy');
+  const sanitizeIndex = script.lastIndexOf('sanitize_staging_database');
+  const startIndex = script.indexOf('docker compose -f "$STAGING_COMPOSE_FILE" up -d --force-recreate backend nginx');
+
+  assert.match(script, /STAGING_ADMIN_PASSWORD/);
+  assert.match(script, /DELETE FROM "UserSession"/);
+  assert.match(script, /DELETE FROM "PasswordResetToken"/);
+  assert.match(script, /DELETE FROM "EmailChangeToken"/);
+  assert.match(script, /DELETE FROM "NotificationPreferenceToken"/);
+  assert.match(script, /"username" = 'staging-user-' \|\| "id"/);
+  assert.match(script, /UPDATE "Collaborator"\s+SET\s+"name" = 'Colaborador Staging '/);
+  assert.match(script, /UPDATE "Project"\s+SET\s+"clientName" = 'Cliente Staging'/);
+  assert.match(script, /UPDATE "User"[\s\S]*"passwordHash" = 'staging-disabled'/);
+  assert.match(script, /UPDATE "ReportSignature"[\s\S]*"tokenHash" = NULL/);
+  assert.match(script, /UPDATE "SatisfactionSurvey"\s+SET\s+"tokenHash" = 'staging-scrubbed-'/);
+  assert.match(script, /UPDATE "DataSubjectRequest"\s+SET\s+"name" = 'Titular Staging '/);
+  assert.ok(migrationIndex !== -1, 'staging sync must run migrations before scrub');
+  assert.ok(sanitizeIndex !== -1, 'staging sync must scrub restored production data');
+  assert.ok(startIndex !== -1, 'staging sync must restart app services explicitly');
+  assert.ok(
+    migrationIndex < sanitizeIndex && sanitizeIndex < startIndex,
+    'staging app services must start only after migrations and production-token scrub'
+  );
+});
+
+test('production docs provide concurrent index preflight before prisma migrations', () => {
+  const docs = fs.readFileSync(new URL('../../deploy/PRODUCTION.md', import.meta.url), 'utf8');
+  const concurrentSql = fs.readFileSync(
+    new URL('../../deploy/create-performance-indexes-concurrently.sql', import.meta.url),
+    'utf8'
+  );
+  const preflightIndex = docs.indexOf('create-performance-indexes-concurrently.sql');
+  const migrationIndex = docs.indexOf('npx prisma migrate deploy');
+
+  assert.match(concurrentSql, /CREATE INDEX CONCURRENTLY IF NOT EXISTS "Report_active_date_created_idx"/);
+  assert.match(concurrentSql, /CREATE INDEX CONCURRENTLY IF NOT EXISTS "Report_active_project_date_created_idx"/);
+  assert.match(concurrentSql, /CREATE INDEX CONCURRENTLY IF NOT EXISTS "ReportAttachment_reportId_idx"/);
+  assert.match(docs, /`CREATE INDEX CONCURRENTLY` não pode rodar dentro de transação/);
+  assert.ok(preflightIndex !== -1, 'production docs must mention concurrent index preflight');
+  assert.ok(migrationIndex !== -1, 'production docs must still apply Prisma migrations');
+  assert.ok(preflightIndex < migrationIndex, 'concurrent indexes must be created before Prisma migrations');
+});
+
 test('client report review keeps audit evidence when client account is deleted', () => {
   const schema = fs.readFileSync(new URL('../prisma/schema.prisma', import.meta.url), 'utf8');
   const migration = fs.readFileSync(
