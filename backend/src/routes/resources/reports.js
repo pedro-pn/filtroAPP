@@ -1438,9 +1438,18 @@ function parseReportStatusFilter(query) {
 
 function applyReportProjectActiveFilter(where, projectActive) {
   if (projectActive !== 'true' && projectActive !== 'false') return;
+  const requestedIsActive = projectActive === 'true';
+  const existingProjectWhere = where.project || {};
+  if (existingProjectWhere.isActive !== undefined && existingProjectWhere.isActive !== requestedIsActive) {
+    where.project = {
+      ...existingProjectWhere,
+      id: '__NO_MATCH__'
+    };
+    return;
+  }
   where.project = {
-    ...(where.project || {}),
-    isActive: projectActive === 'true'
+    ...existingProjectWhere,
+    isActive: requestedIsActive
   };
 }
 

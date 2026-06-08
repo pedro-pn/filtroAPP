@@ -422,6 +422,49 @@ test('GET /reports applies status and project activity filters before pagination
   assert.deepEqual(response.json.items.map(item => item.id), ['report-filtered']);
 });
 
+test('GET /reports does not let collaborator projectActive=false override active project policy', async t => {
+  stubAuthenticatedCollaborator(t);
+  stubReportListTransaction(t);
+  stubReportGroupBy(t, [], []);
+  const originals = {
+    userFindUnique: prisma.user.findUnique,
+    reportFindMany: prisma.report.findMany,
+    reportCount: prisma.report.count
+  };
+  prisma.user.findUnique = async args => {
+    assert.deepEqual(args.where, { id: 'user-collab' });
+    return { collaboratorId: 'collab-1' };
+  };
+  prisma.report.findMany = async args => {
+    assert.equal(args.where.project.isActive, true);
+    assert.equal(args.where.project.id, '__NO_MATCH__');
+    assert.equal(args.where.project.deletedAt, null);
+    assert.equal(args.skip, 0);
+    assert.equal(args.take, 25);
+    return [];
+  };
+  prisma.report.count = async args => {
+    assert.equal(args.where.project.isActive, true);
+    assert.equal(args.where.project.id, '__NO_MATCH__');
+    return 0;
+  };
+  t.after(() => {
+    prisma.user.findUnique = originals.userFindUnique;
+    prisma.report.findMany = originals.reportFindMany;
+    prisma.report.count = originals.reportCount;
+  });
+
+  const response = await dispatchApp(
+    'GET',
+    '/api/reports?page=1&pageSize=25&summary=true&projectActive=false&statuses=APPROVED,SIGNED',
+    undefined
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json.items, []);
+  assert.equal(response.json.pagination.total, 0);
+});
+
 test('GET /reports applies search filter in database before pagination for internal roles', async t => {
   stubAuthenticatedManager(t);
   stubReportListTransaction(t);

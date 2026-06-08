@@ -82,7 +82,7 @@ Adicione os IPs dentro do bloco `geo $staging_allowed`.
 ### 3. Subir o ambiente pela primeira vez
 
 ```bash
-docker compose -f docker-compose.staging.yml up -d --build
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml up -d --build
 ```
 
 ### 4. Popular o banco
@@ -90,7 +90,7 @@ docker compose -f docker-compose.staging.yml up -d --build
 **Opção A — seed limpo** (sem dados reais):
 
 ```bash
-docker compose -f docker-compose.staging.yml exec backend npx prisma db seed
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml exec backend npx prisma db seed
 ```
 
 **Opção B — restaurar o último snapshot de produção** (recomendado):
@@ -156,13 +156,13 @@ Mesmas variáveis do script de backup:
 
 ```bash
 # Subir
-docker compose -f docker-compose.staging.yml up -d
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml up -d
 
 # Parar (mantém volumes — dados preservados)
-docker compose -f docker-compose.staging.yml down
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml down
 
 # Rebuild após mudança de código
-docker compose -f docker-compose.staging.yml up -d --build
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml up -d --build
 ```
 
 ## Migrations
@@ -174,7 +174,7 @@ garantindo que migrations do branch atual sejam aplicadas sobre o dump de prod.
 Para aplicar manualmente sem reiniciar o backend:
 
 ```bash
-docker compose -f docker-compose.staging.yml run --rm --no-deps backend sh -c "npx prisma migrate deploy"
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml run --rm --no-deps backend sh -c "npx prisma migrate deploy"
 ```
 
 ## Comandos úteis
@@ -182,20 +182,20 @@ docker compose -f docker-compose.staging.yml run --rm --no-deps backend sh -c "n
 Acompanhar logs em tempo real:
 
 ```bash
-docker compose -f docker-compose.staging.yml logs -f
-docker compose -f docker-compose.staging.yml logs -f backend
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml logs -f
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml logs -f backend
 ```
 
 Acessar o banco diretamente:
 
 ```bash
-docker compose -f docker-compose.staging.yml exec postgres psql -U postgres -d filtrovali
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml exec postgres psql -U postgres -d filtrovali
 ```
 
 Verificar status dos containers:
 
 ```bash
-docker compose -f docker-compose.staging.yml ps
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml ps
 ```
 
 Inspecionar log do último sync:
@@ -209,7 +209,7 @@ tail -50 /root/logs/sync-staging.log
 Remove containers, redes e volumes de homologação sem tocar em prod:
 
 ```bash
-docker compose -f docker-compose.staging.yml down -v
+docker compose --env-file backend/.env.staging -f docker-compose.staging.yml down -v
 ```
 
 Em seguida, repita a etapa de subida inicial.
