@@ -12,7 +12,8 @@
 #
 # Variáveis configuráveis via ambiente ou backend/.env.staging:
 #   PROJECT_DIR, BACKUP_ROOT, STAGING_COMPOSE_FILE, POSTGRES_DB, POSTGRES_USER,
-#   STAGING_POSTGRES_PASSWORD, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
+#   STAGING_POSTGRES_PASSWORD, REPORTS_VOLUME, RESTORE_REPORTS,
+#   ALLOW_PARTIAL_RESTORE, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
 
 set -euo pipefail
 
@@ -27,6 +28,9 @@ STAGING_ENV_FILE="${STAGING_ENV_FILE:-$PROJECT_DIR/backend/.env.staging}"
 BACKUP_ROOT="${BACKUP_ROOT:-/root/backups/filtrovali}"
 POSTGRES_DB="${POSTGRES_DB:-filtrovali}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
+REPORTS_VOLUME="${REPORTS_VOLUME:-filtrovali_staging_relatorios}"
+RESTORE_REPORTS="${RESTORE_REPORTS:-true}"
+ALLOW_PARTIAL_RESTORE="${ALLOW_PARTIAL_RESTORE:-false}"
 LOCKFILE="${LOCKFILE:-/tmp/filtrovali-sync-staging.lock}"
 
 TELEGRAM_TOKEN="${TELEGRAM_TOKEN:-}"
@@ -102,8 +106,15 @@ if [ ! -L "$LATEST_BACKUP" ] && [ ! -d "$LATEST_BACKUP" ]; then
   exit 1
 fi
 
+BACKUP_DIR="$(readlink -f "$LATEST_BACKUP")"
+
 if [ ! -f "$LATEST_BACKUP/postgres.sql.gz" ]; then
   log "arquivo não encontrado: $LATEST_BACKUP/postgres.sql.gz" >&2
+  exit 1
+fi
+
+if [ "$RESTORE_REPORTS" = "true" ] && [ ! -f "$LATEST_BACKUP/relatorios.tar.gz" ] && [ "$ALLOW_PARTIAL_RESTORE" != "true" ]; then
+  log "arquivo não encontrado: $LATEST_BACKUP/relatorios.tar.gz; defina RESTORE_REPORTS=false ou ALLOW_PARTIAL_RESTORE=true para sincronizar somente o banco." >&2
   exit 1
 fi
 
@@ -113,7 +124,7 @@ if [ "$BACKUP_AGE_HOURS" -gt 48 ]; then
   log "AVISO: backup mais recente tem ${BACKUP_AGE_HOURS}h — verifique o script de backup." >&2
 fi
 
-log "usando backup: $(readlink -f "$LATEST_BACKUP") (${BACKUP_AGE_HOURS}h atrás)"
+log "usando backup: $BACKUP_DIR (${BACKUP_AGE_HOURS}h atrás)"
 
 # ---------------------------------------------------------------------------
 # Estado atual do ambiente de homologação
@@ -172,6 +183,23 @@ gunzip -c "$LATEST_BACKUP/postgres.sql.gz" \
       psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -q
 
 log "banco restaurado"
+
+# ---------------------------------------------------------------------------
+# Restauração dos arquivos de relatórios
+# ---------------------------------------------------------------------------
+
+if [ "$RESTORE_REPORTS" = "true" ] && [ -f "$LATEST_BACKUP/relatorios.tar.gz" ]; then
+  log "restaurando arquivos de relatórios no volume $REPORTS_VOLUME"
+  docker run --rm \
+    -v "${REPORTS_VOLUME}:/to" \
+    -v "${BACKUP_DIR}:/backup:ro" \
+    alpine sh -eu -c "find /to -mindepth 1 -maxdepth 1 -exec rm -rf {} + && tar -xzf /backup/relatorios.tar.gz -C /to"
+  log "arquivos de relatórios restaurados"
+elif [ "$RESTORE_REPORTS" = "true" ]; then
+  log "AVISO: relatorios.tar.gz ausente; seguindo sem restaurar miniaturas/arquivos porque ALLOW_PARTIAL_RESTORE=true." >&2
+else
+  log "restauração de arquivos de relatórios desativada (RESTORE_REPORTS=false)"
+fi
 
 # ---------------------------------------------------------------------------
 # Migrations pendentes

@@ -98,10 +98,20 @@ docker compose -f docker-compose.staging.yml exec backend npx prisma db seed
 ## Sincronização diária com produção
 
 O script `deploy/sync-staging.sh` aplica o último snapshot de backup de prod ao banco
-de homologação. Ele detecta se o ambiente está rodando ou parado e age de acordo:
+de homologação e restaura o volume de relatórios (`relatorios.tar.gz`) para que
+miniaturas, anexos e PDFs apontados pelo banco existam no staging. Ele detecta se o
+ambiente está rodando ou parado e age de acordo:
 
-- **Ambiente parado**: sobe o banco, aplica o snapshot, roda migrations, desliga tudo.
-- **Ambiente rodando**: para backend e Nginx, aplica o snapshot, roda migrations, sobe tudo novamente.
+- **Ambiente parado**: sobe o banco, aplica o snapshot, restaura arquivos, roda migrations, desliga tudo.
+- **Ambiente rodando**: para backend e Nginx, aplica o snapshot, restaura arquivos, roda migrations, sobe tudo novamente.
+
+Por padrão, a restauração falha se `relatorios.tar.gz` não existir, porque o banco
+restaurado contém referências para esses arquivos. Para sincronizar somente o banco em
+um caso excepcional:
+
+```bash
+RESTORE_REPORTS=false ./deploy/sync-staging.sh
+```
 
 ### Agendamento no crontab (03h da manhã)
 
