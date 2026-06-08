@@ -142,9 +142,15 @@ else
 fi
 
 log "aguardando postgres de homologação ficar pronto"
+WAIT_SECS=0
 until docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
     pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" -q 2>/dev/null; do
+  if [ "$WAIT_SECS" -ge 60 ]; then
+    log "postgres não ficou pronto após 60s — verifique: docker compose -f $STAGING_COMPOSE_FILE logs postgres" >&2
+    exit 1
+  fi
   sleep 2
+  WAIT_SECS=$(( WAIT_SECS + 2 ))
 done
 log "postgres pronto"
 
