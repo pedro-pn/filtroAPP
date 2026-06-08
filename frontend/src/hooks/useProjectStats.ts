@@ -64,7 +64,10 @@ export function useProjectSegmentMutations() {
   return {
     createSegment: useMutation({
       mutationFn: (payload: ClientSegmentPayload) => createProjectSegment(payload),
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ['projectSegments'] })
+      onSuccess: () => Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['projectSegments'] }),
+        queryClient.invalidateQueries({ queryKey: ['bootstrap'] })
+      ])
     })
   };
 }

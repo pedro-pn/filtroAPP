@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import authRouter from './resources/auth.js';
+import bootstrapRouter from './resources/bootstrap.js';
 import collaboratorsRouter from './resources/collaborators.js';
 import countersRouter from './resources/counters.js';
 import draftsRouter from './resources/drafts.js';
@@ -22,6 +23,7 @@ import usersRouter from './resources/users.js';
 const router = Router();
 
 function mountRdoRoutes(targetRouter) {
+  targetRouter.use('/bootstrap', bootstrapRouter);
   targetRouter.use('/collaborators', collaboratorsRouter);
   targetRouter.use('/projects', projectsRouter);
   targetRouter.use('/project-segments', projectSegmentsRouter);

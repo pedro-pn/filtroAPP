@@ -15,7 +15,7 @@ export function OngoingServicesPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const showToast = useToast();
-  const reportsQuery = useReports({ mine: true });
+  const reportsQuery = useReports({ mine: true, summary: true });
   const reportMutations = useReportMutations();
   const [search, setSearch] = useState('');
   const services = useMemo(

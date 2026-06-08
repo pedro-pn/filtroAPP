@@ -578,7 +578,7 @@ LIMIT 20;
 
 ## Status da implementação
 
-Atualizado em: 2026-06-05, branch `database_performance`.
+Atualizado em: 2026-06-08, branch `database_performance`.
 
 ### Aplicado nesta branch
 
@@ -591,9 +591,12 @@ Atualizado em: 2026-06-05, branch `database_performance`.
 2. Índices de performance.
    - Adicionados índices em `ClientReportReview(reportId, createdAt)`, `ReportService(reportId)`, `ReportAttachment(reportId)` e `ReportAttachment(reportServiceId)`.
    - Adicionados índices compostos secundários para `EpiRecord`, `Romaneio`, `SatisfactionSurvey` e `DataSubjectRequest`.
+   - Adicionados índices parciais de ordenação para relatórios ativos em `Report(reportDate, createdAt)` e `Report(projectId, reportDate, createdAt)`, ambos com `deletedAt IS NULL`.
    - Migrations criadas:
      - `backend/prisma/migrations/20260605130000_add_report_relation_performance_indexes/`
      - `backend/prisma/migrations/20260605133000_add_secondary_performance_indexes/`
+     - `backend/prisma/migrations/20260608100000_add_active_report_order_indexes/`
+   - Observação: os índices parciais de `Report` ficam apenas em migration SQL porque o schema Prisma não expressa `WHERE "deletedAt" IS NULL`.
 
 3. Cache local de listas mestres.
    - Implementado cache TTL curto em memória para colaboradores, equipamentos, opções de inibição, manômetros, contadores de partículas, unidades e categorias de unidades.
@@ -604,6 +607,10 @@ Atualizado em: 2026-06-05, branch `database_performance`.
    - Chamadas concorrentes agora compartilham a mesma sincronização em andamento.
    - Rotas de romaneio passaram a usar `ensureRomaneioCatalogSynced()` com TTL curto para evitar sync completo a cada requisição.
    - Mutações de unidades e contadores continuam chamando sync forçado para preservar consistência.
+   - A sincronização passou a carregar linhas existentes do catálogo em lote, criar novos itens com `createMany(skipDuplicates)` e atualizar apenas itens que mudaram.
+   - Adicionado controle persistente por hash das fontes do catálogo em `RomaneioCatalogSyncState`, pulando writes quando arquivo, unidades e contadores não mudaram.
+   - Migration criada:
+     - `backend/prisma/migrations/20260608103000_add_romaneio_catalog_sync_state/`
 
 5. Observabilidade e pool Prisma.
    - Adicionada configuração opcional `DATABASE_CONNECTION_LIMIT` para anexar `connection_limit` à `DATABASE_URL` quando ainda não configurado.
@@ -638,15 +645,77 @@ Atualizado em: 2026-06-05, branch `database_performance`.
    - Query key separada evita colisão entre cache legado em array e cache paginado.
    - Atualização/remoção de relatórios no cache agora trata tanto arrays legados quanto payloads paginados.
 
+11. Adoção inicial do `select` resumido no frontend.
+   - `useReports()` passou a aceitar `summary=true`.
+   - `GestorPage`, `CoordinatorPage`, `ClientPage`, `HomePage`, `OngoingServicesPage`, `MyReportsPage` e `MyArchivedReportsPage` passaram a carregar relatórios com payload resumido.
+   - `NewReportPage` e `ReportDetailPage` permanecem no payload completo para preservar edição, continuidade, anexos, fotos herdadas, miniaturas e versões.
+
+12. Bootstrap inicial da tela de novo relatório.
+   - Criado endpoint `GET /bootstrap/new-report`, também disponível sob `/rdo/bootstrap/new-report`.
+   - O endpoint agrega projetos ativos acessíveis, colaboradores, unidades, manômetros, contadores, opções de inibição e rascunhos RDO do usuário.
+   - `NewReportPage` passou a consumir esse bootstrap para dados mestres e rascunhos, reduzindo requests iniciais independentes.
+   - O hook `useDrafts()` usa os rascunhos do bootstrap como dados iniciais e mantém as mutações atualizando o cache/invalidações existentes.
+
+13. Bootstrap do editor de detalhe de relatório.
+   - Criado endpoint `GET /bootstrap/report-detail/:reportId`, também disponível sob `/rdo/bootstrap/report-detail/:reportId`.
+   - O endpoint agrega dados mestres do editor, equipamentos e uma lista mínima de relatórios para validação de conflito de sequência.
+   - `ReportDetailPage` passou a usar esse bootstrap no editor, removendo requests separados para projetos, colaboradores, equipamentos, unidades, manômetros, contadores, opções de inibição e a lista completa de relatórios.
+   - O relatório atual continua sendo carregado pelo endpoint completo de detalhe, preservando anexos, versões, fotos e assinaturas.
+
+14. Bootstrap parcial da `GestorPage`.
+   - Criado endpoint `GET /bootstrap/gestor`, também disponível sob `/rdo/bootstrap/gestor`.
+   - O endpoint agrega projetos ativos, projetos arquivados, colaboradores, unidades, categorias, manômetros, contadores, pesquisas, segmentos de cliente e perguntas de pesquisa.
+   - `GestorPage` passou a consumir esse bootstrap para essas listas, mantendo relatórios, rascunhos e usuários em queries próprias.
+   - O endpoint é restrito a `rdo:manager`, pois agrega dados administrativos.
+
+15. Primeira adoção visual da paginação de relatórios.
+   - `GET /reports` passou a aceitar filtros opt-in `statuses` e `projectActive`, aplicados antes de `skip/take`.
+   - `GET /reports` passou a aceitar filtro opt-in `reportType`, permitindo carregar mais relatórios de um tipo específico dentro do mesmo projeto.
+   - `MyReportsPage` passou a usar paginação backend acumulativa com `mine: true`, `summary: true`, `projectActive: true` e status por aba.
+   - `MyArchivedReportsPage` passou a usar paginação backend acumulativa com `mine: true`, `summary: true` e `projectActive: false`.
+   - A busca textual dessas duas telas é enviada ao backend, evitando filtrar apenas a página carregada.
+   - A resposta paginada inclui totais por `projeto + tipo` em `groups`, permitindo saber quais abas ainda têm relatórios antes de clicar no rodapé.
+   - A UI usa botão `Carregar mais` no rodapé apenas para buscar projetos ainda não visíveis, mantendo um único agrupamento por projeto.
+   - Dentro de cada grupo `projeto + tipo`, há um `Carregar mais` próprio para revelar/carregar somente relatórios daquele projeto e daquele tipo.
+
+16. Busca paginada e adoção no painel do coordenador.
+   - `GET /reports` passou a aceitar `search` com filtro textual aplicado antes de `skip/take` para usuários internos.
+   - Para clientes, a busca é aplicada depois do cálculo completo de visibilidade para preservar a regra de liberação por RDO assinado.
+   - `CoordinatorPage` passou a consumir páginas acumuladas nas abas de pendentes, aprovados e arquivados.
+   - As abas de relatórios do coordenador usam filtros de status, atividade do projeto, criador e busca no backend, com botão `Carregar mais`.
+   - Como os resultados são acumulados no cliente, cada projeto permanece em um único grupo visual, com carregamento incremental por `projeto + tipo` independente do rodapé.
+
+17. Paginação na `GestorPage`.
+   - As abas de relatórios pendentes, aprovados e arquivados passaram a consumir páginas acumuladas com `summary=true`.
+   - Criado filtro backend `reviewQueue=true` para a fila de revisão do gestor, incluindo `PENDING`, `RETURNED` e relatórios com reprovação ativa do cliente.
+   - A busca textual das abas aprovados e arquivados é enviada ao backend, preservando agrupamento, seleção e download em lote para os relatórios carregados.
+   - O resumo da `GestorPage` passou a usar consultas paginadas leves (`pageSize=1`) para contar aprovados e assinados.
+   - A UI usa botão `Carregar mais` no rodapé para projetos ainda não visíveis e botão interno por `projeto + tipo` para não dividir a aba do mesmo projeto em páginas diferentes.
+
+18. Paginação na `ClientPage`.
+   - `ClientPage` passou a consumir páginas acumuladas com `summary=true`.
+   - A busca textual do portal do cliente é enviada ao backend, preservando o cálculo final de visibilidade do cliente no servidor.
+   - O total de relatórios usa `pagination.total`; agrupamentos por projeto/tipo, seleção em lote e contagens de aprovados/assinados ficam restritos aos relatórios carregados para evitar consultas extras de visibilidade.
+   - A seleção em lote é limpa ao mudar busca, projeto ou tipo de relatório.
+   - A UI usa botão `Carregar mais` no rodapé para buscar projetos ainda não visíveis e botão interno na aba ativa para revelar/carregar apenas relatórios daquele projeto e daquele tipo.
+
+19. Validação da `NewReportPage` após bootstrap/paginação.
+   - A `NewReportPage` continua sem usar `summary=true` para relatórios de continuidade, preservando `extraData`, anexos, fotos herdadas e miniaturas.
+   - Validações executadas: `frontend/test/ongoing-services.test.mjs`, `frontend/test/report-service-payload.test.mjs`, `backend/test/report-upload-attachments.test.js` e `backend/test/rcpu-service-history.test.js` dentro das suítes completas.
+
 ### Parcialmente aplicado
 
 1. Cache de listas mestres e bootstrap por tela.
    - Cache de listas mestres foi aplicado.
-   - Endpoints de bootstrap por tela ainda não foram criados.
+   - Bootstrap da `NewReportPage` foi aplicado para dados mestres e rascunhos.
+   - Bootstrap da `ReportDetailPage` foi aplicado para o editor.
+   - Bootstrap parcial da `GestorPage` foi aplicado para listas de apoio.
 
 2. Otimização de `syncRomaneioCatalog()`.
    - TTL e deduplicação concorrente foram aplicados.
-   - Controle persistente por versão/hash e batching real de upserts ainda estão pendentes.
+   - Controle persistente por hash foi aplicado.
+   - Batching de leituras e criação de novos itens foi aplicado.
+   - Updates ainda são executados por linha apenas para itens cujo conteúdo mudou, preservando regras de ocultação e reativação.
 
 3. Cache/agregação de estatísticas.
    - Cache TTL do endpoint principal foi aplicado.
@@ -656,20 +725,24 @@ Atualizado em: 2026-06-05, branch `database_performance`.
    - Paginação opcional foi aplicada.
    - `select` resumido opcional foi aplicado.
    - Hook de consumo paginado foi adicionado.
-   - Adaptação visual das telas para paginação ainda está pendente.
+   - Hook de consumo acumulativo foi adicionado para telas agrupadas por projeto.
+   - Adoção inicial de `summary=true` foi aplicada nas listagens que não dependem de anexos/versões.
+   - Busca textual backend foi adicionada para listagens paginadas.
+   - Telas agrupadas por projeto passaram a usar `Carregar mais` acumulativo em vez de paginação numerada, evitando repetir o mesmo projeto em páginas diferentes.
+   - Telas agrupadas por projeto/tipo passaram a ter `Carregar mais` interno por grupo.
+   - A `ClientPage` mantém agrupamentos e métricas detalhadas no escopo dos relatórios carregados para não multiplicar consultas de visibilidade, com busca textual executada no backend antes da página exibida.
 
-### Pendente
+### Pendente pós-Fase 2
 
-1. Adoção de paginação e resumo pelas telas.
-   - `GestorPage`, `CoordinatorPage`, `ClientPage` e listagens de colaborador ainda usam o modo legado.
-   - Falta migrar gradualmente para `useReportsPage({ page, pageSize, summary: true })`.
-   - Ao migrar `NewReportPage`, preservar os campos de `extraData` usados para diferenciar serviços pendentes ambíguos.
-   - Ao migrar `NewReportPage`, validar fotos herdadas, miniaturas e marcadores de UI removidos do payload de serviços.
+1. Acompanhamento de paginação e resumo pelas telas.
+   - `MyReportsPage`, `MyArchivedReportsPage`, as abas de relatórios da `CoordinatorPage`, as abas de relatórios da `GestorPage` e a `ClientPage` já usam paginação backend com carregamento acumulativo.
+   - Para `ClientPage`, avaliar futuramente facetas/contagens por projeto no backend caso seja necessário recuperar agrupamentos globais sem carregar todos os relatórios no navegador.
+   - `NewReportPage` permanece fora do modo resumido para preservar os campos de `extraData` usados para diferenciar serviços pendentes ambíguos.
+   - Validação de fotos herdadas, miniaturas e marcadores de UI da `NewReportPage` foi executada nas suítes backend/frontend.
    - O modo resumido não deve ser usado para edição/detalhe quando anexos, versões ou dados completos de fotos de serviços forem necessários.
 
 2. Bootstrap por tela.
-   - Criar endpoints de bootstrap para `GestorPage`, `NewReportPage` e `ReportDetailPage`.
-   - Adaptar frontend para consumir bootstrap sem quebrar endpoints existentes.
+   - Avaliar inclusão segura de relatórios, rascunhos e usuários no bootstrap da `GestorPage` sem prejudicar invalidações e permissões.
 
 3. Agregações SQL ou materializações para estatísticas.
    - Migrar métricas simples para agregações no banco quando validado por `EXPLAIN ANALYZE`.
@@ -724,24 +797,25 @@ Impacto avaliado:
    - Redução de latência: Alta.
    - Risco: Baixo/Médio.
    - Facilidade: Média.
-   - Aplicado: cache TTL de listas mestres.
-   - Pendente: endpoints de bootstrap e adaptação do frontend.
+   - Aplicado: cache TTL de listas mestres, bootstrap de dados mestres e rascunhos da `NewReportPage`, bootstrap do editor da `ReportDetailPage` e bootstrap parcial da `GestorPage`.
+   - Pendente: avaliar inclusão de relatórios, rascunhos e usuários no bootstrap da `GestorPage`.
 
 4. Otimizar `syncRomaneioCatalog()`. Status: parcialmente aplicado.
    - Ganho: Alto.
    - Redução de latência: Alta.
    - Risco: Médio.
    - Facilidade: Média.
-   - Aplicado: TTL e deduplicação de sync concorrente.
-   - Pendente: versionamento/hash persistente e batching de upserts.
+   - Aplicado: TTL, deduplicação concorrente, hash persistente, leitura em lote e criação em lote com `createMany`.
+   - Pendente: avaliar batching adicional de updates se os planos/volume real justificarem.
 
 5. Paginação e `select` resumido em `GET /reports`. Status: parcialmente aplicado.
    - Ganho: Alto em bases grandes.
    - Redução de latência: Média.
    - Risco: Médio.
    - Facilidade: Média.
-   - Aplicado: modo paginado opcional e `select` resumido opcional preservando retorno legado.
-   - Pendente: adaptação da UI para consumir páginas/resumo.
+   - Aplicado: modo paginado opcional, `select` resumido opcional, busca textual backend, filtro `reviewQueue=true`, hook acumulativo e adoção do resumo em telas de listagem do colaborador, coordenador, gestor e cliente.
+   - Aplicado: filtro `reportType` e carregamento incremental por `projeto + tipo` nas telas de relatórios agrupados.
+   - Pendente: avaliar facetas/contagens globais adicionais para a `ClientPage` se os usuários precisarem navegar por projetos fora da página atual.
 
 6. Cache/agregação SQL para estatísticas. Status: parcialmente aplicado.
    - Ganho: Médio/Alto.
@@ -757,34 +831,59 @@ Impacto avaliado:
    - Risco: Baixo.
    - Facilidade: Alta.
 
+8. Índices parciais de ordenação para relatórios ativos. Status: aplicado.
+   - Ganho: Médio/Alto em bases grandes.
+   - Redução de latência: Média.
+   - Risco: Baixo.
+   - Facilidade: Alta.
+
 ## Plano de implementação
 
 ### Fase 1: baixo risco e alto impacto
 
 - [x] Corrigir N+1 de autorização de cliente.
 - [x] Adicionar índices FK faltantes.
+- [x] Adicionar índices parciais de ordenação para relatórios ativos.
 - [x] Adicionar logs controlados de queries lentas e operações lentas.
 - [x] Cachear listas mestres com TTL curto e invalidação em mutações.
 - [x] Configurar pool e limites de conexão do Prisma via env.
 
-### Fase 2: melhorias estruturais
+### Fase 2: melhorias estruturais concluída
 
-- [ ] Criar endpoint de bootstrap para `GestorPage`, `NewReportPage` e `ReportDetailPage`.
+- [x] Criar endpoint de bootstrap para dados mestres da `NewReportPage`.
+- [x] Criar endpoint de bootstrap parcial para `GestorPage`.
+- [x] Criar endpoint de bootstrap para `ReportDetailPage`.
 - [x] Introduzir modo paginado em `GET /reports`, mantendo compatibilidade com o modo atual.
 - [x] Separar `select` opcional de listagem e `include` completo de detalhe.
 - [x] Adicionar API/hook frontend para listagem paginada/resumida.
-- [ ] Migrar telas para usar `useReportsPage({ page, pageSize, summary: true })`.
-- [ ] Adicionar controles visuais de paginação nas telas migradas.
-- [ ] Validar migração de `NewReportPage` contra serviços pendentes ambíguos, anexos de serviços, fotos herdadas e miniaturas.
-- [ ] Otimizar `syncRomaneioCatalog()` com controle de versão/hash persistente.
-- [ ] Otimizar `syncRomaneioCatalog()` com batching/diff de upserts.
+- [x] Adicionar hook frontend para carregamento acumulativo em telas agrupadas por projeto.
+- [x] Migrar telas de listagem para usar `summary=true` sem alterar UX.
+- [x] Migrar `MyReportsPage` e `MyArchivedReportsPage` para carregamento acumulativo com `summary=true`.
+- [x] Adicionar botão `Carregar mais` em `MyReportsPage` e `MyArchivedReportsPage`.
+- [x] Adicionar busca textual backend para listagens paginadas de relatórios.
+- [x] Migrar abas de relatórios da `CoordinatorPage` para carregamento acumulativo com `summary=true`.
+- [x] Adicionar botão `Carregar mais` nas abas de relatórios da `CoordinatorPage`.
+- [x] Migrar abas aprovados/arquivados da `GestorPage` para carregamento acumulativo com `summary=true`.
+- [x] Adicionar botão `Carregar mais` nas abas aprovados/arquivados da `GestorPage`.
+- [x] Criar filtro backend para pendentes do gestor incluindo reprovação ativa do cliente.
+- [x] Migrar aba pendentes da `GestorPage` para carregamento acumulativo com `summary=true`.
+- [x] Migrar `ClientPage` para carregamento acumulativo com `summary=true`.
+- [x] Substituir paginação numerada por `Carregar mais` nas telas agrupadas por projeto.
+- [x] Adicionar `Carregar mais` interno por `projeto + tipo` nas abas de relatórios.
+- [x] Adicionar totais por `projeto + tipo` na resposta paginada para exibir o botão interno sem depender do rodapé.
+- [x] Fazer o `Carregar mais` do rodapé pular relatórios de projetos já visíveis e buscar apenas novas abas de projeto.
+- [x] Garantir que a busca das listagens paginadas consulte o backend em vez de filtrar apenas os itens já carregados.
+- [x] Incluir rascunhos no bootstrap da `NewReportPage` sem quebrar autosave/invalidações.
+- [x] Validar migração de `NewReportPage` contra serviços pendentes ambíguos, anexos de serviços, fotos herdadas e miniaturas.
+- [x] Otimizar `syncRomaneioCatalog()` com controle de versão/hash persistente.
+- [x] Otimizar `syncRomaneioCatalog()` com batching/diff de upserts.
 - [x] Adicionar índices compostos secundários.
-- [ ] Validar uso real dos índices com `EXPLAIN ANALYZE`.
 - [x] Adicionar cache TTL de `/statistics/projects`.
-- [ ] Migrar métricas simples de estatísticas para agregações SQL quando validado.
 
 ### Fase 3: otimizações avançadas
 
+- [ ] Validar uso real dos índices com `EXPLAIN ANALYZE` em staging/produção.
+- [ ] Migrar métricas simples de estatísticas para agregações SQL quando validado.
 - [ ] Migrar parte das estatísticas para agregações SQL ou materializações.
 - [ ] Avaliar Redis para cache distribuído se houver múltiplas instâncias.
 - [ ] Avaliar `pg_trgm` para buscas textuais de romaneio.

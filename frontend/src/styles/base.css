@@ -3733,6 +3733,12 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   padding-top: 8px;
 }
 
+.report-type-load-more {
+  justify-content: center;
+  margin-top: 14px;
+  margin-bottom: 4px;
+}
+
 .project-group-code {
   font-size: 11px;
   font-weight: 700;

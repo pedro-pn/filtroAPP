@@ -7,6 +7,8 @@ const docxToPdfTimeoutMs = Number(process.env.DOCX_TO_PDF_TIMEOUT_MS || 60000);
 const databaseConnectionLimit = Number(process.env.DATABASE_CONNECTION_LIMIT || 0);
 const prismaSlowQueryMs = Number(process.env.PRISMA_SLOW_QUERY_MS || 0);
 const slowOperationLogMs = Number(process.env.SLOW_OPERATION_LOG_MS || 0);
+const resourceListCacheTtlMs = Number(process.env.RESOURCE_LIST_CACHE_TTL_MS ?? 60000);
+const dashboardCacheTtlMs = Number(process.env.DASHBOARD_CACHE_TTL_MS ?? 60000);
 
 function parseBoolean(value, fallback = false) {
   if (value === undefined || value === null || value === '') return fallback;
@@ -67,6 +69,12 @@ const env = {
   databaseConnectionLimit: Number.isInteger(databaseConnectionLimit) && databaseConnectionLimit > 0
     ? databaseConnectionLimit
     : 0,
+  resourceListCacheTtlMs: Number.isFinite(resourceListCacheTtlMs) && resourceListCacheTtlMs >= 0
+    ? resourceListCacheTtlMs
+    : 60000,
+  dashboardCacheTtlMs: Number.isFinite(dashboardCacheTtlMs) && dashboardCacheTtlMs >= 0
+    ? dashboardCacheTtlMs
+    : 60000,
   assetsDir: process.env.ASSETS_DIR || path.resolve(process.cwd(), 'assets'),
   reportsDir,
   uploadDir: reportsDir,

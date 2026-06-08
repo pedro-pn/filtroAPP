@@ -203,22 +203,60 @@ async function invalidateProjectInternalSignatureRounds(tx, projectId, {
   }
 }
 
-router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
-  const activeParam = req.query.active;
+export const projectListInclude = {
+  operator: true,
+  authorizedUsers: {
+    include: {
+      user: {
+        select: {
+          id: true,
+          username: true,
+          name: true,
+          email: true,
+          role: true,
+          accountType: true,
+          isActive: true,
+          collaboratorId: true,
+          collaborator: true,
+          moduleRoles: true
+        }
+      }
+    }
+  },
+  reportSequences: true,
+  surveys: {
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      projectId: true,
+      emailTo: true,
+      expiresAt: true,
+      respondedAt: true,
+      sentAt: true,
+      lastReminderAt: true,
+      reminderCount: true,
+      reminderOptOutAt: true,
+      expirationNotifiedAt: true,
+      createdAt: true
+    }
+  }
+};
+
+export async function projectListWhereForAuth(auth, activeParam, prismaClient = prisma) {
   const where = { deletedAt: null };
-  if (req.auth.user.role === 'MANAGER') {
+  if (auth.user.role === 'MANAGER') {
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
-  } else if (req.auth.user.role === 'COORDINATOR') {
+  } else if (auth.user.role === 'COORDINATOR') {
     where.managerOnly = false;
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
-  } else if (req.auth.user.role === 'CLIENT') {
-    Object.assign(where, await clientProjectAccessWhereWithSigners(prisma, req.auth));
+  } else if (auth.user.role === 'CLIENT') {
+    Object.assign(where, await clientProjectAccessWhereWithSigners(prismaClient, auth));
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
   } else {
-    const collaboratorId = req.auth.user.collaboratorId;
+    const collaboratorId = auth.user.collaboratorId;
     where.isActive = true;
     where.managerOnly = false;
     where.OR = [
@@ -228,52 +266,20 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
       },
       {
         authorizedUsers: {
-          some: { userId: req.auth.user.id }
+          some: { userId: auth.user.id }
         }
       }
     ];
   }
+  return where;
+}
+
+router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+  const where = await projectListWhereForAuth(req.auth, req.query.active);
 
   const items = await prisma.project.findMany({
     where,
-    include: {
-      operator: true,
-      authorizedUsers: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              username: true,
-              name: true,
-              email: true,
-              role: true,
-              accountType: true,
-              isActive: true,
-              collaboratorId: true,
-              collaborator: true,
-              moduleRoles: true
-            }
-          }
-        }
-      },
-      reportSequences: true,
-      surveys: {
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          projectId: true,
-          emailTo: true,
-          expiresAt: true,
-          respondedAt: true,
-          sentAt: true,
-          lastReminderAt: true,
-          reminderCount: true,
-          reminderOptOutAt: true,
-          expirationNotifiedAt: true,
-          createdAt: true
-        }
-      }
-    },
+    include: projectListInclude,
     orderBy: { name: 'asc' }
   });
   res.json(items);

@@ -41,7 +41,8 @@ export function useSurveyMutations() {
     return Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.surveys }),
       queryClient.invalidateQueries({ queryKey: queryKeys.surveyQuestions }),
-      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] }),
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] })
     ]);
   }
 

@@ -14,7 +14,7 @@ import { SignatureProgress } from '../../components/reports/SignatureProgress';
 import { SignatureDialog } from '../../components/reports/SignatureDialog';
 import { useToast } from '../../components/ui/Toast';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../../constants/privacy';
-import { useReportMutations, useReports } from '../../hooks/useReports';
+import { useAccumulatedReportsPage, useReportMutations } from '../../hooks/useReports';
 import { useProjects } from '../../hooks/useProjects';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -25,7 +25,6 @@ import { formatCnpj } from '../../utils/formatCnpj';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 import { compareReportTypes, ProjectSortButton, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
 import { reportDownloadFileName } from '../../utils/reportFileName';
-import { matchesSearch, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
 const TEXT = {
@@ -46,6 +45,8 @@ const TEXT = {
   signatureRequested: 'Assinatura registrada.',
   summary: 'Resumo'
 };
+const REPORT_PAGE_SIZE = 30;
+const REPORT_TYPE_VISIBLE_STEP = 10;
 
 const statusMap: Record<string, { label: string; className: string }> = {
   PENDING: { label: 'Pendente', className: 'status-pending' },
@@ -181,7 +182,6 @@ function canSelectClientReport(report: ReportSummary) {
 export function ClientPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const reportsQuery = useReports();
   const archivedProjectsQuery = useProjects(false);
   const reportMutations = useReportMutations();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -194,23 +194,27 @@ export function ClientPage() {
   const [clientSortDirection, setClientSortDirection] = useState<ProjectSortDirection>('asc');
   const [clientTogglesLoaded, setClientTogglesLoaded] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
+  const [visibleByClientType, setVisibleByClientType] = useState<Record<string, number>>({});
   const [releasedReportCounts, setReleasedReportCounts] = useState<Record<string, number>>({});
   const tutorialTrigger = useRef<(() => void) | null>(null);
   const showToast = useToast();
   const clientToggleStorageKey = user ? `filtrovali-client-tabs:${user.id || user.username}` : '';
+  const reportsQuery = useAccumulatedReportsPage({
+    summary: true,
+    search: clientSearch,
+    projectSort: clientSortDirection,
+    pageSize: REPORT_PAGE_SIZE
+  });
 
-  const reports = useMemo(() => reportsQuery.data || [], [reportsQuery.data]);
-  const visibleClientReports = useMemo(
-    () => reports.filter(report => matchesSearch(reportSearchParts(report), clientSearch)),
-    [clientSearch, reports]
-  );
+  const reports = reportsQuery.items;
+  const reportPagination = reportsQuery.pagination;
   const surveyProjects = useMemo(
     () => (archivedProjectsQuery.data || []).filter(project => latestSurvey(project)),
     [archivedProjectsQuery.data]
   );
   const clientProjects = useMemo(() => {
     const byProject = new Map<string, ClientProjectGroup>();
-    visibleClientReports.forEach(report => {
+    reports.forEach(report => {
       const current = byProject.get(report.projectId);
       if (current) {
         current.reports.push(report);
@@ -246,7 +250,7 @@ export function ClientPage() {
         ? a.title.localeCompare(b.title, 'pt-BR', { numeric: true, sensitivity: 'base' })
         : b.title.localeCompare(a.title, 'pt-BR', { numeric: true, sensitivity: 'base' })
     ));
-  }, [clientSortDirection, surveyProjects, visibleClientReports]);
+  }, [clientSortDirection, surveyProjects, reports]);
 
   useEffect(() => {
     setClientTogglesLoaded(false);
@@ -298,33 +302,71 @@ export function ClientPage() {
 
   const activeProject = clientProjects.find(project => project.id === activeProjectId) || clientProjects[0] || null;
   const activeTypes = useMemo(
-    () => activeProject
-      ? Array.from(new Set(activeProject.reports.map(report => report.reportType))).sort(compareReportTypes)
-      : [],
-    [activeProject]
+    () => {
+      if (!activeProject) return [];
+      const loadedTypes = activeProject.reports.map(report => report.reportType);
+      const remoteTypes = reportsQuery.projectTypeTotals(activeProject.id).map(group => group.reportType);
+      return Array.from(new Set([...loadedTypes, ...remoteTypes])).sort(compareReportTypes);
+    },
+    [activeProject, reportsQuery]
   );
   const activeReportType = activeProject ? activeTypeByProject[activeProject.id] || activeTypes[0] || 'RDO' : 'RDO';
-  const visibleReports = activeProject
+  const activeTypeKey = activeProject ? `${activeProject.id}-${activeReportType}` : '';
+  const loadedTypeReports = activeProject
     ? sortReportsInGroup(
       activeProject.reports.filter(report => report.reportType === activeReportType),
       clientSortDirection
     )
     : [];
-  const activeTypeKey = activeProject ? `${activeProject.id}-${activeReportType}` : '';
+  const activeTypeVisibleLimit = activeTypeKey ? visibleByClientType[activeTypeKey] || REPORT_TYPE_VISIBLE_STEP : REPORT_TYPE_VISIBLE_STEP;
+  const activeTypeTotal = activeProject ? reportsQuery.groupTotal(activeProject.id, activeReportType) ?? loadedTypeReports.length : loadedTypeReports.length;
+  const activeTypeOrderedLoadedCount = activeProject
+    ? Math.min(
+        reportsQuery.groupLoadedCount(activeProject.id, activeReportType, REPORT_TYPE_VISIBLE_STEP, clientSortDirection),
+        activeTypeTotal
+      )
+    : loadedTypeReports.length;
+  const activeTypeNeedsOrderedPage = !!activeProject
+    && activeTypeTotal > 0
+    && !reportsQuery.isGroupError(activeProject.id, activeReportType)
+    && !reportsQuery.isGroupPageReady(activeProject.id, activeReportType, REPORT_TYPE_VISIBLE_STEP, clientSortDirection);
+  const activeTypeErrored = !!activeProject && reportsQuery.isGroupError(activeProject.id, activeReportType);
+  const activeTypeOrderedReports = loadedTypeReports.slice(0, activeTypeOrderedLoadedCount);
+  const visibleReports = activeTypeNeedsOrderedPage ? [] : activeTypeOrderedReports.slice(0, activeTypeVisibleLimit);
+  const activeTypeHasLoadedItemsToReveal = !activeTypeNeedsOrderedPage && visibleReports.length < activeTypeOrderedReports.length;
+  const activeTypeHasRemoteItemsToLoad = !!activeProject
+    && !activeTypeNeedsOrderedPage
+    && !activeTypeHasLoadedItemsToReveal
+    && activeTypeOrderedLoadedCount < activeTypeTotal;
+  const activeTypeIsLoading = !!activeProject && reportsQuery.isGroupLoading(activeProject.id, activeReportType);
   const activeTypeClosed = activeTypeKey ? closedTypeByProject[activeTypeKey] === true : false;
 
   useEffect(() => {
     setSelectedIds([]);
-  }, [activeProjectId, activeReportType]);
+  }, [activeProjectId, activeReportType, clientSearch]);
+
+  useEffect(() => {
+    setVisibleByClientType({});
+  }, [clientSearch]);
+
+  useEffect(() => {
+    if (!activeProject || !activeReportType || activeTypeClosed) return;
+    void reportsQuery.ensureGroupPage({
+      projectId: activeProject.id,
+      reportType: activeReportType,
+      pageSize: REPORT_TYPE_VISIBLE_STEP,
+      sortDirection: clientSortDirection
+    });
+  }, [activeProject, activeReportType, activeTypeClosed, clientSortDirection, reportsQuery]);
 
   const reportSummary = useMemo(() => {
     return {
-      total: reports.length,
+      total: reportPagination?.total ?? reports.length,
       approved: reports.filter(report => report.status === 'APPROVED').length,
       signed: reports.filter(report => report.status === 'SIGNED').length,
       projectCount: new Set([...reports.map(report => report.project.id), ...surveyProjects.map(project => project.id)]).size
     };
-  }, [reports, surveyProjects]);
+  }, [reportPagination?.total, reports, surveyProjects]);
 
   async function handleLogout() {
     await logout();
@@ -358,6 +400,31 @@ export function ClientPage() {
     setActiveTypeByProject(current => ({ ...current, [projectId]: reportType }));
     setClosedTypeByProject(current => ({ ...current, [`${projectId}-${reportType}`]: false }));
     clearReleasedReportCount(projectId, reportType);
+  }
+
+  async function handleLoadMoreActiveType() {
+    if (!activeProject || !activeTypeKey) return;
+    if (activeTypeHasLoadedItemsToReveal) {
+      setVisibleByClientType(current => ({
+        ...current,
+        [activeTypeKey]: (current[activeTypeKey] || REPORT_TYPE_VISIBLE_STEP) + REPORT_TYPE_VISIBLE_STEP
+      }));
+      return;
+    }
+    if (activeTypeHasRemoteItemsToLoad) {
+      const loaded = await reportsQuery.loadMoreGroup({
+        projectId: activeProject.id,
+        reportType: activeReportType,
+        loadedCount: loadedTypeReports.length,
+        pageSize: REPORT_TYPE_VISIBLE_STEP,
+        sortDirection: clientSortDirection
+      });
+      if (loaded === false) return;
+      setVisibleByClientType(current => ({
+        ...current,
+        [activeTypeKey]: (current[activeTypeKey] || REPORT_TYPE_VISIBLE_STEP) + REPORT_TYPE_VISIBLE_STEP
+      }));
+    }
   }
 
   function highlightReleasedReportTab(report: ReleasedServiceReportNotification) {
@@ -655,6 +722,22 @@ export function ClientPage() {
     );
   }
 
+  function renderLoadMoreReports() {
+    if (!reportsQuery.hasMore) return null;
+    return (
+      <div className="admin-create-toolbar">
+        <button
+          className="mini-btn"
+          type="button"
+          disabled={reportsQuery.isLoadingMore}
+          onClick={reportsQuery.loadMore}
+        >
+          {reportsQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
+        </button>
+      </div>
+    );
+  }
+
   const tutorialReady = !reportsQuery.isLoading && !archivedProjectsQuery.isLoading && clientTogglesLoaded;
 
   return (
@@ -691,7 +774,7 @@ export function ClientPage() {
           <div className="client-welcome-meta">
             <span><strong>Usuário:</strong> {formatCnpj(user?.username) || user?.username || '—'}</span>
             <span><strong>E-mail:</strong> {user?.email || '—'}</span>
-            <span><strong>Projetos vinculados:</strong> {reportSummary.projectCount}</span>
+            <span><strong>Projetos nesta página:</strong> {reportSummary.projectCount}</span>
           </div>
           <div className="client-welcome-actions">
             <button
@@ -713,11 +796,11 @@ export function ClientPage() {
             </div>
             <div className="stat-card-react">
               <div className="stat-number-react">{reportSummary.approved}</div>
-              <div className="stat-label-react">Aprovados</div>
+              <div className="stat-label-react">Aprovados na página</div>
             </div>
             <div className="stat-card-react">
               <div className="stat-number-react">{reportSummary.signed}</div>
-              <div className="stat-label-react">{TEXT.signed}</div>
+              <div className="stat-label-react">Assinados na página</div>
             </div>
           </div>
         </section>
@@ -843,7 +926,7 @@ export function ClientPage() {
                 >
                   <span className={`rtype-badge rtype-${activeReportType}`}>{activeReportType}</span>
                   <span className="rtype-count">
-                    {visibleReports.length} relatório{visibleReports.length !== 1 ? 's' : ''}
+                    {visibleReports.length} de {activeTypeTotal} relatório{activeTypeTotal !== 1 ? 's' : ''}
                   </span>
                   <span onClick={event => event.stopPropagation()}>
                     <ProjectSortButton
@@ -856,17 +939,36 @@ export function ClientPage() {
                 {!activeTypeClosed ? (
                   <>
                     {renderClientTypeActions(visibleReports)}
+                    {activeTypeNeedsOrderedPage ? (
+                      <div className="placeholder-copy">Carregando relatórios...</div>
+                    ) : null}
+                    {activeTypeErrored ? (
+                      <div className="placeholder-copy">Não foi possível carregar os relatórios desta aba.</div>
+                    ) : null}
                     {visibleReports.length ? (
                       <div className="report-type-list">
                         {visibleReports.map(report => renderClientReportCard(report))}
                       </div>
-                    ) : (
+                    ) : !activeTypeNeedsOrderedPage && !activeTypeErrored ? (
                       <p className="placeholder-copy">Nenhum relatório deste tipo.</p>
-                    )}
+                    ) : null}
+                    {activeTypeHasLoadedItemsToReveal || activeTypeHasRemoteItemsToLoad ? (
+                      <div className="admin-create-toolbar report-type-load-more">
+                        <button
+                          className="mini-btn"
+                          type="button"
+                          disabled={activeTypeIsLoading}
+                          onClick={() => void handleLoadMoreActiveType()}
+                        >
+                          {activeTypeIsLoading ? 'Carregando...' : activeTypeErrored ? 'Tentar novamente' : 'Carregar mais'}
+                        </button>
+                      </div>
+                    ) : null}
                   </>
                 ) : null}
               </section>
             ) : null}
+            {renderLoadMoreReports()}
           </>
         ) : !reportsQuery.isLoading && reportSummary.total ? (
           <div className="page-card placeholder-copy">

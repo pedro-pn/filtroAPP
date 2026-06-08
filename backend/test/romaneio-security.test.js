@@ -9,7 +9,7 @@ import AdmZip from 'adm-zip';
 
 import app from '../src/app.js';
 import { buildRomaneioDocx, buildRomaneioFileName } from '../src/lib/romaneio-docx.js';
-import { parseEquipmentRows, syncRomaneioCatalog } from '../src/lib/romaneio-catalog.js';
+import { parseEquipmentRows, syncCatalogRows, syncRomaneioCatalog } from '../src/lib/romaneio-catalog.js';
 import prisma from '../src/lib/prisma.js';
 import {
   buildRomaneioItems,
@@ -903,4 +903,157 @@ test('Romaneio equipment parser keeps loose trailing sections in their own categ
   assert.equal(flushing.kind, 'CONNECTION');
   assert.equal(valve.categoryName, 'Vávulas');
   assert.equal(valve.kind, 'CONNECTION');
+});
+
+test('Romaneio catalog row sync batches reads and creates only missing rows', async () => {
+  const findManyCalls = [];
+  const updates = [];
+  const createManyCalls = [];
+  const tx = {
+    romaneioCatalogItem: {
+      findMany: async args => {
+        findManyCalls.push(args);
+        if (args.where?.sourceType) {
+          return [{
+            id: 'catalog-unit-1',
+            sourceType: 'UNIT',
+            sourceId: 'unit-1',
+            code: 'UF-01',
+            name: 'Nome antigo',
+            categoryName: 'Filtragem',
+            kind: 'EQUIPMENT',
+            measureType: 'UNIT',
+            defaultUnitLabel: 'unidade',
+            isSerialized: true,
+            isActive: true,
+            hiddenInRomaneioAt: null
+          }];
+        }
+        return [{
+          categoryName: 'Categoria existente',
+          code: 'EX-01',
+          name: 'Item existente'
+        }];
+      },
+      update: async args => {
+        updates.push(args);
+        return args;
+      },
+      createMany: async args => {
+        createManyCalls.push(args);
+        return { count: args.data.length };
+      }
+    }
+  };
+
+  await syncCatalogRows(tx, [{
+    sourceType: 'UNIT',
+    sourceId: 'unit-1',
+    code: 'UF-01',
+    name: 'Nome novo',
+    categoryName: 'Filtragem',
+    kind: 'EQUIPMENT',
+    measureType: 'UNIT',
+    defaultUnitLabel: 'unidade',
+    isSerialized: true,
+    isActive: true
+  }, {
+    sourceType: 'FILE',
+    sourceId: 'equipamentos:1',
+    code: 'EX-01',
+    name: 'Item existente',
+    categoryName: 'Categoria existente',
+    kind: 'EQUIPMENT',
+    measureType: 'UNIT',
+    defaultUnitLabel: 'unidade',
+    isSerialized: true,
+    isActive: true
+  }, {
+    sourceType: 'FILE',
+    sourceId: 'equipamentos:2',
+    code: 'NW-01',
+    name: 'Item novo',
+    categoryName: 'Categoria nova',
+    kind: 'EQUIPMENT',
+    measureType: 'UNIT',
+    defaultUnitLabel: 'unidade',
+    isSerialized: true,
+    isActive: true
+  }]);
+
+  assert.equal(findManyCalls.length, 2);
+  assert.deepEqual(updates, [{
+    where: { id: 'catalog-unit-1' },
+    data: {
+      sourceType: 'UNIT',
+      sourceId: 'unit-1',
+      code: 'UF-01',
+      name: 'Nome novo',
+      categoryName: 'Filtragem',
+      kind: 'EQUIPMENT',
+      measureType: 'UNIT',
+      defaultUnitLabel: 'unidade',
+      isSerialized: true,
+      isActive: true,
+      hiddenInRomaneioAt: null
+    }
+  }]);
+  assert.equal(createManyCalls.length, 1);
+  assert.equal(createManyCalls[0].skipDuplicates, true);
+  assert.deepEqual(createManyCalls[0].data.map(item => item.sourceId), ['equipamentos:2']);
+});
+
+test('Romaneio catalog sync skips catalog writes when persistent source hash is unchanged', async t => {
+  const originalTransaction = prisma.$transaction;
+  let storedHash = null;
+  let catalogWrites = 0;
+  let stateUpserts = 0;
+  prisma.$transaction = async callback => callback({
+    unit: {
+      findMany: async () => [{
+        id: 'unit-1',
+        code: 'UF-01',
+        name: 'Unidade de filtragem',
+        category: 'Filtragem'
+      }]
+    },
+    particleCounter: {
+      findMany: async () => []
+    },
+    romaneioCatalogSyncState: {
+      findUnique: async () => storedHash ? { sourceHash: storedHash } : null,
+      upsert: async args => {
+        storedHash = args.update.sourceHash;
+        stateUpserts++;
+        return args;
+      }
+    },
+    romaneioCatalogItem: {
+      findMany: async () => [],
+      update: async args => {
+        catalogWrites++;
+        return args;
+      },
+      createMany: async args => {
+        catalogWrites++;
+        return { count: args.data.length };
+      },
+      updateMany: async args => {
+        catalogWrites++;
+        return { count: 0 };
+      }
+    }
+  });
+  t.after(() => {
+    prisma.$transaction = originalTransaction;
+  });
+
+  await syncRomaneioCatalog();
+  const writesAfterFirstSync = catalogWrites;
+  await syncRomaneioCatalog();
+
+  assert.ok(storedHash);
+  assert.ok(writesAfterFirstSync > 0);
+  assert.equal(catalogWrites, writesAfterFirstSync);
+  assert.equal(stateUpserts, 1);
 });

@@ -20,18 +20,19 @@ import { Modal } from '../../components/ui/Modal';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useToast } from '../../components/ui/Toast';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
-import { useCollaboratorMutations, useCollaborators } from '../../hooks/useCollaborators';
-import { useCounterMutations, useCounters } from '../../hooks/useCounters';
+import { useGestorBootstrap } from '../../hooks/useBootstrap';
+import { useCollaboratorMutations } from '../../hooks/useCollaborators';
+import { useCounterMutations } from '../../hooks/useCounters';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
-import { useManometerMutations, useManometers } from '../../hooks/useManometers';
-import { useProjectMutations, useProjects } from '../../hooks/useProjects';
-import { useReportMutations, useReports } from '../../hooks/useReports';
-import { useUnitCategories, useUnitMutations, useUnits } from '../../hooks/useUnits';
+import { useManometerMutations } from '../../hooks/useManometers';
+import { useProjectMutations } from '../../hooks/useProjects';
+import { useAccumulatedReportsPage, useReportMutations, useReportsPage } from '../../hooks/useReports';
+import { useUnitMutations } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
-import { useSurveyMutations, useSurveyQuestions, useSurveys } from '../../hooks/useSurveys';
+import { useSurveyMutations } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
 import { MonthlyAllocationDashboardOverlay, StatsDashboardOverlay, StatsOverview } from '../../components/stats/StatsDashboard';
-import { useProjectSegmentMutations, useProjectSegments } from '../../hooks/useProjectStats';
+import { useProjectSegmentMutations } from '../../hooks/useProjectStats';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
@@ -67,6 +68,8 @@ type GestorTab =
 
 type EquipmentSubTab = 'unidades' | 'manometros' | 'contadores';
 type SurveyQuestionDraft = Omit<SurveyQuestion, 'order' | 'options'> & { optionsText: string };
+const REPORT_PAGE_SIZE = 50;
+const REPORT_TYPE_PAGE_SIZE = 10;
 
 const suggestedSurveyQuestions: Array<Omit<SurveyQuestionDraft, 'id'>> = [
   { label: 'Nome do respondente', type: 'TEXT', required: false, optionsText: '' },
@@ -1309,23 +1312,62 @@ export function GestorPage() {
   const [projectSortDir, setProjectSortDir] = useState<'asc' | 'desc'>(initialUiPrefs.projectSortDir);
   const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>(initialUiPrefs.closedArchivedProjectIds);
   const [closedArchivedTypeKeys, setClosedArchivedTypeKeys] = useState<string[]>(initialUiPrefs.closedArchivedTypeKeys);
+  const [archivedVisibleByType, setArchivedVisibleByType] = useState<Record<string, number>>({});
   const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, 'asc' | 'desc'>>(initialUiPrefs.archivedTypeSortDirections);
   const [closedClientAccountGroupIds, setClosedClientAccountGroupIds] = useState<string[]>(initialUiPrefs.closedClientAccountGroupIds);
 
-  const reportsQuery = useReports();
+  const reportListEnabled = tab === 'pendentes' || tab === 'aprovados' || tab === 'arquivados';
+  const reportListQuery = useAccumulatedReportsPage(tab === 'pendentes'
+    ? {
+        summary: true,
+        reviewQueue: true,
+        projectActive: true,
+        projectSort: projectSortDir,
+        pageSize: REPORT_PAGE_SIZE
+      }
+    : {
+        summary: true,
+        statuses: ['APPROVED', 'SIGNED'],
+        projectActive: tab !== 'arquivados',
+        search: gestorSearch,
+        projectSort: projectSortDir,
+        pageSize: REPORT_PAGE_SIZE
+      }, reportListEnabled);
+  const pendingCountQuery = useReportsPage({
+    summary: true,
+    reviewQueue: true,
+    projectActive: true,
+    page: 1,
+    pageSize: 1
+  });
+  const approvedCountQuery = useReportsPage({
+    summary: true,
+    status: 'APPROVED',
+    projectActive: true,
+    page: 1,
+    pageSize: 1
+  });
+  const signedCountQuery = useReportsPage({
+    summary: true,
+    status: 'SIGNED',
+    projectActive: true,
+    page: 1,
+    pageSize: 1
+  });
   const draftsQuery = useDrafts();
-  const activeProjectsQuery = useProjects(true);
-  const archivedProjectsQuery = useProjects(false);
-  const collaboratorsQuery = useCollaborators();
+  const gestorBootstrapQuery = useGestorBootstrap();
+  const activeProjectsQuery = { data: gestorBootstrapQuery.data?.activeProjects, isLoading: gestorBootstrapQuery.isLoading };
+  const archivedProjectsQuery = { data: gestorBootstrapQuery.data?.archivedProjects, isLoading: gestorBootstrapQuery.isLoading };
+  const collaboratorsQuery = { data: gestorBootstrapQuery.data?.collaborators, isLoading: gestorBootstrapQuery.isLoading };
   const internalUsersQuery = useUsers('internal');
   const clientUsersQuery = useUsers('client');
-  const unitsQuery = useUnits();
-  const unitCategoriesQuery = useUnitCategories();
-  const manometersQuery = useManometers();
-  const countersQuery = useCounters();
-  const surveysQuery = useSurveys();
-  const projectSegmentsQuery = useProjectSegments();
-  const surveyQuestionsQuery = useSurveyQuestions();
+  const unitsQuery = { data: gestorBootstrapQuery.data?.units, isLoading: gestorBootstrapQuery.isLoading };
+  const unitCategoriesQuery = { data: gestorBootstrapQuery.data?.unitCategories, isLoading: gestorBootstrapQuery.isLoading };
+  const manometersQuery = { data: gestorBootstrapQuery.data?.manometers, isLoading: gestorBootstrapQuery.isLoading };
+  const countersQuery = { data: gestorBootstrapQuery.data?.counters, isLoading: gestorBootstrapQuery.isLoading };
+  const surveysQuery = { data: gestorBootstrapQuery.data?.surveys, isLoading: gestorBootstrapQuery.isLoading };
+  const projectSegmentsQuery = { data: gestorBootstrapQuery.data?.projectSegments, isLoading: gestorBootstrapQuery.isLoading };
+  const surveyQuestionsQuery = { data: gestorBootstrapQuery.data?.surveyQuestions, isLoading: gestorBootstrapQuery.isLoading };
 
   const projectMutations = useProjectMutations();
   const projectSegmentMutations = useProjectSegmentMutations();
@@ -1359,29 +1401,59 @@ export function GestorPage() {
 
   const pendingReports = useMemo(
     () =>
-      (reportsQuery.data || []).filter(
+      (reportListQuery.items || []).filter(
         report => report.status === 'PENDING' || report.status === 'RETURNED' || hasActiveClientRejection(report)
       ),
-    [reportsQuery.data]
+    [reportListQuery.items]
   );
 
   const approvedReports = useMemo(
     () =>
-      (reportsQuery.data || []).filter(
+      (reportListQuery.items || []).filter(
         report =>
           (report.status === 'APPROVED' || report.status === 'SIGNED') && report.project?.isActive !== false
       ),
-    [reportsQuery.data]
+    [reportListQuery.items]
   );
 
   const archivedReports = useMemo(
     () =>
-      (reportsQuery.data || []).filter(
+      (reportListQuery.items || []).filter(
         report =>
           (report.status === 'APPROVED' || report.status === 'SIGNED') && report.project?.isActive === false
       ),
-    [reportsQuery.data]
+    [reportListQuery.items]
   );
+  const pendingCount = tab === 'pendentes'
+    ? reportListQuery.pagination?.total ?? pendingReports.length
+    : pendingCountQuery.data?.pagination.total ?? 0;
+  const approvedCount = approvedCountQuery.data?.pagination.total ?? 0;
+  const signedCount = signedCountQuery.data?.pagination.total ?? 0;
+
+  useEffect(() => {
+    if (tab !== 'arquivados') return;
+    const archivedProjects = (archivedProjectsQuery.data || []).filter(project => project.isActive === false);
+    archivedProjects.forEach(project => {
+      if (closedArchivedProjectIds.includes(project.id)) return;
+      reportListQuery.projectTypeTotals(project.id).forEach(typeTotal => {
+        const typeKey = `${project.id}-${typeTotal.reportType}`;
+        if (closedArchivedTypeKeys.includes(typeKey)) return;
+        void reportListQuery.ensureGroupPage({
+          projectId: project.id,
+          reportType: typeTotal.reportType,
+          pageSize: REPORT_TYPE_PAGE_SIZE,
+          sortDirection: archivedTypeSortDirections[typeKey] || 'asc'
+        });
+      });
+    });
+  }, [
+    archivedProjectsQuery.data,
+    archivedTypeSortDirections,
+    closedArchivedProjectIds,
+    closedArchivedTypeKeys,
+    reportListQuery,
+    tab
+  ]);
 
   const gestorScrollStorageKey = `gestor-scroll:${user?.id || user?.username || 'anonymous'}:${tab}`;
 
@@ -1401,7 +1473,7 @@ export function GestorPage() {
 
   useEffect(() => {
     const container = pageScrollRef.current;
-    if (!container || reportsQuery.isLoading) return;
+    if (!container || reportListQuery.isLoading) return;
     if (restoredScrollKeysRef.current.has(gestorScrollStorageKey)) return;
 
     const stored = Number(sessionStorage.getItem(gestorScrollStorageKey) || '0');
@@ -1414,7 +1486,7 @@ export function GestorPage() {
     restoreScrollTop(container, stored);
   }, [
     gestorScrollStorageKey,
-    reportsQuery.isLoading,
+    reportListQuery.isLoading,
     pendingReports.length,
     approvedReports.length,
     archivedReports.length,
@@ -1429,6 +1501,10 @@ export function GestorPage() {
   useEffect(() => {
     setGestorSearch('');
   }, [tab]);
+
+  useEffect(() => {
+    setSelectedReportIds([]);
+  }, [gestorSearch, tab]);
 
   useEffect(() => {
     const prefs = readGestorUiPrefs(gestorUiPrefsStorageKey);
@@ -1504,6 +1580,41 @@ export function GestorPage() {
     setArchivedTypeSortDirections(current => ({
       ...current,
       [typeKey]: (current[typeKey] || 'asc') === 'asc' ? 'desc' : 'asc'
+    }));
+  }
+
+  function visibleArchivedTypeLimit(typeKey: string) {
+    return archivedVisibleByType[typeKey] || REPORT_TYPE_PAGE_SIZE;
+  }
+
+  function revealMoreArchivedType(typeKey: string, total: number) {
+    setArchivedVisibleByType(current => ({
+      ...current,
+      [typeKey]: Math.min(total, (current[typeKey] || REPORT_TYPE_PAGE_SIZE) + REPORT_TYPE_PAGE_SIZE)
+    }));
+  }
+
+  async function handleLoadMoreArchivedType(
+    projectId: string,
+    reportType: string,
+    typeKey: string,
+    loadedCount: number,
+    hasLoadedItemsToReveal: boolean,
+    sortDirection: 'asc' | 'desc'
+  ) {
+    if (!hasLoadedItemsToReveal) {
+      const loaded = await reportListQuery.loadMoreGroup({
+        projectId,
+        reportType,
+        loadedCount,
+        pageSize: REPORT_TYPE_PAGE_SIZE,
+        sortDirection
+      });
+      if (loaded === false) return;
+    }
+    setArchivedVisibleByType(current => ({
+      ...current,
+      [typeKey]: (current[typeKey] || REPORT_TYPE_PAGE_SIZE) + REPORT_TYPE_PAGE_SIZE
     }));
   }
 
@@ -2324,6 +2435,15 @@ export function GestorPage() {
         showTypeSort
         storageKey={`gestor-report-groups:${user?.id || user?.username || 'anonymous'}:${tab}`}
         renderTypeActions={renderBatchReportActions}
+        onLoadMoreType={reportListQuery.loadMoreGroup}
+        onEnsureTypePage={reportListQuery.ensureGroupPage}
+        isTypePageReady={reportListQuery.isGroupPageReady}
+        getTypeLoadedCount={reportListQuery.groupLoadedCount}
+        hasMoreType={reportListQuery.hasMoreGroup}
+        isTypeLoading={reportListQuery.isGroupLoading}
+        isTypePageErrored={reportListQuery.isGroupError}
+        getTypeTotal={reportListQuery.groupTotal}
+        getProjectTypeTotals={reportListQuery.projectTypeTotals}
         renderReport={report => (
           <ReportSummaryCard
             key={report.id}
@@ -2350,6 +2470,11 @@ export function GestorPage() {
       acc[report.reportType].push(report);
       return acc;
     }, {});
+    if (projectId) {
+      reportListQuery.projectTypeTotals(projectId).forEach(typeTotal => {
+        if (!byType[typeTotal.reportType]) byType[typeTotal.reportType] = [];
+      });
+    }
 
     return Object.entries(byType)
       .sort(([a], [b]) => compareReportTypes(a, b))
@@ -2357,6 +2482,30 @@ export function GestorPage() {
         const typeKey = `${projectId || 'project'}-${reportType}`;
         const typeClosed = closedArchivedTypeKeys.includes(typeKey);
         const typeSortDirection = archivedTypeSortDirections[typeKey] || 'asc';
+        const sortedReports = sortReportsInGroup(typeReports, typeSortDirection);
+        const visibleLimit = visibleArchivedTypeLimit(typeKey);
+        const totalReports = projectId
+          ? reportListQuery.groupTotal(projectId, reportType) ?? typeReports.length
+          : typeReports.length;
+        const typeErrored = projectId ? reportListQuery.isGroupError(projectId, reportType) : false;
+        const orderedLoadedCount = projectId
+          ? Math.min(
+              reportListQuery.groupLoadedCount(projectId, reportType, REPORT_TYPE_PAGE_SIZE, typeSortDirection),
+              totalReports
+            )
+          : typeReports.length;
+        const needsOrderedPage = !!projectId
+          && totalReports > 0
+          && !typeErrored
+          && !reportListQuery.isGroupPageReady(projectId, reportType, REPORT_TYPE_PAGE_SIZE, typeSortDirection);
+        const orderedReports = sortedReports.slice(0, orderedLoadedCount);
+        const visibleReports = needsOrderedPage ? [] : orderedReports.slice(0, visibleLimit);
+        const hasLoadedItemsToReveal = !needsOrderedPage && visibleReports.length < orderedReports.length;
+        const hasRemoteItemsToLoad = !!projectId
+          && !needsOrderedPage
+          && !hasLoadedItemsToReveal
+          && orderedLoadedCount < totalReports;
+        const typeLoading = projectId ? reportListQuery.isGroupLoading(projectId, reportType) : false;
 
         return (
           <div className="report-type-group" key={typeKey}>
@@ -2374,7 +2523,7 @@ export function GestorPage() {
             >
               <span className={`rtype-badge rtype-${reportType}`}>{reportType}</span>
               <span className="rtype-count">
-                {typeReports.length} relatório{typeReports.length !== 1 ? 's' : ''}
+                {visibleReports.length} de {totalReports} relatório{totalReports !== 1 ? 's' : ''}
               </span>
               <span onClick={event => event.stopPropagation()}>
                 <ProjectSortButton direction={typeSortDirection} onToggle={() => toggleArchivedTypeSort(typeKey)} />
@@ -2382,26 +2531,71 @@ export function GestorPage() {
               <span className="rtype-chevron">{typeClosed ? '▸' : '▾'}</span>
             </div>
             {!typeClosed ? (
-              <div className="report-type-list">
-                {sortReportsInGroup(typeReports, typeSortDirection).map(report => (
-                  <ReportSummaryCard key={report.id} report={report} actions={renderManagerReportActions(report)} />
-                ))}
-              </div>
+              <>
+                {visibleReports.length ? (
+                  <div className="report-type-list">
+                    {visibleReports.map(report => (
+                      <ReportSummaryCard key={report.id} report={report} actions={renderManagerReportActions(report)} />
+                    ))}
+                  </div>
+                ) : null}
+                {needsOrderedPage ? (
+                  <div className="placeholder-copy">Carregando relatórios...</div>
+                ) : null}
+                {typeErrored ? (
+                  <div className="placeholder-copy">Não foi possível carregar os relatórios desta aba.</div>
+                ) : null}
+                {hasLoadedItemsToReveal || hasRemoteItemsToLoad ? (
+                  <div className="admin-create-toolbar report-type-load-more">
+                    <button
+                      className="mini-btn"
+                      type="button"
+                      disabled={typeLoading}
+                      onClick={() => {
+                        if (hasLoadedItemsToReveal) {
+                          revealMoreArchivedType(typeKey, sortedReports.length);
+                          return;
+                        }
+                        if (projectId) {
+                          void handleLoadMoreArchivedType(projectId, reportType, typeKey, sortedReports.length, hasLoadedItemsToReveal, typeSortDirection);
+                        }
+                      }}
+                    >
+                      {typeLoading ? 'Carregando...' : typeErrored ? 'Tentar novamente' : 'Carregar mais'}
+                    </button>
+                  </div>
+                ) : null}
+              </>
             ) : null}
           </div>
         );
       });
   }
 
+  function renderLoadMoreReports() {
+    if (!reportListQuery.hasMore) return null;
+    return (
+      <div className="admin-create-toolbar">
+        <button
+          className="mini-btn"
+          type="button"
+          disabled={reportListQuery.isLoadingMore}
+          onClick={reportListQuery.loadMore}
+        >
+          {reportListQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
+        </button>
+      </div>
+    );
+  }
+
   function renderReportTabContent() {
     const sourceReports =
       tab === 'pendentes' ? pendingReports : tab === 'arquivados' ? archivedReports : approvedReports;
-    const visibleReports =
-      tab === 'aprovados' || tab === 'arquivados'
-        ? sourceReports.filter(report => matchesSearch(reportSearchParts(report), gestorSearch))
-        : sourceReports;
+    const visibleReports = sourceReports;
 
-    if (reportsQuery.isLoading) return <div className="page-card placeholder-copy">Carregando relatórios...</div>;
+    if (reportListQuery.isLoadingInitial) {
+      return <div className="page-card placeholder-copy">Carregando relatórios...</div>;
+    }
 
     const topActions = (
       <div className="admin-create-toolbar">
@@ -2489,6 +2683,7 @@ export function GestorPage() {
         {topActions}
         {draftsBlock}
         {renderProjectReportGroups(visibleReports)}
+        {renderLoadMoreReports()}
         {reasonDialog}
       </>
     );
@@ -2778,7 +2973,7 @@ export function GestorPage() {
   function renderArchivedProjectsTab() {
     const archivedProjects = (archivedProjectsQuery.data || []).filter(project => project.isActive === false);
 
-    if (archivedProjectsQuery.isLoading || reportsQuery.isLoading) {
+    if (archivedProjectsQuery.isLoading || reportListQuery.isLoadingInitial) {
       return <div className="page-card placeholder-copy">Carregando projetos arquivados...</div>;
     }
 
@@ -2792,7 +2987,7 @@ export function GestorPage() {
         return {
           project,
           projectReports: filteredProjectReports,
-          visible: projectMatches || filteredProjectReports.length > 0
+          visible: filteredProjectReports.length > 0 || (!gestorSearch.trim() && projectMatches)
         };
       })
       .filter(item => item.visible);
@@ -2848,6 +3043,7 @@ export function GestorPage() {
             {gestorSearch.trim() ? 'Nenhum projeto arquivado encontrado.' : 'Nenhum projeto arquivado.'}
           </p>
         )}
+        {renderLoadMoreReports()}
       </section>
     );
   }
@@ -4234,8 +4430,7 @@ export function GestorPage() {
 
   function renderReportSummary() {
     if (tab !== 'pendentes' && tab !== 'aprovados') return null;
-    const signedReports = approvedReports.filter(report => report.status === 'SIGNED');
-    const approvedOnlyReports = approvedReports.filter(report => report.status === 'APPROVED');
+    const approvedTotal = approvedCount + signedCount;
 
     return (
       <section className="page-card summary-card-compact">
@@ -4243,17 +4438,17 @@ export function GestorPage() {
         <div className="stats-grid stats-grid-compact">
           {tab === 'pendentes' ? (
             <div className="stat-card-react">
-              <div className="stat-number-react">{pendingReports.length}</div>
+              <div className="stat-number-react">{pendingCount}</div>
               <div className="stat-label-react">Pendentes/devolvidos</div>
             </div>
           ) : null}
           <div className="stat-card-react">
-            <div className="stat-number-react">{tab === 'aprovados' ? approvedOnlyReports.length : approvedReports.length}</div>
+            <div className="stat-number-react">{tab === 'aprovados' ? approvedCount : approvedTotal}</div>
             <div className="stat-label-react">Aprovados</div>
           </div>
           {tab === 'aprovados' ? (
             <div className="stat-card-react">
-              <div className="stat-number-react">{signedReports.length}</div>
+              <div className="stat-number-react">{signedCount}</div>
               <div className="stat-label-react">Assinados</div>
             </div>
           ) : null}
@@ -4284,7 +4479,7 @@ export function GestorPage() {
         <div className="nav-tabs" role="tablist" aria-label="Seções do gestor" onKeyDown={handleHorizontalTabListKeyDown}>
           <button className={`nav-tab ${tab === 'pendentes' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'pendentes'} onClick={() => setTab('pendentes')}>
             Pendentes
-            <span className="nav-tab-count">{pendingReports.length}</span>
+            <span className="nav-tab-count">{pendingCount}</span>
           </button>
           <button className={`nav-tab ${tab === 'aprovados' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'aprovados'} onClick={() => setTab('aprovados')}>
             Aprovados

@@ -20,7 +20,10 @@ export function useCollaboratorMutations() {
   const queryClient = useQueryClient();
 
   function invalidateCollaborators() {
-    return queryClient.invalidateQueries({ queryKey: queryKeys.collaborators });
+    return Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.collaborators }),
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] })
+    ]);
   }
 
   const createMutation = useMutation({

@@ -1,7 +1,8 @@
 import { createKeyedTtlCache, createTtlCache } from './ttl-cache.js';
+import env from '../config/env.js';
 
-const MASTER_DATA_TTL_MS = 60_000;
-const DASHBOARD_TTL_MS = 60_000;
+const MASTER_DATA_TTL_MS = env.resourceListCacheTtlMs;
+const DASHBOARD_TTL_MS = env.dashboardCacheTtlMs;
 
 export const collaboratorsCache = createTtlCache(MASTER_DATA_TTL_MS);
 export const equipmentCache = createTtlCache(MASTER_DATA_TTL_MS);

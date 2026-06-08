@@ -256,6 +256,36 @@ function stubAuthenticatedCollaborator(t) {
   });
 }
 
+function stubReportGroupBy(t, groups = [{
+  projectId: 'project-1',
+  reportType: ReportType.RDO,
+  _count: { _all: 1 }
+}], projectGroups = null) {
+  const originalGroupBy = prisma.report.groupBy;
+  prisma.report.groupBy = async args => {
+    assert.equal(args.where.deletedAt, null);
+    if (JSON.stringify(args.by) === JSON.stringify(['projectId', 'reportType'])) {
+      return groups;
+    }
+    if (JSON.stringify(args.by) === JSON.stringify(['projectId'])) {
+      return projectGroups || Array.from(new Set(groups.map(group => group.projectId)))
+        .map(projectId => ({ projectId, _count: { _all: 1 } }));
+    }
+    throw new Error(`Unexpected report groupBy fields: ${JSON.stringify(args.by)}`);
+  };
+  t.after(() => {
+    prisma.report.groupBy = originalGroupBy;
+  });
+}
+
+function stubReportListTransaction(t) {
+  const originalTransaction = prisma.$transaction;
+  prisma.$transaction = async callback => callback(prisma);
+  t.after(() => {
+    prisma.$transaction = originalTransaction;
+  });
+}
+
 test('GET /reports keeps legacy array response when pagination is not requested', async t => {
   stubAuthenticatedManager(t);
   const originals = {
@@ -285,6 +315,8 @@ test('GET /reports keeps legacy array response when pagination is not requested'
 
 test('GET /reports returns paginated payload when page parameters are provided', async t => {
   stubAuthenticatedManager(t);
+  stubReportListTransaction(t);
+  stubReportGroupBy(t, [{ projectId: 'project-1', reportType: ReportType.RDO, _count: { _all: 5 } }]);
   const originals = {
     reportFindMany: prisma.report.findMany,
     reportCount: prisma.report.count
@@ -316,10 +348,14 @@ test('GET /reports returns paginated payload when page parameters are provided',
     totalPages: 3
   });
   assert.deepEqual(response.json.items.map(item => item.id), ['report-3', 'report-4']);
+  assert.deepEqual(response.json.groups, [{ projectId: 'project-1', reportType: ReportType.RDO, total: 5 }]);
+  assert.deepEqual(response.json.meta, { projectTotal: 1 });
 });
 
 test('GET /reports can use summary select for paginated lists', async t => {
   stubAuthenticatedManager(t);
+  stubReportListTransaction(t);
+  stubReportGroupBy(t);
   const originals = {
     reportFindMany: prisma.report.findMany,
     reportCount: prisma.report.count
@@ -346,6 +382,197 @@ test('GET /reports can use summary select for paginated lists', async t => {
     page: 1,
     pageSize: 10,
     total: 1,
+    totalPages: 1
+  });
+});
+
+test('GET /reports applies status and project activity filters before pagination', async t => {
+  stubAuthenticatedManager(t);
+  stubReportListTransaction(t);
+  stubReportGroupBy(t);
+  const originals = {
+    reportFindMany: prisma.report.findMany,
+    reportCount: prisma.report.count
+  };
+  prisma.report.findMany = async args => {
+    assert.deepEqual(args.where.status, { in: ['PENDING', 'RETURNED'] });
+    assert.equal(args.where.project.isActive, true);
+    assert.equal(args.where.project.deletedAt, null);
+    assert.equal(args.skip, 0);
+    assert.equal(args.take, 25);
+    return [activeReport({ id: 'report-filtered' })];
+  };
+  prisma.report.count = async args => {
+    assert.deepEqual(args.where.status, { in: ['PENDING', 'RETURNED'] });
+    assert.equal(args.where.project.isActive, true);
+    return 1;
+  };
+  t.after(() => {
+    prisma.report.findMany = originals.reportFindMany;
+    prisma.report.count = originals.reportCount;
+  });
+
+  const response = await dispatchApp(
+    'GET',
+    '/api/reports?page=1&pageSize=25&summary=true&statuses=PENDING,RETURNED&projectActive=true',
+    undefined
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json.items.map(item => item.id), ['report-filtered']);
+});
+
+test('GET /reports applies search filter in database before pagination for internal roles', async t => {
+  stubAuthenticatedManager(t);
+  stubReportListTransaction(t);
+  stubReportGroupBy(t);
+  const originals = {
+    reportFindMany: prisma.report.findMany,
+    reportCount: prisma.report.count
+  };
+  prisma.report.findMany = async args => {
+    assert.equal(args.skip, 0);
+    assert.equal(args.take, 10);
+    assert.equal(Array.isArray(args.where.AND), true);
+    const searchOr = args.where.AND[0].OR;
+    assert.equal(searchOr.some(item => item.project?.code?.contains === '5797'), true);
+    assert.equal(searchOr.some(item => item.sequenceNumber === 5797), true);
+    assert.equal(searchOr.some(item => item.createdBy?.is?.name?.contains === '5797'), true);
+    assert.equal(searchOr.some(item => item.services?.some?.equipment?.is?.code?.contains === '5797'), true);
+    return [activeReport({ id: 'report-search' })];
+  };
+  prisma.report.count = async args => {
+    assert.equal(Array.isArray(args.where.AND), true);
+    return 1;
+  };
+  t.after(() => {
+    prisma.report.findMany = originals.reportFindMany;
+    prisma.report.count = originals.reportCount;
+  });
+
+  const response = await dispatchApp('GET', '/api/reports?page=1&pageSize=10&summary=true&search=5797', undefined);
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json.items.map(item => item.id), ['report-search']);
+});
+
+test('GET /reports orders project report type pages by requested sequence direction', async t => {
+  stubAuthenticatedManager(t);
+  stubReportListTransaction(t);
+  stubReportGroupBy(t, [{ projectId: 'project-1', reportType: ReportType.RDO, _count: { _all: 50 } }]);
+  const originals = {
+    reportFindMany: prisma.report.findMany,
+    reportCount: prisma.report.count
+  };
+  prisma.report.findMany = async args => {
+    assert.equal(args.where.projectId, 'project-1');
+    assert.equal(args.where.reportType, ReportType.RDO);
+    assert.deepEqual(args.orderBy, [
+      { sequenceNumber: 'asc' },
+      { reportDate: 'asc' },
+      { createdAt: 'asc' }
+    ]);
+    assert.equal(args.skip, 10);
+    assert.equal(args.take, 10);
+    return [activeReport({ id: 'report-11', sequenceNumber: 11 })];
+  };
+  prisma.report.count = async args => {
+    assert.equal(args.where.projectId, 'project-1');
+    assert.equal(args.where.reportType, ReportType.RDO);
+    return 50;
+  };
+  t.after(() => {
+    prisma.report.findMany = originals.reportFindMany;
+    prisma.report.count = originals.reportCount;
+  });
+
+  const response = await dispatchApp(
+    'GET',
+    '/api/reports?page=2&pageSize=10&summary=true&projectId=project-1&reportType=RDO&reportSort=asc',
+    undefined
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json.items.map(item => item.sequenceNumber), [11]);
+});
+
+test('GET /reports orders global project pages by requested project direction', async t => {
+  stubAuthenticatedManager(t);
+  stubReportListTransaction(t);
+  stubReportGroupBy(t, [{ projectId: 'project-1', reportType: ReportType.RDO, _count: { _all: 1 } }]);
+  const originals = {
+    reportFindMany: prisma.report.findMany,
+    reportCount: prisma.report.count
+  };
+  prisma.report.findMany = async args => {
+    assert.deepEqual(args.orderBy, [
+      { project: { code: 'asc' } },
+      { project: { name: 'asc' } },
+      { reportDate: 'desc' },
+      { createdAt: 'desc' }
+    ]);
+    assert.equal(args.skip, 0);
+    assert.equal(args.take, 10);
+    return [activeReport({ id: 'report-project-sort', sequenceNumber: 1 })];
+  };
+  prisma.report.count = async () => 1;
+  t.after(() => {
+    prisma.report.findMany = originals.reportFindMany;
+    prisma.report.count = originals.reportCount;
+  });
+
+  const response = await dispatchApp(
+    'GET',
+    '/api/reports?page=1&pageSize=10&summary=true&projectSort=asc',
+    undefined
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json.items.map(item => item.id), ['report-project-sort']);
+});
+
+test('GET /reports applies manager review queue filter before pagination', async t => {
+  stubAuthenticatedManager(t);
+  stubReportListTransaction(t);
+  stubReportGroupBy(t, [{ projectId: 'project-1', reportType: ReportType.RDO, _count: { _all: 3 } }]);
+  const originals = {
+    reportFindMany: prisma.report.findMany,
+    reportCount: prisma.report.count
+  };
+  prisma.report.findMany = async args => {
+    assert.equal(args.where.status, undefined);
+    assert.equal(args.where.project.isActive, true);
+    assert.equal(args.skip, 0);
+    assert.equal(args.take, 25);
+    const queueFilter = args.where.AND.find(item => Array.isArray(item.OR));
+    assert.deepEqual(queueFilter.OR[0], { status: { in: [ReportStatus.PENDING, ReportStatus.RETURNED] } });
+    assert.equal(queueFilter.OR[1].status.not, ReportStatus.SIGNED);
+    assert.deepEqual(queueFilter.OR[1].AND[0].specialConditions.path, ['__clientRejectedAt']);
+    assert.deepEqual(queueFilter.OR[1].AND[1].specialConditions.path, ['__clientRejectionResolvedAt']);
+    return [activeReport({ id: 'report-review-queue' })];
+  };
+  prisma.report.count = async args => {
+    assert.equal(args.where.status, undefined);
+    assert.equal(Array.isArray(args.where.AND), true);
+    return 3;
+  };
+  t.after(() => {
+    prisma.report.findMany = originals.reportFindMany;
+    prisma.report.count = originals.reportCount;
+  });
+
+  const response = await dispatchApp(
+    'GET',
+    '/api/reports?page=1&pageSize=25&summary=true&reviewQueue=true&projectActive=true&statuses=SIGNED',
+    undefined
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json.items.map(item => item.id), ['report-review-queue']);
+  assert.deepEqual(response.json.pagination, {
+    page: 1,
+    pageSize: 25,
+    total: 3,
     totalPages: 1
   });
 });
