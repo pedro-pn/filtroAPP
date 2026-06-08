@@ -36,7 +36,7 @@ Exit code: $exit_code"
 
 trap notify_failure ERR
 
-PROJECT_DIR="${PROJECT_DIR:-/root/apps/RDOAPP}"
+PROJECT_DIR="${PROJECT_DIR:-/root/apps/filtroAPP}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 POSTGRES_SERVICE="${POSTGRES_SERVICE:-postgres}"
 POSTGRES_DB="${POSTGRES_DB:-filtrovali}"
