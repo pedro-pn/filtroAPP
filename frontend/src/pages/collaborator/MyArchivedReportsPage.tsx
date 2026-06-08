@@ -86,7 +86,7 @@ export function MyArchivedReportsPage() {
           getTypeTotal={reportsQuery.groupTotal}
           getProjectTypeTotals={reportsQuery.projectTypeTotals}
         />
-        {reportsQuery.hasMore ? (
+        {reportsQuery.hasMore || reportsQuery.isLoadingMore ? (
           <div className="admin-create-toolbar">
             <button className="mini-btn" type="button" disabled={reportsQuery.isLoadingMore} onClick={reportsQuery.loadMore}>
               {reportsQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}

@@ -723,7 +723,7 @@ export function ClientPage() {
   }
 
   function renderLoadMoreReports() {
-    if (!reportsQuery.hasMore) return null;
+    if (!reportsQuery.hasMore && !reportsQuery.isLoadingMore) return null;
     return (
       <div className="admin-create-toolbar">
         <button

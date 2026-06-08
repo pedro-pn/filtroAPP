@@ -2573,7 +2573,7 @@ export function GestorPage() {
   }
 
   function renderLoadMoreReports() {
-    if (!reportListQuery.hasMore) return null;
+    if (!reportListQuery.hasMore && !reportListQuery.isLoadingMore) return null;
     return (
       <div className="admin-create-toolbar">
         <button
