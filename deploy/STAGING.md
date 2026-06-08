@@ -16,11 +16,11 @@ para clientes bloqueados e acesso restrito por IP.
 ## URL
 
 ```
-http://homolog.filtrovali.com.br:8080
+http://app.filtrovali.com.br:8080
 ```
 
-Requer registro DNS tipo A para `homolog.filtrovali.com.br` apontando para o mesmo
-IP do servidor. Se não quiser alterar o DNS, use diretamente `http://IP-DO-SERVIDOR:8080`.
+Usa o mesmo DNS de produção — nenhuma alteração de DNS necessária. A porta diferencia
+os dois ambientes: prod responde em `443`, staging em `8080`.
 
 ## Restrição de acesso
 
