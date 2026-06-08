@@ -12,7 +12,7 @@
 #
 # Variáveis configuráveis via ambiente ou backend/.env.staging:
 #   PROJECT_DIR, BACKUP_ROOT, STAGING_COMPOSE_FILE, POSTGRES_DB, POSTGRES_USER,
-#   STAGING_POSTGRES_PASSWORD, REPORTS_VOLUME, RESTORE_REPORTS,
+#   STAGING_POSTGRES_PASSWORD, REPORTS_VOLUME, RESTORE_REPORTS, BUILD_SERVICES,
 #   ALLOW_PARTIAL_RESTORE, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
 
 set -euo pipefail
@@ -30,6 +30,7 @@ POSTGRES_DB="${POSTGRES_DB:-filtrovali}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
 REPORTS_VOLUME="${REPORTS_VOLUME:-filtrovali_staging_relatorios}"
 RESTORE_REPORTS="${RESTORE_REPORTS:-true}"
+BUILD_SERVICES="${BUILD_SERVICES:-true}"
 ALLOW_PARTIAL_RESTORE="${ALLOW_PARTIAL_RESTORE:-false}"
 LOCKFILE="${LOCKFILE:-/tmp/filtrovali-sync-staging.lock}"
 
@@ -205,6 +206,13 @@ fi
 # Migrations pendentes
 # ---------------------------------------------------------------------------
 
+if [ "$BUILD_SERVICES" = "true" ]; then
+  log "buildando backend e nginx de homologação"
+  docker compose -f "$STAGING_COMPOSE_FILE" build backend nginx
+else
+  log "build de backend/nginx desativado (BUILD_SERVICES=false)"
+fi
+
 log "aplicando migrations pendentes"
 docker compose -f "$STAGING_COMPOSE_FILE" run --rm --no-deps \
   backend sh -c "npx prisma migrate deploy"
@@ -215,7 +223,7 @@ docker compose -f "$STAGING_COMPOSE_FILE" run --rm --no-deps \
 
 if [ "$STAGING_WAS_UP" = "true" ]; then
   log "subindo backend e nginx com o banco atualizado"
-  docker compose -f "$STAGING_COMPOSE_FILE" up -d backend nginx
+  docker compose -f "$STAGING_COMPOSE_FILE" up -d --force-recreate backend nginx
   log "homologação atualizada e RODANDO"
 else
   log "desligando ambiente de homologação"

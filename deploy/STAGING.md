@@ -102,8 +102,15 @@ de homologação e restaura o volume de relatórios (`relatorios.tar.gz`) para q
 miniaturas, anexos e PDFs apontados pelo banco existam no staging. Ele detecta se o
 ambiente está rodando ou parado e age de acordo:
 
-- **Ambiente parado**: sobe o banco, aplica o snapshot, restaura arquivos, roda migrations, desliga tudo.
-- **Ambiente rodando**: para backend e Nginx, aplica o snapshot, restaura arquivos, roda migrations, sobe tudo novamente.
+- **Ambiente parado**: sobe o banco, aplica o snapshot, restaura arquivos, builda backend/Nginx, roda migrations, desliga tudo.
+- **Ambiente rodando**: para backend e Nginx, aplica o snapshot, restaura arquivos, builda backend/Nginx, roda migrations, recria os serviços.
+
+O build é feito por padrão para garantir que migrations, backend e bundle React do Nginx
+usem o código atual do branch. Para pular o build em um caso excepcional:
+
+```bash
+BUILD_SERVICES=false ./deploy/sync-staging.sh
+```
 
 Por padrão, a restauração falha se `relatorios.tar.gz` não existir, porque o banco
 restaurado contém referências para esses arquivos. Para sincronizar somente o banco em
