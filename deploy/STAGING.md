@@ -67,6 +67,10 @@ DATABASE_URL="postgresql://postgres:escolha-uma-senha-forte@postgres:5432/filtro
 Confirme que `SEND_CLIENT_EMAILS=false` está presente. Nunca altere para `true`
 em homologação — o banco contém dados reais de clientes.
 
+Se o volume `filtrovali_staging_pgdata` for removido, o Postgres inicializa do zero
+e exige `STAGING_POSTGRES_PASSWORD` preenchido. O script de sync aborta antes de subir
+o container se essa variável estiver vazia.
+
 ### 2. Adicionar IPs autorizados no Nginx de staging
 
 ```bash

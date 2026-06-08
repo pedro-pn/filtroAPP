@@ -45,6 +45,14 @@ if [ -f "$STAGING_ENV_FILE" ]; then
   set +o allexport
 fi
 
+STAGING_POSTGRES_PASSWORD="${STAGING_POSTGRES_PASSWORD:-${POSTGRES_PASSWORD:-}}"
+export STAGING_POSTGRES_PASSWORD
+
+if [ -z "$STAGING_POSTGRES_PASSWORD" ]; then
+  echo "[sync-staging] STAGING_POSTGRES_PASSWORD não está configurado. Preencha $STAGING_ENV_FILE antes de recriar o volume do Postgres." >&2
+  exit 1
+fi
+
 # ---------------------------------------------------------------------------
 # Funções auxiliares
 # ---------------------------------------------------------------------------
