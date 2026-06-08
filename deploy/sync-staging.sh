@@ -8,7 +8,7 @@
 #     aplica o snapshot, roda migrations e sobe tudo novamente.
 #
 # Uso no crontab (03:00 diário):
-#   0 3 * * * /root/apps/filtroAPP/deploy/sync-staging.sh >> /root/logs/sync-staging.log 2>&1
+#   0 3 * * * /root/apps/filtroAPP-staging/deploy/sync-staging.sh >> /root/logs/sync-staging.log 2>&1
 #
 # Variáveis configuráveis via ambiente ou backend/.env.staging:
 #   PROJECT_DIR, BACKUP_ROOT, STAGING_COMPOSE_FILE, POSTGRES_DB, POSTGRES_USER,
@@ -20,7 +20,8 @@ set -euo pipefail
 # Configuração
 # ---------------------------------------------------------------------------
 
-PROJECT_DIR="${PROJECT_DIR:-/root/apps/filtroAPP}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="${PROJECT_DIR:-$(dirname "$SCRIPT_DIR")}"
 STAGING_COMPOSE_FILE="${STAGING_COMPOSE_FILE:-docker-compose.staging.yml}"
 STAGING_ENV_FILE="${STAGING_ENV_FILE:-$PROJECT_DIR/backend/.env.staging}"
 BACKUP_ROOT="${BACKUP_ROOT:-/root/backups/filtrovali}"

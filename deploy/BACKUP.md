@@ -37,8 +37,8 @@ chmod +x deploy/backup-prod.sh
 
 Por padrão ele usa:
 
-- `PROJECT_DIR=/home/ubuntu/apps/RDOAPP`
-- `BACKUP_ROOT=/home/ubuntu/backups/filtrovali`
+- `PROJECT_DIR` detectado automaticamente pelo caminho do script
+- `BACKUP_ROOT=/root/backups/filtrovali`
 - `POSTGRES_DB=filtrovali`
 - `POSTGRES_USER=postgres`
 - `REPORTS_VOLUME=filtrovali_relatorios`
@@ -64,13 +64,13 @@ crontab -e
 
 ```cron
 # Horário — banco + relatórios + certificados
-0 * * * * AWS_S3_URI=s3://filtrovali-backups/hourly INCLUDE_CERTS=true PROJECT_DIR=/home/ubuntu/apps/RDOAPP /home/ubuntu/apps/RDOAPP/deploy/backup-prod.sh >> /home/ubuntu/backup-filtrovali.log 2>&1
+0 * * * * AWS_S3_URI=s3://filtrovali-backups/hourly INCLUDE_CERTS=true /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
 
-# Diário às 03h — banco + relatórios + certificados
-0 3 * * * AWS_S3_URI=s3://filtrovali-backups/daily INCLUDE_CERTS=true PROJECT_DIR=/home/ubuntu/apps/RDOAPP /home/ubuntu/apps/RDOAPP/deploy/backup-prod.sh >> /home/ubuntu/backup-filtrovali.log 2>&1
+# Diário às 02h — banco + relatórios + certificados
+0 2 * * * AWS_S3_URI=s3://filtrovali-backups/daily INCLUDE_CERTS=true /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
 
-# Mensal todo dia 1 às 02h — banco + relatórios + certificados
-0 2 1 * * AWS_S3_URI=s3://filtrovali-backups/monthly INCLUDE_CERTS=true PROJECT_DIR=/home/ubuntu/apps/RDOAPP /home/ubuntu/apps/RDOAPP/deploy/backup-prod.sh >> /home/ubuntu/backup-filtrovali.log 2>&1
+# Mensal todo dia 1 às 01h — banco + relatórios + certificados
+0 1 1 * * AWS_S3_URI=s3://filtrovali-backups/monthly INCLUDE_CERTS=true /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
 ```
 
 ## Restore do banco
@@ -108,25 +108,25 @@ chmod +x deploy/restore-prod.sh
 ```
 
 ```bash
-BACKUP_SOURCE=/home/ubuntu/restore/filtrovali/2026-04-24-030001 ./deploy/restore-prod.sh
+BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 ./deploy/restore-prod.sh
 ```
 
 Sem restaurar certificados:
 
 ```bash
-BACKUP_SOURCE=/home/ubuntu/restore/filtrovali/2026-04-24-030001 RESTORE_CERTS=false ./deploy/restore-prod.sh
+BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 RESTORE_CERTS=false ./deploy/restore-prod.sh
 ```
 
 Restore parcial explícito (uso excepcional, pois o banco pode referenciar arquivos ausentes):
 
 ```bash
-BACKUP_SOURCE=/home/ubuntu/restore/filtrovali/2026-04-24-030001 ALLOW_PARTIAL_RESTORE=true ./deploy/restore-prod.sh
+BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 ALLOW_PARTIAL_RESTORE=true ./deploy/restore-prod.sh
 ```
 
 Sem rodar migrations:
 
 ```bash
-BACKUP_SOURCE=/home/ubuntu/restore/filtrovali/2026-04-24-030001 RUN_MIGRATIONS=false ./deploy/restore-prod.sh
+BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 RUN_MIGRATIONS=false ./deploy/restore-prod.sh
 ```
 
 ## Estratégia recomendada

@@ -36,7 +36,8 @@ Exit code: $exit_code"
 
 trap notify_failure ERR
 
-PROJECT_DIR="${PROJECT_DIR:-/root/apps/filtroAPP}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="${PROJECT_DIR:-$(dirname "$SCRIPT_DIR")}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 POSTGRES_SERVICE="${POSTGRES_SERVICE:-postgres}"
 POSTGRES_DB="${POSTGRES_DB:-filtrovali}"

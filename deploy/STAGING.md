@@ -92,7 +92,7 @@ docker compose -f docker-compose.staging.yml exec backend npx prisma db seed
 **Opção B — restaurar o último snapshot de produção** (recomendado):
 
 ```bash
-PROJECT_DIR=/root/apps/filtroAPP ./deploy/sync-staging.sh
+./deploy/sync-staging.sh
 ```
 
 ## Sincronização diária com produção
@@ -110,7 +110,7 @@ crontab -e
 ```
 
 ```cron
-0 3 * * * PROJECT_DIR=/root/apps/filtroAPP /root/apps/filtroAPP/deploy/sync-staging.sh >> /root/logs/sync-staging.log 2>&1
+0 3 * * * /root/apps/filtroAPP-staging/deploy/sync-staging.sh >> /root/logs/sync-staging.log 2>&1
 ```
 
 Crie o diretório de log se necessário:
@@ -128,7 +128,7 @@ disponível e emite um aviso no log se tiver mais de 48 horas.
 Mesmas variáveis do script de backup:
 
 ```cron
-0 3 * * * TELEGRAM_TOKEN=xxx TELEGRAM_CHAT_ID=yyy PROJECT_DIR=/root/apps/filtroAPP /root/apps/filtroAPP/deploy/sync-staging.sh >> /root/logs/sync-staging.log 2>&1
+0 3 * * * TELEGRAM_TOKEN=xxx TELEGRAM_CHAT_ID=yyy /root/apps/filtroAPP-staging/deploy/sync-staging.sh >> /root/logs/sync-staging.log 2>&1
 ```
 
 ## Subida e parada manuais
