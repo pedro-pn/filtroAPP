@@ -52,6 +52,7 @@ const TEXT = {
 };
 const REPORT_PAGE_SIZE = 30;
 const REPORT_TYPE_VISIBLE_STEP = 10;
+const CLIENT_REPORT_REFRESH_MS = 15_000;
 
 const statusMap: Record<string, { label: string; className: string }> = {
   PENDING: { label: 'Pendente', className: 'status-pending' },
@@ -204,6 +205,7 @@ export function ClientPage() {
   const [visibleByClientType, setVisibleByClientType] = useState<Record<string, number>>({});
   const [releasedReportCounts, setReleasedReportCounts] = useState<Record<string, number>>({});
   const tutorialTrigger = useRef<(() => void) | null>(null);
+  const clientReportGroupRefreshRef = useRef<Record<string, number>>({});
   const showToast = useToast();
   const clientToggleStorageKey = user ? `filtrovali-client-tabs:${user.id || user.username}` : '';
   const reportsQuery = useAccumulatedReportsPage({
@@ -211,6 +213,8 @@ export function ClientPage() {
     search: debouncedClientSearch,
     projectSort: clientSortDirection,
     pageSize: REPORT_PAGE_SIZE
+  }, true, {
+    refetchInterval: CLIENT_REPORT_REFRESH_MS
   });
 
   const reports = reportsQuery.items;
@@ -362,14 +366,19 @@ export function ClientPage() {
   }, [clientSearch]);
 
   useEffect(() => {
-    if (!activeProject || !activeReportType || activeTypeClosed) return;
+    if (!activeProject || !activeReportType || activeTypeClosed || !activeTypes.length) return;
+    const refreshKey = `${activeProject.id}-${activeReportType}-${clientSortDirection}`;
+    const force = reportsQuery.dataUpdatedAt > 0
+      && clientReportGroupRefreshRef.current[refreshKey] !== reportsQuery.dataUpdatedAt;
+    if (force) clientReportGroupRefreshRef.current[refreshKey] = reportsQuery.dataUpdatedAt;
     void reportsQuery.ensureGroupPage({
       projectId: activeProject.id,
       reportType: activeReportType,
       pageSize: REPORT_TYPE_VISIBLE_STEP,
-      sortDirection: clientSortDirection
+      sortDirection: clientSortDirection,
+      force
     });
-  }, [activeProject, activeReportType, activeTypeClosed, clientSortDirection, reportsQuery]);
+  }, [activeProject, activeReportType, activeTypeClosed, activeTypes.length, clientSortDirection, reportsQuery]);
 
   const reportSummary = useMemo(() => {
     return {

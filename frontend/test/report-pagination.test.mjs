@@ -66,3 +66,24 @@ test('covered first report page keeps accumulated reports but refreshes item dat
     { id: 'report-3', status: 'APPROVED' }
   ]);
 });
+
+test('report page merge refreshes existing group items and appends new ones', async () => {
+  const { mergeReportItemsById } = await loadReportHooks();
+
+  const merged = mergeReportItemsById(
+    [
+      { id: 'report-1', status: 'APPROVED', signatures: 1 },
+      { id: 'report-2', status: 'APPROVED', signatures: 1 }
+    ],
+    [
+      { id: 'report-1', status: 'SIGNED', signatures: 2 },
+      { id: 'report-3', status: 'APPROVED', signatures: 1 }
+    ]
+  );
+
+  assert.deepEqual(merged, [
+    { id: 'report-1', status: 'SIGNED', signatures: 2 },
+    { id: 'report-2', status: 'APPROVED', signatures: 1 },
+    { id: 'report-3', status: 'APPROVED', signatures: 1 }
+  ]);
+});

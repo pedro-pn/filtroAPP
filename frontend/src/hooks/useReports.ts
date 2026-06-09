@@ -31,6 +31,14 @@ interface LoadMoreReportGroupOptions {
   sortDirection?: 'asc' | 'desc';
 }
 
+interface EnsureReportGroupOptions extends Omit<LoadMoreReportGroupOptions, 'loadedCount'> {
+  force?: boolean;
+}
+
+interface ReportPageQueryOptions {
+  refetchInterval?: number | false;
+}
+
 interface ReportGroupTotalEntry {
   reportType: string;
   total: number;
@@ -268,12 +276,13 @@ export function useReports(filters?: ReportFilters) {
   });
 }
 
-export function useReportsPage(filters: ReportPageFilters, enabled = true) {
+export function useReportsPage(filters: ReportPageFilters, enabled = true, options: ReportPageQueryOptions = {}) {
   const { user } = useAuth();
   return useQuery({
     queryKey: queryKeys.reportPage(filters, user?.id),
     queryFn: () => listReportsPage(filters),
-    enabled
+    enabled,
+    ...options
   });
 }
 
@@ -304,11 +313,30 @@ export function mergeCoveredFirstReportPage<T extends { id: string }>(
   page: number
 ) {
   if (!isFirstReportPageAlreadyCovered(currentItems, pageItems, page)) return null;
-  const pageItemsById = new Map(pageItems.map(report => [report.id, report]));
-  return currentItems.map(report => pageItemsById.get(report.id) || report);
+  return mergeReportItemsById(currentItems, pageItems);
 }
 
-export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page'>, enabled = true) {
+export function mergeReportItemsById<T extends { id: string }>(
+  currentItems: T[],
+  pageItems: T[]
+) {
+  const pageItemsById = new Map(pageItems.map(report => [report.id, report]));
+  const seen = new Set(currentItems.map(report => report.id));
+  const next = currentItems.map(report => pageItemsById.get(report.id) || report);
+  pageItems.forEach(report => {
+    if (!seen.has(report.id)) {
+      seen.add(report.id);
+      next.push(report);
+    }
+  });
+  return next;
+}
+
+export function useAccumulatedReportsPage(
+  filters: Omit<ReportPageFilters, 'page'>,
+  enabled = true,
+  options: ReportPageQueryOptions = {}
+) {
   const { user } = useAuth();
   const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
   const storageUserId = user?.id || user?.username || null;
@@ -326,7 +354,7 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
   const activeStorageKeyRef = useRef(storageKey);
   const skipNextSnapshotWriteRef = useRef(false);
   const effectivePage = activeFiltersKey === filtersKey ? page : 1;
-  const query = useReportsPage({ ...filters, page: effectivePage }, enabled);
+  const query = useReportsPage({ ...filters, page: effectivePage }, enabled, options);
   const pagination = query.data?.pagination;
   const loadedProjectCount = useMemo(
     () => new Set(items.map(report => report.projectId).filter(Boolean)).size,
@@ -487,14 +515,7 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
         return next;
       });
       setItems(current => {
-        const seen = new Set(current.map(report => report.id));
-        const next = [...current];
-        data.items.forEach(report => {
-          if (!seen.has(report.id)) {
-            seen.add(report.id);
-            next.push(report);
-          }
-        });
+        const next = mergeReportItemsById(current, data.items);
         itemsRef.current = next;
         return next;
       });
@@ -508,12 +529,12 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
     }
   }
 
-  async function ensureGroupPage({ projectId, reportType, pageSize, sortDirection }: Omit<LoadMoreReportGroupOptions, 'loadedCount'>) {
+  async function ensureGroupPage({ projectId, reportType, pageSize, sortDirection, force }: EnsureReportGroupOptions) {
     const groupPageSize = pageSize || 10;
     const pageKey = groupPageKey(projectId, reportType, groupPageSize, sortDirection);
     const knownTotal = groupTotals[groupKey(projectId, reportType)];
     const expectedCount = knownTotal === undefined ? groupPageSize : Math.min(knownTotal, groupPageSize);
-    if ((groupLoadedCountsRef.current[pageKey] || 0) >= expectedCount) return;
+    if (!force && (groupLoadedCountsRef.current[pageKey] || 0) >= expectedCount) return;
     await fetchGroupPage({ projectId, reportType, page: 1, pageSize: groupPageSize, sortDirection });
   }
 
@@ -588,10 +609,12 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
 }
 
 export function useReport(reportId: string, enabled = true) {
+  const { user } = useAuth();
   return useQuery({
     queryKey: ['report', reportId],
     queryFn: () => getReport(reportId),
-    enabled: enabled && !!reportId
+    enabled: enabled && !!reportId,
+    refetchInterval: user?.role === 'CLIENT' ? 15_000 : false
   });
 }
 
