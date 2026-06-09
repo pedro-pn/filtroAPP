@@ -273,6 +273,10 @@ test('staging sync sanitizes production credentials and tokens before starting s
   const startIndex = script.indexOf('docker compose -f "$STAGING_COMPOSE_FILE" up -d --force-recreate backend nginx');
 
   assert.match(script, /STAGING_ADMIN_PASSWORD/);
+  assert.match(script, /RESTORE_REPORTS="\$\{RESTORE_REPORTS:-false\}"/);
+  assert.match(script, /create_staging_mock_report_files/);
+  assert.match(script, /report-source\.pdf/);
+  assert.match(script, /romaneio\.docx/);
   assert.match(script, /DELETE FROM "UserSession"/);
   assert.match(script, /DELETE FROM "PasswordResetToken"/);
   assert.match(script, /DELETE FROM "EmailChangeToken"/);
@@ -281,6 +285,10 @@ test('staging sync sanitizes production credentials and tokens before starting s
   assert.match(script, /UPDATE "Collaborator"\s+SET\s+"name" = 'Colaborador Staging '/);
   assert.match(script, /UPDATE "Project"\s+SET\s+"clientName" = 'Cliente Staging'/);
   assert.match(script, /UPDATE "User"[\s\S]*"passwordHash" = 'staging-disabled'/);
+  assert.match(script, /UPDATE "ReportVersion"[\s\S]*'\/relatorios\/_staging_mock\/report-source\.pdf'/);
+  assert.match(script, /UPDATE "ReportAttachment"[\s\S]*'_staging_mock\/attachment\.txt'/);
+  assert.match(script, /UPDATE "Romaneio"[\s\S]*'\/relatorios\/_staging_mock\/romaneio\.docx'/);
+  assert.match(script, /UPDATE "CalibrationCertificate"[\s\S]*'_staging_mock\/certificate\.pdf'/);
   assert.match(script, /UPDATE "ReportSignature"[\s\S]*"tokenHash" = NULL/);
   assert.match(script, /UPDATE "SatisfactionSurvey"\s+SET\s+"tokenHash" = 'staging-scrubbed-'/);
   assert.match(script, /UPDATE "DataSubjectRequest"\s+SET\s+"name" = 'Titular Staging '/);
@@ -304,9 +312,9 @@ test('staging sync aborts before migrations or service start when dump restore f
   assert.doesNotMatch(dockerCalls, /relatorios\.tar\.gz -C \/to/);
 });
 
-test('staging sync uses the resolved backup directory for database and report files', () => {
+test('staging sync uses the resolved backup directory and never extracts production report files', () => {
   const script = fs.readFileSync(new URL('../../deploy/sync-staging.sh', import.meta.url), 'utf8');
-  const { result, dockerCalls, restoreSql, snapshotA, snapshotB } = runSyncWithFakeDocker({
+  const { result, dockerCalls, restoreSql } = runSyncWithFakeDocker({
     switchLatestOnPostgresUp: true,
     snapshotASql: 'SELECT 10 AS snapshot_a;',
     snapshotBSql: 'SELECT 20 AS snapshot_b;'
@@ -315,10 +323,11 @@ test('staging sync uses the resolved backup directory for database and report fi
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.doesNotMatch(script, /\$LATEST_BACKUP\/postgres\.sql\.gz/);
   assert.doesNotMatch(script, /\$LATEST_BACKUP\/relatorios\.tar\.gz/);
+  assert.doesNotMatch(script, /tar -xzf \/backup\/relatorios\.tar\.gz/);
   assert.match(restoreSql, /snapshot_a/);
   assert.doesNotMatch(restoreSql, /snapshot_b/);
-  assert.match(dockerCalls, new RegExp(snapshotA.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  assert.doesNotMatch(dockerCalls, new RegExp(snapshotB.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(dockerCalls, /run --rm --no-deps backend node --input-type=module/);
+  assert.doesNotMatch(dockerCalls, /relatorios\.tar\.gz/);
 });
 
 test('production docs provide concurrent index preflight before prisma migrations', () => {

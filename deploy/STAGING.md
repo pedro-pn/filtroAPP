@@ -106,29 +106,29 @@ docker compose --env-file backend/.env.staging -f docker-compose.staging.yml exe
 ## Sincronização diária com produção
 
 O script `deploy/sync-staging.sh` aplica o último snapshot de backup de prod ao banco
-de homologação, restaura o volume de relatórios (`relatorios.tar.gz`) para que
-miniaturas, anexos e PDFs apontados pelo banco existam no staging, aplica migrations
-e executa um scrub obrigatório antes de subir backend/Nginx. Esse scrub:
+de homologação, aplica migrations, substitui o volume de relatórios por artefatos
+sintéticos e executa um scrub obrigatório antes de subir backend/Nginx. Esse scrub:
 
 - apaga sessões, tokens de reset/e-mail e tokens de preferência de notificação;
 - invalida senhas de usuários restaurados de produção;
 - remove tokens públicos de assinatura, pesquisa, certificado e validação;
 - expira solicitações pendentes com link público;
 - mascara e-mails, nomes, CNPJs/CPFs, assinaturas e dados de contato sensíveis;
+- troca referências de PDFs, DOCX, anexos e certificados para arquivos mockados em `_staging_mock`;
 - recria o usuário `STAGING_ADMIN_USERNAME` com a senha/hash de staging.
 
 Se `STAGING_ADMIN_PASSWORD` ou `STAGING_ADMIN_PASSWORD_HASH` não estiver configurado,
 o sync falha fechado e não publica o banco restaurado no app. Ele detecta se o
 ambiente está rodando ou parado e age de acordo:
 
-- **Ambiente parado**: sobe o banco, aplica o snapshot, restaura arquivos, builda backend/Nginx, roda migrations, sanitiza o banco, desliga tudo.
-- **Ambiente rodando**: para backend e Nginx, aplica o snapshot, restaura arquivos, builda backend/Nginx, roda migrations, sanitiza o banco, recria os serviços.
+- **Ambiente parado**: sobe o banco, aplica o snapshot, builda backend/Nginx, roda migrations, cria arquivos mockados, sanitiza o banco, desliga tudo.
+- **Ambiente rodando**: para backend e Nginx, aplica o snapshot, builda backend/Nginx, roda migrations, cria arquivos mockados, sanitiza o banco, recria os serviços.
 
 O diretório apontado por `latest` é resolvido uma vez no início da execução. Banco e
-arquivos sempre vêm desse mesmo diretório, mesmo que o backup de produção atualize o
-symlink durante o sync. O dump `.gz` é validado antes de qualquer mutação e restaurado
-primeiro em um banco temporário com `ON_ERROR_STOP`; o banco de staging só é trocado
-após o restore completo retornar sucesso.
+backup metadata sempre vêm desse mesmo diretório, mesmo que o backup de produção
+atualize o symlink durante o sync. O dump `.gz` é validado antes de qualquer mutação e
+restaurado primeiro em um banco temporário com `ON_ERROR_STOP`; o banco de staging só é
+trocado após o restore completo retornar sucesso.
 
 O build é feito por padrão para garantir que migrations, backend e bundle React do Nginx
 usem o código atual do branch. Para pular o build em um caso excepcional:
@@ -137,13 +137,10 @@ usem o código atual do branch. Para pular o build em um caso excepcional:
 BUILD_SERVICES=false ./deploy/sync-staging.sh
 ```
 
-Por padrão, a restauração falha se `relatorios.tar.gz` não existir, porque o banco
-restaurado contém referências para esses arquivos. Para sincronizar somente o banco em
-um caso excepcional:
-
-```bash
-RESTORE_REPORTS=false ./deploy/sync-staging.sh
-```
+O arquivo `relatorios.tar.gz` de produção não é restaurado em homologação. Mesmo que
+`RESTORE_REPORTS=true` seja definido por engano, o script ignora a extração e recria
+somente PDFs, DOCX e anexos sintéticos para validar os fluxos de download sem publicar
+conteúdo real de produção.
 
 ### Agendamento no crontab (03h da manhã)
 

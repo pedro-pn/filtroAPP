@@ -30,7 +30,7 @@ BACKUP_ROOT="${BACKUP_ROOT:-/root/backups/filtrovali}"
 POSTGRES_DB="${POSTGRES_DB:-filtrovali}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
 REPORTS_VOLUME="${REPORTS_VOLUME:-filtrovali_staging_relatorios}"
-RESTORE_REPORTS="${RESTORE_REPORTS:-true}"
+RESTORE_REPORTS="${RESTORE_REPORTS:-false}"
 BUILD_SERVICES="${BUILD_SERVICES:-true}"
 ALLOW_PARTIAL_RESTORE="${ALLOW_PARTIAL_RESTORE:-false}"
 LOCKFILE="${LOCKFILE:-/tmp/filtrovali-sync-staging.lock}"
@@ -147,6 +147,74 @@ ensure_staging_admin_password_hash() {
   fi
 }
 
+create_staging_mock_report_files() {
+  log "substituindo volume de relatórios por artefatos mockados de homologação"
+  docker compose -f "$STAGING_COMPOSE_FILE" run --rm --no-deps \
+    backend node --input-type=module <<'NODE'
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import AdmZip from 'adm-zip';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+
+const reportsDir = process.env.REPORTS_DIR || process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'Relatórios');
+const reportsRoot = path.resolve(reportsDir);
+const mockDir = path.join(reportsRoot, '_staging_mock');
+
+if (!reportsRoot || reportsRoot === path.parse(reportsRoot).root) {
+  throw new Error(`REPORTS_DIR inseguro para limpeza: ${reportsRoot}`);
+}
+
+async function writePdf(fileName, title) {
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([595.28, 841.89]);
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  page.drawText(title, { x: 56, y: 760, size: 18, font: bold, color: rgb(0.1, 0.1, 0.1) });
+  page.drawText('Documento sintético gerado para homologação.', { x: 56, y: 720, size: 12, font });
+  page.drawText('Não contém dados reais de produção.', { x: 56, y: 700, size: 12, font });
+  page.drawText(`Gerado em: ${new Date().toISOString()}`, { x: 56, y: 680, size: 10, font });
+  await fs.writeFile(path.join(mockDir, fileName), await pdf.save());
+}
+
+function writeDocx(fileName) {
+  const zip = new AdmZip();
+  zip.addFile('[Content_Types].xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`));
+  zip.addFile('_rels/.rels', Buffer.from(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`));
+  zip.addFile('word/document.xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Romaneio sintético de homologação</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Não contém dados reais de produção.</w:t></w:r></w:p>
+    <w:sectPr/>
+  </w:body>
+</w:document>`));
+  zip.writeZip(path.join(mockDir, fileName));
+}
+
+await fs.rm(reportsRoot, { recursive: true, force: true });
+await fs.mkdir(mockDir, { recursive: true });
+await writePdf('report-source.pdf', 'Relatório sintético de homologação');
+await writePdf('report-final.pdf', 'Relatório assinado sintético de homologação');
+await writePdf('romaneio.pdf', 'Romaneio sintético de homologação');
+await writePdf('certificate.pdf', 'Certificado sintético de homologação');
+writeDocx('romaneio.docx');
+await fs.writeFile(
+  path.join(mockDir, 'attachment.txt'),
+  'Anexo sintético de homologação. Não contém dados reais de produção.\n',
+  'utf8'
+);
+NODE
+  log "artefatos mockados de homologação criados"
+}
+
 sanitize_staging_database() {
   local admin_username_sql
   local admin_name_sql
@@ -201,7 +269,40 @@ UPDATE "Report"
 SET
   "zapsignDocToken" = NULL,
   "zapsignSignerToken" = NULL,
-  "zapsignDocUrl" = NULL;
+  "zapsignDocUrl" = NULL,
+  "specialConditions" = CASE
+    WHEN jsonb_typeof("specialConditions"::jsonb) = 'object'
+      THEN ("specialConditions"::jsonb - 'generalUploads' - '__leaderSnapshot')::jsonb
+    ELSE "specialConditions"
+  END;
+
+UPDATE "ReportService"
+SET
+  "extraData" = CASE
+    WHEN jsonb_typeof("extraData"::jsonb) = 'object'
+      THEN ("extraData"::jsonb - '__uploads__')::jsonb
+    ELSE "extraData"
+  END;
+
+UPDATE "ReportVersion"
+SET
+  "sourcePdfUrl" = '/relatorios/_staging_mock/report-source.pdf',
+  "finalPdfUrl" = CASE
+    WHEN "finalPdfUrl" IS NULL THEN NULL
+    ELSE '/relatorios/_staging_mock/report-final.pdf'
+  END,
+  "sourceDocumentHash" = 'staging-mock-source',
+  "finalDocumentHash" = CASE
+    WHEN "finalDocumentHash" IS NULL THEN NULL
+    ELSE 'staging-mock-final'
+  END;
+
+UPDATE "ReportAttachment"
+SET
+  "label" = 'Anexo sintético de homologação',
+  "fileName" = 'anexo-staging.txt',
+  "mimeType" = 'text/plain',
+  "storagePath" = '_staging_mock/attachment.txt';
 
 UPDATE "ReportSignature"
 SET
@@ -258,6 +359,22 @@ SET
   "email" = 'romaneio-' || "id" || '@staging.invalid',
   "updatedAt" = CURRENT_TIMESTAMP;
 
+UPDATE "Romaneio"
+SET
+  "driverName" = 'Motorista Staging',
+  "vehiclePlate" = 'STG0000',
+  "docxUrl" = CASE
+    WHEN "docxUrl" IS NULL THEN NULL
+    ELSE '/relatorios/_staging_mock/romaneio.docx'
+  END,
+  "pdfUrl" = CASE
+    WHEN "pdfUrl" IS NULL THEN NULL
+    ELSE '/relatorios/_staging_mock/romaneio.pdf'
+  END,
+  "emailStatus" = NULL,
+  "emailError" = NULL,
+  "updatedAt" = CURRENT_TIMESTAMP;
+
 UPDATE "AllocationReportRecipient"
 SET
   "name" = NULL,
@@ -288,7 +405,11 @@ SET
   "updatedAt" = CURRENT_TIMESTAMP;
 
 UPDATE "CalibrationCertificate"
-SET "publicToken" = 'staging-scrubbed-' || "id";
+SET
+  "fileName" = 'certificado-staging.pdf',
+  "mimeType" = 'application/pdf',
+  "storagePath" = '_staging_mock/certificate.pdf',
+  "publicToken" = 'staging-scrubbed-' || "id";
 
 UPDATE "ReportVersion"
 SET "validationCode" = CASE
@@ -439,11 +560,6 @@ fi
 log "validando integridade gzip do dump do banco"
 gzip -t "$BACKUP_DIR/postgres.sql.gz"
 
-if [ "$RESTORE_REPORTS" = "true" ] && [ ! -f "$BACKUP_DIR/relatorios.tar.gz" ] && [ "$ALLOW_PARTIAL_RESTORE" != "true" ]; then
-  log "arquivo não encontrado: $BACKUP_DIR/relatorios.tar.gz; defina RESTORE_REPORTS=false ou ALLOW_PARTIAL_RESTORE=true para sincronizar somente o banco." >&2
-  exit 1
-fi
-
 # Alerta se o backup tiver mais de 48 horas (problema no script de backup).
 BACKUP_AGE_HOURS=$(( ( $(date +%s) - $(stat -c %Y "$BACKUP_DIR/postgres.sql.gz") ) / 3600 ))
 if [ "$BACKUP_AGE_HOURS" -gt 48 ]; then
@@ -533,20 +649,11 @@ PREVIOUS_DB=""
 log "banco restaurado e ativado"
 
 # ---------------------------------------------------------------------------
-# Restauração dos arquivos de relatórios
+# Arquivos de relatórios em homologação
 # ---------------------------------------------------------------------------
 
-if [ "$RESTORE_REPORTS" = "true" ] && [ -f "$BACKUP_DIR/relatorios.tar.gz" ]; then
-  log "restaurando arquivos de relatórios no volume $REPORTS_VOLUME"
-  docker run --rm \
-    -v "${REPORTS_VOLUME}:/to" \
-    -v "${BACKUP_DIR}:/backup:ro" \
-    alpine sh -eu -c "find /to -mindepth 1 -maxdepth 1 -exec rm -rf {} + && tar -xzf /backup/relatorios.tar.gz -C /to"
-  log "arquivos de relatórios restaurados"
-elif [ "$RESTORE_REPORTS" = "true" ]; then
-  log "AVISO: relatorios.tar.gz ausente; seguindo sem restaurar miniaturas/arquivos porque ALLOW_PARTIAL_RESTORE=true." >&2
-else
-  log "restauração de arquivos de relatórios desativada (RESTORE_REPORTS=false)"
+if [ "$RESTORE_REPORTS" = "true" ]; then
+  log "AVISO: RESTORE_REPORTS=true é ignorado em homologação; arquivos reais de produção não são restaurados." >&2
 fi
 
 # ---------------------------------------------------------------------------
@@ -564,6 +671,7 @@ log "aplicando migrations pendentes"
 docker compose -f "$STAGING_COMPOSE_FILE" run --rm --no-deps \
   backend sh -c "npx prisma migrate deploy"
 
+create_staging_mock_report_files
 ensure_staging_admin_password_hash
 sanitize_staging_database
 
