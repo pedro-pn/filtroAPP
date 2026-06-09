@@ -47,12 +47,20 @@ interface AccumulatedReportsSnapshot {
 
 const ACCUMULATED_REPORTS_STORAGE_VERSION = 1;
 const ACCUMULATED_REPORTS_STORAGE_TTL_MS = 30 * 60 * 1000;
+const accumulatedReportsSnapshots = new Map<string, AccumulatedReportsSnapshot>();
 
 function accumulatedReportsStorageKey(filtersKey: string, userId?: string | null) {
   return `accumulated-reports:${userId || 'anonymous'}:${encodeURIComponent(filtersKey)}`;
 }
 
 function readAccumulatedReportsSnapshot(storageKey: string): AccumulatedReportsSnapshot | null {
+  const memorySnapshot = accumulatedReportsSnapshots.get(storageKey);
+  if (memorySnapshot && Date.now() - memorySnapshot.savedAt <= ACCUMULATED_REPORTS_STORAGE_TTL_MS) {
+    return memorySnapshot;
+  }
+  if (memorySnapshot) {
+    accumulatedReportsSnapshots.delete(storageKey);
+  }
   if (typeof window === 'undefined') return null;
   try {
     const raw = window.sessionStorage.getItem(storageKey);
@@ -67,7 +75,7 @@ function readAccumulatedReportsSnapshot(storageKey: string): AccumulatedReportsS
       window.sessionStorage.removeItem(storageKey);
       return null;
     }
-    return {
+    const snapshot: AccumulatedReportsSnapshot = {
       version: ACCUMULATED_REPORTS_STORAGE_VERSION,
       savedAt: Number(parsed.savedAt),
       page: Math.max(1, Math.floor(parsed.page)),
@@ -75,28 +83,35 @@ function readAccumulatedReportsSnapshot(storageKey: string): AccumulatedReportsS
       groupLoadedCounts: parsed.groupLoadedCounts && typeof parsed.groupLoadedCounts === 'object' ? parsed.groupLoadedCounts : {},
       groupTotals: parsed.groupTotals && typeof parsed.groupTotals === 'object' ? parsed.groupTotals : {}
     };
+    accumulatedReportsSnapshots.set(storageKey, snapshot);
+    return snapshot;
   } catch {
     return null;
   }
 }
 
 function writeAccumulatedReportsSnapshot(storageKey: string, snapshot: Omit<AccumulatedReportsSnapshot, 'version' | 'savedAt'>) {
+  const nextSnapshot: AccumulatedReportsSnapshot = {
+    version: ACCUMULATED_REPORTS_STORAGE_VERSION,
+    savedAt: Date.now(),
+    ...snapshot
+  };
+  accumulatedReportsSnapshots.set(storageKey, nextSnapshot);
   if (typeof window === 'undefined') return;
   try {
-    window.sessionStorage.setItem(storageKey, JSON.stringify({
-      version: ACCUMULATED_REPORTS_STORAGE_VERSION,
-      savedAt: Date.now(),
-      ...snapshot
-    }));
+    window.sessionStorage.setItem(storageKey, JSON.stringify(nextSnapshot));
   } catch {
     // Ignore storage quota/private mode failures; the in-memory accumulated state still works.
   }
 }
 
 function clearAccumulatedReportsSnapshots(userId?: string | null) {
+  const prefix = `accumulated-reports:${userId || 'anonymous'}:`;
+  Array.from(accumulatedReportsSnapshots.keys())
+    .filter(key => key.startsWith(prefix))
+    .forEach(key => accumulatedReportsSnapshots.delete(key));
   if (typeof window === 'undefined') return;
   try {
-    const prefix = `accumulated-reports:${userId || 'anonymous'}:`;
     Object.keys(window.sessionStorage)
       .filter(key => key.startsWith(prefix))
       .forEach(key => window.sessionStorage.removeItem(key));
