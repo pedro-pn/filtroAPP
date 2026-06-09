@@ -16,6 +16,7 @@ interface InfiniteScrollSentinelOptions {
  * aproxima da viewport — transformando o botão "Carregar mais" em scroll infinito.
  * Retorna um callback ref: passe-o em `<div ref={...} />`. Por ser callback ref, o observer
  * (re)anexa de forma confiável mesmo quando a sentinela só entra no DOM após o 1º carregamento.
+ * Se um carregamento termina e a sentinela continua visível, segue carregando (preenche a tela).
  * O botão pode ser mantido como fallback acessível e para navegadores sem IntersectionObserver.
  */
 export function useInfiniteScrollSentinel({
@@ -27,22 +28,35 @@ export function useInfiniteScrollSentinel({
   // Flags lidas via ref para não recriar o observer a cada render.
   const stateRef = useRef({ hasMore, isLoading, onLoadMore });
   stateRef.current = { hasMore, isLoading, onLoadMore };
+  const isIntersectingRef = useRef(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
+
+  const maybeLoadMore = useCallback(() => {
+    const state = stateRef.current;
+    if (isIntersectingRef.current && state.hasMore && !state.isLoading) state.onLoadMore();
+  }, []);
 
   const setSentinel = useCallback((node: HTMLDivElement | null) => {
     observerRef.current?.disconnect();
     observerRef.current = null;
+    isIntersectingRef.current = false;
     if (!node || typeof IntersectionObserver === 'undefined') return;
-    observerRef.current = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       entries => {
-        if (!entries.some(entry => entry.isIntersecting)) return;
-        const state = stateRef.current;
-        if (state.hasMore && !state.isLoading) state.onLoadMore();
+        isIntersectingRef.current = entries.some(entry => entry.isIntersecting);
+        maybeLoadMore();
       },
       { rootMargin }
     );
-    observerRef.current.observe(node);
-  }, [rootMargin]);
+    observerRef.current = observer;
+    observer.observe(node);
+  }, [rootMargin, maybeLoadMore]);
+
+  // Quando um carregamento termina (e ainda há mais), tenta de novo: se a sentinela
+  // continua na tela porque a leva carregada não a empurrou para fora, segue carregando.
+  useEffect(() => {
+    if (!isLoading && hasMore) maybeLoadMore();
+  }, [isLoading, hasMore, maybeLoadMore]);
 
   useEffect(() => () => observerRef.current?.disconnect(), []);
 

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReportSummary } from '../../types/domain';
 import { groupByProject } from '../../utils/groupByProject';
 import { ProjectSortButton, compareReportTypes, sortProjectGroups, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
+import { InfiniteScrollSentinel } from '../ui/InfiniteScrollSentinel';
 import { ReportSummaryCard } from './ReportSummaryCard';
 
 interface GroupedReportListProps {
@@ -325,6 +326,17 @@ export function GroupedReportList({
                       ) : null}
                       {hasLoadedItemsToReveal || hasRemoteItemsToLoad ? (
                         <div className="admin-create-toolbar report-type-load-more">
+                          <InfiniteScrollSentinel
+                            hasMore={(hasLoadedItemsToReveal || hasRemoteItemsToLoad) && !typeErrored}
+                            isLoading={typeLoading}
+                            onLoadMore={() => {
+                              if (hasLoadedItemsToReveal) {
+                                loadMoreType(typeKey, sortedReports.length);
+                                return;
+                              }
+                              void handleLoadMoreType(group.projectId, reportType, typeKey, sortedReports.length, hasLoadedItemsToReveal, typeSortDirection);
+                            }}
+                          />
                           <button
                             className="mini-btn"
                             type="button"

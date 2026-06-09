@@ -17,6 +17,7 @@ import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
+import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
 import { Modal } from '../../components/ui/Modal';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useToast } from '../../components/ui/Toast';
@@ -2568,6 +2569,19 @@ export function GestorPage() {
                 ) : null}
                 {hasLoadedItemsToReveal || hasRemoteItemsToLoad ? (
                   <div className="admin-create-toolbar report-type-load-more">
+                    <InfiniteScrollSentinel
+                      hasMore={(hasLoadedItemsToReveal || hasRemoteItemsToLoad) && !typeErrored}
+                      isLoading={typeLoading}
+                      onLoadMore={() => {
+                        if (hasLoadedItemsToReveal) {
+                          revealMoreArchivedType(typeKey, sortedReports.length);
+                          return;
+                        }
+                        if (projectId) {
+                          void handleLoadMoreArchivedType(projectId, reportType, typeKey, sortedReports.length, hasLoadedItemsToReveal, typeSortDirection);
+                        }
+                      }}
+                    />
                     <button
                       className="mini-btn"
                       type="button"

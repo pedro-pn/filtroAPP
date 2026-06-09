@@ -17,6 +17,7 @@ import { SIGNATURE_RDO_NOTICE_VERSION } from '../../constants/privacy';
 import { useAccumulatedReportsPage, useReportMutations } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
+import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { useProjects } from '../../hooks/useProjects';
 import { Shell } from '../../layout/Shell';
@@ -968,6 +969,11 @@ export function ClientPage() {
                     ) : null}
                     {activeTypeHasLoadedItemsToReveal || activeTypeHasRemoteItemsToLoad ? (
                       <div className="admin-create-toolbar report-type-load-more">
+                        <InfiniteScrollSentinel
+                          hasMore={(activeTypeHasLoadedItemsToReveal || activeTypeHasRemoteItemsToLoad) && !activeTypeErrored}
+                          isLoading={activeTypeIsLoading}
+                          onLoadMore={() => void handleLoadMoreActiveType()}
+                        />
                         <button
                           className="mini-btn"
                           type="button"

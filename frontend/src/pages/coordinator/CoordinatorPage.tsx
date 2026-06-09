@@ -15,6 +15,7 @@ import { useProjects } from '../../hooks/useProjects';
 import { useAccumulatedReportsPage, useReportsPage } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
+import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
 import { useSurveys } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
 import { MonthlyAllocationDashboardOverlay, StatsDashboardOverlay, StatsOverview } from '../../components/stats/StatsDashboard';
@@ -395,6 +396,17 @@ export function CoordinatorPage() {
                 ) : null}
                 {hasLoadedItemsToReveal || hasRemoteItemsToLoad ? (
                   <div className="admin-create-toolbar report-type-load-more">
+                    <InfiniteScrollSentinel
+                      hasMore={(hasLoadedItemsToReveal || hasRemoteItemsToLoad) && !typeErrored}
+                      isLoading={typeLoading}
+                      onLoadMore={() => {
+                        if (hasLoadedItemsToReveal) {
+                          revealMoreArchivedType(typeKey, sortedReports.length);
+                          return;
+                        }
+                        void handleLoadMoreArchivedType(projectId, reportType, typeKey, sortedReports.length, hasLoadedItemsToReveal, typeSortDirection);
+                      }}
+                    />
                     <button
                       className="mini-btn"
                       type="button"
