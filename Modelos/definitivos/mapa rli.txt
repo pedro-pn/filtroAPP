@@ -14,6 +14,7 @@ Informações do serviço
 {{system}} - Nome do sistema selecionado - primeiro split por ';'
 {{description}} - descrição do sistema selecionado - segundo split por ';'
 {{diagram}} - Diagrama selecionado - terceiro split ';'
+{{step}} - step do serviço
 {{material}} - material selecionado
 {{starttime}} - horário de início do serviço
 {{endtime}} - horário de término do serviço

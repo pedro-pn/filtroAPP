@@ -15,6 +15,7 @@ Informações do serviço
 {{description}} - descrição do sistema selecionado - segundo split por ';'
 {{diagram}} - Diagrama selecionado - terceiro split ';'
 {{material}} - material selecionado
+{{step}} - step do serviço
 {{starttime}} - horário de início do serviço
 {{endtime}} - horário de término do serviço
 {{status}} - Indicar se o serviço foi  "APROVADO" ou "REPROVADO" conforme preenchido pelo colaborador

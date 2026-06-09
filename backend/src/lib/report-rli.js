@@ -348,6 +348,7 @@ function buildRliBaseData(report) {
     starttime: stringify(getField(sd, ['Hora de início', 'Hora de inicio'])),
     endtime: stringify(getField(sd, ['Hora de término/pausa', 'Hora de termino/pausa'])),
     status,
+    step: stringify(getField(sd, ['Steps', 'Step'])),
     lines: stringify(getField(sd, ['Linhas'])),
     obs: stringify(getField(sd, ['Observações', 'Observacoes'])),
     leadername: safeText(sc.__leaderSnapshot?.name || report.project?.operator?.name),

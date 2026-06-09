@@ -112,6 +112,10 @@ function serviceStep(report) {
     || 'STEP';
 }
 
+function serviceSystemStepFilePart(report) {
+  return `${serviceSystemCode(report)}M00${serviceStep(report).trim() || 'STEP'}`;
+}
+
 export function buildReportFileBaseName(report) {
   const type = report?.reportType || 'RDO';
   if (type === 'RDO') {
@@ -119,8 +123,7 @@ export function buildReportFileBaseName(report) {
   }
 
   if (type === 'RLF' || type === 'RLI') {
-    const vessel = serviceEquipment(report) || 'Embarcação';
-    return safePath(`${missionLabel(report)} - ${type} ${reportNumber(report)} - ${serviceSystemCode(report)} - ${vessel}M00${serviceStep(report)}`);
+    return safePath(`${missionLabel(report)} - ${type} ${reportNumber(report)} - ${serviceSystemCode(report)} - ${serviceSystemStepFilePart(report)}`);
   }
 
   return safePath(`${missionLabel(report)} - ${type} ${reportNumber(report)} - ${serviceEquipment(report)} - ${serviceSystem(report)}`);

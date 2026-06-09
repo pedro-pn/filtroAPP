@@ -96,14 +96,17 @@ function serviceStep(report: ReportSummary) {
     || 'STEP';
 }
 
+function serviceSystemStepFilePart(report: ReportSummary) {
+  return `${serviceSystemCode(report)}M00${serviceStep(report).trim() || 'STEP'}`;
+}
+
 export function reportDownloadFileName(report: ReportSummary, extension: 'pdf' | 'docx') {
   const mission = `Missão ${report.project?.code || '---'} ${report.project?.name || 'Sem projeto'}`;
   let base: string;
   if (report.reportType === 'RDO') {
     base = `${mission} - RDO ${reportNumber(report)} - ${dateFilePart(report.reportDate)} - ${weekdayName(report.reportDate)}`;
   } else if (report.reportType === 'RLF' || report.reportType === 'RLI') {
-    const vessel = serviceEquipment(report);
-    base = `${mission} - ${report.reportType} ${reportNumber(report)} - ${serviceSystemCode(report)} - ${vessel}M00${serviceStep(report)}`;
+    base = `${mission} - ${report.reportType} ${reportNumber(report)} - ${serviceSystemCode(report)} - ${serviceSystemStepFilePart(report)}`;
   } else {
     base = `${mission} - ${report.reportType} ${reportNumber(report)} - ${serviceEquipment(report)} - ${serviceSystem(report)}`;
   }

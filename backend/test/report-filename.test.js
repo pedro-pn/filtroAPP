@@ -12,28 +12,28 @@ function report(reportType) {
       serviceData: {
         'ID da embarcação': '51632',
         Sistema: '53100;FRESHWATER GENERATION SYSTEM;00051632-53100-K-0010',
-        Steps: '4'
+        Steps: '60'
       }
     }
   };
 }
 
-test('RLI/RLF stored filename uses only the selected system code', () => {
+test('RLI/RLF stored filename uses selected system code and step', () => {
   assert.equal(
     buildReportFileName(report('RLI'), 'pdf'),
-    'Missão 123 Teste - RLI 7 - 53100 - 51632M004.pdf'
+    'Missão 123 Teste - RLI 7 - 53100 - 53100M0060.pdf'
   );
   assert.equal(
     buildReportFileName(report('RLI'), 'docx'),
-    'Missão 123 Teste - RLI 7 - 53100 - 51632M004.docx'
+    'Missão 123 Teste - RLI 7 - 53100 - 53100M0060.docx'
   );
   assert.equal(
     buildReportFileName(report('RLF'), 'pdf'),
-    'Missão 123 Teste - RLF 7 - 53100 - 51632M004.pdf'
+    'Missão 123 Teste - RLF 7 - 53100 - 53100M0060.pdf'
   );
   assert.equal(
     buildReportFileName(report('RLF'), 'docx'),
-    'Missão 123 Teste - RLF 7 - 53100 - 51632M004.docx'
+    'Missão 123 Teste - RLF 7 - 53100 - 53100M0060.docx'
   );
 });
 
