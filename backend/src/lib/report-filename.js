@@ -102,6 +102,10 @@ function serviceSystem(report) {
     || 'Sistema';
 }
 
+function serviceSystemCode(report) {
+  return serviceSystem(report).split(';')[0]?.trim() || 'Sistema';
+}
+
 function serviceStep(report) {
   const fields = report?.specialConditions?.serviceData || report?.services?.[0]?.extraData || {};
   return stringify(getField(fields, ['Steps', 'Step']))
@@ -116,7 +120,7 @@ export function buildReportFileBaseName(report) {
 
   if (type === 'RLF' || type === 'RLI') {
     const vessel = serviceEquipment(report) || 'Embarcação';
-    return safePath(`${missionLabel(report)} - ${type} ${reportNumber(report)} - ${vessel} - ${vessel}M00${serviceStep(report)}`);
+    return safePath(`${missionLabel(report)} - ${type} ${reportNumber(report)} - ${serviceSystemCode(report)} - ${vessel}M00${serviceStep(report)}`);
   }
 
   return safePath(`${missionLabel(report)} - ${type} ${reportNumber(report)} - ${serviceEquipment(report)} - ${serviceSystem(report)}`);

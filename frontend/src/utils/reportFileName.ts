@@ -86,6 +86,10 @@ function serviceSystem(report: ReportSummary) {
     || 'Sistema';
 }
 
+function serviceSystemCode(report: ReportSummary) {
+  return serviceSystem(report).split(';')[0]?.trim() || 'Sistema';
+}
+
 function serviceStep(report: ReportSummary) {
   const fields = serviceData(report);
   return stringify(getField(fields, ['Steps', 'Step']))
@@ -99,7 +103,7 @@ export function reportDownloadFileName(report: ReportSummary, extension: 'pdf' |
     base = `${mission} - RDO ${reportNumber(report)} - ${dateFilePart(report.reportDate)} - ${weekdayName(report.reportDate)}`;
   } else if (report.reportType === 'RLF' || report.reportType === 'RLI') {
     const vessel = serviceEquipment(report);
-    base = `${mission} - ${report.reportType} ${reportNumber(report)} - ${vessel} - ${vessel}M00${serviceStep(report)}`;
+    base = `${mission} - ${report.reportType} ${reportNumber(report)} - ${serviceSystemCode(report)} - ${vessel}M00${serviceStep(report)}`;
   } else {
     base = `${mission} - ${report.reportType} ${reportNumber(report)} - ${serviceEquipment(report)} - ${serviceSystem(report)}`;
   }

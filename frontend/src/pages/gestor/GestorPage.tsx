@@ -231,7 +231,6 @@ interface CounterFormState {
 const internalRoles: Array<Exclude<UserRole, 'CLIENT'>> = ['COLLABORATOR', 'COORDINATOR', 'MANAGER'];
 type ProjectVisibilityMode = 'manager-coordinator' | 'all-authorized' | 'manager-only';
 const projectReportTypes: ReportType[] = ['RDO', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLI', 'RLF'];
-const editableServiceReportTypes = new Set<ReportType>(['RTP', 'RLQ', 'RCPU', 'RLM', 'RLI', 'RLF']);
 
 function projectReportSequencesToForm(sequences: ProjectReportSequence[] = []): ProjectReportSequenceFormState[] {
   const sequenceByType = new Map(sequences.map(sequence => [sequence.reportType, sequence.nextNumber]));
@@ -1317,6 +1316,8 @@ export function GestorPage() {
   const [counterCategoryEditName, setCounterCategoryEditName] = useState('');
   const [showCounterForm, setShowCounterForm] = useState(false);
   const [returnReport, setReturnReport] = useState<ReportSummary | null>(null);
+  const [sequenceEditReport, setSequenceEditReport] = useState<ReportSummary | null>(null);
+  const [sequenceEditValue, setSequenceEditValue] = useState('');
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [projectSortDir, setProjectSortDir] = useState<'asc' | 'desc'>(initialUiPrefs.projectSortDir);
   const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>(initialUiPrefs.closedArchivedProjectIds);
@@ -2347,24 +2348,37 @@ export function GestorPage() {
     }
   }
 
-  async function handleReportSequenceEdit(report: ReportSummary) {
-    const current = report.sequenceNumber ? String(report.sequenceNumber) : '';
-    const value = window.prompt(`Novo número para ${report.reportType}:`, current);
-    if (value === null) return;
+  function openReportSequenceEdit(report: ReportSummary) {
+    setSequenceEditReport(report);
+    setSequenceEditValue(report.sequenceNumber ? String(report.sequenceNumber) : '');
+  }
 
-    const normalizedValue = value.trim();
+  function closeReportSequenceEdit() {
+    setSequenceEditReport(null);
+    setSequenceEditValue('');
+  }
+
+  async function handleReportSequenceEditSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!sequenceEditReport) return;
+
+    const normalizedValue = sequenceEditValue.trim();
     const sequenceNumber = /^\d+$/.test(normalizedValue) ? Number.parseInt(normalizedValue, 10) : NaN;
     if (!Number.isInteger(sequenceNumber) || sequenceNumber < 1) {
       showToast('Informe um número maior que zero.', 'error');
       return;
     }
-    if (sequenceNumber === report.sequenceNumber) return;
+    if (sequenceNumber === sequenceEditReport.sequenceNumber) {
+      closeReportSequenceEdit();
+      return;
+    }
 
     try {
       await reportMutations.updateSequence.mutateAsync({
-        id: report.id,
+        id: sequenceEditReport.id,
         payload: { sequenceNumber }
       });
+      closeReportSequenceEdit();
       showToast('Numeração atualizada.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível alterar a numeração.', 'error');
@@ -2425,12 +2439,12 @@ export function GestorPage() {
             Devolver
           </button>
         ) : null}
-        {report.status !== 'SIGNED' && editableServiceReportTypes.has(report.reportType) ? (
+        {report.status !== 'SIGNED' ? (
           <button
             className="mini-btn alt"
             type="button"
             disabled={reportMutations.updateSequence.isPending}
-            onClick={() => void handleReportSequenceEdit(report)}
+            onClick={() => openReportSequenceEdit(report)}
           >
             Nº
           </button>
@@ -2750,6 +2764,48 @@ export function GestorPage() {
         }}
       />
     );
+    const sequenceDialog = (
+      <Modal
+        open={!!sequenceEditReport}
+        onClose={closeReportSequenceEdit}
+        ariaLabelledBy="report-sequence-edit-title"
+      >
+        <form className="admin-form" onSubmit={handleReportSequenceEditSubmit}>
+          <div className="section-title" id="report-sequence-edit-title">Alterar numeração</div>
+          <p className="placeholder-copy">
+            {sequenceEditReport
+              ? `Informe o novo número para ${sequenceEditReport.reportType}${sequenceEditReport.sequenceNumber ? ` ${sequenceEditReport.sequenceNumber}` : ''}.`
+              : 'Informe o novo número do relatório.'}
+          </p>
+          <div className="field-group">
+            <label htmlFor="report-sequence-edit-input">Novo número</label>
+            <input
+              id="report-sequence-edit-input"
+              type="number"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              value={sequenceEditValue}
+              onChange={event => setSequenceEditValue(event.target.value)}
+              required
+            />
+          </div>
+          <div className="admin-form-actions">
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={reportMutations.updateSequence.isPending}
+              onClick={closeReportSequenceEdit}
+            >
+              Cancelar
+            </button>
+            <button className="primary-button" type="submit" disabled={reportMutations.updateSequence.isPending}>
+              {reportMutations.updateSequence.isPending ? 'Salvando...' : 'Salvar número'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    );
 
     return (
       <>
@@ -2758,6 +2814,7 @@ export function GestorPage() {
         {renderProjectReportGroups(visibleReports)}
         {renderLoadMoreReports()}
         {reasonDialog}
+        {sequenceDialog}
       </>
     );
   }

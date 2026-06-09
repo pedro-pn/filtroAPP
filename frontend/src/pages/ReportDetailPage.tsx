@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { downloadReportDocx, downloadReportPdf } from '../api/reports';
@@ -1234,10 +1234,13 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
   const showToast = useToast();
   const [clientRejectOpen, setClientRejectOpen] = useState(false);
   const [signatureOpen, setSignatureOpen] = useState(false);
+  const [sequenceEditOpen, setSequenceEditOpen] = useState(false);
+  const [sequenceEditValue, setSequenceEditValue] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [clientComment, setClientComment] = useState('');
   const canDownloadDocx = role === 'MANAGER';
   const canClientSign = role === 'CLIENT' && clientCanSignReport(report, user, hasActiveClientRejection(report));
+  const canEditSequence = role === 'MANAGER' && report.status !== 'SIGNED';
 
   async function handleDownload(format: 'pdf' | 'docx') {
     showToast(format === 'pdf' ? 'Gerando PDF...' : 'Gerando DOCX...', 'info');
@@ -1295,6 +1298,41 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
     }
   }
 
+  function openSequenceEdit() {
+    setSequenceEditValue(report.sequenceNumber ? String(report.sequenceNumber) : '');
+    setSequenceEditOpen(true);
+  }
+
+  function closeSequenceEdit() {
+    setSequenceEditOpen(false);
+    setSequenceEditValue('');
+  }
+
+  async function handleSequenceEditSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedValue = sequenceEditValue.trim();
+    const sequenceNumber = /^\d+$/.test(normalizedValue) ? Number.parseInt(normalizedValue, 10) : NaN;
+    if (!Number.isInteger(sequenceNumber) || sequenceNumber < 1) {
+      showToast('Informe um número maior que zero.', 'error');
+      return;
+    }
+    if (sequenceNumber === report.sequenceNumber) {
+      closeSequenceEdit();
+      return;
+    }
+
+    try {
+      await reportMutations.updateSequence.mutateAsync({
+        id: report.id,
+        payload: { sequenceNumber }
+      });
+      closeSequenceEdit();
+      showToast('Numeração atualizada.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível alterar a numeração.', 'error');
+    }
+  }
+
   return (
     <>
       <div className="detail-action-bar">
@@ -1304,6 +1342,16 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
         {canDownloadDocx ? (
           <button className="secondary-button" type="button" onClick={() => void handleDownload('docx')}>
             DOCX
+          </button>
+        ) : null}
+        {canEditSequence ? (
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={reportMutations.updateSequence.isPending}
+            onClick={openSequenceEdit}
+          >
+            Alterar nº
           </button>
         ) : null}
         {canClientSign ? (
@@ -1364,6 +1412,44 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
         }}
         onConfirm={payload => void handleRequestSignature(payload)}
       />
+      <Modal
+        open={sequenceEditOpen}
+        onClose={closeSequenceEdit}
+        ariaLabelledBy="detail-sequence-edit-title"
+      >
+        <form className="admin-form" onSubmit={handleSequenceEditSubmit}>
+          <div className="section-title" id="detail-sequence-edit-title">Alterar numeração</div>
+          <p className="placeholder-copy">
+            Informe o novo número para {report.reportType}{report.sequenceNumber ? ` ${report.sequenceNumber}` : ''}.
+          </p>
+          <div className="field-group">
+            <label htmlFor="detail-sequence-edit-input">Novo número</label>
+            <input
+              id="detail-sequence-edit-input"
+              type="number"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              value={sequenceEditValue}
+              onChange={event => setSequenceEditValue(event.target.value)}
+              required
+            />
+          </div>
+          <div className="admin-form-actions">
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={reportMutations.updateSequence.isPending}
+              onClick={closeSequenceEdit}
+            >
+              Cancelar
+            </button>
+            <button className="primary-button" type="submit" disabled={reportMutations.updateSequence.isPending}>
+              {reportMutations.updateSequence.isPending ? 'Salvando...' : 'Salvar número'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </>
   );
 }
