@@ -123,7 +123,7 @@ test('removed pending signer no longer blocks an existing RDO signature round', 
   assert.deepEqual(removedPendingRequiredClientSignatureIds(oldRound), ['signature-removed']);
 });
 
-test('removed pending signer is kept when the old round has no current project signer', () => {
+test('removed pending signer is invalidated when the old round has no current project signer', () => {
   const oldRound = report({
     project: {
       id: 'project-1',
@@ -147,7 +147,7 @@ test('removed pending signer is kept when the old round has no current project s
     }]
   });
 
-  assert.deepEqual(removedPendingRequiredClientSignatureIds(oldRound), []);
+  assert.deepEqual(removedPendingRequiredClientSignatureIds(oldRound), ['signature-old-primary']);
 });
 
 test('client cannot see approved reports under soft-deleted projects', () => {

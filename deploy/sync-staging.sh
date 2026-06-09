@@ -221,16 +221,35 @@ NODE
   log "artefatos mockados de homologação criados"
 }
 
+staging_mock_file_hash() {
+  local file_name="$1"
+  docker compose -f "$STAGING_COMPOSE_FILE" run --rm --no-deps \
+    backend node --input-type=module -e "
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import crypto from 'node:crypto';
+
+const reportsDir = process.env.REPORTS_DIR || process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'Relatórios');
+const filePath = path.join(path.resolve(reportsDir), '_staging_mock', process.argv[1]);
+const bytes = await fs.readFile(filePath);
+console.log(crypto.createHash('sha256').update(bytes).digest('hex'));
+" "$file_name" | tail -n 1
+}
+
 sanitize_staging_database() {
   local admin_username_sql
   local admin_name_sql
   local admin_email_sql
   local admin_password_hash_sql
+  local staging_source_hash_sql
+  local staging_final_hash_sql
 
   admin_username_sql="$(sql_escape "$STAGING_ADMIN_USERNAME")"
   admin_name_sql="$(sql_escape "$STAGING_ADMIN_NAME")"
   admin_email_sql="$(sql_escape "$STAGING_ADMIN_EMAIL")"
   admin_password_hash_sql="$(sql_escape "$STAGING_ADMIN_PASSWORD_HASH")"
+  staging_source_hash_sql="$(sql_escape "$(staging_mock_file_hash report-source.pdf)")"
+  staging_final_hash_sql="$(sql_escape "$(staging_mock_file_hash report-final.pdf)")"
 
   log "sanitizando credenciais, sessões e tokens públicos restaurados de produção"
   docker compose -f "$STAGING_COMPOSE_FILE" exec -T postgres \
@@ -297,10 +316,10 @@ SET
     WHEN "finalPdfUrl" IS NULL THEN NULL
     ELSE '/relatorios/_staging_mock/report-final.pdf'
   END,
-  "sourceDocumentHash" = 'staging-mock-source',
+  "sourceDocumentHash" = '$staging_source_hash_sql',
   "finalDocumentHash" = CASE
     WHEN "finalDocumentHash" IS NULL THEN NULL
-    ELSE 'staging-mock-final'
+    ELSE '$staging_final_hash_sql'
   END;
 
 UPDATE "ReportAttachment"

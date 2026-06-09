@@ -27,6 +27,7 @@ import {
   persistClientSignatureApprovalReview,
   rejectAuthenticatedClientSignatureRound,
   rejectPublicInternalSignature,
+  removedPendingRequiredClientSignatureIds,
   resetSignedSignatureForFinalizationRetry,
   shouldCreateInternalSignatureRound,
   verifiedSourcePdfBuffer,
@@ -1044,6 +1045,26 @@ test('approved RDO without client signers does not require an internal signature
 
   assert.deepEqual(clientSignersForReport(report), []);
   assert.equal(shouldCreateInternalSignatureRound(report), false);
+});
+
+test('removedPendingRequiredClientSignatureIds invalidates all pending signatures when project signer changes completely', () => {
+  const report = {
+    project: {
+      clientName: 'Cliente',
+      clientEmailPrimary: 'novo@example.com',
+      clientSigners: []
+    }
+  };
+  const version = {
+    signatures: [{
+      id: 'old-signature',
+      signerEmail: 'antigo@example.com',
+      status: 'PENDING',
+      isRequired: true
+    }]
+  };
+
+  assert.deepEqual(removedPendingRequiredClientSignatureIds(report, version), ['old-signature']);
 });
 
 test('publicSignatureStatus blocks links for deleted and manager-only projects but allows archived projects', () => {

@@ -1862,13 +1862,13 @@ export function removedPendingRequiredClientSignatureIds(report, version = null)
   const currentSignerEmails = new Set(clientSignersForReport(report).map(signer => signer.email));
   const roundHasCurrentSigner = (activeVersion?.signatures || [])
     .some(signature => signature.isRequired !== false && currentSignerEmails.has(signerEmailValue(signature.signerEmail)));
-  if (!roundHasCurrentSigner) return [];
-  return (activeVersion?.signatures || [])
-    .filter(signature => (
-      signature.status === ReportSignatureStatus.PENDING
-      && signature.isRequired !== false
-      && !currentSignerEmails.has(signerEmailValue(signature.signerEmail))
-    ))
+  const pendingRequired = (activeVersion?.signatures || []).filter(signature => (
+    signature.status === ReportSignatureStatus.PENDING
+    && signature.isRequired !== false
+  ));
+  if (!roundHasCurrentSigner) return pendingRequired.map(signature => signature.id);
+  return pendingRequired
+    .filter(signature => !currentSignerEmails.has(signerEmailValue(signature.signerEmail)))
     .map(signature => signature.id);
 }
 
@@ -1897,6 +1897,9 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
       : null;
     const removedSignatureIds = removedPendingRequiredClientSignatureIds(report, version);
     if (!version || !removedSignatureIds.length) continue;
+    const currentSignerEmails = new Set(clientSignersForReport(report).map(signer => signer.email));
+    const roundHasCurrentSigner = (version.signatures || [])
+      .some(signature => signature.isRequired !== false && currentSignerEmails.has(signerEmailValue(signature.signerEmail)));
 
     const nextVersion = await prisma.$transaction(async tx => {
       await tx.reportSignature.updateMany({
@@ -1913,17 +1916,31 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
           tokenExpiresAt: null
         }
       });
+      if (!roundHasCurrentSigner) {
+        await tx.reportVersion.update({
+          where: { id: version.id },
+          data: { status: ReportVersionStatus.SUPERSEDED }
+        });
+      }
       await createSignatureAuditLog(tx, {
         reportId: report.id,
         versionId: version.id,
         userId,
         action: ReportAuditAction.SIGNATURES_INVALIDATED,
-        description: 'Assinaturas pendentes de signatarios removidos deixaram de ser obrigatorias.',
+        description: roundHasCurrentSigner
+          ? 'Assinaturas pendentes de signatarios removidos deixaram de ser obrigatorias.'
+          : 'Rodada de assinatura substituida por alteracao dos signatarios do projeto.',
         evidence
       });
-      return activeVersionWithSignatures(tx, report.id);
+      return roundHasCurrentSigner ? activeVersionWithSignatures(tx, report.id) : null;
     });
     updatedReports += 1;
+
+    if (!roundHasCurrentSigner) {
+      const freshReport = await prisma.report.findUnique({ where: { id: report.id }, include });
+      await ensureInternalSignatureRoundAndNotify(freshReport, userId, evidence);
+      continue;
+    }
 
     if (allRequiredSignaturesCompleted(nextVersion)) {
       const finalized = await finalizeInternalSignatureRound(report, nextVersion, evidence, userId);

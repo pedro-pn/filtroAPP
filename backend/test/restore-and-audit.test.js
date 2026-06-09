@@ -286,6 +286,9 @@ test('staging sync sanitizes production credentials and tokens before starting s
   assert.match(script, /UPDATE "Project"\s+SET\s+"clientName" = 'Cliente Staging'/);
   assert.match(script, /UPDATE "User"[\s\S]*"passwordHash" = 'staging-disabled'/);
   assert.match(script, /UPDATE "ReportVersion"[\s\S]*'\/relatorios\/_staging_mock\/report-source\.pdf'/);
+  assert.match(script, /staging_mock_file_hash report-source\.pdf/);
+  assert.match(script, /"sourceDocumentHash" = '\$staging_source_hash_sql'/);
+  assert.match(script, /"finalDocumentHash"[\s\S]*'\$staging_final_hash_sql'/);
   assert.match(script, /UPDATE "ReportAttachment"[\s\S]*'_staging_mock\/attachment\.txt'/);
   assert.match(script, /UPDATE "Romaneio"[\s\S]*'\/relatorios\/_staging_mock\/romaneio\.docx'/);
   assert.match(script, /UPDATE "CalibrationCertificate"[\s\S]*'_staging_mock\/certificate\.pdf'/);
