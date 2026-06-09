@@ -27,6 +27,7 @@ import {
   persistClientSignatureApprovalReview,
   rejectAuthenticatedClientSignatureRound,
   rejectPublicInternalSignature,
+  addedRequiredClientSigners,
   removedPendingRequiredClientSignatureIds,
   resetSignedSignatureForFinalizationRetry,
   shouldCreateInternalSignatureRound,
@@ -1065,6 +1066,58 @@ test('removedPendingRequiredClientSignatureIds invalidates all pending signature
   };
 
   assert.deepEqual(removedPendingRequiredClientSignatureIds(report, version), ['old-signature']);
+});
+
+test('addedRequiredClientSigners returns project signers missing a live signature in the round', () => {
+  const report = {
+    project: {
+      clientName: 'Cliente',
+      clientEmailPrimary: 'principal@example.com',
+      clientSigners: [{ name: 'Fiscal', email: 'fiscal@example.com' }]
+    }
+  };
+  const version = {
+    signatures: [
+      { id: 'sig-principal', signerEmail: 'principal@example.com', status: 'PENDING', isRequired: true }
+    ]
+  };
+
+  assert.deepEqual(addedRequiredClientSigners(report, version).map(signer => signer.email), ['fiscal@example.com']);
+});
+
+test('addedRequiredClientSigners ignores signers that already have a live (non-invalidated) signature', () => {
+  const report = {
+    project: {
+      clientName: 'Cliente',
+      clientEmailPrimary: 'principal@example.com',
+      clientSigners: []
+    }
+  };
+  const version = {
+    signatures: [
+      { id: 'sig-principal', signerEmail: 'principal@example.com', status: 'DONE', isRequired: true }
+    ]
+  };
+
+  assert.deepEqual(addedRequiredClientSigners(report, version), []);
+});
+
+test('addedRequiredClientSigners re-includes a signer whose previous signature was invalidated', () => {
+  const report = {
+    project: {
+      clientName: 'Cliente',
+      clientEmailPrimary: 'principal@example.com',
+      clientSigners: [{ name: 'Fiscal', email: 'fiscal@example.com' }]
+    }
+  };
+  const version = {
+    signatures: [
+      { id: 'sig-principal', signerEmail: 'principal@example.com', status: 'PENDING', isRequired: true },
+      { id: 'sig-fiscal', signerEmail: 'fiscal@example.com', status: 'INVALIDATED', isRequired: false }
+    ]
+  };
+
+  assert.deepEqual(addedRequiredClientSigners(report, version).map(signer => signer.email), ['fiscal@example.com']);
 });
 
 test('removedPendingRequiredClientSignatureIds invalidates expired signatures when project signer changes completely', () => {
