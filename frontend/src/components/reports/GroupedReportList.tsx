@@ -37,6 +37,35 @@ interface GroupedReportListProps {
   loadMoreStep?: number;
 }
 
+interface GroupedReportListStorage {
+  closedProjects: string[];
+  closedTypes: string[];
+  visibleByType: Record<string, number>;
+  typeSortDirections: Record<string, ProjectSortDirection>;
+}
+
+const groupedReportListSnapshots = new Map<string, GroupedReportListStorage>();
+
+function sanitizeStringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [];
+}
+
+function sanitizeVisibleByType(value: unknown) {
+  if (!value || typeof value !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]) && entry[1] > 0)
+      .map(([key, count]) => [key, Math.floor(count)])
+  );
+}
+
+function sanitizeTypeSortDirections(value: unknown) {
+  if (!value || typeof value !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, ProjectSortDirection] => entry[1] === 'asc' || entry[1] === 'desc')
+  );
+}
+
 export function GroupedReportList({
   reports,
   archived,
@@ -107,19 +136,23 @@ export function GroupedReportList({
     }
     setStorageLoaded(false);
     try {
-      const parsed = JSON.parse(localStorage.getItem(storageKey) || '{}') as {
-        closedProjects?: unknown;
-        closedTypes?: unknown;
-        typeSortDirections?: unknown;
+      const memorySnapshot = groupedReportListSnapshots.get(storageKey);
+      const parsed = memorySnapshot || JSON.parse(localStorage.getItem(storageKey) || '{}') as Partial<GroupedReportListStorage>;
+      const snapshot = {
+        closedProjects: sanitizeStringArray(parsed.closedProjects),
+        closedTypes: sanitizeStringArray(parsed.closedTypes),
+        visibleByType: sanitizeVisibleByType(parsed.visibleByType),
+        typeSortDirections: sanitizeTypeSortDirections(parsed.typeSortDirections)
       };
-      setClosedProjects(Array.isArray(parsed.closedProjects) ? parsed.closedProjects.filter((id): id is string => typeof id === 'string') : []);
-      setClosedTypes(Array.isArray(parsed.closedTypes) ? parsed.closedTypes.filter((id): id is string => typeof id === 'string') : []);
-      setTypeSortDirections(parsed.typeSortDirections && typeof parsed.typeSortDirections === 'object'
-        ? Object.fromEntries(Object.entries(parsed.typeSortDirections).filter((entry): entry is [string, ProjectSortDirection] => entry[1] === 'asc' || entry[1] === 'desc'))
-        : {});
+      groupedReportListSnapshots.set(storageKey, snapshot);
+      setClosedProjects(snapshot.closedProjects);
+      setClosedTypes(snapshot.closedTypes);
+      setVisibleByType(snapshot.visibleByType);
+      setTypeSortDirections(snapshot.typeSortDirections);
     } catch {
       setClosedProjects([]);
       setClosedTypes([]);
+      setVisibleByType({});
       setTypeSortDirections({});
     } finally {
       setStorageLoaded(true);
@@ -128,12 +161,14 @@ export function GroupedReportList({
 
   useEffect(() => {
     if (!storageKey || !storageLoaded) return;
+    const snapshot = { closedProjects, closedTypes, visibleByType, typeSortDirections };
+    groupedReportListSnapshots.set(storageKey, snapshot);
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ closedProjects, closedTypes, typeSortDirections }));
+      localStorage.setItem(storageKey, JSON.stringify(snapshot));
     } catch {
       // localStorage can be unavailable in private or restricted contexts.
     }
-  }, [closedProjects, closedTypes, storageKey, storageLoaded, typeSortDirections]);
+  }, [closedProjects, closedTypes, storageKey, storageLoaded, typeSortDirections, visibleByType]);
 
   useEffect(() => {
     if (!onEnsureTypePage || !typePageRequests.length) return;

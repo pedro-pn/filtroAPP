@@ -120,6 +120,128 @@ function clearAccumulatedReportsSnapshots(userId?: string | null) {
   }
 }
 
+function accumulatedReportsSnapshotKeys(userId?: string | null) {
+  const prefix = `accumulated-reports:${userId || 'anonymous'}:`;
+  const keys = new Set(Array.from(accumulatedReportsSnapshots.keys()).filter(key => key.startsWith(prefix)));
+  if (typeof window !== 'undefined') {
+    try {
+      Object.keys(window.sessionStorage)
+        .filter(key => key.startsWith(prefix))
+        .forEach(key => keys.add(key));
+    } catch {
+      // If storage cannot be inspected, use the in-memory snapshots only.
+    }
+  }
+  return Array.from(keys);
+}
+
+function filtersFromAccumulatedReportsStorageKey(storageKey: string, userId?: string | null): Omit<ReportPageFilters, 'page'> | null {
+  const prefix = `accumulated-reports:${userId || 'anonymous'}:`;
+  if (!storageKey.startsWith(prefix)) return null;
+  try {
+    return JSON.parse(decodeURIComponent(storageKey.slice(prefix.length))) as Omit<ReportPageFilters, 'page'>;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeReportSearchValue(value: unknown) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function reportMatchesSearch(report: ReportSummary, term?: string) {
+  const normalizedTerm = normalizeReportSearchValue(term || '').trim();
+  if (normalizedTerm.length < 2) return true;
+  const parts = [
+    report.reportType,
+    report.sequenceNumber,
+    report.status,
+    report.reportDate,
+    report.project?.code,
+    report.project?.name,
+    report.project?.clientName,
+    report.project?.clientCnpj,
+    report.createdBy?.name,
+    report.createdBy?.collaborator?.name,
+    report.overtimeReason,
+    report.dailyDescription,
+    report.reviewNotes,
+    ...(report.collaborators || []).map(item => item.collaborator?.name),
+    ...(report.services || []).flatMap(service => [
+      service.serviceType,
+      service.equipment?.code,
+      service.equipment?.name,
+      service.system,
+      service.material
+    ])
+  ];
+  return normalizeReportSearchValue(parts.join(' ')).includes(normalizedTerm);
+}
+
+function hasActiveClientRejection(report: ReportSummary) {
+  const special = report.specialConditions || {};
+  return Boolean(special.__clientRejectedAt && !special.__clientRejectionResolvedAt);
+}
+
+function reportMatchesAccumulatedReportsFilters(
+  report: ReportSummary,
+  filters: Omit<ReportPageFilters, 'page'>,
+  userId?: string | null
+) {
+  if (report.deletedAt) return false;
+  if (filters.status && report.status !== filters.status) return false;
+  if (filters.statuses?.length && !filters.statuses.includes(report.status)) return false;
+  if (filters.reviewQueue && !(['PENDING', 'RETURNED'].includes(report.status) || (report.status !== 'SIGNED' && hasActiveClientRejection(report)))) return false;
+  if (filters.projectActive !== undefined && report.project?.isActive !== filters.projectActive) return false;
+  if (filters.projectId && report.projectId !== filters.projectId) return false;
+  if (filters.reportType && report.reportType !== filters.reportType) return false;
+  if (filters.createdByUserId && report.createdByUserId !== filters.createdByUserId) return false;
+  if (filters.createdBy && report.createdByUserId !== filters.createdBy) return false;
+  if (filters.mine && report.createdByUserId !== userId) return false;
+  if (!reportMatchesSearch(report, filters.search)) return false;
+  return true;
+}
+
+function adjustGroupTotal(totals: Record<string, number>, key: string, delta: number) {
+  if (totals[key] === undefined) return;
+  totals[key] = Math.max(0, totals[key] + delta);
+}
+
+function updateAccumulatedReportsSnapshots(report: ReportSummary, userId?: string | null) {
+  accumulatedReportsSnapshotKeys(userId).forEach(storageKey => {
+    const snapshot = readAccumulatedReportsSnapshot(storageKey);
+    const filters = filtersFromAccumulatedReportsStorageKey(storageKey, userId);
+    if (!snapshot || !filters) return;
+    const existing = snapshot.items.find(item => item.id === report.id);
+    if (!existing) return;
+
+    const groupTotals = { ...snapshot.groupTotals };
+    const oldGroupKey = `${existing.projectId}-${existing.reportType}`;
+    const nextGroupKey = `${report.projectId}-${report.reportType}`;
+    const keepReport = reportMatchesAccumulatedReportsFilters(report, filters, userId);
+    const items = keepReport
+      ? snapshot.items.map(item => item.id === report.id ? report : item)
+      : snapshot.items.filter(item => item.id !== report.id);
+
+    if (!keepReport) {
+      adjustGroupTotal(groupTotals, oldGroupKey, -1);
+    } else if (oldGroupKey !== nextGroupKey) {
+      adjustGroupTotal(groupTotals, oldGroupKey, -1);
+      adjustGroupTotal(groupTotals, nextGroupKey, 1);
+    }
+
+    writeAccumulatedReportsSnapshot(storageKey, {
+      page: snapshot.page,
+      items,
+      groupLoadedCounts: snapshot.groupLoadedCounts,
+      groupTotals
+    });
+  });
+}
+
 export function useReports(filters?: ReportFilters) {
   const { user } = useAuth();
   return useQuery({
@@ -479,7 +601,9 @@ export function useReportAudit(reportId: string, enabled = true) {
 export function useReportMutations() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const clearAccumulatedReportsCache = () => clearAccumulatedReportsSnapshots(user?.id || user?.username || null);
+  const reportStorageUserId = user?.id || user?.username || null;
+  const clearAccumulatedReportsCache = () => clearAccumulatedReportsSnapshots(reportStorageUserId);
+  const updateAccumulatedReportsCache = (report: ReportSummary) => updateAccumulatedReportsSnapshots(report, reportStorageUserId);
   const createMutation = useMutation({
     mutationFn: (payload: ReportPayload) => createReport(payload),
     onSuccess: report => {
@@ -504,7 +628,7 @@ export function useReportMutations() {
     mutationFn: ({ id, payload }: { id: string; payload: Omit<ReportPayload, 'createdByUserId' | 'status'> }) =>
       updateReport(id, payload),
     onSuccess: report => {
-      clearAccumulatedReportsCache();
+      updateAccumulatedReportsCache(report);
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
@@ -516,7 +640,7 @@ export function useReportMutations() {
     mutationFn: ({ id, payload }: { id: string; payload: { status: ReportStatus; reviewNotes?: string | null } }) =>
       updateReportStatus(id, payload),
     onSuccess: report => {
-      clearAccumulatedReportsCache();
+      updateAccumulatedReportsCache(report);
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
@@ -542,7 +666,7 @@ export function useReportMutations() {
     }) =>
       requestReportSignature(id, { comment, signerName, signatureImageDataUrl, privacyNoticeAccepted, privacyNoticeVersion }),
     onSuccess: data => {
-      clearAccumulatedReportsCache();
+      updateAccumulatedReportsCache(data.report);
       updateReportCaches(queryClient, data.report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
@@ -560,7 +684,7 @@ export function useReportMutations() {
       payload: { action: 'APPROVED' | 'REJECTED'; comment?: string | null };
     }) => createClientReportReview(id, payload),
     onSuccess: report => {
-      clearAccumulatedReportsCache();
+      updateAccumulatedReportsCache(report);
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
@@ -582,7 +706,7 @@ export function useReportMutations() {
     mutationFn: ({ reportId, serviceId }: { reportId: string; serviceId: string }) =>
       deleteReportService(reportId, serviceId),
     onSuccess: report => {
-      clearAccumulatedReportsCache();
+      updateAccumulatedReportsCache(report);
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
