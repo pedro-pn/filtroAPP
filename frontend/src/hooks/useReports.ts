@@ -49,6 +49,21 @@ const ACCUMULATED_REPORTS_STORAGE_VERSION = 1;
 const ACCUMULATED_REPORTS_STORAGE_TTL_MS = 30 * 60 * 1000;
 const accumulatedReportsSnapshots = new Map<string, AccumulatedReportsSnapshot>();
 
+// Hooks montados de useAccumulatedReportsPage assinam aqui para re-sincronizar seus
+// itens quando uma mutação altera o snapshot (ex.: aprovar um relatório direto da lista,
+// sem abrir o card). Sem isso, o storage muda mas o estado React vivo fica defasado.
+const accumulatedReportsListeners = new Set<() => void>();
+
+function notifyAccumulatedReportsListeners() {
+  accumulatedReportsListeners.forEach(listener => {
+    try {
+      listener();
+    } catch {
+      // Um listener com falha não deve impedir os demais de sincronizar.
+    }
+  });
+}
+
 function accumulatedReportsStorageKey(filtersKey: string, userId?: string | null) {
   return `accumulated-reports:${userId || 'anonymous'}:${encodeURIComponent(filtersKey)}`;
 }
@@ -110,14 +125,16 @@ function clearAccumulatedReportsSnapshots(userId?: string | null) {
   Array.from(accumulatedReportsSnapshots.keys())
     .filter(key => key.startsWith(prefix))
     .forEach(key => accumulatedReportsSnapshots.delete(key));
-  if (typeof window === 'undefined') return;
-  try {
-    Object.keys(window.sessionStorage)
-      .filter(key => key.startsWith(prefix))
-      .forEach(key => window.sessionStorage.removeItem(key));
-  } catch {
-    // If storage is unavailable, there is nothing to clear.
+  if (typeof window !== 'undefined') {
+    try {
+      Object.keys(window.sessionStorage)
+        .filter(key => key.startsWith(prefix))
+        .forEach(key => window.sessionStorage.removeItem(key));
+    } catch {
+      // If storage is unavailable, there is nothing to clear.
+    }
   }
+  notifyAccumulatedReportsListeners();
 }
 
 function accumulatedReportsSnapshotKeys(userId?: string | null) {
@@ -240,6 +257,7 @@ function updateAccumulatedReportsSnapshots(report: ReportSummary, userId?: strin
       groupTotals
     });
   });
+  notifyAccumulatedReportsListeners();
 }
 
 export function useReports(filters?: ReportFilters) {
@@ -340,6 +358,24 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
       groupTotals
     });
   }, [activeFiltersKey, enabled, filtersKey, groupTotals, items, page, storageKey]);
+
+  // Re-sincroniza a lista visível quando uma mutação altera o snapshot (aprovar/devolver/
+  // assinar/excluir direto da lista). O snapshot já foi atualizado pela mutação; aqui só
+  // refletimos essa verdade no estado React deste hook montado.
+  useEffect(() => {
+    const syncFromSnapshot = () => {
+      const snapshot = readAccumulatedReportsSnapshot(activeStorageKeyRef.current);
+      const nextItems = snapshot?.items || [];
+      itemsRef.current = nextItems;
+      setItems(nextItems);
+      setGroupTotals(snapshot?.groupTotals || {});
+      if (snapshot) setPage(snapshot.page);
+    };
+    accumulatedReportsListeners.add(syncFromSnapshot);
+    return () => {
+      accumulatedReportsListeners.delete(syncFromSnapshot);
+    };
+  }, []);
 
   useEffect(() => {
     const data = query.data;

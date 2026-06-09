@@ -9,6 +9,7 @@ import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useAccumulatedReportsPage } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { ProjectSortButton, type ProjectSortDirection } from '../../utils/projectSort';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
@@ -42,6 +43,11 @@ export function MyReportsPage() {
   }, tab === 'approved');
   const reportsQuery = tab === 'pending' ? pendingReportsQuery : approvedReportsQuery;
   const reports = reportsQuery.items;
+  const loadMoreRef = useInfiniteScrollSentinel({
+    hasMore: reportsQuery.hasMore,
+    isLoading: reportsQuery.isLoadingMore,
+    onLoadMore: reportsQuery.loadMore
+  });
 
   const groups = useMemo(() => {
     const sorted = [...reports].sort(
@@ -117,6 +123,7 @@ export function MyReportsPage() {
           getTypeTotal={reportsQuery.groupTotal}
           getProjectTypeTotals={reportsQuery.projectTypeTotals}
         />
+        <div ref={loadMoreRef} aria-hidden="true" />
         {reportsQuery.hasMore || reportsQuery.isLoadingMore ? (
           <div className="admin-create-toolbar">
             <button className="mini-btn" type="button" disabled={reportsQuery.isLoadingMore} onClick={reportsQuery.loadMore}>

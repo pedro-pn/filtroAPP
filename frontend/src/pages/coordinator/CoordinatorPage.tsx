@@ -14,6 +14,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useProjects } from '../../hooks/useProjects';
 import { useAccumulatedReportsPage, useReportsPage } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { useSurveys } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
 import { MonthlyAllocationDashboardOverlay, StatsDashboardOverlay, StatsOverview } from '../../components/stats/StatsDashboard';
@@ -165,6 +166,11 @@ export function CoordinatorPage() {
     : tab === 'archived'
       ? archivedReportsQuery
       : approvedReportsQuery;
+  const loadMoreReportsRef = useInfiniteScrollSentinel({
+    hasMore: reportsQuery.hasMore,
+    isLoading: reportsQuery.isLoadingMore,
+    onLoadMore: reportsQuery.loadMore
+  });
   const pendingCountQuery = useReportsPage({
     summary: true,
     statuses: ['PENDING', 'RETURNED'],
@@ -531,18 +537,23 @@ export function CoordinatorPage() {
   }
 
   function renderLoadMoreReports() {
-    if (!reportsQuery.hasMore && !reportsQuery.isLoadingMore) return null;
+    const showButton = reportsQuery.hasMore || reportsQuery.isLoadingMore;
     return (
-      <div className="admin-create-toolbar">
-        <button
-          className="mini-btn"
-          type="button"
-          disabled={reportsQuery.isLoadingMore}
-          onClick={reportsQuery.loadMore}
-        >
-          {reportsQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
-        </button>
-      </div>
+      <>
+        <div ref={loadMoreReportsRef} aria-hidden="true" />
+        {showButton ? (
+          <div className="admin-create-toolbar">
+            <button
+              className="mini-btn"
+              type="button"
+              disabled={reportsQuery.isLoadingMore}
+              onClick={reportsQuery.loadMore}
+            >
+              {reportsQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
+            </button>
+          </div>
+        ) : null}
+      </>
     );
   }
 

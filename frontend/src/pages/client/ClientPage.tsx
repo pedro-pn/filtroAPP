@@ -16,6 +16,7 @@ import { useToast } from '../../components/ui/Toast';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../../constants/privacy';
 import { useAccumulatedReportsPage, useReportMutations } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { useProjects } from '../../hooks/useProjects';
 import { Shell } from '../../layout/Shell';
@@ -211,6 +212,11 @@ export function ClientPage() {
 
   const reports = reportsQuery.items;
   const reportPagination = reportsQuery.pagination;
+  const loadMoreReportsRef = useInfiniteScrollSentinel({
+    hasMore: reportsQuery.hasMore,
+    isLoading: reportsQuery.isLoadingMore,
+    onLoadMore: reportsQuery.loadMore
+  });
   const surveyProjects = useMemo(
     () => (archivedProjectsQuery.data || []).filter(project => latestSurvey(project)),
     [archivedProjectsQuery.data]
@@ -726,18 +732,23 @@ export function ClientPage() {
   }
 
   function renderLoadMoreReports() {
-    if (!reportsQuery.hasMore && !reportsQuery.isLoadingMore) return null;
+    const showButton = reportsQuery.hasMore || reportsQuery.isLoadingMore;
     return (
-      <div className="admin-create-toolbar">
-        <button
-          className="mini-btn"
-          type="button"
-          disabled={reportsQuery.isLoadingMore}
-          onClick={reportsQuery.loadMore}
-        >
-          {reportsQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
-        </button>
-      </div>
+      <>
+        <div ref={loadMoreReportsRef} aria-hidden="true" />
+        {showButton ? (
+          <div className="admin-create-toolbar">
+            <button
+              className="mini-btn"
+              type="button"
+              disabled={reportsQuery.isLoadingMore}
+              onClick={reportsQuery.loadMore}
+            >
+              {reportsQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
+            </button>
+          </div>
+        ) : null}
+      </>
     );
   }
 

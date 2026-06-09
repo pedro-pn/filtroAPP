@@ -29,6 +29,7 @@ import { useManometerMutations } from '../../hooks/useManometers';
 import { useProjectMutations } from '../../hooks/useProjects';
 import { useAccumulatedReportsPage, useReportMutations, useReportsPage } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { useUnitMutations } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useSurveyMutations } from '../../hooks/useSurveys';
@@ -1348,6 +1349,11 @@ export function GestorPage() {
     : tab === 'arquivados'
       ? archivedReportListQuery
       : approvedReportListQuery;
+  const loadMoreReportsRef = useInfiniteScrollSentinel({
+    hasMore: reportListQuery.hasMore,
+    isLoading: reportListQuery.isLoadingMore,
+    onLoadMore: reportListQuery.loadMore
+  });
   const pendingCountQuery = useReportsPage({
     summary: true,
     reviewQueue: true,
@@ -2588,18 +2594,23 @@ export function GestorPage() {
   }
 
   function renderLoadMoreReports() {
-    if (!reportListQuery.hasMore && !reportListQuery.isLoadingMore) return null;
+    const showButton = reportListQuery.hasMore || reportListQuery.isLoadingMore;
     return (
-      <div className="admin-create-toolbar">
-        <button
-          className="mini-btn"
-          type="button"
-          disabled={reportListQuery.isLoadingMore}
-          onClick={reportListQuery.loadMore}
-        >
-          {reportListQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
-        </button>
-      </div>
+      <>
+        <div ref={loadMoreReportsRef} aria-hidden="true" />
+        {showButton ? (
+          <div className="admin-create-toolbar">
+            <button
+              className="mini-btn"
+              type="button"
+              disabled={reportListQuery.isLoadingMore}
+              onClick={reportListQuery.loadMore}
+            >
+              {reportListQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
+            </button>
+          </div>
+        ) : null}
+      </>
     );
   }
 

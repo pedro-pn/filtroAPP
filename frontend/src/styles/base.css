@@ -7584,6 +7584,19 @@ select {
   border-radius: var(--r);
 }
 
+/* Placeholder de uma aba de tipo enquanto sua 1ª página carrega sob demanda (P6).
+   Mantém altura real para o scroll infinito por viewport funcionar bem. */
+.report-type-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.report-type-lazy-sentinel {
+  height: 1px;
+}
+
 @keyframes skeleton-shimmer {
   0% { background-position: 100% 50%; }
   100% { background-position: 0 50%; }
