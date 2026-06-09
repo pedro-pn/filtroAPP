@@ -9,9 +9,11 @@ import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
+import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
 import { useProjects } from '../../hooks/useProjects';
 import { useAccumulatedReportsPage, useReportsPage } from '../../hooks/useReports';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useSurveys } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
 import { MonthlyAllocationDashboardOverlay, StatsDashboardOverlay, StatsOverview } from '../../components/stats/StatsDashboard';
@@ -117,6 +119,8 @@ export function CoordinatorPage() {
   const { reset } = useRdoStore();
   const [tab, setTab] = useState<CoordinatorTab>('pending');
   const [search, setSearch] = useState('');
+  // Só o valor enviado às queries é adiado; a filtragem client-side segue instantânea.
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
   const [npsSortDir, setNpsSortDir] = useState<ProjectSortDirection>('asc');
   const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
@@ -133,7 +137,7 @@ export function CoordinatorPage() {
     statuses: ['PENDING', 'RETURNED'],
     projectActive: true,
     createdByUserId: user?.id || '',
-    search,
+    search: debouncedSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   };
@@ -141,7 +145,7 @@ export function CoordinatorPage() {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
     projectActive: true,
-    search,
+    search: debouncedSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   };
@@ -149,7 +153,7 @@ export function CoordinatorPage() {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
     projectActive: false,
-    search,
+    search: debouncedSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   };
@@ -547,7 +551,7 @@ export function CoordinatorPage() {
     if (tab === 'nps') return renderNpsTab();
     if (tab === 'estatisticas') return renderEstatisticasTab();
 
-    if (reportsQuery.isLoading) return <div className="page-card placeholder-copy">{TEXT.loading}</div>;
+    if (reportsQuery.isLoading) return <ReportListSkeleton />;
 
     return (
       <>

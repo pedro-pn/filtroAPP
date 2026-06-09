@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
+import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useAccumulatedReportsPage } from '../../hooks/useReports';
@@ -64,9 +65,7 @@ export function MyArchivedReportsPage() {
             />
           </div>
         </section>
-        {reportsQuery.isLoading ? (
-          <div className="page-card placeholder-copy">Carregando relatórios...</div>
-        ) : null}
+        {reportsQuery.isLoading ? <ReportListSkeleton /> : null}
         {!reportsQuery.isLoading && !groups.length ? (
           <div className="page-card placeholder-copy">
             {search.trim() ? 'Nenhum relatório arquivado encontrado.' : 'Nenhum relatório arquivado.'}

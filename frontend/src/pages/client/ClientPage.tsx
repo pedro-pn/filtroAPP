@@ -15,6 +15,8 @@ import { SignatureDialog } from '../../components/reports/SignatureDialog';
 import { useToast } from '../../components/ui/Toast';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../../constants/privacy';
 import { useAccumulatedReportsPage, useReportMutations } from '../../hooks/useReports';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { useProjects } from '../../hooks/useProjects';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -194,6 +196,7 @@ export function ClientPage() {
   const [clientSortDirection, setClientSortDirection] = useState<ProjectSortDirection>('asc');
   const [clientTogglesLoaded, setClientTogglesLoaded] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
+  const debouncedClientSearch = useDebouncedValue(clientSearch, 300);
   const [visibleByClientType, setVisibleByClientType] = useState<Record<string, number>>({});
   const [releasedReportCounts, setReleasedReportCounts] = useState<Record<string, number>>({});
   const tutorialTrigger = useRef<(() => void) | null>(null);
@@ -201,7 +204,7 @@ export function ClientPage() {
   const clientToggleStorageKey = user ? `filtrovali-client-tabs:${user.id || user.username}` : '';
   const reportsQuery = useAccumulatedReportsPage({
     summary: true,
-    search: clientSearch,
+    search: debouncedClientSearch,
     projectSort: clientSortDirection,
     pageSize: REPORT_PAGE_SIZE
   });
@@ -805,7 +808,7 @@ export function ClientPage() {
           </div>
         </section>
 
-        {reportsQuery.isLoading || archivedProjectsQuery.isLoading ? <div className="page-card placeholder-copy">{TEXT.loading}</div> : null}
+        {reportsQuery.isLoading || archivedProjectsQuery.isLoading ? <ReportListSkeleton /> : null}
         {!reportsQuery.isLoading && !archivedProjectsQuery.isLoading && !reportSummary.total && !surveyProjects.length ? (
           <div className="page-card placeholder-copy">{TEXT.noReports}</div>
         ) : null}

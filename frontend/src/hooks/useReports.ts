@@ -640,7 +640,6 @@ export function useReportMutations() {
       updateAccumulatedReportsCache(report);
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
-      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
   });
@@ -652,7 +651,6 @@ export function useReportMutations() {
       updateAccumulatedReportsCache(report);
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
-      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
   });
@@ -678,7 +676,6 @@ export function useReportMutations() {
       updateAccumulatedReportsCache(data.report);
       updateReportCaches(queryClient, data.report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
-      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', data.report.id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.reportAudit(data.report.id) });
     }
@@ -696,7 +693,6 @@ export function useReportMutations() {
       updateAccumulatedReportsCache(report);
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
-      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
   });
@@ -718,7 +714,6 @@ export function useReportMutations() {
       updateAccumulatedReportsCache(report);
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
-      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
   });

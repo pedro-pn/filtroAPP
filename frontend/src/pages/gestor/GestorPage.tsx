@@ -16,6 +16,7 @@ import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
+import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { Modal } from '../../components/ui/Modal';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useToast } from '../../components/ui/Toast';
@@ -27,6 +28,7 @@ import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useManometerMutations } from '../../hooks/useManometers';
 import { useProjectMutations } from '../../hooks/useProjects';
 import { useAccumulatedReportsPage, useReportMutations, useReportsPage } from '../../hooks/useReports';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useUnitMutations } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useSurveyMutations } from '../../hooks/useSurveys';
@@ -1259,6 +1261,8 @@ export function GestorPage() {
   const restoredScrollKeysRef = useRef<Set<string>>(new Set());
   const [tab, setTab] = useState<GestorTab>(() => parseGestorTab(searchParams.get('tab')));
   const [gestorSearch, setGestorSearch] = useState('');
+  // Só o valor enviado às queries é adiado; a filtragem client-side segue instantânea.
+  const debouncedGestorSearch = useDebouncedValue(gestorSearch, 300);
   const projectDetailsStorageKey = `gestor-project-details-collapsed:${user?.id || 'anonymous'}`;
   const gestorUiPrefsStorageKey = `gestor-ui-prefs:${user?.id || 'anonymous'}`;
   const initialUiPrefs = useMemo(() => readGestorUiPrefs(gestorUiPrefsStorageKey), [gestorUiPrefsStorageKey]);
@@ -1327,7 +1331,7 @@ export function GestorPage() {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
     projectActive: true,
-    search: gestorSearch,
+    search: debouncedGestorSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   }, tab === 'aprovados');
@@ -1335,7 +1339,7 @@ export function GestorPage() {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
     projectActive: false,
-    search: gestorSearch,
+    search: debouncedGestorSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   }, tab === 'arquivados');
@@ -2605,7 +2609,7 @@ export function GestorPage() {
     const visibleReports = sourceReports;
 
     if (reportListQuery.isLoadingInitial) {
-      return <div className="page-card placeholder-copy">Carregando relatórios...</div>;
+      return <ReportListSkeleton />;
     }
 
     const topActions = (

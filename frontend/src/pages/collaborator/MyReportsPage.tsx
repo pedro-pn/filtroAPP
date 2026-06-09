@@ -4,9 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
+import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useAccumulatedReportsPage } from '../../hooks/useReports';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { ProjectSortButton, type ProjectSortDirection } from '../../utils/projectSort';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
@@ -18,13 +20,14 @@ export function MyReportsPage() {
   const { user, logout } = useAuth();
   const [tab, setTab] = useState<MyReportsTab>('pending');
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
   const pendingReportsQuery = useAccumulatedReportsPage({
     mine: true,
     summary: true,
     projectActive: true,
     statuses: ['PENDING', 'RETURNED'],
-    search,
+    search: debouncedSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   }, tab === 'pending');
@@ -33,7 +36,7 @@ export function MyReportsPage() {
     summary: true,
     projectActive: true,
     statuses: ['APPROVED', 'SIGNED'],
-    search,
+    search: debouncedSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   }, tab === 'approved');
@@ -93,9 +96,7 @@ export function MyReportsPage() {
             />
           </div>
         </section>
-        {reportsQuery.isLoading ? (
-          <div className="page-card placeholder-copy">Carregando relatórios...</div>
-        ) : null}
+        {reportsQuery.isLoading ? <ReportListSkeleton /> : null}
         {!reportsQuery.isLoading && !groups.length ? (
           <div className="page-card placeholder-copy">
             {tab === 'pending' ? 'Nenhum relatório pendente encontrado.' : 'Nenhum relatório aprovado encontrado.'}
