@@ -17,7 +17,7 @@ const sections = [
   {
     title: 'Finalidades',
     items: [
-      'Operar o sistema NewRDO e liberar acesso aos módulos contratados.',
+      'Operar o sistema FiltroAPP e liberar acesso aos módulos contratados.',
       'Gerar, revisar, aprovar, assinar, validar e armazenar relatórios de serviço.',
       'Registrar evidências de assinatura eletrônica e auditoria para defesa de direitos.',
       'Enviar comunicações transacionais, links de assinatura, pesquisas e notificações operacionais.',
@@ -68,10 +68,10 @@ export function PrivacyPage() {
       <section className="privacy-policy-hero">
         <Link className="auth-link privacy-policy-back" to="/login">Voltar ao login</Link>
         <div className="section-title">Política de privacidade</div>
-        <h1>NewRDO</h1>
+        <h1>FiltroAPP</h1>
         <p>
           Esta política descreve como a Filtrovali Serviços de Filtragem de Óleos Industriais e
-          Limpeza de Tubulações Ltda. trata dados pessoais no uso do sistema NewRDO.
+          Limpeza de Tubulações Ltda. trata dados pessoais no uso do sistema FiltroAPP.
         </p>
         <div className="privacy-policy-meta">
           <span>Versão: {PRIVACY_POLICY_VERSION}</span>

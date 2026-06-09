@@ -10,6 +10,7 @@ import { TopBar } from '../../layout/TopBar';
 import { useAccumulatedReportsPage } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
+import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { ProjectSortButton, type ProjectSortDirection } from '../../utils/projectSort';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
@@ -20,7 +21,8 @@ export function MyReportsPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [tab, setTab] = useState<MyReportsTab>('pending');
-  const [search, setSearch] = useState('');
+  // Busca persistida por aba: ao voltar (de outra aba ou do detalhe), restaura o termo da aba.
+  const [search, setSearch] = usePersistentSearch(`my-reports-search:${user?.id || user?.username || 'anonymous'}:${tab}`);
   const debouncedSearch = useDebouncedValue(search, 300);
   const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
   const pendingReportsQuery = useAccumulatedReportsPage({

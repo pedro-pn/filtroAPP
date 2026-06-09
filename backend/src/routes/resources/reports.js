@@ -1860,10 +1860,14 @@ export function removedPendingRequiredClientSignatureIds(report, version = null)
     ? report.versions.find(item => item.status === ReportVersionStatus.ACTIVE)
     : null);
   const currentSignerEmails = new Set(clientSignersForReport(report).map(signer => signer.email));
+  const openSignatureStatuses = new Set([
+    ReportSignatureStatus.PENDING,
+    ReportSignatureStatus.EXPIRED
+  ]);
   const roundHasCurrentSigner = (activeVersion?.signatures || [])
     .some(signature => signature.isRequired !== false && currentSignerEmails.has(signerEmailValue(signature.signerEmail)));
   const pendingRequired = (activeVersion?.signatures || []).filter(signature => (
-    signature.status === ReportSignatureStatus.PENDING
+    openSignatureStatuses.has(signature.status)
     && signature.isRequired !== false
   ));
   if (!roundHasCurrentSigner) return pendingRequired.map(signature => signature.id);
@@ -1906,7 +1910,7 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
         where: {
           id: { in: removedSignatureIds },
           versionId: version.id,
-          status: ReportSignatureStatus.PENDING
+          status: { in: [ReportSignatureStatus.PENDING, ReportSignatureStatus.EXPIRED] }
         },
         data: {
           status: ReportSignatureStatus.INVALIDATED,

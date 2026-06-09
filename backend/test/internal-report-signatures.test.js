@@ -1067,6 +1067,26 @@ test('removedPendingRequiredClientSignatureIds invalidates all pending signature
   assert.deepEqual(removedPendingRequiredClientSignatureIds(report, version), ['old-signature']);
 });
 
+test('removedPendingRequiredClientSignatureIds invalidates expired signatures when project signer changes completely', () => {
+  const report = {
+    project: {
+      clientName: 'Cliente',
+      clientEmailPrimary: 'novo@example.com',
+      clientSigners: []
+    }
+  };
+  const version = {
+    signatures: [{
+      id: 'old-expired-signature',
+      signerEmail: 'antigo@example.com',
+      status: 'EXPIRED',
+      isRequired: true
+    }]
+  };
+
+  assert.deepEqual(removedPendingRequiredClientSignatureIds(report, version), ['old-expired-signature']);
+});
+
 test('publicSignatureStatus blocks links for deleted and manager-only projects but allows archived projects', () => {
   const activeSignature = {
     status: 'PENDING',

@@ -16,6 +16,7 @@ import { useToast } from '../../components/ui/Toast';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../../constants/privacy';
 import { useAccumulatedReportsPage, useReportMutations } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
@@ -197,7 +198,8 @@ export function ClientPage() {
   const [signaturePrivacyAccepted, setSignaturePrivacyAccepted] = useState(false);
   const [clientSortDirection, setClientSortDirection] = useState<ProjectSortDirection>('asc');
   const [clientTogglesLoaded, setClientTogglesLoaded] = useState(false);
-  const [clientSearch, setClientSearch] = useState('');
+  // Busca persistida: ao abrir um relatório e voltar, o termo da busca é restaurado.
+  const [clientSearch, setClientSearch] = usePersistentSearch(`client-search:${user?.id || user?.username || 'anonymous'}`);
   const debouncedClientSearch = useDebouncedValue(clientSearch, 300);
   const [visibleByClientType, setVisibleByClientType] = useState<Record<string, number>>({});
   const [releasedReportCounts, setReleasedReportCounts] = useState<Record<string, number>>({});

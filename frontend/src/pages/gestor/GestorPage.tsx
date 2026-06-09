@@ -30,6 +30,7 @@ import { useManometerMutations } from '../../hooks/useManometers';
 import { useProjectMutations } from '../../hooks/useProjects';
 import { useAccumulatedReportsPage, useReportMutations, useReportsPage } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { useUnitMutations } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
@@ -1262,7 +1263,8 @@ export function GestorPage() {
   const pageScrollRef = useRef<HTMLDivElement | null>(null);
   const restoredScrollKeysRef = useRef<Set<string>>(new Set());
   const [tab, setTab] = useState<GestorTab>(() => parseGestorTab(searchParams.get('tab')));
-  const [gestorSearch, setGestorSearch] = useState('');
+  // Busca persistida por aba: ao voltar (de outra aba ou do detalhe), restaura o termo da aba.
+  const [gestorSearch, setGestorSearch] = usePersistentSearch(`gestor-search:${user?.id || 'anonymous'}:${tab}`);
   // Só o valor enviado às queries é adiado; a filtragem client-side segue instantânea.
   const debouncedGestorSearch = useDebouncedValue(gestorSearch, 300);
   const projectDetailsStorageKey = `gestor-project-details-collapsed:${user?.id || 'anonymous'}`;
@@ -1519,10 +1521,6 @@ export function GestorPage() {
     () => [...(activeProjectsQuery.data || []), ...(archivedProjectsQuery.data || [])],
     [activeProjectsQuery.data, archivedProjectsQuery.data]
   );
-
-  useEffect(() => {
-    setGestorSearch('');
-  }, [tab]);
 
   useEffect(() => {
     setSelectedReportIds([]);

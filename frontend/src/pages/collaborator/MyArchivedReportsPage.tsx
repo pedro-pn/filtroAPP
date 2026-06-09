@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
@@ -10,13 +10,15 @@ import { TopBar } from '../../layout/TopBar';
 import { useAccumulatedReportsPage } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
+import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 
 const REPORT_PAGE_SIZE = 25;
 
 export function MyArchivedReportsPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [search, setSearch] = useState('');
+  // Busca persistida: ao abrir um relatório e voltar, o termo da busca é restaurado.
+  const [search, setSearch] = usePersistentSearch(`my-archived-search:${user?.id || user?.username || 'anonymous'}`);
   const debouncedSearch = useDebouncedValue(search, 300);
   const reportsQuery = useAccumulatedReportsPage({
     mine: true,

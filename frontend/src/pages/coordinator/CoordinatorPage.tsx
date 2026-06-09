@@ -14,6 +14,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useProjects } from '../../hooks/useProjects';
 import { useAccumulatedReportsPage, useReportsPage } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
 import { useSurveys } from '../../hooks/useSurveys';
@@ -120,7 +121,8 @@ export function CoordinatorPage() {
   const { user, logout } = useAuth();
   const { reset } = useRdoStore();
   const [tab, setTab] = useState<CoordinatorTab>('pending');
-  const [search, setSearch] = useState('');
+  // Busca persistida por aba: ao voltar (de outra aba ou do detalhe), restaura o termo da aba.
+  const [search, setSearch] = usePersistentSearch(`coordinator-search:${user?.id || 'anonymous'}:${tab}`);
   // Só o valor enviado às queries é adiado; a filtragem client-side segue instantânea.
   const debouncedSearch = useDebouncedValue(search, 300);
   const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
