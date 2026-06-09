@@ -100,6 +100,11 @@ export async function updateReportStatus(id: string, payload: { status: ReportSt
   return response.data;
 }
 
+export async function updateReportSequence(id: string, payload: { sequenceNumber: number }) {
+  const response = await apiClient.patch<ReportSummary>(rdoApiPath(`/reports/${id}/sequence`), payload);
+  return response.data;
+}
+
 export interface ReleasedServiceReportNotification {
   id: string;
   projectId: string;

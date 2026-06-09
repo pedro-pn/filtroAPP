@@ -231,6 +231,7 @@ interface CounterFormState {
 const internalRoles: Array<Exclude<UserRole, 'CLIENT'>> = ['COLLABORATOR', 'COORDINATOR', 'MANAGER'];
 type ProjectVisibilityMode = 'manager-coordinator' | 'all-authorized' | 'manager-only';
 const projectReportTypes: ReportType[] = ['RDO', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLI', 'RLF'];
+const editableServiceReportTypes = new Set<ReportType>(['RTP', 'RLQ', 'RCPU', 'RLM', 'RLI', 'RLF']);
 
 function projectReportSequencesToForm(sequences: ProjectReportSequence[] = []): ProjectReportSequenceFormState[] {
   const sequenceByType = new Map(sequences.map(sequence => [sequence.reportType, sequence.nextNumber]));
@@ -2346,6 +2347,30 @@ export function GestorPage() {
     }
   }
 
+  async function handleReportSequenceEdit(report: ReportSummary) {
+    const current = report.sequenceNumber ? String(report.sequenceNumber) : '';
+    const value = window.prompt(`Novo número para ${report.reportType}:`, current);
+    if (value === null) return;
+
+    const normalizedValue = value.trim();
+    const sequenceNumber = /^\d+$/.test(normalizedValue) ? Number.parseInt(normalizedValue, 10) : NaN;
+    if (!Number.isInteger(sequenceNumber) || sequenceNumber < 1) {
+      showToast('Informe um número maior que zero.', 'error');
+      return;
+    }
+    if (sequenceNumber === report.sequenceNumber) return;
+
+    try {
+      await reportMutations.updateSequence.mutateAsync({
+        id: report.id,
+        payload: { sequenceNumber }
+      });
+      showToast('Numeração atualizada.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível alterar a numeração.', 'error');
+    }
+  }
+
   function toggleReportSelection(id: string, checked: boolean) {
     setSelectedReportIds(current => {
       const next = checked ? [...current, id] : current.filter(item => item !== id);
@@ -2398,6 +2423,16 @@ export function GestorPage() {
         {canReview && report.status !== 'RETURNED' ? (
           <button className="mini-btn alt" type="button" onClick={() => setReturnReport(report)}>
             Devolver
+          </button>
+        ) : null}
+        {report.status !== 'SIGNED' && editableServiceReportTypes.has(report.reportType) ? (
+          <button
+            className="mini-btn alt"
+            type="button"
+            disabled={reportMutations.updateSequence.isPending}
+            onClick={() => void handleReportSequenceEdit(report)}
+          >
+            Nº
           </button>
         ) : null}
         {report.status !== 'SIGNED' ? (

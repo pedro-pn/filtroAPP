@@ -13,6 +13,7 @@ import {
   listReportsPage,
   requestReportSignature,
   updateReport,
+  updateReportSequence,
   updateReportStatus,
   type PaginatedReports,
   type ReportFilters,
@@ -724,6 +725,18 @@ export function useReportMutations() {
     }
   });
 
+  const updateSequenceMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { sequenceNumber: number } }) =>
+      updateReportSequence(id, payload),
+    onSuccess: report => {
+      updateAccumulatedReportsCache(report);
+      updateReportCaches(queryClient, report);
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['report', report.id] });
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
+    }
+  });
+
   const requestSignatureMutation = useMutation({
     mutationFn: ({
       id,
@@ -792,6 +805,7 @@ export function useReportMutations() {
     createServiceOnlyReports: createServiceOnlyMutation,
     updateReport: updateMutation,
     updateStatus: updateStatusMutation,
+    updateSequence: updateSequenceMutation,
     requestSignature: requestSignatureMutation,
     clientReview: clientReviewMutation,
     deleteReport,
