@@ -147,6 +147,8 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
   const [groupErrorKeys, setGroupErrorKeys] = useState<string[]>([]);
   const [groupTotals, setGroupTotals] = useState<Record<string, number>>(() => initialSnapshot?.groupTotals || {});
   const [activeFiltersKey, setActiveFiltersKey] = useState(filtersKey);
+  const activeStorageKeyRef = useRef(storageKey);
+  const skipNextSnapshotWriteRef = useRef(false);
   const effectivePage = activeFiltersKey === filtersKey ? page : 1;
   const query = useReportsPage({ ...filters, page: effectivePage }, enabled);
   const pagination = query.data?.pagination;
@@ -162,8 +164,10 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
   }, [items]);
 
   useEffect(() => {
-    if (activeFiltersKey === filtersKey) return;
+    if (activeFiltersKey === filtersKey && activeStorageKeyRef.current === storageKey) return;
     const snapshot = readAccumulatedReportsSnapshot(storageKey);
+    activeStorageKeyRef.current = storageKey;
+    skipNextSnapshotWriteRef.current = true;
     setActiveFiltersKey(filtersKey);
     setPage(snapshot?.page || 1);
     itemsRef.current = snapshot?.items || [];
@@ -177,6 +181,10 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
 
   useEffect(() => {
     if (!enabled || activeFiltersKey !== filtersKey) return;
+    if (skipNextSnapshotWriteRef.current) {
+      skipNextSnapshotWriteRef.current = false;
+      return;
+    }
     writeAccumulatedReportsSnapshot(storageKey, {
       page,
       items,
@@ -188,6 +196,12 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
   useEffect(() => {
     const data = query.data;
     if (!data || !enabled || activeFiltersKey !== filtersKey) return;
+    const currentItems = itemsRef.current;
+    const firstPageAlreadyCovered = data.pagination.page <= 1
+      && currentItems.length > data.items.length
+      && data.items.every(report => currentItems.some(current => current.id === report.id));
+    if (firstPageAlreadyCovered) return;
+
     const groups = data.groups;
     if (groups) {
       setGroupTotals(current => {
@@ -198,7 +212,6 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
         return next;
       });
     }
-    const currentItems = itemsRef.current;
     if (data.pagination.page <= 1) {
       itemsRef.current = data.items;
       setItems(data.items);
