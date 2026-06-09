@@ -17,8 +17,10 @@ const queryClient = new QueryClient({
       staleTime: 60_000,
       // Mantém em memória por 30 min após sair da tela (volta instantânea).
       gcTime: 30 * 60_000,
-      // Não recarregar tudo só por focar a janela do navegador.
-      refetchOnWindowFocus: false,
+      // Ao voltar para a aba, revalida dados já "velhos" (> staleTime). Isso é suave por causa
+      // do staleTime de 60s e garante que mudanças feitas por outra pessoa (ex.: gestor altera
+      // signatários / finaliza assinatura) apareçam para o cliente sem recarregar a página.
+      refetchOnWindowFocus: true,
       refetchOnReconnect: true,
       retry: 1,
       // Durante um refetch (ex.: busca, troca de filtro), manter os dados anteriores

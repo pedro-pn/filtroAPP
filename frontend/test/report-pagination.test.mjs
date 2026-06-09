@@ -43,3 +43,26 @@ test('empty first report page replaces accumulated reports', async () => {
 
   assert.equal(isFirstReportPageAlreadyCovered([{ id: 'old-report' }], [], 1), false);
 });
+
+test('covered first report page keeps accumulated reports but refreshes item data', async () => {
+  const { mergeCoveredFirstReportPage } = await loadReportHooks();
+
+  const merged = mergeCoveredFirstReportPage(
+    [
+      { id: 'report-1', status: 'APPROVED' },
+      { id: 'report-2', status: 'APPROVED' },
+      { id: 'report-3', status: 'APPROVED' }
+    ],
+    [
+      { id: 'report-1', status: 'SIGNED' },
+      { id: 'report-2', status: 'APPROVED' }
+    ],
+    1
+  );
+
+  assert.deepEqual(merged, [
+    { id: 'report-1', status: 'SIGNED' },
+    { id: 'report-2', status: 'APPROVED' },
+    { id: 'report-3', status: 'APPROVED' }
+  ]);
+});

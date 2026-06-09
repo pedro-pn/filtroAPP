@@ -298,6 +298,16 @@ export function isFirstReportPageAlreadyCovered(
     && pageItems.every(report => currentItems.some(current => current.id === report.id));
 }
 
+export function mergeCoveredFirstReportPage<T extends { id: string }>(
+  currentItems: T[],
+  pageItems: T[],
+  page: number
+) {
+  if (!isFirstReportPageAlreadyCovered(currentItems, pageItems, page)) return null;
+  const pageItemsById = new Map(pageItems.map(report => [report.id, report]));
+  return currentItems.map(report => pageItemsById.get(report.id) || report);
+}
+
 export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page'>, enabled = true) {
   const { user } = useAuth();
   const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
@@ -381,13 +391,12 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
     const data = query.data;
     if (!data || !enabled || activeFiltersKey !== filtersKey) return;
     const currentItems = itemsRef.current;
-    const firstPageAlreadyCovered = isFirstReportPageAlreadyCovered(currentItems, data.items, data.pagination.page);
-    if (firstPageAlreadyCovered) return;
+    const mergedCoveredFirstPage = mergeCoveredFirstReportPage(currentItems, data.items, data.pagination.page);
 
     const groups = data.groups;
     if (groups) {
       setGroupTotals(current => {
-        const next = data.pagination.page <= 1 ? {} : { ...current };
+        const next = data.pagination.page <= 1 && !mergedCoveredFirstPage ? {} : { ...current };
         groups.forEach(group => {
           next[`${group.projectId}-${group.reportType}`] = group.total;
         });
@@ -395,8 +404,9 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
       });
     }
     if (data.pagination.page <= 1) {
-      itemsRef.current = data.items;
-      setItems(data.items);
+      const nextItems = mergedCoveredFirstPage || data.items;
+      itemsRef.current = nextItems;
+      setItems(nextItems);
       return;
     }
 

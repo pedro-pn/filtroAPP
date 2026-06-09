@@ -10,7 +10,10 @@ import { saveReportDocx } from './report-docx.js';
 
 const MAX_PROCESS_OUTPUT_BYTES = 10 * 1024 * 1024;
 const pdfAbortSignalStorage = new AsyncLocalStorage();
-let activePdfConversions = 0;
+// Fila serial das conversões de PDF: LibreOffice/Word não são reentrantes, então só uma
+// conversão roda por vez. Em vez de falhar quando há outra em andamento, cada chamador
+// espera a sua vez (evita o 500 ao gerar/assinar vários relatórios em sequência — lote).
+let pdfConversionChain = Promise.resolve();
 
 function pdfNameFromDocx(fileName) {
   return fileName.replace(/\.docx$/i, '.pdf');
@@ -20,12 +23,6 @@ function pdfAbortedError() {
   const error = new Error('Geração de PDF cancelada porque a conexão foi encerrada.');
   error.statusCode = 499;
   error.code = 'PDF_ABORTED';
-  return error;
-}
-
-function pdfConversionBusyError() {
-  const error = new Error('Outra conversão de PDF está em andamento. Tente novamente em alguns segundos.');
-  error.statusCode = 503;
   return error;
 }
 
@@ -176,12 +173,12 @@ async function runProcess(file, args, options = {}) {
   });
 }
 
-async function acquirePdfConversionSlot() {
-  if (activePdfConversions > 0) throw pdfConversionBusyError();
-  activePdfConversions += 1;
-  return () => {
-    activePdfConversions = Math.max(0, activePdfConversions - 1);
-  };
+function acquirePdfConversionSlot() {
+  // Mutex via cadeia de promises: cada chamador espera todos os anteriores liberarem.
+  const previous = pdfConversionChain;
+  let release;
+  pdfConversionChain = new Promise(resolve => { release = resolve; });
+  return previous.then(() => release);
 }
 
 async function convertWithWord(docxPath, pdfPath) {
@@ -262,6 +259,7 @@ export async function convertDocxToPdf(docxPath, pdfPath) {
   if (abortSignal?.aborted) throw pdfAbortedError();
   const release = await acquirePdfConversionSlot();
   try {
+    if (abortSignal?.aborted) throw pdfAbortedError();
     if (process.platform === 'win32') {
       await convertWithWord(docxPath, pdfPath);
       return;
