@@ -74,25 +74,32 @@ Isso remove o bloqueio principal que existia para o `P3`.
 2. Confirmar que os PDFs gerados no Linux mantêm a formatação esperada
 3. Só então subir a stack final no Windows Server com WSL2
 
-## Subida inicial em homologação
+## Subida em produção
 
 1. Preencher `backend/.env.production` com segredos e URLs reais
    - Definir `TRUST_PROXY=uniquelocal` para a stack Docker com Nginx, ou CIDRs explícitos da rede/proxy confiável.
    - Definir `SIGNATURE_TOKEN_SECRET` com um segredo longo e estável para os links de assinatura de RDO.
    - Em upgrades de versões antigas, definir `SIGNATURE_TOKEN_SECRET_PREVIOUS` com a chave anterior. Se não havia `SURVEY_TOKEN_SECRET`, a chave anterior era o `DATABASE_URL`.
    - Em homologação/teste com banco de produção, definir `SEND_CLIENT_EMAILS=false` para bloquear e-mails destinados a clientes.
-2. Definir `POSTGRES_PASSWORD` no shell/ambiente antes do compose
-3. Subir:
+2. Garantir que o Compose receba `POSTGRES_PASSWORD`. Use `--env-file backend/.env.production` nos comandos abaixo ou mantenha um `.env` na raiz do projeto no servidor com essa variável.
+3. Buildar as imagens sem iniciar o backend. O comando de start do backend aplica
+   migrations automaticamente, então ele não deve subir antes do preflight dos índices:
 
 ```bash
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml build backend nginx
 ```
 
-4. Antes das migrations de performance, criar os índices de produção de forma
+4. Subir somente o Postgres:
+
+```bash
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d postgres
+```
+
+5. Antes de iniciar o backend, criar os índices de produção de forma
    concorrente para evitar bloqueio de escrita em tabelas ativas:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec -T postgres \
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml exec -T postgres \
   psql -U postgres -d filtrovali -v ON_ERROR_STOP=1 \
   < deploy/create-performance-indexes-concurrently.sql
 ```
@@ -102,16 +109,18 @@ arquivo via Prisma. Depois que os índices existirem, as migrations com
 `CREATE INDEX IF NOT EXISTS` passam a ser no-op para esses índices e não seguram
 writes de produção durante o deploy.
 
-5. Aplicar migrations:
+6. Subir backend e Nginx. Neste momento o `CMD` do backend roda
+   `npx prisma migrate deploy` automaticamente e inicia a API:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d backend nginx
 ```
 
-6. Popular dados iniciais de homologação, incluindo usuários de login:
+Para deploys futuros que não adicionem índices grandes, o fluxo normal pode voltar a
+ser:
 
 ```bash
-docker compose -f docker-compose.prod.yml exec backend npx prisma db seed
+docker compose --env-file backend/.env.production -f docker-compose.prod.yml up -d --build
 ```
 
 ## Gate de anexos e miniaturas

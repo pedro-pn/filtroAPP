@@ -336,16 +336,24 @@ test('production docs provide concurrent index preflight before prisma migration
     new URL('../../deploy/create-performance-indexes-concurrently.sql', import.meta.url),
     'utf8'
   );
+  const postgresStartIndex = docs.indexOf('up -d postgres');
   const preflightIndex = docs.indexOf('create-performance-indexes-concurrently.sql');
   const migrationIndex = docs.indexOf('npx prisma migrate deploy');
+  const backendStartIndex = docs.indexOf('up -d backend nginx');
 
   assert.match(concurrentSql, /CREATE INDEX CONCURRENTLY IF NOT EXISTS "Report_active_date_created_idx"/);
   assert.match(concurrentSql, /CREATE INDEX CONCURRENTLY IF NOT EXISTS "Report_active_project_date_created_idx"/);
   assert.match(concurrentSql, /CREATE INDEX CONCURRENTLY IF NOT EXISTS "ReportAttachment_reportId_idx"/);
+  assert.match(docs, /build backend nginx/);
   assert.match(docs, /`CREATE INDEX CONCURRENTLY` não pode rodar dentro de transação/);
+  assert.doesNotMatch(docs, /prisma db seed/);
+  assert.ok(postgresStartIndex !== -1, 'production docs must start postgres before index preflight');
   assert.ok(preflightIndex !== -1, 'production docs must mention concurrent index preflight');
   assert.ok(migrationIndex !== -1, 'production docs must still apply Prisma migrations');
+  assert.ok(backendStartIndex !== -1, 'production docs must start backend after index preflight');
+  assert.ok(postgresStartIndex < preflightIndex, 'postgres must be running before concurrent index preflight');
   assert.ok(preflightIndex < migrationIndex, 'concurrent indexes must be created before Prisma migrations');
+  assert.ok(preflightIndex < backendStartIndex, 'backend must start only after concurrent index preflight');
 });
 
 test('client report review keeps audit evidence when client account is deleted', () => {
