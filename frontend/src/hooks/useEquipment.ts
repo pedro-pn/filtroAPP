@@ -14,7 +14,10 @@ export function useEquipmentMutations() {
   const queryClient = useQueryClient();
 
   function invalidateEquipment() {
-    return queryClient.invalidateQueries({ queryKey: queryKeys.equipment });
+    return Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.equipment }),
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] })
+    ]);
   }
 
   const createMutation = useMutation({

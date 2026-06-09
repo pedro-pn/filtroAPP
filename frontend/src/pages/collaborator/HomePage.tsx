@@ -83,7 +83,7 @@ export function HomePage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const draftsQuery = useDrafts();
-  const reportsQuery = useReports({ mine: true });
+  const reportsQuery = useReports({ mine: true, summary: true });
   const draftMutations = useDraftMutations();
   const { hydrate, reset } = useRdoStore();
   const ongoingServices = collectOngoingServices(reportsQuery.data || []);

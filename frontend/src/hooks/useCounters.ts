@@ -21,7 +21,10 @@ export function useCounterMutations() {
   const queryClient = useQueryClient();
 
   function invalidateCounters() {
-    return queryClient.invalidateQueries({ queryKey: queryKeys.counters });
+    return Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.counters }),
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] })
+    ]);
   }
 
   const createMutation = useMutation({

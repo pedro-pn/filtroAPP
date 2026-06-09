@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_DIR="${PROJECT_DIR:-/home/ubuntu/apps/RDOAPP}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="${PROJECT_DIR:-$(dirname "$SCRIPT_DIR")}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 POSTGRES_SERVICE="${POSTGRES_SERVICE:-postgres}"
 BACKEND_SERVICE="${BACKEND_SERVICE:-backend}"

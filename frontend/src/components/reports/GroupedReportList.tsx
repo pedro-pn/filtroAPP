@@ -10,9 +10,31 @@ interface GroupedReportListProps {
   archived?: boolean;
   renderReport?: (report: ReportSummary) => React.ReactNode;
   renderTypeActions?: (reports: ReportSummary[]) => React.ReactNode;
+  onLoadMoreType?: (params: {
+    projectId: string;
+    reportType: string;
+    loadedCount: number;
+    pageSize?: number;
+    sortDirection?: ProjectSortDirection;
+  }) => Promise<boolean | void> | boolean | void;
+  onEnsureTypePage?: (params: {
+    projectId: string;
+    reportType: string;
+    pageSize?: number;
+    sortDirection?: ProjectSortDirection;
+  }) => Promise<void> | void;
+  isTypePageReady?: (projectId: string, reportType: string, pageSize?: number, sortDirection?: ProjectSortDirection) => boolean;
+  getTypeLoadedCount?: (projectId: string, reportType: string, pageSize?: number, sortDirection?: ProjectSortDirection) => number;
+  hasMoreType?: (projectId: string, reportType: string, loadedCount: number) => boolean;
+  isTypeLoading?: (projectId: string, reportType: string) => boolean;
+  isTypePageErrored?: (projectId: string, reportType: string) => boolean;
+  getTypeTotal?: (projectId: string, reportType: string) => number | undefined;
+  getProjectTypeTotals?: (projectId: string) => Array<{ reportType: string; total: number }>;
   sortDirection?: ProjectSortDirection;
   showTypeSort?: boolean;
   storageKey?: string;
+  initialVisiblePerType?: number;
+  loadMoreStep?: number;
 }
 
 export function GroupedReportList({
@@ -20,16 +42,63 @@ export function GroupedReportList({
   archived,
   renderReport,
   renderTypeActions,
+  onLoadMoreType,
+  onEnsureTypePage,
+  isTypePageReady,
+  getTypeLoadedCount,
+  hasMoreType,
+  isTypeLoading,
+  isTypePageErrored,
+  getTypeTotal,
+  getProjectTypeTotals,
   sortDirection = 'asc',
   showTypeSort = false,
-  storageKey
+  storageKey,
+  initialVisiblePerType = 10,
+  loadMoreStep = 10
 }: GroupedReportListProps) {
   const [closedProjects, setClosedProjects] = useState<string[]>([]);
   const [closedTypes, setClosedTypes] = useState<string[]>([]);
+  const [visibleByType, setVisibleByType] = useState<Record<string, number>>({});
   const [typeSortDirections, setTypeSortDirections] = useState<Record<string, ProjectSortDirection>>({});
   const [storageLoaded, setStorageLoaded] = useState(!storageKey);
 
   const groups = useMemo(() => sortProjectGroups(groupByProject(reports), sortDirection), [reports, sortDirection]);
+  const typePageRequests = useMemo(() => {
+    if (!onEnsureTypePage) return [];
+    return groups.flatMap(group => {
+      if (closedProjects.includes(group.projectId)) return [];
+      const typeGroups = group.reports.reduce<Record<string, ReportSummary[]>>((acc, report) => {
+        if (!acc[report.reportType]) acc[report.reportType] = [];
+        acc[report.reportType].push(report);
+        return acc;
+      }, {});
+      getProjectTypeTotals?.(group.projectId).forEach(typeTotal => {
+        if (!typeGroups[typeTotal.reportType]) typeGroups[typeTotal.reportType] = [];
+      });
+      return Object.entries(typeGroups)
+        .filter(([reportType, typeReports]) => {
+          const typeKey = `${group.projectId}-${reportType}`;
+          const total = getTypeTotal?.(group.projectId, reportType) ?? typeReports.length;
+          return total > 0 && !closedTypes.includes(typeKey);
+        })
+        .map(([reportType]) => ({
+          projectId: group.projectId,
+          reportType,
+          pageSize: initialVisiblePerType,
+          sortDirection: typeSortDirections[`${group.projectId}-${reportType}`] || 'asc'
+        }));
+    });
+  }, [
+    closedProjects,
+    closedTypes,
+    getProjectTypeTotals,
+    getTypeTotal,
+    groups,
+    initialVisiblePerType,
+    onEnsureTypePage,
+    typeSortDirections
+  ]);
 
   useEffect(() => {
     if (!storageKey) {
@@ -66,6 +135,13 @@ export function GroupedReportList({
     }
   }, [closedProjects, closedTypes, storageKey, storageLoaded, typeSortDirections]);
 
+  useEffect(() => {
+    if (!onEnsureTypePage || !typePageRequests.length) return;
+    typePageRequests.forEach(request => {
+      void onEnsureTypePage(request);
+    });
+  }, [onEnsureTypePage, typePageRequests]);
+
   function toggleType(id: string) {
     setClosedTypes(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
   }
@@ -78,6 +154,35 @@ export function GroupedReportList({
     setTypeSortDirections(current => ({ ...current, [id]: (current[id] || 'asc') === 'asc' ? 'desc' : 'asc' }));
   }
 
+  function visibleLimitForType(typeKey: string) {
+    return visibleByType[typeKey] || initialVisiblePerType;
+  }
+
+  function loadMoreType(typeKey: string, total: number) {
+    setVisibleByType(current => ({
+      ...current,
+      [typeKey]: Math.min(total, (current[typeKey] || initialVisiblePerType) + loadMoreStep)
+    }));
+  }
+
+  async function handleLoadMoreType(
+    projectId: string,
+    reportType: string,
+    typeKey: string,
+    loadedCount: number,
+    hasLoadedItemsToReveal: boolean,
+    sortDirection: ProjectSortDirection
+  ) {
+    if (!hasLoadedItemsToReveal && onLoadMoreType) {
+      const loaded = await onLoadMoreType({ projectId, reportType, loadedCount, pageSize: loadMoreStep, sortDirection });
+      if (loaded === false) return;
+    }
+    setVisibleByType(current => ({
+      ...current,
+      [typeKey]: (current[typeKey] || initialVisiblePerType) + loadMoreStep
+    }));
+  }
+
   return (
     <>
       {groups.map(group => {
@@ -86,6 +191,9 @@ export function GroupedReportList({
           acc[report.reportType].push(report);
           return acc;
         }, {});
+        getProjectTypeTotals?.(group.projectId).forEach(typeTotal => {
+          if (!typeGroups[typeTotal.reportType]) typeGroups[typeTotal.reportType] = [];
+        });
 
         const projectLabel = group.projectCode
           ? `${group.projectCode} - ${group.projectName}`
@@ -113,6 +221,28 @@ export function GroupedReportList({
               const typeKey = `${group.projectId}-${reportType}`;
               const typeClosed = closedTypes.includes(typeKey);
               const typeSortDirection = typeSortDirections[typeKey] || 'asc';
+              const sortedReports = sortReportsInGroup(typeReports, typeSortDirection);
+              const visibleLimit = visibleLimitForType(typeKey);
+              const totalReports = getTypeTotal?.(group.projectId, reportType) ?? typeReports.length;
+              const typeErrored = isTypePageErrored?.(group.projectId, reportType) ?? false;
+              const orderedLoadedCount = onEnsureTypePage
+                ? Math.min(
+                    getTypeLoadedCount?.(group.projectId, reportType, initialVisiblePerType, typeSortDirection) ?? 0,
+                    totalReports
+                  )
+                : sortedReports.length;
+              const needsOrderedPage = !!onEnsureTypePage
+                && totalReports > 0
+                && !typeErrored
+                && !(isTypePageReady?.(group.projectId, reportType, initialVisiblePerType, typeSortDirection) ?? false);
+              const orderedReports = sortedReports.slice(0, orderedLoadedCount);
+              const visibleReports = needsOrderedPage ? [] : orderedReports.slice(0, visibleLimit);
+              const hasLoadedItemsToReveal = !needsOrderedPage && visibleReports.length < orderedReports.length;
+              const hasRemoteItemsToLoad = !hasLoadedItemsToReveal
+                && (onEnsureTypePage
+                  ? orderedLoadedCount < totalReports
+                  : (hasMoreType?.(group.projectId, reportType, sortedReports.length) ?? false));
+              const typeLoading = isTypeLoading?.(group.projectId, reportType) ?? false;
 
               return (
                 <div className="report-type-group" key={typeKey}>
@@ -125,7 +255,7 @@ export function GroupedReportList({
                   >
                     <span className={`rtype-badge rtype-${reportType}`}>{reportType}</span>
                     <span className="rtype-count">
-                      {typeReports.length} relatório{typeReports.length !== 1 ? 's' : ''}
+                      {visibleReports.length} de {totalReports} relatório{totalReports !== 1 ? 's' : ''}
                     </span>
                     {showTypeSort ? (
                       <span onClick={e => e.stopPropagation()}>
@@ -136,12 +266,38 @@ export function GroupedReportList({
                   </div>
                   {!typeClosed ? (
                     <>
-                      {renderTypeActions ? renderTypeActions(typeReports) : null}
-                      <div className="report-type-list">
-                        {sortReportsInGroup(typeReports, typeSortDirection).map(report => (
-                          renderReport ? renderReport(report) : <ReportSummaryCard key={report.id} report={report} />
-                        ))}
-                      </div>
+                      {renderTypeActions && visibleReports.length ? renderTypeActions(visibleReports) : null}
+                      {needsOrderedPage ? (
+                        <div className="placeholder-copy">Carregando relatórios...</div>
+                      ) : null}
+                      {typeErrored ? (
+                        <div className="placeholder-copy">Não foi possível carregar os relatórios desta aba.</div>
+                      ) : null}
+                      {visibleReports.length ? (
+                        <div className="report-type-list">
+                          {visibleReports.map(report => (
+                            renderReport ? renderReport(report) : <ReportSummaryCard key={report.id} report={report} />
+                          ))}
+                        </div>
+                      ) : null}
+                      {hasLoadedItemsToReveal || hasRemoteItemsToLoad ? (
+                        <div className="admin-create-toolbar report-type-load-more">
+                          <button
+                            className="mini-btn"
+                            type="button"
+                            disabled={typeLoading}
+                            onClick={() => {
+                              if (hasLoadedItemsToReveal) {
+                                loadMoreType(typeKey, sortedReports.length);
+                                return;
+                              }
+                              void handleLoadMoreType(group.projectId, reportType, typeKey, sortedReports.length, hasLoadedItemsToReveal, typeSortDirection);
+                            }}
+                          >
+                            {typeLoading ? 'Carregando...' : typeErrored ? 'Tentar novamente' : 'Carregar mais'}
+                          </button>
+                        </div>
+                      ) : null}
                     </>
                   ) : null}
                 </div>

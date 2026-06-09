@@ -13,20 +13,14 @@ import { SignatureDialog } from '../components/reports/SignatureDialog';
 import { PrivacyNotice } from '../components/privacy/PrivacyNotice';
 import { useToast } from '../components/ui/Toast';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../constants/privacy';
-import { useCollaborators } from '../hooks/useCollaborators';
-import { useCounters } from '../hooks/useCounters';
-import { useEquipment } from '../hooks/useEquipment';
-import { useInhibitionOptions } from '../hooks/useInhibitionOptions';
-import { useManometers } from '../hooks/useManometers';
-import { useProjects } from '../hooks/useProjects';
-import { useReport, useReportAudit, useReportMutations, useReports } from '../hooks/useReports';
-import { useUnits } from '../hooks/useUnits';
+import { useReportDetailBootstrap } from '../hooks/useBootstrap';
+import { useReport, useReportAudit, useReportMutations } from '../hooks/useReports';
 import { Shell } from '../layout/Shell';
 import { TopBar } from '../layout/TopBar';
 import { Modal } from '../components/ui/Modal';
 import { ReasonDialog } from '../components/ui/ReasonDialog';
 import { UploadField } from '../components/ui/UploadField';
-import type { ReportAuditLog, ReportPayload, ReportStatus, ReportSummary } from '../types/domain';
+import type { Collaborator, Equipment, ReportAuditLog, ReportPayload, ReportStatus, ReportSummary, Unit } from '../types/domain';
 import { clientCanSignReport, clientSignerEmailForReport } from '../utils/clientSignature';
 import { formatDateOnlyPtBr } from '../utils/dateOnly';
 import { downloadBlob } from '../utils/download';
@@ -475,9 +469,9 @@ function buildPayload(
   report: ReportSummary,
   form: RdoFormState,
   resources: {
-    collaborators: ReturnType<typeof useCollaborators>['data'];
-    equipment: ReturnType<typeof useEquipment>['data'];
-    units: ReturnType<typeof useUnits>['data'];
+    collaborators: Collaborator[] | undefined;
+    equipment: Equipment[] | undefined;
+    units: Unit[] | undefined;
   }
 ): Omit<ReportPayload, 'createdByUserId' | 'status'> {
   const serviceOnly = isServiceOnlyReport(report);
@@ -536,14 +530,7 @@ function buildPayload(
 function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const projectsQuery = useProjects(true);
-  const reportsQuery = useReports();
-  const collaboratorsQuery = useCollaborators();
-  const equipmentQuery = useEquipment();
-  const unitsQuery = useUnits();
-  const manometersQuery = useManometers();
-  const countersQuery = useCounters();
-  const inhibitionOptionsQuery = useInhibitionOptions();
+  const bootstrapQuery = useReportDetailBootstrap(report.id);
   const reportMutations = useReportMutations();
   const showToast = useToast();
   const [form, setForm] = useState<RdoFormState>(() => reportToForm(report));
@@ -563,7 +550,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     setForm(reportToForm(report));
   }, [report]);
 
-  const projects = useMemo(() => sortProjects(projectsQuery.data || [], 'asc'), [projectsQuery.data]);
+  const projects = useMemo(() => sortProjects(bootstrapQuery.data?.projects || [], 'asc'), [bootstrapQuery.data?.projects]);
   const selectedProject = projects.find(project => project.id === (form.projectId || report.projectId))
     || (form.projectId === report.projectId ? report.project : null);
   const projectLeaderHint = selectedProject?.operator?.name
@@ -572,13 +559,13 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const parsedSequenceNumber = toPositiveInteger(form.sequenceNumber);
   const sequenceConflict = useMemo(() => {
     if (!form.projectId || !parsedSequenceNumber) return null;
-    return (reportsQuery.data || []).find(item => (
+    return (bootstrapQuery.data?.sequenceReports || []).find(item => (
       item.id !== report.id
       && item.projectId === form.projectId
       && item.reportType === report.reportType
       && Number(item.sequenceNumber) === parsedSequenceNumber
     )) || null;
-  }, [form.projectId, parsedSequenceNumber, report.id, report.reportType, reportsQuery.data]);
+  }, [bootstrapQuery.data?.sequenceReports, form.projectId, parsedSequenceNumber, report.id, report.reportType]);
   const sequenceHint = sequenceConflict
     ? `Número já usado no relatório ${sequenceConflict.reportType} ${sequenceConflict.sequenceNumber}.`
     : 'Usado para manter a sequência do projeto e dos relatórios derivados.';
@@ -592,7 +579,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     () => new Set(serviceOnly ? form.collaboratorIds : [...form.collaboratorIds, ...form.nightCollaboratorIds]),
     [serviceOnly, form.collaboratorIds, form.nightCollaboratorIds]
   );
-  const collaborators = (collaboratorsQuery.data || []).filter(item => item.isActive || selectedCollaboratorIds.has(item.id));
+  const collaborators = (bootstrapQuery.data?.collaborators || []).filter(item => item.isActive || selectedCollaboratorIds.has(item.id));
   const serviceCollaboratorOptions = useMemo(() => {
     const ids = serviceOnly ? form.collaboratorIds : Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds]));
     return ids
@@ -602,11 +589,11 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       })
       .filter((item): item is { id: string; name: string } => Boolean(item));
   }, [serviceOnly, form.collaboratorIds, form.nightCollaboratorIds, collaborators]);
-  const equipment = equipmentQuery.data || [];
-  const units = unitsQuery.data || [];
-  const manometers = manometersQuery.data || [];
-  const counters = countersQuery.data || [];
-  const inhibitionOptions = inhibitionOptionsQuery.data;
+  const equipment = bootstrapQuery.data?.equipment || [];
+  const units = bootstrapQuery.data?.units || [];
+  const manometers = bootstrapQuery.data?.manometers || [];
+  const counters = bootstrapQuery.data?.counters || [];
+  const inhibitionOptions = bootstrapQuery.data?.inhibitionOptions;
 
   function setField<K extends keyof RdoFormState>(field: K, value: RdoFormState[K]) {
     setForm(current => ({ ...current, [field]: value }));

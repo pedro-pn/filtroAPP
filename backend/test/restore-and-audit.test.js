@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import zlib from 'node:zlib';
 
 function runRestoreWithFakeDocker(env = {}, options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'restore-preflight-'));
@@ -35,6 +36,76 @@ function runRestoreWithFakeDocker(env = {}, options = {}) {
   const dockerCalls = fs.existsSync(dockerLog) ? fs.readFileSync(dockerLog, 'utf8') : '';
   fs.rmSync(root, { recursive: true, force: true });
   return { result, dockerCalls };
+}
+
+function writeGzip(filePath, content) {
+  fs.writeFileSync(filePath, zlib.gzipSync(content));
+}
+
+function runSyncWithFakeDocker(options = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-staging-'));
+  const backupRoot = path.join(root, 'backups');
+  const bin = path.join(root, 'bin');
+  const dockerLog = path.join(root, 'docker.log');
+  const restoreSqlLog = path.join(root, 'restore.sql');
+  const snapshotA = path.join(backupRoot, '2026-06-08-010000');
+  const snapshotB = path.join(backupRoot, '2026-06-08-020000');
+  const latest = path.join(backupRoot, 'latest');
+
+  fs.mkdirSync(bin, { recursive: true });
+  fs.mkdirSync(snapshotA, { recursive: true });
+  fs.mkdirSync(snapshotB, { recursive: true });
+  fs.mkdirSync(path.join(root, 'backend'), { recursive: true });
+  writeGzip(path.join(snapshotA, 'postgres.sql.gz'), options.snapshotASql || 'SELECT 1 AS snapshot_a;');
+  writeGzip(path.join(snapshotB, 'postgres.sql.gz'), options.snapshotBSql || 'SELECT 2 AS snapshot_b;');
+  fs.writeFileSync(path.join(snapshotA, 'relatorios.tar.gz'), 'reports-a');
+  fs.writeFileSync(path.join(snapshotB, 'relatorios.tar.gz'), 'reports-b');
+  fs.symlinkSync(snapshotA, latest);
+
+  const dockerScript = options.dockerScript || `#!/usr/bin/env bash
+echo "$@" >> "${dockerLog}"
+if [[ "$*" == *"ps --quiet --status running"* ]]; then
+  exit 1
+fi
+if [[ "$*" == *"up -d postgres"* ]]; then
+  ${options.switchLatestOnPostgresUp ? `ln -sfn "${snapshotB}" "${latest}"` : ':'}
+  exit 0
+fi
+if [[ "$*" == *"pg_isready"* ]]; then
+  exit 0
+fi
+if [[ "$*" == *"psql -v ON_ERROR_STOP=1"* && "$*" == *" -d filtrovali_restore_"* ]]; then
+  cat > "${restoreSqlLog}"
+  ${options.failRestore ? 'exit 42' : 'exit 0'}
+fi
+if [[ "$*" == *"run --rm --no-deps backend sh -c npx prisma migrate deploy"* ]]; then
+  exit 0
+fi
+exit 0
+`;
+  fs.writeFileSync(path.join(bin, 'docker'), dockerScript);
+  fs.chmodSync(path.join(bin, 'docker'), 0o755);
+
+  const result = spawnSync('bash', [new URL('../../deploy/sync-staging.sh', import.meta.url).pathname], {
+    cwd: root,
+    env: {
+      ...process.env,
+      PATH: `${bin}${path.delimiter}${process.env.PATH || ''}`,
+      PROJECT_DIR: root,
+      BACKUP_ROOT: backupRoot,
+      LOCKFILE: path.join(root, 'sync.lock'),
+      STAGING_POSTGRES_PASSWORD: 'postgres-secret',
+      STAGING_ADMIN_PASSWORD_HASH: 'salt:hash',
+      BUILD_SERVICES: 'false',
+      ...options.env
+    },
+    encoding: 'utf8'
+  });
+
+  const dockerCalls = fs.existsSync(dockerLog) ? fs.readFileSync(dockerLog, 'utf8') : '';
+  const restoreSql = fs.existsSync(restoreSqlLog) ? fs.readFileSync(restoreSqlLog, 'utf8') : '';
+  fs.rmSync(root, { recursive: true, force: true });
+  return { result, dockerCalls, restoreSql, snapshotA, snapshotB };
 }
 
 test('restore script validates checksums before mutating restored services', () => {
@@ -193,6 +264,96 @@ test('restore script applies versioned migrations without data-loss db push', ()
   assert.match(script, /npx prisma migrate deploy/);
   assert.doesNotMatch(script, /--accept-data-loss/);
   assert.doesNotMatch(script, /npx prisma db push/);
+});
+
+test('staging sync sanitizes production credentials and tokens before starting services', () => {
+  const script = fs.readFileSync(new URL('../../deploy/sync-staging.sh', import.meta.url), 'utf8');
+  const migrationIndex = script.indexOf('npx prisma migrate deploy');
+  const sanitizeIndex = script.lastIndexOf('sanitize_staging_database');
+  const startIndex = script.indexOf('docker compose -f "$STAGING_COMPOSE_FILE" up -d --force-recreate backend nginx');
+
+  assert.match(script, /STAGING_ADMIN_PASSWORD/);
+  assert.match(script, /RESTORE_REPORTS="\$\{RESTORE_REPORTS:-false\}"/);
+  assert.match(script, /create_staging_mock_report_files/);
+  assert.match(script, /report-source\.pdf/);
+  assert.match(script, /romaneio\.docx/);
+  assert.match(script, /DELETE FROM "UserSession"/);
+  assert.match(script, /DELETE FROM "PasswordResetToken"/);
+  assert.match(script, /DELETE FROM "EmailChangeToken"/);
+  assert.match(script, /DELETE FROM "NotificationPreferenceToken"/);
+  assert.match(script, /"username" = 'staging-user-' \|\| "id"/);
+  assert.match(script, /UPDATE "Collaborator"\s+SET\s+"name" = 'Colaborador Staging '/);
+  assert.match(script, /UPDATE "Project"\s+SET\s+"clientName" = 'Cliente Staging'/);
+  assert.match(script, /UPDATE "User"[\s\S]*"passwordHash" = 'staging-disabled'/);
+  assert.match(script, /UPDATE "ReportVersion"[\s\S]*'\/relatorios\/_staging_mock\/report-source\.pdf'/);
+  assert.match(script, /UPDATE "ReportAttachment"[\s\S]*'_staging_mock\/attachment\.txt'/);
+  assert.match(script, /UPDATE "Romaneio"[\s\S]*'\/relatorios\/_staging_mock\/romaneio\.docx'/);
+  assert.match(script, /UPDATE "CalibrationCertificate"[\s\S]*'_staging_mock\/certificate\.pdf'/);
+  assert.match(script, /UPDATE "ReportSignature"[\s\S]*"tokenHash" = NULL/);
+  assert.match(script, /UPDATE "SatisfactionSurvey"\s+SET\s+"tokenHash" = 'staging-scrubbed-'/);
+  assert.match(script, /UPDATE "DataSubjectRequest"\s+SET\s+"name" = 'Titular Staging '/);
+  assert.ok(migrationIndex !== -1, 'staging sync must run migrations before scrub');
+  assert.ok(sanitizeIndex !== -1, 'staging sync must scrub restored production data');
+  assert.ok(startIndex !== -1, 'staging sync must restart app services explicitly');
+  assert.ok(
+    migrationIndex < sanitizeIndex && sanitizeIndex < startIndex,
+    'staging app services must start only after migrations and production-token scrub'
+  );
+});
+
+test('staging sync aborts before migrations or service start when dump restore fails', () => {
+  const { result, dockerCalls } = runSyncWithFakeDocker({ failRestore: true });
+
+  assert.notEqual(result.status, 0);
+  assert.match(dockerCalls, /psql -v ON_ERROR_STOP=1/);
+  assert.match(dockerCalls, /-d filtrovali_restore_/);
+  assert.doesNotMatch(dockerCalls, /npx prisma migrate deploy/);
+  assert.doesNotMatch(dockerCalls, /up -d --force-recreate backend nginx/);
+  assert.doesNotMatch(dockerCalls, /relatorios\.tar\.gz -C \/to/);
+});
+
+test('staging sync uses the resolved backup directory and never extracts production report files', () => {
+  const script = fs.readFileSync(new URL('../../deploy/sync-staging.sh', import.meta.url), 'utf8');
+  const { result, dockerCalls, restoreSql } = runSyncWithFakeDocker({
+    switchLatestOnPostgresUp: true,
+    snapshotASql: 'SELECT 10 AS snapshot_a;',
+    snapshotBSql: 'SELECT 20 AS snapshot_b;'
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.doesNotMatch(script, /\$LATEST_BACKUP\/postgres\.sql\.gz/);
+  assert.doesNotMatch(script, /\$LATEST_BACKUP\/relatorios\.tar\.gz/);
+  assert.doesNotMatch(script, /tar -xzf \/backup\/relatorios\.tar\.gz/);
+  assert.match(restoreSql, /snapshot_a/);
+  assert.doesNotMatch(restoreSql, /snapshot_b/);
+  assert.match(dockerCalls, /run --rm --no-deps backend node --input-type=module/);
+  assert.doesNotMatch(dockerCalls, /relatorios\.tar\.gz/);
+});
+
+test('production docs provide concurrent index preflight before prisma migrations', () => {
+  const docs = fs.readFileSync(new URL('../../deploy/PRODUCTION.md', import.meta.url), 'utf8');
+  const concurrentSql = fs.readFileSync(
+    new URL('../../deploy/create-performance-indexes-concurrently.sql', import.meta.url),
+    'utf8'
+  );
+  const postgresStartIndex = docs.indexOf('up -d postgres');
+  const preflightIndex = docs.indexOf('create-performance-indexes-concurrently.sql');
+  const migrationIndex = docs.indexOf('npx prisma migrate deploy');
+  const backendStartIndex = docs.indexOf('up -d backend nginx');
+
+  assert.match(concurrentSql, /CREATE INDEX CONCURRENTLY IF NOT EXISTS "Report_active_date_created_idx"/);
+  assert.match(concurrentSql, /CREATE INDEX CONCURRENTLY IF NOT EXISTS "Report_active_project_date_created_idx"/);
+  assert.match(concurrentSql, /CREATE INDEX CONCURRENTLY IF NOT EXISTS "ReportAttachment_reportId_idx"/);
+  assert.match(docs, /build backend nginx/);
+  assert.match(docs, /`CREATE INDEX CONCURRENTLY` não pode rodar dentro de transação/);
+  assert.doesNotMatch(docs, /prisma db seed/);
+  assert.ok(postgresStartIndex !== -1, 'production docs must start postgres before index preflight');
+  assert.ok(preflightIndex !== -1, 'production docs must mention concurrent index preflight');
+  assert.ok(migrationIndex !== -1, 'production docs must still apply Prisma migrations');
+  assert.ok(backendStartIndex !== -1, 'production docs must start backend after index preflight');
+  assert.ok(postgresStartIndex < preflightIndex, 'postgres must be running before concurrent index preflight');
+  assert.ok(preflightIndex < migrationIndex, 'concurrent indexes must be created before Prisma migrations');
+  assert.ok(preflightIndex < backendStartIndex, 'backend must start only after concurrent index preflight');
 });
 
 test('client report review keeps audit evidence when client account is deleted', () => {

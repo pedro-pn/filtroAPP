@@ -9,6 +9,7 @@ import {
 } from '../../lib/calibration-certificates.js';
 import { notifyCalibrationUpdatedSafely } from '../../lib/calibration-reminders.js';
 import prisma from '../../lib/prisma.js';
+import { clearRomaneioCatalogDependentCaches, particleCountersCache } from '../../lib/resource-list-cache.js';
 import { syncRomaneioCatalog } from '../../lib/romaneio-catalog.js';
 import { requireAuth, requireInternalUser, requireManager } from '../../middleware/auth.js';
 
@@ -36,10 +37,10 @@ const categoryRenameSchema = z.object({
 });
 
 router.get('/', requireInternalUser, asyncHandler(async (_req, res) => {
-  const items = await prisma.particleCounter.findMany({
+  const items = await particleCountersCache.get(() => prisma.particleCounter.findMany({
     orderBy: [{ category: 'asc' }, { code: 'asc' }],
     include: currentCalibrationCertificateInclude
-  });
+  }));
   res.json(items.map(withCurrentCalibrationCertificate));
 }));
 
@@ -63,6 +64,8 @@ router.post('/', requireManager, asyncHandler(async (req, res) => {
       previousExpiresAt: existing.expiresAt
     });
     await syncRomaneioCatalog();
+    particleCountersCache.clear();
+    clearRomaneioCatalogDependentCaches();
     const freshItem = await prisma.particleCounter.findUnique({
       where: { id: item.id },
       include: currentCalibrationCertificateInclude
@@ -82,6 +85,8 @@ router.post('/', requireManager, asyncHandler(async (req, res) => {
     where: { id: item.id },
     include: currentCalibrationCertificateInclude
   });
+  particleCountersCache.clear();
+  clearRomaneioCatalogDependentCaches();
   res.status(201).json(withCurrentCalibrationCertificate(freshItem));
 }));
 
@@ -92,6 +97,8 @@ router.put('/categories/rename', requireManager, asyncHandler(async (req, res) =
     data: { category: data.newName }
   });
   await syncRomaneioCatalog();
+  particleCountersCache.clear();
+  clearRomaneioCatalogDependentCaches();
   res.json({ category: data.newName, updatedCount: update.count });
 }));
 
@@ -122,12 +129,16 @@ router.put('/:id', requireManager, asyncHandler(async (req, res) => {
     where: { id: item.id },
     include: currentCalibrationCertificateInclude
   });
+  particleCountersCache.clear();
+  clearRomaneioCatalogDependentCaches();
   res.json(withCurrentCalibrationCertificate(freshItem));
 }));
 
 router.delete('/:id', requireManager, asyncHandler(async (req, res) => {
   await prisma.particleCounter.update({ where: { id: req.params.id }, data: { isActive: false } });
   await syncRomaneioCatalog();
+  particleCountersCache.clear();
+  clearRomaneioCatalogDependentCaches();
   res.status(204).end();
 }));
 

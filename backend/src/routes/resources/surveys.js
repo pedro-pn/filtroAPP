@@ -66,7 +66,7 @@ function managerOnlyProjectFilter(role) {
   return role === 'MANAGER' ? {} : { project: { managerOnly: false } };
 }
 
-function safeQuestion(question, index = 0) {
+export function safeQuestion(question, index = 0) {
   return {
     id: String(question.id || ''),
     label: String(question.label || ''),
@@ -93,7 +93,7 @@ export function surveyQuestionSnapshot(questions) {
   return questions.map((question, index) => safeQuestion(question, index));
 }
 
-async function activeSurveyQuestions() {
+export async function activeSurveyQuestions() {
   await ensureDefaultSurveyQuestions();
   return prisma.satisfactionSurveyQuestion.findMany({
     where: { isActive: true },

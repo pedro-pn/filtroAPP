@@ -18,6 +18,7 @@ export function useProjectMutations() {
   function invalidateProjects() {
     return Promise.all([
       queryClient.invalidateQueries({ queryKey: ['projects'] }),
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] }),
       queryClient.invalidateQueries({ queryKey: ['reports'] }),
       queryClient.invalidateQueries({ queryKey: ['statsOverview'] }),
       queryClient.invalidateQueries({ queryKey: ['projectStats'] })

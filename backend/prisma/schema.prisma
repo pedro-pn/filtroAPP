@@ -309,6 +309,8 @@ model ClientReportReview {
   createdAt    DateTime           @default(now())
   report       Report             @relation(fields: [reportId], references: [id], onDelete: Cascade)
   clientUser   User?              @relation("ClientReportReviewer", fields: [clientUserId], references: [id], onDelete: SetNull)
+
+  @@index([reportId, createdAt])
 }
 
 model ReportVersion {
@@ -423,6 +425,8 @@ model ReportService {
   report        Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
   equipment     Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
   attachments   ReportAttachment[]
+
+  @@index([reportId])
 }
 
 model Equipment {
@@ -634,6 +638,7 @@ model EpiRecord {
   @@index([pendingReturn])
   @@index([returnSourceRecordId])
   @@index([archivedAt])
+  @@index([collaboratorId, lendDate, createdAt])
 }
 
 model EpiSignatureRequest {
@@ -702,6 +707,7 @@ model Romaneio {
   @@index([createdByUserId])
   @@index([romaneioDate])
   @@index([createdAt])
+  @@index([projectId, romaneioDate, createdAt])
 }
 
 model RomaneioItem {
@@ -746,6 +752,14 @@ model RomaneioCatalogItem {
   @@index([categoryName])
   @@index([kind])
   @@index([isActive])
+}
+
+model RomaneioCatalogSyncState {
+  id         String   @id
+  sourceHash String
+  syncedAt   DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model RomaneioNotificationRecipient {
@@ -847,6 +861,7 @@ model SatisfactionSurvey {
   @@index([expiresAt, respondedAt, reminderOptOutAt])
   @@index([expirationNotifiedAt, expiresAt])
   @@index([respondedAt])
+  @@index([sentAt])
 }
 
 model SatisfactionSurveyQuestion {
@@ -952,6 +967,7 @@ model DataSubjectRequest {
   @@index([identityVerifiedByUserId])
   @@index([status])
   @@index([createdAt])
+  @@index([status, createdAt])
 }
 
 model DataSubjectRequestResponseAttempt {
@@ -990,5 +1006,7 @@ model ReportAttachment {
   report          Report?       @relation(fields: [reportId], references: [id], onDelete: Cascade)
   reportService   ReportService? @relation(fields: [reportServiceId], references: [id], onDelete: Cascade)
 
+  @@index([reportId])
+  @@index([reportServiceId])
   @@index([storagePath])
 }

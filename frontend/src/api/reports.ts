@@ -3,15 +3,56 @@ import type { ReportAuditLog, ReportPayload, ReportStatus, ReportSummary, Report
 
 export interface ReportFilters {
   status?: string;
+  statuses?: string[];
   projectId?: string;
   createdBy?: string;
+  createdByUserId?: string;
   mine?: boolean;
+  reportType?: ReportType | string;
+  summary?: boolean;
+  projectActive?: boolean;
+  search?: string;
+  reviewQueue?: boolean;
+  reportSort?: 'asc' | 'desc';
+  projectSort?: 'asc' | 'desc';
+}
+
+export interface ReportPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface ReportGroupTotal {
+  projectId: string;
+  reportType: ReportType | string;
+  total: number;
+}
+
+export interface PaginatedReports {
+  items: ReportSummary[];
+  pagination: ReportPagination;
+  groups?: ReportGroupTotal[];
+  meta?: {
+    projectTotal?: number;
+  };
+}
+
+export interface ReportPageFilters extends ReportFilters {
+  page?: number;
+  pageSize?: number;
+  summary?: boolean;
 }
 
 export async function listReports(filters?: ReportFilters) {
   const params = {
     ...(filters ?? {}),
-    ...(filters?.mine !== undefined ? { mine: String(filters.mine) } : {})
+    ...(filters?.statuses?.length ? { statuses: filters.statuses.join(',') } : {}),
+    ...(filters?.mine !== undefined ? { mine: String(filters.mine) } : {}),
+    ...(filters?.summary !== undefined ? { summary: String(filters.summary) } : {}),
+    ...(filters?.projectActive !== undefined ? { projectActive: String(filters.projectActive) } : {}),
+    ...(filters?.reviewQueue !== undefined ? { reviewQueue: String(filters.reviewQueue) } : {})
   };
   const response = await apiClient.get<ReportSummary[]>(rdoApiPath('/reports'), {
     params
@@ -26,6 +67,21 @@ export async function getReport(id: string) {
 
 export async function createReport(payload: ReportPayload) {
   const response = await apiClient.post<ReportSummary>(rdoApiPath('/reports'), payload);
+  return response.data;
+}
+
+export async function listReportsPage(filters?: ReportPageFilters) {
+  const params = {
+    ...(filters ?? {}),
+    ...(filters?.statuses?.length ? { statuses: filters.statuses.join(',') } : {}),
+    ...(filters?.mine !== undefined ? { mine: String(filters.mine) } : {}),
+    ...(filters?.summary !== undefined ? { summary: String(filters.summary) } : {}),
+    ...(filters?.projectActive !== undefined ? { projectActive: String(filters.projectActive) } : {}),
+    ...(filters?.reviewQueue !== undefined ? { reviewQueue: String(filters.reviewQueue) } : {})
+  };
+  const response = await apiClient.get<PaginatedReports>(rdoApiPath('/reports'), {
+    params
+  });
   return response.data;
 }
 

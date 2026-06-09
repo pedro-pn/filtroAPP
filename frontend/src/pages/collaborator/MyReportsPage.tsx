@@ -6,31 +6,37 @@ import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
-import { useReports } from '../../hooks/useReports';
+import { useAccumulatedReportsPage } from '../../hooks/useReports';
 import { ProjectSortButton, type ProjectSortDirection } from '../../utils/projectSort';
-import { matchesSearch, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
 type MyReportsTab = 'pending' | 'approved';
+const REPORT_PAGE_SIZE = 25;
 
 export function MyReportsPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const reportsQuery = useReports({ mine: true });
   const [tab, setTab] = useState<MyReportsTab>('pending');
   const [search, setSearch] = useState('');
   const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
+  const statuses = tab === 'pending' ? ['PENDING', 'RETURNED'] : ['APPROVED', 'SIGNED'];
+  const reportsQuery = useAccumulatedReportsPage({
+    mine: true,
+    summary: true,
+    projectActive: true,
+    statuses,
+    search,
+    projectSort: projectSortDir,
+    pageSize: REPORT_PAGE_SIZE
+  });
+  const reports = reportsQuery.items;
 
   const groups = useMemo(() => {
-    const active = (reportsQuery.data || [])
-      .filter(r => r.project?.isActive !== false)
-      .filter(r => tab === 'pending' ? r.status === 'PENDING' || r.status === 'RETURNED' : r.status === 'APPROVED' || r.status === 'SIGNED')
-      .filter(r => matchesSearch(reportSearchParts(r), search));
-    const sorted = [...active].sort(
+    const sorted = [...reports].sort(
       (a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime()
     );
     return sorted;
-  }, [reportsQuery.data, search, tab]);
+  }, [reports]);
 
   async function handleLogout() {
     await logout();
@@ -91,7 +97,23 @@ export function MyReportsPage() {
           sortDirection={projectSortDir}
           showTypeSort
           storageKey={`collaborator-report-groups:${user?.id || user?.username || 'anonymous'}:${tab}`}
+          onLoadMoreType={reportsQuery.loadMoreGroup}
+          onEnsureTypePage={reportsQuery.ensureGroupPage}
+          isTypePageReady={reportsQuery.isGroupPageReady}
+          getTypeLoadedCount={reportsQuery.groupLoadedCount}
+          hasMoreType={reportsQuery.hasMoreGroup}
+          isTypeLoading={reportsQuery.isGroupLoading}
+          isTypePageErrored={reportsQuery.isGroupError}
+          getTypeTotal={reportsQuery.groupTotal}
+          getProjectTypeTotals={reportsQuery.projectTypeTotals}
         />
+        {reportsQuery.hasMore || reportsQuery.isLoadingMore ? (
+          <div className="admin-create-toolbar">
+            <button className="mini-btn" type="button" disabled={reportsQuery.isLoadingMore} onClick={reportsQuery.loadMore}>
+              {reportsQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
+            </button>
+          </div>
+        ) : null}
         <button className="secondary-button" type="button" onClick={() => navigate(rdoPath('/home'))}>
           Voltar
         </button>

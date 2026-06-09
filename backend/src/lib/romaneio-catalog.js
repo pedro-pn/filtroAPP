@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,6 +19,10 @@ const EQUIPMENT_FILE_CANDIDATES = [
   '/workspace/equipamentos'
 ].filter(Boolean);
 const RDO_OWNED_CATALOG_SOURCES = new Set(['UNIT', 'PARTICLE_COUNTER']);
+const ROMANEIO_CATALOG_SYNC_TTL_MS = 60_000;
+const ROMANEIO_CATALOG_SYNC_STATE_ID = 'default';
+let lastSuccessfulCatalogSyncAt = 0;
+let catalogSyncInFlight = null;
 
 function normalizeSpaces(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -177,6 +182,55 @@ async function readEquipmentSeedFile() {
   return '';
 }
 
+async function readFileCatalogRows() {
+  const content = await readEquipmentSeedFile();
+  if (!content.trim()) return null;
+  return parseEquipmentRows(content);
+}
+
+function buildUnitCatalogRows(units) {
+  return units.map(unit => ({
+    sourceType: 'UNIT',
+    sourceId: unit.id,
+    code: unit.code,
+    name: normalizeSpaces(unit.name) || unit.code,
+    categoryName: normalizeSpaces(unit.category) || 'UNIDADES',
+    kind: 'EQUIPMENT',
+    measureType: 'UNIT',
+    defaultUnitLabel: 'unidade',
+    isSerialized: true,
+    isActive: true
+  }));
+}
+
+function buildParticleCounterCatalogRows(counters) {
+  return counters.map(counter => ({
+    sourceType: 'PARTICLE_COUNTER',
+    sourceId: counter.id,
+    code: counter.code,
+    name: `Contador de partículas ${counter.serialNumber || counter.code}`,
+    categoryName: normalizeSpaces(counter.category) || 'CONTADOR DE PARTICULAS',
+    kind: 'EQUIPMENT',
+    measureType: 'UNIT',
+    defaultUnitLabel: 'unidade',
+    isSerialized: true,
+    isActive: counter.isActive
+  }));
+}
+
+function catalogRowsHash({ fileRows, unitRows, particleCounterRows }) {
+  const payload = {
+    filePresent: Array.isArray(fileRows),
+    fileRows: fileRows || [],
+    unitRows,
+    particleCounterRows
+  };
+  return crypto
+    .createHash('sha256')
+    .update(JSON.stringify(payload))
+    .digest('hex');
+}
+
 async function upsertCatalogRow(tx, row) {
   if (row.sourceType && row.sourceId) {
     const existingSource = await tx.romaneioCatalogItem.findUnique({
@@ -221,14 +275,164 @@ async function upsertCatalogRow(tx, row) {
   await tx.romaneioCatalogItem.create({ data: row });
 }
 
-async function syncFileCatalog(tx) {
-  const content = await readEquipmentSeedFile();
-  if (!content.trim()) return;
-  const rows = parseEquipmentRows(content);
-  for (const row of rows) {
-    await upsertCatalogRow(tx, row);
+function catalogSourceKey(sourceType, sourceId) {
+  return `${sourceType || ''}:${sourceId || ''}`;
+}
+
+function catalogNaturalKey(row) {
+  return `${row.categoryName || ''}|${row.code || ''}|${row.name || ''}`.toLowerCase();
+}
+
+function dataForExistingCatalogRow(existing, row) {
+  const data = {
+    ...row,
+    isActive: !existing.hiddenInRomaneioAt && row.isActive !== false
+  };
+
+  if (existing.sourceType === 'FILE') {
+    delete data.categoryName;
   }
+
+  if (RDO_OWNED_CATALOG_SOURCES.has(existing.sourceType)) {
+    data.isActive = row.isActive !== false;
+    data.hiddenInRomaneioAt = null;
+  }
+
+  return data;
+}
+
+function catalogValueChanged(current, next) {
+  if (next === undefined) return false;
+  if (current instanceof Date || next instanceof Date) {
+    const currentTime = current instanceof Date ? current.getTime() : current == null ? null : new Date(current).getTime();
+    const nextTime = next instanceof Date ? next.getTime() : next == null ? null : new Date(next).getTime();
+    return currentTime !== nextTime;
+  }
+  return current !== next;
+}
+
+function catalogRowNeedsUpdate(existing, data) {
+  return Object.entries(data).some(([key, value]) => catalogValueChanged(existing[key], value));
+}
+
+export async function syncCatalogRows(tx, rows) {
+  const stats = {
+    input: rows.length,
+    created: 0,
+    updated: 0,
+    skippedExistingNaturalKey: 0,
+    skippedDuplicateInput: 0
+  };
+  if (!rows.length) return stats;
+  if (typeof tx.romaneioCatalogItem.findMany !== 'function' || typeof tx.romaneioCatalogItem.createMany !== 'function') {
+    for (const row of rows) {
+      await upsertCatalogRow(tx, row);
+    }
+    return { ...stats, created: rows.length };
+  }
+
+  const sourceRows = rows.filter(row => row.sourceType && row.sourceId);
+  const sourceTypes = Array.from(new Set(sourceRows.map(row => row.sourceType)));
+  const sourceIds = Array.from(new Set(sourceRows.map(row => row.sourceId)));
+  const existingBySource = new Map();
+  if (sourceTypes.length && sourceIds.length) {
+    const existingSourceRows = await tx.romaneioCatalogItem.findMany({
+      where: {
+        sourceType: { in: sourceTypes },
+        sourceId: { in: sourceIds }
+      },
+      select: {
+        id: true,
+        sourceType: true,
+        sourceId: true,
+        code: true,
+        name: true,
+        categoryName: true,
+        kind: true,
+        measureType: true,
+        defaultUnitLabel: true,
+        isSerialized: true,
+        isActive: true,
+        hiddenInRomaneioAt: true
+      }
+    });
+    for (const existing of existingSourceRows) {
+      existingBySource.set(catalogSourceKey(existing.sourceType, existing.sourceId), existing);
+    }
+  }
+
+  const rowsWithoutSourceMatch = [];
+  for (const row of rows) {
+    const existing = row.sourceType && row.sourceId
+      ? existingBySource.get(catalogSourceKey(row.sourceType, row.sourceId))
+      : null;
+    if (!existing) {
+      rowsWithoutSourceMatch.push(row);
+      continue;
+    }
+
+    const data = dataForExistingCatalogRow(existing, row);
+    if (!catalogRowNeedsUpdate(existing, data)) continue;
+    await tx.romaneioCatalogItem.update({
+      where: { id: existing.id },
+      data
+    });
+    stats.updated += 1;
+  }
+
+  if (!rowsWithoutSourceMatch.length) return stats;
+
+  const existingByNaturalKey = new Set();
+  const naturalConditions = rowsWithoutSourceMatch.map(row => ({
+    categoryName: row.categoryName,
+    code: row.code,
+    name: row.name
+  }));
+  if (naturalConditions.length) {
+    const existingNaturalRows = await tx.romaneioCatalogItem.findMany({
+      where: { OR: naturalConditions },
+      select: { categoryName: true, code: true, name: true }
+    });
+    for (const existing of existingNaturalRows) {
+      existingByNaturalKey.add(catalogNaturalKey(existing));
+    }
+  }
+
+  const data = [];
+  const seenNewRows = new Set();
+  for (const row of rowsWithoutSourceMatch) {
+    const key = catalogNaturalKey(row);
+    if (existingByNaturalKey.has(key)) {
+      stats.skippedExistingNaturalKey += 1;
+      continue;
+    }
+    if (seenNewRows.has(key)) {
+      stats.skippedDuplicateInput += 1;
+      continue;
+    }
+    seenNewRows.add(key);
+    data.push(row);
+  }
+  if (!data.length) return stats;
+
+  await tx.romaneioCatalogItem.createMany({
+    data,
+    skipDuplicates: true
+  });
+  stats.created += data.length;
+  return stats;
+}
+
+async function syncFileCatalogRows(tx, rows) {
+  if (!Array.isArray(rows)) return { input: 0, created: 0, updated: 0, skippedExistingNaturalKey: 0, skippedDuplicateInput: 0 };
+  const stats = await syncCatalogRows(tx, rows);
   const currentSourceIds = rows.map(row => row.sourceId).filter(Boolean);
+  if (!currentSourceIds.length) {
+    console.warn('[ROMANEIO CATALOG SYNC]', {
+      message: 'Fonte de catálogo por arquivo veio vazia; desativação de itens FILE foi ignorada.'
+    });
+    return stats;
+  }
   await tx.romaneioCatalogItem.updateMany({
     where: {
       sourceType: 'FILE',
@@ -237,48 +441,93 @@ async function syncFileCatalog(tx) {
     },
     data: { isActive: false }
   });
+  return stats;
 }
 
-async function syncUnits(tx) {
-  const units = await tx.unit.findMany();
-  for (const unit of units) {
-    await upsertCatalogRow(tx, {
-      sourceType: 'UNIT',
-      sourceId: unit.id,
-      code: unit.code,
-      name: normalizeSpaces(unit.name) || unit.code,
-      categoryName: normalizeSpaces(unit.category) || 'UNIDADES',
-      kind: 'EQUIPMENT',
-      measureType: 'UNIT',
-      defaultUnitLabel: 'unidade',
-      isSerialized: true,
-      isActive: true
-    });
-  }
+function mergeCatalogSyncStats(...items) {
+  return items.reduce((acc, item) => {
+    acc.input += item?.input || 0;
+    acc.created += item?.created || 0;
+    acc.updated += item?.updated || 0;
+    acc.skippedExistingNaturalKey += item?.skippedExistingNaturalKey || 0;
+    acc.skippedDuplicateInput += item?.skippedDuplicateInput || 0;
+    return acc;
+  }, { input: 0, created: 0, updated: 0, skippedExistingNaturalKey: 0, skippedDuplicateInput: 0 });
 }
 
-async function syncParticleCounters(tx) {
-  const counters = await tx.particleCounter.findMany();
-  for (const counter of counters) {
-    await upsertCatalogRow(tx, {
-      sourceType: 'PARTICLE_COUNTER',
-      sourceId: counter.id,
-      code: counter.code,
-      name: `Contador de partículas ${counter.serialNumber || counter.code}`,
-      categoryName: normalizeSpaces(counter.category) || 'CONTADOR DE PARTICULAS',
-      kind: 'EQUIPMENT',
-      measureType: 'UNIT',
-      defaultUnitLabel: 'unidade',
-      isSerialized: true,
-      isActive: counter.isActive
-    });
+function logCatalogSyncStats(stats) {
+  if (!stats.skippedExistingNaturalKey && !stats.skippedDuplicateInput) return;
+  console.warn('[ROMANEIO CATALOG SYNC]', {
+    message: 'Alguns itens de catálogo foram ignorados por colisão de chave natural ou duplicidade de entrada.',
+    ...stats
+  });
+}
+
+async function runRomaneioCatalogSync() {
+  const fileRows = await readFileCatalogRows();
+  await prisma.$transaction(async tx => {
+    const [units, counters] = await Promise.all([
+      tx.unit.findMany(),
+      tx.particleCounter.findMany()
+    ]);
+    const unitRows = buildUnitCatalogRows(units);
+    const particleCounterRows = buildParticleCounterCatalogRows(counters);
+    const sourceHash = catalogRowsHash({ fileRows, unitRows, particleCounterRows });
+
+    if (tx.romaneioCatalogSyncState) {
+      const state = await tx.romaneioCatalogSyncState.findUnique({
+        where: { id: ROMANEIO_CATALOG_SYNC_STATE_ID },
+        select: { sourceHash: true }
+      });
+      if (state?.sourceHash === sourceHash) return;
+    }
+
+    const stats = mergeCatalogSyncStats(
+      await syncFileCatalogRows(tx, fileRows),
+      await syncCatalogRows(tx, unitRows),
+      await syncCatalogRows(tx, particleCounterRows)
+    );
+    logCatalogSyncStats(stats);
+
+    if (tx.romaneioCatalogSyncState) {
+      await tx.romaneioCatalogSyncState.upsert({
+        where: { id: ROMANEIO_CATALOG_SYNC_STATE_ID },
+        create: {
+          id: ROMANEIO_CATALOG_SYNC_STATE_ID,
+          sourceHash,
+          syncedAt: new Date()
+        },
+        update: {
+          sourceHash,
+          syncedAt: new Date()
+        }
+      });
+    }
+  }, { timeout: 30_000 });
+  lastSuccessfulCatalogSyncAt = Date.now();
+}
+
+function startRomaneioCatalogSync() {
+  if (!catalogSyncInFlight) {
+    catalogSyncInFlight = runRomaneioCatalogSync()
+      .then(() => ({ synced: true }))
+      .finally(() => {
+        catalogSyncInFlight = null;
+      });
   }
+
+  return catalogSyncInFlight;
 }
 
 export async function syncRomaneioCatalog() {
-  await prisma.$transaction(async tx => {
-    await syncFileCatalog(tx);
-    await syncUnits(tx);
-    await syncParticleCounters(tx);
-  }, { timeout: 30_000 });
+  await startRomaneioCatalogSync();
+}
+
+export async function ensureRomaneioCatalogSynced({ ttlMs = ROMANEIO_CATALOG_SYNC_TTL_MS } = {}) {
+  const now = Date.now();
+  if (lastSuccessfulCatalogSyncAt && now - lastSuccessfulCatalogSyncAt < ttlMs) {
+    return { synced: false };
+  }
+
+  return startRomaneioCatalogSync();
 }

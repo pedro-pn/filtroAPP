@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -9,14 +10,31 @@ import {
   getReportAudit,
   getReport,
   listReports,
+  listReportsPage,
   requestReportSignature,
   updateReport,
   updateReportStatus,
-  type ReportFilters
+  type PaginatedReports,
+  type ReportFilters,
+  type ReportPagination,
+  type ReportPageFilters
 } from '../api/reports';
 import { useAuth } from '../auth/AuthContext';
 import type { ReportPayload, ReportStatus, ReportSummary, ServiceOnlyReportPayload } from '../types/domain';
 import { queryKeys } from './queryKeys';
+
+interface LoadMoreReportGroupOptions {
+  projectId: string;
+  reportType: string;
+  loadedCount: number;
+  pageSize?: number;
+  sortDirection?: 'asc' | 'desc';
+}
+
+interface ReportGroupTotalEntry {
+  reportType: string;
+  total: number;
+}
 
 export function useReports(filters?: ReportFilters) {
   const { user } = useAuth();
@@ -24,6 +42,260 @@ export function useReports(filters?: ReportFilters) {
     queryKey: queryKeys.reports(filters, user?.id),
     queryFn: () => listReports(filters)
   });
+}
+
+export function useReportsPage(filters: ReportPageFilters, enabled = true) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.reportPage(filters, user?.id),
+    queryFn: () => listReportsPage(filters),
+    enabled
+  });
+}
+
+export function hasMoreReportProjects(
+  pagination: ReportPagination | undefined,
+  loadedProjectCount: number,
+  projectTotal?: number
+) {
+  if (!pagination || pagination.page >= pagination.totalPages) return false;
+  if (projectTotal === undefined) return true;
+  return loadedProjectCount < projectTotal;
+}
+
+export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page'>, enabled = true) {
+  const [page, setPage] = useState(1);
+  const [items, setItems] = useState<ReportSummary[]>([]);
+  const itemsRef = useRef<ReportSummary[]>([]);
+  const groupLoadedCountsRef = useRef<Record<string, number>>({});
+  const groupPageLoadingKeysRef = useRef<Set<string>>(new Set());
+  const [groupLoadingKeys, setGroupLoadingKeys] = useState<string[]>([]);
+  const [groupErrorKeys, setGroupErrorKeys] = useState<string[]>([]);
+  const [groupTotals, setGroupTotals] = useState<Record<string, number>>({});
+  const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
+  const [activeFiltersKey, setActiveFiltersKey] = useState(filtersKey);
+  const effectivePage = activeFiltersKey === filtersKey ? page : 1;
+  const query = useReportsPage({ ...filters, page: effectivePage }, enabled);
+  const pagination = query.data?.pagination;
+  const loadedProjectCount = useMemo(
+    () => new Set(items.map(report => report.projectId).filter(Boolean)).size,
+    [items]
+  );
+  const projectTotal = query.data?.meta?.projectTotal;
+  const hasMoreProjects = hasMoreReportProjects(pagination, loadedProjectCount, projectTotal);
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  useEffect(() => {
+    if (activeFiltersKey === filtersKey) return;
+    setActiveFiltersKey(filtersKey);
+    setPage(1);
+    itemsRef.current = [];
+    groupLoadedCountsRef.current = {};
+    groupPageLoadingKeysRef.current = new Set();
+    setItems([]);
+    setGroupTotals({});
+    setGroupLoadingKeys([]);
+    setGroupErrorKeys([]);
+  }, [activeFiltersKey, filtersKey]);
+
+  useEffect(() => {
+    const data = query.data;
+    if (!data || !enabled || activeFiltersKey !== filtersKey) return;
+    const groups = data.groups;
+    if (groups) {
+      setGroupTotals(current => {
+        const next = data.pagination.page <= 1 ? {} : { ...current };
+        groups.forEach(group => {
+          next[`${group.projectId}-${group.reportType}`] = group.total;
+        });
+        return next;
+      });
+    }
+    const currentItems = itemsRef.current;
+    if (data.pagination.page <= 1) {
+      itemsRef.current = data.items;
+      setItems(data.items);
+      return;
+    }
+
+    const seen = new Set(currentItems.map(report => report.id));
+    const existingProjectIds = new Set(currentItems.map(report => report.projectId));
+    const next = [...currentItems];
+    let appendedNewProject = false;
+    data.items.forEach(report => {
+      if (!existingProjectIds.has(report.projectId) && !seen.has(report.id)) {
+        seen.add(report.id);
+        next.push(report);
+        appendedNewProject = true;
+      }
+    });
+    itemsRef.current = next;
+    setItems(next);
+
+    const shouldAdvanceToNextProjectPage = !appendedNewProject
+      && data.items.length > 0
+      && data.pagination.page < data.pagination.totalPages;
+    if (shouldAdvanceToNextProjectPage) {
+      setPage(current => Math.max(current, data.pagination.page + 1));
+    }
+  }, [activeFiltersKey, enabled, filtersKey, query.data]);
+
+  function loadMore() {
+    if (!pagination || pagination.page >= pagination.totalPages) return;
+    setPage(current => Math.min(pagination.totalPages, current + 1));
+  }
+
+  function groupKey(projectId: string, reportType: string) {
+    return `${projectId}-${reportType}`;
+  }
+
+  function groupPageKey(projectId: string, reportType: string, pageSize: number, sortDirection?: 'asc' | 'desc') {
+    return `${projectId}-${reportType}-${pageSize}-${sortDirection || 'asc'}`;
+  }
+
+  async function fetchGroupPage({
+    projectId,
+    reportType,
+    page,
+    pageSize,
+    sortDirection
+  }: {
+    projectId: string;
+    reportType: string;
+    page: number;
+    pageSize: number;
+    sortDirection?: 'asc' | 'desc';
+  }) {
+    const loadingKey = groupKey(projectId, reportType);
+    const pageKey = groupPageKey(projectId, reportType, pageSize, sortDirection);
+    const requestKey = `${pageKey}-${page}`;
+    if (groupPageLoadingKeysRef.current.has(requestKey)) return null;
+
+    groupPageLoadingKeysRef.current.add(requestKey);
+    setGroupLoadingKeys(current => current.includes(loadingKey) ? current : [...current, loadingKey]);
+    setGroupErrorKeys(current => current.filter(key => key !== loadingKey));
+    try {
+      const data = await listReportsPage({
+        ...filters,
+        projectId,
+        reportType,
+        reportSort: sortDirection || 'asc',
+        page,
+        pageSize
+      });
+      groupLoadedCountsRef.current[pageKey] = Math.max(
+        groupLoadedCountsRef.current[pageKey] || 0,
+        Math.min(data.pagination.total, ((page - 1) * pageSize) + data.items.length)
+      );
+      setGroupTotals(current => {
+        const next = { ...current, [loadingKey]: data.pagination.total };
+        data.groups?.forEach(group => {
+          next[groupKey(group.projectId, group.reportType)] = group.total;
+        });
+        return next;
+      });
+      setItems(current => {
+        const seen = new Set(current.map(report => report.id));
+        const next = [...current];
+        data.items.forEach(report => {
+          if (!seen.has(report.id)) {
+            seen.add(report.id);
+            next.push(report);
+          }
+        });
+        itemsRef.current = next;
+        return next;
+      });
+      return data;
+    } catch (error) {
+      setGroupErrorKeys(current => current.includes(loadingKey) ? current : [...current, loadingKey]);
+      return null;
+    } finally {
+      groupPageLoadingKeysRef.current.delete(requestKey);
+      setGroupLoadingKeys(current => current.filter(key => key !== loadingKey));
+    }
+  }
+
+  async function ensureGroupPage({ projectId, reportType, pageSize, sortDirection }: Omit<LoadMoreReportGroupOptions, 'loadedCount'>) {
+    const groupPageSize = pageSize || 10;
+    const pageKey = groupPageKey(projectId, reportType, groupPageSize, sortDirection);
+    const knownTotal = groupTotals[groupKey(projectId, reportType)];
+    const expectedCount = knownTotal === undefined ? groupPageSize : Math.min(knownTotal, groupPageSize);
+    if ((groupLoadedCountsRef.current[pageKey] || 0) >= expectedCount) return;
+    await fetchGroupPage({ projectId, reportType, page: 1, pageSize: groupPageSize, sortDirection });
+  }
+
+  async function loadMoreGroup({ projectId, reportType, pageSize, sortDirection }: LoadMoreReportGroupOptions) {
+    const groupKey = `${projectId}-${reportType}`;
+    const knownTotal = groupTotals[groupKey];
+
+    const groupPageSize = pageSize || 10;
+    const loadedWindow = groupLoadedCountsRef.current[groupPageKey(projectId, reportType, groupPageSize, sortDirection)] || 0;
+    if (knownTotal !== undefined && loadedWindow >= knownTotal) return;
+
+    const nextGroupPage = Math.floor(loadedWindow / groupPageSize) + 1;
+    const data = await fetchGroupPage({ projectId, reportType, page: nextGroupPage, pageSize: groupPageSize, sortDirection });
+    return !!data;
+  }
+
+  function hasMoreGroup(projectId: string, reportType: string, loadedCount: number) {
+    const groupKey = `${projectId}-${reportType}`;
+    const knownTotal = groupTotals[groupKey];
+    if (knownTotal !== undefined) return loadedCount < knownTotal;
+    return false;
+  }
+
+  function isGroupPageReady(projectId: string, reportType: string, pageSize = 10, sortDirection?: 'asc' | 'desc') {
+    const knownTotal = groupTotals[groupKey(projectId, reportType)];
+    const expectedCount = knownTotal === undefined ? pageSize : Math.min(knownTotal, pageSize);
+    return (groupLoadedCountsRef.current[groupPageKey(projectId, reportType, pageSize, sortDirection)] || 0) >= expectedCount;
+  }
+
+  function groupLoadedCount(projectId: string, reportType: string, pageSize = 10, sortDirection?: 'asc' | 'desc') {
+    return groupLoadedCountsRef.current[groupPageKey(projectId, reportType, pageSize, sortDirection)] || 0;
+  }
+
+  function isGroupLoading(projectId: string, reportType: string) {
+    return groupLoadingKeys.includes(`${projectId}-${reportType}`);
+  }
+
+  function isGroupError(projectId: string, reportType: string) {
+    return groupErrorKeys.includes(`${projectId}-${reportType}`);
+  }
+
+  function groupTotal(projectId: string, reportType: string) {
+    return groupTotals[`${projectId}-${reportType}`];
+  }
+
+  function projectTypeTotals(projectId: string): ReportGroupTotalEntry[] {
+    const prefix = `${projectId}-`;
+    return Object.entries(groupTotals)
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([key, total]) => ({ reportType: key.slice(prefix.length), total }))
+      .sort((a, b) => a.reportType.localeCompare(b.reportType));
+  }
+
+  return {
+    ...query,
+    items,
+    pagination,
+    hasMore: hasMoreProjects,
+    loadMore,
+    loadMoreGroup,
+    ensureGroupPage,
+    hasMoreGroup,
+    isGroupPageReady,
+    groupLoadedCount,
+    isGroupLoading,
+    isGroupError,
+    groupTotal,
+    projectTypeTotals,
+    isLoadingInitial: query.isLoading && items.length === 0,
+    isLoadingMore: query.isFetching && items.length > 0
+  };
 }
 
 export function useReport(reportId: string, enabled = true) {
@@ -34,20 +306,28 @@ export function useReport(reportId: string, enabled = true) {
   });
 }
 
+function isPaginatedReports(value: ReportSummary[] | PaginatedReports | undefined): value is PaginatedReports {
+  return !!value && !Array.isArray(value) && Array.isArray(value.items) && !!value.pagination;
+}
+
 function updateReportCaches(
   queryClient: ReturnType<typeof useQueryClient>,
   report: ReportSummary
 ) {
   queryClient.setQueryData(['report', report.id], report);
-  queryClient.setQueriesData<ReportSummary[]>({ queryKey: ['reports'] }, current => {
-    if (!current?.length) return current;
+  queryClient.setQueriesData<ReportSummary[] | PaginatedReports>({ queryKey: ['reports'] }, current => {
+    const list = Array.isArray(current) ? current : isPaginatedReports(current) ? current.items : undefined;
+    if (!list?.length) return current;
     let found = false;
-    const next = current.map(item => {
+    const nextItems = list.map(item => {
       if (item.id !== report.id) return item;
       found = true;
       return report;
     });
-    return found ? next : current;
+    if (!found) return current;
+    if (Array.isArray(current)) return nextItems;
+    if (!isPaginatedReports(current)) return current;
+    return { ...current, items: nextItems };
   });
 }
 
@@ -56,9 +336,24 @@ function removeReportFromCaches(
   reportId: string
 ) {
   queryClient.removeQueries({ queryKey: ['report', reportId] });
-  queryClient.setQueriesData<ReportSummary[]>({ queryKey: ['reports'] }, current => (
-    current?.filter(report => report.id !== reportId) ?? current
-  ));
+  queryClient.setQueriesData<ReportSummary[] | PaginatedReports>({ queryKey: ['reports'] }, current => {
+    const list = Array.isArray(current) ? current : isPaginatedReports(current) ? current.items : undefined;
+    if (!list?.length) return current;
+    const nextItems = list.filter(report => report.id !== reportId);
+    if (nextItems.length === list.length) return current;
+    if (Array.isArray(current)) return nextItems;
+    if (!isPaginatedReports(current)) return current;
+    const total = Math.max(0, current.pagination.total - 1);
+    return {
+      ...current,
+      items: nextItems,
+      pagination: {
+        ...current.pagination,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / current.pagination.pageSize))
+      }
+    };
+  });
 }
 
 export function useReportAudit(reportId: string, enabled = true) {
@@ -76,6 +371,7 @@ export function useReportMutations() {
     onSuccess: report => {
       queryClient.setQueryData(['report', report.id], report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
     }
   });
 
@@ -83,6 +379,7 @@ export function useReportMutations() {
     mutationFn: (payload: ServiceOnlyReportPayload) => createServiceOnlyReports(payload),
     onSuccess: reports => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       reports.forEach(report => queryClient.invalidateQueries({ queryKey: ['report', report.id] }));
     }
   });
@@ -93,6 +390,7 @@ export function useReportMutations() {
     onSuccess: report => {
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
   });
@@ -103,6 +401,7 @@ export function useReportMutations() {
     onSuccess: report => {
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
   });
@@ -127,6 +426,7 @@ export function useReportMutations() {
     onSuccess: data => {
       updateReportCaches(queryClient, data.report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', data.report.id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.reportAudit(data.report.id) });
     }
@@ -143,6 +443,7 @@ export function useReportMutations() {
     onSuccess: report => {
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
   });
@@ -152,6 +453,7 @@ export function useReportMutations() {
     onSuccess: (_data, reportId) => {
       removeReportFromCaches(queryClient, reportId);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
     }
   });
 
@@ -161,6 +463,7 @@ export function useReportMutations() {
     onSuccess: report => {
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
   });

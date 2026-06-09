@@ -36,14 +36,15 @@ Exit code: $exit_code"
 
 trap notify_failure ERR
 
-PROJECT_DIR="${PROJECT_DIR:-/home/ubuntu/apps/RDOAPP}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="${PROJECT_DIR:-$(dirname "$SCRIPT_DIR")}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
 POSTGRES_SERVICE="${POSTGRES_SERVICE:-postgres}"
 POSTGRES_DB="${POSTGRES_DB:-filtrovali}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
 REPORTS_VOLUME="${REPORTS_VOLUME:-filtrovali_relatorios}"
 CERTS_VOLUME="${CERTS_VOLUME:-filtrovali_certs}"
-BACKUP_ROOT="${BACKUP_ROOT:-/home/ubuntu/backups/filtrovali}"
+BACKUP_ROOT="${BACKUP_ROOT:-/root/backups/filtrovali}"
 INCLUDE_CERTS="${INCLUDE_CERTS:-true}"
 INCLUDE_REPORTS="${INCLUDE_REPORTS:-true}"
 AWS_S3_URI="${AWS_S3_URI:-}"

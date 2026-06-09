@@ -14,7 +14,10 @@ export function useManometerMutations() {
   const queryClient = useQueryClient();
 
   function invalidateManometers() {
-    return queryClient.invalidateQueries({ queryKey: queryKeys.manometers });
+    return Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.manometers }),
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] })
+    ]);
   }
 
   const createMutation = useMutation({

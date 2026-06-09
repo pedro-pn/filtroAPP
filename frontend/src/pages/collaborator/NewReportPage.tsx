@@ -10,14 +10,9 @@ import { ServiceCollaboratorsBlock, ServiceFields, serviceTypeLabels } from '../
 import { Modal } from '../../components/ui/Modal';
 import { UploadField } from '../../components/ui/UploadField';
 import { useToast } from '../../components/ui/Toast';
-import { useCollaborators } from '../../hooks/useCollaborators';
-import { useCounters } from '../../hooks/useCounters';
+import { useNewReportBootstrap } from '../../hooks/useBootstrap';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
-import { useInhibitionOptions } from '../../hooks/useInhibitionOptions';
-import { useManometers } from '../../hooks/useManometers';
-import { useProjects } from '../../hooks/useProjects';
 import { useReportMutations } from '../../hooks/useReports';
-import { useUnits } from '../../hooks/useUnits';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
@@ -168,14 +163,9 @@ function serviceDisambiguatorParts(service: ReportServiceSummary) {
 export function NewReportPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const projectsQuery = useProjects(true);
-  const collaboratorsQuery = useCollaborators();
-  const unitsQuery = useUnits();
-  const manometersQuery = useManometers();
-  const countersQuery = useCounters();
-  const inhibitionOptionsQuery = useInhibitionOptions();
+  const bootstrapQuery = useNewReportBootstrap();
   const reportMutations = useReportMutations();
-  const draftsQuery = useDrafts();
+  const draftsQuery = useDrafts(bootstrapQuery.data?.drafts, bootstrapQuery.isError);
   const draftMutations = useDraftMutations();
   const createDraftAsync = draftMutations.createDraft.mutateAsync;
   const updateDraftAsync = draftMutations.updateDraft.mutateAsync;
@@ -229,10 +219,10 @@ export function NewReportPage() {
   const effectiveServiceOnly = canCreateServiceOnly && serviceOnly;
   const steps = effectiveServiceOnly ? serviceOnlySteps : rdoSteps;
 
-  const projects = useMemo(() => sortProjects(projectsQuery.data || [], 'asc'), [projectsQuery.data]);
-  const collaborators = (collaboratorsQuery.data || []).filter(item => item.isActive);
-  const units = unitsQuery.data || [];
-  const manometers = manometersQuery.data || [];
+  const projects = useMemo(() => sortProjects(bootstrapQuery.data?.projects || [], 'asc'), [bootstrapQuery.data?.projects]);
+  const collaborators = (bootstrapQuery.data?.collaborators || []).filter(item => item.isActive);
+  const units = bootstrapQuery.data?.units || [];
+  const manometers = bootstrapQuery.data?.manometers || [];
   const serviceCollaboratorOptions = useMemo(() => {
     const ids = Array.from(new Set([...collaboratorIds, ...nightCollaboratorIds]));
     return ids
@@ -249,8 +239,8 @@ export function NewReportPage() {
   const previousServiceCollaboratorOptionIdsRef = useRef<string[]>([]);
 
   const selectedProject = useMemo(
-    () => (projectsQuery.data || []).find(project => project.id === projectId) || null,
-    [projectId, projectsQuery.data]
+    () => (bootstrapQuery.data?.projects || []).find(project => project.id === projectId) || null,
+    [projectId, bootstrapQuery.data?.projects]
   );
   const selectedProjectHasLeader = Boolean(selectedProject?.operatorId || selectedProject?.operator);
   const showProjectWithoutLeaderWarning = canCreateReportWithoutLeader && Boolean(selectedProject) && !selectedProjectHasLeader;
@@ -1487,8 +1477,8 @@ export function NewReportPage() {
                       onChange={update => updateService(service.id, update)}
                       units={units}
                       manometers={manometers}
-                      counters={countersQuery.data || []}
-                      inhibitionOptions={inhibitionOptionsQuery.data}
+                      counters={bootstrapQuery.data?.counters || []}
+                      inhibitionOptions={bootstrapQuery.data?.inhibitionOptions}
                       collaboratorOptions={serviceCollaboratorOptions}
                       groupKey={service.id}
                       projectId={projectId}

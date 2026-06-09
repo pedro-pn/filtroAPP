@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { downloadReportPdf } from '../../api/reports';
@@ -11,7 +11,7 @@ import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { useToast } from '../../components/ui/Toast';
 import { useProjects } from '../../hooks/useProjects';
-import { useReports } from '../../hooks/useReports';
+import { useAccumulatedReportsPage, useReportsPage } from '../../hooks/useReports';
 import { useSurveys } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
 import { MonthlyAllocationDashboardOverlay, StatsDashboardOverlay, StatsOverview } from '../../components/stats/StatsDashboard';
@@ -26,6 +26,8 @@ import { matchesSearch, projectSearchParts, reportSearchParts } from '../../util
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
 type CoordinatorTab = 'pending' | 'approved' | 'archived' | 'nps' | 'estatisticas';
+const REPORT_PAGE_SIZE = 50;
+const REPORT_TYPE_PAGE_SIZE = 10;
 
 const TEXT = {
   archived: 'Arquivados',
@@ -123,42 +125,60 @@ export function CoordinatorPage() {
   const [allocationDashboardOpen, setAllocationDashboardOpen] = useState(false);
   const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>([]);
   const [closedArchivedTypeKeys, setClosedArchivedTypeKeys] = useState<string[]>([]);
+  const [archivedVisibleByType, setArchivedVisibleByType] = useState<Record<string, number>>({});
   const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, ProjectSortDirection>>({});
   const showToast = useToast();
-  const reportsQuery = useReports();
+  const reportFilters = {
+    summary: true,
+    statuses: tab === 'pending' ? ['PENDING', 'RETURNED'] : ['APPROVED', 'SIGNED'],
+    projectActive: tab !== 'archived',
+    ...(tab === 'pending' ? { createdByUserId: user?.id || '' } : {}),
+    search,
+    projectSort: projectSortDir,
+    pageSize: REPORT_PAGE_SIZE
+  };
+  const reportsQuery = useAccumulatedReportsPage(reportFilters);
+  const pendingCountQuery = useReportsPage({
+    summary: true,
+    statuses: ['PENDING', 'RETURNED'],
+    projectActive: true,
+    createdByUserId: user?.id || '',
+    page: 1,
+    pageSize: 1
+  });
   const archivedProjectsQuery = useProjects(false);
   const surveysQuery = useSurveys();
 
-  const pendingReports = useMemo(
-    () =>
-      (reportsQuery.data || []).filter(
-        report => report.createdByUserId === user?.id && (report.status === 'PENDING' || report.status === 'RETURNED')
-      ),
-    [reportsQuery.data, user?.id]
-  );
+  const visibleReports = reportsQuery.items;
+  const reportPagination = reportsQuery.pagination;
+  const pendingReportCount = tab === 'pending'
+    ? reportPagination?.total ?? visibleReports.length
+    : pendingCountQuery.data?.pagination.total ?? 0;
 
-  const approvedReports = useMemo(
-    () =>
-      (reportsQuery.data || []).filter(
-        report =>
-          (report.status === 'APPROVED' || report.status === 'SIGNED') && report.project?.isActive !== false
-      ),
-    [reportsQuery.data]
-  );
-
-  const archivedReports = useMemo(
-    () =>
-      (reportsQuery.data || []).filter(
-        report =>
-          (report.status === 'APPROVED' || report.status === 'SIGNED') && report.project?.isActive === false
-      ),
-    [reportsQuery.data]
-  );
-
-  const visibleReports = useMemo(() => {
-    const sourceReports = tab === 'pending' ? pendingReports : tab === 'archived' ? archivedReports : approvedReports;
-    return sourceReports.filter(report => matchesSearch(reportSearchParts(report), search));
-  }, [approvedReports, archivedReports, pendingReports, search, tab]);
+  useEffect(() => {
+    if (tab !== 'archived') return;
+    const archivedProjects = (archivedProjectsQuery.data || []).filter(project => project.isActive === false);
+    archivedProjects.forEach(project => {
+      if (closedArchivedProjectIds.includes(project.id)) return;
+      reportsQuery.projectTypeTotals(project.id).forEach(typeTotal => {
+        const typeKey = `${project.id}-${typeTotal.reportType}`;
+        if (closedArchivedTypeKeys.includes(typeKey)) return;
+        void reportsQuery.ensureGroupPage({
+          projectId: project.id,
+          reportType: typeTotal.reportType,
+          pageSize: REPORT_TYPE_PAGE_SIZE,
+          sortDirection: archivedTypeSortDirections[typeKey] || 'asc'
+        });
+      });
+    });
+  }, [
+    archivedProjectsQuery.data,
+    archivedTypeSortDirections,
+    closedArchivedProjectIds,
+    closedArchivedTypeKeys,
+    reportsQuery,
+    tab
+  ]);
 
   async function handleLogout() {
     await logout();
@@ -200,6 +220,41 @@ export function CoordinatorPage() {
     }));
   }
 
+  function visibleArchivedTypeLimit(typeKey: string) {
+    return archivedVisibleByType[typeKey] || REPORT_TYPE_PAGE_SIZE;
+  }
+
+  function revealMoreArchivedType(typeKey: string, total: number) {
+    setArchivedVisibleByType(current => ({
+      ...current,
+      [typeKey]: Math.min(total, (current[typeKey] || REPORT_TYPE_PAGE_SIZE) + REPORT_TYPE_PAGE_SIZE)
+    }));
+  }
+
+  async function handleLoadMoreArchivedType(
+    projectId: string,
+    reportType: string,
+    typeKey: string,
+    loadedCount: number,
+    hasLoadedItemsToReveal: boolean,
+    sortDirection: ProjectSortDirection
+  ) {
+    if (!hasLoadedItemsToReveal) {
+      const loaded = await reportsQuery.loadMoreGroup({
+        projectId,
+        reportType,
+        loadedCount,
+        pageSize: REPORT_TYPE_PAGE_SIZE,
+        sortDirection
+      });
+      if (loaded === false) return;
+    }
+    setArchivedVisibleByType(current => ({
+      ...current,
+      [typeKey]: (current[typeKey] || REPORT_TYPE_PAGE_SIZE) + REPORT_TYPE_PAGE_SIZE
+    }));
+  }
+
   function renderReportActions(report: ReportSummary) {
     return (
       <button className="secondary-button" type="button" onClick={() => void handleDownloadPdf(report)}>
@@ -216,6 +271,15 @@ export function CoordinatorPage() {
         sortDirection={projectSortDir}
         showTypeSort
         storageKey={`coordinator-report-groups:${user?.id || user?.username || 'anonymous'}:${tab}`}
+        onLoadMoreType={reportsQuery.loadMoreGroup}
+        onEnsureTypePage={reportsQuery.ensureGroupPage}
+        isTypePageReady={reportsQuery.isGroupPageReady}
+        getTypeLoadedCount={reportsQuery.groupLoadedCount}
+        hasMoreType={reportsQuery.hasMoreGroup}
+        isTypeLoading={reportsQuery.isGroupLoading}
+        isTypePageErrored={reportsQuery.isGroupError}
+        getTypeTotal={reportsQuery.groupTotal}
+        getProjectTypeTotals={reportsQuery.projectTypeTotals}
         renderReport={report => (
           <ReportSummaryCard key={report.id} report={report} actions={renderReportActions(report)} />
         )}
@@ -229,6 +293,9 @@ export function CoordinatorPage() {
       acc[report.reportType].push(report);
       return acc;
     }, {});
+    reportsQuery.projectTypeTotals(projectId).forEach(typeTotal => {
+      if (!byType[typeTotal.reportType]) byType[typeTotal.reportType] = [];
+    });
 
     return Object.entries(byType)
       .sort(([a], [b]) => compareReportTypes(a, b))
@@ -236,6 +303,24 @@ export function CoordinatorPage() {
         const typeKey = `${projectId}-${reportType}`;
         const typeClosed = closedArchivedTypeKeys.includes(typeKey);
         const typeSortDirection = archivedTypeSortDirections[typeKey] || 'asc';
+        const sortedReports = sortReportsInGroup(typeReports, typeSortDirection);
+        const visibleLimit = visibleArchivedTypeLimit(typeKey);
+        const totalReports = reportsQuery.groupTotal(projectId, reportType) ?? typeReports.length;
+        const typeErrored = reportsQuery.isGroupError(projectId, reportType);
+        const orderedLoadedCount = Math.min(
+          reportsQuery.groupLoadedCount(projectId, reportType, REPORT_TYPE_PAGE_SIZE, typeSortDirection),
+          totalReports
+        );
+        const needsOrderedPage = totalReports > 0
+          && !typeErrored
+          && !reportsQuery.isGroupPageReady(projectId, reportType, REPORT_TYPE_PAGE_SIZE, typeSortDirection);
+        const orderedReports = sortedReports.slice(0, orderedLoadedCount);
+        const visibleReports = needsOrderedPage ? [] : orderedReports.slice(0, visibleLimit);
+        const hasLoadedItemsToReveal = !needsOrderedPage && visibleReports.length < orderedReports.length;
+        const hasRemoteItemsToLoad = !needsOrderedPage
+          && !hasLoadedItemsToReveal
+          && orderedLoadedCount < totalReports;
+        const typeLoading = reportsQuery.isGroupLoading(projectId, reportType);
 
         return (
           <div className="report-type-group" key={typeKey}>
@@ -253,7 +338,7 @@ export function CoordinatorPage() {
             >
               <span className={`rtype-badge rtype-${reportType}`}>{reportType}</span>
               <span className="rtype-count">
-                {typeReports.length} relatório{typeReports.length !== 1 ? 's' : ''}
+                {visibleReports.length} de {totalReports} relatório{totalReports !== 1 ? 's' : ''}
               </span>
               <span onClick={event => event.stopPropagation()}>
                 <ProjectSortButton direction={typeSortDirection} onToggle={() => toggleArchivedTypeSort(typeKey)} />
@@ -261,11 +346,39 @@ export function CoordinatorPage() {
               <span className="rtype-chevron">{typeClosed ? '▸' : '▾'}</span>
             </div>
             {!typeClosed ? (
-              <div className="report-type-list">
-                {sortReportsInGroup(typeReports, typeSortDirection).map(report => (
-                  <ReportSummaryCard key={report.id} report={report} actions={renderReportActions(report)} />
-                ))}
-              </div>
+              <>
+                {visibleReports.length ? (
+                  <div className="report-type-list">
+                    {visibleReports.map(report => (
+                      <ReportSummaryCard key={report.id} report={report} actions={renderReportActions(report)} />
+                    ))}
+                  </div>
+                ) : null}
+                {needsOrderedPage ? (
+                  <div className="placeholder-copy">Carregando relatórios...</div>
+                ) : null}
+                {typeErrored ? (
+                  <div className="placeholder-copy">Não foi possível carregar os relatórios desta aba.</div>
+                ) : null}
+                {hasLoadedItemsToReveal || hasRemoteItemsToLoad ? (
+                  <div className="admin-create-toolbar report-type-load-more">
+                    <button
+                      className="mini-btn"
+                      type="button"
+                      disabled={typeLoading}
+                      onClick={() => {
+                        if (hasLoadedItemsToReveal) {
+                          revealMoreArchivedType(typeKey, sortedReports.length);
+                          return;
+                        }
+                        void handleLoadMoreArchivedType(projectId, reportType, typeKey, sortedReports.length, hasLoadedItemsToReveal, typeSortDirection);
+                      }}
+                    >
+                      {typeLoading ? 'Carregando...' : typeErrored ? 'Tentar novamente' : 'Carregar mais'}
+                    </button>
+                  </div>
+                ) : null}
+              </>
             ) : null}
           </div>
         );
@@ -333,7 +446,7 @@ export function CoordinatorPage() {
 
     const projectCards = sortProjects(archivedProjects, projectSortDir)
       .map(project => {
-        const projectReports = archivedReports.filter(report => report.projectId === project.id);
+        const projectReports = visibleReports.filter(report => report.projectId === project.id);
         const projectMatches = matchesSearch(projectSearchParts(project), search);
         const filteredReports = projectMatches
           ? projectReports
@@ -364,6 +477,7 @@ export function CoordinatorPage() {
             {search.trim() ? 'Nenhum projeto arquivado encontrado.' : TEXT.noArchived}
           </p>
         )}
+        {renderLoadMoreReports()}
       </section>
     );
   }
@@ -386,6 +500,22 @@ export function CoordinatorPage() {
         </div>
         <StatsOverview />
       </>
+    );
+  }
+
+  function renderLoadMoreReports() {
+    if (!reportsQuery.hasMore && !reportsQuery.isLoadingMore) return null;
+    return (
+      <div className="admin-create-toolbar">
+        <button
+          className="mini-btn"
+          type="button"
+          disabled={reportsQuery.isLoadingMore}
+          onClick={reportsQuery.loadMore}
+        >
+          {reportsQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
+        </button>
+      </div>
     );
   }
 
@@ -415,6 +545,7 @@ export function CoordinatorPage() {
           </div>
         ) : null}
         {renderReportGroups()}
+        {renderLoadMoreReports()}
       </>
     );
   }
@@ -567,7 +698,7 @@ export function CoordinatorPage() {
         <div className="nav-tabs" role="tablist" aria-label="Seções do coordenador" onKeyDown={handleHorizontalTabListKeyDown}>
           <button className={`nav-tab ${tab === 'pending' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'pending'} onClick={() => setTab('pending')}>
             {TEXT.pending}
-            <span className="nav-tab-count">{pendingReports.length}</span>
+            <span className="nav-tab-count">{pendingReportCount}</span>
           </button>
           <button className={`nav-tab ${tab === 'approved' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'approved'} onClick={() => setTab('approved')}>
             {TEXT.approved}

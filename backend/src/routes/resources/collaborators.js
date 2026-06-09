@@ -4,6 +4,7 @@ import { z } from 'zod';
 import asyncHandler from '../../lib/async-handler.js';
 import prisma from '../../lib/prisma.js';
 import { COLLABORATOR_SIGNATURE_NOTICE_VERSION } from '../../lib/privacy-consent.js';
+import { collaboratorsCache } from '../../lib/resource-list-cache.js';
 import { ensureCollaboratorSignatureDataUrl, isSignatureDataUrl, normalizeSignatureValue } from '../../lib/signature-image.js';
 import { requireAuth, requireInternalUser, requireManager } from '../../middleware/auth.js';
 
@@ -107,11 +108,14 @@ async function normalizeCollaboratorInput(data) {
 }
 
 router.get('/', requireInternalUser, asyncHandler(async (_req, res) => {
-  const items = await prisma.collaborator.findMany({ orderBy: { name: 'asc' } });
-  const normalized = [];
-  for (const item of items) {
-    normalized.push(await ensureCollaboratorSignatureDataUrl(prisma, item));
-  }
+  const normalized = await collaboratorsCache.get(async () => {
+    const items = await prisma.collaborator.findMany({ orderBy: { name: 'asc' } });
+    const result = [];
+    for (const item of items) {
+      result.push(await ensureCollaboratorSignatureDataUrl(prisma, item));
+    }
+    return result;
+  });
   res.json(normalized);
 }));
 
@@ -141,6 +145,7 @@ router.post('/', requireManager, asyncHandler(async (req, res) => {
       }
       return updated;
     });
+    collaboratorsCache.clear();
     return res.status(200).json(item);
   }
   const item = await prisma.$transaction(async tx => {
@@ -156,6 +161,7 @@ router.post('/', requireManager, asyncHandler(async (req, res) => {
     }
     return created;
   });
+  collaboratorsCache.clear();
   res.status(201).json(item);
 }));
 
@@ -176,11 +182,13 @@ router.put('/:id', requireManager, asyncHandler(async (req, res) => {
     }
     return updated;
   });
+  collaboratorsCache.clear();
   res.json(item);
 }));
 
 router.delete('/:id', requireManager, asyncHandler(async (req, res) => {
   await prisma.collaborator.update({ where: { id: req.params.id }, data: { isActive: false } });
+  collaboratorsCache.clear();
   res.status(204).end();
 }));
 

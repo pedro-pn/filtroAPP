@@ -23,7 +23,8 @@ export function useUnitMutations() {
   function invalidateUnits() {
     return Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.units }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.unitCategories })
+      queryClient.invalidateQueries({ queryKey: queryKeys.unitCategories }),
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] })
     ]);
   }
 
