@@ -746,6 +746,60 @@ test('POST report creation requires an active target project before reserving se
   assert.deepEqual(calls[0][1].where, { id: 'deleted-project', deletedAt: null });
 });
 
+test('POST report creation rejects duplicate project report date before reserving sequence', async t => {
+  stubAuthenticatedManager(t);
+  const originals = {
+    transaction: prisma.$transaction
+  };
+  const calls = [];
+  prisma.$transaction = async callback => callback({
+    project: {
+      findFirstOrThrow: async args => {
+        calls.push(['project.findFirstOrThrow', args]);
+        return {
+          id: 'project-1',
+          deletedAt: null,
+          managerOnly: false,
+          operator: null,
+          authorizedUsers: []
+        };
+      }
+    },
+    report: {
+      findFirst: async args => {
+        calls.push(['report.findFirst', args]);
+        return { id: 'existing-rdo' };
+      },
+      create: async args => {
+        calls.push(['report.create', args]);
+        throw new Error('report creation should not run for a duplicate date');
+      }
+    },
+    projectReportSeq: {
+      upsert: async args => {
+        calls.push(['projectReportSeq.upsert', args]);
+        throw new Error('sequence reservation should not run for a duplicate date');
+      }
+    }
+  });
+  t.after(() => {
+    prisma.$transaction = originals.transaction;
+  });
+
+  const response = await dispatchApp('POST', '/api/reports', reportPayload({
+    projectId: 'project-1',
+    reportDate: '2026-05-20'
+  }));
+
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.json, { error: 'Já existe um relatório deste projeto para esta data.' });
+  assert.deepEqual(calls.map(([name]) => name), ['project.findFirstOrThrow', 'report.findFirst']);
+  assert.equal(calls[1][1].where.projectId, 'project-1');
+  assert.equal(calls[1][1].where.reportType, ReportType.RDO);
+  assert.equal(calls[1][1].where.reportDate.gte.toISOString(), '2026-05-20T00:00:00.000Z');
+  assert.equal(calls[1][1].where.reportDate.lt.toISOString(), '2026-05-21T00:00:00.000Z');
+});
+
 test('POST service-only report creation requires an active target project', async t => {
   stubAuthenticatedManager(t);
   const originals = {

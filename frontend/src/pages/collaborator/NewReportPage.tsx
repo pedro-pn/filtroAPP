@@ -40,6 +40,8 @@ const TEXT = {
   photos: 'Fotos de registro',
   projectTimeRequired: 'Preencha projeto, data e horários antes de enviar.',
   projectWithoutLeader: 'Este projeto não possui líder cadastrado. O relatório ficará sem assinatura do líder.',
+  duplicateReportDate: 'Já existe um RDO deste projeto para esta data. Escolha outra data para continuar.',
+  duplicateReportDateChecking: 'Verificando se já existe RDO para esta data...',
   remove: 'Remover',
   select: 'Selecione',
   service: 'Serviço',
@@ -303,6 +305,20 @@ export function NewReportPage() {
     );
   }, [lastProjectReportQuery.data, projectId, reportDate]);
   const lastReport = projectReports[0] || null;
+  const duplicateReportForDate = useMemo(() => {
+    if (effectiveServiceOnly || !projectId || !reportDate) return null;
+    const selectedDate = reportDate.slice(0, 10);
+    return (lastProjectReportQuery.data || []).find(report => (
+      report.reportType === 'RDO'
+      && report.projectId === projectId
+      && !report.deletedAt
+      && String(report.reportDate || '').slice(0, 10) === selectedDate
+    )) || null;
+  }, [effectiveServiceOnly, lastProjectReportQuery.data, projectId, reportDate]);
+  const isCheckingDuplicateReportDate = !effectiveServiceOnly
+    && !!projectId
+    && !!reportDate
+    && lastProjectReportQuery.isLoading;
 
   const serviceFinalized = useCallback((service: ReportServiceSummary) => {
     if (typeof service.finalized === 'boolean') return service.finalized;
@@ -666,9 +682,13 @@ export function NewReportPage() {
   }
 
   function failRequired(label: string, target: string, targetStep: number) {
+    return failValidation(`Preencha o campo obrigatório: ${label}.`, target, targetStep);
+  }
+
+  function failValidation(message: string, target: string, targetStep: number) {
     setStep(targetStep);
     setInvalidTarget(target);
-    showToast(`Preencha o campo obrigatório: ${label}.`, 'error');
+    showToast(message, 'error');
     window.setTimeout(() => {
       const [serviceId] = target.split(':');
       const selectors = target.includes(':')
@@ -732,6 +752,8 @@ export function NewReportPage() {
   function validateHeader() {
     if (!projectId) return failRequired('Projeto', 'header:projectId', 0);
     if (!reportDate) return failRequired('Data do relatório', 'header:reportDate', 0);
+    if (isCheckingDuplicateReportDate) return failValidation(TEXT.duplicateReportDateChecking, 'header:reportDate', 0);
+    if (duplicateReportForDate) return failValidation(TEXT.duplicateReportDate, 'header:reportDate', 0);
     if (effectiveServiceOnly) {
       if (!collaboratorIds.length) return failRequired('Colaboradores', 'header:collaborators', 0);
       return true;
@@ -1181,6 +1203,15 @@ export function NewReportPage() {
                 onChange={event => setHeaderField('reportDate', event.target.value)}
                 required
               />
+              {isCheckingDuplicateReportDate ? (
+                <div className="form-hint" role="status">
+                  {TEXT.duplicateReportDateChecking}
+                </div>
+              ) : duplicateReportForDate ? (
+                <div className="form-hint" role="alert">
+                  {TEXT.duplicateReportDate}
+                </div>
+              ) : null}
             </div>
           </div>
         </section>

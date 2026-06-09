@@ -2902,6 +2902,49 @@ export const requestSignatureSchema = z.object({
   const error = validatePrivacyNoticeAcknowledgement(data, SIGNATURE_RDO_NOTICE_VERSION);
   if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['privacyNoticeVersion'], message: error });
 });
+
+function reportDateDayRange(reportDate) {
+  const raw = String(reportDate || '').trim();
+  const parsed = /^\d{4}-\d{2}-\d{2}/.test(raw) ? null : new Date(raw);
+  if (parsed && Number.isNaN(parsed.getTime())) {
+    const error = new Error('Data do relatório inválida.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const day = parsed ? parsed.toISOString().slice(0, 10) : raw.slice(0, 10);
+  const start = new Date(`${day}T00:00:00.000Z`);
+  if (Number.isNaN(start.getTime())) {
+    const error = new Error('Data do relatório inválida.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start, end };
+}
+
+async function assertUniqueReportDate(tx, { projectId, reportType, reportDate, excludeReportId }) {
+  const { start, end } = reportDateDayRange(reportDate);
+  const duplicate = await tx.report.findFirst({
+    where: {
+      projectId,
+      reportType,
+      deletedAt: null,
+      reportDate: {
+        gte: start,
+        lt: end
+      },
+      ...(excludeReportId ? { id: { not: excludeReportId } } : {})
+    },
+    select: {
+      id: true
+    }
+  });
+  if (!duplicate) return;
+  const error = new Error('Já existe um relatório deste projeto para esta data.');
+  error.statusCode = 409;
+  throw error;
+}
 export const publicSignatureConfirmSchema = z.object({
   signatureId: z.string().trim().min(1).optional(),
   signerName: z.string().trim().min(2).max(160),
@@ -5662,6 +5705,11 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
       error.statusCode = 403;
       throw error;
     }
+    await assertUniqueReportDate(tx, {
+      projectId: data.projectId,
+      reportType: data.reportType,
+      reportDate: data.reportDate
+    });
     await assertApprovedReportSignatureEmailPreflight({
       reportType: data.reportType,
       status: reportStatus,
@@ -5822,6 +5870,12 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
       include: { operator: true, authorizedUsers: true }
     });
     assertProjectAllowsInhibition(project, data.services);
+    await assertUniqueReportDate(tx, {
+      projectId: data.projectId,
+      reportType: data.reportType,
+      reportDate: data.reportDate,
+      excludeReportId: existing.id
+    });
     const overtime = calculateReportOvertime(project, data);
     const leaderSnapshot = projectLeaderSnapshot(project);
     const serviceOnlySpecialConditions = isServiceOnlyReport
