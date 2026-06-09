@@ -27,6 +27,8 @@ import {
   persistClientSignatureApprovalReview,
   rejectAuthenticatedClientSignatureRound,
   rejectPublicInternalSignature,
+  addedRequiredClientSigners,
+  removedPendingRequiredClientSignatureIds,
   resetSignedSignatureForFinalizationRetry,
   shouldCreateInternalSignatureRound,
   verifiedSourcePdfBuffer,
@@ -1044,6 +1046,98 @@ test('approved RDO without client signers does not require an internal signature
 
   assert.deepEqual(clientSignersForReport(report), []);
   assert.equal(shouldCreateInternalSignatureRound(report), false);
+});
+
+test('removedPendingRequiredClientSignatureIds invalidates all pending signatures when project signer changes completely', () => {
+  const report = {
+    project: {
+      clientName: 'Cliente',
+      clientEmailPrimary: 'novo@example.com',
+      clientSigners: []
+    }
+  };
+  const version = {
+    signatures: [{
+      id: 'old-signature',
+      signerEmail: 'antigo@example.com',
+      status: 'PENDING',
+      isRequired: true
+    }]
+  };
+
+  assert.deepEqual(removedPendingRequiredClientSignatureIds(report, version), ['old-signature']);
+});
+
+test('addedRequiredClientSigners returns project signers missing a live signature in the round', () => {
+  const report = {
+    project: {
+      clientName: 'Cliente',
+      clientEmailPrimary: 'principal@example.com',
+      clientSigners: [{ name: 'Fiscal', email: 'fiscal@example.com' }]
+    }
+  };
+  const version = {
+    signatures: [
+      { id: 'sig-principal', signerEmail: 'principal@example.com', status: 'PENDING', isRequired: true }
+    ]
+  };
+
+  assert.deepEqual(addedRequiredClientSigners(report, version).map(signer => signer.email), ['fiscal@example.com']);
+});
+
+test('addedRequiredClientSigners ignores signers that already have a live (non-invalidated) signature', () => {
+  const report = {
+    project: {
+      clientName: 'Cliente',
+      clientEmailPrimary: 'principal@example.com',
+      clientSigners: []
+    }
+  };
+  const version = {
+    signatures: [
+      { id: 'sig-principal', signerEmail: 'principal@example.com', status: 'DONE', isRequired: true }
+    ]
+  };
+
+  assert.deepEqual(addedRequiredClientSigners(report, version), []);
+});
+
+test('addedRequiredClientSigners re-includes a signer whose previous signature was invalidated', () => {
+  const report = {
+    project: {
+      clientName: 'Cliente',
+      clientEmailPrimary: 'principal@example.com',
+      clientSigners: [{ name: 'Fiscal', email: 'fiscal@example.com' }]
+    }
+  };
+  const version = {
+    signatures: [
+      { id: 'sig-principal', signerEmail: 'principal@example.com', status: 'PENDING', isRequired: true },
+      { id: 'sig-fiscal', signerEmail: 'fiscal@example.com', status: 'INVALIDATED', isRequired: false }
+    ]
+  };
+
+  assert.deepEqual(addedRequiredClientSigners(report, version).map(signer => signer.email), ['fiscal@example.com']);
+});
+
+test('removedPendingRequiredClientSignatureIds invalidates expired signatures when project signer changes completely', () => {
+  const report = {
+    project: {
+      clientName: 'Cliente',
+      clientEmailPrimary: 'novo@example.com',
+      clientSigners: []
+    }
+  };
+  const version = {
+    signatures: [{
+      id: 'old-expired-signature',
+      signerEmail: 'antigo@example.com',
+      status: 'EXPIRED',
+      isRequired: true
+    }]
+  };
+
+  assert.deepEqual(removedPendingRequiredClientSignatureIds(report, version), ['old-expired-signature']);
 });
 
 test('publicSignatureStatus blocks links for deleted and manager-only projects but allows archived projects', () => {

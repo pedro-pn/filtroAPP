@@ -9,9 +9,14 @@ import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
+import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
 import { useProjects } from '../../hooks/useProjects';
 import { useAccumulatedReportsPage, useReportsPage } from '../../hooks/useReports';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { usePersistentSearch } from '../../hooks/usePersistentSearch';
+import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
+import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
 import { useSurveys } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
 import { MonthlyAllocationDashboardOverlay, StatsDashboardOverlay, StatsOverview } from '../../components/stats/StatsDashboard';
@@ -116,7 +121,10 @@ export function CoordinatorPage() {
   const { user, logout } = useAuth();
   const { reset } = useRdoStore();
   const [tab, setTab] = useState<CoordinatorTab>('pending');
-  const [search, setSearch] = useState('');
+  // Busca persistida por aba: ao voltar (de outra aba ou do detalhe), restaura o termo da aba.
+  const [search, setSearch] = usePersistentSearch(`coordinator-search:${user?.id || 'anonymous'}:${tab}`);
+  // Só o valor enviado às queries é adiado; a filtragem client-side segue instantânea.
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
   const [npsSortDir, setNpsSortDir] = useState<ProjectSortDirection>('asc');
   const [openSurveyId, setOpenSurveyId] = useState<string | null>(null);
@@ -133,7 +141,7 @@ export function CoordinatorPage() {
     statuses: ['PENDING', 'RETURNED'],
     projectActive: true,
     createdByUserId: user?.id || '',
-    search,
+    search: debouncedSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   };
@@ -141,7 +149,7 @@ export function CoordinatorPage() {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
     projectActive: true,
-    search,
+    search: debouncedSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   };
@@ -149,7 +157,7 @@ export function CoordinatorPage() {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
     projectActive: false,
-    search,
+    search: debouncedSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   };
@@ -161,6 +169,11 @@ export function CoordinatorPage() {
     : tab === 'archived'
       ? archivedReportsQuery
       : approvedReportsQuery;
+  const loadMoreReportsRef = useInfiniteScrollSentinel({
+    hasMore: reportsQuery.hasMore,
+    isLoading: reportsQuery.isLoadingMore,
+    onLoadMore: reportsQuery.loadMore
+  });
   const pendingCountQuery = useReportsPage({
     summary: true,
     statuses: ['PENDING', 'RETURNED'],
@@ -385,6 +398,17 @@ export function CoordinatorPage() {
                 ) : null}
                 {hasLoadedItemsToReveal || hasRemoteItemsToLoad ? (
                   <div className="admin-create-toolbar report-type-load-more">
+                    <InfiniteScrollSentinel
+                      hasMore={(hasLoadedItemsToReveal || hasRemoteItemsToLoad) && !typeErrored}
+                      isLoading={typeLoading}
+                      onLoadMore={() => {
+                        if (hasLoadedItemsToReveal) {
+                          revealMoreArchivedType(typeKey, sortedReports.length);
+                          return;
+                        }
+                        void handleLoadMoreArchivedType(projectId, reportType, typeKey, sortedReports.length, hasLoadedItemsToReveal, typeSortDirection);
+                      }}
+                    />
                     <button
                       className="mini-btn"
                       type="button"
@@ -527,18 +551,23 @@ export function CoordinatorPage() {
   }
 
   function renderLoadMoreReports() {
-    if (!reportsQuery.hasMore && !reportsQuery.isLoadingMore) return null;
+    const showButton = reportsQuery.hasMore || reportsQuery.isLoadingMore;
     return (
-      <div className="admin-create-toolbar">
-        <button
-          className="mini-btn"
-          type="button"
-          disabled={reportsQuery.isLoadingMore}
-          onClick={reportsQuery.loadMore}
-        >
-          {reportsQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
-        </button>
-      </div>
+      <>
+        <div ref={loadMoreReportsRef} aria-hidden="true" />
+        {showButton ? (
+          <div className="admin-create-toolbar">
+            <button
+              className="mini-btn"
+              type="button"
+              disabled={reportsQuery.isLoadingMore}
+              onClick={reportsQuery.loadMore}
+            >
+              {reportsQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
+            </button>
+          </div>
+        ) : null}
+      </>
     );
   }
 
@@ -547,7 +576,7 @@ export function CoordinatorPage() {
     if (tab === 'nps') return renderNpsTab();
     if (tab === 'estatisticas') return renderEstatisticasTab();
 
-    if (reportsQuery.isLoading) return <div className="page-card placeholder-copy">{TEXT.loading}</div>;
+    if (reportsQuery.isLoading) return <ReportListSkeleton />;
 
     return (
       <>

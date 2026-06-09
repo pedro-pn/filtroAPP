@@ -4,9 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
+import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useAccumulatedReportsPage } from '../../hooks/useReports';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
+import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { ProjectSortButton, type ProjectSortDirection } from '../../utils/projectSort';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
@@ -17,14 +21,16 @@ export function MyReportsPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [tab, setTab] = useState<MyReportsTab>('pending');
-  const [search, setSearch] = useState('');
+  // Busca persistida por aba: ao voltar (de outra aba ou do detalhe), restaura o termo da aba.
+  const [search, setSearch] = usePersistentSearch(`my-reports-search:${user?.id || user?.username || 'anonymous'}:${tab}`);
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
   const pendingReportsQuery = useAccumulatedReportsPage({
     mine: true,
     summary: true,
     projectActive: true,
     statuses: ['PENDING', 'RETURNED'],
-    search,
+    search: debouncedSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   }, tab === 'pending');
@@ -33,12 +39,17 @@ export function MyReportsPage() {
     summary: true,
     projectActive: true,
     statuses: ['APPROVED', 'SIGNED'],
-    search,
+    search: debouncedSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   }, tab === 'approved');
   const reportsQuery = tab === 'pending' ? pendingReportsQuery : approvedReportsQuery;
   const reports = reportsQuery.items;
+  const loadMoreRef = useInfiniteScrollSentinel({
+    hasMore: reportsQuery.hasMore,
+    isLoading: reportsQuery.isLoadingMore,
+    onLoadMore: reportsQuery.loadMore
+  });
 
   const groups = useMemo(() => {
     const sorted = [...reports].sort(
@@ -93,9 +104,7 @@ export function MyReportsPage() {
             />
           </div>
         </section>
-        {reportsQuery.isLoading ? (
-          <div className="page-card placeholder-copy">Carregando relatórios...</div>
-        ) : null}
+        {reportsQuery.isLoading ? <ReportListSkeleton /> : null}
         {!reportsQuery.isLoading && !groups.length ? (
           <div className="page-card placeholder-copy">
             {tab === 'pending' ? 'Nenhum relatório pendente encontrado.' : 'Nenhum relatório aprovado encontrado.'}
@@ -116,6 +125,7 @@ export function MyReportsPage() {
           getTypeTotal={reportsQuery.groupTotal}
           getProjectTypeTotals={reportsQuery.projectTypeTotals}
         />
+        <div ref={loadMoreRef} aria-hidden="true" />
         {reportsQuery.hasMore || reportsQuery.isLoadingMore ? (
           <div className="admin-create-toolbar">
             <button className="mini-btn" type="button" disabled={reportsQuery.isLoadingMore} onClick={reportsQuery.loadMore}>

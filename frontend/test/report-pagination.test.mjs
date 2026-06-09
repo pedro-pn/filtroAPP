@@ -43,3 +43,47 @@ test('empty first report page replaces accumulated reports', async () => {
 
   assert.equal(isFirstReportPageAlreadyCovered([{ id: 'old-report' }], [], 1), false);
 });
+
+test('covered first report page keeps accumulated reports but refreshes item data', async () => {
+  const { mergeCoveredFirstReportPage } = await loadReportHooks();
+
+  const merged = mergeCoveredFirstReportPage(
+    [
+      { id: 'report-1', status: 'APPROVED' },
+      { id: 'report-2', status: 'APPROVED' },
+      { id: 'report-3', status: 'APPROVED' }
+    ],
+    [
+      { id: 'report-1', status: 'SIGNED' },
+      { id: 'report-2', status: 'APPROVED' }
+    ],
+    1
+  );
+
+  assert.deepEqual(merged, [
+    { id: 'report-1', status: 'SIGNED' },
+    { id: 'report-2', status: 'APPROVED' },
+    { id: 'report-3', status: 'APPROVED' }
+  ]);
+});
+
+test('report page merge refreshes existing group items and appends new ones', async () => {
+  const { mergeReportItemsById } = await loadReportHooks();
+
+  const merged = mergeReportItemsById(
+    [
+      { id: 'report-1', status: 'APPROVED', signatures: 1 },
+      { id: 'report-2', status: 'APPROVED', signatures: 1 }
+    ],
+    [
+      { id: 'report-1', status: 'SIGNED', signatures: 2 },
+      { id: 'report-3', status: 'APPROVED', signatures: 1 }
+    ]
+  );
+
+  assert.deepEqual(merged, [
+    { id: 'report-1', status: 'SIGNED', signatures: 2 },
+    { id: 'report-2', status: 'APPROVED', signatures: 1 },
+    { id: 'report-3', status: 'APPROVED', signatures: 1 }
+  ]);
+});

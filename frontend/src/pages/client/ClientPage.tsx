@@ -15,6 +15,11 @@ import { SignatureDialog } from '../../components/reports/SignatureDialog';
 import { useToast } from '../../components/ui/Toast';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../../constants/privacy';
 import { useAccumulatedReportsPage, useReportMutations } from '../../hooks/useReports';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { usePersistentSearch } from '../../hooks/usePersistentSearch';
+import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
+import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
+import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { useProjects } from '../../hooks/useProjects';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -47,6 +52,7 @@ const TEXT = {
 };
 const REPORT_PAGE_SIZE = 30;
 const REPORT_TYPE_VISIBLE_STEP = 10;
+const CLIENT_REPORT_REFRESH_MS = 15_000;
 
 const statusMap: Record<string, { label: string; className: string }> = {
   PENDING: { label: 'Pendente', className: 'status-pending' },
@@ -193,21 +199,31 @@ export function ClientPage() {
   const [signaturePrivacyAccepted, setSignaturePrivacyAccepted] = useState(false);
   const [clientSortDirection, setClientSortDirection] = useState<ProjectSortDirection>('asc');
   const [clientTogglesLoaded, setClientTogglesLoaded] = useState(false);
-  const [clientSearch, setClientSearch] = useState('');
+  // Busca persistida: ao abrir um relatório e voltar, o termo da busca é restaurado.
+  const [clientSearch, setClientSearch] = usePersistentSearch(`client-search:${user?.id || user?.username || 'anonymous'}`);
+  const debouncedClientSearch = useDebouncedValue(clientSearch, 300);
   const [visibleByClientType, setVisibleByClientType] = useState<Record<string, number>>({});
   const [releasedReportCounts, setReleasedReportCounts] = useState<Record<string, number>>({});
   const tutorialTrigger = useRef<(() => void) | null>(null);
+  const clientReportGroupRefreshRef = useRef<Record<string, number>>({});
   const showToast = useToast();
   const clientToggleStorageKey = user ? `filtrovali-client-tabs:${user.id || user.username}` : '';
   const reportsQuery = useAccumulatedReportsPage({
     summary: true,
-    search: clientSearch,
+    search: debouncedClientSearch,
     projectSort: clientSortDirection,
     pageSize: REPORT_PAGE_SIZE
+  }, true, {
+    refetchInterval: CLIENT_REPORT_REFRESH_MS
   });
 
   const reports = reportsQuery.items;
   const reportPagination = reportsQuery.pagination;
+  const loadMoreReportsRef = useInfiniteScrollSentinel({
+    hasMore: reportsQuery.hasMore,
+    isLoading: reportsQuery.isLoadingMore,
+    onLoadMore: reportsQuery.loadMore
+  });
   const surveyProjects = useMemo(
     () => (archivedProjectsQuery.data || []).filter(project => latestSurvey(project)),
     [archivedProjectsQuery.data]
@@ -350,14 +366,19 @@ export function ClientPage() {
   }, [clientSearch]);
 
   useEffect(() => {
-    if (!activeProject || !activeReportType || activeTypeClosed) return;
+    if (!activeProject || !activeReportType || activeTypeClosed || !activeTypes.length) return;
+    const refreshKey = `${activeProject.id}-${activeReportType}-${clientSortDirection}`;
+    const force = reportsQuery.dataUpdatedAt > 0
+      && clientReportGroupRefreshRef.current[refreshKey] !== reportsQuery.dataUpdatedAt;
+    if (force) clientReportGroupRefreshRef.current[refreshKey] = reportsQuery.dataUpdatedAt;
     void reportsQuery.ensureGroupPage({
       projectId: activeProject.id,
       reportType: activeReportType,
       pageSize: REPORT_TYPE_VISIBLE_STEP,
-      sortDirection: clientSortDirection
+      sortDirection: clientSortDirection,
+      force
     });
-  }, [activeProject, activeReportType, activeTypeClosed, clientSortDirection, reportsQuery]);
+  }, [activeProject, activeReportType, activeTypeClosed, activeTypes.length, clientSortDirection, reportsQuery]);
 
   const reportSummary = useMemo(() => {
     return {
@@ -723,18 +744,23 @@ export function ClientPage() {
   }
 
   function renderLoadMoreReports() {
-    if (!reportsQuery.hasMore && !reportsQuery.isLoadingMore) return null;
+    const showButton = reportsQuery.hasMore || reportsQuery.isLoadingMore;
     return (
-      <div className="admin-create-toolbar">
-        <button
-          className="mini-btn"
-          type="button"
-          disabled={reportsQuery.isLoadingMore}
-          onClick={reportsQuery.loadMore}
-        >
-          {reportsQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
-        </button>
-      </div>
+      <>
+        <div ref={loadMoreReportsRef} aria-hidden="true" />
+        {showButton ? (
+          <div className="admin-create-toolbar">
+            <button
+              className="mini-btn"
+              type="button"
+              disabled={reportsQuery.isLoadingMore}
+              onClick={reportsQuery.loadMore}
+            >
+              {reportsQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
+            </button>
+          </div>
+        ) : null}
+      </>
     );
   }
 
@@ -805,7 +831,7 @@ export function ClientPage() {
           </div>
         </section>
 
-        {reportsQuery.isLoading || archivedProjectsQuery.isLoading ? <div className="page-card placeholder-copy">{TEXT.loading}</div> : null}
+        {reportsQuery.isLoading || archivedProjectsQuery.isLoading ? <ReportListSkeleton /> : null}
         {!reportsQuery.isLoading && !archivedProjectsQuery.isLoading && !reportSummary.total && !surveyProjects.length ? (
           <div className="page-card placeholder-copy">{TEXT.noReports}</div>
         ) : null}
@@ -954,6 +980,11 @@ export function ClientPage() {
                     ) : null}
                     {activeTypeHasLoadedItemsToReveal || activeTypeHasRemoteItemsToLoad ? (
                       <div className="admin-create-toolbar report-type-load-more">
+                        <InfiniteScrollSentinel
+                          hasMore={(activeTypeHasLoadedItemsToReveal || activeTypeHasRemoteItemsToLoad) && !activeTypeErrored}
+                          isLoading={activeTypeIsLoading}
+                          onLoadMore={() => void handleLoadMoreActiveType()}
+                        />
                         <button
                           className="mini-btn"
                           type="button"

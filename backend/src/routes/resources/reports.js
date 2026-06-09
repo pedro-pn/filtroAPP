@@ -1860,16 +1860,35 @@ export function removedPendingRequiredClientSignatureIds(report, version = null)
     ? report.versions.find(item => item.status === ReportVersionStatus.ACTIVE)
     : null);
   const currentSignerEmails = new Set(clientSignersForReport(report).map(signer => signer.email));
+  const openSignatureStatuses = new Set([
+    ReportSignatureStatus.PENDING,
+    ReportSignatureStatus.EXPIRED
+  ]);
   const roundHasCurrentSigner = (activeVersion?.signatures || [])
     .some(signature => signature.isRequired !== false && currentSignerEmails.has(signerEmailValue(signature.signerEmail)));
-  if (!roundHasCurrentSigner) return [];
-  return (activeVersion?.signatures || [])
-    .filter(signature => (
-      signature.status === ReportSignatureStatus.PENDING
-      && signature.isRequired !== false
-      && !currentSignerEmails.has(signerEmailValue(signature.signerEmail))
-    ))
+  const pendingRequired = (activeVersion?.signatures || []).filter(signature => (
+    openSignatureStatuses.has(signature.status)
+    && signature.isRequired !== false
+  ));
+  if (!roundHasCurrentSigner) return pendingRequired.map(signature => signature.id);
+  return pendingRequired
+    .filter(signature => !currentSignerEmails.has(signerEmailValue(signature.signerEmail)))
     .map(signature => signature.id);
+}
+
+// Signatários atuais do projeto que ainda não têm uma assinatura "viva" (não invalidada) na
+// rodada ativa — ou seja, foram incluídos depois que a rodada foi criada e precisam ser
+// adicionados a ela (preservando as assinaturas já feitas dos demais).
+export function addedRequiredClientSigners(report, version = null) {
+  const activeVersion = version || (Array.isArray(report?.versions)
+    ? report.versions.find(item => item.status === ReportVersionStatus.ACTIVE)
+    : null);
+  if (!activeVersion) return [];
+  const liveSignerEmails = new Set((activeVersion.signatures || [])
+    .filter(signature => signature.status !== ReportSignatureStatus.INVALIDATED)
+    .map(signature => signerEmailValue(signature.signerEmail)));
+  return clientSignersForReport(report)
+    .filter(signer => signer.isRequired !== false && !liveSignerEmails.has(signer.email));
 }
 
 export async function reconcileProjectClientSignatureRequirements(projectId, options = {}) {
@@ -1892,41 +1911,153 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
   let finalizedReports = 0;
   for (const report of reports) {
     if (isReportUnavailable(report) || report.project?.managerOnly || hasActiveClientRejection(report)) continue;
-    const version = Array.isArray(report.versions)
-      ? report.versions.find(item => item.status === ReportVersionStatus.ACTIVE)
-      : null;
-    const removedSignatureIds = removedPendingRequiredClientSignatureIds(report, version);
-    if (!version || !removedSignatureIds.length) continue;
+    // Carrega a versão ativa COM as assinaturas (o include de listagem não traz signatures).
+    const version = await activeVersionWithSignatures(prisma, report.id);
+    if (!version) continue;
 
-    const nextVersion = await prisma.$transaction(async tx => {
-      await tx.reportSignature.updateMany({
-        where: {
-          id: { in: removedSignatureIds },
+    const removedSignatureIds = removedPendingRequiredClientSignatureIds(report, version);
+    const addedSigners = addedRequiredClientSigners(report, version);
+    if (!removedSignatureIds.length && !addedSigners.length) continue;
+
+    const hasAdditions = addedSigners.length > 0;
+    const currentSignerEmails = new Set(clientSignersForReport(report).map(signer => signer.email));
+    const roundHasCurrentSigner = (version.signatures || [])
+      .some(signature => signature.isRequired !== false && currentSignerEmails.has(signerEmailValue(signature.signerEmail)));
+
+    // Rodada órfã (nenhum signatário atual permanece na rodada): substitui por uma nova rodada
+    // montada com os signatários atuais do projeto (já inclui os novos). Não há assinatura de
+    // signatário atual a preservar neste caso.
+    if (removedSignatureIds.length && !roundHasCurrentSigner) {
+      await prisma.$transaction(async tx => {
+        await tx.reportSignature.updateMany({
+          where: {
+            id: { in: removedSignatureIds },
+            versionId: version.id,
+            status: { in: [ReportSignatureStatus.PENDING, ReportSignatureStatus.EXPIRED] }
+          },
+          data: {
+            status: ReportSignatureStatus.INVALIDATED,
+            isRequired: false,
+            invalidatedAt: new Date(),
+            tokenHash: null,
+            tokenExpiresAt: null
+          }
+        });
+        await tx.reportVersion.update({
+          where: { id: version.id },
+          data: { status: ReportVersionStatus.SUPERSEDED }
+        });
+        await createSignatureAuditLog(tx, {
+          reportId: report.id,
           versionId: version.id,
-          status: ReportSignatureStatus.PENDING
-        },
-        data: {
-          status: ReportSignatureStatus.INVALIDATED,
-          isRequired: false,
-          invalidatedAt: new Date(),
-          tokenHash: null,
-          tokenExpiresAt: null
-        }
+          userId,
+          action: ReportAuditAction.SIGNATURES_INVALIDATED,
+          description: 'Rodada de assinatura substituida por alteracao dos signatarios do projeto.',
+          evidence
+        });
       });
+      updatedReports += 1;
+      const freshReport = await prisma.report.findUnique({ where: { id: report.id }, include });
+      await ensureInternalSignatureRoundAndNotify(freshReport, userId, evidence);
+      continue;
+    }
+
+    // Preserva a rodada ativa (e as assinaturas já feitas). Aplica, conforme o caso:
+    //  - invalida os signatários removidos;
+    //  - inclui os novos signatários (PENDING), reativando um registro INVALIDATED se já existir;
+    //  - reabre assinaturas EXPIRADAS de signatários ainda atuais (qualquer alteração reabre);
+    //  - emite token + e-mail apenas para os novos/reabertos (não reincomoda quem já assinou).
+    const expiredCurrentSignatureIds = (version.signatures || [])
+      .filter(signature => signature.status === ReportSignatureStatus.EXPIRED
+        && signature.isRequired !== false
+        && currentSignerEmails.has(signerEmailValue(signature.signerEmail)))
+      .map(signature => signature.id);
+    const invalidatedSignatureByEmail = new Map((version.signatures || [])
+      .filter(signature => signature.status === ReportSignatureStatus.INVALIDATED)
+      .map(signature => [signerEmailValue(signature.signerEmail), signature]));
+
+    const reconciled = await prisma.$transaction(async tx => {
+      if (removedSignatureIds.length) {
+        await tx.reportSignature.updateMany({
+          where: {
+            id: { in: removedSignatureIds },
+            versionId: version.id,
+            status: { in: [ReportSignatureStatus.PENDING, ReportSignatureStatus.EXPIRED] }
+          },
+          data: {
+            status: ReportSignatureStatus.INVALIDATED,
+            isRequired: false,
+            invalidatedAt: new Date(),
+            tokenHash: null,
+            tokenExpiresAt: null
+          }
+        });
+      }
+      for (const signer of addedSigners) {
+        const reusable = invalidatedSignatureByEmail.get(signer.email);
+        if (reusable) {
+          await tx.reportSignature.update({
+            where: { id: reusable.id },
+            data: {
+              signerName: signer.name,
+              signerRole: signer.role,
+              status: ReportSignatureStatus.PENDING,
+              isRequired: true,
+              invalidatedAt: null,
+              signedAt: null,
+              rejectedAt: null,
+              rejectionReason: null,
+              tokenHash: null,
+              tokenEncrypted: null,
+              tokenIv: null,
+              tokenAuthTag: null,
+              tokenExpiresAt: null
+            }
+          });
+        } else {
+          await tx.reportSignature.create({
+            data: {
+              reportId: report.id,
+              versionId: version.id,
+              signerName: signer.name,
+              signerEmail: signer.email,
+              signerRole: signer.role,
+              status: ReportSignatureStatus.PENDING,
+              isRequired: true,
+              sourceDocumentHash: version.sourceDocumentHash
+            }
+          });
+        }
+      }
+      if (expiredCurrentSignatureIds.length) {
+        await tx.reportSignature.updateMany({
+          where: { id: { in: expiredCurrentSignatureIds }, versionId: version.id, status: ReportSignatureStatus.EXPIRED },
+          data: { status: ReportSignatureStatus.PENDING, tokenHash: null, tokenExpiresAt: null }
+        });
+      }
       await createSignatureAuditLog(tx, {
         reportId: report.id,
         versionId: version.id,
         userId,
-        action: ReportAuditAction.SIGNATURES_INVALIDATED,
-        description: 'Assinaturas pendentes de signatarios removidos deixaram de ser obrigatorias.',
+        action: hasAdditions ? ReportAuditAction.SIGNATURE_ROUND_CREATED : ReportAuditAction.SIGNATURES_INVALIDATED,
+        description: hasAdditions
+          ? 'Rodada de assinatura atualizada: signatarios do projeto incluidos/renovados.'
+          : 'Assinaturas pendentes de signatarios removidos deixaram de ser obrigatorias.',
         evidence
       });
-      return activeVersionWithSignatures(tx, report.id);
+      const refreshed = await activeVersionWithSignatures(tx, report.id);
+      const shouldIssueTokens = hasAdditions || expiredCurrentSignatureIds.length > 0;
+      const tokens = shouldIssueTokens ? await issuePendingSignatureTokens(tx, refreshed) : [];
+      return { version: refreshed, tokens };
     });
     updatedReports += 1;
 
-    if (allRequiredSignaturesCompleted(nextVersion)) {
-      const finalized = await finalizeInternalSignatureRound(report, nextVersion, evidence, userId);
+    if (reconciled.tokens.length) {
+      await deliverIssuedSignatureRequestEmails(report, reconciled.tokens, {});
+    }
+
+    if (allRequiredSignaturesCompleted(reconciled.version)) {
+      const finalized = await finalizeInternalSignatureRound(report, reconciled.version, evidence, userId);
       finalizedReports += finalized?.status === ReportStatus.SIGNED ? 1 : 0;
       if (sendReleasedEmails && finalized?.status === ReportStatus.SIGNED) {
         const released = await releasedServiceReportsAfterRdoSignature(finalized);

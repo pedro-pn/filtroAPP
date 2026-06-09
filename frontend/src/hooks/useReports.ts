@@ -31,6 +31,14 @@ interface LoadMoreReportGroupOptions {
   sortDirection?: 'asc' | 'desc';
 }
 
+interface EnsureReportGroupOptions extends Omit<LoadMoreReportGroupOptions, 'loadedCount'> {
+  force?: boolean;
+}
+
+interface ReportPageQueryOptions {
+  refetchInterval?: number | false;
+}
+
 interface ReportGroupTotalEntry {
   reportType: string;
   total: number;
@@ -48,6 +56,21 @@ interface AccumulatedReportsSnapshot {
 const ACCUMULATED_REPORTS_STORAGE_VERSION = 1;
 const ACCUMULATED_REPORTS_STORAGE_TTL_MS = 30 * 60 * 1000;
 const accumulatedReportsSnapshots = new Map<string, AccumulatedReportsSnapshot>();
+
+// Hooks montados de useAccumulatedReportsPage assinam aqui para re-sincronizar seus
+// itens quando uma mutação altera o snapshot (ex.: aprovar um relatório direto da lista,
+// sem abrir o card). Sem isso, o storage muda mas o estado React vivo fica defasado.
+const accumulatedReportsListeners = new Set<() => void>();
+
+function notifyAccumulatedReportsListeners() {
+  accumulatedReportsListeners.forEach(listener => {
+    try {
+      listener();
+    } catch {
+      // Um listener com falha não deve impedir os demais de sincronizar.
+    }
+  });
+}
 
 function accumulatedReportsStorageKey(filtersKey: string, userId?: string | null) {
   return `accumulated-reports:${userId || 'anonymous'}:${encodeURIComponent(filtersKey)}`;
@@ -110,14 +133,16 @@ function clearAccumulatedReportsSnapshots(userId?: string | null) {
   Array.from(accumulatedReportsSnapshots.keys())
     .filter(key => key.startsWith(prefix))
     .forEach(key => accumulatedReportsSnapshots.delete(key));
-  if (typeof window === 'undefined') return;
-  try {
-    Object.keys(window.sessionStorage)
-      .filter(key => key.startsWith(prefix))
-      .forEach(key => window.sessionStorage.removeItem(key));
-  } catch {
-    // If storage is unavailable, there is nothing to clear.
+  if (typeof window !== 'undefined') {
+    try {
+      Object.keys(window.sessionStorage)
+        .filter(key => key.startsWith(prefix))
+        .forEach(key => window.sessionStorage.removeItem(key));
+    } catch {
+      // If storage is unavailable, there is nothing to clear.
+    }
   }
+  notifyAccumulatedReportsListeners();
 }
 
 function accumulatedReportsSnapshotKeys(userId?: string | null) {
@@ -240,6 +265,7 @@ function updateAccumulatedReportsSnapshots(report: ReportSummary, userId?: strin
       groupTotals
     });
   });
+  notifyAccumulatedReportsListeners();
 }
 
 export function useReports(filters?: ReportFilters) {
@@ -250,12 +276,13 @@ export function useReports(filters?: ReportFilters) {
   });
 }
 
-export function useReportsPage(filters: ReportPageFilters, enabled = true) {
+export function useReportsPage(filters: ReportPageFilters, enabled = true, options: ReportPageQueryOptions = {}) {
   const { user } = useAuth();
   return useQuery({
     queryKey: queryKeys.reportPage(filters, user?.id),
     queryFn: () => listReportsPage(filters),
-    enabled
+    enabled,
+    ...options
   });
 }
 
@@ -280,7 +307,36 @@ export function isFirstReportPageAlreadyCovered(
     && pageItems.every(report => currentItems.some(current => current.id === report.id));
 }
 
-export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page'>, enabled = true) {
+export function mergeCoveredFirstReportPage<T extends { id: string }>(
+  currentItems: T[],
+  pageItems: T[],
+  page: number
+) {
+  if (!isFirstReportPageAlreadyCovered(currentItems, pageItems, page)) return null;
+  return mergeReportItemsById(currentItems, pageItems);
+}
+
+export function mergeReportItemsById<T extends { id: string }>(
+  currentItems: T[],
+  pageItems: T[]
+) {
+  const pageItemsById = new Map(pageItems.map(report => [report.id, report]));
+  const seen = new Set(currentItems.map(report => report.id));
+  const next = currentItems.map(report => pageItemsById.get(report.id) || report);
+  pageItems.forEach(report => {
+    if (!seen.has(report.id)) {
+      seen.add(report.id);
+      next.push(report);
+    }
+  });
+  return next;
+}
+
+export function useAccumulatedReportsPage(
+  filters: Omit<ReportPageFilters, 'page'>,
+  enabled = true,
+  options: ReportPageQueryOptions = {}
+) {
   const { user } = useAuth();
   const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
   const storageUserId = user?.id || user?.username || null;
@@ -298,7 +354,7 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
   const activeStorageKeyRef = useRef(storageKey);
   const skipNextSnapshotWriteRef = useRef(false);
   const effectivePage = activeFiltersKey === filtersKey ? page : 1;
-  const query = useReportsPage({ ...filters, page: effectivePage }, enabled);
+  const query = useReportsPage({ ...filters, page: effectivePage }, enabled, options);
   const pagination = query.data?.pagination;
   const loadedProjectCount = useMemo(
     () => new Set(items.map(report => report.projectId).filter(Boolean)).size,
@@ -341,17 +397,34 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
     });
   }, [activeFiltersKey, enabled, filtersKey, groupTotals, items, page, storageKey]);
 
+  // Re-sincroniza a lista visível quando uma mutação altera o snapshot (aprovar/devolver/
+  // assinar/excluir direto da lista). O snapshot já foi atualizado pela mutação; aqui só
+  // refletimos essa verdade no estado React deste hook montado.
+  useEffect(() => {
+    const syncFromSnapshot = () => {
+      const snapshot = readAccumulatedReportsSnapshot(activeStorageKeyRef.current);
+      const nextItems = snapshot?.items || [];
+      itemsRef.current = nextItems;
+      setItems(nextItems);
+      setGroupTotals(snapshot?.groupTotals || {});
+      if (snapshot) setPage(snapshot.page);
+    };
+    accumulatedReportsListeners.add(syncFromSnapshot);
+    return () => {
+      accumulatedReportsListeners.delete(syncFromSnapshot);
+    };
+  }, []);
+
   useEffect(() => {
     const data = query.data;
     if (!data || !enabled || activeFiltersKey !== filtersKey) return;
     const currentItems = itemsRef.current;
-    const firstPageAlreadyCovered = isFirstReportPageAlreadyCovered(currentItems, data.items, data.pagination.page);
-    if (firstPageAlreadyCovered) return;
+    const mergedCoveredFirstPage = mergeCoveredFirstReportPage(currentItems, data.items, data.pagination.page);
 
     const groups = data.groups;
     if (groups) {
       setGroupTotals(current => {
-        const next = data.pagination.page <= 1 ? {} : { ...current };
+        const next = data.pagination.page <= 1 && !mergedCoveredFirstPage ? {} : { ...current };
         groups.forEach(group => {
           next[`${group.projectId}-${group.reportType}`] = group.total;
         });
@@ -359,8 +432,9 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
       });
     }
     if (data.pagination.page <= 1) {
-      itemsRef.current = data.items;
-      setItems(data.items);
+      const nextItems = mergedCoveredFirstPage || data.items;
+      itemsRef.current = nextItems;
+      setItems(nextItems);
       return;
     }
 
@@ -441,14 +515,7 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
         return next;
       });
       setItems(current => {
-        const seen = new Set(current.map(report => report.id));
-        const next = [...current];
-        data.items.forEach(report => {
-          if (!seen.has(report.id)) {
-            seen.add(report.id);
-            next.push(report);
-          }
-        });
+        const next = mergeReportItemsById(current, data.items);
         itemsRef.current = next;
         return next;
       });
@@ -462,12 +529,12 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
     }
   }
 
-  async function ensureGroupPage({ projectId, reportType, pageSize, sortDirection }: Omit<LoadMoreReportGroupOptions, 'loadedCount'>) {
+  async function ensureGroupPage({ projectId, reportType, pageSize, sortDirection, force }: EnsureReportGroupOptions) {
     const groupPageSize = pageSize || 10;
     const pageKey = groupPageKey(projectId, reportType, groupPageSize, sortDirection);
     const knownTotal = groupTotals[groupKey(projectId, reportType)];
     const expectedCount = knownTotal === undefined ? groupPageSize : Math.min(knownTotal, groupPageSize);
-    if ((groupLoadedCountsRef.current[pageKey] || 0) >= expectedCount) return;
+    if (!force && (groupLoadedCountsRef.current[pageKey] || 0) >= expectedCount) return;
     await fetchGroupPage({ projectId, reportType, page: 1, pageSize: groupPageSize, sortDirection });
   }
 
@@ -542,10 +609,12 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
 }
 
 export function useReport(reportId: string, enabled = true) {
+  const { user } = useAuth();
   return useQuery({
     queryKey: ['report', reportId],
     queryFn: () => getReport(reportId),
-    enabled: enabled && !!reportId
+    enabled: enabled && !!reportId,
+    refetchInterval: user?.role === 'CLIENT' ? 15_000 : false
   });
 }
 
@@ -640,7 +709,6 @@ export function useReportMutations() {
       updateAccumulatedReportsCache(report);
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
-      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
   });
@@ -652,7 +720,6 @@ export function useReportMutations() {
       updateAccumulatedReportsCache(report);
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
-      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
   });
@@ -678,7 +745,6 @@ export function useReportMutations() {
       updateAccumulatedReportsCache(data.report);
       updateReportCaches(queryClient, data.report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
-      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', data.report.id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.reportAudit(data.report.id) });
     }
@@ -696,7 +762,6 @@ export function useReportMutations() {
       updateAccumulatedReportsCache(report);
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
-      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
   });
@@ -718,7 +783,6 @@ export function useReportMutations() {
       updateAccumulatedReportsCache(report);
       updateReportCaches(queryClient, report);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
-      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       queryClient.invalidateQueries({ queryKey: ['report', report.id] });
     }
   });

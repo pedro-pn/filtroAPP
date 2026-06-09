@@ -16,6 +16,8 @@ import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
+import { ReportListSkeleton } from '../../components/ui/Skeleton';
+import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
 import { Modal } from '../../components/ui/Modal';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useToast } from '../../components/ui/Toast';
@@ -27,6 +29,9 @@ import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useManometerMutations } from '../../hooks/useManometers';
 import { useProjectMutations } from '../../hooks/useProjects';
 import { useAccumulatedReportsPage, useReportMutations, useReportsPage } from '../../hooks/useReports';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { usePersistentSearch } from '../../hooks/usePersistentSearch';
+import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { useUnitMutations } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useSurveyMutations } from '../../hooks/useSurveys';
@@ -1258,7 +1263,10 @@ export function GestorPage() {
   const pageScrollRef = useRef<HTMLDivElement | null>(null);
   const restoredScrollKeysRef = useRef<Set<string>>(new Set());
   const [tab, setTab] = useState<GestorTab>(() => parseGestorTab(searchParams.get('tab')));
-  const [gestorSearch, setGestorSearch] = useState('');
+  // Busca persistida por aba: ao voltar (de outra aba ou do detalhe), restaura o termo da aba.
+  const [gestorSearch, setGestorSearch] = usePersistentSearch(`gestor-search:${user?.id || 'anonymous'}:${tab}`);
+  // Só o valor enviado às queries é adiado; a filtragem client-side segue instantânea.
+  const debouncedGestorSearch = useDebouncedValue(gestorSearch, 300);
   const projectDetailsStorageKey = `gestor-project-details-collapsed:${user?.id || 'anonymous'}`;
   const gestorUiPrefsStorageKey = `gestor-ui-prefs:${user?.id || 'anonymous'}`;
   const initialUiPrefs = useMemo(() => readGestorUiPrefs(gestorUiPrefsStorageKey), [gestorUiPrefsStorageKey]);
@@ -1327,7 +1335,7 @@ export function GestorPage() {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
     projectActive: true,
-    search: gestorSearch,
+    search: debouncedGestorSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   }, tab === 'aprovados');
@@ -1335,7 +1343,7 @@ export function GestorPage() {
     summary: true,
     statuses: ['APPROVED', 'SIGNED'],
     projectActive: false,
-    search: gestorSearch,
+    search: debouncedGestorSearch,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   }, tab === 'arquivados');
@@ -1344,6 +1352,11 @@ export function GestorPage() {
     : tab === 'arquivados'
       ? archivedReportListQuery
       : approvedReportListQuery;
+  const loadMoreReportsRef = useInfiniteScrollSentinel({
+    hasMore: reportListQuery.hasMore,
+    isLoading: reportListQuery.isLoadingMore,
+    onLoadMore: reportListQuery.loadMore
+  });
   const pendingCountQuery = useReportsPage({
     summary: true,
     reviewQueue: true,
@@ -1508,10 +1521,6 @@ export function GestorPage() {
     () => [...(activeProjectsQuery.data || []), ...(archivedProjectsQuery.data || [])],
     [activeProjectsQuery.data, archivedProjectsQuery.data]
   );
-
-  useEffect(() => {
-    setGestorSearch('');
-  }, [tab]);
 
   useEffect(() => {
     setSelectedReportIds([]);
@@ -2558,6 +2567,19 @@ export function GestorPage() {
                 ) : null}
                 {hasLoadedItemsToReveal || hasRemoteItemsToLoad ? (
                   <div className="admin-create-toolbar report-type-load-more">
+                    <InfiniteScrollSentinel
+                      hasMore={(hasLoadedItemsToReveal || hasRemoteItemsToLoad) && !typeErrored}
+                      isLoading={typeLoading}
+                      onLoadMore={() => {
+                        if (hasLoadedItemsToReveal) {
+                          revealMoreArchivedType(typeKey, sortedReports.length);
+                          return;
+                        }
+                        if (projectId) {
+                          void handleLoadMoreArchivedType(projectId, reportType, typeKey, sortedReports.length, hasLoadedItemsToReveal, typeSortDirection);
+                        }
+                      }}
+                    />
                     <button
                       className="mini-btn"
                       type="button"
@@ -2584,18 +2606,23 @@ export function GestorPage() {
   }
 
   function renderLoadMoreReports() {
-    if (!reportListQuery.hasMore && !reportListQuery.isLoadingMore) return null;
+    const showButton = reportListQuery.hasMore || reportListQuery.isLoadingMore;
     return (
-      <div className="admin-create-toolbar">
-        <button
-          className="mini-btn"
-          type="button"
-          disabled={reportListQuery.isLoadingMore}
-          onClick={reportListQuery.loadMore}
-        >
-          {reportListQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
-        </button>
-      </div>
+      <>
+        <div ref={loadMoreReportsRef} aria-hidden="true" />
+        {showButton ? (
+          <div className="admin-create-toolbar">
+            <button
+              className="mini-btn"
+              type="button"
+              disabled={reportListQuery.isLoadingMore}
+              onClick={reportListQuery.loadMore}
+            >
+              {reportListQuery.isLoadingMore ? 'Carregando...' : 'Carregar mais'}
+            </button>
+          </div>
+        ) : null}
+      </>
     );
   }
 
@@ -2605,7 +2632,7 @@ export function GestorPage() {
     const visibleReports = sourceReports;
 
     if (reportListQuery.isLoadingInitial) {
-      return <div className="page-card placeholder-copy">Carregando relatórios...</div>;
+      return <ReportListSkeleton />;
     }
 
     const topActions = (

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ReportSummary } from '../../types/domain';
 import { groupByProject } from '../../utils/groupByProject';
 import { ProjectSortButton, compareReportTypes, sortProjectGroups, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
+import { InfiniteScrollSentinel } from '../ui/InfiniteScrollSentinel';
 import { ReportSummaryCard } from './ReportSummaryCard';
 
 interface GroupedReportListProps {
@@ -66,6 +67,41 @@ function sanitizeTypeSortDirections(value: unknown) {
   );
 }
 
+/**
+ * Sentinela invisível que dispara `onVisible` (carregar a 1ª página do tipo) só quando
+ * a seção se aproxima da viewport — evita a rajada de requisições para todos os tipos de
+ * todos os projetos de uma vez. Carrega uma única vez; remonte (via key) para recarregar
+ * após troca de ordenação. Sem IntersectionObserver, carrega imediatamente (fallback).
+ */
+function LazyTypeEnsure({ onVisible, rootMargin = '400px' }: { onVisible: () => void; rootMargin?: string }) {
+  const onVisibleRef = useRef(onVisible);
+  onVisibleRef.current = onVisible;
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  const setRef = useCallback((node: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    if (!node) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      onVisibleRef.current();
+      return;
+    }
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          observer.disconnect();
+          onVisibleRef.current();
+        }
+      },
+      { rootMargin }
+    );
+    observerRef.current = observer;
+    observer.observe(node);
+  }, [rootMargin]);
+
+  return <div ref={setRef} aria-hidden="true" className="report-type-lazy-sentinel" />;
+}
+
 export function GroupedReportList({
   reports,
   archived,
@@ -93,42 +129,6 @@ export function GroupedReportList({
   const [storageLoaded, setStorageLoaded] = useState(!storageKey);
 
   const groups = useMemo(() => sortProjectGroups(groupByProject(reports), sortDirection), [reports, sortDirection]);
-  const typePageRequests = useMemo(() => {
-    if (!onEnsureTypePage) return [];
-    return groups.flatMap(group => {
-      if (closedProjects.includes(group.projectId)) return [];
-      const typeGroups = group.reports.reduce<Record<string, ReportSummary[]>>((acc, report) => {
-        if (!acc[report.reportType]) acc[report.reportType] = [];
-        acc[report.reportType].push(report);
-        return acc;
-      }, {});
-      getProjectTypeTotals?.(group.projectId).forEach(typeTotal => {
-        if (!typeGroups[typeTotal.reportType]) typeGroups[typeTotal.reportType] = [];
-      });
-      return Object.entries(typeGroups)
-        .filter(([reportType, typeReports]) => {
-          const typeKey = `${group.projectId}-${reportType}`;
-          const total = getTypeTotal?.(group.projectId, reportType) ?? typeReports.length;
-          return total > 0 && !closedTypes.includes(typeKey);
-        })
-        .map(([reportType]) => ({
-          projectId: group.projectId,
-          reportType,
-          pageSize: initialVisiblePerType,
-          sortDirection: typeSortDirections[`${group.projectId}-${reportType}`] || 'asc'
-        }));
-    });
-  }, [
-    closedProjects,
-    closedTypes,
-    getProjectTypeTotals,
-    getTypeTotal,
-    groups,
-    initialVisiblePerType,
-    onEnsureTypePage,
-    typeSortDirections
-  ]);
-
   useEffect(() => {
     if (!storageKey) {
       setStorageLoaded(true);
@@ -169,13 +169,6 @@ export function GroupedReportList({
       // localStorage can be unavailable in private or restricted contexts.
     }
   }, [closedProjects, closedTypes, storageKey, storageLoaded, typeSortDirections, visibleByType]);
-
-  useEffect(() => {
-    if (!onEnsureTypePage || !typePageRequests.length) return;
-    typePageRequests.forEach(request => {
-      void onEnsureTypePage(request);
-    });
-  }, [onEnsureTypePage, typePageRequests]);
 
   function toggleType(id: string) {
     setClosedTypes(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]);
@@ -303,7 +296,23 @@ export function GroupedReportList({
                     <>
                       {renderTypeActions && visibleReports.length ? renderTypeActions(visibleReports) : null}
                       {needsOrderedPage ? (
-                        <div className="placeholder-copy">Carregando relatórios...</div>
+                        <>
+                          <LazyTypeEnsure
+                            key={`${typeKey}-${typeSortDirection}`}
+                            onVisible={() => {
+                              void onEnsureTypePage?.({
+                                projectId: group.projectId,
+                                reportType,
+                                pageSize: initialVisiblePerType,
+                                sortDirection: typeSortDirection
+                              });
+                            }}
+                          />
+                          <div className="report-type-skeleton" aria-hidden="true">
+                            <div className="skeleton skeleton-row" />
+                            <div className="skeleton skeleton-row" />
+                          </div>
+                        </>
                       ) : null}
                       {typeErrored ? (
                         <div className="placeholder-copy">Não foi possível carregar os relatórios desta aba.</div>
@@ -317,6 +326,17 @@ export function GroupedReportList({
                       ) : null}
                       {hasLoadedItemsToReveal || hasRemoteItemsToLoad ? (
                         <div className="admin-create-toolbar report-type-load-more">
+                          <InfiniteScrollSentinel
+                            hasMore={(hasLoadedItemsToReveal || hasRemoteItemsToLoad) && !typeErrored}
+                            isLoading={typeLoading}
+                            onLoadMore={() => {
+                              if (hasLoadedItemsToReveal) {
+                                loadMoreType(typeKey, sortedReports.length);
+                                return;
+                              }
+                              void handleLoadMoreType(group.projectId, reportType, typeKey, sortedReports.length, hasLoadedItemsToReveal, typeSortDirection);
+                            }}
+                          />
                           <button
                             className="mini-btn"
                             type="button"
