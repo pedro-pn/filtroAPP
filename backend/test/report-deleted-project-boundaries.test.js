@@ -922,3 +922,78 @@ test('DELETE report clears deleted sequence numbers and renumbers remaining proj
     [ReportType.RCPU, 1]
   ]);
 });
+
+test('DELETE report preserves signed sequence numbers while renumbering unsigned reports', async t => {
+  stubAuthenticatedManager(t);
+  const originals = {
+    reportFindUniqueOrThrow: prisma.report.findUniqueOrThrow,
+    transaction: prisma.$transaction
+  };
+  const calls = [];
+  prisma.report.findUniqueOrThrow = async args => {
+    calls.push(['report.findUniqueOrThrow', args]);
+    return activeReport({
+      id: 'rdo-29',
+      projectId: 'project-1',
+      reportType: ReportType.RDO,
+      sequenceNumber: 29,
+      status: ReportStatus.APPROVED
+    });
+  };
+  prisma.$transaction = async callback => callback({
+    report: {
+      findMany: async args => {
+        calls.push(['tx.report.findMany', args]);
+        if (typeof args.where.reportType === 'object') return [];
+        if (args.where.reportType === ReportType.RDO) {
+          return [
+            { id: 'rdo-30-signed', sequenceNumber: 30, status: ReportStatus.SIGNED },
+            { id: 'rdo-32-pending', sequenceNumber: 32, status: ReportStatus.PENDING }
+          ];
+        }
+        return [];
+      },
+      updateMany: async args => {
+        calls.push(['tx.report.updateMany', args]);
+        return { count: args.where.id.in.length };
+      },
+      update: async args => {
+        calls.push(['tx.report.update', args]);
+        return { id: args.where.id, ...args.data };
+      }
+    },
+    projectReportSeq: {
+      upsert: async args => {
+        calls.push(['tx.projectReportSeq.upsert', args]);
+        return args.create;
+      }
+    }
+  });
+  t.after(() => {
+    prisma.report.findUniqueOrThrow = originals.reportFindUniqueOrThrow;
+    prisma.$transaction = originals.transaction;
+  });
+
+  const response = await dispatchApp('DELETE', '/api/reports/rdo-29');
+
+  assert.equal(response.statusCode, 204);
+  const signedUpdates = calls.filter(([name, args]) => (
+    (name === 'tx.report.update' && args.where.id === 'rdo-30-signed')
+    || (name === 'tx.report.updateMany' && args.where.id?.in?.includes('rdo-30-signed'))
+  ));
+  assert.deepEqual(signedUpdates, []);
+
+  const sequenceUpdates = calls
+    .filter(([name]) => name === 'tx.report.update')
+    .map(([, args]) => [args.where.id, args.data.sequenceNumber]);
+  assert.deepEqual(sequenceUpdates, [
+    ['rdo-32-pending', 31]
+  ]);
+
+  const sequenceReservation = calls
+    .filter(([name]) => name === 'tx.projectReportSeq.upsert')
+    .map(([, args]) => [args.where.projectId_reportType.reportType, args.update.nextNumber]);
+  assert.deepEqual(sequenceReservation, [
+    [ReportType.RDO, 31]
+  ]);
+});

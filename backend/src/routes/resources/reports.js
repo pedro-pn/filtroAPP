@@ -3508,39 +3508,57 @@ async function renumberProjectReports(tx, projectId, reportType) {
     }
   });
 
-  for (let index = 0; index < reports.length; index += 1) {
-    const nextNumber = index + 1;
-    const report = reports[index];
-    if (report.sequenceNumber === nextNumber) continue;
-    if (report.status === ReportStatus.SIGNED) {
-      const error = new Error('Nao e possivel corrigir numeracao automaticamente com relatorio assinado na sequencia.');
-      error.statusCode = 409;
-      throw error;
-    }
-  }
-
   if (!reports.length) {
     await setProjectReportLastSequence(tx, projectId, reportType, 0);
     return;
   }
 
-  await tx.report.updateMany({
-    where: {
-      id: { in: reports.map(report => report.id) }
-    },
-    data: {
-      sequenceNumber: null
-    }
-  });
-
+  const signedNumbers = new Set(
+    reports
+      .filter(report => report.status === ReportStatus.SIGNED && Number.isInteger(report.sequenceNumber) && report.sequenceNumber > 0)
+      .map(report => report.sequenceNumber)
+  );
+  const nextNumbersByReport = new Map();
+  let nextNumber = 1;
   for (let index = 0; index < reports.length; index += 1) {
-    await tx.report.update({
-      where: { id: reports[index].id },
-      data: { sequenceNumber: index + 1 }
-    });
+    const report = reports[index];
+    if (report.status === ReportStatus.SIGNED) {
+      if (Number.isInteger(report.sequenceNumber) && report.sequenceNumber >= nextNumber) {
+        nextNumber = report.sequenceNumber + 1;
+      }
+      continue;
+    }
+    while (signedNumbers.has(nextNumber)) nextNumber += 1;
+    nextNumbersByReport.set(report.id, nextNumber);
+    nextNumber += 1;
   }
 
-  await setProjectReportLastSequence(tx, projectId, reportType, reports.length);
+  const unsignedReports = reports.filter(report => report.status !== ReportStatus.SIGNED);
+  const needsRenumber = unsignedReports.some(report => report.sequenceNumber !== nextNumbersByReport.get(report.id));
+  if (needsRenumber && unsignedReports.length) {
+    await tx.report.updateMany({
+      where: {
+        id: { in: unsignedReports.map(report => report.id) }
+      },
+      data: {
+        sequenceNumber: null
+      }
+    });
+
+    for (const report of unsignedReports) {
+      await tx.report.update({
+        where: { id: report.id },
+        data: { sequenceNumber: nextNumbersByReport.get(report.id) }
+      });
+    }
+  }
+
+  const lastUsedNumber = Math.max(
+    0,
+    ...signedNumbers,
+    ...nextNumbersByReport.values()
+  );
+  await setProjectReportLastSequence(tx, projectId, reportType, lastUsedNumber);
 }
 
 async function prepareReportSequenceChange(tx, currentReport, targetProjectId, targetReportType, targetSequenceNumber) {
