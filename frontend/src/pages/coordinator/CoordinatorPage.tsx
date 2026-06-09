@@ -128,16 +128,39 @@ export function CoordinatorPage() {
   const [archivedVisibleByType, setArchivedVisibleByType] = useState<Record<string, number>>({});
   const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, ProjectSortDirection>>({});
   const showToast = useToast();
-  const reportFilters = {
+  const pendingReportFilters = {
     summary: true,
-    statuses: tab === 'pending' ? ['PENDING', 'RETURNED'] : ['APPROVED', 'SIGNED'],
-    projectActive: tab !== 'archived',
-    ...(tab === 'pending' ? { createdByUserId: user?.id || '' } : {}),
+    statuses: ['PENDING', 'RETURNED'],
+    projectActive: true,
+    createdByUserId: user?.id || '',
     search,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
   };
-  const reportsQuery = useAccumulatedReportsPage(reportFilters);
+  const approvedReportFilters = {
+    summary: true,
+    statuses: ['APPROVED', 'SIGNED'],
+    projectActive: true,
+    search,
+    projectSort: projectSortDir,
+    pageSize: REPORT_PAGE_SIZE
+  };
+  const archivedReportFilters = {
+    summary: true,
+    statuses: ['APPROVED', 'SIGNED'],
+    projectActive: false,
+    search,
+    projectSort: projectSortDir,
+    pageSize: REPORT_PAGE_SIZE
+  };
+  const pendingReportsQuery = useAccumulatedReportsPage(pendingReportFilters, tab === 'pending');
+  const approvedReportsQuery = useAccumulatedReportsPage(approvedReportFilters, tab === 'approved');
+  const archivedReportsQuery = useAccumulatedReportsPage(archivedReportFilters, tab === 'archived');
+  const reportsQuery = tab === 'pending'
+    ? pendingReportsQuery
+    : tab === 'archived'
+      ? archivedReportsQuery
+      : approvedReportsQuery;
   const pendingCountQuery = useReportsPage({
     summary: true,
     statuses: ['PENDING', 'RETURNED'],

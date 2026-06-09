@@ -19,16 +19,25 @@ export function MyReportsPage() {
   const [tab, setTab] = useState<MyReportsTab>('pending');
   const [search, setSearch] = useState('');
   const [projectSortDir, setProjectSortDir] = useState<ProjectSortDirection>('asc');
-  const statuses = tab === 'pending' ? ['PENDING', 'RETURNED'] : ['APPROVED', 'SIGNED'];
-  const reportsQuery = useAccumulatedReportsPage({
+  const pendingReportsQuery = useAccumulatedReportsPage({
     mine: true,
     summary: true,
     projectActive: true,
-    statuses,
+    statuses: ['PENDING', 'RETURNED'],
     search,
     projectSort: projectSortDir,
     pageSize: REPORT_PAGE_SIZE
-  });
+  }, tab === 'pending');
+  const approvedReportsQuery = useAccumulatedReportsPage({
+    mine: true,
+    summary: true,
+    projectActive: true,
+    statuses: ['APPROVED', 'SIGNED'],
+    search,
+    projectSort: projectSortDir,
+    pageSize: REPORT_PAGE_SIZE
+  }, tab === 'approved');
+  const reportsQuery = tab === 'pending' ? pendingReportsQuery : approvedReportsQuery;
   const reports = reportsQuery.items;
 
   const groups = useMemo(() => {

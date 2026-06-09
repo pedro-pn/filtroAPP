@@ -759,6 +759,11 @@ Atualizado em: 2026-06-08, branch `database_performance`.
    - Avaliar `pg_trgm` para busca de romaneios.
    - Avaliar índices funcionais para e-mail/username quando os planos reais justificarem.
 
+7. Medição do fluxo de aprovação de relatórios.
+   - Instrumentar `PATCH /reports/:id/status` para separar o tempo de carregamento inicial, transação de status, sincronização de relatórios derivados, organização de anexos, preparação de assinatura interna, geração de PDF e enfileiramento/notificação.
+   - Usar os logs para diferenciar gargalo de banco (`txMs` próximo do tempo total) de gargalo pós-transação (`ensureInternalSignatureRoundAndNotify`, PDF, anexos ou notificações).
+   - Só depois da medição decidir entre reduzir `include`/`select` do fluxo de aprovação, criar índices adicionais, ou mover preparação de assinatura/PDF para processamento assíncrono.
+
 ### Impacto do merge da `main`
 
 Atualizado em: 2026-06-05 após merge dos commits:
@@ -882,6 +887,8 @@ Impacto avaliado:
 
 ### Fase 3: otimizações avançadas
 
+- [ ] Medir o fluxo de aprovação de relatórios com logs segmentados em `PATCH /reports/:id/status`.
+- [ ] Avaliar, com base na medição, se a aprovação precisa de otimização SQL, redução de `include`/`select`, ou fila/background para preparação de assinatura/PDF.
 - [ ] Validar uso real dos índices com `EXPLAIN ANALYZE` em staging/produção.
 - [ ] Migrar métricas simples de estatísticas para agregações SQL quando validado.
 - [ ] Migrar parte das estatísticas para agregações SQL ou materializações.

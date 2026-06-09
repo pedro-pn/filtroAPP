@@ -1316,23 +1316,34 @@ export function GestorPage() {
   const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, 'asc' | 'desc'>>(initialUiPrefs.archivedTypeSortDirections);
   const [closedClientAccountGroupIds, setClosedClientAccountGroupIds] = useState<string[]>(initialUiPrefs.closedClientAccountGroupIds);
 
-  const reportListEnabled = tab === 'pendentes' || tab === 'aprovados' || tab === 'arquivados';
-  const reportListQuery = useAccumulatedReportsPage(tab === 'pendentes'
-    ? {
-        summary: true,
-        reviewQueue: true,
-        projectActive: true,
-        projectSort: projectSortDir,
-        pageSize: REPORT_PAGE_SIZE
-      }
-    : {
-        summary: true,
-        statuses: ['APPROVED', 'SIGNED'],
-        projectActive: tab !== 'arquivados',
-        search: gestorSearch,
-        projectSort: projectSortDir,
-        pageSize: REPORT_PAGE_SIZE
-      }, reportListEnabled);
+  const pendingReportListQuery = useAccumulatedReportsPage({
+    summary: true,
+    reviewQueue: true,
+    projectActive: true,
+    projectSort: projectSortDir,
+    pageSize: REPORT_PAGE_SIZE
+  }, tab === 'pendentes');
+  const approvedReportListQuery = useAccumulatedReportsPage({
+    summary: true,
+    statuses: ['APPROVED', 'SIGNED'],
+    projectActive: true,
+    search: gestorSearch,
+    projectSort: projectSortDir,
+    pageSize: REPORT_PAGE_SIZE
+  }, tab === 'aprovados');
+  const archivedReportListQuery = useAccumulatedReportsPage({
+    summary: true,
+    statuses: ['APPROVED', 'SIGNED'],
+    projectActive: false,
+    search: gestorSearch,
+    projectSort: projectSortDir,
+    pageSize: REPORT_PAGE_SIZE
+  }, tab === 'arquivados');
+  const reportListQuery = tab === 'pendentes'
+    ? pendingReportListQuery
+    : tab === 'arquivados'
+      ? archivedReportListQuery
+      : approvedReportListQuery;
   const pendingCountQuery = useReportsPage({
     summary: true,
     reviewQueue: true,
