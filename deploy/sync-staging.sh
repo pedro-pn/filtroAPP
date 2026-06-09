@@ -176,6 +176,12 @@ async function writePdf(fileName, title) {
   await fs.writeFile(path.join(mockDir, fileName), await pdf.save());
 }
 
+async function clearDirectoryContents(dir) {
+  await fs.mkdir(dir, { recursive: true });
+  const entries = await fs.readdir(dir);
+  await Promise.all(entries.map(entry => fs.rm(path.join(dir, entry), { recursive: true, force: true })));
+}
+
 function writeDocx(fileName) {
   const zip = new AdmZip();
   zip.addFile('[Content_Types].xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -199,7 +205,7 @@ function writeDocx(fileName) {
   zip.writeZip(path.join(mockDir, fileName));
 }
 
-await fs.rm(reportsRoot, { recursive: true, force: true });
+await clearDirectoryContents(reportsRoot);
 await fs.mkdir(mockDir, { recursive: true });
 await writePdf('report-source.pdf', 'Relatório sintético de homologação');
 await writePdf('report-final.pdf', 'Relatório assinado sintético de homologação');
