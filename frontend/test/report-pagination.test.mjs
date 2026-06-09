@@ -37,3 +37,9 @@ test('global report load more falls back to report pages without project metadat
   assert.equal(hasMoreReportProjects({ page: 1, pageSize: 25, total: 75, totalPages: 3 }, 1), true);
   assert.equal(hasMoreReportProjects({ page: 3, pageSize: 25, total: 75, totalPages: 3 }, 1), false);
 });
+
+test('empty first report page replaces accumulated reports', async () => {
+  const { isFirstReportPageAlreadyCovered } = await loadReportHooks();
+
+  assert.equal(isFirstReportPageAlreadyCovered([{ id: 'old-report' }], [], 1), false);
+});

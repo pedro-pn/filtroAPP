@@ -269,6 +269,17 @@ export function hasMoreReportProjects(
   return loadedProjectCount < projectTotal;
 }
 
+export function isFirstReportPageAlreadyCovered(
+  currentItems: Pick<ReportSummary, 'id'>[],
+  pageItems: Pick<ReportSummary, 'id'>[],
+  page: number
+) {
+  return page <= 1
+    && pageItems.length > 0
+    && currentItems.length > pageItems.length
+    && pageItems.every(report => currentItems.some(current => current.id === report.id));
+}
+
 export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page'>, enabled = true) {
   const { user } = useAuth();
   const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
@@ -334,9 +345,7 @@ export function useAccumulatedReportsPage(filters: Omit<ReportPageFilters, 'page
     const data = query.data;
     if (!data || !enabled || activeFiltersKey !== filtersKey) return;
     const currentItems = itemsRef.current;
-    const firstPageAlreadyCovered = data.pagination.page <= 1
-      && currentItems.length > data.items.length
-      && data.items.every(report => currentItems.some(current => current.id === report.id));
+    const firstPageAlreadyCovered = isFirstReportPageAlreadyCovered(currentItems, data.items, data.pagination.page);
     if (firstPageAlreadyCovered) return;
 
     const groups = data.groups;
