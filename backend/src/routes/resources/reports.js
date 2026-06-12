@@ -2185,26 +2185,79 @@ function calibrationCertificateUrlsForReport(report) {
   return [...new Set(urls.map(url => String(url || '').trim()).filter(Boolean))];
 }
 
-function pdfUploadUrlsForReport(report) {
+function uploadFingerprintValue(value) {
+  if (typeof value === 'string') {
+    const raw = value.trim();
+    if (!raw) return '';
+    const normalized = normalizeReportUploadReference(raw);
+    if (normalized) return normalized;
+    return /^data:image\//i.test(raw) ? raw : '';
+  }
+
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+  const raw = String(
+    value.url
+    || value.storagePath
+    || value.path
+    || value.publicUrl
+    || value.href
+    || value.src
+    || value.source
+    || value.dataUrl
+    || ''
+  ).trim();
+  if (raw) {
+    const normalized = normalizeReportUploadReference(raw);
+    if (normalized) return normalized;
+    if (/^data:image\//i.test(raw)) return raw;
+  }
+
+  const fileName = String(value.fileName || value.name || '').trim();
+  const mimeType = String(value.mimeType || '').trim().toLowerCase();
+  return fileName && mimeType.startsWith('image/') ? fileName : '';
+}
+
+function addUploadFingerprint(urls, value) {
+  const fingerprint = uploadFingerprintValue(value);
+  if (fingerprint) urls.push(fingerprint);
+}
+
+function collectUploadFingerprintsFromGroups(urls, groups) {
+  if (!Array.isArray(groups)) return;
+  for (const group of groups) {
+    if (!group || typeof group !== 'object' || Array.isArray(group)) continue;
+    if (!Array.isArray(group.files)) continue;
+    for (const file of group.files) addUploadFingerprint(urls, file);
+  }
+}
+
+function collectUploadFingerprintsFromServiceData(urls, serviceData) {
+  if (!serviceData || typeof serviceData !== 'object' || Array.isArray(serviceData)) return;
+  collectUploadFingerprintsFromGroups(urls, serviceData.__uploads__);
+  for (const [key, value] of Object.entries(serviceData)) {
+    if (key === '__uploads__') continue;
+    if (Array.isArray(value)) {
+      for (const item of value) addUploadFingerprint(urls, item);
+    } else {
+      addUploadFingerprint(urls, value);
+    }
+  }
+}
+
+export function pdfUploadUrlsForReport(report) {
   const urls = [];
   const special = report?.specialConditions || {};
   if (Array.isArray(special.generalUploads)) {
-    urls.push(...special.generalUploads.map(item => (
-      typeof item === 'string'
-        ? item
-        : item?.url || item?.storagePath || item?.path || item?.publicUrl || item?.href || item?.src || ''
-    )));
+    for (const item of special.generalUploads) addUploadFingerprint(urls, item);
+  }
+  collectUploadFingerprintsFromServiceData(urls, special.serviceData);
+  for (const attachment of report?.attachments || []) {
+    addUploadFingerprint(urls, attachment);
   }
   for (const service of report?.services || []) {
-    const groups = Array.isArray(service?.extraData?.__uploads__) ? service.extraData.__uploads__ : [];
-    for (const group of groups) {
-      if (Array.isArray(group?.files)) {
-        urls.push(...group.files.map(item => (
-          typeof item === 'string'
-            ? item
-            : item?.url || item?.storagePath || item?.path || item?.publicUrl || item?.href || item?.src || ''
-        )));
-      }
+    collectUploadFingerprintsFromGroups(urls, service?.extraData?.__uploads__);
+    for (const attachment of service?.attachments || []) {
+      addUploadFingerprint(urls, attachment);
     }
   }
   return [...new Set(urls.map(url => String(url || '').trim()).filter(Boolean))];
@@ -2212,7 +2265,7 @@ function pdfUploadUrlsForReport(report) {
 
 function pdfCacheMetadataForReport(report) {
   return {
-    version: 1,
+    version: 2,
     reportId: report.id,
     reportUpdatedAt: reportUpdatedAtToken(report),
     fingerprint: sha256Hex(JSON.stringify({
