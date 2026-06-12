@@ -12,7 +12,7 @@ import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
 import { useProjects } from '../../hooks/useProjects';
-import { useAccumulatedReportsPage, useReportsPage } from '../../hooks/useReports';
+import { useAccumulatedReportsPage, useReportCounts } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
@@ -174,14 +174,10 @@ export function CoordinatorPage() {
     isLoading: reportsQuery.isLoadingMore,
     onLoadMore: reportsQuery.loadMore
   });
-  const pendingCountQuery = useReportsPage({
-    summary: true,
-    statuses: ['PENDING', 'RETURNED'],
-    projectActive: true,
-    createdByUserId: user?.id || '',
-    page: 1,
-    pageSize: 1
-  });
+  // P7 — total de pendentes do coordenador via endpoint único de contadores.
+  const pendingCountQuery = useReportCounts([
+    { statuses: ['PENDING', 'RETURNED'], projectActive: true, createdByUserId: user?.id || '' }
+  ]);
   const archivedProjectsQuery = useProjects(false);
   const surveysQuery = useSurveys();
 
@@ -189,7 +185,7 @@ export function CoordinatorPage() {
   const reportPagination = reportsQuery.pagination;
   const pendingReportCount = tab === 'pending'
     ? reportPagination?.total ?? visibleReports.length
-    : pendingCountQuery.data?.pagination.total ?? 0;
+    : pendingCountQuery.data?.[0] ?? 0;
 
   useEffect(() => {
     if (tab !== 'archived') return;

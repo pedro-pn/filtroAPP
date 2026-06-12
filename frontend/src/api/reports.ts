@@ -85,6 +85,34 @@ export async function listReportsPage(filters?: ReportPageFilters) {
   return response.data;
 }
 
+export type ReportCountQuery = Pick<
+  ReportFilters,
+  'status' | 'statuses' | 'projectId' | 'createdByUserId' | 'mine' | 'reportType' | 'projectActive' | 'reviewQueue'
+>;
+
+// Serializa um filtro de contagem no mesmo formato (strings) que `GET /reports` recebe, para que
+// o backend reaproveite exatamente a mesma construção de `where` da listagem.
+function serializeCountQuery(query: ReportCountQuery) {
+  return {
+    ...(query.status !== undefined ? { status: query.status } : {}),
+    ...(query.statuses?.length ? { statuses: query.statuses.join(',') } : {}),
+    ...(query.projectId !== undefined ? { projectId: query.projectId } : {}),
+    ...(query.createdByUserId !== undefined ? { createdByUserId: query.createdByUserId } : {}),
+    ...(query.reportType !== undefined ? { reportType: query.reportType } : {}),
+    ...(query.mine !== undefined ? { mine: String(query.mine) } : {}),
+    ...(query.projectActive !== undefined ? { projectActive: String(query.projectActive) } : {}),
+    ...(query.reviewQueue !== undefined ? { reviewQueue: String(query.reviewQueue) } : {})
+  };
+}
+
+// P7 — um único round-trip para os totais de badges. Devolve os totais na mesma ordem das queries.
+export async function fetchReportCounts(queries: ReportCountQuery[]) {
+  const response = await apiClient.post<{ totals: number[] }>(rdoApiPath('/reports/counts'), {
+    queries: queries.map(serializeCountQuery)
+  });
+  return response.data.totals;
+}
+
 export async function createServiceOnlyReports(payload: ServiceOnlyReportPayload) {
   const response = await apiClient.post<ReportSummary[]>(rdoApiPath('/reports/service-only'), payload);
   return response.data;

@@ -5362,15 +5362,14 @@ async function createIndependentServiceReports(tx, project, data, managerUserId)
   return createdReports;
 }
 
-router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+// Constrói o `where` da listagem de relatórios a partir de (auth, query). Extraído para que a
+// listagem (`GET /`) e os contadores (`POST /counts`) usem exatamente a mesma lógica de filtro
+// e visibilidade por papel — assim o total dos badges nunca diverge da lista paginada.
+async function buildReportListWhere(auth, query) {
   const where = { deletedAt: null, project: activeReportProjectWhere() };
-  const pagination = parseReportListPagination(req.query);
-  const useSummarySelect = reportListUsesSummarySelect(req.query);
-  const statusFilter = parseReportStatusFilter(req.query);
-  const searchTerm = parseReportSearchTerm(req.query);
-  const reportSortDirection = parseReportSortDirection(req.query);
-  const projectSortDirection = parseProjectSortDirection(req.query);
-  const usingReviewQueueFilter = applyReportReviewQueueFilter(where, req.query.reviewQueue);
+  const statusFilter = parseReportStatusFilter(query);
+  const searchTerm = parseReportSearchTerm(query);
+  const usingReviewQueueFilter = applyReportReviewQueueFilter(where, query.reviewQueue);
 
   if (!usingReviewQueueFilter && statusFilter.length === 1) {
     where.status = statusFilter[0];
@@ -5378,12 +5377,12 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
     where.status = { in: statusFilter };
   }
 
-  if (req.query.projectId) {
-    where.projectId = String(req.query.projectId);
+  if (query.projectId) {
+    where.projectId = String(query.projectId);
   }
 
-  if (req.query.reportType) {
-    const reportType = String(req.query.reportType).trim().toUpperCase();
+  if (query.reportType) {
+    const reportType = String(query.reportType).trim().toUpperCase();
     if (!Object.values(ReportType).includes(reportType)) {
       const error = new Error('Tipo de relatório inválido.');
       error.statusCode = 400;
@@ -5392,32 +5391,41 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
     where.reportType = reportType;
   }
 
-  if (req.query.createdByUserId) {
-    where.createdByUserId = String(req.query.createdByUserId);
+  if (query.createdByUserId) {
+    where.createdByUserId = String(query.createdByUserId);
   }
 
-  if (req.auth.user.role === 'CLIENT') {
-    assignClientReportProjectWhere(where, await clientProjectAccessWhereWithSigners(prisma, req.auth));
-  } else if (req.auth.user.role === 'COORDINATOR') {
+  if (auth.user.role === 'CLIENT') {
+    assignClientReportProjectWhere(where, await clientProjectAccessWhereWithSigners(prisma, auth));
+  } else if (auth.user.role === 'COORDINATOR') {
     assignActiveReportProjectWhere(where, { managerOnly: false });
-  } else if (req.auth.user.role === 'COLLABORATOR') {
+  } else if (auth.user.role === 'COLLABORATOR') {
     const me = await prisma.user.findUnique({
-      where: { id: req.auth.user.id },
+      where: { id: auth.user.id },
       select: { collaboratorId: true }
     });
-    assignActiveReportProjectWhere(where, collaboratorReportProjectWhere(me?.collaboratorId, req.auth.user.id));
-  } else if (req.query.mine === 'true') {
-    where.createdByUserId = req.auth.user.id;
+    assignActiveReportProjectWhere(where, collaboratorReportProjectWhere(me?.collaboratorId, auth.user.id));
+  } else if (query.mine === 'true') {
+    where.createdByUserId = auth.user.id;
     assignActiveReportProjectWhere(where, { managerOnly: false });
   }
-  if (req.auth.user.role !== 'MANAGER' && Object.keys(where.project || {}).length === 1) {
+  if (auth.user.role !== 'MANAGER' && Object.keys(where.project || {}).length === 1) {
     assignActiveReportProjectWhere(where, { managerOnly: false });
   }
-  applyReportProjectActiveFilter(where, req.query.projectActive);
+  applyReportProjectActiveFilter(where, query.projectActive);
   const searchWhere = buildReportSearchWhere(searchTerm);
-  if (searchWhere && req.auth.user.role !== 'CLIENT') {
+  if (searchWhere && auth.user.role !== 'CLIENT') {
     where.AND = [...(where.AND || []), searchWhere];
   }
+  return { where, searchTerm };
+}
+
+router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+  const pagination = parseReportListPagination(req.query);
+  const useSummarySelect = reportListUsesSummarySelect(req.query);
+  const reportSortDirection = parseReportSortDirection(req.query);
+  const projectSortDirection = parseProjectSortDirection(req.query);
+  const { where, searchTerm } = await buildReportListWhere(req.auth, req.query);
 
   const tGet0 = Date.now();
   const orderBy = reportSortDirection
@@ -5486,6 +5494,29 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
     return res.json(paginatedReportResponse(items, total ?? items.length, pagination, groups, { projectTotal: projectTotal ?? reportProjectTotalFromItems(items) }));
   }
   res.json(items);
+}));
+
+// P7 — contadores de badges em um único round-trip. Recebe N conjuntos de filtros (mesma
+// semântica de `GET /`) e devolve o total de cada um na mesma ordem, evitando 3 chamadas
+// `pageSize:1` separadas. Cada filtro usa `buildReportListWhere`, então o total casa com a lista.
+const reportCountsSchema = z.object({
+  queries: z.array(z.record(z.any())).min(1).max(8)
+});
+
+router.post('/counts', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
+  const { queries } = reportCountsSchema.parse(req.body);
+  // Para CLIENT a visibilidade depende de pós-filtro em memória (canClientSeeReport), que não é
+  // expressável só em `count` do banco. A UI do cliente não usa esses badges, então recusamos.
+  if (req.auth.user.role === 'CLIENT') {
+    const error = new Error('Contadores não disponíveis para este perfil.');
+    error.statusCode = 403;
+    throw error;
+  }
+  const totals = await Promise.all(queries.map(async query => {
+    const { where } = await buildReportListWhere(req.auth, query);
+    return prisma.report.count({ where });
+  }));
+  res.json({ totals });
 }));
 
 router.post('/batch-download', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {

@@ -7,6 +7,7 @@ import {
   createServiceOnlyReports,
   deleteReport as deleteReportApi,
   deleteReportService,
+  fetchReportCounts,
   getReportAudit,
   getReport,
   listReports,
@@ -16,6 +17,7 @@ import {
   updateReportSequence,
   updateReportStatus,
   type PaginatedReports,
+  type ReportCountQuery,
   type ReportFilters,
   type ReportPagination,
   type ReportPageFilters
@@ -284,6 +286,17 @@ export function useReportsPage(filters: ReportPageFilters, enabled = true, optio
     queryFn: () => listReportsPage(filters),
     enabled,
     ...options
+  });
+}
+
+// P7 — busca vários totais de badges em uma única requisição. A queryKey vive sob `['reports', ...]`,
+// então as mutações que já chamam `invalidateQueries(['reports'])` revalidam os contadores de graça.
+export function useReportCounts(queries: ReportCountQuery[], enabled = true) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: queryKeys.reportCounts(queries, user?.id),
+    queryFn: () => fetchReportCounts(queries),
+    enabled
   });
 }
 
