@@ -17,5 +17,6 @@ export const queryKeys = {
   surveyQuestions: ['surveys', 'questions'] as const,
   reports: (filters?: unknown, userId?: string | null) => ['reports', filters ?? {}, { userId: userId || 'anonymous' }] as const,
   reportPage: (filters?: unknown, userId?: string | null) => ['reports', 'page', filters ?? {}, { userId: userId || 'anonymous' }] as const,
+  reportCounts: (queries?: unknown, userId?: string | null) => ['reports', 'counts', queries ?? [], { userId: userId || 'anonymous' }] as const,
   reportAudit: (reportId: string) => ['reports', reportId, 'audit'] as const
 };

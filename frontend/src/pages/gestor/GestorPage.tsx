@@ -28,7 +28,7 @@ import { useCounterMutations } from '../../hooks/useCounters';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useManometerMutations } from '../../hooks/useManometers';
 import { useProjectMutations } from '../../hooks/useProjects';
-import { useAccumulatedReportsPage, useReportMutations, useReportsPage } from '../../hooks/useReports';
+import { useAccumulatedReportsPage, useReportCounts, useReportMutations } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
@@ -1376,27 +1376,13 @@ export function GestorPage() {
     isLoading: reportListQuery.isLoadingMore,
     onLoadMore: reportListQuery.loadMore
   });
-  const pendingCountQuery = useReportsPage({
-    summary: true,
-    reviewQueue: true,
-    projectActive: true,
-    page: 1,
-    pageSize: 1
-  });
-  const approvedCountQuery = useReportsPage({
-    summary: true,
-    status: 'APPROVED',
-    projectActive: true,
-    page: 1,
-    pageSize: 1
-  });
-  const signedCountQuery = useReportsPage({
-    summary: true,
-    status: 'SIGNED',
-    projectActive: true,
-    page: 1,
-    pageSize: 1
-  });
+  // P7 — um único round-trip para os 3 totais de badges (antes: 3 queries `pageSize:1`).
+  const reportCountsQuery = useReportCounts([
+    { reviewQueue: true, projectActive: true },
+    { status: 'APPROVED', projectActive: true },
+    { status: 'SIGNED', projectActive: true }
+  ]);
+  const [pendingTotalCount, approvedTotalCount, signedTotalCount] = reportCountsQuery.data ?? [0, 0, 0];
   const draftsQuery = useDrafts();
   const gestorBootstrapQuery = useGestorBootstrap();
   const activeProjectsQuery = { data: gestorBootstrapQuery.data?.activeProjects, isLoading: gestorBootstrapQuery.isLoading };
@@ -1469,9 +1455,9 @@ export function GestorPage() {
   );
   const pendingCount = tab === 'pendentes'
     ? reportListQuery.pagination?.total ?? pendingReports.length
-    : pendingCountQuery.data?.pagination.total ?? 0;
-  const approvedCount = approvedCountQuery.data?.pagination.total ?? 0;
-  const signedCount = signedCountQuery.data?.pagination.total ?? 0;
+    : pendingTotalCount;
+  const approvedCount = approvedTotalCount;
+  const signedCount = signedTotalCount;
   const pendingProjectRegistrationCount = (activeProjectsQuery.data || [])
     .filter(project => project.isActive !== false)
     .filter(projectRegistrationPending)
