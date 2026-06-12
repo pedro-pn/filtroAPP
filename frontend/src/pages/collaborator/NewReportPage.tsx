@@ -21,6 +21,7 @@ import type { ReportSummary } from '../../types/domain';
 import { roleHomePath } from '../../auth/rolePath';
 import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
 import { sortProjects } from '../../utils/projectSort';
+import { autosaveDraftTargetId } from '../../utils/draftAutosave';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
 const TEXT = {
@@ -931,7 +932,6 @@ export function NewReportPage() {
 
   const saveDraftNow = useCallback(async ({ notifyOnError = false } = {}) => {
     if (!projectId || !reportDate) {
-      if (draftId) setDraftId(null);
       return true;
     }
 
@@ -942,7 +942,7 @@ export function NewReportPage() {
       payload: buildDraftPayload()
     };
     const sameProjectDateIds = matchingDraftIds();
-    const targetId = draftId && sameProjectDateIds.includes(draftId) ? draftId : sameProjectDateIds[0];
+    const targetId = autosaveDraftTargetId(draftId, sameProjectDateIds);
     const signature = JSON.stringify({ targetId: targetId || '', payload });
     if (signature === lastAutoSaveSignatureRef.current) return true;
     lastAutoSaveSignatureRef.current = signature;

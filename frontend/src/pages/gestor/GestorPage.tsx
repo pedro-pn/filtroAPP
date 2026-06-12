@@ -42,6 +42,7 @@ import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
 import { COLLABORATOR_SIGNATURE_NOTICE_VERSION } from '../../constants/privacy';
+import { dateInputValue, formatDateOnly } from '../../utils/dateOnly';
 import type {
   Collaborator,
   ClientSegment,
@@ -553,11 +554,11 @@ function unitSearchParts(unit: Unit) {
 }
 
 function manometerSearchParts(item: Manometer) {
-  return [item.code, item.scale, item.calibrationCertCode, formatDate(item.calibratedAt), formatDate(item.expiresAt)];
+  return [item.code, item.scale, item.calibrationCertCode, formatDateOnly(item.calibratedAt), formatDateOnly(item.expiresAt)];
 }
 
 function counterSearchParts(item: ParticleCounter) {
-  return [item.code, item.serialNumber, formatUnitCategory(item.category), formatDate(item.calibratedAt), formatDate(item.expiresAt)];
+  return [item.code, item.serialNumber, formatUnitCategory(item.category), formatDateOnly(item.calibratedAt), formatDateOnly(item.expiresAt)];
 }
 
 function formatDate(value?: string | null) {
@@ -1102,8 +1103,7 @@ function unitToForm(unit: Unit): UnitFormState {
 }
 
 function toDateInput(value?: string | null) {
-  if (!value) return '';
-  return new Date(value).toISOString().slice(0, 10);
+  return dateInputValue(value);
 }
 
 async function calibrationCertificateUpload(file: File | null) {
@@ -4085,7 +4085,7 @@ export function GestorPage() {
                     <div className="admin-item-main">
                       <div className="admin-item-title">{item.code} - {item.scale}</div>
                       <div className="admin-item-sub">
-                        Certificado {item.calibrationCertCode} - Calibração: {formatDate(item.calibratedAt)} - Vencimento: {formatDate(item.expiresAt)}
+                        Certificado {item.calibrationCertCode} - Calibração: {formatDateOnly(item.calibratedAt)} - Vencimento: {formatDateOnly(item.expiresAt)}
                         {item.currentCalibrationCertificate?.publicUrl ? (
                           <> - <a href={item.currentCalibrationCertificate.publicUrl} target="_blank" rel="noreferrer">PDF atual</a></>
                         ) : null}
@@ -4297,7 +4297,7 @@ export function GestorPage() {
                 {categoryCounters.length ? categoryCounters.map(item => (
                   <div className="admin-list-row" key={item.id}>
                     <span>
-                      <strong>{item.code}</strong> - Serial {item.serialNumber} - Calibração: {formatDate(item.calibratedAt)} - Vencimento: {formatDate(item.expiresAt)}
+                      <strong>{item.code}</strong> - Serial {item.serialNumber} - Calibração: {formatDateOnly(item.calibratedAt)} - Vencimento: {formatDateOnly(item.expiresAt)}
                       {item.currentCalibrationCertificate?.publicUrl ? (
                         <> - <a href={item.currentCalibrationCertificate.publicUrl} target="_blank" rel="noreferrer">PDF atual</a></>
                       ) : null}

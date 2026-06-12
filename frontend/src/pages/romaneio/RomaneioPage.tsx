@@ -29,15 +29,11 @@ import { useToast } from '../../components/ui/Toast';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { downloadBlob } from '../../utils/download';
+import { defaultRomaneioUnit, romaneioMeasureLabel } from '../../utils/romaneioMeasure';
 
 type Tab = 'romaneios' | 'equipamentos' | 'notificacoes';
 const NEW_CATEGORY_VALUE = '__new_category__';
 
-const measureLabels: Record<RomaneioMeasureType, string> = {
-  UNIT: 'unidade',
-  LENGTH: 'm',
-  WEIGHT: 'kg'
-};
 const rdoOwnedCatalogSources = new Set(['UNIT', 'PARTICLE_COUNTER']);
 
 function formatDate(value: string) {
@@ -75,7 +71,7 @@ function catalogEmpty(): RomaneioCatalogPayload {
     categoryName: '',
     kind: 'EQUIPMENT',
     measureType: 'UNIT',
-    defaultUnitLabel: 'unidade',
+    defaultUnitLabel: defaultRomaneioUnit('UNIT'),
     isSerialized: true,
     isActive: true
   };
@@ -220,7 +216,8 @@ export function RomaneioPage() {
         item.name,
         item.categoryName,
         item.kind === 'CONNECTION' ? 'Conexão' : 'Equipamento',
-        item.defaultUnitLabel
+        item.defaultUnitLabel,
+        romaneioMeasureLabel(item.measureType)
       ].filter(Boolean).join(' '));
       if (term && !searchable.includes(term)) return;
       if (!map.has(item.categoryName)) map.set(item.categoryName, []);
@@ -507,7 +504,7 @@ export function RomaneioPage() {
                     <span>Unidade</span>
                     <select value={catalogForm.measureType} onChange={event => {
                       const measureType = event.target.value as RomaneioMeasureType;
-                      setCatalogForm({ ...catalogForm, measureType, defaultUnitLabel: measureLabels[measureType] });
+                      setCatalogForm({ ...catalogForm, measureType, defaultUnitLabel: defaultRomaneioUnit(measureType) });
                     }}>
                       <option value="UNIT">Unidade</option>
                       <option value="LENGTH">Comprimento</option>
@@ -579,7 +576,7 @@ export function RomaneioPage() {
                               <div className="romaneio-catalog-row-main">
                                 <div>
                                   <strong>{[item.code, item.name].filter(Boolean).join(' - ')}</strong>
-                                  <div className="rel-meta">{item.kind === 'CONNECTION' ? 'Conexão' : 'Equipamento'} · {item.defaultUnitLabel}</div>
+                                  <div className="rel-meta">{item.kind === 'CONNECTION' ? 'Conexão' : 'Equipamento'} · {romaneioMeasureLabel(item.measureType)}</div>
                                 </div>
                                 {isManager && !isRdoOwnedCatalogItem(item) ? (
                                   <div className="report-card-actions">
@@ -634,7 +631,7 @@ export function RomaneioPage() {
                                       <span>Unidade</span>
                                       <select value={editCatalogForm.measureType} onChange={event => {
                                         const measureType = event.target.value as RomaneioMeasureType;
-                                        setEditCatalogForm({ ...editCatalogForm, measureType, defaultUnitLabel: measureLabels[measureType] });
+                                        setEditCatalogForm({ ...editCatalogForm, measureType, defaultUnitLabel: defaultRomaneioUnit(measureType) });
                                       }}>
                                         <option value="UNIT">Unidade</option>
                                         <option value="LENGTH">Comprimento</option>

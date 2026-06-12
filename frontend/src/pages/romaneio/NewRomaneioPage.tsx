@@ -26,6 +26,8 @@ import { useToast } from '../../components/ui/Toast';
 import { Modal } from '../../components/ui/Modal';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
+import { autosaveDraftTargetId } from '../../utils/draftAutosave';
+import { defaultRomaneioUnit, romaneioMeasureLabel, romaneioUsesVariableQuantity } from '../../utils/romaneioMeasure';
 
 interface SelectedItem {
   key: string;
@@ -42,12 +44,6 @@ interface SelectedItem {
 
 const today = new Date().toISOString().slice(0, 10);
 const MANUAL_PROJECT_OPTION = '__manual_project__';
-
-function defaultUnit(measureType: RomaneioMeasureType) {
-  if (measureType === 'WEIGHT') return 'kg';
-  if (measureType === 'LENGTH') return 'm';
-  return 'unidade';
-}
 
 function itemLabel(item: RomaneioCatalogItem) {
   return [item.code, item.name].filter(Boolean).join(' - ');
@@ -163,12 +159,13 @@ export function NewRomaneioPage() {
   }, [activeCatalog]);
 
   function addCatalogItem(item: RomaneioCatalogItem) {
-    const quantity = Number(quantities[item.id] || (item.isSerialized ? 1 : ''));
+    const variableQuantity = romaneioUsesVariableQuantity(item.measureType);
+    const quantity = Number(quantities[item.id] || (variableQuantity ? '' : item.isSerialized ? 1 : ''));
     if (!quantity || quantity <= 0) {
       showToast('Informe a quantidade do item.');
       return;
     }
-    if (item.isSerialized && selectedItems.some(selected => selected.catalogItemId === item.id)) {
+    if (!variableQuantity && item.isSerialized && selectedItems.some(selected => selected.catalogItemId === item.id)) {
       showToast('Este item único já foi adicionado.');
       return;
     }
@@ -182,13 +179,16 @@ export function NewRomaneioPage() {
       kind: item.kind,
       measureType: item.measureType,
       quantity,
-      unitLabel: item.defaultUnitLabel,
+      unitLabel: item.defaultUnitLabel || defaultRomaneioUnit(item.measureType),
       isCustom: false
     };
     setSelectedItems(current => {
       const existing = current.find(selected => selected.catalogItemId === item.id);
       if (!existing) return [...current, next];
-      return current.map(selected => selected.catalogItemId === item.id ? { ...selected, quantity } : selected);
+      return current.map(selected => selected.catalogItemId === item.id
+        ? { ...selected, quantity, unitLabel: item.defaultUnitLabel || defaultRomaneioUnit(item.measureType) }
+        : selected
+      );
     });
     setQuantities(current => ({ ...current, [item.id]: '' }));
   }
@@ -206,7 +206,7 @@ export function NewRomaneioPage() {
       kind: custom.kind,
       measureType: custom.measureType,
       quantity,
-      unitLabel: custom.unitLabel || defaultUnit(custom.measureType),
+      unitLabel: custom.unitLabel || defaultRomaneioUnit(custom.measureType),
       isCustom: true
     }]);
     setCustom({
@@ -336,19 +336,16 @@ export function NewRomaneioPage() {
   }, [editQuery.data, isEditing]);
 
   useEffect(() => {
-    if (isEditing || draftParam) return;
+    if (isEditing || draftParam || draftId) return;
     const key = currentDraftKey();
     if (!key || hydratedDraftKeyRef.current === key) return;
     const draft = (draftsQuery.data || []).find(item => draftProjectDateKey(item) === key);
     hydratedDraftKeyRef.current = key;
-    if (!draft) {
-      setDraftId(null);
-      return;
-    }
+    if (!draft) return;
 
     hydrateDraft(draft);
     showToast('Rascunho carregado.');
-  }, [isEditing, projectId, manualProjectCode, romaneioDate, draftsQuery.data, draftParam]);
+  }, [isEditing, projectId, manualProjectCode, romaneioDate, draftsQuery.data, draftParam, draftId]);
 
   useEffect(() => {
     if (isEditing) return;
@@ -356,14 +353,13 @@ export function NewRomaneioPage() {
     if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
 
     if ((!projectId && !typedProjectCode) || !romaneioDate) {
-      if (draftId) setDraftId(null);
       return;
     }
 
     draftSaveTimerRef.current = window.setTimeout(() => {
       const payload = buildDraftPayload();
       const sameProjectDateIds = matchingDraftIds();
-      const targetId = draftId && sameProjectDateIds.includes(draftId) ? draftId : sameProjectDateIds[0];
+      const targetId = autosaveDraftTargetId(draftId, sameProjectDateIds);
       const signature = JSON.stringify({ targetId: targetId || '', payload });
       if (signature === lastAutoSaveSignatureRef.current) return;
       lastAutoSaveSignatureRef.current = signature;
@@ -646,24 +642,29 @@ export function NewRomaneioPage() {
                     {expanded && (
                       <div className="romaneio-catalog-list">
                         {items.map(item => {
-                          const disabled = item.isSerialized && selectedItems.some(selected => selected.catalogItemId === item.id);
+                          const variableQuantity = romaneioUsesVariableQuantity(item.measureType);
+                          const disabled = !variableQuantity && item.isSerialized && selectedItems.some(selected => selected.catalogItemId === item.id);
+                          const showQuantityInput = variableQuantity || !item.isSerialized;
                           return (
                             <div className="romaneio-catalog-row" key={item.id}>
                               <div>
                                 <strong>{itemLabel(item)}</strong>
-                                <div className="rel-meta">{item.kind === 'CONNECTION' ? 'Conexão' : 'Equipamento'} · {item.defaultUnitLabel}</div>
+                                <div className="rel-meta">{item.kind === 'CONNECTION' ? 'Conexão' : 'Equipamento'} · {romaneioMeasureLabel(item.measureType)}</div>
                               </div>
                               <div className="romaneio-add-control">
-                                {!item.isSerialized && (
+                                {showQuantityInput && (
                                   <input
                                     type="number"
                                     min="0"
-                                    step="1"
+                                    step={variableQuantity ? '0.1' : '1'}
                                     value={quantities[item.id] || ''}
                                     onChange={event => setQuantities(current => ({ ...current, [item.id]: event.target.value }))}
-                                    placeholder={item.defaultUnitLabel}
+                                    placeholder={item.defaultUnitLabel || defaultRomaneioUnit(item.measureType)}
                                   />
                                 )}
+                                {showQuantityInput ? (
+                                  <span className="rel-meta">{item.defaultUnitLabel || defaultRomaneioUnit(item.measureType)}</span>
+                                ) : null}
                                 <button className="mini-btn" type="button" disabled={disabled} onClick={() => addCatalogItem(item)}>
                                   {disabled ? 'Adicionado' : 'Adicionar'}
                                 </button>
@@ -695,7 +696,7 @@ export function NewRomaneioPage() {
               <span>Unidade variável</span>
               <select value={custom.measureType} onChange={event => {
                 const measureType = event.target.value as RomaneioMeasureType;
-                setCustom({ ...custom, measureType, unitLabel: defaultUnit(measureType) });
+                setCustom({ ...custom, measureType, unitLabel: defaultRomaneioUnit(measureType) });
               }}>
                 <option value="UNIT">Unidade</option>
                 <option value="LENGTH">Comprimento</option>

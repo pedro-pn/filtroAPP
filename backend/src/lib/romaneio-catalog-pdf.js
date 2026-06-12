@@ -126,9 +126,9 @@ function drawTableHeader(page, fonts, columnIndex, y) {
 }
 
 function controlLabel(item) {
-  if (item.isSerialized) return { type: 'checkbox', label: '' };
   if (item.measureType === 'WEIGHT') return { type: 'line', label: 'kg' };
   if (item.measureType === 'LENGTH') return { type: 'line', label: 'm' };
+  if (item.isSerialized) return { type: 'checkbox', label: '' };
   return { type: 'line', label: safeText(item.defaultUnitLabel) || 'un' };
 }
 
