@@ -66,6 +66,7 @@ export interface Project {
   isActive: boolean;
   visibleToCollaborators: boolean;
   managerOnly: boolean;
+  registrationPending?: boolean;
   inhibitionServiceEnabled: boolean;
   clientName: string;
   clientCnpj: string;

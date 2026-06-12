@@ -83,6 +83,16 @@ function normalizeProjectInput(data) {
   };
 }
 
+function projectRegistrationComplete(project = {}) {
+  return Boolean(
+    String(project.name || '').trim() &&
+    String(project.clientName || '').trim() &&
+    normalizeCnpj(project.clientCnpj).length === 14 &&
+    String(project.contractCode || '').trim() &&
+    String(project.location || '').trim()
+  );
+}
+
 function uniqueIds(values = []) {
   return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))];
 }
@@ -242,8 +252,11 @@ export const projectListInclude = {
   }
 };
 
-export async function projectListWhereForAuth(auth, activeParam, prismaClient = prisma) {
+export async function projectListWhereForAuth(auth, activeParam, prismaClient = prisma, options = {}) {
   const where = { deletedAt: null };
+  if (options.includeRegistrationPending === false) {
+    where.registrationPending = false;
+  }
   if (auth.user.role === 'MANAGER') {
     if (activeParam === 'true') where.isActive = true;
     if (activeParam === 'false') where.isActive = false;
@@ -373,10 +386,15 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
     const previousProject = await tx.project.findUniqueOrThrow({
       where: { id: req.params.id },
       select: {
+        name: true,
         clientCnpj: true,
+        clientName: true,
         clientEmailPrimary: true,
         clientEmailCc: true,
-        managerOnly: true
+        contractCode: true,
+        location: true,
+        managerOnly: true,
+        registrationPending: true
       }
     });
     if (reportSequences) {
@@ -386,25 +404,29 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
       await tx.projectAuthorizedUser.deleteMany({ where: { projectId: req.params.id } });
     }
 
+    const projectUpdateData = {
+      ...projectData,
+      ...(projectRegistrationComplete({ ...previousProject, ...projectData })
+        ? { registrationPending: false }
+        : {}),
+      ...(authorizedUserIds
+        ? {
+            authorizedUsers: {
+              create: authorizedUserIds.map(userId => ({ userId }))
+            }
+          }
+        : {}),
+      ...(reportSequences
+        ? {
+            reportSequences: {
+              create: reportSequences
+            }
+          }
+        : {})
+    };
     const updated = await tx.project.update({
       where: { id: req.params.id },
-      data: {
-        ...projectData,
-        ...(authorizedUserIds
-          ? {
-              authorizedUsers: {
-                create: authorizedUserIds.map(userId => ({ userId }))
-              }
-            }
-          : {}),
-        ...(reportSequences
-          ? {
-              reportSequences: {
-                create: reportSequences
-              }
-            }
-          : {})
-      },
+      data: projectUpdateData,
       include: {
         operator: true,
         authorizedUsers: {

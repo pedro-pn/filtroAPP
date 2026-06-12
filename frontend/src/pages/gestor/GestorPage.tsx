@@ -495,6 +495,7 @@ function projectSearchParts(project: Project) {
   return [
     project.code,
     project.name,
+    project.registrationPending ? 'cadastro pendente' : '',
     project.clientName,
     project.clientCnpj,
     project.clientEmailPrimary,
@@ -594,6 +595,15 @@ function projectVisibilityLabel(project: Pick<Project, 'managerOnly' | 'visibleT
   if (project.managerOnly) return 'Somente gestor';
   if (project.visibleToCollaborators) return 'Gestor, coordenador e colaboradores responsáveis';
   return 'Gestor e coordenador';
+}
+
+function projectRegistrationPending(project: Project) {
+  return Boolean(project.registrationPending);
+}
+
+function projectTitle(project: Project) {
+  const name = String(project.name || '').trim();
+  return name ? `${project.code} - ${name}` : `Missão ${project.code}`;
 }
 
 function latestSurvey(project: Project) {
@@ -1153,24 +1163,31 @@ function renderProjectCard(
   const surveyInfos = !project.isActive ? surveyHistoryBadges(project) : [];
   const canSendSurvey = canSendProjectSurvey(project);
   const canResendSurvey = !project.isActive && !!survey && !survey.respondedAt;
+  const pendingRegistration = projectRegistrationPending(project);
+  const title = projectTitle(project);
   return (
     <article className="card admin-card project-admin-card" key={project.id}>
       <div className="project-admin-head">
         {options.onToggleReports ? (
           <button className="project-admin-toggle" type="button" onClick={() => options.onToggleReports?.(project)}>
-            <span className="project-admin-title">{project.code} - {project.name}</span>
+            <span className="project-admin-title">{title}</span>
             <span className="rtype-count">{options.reportCount || 0} relatório{options.reportCount === 1 ? '' : 's'}</span>
             <span className="rtype-chevron">{options.reportSectionExpanded ? '▾' : '▸'}</span>
           </button>
         ) : (
           <div className="project-admin-title">
-            {project.code} - {project.name}
+            {title}
           </div>
         )}
-        <span className={`badge ${(project.includesSaturday || project.includesSunday) ? 'badge-ok' : 'badge-pen'}`}>
-          {(project.includesSaturday || project.includesSunday) ? 'Escala estendida' : 'Escala padrão'}
+        <span className={`badge ${pendingRegistration ? 'badge-pen' : (project.includesSaturday || project.includesSunday) ? 'badge-ok' : 'badge-pen'}`}>
+          {pendingRegistration ? 'Cadastro pendente' : (project.includesSaturday || project.includesSunday) ? 'Escala estendida' : 'Escala padrão'}
         </span>
       </div>
+      {pendingRegistration ? (
+        <div className="project-registration-alert">
+          Projeto criado automaticamente pelo romaneio. Complete o cadastro antes de usar em relatórios, ou exclua se o código não deve permanecer.
+        </div>
+      ) : null}
       {options.children}
       {options.detailsExpanded ? (
         <div className="det-section">
@@ -1455,6 +1472,10 @@ export function GestorPage() {
     : pendingCountQuery.data?.pagination.total ?? 0;
   const approvedCount = approvedCountQuery.data?.pagination.total ?? 0;
   const signedCount = signedCountQuery.data?.pagination.total ?? 0;
+  const pendingProjectRegistrationCount = (activeProjectsQuery.data || [])
+    .filter(project => project.isActive !== false)
+    .filter(projectRegistrationPending)
+    .length;
 
   useEffect(() => {
     if (tab !== 'arquivados') return;
@@ -2823,6 +2844,7 @@ export function GestorPage() {
     const activeProjects = (activeProjectsQuery.data || [])
       .filter(project => project.isActive !== false)
       .filter(project => matchesSearch(projectSearchParts(project), gestorSearch));
+    const pendingRegistrationProjects = activeProjects.filter(projectRegistrationPending);
 
     if (activeProjectsQuery.isLoading) {
       return <div className="page-card placeholder-copy">Carregando projetos...</div>;
@@ -2959,6 +2981,13 @@ export function GestorPage() {
                   <button className="mini-btn" type="submit" disabled={projectMutations.createProject.isPending}>Criar projeto</button>
                 </div>
               </form>
+            </div>
+          ) : null}
+          {pendingRegistrationProjects.length ? (
+            <div className="project-registration-alert project-registration-alert-panel">
+              {pendingRegistrationProjects.length === 1
+                ? 'Há 1 projeto criado pelo romaneio aguardando conclusão do cadastro.'
+                : `Há ${pendingRegistrationProjects.length} projetos criados pelo romaneio aguardando conclusão do cadastro.`}
             </div>
           ) : null}
         </section>
@@ -4616,6 +4645,9 @@ export function GestorPage() {
           </button>
           <button className={`nav-tab ${tab === 'projetos' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'projetos'} onClick={() => setTab('projetos')}>
             Projetos
+            {pendingProjectRegistrationCount ? (
+              <span className="nav-tab-count">{pendingProjectRegistrationCount}</span>
+            ) : null}
           </button>
           <button className={`nav-tab ${tab === 'arquivados' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'arquivados'} onClick={() => setTab('arquivados')}>
             Arquivados

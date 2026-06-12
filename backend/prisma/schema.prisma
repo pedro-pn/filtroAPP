@@ -192,6 +192,7 @@ model Project {
   isActive              Boolean           @default(true)
   visibleToCollaborators Boolean          @default(true)
   managerOnly           Boolean           @default(false)
+  registrationPending   Boolean           @default(false)
   inhibitionServiceEnabled Boolean        @default(false)
   clientName            String
   clientCnpj            String
@@ -218,6 +219,7 @@ model Project {
   romaneios             Romaneio[]
 
   @@index([deletedAt])
+  @@index([registrationPending])
 }
 
 model ProjectReportSeq {

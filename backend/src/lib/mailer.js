@@ -45,6 +45,10 @@ export async function verifyMailer() {
 }
 
 export async function sendMail(message) {
+  if (!outboundEmailsEnabled()) {
+    return outboundEmailDisabledResult();
+  }
+
   const transporter = createMailerTransport();
   const attachments = Array.isArray(message.attachments) ? message.attachments.slice() : [];
   if (fs.existsSync(emailLogoPath) && !attachments.some(item => item && item.cid === EMAIL_LOGO_CID)) {
@@ -62,7 +66,18 @@ export async function sendMail(message) {
 }
 
 export function clientEmailsEnabled(envConfig = env) {
+  return outboundEmailsEnabled(envConfig);
+}
+
+export function outboundEmailsEnabled(envConfig = env) {
   return envConfig.sendClientEmails !== false;
+}
+
+export function outboundEmailDisabledResult() {
+  return {
+    skipped: true,
+    reason: 'outbound_emails_disabled'
+  };
 }
 
 export async function sendClientMail(message) {

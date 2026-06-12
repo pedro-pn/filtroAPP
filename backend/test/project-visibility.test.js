@@ -9,6 +9,7 @@ import {
 
 test('shouldProvisionProjectClientAccounts skips manager-only projects', () => {
   assert.equal(shouldProvisionProjectClientAccounts({ managerOnly: true }), false);
+  assert.equal(shouldProvisionProjectClientAccounts({ managerOnly: false, registrationPending: true }), false);
   assert.equal(shouldProvisionProjectClientAccounts({ managerOnly: false }), true);
 });
 

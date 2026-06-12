@@ -37,7 +37,7 @@ async function newReportBootstrapData(auth) {
     drafts
   ] = await Promise.all([
     prisma.project.findMany({
-      where: await projectListWhereForAuth(auth, 'true'),
+      where: await projectListWhereForAuth(auth, 'true', prisma, { includeRegistrationPending: false }),
       include: projectListInclude,
       orderBy: { name: 'asc' }
     }),
@@ -97,7 +97,7 @@ router.get('/new-report', asyncHandler(async (req, res) => {
 }));
 
 router.get('/report-detail/:reportId', asyncHandler(async (req, res) => {
-  const reportProjectWhere = await projectListWhereForAuth(req.auth, undefined);
+  const reportProjectWhere = await projectListWhereForAuth(req.auth, undefined, prisma, { includeRegistrationPending: false });
   const [data, equipment, sequenceReports] = await Promise.all([
     newReportBootstrapData(req.auth),
     equipmentCache.get(() => prisma.equipment.findMany({ orderBy: { name: 'asc' } })),

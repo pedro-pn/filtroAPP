@@ -80,7 +80,7 @@ Isso remove o bloqueio principal que existia para o `P3`.
    - Definir `TRUST_PROXY=uniquelocal` para a stack Docker com Nginx, ou CIDRs explícitos da rede/proxy confiável.
    - Definir `SIGNATURE_TOKEN_SECRET` com um segredo longo e estável para os links de assinatura de RDO.
    - Em upgrades de versões antigas, definir `SIGNATURE_TOKEN_SECRET_PREVIOUS` com a chave anterior. Se não havia `SURVEY_TOKEN_SECRET`, a chave anterior era o `DATABASE_URL`.
-   - Em homologação/teste com banco de produção, definir `SEND_CLIENT_EMAILS=false` para bloquear e-mails destinados a clientes.
+   - Em homologação/teste com banco de produção, definir `SEND_CLIENT_EMAILS=false` para bloquear todos os envios operacionais do sistema.
 2. Garantir que o Compose receba `POSTGRES_PASSWORD`. Use `--env-file backend/.env.production` nos comandos abaixo ou mantenha um `.env` na raiz do projeto no servidor com essa variável.
 3. Buildar as imagens sem iniciar o backend. O comando de start do backend aplica
    migrations automaticamente, então ele não deve subir antes do preflight dos índices:

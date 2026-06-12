@@ -6,7 +6,7 @@ const LEGACY_EXTERNAL_SIGNATURE_KEYS = [
 ];
 
 export function shouldProvisionProjectClientAccounts(project) {
-  return !project?.managerOnly;
+  return !project?.managerOnly && !project?.registrationPending;
 }
 
 export function withoutProjectLegacyExternalSignatureState(specialConditions) {

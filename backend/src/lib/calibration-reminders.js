@@ -3,7 +3,7 @@ import {
   buildCalibrationReminderEmailTemplate,
   buildCalibrationUpdatedEmailTemplate
 } from './email-templates.js';
-import { getMissingMailerConfig, sendMail } from './mailer.js';
+import { getMissingMailerConfig, outboundEmailsEnabled, sendMail } from './mailer.js';
 import {
   managerCoordinatorNotificationEmails,
   NotificationEmailCategory,
@@ -245,6 +245,7 @@ export async function notifyCalibrationUpdated({
 } = {}) {
   const normalized = normalizeCalibrationEquipment(equipmentType, equipment || {});
   if (!shouldNotifyCalibrationUpdated({ previousExpiresAt, nextExpiresAt: normalized.expiresAt, now })) return false;
+  if (mailer === sendMail && !outboundEmailsEnabled()) return false;
   if (mailer === sendMail && missingMailerConfig.length) return false;
 
   const recipients = await recipientsForCalibration(client);
@@ -285,6 +286,9 @@ export async function processCalibrationReminders({
   now = new Date(),
   missingMailerConfig = getMissingMailerConfig()
 } = {}) {
+  if (mailer === sendMail && !outboundEmailsEnabled()) {
+    return { checked: 0, sent: 0, skipped: true, reason: 'outbound_emails_disabled' };
+  }
   if (mailer === sendMail && missingMailerConfig.length) return { checked: 0, sent: 0, skipped: true };
 
   const equipment = await fetchCalibrationEquipment(client);

@@ -41,6 +41,7 @@ interface SelectedItem {
 }
 
 const today = new Date().toISOString().slice(0, 10);
+const MANUAL_PROJECT_OPTION = '__manual_project__';
 
 function defaultUnit(measureType: RomaneioMeasureType) {
   if (measureType === 'WEIGHT') return 'kg';
@@ -50,6 +51,15 @@ function defaultUnit(measureType: RomaneioMeasureType) {
 
 function itemLabel(item: RomaneioCatalogItem) {
   return [item.code, item.name].filter(Boolean).join(' - ');
+}
+
+function projectLabel(project: { code: string; name?: string | null }) {
+  const name = String(project.name || '').trim();
+  return name ? `Missão ${project.code} - ${name}` : `Missão ${project.code}`;
+}
+
+function numericProjectCode(value: string) {
+  return value.replace(/\D/g, '');
 }
 
 function romaneioItemsToSelectedItems(romaneio: Romaneio): SelectedItem[] {
@@ -78,6 +88,8 @@ export function NewRomaneioPage() {
   const hydratedDraftKeyRef = useRef('');
   const isSubmittingRef = useRef(false);
   const [projectId, setProjectId] = useState('');
+  const [manualProjectMode, setManualProjectMode] = useState(false);
+  const [manualProjectCode, setManualProjectCode] = useState('');
   const [romaneioDate, setRomaneioDate] = useState(today);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [driverName, setDriverName] = useState('');
@@ -126,6 +138,13 @@ export function NewRomaneioPage() {
     () => projectOptions.find(project => project.id === projectId) || null,
     [projectId, projectOptions]
   );
+  const typedProjectCode = manualProjectCode.trim();
+  const projectSelectValue = projectId || (manualProjectMode ? MANUAL_PROJECT_OPTION : '');
+  const projectReferenceLabel = selectedProject
+    ? projectLabel(selectedProject)
+    : typedProjectCode
+      ? `Missão ${typedProjectCode}`
+      : '-';
 
   const activeCatalog = useMemo(() => {
     const needle = catalogSearch.trim().toLowerCase();
@@ -215,12 +234,15 @@ export function NewRomaneioPage() {
   function draftProjectDateKey(draft: { projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) {
     const payload = draft.payload || {};
     const draftProjectId = draft.projectId || (typeof payload.projectId === 'string' ? payload.projectId : '');
+    const draftProjectCode = typeof payload.projectCode === 'string' ? numericProjectCode(payload.projectCode) : '';
     const draftReportDate = draft.reportDate || (typeof payload.reportDate === 'string' ? payload.reportDate : '');
-    return draftProjectId && draftReportDate ? `${draftProjectId}|${draftReportDate.slice(0, 10)}` : '';
+    const projectKey = draftProjectId || (draftProjectCode ? `code:${draftProjectCode}` : '');
+    return projectKey && draftReportDate ? `${projectKey}|${draftReportDate.slice(0, 10)}` : '';
   }
 
   function currentDraftKey() {
-    return projectId && romaneioDate ? `${projectId}|${romaneioDate.slice(0, 10)}` : '';
+    const projectKey = projectId || (typedProjectCode ? `code:${typedProjectCode.toUpperCase()}` : '');
+    return projectKey && romaneioDate ? `${projectKey}|${romaneioDate.slice(0, 10)}` : '';
   }
 
   function matchingDraftIds() {
@@ -231,12 +253,18 @@ export function NewRomaneioPage() {
 
   function buildDraftPayload(): RomaneioDraftPayload {
     return {
-      projectId,
+      projectId: projectId || null,
+      projectCode: typedProjectCode || null,
       reportDate: romaneioDate,
-      title: selectedProject ? `Romaneio - ${selectedProject.code} - ${selectedProject.name}` : 'Romaneio em andamento',
+      title: selectedProject
+        ? `Romaneio - ${projectLabel(selectedProject)}`
+        : typedProjectCode
+          ? `Romaneio - ${typedProjectCode}`
+          : 'Romaneio em andamento',
       payload: {
         __module: 'romaneio',
         projectId,
+        projectCode: typedProjectCode,
         romaneioDate,
         driverName,
         vehiclePlate,
@@ -252,6 +280,7 @@ export function NewRomaneioPage() {
   function hydrateDraft(draft: { id: string; projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) {
     const payload = draft.payload || {};
     const nextProjectId = typeof payload.projectId === 'string' ? payload.projectId : draft.projectId || '';
+    const nextProjectCode = typeof payload.projectCode === 'string' ? numericProjectCode(payload.projectCode) : '';
     const nextDate = typeof payload.romaneioDate === 'string'
       ? payload.romaneioDate
       : typeof payload.reportDate === 'string'
@@ -260,6 +289,8 @@ export function NewRomaneioPage() {
 
     setDraftId(draft.id);
     setProjectId(nextProjectId);
+    setManualProjectMode(!nextProjectId && Boolean(nextProjectCode));
+    setManualProjectCode(nextProjectId ? '' : nextProjectCode);
     setRomaneioDate(nextDate.slice(0, 10));
     setDriverName(typeof payload.driverName === 'string' ? payload.driverName : '');
     setVehiclePlate(typeof payload.vehiclePlate === 'string' ? payload.vehiclePlate : '');
@@ -276,7 +307,8 @@ export function NewRomaneioPage() {
         ? { ...current, ...(payload.custom as typeof custom) }
         : current
     ));
-    hydratedDraftKeyRef.current = nextProjectId && nextDate ? `${nextProjectId}|${nextDate.slice(0, 10)}` : '';
+    const nextProjectKey = nextProjectId || (nextProjectCode.trim() ? `code:${nextProjectCode.trim().toUpperCase()}` : '');
+    hydratedDraftKeyRef.current = nextProjectKey && nextDate ? `${nextProjectKey}|${nextDate.slice(0, 10)}` : '';
   }
 
   useEffect(() => {
@@ -292,6 +324,8 @@ export function NewRomaneioPage() {
     const romaneio = editQuery.data;
     if (!romaneio || !isEditing) return;
     setProjectId(romaneio.projectId);
+    setManualProjectMode(false);
+    setManualProjectCode('');
     setRomaneioDate(romaneio.romaneioDate.slice(0, 10));
     setDriverName(romaneio.driverName || '');
     setVehiclePlate(romaneio.vehiclePlate || '');
@@ -314,14 +348,14 @@ export function NewRomaneioPage() {
 
     hydrateDraft(draft);
     showToast('Rascunho carregado.');
-  }, [isEditing, projectId, romaneioDate, draftsQuery.data, draftParam]);
+  }, [isEditing, projectId, manualProjectCode, romaneioDate, draftsQuery.data, draftParam]);
 
   useEffect(() => {
     if (isEditing) return;
     if (isSubmittingRef.current) return;
     if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
 
-    if (!projectId || !romaneioDate) {
+    if ((!projectId && !typedProjectCode) || !romaneioDate) {
       if (draftId) setDraftId(null);
       return;
     }
@@ -357,6 +391,8 @@ export function NewRomaneioPage() {
     };
   }, [
     projectId,
+    manualProjectCode,
+    typedProjectCode,
     romaneioDate,
     driverName,
     vehiclePlate,
@@ -387,7 +423,11 @@ export function NewRomaneioPage() {
   }
 
   function canSubmitRomaneio() {
-    if (!projectId || !romaneioDate || !driverName.trim() || !vehiclePlate.trim()) {
+    if (!projectId && !typedProjectCode) {
+      showToast('Selecione o projeto ou informe o código da missão.');
+      return false;
+    }
+    if (!romaneioDate || !driverName.trim() || !vehiclePlate.trim()) {
       showToast('Preencha os dados do cabeçalho.');
       return false;
     }
@@ -421,7 +461,8 @@ export function NewRomaneioPage() {
 
     try {
       await saveMutation.mutateAsync({
-        projectId,
+        projectId: projectId || null,
+        projectCode: typedProjectCode || null,
         romaneioDate,
         driverName,
         vehiclePlate,
@@ -436,6 +477,8 @@ export function NewRomaneioPage() {
         queryClient.invalidateQueries({ queryKey: ['romaneio-drafts'] });
       }
       queryClient.invalidateQueries({ queryKey: ['romaneios'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
       if (isEditing) queryClient.invalidateQueries({ queryKey: ['romaneio', editId] });
       setDraftId(null);
       lastAutoSaveSignatureRef.current = '';
@@ -483,13 +526,43 @@ export function NewRomaneioPage() {
           <div className="admin-form-grid manager-header-grid">
             <label className="field-group field-group-wide">
               <span>Projeto</span>
-              <select value={projectId} onChange={event => setProjectId(event.target.value)} required>
+              <select value={projectSelectValue} onChange={event => {
+                const value = event.target.value;
+                if (value === MANUAL_PROJECT_OPTION) {
+                  setProjectId('');
+                  setManualProjectMode(true);
+                  return;
+                }
+                setProjectId(value);
+                setManualProjectMode(false);
+                setManualProjectCode('');
+              }}>
                 <option value="">Selecione</option>
                 {projectOptions.map(project => (
-                  <option key={project.id} value={project.id}>Missão {project.code} - {project.name}</option>
+                  <option key={project.id} value={project.id}>{projectLabel(project)}</option>
                 ))}
+                <option value={MANUAL_PROJECT_OPTION}>Não encontrei a missão na lista</option>
               </select>
             </label>
+            {manualProjectMode ? (
+              <label className="field-group">
+                <span>Código da missão</span>
+                <input
+                  value={manualProjectCode}
+                  onChange={event => {
+                    const nextCode = numericProjectCode(event.target.value);
+                    setManualProjectCode(nextCode);
+                    if (nextCode) setProjectId('');
+                  }}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="Digite apenas números"
+                />
+                <small className="form-hint">
+                  Ao enviar, a missão será criada como cadastro pendente para revisão do gestor.
+                </small>
+              </label>
+            ) : null}
             <label className="field-group">
               <span>Data</span>
               <input type="date" value={romaneioDate} onChange={event => setRomaneioDate(event.target.value)} required />
@@ -663,7 +736,7 @@ export function NewRomaneioPage() {
         <div className="det-section">
           <div className="det-row">
             <span className="det-label">Projeto</span>
-            <span className="det-val">{selectedProject ? `Missão ${selectedProject.code} - ${selectedProject.name}` : '-'}</span>
+            <span className="det-val">{projectReferenceLabel}</span>
           </div>
           <div className="det-row"><span className="det-label">Data</span><span className="det-val">{romaneioDate}</span></div>
           <div className="det-row"><span className="det-label">Motorista</span><span className="det-val">{driverName || '-'}</span></div>

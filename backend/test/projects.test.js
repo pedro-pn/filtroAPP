@@ -4,7 +4,7 @@ import test from 'node:test';
 
 import app from '../src/app.js';
 import prisma from '../src/lib/prisma.js';
-import { removeProjectById } from '../src/routes/resources/projects.js';
+import { projectListWhereForAuth, removeProjectById } from '../src/routes/resources/projects.js';
 
 const bearerToken = 'project-test-token';
 
@@ -139,6 +139,21 @@ test('GET /projects keeps client listings scoped to non-deleted projects', async
   assert.equal(projectListQuery.where.managerOnly, false);
 });
 
+test('projectListWhereForAuth can exclude pending project registrations', async () => {
+  const where = await projectListWhereForAuth(
+    { user: { role: 'MANAGER' } },
+    'true',
+    prisma,
+    { includeRegistrationPending: false }
+  );
+
+  assert.deepEqual(where, {
+    deletedAt: null,
+    registrationPending: false,
+    isActive: true
+  });
+});
+
 test('PUT /projects/:id invalidates pending internal signature rounds when project becomes manager-only', async t => {
   stubAuthenticatedManager(t);
   const originalTransaction = prisma.$transaction;
@@ -241,6 +256,76 @@ test('PUT /projects/:id invalidates pending internal signature rounds when proje
   });
   assert.equal(calls[6][1].data.description, 'Rodada de assinatura invalidada por projeto oculto ou inativo.');
   assert.equal(calls[6][1].data.userId, 'manager-1');
+});
+
+test('PUT /projects/:id clears pending registration after required fields are completed', async t => {
+  stubAuthenticatedManager(t);
+  const originalTransaction = prisma.$transaction;
+  const originalFindUniqueOrThrow = prisma.project.findUniqueOrThrow;
+  const calls = [];
+  prisma.project.findUniqueOrThrow = async args => {
+    calls.push(['prisma.project.findUniqueOrThrow', args]);
+    return {
+      clientCnpj: '',
+      clientEmailPrimary: '',
+      clientEmailCc: [],
+      clientSigners: []
+    };
+  };
+  const tx = {
+    project: {
+      findUniqueOrThrow: async args => {
+        calls.push(['project.findUniqueOrThrow', args]);
+        return {
+          id: 'project-1',
+          name: '',
+          clientName: '',
+          clientCnpj: '',
+          clientEmailPrimary: '',
+          clientEmailCc: [],
+          clientSigners: [],
+          contractCode: '',
+          location: '',
+          managerOnly: false,
+          registrationPending: true
+        };
+      },
+      update: async args => {
+        calls.push(['project.update', args]);
+        return {
+          id: 'project-1',
+          ...args.data,
+          authorizedUsers: [],
+          reportSequences: []
+        };
+      }
+    },
+    projectReportSeq: {
+      deleteMany: async args => calls.push(['projectReportSeq.deleteMany', args])
+    },
+    projectAuthorizedUser: {
+      deleteMany: async args => calls.push(['projectAuthorizedUser.deleteMany', args])
+    }
+  };
+  prisma.$transaction = async callback => callback(tx);
+  t.after(() => {
+    prisma.$transaction = originalTransaction;
+    prisma.project.findUniqueOrThrow = originalFindUniqueOrThrow;
+  });
+
+  const response = await dispatchApp('PUT', '/api/projects/project-1', {
+    name: 'CGH Maria Cavaleira',
+    clientName: 'Cliente',
+    clientCnpj: '11.222.333/0001-44',
+    contractCode: 'Contrato 1',
+    location: 'Local 1',
+    authorizedUserIds: [],
+    reportSequences: []
+  });
+
+  assert.equal(response.statusCode, 200);
+  const updateCall = calls.find(([name]) => name === 'project.update');
+  assert.equal(updateCall[1].data.registrationPending, false);
 });
 
 test('removeProjectById preserves projects with reports before hiding the project', async () => {

@@ -17,6 +17,7 @@ import {
   requireRomaneioEditor,
   requireRomaneioManager,
   requireRomaneioModuleAccess,
+  resolveRomaneioProjectReference,
   romaneioProjectWhereForUser,
   romaneioEmailFailureResult,
   shouldCleanupFailedRomaneioCreate,
@@ -393,6 +394,10 @@ test('Romaneio visibility queries exclude soft-deleted projects', () => {
     }
   );
   assert.deepEqual(
+    romaneioProjectWhereForUser({ role: 'MANAGER' }),
+    { deletedAt: null }
+  );
+  assert.deepEqual(
     romaneioProjectWhereForUser({ role: 'COORDINATOR' }),
     { deletedAt: null, isActive: true, managerOnly: false }
   );
@@ -427,6 +432,160 @@ test('Romaneio project list hides manager-only and inactive projects from operat
   });
   assert.equal(calls[0].select.clientCnpj, undefined);
   assert.equal(calls[0].select.clientEmailPrimary, undefined);
+});
+
+test('Romaneio project list keeps manager-only projects visible to global managers', async t => {
+  const originalFindUnique = prisma.userSession.findUnique;
+  const originalFindMany = prisma.project.findMany;
+  const calls = [];
+  prisma.userSession.findUnique = async () => ({
+    ...romaneioOnlyManagerSession(),
+    user: {
+      ...romaneioOnlyManagerSession().user,
+      role: 'MANAGER',
+      accountType: 'ADMIN'
+    }
+  });
+  prisma.project.findMany = async args => {
+    calls.push(args);
+    return [];
+  };
+  t.after(() => {
+    prisma.userSession.findUnique = originalFindUnique;
+    prisma.project.findMany = originalFindMany;
+  });
+
+  const response = await dispatchApp('GET', '/api/romaneio/projects');
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(calls[0].where.managerOnly, undefined);
+});
+
+test('Romaneio project code lookup keeps project visibility filters', async () => {
+  const calls = [];
+  const client = {
+    project: {
+      async findFirst(args) {
+        calls.push(args);
+        return { id: 'visible-project' };
+      }
+    }
+  };
+
+  const project = await resolveRomaneioProjectReference(
+    { projectCode: ' 5797 ' },
+    { role: 'COORDINATOR' },
+    client
+  );
+
+  assert.deepEqual(project, { id: 'visible-project' });
+  assert.deepEqual(calls[0].where, {
+    code: { equals: '5797', mode: 'insensitive' },
+    deletedAt: null,
+    managerOnly: false,
+    isActive: true
+  });
+  assert.deepEqual(calls[0].select, { id: true });
+});
+
+test('Romaneio project code lookup rejects non-numeric manual project codes', async () => {
+  const client = {
+    project: {
+      async findFirst() {
+        throw new Error('non-numeric project code must not query projects');
+      },
+      async create() {
+        throw new Error('non-numeric project code must not create projects');
+      }
+    }
+  };
+
+  const project = await resolveRomaneioProjectReference(
+    { projectCode: '5798-A' },
+    { role: 'COORDINATOR' },
+    client,
+    { createPending: true }
+  );
+
+  assert.equal(project, null);
+});
+
+test('Romaneio project code lookup creates pending project when the code is new', async () => {
+  const calls = [];
+  const client = {
+    project: {
+      async findFirst(args) {
+        calls.push(['findFirst', args]);
+        return null;
+      },
+      async create(args) {
+        calls.push(['create', args]);
+        return { id: 'pending-project' };
+      }
+    }
+  };
+
+  const project = await resolveRomaneioProjectReference(
+    { projectCode: ' 5798 ' },
+    { role: 'COORDINATOR' },
+    client,
+    { createPending: true }
+  );
+
+  assert.deepEqual(project, { id: 'pending-project' });
+  assert.equal(calls[1][1].where.code.equals, '5798');
+  assert.deepEqual(calls[2][1].data, {
+    code: '5798',
+    name: '',
+    isActive: true,
+    visibleToCollaborators: false,
+    managerOnly: false,
+    registrationPending: true,
+    inhibitionServiceEnabled: false,
+    clientName: '',
+    clientCnpj: '',
+    clientEmailPrimary: '',
+    clientEmailCc: [],
+    clientSigners: [],
+    contractCode: '',
+    location: ''
+  });
+});
+
+test('Romaneio project code lookup recovers from concurrent pending project creation', async () => {
+  const calls = [];
+  let findCount = 0;
+  const client = {
+    project: {
+      async findFirst(args) {
+        calls.push(['findFirst', args]);
+        findCount += 1;
+        return findCount === 3 ? { id: 'pending-project' } : null;
+      },
+      async create(args) {
+        calls.push(['create', args]);
+        const error = new Error('unique project code');
+        error.code = 'P2002';
+        throw error;
+      }
+    }
+  };
+
+  const project = await resolveRomaneioProjectReference(
+    { projectCode: ' 5798 ' },
+    { role: 'COORDINATOR' },
+    client,
+    { createPending: true }
+  );
+
+  assert.deepEqual(project, { id: 'pending-project' });
+  assert.deepEqual(calls.map(([name]) => name), ['findFirst', 'findFirst', 'create', 'findFirst']);
+  assert.deepEqual(calls[3][1].where, {
+    code: { equals: '5798', mode: 'insensitive' },
+    deletedAt: null,
+    managerOnly: false,
+    isActive: true
+  });
 });
 
 test('Romaneio list keeps operator project visibility filters when filtering by project', async t => {

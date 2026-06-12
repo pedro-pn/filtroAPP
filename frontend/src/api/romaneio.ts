@@ -66,7 +66,8 @@ export interface RomaneioRecipient {
 }
 
 export interface RomaneioCreatePayload {
-  projectId: string;
+  projectId?: string | null;
+  projectCode?: string | null;
   romaneioDate: string;
   driverName: string;
   vehiclePlate: string;
@@ -99,6 +100,7 @@ export interface RomaneioCatalogPayload {
 export interface RomaneioDraftPayload {
   id?: string;
   projectId?: string | null;
+  projectCode?: string | null;
   title?: string | null;
   reportDate?: string | null;
   payload: Record<string, unknown>;

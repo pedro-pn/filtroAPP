@@ -1327,6 +1327,21 @@ a {
   margin-bottom: 10px;
 }
 
+.project-registration-alert {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #fbbf24;
+  border-radius: var(--rs);
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.project-registration-alert-panel {
+  margin: 14px 0 0;
+}
+
 .project-admin-panel {
   background: transparent;
   border: 0;

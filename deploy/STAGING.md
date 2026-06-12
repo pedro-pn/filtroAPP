@@ -246,5 +246,5 @@ Em seguida, repita a etapa de subida inicial.
   ser commitado.
 - O banco de homologação contém uma cópia dos dados de prod. Trate o acesso ao servidor
   com o mesmo cuidado.
-- `SEND_CLIENT_EMAILS=false` é a única proteção entre testes e e-mails reais enviados
-  a clientes. Não altere sem revisão explícita.
+- `SEND_CLIENT_EMAILS=false` é a proteção entre testes e e-mails operacionais reais
+  enviados pelo sistema. Não altere sem revisão explícita.

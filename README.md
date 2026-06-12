@@ -344,12 +344,13 @@ Nginx :443 (SSL Let's Encrypt)
 | `SMTP_USER` | Sim | Usuário SMTP |
 | `SMTP_PASS` | Sim | Senha ou App Password |
 | `SMTP_FROM` | Sim | Remetente (ex: `Filtrovali <no-reply@…>`) |
+| `SEND_CLIENT_EMAILS` | Não | Use `false` em homologação/testes para bloquear todos os envios operacionais do sistema |
 | `ASSETS_DIR` | Não | Diretório de assets estáticos |
 | `REPORTS_DIR` | Não | Diretório de relatórios gerados |
 | `LIBREOFFICE_BINARY` | Não | Caminho do LibreOffice (padrão: `soffice`) |
 | `ZAPSIGN_API_TOKEN` | Não | Token usado apenas para baixar PDFs legados já assinados pela ZapSign quando necessário |
 | `ZAPSIGN_ORGANIZATION_ID` | Não | ID usado apenas para autenticação de download legado ZapSign quando necessário |
-| `SMTP_TEST_DEST` | Não | E-mail destino do script `test-email.js` |
+| `SMTP_TEST_DEST` | Não | E-mail destino do script `test-email.js`; não redireciona envios operacionais quando `SEND_CLIENT_EMAILS=false` |
 
 ### Frontend (`frontend/.env`)
 

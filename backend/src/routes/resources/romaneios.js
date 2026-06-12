@@ -44,6 +44,13 @@ const cargoWeightSchema = z.preprocess(value => {
   if (value === '' || value === null || value === undefined) return null;
   return value;
 }, z.coerce.number().positive().nullable().optional());
+const projectCodeSchema = z.string()
+  .trim()
+  .optional()
+  .nullable()
+  .refine(value => !value || /^\d+$/.test(value), {
+    message: 'Informe apenas números no código do projeto.'
+  });
 
 const itemSchema = z.object({
   catalogItemId: z.string().optional().nullable(),
@@ -58,13 +65,22 @@ const itemSchema = z.object({
 });
 
 const createRomaneioSchema = z.object({
-  projectId: z.string().min(1),
+  projectId: z.string().trim().optional().nullable(),
+  projectCode: projectCodeSchema,
   romaneioDate: z.string().min(1),
   driverName: z.string().trim().min(1),
   vehiclePlate: z.string().trim().min(1),
   cargoWeight: cargoWeightSchema,
   cargoWeightUnit: z.enum(cargoWeightUnits).default('kg'),
   items: z.array(itemSchema).min(1)
+}).superRefine((data, ctx) => {
+  if (!data.projectId && !data.projectCode) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['projectId'],
+      message: 'Informe o projeto ou o código do projeto.'
+    });
+  }
 });
 
 const catalogSchema = z.object({
@@ -92,6 +108,7 @@ const recipientSchema = z.object({
 const draftSchema = z.object({
   id: z.string().optional(),
   projectId: z.string().nullable().optional(),
+  projectCode: projectCodeSchema,
   title: z.string().nullable().optional(),
   reportDate: z.string().nullable().optional(),
   payload: z.any()
@@ -131,6 +148,70 @@ async function assertRomaneioProjectAccess(projectId, authUser, client = prisma)
     where: romaneioProjectWhereForUser(authUser, { id: projectId }),
     select: { id: true }
   });
+}
+
+function normalizeProjectCode(value) {
+  return String(value || '').trim();
+}
+
+function isNumericProjectCode(value) {
+  return /^\d+$/.test(value);
+}
+
+function pendingRomaneioProjectData(projectCode) {
+  return {
+    code: projectCode,
+    name: '',
+    isActive: true,
+    visibleToCollaborators: false,
+    managerOnly: false,
+    registrationPending: true,
+    inhibitionServiceEnabled: false,
+    clientName: '',
+    clientCnpj: '',
+    clientEmailPrimary: '',
+    clientEmailCc: [],
+    clientSigners: [],
+    contractCode: '',
+    location: ''
+  };
+}
+
+export async function resolveRomaneioProjectReference(payload, authUser, client = prisma, options = {}) {
+  const projectId = String(payload?.projectId || '').trim();
+  const projectCode = normalizeProjectCode(payload?.projectCode);
+  if (projectCode && !isNumericProjectCode(projectCode)) return null;
+  const projectWhere = projectId
+    ? { id: projectId }
+    : projectCode
+      ? { code: { equals: projectCode, mode: 'insensitive' } }
+      : null;
+  if (!projectWhere) return null;
+
+  const project = await client.project.findFirst({
+    where: romaneioProjectWhereForUser(authUser, projectWhere),
+    select: { id: true }
+  });
+  if (project || projectId || !projectCode || !options.createPending) return project;
+
+  const existingProjectWithCode = await client.project.findFirst({
+    where: { code: { equals: projectCode, mode: 'insensitive' } },
+    select: { id: true }
+  });
+  if (existingProjectWithCode) return null;
+
+  try {
+    return await client.project.create({
+      data: pendingRomaneioProjectData(projectCode),
+      select: { id: true }
+    });
+  } catch (error) {
+    if (error?.code !== 'P2002') throw error;
+    return client.project.findFirst({
+      where: romaneioProjectWhereForUser(authUser, { code: { equals: projectCode, mode: 'insensitive' } }),
+      select: { id: true }
+    });
+  }
 }
 
 function parseDateOnly(value) {
@@ -261,6 +342,7 @@ function normalizeDraftPayload(data) {
     ...(data.payload && typeof data.payload === 'object' ? data.payload : {}),
     __module: ROMANEIO_DRAFT_MODULE,
     projectId: data.projectId || null,
+    projectCode: data.projectCode || null,
     reportDate: data.reportDate || null
   };
 }
@@ -677,13 +759,14 @@ router.get('/:id', requireAuth, requireRomaneioAccess, asyncHandler(async (req, 
 router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   await ensureRomaneioCatalogSynced();
   const payload = createRomaneioSchema.parse(req.body);
-  const project = await assertRomaneioProjectAccess(payload.projectId, req.auth.user);
-  if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
-
   const itemData = await buildRomaneioItems(payload.items);
   if (itemData.some(item => !item.itemName || !item.categoryName)) {
     return res.status(400).json({ error: 'Todos os itens precisam de nome e categoria.' });
   }
+
+  const project = await resolveRomaneioProjectReference(payload, req.auth.user, prisma, { createPending: true });
+  if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
+  const resolvedProjectId = project.id;
 
   let created = null;
   let files = null;
@@ -692,7 +775,7 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
   try {
     created = await prisma.romaneio.create({
       data: {
-        projectId: payload.projectId,
+        projectId: resolvedProjectId,
         createdByUserId: req.auth.user.id,
         romaneioDate: parseDateOnly(payload.romaneioDate),
         driverName: payload.driverName,
@@ -749,9 +832,6 @@ router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, as
     where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
     ...selectedFields()
   });
-  const project = await assertRomaneioProjectAccess(payload.projectId, req.auth.user);
-  if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
-
   const itemData = await buildRomaneioItems(payload.items, {
     allowedInactiveCatalogItemIds: existing.items.map(item => item.catalogItemId).filter(Boolean)
   });
@@ -759,12 +839,16 @@ router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, as
     return res.status(400).json({ error: 'Todos os itens precisam de nome e categoria.' });
   }
 
+  const project = await resolveRomaneioProjectReference(payload, req.auth.user, prisma, { createPending: true });
+  if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
+  const resolvedProjectId = project.id;
+
   const preview = {
     ...existing,
-    projectId: payload.projectId,
-    project: payload.projectId === existing.projectId
+    projectId: resolvedProjectId,
+    project: resolvedProjectId === existing.projectId
       ? existing.project
-      : await prisma.project.findUniqueOrThrow({ where: { id: payload.projectId }, select: romaneioDocumentProjectSelect }),
+      : await prisma.project.findUniqueOrThrow({ where: { id: resolvedProjectId }, select: romaneioDocumentProjectSelect }),
     romaneioDate: parseDateOnly(payload.romaneioDate),
     driverName: payload.driverName,
     vehiclePlate: payload.vehiclePlate.toUpperCase(),
@@ -780,7 +864,7 @@ router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, as
       return tx.romaneio.update({
         where: { id: existing.id },
         data: {
-          projectId: payload.projectId,
+          projectId: resolvedProjectId,
           romaneioDate: preview.romaneioDate,
           driverName: payload.driverName,
           vehiclePlate: payload.vehiclePlate.toUpperCase(),

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import env from '../src/config/env.js';
 import {
   CalibrationReminderMilestone,
   notifyCalibrationUpdated,
@@ -105,6 +106,39 @@ async function runScenario(equipment) {
   return { client, messages, result };
 }
 
+test('skips calibration reminder job when operational emails are disabled', async t => {
+  const original = env.sendClientEmails;
+  t.after(() => {
+    env.sendClientEmails = original;
+  });
+  env.sendClientEmails = false;
+
+  const client = {
+    manometer: {
+      async findMany() {
+        throw new Error('equipment must not be queried while mail is disabled');
+      }
+    },
+    particleCounter: {
+      async findMany() {
+        throw new Error('equipment must not be queried while mail is disabled');
+      }
+    }
+  };
+
+  const result = await processCalibrationReminders({
+    client,
+    missingMailerConfig: []
+  });
+
+  assert.deepEqual(result, {
+    checked: 0,
+    sent: 0,
+    skipped: true,
+    reason: 'outbound_emails_disabled'
+  });
+});
+
 test('sends one manager email 30 days before particle counter calibration expires', async () => {
   const { messages, result } = await runScenario({
     particleCounters: [{
@@ -207,6 +241,30 @@ test('sends one manager repeat email with all expired equipment in the category'
   assert.match(messages[0].text, /CP-V002/);
   assert.equal(client.createdLogs.length, 1);
   assert.equal(client.createdLogs[0].milestone, CalibrationReminderMilestone.EXPIRED_REPEAT);
+});
+
+test('keeps expired calibration repeat cadence after stack restart', async () => {
+  const { client, messages, result } = await runScenario({
+    logs: [{
+      equipmentType: 'CATEGORY',
+      equipmentId: 'CATEGORY:CONTADOR DE PARTICULAS',
+      category: 'CONTADOR DE PARTICULAS',
+      milestone: CalibrationReminderMilestone.EXPIRED_REPEAT,
+      targetDate: new Date('2026-06-02T00:00:00.000Z'),
+      sentAt: new Date('2026-06-02T00:00:00.000Z')
+    }],
+    particleCounters: [{
+      id: 'counter-expired-restart',
+      code: 'CP-RST',
+      serialNumber: 'SN-RST',
+      category: 'CONTADOR DE PARTICULAS',
+      expiresAt: new Date('2026-06-01T00:00:00.000Z')
+    }]
+  });
+
+  assert.deepEqual(result, { checked: 1, sent: 0 });
+  assert.equal(messages.length, 0);
+  assert.equal(client.createdLogs.length, 0);
 });
 
 test('skips calibration email when the manager opted out', async () => {
