@@ -89,9 +89,9 @@ export async function processSurveyReminders({ limit = 25 } = {}) {
   return { checked: candidates.length, sent };
 }
 
-async function expirationNotificationRecipients(project) {
+async function expirationNotificationRecipients(project, client = prisma) {
   const roles = project?.managerOnly ? ['MANAGER'] : ['MANAGER', 'COORDINATOR'];
-  const users = await prisma.user.findMany({
+  const users = await client.user.findMany({
     where: {
       role: { in: roles },
       isActive: true,
@@ -102,9 +102,13 @@ async function expirationNotificationRecipients(project) {
   return users.map(user => user.email).filter(Boolean);
 }
 
-export async function processSurveyExpirations({ limit = 25 } = {}) {
-  const now = new Date();
-  const candidates = await prisma.satisfactionSurvey.findMany({
+export async function processSurveyExpirations({
+  limit = 25,
+  client = prisma,
+  notifyExpired = notifySurveyExpired,
+  now = new Date()
+} = {}) {
+  const candidates = await client.satisfactionSurvey.findMany({
     where: expirationDueWhere(now),
     take: limit,
     orderBy: { expiresAt: 'asc' },
@@ -114,7 +118,7 @@ export async function processSurveyExpirations({ limit = 25 } = {}) {
   let notified = 0;
   for (const survey of candidates) {
     const claimTime = new Date();
-    const claim = await prisma.satisfactionSurvey.updateMany({
+    const claim = await client.satisfactionSurvey.updateMany({
       where: {
         id: survey.id,
         ...expirationDueWhere(now)
@@ -124,14 +128,10 @@ export async function processSurveyExpirations({ limit = 25 } = {}) {
     if (claim.count !== 1) continue;
 
     try {
-      const recipients = await expirationNotificationRecipients(survey.project);
-      await notifySurveyExpired({ survey, project: survey.project, recipients });
+      const recipients = await expirationNotificationRecipients(survey.project, client);
+      await notifyExpired({ survey, project: survey.project, recipients });
       notified += 1;
     } catch (error) {
-      await prisma.satisfactionSurvey.update({
-        where: { id: survey.id },
-        data: { expirationNotifiedAt: null }
-      }).catch(() => {});
       console.error('Falha ao notificar expiração de pesquisa.', { surveyId: survey.id, error: error?.message || error });
     }
   }
