@@ -477,6 +477,7 @@ export async function buildReportPdf(report, prisma) {
     const special = report.specialConditions || {};
     const night = special.noturnoDetails || {};
     const overtime = special.overtimeSummary || {};
+    const overtimeRejected = special.overtimeAccepted === false;
     const widths = [132, 143, 132, 132];
 
     sectionBand('Jornada de trabalho');
@@ -502,14 +503,14 @@ export async function buildReportPdf(report, prisma) {
     ], widths, y, 28, { fill: COLORS.white });
     y -= 28;
     tableRow([
-      { text: `Horas extras (diurno): ${formatMinutes(report.daytimeOvertimeMinutes || overtime.daytimeOvertimeMinutes || 0)}` },
+      { text: overtimeRejected ? '' : `Horas extras (diurno): ${formatMinutes(report.daytimeOvertimeMinutes || overtime.daytimeOvertimeMinutes || 0)}` },
       { text: `Stand-by: ${(special.standbyDetails || {}).total || '—'}` },
-      { text: `Horas extras (noturno): ${formatMinutes(report.nighttimeOvertimeMinutes || overtime.nighttimeOvertimeMinutes || 0)}` },
+      { text: overtimeRejected ? '' : `Horas extras (noturno): ${formatMinutes(report.nighttimeOvertimeMinutes || overtime.nighttimeOvertimeMinutes || 0)}` },
       { text: `Motivo stand-by: ${(special.standbyDetails || {}).motivo || '—'}` }
     ], widths, y, 28, { fill: COLORS.white });
     y -= 28;
     tableRow([
-      { text: `Comentário hora extra: ${report.overtimeReason || '—'}`, color: COLORS.blue },
+      { text: overtimeRejected ? '' : `Comentário hora extra: ${report.overtimeReason || '—'}`, color: COLORS.blue },
       { text: '', color: COLORS.blue },
       { text: '', color: COLORS.blue },
       { text: '', color: COLORS.blue }

@@ -2811,7 +2811,7 @@ export function GestorPage() {
               required
             />
           </div>
-          <div className="admin-form-actions">
+          <div className="admin-form-actions sequence-dialog-actions">
             <button
               className="secondary-button"
               type="button"
@@ -2841,14 +2841,139 @@ export function GestorPage() {
   }
 
   function renderProjectsTab() {
-    const activeProjects = (activeProjectsQuery.data || [])
-      .filter(project => project.isActive !== false)
+    const allActiveProjects = (activeProjectsQuery.data || [])
+      .filter(project => project.isActive !== false);
+    const pendingRegistrationProjects = allActiveProjects.filter(projectRegistrationPending);
+    const activeProjects = allActiveProjects
+      .filter(project => !projectRegistrationPending(project))
       .filter(project => matchesSearch(projectSearchParts(project), gestorSearch));
-    const pendingRegistrationProjects = activeProjects.filter(projectRegistrationPending);
 
     if (activeProjectsQuery.isLoading) {
       return <div className="page-card placeholder-copy">Carregando projetos...</div>;
     }
+
+    const renderEditableProjectCard = (project: Project) => renderProjectCard(project, {
+      children: projectEditingId === project.id ? (
+        <form className="admin-inline-form admin-inline-grid" onSubmit={handleProjectSubmit}>
+            <div className="field-group">
+              <label htmlFor={`project-code-${project.id}`}>Número da missão</label>
+              <input id={`project-code-${project.id}`} value={projectForm.code} readOnly />
+            </div>
+            <div className="field-group">
+              <label htmlFor={`project-name-${project.id}`}>Nome</label>
+              <input id={`project-name-${project.id}`} value={projectForm.name} onChange={event => setProjectForm(current => ({ ...current, name: event.target.value }))} required />
+            </div>
+            <div className="field-group">
+              <label htmlFor={`project-client-${project.id}`}>Cliente</label>
+              <input id={`project-client-${project.id}`} value={projectForm.clientName} onChange={event => setProjectForm(current => ({ ...current, clientName: event.target.value }))} required />
+            </div>
+            <div className="field-group">
+              <label htmlFor={`project-cnpj-${project.id}`}>CNPJ</label>
+              <input id={`project-cnpj-${project.id}`} value={projectForm.clientCnpj} onChange={event => setProjectForm(current => ({ ...current, clientCnpj: normalizeCnpjInput(event.target.value) }))} required />
+            </div>
+            <ProjectClientFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
+            <div className="field-group">
+              <label htmlFor={`project-contract-${project.id}`}>Contrato</label>
+              <input id={`project-contract-${project.id}`} value={projectForm.contractCode} onChange={event => setProjectForm(current => ({ ...current, contractCode: event.target.value }))} />
+            </div>
+            <div className="field-group">
+              <label htmlFor={`project-location-${project.id}`}>Local</label>
+              <input id={`project-location-${project.id}`} value={projectForm.location} onChange={event => setProjectForm(current => ({ ...current, location: event.target.value }))} />
+            </div>
+            <div className="field-group">
+              <label htmlFor={`project-operator-${project.id}`}>Operador responsável</label>
+              <select id={`project-operator-${project.id}`} value={projectForm.operatorId} onChange={event => setProjectForm(current => ({ ...current, operatorId: event.target.value }))}>
+                <option value="">Selecionar...</option>
+                {(collaboratorsQuery.data || []).filter(item => item.isActive).map(item => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
+              </select>
+            </div>
+            <ProjectAuthorizedUsersFields
+              form={projectForm}
+              idPrefix={`project-${project.id}`}
+              setForm={setProjectForm}
+              users={internalUsersQuery.data || []}
+            />
+            <div className="field-group">
+              <label htmlFor={`project-segment-${project.id}`}>Segmento do cliente</label>
+              <select id={`project-segment-${project.id}`} value={projectForm.clientSegment} onChange={event => setProjectForm(current => ({ ...current, clientSegment: event.target.value }))}>
+                <option value="">Selecionar segmento...</option>
+                {(projectSegmentsQuery.data || []).map(s => (
+                  <option key={s.slug} value={s.slug}>{s.label}</option>
+                ))}
+              </select>
+              <button className="mini-btn alt" type="button" onClick={openSegmentForm}>+ Adicionar segmento</button>
+            </div>
+            <div className="field-group">
+              <label htmlFor={`project-visible-${project.id}`}>Visibilidade / criação de relatórios</label>
+              <select
+                id={`project-visible-${project.id}`}
+                value={projectVisibilityMode(projectForm)}
+                onChange={event => setProjectForm(current => ({
+                  ...current,
+                  ...applyProjectVisibilityMode(event.target.value as ProjectVisibilityMode)
+                }))}
+              >
+                <option value="manager-coordinator">Gestor e coordenador</option>
+                <option value="all-authorized">Gestor, coordenador e colaboradores responsáveis</option>
+                <option value="manager-only">Somente gestor</option>
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor={`project-inhibition-service-${project.id}`}>Serviço de inibição</label>
+              <select
+                id={`project-inhibition-service-${project.id}`}
+                value={projectForm.inhibitionServiceEnabled ? 'true' : 'false'}
+                onChange={event => setProjectForm(current => ({ ...current, inhibitionServiceEnabled: event.target.value === 'true' }))}
+              >
+                <option value="false">Não</option>
+                <option value="true">Sim</option>
+              </select>
+            </div>
+            <ProjectReportSequenceFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
+            <div className="field-group">
+              <label htmlFor={`project-workday-${project.id}`}>Jornada padrão</label>
+              <input id={`project-workday-${project.id}`} type="text" placeholder="09:00" value={projectForm.workdayHours} onChange={event => setProjectForm(current => ({ ...current, workdayHours: event.target.value }))} />
+            </div>
+            <div className="field-group">
+              <label htmlFor={`project-weekend-${project.id}`}>Jornada fim de semana</label>
+              <input id={`project-weekend-${project.id}`} type="text" placeholder="08:00" value={projectForm.weekendWorkdayHours} onChange={event => setProjectForm(current => ({ ...current, weekendWorkdayHours: event.target.value }))} />
+            </div>
+            <div className="field-group">
+              <label htmlFor={`project-sat-${project.id}`}>Inclui sábado</label>
+              <select id={`project-sat-${project.id}`} value={projectForm.includesSaturday ? 'true' : 'false'} onChange={event => setProjectForm(current => ({ ...current, includesSaturday: event.target.value === 'true' }))}>
+                <option value="true">Sim</option>
+                <option value="false">Não</option>
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor={`project-sun-${project.id}`}>Inclui domingo</label>
+              <select id={`project-sun-${project.id}`} value={projectForm.includesSunday ? 'true' : 'false'} onChange={event => setProjectForm(current => ({ ...current, includesSunday: event.target.value === 'true' }))}>
+                <option value="true">Sim</option>
+                <option value="false">Não</option>
+              </select>
+            </div>
+            <div className="admin-form-actions">
+              <button className="mini-btn" type="submit" disabled={projectMutations.updateProject.isPending}>Salvar projeto</button>
+              <button className="mini-btn alt" type="button" onClick={resetProjectForm}>Cancelar edição</button>
+            </div>
+        </form>
+      ) : null,
+      onEdit: item => {
+        setProjectEditingId(item.id);
+        setShowProjectForm(true);
+        setProjectForm(projectToForm(item));
+      },
+      onToggleArchive: handleProjectToggleArchive,
+      onRemove: handleProjectRemove,
+      detailsExpanded: projectDetailsExpanded(project.id),
+      onToggleDetails: toggleProjectDetails,
+      onSendSurvey: handleSendSurvey,
+      onResendSurvey: handleResendSurvey,
+      surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending,
+      segments: projectSegmentsQuery.data
+    });
 
     return (
       <>
@@ -2983,143 +3108,26 @@ export function GestorPage() {
               </form>
             </div>
           ) : null}
-          {pendingRegistrationProjects.length ? (
+        </section>
+
+        {pendingRegistrationProjects.length ? (
+          <div className="project-registration-fixed-block">
             <div className="project-registration-alert project-registration-alert-panel">
               {pendingRegistrationProjects.length === 1
                 ? 'Há 1 projeto criado pelo romaneio aguardando conclusão do cadastro.'
                 : `Há ${pendingRegistrationProjects.length} projetos criados pelo romaneio aguardando conclusão do cadastro.`}
             </div>
-          ) : null}
-        </section>
+            <div className="admin-stack">
+              {sortProjects(pendingRegistrationProjects, projectSortDir).map(renderEditableProjectCard)}
+            </div>
+          </div>
+        ) : null}
 
         {activeProjects.length ? (
           <div className="admin-stack">
-            {sortProjects(activeProjects, projectSortDir).map(project =>
-              renderProjectCard(project, {
-                children: projectEditingId === project.id ? (
-                  <form className="admin-inline-form admin-inline-grid" onSubmit={handleProjectSubmit}>
-                      <div className="field-group">
-                        <label htmlFor={`project-code-${project.id}`}>Número da missão</label>
-                        <input id={`project-code-${project.id}`} value={projectForm.code} readOnly />
-                      </div>
-                      <div className="field-group">
-                        <label htmlFor={`project-name-${project.id}`}>Nome</label>
-                        <input id={`project-name-${project.id}`} value={projectForm.name} onChange={event => setProjectForm(current => ({ ...current, name: event.target.value }))} required />
-                      </div>
-                      <div className="field-group">
-                        <label htmlFor={`project-client-${project.id}`}>Cliente</label>
-                        <input id={`project-client-${project.id}`} value={projectForm.clientName} onChange={event => setProjectForm(current => ({ ...current, clientName: event.target.value }))} required />
-                      </div>
-                      <div className="field-group">
-                        <label htmlFor={`project-cnpj-${project.id}`}>CNPJ</label>
-                        <input id={`project-cnpj-${project.id}`} value={projectForm.clientCnpj} onChange={event => setProjectForm(current => ({ ...current, clientCnpj: normalizeCnpjInput(event.target.value) }))} required />
-                      </div>
-                      <ProjectClientFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
-                      <div className="field-group">
-                        <label htmlFor={`project-contract-${project.id}`}>Contrato</label>
-                        <input id={`project-contract-${project.id}`} value={projectForm.contractCode} onChange={event => setProjectForm(current => ({ ...current, contractCode: event.target.value }))} />
-                      </div>
-                      <div className="field-group">
-                        <label htmlFor={`project-location-${project.id}`}>Local</label>
-                        <input id={`project-location-${project.id}`} value={projectForm.location} onChange={event => setProjectForm(current => ({ ...current, location: event.target.value }))} />
-                      </div>
-                      <div className="field-group">
-                        <label htmlFor={`project-operator-${project.id}`}>Operador responsável</label>
-                        <select id={`project-operator-${project.id}`} value={projectForm.operatorId} onChange={event => setProjectForm(current => ({ ...current, operatorId: event.target.value }))}>
-                          <option value="">Selecionar...</option>
-                          {(collaboratorsQuery.data || []).filter(item => item.isActive).map(item => (
-                            <option key={item.id} value={item.id}>{item.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <ProjectAuthorizedUsersFields
-                        form={projectForm}
-                        idPrefix={`project-${project.id}`}
-                        setForm={setProjectForm}
-                        users={internalUsersQuery.data || []}
-                      />
-                      <div className="field-group">
-                        <label htmlFor={`project-segment-${project.id}`}>Segmento do cliente</label>
-                        <select id={`project-segment-${project.id}`} value={projectForm.clientSegment} onChange={event => setProjectForm(current => ({ ...current, clientSegment: event.target.value }))}>
-                          <option value="">Selecionar segmento...</option>
-                          {(projectSegmentsQuery.data || []).map(s => (
-                            <option key={s.slug} value={s.slug}>{s.label}</option>
-                          ))}
-                        </select>
-                        <button className="mini-btn alt" type="button" onClick={openSegmentForm}>+ Adicionar segmento</button>
-                      </div>
-                      <div className="field-group">
-                        <label htmlFor={`project-visible-${project.id}`}>Visibilidade / criação de relatórios</label>
-                        <select
-                          id={`project-visible-${project.id}`}
-                          value={projectVisibilityMode(projectForm)}
-                          onChange={event => setProjectForm(current => ({
-                            ...current,
-                            ...applyProjectVisibilityMode(event.target.value as ProjectVisibilityMode)
-                          }))}
-                        >
-                          <option value="manager-coordinator">Gestor e coordenador</option>
-                          <option value="all-authorized">Gestor, coordenador e colaboradores responsáveis</option>
-                          <option value="manager-only">Somente gestor</option>
-                        </select>
-                      </div>
-                      <div className="field-group">
-                        <label htmlFor={`project-inhibition-service-${project.id}`}>Serviço de inibição</label>
-                        <select
-                          id={`project-inhibition-service-${project.id}`}
-                          value={projectForm.inhibitionServiceEnabled ? 'true' : 'false'}
-                          onChange={event => setProjectForm(current => ({ ...current, inhibitionServiceEnabled: event.target.value === 'true' }))}
-                        >
-                          <option value="false">Não</option>
-                          <option value="true">Sim</option>
-                        </select>
-                      </div>
-                      <ProjectReportSequenceFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
-                      <div className="field-group">
-                        <label htmlFor={`project-workday-${project.id}`}>Jornada padrão</label>
-                        <input id={`project-workday-${project.id}`} type="text" placeholder="09:00" value={projectForm.workdayHours} onChange={event => setProjectForm(current => ({ ...current, workdayHours: event.target.value }))} />
-                      </div>
-                      <div className="field-group">
-                        <label htmlFor={`project-weekend-${project.id}`}>Jornada fim de semana</label>
-                        <input id={`project-weekend-${project.id}`} type="text" placeholder="08:00" value={projectForm.weekendWorkdayHours} onChange={event => setProjectForm(current => ({ ...current, weekendWorkdayHours: event.target.value }))} />
-                      </div>
-                      <div className="field-group">
-                        <label htmlFor={`project-sat-${project.id}`}>Inclui sábado</label>
-                        <select id={`project-sat-${project.id}`} value={projectForm.includesSaturday ? 'true' : 'false'} onChange={event => setProjectForm(current => ({ ...current, includesSaturday: event.target.value === 'true' }))}>
-                          <option value="true">Sim</option>
-                          <option value="false">Não</option>
-                        </select>
-                      </div>
-                      <div className="field-group">
-                        <label htmlFor={`project-sun-${project.id}`}>Inclui domingo</label>
-                        <select id={`project-sun-${project.id}`} value={projectForm.includesSunday ? 'true' : 'false'} onChange={event => setProjectForm(current => ({ ...current, includesSunday: event.target.value === 'true' }))}>
-                          <option value="true">Sim</option>
-                          <option value="false">Não</option>
-                        </select>
-                      </div>
-                      <div className="admin-form-actions">
-                        <button className="mini-btn" type="submit" disabled={projectMutations.updateProject.isPending}>Salvar projeto</button>
-                        <button className="mini-btn alt" type="button" onClick={resetProjectForm}>Cancelar edição</button>
-                      </div>
-                  </form>
-                ) : null,
-                onEdit: item => {
-                  setProjectEditingId(item.id);
-                  setShowProjectForm(true);
-                  setProjectForm(projectToForm(item));
-                },
-                onToggleArchive: handleProjectToggleArchive,
-                onRemove: handleProjectRemove,
-                detailsExpanded: projectDetailsExpanded(project.id),
-                onToggleDetails: toggleProjectDetails,
-                onSendSurvey: handleSendSurvey,
-                onResendSurvey: handleResendSurvey,
-                surveyPending: surveyMutations.sendProjectSurvey.isPending || surveyMutations.resendSurvey.isPending,
-                segments: projectSegmentsQuery.data
-              })
-            )}
+            {sortProjects(activeProjects, projectSortDir).map(renderEditableProjectCard)}
           </div>
-        ) : (
+        ) : pendingRegistrationProjects.length ? null : (
           <div className="card admin-card">
             <div className="placeholder-copy">Nenhum projeto ativo.</div>
           </div>

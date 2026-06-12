@@ -1276,6 +1276,11 @@ const listSummarySelect = {
   departureTime: true,
   lunchBreak: true,
   daytimeCount: true,
+  daytimeWorkedMinutes: true,
+  nighttimeWorkedMinutes: true,
+  daytimeOvertimeMinutes: true,
+  nighttimeOvertimeMinutes: true,
+  totalOvertimeMinutes: true,
   overtimeReason: true,
   dailyDescription: true,
   reviewNotes: true,
@@ -2212,7 +2217,11 @@ function pdfCacheMetadataForReport(report) {
     reportUpdatedAt: reportUpdatedAtToken(report),
     fingerprint: sha256Hex(JSON.stringify({
       photos: pdfUploadUrlsForReport(report).sort(),
-      calibrationLinks: calibrationCertificateUrlsForReport(report).sort()
+      calibrationLinks: calibrationCertificateUrlsForReport(report).sort(),
+      overtimeAccepted: report?.specialConditions?.overtimeAccepted !== false,
+      daytimeOvertimeMinutes: report?.daytimeOvertimeMinutes || 0,
+      nighttimeOvertimeMinutes: report?.nighttimeOvertimeMinutes || 0,
+      overtimeReason: report?.overtimeReason || ''
     }))
   };
 }
@@ -3005,7 +3014,8 @@ const updateSchema = schema.omit({
 
 const statusSchema = z.object({
   status: z.nativeEnum(ReportStatus),
-  reviewNotes: z.string().nullable().optional()
+  reviewNotes: z.string().nullable().optional(),
+  acceptOvertime: z.boolean().optional().default(true)
 });
 const sequenceSchema = z.object({
   sequenceNumber: positiveIntSchema
@@ -3184,6 +3194,12 @@ function extractInternalEditState(specialConditions) {
   if (specialConditions.__editOriginalSnapshot) state.__editOriginalSnapshot = cloneJson(specialConditions.__editOriginalSnapshot);
   if (specialConditions.__editMeta) state.__editMeta = cloneJson(specialConditions.__editMeta);
   return state;
+}
+
+function markOvertimeRejected(specialConditions) {
+  const next = cloneJson(plainObject(specialConditions));
+  next.overtimeAccepted = false;
+  return next;
 }
 
 function reportSnapshotUploadAttachments(report) {
@@ -6044,6 +6060,22 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
               }
             }
           : {});
+    const overtimeRejected = specialConditions?.overtimeAccepted === false;
+    const storedSpecialConditionsBase = {
+      ...(req.auth.user.role === 'MANAGER'
+        ? withClientRejectionCleared(stripInternalEditState(specialConditions))
+        : stripInternalEditState(specialConditions)),
+      ...(serviceOnlySpecialConditions || {}),
+      overtimeSummary: overtime,
+      ...internalEditState
+    };
+    const storedSpecialConditions = overtimeRejected
+      ? markOvertimeRejected(storedSpecialConditionsBase)
+      : (() => {
+          const next = cloneJson(plainObject(storedSpecialConditionsBase));
+          delete next.overtimeAccepted;
+          return next;
+        })();
     await tx.reportCollaborator.deleteMany({ where: { reportId: req.params.id } });
     await tx.reportService.deleteMany({ where: { reportId: req.params.id } });
     const sequenceSwap = (managerProvidedSequence || sequenceGroupChanged) && Number.isInteger(targetSequenceNumber)
@@ -6083,14 +6115,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
         totalOvertimeMinutes: overtime.totalOvertimeMinutes,
         overtimeReason: data.overtimeReason || null,
         dailyDescription: data.dailyDescription || null,
-        specialConditions: withLeaderSnapshot({
-          ...(req.auth.user.role === 'MANAGER'
-            ? withClientRejectionCleared(stripInternalEditState(specialConditions))
-            : stripInternalEditState(specialConditions)),
-          ...(serviceOnlySpecialConditions || {}),
-          overtimeSummary: overtime,
-          ...internalEditState
-        }, leaderSnapshot),
+        specialConditions: withLeaderSnapshot(storedSpecialConditions, leaderSnapshot),
         pendingDerivedTypes: isServiceOnlyReport ? [] : collectPendingDerivedTypes(data.services),
         status: nextStatus,
         reviewNotes: req.auth.user.role === 'MANAGER'
@@ -6356,12 +6381,19 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
 
   const tPatch0 = Date.now();
   const item = await prisma.$transaction(async tx => {
-    const nextSpecialConditions = data.status === ReportStatus.APPROVED
+    let nextSpecialConditions = data.status === ReportStatus.APPROVED
       ? await enrichNightCollaboratorsInSpecialConditions(
           tx,
           withClientRejectionCleared(stripInternalEditState(previous?.specialConditions || {}))
         )
       : withoutLegacyExternalSignatureState(previous?.specialConditions || {});
+    const rejectOvertime = data.status === ReportStatus.APPROVED && data.acceptOvertime === false;
+    if (rejectOvertime) {
+      nextSpecialConditions = markOvertimeRejected(nextSpecialConditions);
+    } else if (data.status === ReportStatus.APPROVED) {
+      nextSpecialConditions = cloneJson(plainObject(nextSpecialConditions));
+      delete nextSpecialConditions.overtimeAccepted;
+    }
     await assertApprovedReportSignatureEmailPreflight({
       ...previous,
       status: data.status,

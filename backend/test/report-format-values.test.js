@@ -76,3 +76,47 @@ test('buildReportDocx converts service observation line breaks to Word breaks', 
   assert.match(xml, /Primeira linha[\s\S]*<w:br\s*\/>[\s\S]*Segunda linha/);
   assert.doesNotMatch(xml, /Primeira linha\r?\nSegunda linha/);
 });
+
+test('buildReportDocx hides rejected overtime from downloaded report without deleting internal data', async () => {
+  const baseReport = {
+    reportType: 'RDO',
+    sequenceNumber: 1,
+    reportDate: '2026-06-01',
+    arrivalTime: '08:00',
+    departureTime: '20:00',
+    lunchBreak: '01:00',
+    daytimeCount: 2,
+    daytimeOvertimeMinutes: 90,
+    nighttimeOvertimeMinutes: 30,
+    overtimeReason: 'Atendimento emergencial',
+    project: {
+      code: 'P-1',
+      name: 'Projeto',
+      clientName: 'Cliente',
+      clientCnpj: '',
+      location: 'Local',
+      contractCode: '',
+      operator: {}
+    },
+    services: [],
+    collaborators: []
+  };
+
+  const rejectedZip = new AdmZip(await buildReportDocx({
+    ...baseReport,
+    specialConditions: { overtimeAccepted: false }
+  }));
+  const rejectedXml = rejectedZip.readAsText('word/document.xml');
+  assert.doesNotMatch(rejectedXml, /Atendimento emergencial/);
+  assert.doesNotMatch(rejectedXml, /01:30/);
+  assert.doesNotMatch(rejectedXml, /00:30/);
+
+  const acceptedZip = new AdmZip(await buildReportDocx({
+    ...baseReport,
+    specialConditions: {}
+  }));
+  const acceptedXml = acceptedZip.readAsText('word/document.xml');
+  assert.match(acceptedXml, /Atendimento emergencial/);
+  assert.match(acceptedXml, /01:30/);
+  assert.match(acceptedXml, /00:30/);
+});

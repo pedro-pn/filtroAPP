@@ -258,6 +258,23 @@ function isServiceOnlyReport(report: ReportSummary) {
   return report.specialConditions?.serviceOnly === true;
 }
 
+function reportAcceptsOvertime(report: ReportSummary) {
+  return asRecord(report.specialConditions).overtimeAccepted !== false;
+}
+
+function minutesValue(value: unknown) {
+  const minutes = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : 0;
+}
+
+function overtimeMinutesFromReport(report: ReportSummary) {
+  const overtimeSummary = asRecord(asRecord(report.specialConditions).overtimeSummary);
+  const daytime = minutesValue(report.daytimeOvertimeMinutes ?? overtimeSummary.daytimeOvertimeMinutes);
+  const nighttime = minutesValue(report.nighttimeOvertimeMinutes ?? overtimeSummary.nighttimeOvertimeMinutes);
+  const total = minutesValue(report.totalOvertimeMinutes ?? overtimeSummary.totalOvertimeMinutes) || daytime + nighttime;
+  return { daytime, nighttime, total };
+}
+
 function asUploadedFiles(value: unknown): UploadedFile[] {
   return Array.isArray(value)
     ? value
@@ -472,13 +489,17 @@ function buildPayload(
     collaborators: Collaborator[] | undefined;
     equipment: Equipment[] | undefined;
     units: Unit[] | undefined;
-  }
+  },
+  options: {
+    acceptOvertime?: boolean;
+  } = {}
 ): Omit<ReportPayload, 'createdByUserId' | 'status'> {
   const serviceOnly = isServiceOnlyReport(report);
   const firstService = form.services[0];
   const effectiveArrivalTime = serviceOnly ? getString(firstService?.data.startTime) || form.arrivalTime || '00:00' : form.arrivalTime;
   const effectiveDepartureTime = serviceOnly ? getString(firstService?.data.endTime) || form.departureTime || '00:00' : form.departureTime;
   const effectiveLunchBreak = serviceOnly ? '00:00:00' : form.lunchBreak;
+  const overtimeAccepted = options.acceptOvertime !== false;
 
   return {
     projectId: form.projectId || report.projectId,
@@ -502,6 +523,7 @@ function buildPayload(
             motivo: form.standbyMotivo
           },
           generalUploads: form.generalUploads,
+          overtimeAccepted,
           noturnoDetails: {
             enabled: form.noturno,
             inicio: form.noturnoStart,
@@ -539,6 +561,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const [nightCollaboratorToAdd, setNightCollaboratorToAdd] = useState('');
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [derivedDeletionPromptOpen, setDerivedDeletionPromptOpen] = useState(false);
+  const [acceptOvertime, setAcceptOvertime] = useState(() => reportAcceptsOvertime(report));
+  const currentReportIdRef = useRef(report.id);
   const derivedDeletionResolverRef = useRef<((deleteReports: boolean | null) => void) | null>(null);
   const readOnly = report.status === 'SIGNED';
   const serviceOnly = isServiceOnlyReport(report);
@@ -548,6 +572,10 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
 
   useEffect(() => {
     setForm(reportToForm(report));
+    if (currentReportIdRef.current !== report.id) {
+      currentReportIdRef.current = report.id;
+      setAcceptOvertime(reportAcceptsOvertime(report));
+    }
   }, [report]);
 
   const projects = useMemo(() => sortProjects(bootstrapQuery.data?.projects || [], 'asc'), [bootstrapQuery.data?.projects]);
@@ -594,6 +622,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const manometers = bootstrapQuery.data?.manometers || [];
   const counters = bootstrapQuery.data?.counters || [];
   const inhibitionOptions = bootstrapQuery.data?.inhibitionOptions;
+  const overtimeApproval = overtimeMinutesFromReport(report);
+  const showOvertimeApproval = isManager && canApproveInEditor && !serviceOnly && overtimeApproval.total > 0;
 
   function setField<K extends keyof RdoFormState>(field: K, value: RdoFormState[K]) {
     setForm(current => ({ ...current, [field]: value }));
@@ -698,6 +728,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         collaborators,
         equipment,
         units
+      }, {
+        acceptOvertime
       });
       if (shouldAskDerivedDeletion) {
         payload.deleteUnfinalizedDerivedReports = deleteUnfinalizedDerivedReports;
@@ -720,7 +752,14 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     if (readOnly) return false;
 
     try {
-      await reportMutations.updateStatus.mutateAsync({ id: report.id, payload: { status, reviewNotes } });
+      await reportMutations.updateStatus.mutateAsync({
+        id: report.id,
+        payload: {
+          status,
+          reviewNotes,
+          ...(status === 'APPROVED' ? { acceptOvertime } : {})
+        }
+      });
       if (status === 'RETURNED') setReturnDialogOpen(false);
       showToast(status === 'APPROVED' ? 'Relatório aprovado.' : 'Relatório devolvido.', 'success');
       return true;
@@ -1080,12 +1119,39 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       <section className="page-card">
         <div className="section-title">{TEXT.finalization}</div>
         <div className="admin-form-grid">
+          {showOvertimeApproval ? (
+            <div className="overtime-review-inline">
+              <div className="overtime-review-main">
+                <div className="overtime-review-summary">
+                  <span className="detail-label">Hora extra identificada</span>
+                  <span className="detail-value">{formatMinutes(overtimeApproval.total)}</span>
+                </div>
+                <div className="tog-row overtime-review-toggle">
+                  <span className="tog-lbl">{acceptOvertime ? 'Aceitar hora extra' : 'Não aceitar hora extra'}</span>
+                  <label className="tog">
+                    <input
+                      type="checkbox"
+                      checked={acceptOvertime}
+                      disabled={reportMutations.updateReport.isPending || reportMutations.updateStatus.isPending}
+                      onChange={event => setAcceptOvertime(event.target.checked)}
+                    />
+                    <span className="tog-sl" />
+                  </label>
+                </div>
+              </div>
+              {!acceptOvertime ? (
+                <div className="inline-error overtime-review-warning">
+                  A hora extra e a justificativa não serão exibidas no relatório aprovado.
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div className="field-group">
             <label htmlFor="rdo-overtime">Motivo da hora extra</label>
             <input
               id="rdo-overtime"
               value={form.overtimeReason}
-              disabled={readOnly}
+              disabled={readOnly || (showOvertimeApproval && !acceptOvertime)}
               onChange={event => setField('overtimeReason', event.target.value)}
             />
           </div>
@@ -1435,7 +1501,7 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
               required
             />
           </div>
-          <div className="admin-form-actions">
+          <div className="admin-form-actions sequence-dialog-actions">
             <button
               className="secondary-button"
               type="button"

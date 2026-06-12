@@ -203,6 +203,11 @@ export interface ReportSummary {
   departureTime: string;
   lunchBreak: string;
   daytimeCount?: number;
+  daytimeWorkedMinutes?: number;
+  nighttimeWorkedMinutes?: number;
+  daytimeOvertimeMinutes?: number;
+  nighttimeOvertimeMinutes?: number;
+  totalOvertimeMinutes?: number;
   overtimeReason?: string | null;
   dailyDescription?: string | null;
   reviewNotes?: string | null;

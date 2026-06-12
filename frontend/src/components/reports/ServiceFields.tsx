@@ -54,6 +54,31 @@ type UploadGroup = { label: string; files: UploadedFile[] };
 type TubeRow = { d: string; unit: string; c: string; lengthUnit: string };
 export type ServiceCollaboratorOption = { id: string; name: string };
 
+const commonInchDiameters = [
+  '1/8',
+  '1/4',
+  '3/8',
+  '1/2',
+  '3/4',
+  '1',
+  '1 1/4',
+  '1 1/2',
+  '2',
+  '2 1/2',
+  '3',
+  '3 1/2',
+  '4',
+  '5',
+  '6',
+  '8',
+  '10',
+  '12',
+  '14',
+  '16',
+  '18',
+  '20'
+];
+
 const unitCategoryLabels: Record<string, string> = {
   FILTRAGEM: 'Filtragem',
   FLUSHING: 'Flushing',
@@ -365,21 +390,48 @@ function TubesBlock({ data, onChange, disabled, invalidKey, groupKey }: Pick<Ser
             <div className="field-group tube-field">
               <label htmlFor={fieldId(groupKey, 'diametro', index)}>Diâmetro {requiredMark()}</label>
               <div className="num-unit">
-                <input
-                  id={fieldId(groupKey, 'diametro', index)}
-                  aria-label={`Diâmetro ${index + 1}`}
-                  inputMode="decimal"
-                  placeholder="10"
-                  value={row.d || ''}
-                  disabled={disabled}
-                  onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, d: onlyNumberPunctuation(event.target.value) }) })}
-                />
+                {(row.unit || 'pol') === 'pol' ? (
+                  <select
+                    id={fieldId(groupKey, 'diametro', index)}
+                    aria-label={`Diâmetro ${index + 1}`}
+                    value={row.d || ''}
+                    disabled={disabled}
+                    onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, d: event.target.value }) })}
+                  >
+                    <option value="">Selecionar...</option>
+                    {row.d && !commonInchDiameters.includes(row.d) ? (
+                      <option value={row.d}>{row.d}</option>
+                    ) : null}
+                    {commonInchDiameters.map(diameter => (
+                      <option key={diameter} value={diameter}>{diameter}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id={fieldId(groupKey, 'diametro', index)}
+                    aria-label={`Diâmetro ${index + 1}`}
+                    inputMode="decimal"
+                    placeholder="50"
+                    value={row.d || ''}
+                    disabled={disabled}
+                    onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, d: onlyNumberPunctuation(event.target.value) }) })}
+                  />
+                )}
                 <select
                   id={fieldId(groupKey, 'diametro-unidade', index)}
                   aria-label={`Unidade do diâmetro ${index + 1}`}
                   value={row.unit || 'pol'}
                   disabled={disabled}
-                  onChange={event => onChange({ tubes: updateArrayItem(rows, index, { ...row, unit: event.target.value }) })}
+                  onChange={event => {
+                    const unit = event.target.value;
+                    onChange({
+                      tubes: updateArrayItem(rows, index, {
+                        ...row,
+                        unit,
+                        d: unit === 'pol' && row.d && !commonInchDiameters.includes(row.d) ? '' : row.d
+                      })
+                    });
+                  }}
                 >
                   <option value="pol">pol</option>
                   <option value="mm">mm</option>

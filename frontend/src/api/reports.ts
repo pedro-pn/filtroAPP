@@ -95,7 +95,7 @@ export async function updateReport(id: string, payload: Omit<ReportPayload, 'cre
   return response.data;
 }
 
-export async function updateReportStatus(id: string, payload: { status: ReportStatus; reviewNotes?: string | null }) {
+export async function updateReportStatus(id: string, payload: { status: ReportStatus; reviewNotes?: string | null; acceptOvertime?: boolean }) {
   const response = await apiClient.patch<ReportSummary>(rdoApiPath(`/reports/${id}/status`), payload);
   return response.data;
 }

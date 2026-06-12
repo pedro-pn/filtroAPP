@@ -440,6 +440,7 @@ function buildDocxData(report) {
   const night = special.noturnoDetails || {};
   const standby = special.standbyDetails || {};
   const hasNight = !!special.noturno;
+  const overtimeRejected = special.overtimeAccepted === false;
   const primaryService = (report.services || [])[0] || null;
   const primaryFields = (primaryService && primaryService.extraData) || {};
   const leaderSnapshot = report.specialConditions?.__leaderSnapshot || null;
@@ -461,10 +462,10 @@ function buildDocxData(report) {
     dinnerinterval: hasNight ? (night.intervalo || '') : '',
     nightcollaboratoscount: hasNight ? emptyWhenZero(String((night.colaboradores || []).length || 0)) : '',
     nightcollaboratorscount: hasNight ? emptyWhenZero(String((night.colaboradores || []).length || 0)) : '',
-    dayovertime: maybeMinutes(report.daytimeOvertimeMinutes || 0),
-    nightovertime: maybeMinutes(report.nighttimeOvertimeMinutes || 0),
+    dayovertime: overtimeRejected ? '' : maybeMinutes(report.daytimeOvertimeMinutes || 0),
+    nightovertime: overtimeRejected ? '' : maybeMinutes(report.nighttimeOvertimeMinutes || 0),
     standby: standby.total || '',
-    overtimecomment: report.overtimeReason || '',
+    overtimecomment: overtimeRejected ? '' : report.overtimeReason || '',
     standbymotive: standby.motivo || '',
     activities: report.dailyDescription || '',
     system: primaryService?.serviceType === 'inibicao'

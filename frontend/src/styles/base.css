@@ -1342,6 +1342,10 @@ a {
   margin: 14px 0 0;
 }
 
+.project-registration-fixed-block {
+  margin-bottom: 12px;
+}
+
 .project-admin-panel {
   background: transparent;
   border: 0;
@@ -3121,6 +3125,10 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   margin-top: 12px;
 }
 
+.sequence-dialog-actions {
+  margin-top: 12px;
+}
+
 .admin-card-head {
   display: flex;
   align-items: flex-start;
@@ -3959,6 +3967,59 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 
 .tog input:checked + .tog-sl::after {
   transform: translateX(18px);
+}
+
+.overtime-review-inline {
+  width: 100%;
+  padding: 4px 0 10px;
+  border-bottom: .5px solid #f0f0f0;
+}
+
+.overtime-review-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px 18px;
+}
+
+.overtime-review-summary {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 2px;
+}
+
+.overtime-review-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
+  min-width: 0;
+  padding: 0;
+  border-bottom: 0;
+}
+
+.overtime-review-toggle .tog-lbl {
+  white-space: nowrap;
+}
+
+.overtime-review-warning {
+  margin-top: 10px;
+}
+
+@media (max-width: 560px) {
+  .overtime-review-main {
+    flex-direction: column;
+  }
+
+  .overtime-review-toggle {
+    width: auto;
+    align-self: flex-end;
+    min-width: 0;
+  }
 }
 
 .manager-collapse {

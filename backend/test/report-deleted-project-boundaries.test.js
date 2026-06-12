@@ -709,6 +709,84 @@ test('PATCH report status rejects reports under soft-deleted projects before mut
   assert.deepEqual(calls.map(([name]) => name), ['report.findUnique']);
 });
 
+test('PATCH report status can approve while hiding rejected overtime', async t => {
+  stubAuthenticatedManager(t);
+  const originals = {
+    reportFindUnique: prisma.report.findUnique,
+    reportFindMany: prisma.report.findMany,
+    transaction: prisma.$transaction
+  };
+  let currentReport = activeReport({
+    id: 'report-overtime',
+    status: ReportStatus.PENDING,
+    daytimeOvertimeMinutes: 90,
+    nighttimeOvertimeMinutes: 30,
+    totalOvertimeMinutes: 120,
+    overtimeReason: 'Atendimento emergencial',
+    specialConditions: {
+      overtimeSummary: {
+        daytimeWorkedMinutes: 600,
+        nighttimeWorkedMinutes: 300,
+        daytimeOvertimeMinutes: 90,
+        nighttimeOvertimeMinutes: 30,
+        totalOvertimeMinutes: 120,
+        display: {
+          daytimeWorked: '10:00',
+          nighttimeWorked: '05:00',
+          daytimeOvertime: '01:30',
+          nighttimeOvertime: '00:30',
+          totalOvertime: '02:00'
+        }
+      }
+    },
+    project: {
+      ...activeReport().project,
+      managerOnly: true
+    }
+  });
+  let updateData = null;
+
+  prisma.report.findUnique = async () => currentReport;
+  prisma.report.findMany = async () => [];
+  prisma.$transaction = async callback => callback({
+    report: {
+      async update(args) {
+        updateData = args.data;
+        currentReport = {
+          ...currentReport,
+          ...args.data,
+          project: currentReport.project,
+          services: currentReport.services,
+          specialConditions: args.data.specialConditions
+        };
+        return currentReport;
+      }
+    }
+  });
+  t.after(() => {
+    prisma.report.findUnique = originals.reportFindUnique;
+    prisma.report.findMany = originals.reportFindMany;
+    prisma.$transaction = originals.transaction;
+  });
+
+  const response = await dispatchApp('PATCH', '/api/reports/report-overtime/status', {
+    status: ReportStatus.APPROVED,
+    acceptOvertime: false
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(Object.hasOwn(updateData, 'daytimeOvertimeMinutes'), false);
+  assert.equal(Object.hasOwn(updateData, 'nighttimeOvertimeMinutes'), false);
+  assert.equal(Object.hasOwn(updateData, 'totalOvertimeMinutes'), false);
+  assert.equal(Object.hasOwn(updateData, 'overtimeReason'), false);
+  assert.equal(updateData.specialConditions.overtimeAccepted, false);
+  assert.equal(updateData.specialConditions.overtimeSummary.daytimeOvertimeMinutes, 90);
+  assert.equal(updateData.specialConditions.overtimeSummary.nighttimeOvertimeMinutes, 30);
+  assert.equal(updateData.specialConditions.overtimeSummary.totalOvertimeMinutes, 120);
+  assert.equal(response.json.overtimeReason, 'Atendimento emergencial');
+  assert.equal(response.json.totalOvertimeMinutes, 120);
+});
+
 test('POST report creation requires an active target project before reserving sequence', async t => {
   stubAuthenticatedManager(t);
   const originals = {
@@ -834,7 +912,11 @@ test('POST service-only report creation requires an active target project', asyn
 test('PUT report rejects moves to soft-deleted target projects before rewriting report data', async t => {
   stubAuthenticatedManager(t);
   const originals = {
+    reportFindUnique: prisma.report.findUnique,
     reportFindUniqueOrThrow: prisma.report.findUniqueOrThrow,
+    reportAttachmentFindMany: prisma.reportAttachment.findMany,
+    reportAttachmentCreateMany: prisma.reportAttachment.createMany,
+    reportAttachmentDeleteMany: prisma.reportAttachment.deleteMany,
     transaction: prisma.$transaction
   };
   const calls = [];
@@ -880,6 +962,102 @@ test('PUT report rejects moves to soft-deleted target projects before rewriting 
   assert.equal(response.statusCode, 404);
   assert.deepEqual(calls.map(([name]) => name), ['report.findUniqueOrThrow', 'project.findFirstOrThrow']);
   assert.deepEqual(calls[1][1].where, { id: 'deleted-project', deletedAt: null });
+});
+
+test('PUT report persists rejected overtime so downloads omit it', async t => {
+  stubAuthenticatedManager(t);
+  const originals = {
+    reportFindUniqueOrThrow: prisma.report.findUniqueOrThrow,
+    transaction: prisma.$transaction
+  };
+  let currentReport = activeReport({
+    id: 'report-overtime-save',
+    projectId: 'project-1',
+    status: ReportStatus.PENDING,
+    daytimeOvertimeMinutes: 90,
+    nighttimeOvertimeMinutes: 30,
+    totalOvertimeMinutes: 120,
+    overtimeReason: 'Atendimento emergencial',
+    specialConditions: {
+      overtimeSummary: {
+        daytimeOvertimeMinutes: 90,
+        nighttimeOvertimeMinutes: 30,
+        totalOvertimeMinutes: 120
+      }
+    }
+  });
+  let updateData = null;
+  prisma.report.findUnique = async () => currentReport;
+  prisma.report.findUniqueOrThrow = async () => currentReport;
+  prisma.reportAttachment.findMany = async () => [];
+  prisma.reportAttachment.createMany = async args => ({ count: args.data.length });
+  prisma.reportAttachment.deleteMany = async () => ({ count: 0 });
+  prisma.$transaction = async callback => callback({
+    project: {
+      findFirstOrThrow: async () => ({
+        ...currentReport.project,
+        id: 'project-1',
+        deletedAt: null,
+        managerOnly: false,
+        operator: null,
+        authorizedUsers: []
+      })
+    },
+    report: {
+      findFirst: async () => null,
+      update: async args => {
+        updateData = args.data;
+        currentReport = {
+          ...currentReport,
+          ...args.data,
+          project: currentReport.project,
+          services: currentReport.services,
+          collaborators: currentReport.collaborators,
+          attachments: currentReport.attachments,
+          versions: currentReport.versions
+        };
+        return currentReport;
+      }
+    },
+    reportVersion: {
+      findFirst: async () => null
+    },
+    reportCollaborator: {
+      deleteMany: async () => ({ count: 0 })
+    },
+    reportService: {
+      deleteMany: async () => ({ count: 0 })
+    }
+  });
+  t.after(() => {
+    prisma.report.findUnique = originals.reportFindUnique;
+    prisma.report.findUniqueOrThrow = originals.reportFindUniqueOrThrow;
+    prisma.reportAttachment.findMany = originals.reportAttachmentFindMany;
+    prisma.reportAttachment.createMany = originals.reportAttachmentCreateMany;
+    prisma.reportAttachment.deleteMany = originals.reportAttachmentDeleteMany;
+    prisma.$transaction = originals.transaction;
+  });
+
+  const response = await dispatchApp('PUT', '/api/reports/report-overtime-save', reportPayload({
+    projectId: 'project-1',
+    arrivalTime: '08:00',
+    departureTime: '20:00',
+    lunchBreak: '01:00',
+    overtimeReason: 'Atendimento emergencial',
+    specialConditions: {
+      overtimeAccepted: false
+    }
+  }));
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(updateData.daytimeOvertimeMinutes > 0, true);
+  assert.equal(updateData.totalOvertimeMinutes > 0, true);
+  assert.equal(updateData.overtimeReason, 'Atendimento emergencial');
+  assert.equal(updateData.specialConditions.overtimeAccepted, false);
+  assert.equal(updateData.specialConditions.overtimeSummary.daytimeOvertimeMinutes > 0, true);
+  assert.equal(updateData.specialConditions.overtimeSummary.totalOvertimeMinutes > 0, true);
+  assert.equal(response.json.overtimeReason, 'Atendimento emergencial');
+  assert.equal(response.json.totalOvertimeMinutes, updateData.totalOvertimeMinutes);
 });
 
 test('DELETE report clears deleted sequence numbers and renumbers remaining project reports', async t => {

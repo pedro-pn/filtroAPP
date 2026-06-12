@@ -715,7 +715,7 @@ export function useReportMutations() {
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: { status: ReportStatus; reviewNotes?: string | null } }) =>
+    mutationFn: ({ id, payload }: { id: string; payload: { status: ReportStatus; reviewNotes?: string | null; acceptOvertime?: boolean } }) =>
       updateReportStatus(id, payload),
     onSuccess: report => {
       updateAccumulatedReportsCache(report);
