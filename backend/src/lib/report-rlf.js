@@ -12,7 +12,7 @@ import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
 import { buildReportFileName } from './report-filename.js';
-import { readStoredImageAsset, resolveStoredUploadPath } from './stored-image.js';
+import { readStoredImageAsset } from './stored-image.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -406,59 +406,6 @@ try {
   } finally {
     await fs.rm(scriptPath, { force: true });
   }
-}
-
-// ── File organization ──
-
-function resolveUploadFilePath(source) {
-  return resolveStoredUploadPath(source);
-}
-
-function extractUrlBase(source) {
-  try {
-    if (source && /^https?:\/\//i.test(source)) return new URL(source).origin;
-  } catch {}
-  return '';
-}
-
-function buildPhotoUrl(urlBase, projectFolder, subfolder, destName) {
-  const encoded = [projectFolder, 'Registros Fotográficos', subfolder, destName]
-    .map(s => encodeURIComponent(s)).join('/');
-  return (urlBase || '') + '/relatorios/' + encoded;
-}
-
-export async function organizeRlfPhotos(report, projectFolderName) {
-  const urlMap = new Map();
-  const sc = report.specialConditions || {};
-  const sd = sc.serviceData || {};
-  const equip = safePath(stringify(getField(sd, ['Embarcação', 'Embarcacao', 'ID da embarcação', 'ID da embarcacao', 'Equipamento(s)', 'Equipamento'])) || 'Embarcação');
-  const sys = safePath(splitSystemValue(getField(sd, ['Sistema'])).system || 'Sistema');
-  const photosDir = path.join(env.uploadDir, projectFolderName, 'Registros Fotográficos', 'RLF');
-  await fs.mkdir(photosDir, { recursive: true });
-
-  const cleaningUploads = (() => {
-    const v = getField(sd, ['Fotos do filtro']);
-    return Array.isArray(v) ? v : [];
-  })();
-
-  let count = 1;
-  for (const upload of cleaningUploads) {
-    const source = upload?.url || upload?.storagePath || upload?.fileName;
-    const srcPath = resolveUploadFilePath(source);
-    if (!srcPath) continue;
-    const ext = path.extname(srcPath) || '.jpg';
-    const destName = `${equip} - ${sys} - foto ${count}${ext}`;
-    const destPath = path.join(photosDir, destName);
-    if (path.resolve(srcPath) === path.resolve(destPath)) { count++; continue; }
-    try {
-      await fs.rename(srcPath, destPath);
-      const newUrl = buildPhotoUrl(extractUrlBase(source), projectFolderName, 'RLF', destName);
-      if (source) urlMap.set(source, newUrl);
-      count++;
-    } catch { /* skip missing */ }
-  }
-
-  return urlMap;
 }
 
 // ── Main exports ──

@@ -20,6 +20,7 @@ import { TopBar } from '../layout/TopBar';
 import { Modal } from '../components/ui/Modal';
 import { ReasonDialog } from '../components/ui/ReasonDialog';
 import { UploadField } from '../components/ui/UploadField';
+import { clearStagedUploadDeletions, flushStagedUploadDeletions } from '../components/ui/photoDeletionStaging';
 import type { Collaborator, Equipment, ReportAuditLog, ReportPayload, ReportStatus, ReportSummary, Unit } from '../types/domain';
 import { clientCanSignReport, clientSignerEmailForReport } from '../utils/clientSignature';
 import { formatDateOnlyPtBr } from '../utils/dateOnly';
@@ -572,6 +573,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
 
   useEffect(() => {
     setForm(reportToForm(report));
+    // Descarta exclusões de fotos encenadas e não salvas ao (re)carregar o relatório.
+    clearStagedUploadDeletions();
     if (currentReportIdRef.current !== report.id) {
       currentReportIdRef.current = report.id;
       setAcceptOvertime(reportAcceptsOvertime(report));
@@ -739,6 +742,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         id: report.id,
         payload
       });
+      // Relatório salvo: efetiva a exclusão global das fotos removidas no editor.
+      await flushStagedUploadDeletions();
       if (showSuccess) showToast(TEXT.saved, 'success');
       if (navigateAfter) navigate(roleHomePath(user?.role));
       return true;

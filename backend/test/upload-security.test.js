@@ -10,7 +10,6 @@ import app from '../src/app.js';
 import env from '../src/config/env.js';
 import { trustedClientAccessScopeForUser } from '../src/lib/client-project-access.js';
 import prisma from '../src/lib/prisma.js';
-import { syncReportUploadAttachments } from '../src/lib/report-upload-attachments.js';
 import { grantReportUploadAccess } from '../src/lib/transient-upload-access.js';
 import { authorizeStoredFile, canAccessReport } from '../src/routes/resources/uploads.js';
 
@@ -100,6 +99,21 @@ function stubUploadManagerSession(t) {
   });
 }
 
+// Stub do projeto "dono" da pasta usada nos testes de escopo de projeto.
+function stubProjectScope(t, project) {
+  const originalProjectFindUnique = prisma.project.findUnique;
+  const originalDraftFindMany = prisma.reportDraft.findMany;
+  prisma.project.findUnique = async args => {
+    if (project && args?.where?.code === project.code) return project;
+    return null;
+  };
+  prisma.reportDraft.findMany = async () => [];
+  t.after(() => {
+    prisma.project.findUnique = originalProjectFindUnique;
+    prisma.reportDraft.findMany = originalDraftFindMany;
+  });
+}
+
 test('stored upload access rejects soft-deleted reports and projects', () => {
   assert.equal(
     canAccessReport(managerAuth, {
@@ -145,46 +159,82 @@ test('stored upload access rejects client reports under soft-deleted linked proj
   );
 });
 
-test('stored upload access rejects collaborator attachments for hidden or inactive projects', async t => {
-  const originals = {
-    attachmentFindMany: prisma.reportAttachment.findMany,
-    reportFindMany: prisma.report.findMany
-  };
-  prisma.reportAttachment.findMany = async () => [{
-    reportId: 'report-hidden',
-    reportService: null
-  }];
-  const baseReport = {
-    id: 'report-hidden',
-    projectId: 'project-hidden',
-    reportType: 'RDO',
-    status: 'APPROVED',
+test('escopo de projeto: colaborador acessa arquivo de projeto visível e ativo', async t => {
+  const project = {
+    id: 'project-1',
+    code: 'P-100',
+    name: 'Projeto Seguro',
+    isActive: true,
     deletedAt: null,
-    createdByUserId: 'user-collab',
-    project: {
-      deletedAt: null,
-      managerOnly: false,
-      isActive: true,
-      visibleToCollaborators: false,
-      operatorId: 'collab-1',
-      authorizedUsers: []
-    },
-    collaborators: [{ collaboratorId: 'collab-1' }],
-    attachments: [],
-    services: []
+    managerOnly: false,
+    visibleToCollaborators: true,
+    authorizedUsers: []
   };
-  let projectOverride = {};
-  prisma.report.findMany = async () => [{
-    ...baseReport,
-    project: {
-      ...baseReport.project,
-      ...projectOverride
-    }
-  }];
-  t.after(() => {
-    prisma.reportAttachment.findMany = originals.attachmentFindMany;
-    prisma.report.findMany = originals.reportFindMany;
-  });
+  stubProjectScope(t, project);
+  const auth = {
+    user: {
+      id: 'user-collab',
+      role: 'COLLABORATOR',
+      collaboratorId: 'collab-1',
+      moduleRoles: ['rdo:collaborator']
+    },
+    rawUser: { collaboratorId: 'collab-1' }
+  };
+  const filePath = 'Missão P-100 - Projeto Seguro/rdo/photo.jpg';
+
+  assert.equal(await authorizeStoredFile({ auth }, filePath), true);
+
+  // Projeto oculto e sem vínculo → negado.
+  project.visibleToCollaborators = false;
+  assert.equal(await authorizeStoredFile({ auth }, filePath), false);
+
+  // Vínculo autorizado dá acesso mesmo oculto.
+  project.authorizedUsers = [{ userId: 'user-collab' }];
+  assert.equal(await authorizeStoredFile({ auth }, filePath), true);
+
+  // Projeto inativo → negado.
+  project.visibleToCollaborators = true;
+  project.authorizedUsers = [];
+  project.isActive = false;
+  assert.equal(await authorizeStoredFile({ auth }, filePath), false);
+
+  // Projeto managerOnly → negado para colaborador.
+  project.isActive = true;
+  project.managerOnly = true;
+  assert.equal(await authorizeStoredFile({ auth }, filePath), false);
+});
+
+test('escopo de projeto: gestor acessa qualquer arquivo de projeto que enxerga', async t => {
+  const project = {
+    id: 'project-1',
+    code: 'P-100',
+    name: 'Projeto Seguro',
+    isActive: true,
+    deletedAt: null,
+    managerOnly: true,
+    visibleToCollaborators: false,
+    authorizedUsers: []
+  };
+  stubProjectScope(t, project);
+
+  assert.equal(
+    await authorizeStoredFile({ auth: managerAuth }, 'Missão P-100 - Projeto Seguro/rdo/foto.jpg'),
+    true
+  );
+});
+
+test('escopo de projeto: colaborador negado para arquivo de outro projeto', async t => {
+  const project = {
+    id: 'project-1',
+    code: 'P-100',
+    name: 'Projeto Seguro',
+    isActive: true,
+    deletedAt: null,
+    managerOnly: false,
+    visibleToCollaborators: true,
+    authorizedUsers: []
+  };
+  stubProjectScope(t, project);
   const auth = {
     user: {
       id: 'user-collab',
@@ -195,14 +245,13 @@ test('stored upload access rejects collaborator attachments for hidden or inacti
     rawUser: { collaboratorId: 'collab-1' }
   };
 
-  assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), false);
-  projectOverride = { visibleToCollaborators: true, isActive: false };
-  assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), false);
-  projectOverride = { visibleToCollaborators: true, isActive: true };
-  assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), true);
+  // Pasta de outro projeto (não encontrado) → negado.
+  assert.equal(await authorizeStoredFile({ auth }, 'Missão P-999 - Outro Projeto/foto.jpg'), false);
+  // Caminho fora de qualquer pasta de projeto → negado (cai no fallback de rascunho vazio).
+  assert.equal(await authorizeStoredFile({ auth }, 'private/report.pdf'), false);
 });
 
-test('stored upload access does not trust report JSON upload references', async t => {
+test('stored upload access denies internal users for files outside any project folder', async t => {
   const originals = {
     attachmentFindMany: prisma.reportAttachment.findMany,
     draftFindMany: prisma.reportDraft.findMany,
@@ -233,239 +282,11 @@ test('stored upload access does not trust report JSON upload references', async 
       generalUploads: [{ url: '/relatorios/private-other-project/foto.jpg' }]
     },
     attachments: [],
-    services: [{
-      extraData: {
-        evidence: { storagePath: '/relatorios/private-other-project/service.jpg' }
-      },
-      attachments: []
-    }]
+    services: []
   });
 
   assert.equal(await authorizeStoredFile({ auth }, 'private-other-project/foto.jpg'), false);
   assert.equal(await authorizeStoredFile({ auth }, 'private-other-project/service.jpg'), false);
-});
-
-test('stored upload access stays denied after syncing injected report upload references', async t => {
-  const indexedAttachments = [];
-  const client = {
-    reportAttachment: {
-      findMany: async () => [],
-      deleteMany: async () => ({ count: 0 }),
-      createMany: async args => {
-        indexedAttachments.push(...args.data);
-        return { count: args.data.length };
-      }
-    }
-  };
-  const report = {
-    id: 'report-injected',
-    project: {
-      code: 'P-100',
-      name: 'Projeto Seguro'
-    },
-    specialConditions: {
-      generalUploads: ['/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto-injetada.jpg']
-    },
-    services: []
-  };
-  const result = await syncReportUploadAttachments(client, report);
-  assert.deepEqual(result, { reportId: 'report-injected', deleted: 0, created: 0 });
-  assert.deepEqual(indexedAttachments, []);
-
-  const originals = {
-    attachmentFindMany: prisma.reportAttachment.findMany,
-    draftFindMany: prisma.reportDraft.findMany,
-    reportFindMany: prisma.report.findMany
-  };
-  prisma.reportAttachment.findMany = async () => indexedAttachments.map(attachment => ({
-    reportId: attachment.reportId,
-    reportService: null
-  }));
-  prisma.reportDraft.findMany = async () => [];
-  prisma.report.findMany = async () => {
-    throw new Error('injected upload references must not create downloadable attachment indexes');
-  };
-  t.after(() => {
-    prisma.reportAttachment.findMany = originals.attachmentFindMany;
-    prisma.reportDraft.findMany = originals.draftFindMany;
-    prisma.report.findMany = originals.reportFindMany;
-  });
-
-  const auth = {
-    user: {
-      id: 'manager-injected',
-      role: 'MANAGER',
-      moduleRoles: ['rdo:manager']
-    },
-    rawUser: {}
-  };
-
-  assert.equal(await authorizeStoredFile({ auth }, 'Missão P-100 - Projeto Seguro/rdo/foto-injetada.jpg'), false);
-});
-
-test('stored upload access revalidates persisted attachments after report authorization grant', async t => {
-  const originals = {
-    attachmentFindMany: prisma.reportAttachment.findMany,
-    reportFindMany: prisma.report.findMany
-  };
-  const lookups = [];
-  let reportVisible = true;
-  prisma.reportAttachment.findMany = async args => {
-    lookups.push(['attachmentFindMany', args]);
-    return [{
-      reportId: 'report-preview',
-      reportService: null
-    }];
-  };
-  prisma.report.findMany = async args => {
-    lookups.push(['reportFindMany', args]);
-    if (!reportVisible) return [];
-    return [{
-      id: 'report-preview',
-      projectId: 'project-1',
-      reportType: 'RDO',
-      status: 'APPROVED',
-      deletedAt: null,
-      createdByUserId: 'manager-persisted-attachment',
-      project: {
-        deletedAt: null,
-        managerOnly: false,
-        authorizedUsers: []
-      },
-      collaborators: [],
-      attachments: [],
-      services: []
-    }];
-  };
-  t.after(() => {
-    prisma.reportAttachment.findMany = originals.attachmentFindMany;
-    prisma.report.findMany = originals.reportFindMany;
-  });
-  const auth = {
-    user: {
-      id: 'manager-persisted-attachment',
-      role: 'MANAGER',
-      moduleRoles: ['rdo:manager']
-    },
-    rawUser: {}
-  };
-
-  grantReportUploadAccess(auth, {
-    id: 'report-preview',
-    attachments: [{ storagePath: '/relatorios/report-attachments/foto.jpg' }],
-    services: [{
-      attachments: [{ storagePath: 'service-attachments/foto.jpg' }]
-    }]
-  });
-
-  assert.equal(await authorizeStoredFile({ auth }, 'report-attachments/foto.jpg'), true);
-  reportVisible = false;
-  assert.equal(await authorizeStoredFile({ auth }, 'report-attachments/foto.jpg'), false);
-  assert.deepEqual(lookups.map(([name]) => name), [
-    'attachmentFindMany',
-    'reportFindMany',
-    'attachmentFindMany',
-    'reportFindMany'
-  ]);
-});
-
-test('stored upload access allows exact project-scoped files referenced by self-owned RDO drafts', async t => {
-  const originalDraftFindMany = prisma.reportDraft.findMany;
-  const originalQueryRaw = prisma.$queryRaw;
-  const originalAttachmentFindMany = prisma.reportAttachment.findMany;
-  const draftPath = 'Missão P-100 - Projeto Seguro/rdo/foto.jpg';
-  const draftAuth = {
-    user: {
-      id: 'collaborator-1',
-      role: 'COLLABORATOR',
-      moduleRoles: ['rdo:collaborator']
-    },
-    rawUser: { collaboratorId: 'collab-1' }
-  };
-  prisma.reportDraft.findMany = async args => {
-    assert.deepEqual(args.where, { userId: 'collaborator-1' });
-    return [{
-      id: 'draft-1',
-      userId: 'collaborator-1',
-      payload: {
-        __module: 'rdo',
-        generalUploads: [{
-          fileName: 'foto.jpg',
-          mimeType: 'image/jpeg',
-          url: `/relatorios/${draftPath.split('/').map(encodeURIComponent).join('/')}`
-        }],
-        services: [{
-          data: {
-            __uploads__: [{
-              label: 'Fotos do serviço',
-              files: [{
-                fileName: 'servico.jpg',
-                mimeType: 'image/jpeg',
-                url: '/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/servico.jpg'
-              }]
-            }]
-          }
-        }]
-      },
-      project: {
-        id: 'project-1',
-        code: 'P-100',
-        name: 'Projeto Seguro',
-        isActive: true,
-        deletedAt: null,
-        managerOnly: false,
-        visibleToCollaborators: true,
-        authorizedUsers: []
-      }
-    }];
-  };
-  prisma.$queryRaw = async () => {
-    throw new Error('stored-file access must not use raw JSON/text scans');
-  };
-  prisma.reportAttachment.findMany = async () => [];
-  t.after(() => {
-    prisma.reportDraft.findMany = originalDraftFindMany;
-    prisma.$queryRaw = originalQueryRaw;
-    prisma.reportAttachment.findMany = originalAttachmentFindMany;
-  });
-
-  assert.equal(await authorizeStoredFile({ auth: draftAuth }, draftPath), true);
-  assert.equal(await authorizeStoredFile({ auth: draftAuth }, 'Missão P-100 - Projeto Seguro/servico.jpg'), true);
-  assert.equal(await authorizeStoredFile({ auth: draftAuth }, 'private/report.pdf'), false);
-  assert.equal(await authorizeStoredFile({ auth: draftAuth }, 'Missão P-999 - Outro Projeto/foto.jpg'), false);
-});
-
-test('stored upload access ignores non-RDO draft upload references', async t => {
-  const originalDraftFindMany = prisma.reportDraft.findMany;
-  const originalAttachmentFindMany = prisma.reportAttachment.findMany;
-  prisma.reportDraft.findMany = async () => [{
-    id: 'draft-romaneio',
-    userId: 'manager-1',
-    payload: {
-      __module: 'romaneio',
-      generalUploads: [{ url: '/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/foto.jpg' }]
-    },
-    project: {
-      id: 'project-1',
-      code: 'P-100',
-      name: 'Projeto Seguro',
-      isActive: true,
-      deletedAt: null,
-      managerOnly: false,
-      visibleToCollaborators: true,
-      authorizedUsers: []
-    }
-  }];
-  prisma.reportAttachment.findMany = async () => [];
-  t.after(() => {
-    prisma.reportDraft.findMany = originalDraftFindMany;
-    prisma.reportAttachment.findMany = originalAttachmentFindMany;
-  });
-
-  assert.equal(
-    await authorizeStoredFile({ auth: managerAuth }, 'Missão P-100 - Projeto Seguro/foto.jpg'),
-    false
-  );
 });
 
 test('protected upload route uses shared auth middleware', () => {
@@ -698,60 +519,4 @@ test('stored upload access applies client report visibility before serving attac
   assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), false);
   currentStatus = 'APPROVED';
   assert.equal(await authorizeStoredFile({ auth }, 'protected/photo.jpg'), true);
-});
-
-test('stored upload access uses exact indexed attachment path, not repeated basename scans', async t => {
-  const originals = {
-    queryRaw: prisma.$queryRaw,
-    attachmentFindMany: prisma.reportAttachment.findMany,
-    reportFindMany: prisma.report.findMany
-  };
-  prisma.$queryRaw = async () => {
-    throw new Error('stored-file access must not use raw JSON/text scans');
-  };
-  prisma.reportAttachment.findMany = async args => {
-    assert.equal(args.where.storagePath.in.includes('reports/a/photo.jpg'), true);
-    assert.equal(args.where.storagePath.in.includes('photo.jpg'), false);
-    return [{
-      reportId: null,
-      reportService: { reportId: 'report-service-exact' }
-    }];
-  };
-  prisma.report.findMany = async args => {
-    assert.deepEqual(args.where.id.in, ['report-service-exact']);
-    return [{
-      id: 'report-service-exact',
-      projectId: 'project-1',
-      reportType: 'RDO',
-      status: 'APPROVED',
-      deletedAt: null,
-      createdByUserId: 'manager-1',
-      project: {
-        deletedAt: null,
-        managerOnly: false,
-        authorizedUsers: []
-      },
-      collaborators: [],
-      attachments: [],
-      services: []
-    }];
-  };
-  t.after(() => {
-    prisma.$queryRaw = originals.queryRaw;
-    prisma.reportAttachment.findMany = originals.attachmentFindMany;
-    prisma.report.findMany = originals.reportFindMany;
-  });
-
-  const allowed = await authorizeStoredFile({
-    auth: {
-      user: {
-        id: 'manager-1',
-        role: 'MANAGER',
-        moduleRoles: ['rdo:manager']
-      },
-      rawUser: {}
-    }
-  }, 'reports/a/photo.jpg');
-
-  assert.equal(allowed, true);
 });

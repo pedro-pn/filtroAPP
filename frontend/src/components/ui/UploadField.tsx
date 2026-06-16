@@ -2,6 +2,7 @@
 
 import { uploadFiles, type UploadedFile } from '../../api/uploads';
 import { loadUploadAssetUrl } from '../../utils/uploadAssetUrl';
+import { stageUploadDeletion } from './photoDeletionStaging';
 
 interface UploadFieldProps {
   label: string;
@@ -157,11 +158,23 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
     }
   }
 
+  function serverReference(file: UploadValue) {
+    const raw = file.url || file.storagePath || file.path || file.publicUrl || file.source || file.src || file.href || '';
+    return raw && !raw.startsWith('data:') ? raw : '';
+  }
+
   function removeFile(index: number) {
     const file = value[index] as UploadValue | undefined;
-    if (file && wasPreviouslyAdded(file)) {
-      const confirmed = window.confirm('Esta foto foi adicionada anteriormente. Se você excluir, ela sairá do relatório. Deseja excluir mesmo assim?');
+    if (!file) return;
+    const ref = serverReference(file);
+    // A exclusão é global, mas só é efetivada ao SALVAR o relatório. Aqui apenas
+    // encenamos a remoção (some da lista); se o usuário não salvar, nada é apagado.
+    if (ref) {
+      const confirmed = window.confirm(
+        'Remover esta imagem? Ao salvar, ela será excluída de TODOS os relatórios em que aparece e apagada do servidor.'
+      );
       if (!confirmed) return;
+      stageUploadDeletion(ref);
     }
     onChange(value.filter((_, itemIndex) => itemIndex !== index));
   }

@@ -13,7 +13,7 @@ import { formatCnpj } from './cnpj.js';
 import { addPdfAnnotationsToHyperlinkText } from './pdf-link-annotations.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
 import { buildReportFileName } from './report-filename.js';
-import { readStoredImageAsset, resolveStoredUploadPath } from './stored-image.js';
+import { readStoredImageAsset } from './stored-image.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -563,63 +563,6 @@ try {
   } finally {
     await fs.rm(scriptPath, { force: true });
   }
-}
-
-// ── File organization ──
-
-function resolveUploadFilePath(source) {
-  return resolveStoredUploadPath(source);
-}
-
-function extractUrlBase(source) {
-  try {
-    if (source && /^https?:\/\//i.test(source)) return new URL(source).origin;
-  } catch {}
-  return '';
-}
-
-function buildPhotoUrl(urlBase, projectFolder, subfolder, destName) {
-  const encoded = [projectFolder, 'Registros Fotográficos', subfolder, destName]
-    .map(s => encodeURIComponent(s)).join('/');
-  return (urlBase || '') + '/relatorios/' + encoded;
-}
-
-export async function organizeRcpPhotos(report, projectFolderName) {
-  const urlMap = new Map();
-  const sc = report.specialConditions || {};
-  const sd = sc.serviceData || {};
-  const equip = safePath(stringify(getField(sd, ['Equipamento(s)', 'Equipamento'])) || 'Equipamento');
-  const sys = safePath(stringify(getField(sd, ['Sistema'])) || 'Sistema');
-  const photosDir = path.join(env.uploadDir, projectFolderName, 'Registros Fotográficos', 'RCPU');
-  await fs.mkdir(photosDir, { recursive: true });
-
-  const countUploads = (() => {
-    const v = getField(sd, ['Foto do laudo do contador']);
-    return Array.isArray(v) ? v : [];
-  })();
-  const humidUploads = (() => {
-    const v = getField(sd, ['Fotos da desidratação', 'Fotos da desidratacao']);
-    return Array.isArray(v) ? v : [];
-  })();
-
-  let count = 1;
-  for (const upload of [...countUploads, ...humidUploads]) {
-    const source = upload?.url || upload?.storagePath || upload?.fileName;
-    const srcPath = resolveUploadFilePath(source);
-    if (!srcPath) continue;
-    const ext = path.extname(srcPath) || '.jpg';
-    const destName = `${equip} - ${sys} - foto ${count}${ext}`;
-    const destPath = path.join(photosDir, destName);
-    if (path.resolve(srcPath) === path.resolve(destPath)) { count++; continue; }
-    try {
-      await fs.rename(srcPath, destPath);
-      const newUrl = buildPhotoUrl(extractUrlBase(source), projectFolderName, 'RCPU', destName);
-      if (source) urlMap.set(source, newUrl);
-      count++;
-    } catch { /* skip missing */ }
-  }
-
-  return urlMap;
 }
 
 // ── Main exports ──

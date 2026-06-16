@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  canonicalizeUploadReference,
   extractReportUploadAttachments,
+  looksLikeUploadReference,
   normalizeStoredReportUploadUrls,
-  reportUploadAttachmentsNeedSync,
   syncReportUploadAttachments
 } from '../src/lib/report-upload-attachments.js';
-import { rememberTransientUploadAccess } from '../src/lib/transient-upload-access.js';
 
 function attachmentClient(calls, existing = []) {
   return {
@@ -68,6 +68,8 @@ test('extractReportUploadAttachments only accepts known upload containers', () =
     }]
   };
 
+  // Apenas os contêineres conhecidos (generalUploads e __uploads__) viram índice;
+  // campos arbitrários (injected/evidence) são ignorados.
   assert.deepEqual(extractReportUploadAttachments(report), [{
     label: 'Registro',
     fileName: 'foto.jpg',
@@ -92,7 +94,30 @@ test('extractReportUploadAttachments only accepts known upload containers', () =
   }]);
 });
 
-test('normalizeStoredReportUploadUrls persists local upload urls with a single leading slash', () => {
+test('looksLikeUploadReference distingue referências de upload de texto comum', () => {
+  assert.equal(looksLikeUploadReference('/relatorios/Missão X/foto.jpg'), true);
+  assert.equal(looksLikeUploadReference('/api/rdo/uploads/file/Missão X/foto.jpg'), true);
+  assert.equal(looksLikeUploadReference('Missão X/foto.jpg'), true);
+  assert.equal(looksLikeUploadReference('https://relatorios.filtrovali.com.br/relatorios/Missão X/foto.jpg'), true);
+  // não-referências:
+  assert.equal(looksLikeUploadReference('01/06/2026'), false);
+  assert.equal(looksLikeUploadReference('Diurno e Noturno'), false);
+  assert.equal(looksLikeUploadReference('foto.jpg'), false);
+  assert.equal(looksLikeUploadReference('//cdn.exemplo.com/image.jpg'), false);
+  assert.equal(looksLikeUploadReference('data:image/png;base64,AAAA'), false);
+});
+
+test('canonicalizeUploadReference reduz qualquer formato à mesma forma relativa', () => {
+  const canonical = 'Missão P-100 - Projeto Seguro/rdo/foto.jpg';
+  const encoded = 'Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto.jpg';
+  assert.equal(canonicalizeUploadReference(`/relatorios/${encoded}`), canonical);
+  assert.equal(canonicalizeUploadReference(`//relatorios/${encoded}`), canonical);
+  assert.equal(canonicalizeUploadReference(`/api/rdo/uploads/file/${encoded}`), canonical);
+  assert.equal(canonicalizeUploadReference(`https://relatorios.filtrovali.com.br/relatorios/${encoded}`), canonical);
+  assert.equal(canonicalizeUploadReference(canonical), canonical); // idempotente
+});
+
+test('normalizeStoredReportUploadUrls canonicaliza referências em qualquer profundidade e preserva o resto', () => {
   assert.deepEqual(normalizeStoredReportUploadUrls({
     note: '  manter espacos  ',
     external: '//cdn.example.com/image.jpg',
@@ -100,6 +125,11 @@ test('normalizeStoredReportUploadUrls persists local upload urls with a single l
       url: '//relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto.jpg',
       fileName: 'foto.jpg'
     }],
+    serviceData: {
+      'Fotos do sistema': [{
+        url: 'https://relatorios.filtrovali.com.br/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/sistema.jpg'
+      }]
+    },
     groups: [{
       files: [
         '//api/rdo/uploads/file/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/servico.jpg',
@@ -110,19 +140,24 @@ test('normalizeStoredReportUploadUrls persists local upload urls with a single l
     note: '  manter espacos  ',
     external: '//cdn.example.com/image.jpg',
     generalUploads: [{
-      url: '/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto.jpg',
+      url: 'Missão P-100 - Projeto Seguro/rdo/foto.jpg',
       fileName: 'foto.jpg'
     }],
+    serviceData: {
+      'Fotos do sistema': [{
+        url: 'Missão P-100 - Projeto Seguro/sistema.jpg'
+      }]
+    },
     groups: [{
       files: [
-        '/api/rdo/uploads/file/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/servico.jpg',
-        '/uploads/tmp/foto.jpg'
+        'Missão P-100 - Projeto Seguro/servico.jpg',
+        'tmp/foto.jpg'
       ]
     }]
   });
 });
 
-test('syncReportUploadAttachments creates expected attachments before removing stale rows', async () => {
+test('syncReportUploadAttachments reconstrói o índice 1:1 do JSON (cria antes de remover obsoletos)', async () => {
   const calls = [];
   const client = attachmentClient(calls, [
     { id: 'old-report-attachment', reportId: 'report-1', reportServiceId: null, storagePath: 'Missão P-100 - Projeto Seguro/rdo/foto-antiga.jpg' },
@@ -130,10 +165,6 @@ test('syncReportUploadAttachments creates expected attachments before removing s
   ]);
   const report = {
     id: 'report-1',
-    project: {
-      code: 'P-100',
-      name: 'Projeto Seguro'
-    },
     specialConditions: {
       generalUploads: ['/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto.jpg']
     },
@@ -148,12 +179,7 @@ test('syncReportUploadAttachments creates expected attachments before removing s
     }]
   };
 
-  const result = await syncReportUploadAttachments(client, report, {
-    trustedStoragePaths: [
-      'Missão P-100 - Projeto Seguro/rdo/foto.jpg',
-      'Missão P-100 - Projeto Seguro/servico.jpg'
-    ]
-  });
+  const result = await syncReportUploadAttachments(client, report);
 
   assert.deepEqual(result, { reportId: 'report-1', deleted: 2, created: 2 });
   assert.equal(calls[0][0], 'findMany');
@@ -180,7 +206,25 @@ test('syncReportUploadAttachments creates expected attachments before removing s
   }]);
 });
 
-test('syncReportUploadAttachments keeps existing index if createMany fails', async () => {
+test('syncReportUploadAttachments indexa toda referência do JSON sem gating de confiança', async () => {
+  const calls = [];
+  const client = attachmentClient(calls);
+  const report = {
+    id: 'report-1',
+    specialConditions: {
+      generalUploads: ['/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto.jpg']
+    },
+    services: []
+  };
+
+  const result = await syncReportUploadAttachments(client, report);
+
+  assert.deepEqual(result, { reportId: 'report-1', deleted: 0, created: 1 });
+  assert.deepEqual(calls.map(([name]) => name), ['findMany', 'createMany']);
+  assert.equal(calls[1][1].data[0].storagePath, 'Missão P-100 - Projeto Seguro/rdo/foto.jpg');
+});
+
+test('syncReportUploadAttachments propaga falha do createMany sem remover índice', async () => {
   const calls = [];
   const client = {
     reportAttachment: {
@@ -200,10 +244,6 @@ test('syncReportUploadAttachments keeps existing index if createMany fails', asy
   };
   const report = {
     id: 'report-1',
-    project: {
-      code: 'P-100',
-      name: 'Projeto Seguro'
-    },
     specialConditions: {
       generalUploads: ['/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto.jpg']
     },
@@ -211,166 +251,18 @@ test('syncReportUploadAttachments keeps existing index if createMany fails', asy
   };
 
   await assert.rejects(
-    () => syncReportUploadAttachments(client, report, { trustedStoragePaths: ['Missão P-100 - Projeto Seguro/rdo/foto.jpg'] }),
+    () => syncReportUploadAttachments(client, report),
     /create failed/
   );
   assert.deepEqual(calls.map(([name]) => name), ['findMany', 'createMany']);
 });
 
-test('syncReportUploadAttachments ignores known upload containers outside the report project folder', async () => {
-  const calls = [];
-  const client = attachmentClient(calls);
-  const report = {
-    id: 'report-1',
-    project: {
-      code: 'P-100',
-      name: 'Projeto Seguro'
-    },
-    specialConditions: {
-      generalUploads: ['/relatorios/Miss%C3%A3o%20P-200%20-%20Outro%20Projeto/rdo/foto.jpg']
-    },
-    services: []
-  };
-
-  const result = await syncReportUploadAttachments(client, report);
-
-  assert.deepEqual(result, { reportId: 'report-1', deleted: 0, created: 0 });
-  assert.deepEqual(calls.map(([name]) => name), ['findMany']);
-});
-
-test('syncReportUploadAttachments rejects untrusted JSON paths even inside the same project folder', async () => {
-  const calls = [];
-  const client = attachmentClient(calls);
-  const report = {
-    id: 'report-1',
-    project: {
-      code: 'P-100',
-      name: 'Projeto Seguro'
-    },
-    specialConditions: {
-      generalUploads: ['/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto-injetada.jpg']
-    },
-    services: []
-  };
-
-  const result = await syncReportUploadAttachments(client, report);
-
-  assert.deepEqual(result, { reportId: 'report-1', deleted: 0, created: 0 });
-  assert.deepEqual(calls.map(([name]) => name), ['findMany']);
-});
-
-test('syncReportUploadAttachments accepts old project folder names only in explicit legacy backfill mode', async () => {
-  const calls = [];
-  const client = attachmentClient(calls);
-  const report = {
-    id: 'report-1',
-    project: {
-      code: 'P-100',
-      name: 'Nome Atual'
-    },
-    specialConditions: {
-      generalUploads: ['/relatorios/Miss%C3%A3o%20P-100%20-%20Nome%20Antigo/rdo/foto.jpg']
-    },
-    services: []
-  };
-
-  const result = await syncReportUploadAttachments(client, report, { trustLegacyProjectScoped: true });
-
-  assert.deepEqual(result, { reportId: 'report-1', deleted: 0, created: 1 });
-  assert.equal(calls[1][1].data[0].storagePath, 'Missão P-100 - Nome Antigo/rdo/foto.jpg');
-});
-
-test('syncReportUploadAttachments accepts recently uploaded paths for the same authenticated user', async () => {
-  const calls = [];
-  const client = attachmentClient(calls);
-  const storagePath = 'Missão P-100 - Projeto Seguro/rdo/foto-nova.jpg';
-  const auth = { user: { id: 'user-upload' } };
-  rememberTransientUploadAccess(storagePath, auth.user.id);
-  const report = {
-    id: 'report-1',
-    project: {
-      code: 'P-100',
-      name: 'Projeto Seguro'
-    },
-    specialConditions: {
-      generalUploads: [`/relatorios/${encodeURIComponent('Missão P-100 - Projeto Seguro')}/rdo/foto-nova.jpg`]
-    },
-    services: []
-  };
-
-  const result = await syncReportUploadAttachments(client, report, { auth });
-
-  assert.deepEqual(result, { reportId: 'report-1', deleted: 0, created: 1 });
-  assert.equal(calls[1][1].data[0].storagePath, storagePath);
-});
-
-test('syncReportUploadAttachments trusts organized target when source path was trusted', async () => {
-  const calls = [];
-  const client = attachmentClient(calls);
-  const sourcePath = 'Missão P-100 - Projeto Seguro/tmp/foto.jpg';
-  const targetPath = 'Missão P-100 - Projeto Seguro/Registros Fotográficos/RDO/foto.jpg';
-  const auth = { user: { id: 'user-organize' } };
-  rememberTransientUploadAccess(sourcePath, auth.user.id);
-  const report = {
-    id: 'report-1',
-    project: {
-      code: 'P-100',
-      name: 'Projeto Seguro'
-    },
-    specialConditions: {
-      generalUploads: [`/relatorios/${targetPath.split('/').map(encodeURIComponent).join('/')}`]
-    },
-    services: []
-  };
-
-  const result = await syncReportUploadAttachments(client, report, {
-    auth,
-    trustedUrlMap: new Map([
-      [`/relatorios/${sourcePath.split('/').map(encodeURIComponent).join('/')}`, `/relatorios/${targetPath.split('/').map(encodeURIComponent).join('/')}`]
-    ])
-  });
-
-  assert.deepEqual(result, { reportId: 'report-1', deleted: 0, created: 1 });
-  assert.equal(calls[1][1].data[0].storagePath, targetPath);
-});
-
-test('syncReportUploadAttachments restores snapshot-trusted paths over edited attachments', async () => {
-  const calls = [];
-  const client = attachmentClient(calls, [
-    { id: 'edited-attachment', reportId: 'report-1', reportServiceId: null, storagePath: 'Missão P-100 - Projeto Seguro/rdo/foto-editada.jpg' }
-  ]);
-  const restoredPath = 'Missão P-100 - Projeto Seguro/rdo/foto-original.jpg';
-  const report = {
-    id: 'report-1',
-    project: {
-      code: 'P-100',
-      name: 'Projeto Seguro'
-    },
-    specialConditions: {
-      generalUploads: [`/relatorios/${restoredPath.split('/').map(encodeURIComponent).join('/')}`]
-    },
-    services: []
-  };
-
-  const result = await syncReportUploadAttachments(client, report, {
-    trustedStoragePaths: [restoredPath]
-  });
-
-  assert.deepEqual(result, { reportId: 'report-1', deleted: 1, created: 1 });
-  assert.equal(calls[1][1].data[0].storagePath, restoredPath);
-  assert.deepEqual(calls[2], ['deleteMany', { where: { id: { in: ['edited-attachment'] } } }]);
-});
-
-test('syncReportUploadAttachments recreates trusted service attachment after services are replaced', async () => {
+test('syncReportUploadAttachments indexa fotos de serviço a partir de __uploads__', async () => {
   const calls = [];
   const client = attachmentClient(calls);
   const storagePath = 'Missão P-100 - Projeto Seguro/Registros Fotográficos/RCPU/servico.jpg';
   const report = {
     id: 'report-1',
-    project: {
-      code: 'P-100',
-      name: 'Projeto Seguro'
-    },
     specialConditions: {},
     services: [{
       id: 'new-service-1',
@@ -387,9 +279,7 @@ test('syncReportUploadAttachments recreates trusted service attachment after ser
     }]
   };
 
-  const result = await syncReportUploadAttachments(client, report, {
-    trustedStoragePaths: [storagePath]
-  });
+  const result = await syncReportUploadAttachments(client, report);
 
   assert.deepEqual(result, { reportId: 'report-1', deleted: 0, created: 1 });
   assert.equal(calls[1][0], 'createMany');
@@ -408,96 +298,4 @@ test('syncReportUploadAttachments recreates trusted service attachment after ser
     mimeType: 'image/jpeg',
     storagePath
   }]);
-});
-
-test('syncReportUploadAttachments trusts inherited service uploads already attached in the same project', async () => {
-  const calls = [];
-  const storagePath = 'Missão P-100 - Projeto Seguro/Registros Fotográficos/RCPU/servico-herdado.jpg';
-  const client = {
-    reportAttachment: {
-      findMany: async args => {
-        calls.push(['findMany', args]);
-        if (args.where?.storagePath?.in) {
-          return [{ storagePath }];
-        }
-        return [];
-      },
-      deleteMany: async args => {
-        calls.push(['deleteMany', args]);
-        return { count: 0 };
-      },
-      createMany: async args => {
-        calls.push(['createMany', args]);
-        return { count: args.data.length };
-      }
-    }
-  };
-  const report = {
-    id: 'report-30',
-    projectId: 'project-1',
-    project: {
-      code: 'P-100',
-      name: 'Projeto Seguro'
-    },
-    specialConditions: {},
-    services: [{
-      id: 'continued-service',
-      extraData: {
-        __uploads__: [{
-          label: 'Foto do laudo',
-          files: [{
-            fileName: 'servico-herdado.jpg',
-            mimeType: 'image/jpeg',
-            storagePath
-          }]
-        }]
-      }
-    }]
-  };
-
-  const result = await syncReportUploadAttachments(client, report, {
-    trustProjectExistingAttachments: true
-  });
-
-  assert.deepEqual(result, { reportId: 'report-30', deleted: 0, created: 1 });
-  assert.equal(calls[0][0], 'findMany');
-  assert.equal(calls[1][0], 'findMany');
-  assert.deepEqual(calls[1][1].where.storagePath.in, [storagePath]);
-  assert.deepEqual(calls[1][1].where.OR, [
-    { report: { projectId: 'project-1', deletedAt: null } },
-    { reportService: { report: { projectId: 'project-1', deletedAt: null } } }
-  ]);
-  assert.equal(calls[2][0], 'createMany');
-  assert.deepEqual(calls[2][1].data.map(item => ({
-    reportId: item.reportId,
-    reportServiceId: item.reportServiceId,
-    fileName: item.fileName,
-    storagePath: item.storagePath
-  })), [{
-    reportId: null,
-    reportServiceId: 'continued-service',
-    fileName: 'servico-herdado.jpg',
-    storagePath
-  }]);
-});
-
-test('reportUploadAttachmentsNeedSync detects legacy JSON uploads missing persisted attachments', () => {
-  const report = {
-    id: 'report-1',
-    project: {
-      code: 'P-100',
-      name: 'Projeto Seguro'
-    },
-    specialConditions: {
-      generalUploads: ['/relatorios/Miss%C3%A3o%20P-100%20-%20Projeto%20Seguro/rdo/foto.jpg']
-    },
-    attachments: [],
-    services: []
-  };
-
-  assert.equal(reportUploadAttachmentsNeedSync(report), true);
-  assert.equal(reportUploadAttachmentsNeedSync({
-    ...report,
-    attachments: [{ storagePath: 'Missão P-100 - Projeto Seguro/rdo/foto.jpg' }]
-  }), false);
 });
