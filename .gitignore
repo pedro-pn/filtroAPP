@@ -51,3 +51,7 @@ backend/Relatórios/**
 
 # Added by code-review-graph
 .code-review-graph/
+
+# Saída do script de reparo de imagens
+faltantes-fotos.csv
+backend/scripts/faltantes-fotos.csv

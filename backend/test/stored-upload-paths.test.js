@@ -5,7 +5,6 @@ import path from 'node:path';
 import test from 'node:test';
 
 import env from '../src/config/env.js';
-import { organizePhotos } from '../src/lib/report-docx.js';
 import { readStoredImageAsset, resolveStoredUploadPath, uploadRelativePathFromSource } from '../src/lib/stored-image.js';
 
 test('stored upload resolver rejects traversal outside reports volume', async t => {
@@ -26,15 +25,6 @@ test('stored upload resolver rejects traversal outside reports volume', async t 
 
   const traversalUrl = `/relatorios/../${path.basename(outside)}/package.json`;
   const encodedTraversalUrl = `/relatorios/%2e%2e/${path.basename(outside)}/package.json`;
-  const report = {
-    reportType: 'RDO',
-    sequenceNumber: 7,
-    reportDate: '2026-06-01',
-    specialConditions: {
-      generalUploads: [{ url: traversalUrl }]
-    },
-    services: []
-  };
 
   assert.equal(uploadRelativePathFromSource(traversalUrl), '');
   assert.equal(uploadRelativePathFromSource(encodedTraversalUrl), '');
@@ -42,14 +32,8 @@ test('stored upload resolver rejects traversal outside reports volume', async t 
   assert.equal(resolveStoredUploadPath(encodedTraversalUrl), null);
   assert.equal(await readStoredImageAsset(traversalUrl), null);
 
-  const urlMap = await organizePhotos(report, 'Missao Segura');
   const outsideStillExists = await fs.stat(outsideFile).then(stat => stat.isFile()).catch(() => false);
-  const organizedDir = path.join(root, 'Missao Segura', 'Registros Fotográficos', 'RDO');
-  const organizedFiles = await fs.readdir(organizedDir).catch(() => []);
-
   assert.equal(outsideStillExists, true);
-  assert.equal(urlMap.size, 0);
-  assert.deepEqual(organizedFiles, []);
 });
 
 test('stored upload resolver accepts protected upload file urls', async t => {

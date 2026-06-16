@@ -18,7 +18,11 @@ import {
 } from '../../lib/transient-upload-access.js';
 import { RDO_INTERNAL_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import prisma from '../../lib/prisma.js';
-import { normalizeReportUploadReference } from '../../lib/report-upload-attachments.js';
+import {
+  normalizeReportUploadReference,
+  removeUploadReferenceDeep,
+  syncReportUploadAttachments
+} from '../../lib/report-upload-attachments.js';
 import { canClientSeeReportForAccess } from './reports.js';
 import { isRdoDraftPayload } from './drafts.js';
 
@@ -316,35 +320,80 @@ async function canAccessDraftUpload(auth, normalizedPath) {
   return false;
 }
 
+// Resolve o projeto "dono" do arquivo a partir da 1ª pasta do caminho
+// (Missão {code} - {name}). A autorização passa a ser por escopo de projeto, então
+// uma linha ReportAttachment faltando nunca mais causa 403 na miniatura.
+async function projectForUploadPath(normalizedPath) {
+  const firstFolder = normalizeRelativeUploadPath(normalizedPath).split('/').filter(Boolean)[0] || '';
+  const match = firstFolder.match(/^Missão (\S+) - /);
+  const code = match ? match[1] : '';
+  if (!code) return null;
+
+  const project = await prisma.project.findUnique({
+    where: { code },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      isActive: true,
+      deletedAt: true,
+      managerOnly: true,
+      visibleToCollaborators: true,
+      authorizedUsers: { select: { userId: true } }
+    }
+  });
+  if (!project) return null;
+  // Confirma que a pasta realmente corresponde a este projeto (evita colisões).
+  if (projectFolderName(project) !== firstFolder) return null;
+  return project;
+}
+
+function internalCanAccessProjectScope(auth, project) {
+  if (!project || project.deletedAt) return false;
+  if (auth.user.role === 'MANAGER') return true;
+  if (project.managerOnly) return false;
+  if (auth.user.role === 'COORDINATOR') return true;
+  if (auth.user.role === 'COLLABORATOR') return collaboratorCanAccessReportProject(auth, project);
+  return false;
+}
+
+// CLIENT continua restrito a relatório aprovado/visível: não enxerga foto de
+// relatório pendente, mesmo que o arquivo esteja na pasta de um projeto que ele vê.
+async function authorizeClientStoredFile(req, normalizedPath) {
+  const candidateIds = await candidateReportIdsForUpload(normalizedPath);
+  if (!candidateIds.length) return false;
+
+  const reports = await prisma.report.findMany({
+    where: { id: { in: candidateIds }, deletedAt: null, project: { deletedAt: null } },
+    include: {
+      project: { include: { authorizedUsers: true } },
+      collaborators: true,
+      attachments: true,
+      services: { include: { attachments: true } }
+    }
+  });
+
+  for (const report of reports) {
+    if (await canAccessStoredUploadReport(req.auth, report)) return true;
+  }
+  return false;
+}
+
 export async function authorizeStoredFile(req, normalizedPath) {
   if (hasTransientUploadAccess(normalizedPath, req.auth)) return true;
-  if (!hasModuleRole(req.auth.user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator', 'rdo:client'])) return false;
+  const user = req.auth.user;
+  if (!hasModuleRole(user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator', 'rdo:client'])) return false;
 
-  const candidateIds = await candidateReportIdsForUpload(normalizedPath);
-  if (candidateIds.length) {
-    const reports = await prisma.report.findMany({
-      where: { id: { in: candidateIds }, deletedAt: null, project: { deletedAt: null } },
-      include: {
-        project: { include: { authorizedUsers: true } },
-        collaborators: true,
-        attachments: true,
-        services: {
-          include: {
-            attachments: true
-          }
-        }
-      }
-    });
-
-    for (const report of reports) {
-      if (!(await canAccessStoredUploadReport(req.auth, report))) continue;
-      return true;
-    }
-
-    return false;
+  if (user.role === 'CLIENT') {
+    return authorizeClientStoredFile(req, normalizedPath);
   }
 
-  return hasModuleRole(req.auth.user, RDO_INTERNAL_ROLES) && await canAccessDraftUpload(req.auth, normalizedPath);
+  // Usuário interno: autoriza por escopo de projeto.
+  const project = await projectForUploadPath(normalizedPath);
+  if (project && internalCanAccessProjectScope(req.auth, project)) return true;
+
+  // Fallback para arquivos fora de pasta de projeto (legados) ou ainda em rascunho.
+  return hasModuleRole(user, RDO_INTERNAL_ROLES) && await canAccessDraftUpload(req.auth, normalizedPath);
 }
 
 router.get('/file/*', requireAuth, asyncHandler(async (req, res) => {
@@ -393,10 +442,10 @@ router.post('/', requireRdoInternal, asyncHandler(async (req, res) => {
   const targetPath = path.join(targetDir, safeName);
   await fs.writeFile(targetPath, normalizedImage.bytes);
 
-  // URL relativa ao diretório de relatórios
+  // Caminho canônico (relativo ao diretório de relatórios, decodificado, com "/").
+  // É a única forma de referência gravada no JSON — nunca muda, nunca quebra.
   const relativePath = path.relative(env.reportsDir, targetPath)
     .split(path.sep)
-    .map(encodeURIComponent)
     .join('/');
   rememberTransientUploadAccess(normalizeRelativeUploadPath(relativePath), req.auth.user.id);
 
@@ -404,8 +453,94 @@ router.post('/', requireRdoInternal, asyncHandler(async (req, res) => {
     label: data.label,
     fileName: normalizedImage.fileName,
     mimeType: normalizedImage.mimeType,
-    url: `/relatorios/${relativePath}`
+    url: relativePath
   });
+}));
+
+const deleteSchema = z
+  .object({
+    storagePath: z.string().min(1).optional(),
+    url: z.string().min(1).optional()
+  })
+  .refine(data => data.storagePath || data.url, { message: 'Informe storagePath ou url.' });
+
+// Exclusão GLOBAL de uma imagem: remove a referência de TODOS os relatórios,
+// serviços e rascunhos que a usam, apaga as linhas de índice e o arquivo do disco.
+router.delete('/file', requireRdoInternal, asyncHandler(async (req, res) => {
+  const data = deleteSchema.parse(req.body || {});
+  const target = normalizeReportUploadReference(data.storagePath || data.url || '');
+  if (!target) {
+    return res.status(400).json({ error: 'Referência de imagem inválida.' });
+  }
+
+  const project = await projectForUploadPath(target);
+  const isManagerOrCoordinator = ['MANAGER', 'COORDINATOR'].includes(req.auth.user.role);
+  if (!isManagerOrCoordinator && !(project && internalCanAccessProjectScope(req.auth, project))) {
+    return res.status(403).json({ error: 'Você não tem permissão para excluir esta imagem.' });
+  }
+
+  const candidates = uploadStoragePathCandidates(target);
+  const indexRows = await prisma.reportAttachment.findMany({
+    where: { storagePath: { in: candidates } },
+    select: { reportId: true, reportService: { select: { reportId: true } } }
+  });
+  const reportIds = new Set();
+  for (const row of indexRows) {
+    if (row.reportId) reportIds.add(row.reportId);
+    if (row.reportService?.reportId) reportIds.add(row.reportService.reportId);
+  }
+
+  const affected = { reports: 0, services: 0, drafts: 0 };
+
+  for (const reportId of reportIds) {
+    const report = await prisma.report.findUnique({
+      where: { id: reportId },
+      select: { id: true, specialConditions: true, services: { select: { id: true, extraData: true } } }
+    });
+    if (!report) continue;
+
+    const newSC = removeUploadReferenceDeep(report.specialConditions, target);
+    if (JSON.stringify(newSC) !== JSON.stringify(report.specialConditions)) {
+      await prisma.report.update({ where: { id: reportId }, data: { specialConditions: newSC } });
+      affected.reports += 1;
+    }
+    for (const service of report.services || []) {
+      const newExtra = removeUploadReferenceDeep(service.extraData, target);
+      if (JSON.stringify(newExtra) !== JSON.stringify(service.extraData)) {
+        await prisma.reportService.update({ where: { id: service.id }, data: { extraData: newExtra } });
+        affected.services += 1;
+      }
+    }
+    await syncReportUploadAttachments(prisma, reportId);
+  }
+
+  const drafts = await prisma.reportDraft.findMany({ select: { id: true, payload: true } });
+  for (const draft of drafts) {
+    const newPayload = removeUploadReferenceDeep(draft.payload, target);
+    if (JSON.stringify(newPayload) !== JSON.stringify(draft.payload)) {
+      await prisma.reportDraft.update({ where: { id: draft.id }, data: { payload: newPayload } });
+      affected.drafts += 1;
+    }
+  }
+
+  // Defensivo: remove qualquer linha de índice remanescente e apaga o arquivo físico.
+  await prisma.reportAttachment.deleteMany({ where: { storagePath: { in: candidates } } });
+  const targetPath = resolveStoredFilePath(target);
+  let fileDeleted = false;
+  if (targetPath) {
+    await fs.unlink(targetPath).catch(() => {});
+    fileDeleted = true;
+  }
+
+  console.info('[uploads] imagem excluída globalmente', {
+    userId: req.auth.user.id,
+    role: req.auth.user.role,
+    storagePath: target,
+    affected,
+    fileDeleted
+  });
+
+  return res.json({ storagePath: target, affected, fileDeleted });
 }));
 
 export default router;

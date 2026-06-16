@@ -24,14 +24,14 @@ import {
 } from '../../lib/email-templates.js';
 import { clientEmailsEnabled, getMissingMailerConfig, sendClientMail, sendMail } from '../../lib/mailer.js';
 import { SIGNATURE_RDO_NOTICE_VERSION, validatePrivacyNoticeAcknowledgement } from '../../lib/privacy-consent.js';
-import { saveReportDocx, organizePhotos } from '../../lib/report-docx.js';
+import { saveReportDocx } from '../../lib/report-docx.js';
 import { isLikelyCompletePdf, runWithPdfAbortSignal, saveReportPdf } from '../../lib/report-pdf-from-docx.js';
-import { saveRtpDocx, saveRtpPdf, organizeRtpPhotos } from '../../lib/report-rtp.js';
-import { saveRlqDocx, saveRlqPdf, organizeRlqPhotos } from '../../lib/report-rlq.js';
-import { saveRcpDocx, saveRcpPdf, organizeRcpPhotos, calcServiceMinutes } from '../../lib/report-rcp.js';
-import { saveRlmDocx, saveRlmPdf, organizeRlmPhotos } from '../../lib/report-rlm.js';
-import { saveRlfDocx, saveRlfPdf, organizeRlfPhotos } from '../../lib/report-rlf.js';
-import { saveRliDocx, saveRliPdf, organizeRliPhotos } from '../../lib/report-rli.js';
+import { saveRtpDocx, saveRtpPdf } from '../../lib/report-rtp.js';
+import { saveRlqDocx, saveRlqPdf } from '../../lib/report-rlq.js';
+import { saveRcpDocx, saveRcpPdf, calcServiceMinutes } from '../../lib/report-rcp.js';
+import { saveRlmDocx, saveRlmPdf } from '../../lib/report-rlm.js';
+import { saveRlfDocx, saveRlfPdf } from '../../lib/report-rlf.js';
+import { saveRliDocx, saveRliPdf } from '../../lib/report-rli.js';
 import { downloadSignedZapSignDocument, getZapSignDocument } from '../../lib/zapsign.js';
 import { reconcileLegacyZapSignReport } from '../../lib/zapsign-legacy-reconciliation.js';
 import {
@@ -3403,110 +3403,6 @@ function safePathLocal(value) {
   return String(value ?? '').replace(/[<>:"/\\|?*\n\r]/g, '_').trim();
 }
 
-function applyUrlMap(obj, urlMap) {
-  if (!urlMap || !urlMap.size) return obj;
-  let json = JSON.stringify(obj);
-  if (typeof json !== 'string') return obj;
-  for (const [oldUrl, newUrl] of expandedUrlMapEntries(urlMap)) {
-    const escapedOld = JSON.stringify(oldUrl).slice(1, -1);
-    const escapedNew = JSON.stringify(newUrl).slice(1, -1);
-    json = json.split(escapedOld).join(escapedNew);
-  }
-  try { return JSON.parse(json); } catch { return obj; }
-}
-
-export function storagePathUpdatesFromUrlMap(urlMap) {
-  const updates = [];
-  const seen = new Set();
-  if (!urlMap || !urlMap.size) return updates;
-
-  for (const [source, target] of urlMap.entries()) {
-    const oldPath = normalizeReportUploadReference(source);
-    const newPath = normalizeReportUploadReference(target);
-    if (!oldPath || !newPath || oldPath === newPath) continue;
-    const key = `${oldPath}\n${newPath}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    updates.push({ oldPath, newPath });
-  }
-
-  return updates;
-}
-
-async function updateSourceServiceAttachmentPaths(sourceServiceId, urlMap) {
-  if (!sourceServiceId) return;
-  const updates = storagePathUpdatesFromUrlMap(urlMap);
-  for (const { oldPath, newPath } of updates) {
-    await prisma.reportAttachment.updateMany({
-      where: {
-        reportServiceId: sourceServiceId,
-        storagePath: oldPath
-      },
-      data: {
-        storagePath: newPath
-      }
-    });
-  }
-}
-
-function encodedUploadPathForUrlMap(pathValue) {
-  const normalized = normalizeReportUploadReference(pathValue);
-  if (!normalized) return '';
-  return normalized
-    .split('/')
-    .filter(Boolean)
-    .map(encodeURIComponent)
-    .join('/');
-}
-
-function decodedUploadPathForUrlMap(pathValue) {
-  return normalizeReportUploadReference(pathValue);
-}
-
-function urlMapSourceVariants(source) {
-  const variants = new Set();
-  const rawSource = typeof source === 'string' ? source.trim() : '';
-  if (rawSource) variants.add(rawSource);
-
-  const decodedPath = decodedUploadPathForUrlMap(rawSource);
-  const encodedPath = encodedUploadPathForUrlMap(rawSource);
-  if (decodedPath) {
-    variants.add(decodedPath);
-    variants.add(`/relatorios/${decodedPath}`);
-    variants.add(`relatorios/${decodedPath}`);
-    variants.add(`/uploads/${decodedPath}`);
-    variants.add(`uploads/${decodedPath}`);
-  }
-  if (encodedPath) {
-    variants.add(`/relatorios/${encodedPath}`);
-    variants.add(`relatorios/${encodedPath}`);
-    variants.add(`/uploads/${encodedPath}`);
-    variants.add(`uploads/${encodedPath}`);
-    variants.add(`/api/uploads/file/${encodedPath}`);
-    variants.add(`/api/rdo/uploads/file/${encodedPath}`);
-  }
-
-  return variants;
-}
-
-function expandedUrlMapEntries(urlMap) {
-  const entries = [];
-  const seen = new Set();
-  for (const [source, target] of urlMap.entries()) {
-    if (typeof target !== 'string' || !target) continue;
-    for (const variant of urlMapSourceVariants(source)) {
-      if (!variant || seen.has(variant)) continue;
-      seen.add(variant);
-      entries.push([variant, target]);
-    }
-  }
-  return entries.sort((a, b) => b[0].length - a[0].length);
-}
-
-function jsonChanged(before, after) {
-  return JSON.stringify(before ?? null) !== JSON.stringify(after ?? null);
-}
-
 function expandUploadGroupsInServiceData(serviceData, fallbackData) {
   const next = cloneJson(serviceData || {}) || {};
   const groups = [];
@@ -3542,70 +3438,12 @@ function withServiceUploadFields(report) {
   };
 }
 
-async function organizeAndPersist(report) {
-  report = withServiceUploadFields(report);
-  const projectFolderName = safePathLocal(`Missão ${report.project.code} - ${report.project.name}`);
-  let urlMap;
-  if (report.reportType === 'RTP') {
-    urlMap = await organizeRtpPhotos(report, projectFolderName);
-  } else if (report.reportType === 'RLQ') {
-    urlMap = await organizeRlqPhotos(report, projectFolderName);
-  } else if (report.reportType === 'RCPU') {
-    urlMap = await organizeRcpPhotos(report, projectFolderName);
-  } else if (report.reportType === 'RLM') {
-    urlMap = await organizeRlmPhotos(report, projectFolderName);
-  } else if (report.reportType === 'RLF') {
-    urlMap = await organizeRlfPhotos(report, projectFolderName);
-  } else if (report.reportType === 'RLI') {
-    urlMap = await organizeRliPhotos(report, projectFolderName);
-  } else {
-    urlMap = await organizePhotos(report, projectFolderName);
-  }
-  if (urlMap && urlMap.size > 0) {
-    const newSC = applyUrlMap(report.specialConditions, urlMap);
-    await prisma.report.update({ where: { id: report.id }, data: { specialConditions: newSC } });
-
-    for (const service of (report.services || [])) {
-      if (!service.id) continue;
-      const newExtraData = applyUrlMap(service.extraData, urlMap);
-      if (!jsonChanged(service.extraData, newExtraData)) continue;
-      await prisma.reportService.update({
-        where: { id: service.id },
-        data: { extraData: newExtraData }
-      });
-    }
-
-    // Para RTP/RLQ, também atualiza o extraData do serviço-fonte do RDO para que
-    // re-edições do RDO não percam as URLs organizadas das fotos.
-    const sourceServiceId = report.specialConditions?.serviceId;
-    if (sourceServiceId && (report.reportType === 'RTP' || report.reportType === 'RLQ' || report.reportType === 'RCPU' || report.reportType === 'RLM' || report.reportType === 'RLF' || report.reportType === 'RLI')) {
-      try {
-        const sourceService = await prisma.reportService.findUnique({
-          where: { id: sourceServiceId },
-          select: { id: true, extraData: true }
-        });
-        if (sourceService) {
-          const newExtraData = applyUrlMap(sourceService.extraData, urlMap);
-          await prisma.reportService.update({
-            where: { id: sourceServiceId },
-            data: { extraData: newExtraData }
-          });
-          await updateSourceServiceAttachmentPaths(sourceServiceId, urlMap);
-        }
-      } catch { /* best effort */ }
-    }
-  }
-
-  return urlMap || new Map();
-}
-
-async function organizeAndSyncReportUploadAttachments(report, options = {}) {
-  const trustedUrlMap = await organizeAndPersist(report);
-  await syncReportUploadAttachments(prisma, report.id, {
-    ...options,
-    trustedUrlMap,
-    trustProjectExistingAttachments: true
-  });
+// As fotos não são mais movidas no servidor (a referência canônica é gravada na
+// escrita do relatório via normalizeStoredReportUploadUrls e nunca muda). Aqui só
+// reconstruímos o índice ReportAttachment a partir do JSON. O segundo argumento é
+// ignorado — mantido por compatibilidade com call-sites legados.
+async function organizeAndSyncReportUploadAttachments(report) {
+  await syncReportUploadAttachments(prisma, report.id);
   return prisma.report.findUnique({
     where: { id: report.id },
     include

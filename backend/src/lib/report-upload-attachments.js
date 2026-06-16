@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import prisma from './prisma.js';
-import { hasTransientUploadAccess, normalizeRelativeUploadPath } from './transient-upload-access.js';
+import { normalizeRelativeUploadPath } from './transient-upload-access.js';
 
 function safeDecode(value) {
   try {
@@ -37,15 +37,64 @@ function isProjectScopedAttachment(record, report) {
   return Boolean(code && firstFolder.startsWith(`Missão ${code} - `));
 }
 
-function normalizeProtocolRelativeUploadUrl(value) {
-  return value.replace(
-    /^\/\/(api\/uploads\/file\/|api\/rdo\/uploads\/file\/|relatorios\/|uploads\/)/i,
-    '/$1'
-  );
+// Identifica se uma string é uma referência a um arquivo de upload (URL absoluta,
+// caminho servido por /relatorios|/uploads|/api/.../file, ou caminho relativo de
+// projeto terminando num arquivo conhecido). Evita "canonicalizar" textos comuns
+// (datas, nomes, descrições) que por acaso contenham "/".
+export function looksLikeUploadReference(value) {
+  const raw = String(value || '').trim();
+  if (!raw || raw.startsWith('data:')) return false;
+  if (/^https?:\/\//i.test(raw)) {
+    return /\/(relatorios|uploads)\//i.test(raw) || /\/api\/(rdo\/)?uploads\/file\//i.test(raw);
+  }
+  // Protocol-relative (//host/...): só tratamos como upload se for um dos nossos
+  // prefixos; URLs externas (//cdn.exemplo/...) são deixadas intactas.
+  if (raw.startsWith('//')) {
+    return /^\/\/(api\/(rdo\/)?uploads\/file|relatorios|uploads)\//i.test(raw);
+  }
+  if (/^\/?(api\/(rdo\/)?uploads\/file|relatorios|uploads)\//i.test(raw)) return true;
+  return raw.includes('/') && /\.(jpe?g|png|gif|webp|heic|heif|dng|pdf)$/i.test(raw);
 }
 
+// Forma canônica única de uma referência de imagem: caminho relativo a reportsDir,
+// percent-DECODED, com "/", sem scheme/host/prefixo. Idempotente.
+export function canonicalizeUploadReference(value) {
+  if (!looksLikeUploadReference(value)) return value;
+  const canonical = normalizeReportUploadReference(value);
+  return canonical || value;
+}
+
+function uploadReferenceOf(item) {
+  if (typeof item === 'string') return item;
+  if (item && typeof item === 'object' && !Array.isArray(item)) {
+    return item.url || item.storagePath || item.path || item.publicUrl || item.href || item.src || '';
+  }
+  return '';
+}
+
+// Remove recursivamente toda referência (string ou objeto {url}) cujo caminho
+// canônico seja igual a `targetCanonicalPath`, de qualquer array dentro do JSON
+// (generalUploads, __uploads__.files, campos nomeados, serviceData, etc.).
+export function removeUploadReferenceDeep(value, targetCanonicalPath) {
+  if (!targetCanonicalPath) return value;
+  if (Array.isArray(value)) {
+    return value
+      .filter(item => normalizeReportUploadReference(uploadReferenceOf(item)) !== targetCanonicalPath)
+      .map(item => removeUploadReferenceDeep(item, targetCanonicalPath));
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, removeUploadReferenceDeep(item, targetCanonicalPath)])
+    );
+  }
+  return value;
+}
+
+// Percorre recursivamente specialConditions / extraData reescrevendo TODA referência
+// de upload para a forma canônica, independentemente de onde ela esteja (generalUploads,
+// __uploads__, campos nomeados como "Fotos do sistema", serviceData, etc.).
 export function normalizeStoredReportUploadUrls(value) {
-  if (typeof value === 'string') return normalizeProtocolRelativeUploadUrl(value);
+  if (typeof value === 'string') return canonicalizeUploadReference(value);
   if (Array.isArray(value)) return value.map(item => normalizeStoredReportUploadUrls(item));
   if (!value || typeof value !== 'object') return value;
 
@@ -167,19 +216,6 @@ export function extractReportUploadAttachments(report, { requireProjectScope = f
   });
 }
 
-function normalizePathSet(paths) {
-  const set = new Set();
-  for (const pathValue of paths || []) {
-    const normalized = normalizeRelativeUploadPath(pathValue);
-    if (normalized) set.add(normalized);
-  }
-  return set;
-}
-
-function existingAttachmentPaths(rows) {
-  return normalizePathSet((rows || []).map(row => row.storagePath));
-}
-
 function attachmentKey(attachment) {
   return [
     attachment.reportId || '',
@@ -188,70 +224,16 @@ function attachmentKey(attachment) {
   ].join(':');
 }
 
-function trustedAttachmentPathsFromUrlMap(urlMap, { auth, trustedPaths }) {
-  const next = new Set();
-  if (!urlMap || typeof urlMap[Symbol.iterator] !== 'function') return next;
-
-  for (const [source, target] of urlMap) {
-    const sourcePath = normalizeReportUploadReference(source);
-    const targetPath = normalizeReportUploadReference(target);
-    if (!sourcePath || !targetPath) continue;
-    if (trustedPaths.has(sourcePath) || (auth && hasTransientUploadAccess(sourcePath, auth))) {
-      next.add(targetPath);
-    }
-  }
-
-  return next;
-}
-
-function isTrustedAttachment(record, { auth, trustedPaths, trustLegacyProjectScoped }) {
-  if (trustLegacyProjectScoped) return true;
-  const normalizedPath = normalizeRelativeUploadPath(record.storagePath);
-  return trustedPaths.has(normalizedPath) || Boolean(auth && hasTransientUploadAccess(normalizedPath, auth));
-}
-
-async function addTrustedProjectAttachmentPaths(client, report, attachments, trustedPaths) {
-  if (!report?.projectId || !attachments.length) return;
-
-  const referencedPaths = Array.from(new Set(
-    attachments
-      .map(attachment => normalizeRelativeUploadPath(attachment.storagePath))
-      .filter(Boolean)
-  ));
-  if (!referencedPaths.length) return;
-
-  const rows = await client.reportAttachment.findMany({
-    where: {
-      storagePath: { in: referencedPaths },
-      OR: [
-        { report: { projectId: report.projectId, deletedAt: null } },
-        { reportService: { report: { projectId: report.projectId, deletedAt: null } } }
-      ]
-    },
-    select: {
-      storagePath: true
-    }
-  });
-
-  for (const row of rows) {
-    const normalized = normalizeRelativeUploadPath(row.storagePath);
-    if (normalized) trustedPaths.add(normalized);
-  }
-}
-
-export async function syncReportUploadAttachments(client = prisma, reportOrId, options = {}) {
+// Reconstrói o índice ReportAttachment 1:1 a partir das referências do JSON do
+// relatório. O índice não é mais usado para autorizar acesso (isso agora é por
+// escopo de projeto em authorizeStoredFile), então pode refletir exatamente o JSON
+// — toda foto referenciada tem sua linha, sem gating de confiança.
+export async function syncReportUploadAttachments(client = prisma, reportOrId) {
   const report = typeof reportOrId === 'string'
     ? await client.report.findUnique({
         where: { id: reportOrId },
         select: {
           id: true,
-          projectId: true,
-          project: {
-            select: {
-              code: true,
-              name: true
-            }
-          },
           specialConditions: true,
           services: {
             select: {
@@ -277,30 +259,8 @@ export async function syncReportUploadAttachments(client = prisma, reportOrId, o
       storagePath: true
     }
   });
-  const trustedPaths = existingAttachmentPaths(existingRows);
-  for (const pathValue of options.trustedStoragePaths || []) {
-    const normalized = normalizeRelativeUploadPath(pathValue);
-    if (normalized) trustedPaths.add(normalized);
-  }
-  for (const targetPath of trustedAttachmentPathsFromUrlMap(options.trustedUrlMap, {
-    auth: options.auth,
-    trustedPaths
-  })) {
-    trustedPaths.add(targetPath);
-  }
 
-  const projectScopedAttachments = extractReportUploadAttachments(report, { requireProjectScope: true });
-  if (options.trustProjectExistingAttachments === true) {
-    await addTrustedProjectAttachmentPaths(client, report, projectScopedAttachments, trustedPaths);
-  }
-
-  const attachments = projectScopedAttachments
-    .filter(attachment => isTrustedAttachment(attachment, {
-      auth: options.auth,
-      trustedPaths,
-      trustLegacyProjectScoped: options.trustLegacyProjectScoped === true
-    }));
-
+  const attachments = extractReportUploadAttachments(report);
   const expectedKeys = new Set(attachments.map(attachmentKey));
   const existingKeys = new Set(existingRows.map(attachmentKey));
   const attachmentsToCreate = attachments.filter(attachment => !existingKeys.has(attachmentKey(attachment)));
@@ -330,25 +290,4 @@ export async function syncReportUploadAttachments(client = prisma, reportOrId, o
     deleted: deleted.count || 0,
     created: attachmentsToCreate.length
   };
-}
-
-export function reportUploadAttachmentsNeedSync(report) {
-  if (!report?.id) return false;
-  const expected = extractReportUploadAttachments(report, { requireProjectScope: true });
-  if (!expected.length) return false;
-
-  const existing = new Set([
-    ...(report.attachments || []).map(attachment => `report:${normalizeRelativeUploadPath(attachment.storagePath)}`),
-    ...(report.services || []).flatMap(service => (
-      service.attachments || []
-    ).map(attachment => `service:${service.id}:${normalizeRelativeUploadPath(attachment.storagePath)}`))
-  ]);
-
-  return expected.some(attachment => {
-    const normalizedPath = normalizeRelativeUploadPath(attachment.storagePath);
-    const key = attachment.reportId
-      ? `report:${normalizedPath}`
-      : `service:${attachment.reportServiceId}:${normalizedPath}`;
-    return !existing.has(key);
-  });
 }

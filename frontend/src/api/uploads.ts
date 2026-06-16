@@ -23,3 +23,17 @@ export async function uploadFile(item: UploadItem) {
 export async function uploadFiles(items: UploadItem[]) {
   return Promise.all(items.map(item => uploadFile(item)));
 }
+
+export interface DeleteUploadResult {
+  storagePath: string;
+  affected: { reports: number; services: number; drafts: number };
+  fileDeleted: boolean;
+}
+
+// Exclusão GLOBAL: remove a imagem de todos os relatórios em que aparece e do servidor.
+export async function deleteUploadFile(storagePath: string) {
+  const response = await apiClient.delete<DeleteUploadResult>(rdoApiPath('/uploads/file'), {
+    data: { storagePath }
+  });
+  return response.data;
+}

@@ -10,7 +10,7 @@ import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
 import { buildReportCollaboratorRows } from './report-collaborators.js';
 import { buildReportFileName } from './report-filename.js';
-import { readStoredImageAsset, resolveStoredUploadPath } from './stored-image.js';
+import { readStoredImageAsset } from './stored-image.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -859,72 +859,6 @@ export async function buildReportDocx(report) {
   });
 
   return zip.toBuffer();
-}
-
-function resolveUploadSourcePath(source) {
-  return resolveStoredUploadPath(source);
-}
-
-function extractUrlBase(source) {
-  try {
-    if (source && /^https?:\/\//i.test(source)) return new URL(source).origin;
-  } catch {}
-  return '';
-}
-
-function buildPhotoUrl(urlBase, projectFolder, subfolder, destName) {
-  const encoded = [projectFolder, 'Registros Fotográficos', subfolder, destName]
-    .map(s => encodeURIComponent(s)).join('/');
-  return (urlBase || '') + '/relatorios/' + encoded;
-}
-
-export async function organizePhotos(report, projectFolderName) {
-  const urlMap = new Map();
-  const dateStr = formatDatePt(report.reportDate).replace(/\//g, '-');
-  const rdoNum = reportNumber(report);
-  const reportType = report.reportType;
-  const photosDir = path.join(env.uploadDir, projectFolderName, 'Registros Fotográficos', reportType);
-  await fs.mkdir(photosDir, { recursive: true });
-
-  // General uploads (RDO photos)
-  const generalUploads = (((report.specialConditions || {}).generalUploads) || []).filter(Boolean);
-  let count = 1;
-  for (const upload of generalUploads) {
-    const source = upload?.url || upload?.storagePath || upload?.fileName;
-    const srcPath = resolveUploadSourcePath(source);
-    if (!srcPath) continue;
-    const ext = path.extname(srcPath) || '.jpg';
-    const destName = `${reportType} ${rdoNum} - ${dateStr} - foto ${count}${ext}`;
-    try {
-      await fs.rename(srcPath, path.join(photosDir, destName));
-      const newUrl = buildPhotoUrl(extractUrlBase(source), projectFolderName, reportType, destName);
-      if (source) urlMap.set(source, newUrl);
-      count++;
-    } catch { /* skip missing */ }
-  }
-
-  // Service attachment photos
-  for (const service of (report.services || [])) {
-    const fields = service.extraData || {};
-    const equipment = safePath(stringify(getField(fields, ['Equipamento(s)', 'Equipamento', 'ID da embarcação'])) || 'Equipamento');
-    const system = safePath(service.system || stringify(getField(fields, ['Sistema'])) || 'Sistema');
-    let svcCount = 1;
-    for (const attachment of (service.attachments || [])) {
-      const source = attachment?.url || attachment?.storagePath || attachment?.fileName;
-      const srcPath = resolveUploadSourcePath(source);
-      if (!srcPath) continue;
-      const ext = path.extname(srcPath) || '.jpg';
-      const destName = `${equipment} - ${system} - ${dateStr} - foto ${svcCount}${ext}`;
-      try {
-        await fs.rename(srcPath, path.join(photosDir, destName));
-        const newUrl = buildPhotoUrl(extractUrlBase(source), projectFolderName, reportType, destName);
-        if (source) urlMap.set(source, newUrl);
-        svcCount++;
-      } catch { /* skip missing */ }
-    }
-  }
-
-  return urlMap;
 }
 
 export async function saveReportDocx(report) {

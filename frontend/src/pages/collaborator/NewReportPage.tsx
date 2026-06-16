@@ -9,6 +9,7 @@ import { listReports } from '../../api/reports';
 import { ServiceCollaboratorsBlock, ServiceFields, serviceTypeLabels } from '../../components/reports/ServiceFields';
 import { Modal } from '../../components/ui/Modal';
 import { UploadField } from '../../components/ui/UploadField';
+import { clearStagedUploadDeletions, flushStagedUploadDeletions } from '../../components/ui/photoDeletionStaging';
 import { useToast } from '../../components/ui/Toast';
 import { useNewReportBootstrap } from '../../hooks/useBootstrap';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
@@ -1012,6 +1013,11 @@ export function NewReportPage() {
     navigate('/login', { replace: true });
   }, [logout, navigate]);
 
+  useEffect(() => {
+    // Descarta exclusões de fotos encenadas e não salvas ao abrir o formulário.
+    clearStagedUploadDeletions();
+  }, []);
+
   async function handleSubmit() {
     if (isSubmitting || isSubmittingRef.current) return;
     if (!user?.id) {
@@ -1086,6 +1092,8 @@ export function NewReportPage() {
         });
       }
 
+      // Relatório criado: efetiva a exclusão global das fotos removidas no editor.
+      await flushStagedUploadDeletions();
       await Promise.all(draftIdsToRemove.map(id => removeDraftAsync(id).catch(() => undefined)));
       setDraftId(null);
       lastAutoSaveSignatureRef.current = '';

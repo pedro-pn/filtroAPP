@@ -12,7 +12,7 @@ import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
 import { buildReportFileName } from './report-filename.js';
-import { readStoredImageAsset, resolveStoredUploadPath } from './stored-image.js';
+import { readStoredImageAsset } from './stored-image.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -479,64 +479,6 @@ try {
   } finally {
     await fs.rm(scriptPath, { force: true });
   }
-}
-
-// ── File organization ──
-
-function resolveUploadFilePath(source) {
-  return resolveStoredUploadPath(source);
-}
-
-function extractUrlBase(source) {
-  try {
-    if (source && /^https?:\/\//i.test(source)) return new URL(source).origin;
-  } catch {}
-  return '';
-}
-
-function buildPhotoUrl(urlBase, projectFolder, subfolder, destName) {
-  const encoded = [projectFolder, 'Registros Fotográficos', subfolder, destName]
-    .map(s => encodeURIComponent(s)).join('/');
-  return (urlBase || '') + '/relatorios/' + encoded;
-}
-
-export async function organizeRlqPhotos(report, projectFolderName) {
-  const urlMap = new Map();
-  const sc = report.specialConditions || {};
-  const sd = sc.serviceData || {};
-  const equip = safePath(stringify(getField(sd, ['Equipamento(s)', 'Equipamento'])) || 'Equipamento');
-  const sys = safePath(stringify(getField(sd, ['Sistema'])) || 'Sistema');
-  const photosDir = path.join(env.uploadDir, projectFolderName, 'Registros Fotográficos', 'RLQ');
-  await fs.mkdir(photosDir, { recursive: true });
-
-  const corpoUploads = (() => {
-    const v = getField(sd, ['Imagens — corpo de prova', 'Imagens - corpo de prova', 'Imagens â€" corpo de prova']);
-    return Array.isArray(v) ? v : [];
-  })();
-  const tubUploads = (() => {
-    const v = getField(sd, ['Imagens — tubulação', 'Imagens - tubulacao', 'Imagens â€" tubulaÃ§Ã£o', 'Imagens — tubulação']);
-    return Array.isArray(v) ? v : [];
-  })();
-
-  let count = 1;
-  for (const upload of [...corpoUploads, ...tubUploads]) {
-    const source = upload?.url || upload?.storagePath || upload?.fileName;
-    const srcPath = resolveUploadFilePath(source);
-    if (!srcPath) continue;
-    const ext = path.extname(srcPath) || '.jpg';
-    const destName = `${equip} - ${sys} - foto ${count}${ext}`;
-    const destPath = path.join(photosDir, destName);
-    // Se já está no destino final, não move (evita referências inválidas em re-edições)
-    if (path.resolve(srcPath) === path.resolve(destPath)) { count++; continue; }
-    try {
-      await fs.rename(srcPath, destPath);
-      const newUrl = buildPhotoUrl(extractUrlBase(source), projectFolderName, 'RLQ', destName);
-      if (source) urlMap.set(source, newUrl);
-      count++;
-    } catch { /* skip missing */ }
-  }
-
-  return urlMap;
 }
 
 // ── Main exports ──
