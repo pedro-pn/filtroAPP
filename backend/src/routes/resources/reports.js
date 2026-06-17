@@ -7,11 +7,8 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
-import {
-  currentCalibrationCertificateInclude,
-  serializeCalibrationCertificate
-} from '../../lib/calibration-certificates.js';
 import { clientCanAccessProject, clientProjectAccessWhereWithSigners } from '../../lib/client-project-access.js';
+import { resolveReportCounter, resolveReportManometers, resolveReportUnits } from '../../lib/report-equipment-resolve.js';
 import {
   addNotificationPreferencesLink,
   buildReportApprovedEmailTemplate,
@@ -80,10 +77,6 @@ const REPORT_LIST_DEFAULT_PAGE_SIZE = 50;
 const REPORT_LIST_MAX_PAGE_SIZE = 100;
 const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
 const CLIENT_REJECTION_KEY = '__clientRejectedAt';
-
-function currentCalibrationCertificateSnapshot(item) {
-  return serializeCalibrationCertificate(item?.calibrationCertificates?.[0] || null);
-}
 
 function reportDateUnchanged(existingReport, nextReportDate) {
   return Boolean(existingReport?.reportDate && reportDateKey(existingReport.reportDate) === reportDateKey(nextReportDate));
@@ -3822,11 +3815,8 @@ async function syncApprovedRtpReports(tx, report) {
 
     const [collaborators, manometers, uthUnits] = await Promise.all([
       collabIds.length ? tx.collaborator.findMany({ where: { id: { in: collabIds } } }) : Promise.resolve([]),
-      manoIds.length ? tx.manometer.findMany({
-        where: { id: { in: manoIds } },
-        include: currentCalibrationCertificateInclude
-      }) : Promise.resolve([]),
-      uthIds.length ? tx.unit.findMany({ where: { id: { in: uthIds } } }) : Promise.resolve([])
+      resolveReportManometers(tx, manoIds),
+      resolveReportUnits(tx, uthIds)
     ]);
 
     const existingRtp = serviceLinkKey ? findExistingByLinkKeys(existingByLinkKey, service, service.id) : null;
@@ -3836,7 +3826,7 @@ async function syncApprovedRtpReports(tx, report) {
       code: m.code,
       scale: m.scale,
       certCode: m.calibrationCertCode,
-      certificate: currentCalibrationCertificateSnapshot(m),
+      certificate: m.currentCalibrationCertificate,
       calibratedAt: m.calibratedAt ? m.calibratedAt.toISOString().slice(0, 10) : '',
       expiresAt: m.expiresAt ? m.expiresAt.toISOString().slice(0, 10) : ''
     })).map(m => preserveManometerCalibrationSnapshot(existingRtp, report.reportDate, m));
@@ -4009,7 +3999,7 @@ async function syncApprovedRlqReports(tx, report) {
 
     const [collaborators, ulqUnits] = await Promise.all([
       collabIds.length ? tx.collaborator.findMany({ where: { id: { in: collabIds } } }) : Promise.resolve([]),
-      ulqIds.length ? tx.unit.findMany({ where: { id: { in: ulqIds } } }) : Promise.resolve([])
+      resolveReportUnits(tx, ulqIds)
     ]);
 
     const resolvedCollaborators = resolveCollaboratorsByShift(report, collaborators);
@@ -4617,12 +4607,9 @@ async function syncApprovedRcpReports(tx, report) {
 
     const [collaborators, units, thermoUnits, counter] = await Promise.all([
       collabIds.length ? tx.collaborator.findMany({ where: { id: { in: collabIds } } }) : Promise.resolve([]),
-      unitIds.length ? tx.unit.findMany({ where: { id: { in: unitIds } } }) : Promise.resolve([]),
-      thermoIds.length ? tx.unit.findMany({ where: { id: { in: thermoIds } } }) : Promise.resolve([]),
-      counterId ? tx.particleCounter.findUnique({
-        where: { id: counterId },
-        include: currentCalibrationCertificateInclude
-      }) : Promise.resolve(null)
+      resolveReportUnits(tx, unitIds),
+      resolveReportUnits(tx, thermoIds),
+      resolveReportCounter(tx, counterId)
     ]);
 
     const existingRcp = serviceLinkKey ? findExistingByLinkKeys(existingByLinkKey, service, service.id) : null;
@@ -4632,7 +4619,7 @@ async function syncApprovedRcpReports(tx, report) {
     const resolvedCounter = preserveCounterCalibrationSnapshot(existingRcp, report.reportDate, counter ? {
       code: counter.code,
       serialNumber: counter.serialNumber,
-      certificate: currentCalibrationCertificateSnapshot(counter)
+      certificate: counter.currentCalibrationCertificate
     } : null);
 
     // Sum minutes across all approved RDOs with the same service linkKey.
@@ -5123,11 +5110,8 @@ async function buildIndependentSpecialConditions(tx, reportType, sourceReport, s
       'Unidade de Teste Hidrostatico (UTH)'
     ]);
     const [manometers, uthUnits] = await Promise.all([
-      manoIds.length ? tx.manometer.findMany({
-        where: { id: { in: manoIds } },
-        include: currentCalibrationCertificateInclude
-      }) : Promise.resolve([]),
-      uthIds.length ? tx.unit.findMany({ where: { id: { in: uthIds } } }) : Promise.resolve([])
+      resolveReportManometers(tx, manoIds),
+      resolveReportUnits(tx, uthIds)
     ]);
     return {
       ...base,
@@ -5136,7 +5120,7 @@ async function buildIndependentSpecialConditions(tx, reportType, sourceReport, s
         code: m.code,
         scale: m.scale,
         certCode: m.calibrationCertCode,
-        certificate: currentCalibrationCertificateSnapshot(m),
+        certificate: m.currentCalibrationCertificate,
         calibratedAt: m.calibratedAt ? m.calibratedAt.toISOString().slice(0, 10) : '',
         expiresAt: m.expiresAt ? m.expiresAt.toISOString().slice(0, 10) : ''
       })),
@@ -5150,7 +5134,7 @@ async function buildIndependentSpecialConditions(tx, reportType, sourceReport, s
       'Unidade de Limpeza QuÃ­mica',
       'Unidade de Limpeza Quimica'
     ]);
-    const units = ulqIds.length ? await tx.unit.findMany({ where: { id: { in: ulqIds } } }) : [];
+    const units = await resolveReportUnits(tx, ulqIds);
     return { ...base, resolvedUnits: units.map(u => u.code) };
   }
 
@@ -5167,12 +5151,9 @@ async function buildIndependentSpecialConditions(tx, reportType, sourceReport, s
     const counterRaw = fields['Contador utilizado'];
     const counterId = counterRaw && typeof counterRaw === 'string' ? counterRaw : (counterRaw?.id || null);
     const [units, thermoUnits, counter] = await Promise.all([
-      unitIds.length ? tx.unit.findMany({ where: { id: { in: unitIds } } }) : Promise.resolve([]),
-      thermoIds.length ? tx.unit.findMany({ where: { id: { in: thermoIds } } }) : Promise.resolve([]),
-      counterId ? tx.particleCounter.findUnique({
-        where: { id: counterId },
-        include: currentCalibrationCertificateInclude
-      }) : Promise.resolve(null)
+      resolveReportUnits(tx, unitIds),
+      resolveReportUnits(tx, thermoIds),
+      resolveReportCounter(tx, counterId)
     ]);
     return {
       ...base,
@@ -5181,7 +5162,7 @@ async function buildIndependentSpecialConditions(tx, reportType, sourceReport, s
       resolvedCounter: counter ? {
         code: counter.code,
         serialNumber: counter.serialNumber,
-        certificate: currentCalibrationCertificateSnapshot(counter)
+        certificate: counter.currentCalibrationCertificate
       } : null,
       totalMinutes: calcServiceMinutes(service.startTime, service.endTime)
     };

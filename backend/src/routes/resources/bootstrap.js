@@ -1,11 +1,14 @@
 import { Router } from 'express';
 
 import asyncHandler from '../../lib/async-handler.js';
-import { currentCalibrationCertificateInclude, withCurrentCalibrationCertificate } from '../../lib/calibration-certificates.js';
+import { UNIT_SYSTEMKEY_PREFIX, legacyUnitCategory } from '../../lib/equipment-categories.js';
+import { listManometersCompat, listParticleCountersCompat, listRdoEquipments, listUnitsCompat } from '../../lib/equipment-compat.js';
+import { resolveRdoSlotMap } from '../../lib/rdo-equipment-slots.js';
 import { seedInhibitionOptions } from '../../lib/inhibition-options.js';
 import prisma from '../../lib/prisma.js';
 import {
   collaboratorsCache,
+  companyEquipmentCache,
   equipmentCache,
   inhibitionOptionsCache,
   manometersCache,
@@ -33,6 +36,8 @@ async function newReportBootstrapData(auth) {
     units,
     manometers,
     counters,
+    equipments,
+    rdoSlots,
     inhibitionOptions,
     drafts
   ] = await Promise.all([
@@ -49,17 +54,11 @@ async function newReportBootstrapData(auth) {
       }
       return result;
     }),
-    unitsCache.get(() => prisma.unit.findMany({
-      orderBy: [{ category: 'asc' }, { name: 'asc' }, { code: 'asc' }]
-    })),
-    manometersCache.get(() => prisma.manometer.findMany({
-      orderBy: { code: 'asc' },
-      include: currentCalibrationCertificateInclude
-    })),
-    particleCountersCache.get(() => prisma.particleCounter.findMany({
-      orderBy: [{ category: 'asc' }, { code: 'asc' }],
-      include: currentCalibrationCertificateInclude
-    })),
+    unitsCache.get(() => listUnitsCompat()),
+    manometersCache.get(() => listManometersCompat()),
+    particleCountersCache.get(() => listParticleCountersCompat()),
+    companyEquipmentCache.get(() => listRdoEquipments()),
+    resolveRdoSlotMap(),
     inhibitionOptionsCache.get(async () => {
       await seedInhibitionOptions(prisma);
       const [vessels, systems] = await Promise.all([
@@ -85,8 +84,10 @@ async function newReportBootstrapData(auth) {
     projects,
     collaborators,
     units,
-    manometers: manometers.map(withCurrentCalibrationCertificate),
-    counters: counters.map(withCurrentCalibrationCertificate),
+    manometers,
+    counters,
+    equipments,
+    rdoSlotMap: rdoSlots.map,
     inhibitionOptions,
     drafts: rdoDraftItems(drafts)
   };
@@ -127,10 +128,6 @@ router.get('/gestor', requireRdoManager, asyncHandler(async (req, res) => {
     activeProjects,
     archivedProjects,
     collaborators,
-    units,
-    unitCategories,
-    manometers,
-    counters,
     surveys,
     projectSegments,
     surveyQuestions
@@ -153,36 +150,6 @@ router.get('/gestor', requireRdoManager, asyncHandler(async (req, res) => {
       }
       return result;
     }),
-    unitsCache.get(() => prisma.unit.findMany({
-      orderBy: [{ category: 'asc' }, { name: 'asc' }, { code: 'asc' }]
-    })),
-    unitCategoriesCache.get(async () => {
-      const [unitRows, romaneioRows] = await Promise.all([
-        prisma.unit.findMany({
-          distinct: ['category'],
-          select: { category: true },
-          orderBy: { category: 'asc' }
-        }),
-        prisma.romaneioCatalogItem.findMany({
-          distinct: ['categoryName'],
-          where: { isActive: true },
-          select: { categoryName: true },
-          orderBy: { categoryName: 'asc' }
-        })
-      ]);
-      return Array.from(new Set([
-        ...unitRows.map(item => item.category),
-        ...romaneioRows.map(item => item.categoryName)
-      ].map(item => String(item || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
-    }),
-    manometersCache.get(() => prisma.manometer.findMany({
-      orderBy: { code: 'asc' },
-      include: currentCalibrationCertificateInclude
-    })),
-    particleCountersCache.get(() => prisma.particleCounter.findMany({
-      orderBy: [{ category: 'asc' }, { code: 'asc' }],
-      include: currentCalibrationCertificateInclude
-    })),
     prisma.satisfactionSurvey.findMany({
       include: { project: true },
       orderBy: { createdAt: 'desc' }
@@ -198,10 +165,6 @@ router.get('/gestor', requireRdoManager, asyncHandler(async (req, res) => {
     activeProjects,
     archivedProjects,
     collaborators,
-    units,
-    unitCategories,
-    manometers: manometers.map(withCurrentCalibrationCertificate),
-    counters: counters.map(withCurrentCalibrationCertificate),
     surveys: surveys.map(item => ({
       ...safeSurvey(item),
       responses: item.responses,

@@ -748,7 +748,7 @@ test('Romaneio catalog category rename updates every item in the category', asyn
   assert.deepEqual(calls[0], ['romaneioCatalogItem.count', {
     where: {
       categoryName: 'Mangueiras',
-      sourceType: { in: ['UNIT', 'PARTICLE_COUNTER'] }
+      sourceType: { in: ['UNIT', 'PARTICLE_COUNTER', 'EQUIPAMENTOS'] }
     }
   }]);
   assert.deepEqual(calls[1], ['romaneioCatalogItem.updateMany', {
@@ -863,20 +863,20 @@ test('Romaneio catalog sync restores hidden RDO-owned rows and keeps hidden file
   const updates = [];
   const staleFileUpdates = [];
   prisma.$transaction = async callback => callback({
-    unit: {
-      findMany: async () => [{ id: 'unit-1', code: 'UF-01', category: 'FILTRAGEM' }]
-    },
-    particleCounter: {
-      findMany: async () => [{ id: 'counter-1', code: 'CP-01', serialNumber: 'SN-01', category: 'Instrumentos', isActive: true }]
+    companyEquipment: {
+      findMany: async () => [
+        { id: 'unit-1', code: 'UF-01', name: 'Unidade 01', attributes: {}, isActive: true, category: { name: 'FILTRAGEM' } },
+        { id: 'counter-1', code: 'CP-01', name: 'Contador 01', attributes: { serialNumber: 'SN-01' }, isActive: true, category: { name: 'Instrumentos' } }
+      ]
     },
     romaneioCatalogItem: {
       findUnique: async args => {
         const source = args.where?.sourceType_sourceId;
-        if (source?.sourceType === 'UNIT' && source?.sourceId === 'unit-1') {
-          return { id: 'catalog-unit-1', hiddenInRomaneioAt: new Date(), sourceType: 'UNIT' };
+        if (source?.sourceType === 'EQUIPAMENTOS' && source?.sourceId === 'unit-1') {
+          return { id: 'catalog-unit-1', hiddenInRomaneioAt: new Date(), sourceType: 'EQUIPAMENTOS' };
         }
-        if (source?.sourceType === 'PARTICLE_COUNTER' && source?.sourceId === 'counter-1') {
-          return { id: 'catalog-counter-1', hiddenInRomaneioAt: new Date(), sourceType: 'PARTICLE_COUNTER' };
+        if (source?.sourceType === 'EQUIPAMENTOS' && source?.sourceId === 'counter-1') {
+          return { id: 'catalog-counter-1', hiddenInRomaneioAt: new Date(), sourceType: 'EQUIPAMENTOS' };
         }
         return null;
       },
@@ -915,21 +915,15 @@ test('Romaneio catalog sync restores particle counter visibility after RDO react
   const updates = [];
   let counterIsActive = false;
   prisma.$transaction = async callback => callback({
-    unit: {
-      findMany: async () => []
-    },
-    particleCounter: {
-      findMany: async () => [{
-        id: 'counter-1',
-        code: 'CP-01',
-        serialNumber: 'SN-01',
-        isActive: counterIsActive
-      }]
+    companyEquipment: {
+      findMany: async () => (counterIsActive
+        ? [{ id: 'counter-1', code: 'CP-01', name: 'Contador 01', attributes: { serialNumber: 'SN-01' }, isActive: true, category: { name: 'Instrumentos' } }]
+        : [{ id: 'counter-1', code: 'CP-01', name: 'Contador 01', attributes: { serialNumber: 'SN-01' }, isActive: false, category: { name: 'Instrumentos' } }])
     },
     romaneioCatalogItem: {
       findUnique: async args => {
         const source = args.where?.sourceType_sourceId;
-        if (source?.sourceType === 'PARTICLE_COUNTER' && source?.sourceId === 'counter-1') {
+        if (source?.sourceType === 'EQUIPAMENTOS' && source?.sourceId === 'counter-1') {
           return { id: 'catalog-counter-1', hiddenInRomaneioAt: null };
         }
         return null;
@@ -959,22 +953,21 @@ test('Romaneio catalog sync uses RDO unit name and category', async t => {
   const originalTransaction = prisma.$transaction;
   const updates = [];
   prisma.$transaction = async callback => callback({
-    unit: {
+    companyEquipment: {
       findMany: async () => [{
         id: 'unit-1',
         code: 'UF-01',
         name: 'Unidade de filtragem Skid 01',
-        category: 'Filtragem'
+        attributes: {},
+        isActive: true,
+        category: { name: 'Filtragem' }
       }]
-    },
-    particleCounter: {
-      findMany: async () => []
     },
     romaneioCatalogItem: {
       findUnique: async args => {
         const source = args.where?.sourceType_sourceId;
-        if (source?.sourceType === 'UNIT' && source?.sourceId === 'unit-1') {
-          return { id: 'catalog-unit-1', hiddenInRomaneioAt: null, sourceType: 'UNIT' };
+        if (source?.sourceType === 'EQUIPAMENTOS' && source?.sourceId === 'unit-1') {
+          return { id: 'catalog-unit-1', hiddenInRomaneioAt: null, sourceType: 'EQUIPAMENTOS' };
         }
         return null;
       },
@@ -1001,23 +994,21 @@ test('Romaneio catalog sync uses RDO particle counter category', async t => {
   const originalTransaction = prisma.$transaction;
   const updates = [];
   prisma.$transaction = async callback => callback({
-    unit: {
-      findMany: async () => []
-    },
-    particleCounter: {
+    companyEquipment: {
       findMany: async () => [{
         id: 'counter-1',
         code: 'CP-01',
-        serialNumber: 'SN-01',
-        category: 'Instrumentos de medição',
-        isActive: true
+        name: 'Contador de partículas SN-01',
+        attributes: { serialNumber: 'SN-01' },
+        isActive: true,
+        category: { name: 'Instrumentos de medição' }
       }]
     },
     romaneioCatalogItem: {
       findUnique: async args => {
         const source = args.where?.sourceType_sourceId;
-        if (source?.sourceType === 'PARTICLE_COUNTER' && source?.sourceId === 'counter-1') {
-          return { id: 'catalog-counter-1', hiddenInRomaneioAt: null, sourceType: 'PARTICLE_COUNTER' };
+        if (source?.sourceType === 'EQUIPAMENTOS' && source?.sourceId === 'counter-1') {
+          return { id: 'catalog-counter-1', hiddenInRomaneioAt: null, sourceType: 'EQUIPAMENTOS' };
         }
         return null;
       },
@@ -1168,16 +1159,15 @@ test('Romaneio catalog sync skips catalog writes when persistent source hash is 
   let catalogWrites = 0;
   let stateUpserts = 0;
   prisma.$transaction = async callback => callback({
-    unit: {
+    companyEquipment: {
       findMany: async () => [{
         id: 'unit-1',
         code: 'UF-01',
         name: 'Unidade de filtragem',
-        category: 'Filtragem'
+        attributes: {},
+        isActive: true,
+        category: { name: 'Filtragem' }
       }]
-    },
-    particleCounter: {
-      findMany: async () => []
     },
     romaneioCatalogSyncState: {
       findUnique: async () => storedHash ? { sourceHash: storedHash } : null,

@@ -55,7 +55,9 @@ const ACCOUNT_MODULE_ROLE_COMPATIBILITY = {
     'romaneio:operator',
     'epi:technician',
     'epi:collaborator',
-    'privacy:admin'
+    'privacy:admin',
+    'equipamentos:manager',
+    'equipamentos:viewer'
   ]),
   [AccountType.INTERNAL]: new Set([
     'rdo:coordinator',
@@ -64,7 +66,9 @@ const ACCOUNT_MODULE_ROLE_COMPATIBILITY = {
     'romaneio:operator',
     'epi:technician',
     'epi:collaborator',
-    'privacy:admin'
+    'privacy:admin',
+    'equipamentos:manager',
+    'equipamentos:viewer'
   ]),
   [AccountType.CLIENT]: new Set(['rdo:client'])
 };

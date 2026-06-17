@@ -34,7 +34,7 @@ import { defaultRomaneioUnit, romaneioMeasureLabel } from '../../utils/romaneioM
 type Tab = 'romaneios' | 'equipamentos' | 'notificacoes';
 const NEW_CATEGORY_VALUE = '__new_category__';
 
-const rdoOwnedCatalogSources = new Set(['UNIT', 'PARTICLE_COUNTER']);
+const rdoOwnedCatalogSources = new Set(['UNIT', 'PARTICLE_COUNTER', 'EQUIPAMENTOS']);
 
 function formatDate(value: string) {
   if (!value) return '';
@@ -584,7 +584,7 @@ export function RomaneioPage() {
                                     <button className="mini-btn danger" type="button" onClick={() => removeCatalogMutation.mutate(item.id)}>Remover</button>
                                   </div>
                                 ) : isManager && isRdoOwnedCatalogItem(item) ? (
-                                  <div className="rel-meta">Gerenciado no RDO</div>
+                                  <div className="rel-meta">Gerenciado pelo módulo Equipamentos</div>
                                 ) : null}
                               </div>
                               {isManager && editingCatalogId === item.id && (

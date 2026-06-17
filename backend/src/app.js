@@ -9,6 +9,7 @@ import { ZodError } from 'zod';
 import env from './config/env.js';
 import asyncHandler from './lib/async-handler.js';
 import { resolvePublicCalibrationCertificate } from './lib/calibration-certificates.js';
+import { resolvePublicEquipmentAttachment } from './lib/equipment-attachments.js';
 import { localizedZodErrorDetails, localizedZodIssues } from './lib/zod-error.js';
 import { requireAuth } from './middleware/auth.js';
 import apiRouter from './routes/index.js';
@@ -79,6 +80,16 @@ app.get('/certificados-calibracao/:token', asyncHandler(async (req, res) => {
     return res.status(404).json({ error: 'Certificado não encontrado.' });
   }
   res.type(resolved.certificate.mimeType || 'application/pdf');
+  return res.sendFile(resolved.targetPath);
+}));
+// Registrada antes do `app.use('/api', apiRouter)` para ficar pública (download
+// por token, sem auth) e, por estar sob /api, já é encaminhada pelo proxy.
+app.get('/api/equipamentos-anexos/:token', asyncHandler(async (req, res) => {
+  const resolved = await resolvePublicEquipmentAttachment(req.params.token);
+  if (!resolved) {
+    return res.status(404).json({ error: 'Anexo não encontrado.' });
+  }
+  res.type(resolved.attachment.mimeType || 'application/pdf');
   return res.sendFile(resolved.targetPath);
 }));
 app.get('/relatorios/*', requireAuth, asyncHandler(serveAuthorizedStoredFile));

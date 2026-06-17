@@ -118,9 +118,6 @@ function unitMatchesCategory(unit: Unit, category: Unit['category']) {
     || acceptedCategories.some(item => unitCategory === comparableCategory(item));
 }
 
-function unitOptionLabel(unit: Unit) {
-  return [unit.code, unit.name].filter(Boolean).join(' - ');
-}
 
 type StoredUploadRecord = UploadedFile & {
   name?: string;
@@ -296,6 +293,16 @@ function pillOptionClass(checked: boolean) {
   return `rdo-pill-option ${checked ? 'sel' : ''}`;
 }
 
+export interface EquipmentOption {
+  id: string;
+  code: string;
+  name?: string;
+  categoryId?: string;
+  serialNumber?: string;
+  scale?: string;
+  isActive?: boolean;
+}
+
 interface ServiceFieldsProps {
   serviceType: string;
   data: Record<string, unknown>;
@@ -304,12 +311,27 @@ interface ServiceFieldsProps {
   units: Unit[];
   manometers: Manometer[];
   counters?: ParticleCounter[];
+  equipments?: EquipmentOption[];
+  rdoSlotMap?: Record<string, string | null>;
   inhibitionOptions?: InhibitionOptions;
   collaboratorOptions?: ServiceCollaboratorOption[];
   groupKey: string;
   projectId?: string | null;
   invalidKey?: string | null;
   hideFinalization?: boolean;
+}
+
+// Opções de um slot a partir do mapeamento configurável (categoryId). Retorna
+// null quando o bootstrap ainda não traz equipments/rdoSlotMap (fallback legado).
+function slotOptionsFrom(
+  equipments: EquipmentOption[] | undefined,
+  rdoSlotMap: Record<string, string | null> | undefined,
+  slotKey: string
+): EquipmentOption[] | null {
+  if (!equipments || !rdoSlotMap || !(slotKey in rdoSlotMap)) return null;
+  const categoryId = rdoSlotMap[slotKey];
+  if (!categoryId) return [];
+  return equipments.filter(item => item.categoryId === categoryId && item.isActive !== false);
 }
 
 function updateArrayItem<T>(items: T[], index: number, next: T) {
@@ -491,6 +513,7 @@ function UnitMultiField({
   field,
   units,
   categories,
+  options: providedOptions,
   data,
   onChange,
   disabled,
@@ -502,10 +525,13 @@ function UnitMultiField({
   field: string;
   units: Unit[];
   categories: Unit['category'][];
+  options?: EquipmentOption[] | null;
   required?: boolean;
 }) {
   const selected = getStringList(data[field]);
-  const options = units.filter(unit => categories.some(category => unitMatchesCategory(unit, category)));
+  const options: Array<{ id: string; code: string; name?: string }> = providedOptions
+    ? providedOptions
+    : units.filter(unit => categories.some(category => unitMatchesCategory(unit, category)));
 
   return (
     <div className={fieldClass(invalidKey, field)}>
@@ -521,7 +547,7 @@ function UnitMultiField({
               onChange={event => onChange({ [field]: updateArrayItem(selected, index, event.target.value) })}
             >
               <option value="">Selecionar...</option>
-              {options.map(unit => <option key={unit.id} value={unit.id}>{unitOptionLabel(unit)}</option>)}
+              {options.map(unit => <option key={unit.id} value={unit.id}>{[unit.code, unit.name].filter(Boolean).join(' - ')}</option>)}
             </select>
             <button
               className="unit-row-remove"
@@ -748,10 +774,12 @@ function VolumeField({ data, onChange, disabled, invalidKey, groupKey }: Pick<Se
   );
 }
 
-function ParticulasBlock({ data, onChange, disabled, groupKey, invalidKey, counters = [], upload }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'groupKey' | 'invalidKey' | 'counters'> & { upload: (label: string) => ReactNode }) {
+function ParticulasBlock({ data, onChange, disabled, groupKey, invalidKey, counters = [], counterOptions, upload }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'groupKey' | 'invalidKey' | 'counters'> & { counterOptions?: EquipmentOption[] | null; upload: (label: string) => ReactNode }) {
   const enabled = getString(data.houveParticulas) === 'Sim';
   const contadorId = fieldId(groupKey, 'contadorUtilizado');
-  const activeCounters = counters.filter(counter => counter.isActive !== false);
+  const activeCounters: Array<{ id: string; code: string; serialNumber?: string }> = counterOptions
+    ? counterOptions
+    : counters.filter(counter => counter.isActive !== false);
 
   return (
     <div className="field-group">
@@ -815,10 +843,12 @@ function ParticulasBlock({ data, onChange, disabled, groupKey, invalidKey, count
   );
 }
 
-function DesidratacaoBlock({ data, onChange, disabled, groupKey, units, invalidKey, upload }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'groupKey' | 'units' | 'invalidKey'> & { upload: (label: string) => ReactNode }) {
+function DesidratacaoBlock({ data, onChange, disabled, groupKey, units, unitOptions, invalidKey, upload }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'groupKey' | 'units' | 'invalidKey'> & { unitOptions?: EquipmentOption[] | null; upload: (label: string) => ReactNode }) {
   const enabled = getString(data.houveDesidratacao) === 'Sim';
   const hasHumidity = getString(data.houveUmidade) === 'Sim';
-  const desidratacaoUnits = units.filter(unit => unitMatchesCategory(unit, 'DESIDRATACAO'));
+  const desidratacaoUnits: Array<{ id: string; code: string }> = unitOptions
+    ? unitOptions
+    : units.filter(unit => unitMatchesCategory(unit, 'DESIDRATACAO'));
 
   return (
     <div className="field-group">
@@ -920,6 +950,8 @@ export function ServiceFields({
   units,
   manometers,
   counters = [],
+  equipments,
+  rdoSlotMap,
   inhibitionOptions,
   groupKey,
   projectId,
@@ -927,6 +959,7 @@ export function ServiceFields({
   hideFinalization = false
 }: ServiceFieldsProps) {
   const normalizedType = normalizeServiceType(serviceType);
+  const slotOptions = (slotKey: string) => slotOptionsFrom(equipments, rdoSlotMap, slotKey);
   function upload(label: string) {
     return (
       <UploadField
@@ -959,7 +992,7 @@ export function ServiceFields({
             ))}
           </div>
         </div>
-        <UnitMultiField groupKey={groupKey} label="Unidade de Limpeza Química" field="ulq" units={units} categories={['LIMPEZA_QUIMICA']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <UnitMultiField groupKey={groupKey} label="Unidade de Limpeza Química" field="ulq" units={units} categories={['LIMPEZA_QUIMICA']} options={slotOptions('limpeza.ulq')} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <div className={fieldClass(invalidKey, 'local')}>
           <label>Local de limpeza {requiredMark()}</label>
           <div className="rdo-pill-list">
@@ -1017,7 +1050,10 @@ export function ServiceFields({
     const fluidoTeste = getString(data.fluidoTeste) || 'agua';
     const qualOleo = getString(data.qualOleo);
     const manometroIds = getStrings(data.manometroIds);
-    const activeManometers = manometers.filter(m => m.isActive);
+    const manometerSlotOptions = slotOptions('pressao.manometros');
+    const activeManometers: Array<{ id: string; code: string }> = manometerSlotOptions
+      ? manometerSlotOptions
+      : manometers.filter(m => m.isActive);
 
     return (
       <>
@@ -1027,7 +1063,7 @@ export function ServiceFields({
           <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
         )}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        <UnitMultiField groupKey={groupKey} label="Unidade de Teste Hidrostático (UTH)" field="uth" units={units} categories={['UTH']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <UnitMultiField groupKey={groupKey} label="Unidade de Teste Hidrostático (UTH)" field="uth" units={units} categories={['UTH']} options={slotOptions('pressao.uth')} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         <PressureField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} field="pressaoTrabalho" unitField="pressaoTrabalhoUnit" label="Pressão de trabalho" />
         <PressureField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} field="pressaoTeste" unitField="pressaoTesteUnit" label="Pressão de teste" />
         <div className={fieldClass(invalidKey, 'manometroIds')}>
@@ -1112,13 +1148,13 @@ export function ServiceFields({
             ))}
           </div>
         </div>
-        <UnitMultiField groupKey={groupKey} label={tipoFlushing === 'secundario' ? 'Unidade de filtragem' : 'Unidade de Flushing'} field="uf" units={units} categories={unitCategories} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <UnitMultiField groupKey={groupKey} label={tipoFlushing === 'secundario' ? 'Unidade de filtragem' : 'Unidade de Flushing'} field="uf" units={units} categories={unitCategories} options={slotOptions(tipoFlushing === 'secundario' ? 'flushing.secundario' : 'flushing.primario')} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         {hideFinalization ? null : (
           <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
         )}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} counters={counters} upload={upload} />
-        <DesidratacaoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} units={units} invalidKey={invalidKey} upload={upload} />
+        <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} counters={counters} counterOptions={slotOptions('flushing.particulas')} upload={upload} />
+        <DesidratacaoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} units={units} unitOptions={slotOptions('flushing.desidratacao')} invalidKey={invalidKey} upload={upload} />
         <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
       </>
     );
@@ -1132,13 +1168,13 @@ export function ServiceFields({
           <input id={fieldId(groupKey, 'tipoOleo')} value={getString(data.tipoOleo)} placeholder="Marca/modelo do óleo..." disabled={disabled} onChange={e => onChange({ tipoOleo: e.target.value })} />
         </div>
         <VolumeField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
-        <UnitMultiField groupKey={groupKey} label="Unidade de filtragem" field="ufg" units={units} categories={['FILTRAGEM']} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
+        <UnitMultiField groupKey={groupKey} label="Unidade de filtragem" field="ufg" units={units} categories={['FILTRAGEM']} options={slotOptions('filtragem.ufg')} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
         {hideFinalization ? null : (
           <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
         )}
         <EtapasSection serviceType={serviceType} data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} />
-        <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} counters={counters} upload={upload} />
-        <DesidratacaoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} units={units} invalidKey={invalidKey} upload={upload} />
+        <ParticulasBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} counters={counters} counterOptions={slotOptions('filtragem.particulas')} upload={upload} />
+        <DesidratacaoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} units={units} unitOptions={slotOptions('filtragem.desidratacao')} invalidKey={invalidKey} upload={upload} />
         <DrawingsObsBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} />
       </>
     );

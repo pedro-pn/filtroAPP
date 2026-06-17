@@ -14,7 +14,7 @@ import type { AccountType, ModuleRole, UserRole } from '../../types/auth';
 import type { InternalUserSummary } from '../../types/domain';
 
 type AccountFilter = 'all' | AccountType;
-type ModuleFilter = 'all' | 'rdo' | 'romaneio' | 'epi' | 'privacy';
+type ModuleFilter = 'all' | 'rdo' | 'romaneio' | 'epi' | 'equipamentos' | 'privacy';
 
 interface AccountFormState {
   accountType: AccountType;
@@ -36,6 +36,8 @@ const roleOptions: Array<{ value: ModuleRole; label: string; accountTypes: Accou
   { value: 'romaneio:operator', label: 'Romaneio - Operador', accountTypes: ['ADMIN', 'INTERNAL'] },
   { value: 'epi:technician', label: 'EPI - Técnico', accountTypes: ['ADMIN', 'INTERNAL'] },
   { value: 'epi:collaborator', label: 'EPI - Colaborador', accountTypes: ['ADMIN', 'INTERNAL'] },
+  { value: 'equipamentos:manager', label: 'Equipamentos - Gestor', accountTypes: ['ADMIN', 'INTERNAL'] },
+  { value: 'equipamentos:viewer', label: 'Equipamentos - Visualizador', accountTypes: ['ADMIN', 'INTERNAL'] },
   { value: 'privacy:admin', label: 'Privacidade - Admin', accountTypes: ['ADMIN'] }
 ];
 
@@ -410,6 +412,7 @@ export function AdminAccountsPage() {
               <option value="rdo">RDO</option>
               <option value="romaneio">Romaneio</option>
               <option value="epi">EPI</option>
+              <option value="equipamentos">Equipamentos</option>
               <option value="privacy">Privacidade</option>
             </select>
           </div>

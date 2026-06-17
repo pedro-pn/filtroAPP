@@ -11,6 +11,8 @@ export const queryKeys = {
   unitCategories: ['units', 'categories'] as const,
   manometers: ['manometers'] as const,
   counters: ['particle-counters'] as const,
+  equipamentos: (categoryId?: string | null) => ['equipamentos', 'items', { categoryId: categoryId || 'all' }] as const,
+  equipamentoCategories: ['equipamentos', 'categories'] as const,
   drafts: (userId?: string | null) => ['drafts', { userId: userId || 'anonymous' }] as const,
   users: (group?: 'internal' | 'client') => ['users', { group }] as const,
   surveys: ['surveys'] as const,
