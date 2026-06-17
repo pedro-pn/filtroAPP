@@ -7,15 +7,18 @@ import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { useToast } from '../../components/ui/Toast';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
-import { useEquipamentoMutations, useEquipamentos, useEquipmentCategories } from '../../hooks/useEquipamentos';
+import { useEquipamentoMutations, useEquipamentos, useEquipmentCategories, useRdoSlots } from '../../hooks/useEquipamentos';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { CategoryFormModal } from './CategoryFormModal';
 import { CategoryManager } from './CategoryManager';
 import { EquipmentDashboard } from './EquipmentDashboard';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { EquipmentFormModal } from './EquipmentFormModal';
+import { NotificationsConfig } from './NotificationsConfig';
 import { RdoSlotsConfig } from './RdoSlotsConfig';
 import { calibrationStatus, formatDate, statusLabel } from './equipmentStatus';
 
-type ActiveTab = { kind: 'category'; id: string } | { kind: 'dashboard' } | { kind: 'config' };
+type ActiveTab = { kind: 'category'; id: string } | { kind: 'dashboard' } | { kind: 'config' } | { kind: 'notifications' };
 
 function StatusBadge({ item }: { item: CompanyEquipment }) {
   const status = calibrationStatus(item);
@@ -32,6 +35,7 @@ export function EquipamentosPage() {
 
   const categoriesQuery = useEquipmentCategories();
   const equipmentQuery = useEquipamentos();
+  const rdoSlotsQuery = useRdoSlots(isManager);
   const mutations = useEquipamentoMutations();
 
   const categories = useMemo(
@@ -39,11 +43,17 @@ export function EquipamentosPage() {
     [categoriesQuery.data]
   );
   const equipment = equipmentQuery.data || [];
+  // Categorias atualmente vinculadas a algum slot de relatório (override ou padrão).
+  const rdoLinkedCategoryIds = useMemo(
+    () => new Set((rdoSlotsQuery.data || []).map(slot => slot.categoryId).filter((id): id is string => Boolean(id))),
+    [rdoSlotsQuery.data]
+  );
 
   const [activeTab, setActiveTab] = useState<ActiveTab>({ kind: 'dashboard' });
   const [equipmentForm, setEquipmentForm] = useState<{ category: EquipmentCategory; item: CompanyEquipment | null } | null>(null);
   const [categoryForm, setCategoryForm] = useState<{ open: boolean; category: EquipmentCategory | null }>({ open: false, category: null });
   const [categorySearch, setCategorySearch] = useState('');
+  const [confirm, setConfirm] = useState<{ title: string; description?: string; highlight?: string; onConfirm: () => void } | null>(null);
 
   const selectedCategory = activeTab.kind === 'category' ? categories.find(c => c.id === activeTab.id) || null : null;
   const activeTabKey = activeTab.kind === 'category' ? activeTab.id : activeTab.kind;
@@ -101,18 +111,26 @@ export function EquipamentosPage() {
   }
 
   function handleRemoveEquipment(item: CompanyEquipment) {
-    if (!window.confirm(`Remover o equipamento "${item.code}"?`)) return;
-    mutations.removeEquipment.mutate(item.id, {
-      onSuccess: () => showToast('Equipamento removido.', 'success'),
-      onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível remover.', 'error')
+    setConfirm({
+      title: 'Remover equipamento',
+      description: 'O equipamento será removido do módulo.',
+      highlight: [item.code, item.name].filter(Boolean).join(' — '),
+      onConfirm: () => mutations.removeEquipment.mutate(item.id, {
+        onSuccess: () => showToast('Equipamento removido.', 'success'),
+        onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível remover.', 'error')
+      })
     });
   }
 
   function handleRemoveCategory(category: EquipmentCategory) {
-    if (!window.confirm(`Remover a categoria "${category.name}"?`)) return;
-    mutations.removeCategory.mutate(category.id, {
-      onSuccess: () => showToast('Categoria removida.', 'success'),
-      onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível remover.', 'error')
+    setConfirm({
+      title: 'Remover categoria',
+      description: 'A categoria será removida do módulo.',
+      highlight: category.name,
+      onConfirm: () => mutations.removeCategory.mutate(category.id, {
+        onSuccess: () => showToast('Categoria removida.', 'success'),
+        onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível remover.', 'error')
+      })
     });
   }
 
@@ -156,10 +174,16 @@ export function EquipamentosPage() {
               );
             })}
             {isManager && (
-              <button className={`equip-nav-item equip-nav-config ${activeTab.kind === 'config' ? 'active' : ''}`} type="button" aria-current={activeTab.kind === 'config'} onClick={() => setActiveTab({ kind: 'config' })}>
-                <span className="equip-nav-ico" aria-hidden="true">⚙</span>
-                <span className="equip-nav-label">Configurações</span>
-              </button>
+              <>
+                <button className={`equip-nav-item equip-nav-config ${activeTab.kind === 'config' ? 'active' : ''}`} type="button" aria-current={activeTab.kind === 'config'} onClick={() => setActiveTab({ kind: 'config' })}>
+                  <span className="equip-nav-ico" aria-hidden="true">⚙</span>
+                  <span className="equip-nav-label">Configurações</span>
+                </button>
+                <button className={`equip-nav-item ${activeTab.kind === 'notifications' ? 'active' : ''}`} type="button" aria-current={activeTab.kind === 'notifications'} onClick={() => setActiveTab({ kind: 'notifications' })}>
+                  <span className="equip-nav-ico" aria-hidden="true">✉</span>
+                  <span className="equip-nav-label">Notificações</span>
+                </button>
+              </>
             )}
           </nav>
 
@@ -181,18 +205,13 @@ export function EquipamentosPage() {
               )}
             </div>
             {allCategoryEquipment.length > 0 && (
-              <div className="equip-search">
-                <input
-                  type="search"
-                  value={categorySearch}
-                  placeholder={`Buscar em ${selectedCategory.name}… (código, nome, nº de série)`}
-                  onChange={event => setCategorySearch(event.target.value)}
-                  aria-label={`Buscar equipamento em ${selectedCategory.name}`}
-                />
-                {categorySearch.trim() && (
-                  <span className="equip-search-count">{categoryEquipment.length} de {allCategoryEquipment.length}</span>
-                )}
-              </div>
+              <SearchBar
+                value={categorySearch}
+                onChange={setCategorySearch}
+                placeholder={`Buscar em ${selectedCategory.name}… (código, nome, nº de série)`}
+                ariaLabel={`Buscar equipamento em ${selectedCategory.name}`}
+                count={{ shown: categoryEquipment.length, total: allCategoryEquipment.length }}
+              />
             )}
             {allCategoryEquipment.length === 0 && <p className="rel-meta">Nenhum equipamento nesta categoria.</p>}
             {allCategoryEquipment.length > 0 && categoryEquipment.length === 0 && <p className="rel-meta">Nenhum equipamento encontrado para “{categorySearch.trim()}”.</p>}
@@ -242,12 +261,17 @@ export function EquipamentosPage() {
           <>
           <CategoryManager
             categories={categories}
+            rdoLinkedCategoryIds={rdoLinkedCategoryIds}
             onAdd={() => setCategoryForm({ open: true, category: null })}
             onEdit={category => setCategoryForm({ open: true, category })}
             onRemove={handleRemoveCategory}
           />
           <RdoSlotsConfig categories={categories} />
           </>
+        )}
+
+        {activeTab.kind === 'notifications' && isManager && (
+          <NotificationsConfig />
         )}
           </div>
         </div>
@@ -273,6 +297,15 @@ export function EquipamentosPage() {
           onSubmit={handleCategorySubmit}
         />
       )}
+
+      <ConfirmDialog
+        open={!!confirm}
+        title={confirm?.title || ''}
+        description={confirm?.description}
+        highlight={confirm?.highlight}
+        onConfirm={() => { confirm?.onConfirm(); setConfirm(null); }}
+        onCancel={() => setConfirm(null)}
+      />
     </Shell>
   );
 }

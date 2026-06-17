@@ -3,56 +3,42 @@ import {
   buildCalibrationReminderEmailTemplate,
   buildCalibrationUpdatedEmailTemplate
 } from './email-templates.js';
+import { activeRecipientEmails, getEquipmentNotificationConfig } from './equipment-notifications.js';
 import { getMissingMailerConfig, outboundEmailsEnabled, sendMail } from './mailer.js';
-import {
-  managerCoordinatorNotificationEmails,
-  NotificationEmailCategory,
-  notificationRecipientsForEmails
-} from './notification-preferences.js';
 import prisma from './prisma.js';
 
 const REMINDER_INTERVAL_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const REPEAT_GAP_DAYS = 5;
-const MANOMETER_CATEGORY = 'Manômetros';
 
 export const CalibrationReminderMilestone = {
-  D30: 'D30',
-  D15: 'D15',
-  D7: 'D7',
   EXPIRED_DAY: 'EXPIRED_DAY',
   EXPIRED_REPEAT: 'EXPIRED_REPEAT'
 };
 
-const UPCOMING_MILESTONES = [
-  { days: 30, milestone: CalibrationReminderMilestone.D30 },
-  { days: 15, milestone: CalibrationReminderMilestone.D15 },
-  { days: 7, milestone: CalibrationReminderMilestone.D7 },
-  { days: 0, milestone: CalibrationReminderMilestone.EXPIRED_DAY }
-];
+function milestoneForDays(days) {
+  return `D${days}`;
+}
 
-const MILESTONE_LABELS = {
-  [CalibrationReminderMilestone.D30]: {
-    label: 'vence em 30 dias',
-    intro: 'Os equipamentos abaixo possuem calibração com vencimento em 30 dias.'
-  },
-  [CalibrationReminderMilestone.D15]: {
-    label: 'vence em 15 dias',
-    intro: 'Os equipamentos abaixo possuem calibração com vencimento em 15 dias.'
-  },
-  [CalibrationReminderMilestone.D7]: {
-    label: 'vence em 7 dias',
-    intro: 'Os equipamentos abaixo possuem calibração com vencimento em 7 dias.'
-  },
-  [CalibrationReminderMilestone.EXPIRED_DAY]: {
-    label: 'expira hoje',
-    intro: 'Os equipamentos abaixo possuem calibração com vencimento hoje.'
-  },
-  [CalibrationReminderMilestone.EXPIRED_REPEAT]: {
-    label: 'expirada',
-    intro: 'Os equipamentos abaixo estão com a calibração expirada.'
+function milestoneLabels(milestone) {
+  if (milestone === CalibrationReminderMilestone.EXPIRED_DAY) {
+    return { label: 'expira hoje', intro: 'Os equipamentos abaixo possuem calibração com vencimento hoje.' };
   }
-};
+  if (milestone === CalibrationReminderMilestone.EXPIRED_REPEAT) {
+    return { label: 'expirada', intro: 'Os equipamentos abaixo estão com a calibração expirada.' };
+  }
+  const match = /^D(\d+)$/.exec(milestone);
+  const days = match ? match[1] : '';
+  return {
+    label: `vence em ${days} dias`,
+    intro: `Os equipamentos abaixo possuem calibração com vencimento em ${days} dias.`
+  };
+}
+
+function buildUpcomingMilestones(config) {
+  const list = config.milestoneDays.map(days => ({ days, milestone: milestoneForDays(days) }));
+  if (config.notifyOnDueDay) list.push({ days: 0, milestone: CalibrationReminderMilestone.EXPIRED_DAY });
+  return list;
+}
 
 function startOfUtcDay(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
@@ -84,52 +70,33 @@ function categoryLogEquipmentId(category) {
   return `CATEGORY:${category}`;
 }
 
-function normalizeManometer(manometer) {
+// Projeta um CompanyEquipment calibrável para a forma usada pelas notificações.
+export function normalizeCompanyEquipment(item) {
+  const attributes = item?.attributes && typeof item.attributes === 'object' ? item.attributes : {};
   return {
-    equipmentType: 'MANOMETER',
-    equipmentId: manometer.id,
-    category: MANOMETER_CATEGORY,
-    code: manometer.code,
-    serialNumber: '',
-    calibratedAt: manometer.calibratedAt,
-    expiresAt: manometer.expiresAt
+    equipmentType: 'EQUIPMENT',
+    equipmentId: item?.id,
+    category: item?.category?.name || 'Equipamentos',
+    code: item?.code || '',
+    serialNumber: attributes.serialNumber || '',
+    calibratedAt: item?.calibratedAt || null,
+    expiresAt: item?.expiresAt || null
   };
-}
-
-function normalizeParticleCounter(counter) {
-  return {
-    equipmentType: 'PARTICLE_COUNTER',
-    equipmentId: counter.id,
-    category: counter.category || 'CONTADOR DE PARTICULAS',
-    code: counter.code,
-    serialNumber: counter.serialNumber || '',
-    calibratedAt: counter.calibratedAt,
-    expiresAt: counter.expiresAt
-  };
-}
-
-function normalizeCalibrationEquipment(equipmentType, equipment) {
-  return equipmentType === 'MANOMETER'
-    ? normalizeManometer(equipment)
-    : normalizeParticleCounter(equipment);
 }
 
 async function fetchCalibrationEquipment(client) {
-  const [manometers, particleCounters] = await Promise.all([
-    client.manometer.findMany({
-      where: { isActive: true },
-      select: { id: true, code: true, expiresAt: true }
-    }),
-    client.particleCounter.findMany({
-      where: { isActive: true },
-      select: { id: true, code: true, serialNumber: true, category: true, expiresAt: true }
-    })
-  ]);
-
-  return [
-    ...manometers.map(normalizeManometer),
-    ...particleCounters.map(normalizeParticleCounter)
-  ].filter(equipment => equipment.expiresAt);
+  const items = await client.companyEquipment.findMany({
+    where: { isActive: true, hasCalibration: true, expiresAt: { not: null } },
+    select: {
+      id: true,
+      code: true,
+      attributes: true,
+      calibratedAt: true,
+      expiresAt: true,
+      category: { select: { name: true } }
+    }
+  });
+  return items.map(normalizeCompanyEquipment).filter(equipment => equipment.expiresAt);
 }
 
 async function alreadySentUpcomingLogs(client, candidates) {
@@ -153,9 +120,9 @@ async function alreadySentUpcomingLogs(client, candidates) {
   return new Set(logs.map(logKey));
 }
 
-async function recentRepeatCategories(client, categories, now) {
+async function recentRepeatCategories(client, categories, now, gapDays) {
   if (!categories.length || !client.calibrationNotificationLog?.findMany) return new Set();
-  const sentAfter = addUtcDays(now, -REPEAT_GAP_DAYS);
+  const sentAfter = addUtcDays(now, -gapDays);
   const logs = await client.calibrationNotificationLog.findMany({
     where: {
       milestone: CalibrationReminderMilestone.EXPIRED_REPEAT,
@@ -175,9 +142,9 @@ async function createLogs(client, data) {
   });
 }
 
-function upcomingCandidates(equipment, now) {
+function upcomingCandidates(equipment, now, milestones) {
   const daysUntilExpiration = daysBetweenUtc(now, equipment.expiresAt);
-  const match = UPCOMING_MILESTONES.find(item => item.days === daysUntilExpiration);
+  const match = milestones.find(item => item.days === daysUntilExpiration);
   if (!match) return null;
   return {
     ...equipment,
@@ -200,17 +167,14 @@ function groupCandidates(candidates) {
   return Array.from(groups.values());
 }
 
+// Destinatários configurados (contas internas + e-mails avulsos).
 async function recipientsForCalibration(client) {
-  const emails = await managerCoordinatorNotificationEmails({ client });
-  return notificationRecipientsForEmails(
-    emails,
-    NotificationEmailCategory.CALIBRATION_REMINDERS,
-    { client }
-  );
+  const emails = await activeRecipientEmails(client);
+  return emails.map(email => ({ email, notificationPreferencesUrl: '' }));
 }
 
 async function sendCalibrationGroup({ group, recipients, mailer }) {
-  const labels = MILESTONE_LABELS[group.milestone] || MILESTONE_LABELS[CalibrationReminderMilestone.EXPIRED_REPEAT];
+  const labels = milestoneLabels(group.milestone);
   const template = buildCalibrationReminderEmailTemplate({
     category: group.category,
     milestoneLabel: labels.label,
@@ -234,8 +198,8 @@ export function shouldNotifyCalibrationUpdated({ previousExpiresAt, nextExpiresA
   return nextDate.getTime() > startOfUtcDay(now).getTime();
 }
 
+// Notifica imediatamente quando a validade de um equipamento é estendida.
 export async function notifyCalibrationUpdated({
-  equipmentType,
   equipment,
   previousExpiresAt,
   client = prisma,
@@ -243,10 +207,13 @@ export async function notifyCalibrationUpdated({
   now = new Date(),
   missingMailerConfig = getMissingMailerConfig()
 } = {}) {
-  const normalized = normalizeCalibrationEquipment(equipmentType, equipment || {});
+  const normalized = normalizeCompanyEquipment(equipment || {});
   if (!shouldNotifyCalibrationUpdated({ previousExpiresAt, nextExpiresAt: normalized.expiresAt, now })) return false;
   if (mailer === sendMail && !outboundEmailsEnabled()) return false;
   if (mailer === sendMail && missingMailerConfig.length) return false;
+
+  const config = await getEquipmentNotificationConfig(client);
+  if (!config.enabled) return false;
 
   const recipients = await recipientsForCalibration(client);
   if (!recipients.length) return false;
@@ -272,7 +239,6 @@ export async function notifyCalibrationUpdatedSafely(options = {}) {
     return await notifyCalibrationUpdated(options);
   } catch (error) {
     console.error('Falha ao notificar atualização de calibração.', {
-      equipmentType: options.equipmentType,
       equipmentId: options.equipment?.id,
       error: error?.message || error
     });
@@ -286,19 +252,24 @@ export async function processCalibrationReminders({
   now = new Date(),
   missingMailerConfig = getMissingMailerConfig()
 } = {}) {
+  const config = await getEquipmentNotificationConfig(client);
+  if (!config.enabled) return { checked: 0, sent: 0, skipped: true, reason: 'disabled' };
   if (mailer === sendMail && !outboundEmailsEnabled()) {
     return { checked: 0, sent: 0, skipped: true, reason: 'outbound_emails_disabled' };
   }
   if (mailer === sendMail && missingMailerConfig.length) return { checked: 0, sent: 0, skipped: true };
 
   const equipment = await fetchCalibrationEquipment(client);
-  const upcoming = equipment.map(item => upcomingCandidates(item, now)).filter(Boolean);
+  const milestones = buildUpcomingMilestones(config);
+  const upcoming = equipment.map(item => upcomingCandidates(item, now, milestones)).filter(Boolean);
   const alreadySent = await alreadySentUpcomingLogs(client, upcoming);
   const pendingUpcoming = upcoming.filter(candidate => !alreadySent.has(logKey(candidate)));
 
-  const expired = equipment.filter(item => daysBetweenUtc(now, item.expiresAt) < 0);
+  const expired = config.repeatExpired
+    ? equipment.filter(item => daysBetweenUtc(now, item.expiresAt) < 0)
+    : [];
   const expiredCategories = Array.from(new Set(expired.map(item => item.category)));
-  const blockedRepeatCategories = await recentRepeatCategories(client, expiredCategories, now);
+  const blockedRepeatCategories = await recentRepeatCategories(client, expiredCategories, now, config.repeatGapDays);
   const repeatGroups = groupCandidates(expired
     .filter(item => !blockedRepeatCategories.has(item.category))
     .map(item => ({

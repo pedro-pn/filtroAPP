@@ -254,6 +254,7 @@ async function upsertCatalogRow(tx, row) {
 
   const existing = await tx.romaneioCatalogItem.findFirst({
     where: {
+      isActive: true,
       categoryName: row.categoryName,
       code: row.code,
       name: row.name
@@ -379,8 +380,11 @@ export async function syncCatalogRows(tx, rows) {
     name: row.name
   }));
   if (naturalConditions.length) {
+    // Apenas linhas ATIVAS bloqueiam a criação por chave natural. Itens
+    // desativados (ex.: original do romaneio ao migrar para o módulo) não devem
+    // impedir a criação da nova linha gerenciada (sourceType EQUIPAMENTOS).
     const existingNaturalRows = await tx.romaneioCatalogItem.findMany({
-      where: { OR: naturalConditions },
+      where: { isActive: true, OR: naturalConditions },
       select: { categoryName: true, code: true, name: true }
     });
     for (const existing of existingNaturalRows) {

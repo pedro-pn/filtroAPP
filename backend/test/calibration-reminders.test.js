@@ -11,56 +11,31 @@ import {
 
 const NOW = new Date('2026-06-05T12:00:00.000Z');
 
-function managerUser() {
-  return {
-    id: 'manager-1',
-    username: 'gestor',
-    email: 'gestor@example.com',
-    role: 'MANAGER',
-    isActive: true,
-    notifyReportsByEmail: true,
-    notifySignaturesByEmail: true,
-    notifySignatureRemindersByEmail: true,
-    notifySurveyRemindersByEmail: true,
-    notifyCalibrationRemindersByEmail: true
-  };
+const DEFAULT_RECIPIENTS = [{ email: 'gestor@example.com', isActive: true }];
+
+// Linha de CompanyEquipment calibrável usada pelas notificações.
+function eq({ id, code, serialNumber = '', category = 'CONTADOR DE PARTICULAS', expiresAt, calibratedAt = null }) {
+  return { id, code, attributes: { serialNumber }, calibratedAt, expiresAt, category: { name: category } };
 }
 
-function coordinatorUser() {
-  return {
-    ...managerUser(),
-    id: 'coordinator-1',
-    username: 'coord',
-    email: 'coord@example.com',
-    role: 'COORDINATOR'
-  };
-}
-
-function makeClient({ manometers = [], particleCounters = [], logs = [], users = [managerUser()] } = {}) {
+function makeClient({ equipment = [], logs = [], recipients = DEFAULT_RECIPIENTS, config = null } = {}) {
   const createdLogs = [];
   return {
     createdLogs,
-    manometer: {
+    companyEquipment: {
       async findMany() {
-        return manometers;
+        return equipment;
       }
     },
-    particleCounter: {
-      async findMany() {
-        return particleCounters;
-      }
-    },
-    user: {
-      async findMany() {
-        return users;
-      }
-    },
-    notificationPreferenceToken: {
+    equipmentNotificationConfig: {
       async findFirst() {
-        return { tokenHash: 'pref-token' };
-      },
-      async create() {
-        return { tokenHash: 'pref-token' };
+        return config;
+      }
+    },
+    equipmentNotificationRecipient: {
+      async findMany(args = {}) {
+        const onlyActive = args.where?.isActive === true;
+        return recipients.filter(recipient => (onlyActive ? recipient.isActive !== false : true));
       }
     },
     calibrationNotificationLog: {
@@ -92,8 +67,8 @@ function makeClient({ manometers = [], particleCounters = [], logs = [], users =
   };
 }
 
-async function runScenario(equipment) {
-  const client = makeClient(equipment);
+async function runScenario(options) {
+  const client = makeClient(options);
   const messages = [];
   const result = await processCalibrationReminders({
     client,
@@ -114,12 +89,7 @@ test('skips calibration reminder job when operational emails are disabled', asyn
   env.sendClientEmails = false;
 
   const client = {
-    manometer: {
-      async findMany() {
-        throw new Error('equipment must not be queried while mail is disabled');
-      }
-    },
-    particleCounter: {
+    companyEquipment: {
       async findMany() {
         throw new Error('equipment must not be queried while mail is disabled');
       }
@@ -139,15 +109,19 @@ test('skips calibration reminder job when operational emails are disabled', asyn
   });
 });
 
-test('sends one manager email 30 days before particle counter calibration expires', async () => {
+test('skips calibration reminder job when notifications are disabled in config', async () => {
   const { messages, result } = await runScenario({
-    particleCounters: [{
-      id: 'counter-1',
-      code: 'CP-001',
-      serialNumber: 'SN-001',
-      category: 'CONTADOR DE PARTICULAS',
-      expiresAt: new Date('2026-07-05T00:00:00.000Z')
-    }]
+    config: { enabled: false },
+    equipment: [eq({ id: 'counter-1', code: 'CP-001', serialNumber: 'SN-001', expiresAt: new Date('2026-07-05T00:00:00.000Z') })]
+  });
+  assert.equal(result.skipped, true);
+  assert.equal(result.reason, 'disabled');
+  assert.equal(messages.length, 0);
+});
+
+test('sends one email 30 days before particle counter calibration expires', async () => {
+  const { messages, result } = await runScenario({
+    equipment: [eq({ id: 'counter-1', code: 'CP-001', serialNumber: 'SN-001', expiresAt: new Date('2026-07-05T00:00:00.000Z') })]
   });
 
   assert.equal(result.sent, 1);
@@ -157,14 +131,13 @@ test('sends one manager email 30 days before particle counter calibration expire
   assert.match(messages[0].text, /CP-001/);
   assert.match(messages[0].text, /SN-001/);
   assert.match(messages[0].text, /05\/07\/2026/);
-  assert.match(messages[0].text, /\/notificacoes\/pref-token/);
 });
 
-test('groups manometers in one manager email 15 days before calibration expires', async () => {
+test('groups equipment of one category in a single email 15 days before expiration', async () => {
   const { client, messages, result } = await runScenario({
-    manometers: [
-      { id: 'manometer-1', code: 'MN-001', expiresAt: new Date('2026-06-20T00:00:00.000Z') },
-      { id: 'manometer-2', code: 'MN-002', expiresAt: new Date('2026-06-20T00:00:00.000Z') }
+    equipment: [
+      eq({ id: 'manometer-1', code: 'MN-001', category: 'Manômetros', expiresAt: new Date('2026-06-20T00:00:00.000Z') }),
+      eq({ id: 'manometer-2', code: 'MN-002', category: 'Manômetros', expiresAt: new Date('2026-06-20T00:00:00.000Z') })
     ]
   });
 
@@ -177,65 +150,40 @@ test('groups manometers in one manager email 15 days before calibration expires'
   assert.equal(client.createdLogs.length, 2);
 });
 
-test('sends one manager email 7 days before particle counter calibration expires', async () => {
+test('sends one email 7 days before particle counter calibration expires', async () => {
   const { messages, result } = await runScenario({
-    particleCounters: [{
-      id: 'counter-7',
-      code: 'CP-007',
-      serialNumber: 'SN-007',
-      category: 'CONTADOR DE PARTICULAS',
-      expiresAt: new Date('2026-06-12T00:00:00.000Z')
-    }]
+    equipment: [eq({ id: 'counter-7', code: 'CP-007', serialNumber: 'SN-007', expiresAt: new Date('2026-06-12T00:00:00.000Z') })]
   });
 
   assert.equal(result.sent, 1);
   assert.equal(messages.length, 1);
-  assert.equal(messages[0].to, 'gestor@example.com');
   assert.match(messages[0].subject, /vence em 7 dias/);
   assert.match(messages[0].text, /CP-007/);
   assert.match(messages[0].text, /12\/06\/2026/);
 });
 
-test('sends one manager email on calibration expiration day', async () => {
+test('sends one email on calibration expiration day', async () => {
   const { messages, result } = await runScenario({
-    manometers: [{
-      id: 'manometer-today',
-      code: 'MN-HOJE',
-      expiresAt: new Date('2026-06-05T00:00:00.000Z')
-    }]
+    equipment: [eq({ id: 'manometer-today', code: 'MN-HOJE', category: 'Manômetros', expiresAt: new Date('2026-06-05T00:00:00.000Z') })]
   });
 
   assert.equal(result.sent, 1);
   assert.equal(messages.length, 1);
-  assert.equal(messages[0].to, 'gestor@example.com');
   assert.match(messages[0].subject, /expira hoje/);
   assert.match(messages[0].text, /MN-HOJE/);
   assert.match(messages[0].text, /05\/06\/2026/);
 });
 
-test('sends one manager repeat email with all expired equipment in the category', async () => {
+test('sends one repeat email with all expired equipment in the category', async () => {
   const { client, messages, result } = await runScenario({
-    particleCounters: [
-      {
-        id: 'counter-expired-1',
-        code: 'CP-V001',
-        serialNumber: 'SN-V001',
-        category: 'CONTADOR DE PARTICULAS',
-        expiresAt: new Date('2026-06-01T00:00:00.000Z')
-      },
-      {
-        id: 'counter-expired-2',
-        code: 'CP-V002',
-        serialNumber: 'SN-V002',
-        category: 'CONTADOR DE PARTICULAS',
-        expiresAt: new Date('2026-05-20T00:00:00.000Z')
-      }
+    equipment: [
+      eq({ id: 'counter-expired-1', code: 'CP-V001', serialNumber: 'SN-V001', expiresAt: new Date('2026-06-01T00:00:00.000Z') }),
+      eq({ id: 'counter-expired-2', code: 'CP-V002', serialNumber: 'SN-V002', expiresAt: new Date('2026-05-20T00:00:00.000Z') })
     ]
   });
 
   assert.equal(result.sent, 1);
   assert.equal(messages.length, 1);
-  assert.equal(messages[0].to, 'gestor@example.com');
   assert.match(messages[0].subject, /expirada/);
   assert.match(messages[0].text, /CP-V001/);
   assert.match(messages[0].text, /CP-V002/);
@@ -253,13 +201,7 @@ test('keeps expired calibration repeat cadence after stack restart', async () =>
       targetDate: new Date('2026-06-02T00:00:00.000Z'),
       sentAt: new Date('2026-06-02T00:00:00.000Z')
     }],
-    particleCounters: [{
-      id: 'counter-expired-restart',
-      code: 'CP-RST',
-      serialNumber: 'SN-RST',
-      category: 'CONTADOR DE PARTICULAS',
-      expiresAt: new Date('2026-06-01T00:00:00.000Z')
-    }]
+    equipment: [eq({ id: 'counter-expired-restart', code: 'CP-RST', serialNumber: 'SN-RST', expiresAt: new Date('2026-06-01T00:00:00.000Z') })]
   });
 
   assert.deepEqual(result, { checked: 1, sent: 0 });
@@ -267,26 +209,10 @@ test('keeps expired calibration repeat cadence after stack restart', async () =>
   assert.equal(client.createdLogs.length, 0);
 });
 
-test('skips calibration email when the manager opted out', async () => {
-  const client = makeClient({
-    users: [{ ...managerUser(), notifyCalibrationRemindersByEmail: false }],
-    particleCounters: [{
-      id: 'counter-opt-out',
-      code: 'CP-OPT',
-      serialNumber: 'SN-OPT',
-      category: 'CONTADOR DE PARTICULAS',
-      expiresAt: new Date('2026-07-05T00:00:00.000Z')
-    }]
-  });
-  const messages = [];
-
-  const result = await processCalibrationReminders({
-    client,
-    now: NOW,
-    missingMailerConfig: [],
-    async mailer(message) {
-      messages.push(message);
-    }
+test('skips calibration email when there are no active recipients', async () => {
+  const { client, messages, result } = await runScenario({
+    recipients: [{ email: 'gestor@example.com', isActive: false }],
+    equipment: [eq({ id: 'counter-no-recipient', code: 'CP-NR', serialNumber: 'SN-NR', expiresAt: new Date('2026-07-05T00:00:00.000Z') })]
   });
 
   assert.equal(result.sent, 0);
@@ -312,9 +238,12 @@ test('calibration update notification is due only when expiration changed to a f
   }), false);
 });
 
-test('sends calibration updated email to manager and coordinator', async () => {
+test('sends calibration updated email to all configured recipients', async () => {
   const client = makeClient({
-    users: [managerUser(), coordinatorUser()]
+    recipients: [
+      { email: 'gestor@example.com', isActive: true },
+      { email: 'coord@example.com', isActive: true }
+    ]
   });
   const messages = [];
 
@@ -322,16 +251,14 @@ test('sends calibration updated email to manager and coordinator', async () => {
     client,
     now: NOW,
     missingMailerConfig: [],
-    equipmentType: 'PARTICLE_COUNTER',
     previousExpiresAt: new Date('2026-06-01T00:00:00.000Z'),
-    equipment: {
+    equipment: eq({
       id: 'counter-calibrated',
       code: 'CP-CAL',
       serialNumber: 'SN-CAL',
-      category: 'CONTADOR DE PARTICULAS',
       calibratedAt: new Date('2026-06-05T00:00:00.000Z'),
       expiresAt: new Date('2026-12-05T00:00:00.000Z')
-    },
+    }),
     async mailer(message) {
       messages.push(message);
     }

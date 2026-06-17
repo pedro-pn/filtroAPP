@@ -20,6 +20,7 @@
     "sync:romaneio-catalog": "node scripts/sync-romaneio-catalog.js",
     "backfill:report-attachments": "node scripts/backfill-report-attachments.js",
     "backfill:equipment": "node scripts/backfill-equipment.js",
+    "backfill:equipment-notifications": "node scripts/backfill-equipment-notifications.js",
     "audit:report-files": "node scripts/audit-report-files.js",
     "repair:report-file-paths": "node scripts/repair-report-file-paths.js"
   },

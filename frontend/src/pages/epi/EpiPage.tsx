@@ -24,6 +24,7 @@ import {
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { Modal } from '../../components/ui/Modal';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { useToast } from '../../components/ui/Toast';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -447,7 +448,13 @@ export function EpiPage() {
             <section className="page-card epi-panel">
               <div className="field-group">
                 <label htmlFor="epi-search">Buscar colaborador</label>
-                <input id="epi-search" type="text" value={search} onChange={event => setSearch(event.target.value)} />
+                <SearchBar
+                  id="epi-search"
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Nome, código ou função"
+                  count={{ shown: visibleCollaborators.length, total: (collaboratorsQuery.data || []).length }}
+                />
               </div>
             </section>
 

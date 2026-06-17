@@ -581,6 +581,28 @@ enum EquipmentAttachmentKind {
   TECHNICAL_DOC
 }
 
+// Destinatários das notificações de calibração do módulo Equipamentos: contas
+// internas (userId) ou e-mails avulsos. Substitui a lista fixa de gestores/coordenadores.
+model EquipmentNotificationRecipient {
+  id        String   @id @default(cuid())
+  userId    String?
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Configuração (singleton) dos e-mails de calibração: marcos, repetição e on/off.
+model EquipmentNotificationConfig {
+  id             String   @id @default(cuid())
+  enabled        Boolean  @default(true)
+  milestoneDays  Int[]    @default([30, 15, 7])
+  notifyOnDueDay Boolean  @default(true)
+  repeatExpired  Boolean  @default(true)
+  repeatGapDays  Int      @default(5)
+  updatedAt      DateTime @updatedAt
+}
+
 // Mapeamento configurável: cada "slot" de equipamento do formulário de RDO
 // (definido no catálogo de código) aponta para uma categoria de equipamento.
 model RdoEquipmentSlot {

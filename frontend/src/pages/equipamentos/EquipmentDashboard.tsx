@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import type { CompanyEquipment, EquipmentCategory } from '../../api/equipamentos';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { calibrationStatus, formatDate, statusLabel, type CalibrationStatus } from './equipmentStatus';
 
 interface Props {
@@ -63,7 +64,12 @@ export function EquipmentDashboard({ categories, equipment }: Props) {
         <button className="mini-btn alt" type="button" onClick={exportCsv}>Exportar CSV</button>
       </div>
       <div className="equip-dashboard-filters">
-        <input type="text" placeholder="Buscar por código, nome ou categoria" value={search} onChange={e => setSearch(e.target.value)} />
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Buscar por código, nome ou categoria"
+          count={{ shown: rows.length, total: equipment.length }}
+        />
         <select value={categoryId} onChange={e => setCategoryId(e.target.value)}>
           <option value="all">Todas as categorias</option>
           {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}

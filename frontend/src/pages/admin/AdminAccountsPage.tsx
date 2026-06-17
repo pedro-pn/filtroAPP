@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useCollaborators } from '../../hooks/useCollaborators';
 import { Shell } from '../../layout/Shell';
@@ -394,7 +395,7 @@ export function AdminAccountsPage() {
         <section className="page-card admin-account-filters">
           <div className="field-group">
             <label htmlFor="account-search">Buscar</label>
-            <input id="account-search" value={search} onChange={event => setSearch(event.target.value)} />
+            <SearchBar id="account-search" value={search} onChange={setSearch} placeholder="Usuário, nome, e-mail ou módulo" />
           </div>
           <div className="field-group">
             <label htmlFor="account-type-filter">Tipo</label>

@@ -146,3 +146,60 @@ export async function updateRdoSlot(slotKey: string, categoryId: string | null) 
   const response = await apiClient.put<RdoEquipmentSlot>(equipamentosApiPath(`/rdo-slots/${slotKey}`), { categoryId });
   return response.data;
 }
+
+// === Notificações de calibração ===
+
+export interface NotificationConfig {
+  enabled: boolean;
+  milestoneDays: number[];
+  notifyOnDueDay: boolean;
+  repeatExpired: boolean;
+  repeatGapDays: number;
+}
+
+export interface NotificationRecipient {
+  id: string;
+  userId: string | null;
+  email: string;
+  isActive: boolean;
+}
+
+export interface NotificationAccount {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export async function getNotificationConfig() {
+  const response = await apiClient.get<NotificationConfig>(equipamentosApiPath('/notifications/config'));
+  return response.data;
+}
+
+export async function updateNotificationConfig(payload: Partial<NotificationConfig>) {
+  const response = await apiClient.put<NotificationConfig>(equipamentosApiPath('/notifications/config'), payload);
+  return response.data;
+}
+
+export async function listNotificationAccounts() {
+  const response = await apiClient.get<NotificationAccount[]>(equipamentosApiPath('/notifications/accounts'));
+  return response.data;
+}
+
+export async function listNotificationRecipients() {
+  const response = await apiClient.get<NotificationRecipient[]>(equipamentosApiPath('/notifications/recipients'));
+  return response.data;
+}
+
+export async function addNotificationRecipient(payload: { userId?: string; email?: string }) {
+  const response = await apiClient.post<NotificationRecipient>(equipamentosApiPath('/notifications/recipients'), payload);
+  return response.data;
+}
+
+export async function setNotificationRecipientActive(id: string, isActive: boolean) {
+  const response = await apiClient.put<NotificationRecipient>(equipamentosApiPath(`/notifications/recipients/${id}`), { isActive });
+  return response.data;
+}
+
+export async function removeNotificationRecipient(id: string) {
+  await apiClient.delete(equipamentosApiPath(`/notifications/recipients/${id}`));
+}

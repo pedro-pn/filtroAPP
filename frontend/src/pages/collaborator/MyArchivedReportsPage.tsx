@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -67,12 +68,7 @@ export function MyArchivedReportsPage() {
       <main className="page-scroll">
         <section className="page-card">
           <div className="admin-search-row">
-            <input
-              aria-label="Buscar em arquivados"
-              placeholder="Buscar em arquivados"
-              value={search}
-              onChange={event => setSearch(event.target.value)}
-            />
+            <SearchBar value={search} onChange={setSearch} placeholder="Buscar em arquivados" />
           </div>
         </section>
         {reportsQuery.isLoading ? <ReportListSkeleton /> : null}

@@ -8306,7 +8306,8 @@ select {
 }
 
 /* Área de arrastar-e-soltar PDF (certificado / documentação técnica) */
-.pdf-dropzone {
+.pdf-dropzone,
+.upload-dropzone {
   position: relative;
   display: flex;
   align-items: center;
@@ -8321,42 +8322,49 @@ select {
   transition: border-color 0.15s, background 0.15s;
 }
 
-.pdf-dropzone:hover {
+.pdf-dropzone:hover,
+.upload-dropzone:hover {
   border-color: var(--g);
 }
 
-.pdf-dropzone:focus-visible {
+.pdf-dropzone:focus-visible,
+.upload-dropzone:focus-visible {
   outline: none;
   border-color: var(--g);
   box-shadow: 0 0 0 3px rgba(48, 80, 58, 0.18);
 }
 
-.pdf-dropzone.drag-over {
+.pdf-dropzone.drag-over,
+.upload-dropzone.drag-over {
   border-color: var(--g);
   border-style: solid;
   background: rgba(48, 80, 58, 0.07);
 }
 
-.pdf-dropzone.has-file {
+.pdf-dropzone.has-file,
+.upload-dropzone.has-file {
   border-style: solid;
   border-color: var(--g);
   background: rgba(48, 80, 58, 0.05);
 }
 
-.pdf-dropzone-icon {
+.pdf-dropzone-icon,
+.upload-dropzone-icon {
   flex: 0 0 auto;
   font-size: 22px;
   line-height: 1;
   color: var(--g);
 }
 
-.pdf-dropzone-text {
+.pdf-dropzone-text,
+.upload-dropzone-text {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-.pdf-dropzone-text strong {
+.pdf-dropzone-text strong,
+.upload-dropzone-text strong {
   font-size: 13px;
   color: var(--tx);
   overflow: hidden;
@@ -8364,7 +8372,8 @@ select {
   white-space: nowrap;
 }
 
-.pdf-dropzone-text small {
+.pdf-dropzone-text small,
+.upload-dropzone-text small {
   font-size: 11px;
   color: var(--mu);
   margin-top: 2px;
@@ -8387,4 +8396,232 @@ select {
 .pdf-dropzone-clear:hover {
   background: var(--rd);
   color: var(--wh);
+}
+
+/* Aba de Notificações */
+.equip-notif-config {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.equip-notif-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 2px solid var(--br);
+  padding-left: 14px;
+}
+
+.equip-notif-fields.disabled {
+  opacity: 0.55;
+}
+
+.equip-notif-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.equip-notif-add .field-group {
+  flex: 1 1 280px;
+}
+
+.equip-notif-inline {
+  display: flex;
+  gap: 8px;
+}
+
+.equip-notif-inline select,
+.equip-notif-inline input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  padding: 8px 10px;
+  background: #fafafa;
+  color: var(--tx);
+}
+
+.equip-notif-inline select:focus,
+.equip-notif-inline input:focus {
+  outline: none;
+  border-color: var(--g);
+  background: var(--wh);
+}
+
+.equip-notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.equip-notif-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  padding: 10px 12px;
+  background: var(--wh);
+}
+
+.equip-notif-item.off {
+  opacity: 0.6;
+}
+
+.equip-notif-email {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.equip-notif-tag {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--mu);
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+/* Ajustes do dropzone de fotos (UploadField) */
+.upload-dropzone {
+  margin-top: 4px;
+}
+.upload-dropzone[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.upload-dropzone.busy {
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+/* Barra de busca padrão do app (componente SearchBar).
+   input.app-search-input vence os wrappers (.admin-search-row input / .field-group input). */
+.app-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.app-search-field {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+input.app-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  padding: 9px 34px 9px 12px;
+  background: #fafafa;
+  color: var(--tx);
+  font-size: 13px;
+}
+input.app-search-input::placeholder {
+  color: var(--mu);
+}
+input.app-search-input:focus {
+  outline: none;
+  border-color: var(--g);
+  background: var(--wh);
+}
+/* Esconde o X nativo (suprimido/instável) — usamos o nosso. */
+input.app-search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.app-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--tx);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.app-search-clear:hover {
+  background: var(--g);
+  color: var(--wh);
+}
+
+.app-search-count {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mu);
+  white-space: nowrap;
+}
+
+/* Prévia de imagem dentro do ImageDropzone */
+.image-dropzone-preview {
+  flex: 0 0 auto;
+  width: 60px;
+  height: 42px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--br);
+  border-radius: 4px;
+}
+
+/* Destaque de arraste na área de assinatura (SignatureDialog) */
+.signature-upload-area {
+  border-radius: var(--r);
+  transition: outline-color 0.15s;
+}
+.signature-upload-area.drag-over {
+  outline: 2px dashed var(--g);
+  outline-offset: 3px;
+}
+
+/* SearchBar dentro dos filtros do dashboard de equipamentos */
+.equip-dashboard-filters .app-search {
+  flex: 1 1 240px;
+  width: auto;
+}
+
+/* Diálogo de confirmação padrão (ConfirmDialog) */
+.confirm-dialog {
+  width: min(100%, 440px);
+}
+.confirm-dialog-item {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: #fafafa;
+  font-size: 14px;
+  word-break: break-word;
+}
+.confirm-dialog-actions {
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
 }

@@ -1,20 +1,54 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
+  addNotificationRecipient,
   createEquipamento,
   createEquipmentCategory,
+  getNotificationConfig,
   listEquipamentos,
   listEquipmentCategories,
+  listNotificationAccounts,
+  listNotificationRecipients,
   listRdoSlots,
   removeEquipamento,
   removeEquipmentCategory,
+  removeNotificationRecipient,
+  setNotificationRecipientActive,
   updateEquipamento,
   updateEquipmentCategory,
+  updateNotificationConfig,
   updateRdoSlot,
   type EquipmentCategoryPayload,
-  type EquipmentPayload
+  type EquipmentPayload,
+  type NotificationConfig
 } from '../api/equipamentos';
 import { queryKeys } from './queryKeys';
+
+export function useNotificationConfig(enabled = true) {
+  return useQuery({ queryKey: ['equipamentos', 'notif-config'], queryFn: getNotificationConfig, enabled });
+}
+
+export function useNotificationRecipients(enabled = true) {
+  return useQuery({ queryKey: ['equipamentos', 'notif-recipients'], queryFn: listNotificationRecipients, enabled });
+}
+
+export function useNotificationAccounts(enabled = true) {
+  return useQuery({ queryKey: ['equipamentos', 'notif-accounts'], queryFn: listNotificationAccounts, enabled });
+}
+
+export function useNotificationMutations() {
+  const queryClient = useQueryClient();
+  const invalidate = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['equipamentos', 'notif-config'] }),
+    queryClient.invalidateQueries({ queryKey: ['equipamentos', 'notif-recipients'] })
+  ]);
+  return {
+    updateConfig: useMutation({ mutationFn: (payload: Partial<NotificationConfig>) => updateNotificationConfig(payload), onSuccess: invalidate }),
+    addRecipient: useMutation({ mutationFn: (payload: { userId?: string; email?: string }) => addNotificationRecipient(payload), onSuccess: invalidate }),
+    setActive: useMutation({ mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => setNotificationRecipientActive(id, isActive), onSuccess: invalidate }),
+    removeRecipient: useMutation({ mutationFn: (id: string) => removeNotificationRecipient(id), onSuccess: invalidate })
+  };
+}
 
 export function useRdoSlots(enabled = true) {
   return useQuery({

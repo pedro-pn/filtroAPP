@@ -17,7 +17,9 @@ import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
+import { ImageDropzone } from '../../components/ui/ImageDropzone';
 import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { Modal } from '../../components/ui/Modal';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useToast } from '../../components/ui/Toast';
@@ -1535,52 +1537,33 @@ export function GestorPage() {
     setShowUserForm(true);
   }
 
-  async function handleCollaboratorSignatureInput(files: FileList | null) {
-    const file = files?.[0];
-    if (!file) return;
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      setCollaboratorForm(current => ({ ...current, signatureImage: dataUrl, signatureNoticeAccepted: false }));
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível carregar a assinatura.', 'error');
+  function handleCollaboratorSignatureFile(file: File | null) {
+    if (!file) {
+      setCollaboratorForm(current => ({ ...current, signatureImage: '', signatureNoticeAccepted: false }));
+      return;
     }
+    void (async () => {
+      try {
+        const dataUrl = await fileToDataUrl(file);
+        setCollaboratorForm(current => ({ ...current, signatureImage: dataUrl, signatureNoticeAccepted: false }));
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Não foi possível carregar a assinatura.', 'error');
+      }
+    })();
   }
 
-  function renderCollaboratorSignatureField(inputId: string) {
+  function renderCollaboratorSignatureField() {
     const normalizedSignature = normalizeSignatureImage(collaboratorForm.signatureImage);
 
     return (
       <div className="field-group field-group-wide collaborator-signature-field">
-        <label htmlFor={inputId}>Assinatura</label>
-        <div className="collaborator-signature-preview">
-          {normalizedSignature ? (
-            <img src={normalizedSignature} alt="" />
-          ) : (
-            <span>Nenhuma imagem carregada</span>
-          )}
-        </div>
-        <div className="collaborator-signature-actions">
-          <input
-            className="visually-hidden"
-            id={inputId}
-            type="file"
-            accept="image/*"
-            onChange={event => {
-              void handleCollaboratorSignatureInput(event.currentTarget.files);
-              event.currentTarget.value = '';
-            }}
-          />
-          <button className="mini-btn" type="button" onClick={() => document.getElementById(inputId)?.click()}>
-            Carregar imagem
-          </button>
-          <button
-            className="mini-btn alt"
-            type="button"
-            onClick={() => setCollaboratorForm(current => ({ ...current, signatureImage: '', signatureNoticeAccepted: false }))}
-          >
-            Remover
-          </button>
-        </div>
+        <label>Assinatura</label>
+        <ImageDropzone
+          previewSrc={normalizedSignature || undefined}
+          ariaLabel="Carregar assinatura"
+          placeholder="Arraste a assinatura aqui"
+          onFile={handleCollaboratorSignatureFile}
+        />
         <div className="form-hint">Aceita apenas uma imagem.</div>
         {normalizedSignature ? (
           <PrivacyNotice
@@ -2893,7 +2876,7 @@ export function GestorPage() {
 	                  <option value="false">Inativo</option>
 	                </select>
 	              </div>
-	              {renderCollaboratorSignatureField('collaborator-signature-new')}
+	              {renderCollaboratorSignatureField()}
 	              <div className="admin-form-actions">
 	                <button
 	                  className="mini-btn"
@@ -2992,7 +2975,7 @@ export function GestorPage() {
 	                            <option value="false">Inativo</option>
 	                          </select>
 	                        </div>
-	                        {renderCollaboratorSignatureField(`collaborator-signature-${collaborator.id}`)}
+	                        {renderCollaboratorSignatureField()}
 	                        <div className="admin-form-actions">
 	                          <button className="mini-btn" type="submit" disabled={collaboratorMutations.updateCollaborator.isPending}>Salvar</button>
 	                        </div>
@@ -3578,12 +3561,7 @@ export function GestorPage() {
 
     return (
       <div className="admin-search-row">
-        <input
-          aria-label={label}
-          placeholder={label}
-          value={gestorSearch}
-          onChange={event => setGestorSearch(event.target.value)}
-        />
+        <SearchBar value={gestorSearch} onChange={setGestorSearch} placeholder={label} ariaLabel={label} />
       </div>
     );
   }

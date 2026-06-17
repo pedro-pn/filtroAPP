@@ -43,7 +43,7 @@ export function PdfDropzone({ id, label, file, onFile, currentName, currentUrl }
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
       >
-        <input ref={inputRef} id={id} type="file" accept="application/pdf" hidden onChange={event => pick(event.target.files)} />
+        <input ref={inputRef} id={id} type="file" accept="application/pdf" className="visually-hidden" onChange={event => pick(event.target.files)} />
         <span className="pdf-dropzone-icon" aria-hidden="true">⤓</span>
         <span className="pdf-dropzone-text">
           <strong>{file ? file.name : 'Arraste o PDF aqui'}</strong>

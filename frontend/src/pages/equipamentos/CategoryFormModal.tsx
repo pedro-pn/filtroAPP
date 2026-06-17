@@ -63,7 +63,7 @@ export function CategoryFormModal({ open, category, saving, onClose, onSubmit }:
           <h3 id="category-form-title">{category ? 'Editar categoria' : 'Nova categoria'}</h3>
         </header>
         {category?.isSystemManaged && (
-          <p className="rel-meta">Categoria do sistema (consumida pelo RDO). O identificador interno não pode ser alterado.</p>
+          <p className="rel-meta">O identificador interno desta categoria é usado pelos relatórios e não pode ser alterado. Nome, campos e vínculos podem ser editados normalmente.</p>
         )}
 
         <div className="field-group">

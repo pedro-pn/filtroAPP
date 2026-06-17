@@ -6,12 +6,13 @@ import { useEquipamentoMutations } from '../../hooks/useEquipamentos';
 
 interface Props {
   categories: EquipmentCategory[];
+  rdoLinkedCategoryIds: Set<string>;
   onAdd: () => void;
   onEdit: (category: EquipmentCategory) => void;
   onRemove: (category: EquipmentCategory) => void;
 }
 
-export function CategoryManager({ categories, onAdd, onEdit, onRemove }: Props) {
+export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdit, onRemove }: Props) {
   const { updateCategory } = useEquipamentoMutations();
   const showToast = useToast();
   const [locked, setLocked] = useState(true);
@@ -81,13 +82,15 @@ export function CategoryManager({ categories, onAdd, onEdit, onRemove }: Props) 
                 {!locked && <span className="equip-drag-handle" aria-hidden="true">⠿</span>}
                 <strong>{category.name}</strong>
               </span>
-              {category.isSystemManaged && <span className="equip-badge equip-badge-ok">Sistema</span>}
+              {rdoLinkedCategoryIds.has(category.id) && (
+                <span className="equip-badge equip-badge-ok" title="Categoria usada por algum relatório (RDO)">RDO</span>
+              )}
             </div>
             <div className="rel-meta">{category.fieldSchema.length} campo(s){category.supportsCalibration ? ' · calibração' : ''}{category.syncToRomaneio ? ' · romaneio' : ''}</div>
             {locked && (
               <div className="report-card-actions">
                 <button className="mini-btn alt" type="button" onClick={() => onEdit(category)}>Editar</button>
-                {!category.isSystemManaged && (
+                {!rdoLinkedCategoryIds.has(category.id) && (
                   <button className="mini-btn danger" type="button" onClick={() => onRemove(category)}>Remover</button>
                 )}
               </div>
