@@ -48,14 +48,16 @@ app.use(cors({
 }));
 app.use((req, res, next) => {
   const isUploadsApi = req.path.startsWith('/api/uploads') || req.path.startsWith('/api/rdo/uploads');
-  const isCalibrationEquipmentApi = [
+  // Endpoints que recebem PDFs/anexos em base64 no corpo (até MAX_PDF_BYTES = 20MB).
+  const isEquipmentUploadApi = [
     '/api/manometers',
     '/api/rdo/manometers',
     '/api/particle-counters',
-    '/api/rdo/particle-counters'
+    '/api/rdo/particle-counters',
+    '/api/equipamentos'
   ].some(prefix => req.path === prefix || req.path.startsWith(`${prefix}/`));
   const isSignatureApi = req.path.includes('/request-signature') || req.path.includes('/public-sign');
-  const limit = isUploadsApi || isCalibrationEquipmentApi ? '25mb' : isSignatureApi ? '3mb' : '1mb';
+  const limit = isUploadsApi || isEquipmentUploadApi ? '25mb' : isSignatureApi ? '3mb' : '1mb';
   return express.json({ limit })(req, res, next);
 });
 app.use(morgan('dev'));
