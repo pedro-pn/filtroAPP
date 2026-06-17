@@ -11,20 +11,14 @@ import { useEquipamentoMutations, useEquipamentos, useEquipmentCategories, useRd
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { CategoryFormModal } from './CategoryFormModal';
 import { CategoryManager } from './CategoryManager';
+import { EquipmentCard } from './EquipmentCard';
 import { EquipmentDashboard } from './EquipmentDashboard';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { EquipmentFormModal } from './EquipmentFormModal';
 import { NotificationsConfig } from './NotificationsConfig';
 import { RdoSlotsConfig } from './RdoSlotsConfig';
-import { calibrationStatus, formatDate, statusLabel } from './equipmentStatus';
 
 type ActiveTab = { kind: 'category'; id: string } | { kind: 'dashboard' } | { kind: 'config' } | { kind: 'notifications' };
-
-function StatusBadge({ item }: { item: CompanyEquipment }) {
-  const status = calibrationStatus(item);
-  if (status === 'none') return null;
-  return <span className={`equip-badge equip-badge-${status}`}>{statusLabel[status]}</span>;
-}
 
 export function EquipamentosPage() {
   const navigate = useNavigate();
@@ -217,41 +211,14 @@ export function EquipamentosPage() {
             {allCategoryEquipment.length > 0 && categoryEquipment.length === 0 && <p className="rel-meta">Nenhum equipamento encontrado para “{categorySearch.trim()}”.</p>}
             <div className="equip-grid">
               {categoryEquipment.map(item => (
-                <article className="report-card equip-card" key={item.id}>
-                  <div className="equip-card-head">
-                    <strong>{item.code}</strong>
-                    <StatusBadge item={item} />
-                  </div>
-                  <div className="equip-card-name">{item.name}</div>
-                  <dl className="equip-attrs">
-                    {selectedCategory.fieldSchema.map(field => (
-                      <div key={field.key}>
-                        <dt>{field.label}</dt>
-                        <dd>{String(item.attributes?.[field.key] ?? '—') || '—'}</dd>
-                      </div>
-                    ))}
-                    {item.hasCalibration && (
-                      <>
-                        <div><dt>Calibração</dt><dd>{formatDate(item.calibratedAt)}</dd></div>
-                        <div><dt>Vencimento</dt><dd>{formatDate(item.expiresAt)}</dd></div>
-                      </>
-                    )}
-                  </dl>
-                  <div className="equip-card-links">
-                    {item.calibrationCertificate && (
-                      <a className="equip-link" href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer">Certificado</a>
-                    )}
-                    {item.technicalDoc && (
-                      <a className="equip-link" href={item.technicalDoc.publicUrl} target="_blank" rel="noreferrer">Doc. técnica</a>
-                    )}
-                  </div>
-                  {isManager && (
-                    <div className="report-card-actions">
-                      <button className="mini-btn alt" type="button" onClick={() => setEquipmentForm({ category: selectedCategory, item })}>Editar</button>
-                      <button className="mini-btn danger" type="button" onClick={() => handleRemoveEquipment(item)}>Remover</button>
-                    </div>
-                  )}
-                </article>
+                <EquipmentCard
+                  key={item.id}
+                  item={item}
+                  category={selectedCategory}
+                  isManager={isManager}
+                  onEdit={() => setEquipmentForm({ category: selectedCategory, item })}
+                  onRemove={() => handleRemoveEquipment(item)}
+                />
               ))}
             </div>
           </section>

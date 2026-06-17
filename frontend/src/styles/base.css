@@ -8625,3 +8625,41 @@ input.app-search-input::-webkit-search-cancel-button {
   gap: 8px;
   margin-top: 16px;
 }
+
+/* Arrastar documento direto no card do equipamento */
+.equip-card {
+  position: relative;
+}
+.equip-card-dragging {
+  border-color: var(--g);
+  box-shadow: 0 0 0 2px rgba(48, 80, 58, 0.25);
+}
+.equip-card-dropzones {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--r);
+  background: rgba(255, 255, 255, 0.94);
+}
+.equip-card-zone {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 2px dashed var(--g);
+  border-radius: var(--rs);
+  background: rgba(48, 80, 58, 0.05);
+  color: var(--g);
+  font-weight: 700;
+  font-size: 12px;
+  padding: 6px;
+  pointer-events: auto;
+}
+.equip-card-zone:hover {
+  background: rgba(48, 80, 58, 0.14);
+}

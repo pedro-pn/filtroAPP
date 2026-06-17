@@ -45,7 +45,6 @@ export function EquipmentFormModal({ open, category, equipment, saving, onClose,
   const [hasCalibration, setHasCalibration] = useState(Boolean(equipment?.hasCalibration));
   const [calibratedAt, setCalibratedAt] = useState(dateInputValue(equipment?.calibratedAt));
   const [expiresAt, setExpiresAt] = useState(dateInputValue(equipment?.expiresAt));
-  const [hasTechnicalDoc, setHasTechnicalDoc] = useState(Boolean(equipment?.hasTechnicalDoc));
   const [certFile, setCertFile] = useState<File | null>(null);
   const [docFile, setDocFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +63,7 @@ export function EquipmentFormModal({ open, category, equipment, saving, onClose,
     try {
       const [calibrationCertificate, technicalDoc] = await Promise.all([
         category.supportsCalibration && hasCalibration ? pdfUpload(certFile) : Promise.resolve(undefined),
-        category.supportsTechnicalDoc && hasTechnicalDoc ? pdfUpload(docFile) : Promise.resolve(undefined)
+        category.supportsTechnicalDoc ? pdfUpload(docFile) : Promise.resolve(undefined)
       ]);
       onSubmit({
         code: code.trim(),
@@ -74,7 +73,7 @@ export function EquipmentFormModal({ open, category, equipment, saving, onClose,
         hasCalibration: category.supportsCalibration ? hasCalibration : false,
         calibratedAt: hasCalibration ? calibratedAt : null,
         expiresAt: hasCalibration ? expiresAt : null,
-        hasTechnicalDoc: category.supportsTechnicalDoc ? hasTechnicalDoc : false,
+        hasTechnicalDoc: category.supportsTechnicalDoc,
         calibrationCertificate,
         technicalDoc
       });
@@ -165,20 +164,14 @@ export function EquipmentFormModal({ open, category, equipment, saving, onClose,
 
         {category.supportsTechnicalDoc && (
           <div className="equip-toggle-block">
-            <label className="equip-toggle">
-              <input type="checkbox" checked={hasTechnicalDoc} onChange={e => setHasTechnicalDoc(e.target.checked)} />
-              <span>Possui documentação técnica</span>
-            </label>
-            {hasTechnicalDoc && (
-              <PdfDropzone
-                id="equip-doc"
-                label="Documentação técnica (PDF)"
-                file={docFile}
-                onFile={setDocFile}
-                currentName={equipment?.technicalDoc?.fileName}
-                currentUrl={equipment?.technicalDoc?.publicUrl}
-              />
-            )}
+            <PdfDropzone
+              id="equip-doc"
+              label="Documentação técnica (PDF) — opcional"
+              file={docFile}
+              onFile={setDocFile}
+              currentName={equipment?.technicalDoc?.fileName}
+              currentUrl={equipment?.technicalDoc?.publicUrl}
+            />
           </div>
         )}
 
