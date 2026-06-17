@@ -9,7 +9,7 @@ import { ZodError } from 'zod';
 import env from './config/env.js';
 import asyncHandler from './lib/async-handler.js';
 import { resolvePublicCalibrationCertificate } from './lib/calibration-certificates.js';
-import { resolvePublicEquipmentAttachment } from './lib/equipment-attachments.js';
+import { equipmentAttachmentFileName, inlineContentDisposition, resolvePublicEquipmentAttachment } from './lib/equipment-attachments.js';
 import { localizedZodErrorDetails, localizedZodIssues } from './lib/zod-error.js';
 import { requireAuth } from './middleware/auth.js';
 import apiRouter from './routes/index.js';
@@ -92,6 +92,7 @@ app.get('/api/equipamentos-anexos/:token', asyncHandler(async (req, res) => {
     return res.status(404).json({ error: 'Anexo não encontrado.' });
   }
   res.type(resolved.attachment.mimeType || 'application/pdf');
+  res.setHeader('Content-Disposition', inlineContentDisposition(equipmentAttachmentFileName(resolved.attachment)));
   return res.sendFile(resolved.targetPath);
 }));
 app.get('/relatorios/*', requireAuth, asyncHandler(serveAuthorizedStoredFile));

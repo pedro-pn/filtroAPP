@@ -133,7 +133,10 @@ export async function createEquipmentAttachment(client, { equipmentId, kind, upl
 export async function resolvePublicEquipmentAttachment(token) {
   const publicToken = String(token || '').trim();
   if (!publicToken) return null;
-  const attachment = await prisma.equipmentAttachment.findUnique({ where: { publicToken } });
+  const attachment = await prisma.equipmentAttachment.findUnique({
+    where: { publicToken },
+    include: { equipment: { select: { code: true, name: true, attributes: true } } }
+  });
   if (!attachment) return null;
 
   const targetPath = path.resolve(env.uploadDir, attachment.storagePath.split('/').join(path.sep));
@@ -142,4 +145,32 @@ export async function resolvePublicEquipmentAttachment(token) {
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return null;
   if (!fsSync.existsSync(targetPath) || !fsSync.statSync(targetPath).isFile()) return null;
   return { attachment, targetPath };
+}
+
+function attachmentEquipmentAttrs(equipment) {
+  return equipment && typeof equipment.attributes === 'object' && equipment.attributes ? equipment.attributes : {};
+}
+
+// Nome do arquivo no download, conforme padrão pedido:
+//  - Documentação técnica: "Datasheet - [código] - [nome]"
+//  - Certificado de calibração: "Certificado de calibração - [código] - [serial quando houver] - [nome]"
+export function equipmentAttachmentFileName(attachment) {
+  const equipment = attachment?.equipment || {};
+  const code = String(equipment.code || '').trim();
+  const name = String(equipment.name || '').trim();
+  const serial = String(attachmentEquipmentAttrs(equipment).serialNumber || '').trim();
+  const parts = attachment?.kind === EquipmentAttachmentKinds.TECHNICAL_DOC
+    ? ['Datasheet', code, name]
+    : ['Certificado de calibração', code, serial, name];
+  const base = parts.map(part => String(part || '').trim()).filter(Boolean).join(' - ');
+  return `${base || 'documento'}.pdf`;
+}
+
+// Content-Disposition "inline" (abre no navegador) preservando o nome no salvar.
+export function inlineContentDisposition(fileName) {
+  const ascii = String(fileName)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9 ._\-]/g, '_');
+  return `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
