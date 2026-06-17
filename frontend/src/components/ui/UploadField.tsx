@@ -128,6 +128,7 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
+  const [dragOver, setDragOver] = useState(false);
   const displayLabel = label.trim();
   const uploadLabel = displayLabel || 'Fotos de registro';
 
@@ -181,31 +182,39 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
 
   const hasPreviouslyAddedFiles = value.some(file => wasPreviouslyAdded(file as UploadValue));
 
+  function openPicker() {
+    if (!disabled && !isUploading) inputRef.current?.click();
+  }
+
   return (
     <div className="upload-field">
-      <div className="upload-field-head">
-        <div>
-          {displayLabel ? <label className="upload-field-label">{displayLabel}</label> : null}
-          <div className="upload-field-count">{value.length ? `${value.length} arquivo(s)` : 'Nenhum arquivo'}</div>
-        </div>
-        <button
-          className="secondary-button"
-          type="button"
+      {displayLabel ? <label className="upload-field-label">{displayLabel}</label> : null}
+      <div
+        className={`upload-dropzone ${dragOver ? 'drag-over' : ''} ${isUploading ? 'busy' : ''} ${value.length ? 'has-file' : ''}`}
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        aria-disabled={disabled}
+        onClick={openPicker}
+        onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openPicker(); } }}
+        onDragOver={event => { if (!disabled && !isUploading) { event.preventDefault(); setDragOver(true); } }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={event => { event.preventDefault(); setDragOver(false); if (!disabled && !isUploading) void handleFiles(event.dataTransfer.files); }}
+      >
+        <input
+          ref={inputRef}
+          className="visually-hidden"
+          type="file"
+          accept="image/*,.heic,.heif"
+          multiple
           disabled={disabled || isUploading}
-          onClick={() => inputRef.current?.click()}
-        >
-          {isUploading ? 'Enviando...' : 'Adicionar fotos'}
-        </button>
+          onChange={event => void handleFiles(event.target.files)}
+        />
+        <span className="upload-dropzone-icon" aria-hidden="true">⤓</span>
+        <span className="upload-dropzone-text">
+          <strong>{isUploading ? 'Enviando…' : 'Arraste as fotos aqui'}</strong>
+          <small>{value.length ? `${value.length} arquivo(s) · clique ou solte para adicionar` : 'ou clique para selecionar'}</small>
+        </span>
       </div>
-      <input
-        ref={inputRef}
-        className="visually-hidden"
-        type="file"
-        accept="image/*,.heic,.heif"
-        multiple
-        disabled={disabled || isUploading}
-        onChange={event => void handleFiles(event.target.files)}
-      />
       {error ? <div className="inline-error">{error}</div> : null}
       {hasPreviouslyAddedFiles ? (
         <div className="upload-previous-note">Estas fotos foram adicionadas anteriormente neste serviço. Se removidas, sairão do relatório.</div>

@@ -17,6 +17,7 @@ import { OngoingServicesPage } from './pages/collaborator/OngoingServicesPage';
 import { CoordinatorPage } from './pages/coordinator/CoordinatorPage';
 import { EpiPage } from './pages/epi/EpiPage';
 import { EpiPublicSignaturePage } from './pages/epi/EpiPublicSignaturePage';
+import { EquipamentosPage } from './pages/equipamentos/EquipamentosPage';
 import { HubPage } from './pages/HubPage';
 import { NotificationPreferencesPage } from './pages/NotificationPreferencesPage';
 import { ReportDetailPage } from './pages/ReportDetailPage';
@@ -120,6 +121,10 @@ export default function App() {
 
         <Route element={<RoleRoute allowedAccountTypes={['ADMIN', 'INTERNAL']} allowedModuleRoles={['epi:technician', 'epi:collaborator']} />}>
           <Route path="/epi" element={<EpiPage />} />
+        </Route>
+
+        <Route element={<RoleRoute allowedAccountTypes={['ADMIN', 'INTERNAL']} allowedModuleRoles={['equipamentos:manager', 'equipamentos:viewer']} />}>
+          <Route path="/equipamentos" element={<EquipamentosPage />} />
         </Route>
 
         <Route element={<RoleRoute allowedRoles={['COORDINATOR']} allowedModuleRoles={['rdo:coordinator']} />}>

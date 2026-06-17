@@ -1,7 +1,8 @@
 import { apiClient, rdoApiPath } from './client';
+import type { EquipmentOption } from '../components/reports/ServiceFields';
 import type { InhibitionOptions } from './inhibitionOptions';
 import type { SurveyListItem, SurveyQuestion } from './surveys';
-import type { ClientSegment, Collaborator, Equipment, Manometer, ParticleCounter, Project, ReportDraft, ReportType, Unit, UnitCategory } from '../types/domain';
+import type { ClientSegment, Collaborator, Equipment, Manometer, ParticleCounter, Project, ReportDraft, ReportType, Unit } from '../types/domain';
 
 export interface NewReportBootstrap {
   projects: Project[];
@@ -9,6 +10,8 @@ export interface NewReportBootstrap {
   units: Unit[];
   manometers: Manometer[];
   counters: ParticleCounter[];
+  equipments: EquipmentOption[];
+  rdoSlotMap: Record<string, string | null>;
   inhibitionOptions: InhibitionOptions;
   drafts: ReportDraft[];
 }
@@ -29,10 +32,6 @@ export interface GestorBootstrap {
   activeProjects: Project[];
   archivedProjects: Project[];
   collaborators: Collaborator[];
-  units: Unit[];
-  unitCategories: UnitCategory[];
-  manometers: Manometer[];
-  counters: ParticleCounter[];
   surveys: SurveyListItem[];
   projectSegments: ClientSegment[];
   surveyQuestions: SurveyQuestion[];

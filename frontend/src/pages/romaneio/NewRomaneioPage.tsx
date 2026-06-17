@@ -24,6 +24,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { useToast } from '../../components/ui/Toast';
 import { Modal } from '../../components/ui/Modal';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { autosaveDraftTargetId } from '../../utils/draftAutosave';
@@ -614,7 +615,7 @@ export function NewRomaneioPage() {
           </div>
           <label className="field-group">
             <span>Pesquisar item</span>
-            <input value={catalogSearch} onChange={event => setCatalogSearch(event.target.value)} placeholder="Código, item ou categoria" />
+            <SearchBar value={catalogSearch} onChange={setCatalogSearch} placeholder="Código, item ou categoria" />
           </label>
         </section>
 

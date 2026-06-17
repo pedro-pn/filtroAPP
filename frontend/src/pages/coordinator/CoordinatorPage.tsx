@@ -9,6 +9,7 @@ import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
 import { useProjects } from '../../hooks/useProjects';
@@ -766,11 +767,11 @@ export function CoordinatorPage() {
         <section className="page-card">
           <div className="section-title">{TEXT.reports}</div>
           <div className="admin-search-row">
-            <input
-              aria-label={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : tab === 'nps' ? 'pesquisas NPS' : 'aprovados'}`}
+            <SearchBar
+              ariaLabel={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : tab === 'nps' ? 'pesquisas NPS' : 'aprovados'}`}
               placeholder={`Buscar em ${tab === 'pending' ? 'pendentes' : tab === 'archived' ? 'arquivados' : tab === 'nps' ? 'pesquisas NPS' : 'aprovados'}`}
               value={search}
-              onChange={event => setSearch(event.target.value)}
+              onChange={setSearch}
             />
           </div>
         </section>

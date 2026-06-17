@@ -624,6 +624,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const units = bootstrapQuery.data?.units || [];
   const manometers = bootstrapQuery.data?.manometers || [];
   const counters = bootstrapQuery.data?.counters || [];
+  const equipments = bootstrapQuery.data?.equipments || [];
+  const rdoSlotMap = bootstrapQuery.data?.rdoSlotMap;
   const inhibitionOptions = bootstrapQuery.data?.inhibitionOptions;
   const overtimeApproval = overtimeMinutesFromReport(report);
   const showOvertimeApproval = isManager && canApproveInEditor && !serviceOnly && overtimeApproval.total > 0;
@@ -1093,6 +1095,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     units={units}
                     manometers={manometers}
                     counters={counters}
+                    equipments={equipments}
+                    rdoSlotMap={rdoSlotMap}
                     inhibitionOptions={inhibitionOptions}
                     collaboratorOptions={serviceCollaboratorOptions}
                     groupKey={service.id}

@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { rdoPath } from '../../auth/rolePath';
 import { serviceTypeLabels } from '../../components/reports/ServiceFields';
 import { useReportMutations, useReports } from '../../hooks/useReports';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { useToast } from '../../components/ui/Toast';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -71,12 +72,7 @@ export function OngoingServicesPage() {
       <main className="page-scroll">
         <section className="page-card">
           <div className="admin-search-row">
-            <input
-              aria-label="Buscar em serviços em andamento"
-              placeholder="Buscar em serviços em andamento"
-              value={search}
-              onChange={event => setSearch(event.target.value)}
-            />
+            <SearchBar value={search} onChange={setSearch} placeholder="Buscar em serviços em andamento" />
           </div>
         </section>
         {reportsQuery.isLoading ? (

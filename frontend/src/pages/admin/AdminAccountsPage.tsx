@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useCollaborators } from '../../hooks/useCollaborators';
 import { Shell } from '../../layout/Shell';
@@ -14,7 +15,7 @@ import type { AccountType, ModuleRole, UserRole } from '../../types/auth';
 import type { InternalUserSummary } from '../../types/domain';
 
 type AccountFilter = 'all' | AccountType;
-type ModuleFilter = 'all' | 'rdo' | 'romaneio' | 'epi' | 'privacy';
+type ModuleFilter = 'all' | 'rdo' | 'romaneio' | 'epi' | 'equipamentos' | 'privacy';
 
 interface AccountFormState {
   accountType: AccountType;
@@ -36,6 +37,8 @@ const roleOptions: Array<{ value: ModuleRole; label: string; accountTypes: Accou
   { value: 'romaneio:operator', label: 'Romaneio - Operador', accountTypes: ['ADMIN', 'INTERNAL'] },
   { value: 'epi:technician', label: 'EPI - Técnico', accountTypes: ['ADMIN', 'INTERNAL'] },
   { value: 'epi:collaborator', label: 'EPI - Colaborador', accountTypes: ['ADMIN', 'INTERNAL'] },
+  { value: 'equipamentos:manager', label: 'Equipamentos - Gestor', accountTypes: ['ADMIN', 'INTERNAL'] },
+  { value: 'equipamentos:viewer', label: 'Equipamentos - Visualizador', accountTypes: ['ADMIN', 'INTERNAL'] },
   { value: 'privacy:admin', label: 'Privacidade - Admin', accountTypes: ['ADMIN'] }
 ];
 
@@ -392,7 +395,7 @@ export function AdminAccountsPage() {
         <section className="page-card admin-account-filters">
           <div className="field-group">
             <label htmlFor="account-search">Buscar</label>
-            <input id="account-search" value={search} onChange={event => setSearch(event.target.value)} />
+            <SearchBar id="account-search" value={search} onChange={setSearch} placeholder="Usuário, nome, e-mail ou módulo" />
           </div>
           <div className="field-group">
             <label htmlFor="account-type-filter">Tipo</label>
@@ -410,6 +413,7 @@ export function AdminAccountsPage() {
               <option value="rdo">RDO</option>
               <option value="romaneio">Romaneio</option>
               <option value="epi">EPI</option>
+              <option value="equipamentos">Equipamentos</option>
               <option value="privacy">Privacidade</option>
             </select>
           </div>

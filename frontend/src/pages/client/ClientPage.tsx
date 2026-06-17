@@ -19,6 +19,7 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { useProjects } from '../../hooks/useProjects';
 import { Shell } from '../../layout/Shell';
@@ -838,11 +839,11 @@ export function ClientPage() {
 
         <section className="page-card">
           <div className="admin-search-row">
-            <input
-              aria-label="Buscar relatórios"
+            <SearchBar
+              ariaLabel="Buscar relatórios"
               placeholder="Buscar relatórios"
               value={clientSearch}
-              onChange={event => setClientSearch(event.target.value)}
+              onChange={setClientSearch}
             />
           </div>
         </section>

@@ -106,6 +106,7 @@ export function SignatureDialog({
   const [uploadedDataUrl, setUploadedDataUrl] = useState('');
   const [hasDrawing, setHasDrawing] = useState(false);
   const [error, setError] = useState('');
+  const [uploadDragOver, setUploadDragOver] = useState(false);
 
   useEffect(() => {
     if (!open || mode !== 'draw') return;
@@ -283,7 +284,12 @@ export function SignatureDialog({
           </div>
         </div>
       ) : (
-        <div className="signature-upload-area">
+        <div
+          className={`signature-upload-area ${uploadDragOver ? 'drag-over' : ''}`}
+          onDragOver={event => { event.preventDefault(); setUploadDragOver(true); }}
+          onDragLeave={() => setUploadDragOver(false)}
+          onDrop={event => { event.preventDefault(); setUploadDragOver(false); handleFile(event.dataTransfer.files?.[0]); }}
+        >
           <input
             ref={fileInputRef}
             className="signature-file-input"
@@ -304,7 +310,7 @@ export function SignatureDialog({
               type="button"
               onClick={() => fileInputRef.current?.click()}
             >
-              adicionar assinatura
+              Arraste a imagem aqui ou clique para selecionar
             </button>
           )}
         </div>

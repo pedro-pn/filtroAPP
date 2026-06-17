@@ -11,13 +11,15 @@ import prisma from '../lib/prisma.js';
 
 export const RDO_INTERNAL_ROLES = ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator'];
 export const RDO_ACCESS_ROLES = [...RDO_INTERNAL_ROLES, 'rdo:client'];
+export const EQUIPAMENTOS_ACCESS_ROLES = ['equipamentos:manager', 'equipamentos:viewer'];
 export const INTERNAL_ACCOUNT_ROLES = [
   ...RDO_INTERNAL_ROLES,
   'romaneio:manager',
   'romaneio:operator',
   'epi:technician',
   'epi:collaborator',
-  'privacy:admin'
+  'privacy:admin',
+  ...EQUIPAMENTOS_ACCESS_ROLES
 ];
 export const ROMANEIO_ACCESS_ROLES = INTERNAL_ACCOUNT_ROLES;
 
@@ -135,4 +137,20 @@ export function requireModuleRole(...roles) {
 
     next();
   };
+}
+
+export function requireEquipamentosAccess(req, res, next) {
+  if (!req.auth || !hasModuleRole(req.auth.user, EQUIPAMENTOS_ACCESS_ROLES)) {
+    return res.status(403).json({ error: 'Acesso restrito ao módulo Equipamentos.' });
+  }
+
+  next();
+}
+
+export function requireEquipamentosManager(req, res, next) {
+  if (!req.auth || !hasModuleRole(req.auth.user, 'equipamentos:manager')) {
+    return res.status(403).json({ error: 'Acesso restrito ao gestor de Equipamentos.' });
+  }
+
+  next();
 }

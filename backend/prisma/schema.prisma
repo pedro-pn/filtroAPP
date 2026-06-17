@@ -84,6 +84,7 @@ enum AppModule {
   ROMANEIO
   EPI
   PRIVACY
+  EQUIPAMENTOS
 }
 
 enum ModuleRoleCode {
@@ -96,6 +97,8 @@ enum ModuleRoleCode {
   EPI_TECHNICIAN
   EPI_COLLABORATOR
   PRIVACY_ADMIN
+  EQUIPAMENTOS_MANAGER
+  EQUIPAMENTOS_VIEWER
 }
 
 enum RomaneioItemKind {
@@ -114,6 +117,7 @@ enum RomaneioCatalogSource {
   MANUAL
   UNIT
   PARTICLE_COUNTER
+  EQUIPAMENTOS
 }
 
 enum DataSubjectRequestType {
@@ -532,6 +536,97 @@ model CalibrationNotificationLog {
 
   @@unique([equipmentType, equipmentId, milestone, targetDate])
   @@index([category, milestone, sentAt])
+}
+
+// === Módulo Equipamentos ===
+
+model EquipmentCategory {
+  id                   String             @id @default(cuid())
+  systemKey            String             @unique // slug imutável usado pelo RDO/romaneio
+  name                 String // rótulo editável (vira a aba)
+  order                Int                @default(0)
+  fieldSchema          Json               @default("[]") // [{ key, label, type, required, options?, order, showInDashboard? }]
+  supportsCalibration  Boolean            @default(false)
+  supportsTechnicalDoc Boolean            @default(true)
+  syncToRomaneio       Boolean            @default(false)
+  isSystemManaged      Boolean            @default(false) // categorias consumidas pelo RDO (não removíveis)
+  isActive             Boolean            @default(true)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  equipment            CompanyEquipment[]
+}
+
+model CompanyEquipment {
+  id              String                @id @default(cuid())
+  code            String                @unique
+  name            String
+  categoryId      String
+  attributes      Json                  @default("{}") // valores dos campos dinâmicos, keyed por field.key
+  hasCalibration  Boolean               @default(false)
+  calibratedAt    DateTime?
+  expiresAt       DateTime?
+  hasTechnicalDoc Boolean               @default(false)
+  isActive        Boolean               @default(true)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  category        EquipmentCategory     @relation(fields: [categoryId], references: [id])
+  attachments     EquipmentAttachment[]
+
+  @@index([categoryId])
+  @@index([expiresAt])
+}
+
+enum EquipmentAttachmentKind {
+  CALIBRATION_CERTIFICATE
+  TECHNICAL_DOC
+}
+
+// Destinatários das notificações de calibração do módulo Equipamentos: contas
+// internas (userId) ou e-mails avulsos. Substitui a lista fixa de gestores/coordenadores.
+model EquipmentNotificationRecipient {
+  id        String   @id @default(cuid())
+  userId    String?
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Configuração (singleton) dos e-mails de calibração: marcos, repetição e on/off.
+model EquipmentNotificationConfig {
+  id             String   @id @default(cuid())
+  enabled        Boolean  @default(true)
+  milestoneDays  Int[]    @default([30, 15, 7])
+  notifyOnDueDay Boolean  @default(true)
+  repeatExpired  Boolean  @default(true)
+  repeatGapDays  Int      @default(5)
+  updatedAt      DateTime @updatedAt
+}
+
+// Mapeamento configurável: cada "slot" de equipamento do formulário de RDO
+// (definido no catálogo de código) aponta para uma categoria de equipamento.
+model RdoEquipmentSlot {
+  id         String   @id @default(cuid())
+  slotKey    String   @unique
+  categoryId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([categoryId])
+}
+
+model EquipmentAttachment {
+  id          String                  @id @default(cuid())
+  equipmentId String
+  kind        EquipmentAttachmentKind
+  fileName    String
+  mimeType    String                  @default("application/pdf")
+  storagePath String
+  publicToken String                  @unique
+  createdAt   DateTime                @default(now())
+  equipment   CompanyEquipment        @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@index([equipmentId, kind, createdAt])
 }
 
 model User {

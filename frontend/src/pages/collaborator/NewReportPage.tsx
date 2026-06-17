@@ -1517,6 +1517,8 @@ export function NewReportPage() {
                       units={units}
                       manometers={manometers}
                       counters={bootstrapQuery.data?.counters || []}
+                      equipments={bootstrapQuery.data?.equipments || []}
+                      rdoSlotMap={bootstrapQuery.data?.rdoSlotMap}
                       inhibitionOptions={bootstrapQuery.data?.inhibitionOptions}
                       collaboratorOptions={serviceCollaboratorOptions}
                       groupKey={service.id}

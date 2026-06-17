@@ -114,7 +114,7 @@ const draftSchema = z.object({
   payload: z.any()
 });
 
-const RDO_OWNED_CATALOG_SOURCES = new Set(['UNIT', 'PARTICLE_COUNTER']);
+const RDO_OWNED_CATALOG_SOURCES = new Set(['UNIT', 'PARTICLE_COUNTER', 'EQUIPAMENTOS']);
 const romaneioProjectSelect = {
   id: true,
   code: true,

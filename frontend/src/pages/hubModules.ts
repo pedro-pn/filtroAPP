@@ -2,7 +2,7 @@ import { roleHomePath } from '../auth/rolePath';
 import type { AuthUser, ModuleRole } from '../types/auth';
 
 export interface HubModuleEntry {
-  id: 'rdo' | 'admin' | 'romaneio' | 'epi' | 'privacy' | 'none';
+  id: 'rdo' | 'admin' | 'romaneio' | 'epi' | 'equipamentos' | 'privacy' | 'none';
   badge: string;
   title: string;
   copy: string;
@@ -18,6 +18,7 @@ export function hubModulesForUser(user: Pick<AuthUser, 'accountType' | 'moduleRo
   const canAccessRdo = hasAnyRole(user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator']);
   const canAccessRomaneio = hasAnyRole(user, ['romaneio:manager', 'romaneio:operator']);
   const canAccessEpi = hasAnyRole(user, ['epi:technician', 'epi:collaborator']);
+  const canAccessEquipamentos = hasAnyRole(user, ['equipamentos:manager', 'equipamentos:viewer']);
   const canAccessPrivacy = hasAnyRole(user, ['privacy:admin']);
   const isAdmin = user?.accountType === 'ADMIN' || user?.role === 'MANAGER';
   const modules: HubModuleEntry[] = [
@@ -35,12 +36,12 @@ export function hubModulesForUser(user: Pick<AuthUser, 'accountType' | 'moduleRo
       copy: 'Administração inicial de usuários e acessos do hub.',
       path: '/admin/accounts'
     }] : []),
-    ...(canAccessPrivacy ? [{
-      id: 'privacy' as const,
-      badge: 'LGPD',
-      title: 'Privacidade',
-      copy: 'Acompanhe solicitações de titulares e protocolos LGPD.',
-      path: '/privacidade/solicitacoes'
+    ...(canAccessEquipamentos ? [{
+      id: 'equipamentos' as const,
+      badge: 'EQP',
+      title: 'Equipamentos',
+      copy: 'Cadastro, calibração, documentação técnica e notificações dos equipamentos.',
+      path: '/equipamentos'
     }] : []),
     ...(canAccessRomaneio ? [{
       id: 'romaneio' as const,
@@ -55,6 +56,13 @@ export function hubModulesForUser(user: Pick<AuthUser, 'accountType' | 'moduleRo
       title: 'Liberação de EPI',
       copy: 'Fichas de entrega, devolução e assinatura por colaborador.',
       path: '/epi'
+    }] : []),
+    ...(canAccessPrivacy ? [{
+      id: 'privacy' as const,
+      badge: 'LGPD',
+      title: 'Privacidade',
+      copy: 'Acompanhe solicitações de titulares e protocolos LGPD.',
+      path: '/privacidade/solicitacoes'
     }] : [])
   ];
 

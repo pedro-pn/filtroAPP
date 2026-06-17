@@ -33,6 +33,10 @@ export function epiApiPath(path: string) {
   return `/epi${path.startsWith('/') ? path : `/${path}`}`;
 }
 
+export function equipamentosApiPath(path: string) {
+  return `/equipamentos${path.startsWith('/') ? path : `/${path}`}`;
+}
+
 function tokenFromAuthorizationHeader(header: unknown) {
   if (typeof header !== 'string') return '';
   const match = header.match(/^Bearer\s+(.+)$/i);

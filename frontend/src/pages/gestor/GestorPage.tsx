@@ -17,22 +17,21 @@ import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
+import { ImageDropzone } from '../../components/ui/ImageDropzone';
 import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentinel';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { Modal } from '../../components/ui/Modal';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { useToast } from '../../components/ui/Toast';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { useGestorBootstrap } from '../../hooks/useBootstrap';
 import { useCollaboratorMutations } from '../../hooks/useCollaborators';
-import { useCounterMutations } from '../../hooks/useCounters';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
-import { useManometerMutations } from '../../hooks/useManometers';
 import { useProjectMutations } from '../../hooks/useProjects';
 import { useAccumulatedReportsPage, useReportCounts, useReportMutations } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
-import { useUnitMutations } from '../../hooks/useUnits';
 import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useSurveyMutations } from '../../hooks/useSurveys';
 import { SurveyDashboardOverlay } from '../../components/surveys/SurveyDashboard';
@@ -42,22 +41,17 @@ import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
 import { COLLABORATOR_SIGNATURE_NOTICE_VERSION } from '../../constants/privacy';
-import { dateInputValue, formatDateOnly } from '../../utils/dateOnly';
 import type {
   Collaborator,
   ClientSegment,
   ClientSigner,
   InternalUserSummary,
-  Manometer,
-  ParticleCounter,
   Project,
   ProjectReportSequence,
   ReportType,
   ReportDraft,
   ReportSummary,
-  SatisfactionSurveySummary,
-  Unit,
-  UnitCategory
+  SatisfactionSurveySummary
 } from '../../types/domain';
 import { downloadBlob } from '../../utils/download';
 
@@ -68,11 +62,9 @@ type GestorTab =
   | 'projetos'
   | 'equipe'
   | 'usuarios'
-  | 'equipamentos'
   | 'nps'
   | 'estatisticas';
 
-type EquipmentSubTab = 'unidades' | 'manometros' | 'contadores';
 type SurveyQuestionDraft = Omit<SurveyQuestion, 'order' | 'options'> & { optionsText: string };
 const REPORT_PAGE_SIZE = 50;
 const REPORT_TYPE_PAGE_SIZE = 10;
@@ -93,13 +85,11 @@ const gestorTabs: GestorTab[] = [
   'projetos',
   'equipe',
   'usuarios',
-  'equipamentos',
   'nps',
   'estatisticas'
 ];
 
 function parseGestorTab(value: string | null): GestorTab {
-  if (value === 'manometros' || value === 'contadores') return 'equipamentos';
   return gestorTabs.includes(value as GestorTab) ? value as GestorTab : 'pendentes';
 }
 
@@ -203,32 +193,6 @@ interface UserFormState {
   isActive: boolean;
 }
 
-interface UnitFormState {
-  code: string;
-  name: string;
-  category: UnitCategory;
-  newCategory: string;
-}
-
-interface ManometerFormState {
-  code: string;
-  scale: string;
-  calibrationCertCode: string;
-  calibratedAt: string;
-  expiresAt: string;
-  calibrationCertificateFile: File | null;
-}
-
-interface CounterFormState {
-  code: string;
-  serialNumber: string;
-  category: UnitCategory;
-  newCategory: string;
-  calibratedAt: string;
-  expiresAt: string;
-  calibrationCertificateFile: File | null;
-}
-
 const internalRoles: Array<Exclude<UserRole, 'CLIENT'>> = ['COLLABORATOR', 'COORDINATOR', 'MANAGER'];
 type ProjectVisibilityMode = 'manager-coordinator' | 'all-authorized' | 'manager-only';
 const projectReportTypes: ReportType[] = ['RDO', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLI', 'RLF'];
@@ -294,78 +258,6 @@ const emptyUserForm: UserFormState = {
   collaboratorId: '',
   isActive: true
 };
-
-const emptyUnitForm: UnitFormState = {
-  code: '',
-  name: '',
-  category: 'FILTRAGEM',
-  newCategory: ''
-};
-
-const DEFAULT_UNIT_CATEGORIES = ['FILTRAGEM', 'FLUSHING', 'LIMPEZA_QUIMICA', 'DESIDRATACAO', 'UTH', 'OUTRA'];
-const NEW_UNIT_CATEGORY_VALUE = '__new_unit_category__';
-const DEFAULT_COUNTER_CATEGORY = 'CONTADOR DE PARTICULAS';
-const NEW_COUNTER_CATEGORY_VALUE = '__new_counter_category__';
-const UNIT_CATEGORY_LABELS: Record<string, string> = {
-  FILTRAGEM: 'Filtragem',
-  FLUSHING: 'Flushing',
-  LIMPEZA_QUIMICA: 'Limpeza química',
-  DESIDRATACAO: 'Desidratação',
-  UTH: 'UTH',
-  OUTRA: 'Outra'
-};
-
-const emptyManometerForm: ManometerFormState = {
-  code: '',
-  scale: '',
-  calibrationCertCode: '',
-  calibratedAt: '',
-  expiresAt: '',
-  calibrationCertificateFile: null
-};
-
-const emptyCounterForm: CounterFormState = {
-  code: '',
-  serialNumber: '',
-  category: DEFAULT_COUNTER_CATEGORY,
-  newCategory: '',
-  calibratedAt: '',
-  expiresAt: '',
-  calibrationCertificateFile: null
-};
-
-function groupUnits(units: Unit[]) {
-  return units.reduce<Record<string, Unit[]>>((acc, unit) => {
-    if (!acc[unit.category]) acc[unit.category] = [];
-    acc[unit.category].push(unit);
-    return acc;
-  }, {});
-}
-
-function groupCounters(counters: ParticleCounter[]) {
-  return counters.reduce<Record<string, ParticleCounter[]>>((acc, counter) => {
-    const category = counter.category || DEFAULT_COUNTER_CATEGORY;
-    if (!acc[category]) acc[category] = [];
-    acc[category].push(counter);
-    return acc;
-  }, {});
-}
-
-function unitCategoryOptions(units: Unit[], syncedCategories: UnitCategory[] = []) {
-  return Array.from(new Set([
-    ...DEFAULT_UNIT_CATEGORIES,
-    ...syncedCategories,
-    ...units.map(unit => unit.category).filter(Boolean)
-  ])).sort((a, b) => formatUnitCategory(a).localeCompare(formatUnitCategory(b), 'pt-BR', { sensitivity: 'base' }));
-}
-
-function counterCategoryOptions(counters: ParticleCounter[], syncedCategories: UnitCategory[] = []) {
-  return Array.from(new Set([
-    DEFAULT_COUNTER_CATEGORY,
-    ...syncedCategories,
-    ...counters.map(counter => counter.category).filter(Boolean)
-  ])).sort((a, b) => formatUnitCategory(a).localeCompare(formatUnitCategory(b), 'pt-BR', { sensitivity: 'base' }));
-}
 
 interface RdoServiceDraft {
   id: string;
@@ -452,10 +344,6 @@ function asServices(value: unknown): RdoServiceDraft[] {
 function draftDateLabel(draft: ReportDraft) {
   const payloadDate = asString(draft.payload.reportDate);
   return draft.reportDate || payloadDate || 'Sem data';
-}
-
-function formatUnitCategory(category: UnitCategory) {
-  return UNIT_CATEGORY_LABELS[category] || category;
 }
 
 function formatUserRole(role: UserRole) {
@@ -547,18 +435,6 @@ function userSearchParts(item: InternalUserSummary) {
     item.clientCnpj,
     ...(item.linkedProjects || []).flatMap(project => [project.code, project.name, project.clientCnpj, project.contractCode])
   ];
-}
-
-function unitSearchParts(unit: Unit) {
-  return [unit.code, unit.name, formatUnitCategory(unit.category)];
-}
-
-function manometerSearchParts(item: Manometer) {
-  return [item.code, item.scale, item.calibrationCertCode, formatDateOnly(item.calibratedAt), formatDateOnly(item.expiresAt)];
-}
-
-function counterSearchParts(item: ParticleCounter) {
-  return [item.code, item.serialNumber, formatUnitCategory(item.category), formatDateOnly(item.calibratedAt), formatDateOnly(item.expiresAt)];
 }
 
 function formatDate(value?: string | null) {
@@ -1093,54 +969,6 @@ function userToForm(user: InternalUserSummary): UserFormState {
   };
 }
 
-function unitToForm(unit: Unit): UnitFormState {
-  return {
-    code: unit.code,
-    name: unit.name || unit.code,
-    category: unit.category,
-    newCategory: ''
-  };
-}
-
-function toDateInput(value?: string | null) {
-  return dateInputValue(value);
-}
-
-async function calibrationCertificateUpload(file: File | null) {
-  if (!file) return undefined;
-  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-    throw new Error('Envie o certificado em PDF.');
-  }
-  return {
-    fileName: file.name,
-    mimeType: file.type || 'application/pdf',
-    dataUrl: await fileToDataUrl(file)
-  };
-}
-
-function manometerToForm(item: Manometer): ManometerFormState {
-  return {
-    code: item.code,
-    scale: item.scale,
-    calibrationCertCode: item.calibrationCertCode,
-    calibratedAt: toDateInput(item.calibratedAt),
-    expiresAt: toDateInput(item.expiresAt),
-    calibrationCertificateFile: null
-  };
-}
-
-function counterToForm(item: ParticleCounter): CounterFormState {
-  return {
-    code: item.code,
-    serialNumber: item.serialNumber,
-    category: item.category || DEFAULT_COUNTER_CATEGORY,
-    newCategory: '',
-    calibratedAt: toDateInput(item.calibratedAt),
-    expiresAt: toDateInput(item.expiresAt),
-    calibrationCertificateFile: null
-  };
-}
-
 function renderProjectCard(
   project: Project,
   options: {
@@ -1299,7 +1127,6 @@ export function GestorPage() {
   const [npsDashboardOpen, setNpsDashboardOpen] = useState(false);
   const [statsDashboardOpen, setStatsDashboardOpen] = useState(false);
   const [allocationDashboardOpen, setAllocationDashboardOpen] = useState(false);
-  const [equipmentSubTab, setEquipmentSubTab] = useState<EquipmentSubTab>('unidades');
   const [npsSortDir, setNpsSortDir] = useState<'asc' | 'desc'>('asc');
   const [showSurveyQuestionEditor, setShowSurveyQuestionEditor] = useState(false);
   const [surveyQuestionDrafts, setSurveyQuestionDrafts] = useState<SurveyQuestionDraft[]>([]);
@@ -1317,21 +1144,6 @@ export function GestorPage() {
   const [showUserForm, setShowUserForm] = useState(false);
   const [userAdminGroup, setUserAdminGroup] = useState<'internal' | 'client'>('internal');
 
-  const [unitForm, setUnitForm] = useState<UnitFormState>(emptyUnitForm);
-  const [unitEditingId, setUnitEditingId] = useState<string | null>(null);
-  const [showUnitForm, setShowUnitForm] = useState(false);
-  const [unitCategoryEditing, setUnitCategoryEditing] = useState('');
-  const [unitCategoryEditName, setUnitCategoryEditName] = useState('');
-
-  const [manometerForm, setManometerForm] = useState<ManometerFormState>(emptyManometerForm);
-  const [manometerEditingId, setManometerEditingId] = useState<string | null>(null);
-  const [showManometerForm, setShowManometerForm] = useState(false);
-
-  const [counterForm, setCounterForm] = useState<CounterFormState>(emptyCounterForm);
-  const [counterEditingId, setCounterEditingId] = useState<string | null>(null);
-  const [counterCategoryEditing, setCounterCategoryEditing] = useState('');
-  const [counterCategoryEditName, setCounterCategoryEditName] = useState('');
-  const [showCounterForm, setShowCounterForm] = useState(false);
   const [returnReport, setReturnReport] = useState<ReportSummary | null>(null);
   const [sequenceEditReport, setSequenceEditReport] = useState<ReportSummary | null>(null);
   const [sequenceEditValue, setSequenceEditValue] = useState('');
@@ -1390,10 +1202,6 @@ export function GestorPage() {
   const collaboratorsQuery = { data: gestorBootstrapQuery.data?.collaborators, isLoading: gestorBootstrapQuery.isLoading };
   const internalUsersQuery = useUsers('internal');
   const clientUsersQuery = useUsers('client');
-  const unitsQuery = { data: gestorBootstrapQuery.data?.units, isLoading: gestorBootstrapQuery.isLoading };
-  const unitCategoriesQuery = { data: gestorBootstrapQuery.data?.unitCategories, isLoading: gestorBootstrapQuery.isLoading };
-  const manometersQuery = { data: gestorBootstrapQuery.data?.manometers, isLoading: gestorBootstrapQuery.isLoading };
-  const countersQuery = { data: gestorBootstrapQuery.data?.counters, isLoading: gestorBootstrapQuery.isLoading };
   const surveysQuery = { data: gestorBootstrapQuery.data?.surveys, isLoading: gestorBootstrapQuery.isLoading };
   const projectSegmentsQuery = { data: gestorBootstrapQuery.data?.projectSegments, isLoading: gestorBootstrapQuery.isLoading };
   const surveyQuestionsQuery = { data: gestorBootstrapQuery.data?.surveyQuestions, isLoading: gestorBootstrapQuery.isLoading };
@@ -1405,9 +1213,6 @@ export function GestorPage() {
   const draftMutations = useDraftMutations();
   const collaboratorMutations = useCollaboratorMutations();
   const userMutations = useUserMutations();
-  const unitMutations = useUnitMutations();
-  const manometerMutations = useManometerMutations();
-  const counterMutations = useCounterMutations();
 
   useEffect(() => {
     const nextTab = parseGestorTab(searchParams.get('tab'));
@@ -1732,52 +1537,33 @@ export function GestorPage() {
     setShowUserForm(true);
   }
 
-  async function handleCollaboratorSignatureInput(files: FileList | null) {
-    const file = files?.[0];
-    if (!file) return;
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      setCollaboratorForm(current => ({ ...current, signatureImage: dataUrl, signatureNoticeAccepted: false }));
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível carregar a assinatura.', 'error');
+  function handleCollaboratorSignatureFile(file: File | null) {
+    if (!file) {
+      setCollaboratorForm(current => ({ ...current, signatureImage: '', signatureNoticeAccepted: false }));
+      return;
     }
+    void (async () => {
+      try {
+        const dataUrl = await fileToDataUrl(file);
+        setCollaboratorForm(current => ({ ...current, signatureImage: dataUrl, signatureNoticeAccepted: false }));
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Não foi possível carregar a assinatura.', 'error');
+      }
+    })();
   }
 
-  function renderCollaboratorSignatureField(inputId: string) {
+  function renderCollaboratorSignatureField() {
     const normalizedSignature = normalizeSignatureImage(collaboratorForm.signatureImage);
 
     return (
       <div className="field-group field-group-wide collaborator-signature-field">
-        <label htmlFor={inputId}>Assinatura</label>
-        <div className="collaborator-signature-preview">
-          {normalizedSignature ? (
-            <img src={normalizedSignature} alt="" />
-          ) : (
-            <span>Nenhuma imagem carregada</span>
-          )}
-        </div>
-        <div className="collaborator-signature-actions">
-          <input
-            className="visually-hidden"
-            id={inputId}
-            type="file"
-            accept="image/*"
-            onChange={event => {
-              void handleCollaboratorSignatureInput(event.currentTarget.files);
-              event.currentTarget.value = '';
-            }}
-          />
-          <button className="mini-btn" type="button" onClick={() => document.getElementById(inputId)?.click()}>
-            Carregar imagem
-          </button>
-          <button
-            className="mini-btn alt"
-            type="button"
-            onClick={() => setCollaboratorForm(current => ({ ...current, signatureImage: '', signatureNoticeAccepted: false }))}
-          >
-            Remover
-          </button>
-        </div>
+        <label>Assinatura</label>
+        <ImageDropzone
+          previewSrc={normalizedSignature || undefined}
+          ariaLabel="Carregar assinatura"
+          placeholder="Arraste a assinatura aqui"
+          onFile={handleCollaboratorSignatureFile}
+        />
         <div className="form-hint">Aceita apenas uma imagem.</div>
         {normalizedSignature ? (
           <PrivacyNotice
@@ -1791,70 +1577,6 @@ export function GestorPage() {
         ) : null}
       </div>
     );
-  }
-
-  function resetUnitForm() {
-    setUnitForm(emptyUnitForm);
-    setUnitEditingId(null);
-    setShowUnitForm(false);
-  }
-
-  function startEditUnitCategory(category: string) {
-    setUnitCategoryEditing(category);
-    setUnitCategoryEditName(formatUnitCategory(category));
-  }
-
-  async function handleUnitCategorySubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const newName = unitCategoryEditName.trim();
-    if (!unitCategoryEditing || !newName) return;
-    try {
-      await unitMutations.renameUnitCategory.mutateAsync({
-        currentName: unitCategoryEditing,
-        newName
-      });
-      setUnitCategoryEditing('');
-      setUnitCategoryEditName('');
-      setUnitForm(current => current.category === unitCategoryEditing ? { ...current, category: newName } : current);
-      showToast('Categoria atualizada.', 'success');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível atualizar a categoria.', 'error');
-    }
-  }
-
-  function resetManometerForm() {
-    setManometerForm(emptyManometerForm);
-    setManometerEditingId(null);
-    setShowManometerForm(false);
-  }
-
-  function resetCounterForm() {
-    setCounterForm(emptyCounterForm);
-    setCounterEditingId(null);
-    setShowCounterForm(false);
-  }
-
-  function startEditCounterCategory(category: string) {
-    setCounterCategoryEditing(category);
-    setCounterCategoryEditName(formatUnitCategory(category));
-  }
-
-  async function handleCounterCategorySubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const newName = counterCategoryEditName.trim();
-    if (!counterCategoryEditing || !newName) return;
-    try {
-      await counterMutations.renameCounterCategory.mutateAsync({
-        currentName: counterCategoryEditing,
-        newName
-      });
-      setCounterCategoryEditing('');
-      setCounterCategoryEditName('');
-      setCounterForm(current => current.category === counterCategoryEditing ? { ...current, category: newName } : current);
-      showToast('Categoria atualizada.', 'success');
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível atualizar a categoria.', 'error');
-    }
   }
 
   async function handleProjectSubmit(event: FormEvent<HTMLFormElement>) {
@@ -2195,125 +1917,6 @@ export function GestorPage() {
       showToast('E-mail de acesso reenviado.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível reenviar o acesso.', 'error');
-    }
-  }
-
-  async function handleUnitSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const category = unitForm.category === NEW_UNIT_CATEGORY_VALUE
-      ? unitForm.newCategory.trim()
-      : unitForm.category.trim();
-    if (!category) {
-      showToast('Informe o tipo de equipamento da unidade.', 'error');
-      return;
-    }
-
-    const payload = {
-      code: unitForm.code.trim(),
-      name: unitForm.name.trim(),
-      category
-    };
-
-    try {
-      if (unitEditingId) {
-        await unitMutations.updateUnit.mutateAsync({ id: unitEditingId, payload });
-        showToast('Unidade atualizada.', 'success');
-      } else {
-        await unitMutations.createUnit.mutateAsync(payload);
-        showToast('Unidade criada.', 'success');
-      }
-      resetUnitForm();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível salvar a unidade.', 'error');
-    }
-  }
-
-  async function handleUnitDelete(id: string) {
-    try {
-      await unitMutations.removeUnit.mutateAsync(id);
-      showToast('Unidade removida.', 'success');
-      if (unitEditingId === id) resetUnitForm();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível remover a unidade.', 'error');
-    }
-  }
-
-  async function handleManometerSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    try {
-      const calibrationCertificate = await calibrationCertificateUpload(manometerForm.calibrationCertificateFile);
-      const payload = {
-        code: manometerForm.code.trim(),
-        scale: manometerForm.scale.trim(),
-        calibrationCertCode: manometerForm.calibrationCertCode.trim(),
-        calibratedAt: manometerForm.calibratedAt,
-        expiresAt: manometerForm.expiresAt,
-        ...(calibrationCertificate ? { calibrationCertificate } : {})
-      };
-      if (manometerEditingId) {
-        await manometerMutations.updateManometer.mutateAsync({ id: manometerEditingId, payload });
-        showToast('Manômetro atualizado.', 'success');
-      } else {
-        await manometerMutations.createManometer.mutateAsync(payload);
-        showToast('Manômetro criado.', 'success');
-      }
-      resetManometerForm();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível salvar o manômetro.', 'error');
-    }
-  }
-
-  async function handleManometerDeactivate(id: string) {
-    try {
-      await manometerMutations.removeManometer.mutateAsync(id);
-      showToast('Manômetro removido.', 'success');
-      if (manometerEditingId === id) resetManometerForm();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível remover o manômetro.', 'error');
-    }
-  }
-
-  async function handleCounterSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const category = counterForm.category === NEW_COUNTER_CATEGORY_VALUE
-      ? counterForm.newCategory.trim()
-      : counterForm.category.trim();
-    if (!category) {
-      showToast('Informe o tipo de equipamento do contador.', 'error');
-      return;
-    }
-
-    try {
-      const calibrationCertificate = await calibrationCertificateUpload(counterForm.calibrationCertificateFile);
-      const payload = {
-        code: counterForm.code.trim(),
-        serialNumber: counterForm.serialNumber.trim(),
-        category,
-        calibratedAt: counterForm.calibratedAt,
-        expiresAt: counterForm.expiresAt,
-        ...(calibrationCertificate ? { calibrationCertificate } : {})
-      };
-      if (counterEditingId) {
-        await counterMutations.updateCounter.mutateAsync({ id: counterEditingId, payload });
-        showToast('Contador atualizado.', 'success');
-      } else {
-        await counterMutations.createCounter.mutateAsync(payload);
-        showToast('Contador criado.', 'success');
-      }
-      resetCounterForm();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível salvar o contador.', 'error');
-    }
-  }
-
-  async function handleCounterDeactivate(id: string) {
-    try {
-      await counterMutations.removeCounter.mutateAsync(id);
-      showToast('Contador removido.', 'success');
-      if (counterEditingId === id) resetCounterForm();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível remover o contador.', 'error');
     }
   }
 
@@ -3273,7 +2876,7 @@ export function GestorPage() {
 	                  <option value="false">Inativo</option>
 	                </select>
 	              </div>
-	              {renderCollaboratorSignatureField('collaborator-signature-new')}
+	              {renderCollaboratorSignatureField()}
 	              <div className="admin-form-actions">
 	                <button
 	                  className="mini-btn"
@@ -3372,7 +2975,7 @@ export function GestorPage() {
 	                            <option value="false">Inativo</option>
 	                          </select>
 	                        </div>
-	                        {renderCollaboratorSignatureField(`collaborator-signature-${collaborator.id}`)}
+	                        {renderCollaboratorSignatureField()}
 	                        <div className="admin-form-actions">
 	                          <button className="mini-btn" type="submit" disabled={collaboratorMutations.updateCollaborator.isPending}>Salvar</button>
 	                        </div>
@@ -3801,582 +3404,6 @@ export function GestorPage() {
     );
   }
 
-  function renderUnidadesSubTab() {
-    const allUnits = unitsQuery.data || [];
-    const units = allUnits
-      .filter(item => matchesSearch(unitSearchParts(item), gestorSearch));
-    const visibleGroupedUnits = groupUnits(units);
-    const allUnitCategories = unitCategoryOptions(allUnits, unitCategoriesQuery.data || []);
-    const hasSearch = Boolean(gestorSearch.trim());
-    const visibleCategories = allUnitCategories.filter(category => {
-      const categoryUnits = visibleGroupedUnits[category] || [];
-      if (categoryUnits.length) return true;
-      return hasSearch && matchesSearch([category, formatUnitCategory(category)], gestorSearch) && (allUnits.some(unit => unit.category === category));
-    });
-
-    if (unitsQuery.isLoading) {
-      return <div className="page-card placeholder-copy">Carregando unidades...</div>;
-    }
-
-    const renderUnitForm = (submitLabel: string) => (
-      <form className="admin-inline-form admin-form-grid" onSubmit={handleUnitSubmit}>
-        <div className="field-group">
-          <label>Código</label>
-          <input
-            value={unitForm.code}
-            onChange={event => setUnitForm(current => ({ ...current, code: event.target.value }))}
-            required
-          />
-        </div>
-        <div className="field-group">
-          <label>Nome</label>
-          <input
-            value={unitForm.name}
-            onChange={event => setUnitForm(current => ({ ...current, name: event.target.value }))}
-            required
-          />
-        </div>
-        <div className="field-group">
-          <label>Tipo de equipamento</label>
-          <select
-            value={unitForm.category}
-            onChange={event => setUnitForm(current => ({ ...current, category: event.target.value, newCategory: '' }))}
-            required
-          >
-            {allUnitCategories.map(category => (
-              <option value={category} key={category}>{formatUnitCategory(category)}</option>
-            ))}
-            <option value={NEW_UNIT_CATEGORY_VALUE}>Criar nova categoria</option>
-          </select>
-        </div>
-        {unitForm.category === NEW_UNIT_CATEGORY_VALUE ? (
-          <div className="field-group">
-            <label>Nova categoria</label>
-            <input
-              value={unitForm.newCategory}
-              onChange={event => setUnitForm(current => ({ ...current, newCategory: event.target.value }))}
-              required
-            />
-          </div>
-        ) : null}
-        <div className="admin-form-actions">
-          <button
-            className="mini-btn"
-            type="submit"
-            disabled={unitMutations.createUnit.isPending || unitMutations.updateUnit.isPending}
-          >
-            {submitLabel}
-          </button>
-          <button className="mini-btn alt" type="button" onClick={resetUnitForm}>
-            Cancelar
-          </button>
-        </div>
-      </form>
-    );
-
-    return (
-      <div className="admin-stack">
-        <article className="card admin-card">
-          <div className="admin-section-head admin-card-toolbar">
-            <div>
-              <div className="admin-card-title">Unidades</div>
-              <div className="admin-card-subtitle">Cadastre a unidade e selecione o tipo de equipamento.</div>
-            </div>
-            <button
-              className="mini-btn alt"
-              type="button"
-              onClick={() => {
-                setUnitEditingId(null);
-                setShowUnitForm(true);
-                setUnitForm({ ...emptyUnitForm, category: allUnitCategories[0] || 'FILTRAGEM' });
-              }}
-            >
-              + Nova unidade
-            </button>
-          </div>
-          {showUnitForm && !unitEditingId ? renderUnitForm('Criar unidade') : null}
-        </article>
-        {visibleCategories.length ? visibleCategories.map(category => {
-          const categoryUnits = visibleGroupedUnits[category] || [];
-          return (
-            <article className="card admin-card" key={category}>
-              <div className="admin-section-head admin-card-toolbar">
-                <div>
-                  <div className="admin-card-title">{formatUnitCategory(category)}</div>
-                  <div className="admin-card-subtitle">{categoryUnits.length} unidade(s)</div>
-                </div>
-                <button className="mini-btn alt" type="button" onClick={() => startEditUnitCategory(category)}>
-                  Editar categoria
-                </button>
-              </div>
-              {unitCategoryEditing === category ? (
-                <form className="admin-inline-form admin-form-grid" onSubmit={handleUnitCategorySubmit}>
-                  <div className="field-group">
-                    <label>Nome da categoria</label>
-                    <input
-                      value={unitCategoryEditName}
-                      onChange={event => setUnitCategoryEditName(event.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="admin-form-actions">
-                    <button className="mini-btn" type="submit" disabled={unitMutations.renameUnitCategory.isPending}>
-                      Salvar categoria
-                    </button>
-                    <button className="mini-btn alt" type="button" onClick={() => { setUnitCategoryEditing(''); setUnitCategoryEditName(''); }}>
-                      Cancelar
-                    </button>
-                  </div>
-                </form>
-              ) : null}
-              <div className="admin-list">
-                {categoryUnits.length ? categoryUnits.map(unit => (
-                  <div className="admin-list-row" key={unit.id}>
-                    <span>{[unit.code, unit.name].filter(Boolean).join(' - ')}</span>
-                    <div className="admin-card-actions">
-                      <button
-                        className="mini-btn alt"
-                        type="button"
-                        onClick={() => {
-                          setUnitEditingId(unit.id);
-                          setShowUnitForm(true);
-                          setUnitForm(unitToForm(unit));
-                        }}
-                      >
-                        Editar
-                      </button>
-                      <button className="mini-btn danger" type="button" onClick={() => void handleUnitDelete(unit.id)}>
-                        Remover
-                      </button>
-                    </div>
-                    {unitEditingId === unit.id ? (
-                      renderUnitForm('Salvar unidade')
-                    ) : null}
-                  </div>
-                )) : (
-                  <p className="placeholder-copy">Nenhuma unidade cadastrada neste tipo.</p>
-                )}
-              </div>
-            </article>
-          );
-        }) : (
-          <div className="card admin-card">
-            <p className="placeholder-copy">Nenhuma unidade encontrada.</p>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  function renderManometrosTab() {
-    const manometers = (manometersQuery.data || [])
-      .filter(item => item.isActive !== false)
-      .filter(item => matchesSearch(manometerSearchParts(item), gestorSearch));
-
-    if (manometersQuery.isLoading) {
-      return <div className="page-card placeholder-copy">Carregando manômetros...</div>;
-    }
-
-    return (
-      <>
-        <div className="admin-toolbar">
-          <div className="sec">{manometerEditingId ? 'Editar manômetro' : 'Manômetros'}</div>
-          {!showManometerForm && !manometerEditingId ? (
-            <button
-              className="mini-btn"
-              type="button"
-              onClick={() => {
-                setShowManometerForm(true);
-              }}
-            >
-              + Novo manômetro
-            </button>
-          ) : null}
-        </div>
-          {showManometerForm && !manometerEditingId ? (
-          <form className="admin-inline-form admin-form-grid" onSubmit={handleManometerSubmit}>
-            <div className="field-group">
-              <label htmlFor="manometer-code">Código</label>
-              <input
-                id="manometer-code"
-                value={manometerForm.code}
-                onChange={event => setManometerForm(current => ({ ...current, code: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="manometer-scale">Escala</label>
-              <input
-                id="manometer-scale"
-                value={manometerForm.scale}
-                onChange={event => setManometerForm(current => ({ ...current, scale: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="manometer-cert">Certificado</label>
-              <input
-                id="manometer-cert"
-                value={manometerForm.calibrationCertCode}
-                onChange={event =>
-                  setManometerForm(current => ({ ...current, calibrationCertCode: event.target.value }))
-                }
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="manometer-cert-file">PDF do certificado</label>
-              <input
-                id="manometer-cert-file"
-                type="file"
-                accept="application/pdf,.pdf"
-                onChange={event => setManometerForm(current => ({
-                  ...current,
-                  calibrationCertificateFile: event.target.files?.[0] || null
-                }))}
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="manometer-calibrated">Calibração</label>
-              <input
-                id="manometer-calibrated"
-                type="date"
-                value={manometerForm.calibratedAt}
-                onChange={event => setManometerForm(current => ({ ...current, calibratedAt: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label htmlFor="manometer-expires">Vencimento</label>
-              <input
-                id="manometer-expires"
-                type="date"
-                value={manometerForm.expiresAt}
-                onChange={event => setManometerForm(current => ({ ...current, expiresAt: event.target.value }))}
-                required
-              />
-            </div>
-            <div className="admin-form-actions">
-              <button
-                className="mini-btn"
-                type="submit"
-                disabled={manometerMutations.createManometer.isPending || manometerMutations.updateManometer.isPending}
-              >
-                {manometerEditingId ? 'Salvar manômetro' : 'Criar manômetro'}
-              </button>
-              {manometerEditingId ? (
-                <button className="mini-btn alt" type="button" onClick={resetManometerForm}>
-                  Cancelar edição
-                </button>
-              ) : (
-                <button className="mini-btn alt" type="button" onClick={resetManometerForm}>
-                  Cancelar
-                </button>
-              )}
-            </div>
-          </form>
-          ) : null}
-
-          {manometers.length ? (
-            <div className="admin-stack">
-              {manometers.map(item => (
-                <article className="card admin-card" key={item.id}>
-                  <div className="admin-item-row">
-                    <div className="admin-item-main">
-                      <div className="admin-item-title">{item.code} - {item.scale}</div>
-                      <div className="admin-item-sub">
-                        Certificado {item.calibrationCertCode} - Calibração: {formatDateOnly(item.calibratedAt)} - Vencimento: {formatDateOnly(item.expiresAt)}
-                        {item.currentCalibrationCertificate?.publicUrl ? (
-                          <> - <a href={item.currentCalibrationCertificate.publicUrl} target="_blank" rel="noreferrer">PDF atual</a></>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="admin-actions">
-                      <button
-                        className="mini-btn alt"
-                        type="button"
-                        onClick={() => {
-                          setManometerEditingId(item.id);
-                          setShowManometerForm(true);
-                          setManometerForm(manometerToForm(item));
-                        }}
-                      >
-                        Editar
-                      </button>
-                      <button className="mini-btn danger" type="button" onClick={() => void handleManometerDeactivate(item.id)}>
-                        Remover
-                      </button>
-                    </div>
-                  </div>
-                  {manometerEditingId === item.id ? (
-                    <form className="admin-inline-form admin-form-grid" onSubmit={handleManometerSubmit}>
-                      <div className="field-group"><label>Código</label><input value={manometerForm.code} onChange={event => setManometerForm(current => ({ ...current, code: event.target.value }))} required /></div>
-                      <div className="field-group"><label>Escala</label><input value={manometerForm.scale} onChange={event => setManometerForm(current => ({ ...current, scale: event.target.value }))} required /></div>
-                      <div className="field-group"><label>Certificado</label><input value={manometerForm.calibrationCertCode} onChange={event => setManometerForm(current => ({ ...current, calibrationCertCode: event.target.value }))} required /></div>
-                      <div className="field-group"><label>Novo PDF do certificado</label><input type="file" accept="application/pdf,.pdf" onChange={event => setManometerForm(current => ({ ...current, calibrationCertificateFile: event.target.files?.[0] || null }))} /></div>
-                      <div className="field-group"><label>Calibração</label><input type="date" value={manometerForm.calibratedAt} onChange={event => setManometerForm(current => ({ ...current, calibratedAt: event.target.value }))} required /></div>
-                      <div className="field-group"><label>Vencimento</label><input type="date" value={manometerForm.expiresAt} onChange={event => setManometerForm(current => ({ ...current, expiresAt: event.target.value }))} required /></div>
-                      <div className="admin-form-actions">
-                        <button className="mini-btn" type="submit" disabled={manometerMutations.updateManometer.isPending}>Salvar manômetro</button>
-                        <button className="mini-btn alt" type="button" onClick={resetManometerForm}>Cancelar edição</button>
-                      </div>
-                    </form>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="card admin-card">
-              <p className="placeholder-copy">Nenhum manômetro cadastrado.</p>
-            </div>
-          )}
-      </>
-    );
-  }
-
-  function renderContadoresTab() {
-    const allCounters = (countersQuery.data || []).filter(item => item.isActive !== false);
-    const counters = allCounters
-      .filter(item => matchesSearch(counterSearchParts(item), gestorSearch));
-    const allCounterCategories = counterCategoryOptions(allCounters, unitCategoriesQuery.data || []);
-    const visibleGroupedCounters = groupCounters(counters);
-    const hasSearch = Boolean(gestorSearch.trim());
-    const visibleCategories = allCounterCategories.filter(category => {
-      const categoryCounters = visibleGroupedCounters[category] || [];
-      if (categoryCounters.length) return true;
-      return hasSearch
-        && matchesSearch([category, formatUnitCategory(category)], gestorSearch)
-        && allCounters.some(counter => (counter.category || DEFAULT_COUNTER_CATEGORY) === category);
-    });
-
-    if (countersQuery.isLoading) {
-      return <div className="page-card placeholder-copy">Carregando contadores...</div>;
-    }
-
-    const renderCounterForm = (submitLabel: string) => (
-      <form className="admin-inline-form admin-form-grid" onSubmit={handleCounterSubmit}>
-        <div className="field-group">
-          <label>Código</label>
-          <input
-            value={counterForm.code}
-            onChange={event => setCounterForm(current => ({ ...current, code: event.target.value }))}
-            required
-          />
-        </div>
-        <div className="field-group">
-          <label>Serial</label>
-          <input
-            value={counterForm.serialNumber}
-            onChange={event => setCounterForm(current => ({ ...current, serialNumber: event.target.value }))}
-            required
-          />
-        </div>
-        <div className="field-group">
-          <label>Tipo de equipamento</label>
-          <select
-            value={counterForm.category}
-            onChange={event => setCounterForm(current => ({ ...current, category: event.target.value, newCategory: '' }))}
-            required
-          >
-            {allCounterCategories.map(category => (
-              <option value={category} key={category}>{formatUnitCategory(category)}</option>
-            ))}
-            <option value={NEW_COUNTER_CATEGORY_VALUE}>Criar nova categoria</option>
-          </select>
-        </div>
-        {counterForm.category === NEW_COUNTER_CATEGORY_VALUE ? (
-          <div className="field-group">
-            <label>Nova categoria</label>
-            <input
-              value={counterForm.newCategory}
-              onChange={event => setCounterForm(current => ({ ...current, newCategory: event.target.value }))}
-              required
-            />
-          </div>
-        ) : null}
-        <div className="field-group">
-          <label>Calibração</label>
-          <input
-            type="date"
-            value={counterForm.calibratedAt}
-            onChange={event => setCounterForm(current => ({ ...current, calibratedAt: event.target.value }))}
-            required
-          />
-        </div>
-        <div className="field-group">
-          <label>Vencimento</label>
-          <input
-            type="date"
-            value={counterForm.expiresAt}
-            onChange={event => setCounterForm(current => ({ ...current, expiresAt: event.target.value }))}
-            required
-          />
-        </div>
-        <div className="field-group">
-          <label>{counterEditingId ? 'Novo PDF do certificado' : 'PDF do certificado'}</label>
-          <input
-            type="file"
-            accept="application/pdf,.pdf"
-            onChange={event => setCounterForm(current => ({
-              ...current,
-              calibrationCertificateFile: event.target.files?.[0] || null
-            }))}
-          />
-        </div>
-        <div className="admin-form-actions">
-          <button
-            className="mini-btn"
-            type="submit"
-            disabled={counterMutations.createCounter.isPending || counterMutations.updateCounter.isPending}
-          >
-            {submitLabel}
-          </button>
-          <button className="mini-btn alt" type="button" onClick={resetCounterForm}>
-            Cancelar
-          </button>
-        </div>
-      </form>
-    );
-
-    return (
-      <div className="admin-stack">
-        <article className="card admin-card">
-          <div className="admin-section-head admin-card-toolbar">
-            <div>
-              <div className="admin-card-title">Contadores</div>
-              <div className="admin-card-subtitle">Cadastre o contador e selecione o tipo de equipamento.</div>
-            </div>
-            <button
-              className="mini-btn alt"
-              type="button"
-              onClick={() => {
-                setCounterEditingId(null);
-                setShowCounterForm(true);
-                setCounterForm({ ...emptyCounterForm, category: allCounterCategories.includes(DEFAULT_COUNTER_CATEGORY) ? DEFAULT_COUNTER_CATEGORY : allCounterCategories[0] || DEFAULT_COUNTER_CATEGORY });
-              }}
-            >
-              + Novo contador
-            </button>
-          </div>
-          {showCounterForm && !counterEditingId ? renderCounterForm('Criar contador') : null}
-        </article>
-        {visibleCategories.length ? visibleCategories.map(category => {
-          const categoryCounters = visibleGroupedCounters[category] || [];
-          return (
-            <article className="card admin-card" key={category}>
-              <div className="admin-section-head admin-card-toolbar">
-                <div>
-                  <div className="admin-card-title">{formatUnitCategory(category)}</div>
-                  <div className="admin-card-subtitle">{categoryCounters.length} contador(es)</div>
-                </div>
-                <button className="mini-btn alt" type="button" onClick={() => startEditCounterCategory(category)}>
-                  Editar categoria
-                </button>
-              </div>
-              {counterCategoryEditing === category ? (
-                <form className="admin-inline-form admin-form-grid" onSubmit={handleCounterCategorySubmit}>
-                  <div className="field-group">
-                    <label>Nome da categoria</label>
-                    <input
-                      value={counterCategoryEditName}
-                      onChange={event => setCounterCategoryEditName(event.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="admin-form-actions">
-                    <button className="mini-btn" type="submit" disabled={counterMutations.renameCounterCategory.isPending}>
-                      Salvar categoria
-                    </button>
-                    <button className="mini-btn alt" type="button" onClick={() => { setCounterCategoryEditing(''); setCounterCategoryEditName(''); }}>
-                      Cancelar
-                    </button>
-                  </div>
-                </form>
-              ) : null}
-              <div className="admin-list">
-                {categoryCounters.length ? categoryCounters.map(item => (
-                  <div className="admin-list-row" key={item.id}>
-                    <span>
-                      <strong>{item.code}</strong> - Serial {item.serialNumber} - Calibração: {formatDateOnly(item.calibratedAt)} - Vencimento: {formatDateOnly(item.expiresAt)}
-                      {item.currentCalibrationCertificate?.publicUrl ? (
-                        <> - <a href={item.currentCalibrationCertificate.publicUrl} target="_blank" rel="noreferrer">PDF atual</a></>
-                      ) : null}
-                    </span>
-                    <div className="admin-card-actions">
-                      <button
-                        className="mini-btn alt"
-                        type="button"
-                        onClick={() => {
-                          setCounterEditingId(item.id);
-                          setShowCounterForm(true);
-                          setCounterForm(counterToForm(item));
-                        }}
-                      >
-                        Editar
-                      </button>
-                      <button className="mini-btn danger" type="button" onClick={() => void handleCounterDeactivate(item.id)}>
-                        Remover
-                      </button>
-                    </div>
-                    {counterEditingId === item.id ? (
-                      renderCounterForm('Salvar contador')
-                    ) : null}
-                  </div>
-                )) : (
-                  <p className="placeholder-copy">Nenhum contador cadastrado neste tipo.</p>
-                )}
-              </div>
-            </article>
-          );
-        }) : (
-          <div className="card admin-card">
-            <p className="placeholder-copy">Nenhum contador encontrado.</p>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  function renderEquipamentosTab() {
-    return (
-      <section className="page-card">
-        <div className="filter-tabs" role="tablist" aria-label="Categorias de equipamentos" onKeyDown={handleHorizontalTabListKeyDown}>
-          <button
-            className={`filter-tab ${equipmentSubTab === 'unidades' ? 'active' : ''}`}
-            type="button"
-            role="tab"
-            aria-selected={equipmentSubTab === 'unidades'}
-            onClick={() => setEquipmentSubTab('unidades')}
-          >
-            Unidades
-          </button>
-          <button
-            className={`filter-tab ${equipmentSubTab === 'manometros' ? 'active' : ''}`}
-            type="button"
-            role="tab"
-            aria-selected={equipmentSubTab === 'manometros'}
-            onClick={() => setEquipmentSubTab('manometros')}
-          >
-            Manômetros
-          </button>
-          <button
-            className={`filter-tab ${equipmentSubTab === 'contadores' ? 'active' : ''}`}
-            type="button"
-            role="tab"
-            aria-selected={equipmentSubTab === 'contadores'}
-            onClick={() => setEquipmentSubTab('contadores')}
-          >
-            Contadores
-          </button>
-        </div>
-        <div className="admin-stack" style={{ marginTop: 12 }}>
-          {equipmentSubTab === 'unidades' ? renderUnidadesSubTab() : null}
-          {equipmentSubTab === 'manometros' ? renderManometrosTab() : null}
-          {equipmentSubTab === 'contadores' ? renderContadoresTab() : null}
-        </div>
-      </section>
-    );
-  }
 
   function renderNpsTab() {
     const surveys = (surveysQuery.data || [])
@@ -4527,11 +3554,6 @@ export function GestorPage() {
       arquivados: 'Buscar em arquivados',
       equipe: 'Buscar na equipe',
       usuarios: 'Buscar em usuários',
-      equipamentos: equipmentSubTab === 'unidades'
-        ? 'Buscar em unidades'
-        : equipmentSubTab === 'manometros'
-          ? 'Buscar em manômetros'
-          : 'Buscar em contadores',
       nps: 'Buscar em pesquisas NPS'
     };
     const label = labels[tab];
@@ -4539,12 +3561,7 @@ export function GestorPage() {
 
     return (
       <div className="admin-search-row">
-        <input
-          aria-label={label}
-          placeholder={label}
-          value={gestorSearch}
-          onChange={event => setGestorSearch(event.target.value)}
-        />
+        <SearchBar value={gestorSearch} onChange={setGestorSearch} placeholder={label} ariaLabel={label} />
       </div>
     );
   }
@@ -4576,7 +3593,6 @@ export function GestorPage() {
     if (tab === 'arquivados') return renderArchivedProjectsTab();
     if (tab === 'equipe') return renderEquipeTab();
     if (tab === 'usuarios') return renderUsuariosTab();
-    if (tab === 'equipamentos') return renderEquipamentosTab();
     if (tab === 'estatisticas') return renderEstatisticasTab();
     return renderNpsTab();
   }
@@ -4651,9 +3667,6 @@ export function GestorPage() {
           </button>
           <button className={`nav-tab ${tab === 'usuarios' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'usuarios'} onClick={() => setTab('usuarios')}>
             Usuários
-          </button>
-          <button className={`nav-tab ${tab === 'equipamentos' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'equipamentos'} onClick={() => setTab('equipamentos')}>
-            Equipamentos
           </button>
           <button className={`nav-tab ${tab === 'nps' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'nps'} onClick={() => setTab('nps')}>
             NPS

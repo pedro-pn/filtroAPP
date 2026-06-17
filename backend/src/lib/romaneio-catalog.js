@@ -18,7 +18,7 @@ const EQUIPMENT_FILE_CANDIDATES = [
   '/workspace/equipamentos.txt',
   '/workspace/equipamentos'
 ].filter(Boolean);
-const RDO_OWNED_CATALOG_SOURCES = new Set(['UNIT', 'PARTICLE_COUNTER']);
+const RDO_OWNED_CATALOG_SOURCES = new Set(['UNIT', 'PARTICLE_COUNTER', 'EQUIPAMENTOS']);
 const ROMANEIO_CATALOG_SYNC_TTL_MS = 60_000;
 const ROMANEIO_CATALOG_SYNC_STATE_ID = 'default';
 let lastSuccessfulCatalogSyncAt = 0;
@@ -188,42 +188,32 @@ async function readFileCatalogRows() {
   return parseEquipmentRows(content);
 }
 
-function buildUnitCatalogRows(units) {
-  return units.map(unit => ({
-    sourceType: 'UNIT',
-    sourceId: unit.id,
-    code: unit.code,
-    name: normalizeSpaces(unit.name) || unit.code,
-    categoryName: normalizeSpaces(unit.category) || 'UNIDADES',
-    kind: 'EQUIPMENT',
-    measureType: 'UNIT',
-    defaultUnitLabel: 'unidade',
-    isSerialized: true,
-    isActive: true
-  }));
+// Constrói as linhas do catálogo de romaneio a partir do módulo Equipamentos.
+// Apenas categorias com syncToRomaneio=true entram no catálogo.
+function buildEquipmentCatalogRows(equipmentList) {
+  return equipmentList.map(item => {
+    const attributes = item.attributes && typeof item.attributes === 'object' ? item.attributes : {};
+    const serial = attributes.serialNumber || '';
+    return {
+      sourceType: 'EQUIPAMENTOS',
+      sourceId: item.id,
+      code: item.code,
+      name: normalizeSpaces(item.name) || (serial ? `${item.category?.name || 'Equipamento'} ${serial}` : item.code),
+      categoryName: normalizeSpaces(item.category?.name) || 'EQUIPAMENTOS',
+      kind: 'EQUIPMENT',
+      measureType: 'UNIT',
+      defaultUnitLabel: 'unidade',
+      isSerialized: true,
+      isActive: item.isActive
+    };
+  });
 }
 
-function buildParticleCounterCatalogRows(counters) {
-  return counters.map(counter => ({
-    sourceType: 'PARTICLE_COUNTER',
-    sourceId: counter.id,
-    code: counter.code,
-    name: `Contador de partículas ${counter.serialNumber || counter.code}`,
-    categoryName: normalizeSpaces(counter.category) || 'CONTADOR DE PARTICULAS',
-    kind: 'EQUIPMENT',
-    measureType: 'UNIT',
-    defaultUnitLabel: 'unidade',
-    isSerialized: true,
-    isActive: counter.isActive
-  }));
-}
-
-function catalogRowsHash({ fileRows, unitRows, particleCounterRows }) {
+function catalogRowsHash({ fileRows, equipmentRows }) {
   const payload = {
     filePresent: Array.isArray(fileRows),
     fileRows: fileRows || [],
-    unitRows,
-    particleCounterRows
+    equipmentRows
   };
   return crypto
     .createHash('sha256')
@@ -264,6 +254,7 @@ async function upsertCatalogRow(tx, row) {
 
   const existing = await tx.romaneioCatalogItem.findFirst({
     where: {
+      isActive: true,
       categoryName: row.categoryName,
       code: row.code,
       name: row.name
@@ -389,8 +380,11 @@ export async function syncCatalogRows(tx, rows) {
     name: row.name
   }));
   if (naturalConditions.length) {
+    // Apenas linhas ATIVAS bloqueiam a criação por chave natural. Itens
+    // desativados (ex.: original do romaneio ao migrar para o módulo) não devem
+    // impedir a criação da nova linha gerenciada (sourceType EQUIPAMENTOS).
     const existingNaturalRows = await tx.romaneioCatalogItem.findMany({
-      where: { OR: naturalConditions },
+      where: { isActive: true, OR: naturalConditions },
       select: { categoryName: true, code: true, name: true }
     });
     for (const existing of existingNaturalRows) {
@@ -466,13 +460,12 @@ function logCatalogSyncStats(stats) {
 async function runRomaneioCatalogSync() {
   const fileRows = await readFileCatalogRows();
   await prisma.$transaction(async tx => {
-    const [units, counters] = await Promise.all([
-      tx.unit.findMany(),
-      tx.particleCounter.findMany()
-    ]);
-    const unitRows = buildUnitCatalogRows(units);
-    const particleCounterRows = buildParticleCounterCatalogRows(counters);
-    const sourceHash = catalogRowsHash({ fileRows, unitRows, particleCounterRows });
+    const equipmentList = await tx.companyEquipment.findMany({
+      where: { isActive: true, category: { is: { syncToRomaneio: true } } },
+      include: { category: true }
+    });
+    const equipmentRows = buildEquipmentCatalogRows(equipmentList);
+    const sourceHash = catalogRowsHash({ fileRows, equipmentRows });
 
     if (tx.romaneioCatalogSyncState) {
       const state = await tx.romaneioCatalogSyncState.findUnique({
@@ -484,8 +477,7 @@ async function runRomaneioCatalogSync() {
 
     const stats = mergeCatalogSyncStats(
       await syncFileCatalogRows(tx, fileRows),
-      await syncCatalogRows(tx, unitRows),
-      await syncCatalogRows(tx, particleCounterRows)
+      await syncCatalogRows(tx, equipmentRows)
     );
     logCatalogSyncStats(stats);
 

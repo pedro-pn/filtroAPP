@@ -9,7 +9,9 @@ export type ModuleRole =
   | 'romaneio:operator'
   | 'epi:technician'
   | 'epi:collaborator'
-  | 'privacy:admin';
+  | 'privacy:admin'
+  | 'equipamentos:manager'
+  | 'equipamentos:viewer';
 
 export interface AuthUser {
   id: string;

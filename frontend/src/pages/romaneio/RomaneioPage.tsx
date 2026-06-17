@@ -25,6 +25,7 @@ import {
 
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
+import { SearchBar } from '../../components/ui/SearchBar';
 import { useToast } from '../../components/ui/Toast';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
@@ -34,7 +35,7 @@ import { defaultRomaneioUnit, romaneioMeasureLabel } from '../../utils/romaneioM
 type Tab = 'romaneios' | 'equipamentos' | 'notificacoes';
 const NEW_CATEGORY_VALUE = '__new_category__';
 
-const rdoOwnedCatalogSources = new Set(['UNIT', 'PARTICLE_COUNTER']);
+const rdoOwnedCatalogSources = new Set(['UNIT', 'PARTICLE_COUNTER', 'EQUIPAMENTOS']);
 
 function formatDate(value: string) {
   if (!value) return '';
@@ -404,7 +405,7 @@ export function RomaneioPage() {
               <div className="admin-form-grid manager-header-grid">
                 <label className="field-group">
                   <span>Pesquisa</span>
-                  <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Projeto, placa, motorista ou item" />
+                  <SearchBar value={search} onChange={setSearch} placeholder="Projeto, placa, motorista ou item" />
                 </label>
                 <label className="field-group">
                   <span>Projeto</span>
@@ -525,9 +526,9 @@ export function RomaneioPage() {
               <div className="admin-form-grid manager-header-grid romaneio-catalog-search">
                 <label className="field-group field-group-wide">
                   <span>Pesquisar equipamento</span>
-                  <input
+                  <SearchBar
                     value={catalogSearch}
-                    onChange={event => setCatalogSearch(event.target.value)}
+                    onChange={setCatalogSearch}
                     placeholder="Código, item, categoria, tipo ou unidade"
                   />
                 </label>
@@ -584,7 +585,7 @@ export function RomaneioPage() {
                                     <button className="mini-btn danger" type="button" onClick={() => removeCatalogMutation.mutate(item.id)}>Remover</button>
                                   </div>
                                 ) : isManager && isRdoOwnedCatalogItem(item) ? (
-                                  <div className="rel-meta">Gerenciado no RDO</div>
+                                  <div className="rel-meta">Gerenciado pelo módulo Equipamentos</div>
                                 ) : null}
                               </div>
                               {isManager && editingCatalogId === item.id && (
