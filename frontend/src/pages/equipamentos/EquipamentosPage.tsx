@@ -17,6 +17,7 @@ import { SearchBar } from '../../components/ui/SearchBar';
 import { EquipmentFormModal } from './EquipmentFormModal';
 import { NotificationsConfig } from './NotificationsConfig';
 import { RdoSlotsConfig } from './RdoSlotsConfig';
+import { ProjectSortButton, type ProjectSortDirection } from '../../utils/projectSort';
 
 type ActiveTab = { kind: 'category'; id: string } | { kind: 'dashboard' } | { kind: 'config' } | { kind: 'notifications' };
 
@@ -47,6 +48,7 @@ export function EquipamentosPage() {
   const [equipmentForm, setEquipmentForm] = useState<{ category: EquipmentCategory; item: CompanyEquipment | null } | null>(null);
   const [categoryForm, setCategoryForm] = useState<{ open: boolean; category: EquipmentCategory | null }>({ open: false, category: null });
   const [categorySearch, setCategorySearch] = useState('');
+  const [equipmentSort, setEquipmentSort] = useState<ProjectSortDirection>('asc');
   const [confirm, setConfirm] = useState<{ title: string; description?: string; highlight?: string; onConfirm: () => void } | null>(null);
 
   const selectedCategory = activeTab.kind === 'category' ? categories.find(c => c.id === activeTab.id) || null : null;
@@ -56,14 +58,15 @@ export function EquipamentosPage() {
   const allCategoryEquipment = selectedCategory ? equipment.filter(item => item.categoryId === selectedCategory.id) : [];
   const categoryEquipment = (() => {
     const query = categorySearch.trim().toLowerCase();
-    if (!query) return allCategoryEquipment;
-    return allCategoryEquipment.filter(item => {
+    const filtered = !query ? allCategoryEquipment : allCategoryEquipment.filter(item => {
       const haystack = [item.code, item.name, ...Object.values(item.attributes || {}).map(value => String(value ?? ''))]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
       return haystack.includes(query);
     });
+    const dir = equipmentSort === 'asc' ? 1 : -1;
+    return [...filtered].sort((a, b) => a.code.localeCompare(b.code, 'pt-BR', { sensitivity: 'base' }) * dir);
   })();
 
   async function handleLogout() {
@@ -194,9 +197,12 @@ export function EquipamentosPage() {
           <section className="page-card">
             <div className="admin-toolbar">
               <div className="sec">{selectedCategory.name}</div>
-              {isManager && (
-                <button className="mini-btn" type="button" onClick={() => setEquipmentForm({ category: selectedCategory, item: null })}>+ Novo equipamento</button>
-              )}
+              <div className="equip-cat-tools">
+                <ProjectSortButton direction={equipmentSort} onToggle={() => setEquipmentSort(equipmentSort === 'asc' ? 'desc' : 'asc')} />
+                {isManager && (
+                  <button className="mini-btn" type="button" onClick={() => setEquipmentForm({ category: selectedCategory, item: null })}>+ Novo equipamento</button>
+                )}
+              </div>
             </div>
             {allCategoryEquipment.length > 0 && (
               <SearchBar

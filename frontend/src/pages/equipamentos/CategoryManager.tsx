@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { EquipmentCategory } from '../../api/equipamentos';
 import { useToast } from '../../components/ui/Toast';
 import { useEquipamentoMutations } from '../../hooks/useEquipamentos';
+import { ProjectSortButton, type ProjectSortDirection } from '../../utils/projectSort';
 
 interface Props {
   categories: EquipmentCategory[];
@@ -17,6 +18,7 @@ export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdi
   const showToast = useToast();
   const [locked, setLocked] = useState(true);
   const [ordered, setOrdered] = useState<EquipmentCategory[]>(categories);
+  const [sortDir, setSortDir] = useState<ProjectSortDirection>('asc');
   const dragIndex = useRef<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
 
@@ -31,6 +33,17 @@ export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdi
     Promise.all(changed.map(({ category, index }) => updateCategory.mutateAsync({ id: category.id, payload: { order: index } })))
       .then(() => showToast('Ordem atualizada.', 'success'))
       .catch(error => showToast(error instanceof Error ? error.message : 'Não foi possível reordenar.', 'error'));
+  }
+
+  // Ordena as categorias alfabeticamente (e persiste a nova ordem das abas).
+  function sortAlphabetically() {
+    const direction = sortDir;
+    const next = [...ordered].sort((a, b) =>
+      a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }) * (direction === 'asc' ? 1 : -1)
+    );
+    setOrdered(next);
+    persistOrder(next);
+    setSortDir(direction === 'asc' ? 'desc' : 'asc');
   }
 
   function handleDrop(targetIndex: number) {
@@ -50,6 +63,7 @@ export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdi
       <div className="admin-toolbar">
         <div className="sec">Categorias</div>
         <div className="equip-cat-tools">
+          <ProjectSortButton direction={sortDir} onToggle={sortAlphabetically} />
           <button
             className={`icon-toggle ${locked ? '' : 'active'}`}
             type="button"
