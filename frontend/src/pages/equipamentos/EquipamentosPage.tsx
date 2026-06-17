@@ -184,6 +184,35 @@ export function EquipamentosPage() {
             )}
           </nav>
 
+          <select
+            className="equip-nav-select"
+            aria-label="Selecionar seção"
+            value={activeTab.kind === 'category' ? `cat:${activeTab.id}` : activeTab.kind}
+            onChange={event => {
+              const value = event.target.value;
+              if (value === 'dashboard') setActiveTab({ kind: 'dashboard' });
+              else if (value === 'config') setActiveTab({ kind: 'config' });
+              else if (value === 'notifications') setActiveTab({ kind: 'notifications' });
+              else if (value.startsWith('cat:')) setActiveTab({ kind: 'category', id: value.slice(4) });
+            }}
+          >
+            <option value="dashboard">Dashboard</option>
+            {categories.length > 0 && (
+              <optgroup label="Categorias">
+                {categories.map(category => {
+                  const count = equipment.filter(item => item.categoryId === category.id).length;
+                  return <option key={category.id} value={`cat:${category.id}`}>{category.name} ({count})</option>;
+                })}
+              </optgroup>
+            )}
+            {isManager && (
+              <optgroup label="Gestão">
+                <option value="config">Configurações</option>
+                <option value="notifications">Notificações</option>
+              </optgroup>
+            )}
+          </select>
+
           <div className="equip-main">
         {(categoriesQuery.isLoading || equipmentQuery.isLoading) && (
           <section className="page-card"><p>Carregando…</p></section>

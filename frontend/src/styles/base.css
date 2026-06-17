@@ -7803,32 +7803,34 @@ select {
   padding-top: 12px;
 }
 
-/* Telas estreitas: rail vira chips que quebram linha (sem rolagem) */
+/* Seletor de seção (substitui o rail no mobile) — escondido no desktop */
+.equip-nav-select {
+  display: none;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  padding: 11px 14px;
+  background: var(--wh);
+  color: var(--tx);
+  font-size: 14px;
+  font-weight: 600;
+}
+.equip-nav-select:focus {
+  outline: none;
+  border-color: var(--g);
+}
+
+/* Telas estreitas: troca o rail lateral por um dropdown limpo */
 @media (max-width: 860px) {
   .equip-layout {
     flex-direction: column;
   }
   .equip-nav {
-    flex: none;
-    position: static;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .equip-nav-group {
     display: none;
   }
-  .equip-nav-item {
-    width: auto;
-    border: 1px solid var(--br);
-    border-radius: 999px;
-    padding: 6px 12px;
-    font-size: 13px;
-  }
-  .equip-nav-config {
-    border-top: 0;
-    margin-top: 0;
-    padding-top: 6px;
+  .equip-nav-select {
+    display: block;
   }
 }
 
@@ -8662,4 +8664,77 @@ input.app-search-input::-webkit-search-cancel-button {
 }
 .equip-card-zone:hover {
   background: rgba(48, 80, 58, 0.14);
+}
+
+/* Dashboard de equipamentos: tabela vira cards empilhados no mobile */
+@media (max-width: 700px) {
+  .equip-table-wrap {
+    overflow-x: visible;
+    border: 0;
+  }
+  .equip-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+  .equip-table,
+  .equip-table tbody,
+  .equip-table tr,
+  .equip-table td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .equip-table tr {
+    border: 1px solid var(--br);
+    border-radius: var(--r);
+    background: var(--wh);
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .equip-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    border: 0;
+    border-bottom: 1px solid var(--br);
+    padding: 9px 14px;
+    text-align: right;
+  }
+  .equip-table td:last-child {
+    border-bottom: 0;
+  }
+  .equip-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--mu);
+    text-align: left;
+  }
+  /* Primeira célula (Código) vira o título do card */
+  .equip-table td:first-child {
+    justify-content: flex-start;
+    background: #fafafa;
+    font-weight: 700;
+    font-size: 15px;
+  }
+  .equip-table td:first-child::before {
+    content: none;
+  }
+  /* Linha "nenhum encontrado" (colSpan) */
+  .equip-table td[colspan] {
+    justify-content: center;
+    text-align: center;
+    background: transparent;
+    border-bottom: 0;
+  }
+  .equip-table td[colspan]::before {
+    content: none;
+  }
 }

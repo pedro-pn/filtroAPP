@@ -95,12 +95,12 @@ export function EquipmentDashboard({ categories, equipment }: Props) {
               const itemStatus = calibrationStatus(item);
               return (
                 <tr key={item.id}>
-                  <td>{item.code}</td>
-                  <td>{item.name}</td>
-                  <td>{categoryById.get(item.categoryId)?.name || '—'}</td>
-                  <td>{formatDate(item.calibratedAt)}</td>
-                  <td>{formatDate(item.expiresAt)}</td>
-                  <td>{itemStatus === 'none' ? '—' : <span className={`equip-badge equip-badge-${itemStatus}`}>{statusLabel[itemStatus]}</span>}</td>
+                  <td data-label="Código">{item.code}</td>
+                  <td data-label="Nome">{item.name}</td>
+                  <td data-label="Categoria">{categoryById.get(item.categoryId)?.name || '—'}</td>
+                  <td data-label="Calibração">{formatDate(item.calibratedAt)}</td>
+                  <td data-label="Vencimento">{formatDate(item.expiresAt)}</td>
+                  <td data-label="Status">{itemStatus === 'none' ? '—' : <span className={`equip-badge equip-badge-${itemStatus}`}>{statusLabel[itemStatus]}</span>}</td>
                 </tr>
               );
             })}
