@@ -8344,6 +8344,69 @@ select {
   padding: 12px;
 }
 
+/* === Construtor de Dados Técnicos === */
+.tech-build-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: var(--wh);
+}
+
+.tech-build-row.nested {
+  background: #fafafa;
+  border-style: dashed;
+}
+
+.tech-build-main,
+.tech-build-extra,
+.tech-build-group-opts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.tech-build-main > input[type='text'] {
+  flex: 1 1 200px;
+}
+
+.tech-build-extra:empty {
+  display: none;
+}
+
+.tech-build-extra input[type='text'],
+.tech-build-extra select,
+.tech-build-main input[type='text'],
+.tech-build-main select,
+.tech-build-group-opts input[type='text'] {
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  padding: 7px 9px;
+  background: #fafafa;
+  color: var(--tx);
+  font-size: 13px;
+  min-width: 0;
+}
+
+.tech-build-group {
+  border-top: 1px dashed var(--br);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tech-build-subfields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--br);
+}
+
 .equip-field-row {
   display: flex;
   flex-wrap: wrap;

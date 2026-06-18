@@ -262,10 +262,14 @@ O script é **idempotente** (pula categoria/campo já existente por `key`) e rod
   datasheet; `GET /units-catalog`. Testes em `equipment-technical-schema.test.js` (434/434).
 - [ ] Deploy no servidor: `prisma migrate deploy` + `generate` (ver rodapé).
 
-**Etapa B — Configuração por categoria (gestor)**
-- Construtor de campos técnicos no `CategoryFormModal` (tipos, unidade/grandeza, opções,
-  repetível, opcional-por-equipamento, ordem por arrastar).
-- Validação backend do `technicalSchema`.
+**Etapa B — Configuração por categoria (gestor) ✅ (feita)**
+- [x] Toggle "Dados Técnicos (datasheet preenchível)" (`technicalDocEnabled`) no
+  `CategoryFormModal`, ao lado do PDF anexo legado.
+- [x] `TechnicalSchemaBuilder.tsx` — construtor por campo: rótulo, tipo (vocabulário
+  completo), grandeza (measure), opções (select/multiselect), seção, flags
+  obrig./opcional-por-equip./no-doc, e sub-builder de subcampos para grupos repetíveis.
+- [x] Keys preservadas em edição (imutáveis); validação pesada no backend
+  (`normalizeTechnicalSchema`). `tsc -b` + ESLint limpos.
 
 **Etapa C — Preenchimento (equipamento) ✅ (feita)**
 - [x] `TechnicalDataModal.tsx` — form dinâmico a partir do `technicalSchema`: widgets por

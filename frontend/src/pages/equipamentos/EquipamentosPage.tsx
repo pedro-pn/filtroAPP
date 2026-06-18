@@ -323,6 +323,7 @@ export function EquipamentosPage() {
           open
           category={categoryForm.category}
           saving={savingCategory}
+          unitsCatalog={unitsCatalogQuery.data || []}
           onClose={() => setCategoryForm({ open: false, category: null })}
           onSubmit={handleCategorySubmit}
         />
