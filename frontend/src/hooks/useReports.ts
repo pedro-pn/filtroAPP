@@ -12,10 +12,14 @@ import {
   getReport,
   listReports,
   listReportsPage,
+  replaceManualReportPdf,
   requestReportSignature,
   updateReport,
   updateReportSequence,
   updateReportStatus,
+  uploadManualReport,
+  type ManualReportPdfReplacePayload,
+  type ManualReportUploadPayload,
   type PaginatedReports,
   type ReportCountQuery,
   type ReportFilters,
@@ -24,6 +28,7 @@ import {
 } from '../api/reports';
 import { useAuth } from '../auth/AuthContext';
 import type { ReportPayload, ReportStatus, ReportSummary, ServiceOnlyReportPayload } from '../types/domain';
+import { matchesSearch, reportSearchParts } from '../utils/search';
 import { queryKeys } from './queryKeys';
 
 interface LoadMoreReportGroupOptions {
@@ -173,40 +178,8 @@ function filtersFromAccumulatedReportsStorageKey(storageKey: string, userId?: st
   }
 }
 
-function normalizeReportSearchValue(value: unknown) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-}
-
 function reportMatchesSearch(report: ReportSummary, term?: string) {
-  const normalizedTerm = normalizeReportSearchValue(term || '').trim();
-  if (normalizedTerm.length < 2) return true;
-  const parts = [
-    report.reportType,
-    report.sequenceNumber,
-    report.status,
-    report.reportDate,
-    report.project?.code,
-    report.project?.name,
-    report.project?.clientName,
-    report.project?.clientCnpj,
-    report.createdBy?.name,
-    report.createdBy?.collaborator?.name,
-    report.overtimeReason,
-    report.dailyDescription,
-    report.reviewNotes,
-    ...(report.collaborators || []).map(item => item.collaborator?.name),
-    ...(report.services || []).flatMap(service => [
-      service.serviceType,
-      service.equipment?.code,
-      service.equipment?.name,
-      service.system,
-      service.material
-    ])
-  ];
-  return normalizeReportSearchValue(parts.join(' ')).includes(normalizedTerm);
+  return matchesSearch(reportSearchParts(report), term || '');
 }
 
 function hasActiveClientRejection(report: ReportSummary) {
@@ -716,6 +689,28 @@ export function useReportMutations() {
     }
   });
 
+  const uploadManualReportMutation = useMutation({
+    mutationFn: (payload: ManualReportUploadPayload) => uploadManualReport(payload),
+    onSuccess: report => {
+      clearAccumulatedReportsCache();
+      queryClient.setQueryData(['report', report.id], report);
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
+    }
+  });
+
+  const replaceManualReportPdfMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: ManualReportPdfReplacePayload }) =>
+      replaceManualReportPdf(id, payload),
+    onSuccess: report => {
+      updateAccumulatedReportsCache(report);
+      updateReportCaches(queryClient, report);
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['report', report.id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.reportAudit(report.id) });
+    }
+  });
+
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Omit<ReportPayload, 'createdByUserId' | 'status'> }) =>
       updateReport(id, payload),
@@ -816,6 +811,8 @@ export function useReportMutations() {
   return {
     createReport: createMutation,
     createServiceOnlyReports: createServiceOnlyMutation,
+    uploadManualReport: uploadManualReportMutation,
+    replaceManualReportPdf: replaceManualReportPdfMutation,
     updateReport: updateMutation,
     updateStatus: updateStatusMutation,
     updateSequence: updateSequenceMutation,

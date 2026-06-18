@@ -11,6 +11,7 @@ const requireRdoStats = requireModuleRole('rdo:manager', 'rdo:coordinator');
 const MAX_YEARS = 2;
 const MAX_STATS_REPORTS = 5000;
 const MAX_DAILY_REPORTS = 500;
+const MANUAL_REPORT_UPLOAD_KEY = '__manualUpload';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -260,6 +261,11 @@ function mergeServicesMap(acc, src) {
   }
 }
 
+export function isManualUploadedReport(report) {
+  const sc = report?.specialConditions || {};
+  return sc.source === 'MANUAL_UPLOAD' || !!sc[MANUAL_REPORT_UPLOAD_KEY]?.uploadedAt;
+}
+
 export function buildServiceStats(services, ignoredRows) {
   const result = {};
 
@@ -307,9 +313,13 @@ function summarize(reports) {
 
   let daytimeColTotal = 0;
   let nighttimeColTotal = 0;
+  let operationalReportCount = 0;
 
   for (const r of reports) {
     summary.reportCount += 1;
+    if (isManualUploadedReport(r)) continue;
+
+    operationalReportCount += 1;
     summary.totalDays += 1;
     summary.daytimeWorkedMinutes += r.daytimeWorkedMinutes || 0;
     summary.nighttimeWorkedMinutes += r.nighttimeWorkedMinutes || 0;
@@ -327,9 +337,9 @@ function summarize(reports) {
     nighttimeColTotal += Array.isArray(noturnoIds) ? noturnoIds.length : 0;
   }
 
-  if (summary.reportCount > 0) {
-    summary.avgDaytimeCollaborators = Math.round((daytimeColTotal / summary.reportCount) * 10) / 10;
-    summary.avgNighttimeCollaborators = Math.round((nighttimeColTotal / summary.reportCount) * 10) / 10;
+  if (operationalReportCount > 0) {
+    summary.avgDaytimeCollaborators = Math.round((daytimeColTotal / operationalReportCount) * 10) / 10;
+    summary.avgNighttimeCollaborators = Math.round((nighttimeColTotal / operationalReportCount) * 10) / 10;
   }
 
   return summary;
@@ -337,13 +347,14 @@ function summarize(reports) {
 
 export function buildDailyReport(r) {
   const sc = r.specialConditions || {};
+  const manualUpload = isManualUploadedReport(r);
   const noturnoIds = sc.noturnoDetails?.collaboratorIds;
-  const isStandby = sc.standby === true;
+  const isStandby = !manualUpload && sc.standby === true;
 
   const servicesByType = {};
   const ignoredRows = { volumeOleo: 0, tubulacao: 0 };
 
-  for (const svc of (r.services || [])) {
+  for (const svc of (manualUpload ? [] : (r.services || []))) {
     const type = (svc.serviceType || '').toLowerCase();
     const finalized = isServiceFinalized(svc);
     if (!finalized) continue;
@@ -390,14 +401,14 @@ export function buildDailyReport(r) {
     reportDate: r.reportDate,
     sequenceNumber: r.sequenceNumber,
     status: r.status,
-    daytimeWorkedMinutes: r.daytimeWorkedMinutes || 0,
-    nighttimeWorkedMinutes: r.nighttimeWorkedMinutes || 0,
-    daytimeOvertimeMinutes: r.daytimeOvertimeMinutes || 0,
-    nighttimeOvertimeMinutes: r.nighttimeOvertimeMinutes || 0,
+    daytimeWorkedMinutes: manualUpload ? 0 : r.daytimeWorkedMinutes || 0,
+    nighttimeWorkedMinutes: manualUpload ? 0 : r.nighttimeWorkedMinutes || 0,
+    daytimeOvertimeMinutes: manualUpload ? 0 : r.daytimeOvertimeMinutes || 0,
+    nighttimeOvertimeMinutes: manualUpload ? 0 : r.nighttimeOvertimeMinutes || 0,
     standby: isStandby,
     standbyMinutes: isStandby ? parseMinutes(sc.standbyDetails?.total) : 0,
-    daytimeCollaborators: r.daytimeCount || 0,
-    nighttimeCollaborators: Array.isArray(noturnoIds) ? noturnoIds.length : 0,
+    daytimeCollaborators: manualUpload ? 0 : r.daytimeCount || 0,
+    nighttimeCollaborators: !manualUpload && Array.isArray(noturnoIds) ? noturnoIds.length : 0,
     services: servicesByType
   };
 }
@@ -459,6 +470,7 @@ function recipientEmailError(value) {
 }
 
 export function buildServiceExportRows(report, project) {
+  if (isManualUploadedReport(report)) return [];
   const rows = [];
   const dateStr = toLocalDateStr(report.reportDate);
 
@@ -609,6 +621,7 @@ router.get('/projects', requireAuth, requireRdoStats, asyncHandler(async (req, r
     const globalSummary = summarize(reports);
     const globalServices = {};
     for (const r of reports) {
+      if (isManualUploadedReport(r)) continue;
       const s = buildServiceStats(r.services, ignoredRows);
       mergeServicesMap(globalServices, s);
     }
@@ -632,6 +645,7 @@ router.get('/projects', requireAuth, requireRdoStats, asyncHandler(async (req, r
       }
       const slot = timelineMap.get(key);
       slot.reportCount += 1;
+      if (isManualUploadedReport(r)) continue;
       slot.daytimeWorkedMinutes += r.daytimeWorkedMinutes || 0;
       slot.nighttimeWorkedMinutes += r.nighttimeWorkedMinutes || 0;
       slot.daytimeOvertimeMinutes += r.daytimeOvertimeMinutes || 0;
@@ -658,6 +672,7 @@ router.get('/projects', requireAuth, requireRdoStats, asyncHandler(async (req, r
       const pIgnored = { volumeOleo: 0, tubulacao: 0 };
       const pServices = {};
       for (const r of pReports) {
+        if (isManualUploadedReport(r)) continue;
         mergeServicesMap(pServices, buildServiceStats(r.services, pIgnored));
       }
       return {

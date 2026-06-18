@@ -8,9 +8,12 @@ export interface ProjectPayload {
   visibleToCollaborators?: boolean;
   managerOnly?: boolean;
   inhibitionServiceEnabled?: boolean;
+  requireServiceReportSignatures?: boolean;
   clientName: string;
   clientCnpj: string;
   clientEmailPrimary?: string;
+  clientSignerFirstName?: string;
+  clientSignerLastName?: string;
   clientEmailCc?: string[];
   clientSigners?: ClientSigner[];
   contractCode: string;

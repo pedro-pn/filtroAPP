@@ -53,6 +53,6 @@ export function reportSignatureProgress(report: ReportSummary): SignatureProgres
 export function signedSignerNames(progress: SignatureProgress) {
   return progress.signers
     .filter(signer => signer.status === 'SIGNED')
-    .map(signer => signer.name)
+    .map(signer => signer.declaredName || signer.name)
     .filter(Boolean);
 }

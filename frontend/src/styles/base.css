@@ -2190,7 +2190,19 @@ a {
 }
 
 .cc-name-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
   padding: 0 12px 8px;
+}
+
+.cc-name-row label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  color: var(--mu);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .cc-name-input {
@@ -2200,6 +2212,12 @@ a {
   background: var(--wh);
   padding: 4px 8px;
   font-size: 12px;
+}
+
+@media (max-width: 520px) {
+  .cc-name-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .cc-add-row {
@@ -3180,10 +3198,15 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   justify-content: center;
   padding: 18px;
   background: rgba(0, 0, 0, 0.42);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-card {
   width: min(100%, 420px);
+  max-height: calc(100dvh - 36px);
+  box-sizing: border-box;
+  overflow-y: auto;
   border: 1px solid var(--br);
   border-radius: var(--r);
   background: var(--wh);
@@ -3917,6 +3940,73 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 
 .tog-row:last-child {
   border-bottom: none;
+}
+
+.project-toggle-row {
+  border-bottom: 0;
+  padding: 8px 0;
+}
+
+.manual-report-actions {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--br);
+}
+
+.manual-report-modal {
+  width: min(100%, 860px);
+}
+
+.manual-report-file-list {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.manual-report-file-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--br);
+  border-radius: var(--r);
+  background: var(--wh);
+  padding: 12px;
+}
+
+.manual-report-file-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.manual-report-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tx);
+}
+
+.manual-report-file-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.manual-report-file-fields.with-service {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 760px) {
+  .manual-report-file-fields,
+  .manual-report-file-fields.with-service {
+    grid-template-columns: 1fr;
+  }
 }
 
 .tog-lbl {
@@ -4817,6 +4907,10 @@ select {
     padding: 8px;
   }
 
+  .modal-card {
+    max-height: calc(100dvh - 16px);
+  }
+
   .survey-question-editor-modal {
     width: calc(100vw - 16px);
     height: calc(100dvh - 16px);
@@ -5510,7 +5604,20 @@ select {
 .survey-dash-proj-expired  { background: rgba(100,100,100,0.08);color: var(--mu); }
 
 .signature-modal {
+  width: min(100%, 680px);
   max-width: 680px;
+  max-height: calc(100dvh - 36px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.signature-modal-body {
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
 }
 
 .signature-modal .modal-head {
@@ -5536,11 +5643,15 @@ select {
 }
 
 .signature-modal .modal-actions {
+  flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 16px;
+  margin: 12px -18px -18px;
+  padding: 12px 18px 18px;
+  border-top: 1px solid var(--br);
+  background: var(--wh);
 }
 
 .signature-statement-text {
@@ -5558,6 +5669,22 @@ select {
   border-radius: 8px;
   background: #f7fbf7;
   color: var(--tx);
+}
+
+.signature-modal .privacy-notice {
+  margin: 12px 0;
+}
+
+.signature-modal .form-error {
+  margin: 0 0 12px;
+  border: 1px solid rgba(180, 54, 54, 0.25);
+  border-radius: var(--rs);
+  padding: 10px 12px;
+  background: #fff1f1;
+  color: #962b2b;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .privacy-notice-title {
@@ -5995,6 +6122,88 @@ select {
 .signature-remember-option input {
   width: 16px;
   height: 16px;
+}
+
+@media (max-width: 640px) {
+  .signature-modal {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    padding: 14px;
+  }
+
+  .signature-modal .modal-head {
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .signature-modal .modal-head h2 {
+    font-size: 20px;
+    line-height: 1.2;
+  }
+
+  .signature-modal .modal-actions {
+    margin: 14px -14px -14px;
+    padding: 12px 14px 14px;
+  }
+
+  .signature-modal .modal-actions .primary-button,
+  .signature-modal .modal-actions .secondary-button {
+    flex: 1 1 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+
+  .signature-name-field,
+  .signature-statement-text {
+    margin-bottom: 10px;
+  }
+
+  .signature-mode-tabs {
+    width: 100%;
+  }
+
+  .signature-mode-tabs button {
+    flex: 1 1 0;
+  }
+
+  .signature-canvas-shell {
+    height: clamp(132px, 32dvh, 180px);
+  }
+
+  .signature-upload-drop {
+    min-height: clamp(132px, 32dvh, 180px);
+  }
+}
+
+@media (max-height: 620px) {
+  .signature-modal {
+    max-height: calc(100dvh - 16px);
+  }
+
+  .signature-modal .modal-head {
+    margin-bottom: 8px;
+  }
+
+  .signature-statement-text {
+    margin-bottom: 10px;
+  }
+
+  .signature-mode-tabs {
+    margin-bottom: 10px;
+  }
+
+  .signature-canvas-shell {
+    height: 128px;
+  }
+
+  .signature-upload-drop {
+    min-height: 128px;
+  }
+
+  .signature-modal .privacy-notice {
+    max-height: 130px;
+    overflow: auto;
+  }
 }
 
 .public-signature-card {
@@ -8594,6 +8803,11 @@ select {
   background: rgba(48, 80, 58, 0.05);
 }
 
+.pdf-dropzone[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .pdf-dropzone-icon,
 .upload-dropzone-icon {
   flex: 0 0 auto;
@@ -8892,6 +9106,13 @@ input.app-search-input::-webkit-search-cancel-button {
 .confirm-dialog {
   width: min(100%, 440px);
 }
+
+.reason-dialog-actions {
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
 .confirm-dialog-item {
   margin-top: 12px;
   padding: 10px 12px;

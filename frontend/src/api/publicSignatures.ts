@@ -7,6 +7,7 @@ export interface PublicSignatureReportPayload {
   expiresAt?: string | null;
   signer: {
     name: string;
+    prefillName?: boolean;
     declaredName?: string | null;
     email: string;
     status: string;
@@ -34,6 +35,7 @@ export interface PublicSignaturePayload {
   signer?: {
     signatureId?: string;
     name: string;
+    prefillName?: boolean;
     declaredName?: string | null;
     email: string;
     status: string;

@@ -5,21 +5,43 @@ import 'driver.js/dist/driver.css';
 
 const STORAGE_KEY_PREFIX = 'filtrovali-tutorial-done';
 
-function tutorialStorageKey(userId: string) {
-  return `${STORAGE_KEY_PREFIX}:${userId}`;
+function normalizeTutorialIdentity(value: string) {
+  return value.trim().toLowerCase();
 }
 
-function hasDoneTutorial(userId: string) {
+function tutorialStorageKey(identity: string) {
+  return `${STORAGE_KEY_PREFIX}:${normalizeTutorialIdentity(identity)}`;
+}
+
+function tutorialStorageIdentities(identity: string, legacyIdentities: string[] = []) {
+  const identities = [identity, ...legacyIdentities]
+    .map(normalizeTutorialIdentity)
+    .filter(Boolean);
+  return Array.from(new Set(identities));
+}
+
+function hasDoneTutorial(identity: string, legacyIdentities: string[] = []) {
   try {
-    return localStorage.getItem(tutorialStorageKey(userId)) === '1';
+    const identities = tutorialStorageIdentities(identity, legacyIdentities);
+    const done = identities.some(item => localStorage.getItem(tutorialStorageKey(item)) === '1');
+    if (done && identities[0]) {
+      try {
+        localStorage.setItem(tutorialStorageKey(identities[0]), '1');
+      } catch {
+        // A leitura já confirmou que o tutorial foi visto; falha ao migrar não deve reexibir.
+      }
+    }
+    return done;
   } catch {
     return false;
   }
 }
 
-function markTutorialDone(userId: string) {
+function markTutorialDone(identity: string, legacyIdentities: string[] = []) {
   try {
-    localStorage.setItem(tutorialStorageKey(userId), '1');
+    tutorialStorageIdentities(identity, legacyIdentities).forEach(item => {
+      localStorage.setItem(tutorialStorageKey(item), '1');
+    });
   } catch {
     // ignore
   }
@@ -206,17 +228,19 @@ function buildSteps() {
 }
 
 interface ClientTutorialProps {
-  userId: string;
+  userKey: string;
+  legacyUserKeys?: string[];
   ready: boolean;
   triggerRef: React.MutableRefObject<(() => void) | null>;
 }
 
-export function ClientTutorial({ userId, ready, triggerRef }: ClientTutorialProps) {
+export function ClientTutorial({ userKey, legacyUserKeys = [], ready, triggerRef }: ClientTutorialProps) {
   const hasStarted = useRef(false);
 
   function startTutorial() {
     const steps = buildSteps();
     if (!steps.length) return;
+    markTutorialDone(userKey, legacyUserKeys);
 
     const driverObj = driver({
       showProgress: true,
@@ -229,7 +253,6 @@ export function ClientTutorial({ userId, ready, triggerRef }: ClientTutorialProp
       smoothScroll: true,
       overlayOpacity: 0.6,
       onDestroyStarted: (_el, _step, { driver: d }) => {
-        markTutorialDone(userId);
         d.destroy();
       },
       steps,
@@ -246,13 +269,13 @@ export function ClientTutorial({ userId, ready, triggerRef }: ClientTutorialProp
   // Dispara automaticamente no primeiro acesso
   useEffect(() => {
     if (!ready || hasStarted.current) return;
-    if (hasDoneTutorial(userId)) return;
+    if (hasDoneTutorial(userKey, legacyUserKeys)) return;
     hasStarted.current = true;
     // Pequeno delay para garantir que todos os elementos estejam no DOM
     const timer = setTimeout(startTutorial, 600);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, userId]);
+  }, [legacyUserKeys, ready, userKey]);
 
   return null;
 }

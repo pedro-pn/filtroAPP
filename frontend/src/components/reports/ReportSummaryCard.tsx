@@ -79,6 +79,13 @@ function summarizeServices(services: ReportSummary['services']) {
     .join(' | ');
 }
 
+function isManualUploadedReport(report: ReportSummary) {
+  const special = report.specialConditions || {};
+  const manualUpload = special.__manualUpload;
+  return special.source === 'MANUAL_UPLOAD'
+    || Boolean(manualUpload && typeof manualUpload === 'object' && !Array.isArray(manualUpload) && 'uploadedAt' in manualUpload);
+}
+
 function clientReviewDateValue(value?: string | null) {
   const time = value ? new Date(value).getTime() : 0;
   return Number.isNaN(time) ? 0 : time;
@@ -163,7 +170,8 @@ export function ReportSummaryCard({
   const legacyRejectionComment =
     clientRejections.length && reviewNotes && !rejectionComments.has(reviewNotes) ? reviewNotes : '';
   const owner = report.createdBy?.collaborator?.name || report.createdBy?.name || '—';
-  const services = summarizeServices(report.services) || 'Sem serviços';
+  const manualUpload = isManualUploadedReport(report);
+  const services = manualUpload ? 'Relatório adicionado manualmente' : summarizeServices(report.services) || 'Sem serviços';
 
   function handleOpenDetail() {
     navigate(rdoReportDetailPath(user, report.id));
@@ -186,7 +194,7 @@ export function ReportSummaryCard({
             {owner} · {formatDate(report.reportDate)}
             <br />
             {services}
-            {report.arrivalTime || report.departureTime ? (
+            {!manualUpload && (report.arrivalTime || report.departureTime) ? (
               <>
                 <br />
                 {report.arrivalTime} às {report.departureTime}

@@ -12,7 +12,7 @@ import prisma from '../../lib/prisma.js';
 import { clearPendingProjectLegacyExternalSignatureState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
 import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
-import { reconcileProjectClientSignatureRequirements } from './reports.js';
+import { ensureProjectReleasedServiceReportSignatureRounds, reconcileProjectClientSignatureRequirements } from './reports.js';
 
 const router = Router();
 const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
@@ -25,12 +25,17 @@ const schema = z.object({
   visibleToCollaborators: z.boolean().default(true),
   managerOnly: z.boolean().default(false),
   inhibitionServiceEnabled: z.boolean().default(false),
+  requireServiceReportSignatures: z.boolean().default(false),
   clientName: z.string().min(1),
   clientCnpj: z.string().min(1),
   clientEmailPrimary: z.union([emailSchema, z.literal('')]).default(''),
+  clientSignerFirstName: z.string().optional().default(''),
+  clientSignerLastName: z.string().optional().default(''),
   clientEmailCc: z.array(emailSchema).default([]),
   clientSigners: z.array(z.object({
-    name: z.string().min(1),
+    name: z.string().optional().default(''),
+    firstName: z.string().optional().default(''),
+    lastName: z.string().optional().default(''),
     email: emailSchema
   })).default([]),
   contractCode: z.string().min(1),
@@ -47,6 +52,27 @@ const schema = z.object({
     nextNumber: z.number().int().nonnegative()
   })).default([])
 });
+
+function splitPersonName(name = '') {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] || '',
+    lastName: parts.slice(1).join(' ')
+  };
+}
+
+function normalizeClientSigner(rawSigner) {
+  const fromName = splitPersonName(rawSigner?.name);
+  const firstName = String(rawSigner?.firstName || fromName.firstName || '').trim();
+  const lastName = String(rawSigner?.lastName || fromName.lastName || '').trim();
+  const name = [firstName, lastName].filter(Boolean).join(' ') || String(rawSigner?.name || '').trim();
+  return {
+    name,
+    firstName,
+    lastName,
+    email: String(rawSigner?.email || '').trim().toLowerCase()
+  };
+}
 
 function normalizeProjectInput(data) {
   const normalizedCnpj = normalizeCnpj(data.clientCnpj);
@@ -66,7 +92,7 @@ function normalizeProjectInput(data) {
 
   const seenSignerEmails = new Set();
   const clientSigners = (data.clientSigners || [])
-    .map(s => ({ name: String(s.name || '').trim(), email: String(s.email || '').trim().toLowerCase() }))
+    .map(normalizeClientSigner)
     .filter(s => s.name && s.email && s.email !== primary)
     .filter(s => { if (seenSignerEmails.has(s.email)) return false; seenSignerEmails.add(s.email); return true; });
   const signerEmails = clientSigners.map(s => s.email);
@@ -78,6 +104,8 @@ function normalizeProjectInput(data) {
     visibleToCollaborators: data.managerOnly ? false : data.visibleToCollaborators,
     clientCnpj: normalizedCnpj,
     clientEmailPrimary: primary,
+    clientSignerFirstName: String(data.clientSignerFirstName || '').trim(),
+    clientSignerLastName: String(data.clientSignerLastName || '').trim(),
     clientEmailCc: allClientEmailCc,
     clientSigners
   };
@@ -349,16 +377,26 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
 
 router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
   const parsed = schema.partial().parse(req.body);
-  const shouldReconcileClientSigners = parsed.clientEmailPrimary !== undefined || parsed.clientSigners !== undefined;
+  const shouldReconcileClientSigners = parsed.clientEmailPrimary !== undefined
+    || parsed.clientSignerFirstName !== undefined
+    || parsed.clientSignerLastName !== undefined
+    || parsed.clientSigners !== undefined;
   const shouldUpdateProjectVisibility = parsed.managerOnly !== undefined || parsed.isActive !== undefined;
   const evidence = shouldReconcileClientSigners || shouldUpdateProjectVisibility ? signatureEvidenceFromRequest(req) : null;
   let data = parsed;
-  if (parsed.clientCnpj !== undefined || parsed.clientEmailPrimary !== undefined || parsed.clientEmailCc !== undefined || parsed.clientSigners !== undefined) {
+  if (parsed.clientCnpj !== undefined
+    || parsed.clientEmailPrimary !== undefined
+    || parsed.clientSignerFirstName !== undefined
+    || parsed.clientSignerLastName !== undefined
+    || parsed.clientEmailCc !== undefined
+    || parsed.clientSigners !== undefined) {
     const existingProject = await prisma.project.findUniqueOrThrow({
       where: { id: req.params.id },
       select: {
         clientCnpj: true,
         clientEmailPrimary: true,
+        clientSignerFirstName: true,
+        clientSignerLastName: true,
         clientEmailCc: true,
         clientSigners: true
       }
@@ -367,6 +405,8 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
       ...parsed,
       clientCnpj: parsed.clientCnpj ?? existingProject.clientCnpj,
       clientEmailPrimary: parsed.clientEmailPrimary ?? existingProject.clientEmailPrimary,
+      clientSignerFirstName: parsed.clientSignerFirstName ?? existingProject.clientSignerFirstName,
+      clientSignerLastName: parsed.clientSignerLastName ?? existingProject.clientSignerLastName,
       clientEmailCc: parsed.clientEmailCc ?? existingProject.clientEmailCc,
       clientSigners: parsed.clientSigners ?? existingProject.clientSigners
     });
@@ -390,6 +430,8 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
         clientCnpj: true,
         clientName: true,
         clientEmailPrimary: true,
+        clientSignerFirstName: true,
+        clientSignerLastName: true,
         clientEmailCc: true,
         contractCode: true,
         location: true,
@@ -468,6 +510,12 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
     await reconcileProjectClientSignatureRequirements(item.id, {
       userId: req.auth.user.id,
       evidence
+    });
+  }
+  if (parsed.requireServiceReportSignatures === true) {
+    await ensureProjectReleasedServiceReportSignatureRounds(item.id, {
+      userId: req.auth.user.id,
+      evidence: signatureEvidenceFromRequest(req)
     });
   }
 

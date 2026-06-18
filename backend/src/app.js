@@ -56,8 +56,11 @@ app.use((req, res, next) => {
     '/api/rdo/particle-counters',
     '/api/equipamentos'
   ].some(prefix => req.path === prefix || req.path.startsWith(`${prefix}/`));
+  const isManualReportUploadApi = req.path === '/api/reports/manual-upload'
+    || req.path === '/api/rdo/reports/manual-upload'
+    || /^\/api(?:\/rdo)?\/reports\/[^/]+\/manual-pdf$/.test(req.path);
   const isSignatureApi = req.path.includes('/request-signature') || req.path.includes('/public-sign');
-  const limit = isUploadsApi || isEquipmentUploadApi ? '25mb' : isSignatureApi ? '3mb' : '1mb';
+  const limit = isUploadsApi || isEquipmentUploadApi || isManualReportUploadApi ? '25mb' : isSignatureApi ? '3mb' : '1mb';
   return express.json({ limit })(req, res, next);
 });
 app.use(morgan('dev'));

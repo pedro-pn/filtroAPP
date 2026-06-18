@@ -269,6 +269,47 @@ test('daily report summary includes per-service measurements and standby minutes
   }]);
 });
 
+test('manual uploaded reports keep only simple report stats in daily detail and service exports', () => {
+  const manualReport = {
+    id: 'manual-rdo-1',
+    reportDate: new Date('2026-05-13T00:00:00.000Z'),
+    sequenceNumber: 44,
+    status: 'APPROVED',
+    daytimeWorkedMinutes: 540,
+    nighttimeWorkedMinutes: 120,
+    daytimeOvertimeMinutes: 60,
+    nighttimeOvertimeMinutes: 15,
+    daytimeCount: 5,
+    specialConditions: {
+      source: 'MANUAL_UPLOAD',
+      __manualUpload: { uploadedAt: '2026-05-13T12:00:00.000Z' },
+      standby: true,
+      standbyDetails: { total: '02:30' },
+      noturnoDetails: { collaboratorIds: ['c1', 'c2'] }
+    },
+    services: [{
+      id: 'svc-manual-1',
+      serviceType: 'filtragem',
+      finalized: true,
+      system: 'Sistema A',
+      equipment: { code: 'EQ-1', name: 'Unidade' },
+      extraData: { 'Volume de óleo': '2 L' }
+    }]
+  };
+
+  const daily = buildDailyReport(manualReport);
+  assert.equal(daily.reportId, 'manual-rdo-1');
+  assert.equal(daily.daytimeWorkedMinutes, 0);
+  assert.equal(daily.nighttimeWorkedMinutes, 0);
+  assert.equal(daily.daytimeOvertimeMinutes, 0);
+  assert.equal(daily.nighttimeOvertimeMinutes, 0);
+  assert.equal(daily.daytimeCollaborators, 0);
+  assert.equal(daily.nighttimeCollaborators, 0);
+  assert.equal(daily.standby, false);
+  assert.deepEqual(daily.services, {});
+  assert.deepEqual(buildServiceExportRows(manualReport, { code: 'PRJ-1' }), []);
+});
+
 test('project segment validation accepts blank or active slugs and rejects inactive slugs', async () => {
   let lastWhere = null;
   const prismaClient = {

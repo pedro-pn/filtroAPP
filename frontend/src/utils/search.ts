@@ -7,10 +7,30 @@ export function normalizeSearchValue(value: unknown) {
     .toLowerCase();
 }
 
+function compactSearchValue(value: string) {
+  return value.replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+export function searchTokens(query: string) {
+  return normalizeSearchValue(query)
+    .trim()
+    .split(/\s+/)
+    .map(token => token.trim())
+    .filter(Boolean);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
 export function matchesSearch(parts: unknown[], query: string) {
-  const term = normalizeSearchValue(query.trim());
-  if (!term) return true;
-  return normalizeSearchValue(parts.join(' ')).includes(term);
+  const tokens = searchTokens(query);
+  if (!tokens.length) return true;
+  const searchable = normalizeSearchValue(parts.join(' '));
+  const compactSearchable = compactSearchValue(searchable);
+  return tokens.every(token => (
+    searchable.includes(token) || compactSearchable.includes(compactSearchValue(token))
+  ));
 }
 
 export function projectSearchParts(project: Project) {
@@ -20,8 +40,10 @@ export function projectSearchParts(project: Project) {
     project.clientName,
     project.clientCnpj,
     project.clientEmailPrimary,
+    project.clientSignerFirstName,
+    project.clientSignerLastName,
     ...(project.clientEmailCc || []),
-    ...(project.clientSigners || []).flatMap(signer => [signer.name, signer.email]),
+    ...(project.clientSigners || []).flatMap(signer => [signer.name, signer.firstName, signer.lastName, signer.email]),
     project.contractCode,
     project.location,
     project.operator?.name,
@@ -31,6 +53,9 @@ export function projectSearchParts(project: Project) {
 }
 
 export function reportSearchParts(report: ReportSummary) {
+  const specialConditions = asRecord(report.specialConditions);
+  const serviceData = asRecord(specialConditions.serviceData);
+  const manualUpload = asRecord(specialConditions.__manualUpload);
   return [
     report.reportType,
     report.sequenceNumber,
@@ -45,6 +70,8 @@ export function reportSearchParts(report: ReportSummary) {
     report.overtimeReason,
     report.dailyDescription,
     report.reviewNotes,
+    ...Object.values(serviceData),
+    manualUpload.originalFileName,
     ...(report.collaborators || []).map(item => item.collaborator?.name),
     ...(report.services || []).flatMap(service => [
       service.serviceType,
