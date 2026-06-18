@@ -8,6 +8,10 @@ import {
   normalizeUnit,
   defaultUnitFor
 } from '../src/lib/equipment-units.js';
+import {
+  buildTechnicalSchemaFromTracking,
+  countTechnicalFields
+} from '../src/lib/equipment-technical-seed.js';
 
 test('normalizeTechnicalSchema keeps known types and slugifies keys', () => {
   const out = normalizeTechnicalSchema([
@@ -61,6 +65,37 @@ test('normalizeTechnicalSchema drops duplicate keys and keeps select options', (
   ]);
   assert.equal(out.length, 1);
   assert.deepEqual(out[0].options, ['Visual', 'Digital']);
+});
+
+test('buildTechnicalSchemaFromTracking maps tracking types and infers measure dimension', () => {
+  const schema = buildTechnicalSchemaFromTracking([
+    { label: 'Tipo de Fluido', key: 'tipo_de_fluido', type: 'short_text', unit_hint: null },
+    { label: 'Reagentes', key: 'reagentes', type: 'long_text' },
+    { label: 'Canais', key: 'canais', type: 'integer_or_text' },
+    { label: 'Pressão Máxima', key: 'pressao_maxima', type: 'measurement_text', unit_hint: 'bar / kgf/cm² / psi' }
+  ]);
+  assert.equal(schema.length, 4);
+  assert.equal(schema[0].type, 'text');
+  assert.equal(schema[1].type, 'textarea');
+  assert.equal(schema[2].type, 'number');
+  assert.equal(schema[3].type, 'measure');
+  assert.equal(schema[3].unit.dimension, 'pressao');
+  assert.equal(schema[3].unit.default, 'bar');
+});
+
+test('buildTechnicalSchemaFromTracking flags optional from notes and wraps allow_multiple as group', () => {
+  const schema = buildTechnicalSchemaFromTracking([
+    { label: 'Câmera', key: 'camera', type: 'short_text', notes: 'Não aparece em todos os exemplos da categoria. ' },
+    { label: 'Motor Elétrico', key: 'motor_eletrico', type: 'measurement_text', unit_hint: 'CV / kW / hp / W', allow_multiple: true }
+  ]);
+  const [optional, group] = schema;
+  assert.equal(optional.optionalPerEquipment, true);
+  assert.equal(group.type, 'group');
+  assert.equal(group.repeatable, true);
+  assert.equal(group.itemSchema.length, 1);
+  assert.equal(group.itemSchema[0].type, 'measure');
+  assert.equal(group.itemSchema[0].unit.dimension, 'potencia');
+  assert.equal(countTechnicalFields(schema), 3); // 1 + (grupo 1 + subcampo 1)
 });
 
 test('measurement catalog maps unit hints from the tracking JSON', () => {

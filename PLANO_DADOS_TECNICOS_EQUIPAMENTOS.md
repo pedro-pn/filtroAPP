@@ -286,9 +286,19 @@ O script é **idempotente** (pula categoria/campo já existente por `key`) e rod
   clone de linhas para grupos) + template genérico padrão.
 - Botões "Gerar"/"Baixar"; servir via rota por token; cache `TECHNICAL_DOC_GENERATED`.
 
-**Etapa E — Seed a partir do JSON**
-- `backfill:equipment-technical` (normalização de tipos, mapa unit_hint→grandeza,
-  consolidação de repetíveis, `optionalPerEquipment`). Dry-run primeiro.
+**Etapa E — Seed a partir do JSON ✅ (feita, falta rodar no servidor)**
+- [x] `equipment-technical-seed.js` — `buildTechnicalSchemaFromTracking`: mapeia tipos
+  (`short_text`→text, `long_text`→textarea, `integer_or_text`→number,
+  `measurement_text`→measure), infere grandeza do `unit_hint`, `optionalPerEquipment` pela
+  nota "não aparece", e envolve `allow_multiple` em grupo repetível. Passa pelo
+  `normalizeTechnicalSchema`.
+- [x] Script `backfill:equipment-technical` (`--dry-run`/`--force`/`--file=`): casa categoria
+  por nome (sem duplicar), cria as ausentes, liga `technicalDocEnabled`; idempotente (pula
+  quem já tem schema, salvo `--force`).
+- [x] Validado contra o JSON real: 18 categorias, 266 campos, 9 grupos, 109 medidas.
+  Testes em `equipment-technical-schema.test.js` (444/444 no total).
+- [ ] **Rodar no servidor:** `npm run backfill:equipment-technical -- --dry-run` e depois sem
+  `--dry-run` (após o deploy da migração da Etapa A).
 
 **Etapa F — Templates por categoria & polimento**
 - Upload de DOCX modelo por categoria; UX (seções, indicador de datasheet desatualizado),
