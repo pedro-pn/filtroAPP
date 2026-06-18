@@ -281,10 +281,15 @@ O script é **idempotente** (pula categoria/campo já existente por `key`) e rod
 - [x] `tsc -b` + ESLint limpos. **Depende de B ou E** para popular `technicalSchema`/
   `technicalDocEnabled` (senão o botão não aparece e o modal mostra "nenhum campo").
 
-**Etapa D — Geração DOCX→PDF**
-- `technicalDocBuilder.js` (dicionário de tokens, formatação de measure/boolean/data,
-  clone de linhas para grupos) + template genérico padrão.
-- Botões "Gerar"/"Baixar"; servir via rota por token; cache `TECHNICAL_DOC_GENERATED`.
+**Etapa D — Geração DOCX→PDF (parcial: camada de dados feita)**
+- [x] `equipment-technical-doc.js` — `buildTechnicalDocModel` + `formatScalar`: achata
+  `technicalData`+`technicalSchema` em tokens/linhas/seções/grupos, formatando
+  measure ("9,6 bar"), boolean (Sim/Não), data pt-BR e multiselect; ignora campos vazios,
+  `showInDoc:false` e opcionais desligados. Testado (`equipment-technical-doc.test.js`).
+- [ ] **Pendente (precisa do .docx modelo):** preencher o template (token + clone de `w:tr`
+  para grupos, padrão de `report-rlm.js`), converter via `report-pdf-from-docx.js`, endpoint
+  `POST /equipamentos/:id/technical-doc`, botões "Gerar"/"Baixar", cache
+  `TECHNICAL_DOC_GENERATED`.
 
 **Etapa E — Seed a partir do JSON ✅ (feita, falta rodar no servidor)**
 - [x] `equipment-technical-seed.js` — `buildTechnicalSchemaFromTracking`: mapeia tipos
