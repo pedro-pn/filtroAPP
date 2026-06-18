@@ -58,6 +58,20 @@ test('statistics report filters exclude soft-deleted reports and projects', () =
 
 test('statistics parsers normalize decimal, oil volume and tubing lengths', () => {
   assert.equal(parseDecimal('1.500,5'), 1500.5);
+  // Ponto como separador de milhar pt-BR (sem vírgula) não deve abreviar o valor.
+  assert.equal(parseDecimal('1.000'), 1000);
+  assert.equal(parseDecimal('10.000'), 10000);
+  assert.equal(parseDecimal('1.000.000'), 1000000);
+  // Ponto como separador decimal continua válido.
+  assert.equal(parseDecimal('1.5'), 1.5);
+  assert.equal(parseDecimal('1.50'), 1.5);
+  assert.equal(parseDecimal('12.34'), 12.34);
+  assert.equal(parseDecimal('1500'), 1500);
+  assert.equal(parseDecimal('2,5'), 2.5);
+  assert.deepEqual(parseVolumeOleo({ extraData: { volumeOleo: '1.000', volumeOleoUnit: 'L' } }), {
+    liters: 1000,
+    ignored: false
+  });
   assert.deepEqual(parseVolumeOleo({ extraData: { 'Volume de óleo': '1500 mL' } }), {
     liters: 1.5,
     ignored: false

@@ -96,9 +96,29 @@ function parseMinutes(val) {
 
 export function parseDecimal(val) {
   const str = String(val).trim();
-  const normalized = str.includes(',') && str.includes('.')
-    ? str.replace(/\./g, '').replace(',', '.')
-    : str.replace(',', '.');
+  if (!str) return null;
+  const hasComma = str.includes(',');
+  const hasDot = str.includes('.');
+  let normalized;
+  if (hasComma && hasDot) {
+    // pt-BR: ponto = separador de milhar, vírgula = separador decimal (ex.: "1.500,5").
+    normalized = str.replace(/\./g, '').replace(',', '.');
+  } else if (hasComma) {
+    // Apenas vírgula: separador decimal (ex.: "2,5").
+    normalized = str.replace(',', '.');
+  } else if (hasDot) {
+    // Apenas ponto é ambíguo: pode ser milhar pt-BR ("1.000" = 1000) ou decimal ("1.5").
+    // Tratamos como separador de milhar quando há mais de um ponto ("1.000.000") ou
+    // quando o ponto separa exatamente 3 dígitos finais ("1.000", "10.000"); caso
+    // contrário é decimal ("1.5", "1.50", "12.34").
+    const dotCount = (str.match(/\./g) || []).length;
+    const afterLastDot = str.slice(str.lastIndexOf('.') + 1);
+    normalized = dotCount > 1 || afterLastDot.length === 3
+      ? str.replace(/\./g, '')
+      : str;
+  } else {
+    normalized = str;
+  }
   const num = parseFloat(normalized);
   return Number.isNaN(num) ? null : num;
 }
