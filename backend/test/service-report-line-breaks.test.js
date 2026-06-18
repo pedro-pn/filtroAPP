@@ -8,7 +8,7 @@ import { buildRlfDocx } from '../src/lib/report-rlf.js';
 import { buildRliDocx } from '../src/lib/report-rli.js';
 import { buildRlmDocx } from '../src/lib/report-rlm.js';
 import { buildRlqDocx } from '../src/lib/report-rlq.js';
-import { buildRtpDocx } from '../src/lib/report-rtp.js';
+import { buildRtpDocx, rtpEquipmentTypeLabel } from '../src/lib/report-rtp.js';
 
 const builders = [
   ['RTP', buildRtpDocx],
@@ -94,4 +94,16 @@ test('RTP removes measurements table for Outro without diameter rows', async () 
   }));
 
   assert.equal(countTables(otherZip), countTables(tubingZip) - 1);
+});
+
+test('RTP equipment type placeholder value is uppercase', () => {
+  assert.equal(rtpEquipmentTypeLabel({ 'Equipamento testado': 'Tubulação' }), 'TUBULAÇÕES');
+  assert.equal(rtpEquipmentTypeLabel({ 'Equipamento testado': 'Mangueiras' }), 'MANGUEIRAS');
+  assert.equal(
+    rtpEquipmentTypeLabel({
+      'Equipamento testado': 'Outro',
+      'Outro equipamento testado': 'vaso de pressão'
+    }),
+    'VASO DE PRESSÃO'
+  );
 });

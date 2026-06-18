@@ -81,6 +81,10 @@ function reportNumber(report) {
     : '---';
 }
 
+function uppercasePt(value) {
+  return safeText(value).trim().toLocaleUpperCase('pt-BR');
+}
+
 // ── XML utilities ──
 
 function getTextNodes(node, out = []) {
@@ -418,16 +422,16 @@ function rtpEquipmentTypeInfo(sd) {
   const raw = stringify(getField(sd, ['Equipamento testado', 'equipamentoTestado']));
   const normalized = canonicalize(raw);
   if (normalized === 'mangueira' || normalized === 'mangueiras') {
-    return { value: 'mangueira', label: 'mangueiras' };
+    return { value: 'mangueira', label: 'MANGUEIRAS' };
   }
   if (normalized === 'outro') {
     const custom = stringify(getField(sd, ['Outro equipamento testado', 'equipamentoTestadoOutro']));
-    return { value: 'outro', label: custom || 'outro' };
+    return { value: 'outro', label: uppercasePt(custom || 'outro') };
   }
-  return { value: 'tubulacao', label: 'tubulações' };
+  return { value: 'tubulacao', label: 'TUBULAÇÕES' };
 }
 
-function rtpEquipmentTypeLabel(sd) {
+export function rtpEquipmentTypeLabel(sd) {
   return rtpEquipmentTypeInfo(sd).label;
 }
 
