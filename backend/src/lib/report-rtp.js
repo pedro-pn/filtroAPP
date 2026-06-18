@@ -154,6 +154,13 @@ function removeNode(node) {
   if (node && node.parentNode) node.parentNode.removeChild(node);
 }
 
+function closestAncestor(node, tagName) {
+  for (let current = node; current; current = current.parentNode) {
+    if (current.tagName === tagName) return current;
+  }
+  return null;
+}
+
 function cloneBefore(node, clones) {
   const parent = node.parentNode;
   clones.forEach(clone => parent.insertBefore(clone, node));
@@ -379,6 +386,7 @@ function buildRtpBaseData(report) {
 
   const approvedRaw = stringify(getField(sd, ['Aprovado pelo cliente?']));
   const status = /sim/i.test(approvedRaw) ? 'APROVADO' : (/n[ãa]o/i.test(approvedRaw) ? 'REPROVADO' : '');
+  const equipmentType = rtpEquipmentTypeLabel(sd);
 
   return {
     missiontitle: `Missão ${report.project.code} - ${report.project.name}`,
@@ -389,6 +397,8 @@ function buildRtpBaseData(report) {
     rtp: reportNumber(report),
     date: formatDatePt(report.reportDate),
     equipament: stringify(getField(sd, ['Equipamento(s)', 'Equipamento'])),
+    equipmenttype: equipmentType,
+    EQUIPMENTTYPE: equipmentType,
     system: stringify(getField(sd, ['Sistema'])),
     fluid,
     testunit: units.join(', '),
@@ -402,6 +412,23 @@ function buildRtpBaseData(report) {
     leadername: safeText(sc.__leaderSnapshot?.name || report.project?.operator?.name),
     leaderposition: safeText(sc.__leaderSnapshot?.role || report.project?.operator?.role)
   };
+}
+
+function rtpEquipmentTypeInfo(sd) {
+  const raw = stringify(getField(sd, ['Equipamento testado', 'equipamentoTestado']));
+  const normalized = canonicalize(raw);
+  if (normalized === 'mangueira' || normalized === 'mangueiras') {
+    return { value: 'mangueira', label: 'mangueiras' };
+  }
+  if (normalized === 'outro') {
+    const custom = stringify(getField(sd, ['Outro equipamento testado', 'equipamentoTestadoOutro']));
+    return { value: 'outro', label: custom || 'outro' };
+  }
+  return { value: 'tubulacao', label: 'tubulações' };
+}
+
+function rtpEquipmentTypeLabel(sd) {
+  return rtpEquipmentTypeInfo(sd).label;
 }
 
 function buildRtpBaseDataResolved(report) {
@@ -421,6 +448,10 @@ function expandTubeRows(doc, sd) {
   const tubesRaw = getField(sd, ['Diâmetros e comprimentos', 'Diametros e comprimentos']);
   const tubes = Array.isArray(tubesRaw) ? tubesRaw.filter(t => t && (t.d || t.c)) : [];
   if (!tubes.length) {
+    if (rtpEquipmentTypeInfo(sd).value === 'outro') {
+      removeNode(closestAncestor(templateRow, 'w:tbl'));
+      return;
+    }
     replacePlaceholders(templateRow, { diameter: '', length: '' });
     return;
   }

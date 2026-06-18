@@ -53,6 +53,13 @@ const etapasPorTipo: Record<string, string[]> = {
 type UploadGroup = { label: string; files: UploadedFile[] };
 type TubeRow = { d: string; unit: string; c: string; lengthUnit: string };
 export type ServiceCollaboratorOption = { id: string; name: string };
+type PressureTestedEquipment = 'tubulacao' | 'mangueira' | 'outro';
+
+const PRESSURE_TESTED_EQUIPMENT_OPTIONS: Array<{ value: PressureTestedEquipment; label: string }> = [
+  { value: 'tubulacao', label: 'Tubulação' },
+  { value: 'mangueira', label: 'Mangueiras' },
+  { value: 'outro', label: 'Outro' }
+];
 
 const commonInchDiameters = [
   '1/8',
@@ -400,17 +407,26 @@ function MaterialField({
   );
 }
 
-function TubesBlock({ data, onChange, disabled, invalidKey, groupKey }: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey' | 'groupKey'>) {
+function TubesBlock({
+  data,
+  onChange,
+  disabled,
+  invalidKey,
+  groupKey,
+  itemLabel = 'tubulação',
+  required = true
+}: Pick<ServiceFieldsProps, 'data' | 'onChange' | 'disabled' | 'invalidKey' | 'groupKey'> & { itemLabel?: string; required?: boolean }) {
   const rows = (Array.isArray(data.tubes) ? data.tubes : [{ d: '', unit: 'pol', c: '', lengthUnit: 'm' }]) as TubeRow[];
+  const normalizedItemLabel = itemLabel.trim() || 'tubulação';
 
   return (
     <div className={fieldClass(invalidKey, 'tubes')}>
-      <label>Diâmetros e comprimentos {requiredMark()}</label>
+      <label>Diâmetros e comprimentos {required ? requiredMark() : null}</label>
       <div className="tube-stack">
         {rows.map((row, index) => (
           <div className="tube-row-react" key={index}>
             <div className="field-group tube-field">
-              <label htmlFor={fieldId(groupKey, 'diametro', index)}>Diâmetro {requiredMark()}</label>
+              <label htmlFor={fieldId(groupKey, 'diametro', index)}>Diâmetro {required ? requiredMark() : null}</label>
               <div className="num-unit">
                 {(row.unit || 'pol') === 'pol' ? (
                   <select
@@ -461,7 +477,7 @@ function TubesBlock({ data, onChange, disabled, invalidKey, groupKey }: Pick<Ser
               </div>
             </div>
             <div className="field-group tube-field">
-              <label htmlFor={fieldId(groupKey, 'comprimento', index)}>Comprimento {requiredMark()}</label>
+              <label htmlFor={fieldId(groupKey, 'comprimento', index)}>Comprimento {required ? requiredMark() : null}</label>
               <div className="num-unit">
                 <input
                   id={fieldId(groupKey, 'comprimento', index)}
@@ -489,7 +505,7 @@ function TubesBlock({ data, onChange, disabled, invalidKey, groupKey }: Pick<Ser
               type="button"
               disabled={disabled || rows.length === 1}
               onClick={() => onChange({ tubes: rows.filter((_, rowIndex) => rowIndex !== index) })}
-              aria-label={`Remover tubulação ${index + 1}`}
+              aria-label={`Remover ${normalizedItemLabel} ${index + 1}`}
             >
               ×
             </button>
@@ -502,10 +518,27 @@ function TubesBlock({ data, onChange, disabled, invalidKey, groupKey }: Pick<Ser
         disabled={disabled}
         onClick={() => onChange({ tubes: [...rows, { d: '', unit: 'pol', c: '', lengthUnit: 'm' }] })}
       >
-        + Adicionar tubulação
+        + Adicionar {normalizedItemLabel}
       </button>
     </div>
   );
+}
+
+function pressureTestedEquipmentValue(data: Record<string, unknown>): PressureTestedEquipment {
+  const raw = getString(data.equipamentoTestado) || getString(data['Equipamento testado']);
+  if (raw === 'mangueira' || raw === 'Mangueiras') return 'mangueira';
+  if (raw === 'outro' || raw === 'Outro') return 'outro';
+  return 'tubulacao';
+}
+
+function pressureTestedEquipmentLabel(data: Record<string, unknown>) {
+  const value = pressureTestedEquipmentValue(data);
+  if (value === 'mangueira') return 'mangueira';
+  if (value === 'outro') {
+    const custom = getString(data.equipamentoTestadoOutro) || getString(data['Outro equipamento testado']);
+    return custom.trim() || 'item testado';
+  }
+  return 'tubulação';
 }
 
 function UnitMultiField({
@@ -1047,6 +1080,10 @@ export function ServiceFields({
   }
 
   if (normalizedType === 'pressao') {
+    const equipamentoTestado = pressureTestedEquipmentValue(data);
+    const equipamentoTestadoOutro = getString(data.equipamentoTestadoOutro);
+    const showMaterialField = equipamentoTestado === 'tubulacao';
+    const tubeItemLabel = pressureTestedEquipmentLabel(data);
     const fluidoTeste = getString(data.fluidoTeste) || 'agua';
     const qualOleo = getString(data.qualOleo);
     const manometroIds = getStrings(data.manometroIds);
@@ -1057,8 +1094,58 @@ export function ServiceFields({
 
     return (
       <>
-        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
-        <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        <div className={fieldClass(invalidKey, 'equipamentoTestado')}>
+          <label>Equipamento testado {requiredMark()}</label>
+          <div className="rdo-tag-group">
+            {PRESSURE_TESTED_EQUIPMENT_OPTIONS.map(option => (
+              <label className={radioOptionClass(equipamentoTestado === option.value)} key={option.value}>
+                <input
+                  type="radio"
+                  name={`equipamento-testado-${groupKey}`}
+                  checked={equipamentoTestado === option.value}
+                  disabled={disabled}
+                  onChange={() => onChange({
+                    equipamentoTestado: option.value,
+                    'Equipamento testado': option.label,
+                    equipamentoTestadoOutro: option.value === 'outro' ? equipamentoTestadoOutro : '',
+                    'Outro equipamento testado': option.value === 'outro' ? equipamentoTestadoOutro : '',
+                    ...(option.value !== 'tubulacao'
+                      ? { material: '', materialOther: '', 'Material da tubulação': '', 'Material da tubulacao': '' }
+                      : {})
+                  })}
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        {equipamentoTestado === 'outro' ? (
+          <div className={fieldClass(invalidKey, 'equipamentoTestadoOutro')}>
+            <label htmlFor={fieldId(groupKey, 'equipamento-testado-outro')}>Outro equipamento testado {requiredMark()}</label>
+            <input
+              id={fieldId(groupKey, 'equipamento-testado-outro')}
+              value={equipamentoTestadoOutro}
+              disabled={disabled}
+              placeholder="Descreva o equipamento testado..."
+              onChange={event => onChange({
+                equipamentoTestadoOutro: event.target.value,
+                'Outro equipamento testado': event.target.value
+              })}
+            />
+          </div>
+        ) : null}
+        {showMaterialField ? (
+          <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        ) : null}
+        <TubesBlock
+          data={data}
+          onChange={onChange}
+          disabled={disabled}
+          invalidKey={invalidKey}
+          groupKey={groupKey}
+          itemLabel={tubeItemLabel}
+          required={equipamentoTestado !== 'outro'}
+        />
         {hideFinalization ? null : (
           <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
         )}

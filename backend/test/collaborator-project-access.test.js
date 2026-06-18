@@ -236,4 +236,23 @@ test('tube rows require diameter and length when service uses tubing', () => {
     }]),
     /Preencha diâmetro e comprimento/
   );
+
+  assert.throws(
+    () => assertCompleteTubeRows([{
+      serviceType: 'pressao',
+      extraData: {
+        'Equipamento testado': 'Mangueiras',
+        'Diâmetros e comprimentos': [{ d: '1/2', unit: 'pol', c: '', lengthUnit: 'm' }]
+      }
+    }]),
+    /cada mangueira/
+  );
+
+  assert.doesNotThrow(() => assertCompleteTubeRows([{
+    serviceType: 'pressao',
+    extraData: {
+      'Equipamento testado': 'Outro',
+      'Outro equipamento testado': 'Vaso de pressão'
+    }
+  }]));
 });

@@ -186,6 +186,10 @@ function normalizeYesNo(value: string, fallback = 'Não') {
   return fallback;
 }
 
+function normalizeChoiceText(value: string) {
+  return value.trim().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+}
+
 function parseValueWithUnit(value: unknown, units: string[], fallbackUnit: string) {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!text) return { value: '', unit: fallbackUnit };
@@ -360,6 +364,7 @@ function legacyServiceData(service: NonNullable<ReportSummary['services']>[numbe
   const pressureTest = parseValueWithUnit(getLegacyValue(extra, ['pressaoTeste', 'Pressão de teste', 'Pressao de teste']), ['bar', 'psi', 'kg/cm²', 'MPa', 'kPa'], 'bar');
   const volume = parseValueWithUnit(getLegacyValue(extra, ['volumeOleo', 'Volume de óleo', 'Volume de oleo']), ['L', 'mL'], 'L');
   const fluidoTeste = getLegacyChoice(extra, ['fluidoTeste', 'Fluido de teste']);
+  const equipamentoTestado = getLegacyChoice(extra, ['equipamentoTestado', 'Equipamento testado']);
   const tipoFlushing = getLegacyChoice(extra, ['tipoFlushing', 'Tipo de flushing']);
   const houveParticulas = getLegacyChoice(extra, ['houveParticulas', 'Houve contagem de partículas?', 'Houve contagem de particulas?']);
   const houveDesidratacao = getLegacyChoice(extra, ['houveDesidratacao', 'Houve desidratação?', 'Houve desidratacao?']);
@@ -392,6 +397,15 @@ function legacyServiceData(service: NonNullable<ReportSummary['services']>[numbe
   }
 
   if (type === 'pressao') {
+    const normalizedChoice = normalizeChoiceText(equipamentoTestado);
+    const normalizedTestedEquipment = normalizedChoice === 'mangueira' || normalizedChoice === 'mangueiras'
+      ? 'mangueira'
+      : normalizedChoice === 'outro'
+      ? 'outro'
+      : 'tubulacao';
+    data.equipamentoTestado = normalizedTestedEquipment;
+    data.equipamentoTestadoOutro = getLegacyString(extra, ['equipamentoTestadoOutro', 'Outro equipamento testado']);
+    if (normalizedTestedEquipment !== 'tubulacao') data.material = '';
     data.uth = normalizeUnitField(extra, ['uth', 'Unidade de Teste Hidrostático (UTH)', 'Unidade de Teste Hidrostatico (UTH)']);
     data.pressaoTrabalho = getLegacyString(extra, ['pressaoTrabalho']) || pressureWork.value;
     data.pressaoTrabalhoUnit = getLegacyString(extra, ['pressaoTrabalhoUnit']) || pressureWork.unit;
@@ -1563,6 +1577,14 @@ function ServiceSummaryRow({ service, index }: { service: NonNullable<ReportSumm
   }
 
   if (type === 'pressao') {
+    if (data.equipamentoTestado) {
+      const testedLabel = data.equipamentoTestado === 'mangueira'
+        ? 'Mangueiras'
+        : data.equipamentoTestado === 'outro'
+        ? `Outro${data.equipamentoTestadoOutro ? `: ${data.equipamentoTestadoOutro}` : ''}`
+        : 'Tubulação';
+      rows.push({ label: 'Equipamento testado', value: testedLabel });
+    }
     if (data.pressaoTrabalho) rows.push({ label: 'P. trabalho', value: `${data.pressaoTrabalho} ${data.pressaoTrabalhoUnit || ''}`.trim() });
     if (data.pressaoTeste) rows.push({ label: 'P. teste', value: `${data.pressaoTeste} ${data.pressaoTesteUnit || ''}`.trim() });
     if (data.fluidoTeste) rows.push({ label: 'Fluido', value: data.fluidoTeste === 'agua' ? 'Água' : 'Óleo' });

@@ -140,10 +140,14 @@ function serviceDisambiguatorParts(service: ReportServiceSummary) {
   }
 
   if (type === 'pressao') {
+    const testedEquipment = firstServiceKeyPart(extra, ['Equipamento testado', 'equipamentoTestado']);
+    const testedEquipmentOther = firstServiceKeyPart(extra, ['Outro equipamento testado', 'equipamentoTestadoOutro']);
     const workPressure = firstServiceKeyPart(extra, ['Pressão de trabalho', 'Pressao de trabalho', 'pressaoTrabalho']);
     const testPressure = firstServiceKeyPart(extra, ['Pressão de teste', 'Pressao de teste', 'pressaoTeste']);
     const testFluid = firstServiceKeyPart(extra, ['Fluido de teste', 'fluidoTeste']);
     const testOil = firstServiceKeyPart(extra, ['Qual óleo?', 'Qual oleo?', 'qualOleo']);
+    if (testedEquipment) parts.push(`equipamento-testado:${testedEquipment}`);
+    if (testedEquipmentOther) parts.push(`equipamento-testado-outro:${testedEquipmentOther}`);
     if (workPressure) parts.push(`ptrabalho:${workPressure}`);
     if (testPressure) parts.push(`pteste:${testPressure}`);
     if (testFluid) parts.push(`fluido:${testFluid}`);
@@ -493,6 +497,7 @@ export function NewReportPage() {
         || extra['Equipamento de desidratacao']
         || extra['Equipamento de desidrataÃ§Ã£o']
       );
+      const previousPressureTestedEquipment = type === 'pressao' ? pressureTestedEquipmentValue(extra) : '';
       addService(type, {
         ...extra,
         __ongoingKey: ongoingKey,
@@ -513,7 +518,11 @@ export function NewReportPage() {
         umidadeFinal: type === 'inibicao' ? String(extra.umidadeFinal || extra['Umidade final (ppm)'] || '') : '',
         equipmentId: service.equipmentId || serviceEquipmentName(service),
         system: service.system || String(extra.Sistema || ''),
-        material: service.material || String(extra['Material da tubulação'] || extra['Material do equipamento'] || ''),
+        equipamentoTestado: previousPressureTestedEquipment || extra.equipamentoTestado,
+        equipamentoTestadoOutro: String(extra.equipamentoTestadoOutro || extra['Outro equipamento testado'] || ''),
+        material: previousPressureTestedEquipment && previousPressureTestedEquipment !== 'tubulacao'
+          ? ''
+          : service.material || String(extra['Material da tubulação'] || extra['Material do equipamento'] || ''),
         startTime: '',
         endTime: '',
         notes: '',
@@ -748,7 +757,22 @@ export function NewReportPage() {
       const raw = data.flushingTubulacao || data['Flushing em tubulação?'] || data['Flushing em tubulacao?'];
       return !isNoValue(raw);
     }
-    return type === 'pressao';
+    if (type === 'pressao') return pressureTestedEquipmentValue(data) !== 'outro';
+    return false;
+  }
+
+  function pressureTestedEquipmentValue(data: Record<string, unknown>) {
+    const raw = String(data.equipamentoTestado || data['Equipamento testado'] || '').trim();
+    if (raw === 'mangueira' || raw === 'Mangueiras') return 'mangueira';
+    if (raw === 'outro' || raw === 'Outro') return 'outro';
+    return 'tubulacao';
+  }
+
+  function pressureTubeItemLabel(data: Record<string, unknown>) {
+    const value = pressureTestedEquipmentValue(data);
+    if (value === 'mangueira') return 'mangueira';
+    if (value === 'outro') return 'item testado';
+    return 'tubulação';
   }
 
   function validateHeader() {
@@ -797,11 +821,17 @@ export function NewReportPage() {
       if (type === 'inibicao' && !hasText(data.steps)) return failRequired('Steps', target('steps'), 1);
       if (type === 'inibicao' && !hasStringItem(data.tipoRelatorio)) return failRequired('Tipo de relatório', target('tipoRelatorio'), 1);
 
-      if (['limpeza', 'pressao', 'mecanica', 'inibicao'].includes(type) && !hasText(data.material)) {
+      const pressureTestedEquipment = type === 'pressao' ? pressureTestedEquipmentValue(data) : '';
+      if (type === 'pressao' && pressureTestedEquipment === 'outro' && !hasText(data.equipamentoTestadoOutro)) {
+        return failRequired('Outro equipamento testado', target('equipamentoTestadoOutro'), 1);
+      }
+      const requiresMaterial = ['limpeza', 'mecanica', 'inibicao'].includes(type)
+        || (type === 'pressao' && pressureTestedEquipment === 'tubulacao');
+      if (requiresMaterial && !hasText(data.material)) {
         return failRequired(type === 'mecanica' ? 'Material do equipamento' : 'Material da tubulação', target('material'), 1);
       }
       if (serviceRequiresTubes(type, data) && !hasValidTubes(data.tubes)) {
-        return failRequired('Diâmetro e comprimento de cada tubulação', target('tubes'), 1);
+        return failRequired(`Diâmetro e comprimento de cada ${type === 'pressao' ? pressureTubeItemLabel(data) : 'tubulação'}`, target('tubes'), 1);
       }
 
       if (type === 'limpeza') {

@@ -7,6 +7,7 @@ import { Prisma, ReportStatus, ReportType } from '@prisma/client';
 import app from '../src/app.js';
 import prisma from '../src/lib/prisma.js';
 import {
+  assertUniqueReportDate,
   approvedRdoHistoryWhere,
   canAccessReport,
   canClientSeeReport,
@@ -876,6 +877,25 @@ test('POST report creation rejects duplicate project report date before reservin
   assert.equal(calls[1][1].where.reportType, ReportType.RDO);
   assert.equal(calls[1][1].where.reportDate.gte.toISOString(), '2026-05-20T00:00:00.000Z');
   assert.equal(calls[1][1].where.reportDate.lt.toISOString(), '2026-05-21T00:00:00.000Z');
+});
+
+test('service report date uniqueness check skips non-RDO report types', async () => {
+  let duplicateQueryCalled = false;
+  const tx = {
+    report: {
+      findFirst: async () => {
+        duplicateQueryCalled = true;
+        return { id: 'existing-rtp' };
+      }
+    }
+  };
+
+  await assert.doesNotReject(() => assertUniqueReportDate(tx, {
+    projectId: 'project-1',
+    reportType: ReportType.RTP,
+    reportDate: '2026-05-20'
+  }));
+  assert.equal(duplicateQueryCalled, false);
 });
 
 test('POST service-only report creation requires an active target project', async t => {

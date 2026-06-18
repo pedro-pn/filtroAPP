@@ -10,6 +10,7 @@ MAPA DO MODELO DE TESTE DE PRESSÃO
 
 Informações do serviço
 {{equipament}} - nome do equipamento do cliente que está sendo feito o serviço
+{{EQUIPMENTTYPE}} - tipo de equipamento selecionado: tubulações, mangueiras ou o valor informado em "Outro"
 {{system}} - nome do sistema do cliente que está sendo feito o serviço
 {{fluid}} - fluido de teste: se for água, fica escrito "Água", se for óleo, fica escrito Óleo - [nome do óleo preenchido]
 {{testunit}} - Unidade de teste de pressão (UTHs) selecionadas separadas por vírgula

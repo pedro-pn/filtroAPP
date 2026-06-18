@@ -47,6 +47,10 @@ function reportFor(type) {
   };
 }
 
+function countTables(zip) {
+  return (zip.readAsText('word/document.xml').match(/<w:tbl\b/g) || []).length;
+}
+
 test('service report docx builders preserve observation line breaks', async () => {
   for (const [type, buildDocx] of builders) {
     const zip = new AdmZip(await buildDocx(reportFor(type)));
@@ -63,4 +67,31 @@ test('service report docx builders preserve observation line breaks', async () =
       `${type} should not leave a raw newline inside a Word text node`
     );
   }
+});
+
+test('RTP removes measurements table for Outro without diameter rows', async () => {
+  const base = reportFor('RTP');
+  const tubingZip = new AdmZip(await buildRtpDocx({
+    ...base,
+    specialConditions: {
+      ...base.specialConditions,
+      serviceData: {
+        ...base.specialConditions.serviceData,
+        'Equipamento testado': 'Tubulação'
+      }
+    }
+  }));
+  const otherZip = new AdmZip(await buildRtpDocx({
+    ...base,
+    specialConditions: {
+      ...base.specialConditions,
+      serviceData: {
+        ...base.specialConditions.serviceData,
+        'Equipamento testado': 'Outro',
+        'Outro equipamento testado': 'Vaso de pressão'
+      }
+    }
+  }));
+
+  assert.equal(countTables(otherZip), countTables(tubingZip) - 1);
 });

@@ -2970,10 +2970,22 @@ function serviceExtraData(service) {
 function serviceRequiresTubes(service) {
   const type = String(service?.serviceType || '').trim().toLowerCase();
   const extraData = serviceExtraData(service);
-  if (type === 'pressao') return true;
+  if (type === 'pressao') {
+    return normalizedText(extraData['Equipamento testado'] || extraData.equipamentoTestado) !== 'outro';
+  }
   if (type === 'limpeza') return normalizedText(extraData['Limpeza de tubulação?'] || extraData['Limpeza de tubulacao?'] || extraData.limpezaTubulacao) !== 'nao';
   if (type === 'flushing') return normalizedText(extraData['Flushing em tubulação?'] || extraData['Flushing em tubulacao?'] || extraData.flushingTubulacao) !== 'nao';
   return false;
+}
+
+function serviceTubeItemLabel(service) {
+  const type = String(service?.serviceType || '').trim().toLowerCase();
+  if (type !== 'pressao') return 'tubulação';
+  const extraData = serviceExtraData(service);
+  const testedEquipment = normalizedText(extraData['Equipamento testado'] || extraData.equipamentoTestado);
+  if (testedEquipment === 'mangueiras' || testedEquipment === 'mangueira') return 'mangueira';
+  if (testedEquipment === 'outro') return 'item testado';
+  return 'tubulação';
 }
 
 function serviceTubeRows(service) {
@@ -2995,7 +3007,7 @@ function serviceHasCompleteTubeRows(service) {
 export function assertCompleteTubeRows(services) {
   const invalid = (services || []).find(service => serviceRequiresTubes(service) && !serviceHasCompleteTubeRows(service));
   if (!invalid) return;
-  const error = new Error('Preencha diâmetro e comprimento para cada tubulação.');
+  const error = new Error(`Preencha diâmetro e comprimento para cada ${serviceTubeItemLabel(invalid)}.`);
   error.status = 400;
   throw error;
 }
@@ -3110,8 +3122,9 @@ function reportDateDayRange(reportDate) {
   return { start, end };
 }
 
-async function assertUniqueReportDate(tx, { projectId, reportType, reportDate, excludeReportId }) {
+export async function assertUniqueReportDate(tx, { projectId, reportType, reportDate, excludeReportId }) {
   const { start, end } = reportDateDayRange(reportDate);
+  if (reportType !== ReportType.RDO) return;
   const duplicate = await tx.report.findFirst({
     where: {
       projectId,

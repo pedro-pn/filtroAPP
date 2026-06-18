@@ -99,10 +99,14 @@ function serviceDisambiguatorParts(service: ReportServiceSummary) {
   }
 
   if (type === 'pressao') {
+    const testedEquipment = firstKeyPart(extra, ['Equipamento testado', 'equipamentoTestado']);
+    const testedEquipmentOther = firstKeyPart(extra, ['Outro equipamento testado', 'equipamentoTestadoOutro']);
     const workPressure = firstKeyPart(extra, ['Pressão de trabalho', 'Pressao de trabalho', 'pressaoTrabalho']);
     const testPressure = firstKeyPart(extra, ['Pressão de teste', 'Pressao de teste', 'pressaoTeste']);
     const testFluid = firstKeyPart(extra, ['Fluido de teste', 'fluidoTeste']);
     const testOil = firstKeyPart(extra, ['Qual óleo?', 'Qual oleo?', 'qualOleo']);
+    if (testedEquipment) parts.push(`equipamento-testado:${testedEquipment}`);
+    if (testedEquipmentOther) parts.push(`equipamento-testado-outro:${testedEquipmentOther}`);
     if (workPressure) parts.push(`ptrabalho:${workPressure}`);
     if (testPressure) parts.push(`pteste:${testPressure}`);
     if (testFluid) parts.push(`fluido:${testFluid}`);

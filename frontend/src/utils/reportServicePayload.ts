@@ -59,6 +59,20 @@ function flushingTubulacaoLabel(data: Record<string, unknown>) {
   return isNoValue(raw) ? 'Não' : 'Sim';
 }
 
+function pressureTestedEquipmentValue(data: Record<string, unknown>) {
+  const raw = getString(data.equipamentoTestado) || getString(data['Equipamento testado']);
+  if (raw === 'mangueira' || raw === 'Mangueiras') return 'mangueira';
+  if (raw === 'outro' || raw === 'Outro') return 'outro';
+  return 'tubulacao';
+}
+
+function pressureTestedEquipmentLabel(data: Record<string, unknown>) {
+  const value = pressureTestedEquipmentValue(data);
+  if (value === 'mangueira') return 'Mangueiras';
+  if (value === 'outro') return 'Outro';
+  return 'Tubulação';
+}
+
 function singleId(value: unknown): string[] {
   const id = getString(value);
   return id ? [id] : [];
@@ -104,7 +118,9 @@ function normalizePersistedUploads(value: unknown) {
     const files = Array.isArray(record.files)
       ? record.files.map(file => {
           if (!file || typeof file !== 'object' || Array.isArray(file)) return file;
-          const { __previouslyAdded, previouslyAdded, ...persistedFile } = file as Record<string, unknown>;
+          const persistedFile = { ...(file as Record<string, unknown>) };
+          delete persistedFile.__previouslyAdded;
+          delete persistedFile.previouslyAdded;
           return persistedFile;
         })
       : record.files;
@@ -120,6 +136,8 @@ function commonExtraData(
   const equipmentId = getString(data.equipmentId);
   const material = getString(data.material);
   const collaboratorIds = options.collaboratorIds || [];
+  const pressureTestedEquipment = type === 'pressao' ? pressureTestedEquipmentValue(data) : '';
+  const includeMaterial = type !== 'flushing' && !(type === 'pressao' && pressureTestedEquipment !== 'tubulacao');
   const tubes = type === 'flushing' && flushingTubulacaoLabel(data) === 'Não'
     ? []
     : (Array.isArray(data.tubes) ? data.tubes : []);
@@ -128,7 +146,7 @@ function commonExtraData(
     ...data,
     'Equipamento(s)': equipmentId ? labelForEquipment(equipmentId, options.equipment) : '',
     Sistema: getString(data.system),
-    ...(type === 'flushing'
+    ...(!includeMaterial
       ? {}
       : type === 'mecanica'
       ? { 'Material do equipamento': material }
@@ -143,6 +161,11 @@ function commonExtraData(
     'Diâmetros e comprimentos': tubes,
     'Colaboradores do serviço': collaboratorLinks(collaboratorIds, options.collaborators)
   };
+  if (!includeMaterial) {
+    delete extraData['Material da tubulação'];
+    delete extraData['Material da tubulacao'];
+    delete extraData['Material do equipamento'];
+  }
   extraData.__uploads__ = normalizePersistedUploads(extraData.__uploads__);
   return extraData;
 }
@@ -171,6 +194,10 @@ export function buildReportServicePayload(
   if (type === 'pressao') {
     const manometerIds = getStrings(data.manometroIds);
     const uthIds = ids(data.uth);
+    const pressureTestedEquipment = pressureTestedEquipmentValue(data);
+    const pressureTestedEquipmentOther = getString(data.equipamentoTestadoOutro) || getString(data['Outro equipamento testado']);
+    extraData['Equipamento testado'] = pressureTestedEquipmentLabel(data);
+    extraData['Outro equipamento testado'] = pressureTestedEquipment === 'outro' ? pressureTestedEquipmentOther : '';
     extraData['Pressão de trabalho'] = formatValueWithUnit(data.pressaoTrabalho, data.pressaoTrabalhoUnit);
     extraData['Pressão de teste'] = formatValueWithUnit(data.pressaoTeste, data.pressaoTesteUnit);
     extraData['Fluido de teste'] = getString(data.fluidoTeste) === 'oleo' ? 'Óleo' : 'Água';
@@ -227,7 +254,9 @@ export function buildReportServicePayload(
     serviceType: type,
     equipmentId: null,
     system: getString(data.system) || null,
-    material: type === 'flushing' ? null : getString(data.material) || null,
+    material: type === 'flushing' || (type === 'pressao' && pressureTestedEquipmentValue(data) !== 'tubulacao')
+      ? null
+      : getString(data.material) || null,
     startTime: getString(data.startTime) || null,
     endTime: getString(data.endTime) || null,
     finalized: typeof data.finalized === 'boolean' ? data.finalized : null,
