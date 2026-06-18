@@ -8029,9 +8029,133 @@ select {
   background: rgba(48, 80, 58, 0.06);
 }
 
+.equip-link-btn {
+  cursor: pointer;
+  background: none;
+  font-family: inherit;
+}
+
 .equip-card .report-card-actions {
   margin-top: auto;
   padding-top: 4px;
+}
+
+/* === Dados Técnicos (datasheet) === */
+.tech-form .tech-section {
+  border: 1px solid var(--br);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tech-form .tech-section > legend {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--g);
+  padding: 0 6px;
+}
+
+.tech-field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tech-include {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted, #6b7280);
+  white-space: nowrap;
+}
+
+.tech-include input,
+.tech-bool input {
+  width: auto;
+}
+
+.tech-measure {
+  display: flex;
+  gap: 8px;
+}
+
+.tech-measure input[type='text'] {
+  flex: 1 1 auto;
+}
+
+.tech-measure select,
+.tech-measure .tech-unit-free {
+  flex: 0 0 110px;
+  max-width: 130px;
+}
+
+.tech-bool {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tech-multiselect {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tech-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--br);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tech-chip input {
+  width: auto;
+}
+
+.tech-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tech-group-empty {
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  margin: 0;
+}
+
+.tech-group-item {
+  border: 1px dashed var(--br);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tech-group-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tech-group-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
 }
 
 /* Badges de status */

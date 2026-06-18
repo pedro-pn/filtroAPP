@@ -12,12 +12,47 @@ export interface EquipmentFieldDefinition {
   showInDashboard?: boolean;
 }
 
+// === Dados Técnicos (datasheet configurável) ===
+
+export type TechnicalFieldType =
+  | 'text' | 'textarea' | 'number' | 'measure'
+  | 'select' | 'multiselect' | 'boolean' | 'date' | 'group';
+
+export interface TechnicalFieldDefinition {
+  key: string;
+  label: string;
+  type: TechnicalFieldType;
+  order?: number;
+  required?: boolean;
+  optionalPerEquipment?: boolean;
+  showInDoc?: boolean;
+  group?: string;
+  options?: string[];
+  unit?: { dimension: string | null; default: string | null };
+  rawTextAllowed?: boolean;
+  repeatable?: boolean;
+  minItems?: number;
+  maxItems?: number;
+  itemLabel?: string;
+  itemSchema?: TechnicalFieldDefinition[];
+}
+
+export interface MeasurementDimension {
+  key: string;
+  label: string;
+  units: string[];
+  default: string;
+}
+
 export interface EquipmentCategory {
   id: string;
   systemKey: string;
   name: string;
   order: number;
   fieldSchema: EquipmentFieldDefinition[];
+  technicalSchema: TechnicalFieldDefinition[];
+  technicalDocEnabled: boolean;
+  technicalTemplateId?: string | null;
   supportsCalibration: boolean;
   supportsTechnicalDoc: boolean;
   syncToRomaneio: boolean;
@@ -28,7 +63,7 @@ export interface EquipmentCategory {
 
 export interface EquipmentAttachment {
   id: string;
-  kind: 'CALIBRATION_CERTIFICATE' | 'TECHNICAL_DOC';
+  kind: 'CALIBRATION_CERTIFICATE' | 'TECHNICAL_DOC' | 'TECHNICAL_TEMPLATE' | 'TECHNICAL_DOC_GENERATED';
   fileName: string;
   mimeType: string;
   publicToken: string;
@@ -42,6 +77,10 @@ export interface CompanyEquipment {
   name: string;
   categoryId: string;
   attributes: Record<string, unknown>;
+  technicalData: Record<string, unknown>;
+  technicalFieldOverrides: Record<string, boolean>;
+  technicalRevision: number;
+  technicalUpdatedAt: string | null;
   hasCalibration: boolean;
   calibratedAt: string | null;
   expiresAt: string | null;
@@ -61,6 +100,8 @@ export interface EquipmentCategoryPayload {
   name: string;
   order?: number;
   fieldSchema?: EquipmentFieldDefinition[];
+  technicalSchema?: TechnicalFieldDefinition[];
+  technicalDocEnabled?: boolean;
   supportsCalibration?: boolean;
   supportsTechnicalDoc?: boolean;
   syncToRomaneio?: boolean;
@@ -71,6 +112,8 @@ export interface EquipmentPayload {
   name: string;
   categoryId: string;
   attributes?: Record<string, unknown>;
+  technicalData?: Record<string, unknown>;
+  technicalFieldOverrides?: Record<string, boolean>;
   hasCalibration?: boolean;
   calibratedAt?: string | null;
   expiresAt?: string | null;
@@ -100,6 +143,11 @@ export async function updateEquipmentCategory(id: string, payload: Partial<Equip
 
 export async function removeEquipmentCategory(id: string) {
   await apiClient.delete(equipamentosApiPath(`/categories/${id}`));
+}
+
+export async function listUnitsCatalog() {
+  const response = await apiClient.get<MeasurementDimension[]>(equipamentosApiPath('/units-catalog'));
+  return response.data;
 }
 
 // === Equipamentos ===

@@ -11,11 +11,12 @@ interface Props {
   isManager: boolean;
   onEdit: () => void;
   onRemove: () => void;
+  onOpenTechnical?: () => void;
 }
 
 type DocKind = 'tech' | 'cert';
 
-export function EquipmentCard({ item, category, isManager, onEdit, onRemove }: Props) {
+export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onOpenTechnical }: Props) {
   const { updateEquipment } = useEquipamentoMutations();
   const showToast = useToast();
   const cardRef = useRef<HTMLElement | null>(null);
@@ -100,6 +101,11 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove }: P
         )}
       </dl>
       <div className="equip-card-links">
+        {category.technicalDocEnabled && onOpenTechnical && (
+          <button className="equip-link equip-link-btn" type="button" onClick={onOpenTechnical}>
+            Dados técnicos{item.technicalRevision > 0 ? ' ●' : ''}
+          </button>
+        )}
         {item.calibrationCertificate && (
           <a className="equip-link" href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer">Certificado</a>
         )}

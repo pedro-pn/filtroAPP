@@ -251,20 +251,31 @@ O script é **idempotente** (pula categoria/campo já existente por `key`) e rod
 
 ## 10. Plano de implementação por etapas
 
-**Etapa A — Modelo & schema técnico**
-- Migração: `technicalSchema`, `technicalTemplateId`, `technicalDocEnabled` em
-  `EquipmentCategory`; `technicalData`, `technicalFieldOverrides`, `technicalRevision` em
-  `CompanyEquipment`; novos `EquipmentAttachmentKind`.
-- `equipment-units.js` (catálogo de grandezas/unidades) + `normalizeTechnicalSchema()`.
+**Etapa A — Modelo & schema técnico ✅ (feita, falta deploy)** — commit `747500de`
+- [x] Migração `20260618120000_equipment_technical_data`: `technicalSchema`,
+  `technicalTemplateId`, `technicalDocEnabled` em `EquipmentCategory`; `technicalData`,
+  `technicalFieldOverrides`, `technicalRevision`, `technicalUpdatedAt` em `CompanyEquipment`;
+  enum `EquipmentAttachmentKind` += `TECHNICAL_TEMPLATE`/`TECHNICAL_DOC_GENERATED`.
+- [x] `equipment-units.js` (13 grandezas/unidades + mapa `unit_hint`→grandeza) +
+  `normalizeTechnicalSchema()` (vocabulário completo, grupos repetíveis).
+- [x] Rota `equipamentos`: CRUD aceita os campos novos; revisão incrementa ao editar
+  datasheet; `GET /units-catalog`. Testes em `equipment-technical-schema.test.js` (434/434).
+- [ ] Deploy no servidor: `prisma migrate deploy` + `generate` (ver rodapé).
 
 **Etapa B — Configuração por categoria (gestor)**
 - Construtor de campos técnicos no `CategoryFormModal` (tipos, unidade/grandeza, opções,
   repetível, opcional-por-equipamento, ordem por arrastar).
 - Validação backend do `technicalSchema`.
 
-**Etapa C — Preenchimento (equipamento)**
-- Aba "Dados Técnicos" + form dinâmico (widgets por tipo, dropdown de unidade, grupos
-  repetíveis), persistência em `technicalData`, overrides opcionais por equipamento.
+**Etapa C — Preenchimento (equipamento) ✅ (feita)**
+- [x] `TechnicalDataModal.tsx` — form dinâmico a partir do `technicalSchema`: widgets por
+  tipo (texto/área/número/medida com unidade/seleção/multi/booleano/data), grupos repetíveis
+  (add/remover instâncias), seções por `group`, toggle "Aplicável" para `optionalPerEquipment`.
+- [x] Botão "Dados técnicos" no `EquipmentCard` (quando `technicalDocEnabled`) + ● quando já
+  preenchido; persiste `technicalData`/`technicalFieldOverrides` via `updateEquipment`.
+- [x] `GET /units-catalog` consumido por `useUnitsCatalog`; tipos no `api/equipamentos.ts`.
+- [x] `tsc -b` + ESLint limpos. **Depende de B ou E** para popular `technicalSchema`/
+  `technicalDocEnabled` (senão o botão não aparece e o modal mostra "nenhum campo").
 
 **Etapa D — Geração DOCX→PDF**
 - `technicalDocBuilder.js` (dicionário de tokens, formatação de measure/boolean/data,

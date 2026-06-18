@@ -10,6 +10,7 @@ import {
   listNotificationAccounts,
   listNotificationRecipients,
   listRdoSlots,
+  listUnitsCatalog,
   removeEquipamento,
   removeEquipmentCategory,
   removeNotificationRecipient,
@@ -55,6 +56,15 @@ export function useRdoSlots(enabled = true) {
     queryKey: ['equipamentos', 'rdo-slots'],
     queryFn: listRdoSlots,
     enabled
+  });
+}
+
+export function useUnitsCatalog(enabled = true) {
+  return useQuery({
+    queryKey: ['equipamentos', 'units-catalog'],
+    queryFn: listUnitsCatalog,
+    enabled,
+    staleTime: Infinity // catálogo estático
   });
 }
 

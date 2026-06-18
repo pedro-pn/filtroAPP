@@ -7,7 +7,7 @@ import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { useToast } from '../../components/ui/Toast';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
-import { useEquipamentoMutations, useEquipamentos, useEquipmentCategories, useRdoSlots } from '../../hooks/useEquipamentos';
+import { useEquipamentoMutations, useEquipamentos, useEquipmentCategories, useRdoSlots, useUnitsCatalog } from '../../hooks/useEquipamentos';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { CategoryFormModal } from './CategoryFormModal';
 import { CategoryManager } from './CategoryManager';
@@ -15,6 +15,7 @@ import { EquipmentCard } from './EquipmentCard';
 import { EquipmentDashboard } from './EquipmentDashboard';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { EquipmentFormModal } from './EquipmentFormModal';
+import { TechnicalDataModal } from './TechnicalDataModal';
 import { NotificationsConfig } from './NotificationsConfig';
 import { RdoSlotsConfig } from './RdoSlotsConfig';
 import { ProjectSortButton, type ProjectSortDirection } from '../../utils/projectSort';
@@ -31,6 +32,7 @@ export function EquipamentosPage() {
   const categoriesQuery = useEquipmentCategories();
   const equipmentQuery = useEquipamentos();
   const rdoSlotsQuery = useRdoSlots(isManager);
+  const unitsCatalogQuery = useUnitsCatalog();
   const mutations = useEquipamentoMutations();
 
   const categories = useMemo(
@@ -46,6 +48,7 @@ export function EquipamentosPage() {
 
   const [activeTab, setActiveTab] = useState<ActiveTab>({ kind: 'dashboard' });
   const [equipmentForm, setEquipmentForm] = useState<{ category: EquipmentCategory; item: CompanyEquipment | null } | null>(null);
+  const [technicalForm, setTechnicalForm] = useState<{ category: EquipmentCategory; item: CompanyEquipment } | null>(null);
   const [categoryForm, setCategoryForm] = useState<{ open: boolean; category: EquipmentCategory | null }>({ open: false, category: null });
   const [categorySearch, setCategorySearch] = useState('');
   const [equipmentSort, setEquipmentSort] = useState<ProjectSortDirection>('asc');
@@ -85,6 +88,17 @@ export function EquipamentosPage() {
     } else {
       mutations.createEquipment.mutate(payload, { onSuccess: onDone, onError });
     }
+  }
+
+  function handleTechnicalSubmit(technicalData: Record<string, unknown>, technicalFieldOverrides: Record<string, boolean>) {
+    if (!technicalForm) return;
+    mutations.updateEquipment.mutate(
+      { id: technicalForm.item.id, payload: { technicalData, technicalFieldOverrides } },
+      {
+        onSuccess: () => { showToast('Dados técnicos salvos.', 'success'); setTechnicalForm(null); },
+        onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível salvar.', 'error')
+      }
+    );
   }
 
   function handleCategorySubmit(payload: EquipmentCategoryPayload) {
@@ -253,6 +267,7 @@ export function EquipamentosPage() {
                   isManager={isManager}
                   onEdit={() => setEquipmentForm({ category: selectedCategory, item })}
                   onRemove={() => handleRemoveEquipment(item)}
+                  onOpenTechnical={() => setTechnicalForm({ category: selectedCategory, item })}
                 />
               ))}
             </div>
@@ -287,6 +302,19 @@ export function EquipamentosPage() {
           saving={savingEquipment}
           onClose={() => setEquipmentForm(null)}
           onSubmit={handleEquipmentSubmit}
+        />
+      )}
+
+      {technicalForm && (
+        <TechnicalDataModal
+          open
+          category={technicalForm.category}
+          equipment={technicalForm.item}
+          unitsCatalog={unitsCatalogQuery.data || []}
+          saving={mutations.updateEquipment.isPending}
+          isManager={isManager}
+          onClose={() => setTechnicalForm(null)}
+          onSubmit={handleTechnicalSubmit}
         />
       )}
 
