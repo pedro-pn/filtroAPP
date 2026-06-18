@@ -466,7 +466,7 @@ test('GET /reports does not let collaborator projectActive=false override active
   assert.equal(response.json.pagination.total, 0);
 });
 
-test('GET /reports applies search filter in database before pagination for internal roles', async t => {
+test('GET /reports applies normalized multi-term search before pagination for internal roles', async t => {
   stubAuthenticatedManager(t);
   stubReportListTransaction(t);
   stubReportGroupBy(t);
@@ -475,29 +475,51 @@ test('GET /reports applies search filter in database before pagination for inter
     reportCount: prisma.report.count
   };
   prisma.report.findMany = async args => {
-    assert.equal(args.skip, 0);
-    assert.equal(args.take, 10);
-    assert.equal(Array.isArray(args.where.AND), true);
-    const searchOr = args.where.AND[0].OR;
-    assert.equal(searchOr.some(item => item.project?.code?.contains === '5797'), true);
-    assert.equal(searchOr.some(item => item.sequenceNumber === 5797), true);
-    assert.equal(searchOr.some(item => item.createdBy?.is?.name?.contains === '5797'), true);
-    assert.equal(searchOr.some(item => item.services?.some?.equipment?.is?.code?.contains === '5797'), true);
-    return [activeReport({ id: 'report-search' })];
+    assert.equal(args.skip, undefined);
+    assert.equal(args.take, undefined);
+    assert.equal(args.where.AND, undefined);
+    return [
+      activeReport({
+        id: 'report-search',
+        project: {
+          id: 'project-1',
+          code: '5797',
+          name: 'CGH Maria Cavaleira',
+          deletedAt: null,
+          managerOnly: false,
+          isActive: true,
+          visibleToCollaborators: true,
+          operatorId: null
+        }
+      }),
+      activeReport({
+        id: 'report-other',
+        project: {
+          id: 'project-2',
+          code: '1000',
+          name: 'Outro projeto',
+          deletedAt: null,
+          managerOnly: false,
+          isActive: true,
+          visibleToCollaborators: true,
+          operatorId: null
+        }
+      })
+    ];
   };
-  prisma.report.count = async args => {
-    assert.equal(Array.isArray(args.where.AND), true);
-    return 1;
+  prisma.report.count = async () => {
+    throw new Error('search pagination should use in-memory filtered totals');
   };
   t.after(() => {
     prisma.report.findMany = originals.reportFindMany;
     prisma.report.count = originals.reportCount;
   });
 
-  const response = await dispatchApp('GET', '/api/reports?page=1&pageSize=10&summary=true&search=5797', undefined);
+  const response = await dispatchApp('GET', '/api/reports?page=1&pageSize=10&summary=true&search=5797%20maria', undefined);
 
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.json.items.map(item => item.id), ['report-search']);
+  assert.equal(response.json.pagination.total, 1);
 });
 
 test('GET /reports orders project report type pages by requested sequence direction', async t => {

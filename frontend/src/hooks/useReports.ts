@@ -28,6 +28,7 @@ import {
 } from '../api/reports';
 import { useAuth } from '../auth/AuthContext';
 import type { ReportPayload, ReportStatus, ReportSummary, ServiceOnlyReportPayload } from '../types/domain';
+import { matchesSearch, reportSearchParts } from '../utils/search';
 import { queryKeys } from './queryKeys';
 
 interface LoadMoreReportGroupOptions {
@@ -177,40 +178,8 @@ function filtersFromAccumulatedReportsStorageKey(storageKey: string, userId?: st
   }
 }
 
-function normalizeReportSearchValue(value: unknown) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-}
-
 function reportMatchesSearch(report: ReportSummary, term?: string) {
-  const normalizedTerm = normalizeReportSearchValue(term || '').trim();
-  if (normalizedTerm.length < 2) return true;
-  const parts = [
-    report.reportType,
-    report.sequenceNumber,
-    report.status,
-    report.reportDate,
-    report.project?.code,
-    report.project?.name,
-    report.project?.clientName,
-    report.project?.clientCnpj,
-    report.createdBy?.name,
-    report.createdBy?.collaborator?.name,
-    report.overtimeReason,
-    report.dailyDescription,
-    report.reviewNotes,
-    ...(report.collaborators || []).map(item => item.collaborator?.name),
-    ...(report.services || []).flatMap(service => [
-      service.serviceType,
-      service.equipment?.code,
-      service.equipment?.name,
-      service.system,
-      service.material
-    ])
-  ];
-  return normalizeReportSearchValue(parts.join(' ')).includes(normalizedTerm);
+  return matchesSearch(reportSearchParts(report), term || '');
 }
 
 function hasActiveClientRejection(report: ReportSummary) {

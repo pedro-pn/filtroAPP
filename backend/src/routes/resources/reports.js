@@ -1611,7 +1611,21 @@ function normalizeReportSearchValue(value) {
     .toLowerCase();
 }
 
+function compactReportSearchValue(value) {
+  return value.replace(/[^\p{L}\p{N}]+/gu, '');
+}
+
+function reportSearchTokens(term) {
+  return normalizeReportSearchValue(term)
+    .trim()
+    .split(/\s+/)
+    .map(token => token.trim())
+    .filter(Boolean);
+}
+
 function reportSearchParts(report) {
+  const serviceData = plainObject(report.specialConditions?.serviceData);
+  const manualUpload = plainObject(report.specialConditions?.[MANUAL_REPORT_UPLOAD_KEY]);
   return [
     report.reportType,
     report.sequenceNumber,
@@ -1626,6 +1640,8 @@ function reportSearchParts(report) {
     report.overtimeReason,
     report.dailyDescription,
     report.reviewNotes,
+    ...Object.values(serviceData),
+    manualUpload.originalFileName,
     ...(report.collaborators || []).map(item => item.collaborator?.name),
     ...(report.services || []).flatMap(service => [
       service.serviceType,
@@ -1638,9 +1654,13 @@ function reportSearchParts(report) {
 }
 
 function reportMatchesSearch(report, term) {
-  if (!term) return true;
-  return normalizeReportSearchValue(reportSearchParts(report).join(' '))
-    .includes(normalizeReportSearchValue(term));
+  const tokens = reportSearchTokens(term);
+  if (!tokens.length) return true;
+  const searchable = normalizeReportSearchValue(reportSearchParts(report).join(' '));
+  const compactSearchable = compactReportSearchValue(searchable);
+  return tokens.every(token => (
+    searchable.includes(token) || compactSearchable.includes(compactReportSearchValue(token))
+  ));
 }
 
 export function approvedRdoHistoryWhere(projectId) {
@@ -5701,10 +5721,6 @@ async function buildReportListWhere(auth, query) {
     assignActiveReportProjectWhere(where, { managerOnly: false });
   }
   applyReportProjectActiveFilter(where, query.projectActive);
-  const searchWhere = buildReportSearchWhere(searchTerm);
-  if (searchWhere && auth.user.role !== 'CLIENT') {
-    where.AND = [...(where.AND || []), searchWhere];
-  }
   return { where, searchTerm };
 }
 
@@ -5730,7 +5746,7 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
   let groups = [];
   let projectTotal = null;
 
-  if (pagination && canPaginateInDatabase) {
+  if (pagination && canPaginateInDatabase && !searchTerm) {
     const result = await prisma.$transaction(async tx => {
       const pageItems = await tx.report.findMany({
         where,
@@ -5756,6 +5772,15 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
       ...reportListQueryShape,
       orderBy
     });
+    if (searchTerm && req.auth.user.role !== 'CLIENT') {
+      items = items.filter(item => reportMatchesSearch(item, searchTerm));
+    }
+    if (pagination && canPaginateInDatabase) {
+      total = items.length;
+      groups = reportGroupTotalsFromItems(items);
+      projectTotal = reportProjectTotalFromItems(items);
+      items = items.slice(pagination.skip, pagination.skip + pagination.take);
+    }
   }
 
   logSlowOperation('reports.list.query', Date.now() - tGet0, { count: items.length, role: req.auth.user.role });

@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
 import { compareReportTypes, ProjectSortButton, sortProjects, sortReportsInGroup } from '../../utils/projectSort';
 import { reportDownloadFileName } from '../../utils/reportFileName';
+import { matchesSearch, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
 import type { UserRole } from '../../types/auth';
@@ -445,19 +446,6 @@ function initials(name: string) {
     .toUpperCase() || 'CL';
 }
 
-function normalizeSearchValue(value: unknown) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-}
-
-function matchesSearch(parts: unknown[], query: string) {
-  const term = normalizeSearchValue(query.trim());
-  if (!term) return true;
-  return normalizeSearchValue(parts.join(' ')).includes(term);
-}
-
 function projectSearchParts(project: Project) {
   return [
     project.code,
@@ -475,29 +463,6 @@ function projectSearchParts(project: Project) {
     project.operator?.name,
     projectVisibilityLabel(project),
     formatProjectSequences(project)
-  ];
-}
-
-function reportSearchParts(report: ReportSummary) {
-  return [
-    report.reportType,
-    report.sequenceNumber,
-    report.status,
-    report.reportDate,
-    report.project?.code,
-    report.project?.name,
-    report.project?.clientName,
-    report.project?.clientCnpj,
-    report.createdBy?.name,
-    report.createdBy?.collaborator?.name,
-    ...(report.collaborators || []).map(item => item.collaborator?.name),
-    ...(report.services || []).flatMap(service => [
-      service.serviceType,
-      service.equipment?.code,
-      service.equipment?.name,
-      service.system,
-      service.material
-    ])
   ];
 }
 
