@@ -6,6 +6,8 @@ interface Props {
   file?: File | null;
   fileName?: string;
   onFile: (file: File | null) => void;
+  multiple?: boolean;
+  onFiles?: (files: File[]) => void;
   currentName?: string;
   currentUrl?: string;
   currentRemoved?: boolean;
@@ -25,13 +27,19 @@ export function PdfDropzone({
   currentRemoved = false,
   onCurrentRemovedChange,
   accept = 'application/pdf,.pdf',
-  disabled = false
+  disabled = false,
+  multiple = false,
+  onFiles
 }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const selectedName = file?.name || fileName;
 
   function pick(files: FileList | null) {
+    if (multiple && onFiles) {
+      onFiles(Array.from(files || []));
+      return;
+    }
     onFile(files?.[0] || null);
   }
 
@@ -76,6 +84,7 @@ export function PdfDropzone({
           id={id}
           type="file"
           accept={accept}
+          multiple={multiple}
           className="visually-hidden"
           disabled={disabled}
           onChange={event => {
@@ -85,8 +94,8 @@ export function PdfDropzone({
         />
         <span className="pdf-dropzone-icon" aria-hidden="true">⤓</span>
         <span className="pdf-dropzone-text">
-          <strong>{selectedName || 'Arraste o PDF aqui'}</strong>
-          <small>{selectedName ? 'Clique ou solte outro para substituir' : 'ou clique para selecionar'}</small>
+          <strong>{selectedName || (multiple ? 'Arraste os PDFs aqui' : 'Arraste o PDF aqui')}</strong>
+          <small>{selectedName ? (multiple ? 'Clique ou solte para adicionar mais' : 'Clique ou solte outro para substituir') : 'ou clique para selecionar'}</small>
         </span>
         {selectedName && !disabled ? (
           <button
@@ -95,7 +104,11 @@ export function PdfDropzone({
             aria-label="Remover arquivo selecionado"
             onClick={event => {
               event.stopPropagation();
-              onFile(null);
+              if (multiple && onFiles) {
+                onFiles([]);
+              } else {
+                onFile(null);
+              }
             }}
           >
             ×

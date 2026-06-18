@@ -3954,6 +3954,61 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   border-top: 1px solid var(--br);
 }
 
+.manual-report-modal {
+  width: min(100%, 860px);
+}
+
+.manual-report-file-list {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.manual-report-file-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--br);
+  border-radius: var(--r);
+  background: var(--wh);
+  padding: 12px;
+}
+
+.manual-report-file-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.manual-report-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tx);
+}
+
+.manual-report-file-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.manual-report-file-fields.with-service {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 760px) {
+  .manual-report-file-fields,
+  .manual-report-file-fields.with-service {
+    grid-template-columns: 1fr;
+  }
+}
+
 .tog-lbl {
   font-size: 13px;
   font-weight: 500;

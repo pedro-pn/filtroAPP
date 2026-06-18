@@ -179,6 +179,16 @@ interface ProjectReportSequenceFormState {
   nextNumber: string;
 }
 
+interface ManualReportUploadFileState {
+  id: string;
+  fileName: string;
+  pdfDataUrl: string;
+  sequenceNumber: string;
+  reportDate: string;
+  serviceEquipment: string;
+  serviceSystem: string;
+}
+
 interface ManualReportFormState {
   projectId: string;
   reportType: ReportType;
@@ -189,6 +199,7 @@ interface ManualReportFormState {
   serviceSystem: string;
   fileName: string;
   pdfDataUrl: string;
+  files: ManualReportUploadFileState[];
 }
 
 interface CollaboratorFormState {
@@ -269,7 +280,8 @@ const emptyManualReportForm: ManualReportFormState = {
   serviceEquipment: '',
   serviceSystem: '',
   fileName: '',
-  pdfDataUrl: ''
+  pdfDataUrl: '',
+  files: []
 };
 
 const emptyCollaboratorForm: CollaboratorFormState = {
@@ -399,6 +411,17 @@ function fileToDataUrl(file: File) {
     reader.onerror = () => reject(reader.error || new Error('Falha ao ler arquivo.'));
     reader.readAsDataURL(file);
   });
+}
+
+function manualReportFileId() {
+  const random = Math.random().toString(36).slice(2, 8);
+  return `manual-report-${Date.now()}-${random}`;
+}
+
+function manualReportUploadListLabel(files: ManualReportUploadFileState[]) {
+  if (!files.length) return '';
+  if (files.length === 1) return files[0].fileName;
+  return `${files.length} PDFs selecionados`;
 }
 
 function normalizeSignatureImage(value?: string | null) {
@@ -1256,6 +1279,7 @@ export function GestorPage() {
   const [manualReportForm, setManualReportForm] = useState<ManualReportFormState>(emptyManualReportForm);
   const [manualReportTarget, setManualReportTarget] = useState<ReportSummary | null>(null);
   const [manualReportModalOpen, setManualReportModalOpen] = useState(false);
+  const [manualReportSubmitting, setManualReportSubmitting] = useState(false);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [projectSortDir, setProjectSortDir] = useState<'asc' | 'desc'>(initialUiPrefs.projectSortDir);
   const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>(initialUiPrefs.closedArchivedProjectIds);
@@ -2114,10 +2138,15 @@ export function GestorPage() {
     }
   }
 
-  function closeManualReportModal() {
+  function resetManualReportModal() {
     setManualReportModalOpen(false);
     setManualReportTarget(null);
     setManualReportForm(emptyManualReportForm);
+  }
+
+  function closeManualReportModal() {
+    if (manualReportSubmitting) return;
+    resetManualReportModal();
   }
 
   function openManualReportUpload(projectId = '') {
@@ -2141,7 +2170,8 @@ export function GestorPage() {
       serviceEquipment: manualReportServiceField(report, ['Equipamento', 'Equipamento(s)']),
       serviceSystem: manualReportServiceField(report, ['Sistema']),
       fileName: '',
-      pdfDataUrl: ''
+      pdfDataUrl: '',
+      files: []
     });
     setManualReportModalOpen(true);
   }
@@ -2168,66 +2198,156 @@ export function GestorPage() {
     }
   }
 
+  async function handleManualReportFiles(files: File[]) {
+    if (!files.length) {
+      setManualReportForm(current => ({ ...current, files: [] }));
+      return;
+    }
+
+    const invalidFile = files.find(file => !(file.type === 'application/pdf' || /\.pdf$/i.test(file.name)));
+    if (invalidFile) {
+      showToast(`Selecione apenas arquivos PDF.`, 'error');
+      return;
+    }
+
+    const oversizedFile = files.find(file => file.size > 20 * 1024 * 1024);
+    if (oversizedFile) {
+      showToast(`O PDF ${oversizedFile.name} deve ter no máximo 20 MB.`, 'error');
+      return;
+    }
+
+    const baseDate = manualReportForm.reportDate || new Date().toISOString().slice(0, 10);
+    const serviceEquipment = manualReportForm.serviceEquipment.trim();
+    const serviceSystem = manualReportForm.serviceSystem.trim();
+
+    try {
+      const uploadFiles = await Promise.all(files.map(async file => ({
+        id: manualReportFileId(),
+        fileName: file.name,
+        pdfDataUrl: await fileToDataUrl(file),
+        sequenceNumber: '',
+        reportDate: baseDate,
+        serviceEquipment,
+        serviceSystem
+      })));
+      setManualReportForm(current => ({
+        ...current,
+        files: [...current.files, ...uploadFiles]
+      }));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível ler os PDFs.', 'error');
+    }
+  }
+
+  function updateManualReportUploadFile(id: string, patch: Partial<ManualReportUploadFileState>) {
+    setManualReportForm(current => ({
+      ...current,
+      files: current.files.map(file => file.id === id ? { ...file, ...patch } : file)
+    }));
+  }
+
+  function removeManualReportUploadFile(id: string) {
+    setManualReportForm(current => ({
+      ...current,
+      files: current.files.filter(file => file.id !== id)
+    }));
+  }
+
   async function handleManualReportSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!manualReportForm.pdfDataUrl) {
+    if (manualReportSubmitting) return;
+    if (manualReportTarget && !manualReportForm.pdfDataUrl) {
       showToast('Selecione um PDF.', 'error');
+      return;
+    }
+    if (!manualReportTarget && !manualReportForm.files.length) {
+      showToast('Selecione ao menos um PDF.', 'error');
       return;
     }
     if (!manualReportTarget && !manualReportForm.projectId) {
       showToast('Selecione um projeto.', 'error');
       return;
     }
-    if (!manualReportTarget && !manualReportForm.reportDate) {
-      showToast('Informe a data do relatório.', 'error');
+    if (!manualReportTarget && manualReportForm.files.some(file => !file.reportDate)) {
+      showToast('Informe a data de todos os PDFs.', 'error');
       return;
     }
 
-    const sequenceText = manualReportForm.sequenceNumber.trim();
-    const parsedSequenceNumber = sequenceText ? Number.parseInt(sequenceText, 10) : undefined;
-    const invalidSequenceNumber = parsedSequenceNumber !== undefined
-      && (!Number.isInteger(parsedSequenceNumber) || parsedSequenceNumber < 1);
-    if (!manualReportTarget && invalidSequenceNumber) {
-      showToast('Informe uma numeração maior que zero.', 'error');
-      return;
-    }
-    const sequenceNumber = parsedSequenceNumber && parsedSequenceNumber > 0 ? parsedSequenceNumber : undefined;
-    const serviceMetadata = manualReportForm.reportType !== 'RDO'
+    const replacementServiceMetadata = manualReportForm.reportType !== 'RDO'
       ? {
           serviceEquipment: manualReportForm.serviceEquipment.trim(),
           serviceSystem: manualReportForm.serviceSystem.trim()
         }
       : {};
 
+    const uploadFiles = manualReportForm.files.map(file => {
+      const sequenceText = file.sequenceNumber.trim();
+      const parsedSequenceNumber = sequenceText ? Number.parseInt(sequenceText, 10) : undefined;
+      return {
+        ...file,
+        sequenceNumber: parsedSequenceNumber && parsedSequenceNumber > 0 ? parsedSequenceNumber : undefined,
+        invalidSequenceNumber: parsedSequenceNumber !== undefined
+          && (!Number.isInteger(parsedSequenceNumber) || parsedSequenceNumber < 1)
+      };
+    });
+
+    if (!manualReportTarget && uploadFiles.some(file => file.invalidSequenceNumber)) {
+      showToast('Informe numerações maiores que zero.', 'error');
+      return;
+    }
+
+    setManualReportSubmitting(true);
+    const uploadedFileIds: string[] = [];
     try {
       if (manualReportTarget) {
         await reportMutations.replaceManualReportPdf.mutateAsync({
           id: manualReportTarget.id,
           payload: {
             fileName: manualReportForm.fileName,
-            ...serviceMetadata,
+            ...replacementServiceMetadata,
             pdfDataUrl: manualReportForm.pdfDataUrl,
             signatureMode: manualReportForm.signatureMode
           }
         });
         showToast('PDF substituído.', 'success');
       } else {
-        await reportMutations.uploadManualReport.mutateAsync({
-          projectId: manualReportForm.projectId,
-          reportType: manualReportForm.reportType,
-          sequenceNumber,
-          reportDate: manualReportForm.reportDate,
-          fileName: manualReportForm.fileName,
-          ...serviceMetadata,
-          pdfDataUrl: manualReportForm.pdfDataUrl,
-          signatureMode: manualReportForm.signatureMode
-        });
+        for (const file of uploadFiles) {
+          const serviceMetadata = manualReportForm.reportType !== 'RDO'
+            ? {
+                serviceEquipment: file.serviceEquipment.trim(),
+                serviceSystem: file.serviceSystem.trim()
+              }
+            : {};
+          await reportMutations.uploadManualReport.mutateAsync({
+            projectId: manualReportForm.projectId,
+            reportType: manualReportForm.reportType,
+            sequenceNumber: file.sequenceNumber,
+            reportDate: file.reportDate,
+            fileName: file.fileName,
+            ...serviceMetadata,
+            pdfDataUrl: file.pdfDataUrl,
+            signatureMode: manualReportForm.signatureMode
+          });
+          uploadedFileIds.push(file.id);
+        }
         setTab('aprovados');
-        showToast('Relatório antigo adicionado.', 'success');
+        showToast(uploadFiles.length === 1 ? 'Relatório antigo adicionado.' : `${uploadFiles.length} relatórios antigos adicionados.`, 'success');
       }
-      closeManualReportModal();
+      resetManualReportModal();
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Não foi possível salvar o relatório antigo.', 'error');
+      const message = error instanceof Error ? error.message : 'Não foi possível salvar o relatório antigo.';
+      if (!manualReportTarget && uploadedFileIds.length) {
+        setManualReportForm(current => ({
+          ...current,
+          files: current.files.filter(file => !uploadedFileIds.includes(file.id))
+        }));
+        const label = uploadedFileIds.length === 1 ? '1 relatório foi adicionado' : `${uploadedFileIds.length} relatórios foram adicionados`;
+        showToast(`${label}. ${message}`, 'error');
+      } else {
+        showToast(message, 'error');
+      }
+    } finally {
+      setManualReportSubmitting(false);
     }
   }
 
@@ -2515,14 +2635,18 @@ export function GestorPage() {
 
   function renderManualReportModal() {
     const replacing = Boolean(manualReportTarget);
-    const submitting = reportMutations.uploadManualReport.isPending || reportMutations.replaceManualReportPdf.isPending;
+    const submitting = manualReportSubmitting || reportMutations.uploadManualReport.isPending || reportMutations.replaceManualReportPdf.isPending;
     const serviceReportSelected = manualReportForm.reportType !== 'RDO';
+    const selectedPdfLabel = replacing
+      ? manualReportForm.fileName
+      : manualReportUploadListLabel(manualReportForm.files);
 
     return (
       <Modal
         open={manualReportModalOpen}
         onClose={closeManualReportModal}
         ariaLabelledBy="manual-report-upload-title"
+        panelClassName="modal-card manual-report-modal"
       >
         <form className="admin-form admin-form-grid manual-report-form" onSubmit={handleManualReportSubmit}>
           <div className="section-title" id="manual-report-upload-title">
@@ -2556,7 +2680,11 @@ export function GestorPage() {
                 setManualReportForm(current => ({
                   ...current,
                   reportType,
-                  ...(reportType === 'RDO' ? { serviceEquipment: '', serviceSystem: '' } : {})
+                  ...(reportType === 'RDO' ? {
+                    serviceEquipment: '',
+                    serviceSystem: '',
+                    files: current.files.map(file => ({ ...file, serviceEquipment: '', serviceSystem: '' }))
+                  } : {})
                 }));
               }}
             >
@@ -2565,7 +2693,7 @@ export function GestorPage() {
               ))}
             </select>
           </div>
-          {serviceReportSelected ? (
+          {serviceReportSelected && replacing ? (
             <>
               <div className="field-group">
                 <label htmlFor="manual-report-service-equipment">Equipamento</label>
@@ -2587,31 +2715,35 @@ export function GestorPage() {
               </div>
             </>
           ) : null}
-          <div className="field-group">
-            <label htmlFor="manual-report-date">Data</label>
-            <input
-              id="manual-report-date"
-              type="date"
-              value={manualReportForm.reportDate}
-              disabled={replacing}
-              onChange={event => setManualReportForm(current => ({ ...current, reportDate: event.target.value }))}
-              required
-            />
-          </div>
-          <div className="field-group">
-            <label htmlFor="manual-report-sequence">Número</label>
-            <input
-              id="manual-report-sequence"
-              type="number"
-              min={1}
-              step={1}
-              inputMode="numeric"
-              value={manualReportForm.sequenceNumber}
-              disabled={replacing}
-              onChange={event => setManualReportForm(current => ({ ...current, sequenceNumber: event.target.value.replace(/\D/g, '') }))}
-              placeholder="Automático"
-            />
-          </div>
+          {replacing ? (
+            <>
+              <div className="field-group">
+                <label htmlFor="manual-report-date">Data</label>
+                <input
+                  id="manual-report-date"
+                  type="date"
+                  value={manualReportForm.reportDate}
+                  disabled
+                  onChange={event => setManualReportForm(current => ({ ...current, reportDate: event.target.value }))}
+                  required
+                />
+              </div>
+              <div className="field-group">
+                <label htmlFor="manual-report-sequence">Número</label>
+                <input
+                  id="manual-report-sequence"
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={manualReportForm.sequenceNumber}
+                  disabled
+                  onChange={event => setManualReportForm(current => ({ ...current, sequenceNumber: event.target.value.replace(/\D/g, '') }))}
+                  placeholder="Automático"
+                />
+              </div>
+            </>
+          ) : null}
           <div className="field-group">
             <label htmlFor="manual-report-signature-mode">Estado do PDF</label>
             <select
@@ -2627,18 +2759,92 @@ export function GestorPage() {
           <div className="field-group-wide">
             <PdfDropzone
               id="manual-report-pdf"
-              label="PDF"
-              fileName={manualReportForm.fileName}
+              label={replacing ? 'PDF' : 'PDFs'}
+              fileName={selectedPdfLabel}
               onFile={file => void handleManualReportFile(file)}
+              multiple={!replacing}
+              onFiles={files => void handleManualReportFiles(files)}
               disabled={submitting}
             />
           </div>
+          {!replacing && manualReportForm.files.length ? (
+            <div className="manual-report-file-list">
+              {manualReportForm.files.map((file, index) => {
+                const dateId = `manual-report-file-date-${file.id}`;
+                const sequenceId = `manual-report-file-sequence-${file.id}`;
+                const equipmentId = `manual-report-file-equipment-${file.id}`;
+                const systemId = `manual-report-file-system-${file.id}`;
+                return (
+                  <div className="manual-report-file-card" key={file.id}>
+                    <div className="manual-report-file-header">
+                      <span className="manual-report-file-name">{index + 1}. {file.fileName}</span>
+                      <button
+                        className="mini-btn alt"
+                        type="button"
+                        disabled={submitting}
+                        onClick={() => removeManualReportUploadFile(file.id)}
+                      >
+                        Remover
+                      </button>
+                    </div>
+                    <div className={`manual-report-file-fields ${serviceReportSelected ? 'with-service' : ''}`}>
+                      <div className="field-group">
+                        <label htmlFor={dateId}>Data</label>
+                        <input
+                          id={dateId}
+                          type="date"
+                          value={file.reportDate}
+                          onChange={event => updateManualReportUploadFile(file.id, { reportDate: event.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="field-group">
+                        <label htmlFor={sequenceId}>Número</label>
+                        <input
+                          id={sequenceId}
+                          type="number"
+                          min={1}
+                          step={1}
+                          inputMode="numeric"
+                          value={file.sequenceNumber}
+                          onChange={event => updateManualReportUploadFile(file.id, { sequenceNumber: event.target.value.replace(/\D/g, '') })}
+                          placeholder="Automático"
+                        />
+                      </div>
+                      {serviceReportSelected ? (
+                        <>
+                          <div className="field-group">
+                            <label htmlFor={equipmentId}>Equipamento</label>
+                            <input
+                              id={equipmentId}
+                              value={file.serviceEquipment}
+                              onChange={event => updateManualReportUploadFile(file.id, { serviceEquipment: event.target.value })}
+                              placeholder="Equipamento do serviço"
+                            />
+                          </div>
+                          <div className="field-group">
+                            <label htmlFor={systemId}>Sistema</label>
+                            <input
+                              id={systemId}
+                              value={file.serviceSystem}
+                              onChange={event => updateManualReportUploadFile(file.id, { serviceSystem: event.target.value })}
+                              placeholder="Sistema do serviço"
+                            />
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
           <div className="admin-form-actions manual-report-actions">
             <button className="secondary-button" type="button" disabled={submitting} onClick={closeManualReportModal}>
               Cancelar
             </button>
-            <button className="primary-button" type="submit" disabled={submitting || !manualReportForm.pdfDataUrl}>
-              {submitting ? 'Salvando...' : replacing ? 'Substituir PDF' : 'Adicionar relatório'}
+            <button className="primary-button" type="submit" disabled={submitting || (replacing ? !manualReportForm.pdfDataUrl : !manualReportForm.files.length)}>
+              {submitting ? 'Salvando...' : replacing ? 'Substituir PDF' : manualReportForm.files.length > 1 ? 'Adicionar relatórios' : 'Adicionar relatório'}
             </button>
           </div>
         </form>
