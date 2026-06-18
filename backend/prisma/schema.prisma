@@ -546,8 +546,11 @@ model EquipmentCategory {
   name                 String // rótulo editável (vira a aba)
   order                Int                @default(0)
   fieldSchema          Json               @default("[]") // [{ key, label, type, required, options?, order, showInDashboard? }]
+  technicalSchema      Json               @default("[]") // dados técnicos: [{ key, label, type, group?, unit?, options?, repeatable?, itemSchema?, optionalPerEquipment?, showInDoc?, order }]
+  technicalDocEnabled  Boolean            @default(false) // liga a aba "Dados Técnicos" (datasheet estruturado + geração DOCX→PDF)
+  technicalTemplateId  String? // DOCX modelo da categoria (Etapa F); null = usa o modelo genérico
   supportsCalibration  Boolean            @default(false)
-  supportsTechnicalDoc Boolean            @default(true)
+  supportsTechnicalDoc Boolean            @default(true) // anexo PDF legado (mantido como histórico)
   syncToRomaneio       Boolean            @default(false)
   isSystemManaged      Boolean            @default(false) // categorias consumidas pelo RDO (não removíveis)
   isActive             Boolean            @default(true)
@@ -562,6 +565,10 @@ model CompanyEquipment {
   name            String
   categoryId      String
   attributes      Json                  @default("{}") // valores dos campos dinâmicos, keyed por field.key
+  technicalData   Json                  @default("{}") // valores do datasheet, keyed por technicalSchema.key
+  technicalFieldOverrides Json          @default("{}") // inclusão/exclusão de campos optionalPerEquipment, keyed por key -> bool
+  technicalRevision Int                 @default(0)
+  technicalUpdatedAt DateTime?
   hasCalibration  Boolean               @default(false)
   calibratedAt    DateTime?
   expiresAt       DateTime?
@@ -579,6 +586,8 @@ model CompanyEquipment {
 enum EquipmentAttachmentKind {
   CALIBRATION_CERTIFICATE
   TECHNICAL_DOC
+  TECHNICAL_TEMPLATE
+  TECHNICAL_DOC_GENERATED
 }
 
 // Destinatários das notificações de calibração do módulo Equipamentos: contas

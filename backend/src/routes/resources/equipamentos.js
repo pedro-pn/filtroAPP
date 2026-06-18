@@ -10,7 +10,7 @@ import {
   EquipmentAttachmentKinds
 } from '../../lib/equipment-attachments.js';
 import { notifyCalibrationUpdatedSafely } from '../../lib/calibration-reminders.js';
-import { normalizeFieldSchema, slugifySystemKey } from '../../lib/equipment-categories.js';
+import { normalizeFieldSchema, normalizeTechnicalSchema, slugifySystemKey } from '../../lib/equipment-categories.js';
 import {
   getEquipmentNotificationConfig,
   listEquipmentNotificationRecipients,
@@ -18,6 +18,7 @@ import {
   updateEquipmentNotificationConfig
 } from '../../lib/equipment-notifications.js';
 import { getSlot, resolveRdoSlotMap } from '../../lib/rdo-equipment-slots.js';
+import { measurementCatalog } from '../../lib/equipment-units.js';
 import prisma from '../../lib/prisma.js';
 import {
   clearEquipmentModuleCaches,
@@ -50,10 +51,16 @@ const fieldDefinitionSchema = z.object({
   showInDashboard: z.boolean().optional()
 });
 
+// Campos do datasheet (Dados Técnicos): validação pesada fica em normalizeTechnicalSchema;
+// aqui o schema é permissivo para não duplicar regras (tipos/grupos/unidades).
+const technicalFieldSchema = z.record(z.any());
+
 const categorySchema = z.object({
   name: z.string().trim().min(1),
   order: z.number().int().optional(),
   fieldSchema: z.array(fieldDefinitionSchema).optional(),
+  technicalSchema: z.array(technicalFieldSchema).optional(),
+  technicalDocEnabled: z.boolean().optional(),
   supportsCalibration: z.boolean().optional(),
   supportsTechnicalDoc: z.boolean().optional(),
   syncToRomaneio: z.boolean().optional()
@@ -64,6 +71,8 @@ const equipmentSchema = z.object({
   name: z.string().trim().min(1),
   categoryId: z.string().trim().min(1),
   attributes: z.record(z.any()).optional(),
+  technicalData: z.record(z.any()).optional(),
+  technicalFieldOverrides: z.record(z.boolean()).optional(),
   hasCalibration: z.boolean().optional(),
   calibratedAt: z.string().optional().nullable(),
   expiresAt: z.string().optional().nullable(),
@@ -156,6 +165,11 @@ async function importRomaneioEquipmentIntoCategory(category) {
   return imported;
 }
 
+// Catálogo de grandezas/unidades para os campos `measure` do datasheet.
+router.get('/units-catalog', asyncHandler(async (_req, res) => {
+  res.json(measurementCatalog());
+}));
+
 // === Categorias ===
 
 router.get('/categories', asyncHandler(async (_req, res) => {
@@ -175,6 +189,8 @@ router.post('/categories', requireEquipamentosManager, asyncHandler(async (req, 
       name: data.name,
       order: data.order ?? 0,
       fieldSchema: normalizeFieldSchema(data.fieldSchema),
+      technicalSchema: normalizeTechnicalSchema(data.technicalSchema),
+      technicalDocEnabled: data.technicalDocEnabled ?? false,
       supportsCalibration: data.supportsCalibration ?? false,
       supportsTechnicalDoc: data.supportsTechnicalDoc ?? true,
       syncToRomaneio: data.syncToRomaneio ?? false
@@ -192,6 +208,8 @@ router.put('/categories/:id', requireEquipamentosManager, asyncHandler(async (re
     ...(data.name !== undefined ? { name: data.name } : {}),
     ...(data.order !== undefined ? { order: data.order } : {}),
     ...(data.fieldSchema !== undefined ? { fieldSchema: normalizeFieldSchema(data.fieldSchema) } : {}),
+    ...(data.technicalSchema !== undefined ? { technicalSchema: normalizeTechnicalSchema(data.technicalSchema) } : {}),
+    ...(data.technicalDocEnabled !== undefined ? { technicalDocEnabled: data.technicalDocEnabled } : {}),
     ...(data.supportsCalibration !== undefined ? { supportsCalibration: data.supportsCalibration } : {}),
     ...(data.supportsTechnicalDoc !== undefined ? { supportsTechnicalDoc: data.supportsTechnicalDoc } : {}),
     ...(data.syncToRomaneio !== undefined ? { syncToRomaneio: data.syncToRomaneio } : {})
@@ -271,6 +289,10 @@ router.post('/', requireEquipamentosManager, asyncHandler(async (req, res) => {
       name: fields.name,
       categoryId: fields.categoryId,
       attributes: fields.attributes ?? {},
+      technicalData: fields.technicalData ?? {},
+      technicalFieldOverrides: fields.technicalFieldOverrides ?? {},
+      technicalRevision: fields.technicalData ? 1 : 0,
+      technicalUpdatedAt: fields.technicalData ? new Date() : null,
       hasCalibration: fields.hasCalibration ?? false,
       calibratedAt: fields.hasCalibration && fields.calibratedAt ? new Date(fields.calibratedAt) : null,
       expiresAt: fields.hasCalibration && fields.expiresAt ? new Date(fields.expiresAt) : null,
@@ -295,8 +317,15 @@ router.put('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => 
     ...(fields.name !== undefined ? { name: fields.name } : {}),
     ...(fields.categoryId !== undefined ? { categoryId: fields.categoryId } : {}),
     ...(fields.attributes !== undefined ? { attributes: fields.attributes } : {}),
+    ...(fields.technicalFieldOverrides !== undefined ? { technicalFieldOverrides: fields.technicalFieldOverrides } : {}),
     ...(fields.hasTechnicalDoc !== undefined ? { hasTechnicalDoc: fields.hasTechnicalDoc } : {})
   };
+  // Mexer no datasheet incrementa a revisão e marca a data (sinaliza "PDF desatualizado").
+  if (fields.technicalData !== undefined) {
+    payload.technicalData = fields.technicalData;
+    payload.technicalRevision = { increment: 1 };
+    payload.technicalUpdatedAt = new Date();
+  }
   if (fields.hasCalibration !== undefined) {
     payload.hasCalibration = fields.hasCalibration;
     payload.calibratedAt = fields.hasCalibration && fields.calibratedAt ? new Date(fields.calibratedAt) : null;
