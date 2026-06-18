@@ -7,9 +7,11 @@ interface Props {
   onFile: (file: File | null) => void;
   currentName?: string;
   currentUrl?: string;
+  currentRemoved?: boolean;
+  onCurrentRemovedChange?: (removed: boolean) => void;
 }
 
-export function PdfDropzone({ id, label, file, onFile, currentName, currentUrl }: Props) {
+export function PdfDropzone({ id, label, file, onFile, currentName, currentUrl, currentRemoved = false, onCurrentRemovedChange }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -60,8 +62,35 @@ export function PdfDropzone({ id, label, file, onFile, currentName, currentUrl }
           </button>
         )}
       </div>
-      {currentUrl && !file && (
-        <a className="equip-link" href={currentUrl} target="_blank" rel="noreferrer">Atual: {currentName}</a>
+      {currentName && !file && !currentRemoved && (
+        <div className="pdf-dropzone-current">
+          {currentUrl
+            ? <a className="equip-link" href={currentUrl} target="_blank" rel="noreferrer">Atual: {currentName}</a>
+            : <span className="equip-muted">Atual: {currentName}</span>}
+          {onCurrentRemovedChange && (
+            <button
+              type="button"
+              className="mini-btn alt pdf-dropzone-remove-current"
+              onClick={() => onCurrentRemovedChange(true)}
+            >
+              Remover
+            </button>
+          )}
+        </div>
+      )}
+      {currentName && !file && currentRemoved && (
+        <div className="pdf-dropzone-current">
+          <span className="equip-muted equip-removed">Documento será removido ao salvar</span>
+          {onCurrentRemovedChange && (
+            <button
+              type="button"
+              className="mini-btn alt pdf-dropzone-undo-current"
+              onClick={() => onCurrentRemovedChange(false)}
+            >
+              Desfazer
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

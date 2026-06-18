@@ -130,6 +130,28 @@ export async function createEquipmentAttachment(client, { equipmentId, kind, upl
   });
 }
 
+// Remove todos os anexos de um tipo (certificado/doc técnica) do equipamento.
+// O arquivo físico só é apagado dos anexos do próprio módulo (sob "Equipamentos/");
+// os migrados compartilham o arquivo com registros antigos e são preservados.
+export async function removeEquipmentAttachments(client, equipmentId, kind) {
+  const rows = await client.equipmentAttachment.findMany({ where: { equipmentId, kind } });
+  if (!rows.length) return 0;
+  await client.equipmentAttachment.deleteMany({ where: { equipmentId, kind } });
+  for (const row of rows) {
+    if (!row.storagePath || !row.storagePath.startsWith('Equipamentos/')) continue;
+    const targetPath = path.resolve(env.uploadDir, row.storagePath.split('/').join(path.sep));
+    const root = path.resolve(env.uploadDir);
+    const relative = path.relative(root, targetPath);
+    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) continue;
+    try {
+      await fs.unlink(targetPath);
+    } catch {
+      // Arquivo já ausente — ignora.
+    }
+  }
+  return rows.length;
+}
+
 export async function resolvePublicEquipmentAttachment(token) {
   const publicToken = String(token || '').trim();
   if (!publicToken) return null;

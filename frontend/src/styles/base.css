@@ -8400,6 +8400,41 @@ select {
   color: var(--wh);
 }
 
+.pdf-dropzone-current {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.pdf-dropzone-current .equip-muted {
+  font-size: 13px;
+  color: var(--tx-soft, #64748b);
+}
+
+.pdf-dropzone-current .equip-removed {
+  color: var(--rd);
+}
+
+.pdf-dropzone-remove-current,
+.pdf-dropzone-undo-current {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 6px 12px;
+}
+
+.pdf-dropzone-remove-current {
+  border-color: rgba(196, 18, 28, 0.4);
+  color: var(--rd);
+}
+
+.pdf-dropzone-remove-current:hover {
+  background: var(--rd);
+  border-color: var(--rd);
+  color: var(--wh);
+}
+
 /* Aba de Notificações */
 .equip-notif-config {
   display: flex;

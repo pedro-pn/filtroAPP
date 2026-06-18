@@ -77,6 +77,8 @@ export interface EquipmentPayload {
   hasTechnicalDoc?: boolean;
   calibrationCertificate?: PdfUpload | null;
   technicalDoc?: PdfUpload | null;
+  removeCalibrationCertificate?: boolean;
+  removeTechnicalDoc?: boolean;
 }
 
 // === Categorias ===

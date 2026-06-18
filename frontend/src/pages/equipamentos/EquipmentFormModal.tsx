@@ -47,6 +47,8 @@ export function EquipmentFormModal({ open, category, equipment, saving, onClose,
   const [expiresAt, setExpiresAt] = useState(dateInputValue(equipment?.expiresAt));
   const [certFile, setCertFile] = useState<File | null>(null);
   const [docFile, setDocFile] = useState<File | null>(null);
+  const [removeCert, setRemoveCert] = useState(false);
+  const [removeDoc, setRemoveDoc] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function setAttribute(key: string, value: string) {
@@ -75,7 +77,9 @@ export function EquipmentFormModal({ open, category, equipment, saving, onClose,
         expiresAt: hasCalibration ? expiresAt : null,
         hasTechnicalDoc: category.supportsTechnicalDoc,
         calibrationCertificate,
-        technicalDoc
+        technicalDoc,
+        removeCalibrationCertificate: removeCert && !certFile,
+        removeTechnicalDoc: removeDoc && !docFile
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível preparar o anexo.');
@@ -156,6 +160,8 @@ export function EquipmentFormModal({ open, category, equipment, saving, onClose,
                   onFile={setCertFile}
                   currentName={equipment?.calibrationCertificate?.fileName}
                   currentUrl={equipment?.calibrationCertificate?.publicUrl}
+                  currentRemoved={removeCert}
+                  onCurrentRemovedChange={setRemoveCert}
                 />
               </>
             )}
@@ -171,6 +177,8 @@ export function EquipmentFormModal({ open, category, equipment, saving, onClose,
               onFile={setDocFile}
               currentName={equipment?.technicalDoc?.fileName}
               currentUrl={equipment?.technicalDoc?.publicUrl}
+              currentRemoved={removeDoc}
+              onCurrentRemovedChange={setRemoveDoc}
             />
           </div>
         )}

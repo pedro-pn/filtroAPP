@@ -5,6 +5,7 @@ import asyncHandler from '../../lib/async-handler.js';
 import {
   createEquipmentAttachment,
   equipmentAttachmentsInclude,
+  removeEquipmentAttachments,
   withCurrentAttachments,
   EquipmentAttachmentKinds
 } from '../../lib/equipment-attachments.js';
@@ -68,7 +69,9 @@ const equipmentSchema = z.object({
   expiresAt: z.string().optional().nullable(),
   hasTechnicalDoc: z.boolean().optional(),
   calibrationCertificate: pdfUploadSchema,
-  technicalDoc: pdfUploadSchema
+  technicalDoc: pdfUploadSchema,
+  removeCalibrationCertificate: z.boolean().optional(),
+  removeTechnicalDoc: z.boolean().optional()
 });
 
 async function uniqueSystemKey(name) {
@@ -286,7 +289,7 @@ router.post('/', requireEquipamentosManager, asyncHandler(async (req, res) => {
 
 router.put('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => {
   const data = equipmentSchema.partial().parse(req.body);
-  const { calibrationCertificate, technicalDoc, ...fields } = data;
+  const { calibrationCertificate, technicalDoc, removeCalibrationCertificate, removeTechnicalDoc, ...fields } = data;
   const payload = {
     ...(fields.code !== undefined ? { code: fields.code } : {}),
     ...(fields.name !== undefined ? { name: fields.name } : {}),
@@ -305,6 +308,12 @@ router.put('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => 
   const previous = await prisma.companyEquipment.findUnique({ where: { id: req.params.id }, select: { expiresAt: true } });
   const item = await prisma.companyEquipment.update({ where: { id: req.params.id }, data: payload });
   await persistAttachments(item.id, { calibrationCertificate, technicalDoc });
+  if (removeCalibrationCertificate && !calibrationCertificate) {
+    await removeEquipmentAttachments(prisma, item.id, EquipmentAttachmentKinds.CALIBRATION_CERTIFICATE);
+  }
+  if (removeTechnicalDoc && !technicalDoc) {
+    await removeEquipmentAttachments(prisma, item.id, EquipmentAttachmentKinds.TECHNICAL_DOC);
+  }
   invalidateCaches();
   await syncRomaneioCatalog();
   const fresh = await prisma.companyEquipment.findUnique({
