@@ -674,6 +674,7 @@ export function StatsDashboard() {
   const [customGranularity, setCustomGranularity] = useState<StatsParams['granularity']>('month');
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [projectStatus, setProjectStatus] = useState<ProjectStatusFilterValue>('all');
+  const [byProjectStatus, setByProjectStatus] = useState<ProjectStatusFilterValue>('all');
   const [segment, setSegment] = useState('');
   const [timelineMode, setTimelineMode] = useState<'hours' | 'services'>('hours');
   const [exportingSection, setExportingSection] = useState<StatsExportSection | null>(null);
@@ -697,16 +698,27 @@ export function StatsDashboard() {
     ? { from: customFrom || startOfYear(), to: customTo || today(), granularity: customGranularity }
     : presetParams(preset);
 
-  const statsParams: StatsParams = {
+  const sharedStatsParams: StatsParams = {
     ...periodPart,
-    projectStatus,
     ...(segment ? { segment } : {}),
     ...(selectedVisibleProjects.length > 0 ? { projectId: selectedVisibleProjects, includeDailyReports: true } : {})
   };
 
+  const statsParams: StatsParams = {
+    ...sharedStatsParams,
+    projectStatus
+  };
+
+  const byProjectStatsParams: StatsParams = {
+    ...sharedStatsParams,
+    projectStatus: byProjectStatus
+  };
+
   const statsQuery = useProjectStats(statsParams);
+  const byProjectStatsQuery = useProjectStats(byProjectStatsParams, selectedVisibleProjects.length !== 1);
 
   const data = statsQuery.data;
+  const byProjectData = byProjectStatsQuery.data;
   const singleProject = selectedVisibleProjects.length === 1;
 
   useEffect(() => {
@@ -756,13 +768,13 @@ export function StatsDashboard() {
     );
   }
 
-  async function handleExport(section: StatsExportSection) {
+  async function handleExport(section: StatsExportSection, params: StatsParams = statsParams) {
     setExportError('');
     setExportingSection(section);
     try {
-      const params = { ...statsParams, section };
-      const blob = await downloadProjectStatsCsv(params);
-      downloadBlob(blob, statsExportFileName(params));
+      const exportParams = { ...params, section };
+      const blob = await downloadProjectStatsCsv(exportParams);
+      downloadBlob(blob, statsExportFileName(exportParams));
     } catch (error) {
       setExportError(error instanceof Error ? error.message : 'Não foi possível exportar o CSV.');
     } finally {
@@ -770,13 +782,13 @@ export function StatsDashboard() {
     }
   }
 
-  function ExportButton({ section, children }: { section: StatsExportSection; children: string }) {
+  function ExportButton({ section, children, params }: { section: StatsExportSection; children: string; params?: StatsParams }) {
     return (
       <button
         type="button"
         className="mini-btn alt"
         disabled={exportingSection !== null}
-        onClick={() => void handleExport(section)}
+        onClick={() => void handleExport(section, params)}
       >
         {exportingSection === section ? 'Exportando...' : children}
       </button>
@@ -919,22 +931,30 @@ export function StatsDashboard() {
                 <div className="stats-card-title-group">
                   <div className="survey-dash-card-title">Por projeto</div>
                   <ProjectStatusFilter
-                    value={projectStatus}
-                    onChange={setProjectStatus}
+                    value={byProjectStatus}
+                    onChange={setByProjectStatus}
                     className="stats-byproject-status-filter"
                   />
                 </div>
                 <div className="stats-export-btns">
                   <ExportButton section="summary">CSV Resumo</ExportButton>
-                  <ExportButton section="byProject">CSV Por projeto</ExportButton>
+                  <ExportButton section="byProject" params={byProjectStatsParams}>CSV Por projeto</ExportButton>
                   <ExportButton section="services">CSV Serviços</ExportButton>
                 </div>
               </div>
-              <ByProjectSection
-                byProject={data.byProject}
-                dailyReportsIncluded={Boolean(data.meta.dailyReportsIncluded)}
-                detailParams={statsParams}
-              />
+              {byProjectStatsQuery.isLoading && (
+                <div className="stats-empty">Carregando projetos...</div>
+              )}
+              {byProjectStatsQuery.isError && (
+                <div className="stats-empty">Não foi possível carregar os projetos para este filtro.</div>
+              )}
+              {byProjectData && (
+                <ByProjectSection
+                  byProject={byProjectData.byProject}
+                  dailyReportsIncluded={Boolean(byProjectData.meta.dailyReportsIncluded)}
+                  detailParams={byProjectStatsParams}
+                />
+              )}
             </div>
           )}
 
