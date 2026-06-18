@@ -12,10 +12,14 @@ import {
   getReport,
   listReports,
   listReportsPage,
+  replaceManualReportPdf,
   requestReportSignature,
   updateReport,
   updateReportSequence,
   updateReportStatus,
+  uploadManualReport,
+  type ManualReportPdfReplacePayload,
+  type ManualReportUploadPayload,
   type PaginatedReports,
   type ReportCountQuery,
   type ReportFilters,
@@ -716,6 +720,28 @@ export function useReportMutations() {
     }
   });
 
+  const uploadManualReportMutation = useMutation({
+    mutationFn: (payload: ManualReportUploadPayload) => uploadManualReport(payload),
+    onSuccess: report => {
+      clearAccumulatedReportsCache();
+      queryClient.setQueryData(['report', report.id], report);
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['bootstrap'] });
+    }
+  });
+
+  const replaceManualReportPdfMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: ManualReportPdfReplacePayload }) =>
+      replaceManualReportPdf(id, payload),
+    onSuccess: report => {
+      updateAccumulatedReportsCache(report);
+      updateReportCaches(queryClient, report);
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['report', report.id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.reportAudit(report.id) });
+    }
+  });
+
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Omit<ReportPayload, 'createdByUserId' | 'status'> }) =>
       updateReport(id, payload),
@@ -816,6 +842,8 @@ export function useReportMutations() {
   return {
     createReport: createMutation,
     createServiceOnlyReports: createServiceOnlyMutation,
+    uploadManualReport: uploadManualReportMutation,
+    replaceManualReportPdf: replaceManualReportPdfMutation,
     updateReport: updateMutation,
     updateStatus: updateStatusMutation,
     updateSequence: updateSequenceMutation,

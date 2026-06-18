@@ -597,6 +597,81 @@ test('ensureInternalSignatureRound locks per report before creating an active ve
   assert.equal(calls.findIndex(([name]) => name === 'lock') < calls.findIndex(([name]) => name === 'reportVersion.create'), true);
 });
 
+test('ensureInternalSignatureRound adds signatures to an existing active PDF version', async () => {
+  const calls = [];
+  const existingVersion = {
+    id: 'version-existing',
+    reportId: 'report-1',
+    versionNumber: 1,
+    sourceDocumentHash: 'existing-source-hash',
+    signatures: []
+  };
+  const activeWithSignatures = {
+    ...existingVersion,
+    signatures: [
+      { id: 'signature-1', signerEmail: 'cliente@example.com', status: 'PENDING' },
+      { id: 'signature-2', signerEmail: 'fiscal@example.com', status: 'PENDING' }
+    ]
+  };
+  let findCount = 0;
+  const tx = {
+    $queryRawUnsafe: async (...args) => {
+      calls.push(['lock', args]);
+    },
+    reportVersion: {
+      findFirst: async args => {
+        calls.push(['reportVersion.findFirst', args]);
+        findCount += 1;
+        return findCount === 1 ? existingVersion : activeWithSignatures;
+      },
+      aggregate: async () => {
+        throw new Error('new version should not be created');
+      },
+      create: async () => {
+        throw new Error('new version should not be created');
+      }
+    },
+    reportSignature: {
+      createMany: async args => {
+        calls.push(['reportSignature.createMany', args]);
+        return { count: args.data.length };
+      }
+    },
+    reportAuditLog: {
+      create: async args => {
+        calls.push(['reportAuditLog.create', args]);
+        return args;
+      }
+    }
+  };
+
+  const version = await ensureInternalSignatureRound(tx, {
+    report: {
+      id: 'report-1',
+      project: {
+        clientName: 'Cliente',
+        clientEmailPrimary: 'cliente@example.com',
+        clientSigners: [{ name: 'Fiscal', email: 'fiscal@example.com' }]
+      }
+    },
+    sourcePdfUrl: '/relatorios/source.pdf',
+    sourceDocumentHash: 'request-source-hash',
+    createdByUserId: 'client-1'
+  });
+
+  const createMany = calls.find(([name]) => name === 'reportSignature.createMany');
+  assert.ok(createMany);
+  assert.equal(version, activeWithSignatures);
+  assert.equal(createMany[1].skipDuplicates, true);
+  assert.deepEqual(createMany[1].data.map(signature => signature.signerEmail), [
+    'cliente@example.com',
+    'fiscal@example.com'
+  ]);
+  assert.equal(createMany[1].data[0].sourceDocumentHash, 'existing-source-hash');
+  assert.ok(calls.some(([name]) => name === 'reportAuditLog.create'));
+  assert.equal(calls.some(([name]) => name === 'reportVersion.create'), false);
+});
+
 test('ensureInternalSignatureRound returns concurrent active version after unique race', async () => {
   let findCount = 0;
   const activeVersion = {
@@ -1060,6 +1135,32 @@ test('approved RDO without client signers does not require an internal signature
 
   assert.deepEqual(clientSignersForReport(report), []);
   assert.equal(shouldCreateInternalSignatureRound(report), false);
+});
+
+test('manual optional upload only starts an internal signature round when requested by the client', () => {
+  const report = {
+    id: 'manual-optional-report',
+    projectId: 'project-1',
+    reportType: 'RDO',
+    status: 'APPROVED',
+    specialConditions: {
+      __manualUpload: {
+        uploadedAt: new Date().toISOString(),
+        allowsOptionalSignature: true,
+        requiresSignature: false,
+        signatureMode: 'APPROVED'
+      }
+    },
+    project: {
+      managerOnly: false,
+      clientName: 'Cliente',
+      clientEmailPrimary: 'cliente@example.com',
+      clientSigners: []
+    }
+  };
+
+  assert.equal(shouldCreateInternalSignatureRound(report), false);
+  assert.equal(shouldCreateInternalSignatureRound(report, { allowManualOptionalSignature: true }), true);
 });
 
 test('clientSignersForReport composes primary and additional signer names from first and last name', () => {

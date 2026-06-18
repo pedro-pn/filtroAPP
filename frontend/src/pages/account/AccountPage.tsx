@@ -154,7 +154,7 @@ export function AccountPage() {
         subtitle={user?.name}
         actions={
           <>
-            <button className="topbar-chip" type="button" onClick={() => navigate(backPath)}>
+            <button className="topbar-chip" type="button" onClick={() => navigate(backPath, { replace: true })}>
               Voltar
             </button>
             <button className="topbar-chip" type="button" onClick={handleLogout}>

@@ -3942,6 +3942,18 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   border-bottom: none;
 }
 
+.project-toggle-row {
+  border-bottom: 0;
+  padding: 8px 0;
+}
+
+.manual-report-actions {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--br);
+}
+
 .tog-lbl {
   font-size: 13px;
   font-weight: 500;
@@ -8547,6 +8559,11 @@ select {
   border-style: solid;
   border-color: var(--g);
   background: rgba(48, 80, 58, 0.05);
+}
+
+.pdf-dropzone[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .pdf-dropzone-icon,

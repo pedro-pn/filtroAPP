@@ -95,6 +95,8 @@ interface RdoFormState {
   arrivalTime: string;
   departureTime: string;
   lunchBreak: string;
+  serviceEquipment: string;
+  serviceSystem: string;
   collaboratorIds: string[];
   nightCollaboratorIds: string[];
   standby: boolean;
@@ -136,6 +138,43 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function getString(value: unknown) {
   return typeof value === 'string' ? value : '';
+}
+
+function manualReportUploadMeta(report: ReportSummary | null | undefined) {
+  return asRecord(asRecord(report?.specialConditions).__manualUpload);
+}
+
+function isManualUploadedReport(report: ReportSummary | null | undefined) {
+  return Boolean(manualReportUploadMeta(report).uploadedAt);
+}
+
+function reportServiceData(report: ReportSummary | null | undefined) {
+  return asRecord(asRecord(report?.specialConditions).serviceData);
+}
+
+function reportServiceField(report: ReportSummary | null | undefined, keys: string[]) {
+  const data = reportServiceData(report);
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === 'string' || typeof value === 'number') return String(value);
+  }
+  return '';
+}
+
+function manualServiceDataFromForm(report: ReportSummary, form: RdoFormState) {
+  if (!isManualUploadedReport(report) || report.reportType === 'RDO') return {};
+  const serviceData = { ...reportServiceData(report) };
+  const equipment = form.serviceEquipment.trim();
+  const system = form.serviceSystem.trim();
+
+  if (equipment) serviceData.Equipamento = equipment;
+  else delete serviceData.Equipamento;
+  delete serviceData['Equipamento(s)'];
+
+  if (system) serviceData.Sistema = system;
+  else delete serviceData.Sistema;
+
+  return { serviceData };
 }
 
 function getIdsFromField(value: unknown) {
@@ -467,6 +506,8 @@ function reportToForm(report: ReportSummary): RdoFormState {
     arrivalTime: report.arrivalTime || '',
     departureTime: report.departureTime || '',
     lunchBreak: report.lunchBreak || '',
+    serviceEquipment: reportServiceField(report, ['Equipamento', 'Equipamento(s)']),
+    serviceSystem: reportServiceField(report, ['Sistema']),
     collaboratorIds: (report.collaborators || []).map(link => link.collaboratorId).filter(Boolean),
     nightCollaboratorIds,
     standby: Boolean(specialConditions.standby),
@@ -510,11 +551,13 @@ function buildPayload(
   } = {}
 ): Omit<ReportPayload, 'createdByUserId' | 'status'> {
   const serviceOnly = isServiceOnlyReport(report);
+  const manualReport = isManualUploadedReport(report);
   const firstService = form.services[0];
   const effectiveArrivalTime = serviceOnly ? getString(firstService?.data.startTime) || form.arrivalTime || '00:00' : form.arrivalTime;
   const effectiveDepartureTime = serviceOnly ? getString(firstService?.data.endTime) || form.departureTime || '00:00' : form.departureTime;
   const effectiveLunchBreak = serviceOnly ? '00:00:00' : form.lunchBreak;
   const overtimeAccepted = options.acceptOvertime !== false;
+  const manualServiceData = manualServiceDataFromForm(report, form);
 
   return {
     projectId: form.projectId || report.projectId,
@@ -524,13 +567,17 @@ function buildPayload(
     arrivalTime: effectiveArrivalTime,
     departureTime: effectiveDepartureTime,
     lunchBreak: effectiveLunchBreak,
-    daytimeCount: form.collaboratorIds.length,
+    daytimeCount: manualReport ? 0 : form.collaboratorIds.length,
     overtimeReason: form.overtimeReason || null,
     dailyDescription: form.dailyDescription || null,
     specialConditions: serviceOnly
-      ? asRecord(report.specialConditions)
+      ? {
+          ...asRecord(report.specialConditions),
+          ...manualServiceData
+        }
       : {
           ...asRecord(report.specialConditions),
+          ...manualServiceData,
           standby: form.standby,
           noturno: form.noturno,
           standbyDetails: {
@@ -544,16 +591,18 @@ function buildPayload(
             inicio: form.noturnoStart,
             termino: form.noturnoEnd,
             intervalo: getString(asRecord(asRecord(report.specialConditions).noturnoDetails).intervalo) || '01:00:00',
-            collaboratorIds: form.nightCollaboratorIds,
-            colaboradores: form.nightCollaboratorIds
+            collaboratorIds: manualReport ? [] : form.nightCollaboratorIds,
+            colaboradores: (manualReport ? [] : form.nightCollaboratorIds)
               .map(id => resources.collaborators?.find(collaborator => collaborator.id === id)?.name || id)
           }
         },
-    collaboratorIds: form.collaboratorIds,
+    collaboratorIds: manualReport ? [] : form.collaboratorIds,
     services: form.services.map(service => {
       const explicitServiceCollaborators = Object.prototype.hasOwnProperty.call(service.data, 'serviceCollaboratorIds');
       return buildReportServicePayload(serviceOnly ? { ...service, data: { ...service.data, finalized: true, aprovadoCliente: 'Sim' } } : service, {
-        collaboratorIds: explicitServiceCollaborators && Array.isArray(service.data.serviceCollaboratorIds)
+        collaboratorIds: manualReport
+          ? []
+          : explicitServiceCollaborators && Array.isArray(service.data.serviceCollaboratorIds)
           ? service.data.serviceCollaboratorIds.filter((id): id is string => typeof id === 'string')
           : serviceOnly ? form.collaboratorIds : Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds])),
         collaborators: resources.collaborators || [],
@@ -581,6 +630,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const derivedDeletionResolverRef = useRef<((deleteReports: boolean | null) => void) | null>(null);
   const readOnly = report.status === 'SIGNED';
   const serviceOnly = isServiceOnlyReport(report);
+  const manualReport = isManualUploadedReport(report);
+  const manualServiceReport = manualReport && report.reportType !== 'RDO';
   const isManager = user?.role === 'MANAGER';
   const canEditSequence = isManager && !readOnly;
   const canApproveInEditor = report.status === 'PENDING' || report.status === 'RETURNED' || hasActiveClientRejection(report);
@@ -621,11 +672,12 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     return allowed.filter(option => option.type !== 'inibicao' || selectedProject?.inhibitionServiceEnabled === true);
   }, [serviceOnly, selectedProject?.inhibitionServiceEnabled]);
   const selectedCollaboratorIds = useMemo(
-    () => new Set(serviceOnly ? form.collaboratorIds : [...form.collaboratorIds, ...form.nightCollaboratorIds]),
-    [serviceOnly, form.collaboratorIds, form.nightCollaboratorIds]
+    () => new Set(manualReport ? [] : serviceOnly ? form.collaboratorIds : [...form.collaboratorIds, ...form.nightCollaboratorIds]),
+    [manualReport, serviceOnly, form.collaboratorIds, form.nightCollaboratorIds]
   );
   const collaborators = (bootstrapQuery.data?.collaborators || []).filter(item => item.isActive || selectedCollaboratorIds.has(item.id));
   const serviceCollaboratorOptions = useMemo(() => {
+    if (manualReport) return [];
     const ids = serviceOnly ? form.collaboratorIds : Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds]));
     return ids
       .map(id => {
@@ -633,7 +685,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         return collaborator ? { id: collaborator.id, name: collaborator.name } : null;
       })
       .filter((item): item is { id: string; name: string } => Boolean(item));
-  }, [serviceOnly, form.collaboratorIds, form.nightCollaboratorIds, collaborators]);
+  }, [manualReport, serviceOnly, form.collaboratorIds, form.nightCollaboratorIds, collaborators]);
   const equipment = bootstrapQuery.data?.equipment || [];
   const units = bootstrapQuery.data?.units || [];
   const manometers = bootstrapQuery.data?.manometers || [];
@@ -649,6 +701,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   function addCollaboratorFromSelect(night = false) {
+    if (manualReport) return;
     const id = night ? nightCollaboratorToAdd : collaboratorToAdd;
     if (!id) return;
     const field = night ? 'nightCollaboratorIds' : 'collaboratorIds';
@@ -661,6 +714,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   }
 
   function removeCollaboratorFromList(id: string, night = false) {
+    if (manualReport) return;
     const field = night ? 'nightCollaboratorIds' : 'collaboratorIds';
     setField(field, form[field].filter(item => item !== id));
   }
@@ -672,7 +726,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
       return (
         <span className="colab-tag" key={`${night ? 'night' : 'day'}-${id}`}>
           <span>{item?.name || id}</span>
-          <button type="button" disabled={readOnly} onClick={() => removeCollaboratorFromList(id, night)}>x</button>
+          <button type="button" disabled={readOnly || manualReport} onClick={() => removeCollaboratorFromList(id, night)}>x</button>
         </span>
       );
     });
@@ -867,6 +921,30 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               required
             />
           </div>
+          {manualServiceReport ? (
+            <>
+              <div className="field-group">
+                <label htmlFor="manual-service-equipment">Equipamento</label>
+                <input
+                  id="manual-service-equipment"
+                  value={form.serviceEquipment}
+                  disabled={readOnly}
+                  placeholder="Equipamento do cliente"
+                  onChange={event => setField('serviceEquipment', event.target.value)}
+                />
+              </div>
+              <div className="field-group">
+                <label htmlFor="manual-service-system">Sistema</label>
+                <input
+                  id="manual-service-system"
+                  value={form.serviceSystem}
+                  disabled={readOnly}
+                  placeholder="Sistema do serviço"
+                  onChange={event => setField('serviceSystem', event.target.value)}
+                />
+              </div>
+            </>
+          ) : null}
           {!serviceOnly ? (
           <div className="field-group">
             <label htmlFor="rdo-arrival">Chegada</label>
@@ -910,25 +988,27 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         </div>
       </section>
 
-      <section className="page-card">
-        <div className="section-title">Equipe diurna</div>
-        <div className="colab-list">
-          {renderCollaboratorList(form.collaboratorIds)}
-        </div>
-        {!readOnly ? (
-          <div className="cadd">
-            <select value={collaboratorToAdd} onChange={event => setCollaboratorToAdd(event.target.value)}>
-              <option value="">Adicionar...</option>
-              {collaborators
-                .filter(item => !form.collaboratorIds.includes(item.id))
-                .map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-            <button className="cadd-btn" type="button" onClick={() => addCollaboratorFromSelect()}>
-              + Add
-            </button>
+      {!manualReport ? (
+        <section className="page-card">
+          <div className="section-title">Equipe diurna</div>
+          <div className="colab-list">
+            {renderCollaboratorList(form.collaboratorIds)}
           </div>
-        ) : null}
-      </section>
+          {!readOnly ? (
+            <div className="cadd">
+              <select value={collaboratorToAdd} onChange={event => setCollaboratorToAdd(event.target.value)}>
+                <option value="">Adicionar...</option>
+                {collaborators
+                  .filter(item => !form.collaboratorIds.includes(item.id))
+                  .map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+              <button className="cadd-btn" type="button" onClick={() => addCollaboratorFromSelect()}>
+                + Add
+              </button>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {!serviceOnly ? (
       <section className="page-card">
@@ -1007,25 +1087,27 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               />
             </div>
           </div>
-          <div className="field-group" style={{ marginTop: 10 }}>
-            <label>Colaboradores noturnos</label>
-            <div className="colab-list">
-              {renderCollaboratorList(form.nightCollaboratorIds, true)}
-            </div>
-            {!readOnly ? (
-              <div className="cadd">
-                <select value={nightCollaboratorToAdd} onChange={event => setNightCollaboratorToAdd(event.target.value)}>
-                  <option value="">Adicionar...</option>
-                  {collaborators
-                    .filter(item => !form.nightCollaboratorIds.includes(item.id))
-                    .map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </select>
-                <button className="cadd-btn" type="button" onClick={() => addCollaboratorFromSelect(true)}>
-                  + Add
-                </button>
+          {!manualReport ? (
+            <div className="field-group" style={{ marginTop: 10 }}>
+              <label>Colaboradores noturnos</label>
+              <div className="colab-list">
+                {renderCollaboratorList(form.nightCollaboratorIds, true)}
               </div>
-            ) : null}
-          </div>
+              {!readOnly ? (
+                <div className="cadd">
+                  <select value={nightCollaboratorToAdd} onChange={event => setNightCollaboratorToAdd(event.target.value)}>
+                    <option value="">Adicionar...</option>
+                    {collaborators
+                      .filter(item => !form.nightCollaboratorIds.includes(item.id))
+                      .map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </select>
+                  <button className="cadd-btn" type="button" onClick={() => addCollaboratorFromSelect(true)}>
+                    + Add
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </section>
       ) : null}
@@ -1071,7 +1153,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                       />
                     </div>
                   ) : null}
-                  {normalizeServiceType(service.type) !== 'inibicao' ? (
+                  {!manualReport && normalizeServiceType(service.type) !== 'inibicao' ? (
                     <ServiceCollaboratorsBlock
                       data={service.data}
                       onChange={update => updateService(service.id, { data: update })}
@@ -1226,7 +1308,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
           <button className="secondary-button" type="button" onClick={() => void handleDownload('pdf')}>
             PDF
           </button>
-          {isManager ? (
+          {isManager && !manualReport ? (
             <button className="secondary-button" type="button" onClick={() => void handleDownload('docx')}>
               DOCX
             </button>
@@ -1327,7 +1409,8 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
   const [sequenceEditValue, setSequenceEditValue] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [clientComment, setClientComment] = useState('');
-  const canDownloadDocx = role === 'MANAGER';
+  const manualReport = isManualUploadedReport(report);
+  const canDownloadDocx = role === 'MANAGER' && !manualReport;
   const canClientSign = role === 'CLIENT' && clientCanSignReport(report, user, hasActiveClientRejection(report));
   const canEditSequence = role === 'MANAGER' && report.status !== 'SIGNED';
 
@@ -1803,6 +1886,7 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
   const generalUploads = asUploadedFiles(specialConditions.generalUploads);
   const isStandby = Boolean(specialConditions.standby);
   const isNoturno = Boolean(noturnoDetails.enabled || nightCollaboratorIds.length);
+  const manualReport = isManualUploadedReport(report);
 
   return (
     <>
@@ -1821,6 +1905,7 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
         <SignatureProgress report={report} />
       </section>
 
+      {!manualReport ? (
       <section className="page-card">
         <div className="section-title">{TEXT.collaborators}</div>
         {daytimeCollaborators.length ? (
@@ -1837,6 +1922,7 @@ function ReportSummaryView({ report }: { report: ReportSummary }) {
           </>
         ) : null}
       </section>
+      ) : null}
 
       {(report.services?.length ?? 0) > 0 ? (
         <section className="page-card">

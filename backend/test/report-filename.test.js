@@ -53,3 +53,21 @@ test('service report filename decodes percent-encoded service text', () => {
     'Missão 5719 Ilha Solteira - RCPU 53 - UG01 - Unidade hidráulica do RV.pdf'
   );
 });
+
+test('manual service report filename uses text equipment and system metadata', () => {
+  assert.equal(
+    buildReportFileName({
+      reportType: 'RLQ',
+      sequenceNumber: 18,
+      project: { code: '7001', name: 'Campo' },
+      specialConditions: {
+        source: 'MANUAL_UPLOAD',
+        serviceData: {
+          Equipamento: 'Bomba principal',
+          Sistema: 'Sistema de lubrificação'
+        }
+      }
+    }, 'pdf'),
+    'Missão 7001 Campo - RLQ 18 - Bomba principal - Sistema de lubrificação.pdf'
+  );
+});

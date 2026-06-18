@@ -400,13 +400,39 @@ export async function ensureInternalSignatureRound(tx, {
   await lockSignatureRoundForReport(tx, report.id);
 
   const existing = await findActiveSignatureRound(tx, report.id);
-  if (existing) return existing;
+  if (existing?.signatures?.length) return existing;
 
   const signers = clientSignersForReport(report);
   if (!signers.length) {
     const error = new Error('Nenhum signatario cliente configurado para este relatorio.');
     error.statusCode = 409;
     throw error;
+  }
+  if (existing) {
+    await tx.reportSignature.createMany({
+      data: signers.map(signer => ({
+        reportId: report.id,
+        versionId: existing.id,
+        signerName: signer.name,
+        signerEmail: signer.email,
+        signerRole: signer.role,
+        signatureType: ReportSignatureType.ELECTRONIC,
+        status: ReportSignatureStatus.PENDING,
+        isRequired: signer.isRequired,
+        sourceDocumentHash: existing.sourceDocumentHash || sourceDocumentHash
+      })),
+      skipDuplicates: true
+    });
+    await createSignatureAuditLog(tx, {
+      reportId: report.id,
+      versionId: existing.id,
+      userId: createdByUserId,
+      action: ReportAuditAction.SIGNATURE_ROUND_CREATED,
+      description: 'Rodada de assinatura interna criada.',
+      evidence
+    });
+    const active = await findActiveSignatureRound(tx, report.id);
+    if (active) return active;
   }
 
   let version;

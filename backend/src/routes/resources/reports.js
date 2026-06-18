@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -78,6 +79,8 @@ const REPORT_LIST_DEFAULT_PAGE_SIZE = 50;
 const REPORT_LIST_MAX_PAGE_SIZE = 100;
 const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
 const CLIENT_REJECTION_KEY = '__clientRejectedAt';
+const MANUAL_REPORT_UPLOAD_KEY = '__manualUpload';
+const MANUAL_REPORT_MAX_PDF_BYTES = 20 * 1024 * 1024;
 
 function reportDateUnchanged(existingReport, nextReportDate) {
   return Boolean(existingReport?.reportDate && reportDateKey(existingReport.reportDate) === reportDateKey(nextReportDate));
@@ -725,9 +728,38 @@ export async function expirePendingPublicSignature(tx, signature, evidence = {})
   return true;
 }
 
-export function shouldCreateInternalSignatureRound(report) {
-  if (report?.reportType !== ReportType.RDO || report?.status !== ReportStatus.APPROVED || report?.project?.managerOnly) return false;
+function manualReportUploadMeta(report) {
+  return plainObject(report?.specialConditions?.[MANUAL_REPORT_UPLOAD_KEY]);
+}
+
+function isManualUploadedReport(report) {
+  return Boolean(manualReportUploadMeta(report).uploadedAt);
+}
+
+function manualReportRequiresSignature(report) {
+  return manualReportUploadMeta(report).requiresSignature === true;
+}
+
+function manualReportAllowsOptionalSignature(report) {
+  return manualReportUploadMeta(report).allowsOptionalSignature === true;
+}
+
+function linkedServiceReportRequiresRelease(report) {
+  return report?.reportType !== ReportType.RDO && !!report?.specialConditions?.parentRdoId;
+}
+
+export function shouldCreateInternalSignatureRound(report, options = {}) {
+  if (report?.status !== ReportStatus.APPROVED || report?.project?.managerOnly) return false;
   if (hasActiveClientRejection(report)) return false;
+  const optionalManualSignature = manualReportAllowsOptionalSignature(report);
+  if (optionalManualSignature && options.allowManualOptionalSignature !== true) return false;
+  if (report?.reportType !== ReportType.RDO) {
+    const manuallyRequested = manualReportRequiresSignature(report);
+    const manuallyOptionalRequested = optionalManualSignature && options.allowManualOptionalSignature === true;
+    const projectRequiresServiceSignature = !optionalManualSignature && report?.project?.requireServiceReportSignatures === true;
+    if (!manuallyRequested && !manuallyOptionalRequested && !projectRequiresServiceSignature) return false;
+    if (linkedServiceReportRequiresRelease(report) && options.allowLinkedServiceReport !== true) return false;
+  }
   return clientSignersForReport(report).length > 0;
 }
 
@@ -831,7 +863,6 @@ async function activePublicSignatureBatchFromAnchor(anchor, client = prisma) {
       tokenExpiresAt: { gt: new Date() },
       report: {
         projectId,
-        reportType: ReportType.RDO,
         status: ReportStatus.APPROVED,
         deletedAt: null,
         project: {
@@ -1330,6 +1361,7 @@ const listSummarySelect = {
       isActive: true,
       visibleToCollaborators: true,
       managerOnly: true,
+      requireServiceReportSignatures: true,
       deletedAt: true,
       clientName: true,
       clientCnpj: true,
@@ -1894,6 +1926,25 @@ export async function releasedServiceReportsAfterRdoSignature(rdo, client = pris
     .map(releasedServiceReportPayload);
 }
 
+export async function ensureProjectReleasedServiceReportSignatureRounds(projectId, options = {}) {
+  if (!projectId) return { preparedReports: 0 };
+  const projectReports = await projectReportsForClientVisibility(projectId);
+  const byId = new Map(projectReports.map(item => [item.id, item]));
+  let preparedReports = 0;
+
+  for (const report of projectReports) {
+    if (report.reportType === ReportType.RDO) continue;
+    if (!canClientSeeReport(report, byId)) continue;
+    if (!shouldCreateInternalSignatureRound(report, { allowLinkedServiceReport: true })) continue;
+    const preparation = await ensureInternalSignatureRoundAndNotify(report, options.userId || null, options.evidence || {}, {
+      allowLinkedServiceReport: true
+    });
+    if (preparation?.version) preparedReports += 1;
+  }
+
+  return { preparedReports };
+}
+
 export function removedPendingRequiredClientSignatureIds(report, version = null) {
   const activeVersion = version || (Array.isArray(report?.versions)
     ? report.versions.find(item => item.status === ReportVersionStatus.ACTIVE)
@@ -1939,7 +1990,6 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
     where: {
       projectId,
       deletedAt: null,
-      reportType: ReportType.RDO,
       status: ReportStatus.APPROVED,
       versions: { some: { status: ReportVersionStatus.ACTIVE } }
     },
@@ -1950,6 +2000,7 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
   let finalizedReports = 0;
   for (const report of reports) {
     if (isReportUnavailable(report) || report.project?.managerOnly || hasActiveClientRejection(report)) continue;
+    if (!shouldCreateInternalSignatureRound(report, { allowLinkedServiceReport: true })) continue;
     // Carrega a versão ativa COM as assinaturas (o include de listagem não traz signatures).
     const version = await activeVersionWithSignatures(prisma, report.id);
     if (!version) continue;
@@ -2117,7 +2168,7 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
       finalizedReports += finalized?.status === ReportStatus.SIGNED ? 1 : 0;
       if (sendReleasedEmails && finalized?.status === ReportStatus.SIGNED) {
         const released = await releasedServiceReportsAfterRdoSignature(finalized);
-        if (released.length) queueReleasedServiceReportsEmailAfterRdoSignature(finalized, released);
+        if (released.length) queueReleasedServiceReportsEmailAfterRdoSignature(finalized, released, { userId, evidence });
       }
     }
   }
@@ -2125,7 +2176,7 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
   return { updatedReports, finalizedReports };
 }
 
-function queueReleasedServiceReportsEmailAfterRdoSignature(rdo, releasedReports = null) {
+function queueReleasedServiceReportsEmailAfterRdoSignature(rdo, releasedReports = null, options = {}) {
   if (!rdo || rdo.reportType !== ReportType.RDO || rdo.status !== ReportStatus.SIGNED) return;
 
   setImmediate(async () => {
@@ -2152,9 +2203,17 @@ function queueReleasedServiceReportsEmailAfterRdoSignature(rdo, releasedReports 
       const orderedReports = releasedIds.map(id => byId.get(id)).filter(Boolean);
       if (!orderedReports.length) return;
 
+      if (emailRdo.project?.requireServiceReportSignatures === true) {
+        for (const report of orderedReports) {
+          await ensureInternalSignatureRoundAndNotify(report, options.userId || null, options.evidence || {}, {
+            allowLinkedServiceReport: true
+          });
+        }
+      }
+
       await sendReleasedServiceReportsEmail(emailRdo, orderedReports);
     } catch (error) {
-      console.error('Falha ao enviar relatórios de serviço liberados por e-mail.', {
+      console.error('Falha ao processar relatórios de serviço liberados após assinatura do RDO.', {
         reportId: rdo?.id,
         projectId: rdo?.projectId,
         error: error?.message || error
@@ -2194,6 +2253,201 @@ export function assertSignatureSourceCurrent(currentReport, expectedUpdatedAt) {
 function reportPdfFileName(report, saved) {
   if (saved?.fileName) return saved.fileName;
   return buildReportFileName(report, 'pdf');
+}
+
+function storedReportPdfDownloadName(report, storedPath) {
+  return isManualUploadedReport(report)
+    ? buildReportFileName(report, 'pdf')
+    : path.basename(storedPath);
+}
+
+function isManualUploadedPdfUrl(value) {
+  return String(value || '').split('\\').join('/').includes('/uploads-manuais/');
+}
+
+async function manualUploadedSourceVersion(report, client = prisma) {
+  if (!isManualUploadedReport(report)) return null;
+  const included = Array.isArray(report.versions)
+    ? report.versions.find(version => (
+        version.sourcePdfUrl
+        && version.sourceDocumentHash
+        && isManualUploadedPdfUrl(version.sourcePdfUrl)
+      ))
+    : null;
+  if (included) return included;
+  if (!report?.id) return null;
+  return client.reportVersion.findFirst({
+    where: {
+      reportId: report.id,
+      sourcePdfUrl: { contains: 'uploads-manuais/' },
+      sourceDocumentHash: { not: null }
+    },
+    orderBy: { versionNumber: 'desc' }
+  });
+}
+
+function decodeManualReportPdfDataUrl(value) {
+  const match = String(value || '').match(/^data:application\/pdf;base64,([a-z0-9+/=\s]+)$/i);
+  if (!match) {
+    const error = new Error('Envie um PDF válido.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const encoded = match[1].replace(/\s/g, '');
+  if (!encoded || encoded.length % 4 === 1) {
+    const error = new Error('PDF enviado está corrompido.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const bytes = Buffer.from(encoded, 'base64');
+  if (!bytes.length || bytes.length > MANUAL_REPORT_MAX_PDF_BYTES) {
+    const error = new Error('PDF inválido ou maior que 20 MB.');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (bytes.slice(0, 5).toString('latin1') !== '%PDF-') {
+    const error = new Error('Arquivo enviado não parece ser um PDF.');
+    error.statusCode = 400;
+    throw error;
+  }
+  return bytes;
+}
+
+function manualReportOriginalFileName(value) {
+  const normalized = safePath(String(value || '').trim().replace(/\.pdf$/i, ''));
+  return normalized || 'relatorio-antigo';
+}
+
+function manualReportServiceData(reportType, data, current = {}) {
+  if (reportType === ReportType.RDO) return {};
+  const serviceData = { ...plainObject(current) };
+  const touchesEquipment = Object.prototype.hasOwnProperty.call(data || {}, 'serviceEquipment');
+  const touchesSystem = Object.prototype.hasOwnProperty.call(data || {}, 'serviceSystem');
+  if (touchesEquipment) {
+    const equipment = String(data?.serviceEquipment || '').trim();
+    if (equipment) serviceData.Equipamento = equipment;
+    else delete serviceData.Equipamento;
+    delete serviceData['Equipamento(s)'];
+  }
+  if (touchesSystem) {
+    const system = String(data?.serviceSystem || '').trim();
+    if (system) serviceData.Sistema = system;
+    else delete serviceData.Sistema;
+  }
+  if (touchesEquipment || touchesSystem) return { serviceData };
+  return Object.keys(serviceData).length ? { serviceData } : {};
+}
+
+async function saveManualReportPdf({ project, reportType, sequenceNumber, reportDate, fileName, pdfDataUrl }) {
+  const pdfBytes = decodeManualReportPdfDataUrl(pdfDataUrl);
+  const projectFolderName = safePath(`Missão ${project.code} - ${project.name}`) || safePath(project.id);
+  const targetDir = path.join(env.uploadDir, projectFolderName, reportType, 'uploads-manuais');
+  const sequencePart = Number.isInteger(sequenceNumber) ? String(sequenceNumber).padStart(4, '0') : 'sem-numero';
+  const dayPart = reportDateKey(reportDate) || new Date().toISOString().slice(0, 10);
+  const baseName = manualReportOriginalFileName(fileName);
+  const targetFileName = `${dayPart}-${sequencePart}-${Date.now()}-${randomUUID()}-${baseName}.pdf`;
+  const targetPath = path.join(targetDir, targetFileName);
+  const tempPath = `${targetPath}.tmp`;
+
+  await fs.mkdir(targetDir, { recursive: true });
+  try {
+    await fs.writeFile(tempPath, pdfBytes);
+    if (!(await isLikelyCompletePdf(tempPath))) {
+      const error = new Error('PDF enviado está incompleto ou corrompido.');
+      error.statusCode = 400;
+      throw error;
+    }
+    await fs.rename(tempPath, targetPath);
+  } catch (error) {
+    await fs.unlink(tempPath).catch(() => undefined);
+    throw error;
+  }
+
+  return {
+    fileName: targetFileName,
+    originalFileName: String(fileName || '').trim() || targetFileName,
+    targetPath,
+    publicUrl: path.relative(env.uploadDir, targetPath).split(path.sep).join('/'),
+    sourceDocumentHash: sha256Hex(pdfBytes)
+  };
+}
+
+async function supersedeActiveReportVersions(tx, reportId, { userId = null, evidence = {}, description = 'Versao substituida por novo upload manual.' } = {}) {
+  const activeVersions = await tx.reportVersion.findMany({
+    where: { reportId, status: ReportVersionStatus.ACTIVE },
+    select: { id: true }
+  });
+  if (!activeVersions.length) return;
+
+  const versionIds = activeVersions.map(version => version.id);
+  await tx.reportSignature.updateMany({
+    where: {
+      versionId: { in: versionIds },
+      status: { in: [ReportSignatureStatus.PENDING, ReportSignatureStatus.EXPIRED] }
+    },
+    data: {
+      status: ReportSignatureStatus.INVALIDATED,
+      isRequired: false,
+      invalidatedAt: new Date(),
+      tokenHash: null,
+      tokenEncrypted: null,
+      tokenIv: null,
+      tokenAuthTag: null,
+      tokenExpiresAt: null
+    }
+  });
+  await tx.reportVersion.updateMany({
+    where: { id: { in: versionIds } },
+    data: { status: ReportVersionStatus.SUPERSEDED }
+  });
+  for (const versionId of versionIds) {
+    await createSignatureAuditLog(tx, {
+      reportId,
+      versionId,
+      userId,
+      action: ReportAuditAction.VERSION_CREATED,
+      description,
+      evidence
+    });
+  }
+}
+
+async function createManualReportVersion(tx, report, savedPdf, { signed, userId, evidence }) {
+  const versionNumber = await tx.reportVersion.count({ where: { reportId: report.id } }).then(count => count + 1);
+  const version = await tx.reportVersion.create({
+    data: {
+      reportId: report.id,
+      versionNumber,
+      sourcePdfUrl: savedPdf.publicUrl,
+      sourceDocumentHash: savedPdf.sourceDocumentHash,
+      finalPdfUrl: signed ? savedPdf.publicUrl : null,
+      finalDocumentHash: signed ? savedPdf.sourceDocumentHash : null,
+      validationCode: signed ? await uniqueSignatureValidationCode() : null,
+      status: ReportVersionStatus.ACTIVE,
+      createdByUserId: userId
+    }
+  });
+  await createSignatureAuditLog(tx, {
+    reportId: report.id,
+    versionId: version.id,
+    userId,
+    action: ReportAuditAction.VERSION_CREATED,
+    description: signed
+      ? 'Upload manual registrado como relatorio ja assinado.'
+      : 'Upload manual registrado como PDF-base para assinatura.',
+    evidence
+  });
+  if (signed) {
+    await createSignatureAuditLog(tx, {
+      reportId: report.id,
+      versionId: version.id,
+      userId,
+      action: ReportAuditAction.REPORT_LOCKED,
+      description: 'Relatorio manual marcado como assinado no upload.',
+      evidence
+    });
+  }
+  return version;
 }
 
 function generatedReportPdfTarget(report) {
@@ -2660,7 +2914,7 @@ async function getReportPdfDownload(report) {
     if (finalPath) {
       const buffer = await verifiedFinalPdfBuffer(finalPath, finalVersion);
       return {
-        fileName: path.basename(finalPath),
+        fileName: storedReportPdfDownloadName(report, finalPath),
         buffer
       };
     }
@@ -2674,12 +2928,23 @@ async function getReportPdfDownload(report) {
     return resolveSignedPdf(report);
   }
 
+  const manualSourceVersion = await manualUploadedSourceVersion(report);
+  if (manualSourceVersion?.sourcePdfUrl) {
+    const sourcePath = reportSourcePdfPath(manualSourceVersion.sourcePdfUrl);
+    if (sourcePath) {
+      const buffer = await verifiedSourcePdfBuffer(sourcePath, manualSourceVersion);
+      return {
+        fileName: storedReportPdfDownloadName(report, sourcePath),
+        buffer
+      };
+    }
+  }
+
   const activeSourceVersion = Array.isArray(report.versions)
     ? report.versions.find(version => version.status === ReportVersionStatus.ACTIVE && version.sourcePdfUrl && version.sourceDocumentHash)
     : null;
   if (
     report.status === ReportStatus.APPROVED &&
-    report.reportType === ReportType.RDO &&
     activeSourceVersion
   ) {
     const sourcePath = reportSourcePdfPath(activeSourceVersion.sourcePdfUrl);
@@ -2692,13 +2957,13 @@ async function getReportPdfDownload(report) {
         }
         const buffer = await verifiedSourcePdfBuffer(sourcePath, currentVersion);
         return {
-          fileName: path.basename(sourcePath),
+          fileName: storedReportPdfDownloadName(report, sourcePath),
           buffer
         };
       }
       const buffer = await verifiedSourcePdfBuffer(sourcePath, activeSourceVersion);
       return {
-        fileName: path.basename(sourcePath),
+        fileName: storedReportPdfDownloadName(report, sourcePath),
         buffer
       };
     }
@@ -2897,7 +3162,7 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence, o
   if (freshReport) report = freshReport;
   if (isReportUnavailable(report)) return null;
 
-  if (!shouldCreateInternalSignatureRound(report)) {
+  if (!shouldCreateInternalSignatureRound(report, options)) {
     if (
       report?.reportType === ReportType.RDO
       && report?.status === ReportStatus.APPROVED
@@ -2918,11 +3183,12 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence, o
     include: { signatures: true },
     orderBy: { versionNumber: 'desc' }
   });
-  let sourcePdfUrl = activeVersion?.sourcePdfUrl || '';
-  let sourceDocumentHash = activeVersion?.sourceDocumentHash || '';
+  const manualSourceVersion = activeVersion ? null : await manualUploadedSourceVersion(report);
+  let sourcePdfUrl = activeVersion?.sourcePdfUrl || manualSourceVersion?.sourcePdfUrl || '';
+  let sourceDocumentHash = activeVersion?.sourceDocumentHash || manualSourceVersion?.sourceDocumentHash || '';
   let generatedSourcePath = '';
   const expectedReportUpdatedAt = reportUpdatedAtToken(report);
-  if (!activeVersion) {
+  if (!activeVersion && !manualSourceVersion) {
     const saved = await generateReportPdfAsset(report);
     generatedSourcePath = saved.targetPath;
     await writePdfCacheMetadata(saved.targetPath, report);
@@ -3281,6 +3547,25 @@ const publicSignatureRejectSchema = z.object({
 const batchDownloadSchema = z.object({
   ids: z.array(z.string().min(1)).min(1).max(100),
   format: z.enum(['pdf', 'docx'])
+});
+const manualReportSignatureModeSchema = z.enum(['APPROVED', 'SIGNED', 'REQUIRES_SIGNATURE']);
+const manualReportUploadSchema = z.object({
+  projectId: z.string().min(1),
+  reportType: z.nativeEnum(ReportType).default(ReportType.RDO),
+  sequenceNumber: positiveIntSchema.optional(),
+  reportDate: z.string().min(1),
+  fileName: z.string().trim().max(240).optional(),
+  serviceEquipment: z.string().trim().max(180).optional(),
+  serviceSystem: z.string().trim().max(180).optional(),
+  pdfDataUrl: z.string().trim().min(1).max(30_000_000),
+  signatureMode: manualReportSignatureModeSchema.default('APPROVED')
+});
+const manualReportPdfReplaceSchema = z.object({
+  fileName: z.string().trim().max(240).optional(),
+  serviceEquipment: z.string().trim().max(180).optional(),
+  serviceSystem: z.string().trim().max(180).optional(),
+  pdfDataUrl: z.string().trim().min(1).max(30_000_000),
+  signatureMode: manualReportSignatureModeSchema.default('APPROVED')
 });
 function uniqueIds(values) {
   return Array.from(new Set((values || []).filter(Boolean)));
@@ -5551,6 +5836,225 @@ router.post('/batch-download', requireAuth, requireRdoAccess, asyncHandler(async
   });
 }));
 
+router.post('/manual-upload', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
+  const data = manualReportUploadSchema.parse(req.body || {});
+  const signed = data.signatureMode === 'SIGNED';
+  const requiresSignature = data.signatureMode === 'REQUIRES_SIGNATURE';
+  const allowsOptionalSignature = data.signatureMode === 'APPROVED';
+  const evidence = signatureEvidenceFromRequest(req);
+  const reportDate = new Date(data.reportDate);
+  if (Number.isNaN(reportDate.getTime())) {
+    return res.status(400).json({ error: 'Data do relatório inválida.' });
+  }
+
+  const project = await prisma.project.findFirstOrThrow({
+    where: { id: data.projectId, deletedAt: null },
+    include: { operator: true, authorizedUsers: true }
+  });
+  const manualSpecialConditions = {
+    source: 'MANUAL_UPLOAD',
+    ...(data.reportType === ReportType.RDO ? {} : { serviceOnly: true }),
+    ...manualReportServiceData(data.reportType, data),
+    [MANUAL_REPORT_UPLOAD_KEY]: {
+      originalFileName: String(data.fileName || '').trim() || null,
+      uploadedAt: new Date().toISOString(),
+      uploadedByUserId: req.auth.user.id,
+      signedOnUpload: signed,
+      requiresSignature,
+      allowsOptionalSignature,
+      signatureMode: data.signatureMode
+    }
+  };
+  if (requiresSignature && !shouldCreateInternalSignatureRound({
+    reportType: data.reportType,
+    status: ReportStatus.APPROVED,
+    project,
+    specialConditions: manualSpecialConditions
+  }, { allowLinkedServiceReport: true })) {
+    return res.status(409).json({ error: 'Configure ao menos um assinante cliente no projeto antes de exigir assinatura.' });
+  }
+
+  const savedPdf = await saveManualReportPdf({
+    project,
+    reportType: data.reportType,
+    sequenceNumber: data.sequenceNumber || null,
+    reportDate,
+    fileName: data.fileName,
+    pdfDataUrl: data.pdfDataUrl
+  });
+
+  let item;
+  try {
+    item = await prisma.$transaction(async tx => {
+      const sequenceNumber = data.sequenceNumber || await reserveSequence(tx, data.projectId, data.reportType);
+      if (data.sequenceNumber) {
+        const conflicting = await tx.report.findFirst({
+          where: {
+            projectId: data.projectId,
+            reportType: data.reportType,
+            sequenceNumber,
+            deletedAt: null
+          },
+          select: { id: true }
+        });
+        if (conflicting) {
+          const error = new Error('Ja existe um relatorio deste projeto e tipo usando este numero.');
+          error.statusCode = 409;
+          throw error;
+        }
+      }
+
+      const created = await tx.report.create({
+        data: {
+          projectId: data.projectId,
+          createdByUserId: req.auth.user.id,
+          reviewedByUserId: req.auth.user.id,
+          reportType: data.reportType,
+          sequenceNumber,
+          status: signed ? ReportStatus.SIGNED : ReportStatus.APPROVED,
+          reportDate,
+          arrivalTime: '00:00',
+          departureTime: '00:00',
+          lunchBreak: '00:00:00',
+          daytimeCount: 0,
+          daytimeWorkedMinutes: 0,
+          nighttimeWorkedMinutes: 0,
+          daytimeOvertimeMinutes: 0,
+          nighttimeOvertimeMinutes: 0,
+          totalOvertimeMinutes: 0,
+          approvedAt: new Date(),
+          specialConditions: manualSpecialConditions,
+          pendingDerivedTypes: []
+        },
+        include
+      });
+      await createManualReportVersion(tx, created, savedPdf, {
+        signed,
+        userId: req.auth.user.id,
+        evidence
+      });
+      if (data.sequenceNumber) {
+        await syncProjectReportSequence(tx, data.projectId, data.reportType, sequenceNumber);
+      }
+      return tx.report.findUniqueOrThrow({
+        where: { id: created.id },
+        include
+      });
+    });
+  } catch (error) {
+    await fs.unlink(savedPdf.targetPath).catch(() => undefined);
+    throw error;
+  }
+
+  let signaturePreparation = null;
+  if (requiresSignature) {
+    signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
+    item = await prisma.report.findUniqueOrThrow({ where: { id: item.id }, include });
+  }
+  statisticsProjectsCache.clear();
+  res.status(201).json(reportWithSignatureEmailDelivery(item, signaturePreparation));
+}));
+
+router.put('/:id/manual-pdf', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
+  const data = manualReportPdfReplaceSchema.parse(req.body || {});
+  const signed = data.signatureMode === 'SIGNED';
+  const requiresSignature = data.signatureMode === 'REQUIRES_SIGNATURE';
+  const allowsOptionalSignature = data.signatureMode === 'APPROVED';
+  const evidence = signatureEvidenceFromRequest(req);
+  const existing = await prisma.report.findUniqueOrThrow({
+    where: { id: req.params.id },
+    include
+  });
+  if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  if (!manualReportUploadMeta(existing).uploadedAt) {
+    return res.status(400).json({ error: 'Apenas relatórios enviados manualmente podem ter o PDF substituído por este fluxo.' });
+  }
+
+  const manualSpecialConditions = {
+    ...(existing.specialConditions || {}),
+    source: 'MANUAL_UPLOAD',
+    ...(existing.reportType === ReportType.RDO ? {} : { serviceOnly: true }),
+    ...manualReportServiceData(existing.reportType, data, existing.specialConditions?.serviceData),
+    [MANUAL_REPORT_UPLOAD_KEY]: {
+      ...manualReportUploadMeta(existing),
+      originalFileName: String(data.fileName || '').trim() || manualReportUploadMeta(existing).originalFileName || null,
+      uploadedAt: new Date().toISOString(),
+      uploadedByUserId: req.auth.user.id,
+      signedOnUpload: signed,
+      requiresSignature,
+      allowsOptionalSignature,
+      signatureMode: data.signatureMode,
+      replacedAt: new Date().toISOString()
+    }
+  };
+  if (requiresSignature && !shouldCreateInternalSignatureRound({
+    ...existing,
+    status: ReportStatus.APPROVED,
+    specialConditions: manualSpecialConditions
+  }, { allowLinkedServiceReport: true })) {
+    return res.status(409).json({ error: 'Configure ao menos um assinante cliente no projeto antes de exigir assinatura.' });
+  }
+
+  const savedPdf = await saveManualReportPdf({
+    project: existing.project,
+    reportType: existing.reportType,
+    sequenceNumber: existing.sequenceNumber || null,
+    reportDate: existing.reportDate,
+    fileName: data.fileName,
+    pdfDataUrl: data.pdfDataUrl
+  });
+
+  let item;
+  try {
+    item = await prisma.$transaction(async tx => {
+      await supersedeActiveReportVersions(tx, existing.id, {
+        userId: req.auth.user.id,
+        evidence,
+        description: 'Versao substituida por novo upload manual.'
+      });
+      const updated = await tx.report.update({
+        where: { id: existing.id },
+        data: {
+          status: signed ? ReportStatus.SIGNED : ReportStatus.APPROVED,
+          reviewedByUserId: req.auth.user.id,
+          approvedAt: new Date(),
+          returnedAt: null,
+          reviewNotes: null,
+          zapsignDocToken: null,
+          zapsignSignerToken: null,
+          zapsignRequestedAt: null,
+          zapsignSignedAt: null,
+          zapsignDocUrl: null,
+          specialConditions: manualSpecialConditions
+        },
+        include
+      });
+      await createManualReportVersion(tx, updated, savedPdf, {
+        signed,
+        userId: req.auth.user.id,
+        evidence
+      });
+      return tx.report.findUniqueOrThrow({
+        where: { id: existing.id },
+        include
+      });
+    });
+  } catch (error) {
+    await fs.unlink(savedPdf.targetPath).catch(() => undefined);
+    throw error;
+  }
+
+  let signaturePreparation = null;
+  if (requiresSignature) {
+    signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence, {
+      allowLinkedServiceReport: true
+    });
+    item = await prisma.report.findUniqueOrThrow({ where: { id: item.id }, include });
+  }
+  statisticsProjectsCache.clear();
+  res.json(reportWithSignatureEmailDelivery(item, signaturePreparation));
+}));
+
 router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {
   let signature = await publicSignatureFromToken(req.params.token);
   let status = publicSignatureStatus(signature);
@@ -5669,7 +6173,7 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
     });
     const releasedServiceReports = await releasedServiceReportsAfterRdoSignature(item);
     if (releasedServiceReports.length) {
-      queueReleasedServiceReportsEmailAfterRdoSignature(item, releasedServiceReports);
+      queueReleasedServiceReportsEmailAfterRdoSignature(item, releasedServiceReports, { userId: null, evidence });
     }
   }
 
@@ -5854,7 +6358,8 @@ router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (
   });
 
   for (const report of createdReports) {
-    await organizeAndSyncReportUploadAttachments(report, { auth: req.auth });
+    const organized = await organizeAndSyncReportUploadAttachments(report, { auth: req.auth }) || report;
+    await ensureInternalSignatureRoundAndNotify(organized, req.auth.user.id, signatureEvidenceFromRequest(req));
   }
 
   statisticsProjectsCache.clear();
@@ -5999,10 +6504,11 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   });
   if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   const isServiceOnlyReport = existing.specialConditions?.serviceOnly === true;
+  const manualUploadedReport = isManualUploadedReport(existing);
   if (isServiceOnlyReport && req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode editar relatórios somente de serviço.' });
   }
-  if (isServiceOnlyReport) {
+  if (isServiceOnlyReport && !manualUploadedReport) {
     const firstService = data.services[0];
     if (!firstService || !independentReportTypesForService(firstService).includes(data.reportType)) {
       return res.status(400).json({ error: 'Tipo de serviço incompatível com este relatório independente.' });
@@ -6052,15 +6558,17 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
       include: { operator: true, authorizedUsers: true }
     });
     assertProjectAllowsInhibition(project, data.services);
-    await assertUniqueReportDate(tx, {
-      projectId: data.projectId,
-      reportType: data.reportType,
-      reportDate: data.reportDate,
-      excludeReportId: existing.id
-    });
+    if (!manualUploadedReport) {
+      await assertUniqueReportDate(tx, {
+        projectId: data.projectId,
+        reportType: data.reportType,
+        reportDate: data.reportDate,
+        excludeReportId: existing.id
+      });
+    }
     const overtime = calculateReportOvertime(project, data);
     const leaderSnapshot = projectLeaderSnapshot(project);
-    const serviceOnlySpecialConditions = isServiceOnlyReport
+    const serviceOnlySpecialConditions = isServiceOnlyReport && !manualUploadedReport
       ? await buildIndependentSpecialConditions(
           tx,
           data.reportType,
@@ -6116,12 +6624,14 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     const sequenceSwap = (managerProvidedSequence || sequenceGroupChanged) && Number.isInteger(targetSequenceNumber)
       ? await prepareReportSequenceChange(tx, existing, data.projectId, data.reportType, targetSequenceNumber)
       : null;
-    await invalidateUnsignedInternalSignatureRound(tx, {
-      reportId: existing.id,
-      userId: req.auth.user.id,
-      evidence,
-      description: 'Rodada de assinatura invalidada por edicao do relatorio antes da primeira assinatura.'
-    });
+    if (!manualUploadedReport) {
+      await invalidateUnsignedInternalSignatureRound(tx, {
+        reportId: existing.id,
+        userId: req.auth.user.id,
+        evidence,
+        description: 'Rodada de assinatura invalidada por edicao do relatorio antes da primeira assinatura.'
+      });
+    }
     const nextStatus = req.auth.user.role === 'MANAGER'
       ? (isManagerFixingClientRejection ? ReportStatus.APPROVED : existing.status)
       : ReportStatus.PENDING;
@@ -6521,8 +7031,11 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
   if (!(await canAccessReport(req.auth, existing))) {
     return res.status(403).json({ error: 'Você não tem permissão para acessar este relatório.' });
   }
-  if (existing.reportType !== ReportType.RDO) {
-    return res.status(400).json({ error: 'Apenas RDO pode iniciar assinatura digital.' });
+  if (!shouldCreateInternalSignatureRound(existing, {
+    allowLinkedServiceReport: true,
+    allowManualOptionalSignature: true
+  })) {
+    return res.status(400).json({ error: 'Este relatório não exige assinatura digital.' });
   }
   if (existing.status === ReportStatus.SIGNED) {
     return res.status(409).json({ error: 'Relatório já está assinado.' });
@@ -6684,7 +7197,7 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
     ? await releasedServiceReportsAfterRdoSignature(item)
     : [];
   if (releasedServiceReports.length) {
-    queueReleasedServiceReportsEmailAfterRdoSignature(item, releasedServiceReports);
+    queueReleasedServiceReportsEmailAfterRdoSignature(item, releasedServiceReports, { userId: req.auth.user.id, evidence });
   }
 
   res.json({

@@ -118,6 +118,32 @@ export async function createServiceOnlyReports(payload: ServiceOnlyReportPayload
   return response.data;
 }
 
+export type ManualReportSignatureMode = 'APPROVED' | 'SIGNED' | 'REQUIRES_SIGNATURE';
+
+export interface ManualReportUploadPayload {
+  projectId: string;
+  reportType: ReportType;
+  sequenceNumber?: number | null;
+  reportDate: string;
+  fileName?: string;
+  serviceEquipment?: string;
+  serviceSystem?: string;
+  pdfDataUrl: string;
+  signatureMode: ManualReportSignatureMode;
+}
+
+export type ManualReportPdfReplacePayload = Pick<ManualReportUploadPayload, 'fileName' | 'serviceEquipment' | 'serviceSystem' | 'pdfDataUrl' | 'signatureMode'>;
+
+export async function uploadManualReport(payload: ManualReportUploadPayload) {
+  const response = await apiClient.post<ReportSummary>(rdoApiPath('/reports/manual-upload'), payload);
+  return response.data;
+}
+
+export async function replaceManualReportPdf(id: string, payload: ManualReportPdfReplacePayload) {
+  const response = await apiClient.put<ReportSummary>(rdoApiPath(`/reports/${id}/manual-pdf`), payload);
+  return response.data;
+}
+
 export async function updateReport(id: string, payload: Omit<ReportPayload, 'createdByUserId' | 'status'>) {
   const response = await apiClient.put<ReportSummary>(rdoApiPath(`/reports/${id}`), payload);
   return response.data;
