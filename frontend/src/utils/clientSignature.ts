@@ -36,6 +36,21 @@ export function clientSignatureForReport(report: ReportSummary | undefined, user
   return report?.reportSignatures?.find(signature => normalizeEmail(signature.signerEmail) === email) || null;
 }
 
+function signerFullName(signer: NonNullable<ReportSummary['project']['clientSigners']>[number]) {
+  const fromParts = [signer.firstName, signer.lastName]
+    .map(value => String(value || '').trim())
+    .filter(Boolean)
+    .join(' ');
+  return fromParts || String(signer.name || '').trim();
+}
+
+export function clientSignerPrefillNameForReport(report: ReportSummary | undefined, user: ClientUser | null | undefined) {
+  const email = clientSignerEmailForReport(report, user);
+  if (!email) return '';
+  const configuredSigner = report?.project.clientSigners?.find(signer => normalizeEmail(signer.email) === email);
+  return configuredSigner ? signerFullName(configuredSigner) : '';
+}
+
 export function clientHasSignedReport(report: ReportSummary | undefined, user: ClientUser | null | undefined) {
   return clientSignatureForReport(report, user)?.status === 'SIGNED';
 }

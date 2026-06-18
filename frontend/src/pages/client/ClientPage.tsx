@@ -24,8 +24,9 @@ import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { useProjects } from '../../hooks/useProjects';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
+import type { AuthUser } from '../../types/auth';
 import type { Project, ReportSummary, SatisfactionSurveySummary } from '../../types/domain';
-import { clientCanSignReport, clientSignerEmailForReport } from '../../utils/clientSignature';
+import { clientCanSignReport, clientSignerPrefillNameForReport } from '../../utils/clientSignature';
 import { downloadBlob } from '../../utils/download';
 import { formatCnpj } from '../../utils/formatCnpj';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
@@ -79,23 +80,31 @@ function formatDate(value: string) {
   return formatDateOnlyPtBr(value, value);
 }
 
+function normalizeTutorialKeyPart(value?: string | null) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function clientTutorialUserKey(user?: AuthUser | null) {
+  return normalizeTutorialKeyPart(user?.email)
+    || normalizeTutorialKeyPart(user?.username)
+    || normalizeTutorialKeyPart(user?.clientCnpj)
+    || normalizeTutorialKeyPart(user?.id);
+}
+
+function clientTutorialLegacyKeys(user?: AuthUser | null) {
+  const currentKey = clientTutorialUserKey(user);
+  return Array.from(new Set([
+    normalizeTutorialKeyPart(user?.id),
+    normalizeTutorialKeyPart(user?.username)
+  ].filter(key => key && key !== currentKey)));
+}
+
 function reportLabel(report: Pick<ReportSummary, 'reportType' | 'sequenceNumber'>) {
   return report.sequenceNumber ? `${report.reportType} ${report.sequenceNumber}` : report.reportType;
 }
 
-function userSignatureEmail(user: ReturnType<typeof useAuth>['user']) {
-  const email = String(user?.email || '').trim().toLowerCase();
-  if (email) return email;
-  const username = String(user?.username || '').trim().toLowerCase();
-  return username.includes('@') ? username : '';
-}
-
 function initialSignerNameForReport(report: ReportSummary | undefined, user: ReturnType<typeof useAuth>['user']) {
-  const email = clientSignerEmailForReport(report, user) || userSignatureEmail(user);
-  const matchingSignature = report?.reportSignatures?.find(signature =>
-    String(signature.signerEmail || '').trim().toLowerCase() === email
-  );
-  return matchingSignature?.signerName || user?.name || report?.project.clientName || '';
+  return clientSignerPrefillNameForReport(report, user);
 }
 
 function projectTitle(report: ReportSummary) {
@@ -766,12 +775,15 @@ export function ClientPage() {
   }
 
   const tutorialReady = !reportsQuery.isLoading && !archivedProjectsQuery.isLoading && clientTogglesLoaded;
+  const tutorialUserKey = clientTutorialUserKey(user);
+  const tutorialLegacyUserKeys = useMemo(() => clientTutorialLegacyKeys(user), [user]);
 
   return (
     <Shell>
-      {user && (
+      {user && tutorialUserKey && (
         <ClientTutorial
-          userId={user.id || user.username}
+          userKey={tutorialUserKey}
+          legacyUserKeys={tutorialLegacyUserKeys}
           ready={tutorialReady}
           triggerRef={tutorialTrigger}
         />
@@ -1012,6 +1024,7 @@ export function ClientPage() {
         open={signatureTargetIds.length > 0}
         title={signatureTargetIds.length > 1 ? `Assinar ${signatureTargetIds.length} relatórios` : 'Assinar relatório'}
         initialSignerName={initialSignerName}
+        allowCachedSignerName={Boolean(initialSignerName)}
         cacheIdentity={user?.email || user?.username || user?.id || ''}
         isSubmitting={reportMutations.requestSignature.isPending}
         confirmDisabled={!signaturePrivacyAccepted}

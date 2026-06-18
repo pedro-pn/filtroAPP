@@ -48,7 +48,13 @@ export function ReasonDialog({
   }
 
   return (
-    <Modal open={open} onClose={onCancel} ariaLabelledBy="reason-dialog-title" ariaDescribedBy="reason-dialog-description">
+    <Modal
+      open={open}
+      onClose={onCancel}
+      ariaLabelledBy="reason-dialog-title"
+      ariaDescribedBy="reason-dialog-description"
+      panelClassName="modal-card reason-dialog"
+    >
         <div className="section-title" id="reason-dialog-title">{title}</div>
         <p className="placeholder-copy" id="reason-dialog-description">{description}</p>
         <div className="field-group">
@@ -65,7 +71,7 @@ export function ReasonDialog({
           />
         </div>
         {error ? <div className="inline-error">{error}</div> : null}
-        <div className="admin-form-actions">
+        <div className="admin-form-actions reason-dialog-actions">
           <Button variant="secondary" onClick={onCancel} disabled={isSubmitting}>
             {cancelLabel}
           </Button>

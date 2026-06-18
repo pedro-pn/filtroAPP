@@ -123,7 +123,7 @@ test('approval signature preflight ignores missing SMTP when client emails are d
 
 test('public RDO signature schema rejects missing or stale privacy notice version', () => {
   const base = {
-    signerName: 'Cliente',
+    signerName: 'Cliente Assinante',
     signatureImageDataUrl: validSignatureImageDataUrl
   };
 
@@ -138,7 +138,7 @@ test('public RDO signature schema rejects missing or stale privacy notice versio
 
 test('authenticated RDO signature schema rejects missing or stale privacy notice version', () => {
   const base = {
-    signerName: 'Cliente',
+    signerName: 'Cliente Assinante',
     signatureImageDataUrl: validSignatureImageDataUrl
   };
 
@@ -149,6 +149,20 @@ test('authenticated RDO signature schema rejects missing or stale privacy notice
     /Versão do aviso de privacidade inválida/
   );
   assert.equal(requestSignatureSchema.parse({ ...base, privacyNoticeAccepted: true, privacyNoticeVersion: 'signature_rdo_v1' }).privacyNoticeVersion, 'signature_rdo_v1');
+});
+
+test('RDO signature schemas require signer first and last name', () => {
+  const base = {
+    signerName: 'Cliente',
+    signatureImageDataUrl: validSignatureImageDataUrl,
+    privacyNoticeAccepted: true,
+    privacyNoticeVersion: 'signature_rdo_v1'
+  };
+
+  assert.throws(() => publicSignatureConfirmSchema.parse(base), /nome e sobrenome/i);
+  assert.throws(() => requestSignatureSchema.parse(base), /nome e sobrenome/i);
+  assert.equal(publicSignatureConfirmSchema.parse({ ...base, signerName: 'João Silva' }).signerName, 'João Silva');
+  assert.equal(requestSignatureSchema.parse({ ...base, signerName: 'Maria Souza' }).signerName, 'Maria Souza');
 });
 import {
   allRequiredSignaturesCompleted,
@@ -1048,6 +1062,23 @@ test('approved RDO without client signers does not require an internal signature
   assert.equal(shouldCreateInternalSignatureRound(report), false);
 });
 
+test('clientSignersForReport composes primary and additional signer names from first and last name', () => {
+  const report = {
+    project: {
+      clientName: 'Empresa Cliente',
+      clientSignerFirstName: 'Cliente',
+      clientSignerLastName: 'Assinante',
+      clientEmailPrimary: 'cliente@example.com',
+      clientSigners: [{ firstName: 'Fiscal', lastName: 'Silva', email: 'fiscal@example.com' }]
+    }
+  };
+
+  assert.deepEqual(clientSignersForReport(report).map(signer => ({ name: signer.name, email: signer.email })), [
+    { name: 'Cliente Assinante', email: 'cliente@example.com' },
+    { name: 'Fiscal Silva', email: 'fiscal@example.com' }
+  ]);
+});
+
 test('removedPendingRequiredClientSignatureIds invalidates all pending signatures when project signer changes completely', () => {
   const report = {
     project: {
@@ -1273,6 +1304,44 @@ test('publicSignaturePayload hides metadata for unavailable soft-deleted reports
       }
     }
   }, 'UNAVAILABLE'), { status: 'UNAVAILABLE' });
+});
+
+test('publicSignaturePayload only pre-fills configured additional signer names', () => {
+  const baseSignature = {
+    id: 'signature-1',
+    signerName: 'Empresa Cliente',
+    status: 'PENDING',
+    signedAt: null,
+    rejectedAt: null,
+    tokenExpiresAt: new Date('2026-01-04T00:00:00.000Z'),
+    sourceDocumentHash: 'source-hash',
+    report: {
+      id: 'report-1',
+      deletedAt: null,
+      reportType: 'RDO',
+      sequenceNumber: 42,
+      reportDate: new Date('2026-01-01T00:00:00.000Z'),
+      status: 'APPROVED',
+      project: {
+        deletedAt: null,
+        code: 'P-001',
+        name: 'Projeto',
+        clientName: 'Empresa Cliente',
+        clientEmailPrimary: 'cliente@example.com',
+        clientSigners: [{ name: 'Fiscal Silva', email: 'fiscal@example.com' }]
+      }
+    }
+  };
+
+  assert.equal(publicSignaturePayload({
+    ...baseSignature,
+    signerEmail: 'cliente@example.com'
+  }, 'ACTIVE').signer.prefillName, false);
+  assert.equal(publicSignaturePayload({
+    ...baseSignature,
+    signerName: 'Fiscal Silva',
+    signerEmail: 'fiscal@example.com'
+  }, 'ACTIVE').signer.prefillName, true);
 });
 
 test('public RDO signature expiration does not overwrite a concurrently signed request', async () => {
@@ -1808,6 +1877,12 @@ test('writeFinalEvidencePdf creates final PDF with evidence page and hash', asyn
         ipAddress: '192.168.0.10',
         userAgent: 'Node Test',
         signatureImageDataUrl: tinyPngDataUrl
+      },
+      {
+        status: 'PENDING',
+        signerName: 'Fiscal Pendente',
+        signerEmail: 'fiscal@example.com',
+        isRequired: true
       }
     ]
   });
@@ -2042,7 +2117,15 @@ test('public signature PDF download validates the source document hash', async t
     assert.equal(args.where.tokenHash, internalSignatureTokenHash('public-hash-get-token'));
     return publicSignatureFixture({
       sourcePdfUrl: '/relatorios/public-sign-hash-get/source.pdf',
-      sourceDocumentHash: sha256Hex(original)
+      sourceDocumentHash: sha256Hex(original),
+      signatures: [{
+        id: 'signature-public-signed',
+        versionId: 'version-public-1',
+        signerName: 'Assinante Existente',
+        signerEmail: 'assinado@example.com',
+        status: 'SIGNED',
+        isRequired: true
+      }]
     });
   };
   t.after(() => {
@@ -2052,7 +2135,66 @@ test('public signature PDF download validates the source document hash', async t
   const response = await dispatchAppGet('/api/reports/public-sign/public-hash-get-token/pdf');
 
   assert.equal(response.statusCode, 409);
-  assert.match(response.json.error, /PDF-base da assinatura diverge do hash registrado/);
+  assert.match(response.json.error, /PDF-base.*diverge do hash registrado/);
+});
+
+test('public signature PDF download repairs unsigned source hash drift', async t => {
+  const originalReportsDir = env.reportsDir;
+  env.reportsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'rdo-public-sign-repair-'));
+  t.after(() => {
+    env.reportsDir = originalReportsDir;
+  });
+  const dir = path.join(env.reportsDir, 'public-sign-hash-repair');
+  await fs.mkdir(dir, { recursive: true });
+  const sourcePath = path.join(dir, 'source.pdf');
+  const original = Buffer.from('pdf-source-original');
+  const current = Buffer.from('pdf-source-regenerated');
+  await fs.writeFile(sourcePath, current);
+
+  const originalSignatureFindUnique = prisma.reportSignature.findUnique;
+  const originalSignatureUpdateMany = prisma.reportSignature.updateMany;
+  const originalVersionUpdate = prisma.reportVersion.update;
+  const originalVersionFindUnique = prisma.reportVersion.findUnique;
+  let versionHash = sha256Hex(original);
+  let signatureHash = sha256Hex(original);
+  prisma.reportSignature.findUnique = async args => {
+    assert.equal(args.where.tokenHash, internalSignatureTokenHash('public-hash-repair-token'));
+    return publicSignatureFixture({
+      sourcePdfUrl: '/relatorios/public-sign-hash-repair/source.pdf',
+      sourceDocumentHash: versionHash
+    });
+  };
+  prisma.reportVersion.update = async args => {
+    assert.equal(args.where.id, 'version-public-1');
+    versionHash = args.data.sourceDocumentHash;
+    return { id: args.where.id, sourceDocumentHash: versionHash };
+  };
+  prisma.reportSignature.updateMany = async args => {
+    assert.equal(args.where.versionId, 'version-public-1');
+    signatureHash = args.data.sourceDocumentHash;
+    return { count: 2 };
+  };
+  prisma.reportVersion.findUnique = async args => {
+    assert.equal(args.where.id, 'version-public-1');
+    const fixture = publicSignatureFixture({
+      sourcePdfUrl: '/relatorios/public-sign-hash-repair/source.pdf',
+      sourceDocumentHash: versionHash
+    });
+    return fixture.version;
+  };
+  t.after(() => {
+    prisma.reportSignature.findUnique = originalSignatureFindUnique;
+    prisma.reportSignature.updateMany = originalSignatureUpdateMany;
+    prisma.reportVersion.update = originalVersionUpdate;
+    prisma.reportVersion.findUnique = originalVersionFindUnique;
+  });
+
+  const response = await dispatchAppGet('/api/reports/public-sign/public-hash-repair-token/pdf');
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.buffer.toString(), current.toString());
+  assert.equal(versionHash, sha256Hex(current));
+  assert.equal(signatureHash, sha256Hex(current));
 });
 
 test('public signature confirm rejects source PDF drift before persisting a signature', async t => {
@@ -2075,7 +2217,15 @@ test('public signature confirm rejects source PDF drift before persisting a sign
         assert.equal(args.where.tokenHash, internalSignatureTokenHash('public-hash-confirm-token'));
         return publicSignatureFixture({
           sourcePdfUrl: '/relatorios/public-sign-hash-confirm/source.pdf',
-          sourceDocumentHash: sha256Hex(original)
+          sourceDocumentHash: sha256Hex(original),
+          signatures: [{
+            id: 'signature-public-signed',
+            versionId: 'version-public-1',
+            signerName: 'Assinante Existente',
+            signerEmail: 'assinado@example.com',
+            status: 'SIGNED',
+            isRequired: true
+          }]
         });
       },
       updateMany: async () => {

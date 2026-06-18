@@ -7,6 +7,7 @@ interface SignatureDialogProps {
   title: string;
   initialSignerName?: string | null;
   cacheIdentity?: string | null;
+  allowCachedSignerName?: boolean;
   isSubmitting?: boolean;
   confirmDisabled?: boolean;
   confirmDisabledMessage?: string;
@@ -21,6 +22,7 @@ type SignatureCache = {
 };
 
 const SIGNATURE_CACHE_PREFIX = 'filtrovali.signature.v1';
+const SIGNER_FULL_NAME_ERROR = 'Informe nome e sobrenome do signatário.';
 
 function cacheKey(identity?: string | null) {
   const normalized = String(identity || '').trim().toLowerCase();
@@ -78,6 +80,11 @@ function prepareCanvas(canvas: HTMLCanvasElement) {
   return context;
 }
 
+function hasFirstAndLastName(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  return parts.length >= 2 && parts[0].length >= 2 && parts[parts.length - 1].length >= 2;
+}
+
 function canvasPoint(canvas: HTMLCanvasElement, event: PointerEvent) {
   const rect = canvas.getBoundingClientRect();
   return {
@@ -91,6 +98,7 @@ export function SignatureDialog({
   title,
   initialSignerName = '',
   cacheIdentity = '',
+  allowCachedSignerName = true,
   isSubmitting = false,
   confirmDisabled = false,
   confirmDisabledMessage = 'Confirme os termos para continuar.',
@@ -106,7 +114,12 @@ export function SignatureDialog({
   const [uploadedDataUrl, setUploadedDataUrl] = useState('');
   const [hasDrawing, setHasDrawing] = useState(false);
   const [error, setError] = useState('');
+  const [signerNameTouched, setSignerNameTouched] = useState(false);
+  const [confirmAttempted, setConfirmAttempted] = useState(false);
   const [uploadDragOver, setUploadDragOver] = useState(false);
+  const signatureCacheKey = allowCachedSignerName ? cacheKey(cacheIdentity) : '';
+  const signerNameInvalid = (signerNameTouched || confirmAttempted) && !hasFirstAndLastName(signerName);
+  const visibleError = signerNameInvalid ? SIGNER_FULL_NAME_ERROR : error;
 
   useEffect(() => {
     if (!open || mode !== 'draw') return;
@@ -156,7 +169,7 @@ export function SignatureDialog({
 
   useEffect(() => {
     if (open) {
-      const cached = readSignatureCache(cacheIdentity);
+      const cached = signatureCacheKey ? readSignatureCache(cacheIdentity) : null;
       setSignerName(String(cached?.signerName || initialSignerName || '').trim());
       setRememberSignature(!!cached);
     } else {
@@ -166,8 +179,10 @@ export function SignatureDialog({
       setUploadedDataUrl('');
       setHasDrawing(false);
       setError('');
+      setSignerNameTouched(false);
+      setConfirmAttempted(false);
     }
-  }, [cacheIdentity, initialSignerName, open]);
+  }, [cacheIdentity, initialSignerName, open, signatureCacheKey]);
 
   function clearDrawing() {
     const canvas = canvasRef.current;
@@ -209,14 +224,15 @@ export function SignatureDialog({
   }
 
   function confirm() {
+    setConfirmAttempted(true);
     setError('');
     if (confirmDisabled) {
       setError(confirmDisabledMessage);
       return;
     }
     const trimmedSignerName = signerName.trim();
-    if (trimmedSignerName.length < 2) {
-      setError('Informe o nome do signatário.');
+    if (!hasFirstAndLastName(trimmedSignerName)) {
+      setError(SIGNER_FULL_NAME_ERROR);
       return;
     }
     if (mode === 'upload') {
@@ -224,7 +240,7 @@ export function SignatureDialog({
         setError('Envie uma imagem da assinatura.');
         return;
       }
-      if (cacheKey(cacheIdentity)) {
+      if (signatureCacheKey) {
         const existing = readSignatureCache(cacheIdentity) || {};
         if (rememberSignature) {
           writeSignatureCache(cacheIdentity, { ...existing, signerName: trimmedSignerName });
@@ -242,7 +258,7 @@ export function SignatureDialog({
       return;
     }
     const drawnSignatureDataUrl = canvas.toDataURL('image/png');
-    if (cacheKey(cacheIdentity)) {
+    if (signatureCacheKey) {
       if (rememberSignature) {
         writeSignatureCache(cacheIdentity, { signerName: trimmedSignerName });
       } else {
@@ -254,86 +270,95 @@ export function SignatureDialog({
 
   return (
     <Modal open={open} onClose={onCancel} ariaLabelledBy="signature-dialog-title" panelClassName="modal-card signature-modal">
-      <div className="modal-head">
-        <h2 id="signature-dialog-title">{title}</h2>
-        <button className="icon-button" type="button" aria-label="Fechar" onClick={onCancel}>×</button>
-      </div>
-      <div className="field-group signature-name-field">
-        <label htmlFor="signature-signer-name">Nome do signatário</label>
-        <input
-          id="signature-signer-name"
-          type="text"
-          value={signerName}
-          maxLength={160}
-          placeholder="Informe seu nome completo"
-          onChange={event => setSignerName(event.target.value)}
-        />
-      </div>
-      <p className="signature-statement-text">Declaro que revisei e concordo com o conteúdo deste documento.</p>
-      <div className="signature-mode-tabs" role="tablist" aria-label="Modo de assinatura">
-        <button className={mode === 'draw' ? 'active' : ''} type="button" onClick={() => setMode('draw')}>Desenhar</button>
-        <button className={mode === 'upload' ? 'active' : ''} type="button" onClick={() => setMode('upload')}>Enviar imagem</button>
-      </div>
-      {mode === 'draw' ? (
-        <div className="signature-draw-area">
-          <div className="signature-canvas-shell">
-            <canvas ref={canvasRef} width={560} height={180} aria-label="Área para desenhar assinatura" />
-          </div>
-          <div className="signature-inline-actions">
-            <button className="secondary-button" type="button" onClick={clearDrawing}>Limpar</button>
-          </div>
+      <div className="signature-modal-body">
+        <div className="modal-head">
+          <h2 id="signature-dialog-title">{title}</h2>
+          <button className="icon-button" type="button" aria-label="Fechar" onClick={onCancel}>×</button>
         </div>
-      ) : (
-        <div
-          className={`signature-upload-area ${uploadDragOver ? 'drag-over' : ''}`}
-          onDragOver={event => { event.preventDefault(); setUploadDragOver(true); }}
-          onDragLeave={() => setUploadDragOver(false)}
-          onDrop={event => { event.preventDefault(); setUploadDragOver(false); handleFile(event.dataTransfer.files?.[0]); }}
-        >
+        <div className={`field-group signature-name-field ${signerNameInvalid ? 'field-invalid' : ''}`}>
+          <label htmlFor="signature-signer-name">Nome e sobrenome do signatário</label>
           <input
-            ref={fileInputRef}
-            className="signature-file-input"
-            type="file"
-            accept="image/png,image/jpeg"
-            onChange={event => handleFile(event.target.files?.[0])}
+            id="signature-signer-name"
+            type="text"
+            value={signerName}
+            maxLength={160}
+            placeholder="Informe nome e sobrenome"
+            required
+            aria-invalid={signerNameInvalid}
+            aria-describedby={signerNameInvalid ? 'signature-dialog-error' : undefined}
+            onBlur={() => setSignerNameTouched(true)}
+            onChange={event => {
+              setSignerName(event.target.value);
+              if (error === SIGNER_FULL_NAME_ERROR) setError('');
+            }}
           />
-          {uploadedDataUrl ? (
-            <div className="signature-upload-drop signature-upload-drop-filled">
-              <img src={uploadedDataUrl} alt="Prévia da assinatura" />
-              <button className="signature-upload-remove" type="button" onClick={removeUploadedImage}>
-                Remover
-              </button>
+        </div>
+        <p className="signature-statement-text">Declaro que revisei e concordo com o conteúdo deste documento.</p>
+        <div className="signature-mode-tabs" role="tablist" aria-label="Modo de assinatura">
+          <button className={mode === 'draw' ? 'active' : ''} type="button" onClick={() => setMode('draw')}>Desenhar</button>
+          <button className={mode === 'upload' ? 'active' : ''} type="button" onClick={() => setMode('upload')}>Enviar imagem</button>
+        </div>
+        {mode === 'draw' ? (
+          <div className="signature-draw-area">
+            <div className="signature-canvas-shell">
+              <canvas ref={canvasRef} width={560} height={180} aria-label="Área para desenhar assinatura" />
             </div>
-          ) : (
-            <button
-              className="signature-upload-drop signature-upload-trigger"
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              Arraste a imagem aqui ou clique para selecionar
-            </button>
-          )}
-        </div>
-      )}
-      {cacheKey(cacheIdentity) ? (
-        <div className="signature-remember-option">
-          <label>
+            <div className="signature-inline-actions">
+              <button className="secondary-button" type="button" onClick={clearDrawing}>Limpar</button>
+            </div>
+          </div>
+        ) : (
+          <div
+            className={`signature-upload-area ${uploadDragOver ? 'drag-over' : ''}`}
+            onDragOver={event => { event.preventDefault(); setUploadDragOver(true); }}
+            onDragLeave={() => setUploadDragOver(false)}
+            onDrop={event => { event.preventDefault(); setUploadDragOver(false); handleFile(event.dataTransfer.files?.[0]); }}
+          >
             <input
-              type="checkbox"
-              checked={rememberSignature}
-              onChange={event => setRememberSignature(event.target.checked)}
+              ref={fileInputRef}
+              className="signature-file-input"
+              type="file"
+              accept="image/png,image/jpeg"
+              onChange={event => handleFile(event.target.files?.[0])}
             />
-            <span>Lembrar nome neste dispositivo</span>
-          </label>
-          {rememberSignature ? (
-            <button className="signature-saved-remove" type="button" onClick={removeSavedSignature}>
-              Esquecer nome
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-      {notice}
-      {error ? <div className="form-error">{error}</div> : null}
+            {uploadedDataUrl ? (
+              <div className="signature-upload-drop signature-upload-drop-filled">
+                <img src={uploadedDataUrl} alt="Prévia da assinatura" />
+                <button className="signature-upload-remove" type="button" onClick={removeUploadedImage}>
+                  Remover
+                </button>
+              </div>
+            ) : (
+              <button
+                className="signature-upload-drop signature-upload-trigger"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Arraste a imagem aqui ou clique para selecionar
+              </button>
+            )}
+          </div>
+        )}
+        {signatureCacheKey ? (
+          <div className="signature-remember-option">
+            <label>
+              <input
+                type="checkbox"
+                checked={rememberSignature}
+                onChange={event => setRememberSignature(event.target.checked)}
+              />
+              <span>Lembrar nome neste dispositivo</span>
+            </label>
+            {rememberSignature ? (
+              <button className="signature-saved-remove" type="button" onClick={removeSavedSignature}>
+                Esquecer nome
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {notice}
+        {visibleError ? <div className="form-error" id="signature-dialog-error">{visibleError}</div> : null}
+      </div>
       <div className="modal-actions">
         <button className="secondary-button" type="button" onClick={onCancel} disabled={isSubmitting}>Cancelar</button>
         <button className="primary-button" type="button" onClick={confirm} disabled={isSubmitting}>

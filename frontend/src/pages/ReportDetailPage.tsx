@@ -22,7 +22,7 @@ import { ReasonDialog } from '../components/ui/ReasonDialog';
 import { UploadField } from '../components/ui/UploadField';
 import { clearStagedUploadDeletions, flushStagedUploadDeletions } from '../components/ui/photoDeletionStaging';
 import type { Collaborator, Equipment, ReportAuditLog, ReportPayload, ReportStatus, ReportSummary, Unit } from '../types/domain';
-import { clientCanSignReport, clientSignerEmailForReport } from '../utils/clientSignature';
+import { clientCanSignReport, clientSignerPrefillNameForReport } from '../utils/clientSignature';
 import { formatDateOnlyPtBr } from '../utils/dateOnly';
 import { downloadBlob } from '../utils/download';
 import { sortProjects } from '../utils/projectSort';
@@ -1343,12 +1343,8 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
   }
 
   const initialSignerName = useMemo(() => {
-    const userEmail = clientSignerEmailForReport(report, user);
-    const matchingSignature = report.reportSignatures?.find(signature =>
-      String(signature.signerEmail || '').trim().toLowerCase() === userEmail
-    );
-    return matchingSignature?.signerName || user?.name || report.project.clientName || '';
-  }, [report.project.clientName, report.reportSignatures, user]);
+    return clientSignerPrefillNameForReport(report, user);
+  }, [report, user]);
 
   async function handleRequestSignature({
     signerName,
@@ -1483,6 +1479,7 @@ function ReportDetailActions({ report, role }: { report: ReportSummary; role?: s
         open={signatureOpen}
         title="Assinar relatório"
         initialSignerName={initialSignerName}
+        allowCachedSignerName={Boolean(initialSignerName)}
         cacheIdentity={user?.email || user?.username || user?.id || ''}
         isSubmitting={reportMutations.requestSignature.isPending}
         confirmDisabled={!privacyAccepted}

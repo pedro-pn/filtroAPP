@@ -115,6 +115,12 @@ export function PublicSignaturePage() {
     return `${item.report.reportType} ${item.report.sequenceNumber || ''}`.trim();
   }
 
+  function initialPublicSignerName(item?: PublicSignatureReportPayload) {
+    if (item?.signer.prefillName) return item.signer.name || '';
+    if (!item && signer?.prefillName) return signer.name || '';
+    return '';
+  }
+
   return (
     <main className="survey-page-shell public-signature-page">
       <header className="survey-header">
@@ -205,7 +211,8 @@ export function PublicSignaturePage() {
       <SignatureDialog
         open={signatureOpen}
         title={`Assinar ${reportLabel(selectedItem)}`}
-        initialSignerName={selectedItem?.signer.name || signer?.name || ''}
+        initialSignerName={initialPublicSignerName(selectedItem)}
+        allowCachedSignerName={Boolean(initialPublicSignerName(selectedItem))}
         cacheIdentity={`${selectedItem?.signer.email || signer?.email || token}:${selectedItem?.signatureId || ''}`}
         isSubmitting={confirmMutation.isPending}
         onCancel={() => setSignatureOpen(false)}

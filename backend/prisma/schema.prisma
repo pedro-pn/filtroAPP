@@ -201,6 +201,8 @@ model Project {
   clientName            String
   clientCnpj            String
   clientEmailPrimary    String            @default("")
+  clientSignerFirstName String            @default("")
+  clientSignerLastName  String            @default("")
   clientEmailCc         String[]          @default([])
   clientSigners         Json[]            @default([])
   contractCode          String

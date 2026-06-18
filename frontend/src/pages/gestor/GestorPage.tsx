@@ -151,6 +151,8 @@ interface ProjectFormState {
   clientName: string;
   clientCnpj: string;
   clientEmailPrimary: string;
+  clientSignerFirstName: string;
+  clientSignerLastName: string;
   clientEmailCc: string;
   clientSigners: ClientSigner[];
   contractCode: string;
@@ -222,6 +224,8 @@ const emptyProjectForm: ProjectFormState = {
   clientName: '',
   clientCnpj: '',
   clientEmailPrimary: '',
+  clientSignerFirstName: '',
+  clientSignerLastName: '',
   clientEmailCc: '',
   clientSigners: [],
   contractCode: '',
@@ -298,8 +302,13 @@ function cleanSigners(signers: ClientSigner[]) {
   const seen = new Set<string>();
   return signers
     .map(signer => ({
-      name: signer.name.trim(),
+      firstName: signerFirstName(signer).trim(),
+      lastName: signerLastName(signer).trim(),
       email: signer.email.trim().toLowerCase()
+    }))
+    .map(signer => ({
+      ...signer,
+      name: [signer.firstName, signer.lastName].filter(Boolean).join(' ')
     }))
     .filter(signer => signer.name && signer.email)
     .filter(signer => {
@@ -309,8 +318,20 @@ function cleanSigners(signers: ClientSigner[]) {
     });
 }
 
-function defaultSignerName(email: string) {
-  return email.split('@')[0] || email;
+function splitSignerName(name = '') {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] || '',
+    lastName: parts.slice(1).join(' ')
+  };
+}
+
+function signerFirstName(signer: ClientSigner) {
+  return signer.firstName || splitSignerName(signer.name).firstName;
+}
+
+function signerLastName(signer: ClientSigner) {
+  return signer.lastName || splitSignerName(signer.name).lastName;
 }
 
 function fileToDataUrl(file: File) {
@@ -388,8 +409,10 @@ function projectSearchParts(project: Project) {
     project.clientName,
     project.clientCnpj,
     project.clientEmailPrimary,
+    project.clientSignerFirstName,
+    project.clientSignerLastName,
     ...(project.clientEmailCc || []),
-    ...(project.clientSigners || []).flatMap(signer => [signer.name, signer.email]),
+    ...(project.clientSigners || []).flatMap(signer => [signer.name, signer.firstName, signer.lastName, signer.email]),
     project.contractCode,
     project.location,
     project.operator?.name,
@@ -450,9 +473,17 @@ function formatList(values: string[], fallback = 'Não informado') {
 function formatProjectSigners(signers?: ClientSigner[]) {
   if (!signers?.length) return 'Nenhum assinante adicional';
   return signers
-    .map(signer => [signer.name, signer.email].filter(Boolean).join(' - '))
+    .map(signer => [[signerFirstName(signer), signerLastName(signer)].filter(Boolean).join(' ') || signer.name, signer.email].filter(Boolean).join(' - '))
     .filter(Boolean)
     .join(', ');
+}
+
+function formatPrimaryProjectSigner(project: Project) {
+  const name = [project.clientSignerFirstName, project.clientSignerLastName]
+    .map(part => String(part || '').trim())
+    .filter(Boolean)
+    .join(' ');
+  return name || 'Não informado';
 }
 
 function formatProjectSequences(project: Project) {
@@ -642,9 +673,13 @@ function projectToForm(project: Project): ProjectFormState {
     clientName: project.clientName,
     clientCnpj: project.clientCnpj,
     clientEmailPrimary: project.clientEmailPrimary || '',
+    clientSignerFirstName: project.clientSignerFirstName || '',
+    clientSignerLastName: project.clientSignerLastName || '',
     clientEmailCc: parseEmailList([...(project.clientEmailCc || []), ...(project.clientSigners || []).map(signer => signer.email)].join('\n')).join('\n'),
     clientSigners: (project.clientSigners || []).map(signer => ({
-      name: signer.name || '',
+      firstName: signerFirstName(signer),
+      lastName: signerLastName(signer),
+      name: signer.name || [signer.firstName, signer.lastName].filter(Boolean).join(' '),
       email: signer.email || ''
     })),
     contractCode: project.contractCode,
@@ -805,16 +840,25 @@ function ProjectClientFields({
         ...current,
         clientSigners: isSigner
           ? current.clientSigners.filter(signer => signer.email.trim().toLowerCase() !== normalizedEmail)
-          : [...current.clientSigners, { email: normalizedEmail, name: defaultSignerName(normalizedEmail) }]
+          : [...current.clientSigners, { email: normalizedEmail, firstName: '', lastName: '', name: '' }]
       };
     });
   }
 
-  function updateSignerName(email: string, name: string) {
+  function updateSignerNamePart(email: string, key: 'firstName' | 'lastName', value: string) {
     setForm(current => ({
       ...current,
       clientSigners: current.clientSigners.map(signer => (
-        signer.email.trim().toLowerCase() === email ? { ...signer, name } : signer
+        signer.email.trim().toLowerCase() === email
+          ? {
+              ...signer,
+              [key]: value,
+              name: [
+                key === 'firstName' ? value : signerFirstName(signer),
+                key === 'lastName' ? value : signerLastName(signer)
+              ].map(part => part.trim()).filter(Boolean).join(' ')
+            }
+          : signer
       ))
     }));
   }
@@ -828,6 +872,26 @@ function ProjectClientFields({
           type="email"
           value={form.clientEmailPrimary}
           onChange={event => setForm(current => ({ ...current, clientEmailPrimary: event.target.value }))}
+        />
+      </div>
+      <div className="field-group">
+        <label htmlFor={`${idPrefix}-client-signer-first-name`}>Nome do signatário principal</label>
+        <input
+          id={`${idPrefix}-client-signer-first-name`}
+          type="text"
+          value={form.clientSignerFirstName}
+          placeholder="Nome"
+          onChange={event => setForm(current => ({ ...current, clientSignerFirstName: event.target.value }))}
+        />
+      </div>
+      <div className="field-group">
+        <label htmlFor={`${idPrefix}-client-signer-last-name`}>Sobrenome do signatário principal</label>
+        <input
+          id={`${idPrefix}-client-signer-last-name`}
+          type="text"
+          value={form.clientSignerLastName}
+          placeholder="Sobrenome"
+          onChange={event => setForm(current => ({ ...current, clientSignerLastName: event.target.value }))}
         />
       </div>
       <div className="field-group field-group-wide">
@@ -862,13 +926,28 @@ function ProjectClientFields({
                 </div>
                 {signer ? (
                   <div className="cc-name-row">
-                    <input
-                      className="cc-name-input"
-                      type="text"
-                      value={signer.name}
-                      placeholder="Nome do assinante"
-                      onChange={event => updateSignerName(email, event.target.value)}
-                    />
+                    <label>
+                      <span>Nome</span>
+                      <input
+                        className="cc-name-input"
+                        type="text"
+                        value={signerFirstName(signer)}
+                        placeholder="Nome"
+                        required
+                        onChange={event => updateSignerNamePart(email, 'firstName', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>Sobrenome</span>
+                      <input
+                        className="cc-name-input"
+                        type="text"
+                        value={signerLastName(signer)}
+                        placeholder="Sobrenome"
+                        required
+                        onChange={event => updateSignerNamePart(email, 'lastName', event.target.value)}
+                      />
+                    </label>
                   </div>
                 ) : null}
               </div>
@@ -1030,6 +1109,10 @@ function renderProjectCard(
           <div className="det-row">
             <span className="det-label">E-mail principal</span>
             <span className="det-val">{project.clientEmailPrimary || '-'}</span>
+          </div>
+          <div className="det-row">
+            <span className="det-label">Signatário principal</span>
+            <span className="det-val">{formatPrimaryProjectSigner(project)}</span>
           </div>
           <div className="det-row">
             <span className="det-label">E-mails em cópia</span>
@@ -1588,6 +1671,8 @@ export function GestorPage() {
       clientName: projectForm.clientName.trim(),
       clientCnpj: projectForm.clientCnpj.trim(),
       clientEmailPrimary: projectForm.clientEmailPrimary.trim().toLowerCase(),
+      clientSignerFirstName: projectForm.clientSignerFirstName.trim(),
+      clientSignerLastName: projectForm.clientSignerLastName.trim(),
       clientEmailCc: parseEmailList(projectForm.clientEmailCc),
       clientSigners: cleanSigners(projectForm.clientSigners),
       contractCode: projectForm.contractCode.trim(),

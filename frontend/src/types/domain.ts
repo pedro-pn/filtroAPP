@@ -28,6 +28,8 @@ export interface ProjectReportSequence {
 
 export interface ClientSigner {
   name: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
 }
 
@@ -71,6 +73,8 @@ export interface Project {
   clientName: string;
   clientCnpj: string;
   clientEmailPrimary: string;
+  clientSignerFirstName?: string;
+  clientSignerLastName?: string;
   clientEmailCc: string[];
   clientSigners: ClientSigner[];
   contractCode: string;

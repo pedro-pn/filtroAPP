@@ -11,6 +11,8 @@ export interface ProjectPayload {
   clientName: string;
   clientCnpj: string;
   clientEmailPrimary?: string;
+  clientSignerFirstName?: string;
+  clientSignerLastName?: string;
   clientEmailCc?: string[];
   clientSigners?: ClientSigner[];
   contractCode: string;

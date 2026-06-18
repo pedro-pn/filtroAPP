@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import AdmZip from 'adm-zip';
 import { ClientReviewAction, Prisma, ReportSignatureStatus, ReportStatus, ReportType, ReportVersionStatus } from '@prisma/client';
@@ -595,6 +596,14 @@ export async function sendReleasedServiceReportsEmail(rdo, serviceReports, optio
   return { ok: true, sentCount: enabledRecipients.length, attachmentCount: attachments.length };
 }
 
+function publicSignatureShouldPrefillName(signature) {
+  const email = signerEmailValue(signature?.signerEmail);
+  if (!email) return false;
+  return (signature?.report?.project?.clientSigners || []).some(signer =>
+    signerEmailValue(signer?.email) === email
+  );
+}
+
 export function publicSignaturePayload(signature, status) {
   if (!signature || status === 'INVALID' || status === 'UNAVAILABLE') return { status };
   const payload = {
@@ -603,6 +612,7 @@ export function publicSignaturePayload(signature, status) {
     signer: {
       signatureId: signature.id,
       name: signature.signerName,
+      prefillName: publicSignatureShouldPrefillName(signature),
       declaredName: signature.declaredSignerName || null,
       email: signature.signerEmail,
       status: signature.status,
@@ -633,6 +643,7 @@ function publicSignatureReportPayload(signature, status = publicSignatureStatus(
     expiresAt: signature.tokenExpiresAt || null,
     signer: {
       name: signature.signerName,
+      prefillName: publicSignatureShouldPrefillName(signature),
       declaredName: signature.declaredSignerName || null,
       email: signature.signerEmail,
       status: signature.status,
@@ -941,7 +952,11 @@ function signatureWouldCompleteRequired(version, signatureId) {
   ));
 }
 
-async function assertSignatureFinalizationPreflight(version) {
+function signatureVersionHasSignedEvidence(version) {
+  return (version?.signatures || []).some(signature => signature.status === ReportSignatureStatus.SIGNED);
+}
+
+async function signatureSourceHashCurrent(version, client = prisma, options = {}) {
   const sourcePath = reportSourcePdfPath(version?.sourcePdfUrl);
   if (!sourcePath) {
     const error = new Error('PDF-base da assinatura interna nao foi encontrado.');
@@ -949,11 +964,35 @@ async function assertSignatureFinalizationPreflight(version) {
     throw error;
   }
   const sourceBuffer = await fs.readFile(sourcePath);
-  if (sha256Hex(sourceBuffer) !== version.sourceDocumentHash) {
+  const actualHash = sha256Hex(sourceBuffer);
+  if (actualHash === version.sourceDocumentHash) return version;
+
+  if (!options.repairUnsigned || signatureVersionHasSignedEvidence(version)) {
     const error = new Error('PDF-base da assinatura interna diverge do hash registrado.');
     error.statusCode = 409;
     throw error;
   }
+
+  await client.reportVersion.update({
+    where: { id: version.id },
+    data: { sourceDocumentHash: actualHash }
+  });
+  await client.reportSignature.updateMany({
+    where: {
+      versionId: version.id,
+      status: { in: [ReportSignatureStatus.PENDING, ReportSignatureStatus.EXPIRED] }
+    },
+    data: { sourceDocumentHash: actualHash }
+  });
+  const refreshed = await client.reportVersion.findUnique({
+    where: { id: version.id },
+    include: { signatures: { orderBy: { createdAt: 'asc' } } }
+  });
+  return refreshed || { ...version, sourceDocumentHash: actualHash };
+}
+
+async function assertSignatureFinalizationPreflight(version, client = prisma, options = {}) {
+  return signatureSourceHashCurrent(version, client, options);
 }
 
 export async function resetSignedSignatureForFinalizationRetry(_client, _signatureResult) {
@@ -1295,6 +1334,8 @@ const listSummarySelect = {
       clientName: true,
       clientCnpj: true,
       clientEmailPrimary: true,
+      clientSignerFirstName: true,
+      clientSignerLastName: true,
       clientEmailCc: true,
       clientSigners: true,
       operatorId: true
@@ -1915,10 +1956,19 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
 
     const removedSignatureIds = removedPendingRequiredClientSignatureIds(report, version);
     const addedSigners = addedRequiredClientSigners(report, version);
-    if (!removedSignatureIds.length && !addedSigners.length) continue;
+    const currentSignersByEmail = new Map(clientSignersForReport(report).map(signer => [signer.email, signer]));
+    const renamedOpenSignatures = (version.signatures || [])
+      .filter(signature => [ReportSignatureStatus.PENDING, ReportSignatureStatus.EXPIRED].includes(signature.status)
+        && signature.isRequired !== false)
+      .map(signature => ({
+        signature,
+        signer: currentSignersByEmail.get(signerEmailValue(signature.signerEmail))
+      }))
+      .filter(item => item.signer && String(item.signature.signerName || '') !== item.signer.name);
+    if (!removedSignatureIds.length && !addedSigners.length && !renamedOpenSignatures.length) continue;
 
     const hasAdditions = addedSigners.length > 0;
-    const currentSignerEmails = new Set(clientSignersForReport(report).map(signer => signer.email));
+    const currentSignerEmails = new Set(currentSignersByEmail.keys());
     const roundHasCurrentSigner = (version.signatures || [])
       .some(signature => signature.isRequired !== false && currentSignerEmails.has(signerEmailValue(signature.signerEmail)));
 
@@ -1991,6 +2041,12 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
           }
         });
       }
+      for (const item of renamedOpenSignatures) {
+        await tx.reportSignature.update({
+          where: { id: item.signature.id },
+          data: { signerName: item.signer.name }
+        });
+      }
       for (const signer of addedSigners) {
         const reusable = invalidatedSignatureByEmail.get(signer.email);
         if (reusable) {
@@ -2037,8 +2093,10 @@ export async function reconcileProjectClientSignatureRequirements(projectId, opt
         reportId: report.id,
         versionId: version.id,
         userId,
-        action: hasAdditions ? ReportAuditAction.SIGNATURE_ROUND_CREATED : ReportAuditAction.SIGNATURES_INVALIDATED,
-        description: hasAdditions
+        action: hasAdditions || renamedOpenSignatures.length
+          ? ReportAuditAction.SIGNATURE_ROUND_CREATED
+          : ReportAuditAction.SIGNATURES_INVALIDATED,
+        description: hasAdditions || renamedOpenSignatures.length
           ? 'Rodada de assinatura atualizada: signatarios do projeto incluidos/renovados.'
           : 'Assinaturas pendentes de signatarios removidos deixaram de ser obrigatorias.',
         evidence
@@ -2622,11 +2680,22 @@ async function getReportPdfDownload(report) {
   if (
     report.status === ReportStatus.APPROVED &&
     report.reportType === ReportType.RDO &&
-    activeSourceVersion &&
-    await activeSourceVersionMatchesCurrentPdf(report, activeSourceVersion)
+    activeSourceVersion
   ) {
     const sourcePath = reportSourcePdfPath(activeSourceVersion.sourcePdfUrl);
     if (sourcePath) {
+      const activeSignatureVersion = await activeVersionWithSignatures(prisma, report.id);
+      if (activeSignatureVersion?.id === activeSourceVersion.id) {
+        const currentVersion = await signatureSourceHashCurrent(activeSignatureVersion, prisma, { repairUnsigned: true });
+        if (versionHasPartialSignedEvidence(currentVersion)) {
+          return currentSignatureEvidencePdfDownload(report, currentVersion, sourcePath);
+        }
+        const buffer = await verifiedSourcePdfBuffer(sourcePath, currentVersion);
+        return {
+          fileName: path.basename(sourcePath),
+          buffer
+        };
+      }
       const buffer = await verifiedSourcePdfBuffer(sourcePath, activeSourceVersion);
       return {
         fileName: path.basename(sourcePath),
@@ -2668,6 +2737,37 @@ export async function verifiedFinalPdfBuffer(finalPath, finalVersion) {
     throw error;
   }
   return buffer;
+}
+
+function versionHasPartialSignedEvidence(version) {
+  const required = (version?.signatures || [])
+    .filter(signature => signature.status !== ReportSignatureStatus.INVALIDATED && signature.isRequired !== false);
+  if (required.length < 2) return false;
+  const signedCount = required.filter(signature => signature.status === ReportSignatureStatus.SIGNED).length;
+  return signedCount > 0 && signedCount < required.length;
+}
+
+async function currentSignatureEvidencePdfDownload(report, version, sourcePath) {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'newrdo-signature-preview-'));
+  const targetPath = path.join(tmpDir, `${report.id}-assinaturas.pdf`);
+  try {
+    await writeFinalEvidencePdf({
+      sourcePdfPath: sourcePath,
+      sourcePdfUrl: version.sourcePdfUrl,
+      finalPdfPath: targetPath,
+      finalPdfUrl: targetPath,
+      report,
+      version,
+      signatures: version.signatures || [],
+      validationCode: ''
+    });
+    return {
+      fileName: path.basename(sourcePath),
+      buffer: await fs.readFile(targetPath)
+    };
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 async function finalizeInternalSignatureRound(report, version, evidence, userId, options = {}) {
@@ -2825,6 +2925,7 @@ async function ensureInternalSignatureRoundAndNotify(report, userId, evidence, o
   if (!activeVersion) {
     const saved = await generateReportPdfAsset(report);
     generatedSourcePath = saved.targetPath;
+    await writePdfCacheMetadata(saved.targetPath, report);
     const pdfBuffer = await fs.readFile(saved.targetPath);
     sourcePdfUrl = saved.publicUrl;
     sourceDocumentHash = sha256Hex(pdfBuffer);
@@ -3090,6 +3191,21 @@ const clientReviewSchema = z.object({
     });
   }
 });
+
+function hasSignerFirstAndLastName(value) {
+  const parts = String(value || '').trim().split(/\s+/).filter(Boolean);
+  return parts.length >= 2 && parts[0].length >= 2 && parts[parts.length - 1].length >= 2;
+}
+
+function validateSignerFullName(data, ctx) {
+  if (hasSignerFirstAndLastName(data.signerName)) return;
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: ['signerName'],
+    message: 'Informe nome e sobrenome do signatário.'
+  });
+}
+
 export const requestSignatureSchema = z.object({
   comment: z.string().trim().max(4000).optional().nullable(),
   signerName: z.string().trim().min(2).max(160),
@@ -3098,6 +3214,7 @@ export const requestSignatureSchema = z.object({
   privacyNoticeAccepted: z.boolean().optional(),
   privacyNoticeVersion: z.string().trim().optional().nullable()
 }).superRefine((data, ctx) => {
+  validateSignerFullName(data, ctx);
   const error = validatePrivacyNoticeAcknowledgement(data, SIGNATURE_RDO_NOTICE_VERSION);
   if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['privacyNoticeVersion'], message: error });
 });
@@ -3153,6 +3270,7 @@ export const publicSignatureConfirmSchema = z.object({
   privacyNoticeAccepted: z.boolean().optional(),
   privacyNoticeVersion: z.string().trim().optional().nullable()
 }).superRefine((data, ctx) => {
+  validateSignerFullName(data, ctx);
   const error = validatePrivacyNoticeAcknowledgement(data, SIGNATURE_RDO_NOTICE_VERSION);
   if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['privacyNoticeVersion'], message: error });
 });
@@ -5473,13 +5591,14 @@ router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (re
 router.get('/public-sign/:token/pdf', publicSignatureLimiter, asyncHandler(async (req, res) => {
   const signatureId = String(req.query.signatureId || '').trim() || null;
   const signature = await publicSignatureForTokenScopeOrThrow(req.params.token, signatureId);
-  const sourcePath = reportSourcePdfPath(signature.version.sourcePdfUrl);
+  const version = await signatureSourceHashCurrent(signature.version, prisma, { repairUnsigned: true });
+  const sourcePath = reportSourcePdfPath(version.sourcePdfUrl);
   if (!sourcePath) return res.status(404).json({ error: 'PDF da assinatura não encontrado.' });
 
   sendDownloadBuffer(res, {
     contentType: 'application/pdf',
     fileName: reportPdfFileName(signature.report),
-    buffer: await verifiedSourcePdfBuffer(sourcePath, signature.version)
+    buffer: await verifiedSourcePdfBuffer(sourcePath, version)
   });
 }));
 
@@ -5492,10 +5611,10 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
   let item = await prisma.$transaction(async tx => {
     const signature = await publicSignatureForTokenScopeOrThrow(req.params.token, data.signatureId, tx, { retryable: true });
     const completesRequiredSignatures = signatureWouldCompleteRequired(signature.version, signature.id);
-    await assertSignatureFinalizationPreflight(signature.version);
+    const version = await assertSignatureFinalizationPreflight(signature.version, tx, { repairUnsigned: true });
     signatureResult = await signInternalReportVersion(tx, {
       report: signature.report,
-      version: signature.version,
+      version,
       signer: {
         name: data.signerName,
         email: signature.signerEmail
@@ -6445,6 +6564,7 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
   if (!activeVersion) {
     const saved = await generateReportPdfAsset(prepared);
     generatedSourcePath = saved.targetPath;
+    await writePdfCacheMetadata(saved.targetPath, prepared);
     const pdfBuffer = await fs.readFile(saved.targetPath);
     sourcePdfUrl = saved.publicUrl;
     sourceDocumentHash = sha256Hex(pdfBuffer);
@@ -6472,7 +6592,7 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
           throw error;
         }
         assertSignatureSourceCurrent(current, expectedReportUpdatedAt);
-        const version = await ensureInternalSignatureRound(tx, {
+        let version = await ensureInternalSignatureRound(tx, {
           report: current,
           sourcePdfUrl,
           sourceDocumentHash,
@@ -6486,7 +6606,7 @@ router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandle
           throw error;
         }
         const completesRequiredSignatures = signatureWouldCompleteRequired(version, signingSignature?.id);
-        await assertSignatureFinalizationPreflight(version);
+        version = await assertSignatureFinalizationPreflight(version, tx, { repairUnsigned: true });
         signatureResult = await signInternalReportVersion(tx, {
           report: current,
           version,

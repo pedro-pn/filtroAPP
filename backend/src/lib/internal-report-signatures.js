@@ -216,8 +216,12 @@ export function signatureEvidenceFromRequest(req) {
 function addSigner(signers, seen, signer) {
   const email = normalizeSignerEmail(signer?.email);
   if (!email || seen.has(email)) return;
+  const nameFromParts = [signer?.firstName, signer?.lastName]
+    .map(value => stringValue(value))
+    .filter(Boolean)
+    .join(' ');
   signers.push({
-    name: stringValue(signer?.name) || stringValue(signer?.email) || 'Cliente',
+    name: nameFromParts || stringValue(signer?.name) || stringValue(signer?.email) || 'Cliente',
     email,
     role: ReportSignerRole.CLIENT,
     isRequired: true
@@ -230,6 +234,8 @@ export function clientSignersForReport(report) {
   const seen = new Set();
   addSigner(signers, seen, {
     name: report?.project?.clientName || 'Cliente',
+    firstName: report?.project?.clientSignerFirstName,
+    lastName: report?.project?.clientSignerLastName,
     email: report?.project?.clientEmailPrimary
   });
   const configuredSigners = Array.isArray(report?.project?.clientSigners) ? report.project.clientSigners : [];
@@ -671,6 +677,12 @@ function documentStatusLabel(report, signatures = []) {
   return 'Pendente';
 }
 
+function signatureEvidenceStatusLabel(signature) {
+  if (signature.status === ReportSignatureStatus.SIGNED) return 'Assinado';
+  if (signature.status === ReportSignatureStatus.REJECTED) return 'Reprovado';
+  return 'Pendente';
+}
+
 function documentName(report, sourcePdfUrl) {
   const type = stringValue(report?.reportType) || 'RDO';
   const number = stringValue(report?.sequenceNumber);
@@ -823,21 +835,24 @@ export async function writeFinalEvidencePdf({
   y -= 28;
 
   for (const signature of signatures) {
-    if (signature.status !== ReportSignatureStatus.SIGNED) continue;
+    if (signature.status === ReportSignatureStatus.INVALIDATED) continue;
+    if (signature.isRequired === false && signature.status !== ReportSignatureStatus.SIGNED) continue;
     if (y < 120) {
       page = pdf.addPage([595.28, 841.89]);
       y = 790;
     }
-    drawText(page, `Signatario esperado: ${signature.signerName}`, 48, y, { font: bold, size: 10, color: black });
+    const signerDisplayName = stringValue(signature.declaredSignerName) || stringValue(signature.signerName) || '-';
+    drawText(page, `Signatario: ${signerDisplayName}`, 48, y, { font: bold, size: 10, color: black });
     y -= 15;
-    if (signature.declaredSignerName) {
-      drawText(page, `Nome informado no ato: ${signature.declaredSignerName}`, 48, y, { font, size: 10, color: black });
-      y -= 15;
-    }
     drawText(page, `E-mail: ${signature.signerEmail}`, 48, y, { font, size: 10, color: black });
     y -= 15;
     drawText(page, `Papel: Cliente`, 48, y, { font, size: 10, color: black });
     y -= 15;
+    if (signature.status !== ReportSignatureStatus.SIGNED) {
+      drawText(page, `Status: ${signatureEvidenceStatusLabel(signature)}`, 48, y, { font: bold, size: 10, color: muted });
+      y -= 22;
+      continue;
+    }
     drawText(page, `Data/Hora UTC: ${signature.signedAt ? new Date(signature.signedAt).toISOString() : '-'}`, 48, y, { font, size: 10, color: black });
     y -= 15;
     drawText(page, `IP: ${signatureIp(signature.ipAddress)}`, 48, y, { font, size: 10, color: black });
