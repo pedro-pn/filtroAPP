@@ -70,6 +70,7 @@ export interface Project {
   managerOnly: boolean;
   registrationPending?: boolean;
   inhibitionServiceEnabled: boolean;
+  requireServiceReportSignatures: boolean;
   clientName: string;
   clientCnpj: string;
   clientEmailPrimary: string;

@@ -22,6 +22,7 @@ import { InfiniteScrollSentinel } from '../../components/ui/InfiniteScrollSentin
 import { SearchBar } from '../../components/ui/SearchBar';
 import { Modal } from '../../components/ui/Modal';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
+import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { useToast } from '../../components/ui/Toast';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { useGestorBootstrap } from '../../hooks/useBootstrap';
@@ -163,6 +164,7 @@ interface ProjectFormState {
   visibleToCollaborators: boolean;
   managerOnly: boolean;
   inhibitionServiceEnabled: boolean;
+  requireServiceReportSignatures: boolean;
   isActive: boolean;
   workdayHours: string;
   weekendWorkdayHours: string;
@@ -174,6 +176,18 @@ interface ProjectFormState {
 interface ProjectReportSequenceFormState {
   reportType: ReportType;
   nextNumber: string;
+}
+
+interface ManualReportFormState {
+  projectId: string;
+  reportType: ReportType;
+  sequenceNumber: string;
+  reportDate: string;
+  signatureMode: 'APPROVED' | 'SIGNED' | 'REQUIRES_SIGNATURE';
+  serviceEquipment: string;
+  serviceSystem: string;
+  fileName: string;
+  pdfDataUrl: string;
 }
 
 interface CollaboratorFormState {
@@ -236,12 +250,25 @@ const emptyProjectForm: ProjectFormState = {
   visibleToCollaborators: true,
   managerOnly: false,
   inhibitionServiceEnabled: false,
+  requireServiceReportSignatures: false,
   isActive: true,
   workdayHours: '09:00',
   weekendWorkdayHours: '08:00',
   includesSaturday: false,
   includesSunday: false,
   reportSequences: projectReportSequencesToForm()
+};
+
+const emptyManualReportForm: ManualReportFormState = {
+  projectId: '',
+  reportType: 'RDO',
+  sequenceNumber: '',
+  reportDate: new Date().toISOString().slice(0, 10),
+  signatureMode: 'APPROVED',
+  serviceEquipment: '',
+  serviceSystem: '',
+  fileName: '',
+  pdfDataUrl: ''
 };
 
 const emptyCollaboratorForm: CollaboratorFormState = {
@@ -283,6 +310,36 @@ function hasActiveClientRejection(report: ReportSummary) {
   const resolvedAt = typeof special.__clientRejectionResolvedAt === 'string' ? special.__clientRejectionResolvedAt : '';
   if (!rejectedAt) return false;
   return !resolvedAt || new Date(rejectedAt).getTime() > new Date(resolvedAt).getTime();
+}
+
+function isManualUploadedReport(report: ReportSummary | null | undefined) {
+  return Boolean(manualReportUploadMeta(report).uploadedAt);
+}
+
+function manualReportUploadMeta(report: ReportSummary | null | undefined) {
+  const meta = report?.specialConditions?.__manualUpload;
+  return meta && typeof meta === 'object' && !Array.isArray(meta) ? meta as Record<string, unknown> : {};
+}
+
+function manualReportServiceData(report: ReportSummary | null | undefined) {
+  const data = report?.specialConditions?.serviceData;
+  return data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : {};
+}
+
+function manualReportServiceField(report: ReportSummary | null | undefined, keys: string[]) {
+  const data = manualReportServiceData(report);
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === 'string' || typeof value === 'number') return String(value);
+  }
+  return '';
+}
+
+function manualReportSignatureMode(report: ReportSummary): ManualReportFormState['signatureMode'] {
+  if (report.status === 'SIGNED') return 'SIGNED';
+  const meta = manualReportUploadMeta(report);
+  if (meta.requiresSignature === true) return 'REQUIRES_SIGNATURE';
+  return 'APPROVED';
 }
 
 function asStringArray(value: unknown) {
@@ -690,6 +747,7 @@ function projectToForm(project: Project): ProjectFormState {
     visibleToCollaborators: project.visibleToCollaborators,
     managerOnly: project.managerOnly,
     inhibitionServiceEnabled: project.inhibitionServiceEnabled ?? false,
+    requireServiceReportSignatures: project.requireServiceReportSignatures ?? false,
     isActive: project.isActive,
     workdayHours: project.workdayHours || '09:00',
     weekendWorkdayHours: project.weekendWorkdayHours || '08:00',
@@ -1230,6 +1288,9 @@ export function GestorPage() {
   const [returnReport, setReturnReport] = useState<ReportSummary | null>(null);
   const [sequenceEditReport, setSequenceEditReport] = useState<ReportSummary | null>(null);
   const [sequenceEditValue, setSequenceEditValue] = useState('');
+  const [manualReportForm, setManualReportForm] = useState<ManualReportFormState>(emptyManualReportForm);
+  const [manualReportTarget, setManualReportTarget] = useState<ReportSummary | null>(null);
+  const [manualReportModalOpen, setManualReportModalOpen] = useState(false);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [projectSortDir, setProjectSortDir] = useState<'asc' | 'desc'>(initialUiPrefs.projectSortDir);
   const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>(initialUiPrefs.closedArchivedProjectIds);
@@ -1418,6 +1479,13 @@ export function GestorPage() {
     () => [...(activeProjectsQuery.data || []), ...(archivedProjectsQuery.data || [])],
     [activeProjectsQuery.data, archivedProjectsQuery.data]
   );
+  const manualReportProjectOptions = useMemo(() => {
+    const byId = new Map<string, Project>();
+    [...(activeProjectsQuery.data || []), ...(archivedProjectsQuery.data || [])]
+      .filter(project => !projectRegistrationPending(project))
+      .forEach(project => byId.set(project.id, project));
+    return sortProjects(Array.from(byId.values()), 'asc');
+  }, [activeProjectsQuery.data, archivedProjectsQuery.data]);
 
   useEffect(() => {
     setSelectedReportIds([]);
@@ -1680,6 +1748,7 @@ export function GestorPage() {
       visibleToCollaborators: projectForm.visibleToCollaborators,
       managerOnly: projectForm.managerOnly,
       inhibitionServiceEnabled: projectForm.inhibitionServiceEnabled,
+      requireServiceReportSignatures: projectForm.requireServiceReportSignatures,
       isActive: projectForm.isActive,
       operatorId: projectForm.operatorId || null,
       clientSegment: projectForm.clientSegment || null,
@@ -2080,6 +2149,123 @@ export function GestorPage() {
     }
   }
 
+  function closeManualReportModal() {
+    setManualReportModalOpen(false);
+    setManualReportTarget(null);
+    setManualReportForm(emptyManualReportForm);
+  }
+
+  function openManualReportUpload(projectId = '') {
+    setManualReportTarget(null);
+    setManualReportForm({
+      ...emptyManualReportForm,
+      projectId: projectId || manualReportProjectOptions[0]?.id || '',
+      reportDate: new Date().toISOString().slice(0, 10)
+    });
+    setManualReportModalOpen(true);
+  }
+
+  function openManualReportReplace(report: ReportSummary) {
+    setManualReportTarget(report);
+    setManualReportForm({
+      projectId: report.projectId,
+      reportType: report.reportType,
+      sequenceNumber: report.sequenceNumber ? String(report.sequenceNumber) : '',
+      reportDate: String(report.reportDate || '').slice(0, 10) || new Date().toISOString().slice(0, 10),
+      signatureMode: manualReportSignatureMode(report),
+      serviceEquipment: manualReportServiceField(report, ['Equipamento', 'Equipamento(s)']),
+      serviceSystem: manualReportServiceField(report, ['Sistema']),
+      fileName: '',
+      pdfDataUrl: ''
+    });
+    setManualReportModalOpen(true);
+  }
+
+  async function handleManualReportFile(file: File | null) {
+    if (!file) {
+      setManualReportForm(current => ({ ...current, fileName: '', pdfDataUrl: '' }));
+      return;
+    }
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    if (!isPdf) {
+      showToast('Selecione um arquivo PDF.', 'error');
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      showToast('O PDF deve ter no máximo 20 MB.', 'error');
+      return;
+    }
+    try {
+      const pdfDataUrl = await fileToDataUrl(file);
+      setManualReportForm(current => ({ ...current, fileName: file.name, pdfDataUrl }));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível ler o PDF.', 'error');
+    }
+  }
+
+  async function handleManualReportSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!manualReportForm.pdfDataUrl) {
+      showToast('Selecione um PDF.', 'error');
+      return;
+    }
+    if (!manualReportTarget && !manualReportForm.projectId) {
+      showToast('Selecione um projeto.', 'error');
+      return;
+    }
+    if (!manualReportTarget && !manualReportForm.reportDate) {
+      showToast('Informe a data do relatório.', 'error');
+      return;
+    }
+
+    const sequenceText = manualReportForm.sequenceNumber.trim();
+    const parsedSequenceNumber = sequenceText ? Number.parseInt(sequenceText, 10) : undefined;
+    const invalidSequenceNumber = parsedSequenceNumber !== undefined
+      && (!Number.isInteger(parsedSequenceNumber) || parsedSequenceNumber < 1);
+    if (!manualReportTarget && invalidSequenceNumber) {
+      showToast('Informe uma numeração maior que zero.', 'error');
+      return;
+    }
+    const sequenceNumber = parsedSequenceNumber && parsedSequenceNumber > 0 ? parsedSequenceNumber : undefined;
+    const serviceMetadata = manualReportForm.reportType !== 'RDO'
+      ? {
+          serviceEquipment: manualReportForm.serviceEquipment.trim(),
+          serviceSystem: manualReportForm.serviceSystem.trim()
+        }
+      : {};
+
+    try {
+      if (manualReportTarget) {
+        await reportMutations.replaceManualReportPdf.mutateAsync({
+          id: manualReportTarget.id,
+          payload: {
+            fileName: manualReportForm.fileName,
+            ...serviceMetadata,
+            pdfDataUrl: manualReportForm.pdfDataUrl,
+            signatureMode: manualReportForm.signatureMode
+          }
+        });
+        showToast('PDF substituído.', 'success');
+      } else {
+        await reportMutations.uploadManualReport.mutateAsync({
+          projectId: manualReportForm.projectId,
+          reportType: manualReportForm.reportType,
+          sequenceNumber,
+          reportDate: manualReportForm.reportDate,
+          fileName: manualReportForm.fileName,
+          ...serviceMetadata,
+          pdfDataUrl: manualReportForm.pdfDataUrl,
+          signatureMode: manualReportForm.signatureMode
+        });
+        setTab('aprovados');
+        showToast('Relatório antigo adicionado.', 'success');
+      }
+      closeManualReportModal();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Não foi possível salvar o relatório antigo.', 'error');
+    }
+  }
+
   function toggleReportSelection(id: string, checked: boolean) {
     setSelectedReportIds(current => {
       const next = checked ? [...current, id] : current.filter(item => item !== id);
@@ -2108,6 +2294,7 @@ export function GestorPage() {
 
   function renderManagerReportActions(report: ReportSummary) {
     const canReview = tab === 'pendentes' && report.status !== 'SIGNED';
+    const manualReport = isManualUploadedReport(report);
 
     return (
       <>
@@ -2115,10 +2302,22 @@ export function GestorPage() {
           <button className="mini-btn alt" type="button" onClick={() => void handleReportDownload(report, 'pdf')}>
             PDF
           </button>
-          <button className="mini-btn alt" type="button" onClick={() => void handleReportDownload(report, 'docx')}>
-            DOCX
-          </button>
+          {!manualReport ? (
+            <button className="mini-btn alt" type="button" onClick={() => void handleReportDownload(report, 'docx')}>
+              DOCX
+            </button>
+          ) : null}
         </span>
+        {manualReport ? (
+          <button
+            className="mini-btn alt"
+            type="button"
+            disabled={reportMutations.replaceManualReportPdf.isPending}
+            onClick={() => openManualReportReplace(report)}
+          >
+            Substituir PDF
+          </button>
+        ) : null}
         {canReview && report.status !== 'APPROVED' ? (
           <button
             className="mini-btn"
@@ -2347,6 +2546,139 @@ export function GestorPage() {
           </div>
         );
       });
+  }
+
+  function renderManualReportModal() {
+    const replacing = Boolean(manualReportTarget);
+    const submitting = reportMutations.uploadManualReport.isPending || reportMutations.replaceManualReportPdf.isPending;
+    const serviceReportSelected = manualReportForm.reportType !== 'RDO';
+
+    return (
+      <Modal
+        open={manualReportModalOpen}
+        onClose={closeManualReportModal}
+        ariaLabelledBy="manual-report-upload-title"
+      >
+        <form className="admin-form admin-form-grid manual-report-form" onSubmit={handleManualReportSubmit}>
+          <div className="section-title" id="manual-report-upload-title">
+            {replacing ? 'Substituir PDF' : 'Upload de relatório antigo'}
+          </div>
+          <div className="field-group">
+            <label htmlFor="manual-report-project">Projeto</label>
+            <select
+              id="manual-report-project"
+              value={manualReportForm.projectId}
+              disabled={replacing}
+              onChange={event => setManualReportForm(current => ({ ...current, projectId: event.target.value }))}
+              required
+            >
+              <option value="">Selecionar projeto...</option>
+              {manualReportProjectOptions.map(project => (
+                <option key={project.id} value={project.id}>
+                  {[project.code, project.name].filter(Boolean).join(' - ')}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field-group">
+            <label htmlFor="manual-report-type">Tipo</label>
+            <select
+              id="manual-report-type"
+              value={manualReportForm.reportType}
+              disabled={replacing}
+              onChange={event => {
+                const reportType = event.target.value as ReportType;
+                setManualReportForm(current => ({
+                  ...current,
+                  reportType,
+                  ...(reportType === 'RDO' ? { serviceEquipment: '', serviceSystem: '' } : {})
+                }));
+              }}
+            >
+              {projectReportTypes.map(reportType => (
+                <option key={reportType} value={reportType}>{reportType}</option>
+              ))}
+            </select>
+          </div>
+          {serviceReportSelected ? (
+            <>
+              <div className="field-group">
+                <label htmlFor="manual-report-service-equipment">Equipamento</label>
+                <input
+                  id="manual-report-service-equipment"
+                  value={manualReportForm.serviceEquipment}
+                  onChange={event => setManualReportForm(current => ({ ...current, serviceEquipment: event.target.value }))}
+                  placeholder="Equipamento do serviço"
+                />
+              </div>
+              <div className="field-group">
+                <label htmlFor="manual-report-service-system">Sistema</label>
+                <input
+                  id="manual-report-service-system"
+                  value={manualReportForm.serviceSystem}
+                  onChange={event => setManualReportForm(current => ({ ...current, serviceSystem: event.target.value }))}
+                  placeholder="Sistema do serviço"
+                />
+              </div>
+            </>
+          ) : null}
+          <div className="field-group">
+            <label htmlFor="manual-report-date">Data</label>
+            <input
+              id="manual-report-date"
+              type="date"
+              value={manualReportForm.reportDate}
+              disabled={replacing}
+              onChange={event => setManualReportForm(current => ({ ...current, reportDate: event.target.value }))}
+              required
+            />
+          </div>
+          <div className="field-group">
+            <label htmlFor="manual-report-sequence">Número</label>
+            <input
+              id="manual-report-sequence"
+              type="number"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              value={manualReportForm.sequenceNumber}
+              disabled={replacing}
+              onChange={event => setManualReportForm(current => ({ ...current, sequenceNumber: event.target.value.replace(/\D/g, '') }))}
+              placeholder="Automático"
+            />
+          </div>
+          <div className="field-group">
+            <label htmlFor="manual-report-signature-mode">Estado do PDF</label>
+            <select
+              id="manual-report-signature-mode"
+              value={manualReportForm.signatureMode}
+              onChange={event => setManualReportForm(current => ({ ...current, signatureMode: event.target.value as ManualReportFormState['signatureMode'] }))}
+            >
+              <option value="APPROVED">Aprovado (assinatura opcional)</option>
+              <option value="REQUIRES_SIGNATURE">Precisa de assinatura</option>
+              <option value="SIGNED">Já assinado</option>
+            </select>
+          </div>
+          <div className="field-group-wide">
+            <PdfDropzone
+              id="manual-report-pdf"
+              label="PDF"
+              fileName={manualReportForm.fileName}
+              onFile={file => void handleManualReportFile(file)}
+              disabled={submitting}
+            />
+          </div>
+          <div className="admin-form-actions manual-report-actions">
+            <button className="secondary-button" type="button" disabled={submitting} onClick={closeManualReportModal}>
+              Cancelar
+            </button>
+            <button className="primary-button" type="submit" disabled={submitting || !manualReportForm.pdfDataUrl}>
+              {submitting ? 'Salvando...' : replacing ? 'Substituir PDF' : 'Adicionar relatório'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    );
   }
 
   function renderLoadMoreReports() {
@@ -2605,6 +2937,20 @@ export function GestorPage() {
                 <option value="true">Sim</option>
               </select>
             </div>
+            <div className="field-group">
+              <label>Assinatura de relatórios de serviço</label>
+              <div className="tog-row project-toggle-row">
+                <span className="tog-lbl">Exigir assinatura</span>
+                <label className="tog">
+                  <input
+                    type="checkbox"
+                    checked={projectForm.requireServiceReportSignatures}
+                    onChange={event => setProjectForm(current => ({ ...current, requireServiceReportSignatures: event.target.checked }))}
+                  />
+                  <span className="tog-sl" />
+                </label>
+              </div>
+            </div>
             <ProjectReportSequenceFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
             <div className="field-group">
               <label htmlFor={`project-workday-${project.id}`}>Jornada padrão</label>
@@ -2752,6 +3098,20 @@ export function GestorPage() {
                     <option value="false">Não</option>
                     <option value="true">Sim</option>
                   </select>
+                </div>
+                <div className="field-group">
+                  <label>Assinatura de relatórios de serviço</label>
+                  <div className="tog-row project-toggle-row">
+                    <span className="tog-lbl">Exigir assinatura</span>
+                    <label className="tog">
+                      <input
+                        type="checkbox"
+                        checked={projectForm.requireServiceReportSignatures}
+                        onChange={event => setProjectForm(current => ({ ...current, requireServiceReportSignatures: event.target.checked }))}
+                      />
+                      <span className="tog-sl" />
+                    </label>
+                  </div>
                 </div>
                 <ProjectReportSequenceFields form={projectForm} idPrefix="project" setForm={setProjectForm} />
                 <div className="field-group">
@@ -3688,7 +4048,12 @@ export function GestorPage() {
 
     return (
       <section className="page-card summary-card-compact">
-        <div className="section-title">Resumo</div>
+        <div className="admin-section-head">
+          <div className="section-title">Resumo</div>
+          <button className="mini-btn" type="button" onClick={() => openManualReportUpload()}>
+            Upload PDF antigo
+          </button>
+        </div>
         <div className="stats-grid stats-grid-compact">
           {tab === 'pendentes' ? (
             <div className="stat-card-react">
@@ -3767,6 +4132,8 @@ export function GestorPage() {
         {renderGestorSearch()}
         {renderTabContent()}
       </main>
+
+      {renderManualReportModal()}
 
       <Modal
         open={showSegmentForm}

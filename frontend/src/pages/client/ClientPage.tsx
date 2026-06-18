@@ -719,6 +719,7 @@ export function ClientPage() {
       typeReports.some(report => report.id === id && clientCanSignReport(report, user, isClientRejectedReport(report)))
     );
     const selectableTypeIds = typeReports.filter(canSelectClientReport).map(report => report.id);
+    const hasSignableReports = typeReports.some(report => clientCanSignReport(report, user, isClientRejectedReport(report)));
     const hasSelection = selectedTypeIds.length > 0;
 
     return (
@@ -736,7 +737,7 @@ export function ClientPage() {
               <button className="secondary-button" type="button" onClick={() => void handleBatchDownload(selectedTypeIds)}>
                 {TEXT.batchDownload}
               </button>
-              {typeReports[0]?.reportType === 'RDO' ? (
+              {hasSignableReports ? (
                 <button
                   className="primary-button"
                   type="button"

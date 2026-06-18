@@ -198,6 +198,7 @@ model Project {
   managerOnly           Boolean           @default(false)
   registrationPending   Boolean           @default(false)
   inhibitionServiceEnabled Boolean        @default(false)
+  requireServiceReportSignatures Boolean  @default(false)
   clientName            String
   clientCnpj            String
   clientEmailPrimary    String            @default("")

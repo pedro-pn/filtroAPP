@@ -12,7 +12,7 @@ import prisma from '../../lib/prisma.js';
 import { clearPendingProjectLegacyExternalSignatureState, shouldProvisionProjectClientAccounts } from '../../lib/project-visibility.js';
 import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireManager, requireModuleRole } from '../../middleware/auth.js';
-import { reconcileProjectClientSignatureRequirements } from './reports.js';
+import { ensureProjectReleasedServiceReportSignatureRounds, reconcileProjectClientSignatureRequirements } from './reports.js';
 
 const router = Router();
 const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
@@ -25,6 +25,7 @@ const schema = z.object({
   visibleToCollaborators: z.boolean().default(true),
   managerOnly: z.boolean().default(false),
   inhibitionServiceEnabled: z.boolean().default(false),
+  requireServiceReportSignatures: z.boolean().default(false),
   clientName: z.string().min(1),
   clientCnpj: z.string().min(1),
   clientEmailPrimary: z.union([emailSchema, z.literal('')]).default(''),
@@ -509,6 +510,12 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
     await reconcileProjectClientSignatureRequirements(item.id, {
       userId: req.auth.user.id,
       evidence
+    });
+  }
+  if (parsed.requireServiceReportSignatures === true) {
+    await ensureProjectReleasedServiceReportSignatureRounds(item.id, {
+      userId: req.auth.user.id,
+      evidence: signatureEvidenceFromRequest(req)
     });
   }
 

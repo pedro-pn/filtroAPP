@@ -14,6 +14,28 @@ function cnpjDigits(value: unknown) {
   return String(value || '').replace(/\D/g, '');
 }
 
+function plainObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function manualReportUploadMeta(report: ReportSummary | undefined) {
+  return plainObject(plainObject(report?.specialConditions).__manualUpload);
+}
+
+function manualReportRequiresSignature(report: ReportSummary | undefined) {
+  return manualReportUploadMeta(report).requiresSignature === true;
+}
+
+function manualReportAllowsOptionalSignature(report: ReportSummary | undefined) {
+  return manualReportUploadMeta(report).allowsOptionalSignature === true;
+}
+
+function reportHasClientSignatureFlow(report: ReportSummary) {
+  if (manualReportRequiresSignature(report) || manualReportAllowsOptionalSignature(report)) return true;
+  if (report.reportType === 'RDO') return true;
+  return report.project.requireServiceReportSignatures === true;
+}
+
 export function clientSignerEmailForReport(report: ReportSummary | undefined, user: ClientUser | null | undefined) {
   const username = normalizeEmail(user?.username);
   if (username.includes('@')) return username;
@@ -56,7 +78,7 @@ export function clientHasSignedReport(report: ReportSummary | undefined, user: C
 }
 
 export function clientCanSignReport(report: ReportSummary, user: ClientUser | null | undefined, clientRejected = false) {
-  if (report.reportType !== 'RDO' || report.status !== 'APPROVED' || clientRejected) return false;
+  if (report.status !== 'APPROVED' || clientRejected || !reportHasClientSignatureFlow(report)) return false;
   const signerEmail = clientSignerEmailForReport(report, user);
   if (!signerEmail) return false;
 

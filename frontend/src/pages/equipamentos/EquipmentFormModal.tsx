@@ -7,7 +7,7 @@ import type {
   PdfUpload
 } from '../../api/equipamentos';
 import { Modal } from '../../components/ui/Modal';
-import { PdfDropzone } from './PdfDropzone';
+import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { dateInputValue, fileToDataUrl } from './equipmentStatus';
 
 interface Props {
