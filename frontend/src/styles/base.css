@@ -6458,6 +6458,53 @@ select {
   margin-bottom: 0;
 }
 
+.stats-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stats-project-status-filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 3px;
+  background: var(--bg);
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+}
+
+.stats-project-status-filter-btn {
+  min-height: 28px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--mu);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 5px 10px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.stats-project-status-filter-btn:hover {
+  background: #e7ebe8;
+  color: var(--tx);
+}
+
+.stats-project-status-filter-btn.active {
+  background: var(--g);
+  color: var(--wh);
+}
+
+.stats-byproject-card-header {
+  align-items: flex-start;
+}
+
 /* Timeline tabs */
 .stats-tab-btns {
   display: flex;
@@ -6785,6 +6832,16 @@ select {
 
   .stats-filters-row {
     flex-direction: column;
+  }
+
+  .stats-card-title-group,
+  .stats-project-status-filter {
+    width: 100%;
+  }
+
+  .stats-project-status-filter-btn {
+    flex: 1 1 120px;
+    white-space: normal;
   }
 
   .stats-byproject-meta {

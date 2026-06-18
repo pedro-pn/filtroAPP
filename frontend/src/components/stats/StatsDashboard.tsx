@@ -1,5 +1,8 @@
-import { Fragment, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { driver } from 'driver.js';
+import 'driver.js/dist/driver.css';
 
+import { useAuth } from '../../auth/AuthContext';
 import {
   allocationReportPdfFileName,
   downloadAllocationReportPdf,
@@ -82,6 +85,35 @@ function dateInputValue(date: Date): string {
 }
 
 type PeriodPreset = 'today' | 'week' | 'month' | 'year' | 'custom';
+type ProjectStatusFilterValue = NonNullable<StatsParams['projectStatus']>;
+
+const PROJECT_STATUS_OPTIONS: Array<{ value: ProjectStatusFilterValue; label: string }> = [
+  { value: 'all', label: 'Todos os projetos' },
+  { value: 'active', label: 'Em andamento' },
+  { value: 'archived', label: 'Arquivados' }
+];
+
+const STATS_PROJECT_FILTER_HIGHLIGHT_KEY = 'filtrovali-stats-project-filter-highlight-v1';
+
+function statsProjectFilterHighlightKey(userId?: string) {
+  return `${STATS_PROJECT_FILTER_HIGHLIGHT_KEY}:${userId || 'anonymous'}`;
+}
+
+function hasSeenStatsProjectFilterHighlight(userId?: string) {
+  try {
+    return localStorage.getItem(statsProjectFilterHighlightKey(userId)) === '1';
+  } catch {
+    return true;
+  }
+}
+
+function markStatsProjectFilterHighlightSeen(userId?: string) {
+  try {
+    localStorage.setItem(statsProjectFilterHighlightKey(userId), '1');
+  } catch {
+    // ignore
+  }
+}
 
 function presetParams(preset: PeriodPreset): Pick<StatsParams, 'from' | 'to' | 'granularity'> {
   const t = today();
@@ -89,6 +121,36 @@ function presetParams(preset: PeriodPreset): Pick<StatsParams, 'from' | 'to' | '
   if (preset === 'week') return { from: startOfWeek(), to: addDays(startOfWeek(), 6), granularity: 'day' };
   if (preset === 'month') return { from: startOfMonth(), to: t, granularity: 'week' };
   return { from: startOfYear(), to: t, granularity: 'month' };
+}
+
+function ProjectStatusFilter({
+  value,
+  onChange,
+  className = ''
+}: {
+  value: ProjectStatusFilterValue;
+  onChange: (value: ProjectStatusFilterValue) => void;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`stats-project-status-filter${className ? ` ${className}` : ''}`}
+      role="group"
+      aria-label="Status dos projetos"
+    >
+      {PROJECT_STATUS_OPTIONS.map(option => (
+        <button
+          key={option.value}
+          type="button"
+          className={`stats-project-status-filter-btn${value === option.value ? ' active' : ''}`}
+          aria-pressed={value === option.value}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 // ─── KPI Cards ────────────────────────────────────────────────────────────────
@@ -582,7 +644,9 @@ function ByProjectSection({
     return s;
   });
 
-  if (!byProject || byProject.length === 0) return null;
+  if (!byProject || byProject.length === 0) {
+    return <div className="stats-empty">Nenhum projeto encontrado para os filtros selecionados.</div>;
+  }
 
   return (
     <div className="stats-byproject-list">
@@ -603,16 +667,18 @@ function ByProjectSection({
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 export function StatsDashboard() {
+  const { user } = useAuth();
   const [preset, setPreset] = useState<PeriodPreset>('year');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [customGranularity, setCustomGranularity] = useState<StatsParams['granularity']>('month');
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
-  const [projectStatus, setProjectStatus] = useState<'all' | 'active' | 'archived'>('all');
+  const [projectStatus, setProjectStatus] = useState<ProjectStatusFilterValue>('all');
   const [segment, setSegment] = useState('');
   const [timelineMode, setTimelineMode] = useState<'hours' | 'services'>('hours');
   const [exportingSection, setExportingSection] = useState<StatsExportSection | null>(null);
   const [exportError, setExportError] = useState('');
+  const projectFilterHighlightStarted = useRef(false);
 
   const projectsQuery = useProjects();
   const segmentsQuery = useProjectSegments();
@@ -647,6 +713,42 @@ export function StatsDashboard() {
     if (!projectsQuery.data || selectedProjects.length === selectedVisibleProjects.length) return;
     setSelectedProjects(selectedVisibleProjects);
   }, [projectsQuery.data, selectedProjects, selectedVisibleProjects]);
+
+  useEffect(() => {
+    if (!data || singleProject || projectFilterHighlightStarted.current) return;
+    if (hasSeenStatsProjectFilterHighlight(user?.id)) return;
+
+    const timer = window.setTimeout(() => {
+      const selector = '.stats-byproject-status-filter';
+      if (!document.querySelector(selector)) return;
+
+      projectFilterHighlightStarted.current = true;
+      const driverObj = driver({
+        showProgress: false,
+        doneBtnText: 'Entendi',
+        allowClose: true,
+        animate: true,
+        smoothScroll: true,
+        overlayOpacity: 0.55,
+        onDestroyStarted: (_el, _step, { driver: d }) => {
+          markStatsProjectFilterHighlightSeen(user?.id);
+          d.destroy();
+        },
+        steps: [{
+          element: selector,
+          popover: {
+            title: 'Novo filtro por status',
+            description: 'Agora a seção Por projeto permite alternar entre todos os projetos, em andamento e arquivados.',
+            side: 'bottom',
+            align: 'center'
+          }
+        }]
+      });
+      driverObj.drive();
+    }, 600);
+
+    return () => window.clearTimeout(timer);
+  }, [data, singleProject, user?.id]);
 
   function toggleProject(id: string) {
     setSelectedProjects(prev =>
@@ -721,10 +823,10 @@ export function StatsDashboard() {
           <div className="stats-filter-group">
             <label className="stats-filter-label">Status do projeto</label>
             <select className="stats-filter-select" value={projectStatus}
-              onChange={e => setProjectStatus(e.target.value as typeof projectStatus)}>
-              <option value="all">Todos</option>
+              onChange={e => setProjectStatus(e.target.value as ProjectStatusFilterValue)}>
+              <option value="all">Todos os projetos</option>
               <option value="active">Em andamento</option>
-              <option value="archived">Arquivados/finalizados</option>
+              <option value="archived">Arquivados</option>
             </select>
           </div>
 
@@ -811,10 +913,17 @@ export function StatsDashboard() {
           </div>
 
           {/* ── By Project ── */}
-          {!singleProject && data.byProject.length > 0 && (
+          {!singleProject && (
             <div className="survey-dash-card">
-              <div className="stats-card-header">
-                <div className="survey-dash-card-title">Por projeto</div>
+              <div className="stats-card-header stats-byproject-card-header">
+                <div className="stats-card-title-group">
+                  <div className="survey-dash-card-title">Por projeto</div>
+                  <ProjectStatusFilter
+                    value={projectStatus}
+                    onChange={setProjectStatus}
+                    className="stats-byproject-status-filter"
+                  />
+                </div>
                 <div className="stats-export-btns">
                   <ExportButton section="summary">CSV Resumo</ExportButton>
                   <ExportButton section="byProject">CSV Por projeto</ExportButton>
