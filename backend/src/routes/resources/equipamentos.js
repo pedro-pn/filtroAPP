@@ -335,22 +335,33 @@ async function persistAttachments(equipmentId, { calibrationCertificate, technic
 router.post('/', requireEquipamentosManager, asyncHandler(async (req, res) => {
   const data = equipmentSchema.parse(req.body);
   const { calibrationCertificate, technicalDoc, technicalPhotos, ...fields } = data;
-  const item = await prisma.companyEquipment.create({
-    data: {
-      code: fields.code,
-      name: fields.name,
-      categoryId: fields.categoryId,
-      attributes: fields.attributes ?? {},
-      technicalData: fields.technicalData ?? {},
-      technicalFieldOverrides: fields.technicalFieldOverrides ?? {},
-      technicalRevision: fields.technicalData ? 1 : 0,
-      technicalUpdatedAt: fields.technicalData ? new Date() : null,
-      hasCalibration: fields.hasCalibration ?? false,
-      calibratedAt: fields.hasCalibration && fields.calibratedAt ? new Date(fields.calibratedAt) : null,
-      expiresAt: fields.hasCalibration && fields.expiresAt ? new Date(fields.expiresAt) : null,
-      hasTechnicalDoc: fields.hasTechnicalDoc ?? false
-    }
+  const baseData = {
+    code: fields.code,
+    name: fields.name,
+    categoryId: fields.categoryId,
+    attributes: fields.attributes ?? {},
+    technicalData: fields.technicalData ?? {},
+    technicalFieldOverrides: fields.technicalFieldOverrides ?? {},
+    technicalRevision: fields.technicalData ? 1 : 0,
+    technicalUpdatedAt: fields.technicalData ? new Date() : null,
+    hasCalibration: fields.hasCalibration ?? false,
+    calibratedAt: fields.hasCalibration && fields.calibratedAt ? new Date(fields.calibratedAt) : null,
+    expiresAt: fields.hasCalibration && fields.expiresAt ? new Date(fields.expiresAt) : null,
+    hasTechnicalDoc: fields.hasTechnicalDoc ?? false
+  };
+  // "Remover" é soft delete (isActive=false), então o código continua reservado.
+  // Reaproveita o registro removido com o mesmo código: reativa e reescreve (permite
+  // recriar/mover um equipamento excluído sem o erro de "código duplicado").
+  const existing = await prisma.companyEquipment.findUnique({
+    where: { code: fields.code },
+    select: { id: true, isActive: true }
   });
+  if (existing && existing.isActive) {
+    return res.status(409).json({ error: 'Já existe um equipamento ativo com este código.' });
+  }
+  const item = existing
+    ? await prisma.companyEquipment.update({ where: { id: existing.id }, data: { ...baseData, isActive: true } })
+    : await prisma.companyEquipment.create({ data: baseData });
   await persistAttachments(item.id, { calibrationCertificate, technicalDoc, technicalPhotos });
   invalidateCaches();
   await syncRomaneioCatalog();
