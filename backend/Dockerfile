@@ -14,6 +14,7 @@ RUN npx prisma generate
 
 COPY backend/src ./src
 COPY backend/scripts ./scripts
+COPY backend/data ./data
 COPY backend/assets ./assets
 RUN mkdir -p /data/assets && cp -R ./assets/. /data/assets/
 COPY Modelos /workspace/Modelos

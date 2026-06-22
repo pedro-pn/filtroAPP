@@ -281,15 +281,24 @@ O script é **idempotente** (pula categoria/campo já existente por `key`) e rod
 - [x] `tsc -b` + ESLint limpos. **Depende de B ou E** para popular `technicalSchema`/
   `technicalDocEnabled` (senão o botão não aparece e o modal mostra "nenhum campo").
 
-**Etapa D — Geração DOCX→PDF (parcial: camada de dados feita)**
+**Etapa D — Geração DOCX→PDF ✅ (feita)**
 - [x] `equipment-technical-doc.js` — `buildTechnicalDocModel` + `formatScalar`: achata
-  `technicalData`+`technicalSchema` em tokens/linhas/seções/grupos, formatando
-  measure ("9,6 bar"), boolean (Sim/Não), data pt-BR e multiselect; ignora campos vazios,
-  `showInDoc:false` e opcionais desligados. Testado (`equipment-technical-doc.test.js`).
-- [ ] **Pendente (precisa do .docx modelo):** preencher o template (token + clone de `w:tr`
-  para grupos, padrão de `report-rlm.js`), converter via `report-pdf-from-docx.js`, endpoint
-  `POST /equipamentos/:id/technical-doc`, botões "Gerar"/"Baixar", cache
-  `TECHNICAL_DOC_GENERATED`.
+  `technicalData`+`technicalSchema` em tokens/linhas/seções/grupos **+ `blocks`** prontos
+  para a Tabela 2; emite tokens-base físicos (`peso`/`altura`/`largura`/`comprimento` de
+  `attributes`), `categoria`, `patrimony` vazio; fallback de seção sem nome → "Dados";
+  grupos de subcampo único viram linhas repetidas. Testado.
+- [x] `equipment-technical-docx.js` — preenche o template `Modelos/definitivos/Datasheet.docx`
+  (tokens `{{...}}` com cura de runs + clone de `w:tr` da Tabela 2 por seção/campo), limpa
+  placeholders e gera PDF via `convertDocxToPdf` (fila serial). Teste de integração contra o
+  template real (`equipment-technical-docx.test.js`).
+- [x] Anexos: `TECHNICAL_DOC_GENERATED` + pasta "Datasheets Gerados";
+  `createGeneratedEquipmentAttachment` (bytes prontos); `withCurrentAttachments` expõe
+  `technicalDocGenerated` e `technicalDocGeneratedOutdated` (compara `technicalUpdatedAt`).
+- [x] Endpoint `POST /equipamentos/:id/technical-doc` (gestor): gera o PDF, substitui o
+  datasheet gerado anterior, devolve o anexo com URL pública.
+- [x] Front: `generateTechnicalDoc` (api) + `generateDatasheet` (hook) + barra na
+  `TechnicalDataModal` com **Gerar/Regenerar/Baixar** e estado atualizado/desatualizado.
+- 451/451 testes; `tsc -b`/ESLint do front limpos.
 
 **Etapa E — Seed a partir do JSON ✅ (feita, falta rodar no servidor)**
 - [x] `equipment-technical-seed.js` — `buildTechnicalSchemaFromTracking`: mapeia tipos
