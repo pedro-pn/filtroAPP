@@ -11,7 +11,7 @@ export interface NewReportBootstrap {
   manometers: Manometer[];
   counters: ParticleCounter[];
   equipments: EquipmentOption[];
-  rdoSlotMap: Record<string, string | null>;
+  rdoSlotMap: Record<string, string[]>;
   inhibitionOptions: InhibitionOptions;
   drafts: ReportDraft[];
 }
