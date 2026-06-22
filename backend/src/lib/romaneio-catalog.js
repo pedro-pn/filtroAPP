@@ -471,6 +471,20 @@ async function syncFileCatalogRows(tx, rows) {
   return stats;
 }
 
+// Equipamentos do módulo (sourceType EQUIPAMENTOS). Além de criar/atualizar, DESATIVA as
+// linhas cujo equipamento não está mais ativo/sincronizado (removido pelo módulo, ou cuja
+// categoria deixou de sincronizar) — sem isso, equipamentos excluídos continuavam no romaneio.
+export async function syncEquipmentCatalogRows(tx, rows) {
+  const stats = await syncCatalogRows(tx, rows);
+  if (typeof tx.romaneioCatalogItem.updateMany !== 'function') return stats;
+  const currentSourceIds = rows.map(row => row.sourceId).filter(Boolean);
+  const where = currentSourceIds.length
+    ? { sourceType: 'EQUIPAMENTOS', sourceId: { notIn: currentSourceIds }, isActive: true }
+    : { sourceType: 'EQUIPAMENTOS', isActive: true };
+  await tx.romaneioCatalogItem.updateMany({ where, data: { isActive: false } });
+  return stats;
+}
+
 function mergeCatalogSyncStats(...items) {
   return items.reduce((acc, item) => {
     acc.input += item?.input || 0;
@@ -510,7 +524,7 @@ async function runRomaneioCatalogSync() {
 
     const stats = mergeCatalogSyncStats(
       await syncFileCatalogRows(tx, fileRows),
-      await syncCatalogRows(tx, equipmentRows)
+      await syncEquipmentCatalogRows(tx, equipmentRows)
     );
     logCatalogSyncStats(stats);
 

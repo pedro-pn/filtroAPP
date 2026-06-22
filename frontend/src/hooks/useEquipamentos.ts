@@ -90,6 +90,9 @@ export function useEquipamentoMutations() {
     return Promise.all([
       queryClient.invalidateQueries({ queryKey: ['equipamentos'] }),
       queryClient.invalidateQueries({ queryKey: ['bootstrap'] }),
+      // O catálogo do romaneio é alimentado pelos equipamentos sincronizados:
+      // ao criar/editar/remover um equipamento, a lista do romaneio deve refletir.
+      queryClient.invalidateQueries({ queryKey: ['romaneio-catalog'] }),
       queryClient.invalidateQueries({ queryKey: queryKeys.units }),
       queryClient.invalidateQueries({ queryKey: queryKeys.manometers }),
       queryClient.invalidateQueries({ queryKey: queryKeys.counters })
