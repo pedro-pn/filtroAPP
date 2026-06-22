@@ -2201,6 +2201,56 @@ function publicSignatureFixture(overrides = {}) {
   return signature;
 }
 
+test('public signature link returns only the token report without batching sibling reports', async t => {
+  const originalFindUnique = prisma.reportSignature.findUnique;
+  const originalFindMany = prisma.reportSignature.findMany;
+  const originalAuditCreate = prisma.reportAuditLog.create;
+  let auditCreated = false;
+
+  prisma.reportSignature.findUnique = async args => {
+    assert.equal(args.where.tokenHash, internalSignatureTokenHash('public-single-token'));
+    return publicSignatureFixture();
+  };
+  prisma.reportSignature.findMany = async () => {
+    throw new Error('O link publico nao deve buscar assinaturas de outros relatorios.');
+  };
+  prisma.reportAuditLog.create = async args => {
+    auditCreated = true;
+    assert.equal(args.data.reportId, 'report-public-1');
+    return args.data;
+  };
+  t.after(() => {
+    prisma.reportSignature.findUnique = originalFindUnique;
+    prisma.reportSignature.findMany = originalFindMany;
+    prisma.reportAuditLog.create = originalAuditCreate;
+  });
+
+  const response = await dispatchAppGet('/api/reports/public-sign/public-single-token');
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json.status, 'ACTIVE');
+  assert.equal(response.json.report.sequenceNumber, 12);
+  assert.equal(response.json.signer.signatureId, 'signature-public-1');
+  assert.equal(response.json.batch, undefined);
+  assert.equal(auditCreated, true);
+});
+
+test('public signature token cannot be scoped to a different signature id', async t => {
+  const originalFindUnique = prisma.reportSignature.findUnique;
+  prisma.reportSignature.findUnique = async args => {
+    assert.equal(args.where.tokenHash, internalSignatureTokenHash('public-single-token'));
+    return publicSignatureFixture();
+  };
+  t.after(() => {
+    prisma.reportSignature.findUnique = originalFindUnique;
+  });
+
+  const response = await dispatchAppGet('/api/reports/public-sign/public-single-token/pdf?signatureId=signature-public-2');
+
+  assert.equal(response.statusCode, 404);
+  assert.match(response.json.error, /Link de assinatura indisponível/);
+});
+
 test('public signature PDF download validates the source document hash', async t => {
   const originalReportsDir = env.reportsDir;
   env.reportsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'rdo-public-sign-get-'));

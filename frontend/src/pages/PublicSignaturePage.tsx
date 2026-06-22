@@ -179,7 +179,7 @@ export function PublicSignaturePage() {
                         <button className="primary-button" type="button" onClick={() => openSignatureDialog(item.signatureId)} disabled={!privacyAccepted || item.status !== 'ACTIVE'}>
                           Assinar
                         </button>
-                        <button className="secondary-button" type="button" onClick={() => openRejectForm(item.signatureId)} disabled={item.status !== 'ACTIVE'}>
+                        <button className="danger-button" type="button" onClick={() => openRejectForm(item.signatureId)} disabled={item.status !== 'ACTIVE'}>
                           Reprovar
                         </button>
                       </div>
