@@ -364,6 +364,39 @@ export async function syncCatalogRows(tx, rows) {
 
     const data = dataForExistingCatalogRow(existing, row);
     if (!catalogRowNeedsUpdate(existing, data)) continue;
+
+    // Resolve colisão no índice único (categoryName, code, name) ANTES do update:
+    // se a chave de destino já está ocupada por outra linha, a autoritativa
+    // (RDO-owned: EQUIPAMENTOS/UNIT/PARTICLE_COUNTER) vence e a legada (FILE/MANUAL)
+    // é removida. Sem isso, renomear categoria fazia o sync quebrar com P2002 e nunca
+    // salvar o sourceHash — travando toda gravação. (O índice ignora isActive, então
+    // desativar não bastaria: a linha conflitante precisa sair.)
+    if (typeof tx.romaneioCatalogItem.findFirst === 'function'
+      && typeof tx.romaneioCatalogItem.delete === 'function') {
+      const targetCategoryName = data.categoryName ?? existing.categoryName;
+      const targetCode = data.code ?? existing.code;
+      const targetName = data.name ?? existing.name;
+      const conflict = await tx.romaneioCatalogItem.findFirst({
+        where: {
+          categoryName: targetCategoryName,
+          code: targetCode,
+          name: targetName,
+          NOT: { id: existing.id }
+        },
+        select: { id: true, sourceType: true }
+      });
+      if (conflict) {
+        const currentIsOwned = RDO_OWNED_CATALOG_SOURCES.has(existing.sourceType);
+        const conflictIsOwned = RDO_OWNED_CATALOG_SOURCES.has(conflict.sourceType);
+        if (currentIsOwned && !conflictIsOwned) {
+          await tx.romaneioCatalogItem.delete({ where: { id: conflict.id } });
+        } else {
+          // Esta linha cede a vez para a que já ocupa a chave (evita o P2002).
+          continue;
+        }
+      }
+    }
+
     await tx.romaneioCatalogItem.update({
       where: { id: existing.id },
       data
