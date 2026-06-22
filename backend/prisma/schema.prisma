@@ -591,6 +591,7 @@ enum EquipmentAttachmentKind {
   TECHNICAL_DOC
   TECHNICAL_TEMPLATE
   TECHNICAL_DOC_GENERATED
+  TECHNICAL_PHOTO
 }
 
 // Destinatários das notificações de calibração do módulo Equipamentos: contas
@@ -618,11 +619,12 @@ model EquipmentNotificationConfig {
 // Mapeamento configurável: cada "slot" de equipamento do formulário de RDO
 // (definido no catálogo de código) aponta para uma categoria de equipamento.
 model RdoEquipmentSlot {
-  id         String   @id @default(cuid())
-  slotKey    String   @unique
-  categoryId String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(cuid())
+  slotKey     String   @unique
+  categoryId  String? // legado (1 categoria) — mantido como fallback
+  categoryIds Json     @default("[]") // múltiplas categorias por slot
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([categoryId])
 }

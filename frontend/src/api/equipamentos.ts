@@ -88,11 +88,21 @@ export interface CompanyEquipment {
   isActive: boolean;
   calibrationCertificate?: EquipmentAttachment | null;
   technicalDoc?: EquipmentAttachment | null;
+  technicalDocGenerated?: EquipmentAttachment | null;
+  technicalDocGeneratedOutdated?: boolean;
+  technicalDocArchive?: EquipmentAttachment[];
+  technicalPhotos?: EquipmentAttachment[];
 }
 
 export interface PdfUpload {
   fileName: string;
   mimeType: string;
+  dataUrl: string;
+}
+
+export interface ImageUpload {
+  fileName?: string;
+  mimeType?: string;
   dataUrl: string;
 }
 
@@ -114,12 +124,15 @@ export interface EquipmentPayload {
   attributes?: Record<string, unknown>;
   technicalData?: Record<string, unknown>;
   technicalFieldOverrides?: Record<string, boolean>;
+  bumpRevision?: boolean;
   hasCalibration?: boolean;
   calibratedAt?: string | null;
   expiresAt?: string | null;
   hasTechnicalDoc?: boolean;
   calibrationCertificate?: PdfUpload | null;
   technicalDoc?: PdfUpload | null;
+  technicalPhotos?: ImageUpload[];
+  removeTechnicalPhotoIds?: string[];
   removeCalibrationCertificate?: boolean;
   removeTechnicalDoc?: boolean;
 }
@@ -169,6 +182,12 @@ export async function updateEquipamento(id: string, payload: Partial<EquipmentPa
   return response.data;
 }
 
+// Gera (ou regenera) o datasheet em PDF a partir dos Dados Técnicos preenchidos.
+export async function generateTechnicalDoc(id: string) {
+  const response = await apiClient.post<EquipmentAttachment>(equipamentosApiPath(`/${id}/technical-doc`));
+  return response.data;
+}
+
 export async function removeEquipamento(id: string) {
   await apiClient.delete(equipamentosApiPath(`/${id}`));
 }
@@ -184,7 +203,7 @@ export interface RdoEquipmentSlot {
   label: string;
   kind: RdoSlotKind;
   defaultSystemKey: string;
-  categoryId: string | null;
+  categoryIds: string[];
 }
 
 export async function listRdoSlots() {
@@ -192,8 +211,8 @@ export async function listRdoSlots() {
   return response.data;
 }
 
-export async function updateRdoSlot(slotKey: string, categoryId: string | null) {
-  const response = await apiClient.put<RdoEquipmentSlot>(equipamentosApiPath(`/rdo-slots/${slotKey}`), { categoryId });
+export async function updateRdoSlot(slotKey: string, categoryIds: string[]) {
+  const response = await apiClient.put<RdoEquipmentSlot>(equipamentosApiPath(`/rdo-slots/${slotKey}`), { categoryIds });
   return response.data;
 }
 

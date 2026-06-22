@@ -5,20 +5,35 @@ import { randomUUID } from 'node:crypto';
 
 import env from '../config/env.js';
 import prisma from './prisma.js';
+import { readStoredImageAsset } from './stored-image.js';
 
 // Sob /api para reaproveitar o roteamento já existente do proxy/nginx até o
 // backend (evita precisar de um location dedicado para cada caminho público).
 const PUBLIC_PATH_PREFIX = '/api/equipamentos-anexos';
 const MAX_PDF_BYTES = 20 * 1024 * 1024;
 
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+const IMAGE_MIME_EXT = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/webp': 'webp'
+};
+
 export const EquipmentAttachmentKinds = {
   CALIBRATION_CERTIFICATE: 'CALIBRATION_CERTIFICATE',
-  TECHNICAL_DOC: 'TECHNICAL_DOC'
+  TECHNICAL_DOC: 'TECHNICAL_DOC',
+  // Datasheet gerado automaticamente a partir dos Dados Técnicos (Etapa D).
+  TECHNICAL_DOC_GENERATED: 'TECHNICAL_DOC_GENERATED',
+  // Fotos dos Dados Técnicos (opcionais, várias por equipamento).
+  TECHNICAL_PHOTO: 'TECHNICAL_PHOTO'
 };
 
 const KIND_FOLDER = {
   CALIBRATION_CERTIFICATE: 'Certificados de Calibração',
-  TECHNICAL_DOC: 'Documentação Técnica'
+  TECHNICAL_DOC: 'Documentação Técnica',
+  TECHNICAL_DOC_GENERATED: 'Datasheets Gerados',
+  TECHNICAL_PHOTO: 'Fotos Dados Técnicos'
 };
 
 function safePath(value) {
@@ -56,10 +71,32 @@ export function withCurrentAttachments(item) {
     .filter(att => att.kind === kind)
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0] || null;
   const { attachments: _attachments, ...rest } = item;
+  // Datasheets gerados, do mais novo ao mais antigo. O primeiro é o "atual"; os demais
+  // (+ o PDF legado enviado à mão) ficam ARQUIVADOS.
+  const generatedAll = attachments
+    .filter(att => att.kind === EquipmentAttachmentKinds.TECHNICAL_DOC_GENERATED)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const generated = generatedAll[0] || null;
+  const legacyDoc = latest(EquipmentAttachmentKinds.TECHNICAL_DOC);
+  const archive = [...generatedAll.slice(1), ...(legacyDoc ? [legacyDoc] : [])]
+    .map(serializeEquipmentAttachment);
+  // "Desatualizado": os Dados Técnicos foram editados depois do datasheet gerado.
+  const generatedOutdated = Boolean(
+    generated && rest.technicalUpdatedAt &&
+    new Date(rest.technicalUpdatedAt) > new Date(generated.createdAt)
+  );
+  const photos = attachments
+    .filter(att => att.kind === EquipmentAttachmentKinds.TECHNICAL_PHOTO)
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    .map(serializeEquipmentAttachment);
   return {
     ...rest,
     calibrationCertificate: serializeEquipmentAttachment(latest(EquipmentAttachmentKinds.CALIBRATION_CERTIFICATE)),
-    technicalDoc: serializeEquipmentAttachment(latest(EquipmentAttachmentKinds.TECHNICAL_DOC))
+    technicalDoc: serializeEquipmentAttachment(legacyDoc),
+    technicalDocGenerated: serializeEquipmentAttachment(generated),
+    technicalDocGeneratedOutdated: generatedOutdated,
+    technicalDocArchive: archive,
+    technicalPhotos: photos
   };
 }
 
@@ -95,15 +132,66 @@ function parsePdfUpload(upload) {
   return { fileName, mimeType: 'application/pdf', bytes };
 }
 
-async function writeAttachmentFile({ kind, token, fileName, bytes }) {
+async function writeAttachmentFile({ kind, token, fileName, bytes, extension = 'pdf' }) {
   const folder = KIND_FOLDER[kind] || 'Anexos';
   const dir = path.join(env.uploadDir, 'Equipamentos', folder);
   await fs.mkdir(dir, { recursive: true });
   const baseName = safePath(path.basename(fileName, path.extname(fileName))) || 'anexo';
-  const targetName = `${baseName}-${token}.pdf`;
+  const targetName = `${baseName}-${token}.${extension}`;
   const targetPath = path.join(dir, targetName);
   await fs.writeFile(targetPath, bytes, { flag: 'wx' });
   return path.relative(env.uploadDir, targetPath).split(path.sep).join('/');
+}
+
+// Valida uma foto enviada como dataURL de imagem (PNG/JPG/WEBP).
+function parseImageUpload(upload) {
+  if (!upload) return null;
+  const fileName = String(upload.fileName || upload.name || 'foto').trim() || 'foto';
+  const dataUrl = String(upload.dataUrl || '').trim();
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z.+-]+);base64,(.+)$/);
+  if (!match) {
+    const error = new Error('A foto deve ser uma imagem (PNG, JPG ou WEBP).');
+    error.statusCode = 400;
+    throw error;
+  }
+  const mimeType = match[1].toLowerCase();
+  const extension = IMAGE_MIME_EXT[mimeType];
+  if (!extension) {
+    const error = new Error('Formato de imagem não suportado (use PNG, JPG ou WEBP).');
+    error.statusCode = 400;
+    throw error;
+  }
+  const bytes = Buffer.from(match[2], 'base64');
+  if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) {
+    const error = new Error('Imagem inválida ou muito grande (máx. 15 MB).');
+    error.statusCode = 400;
+    throw error;
+  }
+  return { fileName, mimeType, extension, bytes };
+}
+
+// Cria uma foto dos Dados Técnicos (anexo TECHNICAL_PHOTO). Várias por equipamento.
+export async function createEquipmentPhoto(client, { equipmentId, upload }) {
+  const parsed = parseImageUpload(upload);
+  if (!parsed) return null;
+  const publicToken = randomUUID();
+  const storagePath = await writeAttachmentFile({
+    kind: EquipmentAttachmentKinds.TECHNICAL_PHOTO,
+    token: publicToken,
+    fileName: parsed.fileName,
+    bytes: parsed.bytes,
+    extension: parsed.extension
+  });
+  return client.equipmentAttachment.create({
+    data: {
+      equipmentId,
+      kind: EquipmentAttachmentKinds.TECHNICAL_PHOTO,
+      fileName: parsed.fileName,
+      mimeType: parsed.mimeType,
+      storagePath,
+      publicToken
+    }
+  });
 }
 
 export async function createEquipmentAttachment(client, { equipmentId, kind, upload }) {
@@ -130,6 +218,24 @@ export async function createEquipmentAttachment(client, { equipmentId, kind, upl
   });
 }
 
+// Persiste um anexo gerado pelo próprio sistema (bytes já prontos, sem dataUrl) —
+// usado pelo datasheet gerado a partir dos Dados Técnicos.
+export async function createGeneratedEquipmentAttachment(client, { equipmentId, kind, fileName, bytes }) {
+  if (!bytes || !bytes.length) return null;
+  const publicToken = randomUUID();
+  const storagePath = await writeAttachmentFile({ kind, token: publicToken, fileName, bytes });
+  return client.equipmentAttachment.create({
+    data: {
+      equipmentId,
+      kind,
+      fileName,
+      mimeType: 'application/pdf',
+      storagePath,
+      publicToken
+    }
+  });
+}
+
 // Remove todos os anexos de um tipo (certificado/doc técnica) do equipamento.
 // O arquivo físico só é apagado dos anexos do próprio módulo (sob "Equipamentos/");
 // os migrados compartilham o arquivo com registros antigos e são preservados.
@@ -150,6 +256,46 @@ export async function removeEquipmentAttachments(client, equipmentId, kind) {
     }
   }
   return rows.length;
+}
+
+// Remove fotos específicas (por id) de um equipamento, apagando os arquivos físicos.
+export async function removeEquipmentAttachmentsByIds(client, equipmentId, ids) {
+  const idList = Array.isArray(ids) ? ids.filter(Boolean) : [];
+  if (!idList.length) return 0;
+  const rows = await client.equipmentAttachment.findMany({
+    where: { equipmentId, id: { in: idList }, kind: EquipmentAttachmentKinds.TECHNICAL_PHOTO }
+  });
+  if (!rows.length) return 0;
+  await client.equipmentAttachment.deleteMany({ where: { id: { in: rows.map(r => r.id) } } });
+  for (const row of rows) {
+    if (!row.storagePath || !row.storagePath.startsWith('Equipamentos/')) continue;
+    const targetPath = path.resolve(env.uploadDir, row.storagePath.split('/').join(path.sep));
+    const root = path.resolve(env.uploadDir);
+    const relative = path.relative(root, targetPath);
+    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) continue;
+    try {
+      await fs.unlink(targetPath);
+    } catch {
+      // Arquivo já ausente — ignora.
+    }
+  }
+  return rows.length;
+}
+
+// Resolve as fotos (TECHNICAL_PHOTO) de um equipamento em assets de imagem
+// (bytes + dimensões + mime), na ordem de criação — para embutir no datasheet.
+export async function resolveEquipmentPhotoAssets(client, equipmentId) {
+  const rows = await client.equipmentAttachment.findMany({
+    where: { equipmentId, kind: EquipmentAttachmentKinds.TECHNICAL_PHOTO },
+    orderBy: { createdAt: 'asc' }
+  });
+  const assets = [];
+  for (const row of rows) {
+    // eslint-disable-next-line no-await-in-loop
+    const asset = await readStoredImageAsset(row.storagePath);
+    if (asset && asset.width && asset.height) assets.push({ ...asset, label: row.fileName });
+  }
+  return assets;
 }
 
 export async function resolvePublicEquipmentAttachment(token) {
@@ -181,7 +327,9 @@ export function equipmentAttachmentFileName(attachment) {
   const code = String(equipment.code || '').trim();
   const name = String(equipment.name || '').trim();
   const serial = String(attachmentEquipmentAttrs(equipment).serialNumber || '').trim();
-  const parts = attachment?.kind === EquipmentAttachmentKinds.TECHNICAL_DOC
+  const isDatasheet = attachment?.kind === EquipmentAttachmentKinds.TECHNICAL_DOC
+    || attachment?.kind === EquipmentAttachmentKinds.TECHNICAL_DOC_GENERATED;
+  const parts = isDatasheet
     ? ['Datasheet', code, name]
     : ['Certificado de calibração', code, serial, name];
   const base = parts.map(part => String(part || '').trim()).filter(Boolean).join(' - ');

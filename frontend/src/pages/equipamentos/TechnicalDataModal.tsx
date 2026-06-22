@@ -1,12 +1,27 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 
 import type {
   CompanyEquipment,
   EquipmentCategory,
+  ImageUpload,
   MeasurementDimension,
   TechnicalFieldDefinition
 } from '../../api/equipamentos';
 import { Modal } from '../../components/ui/Modal';
+
+export interface TechnicalPhotosPayload {
+  add: ImageUpload[];
+  removeIds: string[];
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
 interface Props {
   open: boolean;
@@ -15,8 +30,10 @@ interface Props {
   unitsCatalog: MeasurementDimension[];
   saving: boolean;
   isManager: boolean;
+  generating?: boolean;
   onClose: () => void;
-  onSubmit: (technicalData: Record<string, unknown>, overrides: Record<string, boolean>) => void;
+  onSubmit: (technicalData: Record<string, unknown>, overrides: Record<string, boolean>, photos: TechnicalPhotosPayload, bumpRevision: boolean) => void;
+  onGenerate?: () => void;
 }
 
 type MeasureValue = { value: string; unit: string };
@@ -187,11 +204,31 @@ function GroupField({ field, value, onChange, catalog, idPrefix }: {
   );
 }
 
-export function TechnicalDataModal({ open, category, equipment, unitsCatalog, saving, isManager, onClose, onSubmit }: Props) {
+export function TechnicalDataModal({ open, category, equipment, unitsCatalog, saving, isManager, generating, onClose, onSubmit, onGenerate }: Props) {
   const fields = useMemo(() => sortByOrder(category.technicalSchema || []), [category.technicalSchema]);
 
   const [data, setData] = useState<Record<string, unknown>>(() => ({ ...(equipment.technicalData || {}) }));
   const [overrides, setOverrides] = useState<Record<string, boolean>>(() => ({ ...(equipment.technicalFieldOverrides || {}) }));
+
+  // Fotos: as existentes (anexos), as novas (dataURLs a enviar) e as marcadas p/ remover.
+  const [newPhotos, setNewPhotos] = useState<ImageUpload[]>([]);
+  const [removedPhotoIds, setRemovedPhotoIds] = useState<string[]>([]);
+  const [bumpRevision, setBumpRevision] = useState(false);
+  const existingPhotos = (equipment.technicalPhotos || []).filter(p => !removedPhotoIds.includes(p.id));
+
+  const generatedDoc = equipment.technicalDocGenerated || null;
+  const outdated = Boolean(generatedDoc && equipment.technicalDocGeneratedOutdated);
+
+  async function handlePhotoFiles(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    const uploads = await Promise.all(files.map(async file => ({
+      fileName: file.name,
+      mimeType: file.type,
+      dataUrl: await readFileAsDataUrl(file)
+    })));
+    setNewPhotos(prev => [...prev, ...uploads.filter(u => u.dataUrl.startsWith('data:image/'))]);
+  }
 
   function setValue(key: string, next: TechValue) {
     setData(prev => ({ ...prev, [key]: next }));
@@ -223,7 +260,7 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
     for (const field of fields) {
       if (isIncluded(field)) cleaned[field.key] = data[field.key];
     }
-    onSubmit(cleaned, overrides);
+    onSubmit(cleaned, overrides, { add: newPhotos, removeIds: removedPhotoIds }, bumpRevision);
   }
 
   return (
@@ -281,6 +318,71 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
             })}
           </fieldset>
         ))}
+
+        <fieldset className="tech-section tech-photos">
+          <legend>Fotos</legend>
+          <p className="rel-meta">Opcional. Aparecem no datasheet gerado; se não houver, a seção de fotos é omitida.</p>
+          <div className="tech-photo-grid">
+            {existingPhotos.map(photo => (
+              <div className="tech-photo" key={photo.id}>
+                <img src={photo.publicUrl} alt={photo.fileName} loading="lazy" />
+                {isManager && (
+                  <button type="button" className="tech-photo-remove" aria-label="Remover foto"
+                    onClick={() => setRemovedPhotoIds(prev => [...prev, photo.id])}>×</button>
+                )}
+              </div>
+            ))}
+            {newPhotos.map((photo, i) => (
+              <div className="tech-photo is-new" key={`new-${i}`}>
+                <img src={photo.dataUrl} alt={photo.fileName || 'Nova foto'} />
+                <button type="button" className="tech-photo-remove" aria-label="Remover foto"
+                  onClick={() => setNewPhotos(prev => prev.filter((_, j) => j !== i))}>×</button>
+              </div>
+            ))}
+            {existingPhotos.length === 0 && newPhotos.length === 0 && (
+              <p className="tech-group-empty">Nenhuma foto.</p>
+            )}
+          </div>
+          {isManager && (
+            <label className="mini-btn alt tech-photo-add">
+              + Adicionar fotos
+              <input type="file" accept="image/png,image/jpeg,image/webp" multiple
+                style={{ display: 'none' }} onChange={handlePhotoFiles} />
+            </label>
+          )}
+        </fieldset>
+
+        {category.technicalDocEnabled && (generatedDoc || isManager) && (
+          <div className="tech-doc-bar">
+            <div className="tech-doc-status">
+              <strong>Datasheet (PDF)</strong>
+              {generatedDoc ? (
+                <span className={`tech-doc-state ${outdated ? 'is-outdated' : 'is-ok'}`}>
+                  {outdated ? 'desatualizado — gere novamente' : 'atualizado'}
+                </span>
+              ) : (
+                <span className="tech-doc-state">ainda não gerado</span>
+              )}
+            </div>
+            <div className="tech-doc-actions">
+              {generatedDoc && (
+                <a className="mini-btn alt" href={generatedDoc.publicUrl} target="_blank" rel="noreferrer">Baixar</a>
+              )}
+              {isManager && onGenerate && (
+                <button className="mini-btn" type="button" onClick={onGenerate} disabled={saving || generating || fields.length === 0}>
+                  {generating ? 'Gerando…' : generatedDoc ? 'Regenerar' : 'Gerar datasheet'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {isManager && (
+          <label className="equip-toggle tech-bump" title="Ao salvar, sobe a revisão e descarta o datasheet anterior (a nova revisão começa limpa)">
+            <input type="checkbox" checked={bumpRevision} onChange={e => setBumpRevision(e.target.checked)} />
+            <span>Incrementar revisão (atual: {equipment.technicalRevision ?? 0})</span>
+          </label>
+        )}
 
         <div className="admin-form-actions equip-form-actions">
           <button className="mini-btn alt" type="button" onClick={onClose} disabled={saving}>Fechar</button>

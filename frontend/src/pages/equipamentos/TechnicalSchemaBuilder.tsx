@@ -52,7 +52,7 @@ function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested }: {
         <select value={field.type} onChange={e => onChange({ type: e.target.value as TechnicalFieldType })}>
           {typeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
-        <button className="mini-btn danger" type="button" onClick={onRemove} aria-label="Remover campo">×</button>
+        <button className="tech-remove-btn" type="button" onClick={onRemove} aria-label="Remover campo" title="Remover campo">×</button>
       </div>
 
       <div className="tech-build-extra">
@@ -73,7 +73,7 @@ function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested }: {
         {!nested && (
           <input
             type="text"
-            placeholder="Seção (opcional)"
+            placeholder="Seção / agrupamento (ex.: Elétrico)"
             value={field.group || ''}
             onChange={e => onChange({ group: e.target.value })}
           />

@@ -8553,6 +8553,115 @@ select {
   padding: 12px;
 }
 
+/* Datasheets arquivados (histórico) no card */
+.equip-archive {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.equip-archive a {
+  font-size: 12px;
+  color: var(--g);
+}
+
+/* === Fotos dos Dados Técnicos === */
+.tech-photo-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.tech-photo {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  overflow: hidden;
+  background: #fafafa;
+}
+
+.tech-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.tech-photo-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  border: none;
+  border-radius: 50%;
+  background: rgba(164, 16, 26, 0.85);
+  color: #fff;
+  cursor: pointer;
+}
+
+.tech-photo-add {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* === Barra do datasheet gerado (PDF) === */
+.tech-doc-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: #fafafa;
+}
+
+.tech-doc-status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.tech-doc-state {
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+}
+
+.tech-doc-state.is-ok {
+  color: var(--g);
+}
+
+.tech-doc-state.is-outdated {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.tech-doc-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 /* === Construtor de Dados Técnicos === */
 .tech-build-row {
   display: flex;
@@ -8578,8 +8687,43 @@ select {
   gap: 8px;
 }
 
+.tech-build-main {
+  flex-wrap: nowrap;
+}
+
 .tech-build-main > input[type='text'] {
   flex: 1 1 200px;
+}
+
+/* Botão de remover campo — ícone discreto fixado no canto direito da linha */
+.tech-remove-btn {
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: var(--wh);
+  color: #9aa0a6;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+
+.tech-remove-btn:hover {
+  background: #fdecec;
+  border-color: var(--rd);
+  color: var(--rd);
+}
+
+.tech-remove-btn:focus-visible {
+  outline: 2px solid var(--rd);
+  outline-offset: 1px;
 }
 
 .tech-build-extra:empty {
@@ -8708,7 +8852,7 @@ select {
   background: #fafafa;
 }
 
-.equip-slot-row label {
+.equip-slot-name {
   font-size: 12px;
   font-weight: 600;
   color: var(--mu);
@@ -8725,6 +8869,44 @@ select {
 .equip-slot-row select:focus {
   outline: none;
   border-color: var(--g);
+}
+
+.equip-slot-cat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.equip-slot-cat select {
+  flex: 1;
+  min-width: 0;
+}
+
+.equip-slot-x {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: var(--wh);
+  color: var(--rd);
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+
+.equip-slot-x:hover {
+  background: #fdecec;
+  border-color: var(--rd);
+}
+
+.equip-slot-add {
+  align-self: flex-start;
 }
 
 /* Busca por equipamento dentro da categoria */

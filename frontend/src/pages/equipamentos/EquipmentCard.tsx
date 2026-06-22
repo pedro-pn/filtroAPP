@@ -22,7 +22,12 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
   const cardRef = useRef<HTMLElement | null>(null);
   const [dragging, setDragging] = useState(false);
 
+  const [showArchive, setShowArchive] = useState(false);
+
   const status = calibrationStatus(item);
+  // "Doc. técnica" serve sempre o datasheet gerado mais recente; cai para o PDF legado.
+  const currentDoc = item.technicalDocGenerated || item.technicalDoc || null;
+  const archive = item.technicalDocArchive || [];
   // Tipos de documento que ainda podem ser adicionados arrastando para o card.
   const canTech = isManager && category.supportsTechnicalDoc && !item.technicalDoc;
   const canCert = isManager && category.supportsCalibration && item.hasCalibration && !item.calibrationCertificate;
@@ -109,10 +114,24 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
         {item.calibrationCertificate && (
           <a className="equip-link" href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer">Certificado</a>
         )}
-        {item.technicalDoc && (
-          <a className="equip-link" href={item.technicalDoc.publicUrl} target="_blank" rel="noreferrer">Doc. técnica</a>
+        {currentDoc && (
+          <a className="equip-link" href={currentDoc.publicUrl} target="_blank" rel="noreferrer">Doc. técnica</a>
+        )}
+        {isManager && archive.length > 0 && (
+          <button className="equip-link equip-link-btn" type="button" onClick={() => setShowArchive(v => !v)}>
+            Arquivados ({archive.length})
+          </button>
         )}
       </div>
+      {showArchive && archive.length > 0 && (
+        <ul className="equip-archive">
+          {archive.map(doc => (
+            <li key={doc.id}>
+              <a href={doc.publicUrl} target="_blank" rel="noreferrer">{formatDate(doc.createdAt)} — {doc.fileName}</a>
+            </li>
+          ))}
+        </ul>
+      )}
       {isManager && (
         <div className="report-card-actions">
           <button className="mini-btn alt" type="button" onClick={onEdit}>Editar</button>

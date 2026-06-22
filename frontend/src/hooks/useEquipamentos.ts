@@ -4,6 +4,7 @@ import {
   addNotificationRecipient,
   createEquipamento,
   createEquipmentCategory,
+  generateTechnicalDoc,
   getNotificationConfig,
   listEquipamentos,
   listEquipmentCategories,
@@ -120,14 +121,18 @@ export function useEquipamentoMutations() {
     mutationFn: (id: string) => removeEquipamento(id),
     onSuccess: invalidateAll
   });
+  const generateDatasheet = useMutation({
+    mutationFn: (id: string) => generateTechnicalDoc(id),
+    onSuccess: invalidateAll
+  });
 
   const updateSlot = useMutation({
-    mutationFn: ({ slotKey, categoryId }: { slotKey: string; categoryId: string | null }) => updateRdoSlot(slotKey, categoryId),
+    mutationFn: ({ slotKey, categoryIds }: { slotKey: string; categoryIds: string[] }) => updateRdoSlot(slotKey, categoryIds),
     onSuccess: () => Promise.all([
       queryClient.invalidateQueries({ queryKey: ['equipamentos', 'rdo-slots'] }),
       queryClient.invalidateQueries({ queryKey: ['bootstrap'] })
     ])
   });
 
-  return { createCategory, updateCategory, removeCategory, createEquipment, updateEquipment, removeEquipment, updateSlot };
+  return { createCategory, updateCategory, removeCategory, createEquipment, updateEquipment, removeEquipment, generateDatasheet, updateSlot };
 }

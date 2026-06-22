@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import type { CompanyEquipment, EquipmentCategory, EquipmentCategoryPayload, EquipmentPayload } from '../../api/equipamentos';
+import type { CompanyEquipment, EquipmentCategory, EquipmentCategoryPayload, EquipmentPayload, ImageUpload } from '../../api/equipamentos';
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { useToast } from '../../components/ui/Toast';
@@ -42,7 +42,7 @@ export function EquipamentosPage() {
   const equipment = equipmentQuery.data || [];
   // Categorias atualmente vinculadas a algum slot de relatório (override ou padrão).
   const rdoLinkedCategoryIds = useMemo(
-    () => new Set((rdoSlotsQuery.data || []).map(slot => slot.categoryId).filter((id): id is string => Boolean(id))),
+    () => new Set((rdoSlotsQuery.data || []).flatMap(slot => slot.categoryIds)),
     [rdoSlotsQuery.data]
   );
 
@@ -90,15 +90,42 @@ export function EquipamentosPage() {
     }
   }
 
-  function handleTechnicalSubmit(technicalData: Record<string, unknown>, technicalFieldOverrides: Record<string, boolean>) {
+  function handleTechnicalSubmit(
+    technicalData: Record<string, unknown>,
+    technicalFieldOverrides: Record<string, boolean>,
+    photos: { add: ImageUpload[]; removeIds: string[] },
+    bumpRevision: boolean
+  ) {
     if (!technicalForm) return;
     mutations.updateEquipment.mutate(
-      { id: technicalForm.item.id, payload: { technicalData, technicalFieldOverrides } },
+      {
+        id: technicalForm.item.id,
+        payload: {
+          technicalData,
+          technicalFieldOverrides,
+          ...(bumpRevision ? { bumpRevision: true } : {}),
+          ...(photos.add.length ? { technicalPhotos: photos.add } : {}),
+          ...(photos.removeIds.length ? { removeTechnicalPhotoIds: photos.removeIds } : {})
+        }
+      },
       {
         onSuccess: () => { showToast('Dados técnicos salvos.', 'success'); setTechnicalForm(null); },
         onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível salvar.', 'error')
       }
     );
+  }
+
+  function handleGenerateDatasheet() {
+    if (!technicalForm) return;
+    mutations.generateDatasheet.mutate(technicalForm.item.id, {
+      onSuccess: attachment => {
+        showToast('Datasheet gerado.', 'success');
+        setTechnicalForm(prev => (prev
+          ? { ...prev, item: { ...prev.item, technicalDocGenerated: attachment, technicalDocGeneratedOutdated: false } }
+          : prev));
+      },
+      onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível gerar o datasheet.', 'error')
+    });
   }
 
   function handleCategorySubmit(payload: EquipmentCategoryPayload) {
@@ -315,6 +342,8 @@ export function EquipamentosPage() {
           isManager={isManager}
           onClose={() => setTechnicalForm(null)}
           onSubmit={handleTechnicalSubmit}
+          onGenerate={handleGenerateDatasheet}
+          generating={mutations.generateDatasheet.isPending}
         />
       )}
 
