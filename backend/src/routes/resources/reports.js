@@ -669,19 +669,6 @@ function publicSignatureReportPayload(signature, status = publicSignatureStatus(
   };
 }
 
-function publicSignatureBatchPayload(anchor, signatures) {
-  const reports = (signatures || []).map(signature => publicSignatureReportPayload(signature));
-  return {
-    project: {
-      code: anchor.report?.project?.code || '',
-      name: anchor.report?.project?.name || '',
-      clientName: anchor.report?.project?.clientName || ''
-    },
-    pendingCount: reports.length,
-    reports
-  };
-}
-
 export function publicSignatureStatus(signature) {
   if (!signature) return 'INVALID';
   if (signature.report?.deletedAt) return 'UNAVAILABLE';
@@ -824,69 +811,8 @@ async function publicSignatureFromToken(token, client = prisma) {
   });
 }
 
-async function publicSignatureFromId(signatureId, client = prisma) {
-  return client.reportSignature.findUnique({
-    where: { id: signatureId },
-    include: {
-      report: { include },
-      version: { include: { signatures: { orderBy: { createdAt: 'asc' } } } }
-    }
-  });
-}
-
-function samePublicSignatureBatchScope(anchor, signature) {
-  const anchorProjectId = anchor?.report?.projectId || anchor?.report?.project?.id || '';
-  const signatureProjectId = signature?.report?.projectId || signature?.report?.project?.id || '';
-  return Boolean(
-    anchorProjectId
-    && signatureProjectId
-    && anchorProjectId === signatureProjectId
-    && signerEmailValue(anchor?.signerEmail) === signerEmailValue(signature?.signerEmail)
-  );
-}
-
 function publicSignatureBatchScopeUnavailable(status) {
   return ['INVALID', 'UNAVAILABLE', 'EXPIRED', 'INVALIDATED', 'REJECTED'].includes(status);
-}
-
-async function activePublicSignatureBatchFromAnchor(anchor, client = prisma) {
-  if (!anchor || publicSignatureBatchScopeUnavailable(publicSignatureStatus(anchor))) return [];
-  const projectId = anchor.report?.projectId || anchor.report?.project?.id;
-  const signerEmail = signerEmailValue(anchor.signerEmail);
-  if (!projectId || !signerEmail) return publicSignatureStatus(anchor) === 'ACTIVE' ? [anchor] : [];
-
-  const signatures = await client.reportSignature.findMany({
-    where: {
-      signerEmail: { equals: signerEmail, mode: 'insensitive' },
-      status: ReportSignatureStatus.PENDING,
-      isRequired: true,
-      tokenExpiresAt: { gt: new Date() },
-      report: {
-        projectId,
-        status: ReportStatus.APPROVED,
-        deletedAt: null,
-        project: {
-          deletedAt: null,
-          managerOnly: false
-        }
-      },
-      version: {
-        status: ReportVersionStatus.ACTIVE,
-        finalDocumentHash: null
-      }
-    },
-    orderBy: [
-      { report: { reportDate: 'asc' } },
-      { report: { sequenceNumber: 'asc' } },
-      { createdAt: 'asc' }
-    ],
-    include: {
-      report: { include },
-      version: { include: { signatures: { orderBy: { createdAt: 'asc' } } } }
-    }
-  });
-
-  return signatures.filter(signature => publicSignatureStatus(signature) === 'ACTIVE');
 }
 
 async function publicSignatureForTokenScopeOrThrow(token, signatureId, client = prisma, { retryable = false } = {}) {
@@ -905,9 +831,9 @@ async function publicSignatureForTokenScopeOrThrow(token, signatureId, client = 
     throw error;
   }
 
-  const signature = await publicSignatureFromId(signatureId, client);
+  const signature = anchor?.id === signatureId ? anchor : null;
   const status = publicSignatureStatus(signature);
-  if (!samePublicSignatureBatchScope(anchor, signature) || (status !== 'ACTIVE' && !(retryable && isFinalizationRetryableSignature(signature)))) {
+  if (!signature || (status !== 'ACTIVE' && !(retryable && isFinalizationRetryableSignature(signature)))) {
     const error = new Error('Link de assinatura indisponível.');
     error.statusCode = !signature ? 404 : 409;
     error.publicStatus = !signature ? 'INVALID' : status;
@@ -6083,7 +6009,6 @@ router.put('/:id/manual-pdf', requireAuth, requireRdoManager, asyncHandler(async
 router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (req, res) => {
   let signature = await publicSignatureFromToken(req.params.token);
   let status = publicSignatureStatus(signature);
-  let batchSignatures = [];
 
   if (signature && status === 'EXPIRED' && signature.status === 'PENDING') {
     const expired = await prisma.$transaction(tx => expirePendingPublicSignature(tx, signature, signatureEvidenceFromRequest(req)));
@@ -6104,17 +6029,7 @@ router.get('/public-sign/:token', publicSignatureLimiter, asyncHandler(async (re
     });
   }
 
-  if (signature && !publicSignatureBatchScopeUnavailable(status)) {
-    batchSignatures = await activePublicSignatureBatchFromAnchor(signature);
-  }
-
-  const responseSignature = batchSignatures[0] || signature;
-  const responseStatus = batchSignatures.length ? 'ACTIVE' : status;
-  const payload = publicSignaturePayload(responseSignature, responseStatus);
-  if (payload.report && batchSignatures.length > 1) {
-    payload.batch = publicSignatureBatchPayload(signature, batchSignatures);
-  }
-  res.json(payload);
+  res.json(publicSignaturePayload(signature, status));
 }));
 
 router.get('/public-sign/:token/pdf', publicSignatureLimiter, asyncHandler(async (req, res) => {

@@ -6249,7 +6249,8 @@ select {
 }
 
 .public-signature-actions .primary-button,
-.public-signature-actions .secondary-button {
+.public-signature-actions .secondary-button,
+.public-signature-actions .danger-button {
   flex: 1 1 120px;
   min-height: 40px;
   text-align: center;
