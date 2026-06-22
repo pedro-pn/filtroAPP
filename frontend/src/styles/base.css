@@ -8569,6 +8569,7 @@ select {
 
 .equip-doc-pdf {
   align-self: flex-start;
+  text-decoration: none;
 }
 
 /* Datasheets arquivados (histórico) no card */
