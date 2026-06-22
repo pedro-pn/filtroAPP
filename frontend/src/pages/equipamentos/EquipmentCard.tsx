@@ -114,15 +114,18 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
         {item.calibrationCertificate && (
           <a className="equip-link" href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer">Certificado</a>
         )}
-        {currentDoc && (
-          <a className="equip-link" href={currentDoc.publicUrl} target="_blank" rel="noreferrer">Doc. técnica</a>
-        )}
         {isManager && archive.length > 0 && (
           <button className="equip-link equip-link-btn" type="button" onClick={() => setShowArchive(v => !v)}>
             Arquivados ({archive.length})
           </button>
         )}
       </div>
+      {currentDoc && (
+        <div className="equip-doc">
+          <span className="equip-doc-title">Doc. técnica</span>
+          <a className="mini-btn equip-doc-pdf" href={currentDoc.publicUrl} target="_blank" rel="noreferrer">⤓ PDF</a>
+        </div>
+      )}
       {showArchive && archive.length > 0 && (
         <ul className="equip-archive">
           {archive.map(doc => (

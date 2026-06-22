@@ -8553,6 +8553,24 @@ select {
   padding: 12px;
 }
 
+/* Bloco "Doc. técnica" no card: título + botão PDF (verde) para baixar */
+.equip-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.equip-doc-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mu);
+}
+
+.equip-doc-pdf {
+  align-self: flex-start;
+}
+
 /* Datasheets arquivados (histórico) no card */
 .equip-archive {
   list-style: none;
