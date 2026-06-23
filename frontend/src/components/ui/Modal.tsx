@@ -17,6 +17,7 @@ interface ModalProps {
   ariaLabelledBy?: string;
   ariaDescribedBy?: string;
   closeOnBackdrop?: boolean;
+  closeOnEscape?: boolean;
   backdropClassName?: string;
   panelClassName?: string;
 }
@@ -28,6 +29,7 @@ export function Modal({
   ariaLabelledBy,
   ariaDescribedBy,
   closeOnBackdrop = true,
+  closeOnEscape = true,
   backdropClassName = 'modal-backdrop',
   panelClassName = 'modal-card'
 }: ModalProps) {
@@ -53,7 +55,7 @@ export function Modal({
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key === 'Escape') {
       event.preventDefault();
-      onClose();
+      if (closeOnEscape) onClose();
       return;
     }
 

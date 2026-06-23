@@ -67,10 +67,27 @@ export function CategoryFormModal({ open, category, saving, unitsCatalog, onClos
   }
 
   return (
-    <Modal open={open} onClose={onClose} ariaLabelledBy="category-form-title" panelClassName="modal-card equip-modal">
+    <Modal
+      open={open}
+      onClose={onClose}
+      ariaLabelledBy="category-form-title"
+      closeOnBackdrop={false}
+      closeOnEscape={false}
+      panelClassName="modal-card equip-modal"
+    >
       <form className="equip-form" onSubmit={handleSubmit}>
-        <header className="equip-form-head">
+        <header className="equip-form-head equip-form-head-with-close">
           <h3 id="category-form-title">{category ? 'Editar categoria' : 'Nova categoria'}</h3>
+          <button
+            className="equip-modal-close icon-button"
+            type="button"
+            aria-label="Fechar edição de categoria"
+            title="Fechar"
+            onClick={onClose}
+            disabled={saving}
+          >
+            ×
+          </button>
         </header>
         {category?.isSystemManaged && (
           <p className="rel-meta">O identificador interno desta categoria é usado pelos relatórios e não pode ser alterado. Nome, campos e vínculos podem ser editados normalmente.</p>
