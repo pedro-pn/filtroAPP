@@ -8071,6 +8071,18 @@ select {
 }
 
 /* Seletor de seção (substitui o rail no mobile) — escondido no desktop */
+.equip-mobile-nav {
+  display: none;
+}
+
+.equip-mobile-nav-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+
 .equip-nav-select {
   display: none;
   width: 100%;
@@ -8096,8 +8108,22 @@ select {
   .equip-nav {
     display: none;
   }
+  .equip-mobile-nav {
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+    flex-direction: column;
+    gap: 7px;
+    padding: 10px 12px 12px;
+    border: 1px solid var(--br);
+    border-left: 4px solid var(--g);
+    border-radius: var(--r);
+    background: #f8faf8;
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+  }
   .equip-nav-select {
     display: block;
+    background: var(--wh);
   }
 }
 
@@ -8389,7 +8415,21 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  min-inline-size: 0;
+  border: 0;
+  padding: 0;
   margin-bottom: 14px;
+}
+
+.equip-dashboard-filters-title {
+  flex: 0 0 100%;
+  padding: 0;
+  color: var(--mu);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .equip-dashboard-filters input,
@@ -9370,6 +9410,21 @@ input.app-search-input::-webkit-search-cancel-button {
 
 /* Dashboard de equipamentos: tabela vira cards empilhados no mobile */
 @media (max-width: 700px) {
+  .equip-dashboard-filters {
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid #d8e4d8;
+    border-radius: var(--r);
+    background: #f8faf8;
+  }
+  .equip-dashboard-filters-title {
+    margin-bottom: 2px;
+  }
+  .equip-dashboard-filters .app-search,
+  .equip-dashboard-filters input,
+  .equip-dashboard-filters select {
+    flex-basis: 100%;
+  }
   .equip-table-wrap {
     overflow-x: visible;
     border: 0;

@@ -63,18 +63,19 @@ export function EquipmentDashboard({ categories, equipment }: Props) {
         <div className="sec">Visão geral de calibração</div>
         <button className="mini-btn alt" type="button" onClick={exportCsv}>Exportar CSV</button>
       </div>
-      <div className="equip-dashboard-filters">
+      <div className="equip-dashboard-filters" role="group" aria-labelledby="equip-dashboard-filters-title">
+        <div id="equip-dashboard-filters-title" className="equip-dashboard-filters-title">Filtros do Dashboard</div>
         <SearchBar
           value={search}
           onChange={setSearch}
           placeholder="Buscar por código, nome ou categoria"
           count={{ shown: rows.length, total: equipment.length }}
         />
-        <select value={categoryId} onChange={e => setCategoryId(e.target.value)}>
+        <select aria-label="Filtrar por categoria" value={categoryId} onChange={e => setCategoryId(e.target.value)}>
           <option value="all">Todas as categorias</option>
           {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
         </select>
-        <select value={status} onChange={e => setStatus(e.target.value as CalibrationStatus | 'all')}>
+        <select aria-label="Filtrar por status de calibração" value={status} onChange={e => setStatus(e.target.value as CalibrationStatus | 'all')}>
           {statusFilters.map(filter => <option key={filter.value} value={filter.value}>{filter.label}</option>)}
         </select>
       </div>
