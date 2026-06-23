@@ -117,7 +117,8 @@ test('primary project reuses an existing cc/signer client account with the same 
     username: 'cliente@example.com',
     email: 'cliente@example.com',
     name: 'Cliente em cópia',
-    role: 'CLIENT'
+    role: 'CLIENT',
+    passwordHash: 'existing-password-hash'
   }]);
 
   const result = await ensureClientAccountForProject(prisma, baseProject, { notify: false });
@@ -126,7 +127,9 @@ test('primary project reuses an existing cc/signer client account with the same 
   assert.equal(result.user.id, 'user-cc');
   assert.equal(result.user.username, 'cliente@example.com');
   assert.equal(result.user.name, 'Cliente');
+  assert.equal(result.user.passwordHash, 'existing-password-hash');
   assert.equal(prisma.calls.created.length, 0);
+  assert.equal(prisma.calls.updated.some(call => Object.hasOwn(call.data, 'passwordHash')), false);
 });
 
 test('primary project migrates an old CNPJ client account to the email login', async () => {
@@ -192,6 +195,29 @@ test('removed cc account stays active when the email is primary on another proje
     { clientEmailPrimary: { equals: 'cliente@example.com', mode: 'insensitive' } },
     { clientEmailCc: { has: 'cliente@example.com' } }
   ]);
+});
+
+test('cc project reuses an existing client account without resetting password', async () => {
+  const prisma = createPrismaMock([{
+    id: 'cc-user',
+    username: 'cliente@example.com',
+    email: 'cliente@example.com',
+    name: 'Cliente em cópia',
+    role: 'CLIENT',
+    passwordHash: 'existing-password-hash'
+  }]);
+
+  await ensureClientCcAccounts(prisma, {
+    ...baseProject,
+    clientEmailPrimary: 'primary@example.com',
+    clientEmailCc: ['cliente@example.com']
+  }, {
+    notify: false
+  });
+
+  assert.equal(prisma.calls.created.length, 0);
+  assert.equal(prisma.users.find(user => user.id === 'cc-user').passwordHash, 'existing-password-hash');
+  assert.equal(prisma.calls.updated.some(call => Object.hasOwn(call.data, 'passwordHash')), false);
 });
 
 test('old primary client account is deactivated when no project still uses that email', async () => {

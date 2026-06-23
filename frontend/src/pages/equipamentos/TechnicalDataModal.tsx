@@ -265,7 +265,7 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
 
   return (
     <Modal open={open} onClose={onClose} ariaLabelledBy="tech-data-title" panelClassName="modal-card equip-modal">
-      <form className="equip-form tech-form" onSubmit={handleSubmit}>
+      <form className="equip-form tech-form" onSubmit={handleSubmit} data-equip-technical-modal>
         <header className="equip-form-head">
           <h3 id="tech-data-title">Dados Técnicos</h3>
           <span className="equip-form-sub">{equipment.code} — {equipment.name}</span>
@@ -279,7 +279,7 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
         )}
 
         {sections.map(({ section, items }) => (
-          <fieldset className="tech-section" key={section || '_default'}>
+          <fieldset className="tech-section" key={section || '_default'} data-equip-technical-edit-fields>
             {section && <legend>{section}</legend>}
             {items.map(field => {
               const included = isIncluded(field);
@@ -353,7 +353,7 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
         </fieldset>
 
         {category.technicalDocEnabled && (generatedDoc || isManager) && (
-          <div className="tech-doc-bar">
+          <div className="tech-doc-bar" data-equip-technical-doc-bar>
             <div className="tech-doc-status">
               <strong>Datasheet (PDF)</strong>
               {generatedDoc ? (
@@ -387,7 +387,7 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
         <div className="admin-form-actions equip-form-actions">
           <button className="mini-btn alt" type="button" onClick={onClose} disabled={saving}>Fechar</button>
           {isManager && (
-            <button className="mini-btn" type="submit" disabled={saving || fields.length === 0}>
+            <button className="mini-btn" type="submit" disabled={saving || fields.length === 0} data-equip-technical-save>
               {saving ? 'Salvando…' : 'Salvar dados técnicos'}
             </button>
           )}

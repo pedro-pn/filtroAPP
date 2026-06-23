@@ -2580,10 +2580,24 @@ export function GestorPage() {
             </div>
             {!typeClosed ? (
               <>
+                {visibleReports.length ? renderBatchReportActions(visibleReports) : null}
                 {visibleReports.length ? (
                   <div className="report-type-list">
                     {visibleReports.map(report => (
-                      <ReportSummaryCard key={report.id} report={report} actions={renderManagerReportActions(report)} />
+                      <ReportSummaryCard
+                        key={report.id}
+                        report={report}
+                        leadingControl={(
+                          <label className="report-select-checkbox" title="Selecionar relatório">
+                            <input
+                              type="checkbox"
+                              checked={selectedReportIds.includes(report.id)}
+                              onChange={event => toggleReportSelection(report.id, event.target.checked)}
+                            />
+                          </label>
+                        )}
+                        actions={renderManagerReportActions(report)}
+                      />
                     ))}
                   </div>
                 ) : null}

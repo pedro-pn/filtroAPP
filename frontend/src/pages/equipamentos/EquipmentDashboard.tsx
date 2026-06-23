@@ -58,12 +58,12 @@ export function EquipmentDashboard({ categories, equipment }: Props) {
   }
 
   return (
-    <section className="page-card">
+    <section className="page-card" data-equip-dashboard>
       <div className="admin-toolbar">
         <div className="sec">Visão geral de calibração</div>
         <button className="mini-btn alt" type="button" onClick={exportCsv}>Exportar CSV</button>
       </div>
-      <div className="equip-dashboard-filters" role="group" aria-labelledby="equip-dashboard-filters-title">
+      <div className="equip-dashboard-filters" role="group" aria-labelledby="equip-dashboard-filters-title" data-equip-dashboard-filters>
         <div id="equip-dashboard-filters-title" className="equip-dashboard-filters-title">Filtros do Dashboard</div>
         <SearchBar
           value={search}
@@ -79,7 +79,7 @@ export function EquipmentDashboard({ categories, equipment }: Props) {
           {statusFilters.map(filter => <option key={filter.value} value={filter.value}>{filter.label}</option>)}
         </select>
       </div>
-      <div className="equip-table-wrap">
+      <div className="equip-table-wrap" data-equip-dashboard-table>
         <table className="equip-table">
           <thead>
             <tr>

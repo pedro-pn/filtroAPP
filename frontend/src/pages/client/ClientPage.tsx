@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { driver } from 'driver.js';
+import type { DriveStep } from 'driver.js';
 
 import { downloadReportPdf, downloadReportsBatch, type ReleasedServiceReportNotification } from '../../api/reports';
 import { getClientSurveyLink } from '../../api/surveys';
@@ -55,6 +56,7 @@ const TEXT = {
 const REPORT_PAGE_SIZE = 30;
 const REPORT_TYPE_VISIBLE_STEP = 10;
 const CLIENT_REPORT_REFRESH_MS = 15_000;
+const BATCH_SIGNATURE_TIP_STORAGE_KEY_PREFIX = 'filtrovali-client-batch-signature-tip-done';
 
 const statusMap: Record<string, { label: string; className: string }> = {
   PENDING: { label: 'Pendente', className: 'status-pending' },
@@ -97,6 +99,33 @@ function clientTutorialLegacyKeys(user?: AuthUser | null) {
     normalizeTutorialKeyPart(user?.id),
     normalizeTutorialKeyPart(user?.username)
   ].filter(key => key && key !== currentKey)));
+}
+
+function clientBatchSignatureTipStorageKey(identity: string) {
+  return `${BATCH_SIGNATURE_TIP_STORAGE_KEY_PREFIX}:${normalizeTutorialKeyPart(identity)}`;
+}
+
+function hasSeenClientBatchSignatureTip(identity: string) {
+  try {
+    return localStorage.getItem(clientBatchSignatureTipStorageKey(identity)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markClientBatchSignatureTipSeen(identity: string) {
+  try {
+    localStorage.setItem(clientBatchSignatureTipStorageKey(identity), '1');
+  } catch {
+    // Ignore unavailable localStorage; the in-memory guard still avoids repeats in this session.
+  }
+}
+
+function escapeCssSelectorValue(value: string) {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(value);
+  }
+  return value.replace(/["\\]/g, '\\$&');
 }
 
 function reportLabel(report: Pick<ReportSummary, 'reportType' | 'sequenceNumber'>) {
@@ -215,6 +244,7 @@ export function ClientPage() {
   const [visibleByClientType, setVisibleByClientType] = useState<Record<string, number>>({});
   const [releasedReportCounts, setReleasedReportCounts] = useState<Record<string, number>>({});
   const tutorialTrigger = useRef<(() => void) | null>(null);
+  const batchSignatureTipShownRef = useRef(false);
   const clientReportGroupRefreshRef = useRef<Record<string, number>>({});
   const showToast = useToast();
   const clientToggleStorageKey = user ? `filtrovali-client-tabs:${user.id || user.username}` : '';
@@ -398,6 +428,9 @@ export function ClientPage() {
       projectCount: new Set([...reports.map(report => report.project.id), ...surveyProjects.map(project => project.id)]).size
     };
   }, [reportPagination?.total, reports, surveyProjects]);
+  const tutorialReady = !reportsQuery.isLoading && !archivedProjectsQuery.isLoading && clientTogglesLoaded;
+  const tutorialUserKey = clientTutorialUserKey(user);
+  const tutorialLegacyUserKeys = useMemo(() => clientTutorialLegacyKeys(user), [user]);
 
   async function handleLogout() {
     await logout();
@@ -534,6 +567,84 @@ export function ClientPage() {
     setSignatureTargetIds(ids);
   }
 
+  function showBatchSignatureTipBeforeFirstSignature(report: ReportSummary) {
+    if (!tutorialUserKey) return false;
+    if (batchSignatureTipShownRef.current || hasSeenClientBatchSignatureTip(tutorialUserKey)) return false;
+    if (document.body.classList.contains('driver-active')) return false;
+
+    batchSignatureTipShownRef.current = true;
+    markClientBatchSignatureTipSeen(tutorialUserKey);
+    setSelectedIds(current => Array.from(new Set([...current, report.id])));
+
+    window.setTimeout(() => {
+      const reportIdSelector = escapeCssSelectorValue(report.id);
+      const reportSelector = `[data-client-report-id="${reportIdSelector}"]`;
+      const checkboxSelector = `[data-client-report-checkbox="${reportIdSelector}"]`;
+      const steps: DriveStep[] = [
+        {
+          element: reportSelector,
+          popover: {
+            title: 'Assinatura em lote disponível',
+            description:
+              'Antes de assinar só este relatório, saiba que você pode assinar vários RDOs aprovados de uma vez dentro da conta.',
+            side: 'top',
+            align: 'start'
+          }
+        },
+        {
+          element: document.querySelector(checkboxSelector) ? checkboxSelector : '.client-report-checkbox',
+          popover: {
+            title: 'Selecione os documentos',
+            description:
+              'Marque este RDO e os outros relatórios aprovados que deseja assinar no mesmo envio.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '.report-batch-toolbar',
+          popover: {
+            title: 'Controle da seleção',
+            description:
+              'Nesta barra você pode selecionar todos os relatórios visíveis, limpar a seleção ou baixar os PDFs escolhidos.',
+            side: 'top',
+            align: 'start'
+          }
+        }
+      ];
+
+      if (document.querySelector('[data-client-batch-signature-button]')) {
+        steps.push({
+          element: '[data-client-batch-signature-button]',
+          popover: {
+            title: 'Assinar selecionados',
+            description:
+              'Clique aqui para abrir a assinatura com todos os RDOs selecionados. O relatório atual já ficou marcado para facilitar.',
+            side: 'top',
+            align: 'end',
+            doneBtnText: 'Entendi'
+          }
+        });
+      }
+
+      const driverObj = driver({
+        showProgress: true,
+        progressText: '{{current}} de {{total}}',
+        nextBtnText: 'Próximo →',
+        prevBtnText: '← Anterior',
+        doneBtnText: 'Entendi',
+        allowClose: true,
+        animate: true,
+        smoothScroll: true,
+        overlayOpacity: 0.6,
+        steps
+      });
+      driverObj.drive();
+    }, 150);
+
+    return true;
+  }
+
   async function confirmSignature({
     signerName,
     signatureImageDataUrl
@@ -587,6 +698,7 @@ export function ClientPage() {
   }
 
   function handleRequestSignature(report: ReportSummary) {
+    if (showBatchSignatureTipBeforeFirstSignature(report)) return;
     setSignatureTargetIds([report.id]);
   }
 
@@ -634,11 +746,20 @@ export function ClientPage() {
           : 'Relatório de serviço liberado após assinatura do RDO';
 
     return (
-      <article className="client-report-card report-card-clickable" key={report.id} onClick={() => navigate(rdoReportDetailPath(user, report.id))}>
+      <article
+        className="client-report-card report-card-clickable"
+        key={report.id}
+        data-client-report-id={report.id}
+        onClick={() => navigate(rdoReportDetailPath(user, report.id))}
+      >
         <div className="client-report-header">
           <div className="client-report-main">
             {selectable ? (
-              <label className="client-report-checkbox" onClick={event => event.stopPropagation()}>
+              <label
+                className="client-report-checkbox"
+                data-client-report-checkbox={report.id}
+                onClick={event => event.stopPropagation()}
+              >
                 <input
                   type="checkbox"
                   checked={selectedIds.includes(report.id)}
@@ -741,6 +862,7 @@ export function ClientPage() {
                 <button
                   className="primary-button"
                   type="button"
+                  data-client-batch-signature-button
                   disabled={reportMutations.requestSignature.isPending || !signableIds.length}
                   onClick={() => void handleBatchSignature(signableIds)}
                 >
@@ -774,10 +896,6 @@ export function ClientPage() {
       </>
     );
   }
-
-  const tutorialReady = !reportsQuery.isLoading && !archivedProjectsQuery.isLoading && clientTogglesLoaded;
-  const tutorialUserKey = clientTutorialUserKey(user);
-  const tutorialLegacyUserKeys = useMemo(() => clientTutorialLegacyKeys(user), [user]);
 
   return (
     <Shell>

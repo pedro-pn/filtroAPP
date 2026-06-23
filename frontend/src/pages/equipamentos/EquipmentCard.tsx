@@ -69,6 +69,8 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
     <article
       ref={cardRef}
       className={`report-card equip-card ${dragging ? 'equip-card-dragging' : ''}`}
+      data-equip-card
+      data-equip-item-id={item.id}
       {...dragHandlers}
     >
       {dragging && droppable && (
@@ -107,12 +109,12 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
       </dl>
       <div className="equip-card-links">
         {category.technicalDocEnabled && onOpenTechnical && (
-          <button className="equip-link equip-link-btn" type="button" onClick={onOpenTechnical}>
+          <button className="equip-link equip-link-btn" type="button" onClick={onOpenTechnical} data-equip-technical-button>
             Dados técnicos{item.technicalRevision > 0 ? ' ●' : ''}
           </button>
         )}
         {item.calibrationCertificate && (
-          <a className="equip-link" href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer">Certificado</a>
+          <a className="equip-link" href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer" data-equip-cert-link>Certificado</a>
         )}
         {isManager && archive.length > 0 && (
           <button className="equip-link equip-link-btn" type="button" onClick={() => setShowArchive(v => !v)}>
@@ -123,7 +125,7 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
       {currentDoc && (
         <div className="equip-doc">
           <span className="equip-doc-title">Doc. técnica</span>
-          <a className="mini-btn equip-doc-pdf" href={currentDoc.publicUrl} target="_blank" rel="noreferrer">⤓ PDF</a>
+          <a className="mini-btn equip-doc-pdf" href={currentDoc.publicUrl} target="_blank" rel="noreferrer" data-equip-technical-doc-link>⤓ PDF</a>
         </div>
       )}
       {showArchive && archive.length > 0 && (
