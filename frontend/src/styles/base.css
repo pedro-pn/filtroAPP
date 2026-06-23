@@ -8731,6 +8731,7 @@ select {
   border: 1px solid var(--br);
   border-radius: var(--rs);
   background: var(--wh);
+  transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
 .tech-build-row.nested {
@@ -8739,7 +8740,8 @@ select {
 }
 
 .tech-build-row.dragging {
-  opacity: 0.55;
+  opacity: 0.42;
+  transform: scale(0.985);
 }
 
 .tech-build-row.drag-over {

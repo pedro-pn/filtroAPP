@@ -29,6 +29,30 @@ function reorderFields(fields: TechnicalFieldDefinition[], from: number, to: num
   return next;
 }
 
+function setTransparentDragPreview(event: DragEvent<HTMLButtonElement>) {
+  const row = event.currentTarget.closest('.tech-build-row');
+  if (!(row instanceof HTMLElement)) return;
+
+  const rect = row.getBoundingClientRect();
+  const preview = row.cloneNode(true) as HTMLElement;
+  preview.setAttribute('aria-hidden', 'true');
+  preview.style.position = 'fixed';
+  preview.style.top = '-1000px';
+  preview.style.left = '-1000px';
+  preview.style.width = `${rect.width}px`;
+  preview.style.pointerEvents = 'none';
+  preview.style.opacity = '0.42';
+  preview.style.transform = 'scale(0.985)';
+
+  document.body.appendChild(preview);
+  event.dataTransfer.setDragImage(
+    preview,
+    Math.max(0, Math.min(event.clientX - rect.left, rect.width)),
+    Math.max(0, Math.min(event.clientY - rect.top, rect.height))
+  );
+  window.setTimeout(() => preview.remove(), 0);
+}
+
 type FieldDragConfig = {
   label: string;
   isDragging: boolean;
@@ -89,6 +113,7 @@ function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested, drag }: 
         event.stopPropagation();
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('text/plain', source);
+        setTransparentDragPreview(event);
       },
       onDragEnd: () => clearItemDrag(),
       onDragOver: event => {
@@ -262,6 +287,7 @@ export function TechnicalSchemaBuilder({ value, onChange, unitsCatalog }: {
         event.stopPropagation();
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('text/plain', source);
+        setTransparentDragPreview(event);
       },
       onDragEnd: () => clearDrag(),
       onDragOver: event => {
