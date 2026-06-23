@@ -1,3 +1,5 @@
+import { useRef, useState, type DragEvent } from 'react';
+
 import type {
   MeasurementDimension,
   TechnicalFieldDefinition,
@@ -20,15 +22,37 @@ function emptyTechField(): TechnicalFieldDefinition {
   return { key: '', label: '', type: 'text', showInDoc: true };
 }
 
+function reorderFields(fields: TechnicalFieldDefinition[], from: number, to: number) {
+  const next = [...fields];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
+
+type FieldDragConfig = {
+  label: string;
+  isDragging: boolean;
+  isDragOver: boolean;
+  onDragStart: (event: DragEvent<HTMLButtonElement>) => void;
+  onDragEnd: (event: DragEvent<HTMLButtonElement>) => void;
+  onDragOver: (event: DragEvent<HTMLDivElement>) => void;
+  onDragLeave: () => void;
+  onDrop: (event: DragEvent<HTMLDivElement>) => void;
+};
+
 // Editor de um campo. `nested` esconde tipo "grupo" e flags que não fazem sentido em subcampos.
-function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested }: {
+function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested, drag }: {
   field: TechnicalFieldDefinition;
   onChange: (patch: Partial<TechnicalFieldDefinition>) => void;
   onRemove: () => void;
   unitsCatalog: MeasurementDimension[];
   nested?: boolean;
+  drag?: FieldDragConfig;
 }) {
   const typeOptions = nested ? TECH_TYPES.filter(t => t.value !== 'group') : TECH_TYPES;
+  const itemDragIndex = useRef<number | null>(null);
+  const [itemDraggingIndex, setItemDraggingIndex] = useState<number | null>(null);
+  const [itemOverIndex, setItemOverIndex] = useState<number | null>(null);
 
   function patchUnit(dimension: string) {
     const dim = unitsCatalog.find(d => d.key === dimension);
@@ -40,9 +64,73 @@ function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested }: {
     onChange({ itemSchema: items });
   }
 
+  function clearItemDrag() {
+    itemDragIndex.current = null;
+    setItemDraggingIndex(null);
+    setItemOverIndex(null);
+  }
+
+  function handleItemDrop(targetIndex: number) {
+    const from = itemDragIndex.current;
+    clearItemDrag();
+    if (from === null || from === targetIndex) return;
+    onChange({ itemSchema: reorderFields(field.itemSchema || [], from, targetIndex) });
+  }
+
+  function itemDragConfig(index: number, label: string): FieldDragConfig {
+    const source = label.trim() || `Subcampo ${index + 1}`;
+    return {
+      label: `Arrastar ${source}`,
+      isDragging: itemDraggingIndex === index,
+      isDragOver: itemOverIndex === index && itemDraggingIndex !== index,
+      onDragStart: event => {
+        itemDragIndex.current = index;
+        setItemDraggingIndex(index);
+        event.stopPropagation();
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', source);
+      },
+      onDragEnd: () => clearItemDrag(),
+      onDragOver: event => {
+        if (itemDragIndex.current === null) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'move';
+        setItemOverIndex(index);
+      },
+      onDragLeave: () => {
+        if (itemOverIndex === index) setItemOverIndex(null);
+      },
+      onDrop: event => {
+        if (itemDragIndex.current === null) return;
+        event.preventDefault();
+        event.stopPropagation();
+        handleItemDrop(index);
+      }
+    };
+  }
+
   return (
-    <div className={`tech-build-row ${nested ? 'nested' : ''}`}>
+    <div
+      className={`tech-build-row ${nested ? 'nested' : ''} ${drag?.isDragging ? 'dragging' : ''} ${drag?.isDragOver ? 'drag-over' : ''}`}
+      onDragOver={drag?.onDragOver}
+      onDragLeave={drag?.onDragLeave}
+      onDrop={drag?.onDrop}
+    >
       <div className="tech-build-main">
+        {drag && (
+          <button
+            className="tech-drag-handle"
+            type="button"
+            draggable
+            aria-label={drag.label}
+            title={drag.label}
+            onDragStart={drag.onDragStart}
+            onDragEnd={drag.onDragEnd}
+          >
+            ⠿
+          </button>
+        )}
         <input
           type="text"
           placeholder="Rótulo do campo"
@@ -124,6 +212,7 @@ function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested }: {
                 field={sub}
                 nested
                 unitsCatalog={unitsCatalog}
+                drag={itemDragConfig(i, sub.label)}
                 onChange={patch => updateItem(i, patch)}
                 onRemove={() => onChange({ itemSchema: (field.itemSchema || []).filter((_, j) => j !== i) })}
               />
@@ -140,8 +229,58 @@ export function TechnicalSchemaBuilder({ value, onChange, unitsCatalog }: {
   onChange: (next: TechnicalFieldDefinition[]) => void;
   unitsCatalog: MeasurementDimension[];
 }) {
+  const dragIndex = useRef<number | null>(null);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+
   function update(index: number, patch: Partial<TechnicalFieldDefinition>) {
     onChange(value.map((field, i) => (i === index ? { ...field, ...patch } : field)));
+  }
+
+  function clearDrag() {
+    dragIndex.current = null;
+    setDraggingIndex(null);
+    setOverIndex(null);
+  }
+
+  function handleDrop(targetIndex: number) {
+    const from = dragIndex.current;
+    clearDrag();
+    if (from === null || from === targetIndex) return;
+    onChange(reorderFields(value, from, targetIndex));
+  }
+
+  function dragConfig(index: number, label: string): FieldDragConfig {
+    const source = label.trim() || `Campo ${index + 1}`;
+    return {
+      label: `Arrastar ${source}`,
+      isDragging: draggingIndex === index,
+      isDragOver: overIndex === index && draggingIndex !== index,
+      onDragStart: event => {
+        dragIndex.current = index;
+        setDraggingIndex(index);
+        event.stopPropagation();
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', source);
+      },
+      onDragEnd: () => clearDrag(),
+      onDragOver: event => {
+        if (dragIndex.current === null) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'move';
+        setOverIndex(index);
+      },
+      onDragLeave: () => {
+        if (overIndex === index) setOverIndex(null);
+      },
+      onDrop: event => {
+        if (dragIndex.current === null) return;
+        event.preventDefault();
+        event.stopPropagation();
+        handleDrop(index);
+      }
+    };
   }
 
   return (
@@ -156,6 +295,7 @@ export function TechnicalSchemaBuilder({ value, onChange, unitsCatalog }: {
           key={index}
           field={field}
           unitsCatalog={unitsCatalog}
+          drag={dragConfig(index, field.label)}
           onChange={patch => update(index, patch)}
           onRemove={() => onChange(value.filter((_, i) => i !== index))}
         />
