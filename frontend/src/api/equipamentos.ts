@@ -12,12 +12,47 @@ export interface EquipmentFieldDefinition {
   showInDashboard?: boolean;
 }
 
+// === Dados Técnicos (datasheet configurável) ===
+
+export type TechnicalFieldType =
+  | 'text' | 'textarea' | 'number' | 'measure'
+  | 'select' | 'multiselect' | 'boolean' | 'date' | 'group';
+
+export interface TechnicalFieldDefinition {
+  key: string;
+  label: string;
+  type: TechnicalFieldType;
+  order?: number;
+  required?: boolean;
+  optionalPerEquipment?: boolean;
+  showInDoc?: boolean;
+  group?: string;
+  options?: string[];
+  unit?: { dimension: string | null; default: string | null };
+  rawTextAllowed?: boolean;
+  repeatable?: boolean;
+  minItems?: number;
+  maxItems?: number;
+  itemLabel?: string;
+  itemSchema?: TechnicalFieldDefinition[];
+}
+
+export interface MeasurementDimension {
+  key: string;
+  label: string;
+  units: string[];
+  default: string;
+}
+
 export interface EquipmentCategory {
   id: string;
   systemKey: string;
   name: string;
   order: number;
   fieldSchema: EquipmentFieldDefinition[];
+  technicalSchema: TechnicalFieldDefinition[];
+  technicalDocEnabled: boolean;
+  technicalTemplateId?: string | null;
   supportsCalibration: boolean;
   supportsTechnicalDoc: boolean;
   syncToRomaneio: boolean;
@@ -28,7 +63,7 @@ export interface EquipmentCategory {
 
 export interface EquipmentAttachment {
   id: string;
-  kind: 'CALIBRATION_CERTIFICATE' | 'TECHNICAL_DOC';
+  kind: 'CALIBRATION_CERTIFICATE' | 'TECHNICAL_DOC' | 'TECHNICAL_TEMPLATE' | 'TECHNICAL_DOC_GENERATED';
   fileName: string;
   mimeType: string;
   publicToken: string;
@@ -42,6 +77,10 @@ export interface CompanyEquipment {
   name: string;
   categoryId: string;
   attributes: Record<string, unknown>;
+  technicalData: Record<string, unknown>;
+  technicalFieldOverrides: Record<string, boolean>;
+  technicalRevision: number;
+  technicalUpdatedAt: string | null;
   hasCalibration: boolean;
   calibratedAt: string | null;
   expiresAt: string | null;
@@ -49,6 +88,10 @@ export interface CompanyEquipment {
   isActive: boolean;
   calibrationCertificate?: EquipmentAttachment | null;
   technicalDoc?: EquipmentAttachment | null;
+  technicalDocGenerated?: EquipmentAttachment | null;
+  technicalDocGeneratedOutdated?: boolean;
+  technicalDocArchive?: EquipmentAttachment[];
+  technicalPhotos?: EquipmentAttachment[];
 }
 
 export interface PdfUpload {
@@ -57,10 +100,18 @@ export interface PdfUpload {
   dataUrl: string;
 }
 
+export interface ImageUpload {
+  fileName?: string;
+  mimeType?: string;
+  dataUrl: string;
+}
+
 export interface EquipmentCategoryPayload {
   name: string;
   order?: number;
   fieldSchema?: EquipmentFieldDefinition[];
+  technicalSchema?: TechnicalFieldDefinition[];
+  technicalDocEnabled?: boolean;
   supportsCalibration?: boolean;
   supportsTechnicalDoc?: boolean;
   syncToRomaneio?: boolean;
@@ -71,12 +122,17 @@ export interface EquipmentPayload {
   name: string;
   categoryId: string;
   attributes?: Record<string, unknown>;
+  technicalData?: Record<string, unknown>;
+  technicalFieldOverrides?: Record<string, boolean>;
+  bumpRevision?: boolean;
   hasCalibration?: boolean;
   calibratedAt?: string | null;
   expiresAt?: string | null;
   hasTechnicalDoc?: boolean;
   calibrationCertificate?: PdfUpload | null;
   technicalDoc?: PdfUpload | null;
+  technicalPhotos?: ImageUpload[];
+  removeTechnicalPhotoIds?: string[];
   removeCalibrationCertificate?: boolean;
   removeTechnicalDoc?: boolean;
 }
@@ -102,6 +158,11 @@ export async function removeEquipmentCategory(id: string) {
   await apiClient.delete(equipamentosApiPath(`/categories/${id}`));
 }
 
+export async function listUnitsCatalog() {
+  const response = await apiClient.get<MeasurementDimension[]>(equipamentosApiPath('/units-catalog'));
+  return response.data;
+}
+
 // === Equipamentos ===
 
 export async function listEquipamentos(categoryId?: string) {
@@ -121,6 +182,12 @@ export async function updateEquipamento(id: string, payload: Partial<EquipmentPa
   return response.data;
 }
 
+// Gera (ou regenera) o datasheet em PDF a partir dos Dados Técnicos preenchidos.
+export async function generateTechnicalDoc(id: string) {
+  const response = await apiClient.post<EquipmentAttachment>(equipamentosApiPath(`/${id}/technical-doc`));
+  return response.data;
+}
+
 export async function removeEquipamento(id: string) {
   await apiClient.delete(equipamentosApiPath(`/${id}`));
 }
@@ -136,7 +203,7 @@ export interface RdoEquipmentSlot {
   label: string;
   kind: RdoSlotKind;
   defaultSystemKey: string;
-  categoryId: string | null;
+  categoryIds: string[];
 }
 
 export async function listRdoSlots() {
@@ -144,8 +211,8 @@ export async function listRdoSlots() {
   return response.data;
 }
 
-export async function updateRdoSlot(slotKey: string, categoryId: string | null) {
-  const response = await apiClient.put<RdoEquipmentSlot>(equipamentosApiPath(`/rdo-slots/${slotKey}`), { categoryId });
+export async function updateRdoSlot(slotKey: string, categoryIds: string[]) {
+  const response = await apiClient.put<RdoEquipmentSlot>(equipamentosApiPath(`/rdo-slots/${slotKey}`), { categoryIds });
   return response.data;
 }
 

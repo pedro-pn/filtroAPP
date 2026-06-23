@@ -8071,6 +8071,18 @@ select {
 }
 
 /* Seletor de seção (substitui o rail no mobile) — escondido no desktop */
+.equip-mobile-nav {
+  display: none;
+}
+
+.equip-mobile-nav-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+
 .equip-nav-select {
   display: none;
   width: 100%;
@@ -8096,8 +8108,22 @@ select {
   .equip-nav {
     display: none;
   }
+  .equip-mobile-nav {
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+    flex-direction: column;
+    gap: 7px;
+    padding: 10px 12px 12px;
+    border: 1px solid var(--br);
+    border-left: 4px solid var(--g);
+    border-radius: var(--r);
+    background: #f8faf8;
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+  }
   .equip-nav-select {
     display: block;
+    background: var(--wh);
   }
 }
 
@@ -8239,9 +8265,133 @@ select {
   background: rgba(48, 80, 58, 0.06);
 }
 
+.equip-link-btn {
+  cursor: pointer;
+  background: none;
+  font-family: inherit;
+}
+
 .equip-card .report-card-actions {
   margin-top: auto;
   padding-top: 4px;
+}
+
+/* === Dados Técnicos (datasheet) === */
+.tech-form .tech-section {
+  border: 1px solid var(--br);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tech-form .tech-section > legend {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--g);
+  padding: 0 6px;
+}
+
+.tech-field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tech-include {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted, #6b7280);
+  white-space: nowrap;
+}
+
+.tech-include input,
+.tech-bool input {
+  width: auto;
+}
+
+.tech-measure {
+  display: flex;
+  gap: 8px;
+}
+
+.tech-measure input[type='text'] {
+  flex: 1 1 auto;
+}
+
+.tech-measure select,
+.tech-measure .tech-unit-free {
+  flex: 0 0 110px;
+  max-width: 130px;
+}
+
+.tech-bool {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tech-multiselect {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tech-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--br);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tech-chip input {
+  width: auto;
+}
+
+.tech-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tech-group-empty {
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  margin: 0;
+}
+
+.tech-group-item {
+  border: 1px dashed var(--br);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tech-group-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tech-group-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
 }
 
 /* Badges de status */
@@ -8265,7 +8415,21 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  min-inline-size: 0;
+  border: 0;
+  padding: 0;
   margin-bottom: 14px;
+}
+
+.equip-dashboard-filters-title {
+  flex: 0 0 100%;
+  padding: 0;
+  color: var(--mu);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .equip-dashboard-filters input,
@@ -8430,6 +8594,232 @@ select {
   padding: 12px;
 }
 
+/* Bloco "Doc. técnica" no card: título + botão PDF (verde) para baixar */
+.equip-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.equip-doc-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mu);
+}
+
+.equip-doc-pdf {
+  align-self: flex-start;
+  text-decoration: none;
+}
+
+/* Datasheets arquivados (histórico) no card */
+.equip-archive {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.equip-archive a {
+  font-size: 12px;
+  color: var(--g);
+}
+
+/* === Fotos dos Dados Técnicos === */
+.tech-photo-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.tech-photo {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  overflow: hidden;
+  background: #fafafa;
+}
+
+.tech-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.tech-photo-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  border: none;
+  border-radius: 50%;
+  background: rgba(164, 16, 26, 0.85);
+  color: #fff;
+  cursor: pointer;
+}
+
+.tech-photo-add {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* === Barra do datasheet gerado (PDF) === */
+.tech-doc-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: #fafafa;
+}
+
+.tech-doc-status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.tech-doc-state {
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+}
+
+.tech-doc-state.is-ok {
+  color: var(--g);
+}
+
+.tech-doc-state.is-outdated {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.tech-doc-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* === Construtor de Dados Técnicos === */
+.tech-build-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: var(--wh);
+}
+
+.tech-build-row.nested {
+  background: #fafafa;
+  border-style: dashed;
+}
+
+.tech-build-main,
+.tech-build-extra,
+.tech-build-group-opts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.tech-build-main {
+  flex-wrap: nowrap;
+}
+
+.tech-build-main > input[type='text'] {
+  flex: 1 1 200px;
+}
+
+/* Botão de remover campo — ícone discreto fixado no canto direito da linha */
+.tech-remove-btn {
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: var(--wh);
+  color: #9aa0a6;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+
+.tech-remove-btn:hover {
+  background: #fdecec;
+  border-color: var(--rd);
+  color: var(--rd);
+}
+
+.tech-remove-btn:focus-visible {
+  outline: 2px solid var(--rd);
+  outline-offset: 1px;
+}
+
+.tech-build-extra:empty {
+  display: none;
+}
+
+.tech-build-extra input[type='text'],
+.tech-build-extra select,
+.tech-build-main input[type='text'],
+.tech-build-main select,
+.tech-build-group-opts input[type='text'] {
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  padding: 7px 9px;
+  background: #fafafa;
+  color: var(--tx);
+  font-size: 13px;
+  min-width: 0;
+}
+
+.tech-build-group {
+  border-top: 1px dashed var(--br);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tech-build-subfields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--br);
+}
+
 .equip-field-row {
   display: flex;
   flex-wrap: wrap;
@@ -8522,7 +8912,7 @@ select {
   background: #fafafa;
 }
 
-.equip-slot-row label {
+.equip-slot-name {
   font-size: 12px;
   font-weight: 600;
   color: var(--mu);
@@ -8539,6 +8929,44 @@ select {
 .equip-slot-row select:focus {
   outline: none;
   border-color: var(--g);
+}
+
+.equip-slot-cat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.equip-slot-cat select {
+  flex: 1;
+  min-width: 0;
+}
+
+.equip-slot-x {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: var(--wh);
+  color: var(--rd);
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+
+.equip-slot-x:hover {
+  background: #fdecec;
+  border-color: var(--rd);
+}
+
+.equip-slot-add {
+  align-self: flex-start;
 }
 
 /* Busca por equipamento dentro da categoria */
@@ -8982,6 +9410,21 @@ input.app-search-input::-webkit-search-cancel-button {
 
 /* Dashboard de equipamentos: tabela vira cards empilhados no mobile */
 @media (max-width: 700px) {
+  .equip-dashboard-filters {
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid #d8e4d8;
+    border-radius: var(--r);
+    background: #f8faf8;
+  }
+  .equip-dashboard-filters-title {
+    margin-bottom: 2px;
+  }
+  .equip-dashboard-filters .app-search,
+  .equip-dashboard-filters input,
+  .equip-dashboard-filters select {
+    flex-basis: 100%;
+  }
   .equip-table-wrap {
     overflow-x: visible;
     border: 0;

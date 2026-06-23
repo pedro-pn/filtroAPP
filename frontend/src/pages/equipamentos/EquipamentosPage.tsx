@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import type { CompanyEquipment, EquipmentCategory, EquipmentCategoryPayload, EquipmentPayload } from '../../api/equipamentos';
+import type { CompanyEquipment, EquipmentCategory, EquipmentCategoryPayload, EquipmentPayload, ImageUpload } from '../../api/equipamentos';
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { useToast } from '../../components/ui/Toast';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
-import { useEquipamentoMutations, useEquipamentos, useEquipmentCategories, useRdoSlots } from '../../hooks/useEquipamentos';
+import { useEquipamentoMutations, useEquipamentos, useEquipmentCategories, useRdoSlots, useUnitsCatalog } from '../../hooks/useEquipamentos';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { CategoryFormModal } from './CategoryFormModal';
 import { CategoryManager } from './CategoryManager';
@@ -15,6 +15,7 @@ import { EquipmentCard } from './EquipmentCard';
 import { EquipmentDashboard } from './EquipmentDashboard';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { EquipmentFormModal } from './EquipmentFormModal';
+import { TechnicalDataModal } from './TechnicalDataModal';
 import { NotificationsConfig } from './NotificationsConfig';
 import { RdoSlotsConfig } from './RdoSlotsConfig';
 import { ProjectSortButton, type ProjectSortDirection } from '../../utils/projectSort';
@@ -31,6 +32,7 @@ export function EquipamentosPage() {
   const categoriesQuery = useEquipmentCategories();
   const equipmentQuery = useEquipamentos();
   const rdoSlotsQuery = useRdoSlots(isManager);
+  const unitsCatalogQuery = useUnitsCatalog();
   const mutations = useEquipamentoMutations();
 
   const categories = useMemo(
@@ -40,12 +42,13 @@ export function EquipamentosPage() {
   const equipment = equipmentQuery.data || [];
   // Categorias atualmente vinculadas a algum slot de relatório (override ou padrão).
   const rdoLinkedCategoryIds = useMemo(
-    () => new Set((rdoSlotsQuery.data || []).map(slot => slot.categoryId).filter((id): id is string => Boolean(id))),
+    () => new Set((rdoSlotsQuery.data || []).flatMap(slot => slot.categoryIds)),
     [rdoSlotsQuery.data]
   );
 
   const [activeTab, setActiveTab] = useState<ActiveTab>({ kind: 'dashboard' });
   const [equipmentForm, setEquipmentForm] = useState<{ category: EquipmentCategory; item: CompanyEquipment | null } | null>(null);
+  const [technicalForm, setTechnicalForm] = useState<{ category: EquipmentCategory; item: CompanyEquipment } | null>(null);
   const [categoryForm, setCategoryForm] = useState<{ open: boolean; category: EquipmentCategory | null }>({ open: false, category: null });
   const [categorySearch, setCategorySearch] = useState('');
   const [equipmentSort, setEquipmentSort] = useState<ProjectSortDirection>('asc');
@@ -85,6 +88,44 @@ export function EquipamentosPage() {
     } else {
       mutations.createEquipment.mutate(payload, { onSuccess: onDone, onError });
     }
+  }
+
+  function handleTechnicalSubmit(
+    technicalData: Record<string, unknown>,
+    technicalFieldOverrides: Record<string, boolean>,
+    photos: { add: ImageUpload[]; removeIds: string[] },
+    bumpRevision: boolean
+  ) {
+    if (!technicalForm) return;
+    mutations.updateEquipment.mutate(
+      {
+        id: technicalForm.item.id,
+        payload: {
+          technicalData,
+          technicalFieldOverrides,
+          ...(bumpRevision ? { bumpRevision: true } : {}),
+          ...(photos.add.length ? { technicalPhotos: photos.add } : {}),
+          ...(photos.removeIds.length ? { removeTechnicalPhotoIds: photos.removeIds } : {})
+        }
+      },
+      {
+        onSuccess: () => { showToast('Dados técnicos salvos.', 'success'); setTechnicalForm(null); },
+        onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível salvar.', 'error')
+      }
+    );
+  }
+
+  function handleGenerateDatasheet() {
+    if (!technicalForm) return;
+    mutations.generateDatasheet.mutate(technicalForm.item.id, {
+      onSuccess: attachment => {
+        showToast('Datasheet gerado.', 'success');
+        setTechnicalForm(prev => (prev
+          ? { ...prev, item: { ...prev.item, technicalDocGenerated: attachment, technicalDocGeneratedOutdated: false } }
+          : prev));
+      },
+      onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível gerar o datasheet.', 'error')
+    });
   }
 
   function handleCategorySubmit(payload: EquipmentCategoryPayload) {
@@ -184,34 +225,37 @@ export function EquipamentosPage() {
             )}
           </nav>
 
-          <select
-            className="equip-nav-select"
-            aria-label="Selecionar seção"
-            value={activeTab.kind === 'category' ? `cat:${activeTab.id}` : activeTab.kind}
-            onChange={event => {
-              const value = event.target.value;
-              if (value === 'dashboard') setActiveTab({ kind: 'dashboard' });
-              else if (value === 'config') setActiveTab({ kind: 'config' });
-              else if (value === 'notifications') setActiveTab({ kind: 'notifications' });
-              else if (value.startsWith('cat:')) setActiveTab({ kind: 'category', id: value.slice(4) });
-            }}
-          >
-            <option value="dashboard">Dashboard</option>
-            {categories.length > 0 && (
-              <optgroup label="Categorias">
-                {categories.map(category => {
-                  const count = equipment.filter(item => item.categoryId === category.id).length;
-                  return <option key={category.id} value={`cat:${category.id}`}>{category.name} ({count})</option>;
-                })}
-              </optgroup>
-            )}
-            {isManager && (
-              <optgroup label="Gestão">
-                <option value="config">Configurações</option>
-                <option value="notifications">Notificações</option>
-              </optgroup>
-            )}
-          </select>
+          <div className="equip-mobile-nav">
+            <label className="equip-mobile-nav-label" htmlFor="equip-section-select">Seção do módulo</label>
+            <select
+              id="equip-section-select"
+              className="equip-nav-select"
+              value={activeTab.kind === 'category' ? `cat:${activeTab.id}` : activeTab.kind}
+              onChange={event => {
+                const value = event.target.value;
+                if (value === 'dashboard') setActiveTab({ kind: 'dashboard' });
+                else if (value === 'config') setActiveTab({ kind: 'config' });
+                else if (value === 'notifications') setActiveTab({ kind: 'notifications' });
+                else if (value.startsWith('cat:')) setActiveTab({ kind: 'category', id: value.slice(4) });
+              }}
+            >
+              <option value="dashboard">Dashboard</option>
+              {categories.length > 0 && (
+                <optgroup label="Categorias">
+                  {categories.map(category => {
+                    const count = equipment.filter(item => item.categoryId === category.id).length;
+                    return <option key={category.id} value={`cat:${category.id}`}>{category.name} ({count})</option>;
+                  })}
+                </optgroup>
+              )}
+              {isManager && (
+                <optgroup label="Gestão">
+                  <option value="config">Configurações</option>
+                  <option value="notifications">Notificações</option>
+                </optgroup>
+              )}
+            </select>
+          </div>
 
           <div className="equip-main">
         {(categoriesQuery.isLoading || equipmentQuery.isLoading) && (
@@ -253,6 +297,7 @@ export function EquipamentosPage() {
                   isManager={isManager}
                   onEdit={() => setEquipmentForm({ category: selectedCategory, item })}
                   onRemove={() => handleRemoveEquipment(item)}
+                  onOpenTechnical={() => setTechnicalForm({ category: selectedCategory, item })}
                 />
               ))}
             </div>
@@ -290,11 +335,27 @@ export function EquipamentosPage() {
         />
       )}
 
+      {technicalForm && (
+        <TechnicalDataModal
+          open
+          category={technicalForm.category}
+          equipment={technicalForm.item}
+          unitsCatalog={unitsCatalogQuery.data || []}
+          saving={mutations.updateEquipment.isPending}
+          isManager={isManager}
+          onClose={() => setTechnicalForm(null)}
+          onSubmit={handleTechnicalSubmit}
+          onGenerate={handleGenerateDatasheet}
+          generating={mutations.generateDatasheet.isPending}
+        />
+      )}
+
       {categoryForm.open && (
         <CategoryFormModal
           open
           category={categoryForm.category}
           saving={savingCategory}
+          unitsCatalog={unitsCatalogQuery.data || []}
           onClose={() => setCategoryForm({ open: false, category: null })}
           onSubmit={handleCategorySubmit}
         />

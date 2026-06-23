@@ -34,9 +34,18 @@ export function getSlot(slotKey) {
   return SLOTS_BY_KEY.get(slotKey) || null;
 }
 
-// Resolve { slotKey: categoryId } combinando os overrides salvos com os padrões
-// (por systemKey). Retorna também a lista de slots do catálogo com a categoria
-// efetiva, útil para a tela de configuração.
+// Lê as categorias de um override (campo `categoryIds` em array; cai para o legado
+// `categoryId` quando o array está vazio/ausente).
+function overrideCategoryIds(override) {
+  const list = Array.isArray(override?.categoryIds) ? override.categoryIds : [];
+  if (list.length) return list;
+  return override?.categoryId ? [override.categoryId] : [];
+}
+
+// Resolve { slotKey: categoryId[] } combinando os overrides salvos com os padrões
+// (por systemKey). Cada slot pode apontar para VÁRIAS categorias — no preenchimento
+// do relatório os equipamentos de todas elas aparecem numa lista só. Retorna também
+// a lista de slots do catálogo com as categorias efetivas, útil para a config.
 export async function resolveRdoSlotMap(client = prisma) {
   const [overrides, categories] = await Promise.all([
     client.rdoEquipmentSlot.findMany(),
@@ -44,19 +53,19 @@ export async function resolveRdoSlotMap(client = prisma) {
   ]);
   const categoryIdBySystemKey = new Map(categories.map(c => [c.systemKey, c.id]));
   const validCategoryIds = new Set(categories.map(c => c.id));
-  const overrideByKey = new Map(overrides.map(o => [o.slotKey, o.categoryId]));
+  const overrideByKey = new Map(overrides.map(o => [o.slotKey, o]));
 
   const map = {};
   const slots = RDO_EQUIPMENT_SLOTS.map(slot => {
-    let categoryId = null;
+    let categoryIds;
     if (overrideByKey.has(slot.key)) {
-      const overridden = overrideByKey.get(slot.key);
-      categoryId = overridden && validCategoryIds.has(overridden) ? overridden : null;
+      categoryIds = overrideCategoryIds(overrideByKey.get(slot.key)).filter(id => validCategoryIds.has(id));
     } else {
-      categoryId = categoryIdBySystemKey.get(slot.defaultSystemKey) || null;
+      const def = categoryIdBySystemKey.get(slot.defaultSystemKey);
+      categoryIds = def ? [def] : [];
     }
-    map[slot.key] = categoryId;
-    return { ...slot, categoryId };
+    map[slot.key] = categoryIds;
+    return { ...slot, categoryIds };
   });
 
   return { map, slots };
@@ -65,5 +74,5 @@ export async function resolveRdoSlotMap(client = prisma) {
 // Conjunto de categoryIds atualmente vinculados a algum slot (overrides + padrões).
 export async function categoryIdsLinkedToRdo(client = prisma) {
   const { map } = await resolveRdoSlotMap(client);
-  return new Set(Object.values(map).filter(Boolean));
+  return new Set(Object.values(map).flat().filter(Boolean));
 }

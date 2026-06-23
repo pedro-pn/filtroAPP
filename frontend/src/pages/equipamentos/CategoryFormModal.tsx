@@ -4,14 +4,18 @@ import type {
   EquipmentCategory,
   EquipmentCategoryPayload,
   EquipmentFieldDefinition,
-  EquipmentFieldType
+  EquipmentFieldType,
+  MeasurementDimension,
+  TechnicalFieldDefinition
 } from '../../api/equipamentos';
 import { Modal } from '../../components/ui/Modal';
+import { TechnicalSchemaBuilder } from './TechnicalSchemaBuilder';
 
 interface Props {
   open: boolean;
   category: EquipmentCategory | null;
   saving: boolean;
+  unitsCatalog: MeasurementDimension[];
   onClose: () => void;
   onSubmit: (payload: EquipmentCategoryPayload) => void;
 }
@@ -28,12 +32,14 @@ function emptyField(): EquipmentFieldDefinition {
   return { key: '', label: '', type: 'text', required: false, showInDashboard: false };
 }
 
-export function CategoryFormModal({ open, category, saving, onClose, onSubmit }: Props) {
+export function CategoryFormModal({ open, category, saving, unitsCatalog, onClose, onSubmit }: Props) {
   const [name, setName] = useState(category?.name || '');
   const [supportsCalibration, setSupportsCalibration] = useState(Boolean(category?.supportsCalibration));
   const [supportsTechnicalDoc, setSupportsTechnicalDoc] = useState(category?.supportsTechnicalDoc ?? true);
   const [syncToRomaneio, setSyncToRomaneio] = useState(Boolean(category?.syncToRomaneio));
   const [fields, setFields] = useState<EquipmentFieldDefinition[]>(category?.fieldSchema?.length ? category.fieldSchema : []);
+  const [technicalDocEnabled, setTechnicalDocEnabled] = useState(Boolean(category?.technicalDocEnabled));
+  const [technicalSchema, setTechnicalSchema] = useState<TechnicalFieldDefinition[]>(category?.technicalSchema?.length ? category.technicalSchema : []);
 
   function updateField(index: number, patch: Partial<EquipmentFieldDefinition>) {
     setFields(prev => prev.map((field, i) => (i === index ? { ...field, ...patch } : field)));
@@ -46,13 +52,17 @@ export function CategoryFormModal({ open, category, saving, onClose, onSubmit }:
       supportsCalibration,
       supportsTechnicalDoc,
       syncToRomaneio,
+      technicalDocEnabled,
       fieldSchema: fields
         .filter(field => field.label.trim())
         .map((field, index) => ({
           ...field,
           order: index,
           options: field.type === 'select' ? (field.options || []).filter(Boolean) : undefined
-        }))
+        })),
+      technicalSchema: technicalDocEnabled
+        ? technicalSchema.filter(field => field.label.trim()).map((field, index) => ({ ...field, order: index }))
+        : technicalSchema
     });
   }
 
@@ -78,7 +88,11 @@ export function CategoryFormModal({ open, category, saving, onClose, onSubmit }:
           </label>
           <label className="equip-toggle">
             <input type="checkbox" checked={supportsTechnicalDoc} onChange={e => setSupportsTechnicalDoc(e.target.checked)} />
-            <span>Permite documentação técnica</span>
+            <span>Permite documentação técnica (PDF anexo)</span>
+          </label>
+          <label className="equip-toggle">
+            <input type="checkbox" checked={technicalDocEnabled} onChange={e => setTechnicalDocEnabled(e.target.checked)} />
+            <span>Dados Técnicos (datasheet preenchível)</span>
           </label>
           <label className="equip-toggle">
             <input type="checkbox" checked={syncToRomaneio} onChange={e => setSyncToRomaneio(e.target.checked)} />
@@ -123,6 +137,10 @@ export function CategoryFormModal({ open, category, saving, onClose, onSubmit }:
             </div>
           ))}
         </div>
+
+        {technicalDocEnabled && (
+          <TechnicalSchemaBuilder value={technicalSchema} onChange={setTechnicalSchema} unitsCatalog={unitsCatalog} />
+        )}
 
         <div className="admin-form-actions equip-form-actions">
           <button className="mini-btn alt" type="button" onClick={onClose} disabled={saving}>Cancelar</button>

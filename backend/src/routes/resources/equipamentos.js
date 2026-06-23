@@ -4,13 +4,19 @@ import { z } from 'zod';
 import asyncHandler from '../../lib/async-handler.js';
 import {
   createEquipmentAttachment,
+  createEquipmentPhoto,
+  createGeneratedEquipmentAttachment,
   equipmentAttachmentsInclude,
   removeEquipmentAttachments,
+  removeEquipmentAttachmentsByIds,
+  resolveEquipmentPhotoAssets,
+  serializeEquipmentAttachment,
   withCurrentAttachments,
   EquipmentAttachmentKinds
 } from '../../lib/equipment-attachments.js';
+import { generateTechnicalDatasheetPdf } from '../../lib/equipment-technical-docx.js';
 import { notifyCalibrationUpdatedSafely } from '../../lib/calibration-reminders.js';
-import { normalizeFieldSchema, slugifySystemKey } from '../../lib/equipment-categories.js';
+import { normalizeFieldSchema, normalizeTechnicalSchema, slugifySystemKey } from '../../lib/equipment-categories.js';
 import {
   getEquipmentNotificationConfig,
   listEquipmentNotificationRecipients,
@@ -18,6 +24,7 @@ import {
   updateEquipmentNotificationConfig
 } from '../../lib/equipment-notifications.js';
 import { getSlot, resolveRdoSlotMap } from '../../lib/rdo-equipment-slots.js';
+import { measurementCatalog } from '../../lib/equipment-units.js';
 import prisma from '../../lib/prisma.js';
 import {
   clearEquipmentModuleCaches,
@@ -40,6 +47,12 @@ const pdfUploadSchema = z.object({
   dataUrl: z.string().min(1)
 }).optional().nullable();
 
+const imageUploadSchema = z.object({
+  fileName: z.string().optional(),
+  mimeType: z.string().optional(),
+  dataUrl: z.string().min(1)
+});
+
 const fieldDefinitionSchema = z.object({
   key: z.string().optional(),
   label: z.string().trim().min(1),
@@ -50,10 +63,16 @@ const fieldDefinitionSchema = z.object({
   showInDashboard: z.boolean().optional()
 });
 
+// Campos do datasheet (Dados Técnicos): validação pesada fica em normalizeTechnicalSchema;
+// aqui o schema é permissivo para não duplicar regras (tipos/grupos/unidades).
+const technicalFieldSchema = z.record(z.any());
+
 const categorySchema = z.object({
   name: z.string().trim().min(1),
   order: z.number().int().optional(),
   fieldSchema: z.array(fieldDefinitionSchema).optional(),
+  technicalSchema: z.array(technicalFieldSchema).optional(),
+  technicalDocEnabled: z.boolean().optional(),
   supportsCalibration: z.boolean().optional(),
   supportsTechnicalDoc: z.boolean().optional(),
   syncToRomaneio: z.boolean().optional()
@@ -64,12 +83,17 @@ const equipmentSchema = z.object({
   name: z.string().trim().min(1),
   categoryId: z.string().trim().min(1),
   attributes: z.record(z.any()).optional(),
+  technicalData: z.record(z.any()).optional(),
+  technicalFieldOverrides: z.record(z.boolean()).optional(),
+  bumpRevision: z.boolean().optional(),
   hasCalibration: z.boolean().optional(),
   calibratedAt: z.string().optional().nullable(),
   expiresAt: z.string().optional().nullable(),
   hasTechnicalDoc: z.boolean().optional(),
   calibrationCertificate: pdfUploadSchema,
   technicalDoc: pdfUploadSchema,
+  technicalPhotos: z.array(imageUploadSchema).optional(),
+  removeTechnicalPhotoIds: z.array(z.string()).optional(),
   removeCalibrationCertificate: z.boolean().optional(),
   removeTechnicalDoc: z.boolean().optional()
 });
@@ -138,6 +162,24 @@ async function importRomaneioEquipmentIntoCategory(category) {
         await tx.romaneioCatalogItem.delete({ where: { id: item.id } });
         return false;
       }
+      // Outra linha já ocupa a chave natural (categoria + código + nome) com o nome
+      // novo da categoria — atualizar esta colidiria no índice único
+      // @@unique([categoryName, code, name]). Isso acontece quando a categoria foi
+      // renomeada e já existe uma linha equivalente (ex.: derivada de arquivo) com o
+      // nome novo. A linha atual é redundante: remove em vez de quebrar o salvamento.
+      const naturalConflict = await tx.romaneioCatalogItem.findFirst({
+        where: {
+          categoryName: category.name,
+          code: item.code,
+          name: item.name,
+          NOT: { id: item.id }
+        },
+        select: { id: true }
+      });
+      if (naturalConflict) {
+        await tx.romaneioCatalogItem.delete({ where: { id: item.id } });
+        return false;
+      }
       // A própria linha passa a ser gerenciada pelo módulo: continua visível.
       await tx.romaneioCatalogItem.update({
         where: { id: item.id },
@@ -155,6 +197,11 @@ async function importRomaneioEquipmentIntoCategory(category) {
   }
   return imported;
 }
+
+// Catálogo de grandezas/unidades para os campos `measure` do datasheet.
+router.get('/units-catalog', asyncHandler(async (_req, res) => {
+  res.json(measurementCatalog());
+}));
 
 // === Categorias ===
 
@@ -175,6 +222,8 @@ router.post('/categories', requireEquipamentosManager, asyncHandler(async (req, 
       name: data.name,
       order: data.order ?? 0,
       fieldSchema: normalizeFieldSchema(data.fieldSchema),
+      technicalSchema: normalizeTechnicalSchema(data.technicalSchema),
+      technicalDocEnabled: data.technicalDocEnabled ?? false,
       supportsCalibration: data.supportsCalibration ?? false,
       supportsTechnicalDoc: data.supportsTechnicalDoc ?? true,
       syncToRomaneio: data.syncToRomaneio ?? false
@@ -192,20 +241,32 @@ router.put('/categories/:id', requireEquipamentosManager, asyncHandler(async (re
     ...(data.name !== undefined ? { name: data.name } : {}),
     ...(data.order !== undefined ? { order: data.order } : {}),
     ...(data.fieldSchema !== undefined ? { fieldSchema: normalizeFieldSchema(data.fieldSchema) } : {}),
+    ...(data.technicalSchema !== undefined ? { technicalSchema: normalizeTechnicalSchema(data.technicalSchema) } : {}),
+    ...(data.technicalDocEnabled !== undefined ? { technicalDocEnabled: data.technicalDocEnabled } : {}),
     ...(data.supportsCalibration !== undefined ? { supportsCalibration: data.supportsCalibration } : {}),
     ...(data.supportsTechnicalDoc !== undefined ? { supportsTechnicalDoc: data.supportsTechnicalDoc } : {}),
     ...(data.syncToRomaneio !== undefined ? { syncToRomaneio: data.syncToRomaneio } : {})
   };
+  // Compara com o estado anterior: o front reenvia `name` em toda edição (inclusive ao
+  // mexer só nos Dados Técnicos), então só dispara a migração/sync do romaneio quando o
+  // nome REALMENTE muda ou o flag de sync é alterado — evita re-sincronizar à toa (e bater
+  // na colisão de chave natural do catálogo) a cada salvamento.
+  const previous = await prisma.equipmentCategory.findUnique({
+    where: { id: req.params.id },
+    select: { name: true, syncToRomaneio: true }
+  });
   const category = await prisma.equipmentCategory.update({ where: { id: req.params.id }, data: payload });
+  const nameChanged = data.name !== undefined && previous && data.name !== previous.name;
+  const syncChanged = data.syncToRomaneio !== undefined && previous && data.syncToRomaneio !== previous.syncToRomaneio;
   // Ao mudar nome/sync, reaproveita equipamentos do romaneio que casem com a categoria
   // (também recupera categorias importadas em estado anterior).
   let importedFromRomaneio = 0;
-  if (data.name !== undefined || data.syncToRomaneio !== undefined) {
+  if (nameChanged || syncChanged) {
     importedFromRomaneio = await importRomaneioEquipmentIntoCategory(category);
   }
   invalidateCaches();
   // A ordem das abas não afeta o romaneio; só ressincroniza quando muda nome ou flag de sync.
-  if (data.name !== undefined || data.syncToRomaneio !== undefined) {
+  if (nameChanged || syncChanged) {
     await syncRomaneioCatalog();
   }
   res.json({ ...category, importedFromRomaneio });
@@ -224,7 +285,7 @@ router.delete('/categories/:id', requireEquipamentosManager, asyncHandler(async 
   // uma categoria só não pode ser excluída se algum slot de relatório a usa.
   // Relatórios já criados não são afetados (guardam snapshot dos equipamentos).
   const { map } = await resolveRdoSlotMap();
-  if (Object.values(map).includes(category.id)) {
+  if (Object.values(map).flat().includes(category.id)) {
     return res.status(409).json({ error: 'Categoria vinculada a um slot de relatório (RDO). Remova o vínculo na configuração antes de excluir.' });
   }
   await prisma.equipmentCategory.update({ where: { id: req.params.id }, data: { isActive: false } });
@@ -245,7 +306,7 @@ router.get('/', asyncHandler(async (req, res) => {
   res.json(items.map(withCurrentAttachments));
 }));
 
-async function persistAttachments(equipmentId, { calibrationCertificate, technicalDoc }) {
+async function persistAttachments(equipmentId, { calibrationCertificate, technicalDoc, technicalPhotos, removeTechnicalPhotoIds }) {
   if (calibrationCertificate) {
     await createEquipmentAttachment(prisma, {
       equipmentId,
@@ -260,24 +321,48 @@ async function persistAttachments(equipmentId, { calibrationCertificate, technic
       upload: technicalDoc
     });
   }
+  if (Array.isArray(removeTechnicalPhotoIds) && removeTechnicalPhotoIds.length) {
+    await removeEquipmentAttachmentsByIds(prisma, equipmentId, removeTechnicalPhotoIds);
+  }
+  if (Array.isArray(technicalPhotos)) {
+    for (const upload of technicalPhotos) {
+      // eslint-disable-next-line no-await-in-loop
+      await createEquipmentPhoto(prisma, { equipmentId, upload });
+    }
+  }
 }
 
 router.post('/', requireEquipamentosManager, asyncHandler(async (req, res) => {
   const data = equipmentSchema.parse(req.body);
-  const { calibrationCertificate, technicalDoc, ...fields } = data;
-  const item = await prisma.companyEquipment.create({
-    data: {
-      code: fields.code,
-      name: fields.name,
-      categoryId: fields.categoryId,
-      attributes: fields.attributes ?? {},
-      hasCalibration: fields.hasCalibration ?? false,
-      calibratedAt: fields.hasCalibration && fields.calibratedAt ? new Date(fields.calibratedAt) : null,
-      expiresAt: fields.hasCalibration && fields.expiresAt ? new Date(fields.expiresAt) : null,
-      hasTechnicalDoc: fields.hasTechnicalDoc ?? false
-    }
+  const { calibrationCertificate, technicalDoc, technicalPhotos, ...fields } = data;
+  const baseData = {
+    code: fields.code,
+    name: fields.name,
+    categoryId: fields.categoryId,
+    attributes: fields.attributes ?? {},
+    technicalData: fields.technicalData ?? {},
+    technicalFieldOverrides: fields.technicalFieldOverrides ?? {},
+    technicalRevision: fields.technicalData ? 1 : 0,
+    technicalUpdatedAt: fields.technicalData ? new Date() : null,
+    hasCalibration: fields.hasCalibration ?? false,
+    calibratedAt: fields.hasCalibration && fields.calibratedAt ? new Date(fields.calibratedAt) : null,
+    expiresAt: fields.hasCalibration && fields.expiresAt ? new Date(fields.expiresAt) : null,
+    hasTechnicalDoc: fields.hasTechnicalDoc ?? false
+  };
+  // "Remover" é soft delete (isActive=false), então o código continua reservado.
+  // Reaproveita o registro removido com o mesmo código: reativa e reescreve (permite
+  // recriar/mover um equipamento excluído sem o erro de "código duplicado").
+  const existing = await prisma.companyEquipment.findUnique({
+    where: { code: fields.code },
+    select: { id: true, isActive: true }
   });
-  await persistAttachments(item.id, { calibrationCertificate, technicalDoc });
+  if (existing && existing.isActive) {
+    return res.status(409).json({ error: 'Já existe um equipamento ativo com este código.' });
+  }
+  const item = existing
+    ? await prisma.companyEquipment.update({ where: { id: existing.id }, data: { ...baseData, isActive: true } })
+    : await prisma.companyEquipment.create({ data: baseData });
+  await persistAttachments(item.id, { calibrationCertificate, technicalDoc, technicalPhotos });
   invalidateCaches();
   await syncRomaneioCatalog();
   const fresh = await prisma.companyEquipment.findUnique({
@@ -289,14 +374,28 @@ router.post('/', requireEquipamentosManager, asyncHandler(async (req, res) => {
 
 router.put('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => {
   const data = equipmentSchema.partial().parse(req.body);
-  const { calibrationCertificate, technicalDoc, removeCalibrationCertificate, removeTechnicalDoc, ...fields } = data;
+  const {
+    calibrationCertificate, technicalDoc, technicalPhotos, removeTechnicalPhotoIds,
+    removeCalibrationCertificate, removeTechnicalDoc, ...fields
+  } = data;
   const payload = {
     ...(fields.code !== undefined ? { code: fields.code } : {}),
     ...(fields.name !== undefined ? { name: fields.name } : {}),
     ...(fields.categoryId !== undefined ? { categoryId: fields.categoryId } : {}),
     ...(fields.attributes !== undefined ? { attributes: fields.attributes } : {}),
+    ...(fields.technicalFieldOverrides !== undefined ? { technicalFieldOverrides: fields.technicalFieldOverrides } : {}),
     ...(fields.hasTechnicalDoc !== undefined ? { hasTechnicalDoc: fields.hasTechnicalDoc } : {})
   };
+  // Editar o datasheet marca a data (sinaliza "PDF desatualizado"); a revisão só sobe
+  // quando o gestor liga o toggle "Incrementar revisão" (bumpRevision).
+  if (fields.technicalData !== undefined) {
+    payload.technicalData = fields.technicalData;
+    payload.technicalUpdatedAt = new Date();
+  }
+  if (fields.bumpRevision) {
+    payload.technicalRevision = { increment: 1 };
+    payload.technicalUpdatedAt = new Date();
+  }
   if (fields.hasCalibration !== undefined) {
     payload.hasCalibration = fields.hasCalibration;
     payload.calibratedAt = fields.hasCalibration && fields.calibratedAt ? new Date(fields.calibratedAt) : null;
@@ -307,12 +406,17 @@ router.put('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => 
   }
   const previous = await prisma.companyEquipment.findUnique({ where: { id: req.params.id }, select: { expiresAt: true } });
   const item = await prisma.companyEquipment.update({ where: { id: req.params.id }, data: payload });
-  await persistAttachments(item.id, { calibrationCertificate, technicalDoc });
+  await persistAttachments(item.id, { calibrationCertificate, technicalDoc, technicalPhotos, removeTechnicalPhotoIds });
   if (removeCalibrationCertificate && !calibrationCertificate) {
     await removeEquipmentAttachments(prisma, item.id, EquipmentAttachmentKinds.CALIBRATION_CERTIFICATE);
   }
   if (removeTechnicalDoc && !technicalDoc) {
     await removeEquipmentAttachments(prisma, item.id, EquipmentAttachmentKinds.TECHNICAL_DOC);
+  }
+  // Ao incrementar a revisão, o datasheet anterior é descartado (não fica arquivado):
+  // a nova revisão começa limpa e o próximo PDF gerado é o oficial.
+  if (fields.bumpRevision) {
+    await removeEquipmentAttachments(prisma, item.id, EquipmentAttachmentKinds.TECHNICAL_DOC_GENERATED);
   }
   invalidateCaches();
   await syncRomaneioCatalog();
@@ -326,6 +430,35 @@ router.put('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => 
   res.json(withCurrentAttachments(fresh));
 }));
 
+// Gera (ou regenera) o datasheet em PDF a partir dos Dados Técnicos preenchidos.
+// Substitui o datasheet gerado anterior e devolve o anexo já com a URL pública.
+router.post('/:id/technical-doc', requireEquipamentosManager, asyncHandler(async (req, res) => {
+  const equipment = await prisma.companyEquipment.findUnique({
+    where: { id: req.params.id },
+    include: { category: true }
+  });
+  if (!equipment) {
+    return res.status(404).json({ error: 'Equipamento não encontrado.' });
+  }
+  if (!equipment.category?.technicalDocEnabled) {
+    return res.status(400).json({ error: 'A categoria deste equipamento não tem Dados Técnicos habilitados.' });
+  }
+
+  const photoAssets = await resolveEquipmentPhotoAssets(prisma, equipment.id);
+  const { bytes, fileName } = await generateTechnicalDatasheetPdf(equipment, equipment.category, photoAssets);
+
+  // Não apaga os datasheets anteriores: ficam ARQUIVADOS (histórico). O botão
+  // "Doc. técnica" serve sempre o mais recente; os antigos ficam em "arquivados".
+  const attachment = await createGeneratedEquipmentAttachment(prisma, {
+    equipmentId: equipment.id,
+    kind: EquipmentAttachmentKinds.TECHNICAL_DOC_GENERATED,
+    fileName,
+    bytes
+  });
+  invalidateCaches();
+  return res.status(201).json(serializeEquipmentAttachment(attachment));
+}));
+
 router.delete('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => {
   await prisma.companyEquipment.update({ where: { id: req.params.id }, data: { isActive: false } });
   invalidateCaches();
@@ -335,8 +468,10 @@ router.delete('/:id', requireEquipamentosManager, asyncHandler(async (req, res) 
 
 // === Vínculo dos slots de equipamento do RDO com categorias ===
 
+// Aceita o formato novo (categoryIds[]) e o legado (categoryId) — normaliza para array.
 const slotMappingSchema = z.object({
-  categoryId: z.string().trim().min(1).nullable()
+  categoryIds: z.array(z.string().trim().min(1)).optional(),
+  categoryId: z.string().trim().min(1).nullable().optional()
 });
 
 router.get('/rdo-slots', asyncHandler(async (_req, res) => {
@@ -347,15 +482,25 @@ router.get('/rdo-slots', asyncHandler(async (_req, res) => {
 router.put('/rdo-slots/:slotKey', requireEquipamentosManager, asyncHandler(async (req, res) => {
   const slot = getSlot(req.params.slotKey);
   if (!slot) return res.status(404).json({ error: 'Slot de relatório não encontrado.' });
-  const { categoryId } = slotMappingSchema.parse(req.body);
-  if (categoryId) {
-    const category = await prisma.equipmentCategory.findFirst({ where: { id: categoryId, isActive: true } });
-    if (!category) return res.status(400).json({ error: 'Categoria inválida.' });
+  const parsed = slotMappingSchema.parse(req.body);
+  // Normaliza para lista (sem duplicados); aceita o legado categoryId.
+  const categoryIds = [...new Set([
+    ...(parsed.categoryIds || []),
+    ...(parsed.categoryId ? [parsed.categoryId] : [])
+  ])];
+  if (categoryIds.length) {
+    const valid = await prisma.equipmentCategory.findMany({
+      where: { id: { in: categoryIds }, isActive: true },
+      select: { id: true }
+    });
+    if (valid.length !== categoryIds.length) {
+      return res.status(400).json({ error: 'Categoria inválida.' });
+    }
   }
   await prisma.rdoEquipmentSlot.upsert({
     where: { slotKey: slot.key },
-    create: { slotKey: slot.key, categoryId },
-    update: { categoryId }
+    create: { slotKey: slot.key, categoryIds, categoryId: categoryIds[0] || null },
+    update: { categoryIds, categoryId: categoryIds[0] || null }
   });
   invalidateCaches();
   const { slots } = await resolveRdoSlotMap();

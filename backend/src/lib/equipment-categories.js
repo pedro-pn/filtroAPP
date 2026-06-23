@@ -1,3 +1,5 @@
+import { isMeasurementDimension, defaultUnitFor } from './equipment-units.js';
+
 // Convenções de systemKey que ligam o modelo unificado de equipamentos
 // ao consumo legado pelo RDO/Romaneio. O systemKey é imutável; o nome de
 // exibição da categoria pode ser renomeado livremente.
@@ -126,4 +128,70 @@ export function normalizeFieldSchema(value) {
       return definition;
     })
     .filter(item => item.key && !seen.has(item.key) && seen.add(item.key));
+}
+
+// Vocabulário de tipos do datasheet (Dados Técnicos), mais rico que o fieldSchema básico.
+export const TECHNICAL_FIELD_TYPES = new Set([
+  'text', 'textarea', 'number', 'measure', 'select', 'multiselect', 'boolean', 'date', 'group'
+]);
+
+function normalizeOptions(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(opt => String(opt)).filter(Boolean);
+}
+
+// Normaliza um único campo técnico. `allowGroup=false` impede grupos aninhados
+// (itens de um grupo repetível não podem conter outro grupo).
+function normalizeTechnicalField(raw, index, allowGroup = true) {
+  const key = slugifySystemKey(raw?.key || raw?.label || '');
+  if (!key) return null;
+  let type = TECHNICAL_FIELD_TYPES.has(raw?.type) ? raw.type : 'text';
+  if (type === 'group' && !allowGroup) type = 'text';
+
+  const definition = {
+    key,
+    label: String(raw?.label || '').trim() || key,
+    type,
+    order: Number.isFinite(raw?.order) ? raw.order : index,
+    required: Boolean(raw?.required),
+    optionalPerEquipment: Boolean(raw?.optionalPerEquipment),
+    showInDoc: raw?.showInDoc === undefined ? true : Boolean(raw.showInDoc)
+  };
+
+  if (raw?.group) definition.group = String(raw.group).trim();
+
+  if (type === 'measure') {
+    const dimension = isMeasurementDimension(raw?.unit?.dimension) ? raw.unit.dimension : null;
+    definition.unit = {
+      dimension,
+      default: dimension ? (raw?.unit?.default || defaultUnitFor(dimension)) : null
+    };
+    if (raw?.rawTextAllowed) definition.rawTextAllowed = true;
+  }
+
+  if (type === 'select' || type === 'multiselect') {
+    definition.options = normalizeOptions(raw?.options);
+  }
+
+  if (type === 'group') {
+    const seen = new Set();
+    definition.repeatable = raw?.repeatable === undefined ? true : Boolean(raw.repeatable);
+    if (Number.isFinite(raw?.minItems)) definition.minItems = Math.max(0, raw.minItems);
+    if (Number.isFinite(raw?.maxItems)) definition.maxItems = Math.max(1, raw.maxItems);
+    if (raw?.itemLabel) definition.itemLabel = String(raw.itemLabel).trim();
+    definition.itemSchema = (Array.isArray(raw?.itemSchema) ? raw.itemSchema : [])
+      .map((sub, i) => normalizeTechnicalField(sub, i, false))
+      .filter(sub => sub && !seen.has(sub.key) && seen.add(sub.key));
+  }
+
+  return definition;
+}
+
+// Valida e normaliza o technicalSchema (Dados Técnicos) vindo do cliente.
+export function normalizeTechnicalSchema(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  return value
+    .map((raw, index) => normalizeTechnicalField(raw, index, true))
+    .filter(item => item && !seen.has(item.key) && seen.add(item.key));
 }

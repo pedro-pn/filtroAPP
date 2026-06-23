@@ -319,7 +319,7 @@ interface ServiceFieldsProps {
   manometers: Manometer[];
   counters?: ParticleCounter[];
   equipments?: EquipmentOption[];
-  rdoSlotMap?: Record<string, string | null>;
+  rdoSlotMap?: Record<string, string[]>;
   inhibitionOptions?: InhibitionOptions;
   collaboratorOptions?: ServiceCollaboratorOption[];
   groupKey: string;
@@ -328,17 +328,18 @@ interface ServiceFieldsProps {
   hideFinalization?: boolean;
 }
 
-// Opções de um slot a partir do mapeamento configurável (categoryId). Retorna
-// null quando o bootstrap ainda não traz equipments/rdoSlotMap (fallback legado).
+// Opções de um slot a partir do mapeamento configurável (categoryIds). Une os
+// equipamentos de TODAS as categorias associadas numa lista só. Retorna null quando
+// o bootstrap ainda não traz equipments/rdoSlotMap (fallback legado).
 function slotOptionsFrom(
   equipments: EquipmentOption[] | undefined,
-  rdoSlotMap: Record<string, string | null> | undefined,
+  rdoSlotMap: Record<string, string[]> | undefined,
   slotKey: string
 ): EquipmentOption[] | null {
   if (!equipments || !rdoSlotMap || !(slotKey in rdoSlotMap)) return null;
-  const categoryId = rdoSlotMap[slotKey];
-  if (!categoryId) return [];
-  return equipments.filter(item => item.categoryId === categoryId && item.isActive !== false);
+  const categoryIds = rdoSlotMap[slotKey];
+  if (!categoryIds || categoryIds.length === 0) return [];
+  return equipments.filter(item => Boolean(item.categoryId && categoryIds.includes(item.categoryId)) && item.isActive !== false);
 }
 
 function updateArrayItem<T>(items: T[], index: number, next: T) {

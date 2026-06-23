@@ -4,12 +4,14 @@ import {
   addNotificationRecipient,
   createEquipamento,
   createEquipmentCategory,
+  generateTechnicalDoc,
   getNotificationConfig,
   listEquipamentos,
   listEquipmentCategories,
   listNotificationAccounts,
   listNotificationRecipients,
   listRdoSlots,
+  listUnitsCatalog,
   removeEquipamento,
   removeEquipmentCategory,
   removeNotificationRecipient,
@@ -58,6 +60,15 @@ export function useRdoSlots(enabled = true) {
   });
 }
 
+export function useUnitsCatalog(enabled = true) {
+  return useQuery({
+    queryKey: ['equipamentos', 'units-catalog'],
+    queryFn: listUnitsCatalog,
+    enabled,
+    staleTime: Infinity // catálogo estático
+  });
+}
+
 export function useEquipmentCategories() {
   return useQuery({
     queryKey: queryKeys.equipamentoCategories,
@@ -79,6 +90,9 @@ export function useEquipamentoMutations() {
     return Promise.all([
       queryClient.invalidateQueries({ queryKey: ['equipamentos'] }),
       queryClient.invalidateQueries({ queryKey: ['bootstrap'] }),
+      // O catálogo do romaneio é alimentado pelos equipamentos sincronizados:
+      // ao criar/editar/remover um equipamento, a lista do romaneio deve refletir.
+      queryClient.invalidateQueries({ queryKey: ['romaneio-catalog'] }),
       queryClient.invalidateQueries({ queryKey: queryKeys.units }),
       queryClient.invalidateQueries({ queryKey: queryKeys.manometers }),
       queryClient.invalidateQueries({ queryKey: queryKeys.counters })
@@ -110,14 +124,18 @@ export function useEquipamentoMutations() {
     mutationFn: (id: string) => removeEquipamento(id),
     onSuccess: invalidateAll
   });
+  const generateDatasheet = useMutation({
+    mutationFn: (id: string) => generateTechnicalDoc(id),
+    onSuccess: invalidateAll
+  });
 
   const updateSlot = useMutation({
-    mutationFn: ({ slotKey, categoryId }: { slotKey: string; categoryId: string | null }) => updateRdoSlot(slotKey, categoryId),
+    mutationFn: ({ slotKey, categoryIds }: { slotKey: string; categoryIds: string[] }) => updateRdoSlot(slotKey, categoryIds),
     onSuccess: () => Promise.all([
       queryClient.invalidateQueries({ queryKey: ['equipamentos', 'rdo-slots'] }),
       queryClient.invalidateQueries({ queryKey: ['bootstrap'] })
     ])
   });
 
-  return { createCategory, updateCategory, removeCategory, createEquipment, updateEquipment, removeEquipment, updateSlot };
+  return { createCategory, updateCategory, removeCategory, createEquipment, updateEquipment, removeEquipment, generateDatasheet, updateSlot };
 }

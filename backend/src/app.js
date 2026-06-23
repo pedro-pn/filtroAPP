@@ -127,7 +127,12 @@ app.use((err, _req, res, _next) => {
 
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === 'P2002') {
-      return res.status(409).json({ error: 'Registro duplicado para um campo único.' });
+      const target = Array.isArray(err.meta?.target) ? err.meta.target.join(', ') : err.meta?.target;
+      return res.status(409).json({
+        error: target
+          ? `Registro duplicado para um campo único (${target}).`
+          : 'Registro duplicado para um campo único.'
+      });
     }
 
     if (err.code === 'P2003') {
