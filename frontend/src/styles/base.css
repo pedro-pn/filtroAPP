@@ -8738,6 +8738,15 @@ select {
   border-style: dashed;
 }
 
+.tech-build-row.dragging {
+  opacity: 0.55;
+}
+
+.tech-build-row.drag-over {
+  border-color: var(--g);
+  box-shadow: inset 0 0 0 1px var(--g);
+}
+
 .tech-build-main,
 .tech-build-extra,
 .tech-build-group-opts {
@@ -8753,6 +8762,32 @@ select {
 
 .tech-build-main > input[type='text'] {
   flex: 1 1 200px;
+}
+
+.tech-drag-handle {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: #f7f8f7;
+  color: var(--mu);
+  cursor: grab;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.tech-drag-handle:active {
+  cursor: grabbing;
+}
+
+.tech-drag-handle:focus-visible {
+  outline: 2px solid var(--g);
+  outline-offset: 1px;
 }
 
 /* Botão de remover campo — ícone discreto fixado no canto direito da linha */
