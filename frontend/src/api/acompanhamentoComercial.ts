@@ -17,6 +17,9 @@ export interface CommercialRevision {
 export interface ProjectRevisions {
   proposalCode: string | null;
   currentCodBd: number | null;
+  resolved?: boolean;
+  approvedAt?: string | null;
+  mobilizationLeadDays?: number | null;
   revisions: CommercialRevision[];
 }
 
@@ -43,6 +46,14 @@ export async function setProjectRevision(projectId: string, codBd: number) {
   const { data } = await apiClient.post(
     `/acompanhamento/comercial/projetos/${projectId}/revisao`,
     { codBd }
+  );
+  return data;
+}
+
+export async function setBudgetApprovalDate(projectId: string, approvedAt: string | null) {
+  const { data } = await apiClient.patch(
+    `/acompanhamento/comercial/projetos/${projectId}/aprovacao`,
+    { approvedAt }
   );
   return data;
 }

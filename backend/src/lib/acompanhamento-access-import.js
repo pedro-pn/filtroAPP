@@ -93,6 +93,7 @@ export function mapProposalRow(row) {
     taxes: toNumber(row.valor_imp),
     plannedDays: toInt(row.n_dias),
     workedDays: toInt(row.n_dias_trabalhados),
+    mobilizationLeadDays: toInt(row.prev_atende),
     numOperators: toInt(row.n_operadores),
     numSupervisors: toInt(row.n_encarregado),
     numPerDay: toInt(row.n_p_dia),
@@ -149,17 +150,19 @@ function budgetFieldsFromProposal(proposal) {
     expectedMargin: proposal.expectedMargin ?? null,
     taxes: proposal.taxes ?? null,
     plannedDays: proposal.plannedDays ?? null,
+    mobilizationLeadDays: proposal.mobilizationLeadDays ?? null,
     isComplete: proposal.isComplete ?? false
   };
 }
 
 // Cria/atualiza o orçamento previsto (versão única "1") com os dados da revisão informada.
+// approvedAt é definido no ato da 1ª seleção (editável depois) e preservado ao trocar de revisão.
 // selectionStatus permanece como está (marcação manual da vencedora — P-19).
 async function upsertBudget(client, projectId, proposal) {
   const fields = budgetFieldsFromProposal(proposal);
   return client.projectBudget.upsert({
     where: { projectId_version: { projectId, version: 1 } },
-    create: { projectId, version: 1, source: 'ACCESS_IMPORT', ...fields },
+    create: { projectId, version: 1, source: 'ACCESS_IMPORT', approvedAt: new Date(), ...fields },
     update: fields
   });
 }
@@ -187,15 +190,30 @@ export async function listProjectRevisions(projectId) {
     }),
     prisma.projectBudget.findUnique({
       where: { projectId_version: { projectId, version: 1 } },
-      select: { sourceProposalCodBd: true }
+      select: { sourceProposalCodBd: true, approvedAt: true, mobilizationLeadDays: true }
     })
   ]);
   return {
     proposalCode: String(codProp),
     currentCodBd: budget?.sourceProposalCodBd ?? null,
     resolved: Boolean(project.commercialProposalCode),
+    approvedAt: budget?.approvedAt ?? null,
+    mobilizationLeadDays: budget?.mobilizationLeadDays ?? null,
     revisions
   };
+}
+
+// Edita a data de aprovação do contrato (base do prazo de mobilização). null limpa o campo.
+export async function setBudgetApprovalDate(projectId, approvedAt) {
+  const budget = await prisma.projectBudget.findUnique({
+    where: { projectId_version: { projectId, version: 1 } },
+    select: { id: true }
+  });
+  if (!budget) throw new Error('Orçamento não encontrado para o projeto. Escolha uma revisão primeiro.');
+  return prisma.projectBudget.update({
+    where: { projectId_version: { projectId, version: 1 } },
+    data: { approvedAt: approvedAt ? new Date(approvedAt) : null }
+  });
 }
 
 // Define qual revisão (codBd) é a que vale: recalcula o orçamento e marca o projeto como resolvido.

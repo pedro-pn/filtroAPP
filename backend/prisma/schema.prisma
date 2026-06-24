@@ -1185,8 +1185,9 @@ model CommercialProposal {
   expectedProfit     Decimal?         @db.Decimal(14, 2) // valor_lucro
   expectedMargin     Decimal?         @db.Decimal(6, 2)  // margem_inloco | margem_pop_sede (%)
   taxes              Decimal?         @db.Decimal(14, 2) // valor_imp
-  plannedDays        Int?                     // n_dias
+  plannedDays        Int?                     // n_dias (corridos)
   workedDays         Int?                     // n_dias_trabalhados
+  mobilizationLeadDays Int?                   // prev_atende (dias p/ iniciar mobilização após aprovação)
   numOperators       Int?                     // n_operadores
   numSupervisors     Int?                     // n_encarregado
   numPerDay          Int?                     // n_p_dia
@@ -1242,6 +1243,8 @@ model ProjectBudget {
   selectedByUserId    String?
   selectedBy          User?                 @relation("ProjectBudgetSelectedBy", fields: [selectedByUserId], references: [id], onDelete: SetNull)
   selectedAt          DateTime?
+  approvedAt          DateTime?             // data de aprovação do contrato (default = momento da seleção; editável)
+  mobilizationLeadDays Int?                 // prev_atende: dias após aprovação p/ iniciar mobilização
   isComplete          Boolean               @default(false)
   source              String                @default("ACCESS_IMPORT")
   createdAt           DateTime              @default(now())

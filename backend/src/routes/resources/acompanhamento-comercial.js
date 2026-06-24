@@ -19,6 +19,7 @@ import {
   importCommercialAccess,
   listCommercialPendencias,
   listProjectRevisions,
+  setBudgetApprovalDate,
   setProjectBudgetRevision
 } from '../../lib/acompanhamento-access-import.js';
 import prisma from '../../lib/prisma.js';
@@ -128,6 +129,23 @@ router.post(
     const { codBd } = revisionSchema.parse(req.body);
     try {
       const budget = await setProjectBudgetRevision(req.params.projectId, codBd);
+      res.json(budget);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  })
+);
+
+const approvalSchema = z.object({ approvedAt: z.string().datetime().nullable() });
+
+router.patch(
+  '/projetos/:projectId/aprovacao',
+  requireAuth,
+  requireHubAdmin,
+  asyncHandler(async (req, res) => {
+    const { approvedAt } = approvalSchema.parse(req.body);
+    try {
+      const budget = await setBudgetApprovalDate(req.params.projectId, approvedAt);
       res.json(budget);
     } catch (error) {
       res.status(400).json({ error: error.message });
