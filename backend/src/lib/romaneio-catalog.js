@@ -239,6 +239,10 @@ async function upsertCatalogRow(tx, row) {
       };
       if (existingSource.sourceType === 'FILE') {
         delete data.categoryName;
+        delete data.kind;
+        delete data.measureType;
+        delete data.defaultUnitLabel;
+        delete data.isSerialized;
       }
       if (RDO_OWNED_CATALOG_SOURCES.has(existingSource.sourceType)) {
         data.isActive = row.isActive !== false;
@@ -282,6 +286,10 @@ function dataForExistingCatalogRow(existing, row) {
 
   if (existing.sourceType === 'FILE') {
     delete data.categoryName;
+    delete data.kind;
+    delete data.measureType;
+    delete data.defaultUnitLabel;
+    delete data.isSerialized;
   }
 
   if (RDO_OWNED_CATALOG_SOURCES.has(existing.sourceType)) {

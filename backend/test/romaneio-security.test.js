@@ -1393,6 +1393,59 @@ test('Romaneio catalog row sync batches reads and creates only missing rows', as
   assert.deepEqual(createManyCalls[0].data.map(item => item.sourceId), ['equipamentos:2']);
 });
 
+test('Romaneio catalog sync preserves local measure config for file rows', async () => {
+  const updates = [];
+  const createManyCalls = [];
+  const tx = {
+    romaneioCatalogItem: {
+      findMany: async args => {
+        if (args.where?.sourceType) {
+          return [{
+            id: 'catalog-file-1',
+            sourceType: 'FILE',
+            sourceId: 'equipamentos:1',
+            code: 'MG-01',
+            name: 'Mangueira',
+            categoryName: 'Mangueiras ajustadas',
+            kind: 'CONNECTION',
+            measureType: 'LENGTH',
+            defaultUnitLabel: 'm',
+            isSerialized: false,
+            isActive: true,
+            hiddenInRomaneioAt: null
+          }];
+        }
+        return [];
+      },
+      update: async args => {
+        updates.push(args);
+        return args;
+      },
+      createMany: async args => {
+        createManyCalls.push(args);
+        return { count: args.data.length };
+      }
+    }
+  };
+
+  const stats = await syncCatalogRows(tx, [{
+    sourceType: 'FILE',
+    sourceId: 'equipamentos:1',
+    code: 'MG-01',
+    name: 'Mangueira',
+    categoryName: 'Mangueiras do arquivo',
+    kind: 'EQUIPMENT',
+    measureType: 'UNIT',
+    defaultUnitLabel: 'unidade',
+    isSerialized: true,
+    isActive: true
+  }]);
+
+  assert.equal(stats.updated, 0);
+  assert.deepEqual(updates, []);
+  assert.deepEqual(createManyCalls, []);
+});
+
 test('Romaneio catalog sync skips catalog writes when persistent source hash is unchanged', async t => {
   const originalTransaction = prisma.$transaction;
   let storedHash = null;
