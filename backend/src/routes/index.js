@@ -10,6 +10,7 @@ import episRouter from './resources/epis.js';
 import equipamentosRouter from './resources/equipamentos.js';
 import equipmentRouter from './resources/equipment.js';
 import inhibitionOptionsRouter from './resources/inhibition-options.js';
+import jobRolesRouter from './resources/job-roles.js';
 import manometersRouter from './resources/manometers.js';
 import projectSegmentsRouter from './resources/project-segments.js';
 import privacyRouter from './resources/privacy.js';
@@ -27,6 +28,7 @@ const router = Router();
 function mountRdoRoutes(targetRouter) {
   targetRouter.use('/bootstrap', bootstrapRouter);
   targetRouter.use('/collaborators', collaboratorsRouter);
+  targetRouter.use('/job-roles', jobRolesRouter);
   targetRouter.use('/projects', projectsRouter);
   targetRouter.use('/project-segments', projectSegmentsRouter);
   targetRouter.use('/reports', reportsRouter);

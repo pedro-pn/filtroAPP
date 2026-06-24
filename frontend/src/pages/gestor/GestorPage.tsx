@@ -29,6 +29,7 @@ import { useToast } from '../../components/ui/Toast';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { ProjectRevisionPicker } from '../../components/projects/ProjectRevisionPicker';
 import { getCommercialPendencias } from '../../api/acompanhamentoComercial';
+import { listJobRoles } from '../../api/jobRoles';
 import { useGestorBootstrap } from '../../hooks/useBootstrap';
 import { useCollaboratorMutations } from '../../hooks/useCollaborators';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
@@ -1349,6 +1350,18 @@ export function GestorPage() {
     }
     return map;
   }, [commercialPendenciasQuery.data]);
+  const jobRolesQuery = useQuery({ queryKey: ['job-roles'], queryFn: listJobRoles });
+  const jobRoleNames = useMemo(() => (jobRolesQuery.data || []).map(role => role.name), [jobRolesQuery.data]);
+  const renderRoleOptions = (value: string) => {
+    const showCurrent = Boolean(value) && !jobRoleNames.includes(value);
+    return (
+      <>
+        <option value="" disabled>Selecione o cargo</option>
+        {showCurrent ? <option value={value}>{value} (atual)</option> : null}
+        {jobRoleNames.map(name => <option key={name} value={name}>{name}</option>)}
+      </>
+    );
+  };
   const archivedProjectsQuery = { data: gestorBootstrapQuery.data?.archivedProjects, isLoading: gestorBootstrapQuery.isLoading };
   const collaboratorsQuery = { data: gestorBootstrapQuery.data?.collaborators, isLoading: gestorBootstrapQuery.isLoading };
   const internalUsersQuery = useUsers('internal');
@@ -3496,13 +3509,14 @@ export function GestorPage() {
 	              </div>
 	              <div className="field-group">
 	                <label htmlFor="collaborator-role">Cargo</label>
-	                <input
+	                <select
 	                  id="collaborator-role"
 	                  value={collaboratorForm.role}
-	                  autoComplete="off"
 	                  onChange={event => setCollaboratorForm(current => ({ ...current, role: event.target.value }))}
 	                  required
-	                />
+	                >
+	                  {renderRoleOptions(collaboratorForm.role)}
+	                </select>
 	              </div>
 	              <div className="field-group">
 	                <label htmlFor="collaborator-email">E-mail</label>
@@ -3595,13 +3609,14 @@ export function GestorPage() {
 	                        </div>
 	                        <div className="field-group">
 	                          <label htmlFor={`collaborator-role-${collaborator.id}`}>Cargo</label>
-	                          <input
+	                          <select
 	                            id={`collaborator-role-${collaborator.id}`}
 	                            value={collaboratorForm.role}
-	                            autoComplete="off"
 	                            onChange={event => setCollaboratorForm(current => ({ ...current, role: event.target.value }))}
 	                            required
-	                          />
+	                          >
+	                            {renderRoleOptions(collaboratorForm.role)}
+	                          </select>
 	                        </div>
 	                        <div className="field-group">
 	                          <label htmlFor={`collaborator-email-${collaborator.id}`}>E-mail</label>

@@ -218,6 +218,18 @@ model ClientSegment {
   updatedAt DateTime @updatedAt
 }
 
+// Lista gerenciável de cargos (substitui o texto livre em Collaborator.role).
+model JobRole {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, order])
+}
+
 model Project {
   id                    String            @id @default(cuid())
   code                  String            @unique
