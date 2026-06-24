@@ -21,6 +21,12 @@ const ROMANEIO_DRAFT_MODULE = 'romaneio';
 const ROMANEIO_EMAIL_PENDING_STATUS = 'pendente';
 const requireRomaneioAccess = requireModuleRole('romaneio:manager', 'romaneio:operator');
 const cargoWeightUnits = ['kg', 'ton'];
+export const ROMANEIO_TYPES = ['OUTBOUND', 'INBOUND'];
+const ROMANEIO_TYPE_LABELS = {
+  OUTBOUND: 'Saída',
+  INBOUND: 'Entrada'
+};
+const ROMANEIO_QUANTITY_EPSILON = 0.0005;
 
 export function requireRomaneioManager(req, res, next) {
   if (hasModuleRole(req.auth?.user, 'romaneio:manager')) {
@@ -67,6 +73,7 @@ const itemSchema = z.object({
 const createRomaneioSchema = z.object({
   projectId: z.string().trim().optional().nullable(),
   projectCode: projectCodeSchema,
+  type: z.enum(ROMANEIO_TYPES).default('OUTBOUND'),
   romaneioDate: z.string().min(1),
   driverName: z.string().trim().min(1),
   vehiclePlate: z.string().trim().min(1),
@@ -114,6 +121,20 @@ const draftSchema = z.object({
   payload: z.any()
 });
 
+const returnItemsQuerySchema = z.object({
+  projectId: z.string().trim().optional().nullable(),
+  projectCode: projectCodeSchema,
+  excludeRomaneioId: z.string().trim().optional().nullable()
+}).superRefine((data, ctx) => {
+  if (!data.projectId && !data.projectCode) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['projectId'],
+      message: 'Informe o projeto ou o código do projeto.'
+    });
+  }
+});
+
 const RDO_OWNED_CATALOG_SOURCES = new Set(['UNIT', 'PARTICLE_COUNTER', 'EQUIPAMENTOS']);
 const romaneioProjectSelect = {
   id: true,
@@ -142,10 +163,70 @@ export function romaneioProjectWhereForUser(user, projectWhere = {}) {
   return where;
 }
 
-async function assertRomaneioProjectAccess(projectId, authUser, client = prisma) {
+function baseRomaneioProjectWhereForUser(user, projectWhere = {}) {
+  const where = {
+    ...projectWhere,
+    deletedAt: null
+  };
+  if (user && user.role !== 'MANAGER') {
+    where.managerOnly = false;
+  }
+  return where;
+}
+
+function archivedWithoutInboundRomaneioWhere(excludeRomaneioId = null) {
+  return {
+    isActive: false,
+    romaneios: {
+      none: {
+        type: 'INBOUND',
+        ...(excludeRomaneioId ? { id: { not: excludeRomaneioId } } : {})
+      }
+    }
+  };
+}
+
+function romaneioProjectLookupWhereForUser(user, projectWhere = {}, {
+  allowArchivedWithoutInbound = false,
+  excludeInboundRomaneioId = null
+} = {}) {
+  if (!allowArchivedWithoutInbound) return romaneioProjectWhereForUser(user, projectWhere);
+  return {
+    ...baseRomaneioProjectWhereForUser(user, projectWhere),
+    OR: [
+      { isActive: true },
+      archivedWithoutInboundRomaneioWhere(excludeInboundRomaneioId)
+    ]
+  };
+}
+
+function romaneioProjectListWhereForUser(user, activeParam) {
+  const where = baseRomaneioProjectWhereForUser(user);
+  if (activeParam === 'true') {
+    where.OR = [
+      { isActive: true },
+      archivedWithoutInboundRomaneioWhere()
+    ];
+    return where;
+  }
+  if (activeParam === 'false' && user?.role === 'MANAGER') {
+    where.isActive = false;
+    return where;
+  }
+  if (activeParam === 'false' && user?.role !== 'MANAGER') {
+    where.id = '__NO_MATCH__';
+    return where;
+  }
+  if (user && user.role !== 'MANAGER') {
+    where.isActive = true;
+  }
+  return where;
+}
+
+async function assertRomaneioProjectAccess(projectId, authUser, client = prisma, options = {}) {
   if (!projectId) return null;
   return client.project.findFirst({
-    where: romaneioProjectWhereForUser(authUser, { id: projectId }),
+    where: romaneioProjectLookupWhereForUser(authUser, { id: projectId }, options),
     select: { id: true }
   });
 }
@@ -189,7 +270,7 @@ export async function resolveRomaneioProjectReference(payload, authUser, client 
   if (!projectWhere) return null;
 
   const project = await client.project.findFirst({
-    where: romaneioProjectWhereForUser(authUser, projectWhere),
+    where: romaneioProjectLookupWhereForUser(authUser, projectWhere, options),
     select: { id: true }
   });
   if (project || projectId || !projectCode || !options.createPending) return project;
@@ -208,7 +289,7 @@ export async function resolveRomaneioProjectReference(payload, authUser, client 
   } catch (error) {
     if (error?.code !== 'P2002') throw error;
     return client.project.findFirst({
-      where: romaneioProjectWhereForUser(authUser, { code: { equals: projectCode, mode: 'insensitive' } }),
+      where: romaneioProjectLookupWhereForUser(authUser, { code: { equals: projectCode, mode: 'insensitive' } }, options),
       select: { id: true }
     });
   }
@@ -251,6 +332,152 @@ function romaneioCargoWeightData(payload) {
     cargoWeight: weight,
     cargoWeightUnit: weight == null ? null : payload.cargoWeightUnit
   };
+}
+
+export function romaneioTypeLabel(type) {
+  return ROMANEIO_TYPE_LABELS[type] || ROMANEIO_TYPE_LABELS.OUTBOUND;
+}
+
+function normalizeReturnKeyPart(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+export function romaneioItemReturnKey(item) {
+  if (item.catalogItemId) return `catalog:${item.catalogItemId}`;
+  return [
+    'snapshot',
+    normalizeReturnKeyPart(item.itemCode),
+    normalizeReturnKeyPart(item.itemName),
+    normalizeReturnKeyPart(item.categoryName),
+    item.kind || 'EQUIPMENT',
+    item.measureType || 'UNIT',
+    normalizeReturnKeyPart(item.unitLabel)
+  ].join('|');
+}
+
+function numericQuantity(value) {
+  const quantity = Number(value);
+  return Number.isFinite(quantity) ? quantity : 0;
+}
+
+function itemSnapshot(item, key, sortOrder) {
+  return {
+    key,
+    catalogItemId: item.catalogItemId || null,
+    itemCode: item.itemCode || null,
+    itemName: item.itemName,
+    categoryName: item.categoryName,
+    kind: item.kind || 'EQUIPMENT',
+    measureType: item.measureType || 'UNIT',
+    quantity: 0,
+    maxQuantity: 0,
+    unitLabel: item.unitLabel,
+    isCustom: Boolean(item.isCustom),
+    sortOrder
+  };
+}
+
+export function aggregateReturnableRomaneioItems(romaneios, { excludeRomaneioId = null } = {}) {
+  const byKey = new Map();
+  let sortOrder = 0;
+
+  (romaneios || []).forEach(romaneio => {
+    if (excludeRomaneioId && romaneio.id === excludeRomaneioId) return;
+    const multiplier = (romaneio.type || 'OUTBOUND') === 'INBOUND' ? -1 : 1;
+    (romaneio.items || []).forEach(item => {
+      const quantity = numericQuantity(item.quantity);
+      if (quantity <= 0) return;
+      const key = romaneioItemReturnKey(item);
+      const existing = byKey.get(key);
+      const entry = existing || itemSnapshot(item, key, sortOrder++);
+      if (!existing || multiplier > 0) {
+        Object.assign(entry, {
+          catalogItemId: item.catalogItemId || null,
+          itemCode: item.itemCode || null,
+          itemName: item.itemName,
+          categoryName: item.categoryName,
+          kind: item.kind || 'EQUIPMENT',
+          measureType: item.measureType || 'UNIT',
+          unitLabel: item.unitLabel,
+          isCustom: Boolean(item.isCustom)
+        });
+      }
+      entry.maxQuantity += multiplier * quantity;
+      entry.quantity = entry.maxQuantity;
+      byKey.set(key, entry);
+    });
+  });
+
+  return Array.from(byKey.values())
+    .filter(item => item.maxQuantity > ROMANEIO_QUANTITY_EPSILON)
+    .map(item => ({
+      ...item,
+      quantity: Number(item.quantity.toFixed(3)),
+      maxQuantity: Number(item.maxQuantity.toFixed(3))
+    }))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+export function buildInboundRomaneioItems(inputItems, availableItems) {
+  const availableByKey = new Map((availableItems || []).map(item => [romaneioItemReturnKey(item), item]));
+  const requestedByKey = new Map();
+
+  (inputItems || []).forEach(input => {
+    const key = romaneioItemReturnKey(input);
+    const available = availableByKey.get(key);
+    if (!available) {
+      const error = new Error('Item de entrada não consta nas saídas disponíveis para esta missão.');
+      error.statusCode = 400;
+      throw error;
+    }
+    const quantity = numericQuantity(input.quantity);
+    const current = requestedByKey.get(key);
+    if (current) {
+      current.quantity += quantity;
+      return;
+    }
+    requestedByKey.set(key, { available, quantity });
+  });
+
+  return Array.from(requestedByKey.values()).map(({ available, quantity }, index) => {
+    if (quantity <= 0) {
+      const error = new Error('Quantidade de entrada inválida.');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (quantity - numericQuantity(available.maxQuantity) > ROMANEIO_QUANTITY_EPSILON) {
+      const error = new Error('Quantidade de entrada maior que a quantidade disponível na saída.');
+      error.statusCode = 400;
+      throw error;
+    }
+    return {
+      catalogItemId: available.catalogItemId || null,
+      itemName: available.itemName,
+      itemCode: available.itemCode || null,
+      categoryName: available.categoryName,
+      kind: available.kind,
+      measureType: available.measureType,
+      quantity: Number(quantity.toFixed(3)),
+      unitLabel: available.unitLabel,
+      isCustom: available.isCustom,
+      sortOrder: index
+    };
+  });
+}
+
+export async function getReturnableRomaneioItemsForProject(projectId, authUser, { excludeRomaneioId = null } = {}) {
+  const romaneios = await prisma.romaneio.findMany({
+    where: {
+      projectId,
+      project: romaneioProjectLookupWhereForUser(authUser, {}, {
+        allowArchivedWithoutInbound: true,
+        excludeInboundRomaneioId: excludeRomaneioId
+      })
+    },
+    ...selectedFields(),
+    orderBy: [{ romaneioDate: 'asc' }, { createdAt: 'asc' }]
+  });
+  return aggregateReturnableRomaneioItems(romaneios, { excludeRomaneioId });
 }
 
 function storagePathFromPublicUrl(publicUrl) {
@@ -420,6 +647,7 @@ async function notifyRecipients(romaneio, pdfPath) {
     categoryMap.set(categoryName, (categoryMap.get(categoryName) || 0) + 1);
   });
   const template = buildRomaneioCreatedEmailTemplate({
+    romaneioType: romaneioTypeLabel(romaneio.type),
     projectCode: romaneio.project?.code || '',
     projectName: romaneio.project?.name || '',
     clientName: romaneio.project?.clientName || '',
@@ -470,10 +698,7 @@ export function shouldCleanupFailedRomaneioCreate({ completed = false, filesPers
 
 router.get('/projects', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const activeParam = req.query.active;
-  const where = romaneioProjectWhereForUser(req.auth.user);
-  if (activeParam === 'true') where.isActive = true;
-  if (activeParam === 'false' && req.auth.user.role === 'MANAGER') where.isActive = false;
-  if (activeParam === 'false' && req.auth.user.role !== 'MANAGER') where.id = '__NO_MATCH__';
+  const where = romaneioProjectListWhereForUser(req.auth.user, activeParam);
   const items = await prisma.project.findMany({
     where,
     select: {
@@ -507,7 +732,9 @@ router.post('/drafts', requireAuth, requireRomaneioAccess, asyncHandler(async (r
   const data = draftSchema.parse(req.body);
   const payload = normalizeDraftPayload(data);
   if (data.projectId) {
-    const project = await assertRomaneioProjectAccess(data.projectId, req.auth.user);
+    const project = await assertRomaneioProjectAccess(data.projectId, req.auth.user, prisma, {
+      allowArchivedWithoutInbound: data.payload?.romaneioType === 'INBOUND'
+    });
     if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
   }
   if (data.projectId && data.reportDate) {
@@ -544,7 +771,9 @@ router.put('/drafts/:id', requireAuth, requireRomaneioAccess, asyncHandler(async
   }
   const payload = normalizeDraftPayload(data);
   if (data.projectId) {
-    const project = await assertRomaneioProjectAccess(data.projectId, req.auth.user);
+    const project = await assertRomaneioProjectAccess(data.projectId, req.auth.user, prisma, {
+      allowArchivedWithoutInbound: data.payload?.romaneioType === 'INBOUND'
+    });
     if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
   }
   if (data.projectId && data.reportDate) {
@@ -702,6 +931,22 @@ router.delete('/notifications/:id', requireAuth, requireRomaneioAccess, requireR
   res.status(204).send();
 }));
 
+router.get('/return-items', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
+  const query = returnItemsQuerySchema.parse(req.query);
+  const project = await resolveRomaneioProjectReference(query, req.auth.user, prisma, {
+    createPending: false,
+    allowArchivedWithoutInbound: true,
+    excludeInboundRomaneioId: query.excludeRomaneioId || null
+  });
+  if (!project) {
+    return res.json({ projectId: null, items: [] });
+  }
+  const items = await getReturnableRomaneioItemsForProject(project.id, req.auth.user, {
+    excludeRomaneioId: query.excludeRomaneioId || null
+  });
+  return res.json({ projectId: project.id, items });
+}));
+
 router.get('/:id/pdf', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   const item = await prisma.romaneio.findFirstOrThrow({
     where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
@@ -759,14 +1004,28 @@ router.get('/:id', requireAuth, requireRomaneioAccess, asyncHandler(async (req, 
 router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {
   await ensureRomaneioCatalogSynced();
   const payload = createRomaneioSchema.parse(req.body);
-  const itemData = await buildRomaneioItems(payload.items);
+
+  const project = await resolveRomaneioProjectReference(payload, req.auth.user, prisma, {
+    createPending: payload.type !== 'INBOUND',
+    allowArchivedWithoutInbound: payload.type === 'INBOUND'
+  });
+  if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
+  const resolvedProjectId = project.id;
+
+  const availableReturnItems = payload.type === 'INBOUND'
+    ? await getReturnableRomaneioItemsForProject(resolvedProjectId, req.auth.user)
+    : [];
+  const itemData = payload.type === 'INBOUND'
+    ? buildInboundRomaneioItems(
+        await buildRomaneioItems(payload.items, {
+          allowedInactiveCatalogItemIds: availableReturnItems.map(item => item.catalogItemId).filter(Boolean)
+        }),
+        availableReturnItems
+      )
+    : await buildRomaneioItems(payload.items);
   if (itemData.some(item => !item.itemName || !item.categoryName)) {
     return res.status(400).json({ error: 'Todos os itens precisam de nome e categoria.' });
   }
-
-  const project = await resolveRomaneioProjectReference(payload, req.auth.user, prisma, { createPending: true });
-  if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
-  const resolvedProjectId = project.id;
 
   let created = null;
   let files = null;
@@ -777,6 +1036,7 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
       data: {
         projectId: resolvedProjectId,
         createdByUserId: req.auth.user.id,
+        type: payload.type,
         romaneioDate: parseDateOnly(payload.romaneioDate),
         driverName: payload.driverName,
         vehiclePlate: payload.vehiclePlate.toUpperCase(),
@@ -832,16 +1092,33 @@ router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, as
     where: visibleRomaneioWhere({ id: req.params.id }, req.auth.user),
     ...selectedFields()
   });
-  const itemData = await buildRomaneioItems(payload.items, {
-    allowedInactiveCatalogItemIds: existing.items.map(item => item.catalogItemId).filter(Boolean)
+
+  const project = await resolveRomaneioProjectReference(payload, req.auth.user, prisma, {
+    createPending: payload.type !== 'INBOUND',
+    allowArchivedWithoutInbound: payload.type === 'INBOUND',
+    excludeInboundRomaneioId: existing.id
   });
+  if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
+  const resolvedProjectId = project.id;
+
+  const availableReturnItems = payload.type === 'INBOUND'
+    ? await getReturnableRomaneioItemsForProject(resolvedProjectId, req.auth.user, {
+        excludeRomaneioId: existing.id
+      })
+    : [];
+  const allowedInactiveCatalogItemIds = [
+    ...existing.items.map(item => item.catalogItemId).filter(Boolean),
+    ...availableReturnItems.map(item => item.catalogItemId).filter(Boolean)
+  ];
+  const itemData = payload.type === 'INBOUND'
+    ? buildInboundRomaneioItems(
+        await buildRomaneioItems(payload.items, { allowedInactiveCatalogItemIds }),
+        availableReturnItems
+      )
+    : await buildRomaneioItems(payload.items, { allowedInactiveCatalogItemIds });
   if (itemData.some(item => !item.itemName || !item.categoryName)) {
     return res.status(400).json({ error: 'Todos os itens precisam de nome e categoria.' });
   }
-
-  const project = await resolveRomaneioProjectReference(payload, req.auth.user, prisma, { createPending: true });
-  if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
-  const resolvedProjectId = project.id;
 
   const preview = {
     ...existing,
@@ -849,6 +1126,7 @@ router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, as
     project: resolvedProjectId === existing.projectId
       ? existing.project
       : await prisma.project.findUniqueOrThrow({ where: { id: resolvedProjectId }, select: romaneioDocumentProjectSelect }),
+    type: payload.type,
     romaneioDate: parseDateOnly(payload.romaneioDate),
     driverName: payload.driverName,
     vehiclePlate: payload.vehiclePlate.toUpperCase(),
@@ -865,6 +1143,7 @@ router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, as
         where: { id: existing.id },
         data: {
           projectId: resolvedProjectId,
+          type: payload.type,
           romaneioDate: preview.romaneioDate,
           driverName: payload.driverName,
           vehiclePlate: payload.vehiclePlate.toUpperCase(),

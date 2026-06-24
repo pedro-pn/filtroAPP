@@ -65,6 +65,10 @@ function cargoWeightLabel(item: Romaneio) {
   return `${normalized} ${item.cargoWeightUnit || 'kg'}`;
 }
 
+function romaneioTypeLabel(type?: Romaneio['type']) {
+  return type === 'INBOUND' ? 'Entrada' : 'Saída';
+}
+
 function catalogEmpty(): RomaneioCatalogPayload {
   return {
     code: '',
@@ -434,7 +438,7 @@ export function RomaneioPage() {
                     <article className="report-card" key={item.id}>
                       <div className="report-card-head">
                         <div>
-                          <div className="report-title">{formatDate(item.romaneioDate)} · {item.vehiclePlate}</div>
+                          <div className="report-title">{romaneioTypeLabel(item.type)} · {formatDate(item.romaneioDate)} · {item.vehiclePlate}</div>
                           <div className="report-subtitle">
                             {[item.driverName, cargoWeightLabel(item) ? `Peso ${cargoWeightLabel(item)}` : '', `${item.items.length} item(ns)`].filter(Boolean).join(' · ')}
                           </div>

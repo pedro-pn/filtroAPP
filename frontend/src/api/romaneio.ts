@@ -3,7 +3,8 @@ import type { Project, ReportDraft } from '../types/domain';
 
 export type RomaneioItemKind = 'EQUIPMENT' | 'CONNECTION';
 export type RomaneioMeasureType = 'UNIT' | 'LENGTH' | 'WEIGHT';
-export type RomaneioCatalogSource = 'FILE' | 'MANUAL' | 'UNIT' | 'PARTICLE_COUNTER';
+export type RomaneioCatalogSource = 'FILE' | 'MANUAL' | 'UNIT' | 'PARTICLE_COUNTER' | 'EQUIPAMENTOS';
+export type RomaneioType = 'OUTBOUND' | 'INBOUND';
 
 export interface RomaneioCatalogItem {
   id: string;
@@ -36,10 +37,16 @@ export interface RomaneioItem {
   catalogItem?: RomaneioCatalogItem | null;
 }
 
+export interface RomaneioReturnItem extends Omit<RomaneioItem, 'id' | 'catalogItem'> {
+  key: string;
+  maxQuantity: string | number;
+}
+
 export interface Romaneio {
   id: string;
   projectId: string;
   createdByUserId?: string | null;
+  type: RomaneioType;
   romaneioDate: string;
   driverName: string;
   vehiclePlate: string;
@@ -68,6 +75,7 @@ export interface RomaneioRecipient {
 export interface RomaneioCreatePayload {
   projectId?: string | null;
   projectCode?: string | null;
+  type: RomaneioType;
   romaneioDate: string;
   driverName: string;
   vehiclePlate: string;
@@ -152,6 +160,13 @@ export async function removeRomaneioDraft(id: string) {
 
 export async function listRomaneioCatalog() {
   const { data } = await apiClient.get<RomaneioCatalogItem[]>(romaneioApiPath('/catalog'));
+  return data;
+}
+
+export async function listRomaneioReturnItems(filters: { projectId?: string | null; projectCode?: string | null; excludeRomaneioId?: string | null }) {
+  const { data } = await apiClient.get<{ projectId: string | null; items: RomaneioReturnItem[] }>(romaneioApiPath('/return-items'), {
+    params: filters
+  });
   return data;
 }
 

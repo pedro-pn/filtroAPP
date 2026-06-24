@@ -255,6 +255,7 @@ export function buildReportApprovedEmailTemplate({ projectCode, projectName, cli
 }
 
 export function buildRomaneioCreatedEmailTemplate({
+  romaneioType = 'Saída',
   projectCode,
   projectName,
   clientName,
@@ -265,12 +266,15 @@ export function buildRomaneioCreatedEmailTemplate({
   categorySummary,
   appUrl
 }) {
-  const title = 'Romaneio de equipamentos gerado';
-  const intro = `O romaneio do projeto ${projectCode} - ${projectName} foi criado no sistema Filtrovali e segue anexado em PDF.`;
+  const typeText = romaneioType || 'Saída';
+  const typeTextLower = typeText.toLowerCase();
+  const title = `Romaneio de ${typeTextLower} gerado`;
+  const intro = `O romaneio de ${typeTextLower} do projeto ${projectCode} - ${projectName} foi criado no sistema Filtrovali e segue anexado em PDF.`;
   const categories = Array.isArray(categorySummary) ? categorySummary : [];
   const body = `
     <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
       <div style="font-size:14px;line-height:1.8">
+        <div><strong>Tipo:</strong> ${typeText}</div>
         <div><strong>Cliente:</strong> ${clientName}</div>
         <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
         <div><strong>Data:</strong> ${romaneioDate}</div>
@@ -298,10 +302,11 @@ export function buildRomaneioCreatedEmailTemplate({
   const footer = 'Este envio foi gerado automaticamente pelo módulo de Romaneio da Filtrovali.';
 
   return {
-    subject: `[Filtrovali] Romaneio - ${projectCode} - ${projectName}`,
+    subject: `[Filtrovali] Romaneio de ${typeText} - ${projectCode} - ${projectName}`,
     text: [
-      `O romaneio do projeto ${projectCode} - ${projectName} foi criado e segue anexado em PDF.`,
+      `O romaneio de ${typeTextLower} do projeto ${projectCode} - ${projectName} foi criado e segue anexado em PDF.`,
       '',
+      `Tipo: ${typeText}`,
       `Cliente: ${clientName}`,
       `Projeto: ${projectCode} - ${projectName}`,
       `Data: ${romaneioDate}`,

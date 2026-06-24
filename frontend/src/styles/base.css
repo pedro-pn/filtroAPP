@@ -3030,6 +3030,35 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   background: var(--wh);
 }
 
+.romaneio-selected-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.romaneio-selected-actions input {
+  width: 96px;
+  min-width: 0;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  padding: 7px 8px;
+  background: var(--wh);
+}
+
+@media (max-width: 640px) {
+  .romaneio-selected-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .romaneio-selected-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
 .project-sort-button {
   flex: 0 0 auto;
   border-radius: 999px;
