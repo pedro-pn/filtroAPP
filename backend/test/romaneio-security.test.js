@@ -12,7 +12,9 @@ import { buildRomaneioDocx, buildRomaneioFileName } from '../src/lib/romaneio-do
 import { parseEquipmentRows, syncCatalogRows, syncRomaneioCatalog } from '../src/lib/romaneio-catalog.js';
 import prisma from '../src/lib/prisma.js';
 import {
+  aggregateReturnableRomaneioItems,
   buildRomaneioItems,
+  buildInboundRomaneioItems,
   cleanupFailedRomaneioCreate,
   requireRomaneioEditor,
   requireRomaneioManager,
@@ -20,6 +22,7 @@ import {
   resolveRomaneioProjectReference,
   romaneioProjectWhereForUser,
   romaneioEmailFailureResult,
+  romaneioTypeLabel,
   shouldCleanupFailedRomaneioCreate,
   visibleRomaneioWhere
 } from '../src/routes/resources/romaneios.js';
@@ -260,6 +263,105 @@ test('Romaneio generated file name uses project mission and date', () => {
   assert.equal(fileName.replace(/\.docx$/i, '.pdf'), 'Romaneio - Missão FG-K2-101-KW - Projeto Teste - 02-06-2026.pdf');
 });
 
+test('Romaneio inbound generated file name includes entry type', () => {
+  const fileName = buildRomaneioFileName({
+    type: 'INBOUND',
+    project: {
+      code: '5797',
+      name: 'Projeto Teste'
+    },
+    romaneioDate: new Date('2026-06-02T12:00:00.000-03:00')
+  });
+
+  assert.equal(fileName, 'Romaneio Entrada - Missão 5797 - Projeto Teste - 02-06-2026.docx');
+  assert.equal(romaneioTypeLabel('INBOUND'), 'Entrada');
+  assert.equal(romaneioTypeLabel('OUTBOUND'), 'Saída');
+});
+
+test('Romaneio inbound items are limited by outbound balance and preserve measure data', () => {
+  const returnable = aggregateReturnableRomaneioItems([{
+    id: 'saida-1',
+    type: 'OUTBOUND',
+    items: [{
+      catalogItemId: 'catalog-hose',
+      itemCode: 'MG-01',
+      itemName: 'Mangueira',
+      categoryName: 'Mangueiras',
+      kind: 'CONNECTION',
+      measureType: 'LENGTH',
+      quantity: 12,
+      unitLabel: 'm',
+      isCustom: false,
+      sortOrder: 0
+    }, {
+      catalogItemId: null,
+      itemCode: 'AREIA',
+      itemName: 'Areia',
+      categoryName: 'Consumíveis',
+      kind: 'EQUIPMENT',
+      measureType: 'WEIGHT',
+      quantity: 50,
+      unitLabel: 'kg',
+      isCustom: true,
+      sortOrder: 1
+    }]
+  }, {
+    id: 'entrada-1',
+    type: 'INBOUND',
+    items: [{
+      catalogItemId: 'catalog-hose',
+      itemCode: 'MG-01',
+      itemName: 'Mangueira',
+      categoryName: 'Mangueiras',
+      kind: 'CONNECTION',
+      measureType: 'LENGTH',
+      quantity: 4,
+      unitLabel: 'm',
+      isCustom: false,
+      sortOrder: 0
+    }]
+  }]);
+
+  assert.equal(returnable.length, 2);
+  assert.equal(returnable[0].maxQuantity, 8);
+  assert.equal(returnable[0].measureType, 'LENGTH');
+  assert.equal(returnable[0].unitLabel, 'm');
+  assert.equal(returnable[1].maxQuantity, 50);
+
+  const inboundItems = buildInboundRomaneioItems([{
+    catalogItemId: 'catalog-hose',
+    itemName: 'Nome alterado pelo cliente',
+    categoryName: 'Outra categoria',
+    kind: 'EQUIPMENT',
+    measureType: 'UNIT',
+    quantity: 7,
+    unitLabel: 'unidade',
+    isCustom: false
+  }], returnable);
+
+  assert.deepEqual(inboundItems, [{
+    catalogItemId: 'catalog-hose',
+    itemName: 'Mangueira',
+    itemCode: 'MG-01',
+    categoryName: 'Mangueiras',
+    kind: 'CONNECTION',
+    measureType: 'LENGTH',
+    quantity: 7,
+    unitLabel: 'm',
+    isCustom: false,
+    sortOrder: 0
+  }]);
+
+  assert.throws(
+    () => buildInboundRomaneioItems([{ catalogItemId: 'catalog-hose', quantity: 9 }], returnable),
+    /Quantidade de entrada maior/
+  );
+  assert.throws(
+    () => buildInboundRomaneioItems([{ catalogItemId: 'catalog-missing', quantity: 1 }], returnable),
+    /não consta/
+  );
+});
+
 test('Romaneio item builder allows only previously linked inactive catalog items', async t => {
   const originalFindMany = prisma.romaneioCatalogItem.findMany;
   let allowInactive = false;
@@ -434,6 +536,36 @@ test('Romaneio project list hides manager-only and inactive projects from operat
   assert.equal(calls[0].select.clientEmailPrimary, undefined);
 });
 
+test('Romaneio active project list keeps archived missions without inbound romaneio available', async t => {
+  stubRomaneioOnlyOperator(t);
+  const originalFindMany = prisma.project.findMany;
+  const calls = [];
+  prisma.project.findMany = async args => {
+    calls.push(args);
+    return [];
+  };
+  t.after(() => {
+    prisma.project.findMany = originalFindMany;
+  });
+
+  const response = await dispatchApp('GET', '/api/romaneio/projects?active=true');
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(calls[0].where, {
+    deletedAt: null,
+    managerOnly: false,
+    OR: [
+      { isActive: true },
+      {
+        isActive: false,
+        romaneios: {
+          none: { type: 'INBOUND' }
+        }
+      }
+    ]
+  });
+});
+
 test('Romaneio project list keeps manager-only projects visible to global managers', async t => {
   const originalFindUnique = prisma.userSession.findUnique;
   const originalFindMany = prisma.project.findMany;
@@ -606,6 +738,114 @@ test('Romaneio list keeps operator project visibility filters when filtering by 
   assert.deepEqual(calls[0].where, {
     project: { deletedAt: null, isActive: true, managerOnly: false },
     projectId: 'hidden-project'
+  });
+});
+
+test('Romaneio return-items endpoint lists available outbound balance by project code', async t => {
+  stubRomaneioOnlyOperator(t);
+  const originalProjectFindFirst = prisma.project.findFirst;
+  const originalRomaneioFindMany = prisma.romaneio.findMany;
+  const projectCalls = [];
+  const romaneioCalls = [];
+  prisma.project.findFirst = async args => {
+    projectCalls.push(args);
+    return { id: 'project-1' };
+  };
+  prisma.romaneio.findMany = async args => {
+    romaneioCalls.push(args);
+    return [{
+      id: 'saida-1',
+      type: 'OUTBOUND',
+      items: [{
+        catalogItemId: 'catalog-filter',
+        itemCode: 'UF-01',
+        itemName: 'Unidade filtrante',
+        categoryName: 'Equipamentos',
+        kind: 'EQUIPMENT',
+        measureType: 'UNIT',
+        quantity: 2,
+        unitLabel: 'unidade',
+        isCustom: false,
+        sortOrder: 0
+      }]
+    }, {
+      id: 'entrada-antiga',
+      type: 'INBOUND',
+      items: [{
+        catalogItemId: 'catalog-filter',
+        itemCode: 'UF-01',
+        itemName: 'Unidade filtrante',
+        categoryName: 'Equipamentos',
+        kind: 'EQUIPMENT',
+        measureType: 'UNIT',
+        quantity: 1,
+        unitLabel: 'unidade',
+        isCustom: false,
+        sortOrder: 0
+      }]
+    }, {
+      id: 'entrada-edit',
+      type: 'INBOUND',
+      items: [{
+        catalogItemId: 'catalog-filter',
+        itemCode: 'UF-01',
+        itemName: 'Unidade filtrante',
+        categoryName: 'Equipamentos',
+        kind: 'EQUIPMENT',
+        measureType: 'UNIT',
+        quantity: 1,
+        unitLabel: 'unidade',
+        isCustom: false,
+        sortOrder: 0
+      }]
+    }];
+  };
+  t.after(() => {
+    prisma.project.findFirst = originalProjectFindFirst;
+    prisma.romaneio.findMany = originalRomaneioFindMany;
+  });
+
+  const response = await dispatchApp('GET', '/api/romaneio/return-items?projectCode=5797&excludeRomaneioId=entrada-edit');
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json.projectId, 'project-1');
+  assert.equal(response.json.items.length, 1);
+  assert.equal(response.json.items[0].maxQuantity, 1);
+  assert.deepEqual(projectCalls[0].where, {
+    code: { equals: '5797', mode: 'insensitive' },
+    deletedAt: null,
+    managerOnly: false,
+    OR: [
+      { isActive: true },
+      {
+        isActive: false,
+        romaneios: {
+          none: {
+            type: 'INBOUND',
+            id: { not: 'entrada-edit' }
+          }
+        }
+      }
+    ]
+  });
+  assert.deepEqual(romaneioCalls[0].where, {
+    projectId: 'project-1',
+    project: {
+      deletedAt: null,
+      managerOnly: false,
+      OR: [
+        { isActive: true },
+        {
+          isActive: false,
+          romaneios: {
+            none: {
+              type: 'INBOUND',
+              id: { not: 'entrada-edit' }
+            }
+          }
+        }
+      ]
+    }
   });
 });
 

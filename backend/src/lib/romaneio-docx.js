@@ -37,7 +37,8 @@ export function buildRomaneioFileName(romaneio, extension = 'docx') {
   const projectName = safePath(project.name || '');
   const datePrefix = formatDatePt(romaneio.romaneioDate).replace(/\//g, '-');
   const cleanExtension = safePath(extension).replace(/^\.+/, '') || 'docx';
-  return `Romaneio - Missão ${projectCode} - ${projectName} - ${datePrefix}.${cleanExtension}`;
+  const prefix = romaneio.type === 'INBOUND' ? 'Romaneio Entrada' : 'Romaneio';
+  return `${prefix} - Missão ${projectCode} - ${projectName} - ${datePrefix}.${cleanExtension}`;
 }
 
 function getTextNodes(node, out = []) {
@@ -125,6 +126,10 @@ function cargoWeightText(romaneio) {
   return `${normalized} ${romaneio.cargoWeightUnit || 'kg'}`;
 }
 
+function romaneioTypeLabel(type) {
+  return type === 'INBOUND' ? 'Entrada' : 'Saída';
+}
+
 function itemText(item) {
   return [item.itemCode, item.itemName].filter(Boolean).join(' - ');
 }
@@ -192,6 +197,7 @@ function buildDocxData(romaneio) {
     plate: romaneio.vehiclePlate || '',
     driver: romaneio.driverName || '',
     local: project.location || '',
+    type: romaneioTypeLabel(romaneio.type),
     weight: cargoWeightText(romaneio),
     cargoWeight: cargoWeightText(romaneio)
   };

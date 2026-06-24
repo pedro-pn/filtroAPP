@@ -120,6 +120,11 @@ enum RomaneioCatalogSource {
   EQUIPAMENTOS
 }
 
+enum RomaneioType {
+  OUTBOUND
+  INBOUND
+}
+
 enum DataSubjectRequestType {
   CONFIRMATION
   ACCESS
@@ -799,6 +804,7 @@ model Romaneio {
   id              String         @id @default(cuid())
   projectId       String
   createdByUserId String?
+  type            RomaneioType   @default(OUTBOUND)
   romaneioDate    DateTime
   driverName      String
   vehiclePlate    String
@@ -816,9 +822,11 @@ model Romaneio {
 
   @@index([projectId])
   @@index([createdByUserId])
+  @@index([type])
   @@index([romaneioDate])
   @@index([createdAt])
   @@index([projectId, romaneioDate, createdAt])
+  @@index([projectId, type])
 }
 
 model RomaneioItem {

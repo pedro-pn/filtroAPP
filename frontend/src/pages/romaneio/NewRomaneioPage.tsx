@@ -9,6 +9,7 @@ import {
   listRomaneioCatalog,
   listRomaneioDrafts,
   listRomaneioProjects,
+  listRomaneioReturnItems,
   removeRomaneioDraft,
   updateRomaneio,
   updateRomaneioDraft,
@@ -17,7 +18,9 @@ import {
   type RomaneioCreatePayload,
   type RomaneioDraftPayload,
   type RomaneioItemKind,
-  type RomaneioMeasureType
+  type RomaneioMeasureType,
+  type RomaneioReturnItem,
+  type RomaneioType
 } from '../../api/romaneio';
 
 import { useAuth } from '../../auth/AuthContext';
@@ -41,6 +44,7 @@ interface SelectedItem {
   quantity: number;
   unitLabel: string;
   isCustom: boolean;
+  returnMaxQuantity?: number;
 }
 
 const today = new Date().toISOString().slice(0, 10);
@@ -59,6 +63,23 @@ function numericProjectCode(value: string) {
   return value.replace(/\D/g, '');
 }
 
+function returnKeyPart(value: string | null | undefined) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function selectedItemReturnKey(item: Pick<SelectedItem, 'catalogItemId' | 'itemCode' | 'itemName' | 'categoryName' | 'kind' | 'measureType' | 'unitLabel'>) {
+  if (item.catalogItemId) return `catalog:${item.catalogItemId}`;
+  return [
+    'snapshot',
+    returnKeyPart(item.itemCode),
+    returnKeyPart(item.itemName),
+    returnKeyPart(item.categoryName),
+    item.kind || 'EQUIPMENT',
+    item.measureType || 'UNIT',
+    returnKeyPart(item.unitLabel)
+  ].join('|');
+}
+
 function romaneioItemsToSelectedItems(romaneio: Romaneio): SelectedItem[] {
   return (romaneio.items || []).map(item => ({
     key: item.id,
@@ -74,6 +95,29 @@ function romaneioItemsToSelectedItems(romaneio: Romaneio): SelectedItem[] {
   }));
 }
 
+function returnItemsToSelectedItems(items: RomaneioReturnItem[]): SelectedItem[] {
+  return (items || []).map(item => {
+    const maxQuantity = Number(item.maxQuantity);
+    return {
+      key: item.key,
+      catalogItemId: item.catalogItemId || null,
+      itemCode: item.itemCode || null,
+      itemName: item.itemName,
+      categoryName: item.categoryName,
+      kind: item.kind,
+      measureType: item.measureType,
+      quantity: Number.isFinite(maxQuantity) ? maxQuantity : Number(item.quantity),
+      unitLabel: item.unitLabel,
+      isCustom: item.isCustom,
+      returnMaxQuantity: Number.isFinite(maxQuantity) ? maxQuantity : Number(item.quantity)
+    };
+  });
+}
+
+function romaneioTypeLabel(type: RomaneioType) {
+  return type === 'INBOUND' ? 'Entrada' : 'Saída';
+}
+
 export function NewRomaneioPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -83,7 +127,9 @@ export function NewRomaneioPage() {
   const draftSaveTimerRef = useRef<number | null>(null);
   const lastAutoSaveSignatureRef = useRef('');
   const hydratedDraftKeyRef = useRef('');
+  const hydratedReturnItemsKeyRef = useRef('');
   const isSubmittingRef = useRef(false);
+  const [romaneioType, setRomaneioType] = useState<RomaneioType>('OUTBOUND');
   const [projectId, setProjectId] = useState('');
   const [manualProjectMode, setManualProjectMode] = useState(false);
   const [manualProjectCode, setManualProjectCode] = useState('');
@@ -111,7 +157,7 @@ export function NewRomaneioPage() {
   const editId = searchParams.get('edit') || '';
   const isEditing = Boolean(editId);
   const projectsQuery = useQuery({ queryKey: ['romaneio-projects'], queryFn: () => listRomaneioProjects(true) });
-  const catalogQuery = useQuery({ queryKey: ['romaneio-catalog'], queryFn: listRomaneioCatalog });
+  const catalogQuery = useQuery({ queryKey: ['romaneio-catalog'], queryFn: listRomaneioCatalog, enabled: romaneioType === 'OUTBOUND' });
   const draftsQuery = useQuery({ queryKey: ['romaneio-drafts'], queryFn: listRomaneioDrafts, enabled: !isEditing });
   const editQuery = useQuery({
     queryKey: ['romaneio', editId],
@@ -142,6 +188,15 @@ export function NewRomaneioPage() {
     : typedProjectCode
       ? `Missão ${typedProjectCode}`
       : '-';
+  const returnItemsQuery = useQuery({
+    queryKey: ['romaneio-return-items', { projectId, projectCode: typedProjectCode, editId }],
+    queryFn: () => listRomaneioReturnItems({
+      projectId: projectId || null,
+      projectCode: typedProjectCode || null,
+      excludeRomaneioId: editId || null
+    }),
+    enabled: romaneioType === 'INBOUND' && Boolean(projectId || typedProjectCode)
+  });
 
   const activeCatalog = useMemo(() => {
     const needle = catalogSearch.trim().toLowerCase();
@@ -158,6 +213,29 @@ export function NewRomaneioPage() {
     });
     return Array.from(map.entries());
   }, [activeCatalog]);
+
+  function clearSelectedItemsForContextChange() {
+    setSelectedItems([]);
+    setQuantities({});
+    hydratedReturnItemsKeyRef.current = '';
+  }
+
+  function handleRomaneioTypeChange(nextType: RomaneioType) {
+    if (nextType === romaneioType) return;
+    setRomaneioType(nextType);
+    clearSelectedItemsForContextChange();
+  }
+
+  function updateSelectedItemQuantity(key: string, quantityText: string) {
+    const quantity = Number(quantityText);
+    setSelectedItems(current => current.map(item => {
+      if (item.key !== key) return item;
+      return {
+        ...item,
+        quantity: Number.isFinite(quantity) ? quantity : 0
+      };
+    }));
+  }
 
   function addCatalogItem(item: RomaneioCatalogItem) {
     const variableQuantity = romaneioUsesVariableQuantity(item.measureType);
@@ -237,13 +315,14 @@ export function NewRomaneioPage() {
     const draftProjectId = draft.projectId || (typeof payload.projectId === 'string' ? payload.projectId : '');
     const draftProjectCode = typeof payload.projectCode === 'string' ? numericProjectCode(payload.projectCode) : '';
     const draftReportDate = draft.reportDate || (typeof payload.reportDate === 'string' ? payload.reportDate : '');
+    const draftType = payload.romaneioType === 'INBOUND' ? 'INBOUND' : 'OUTBOUND';
     const projectKey = draftProjectId || (draftProjectCode ? `code:${draftProjectCode}` : '');
-    return projectKey && draftReportDate ? `${projectKey}|${draftReportDate.slice(0, 10)}` : '';
+    return projectKey && draftReportDate ? `${draftType}|${projectKey}|${draftReportDate.slice(0, 10)}` : '';
   }
 
   function currentDraftKey() {
     const projectKey = projectId || (typedProjectCode ? `code:${typedProjectCode.toUpperCase()}` : '');
-    return projectKey && romaneioDate ? `${projectKey}|${romaneioDate.slice(0, 10)}` : '';
+    return projectKey && romaneioDate ? `${romaneioType}|${projectKey}|${romaneioDate.slice(0, 10)}` : '';
   }
 
   function matchingDraftIds() {
@@ -258,12 +337,13 @@ export function NewRomaneioPage() {
       projectCode: typedProjectCode || null,
       reportDate: romaneioDate,
       title: selectedProject
-        ? `Romaneio - ${projectLabel(selectedProject)}`
+        ? `Romaneio de ${romaneioTypeLabel(romaneioType).toLowerCase()} - ${projectLabel(selectedProject)}`
         : typedProjectCode
-          ? `Romaneio - ${typedProjectCode}`
+          ? `Romaneio de ${romaneioTypeLabel(romaneioType).toLowerCase()} - ${typedProjectCode}`
           : 'Romaneio em andamento',
       payload: {
         __module: 'romaneio',
+        romaneioType,
         projectId,
         projectCode: typedProjectCode,
         romaneioDate,
@@ -289,6 +369,8 @@ export function NewRomaneioPage() {
         : draft.reportDate || today;
 
     setDraftId(draft.id);
+    const nextType = payload.romaneioType === 'INBOUND' ? 'INBOUND' : 'OUTBOUND';
+    setRomaneioType(nextType);
     setProjectId(nextProjectId);
     setManualProjectMode(!nextProjectId && Boolean(nextProjectCode));
     setManualProjectCode(nextProjectId ? '' : nextProjectCode);
@@ -309,7 +391,7 @@ export function NewRomaneioPage() {
         : current
     ));
     const nextProjectKey = nextProjectId || (nextProjectCode.trim() ? `code:${nextProjectCode.trim().toUpperCase()}` : '');
-    hydratedDraftKeyRef.current = nextProjectKey && nextDate ? `${nextProjectKey}|${nextDate.slice(0, 10)}` : '';
+    hydratedDraftKeyRef.current = nextProjectKey && nextDate ? `${nextType}|${nextProjectKey}|${nextDate.slice(0, 10)}` : '';
   }
 
   useEffect(() => {
@@ -324,6 +406,7 @@ export function NewRomaneioPage() {
   useEffect(() => {
     const romaneio = editQuery.data;
     if (!romaneio || !isEditing) return;
+    setRomaneioType(romaneio.type || 'OUTBOUND');
     setProjectId(romaneio.projectId);
     setManualProjectMode(false);
     setManualProjectCode('');
@@ -337,6 +420,31 @@ export function NewRomaneioPage() {
   }, [editQuery.data, isEditing]);
 
   useEffect(() => {
+    if (romaneioType !== 'INBOUND') return;
+    const returnItems = returnItemsQuery.data?.items || [];
+    const hydrationKey = [
+      projectId || '',
+      typedProjectCode || '',
+      editId || '',
+      returnItems.map(item => `${item.key}:${item.maxQuantity}`).join(',')
+    ].join('|');
+    if (!returnItemsQuery.data || hydratedReturnItemsKeyRef.current === hydrationKey) return;
+    hydratedReturnItemsKeyRef.current = hydrationKey;
+
+    if (isEditing) {
+      const maxByKey = new Map(returnItems.map(item => [item.key, Number(item.maxQuantity)]));
+      setSelectedItems(current => current.map(item => {
+        const maxQuantity = maxByKey.get(selectedItemReturnKey(item));
+        return maxQuantity == null ? item : { ...item, returnMaxQuantity: maxQuantity };
+      }));
+      return;
+    }
+
+    setSelectedItems(returnItemsToSelectedItems(returnItems));
+    setQuantities({});
+  }, [romaneioType, returnItemsQuery.data, projectId, typedProjectCode, editId, isEditing]);
+
+  useEffect(() => {
     if (isEditing || draftParam || draftId) return;
     const key = currentDraftKey();
     if (!key || hydratedDraftKeyRef.current === key) return;
@@ -346,7 +454,7 @@ export function NewRomaneioPage() {
 
     hydrateDraft(draft);
     showToast('Rascunho carregado.');
-  }, [isEditing, projectId, manualProjectCode, romaneioDate, draftsQuery.data, draftParam, draftId]);
+  }, [isEditing, romaneioType, projectId, manualProjectCode, romaneioDate, draftsQuery.data, draftParam, draftId]);
 
   useEffect(() => {
     if (isEditing) return;
@@ -388,6 +496,7 @@ export function NewRomaneioPage() {
     };
   }, [
     projectId,
+    romaneioType,
     manualProjectCode,
     typedProjectCode,
     romaneioDate,
@@ -406,7 +515,7 @@ export function NewRomaneioPage() {
   ]);
 
   function selectedItemsPayload() {
-    return selectedItems.map(item => ({
+    return selectedItems.filter(item => Number(item.quantity) > 0).map(item => ({
       catalogItemId: item.catalogItemId || null,
       itemName: item.itemName,
       itemCode: item.itemCode || null,
@@ -432,9 +541,24 @@ export function NewRomaneioPage() {
       showToast('Informe um peso de carga válido.');
       return false;
     }
-    if (!selectedItems.length) {
+    const payloadItems = selectedItemsPayload();
+    if (!payloadItems.length) {
       showToast('Adicione ao menos um item.');
       return false;
+    }
+    if (romaneioType === 'INBOUND') {
+      if (returnItemsQuery.isFetching) {
+        showToast('Aguarde carregar os itens da saída.');
+        return false;
+      }
+      const invalidItem = selectedItems.find(item => {
+        const maxQuantity = item.returnMaxQuantity;
+        return maxQuantity != null && Number(item.quantity) - maxQuantity > 0.0005;
+      });
+      if (invalidItem) {
+        showToast('A quantidade de entrada não pode ser maior que a saída.');
+        return false;
+      }
     }
     return true;
   }
@@ -460,6 +584,7 @@ export function NewRomaneioPage() {
       await saveMutation.mutateAsync({
         projectId: projectId || null,
         projectCode: typedProjectCode || null,
+        type: romaneioType,
         romaneioDate,
         driverName,
         vehiclePlate,
@@ -498,8 +623,8 @@ export function NewRomaneioPage() {
   return (
     <Shell>
       <TopBar
-        title={isEditing ? 'Editar romaneio' : 'Novo romaneio'}
-        subtitle={isEditing ? 'Atualização de dados e materiais' : 'Formulário de equipamentos'}
+        title={isEditing ? `Editar romaneio de ${romaneioTypeLabel(romaneioType).toLowerCase()}` : `Novo romaneio de ${romaneioTypeLabel(romaneioType).toLowerCase()}`}
+        subtitle={romaneioType === 'INBOUND' ? 'Retorno de equipamentos e consumíveis' : 'Formulário de equipamentos'}
         actions={
           <>
             <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location.pathname) })}>
@@ -521,6 +646,13 @@ export function NewRomaneioPage() {
             <button className="secondary-button" type="button" onClick={() => navigate('/romaneio')}>Voltar</button>
           </div>
           <div className="admin-form-grid manager-header-grid">
+            <label className="field-group">
+              <span>Tipo</span>
+              <select value={romaneioType} onChange={event => handleRomaneioTypeChange(event.target.value as RomaneioType)}>
+                <option value="OUTBOUND">Saída</option>
+                <option value="INBOUND">Entrada</option>
+              </select>
+            </label>
             <label className="field-group field-group-wide">
               <span>Projeto</span>
               <select value={projectSelectValue} onChange={event => {
@@ -528,11 +660,13 @@ export function NewRomaneioPage() {
                 if (value === MANUAL_PROJECT_OPTION) {
                   setProjectId('');
                   setManualProjectMode(true);
+                  if (romaneioType === 'INBOUND') clearSelectedItemsForContextChange();
                   return;
                 }
                 setProjectId(value);
                 setManualProjectMode(false);
                 setManualProjectCode('');
+                if (romaneioType === 'INBOUND') clearSelectedItemsForContextChange();
               }}>
                 <option value="">Selecione</option>
                 {projectOptions.map(project => (
@@ -550,14 +684,17 @@ export function NewRomaneioPage() {
                     const nextCode = numericProjectCode(event.target.value);
                     setManualProjectCode(nextCode);
                     if (nextCode) setProjectId('');
+                    if (romaneioType === 'INBOUND') clearSelectedItemsForContextChange();
                   }}
                   inputMode="numeric"
                   pattern="[0-9]*"
                   placeholder="Digite apenas números"
                 />
-                <small className="form-hint">
-                  Ao enviar, a missão será criada como cadastro pendente para revisão do gestor.
-                </small>
+                {romaneioType === 'OUTBOUND' && (
+                  <small className="form-hint">
+                    Ao enviar, a missão será criada como cadastro pendente para revisão do gestor.
+                  </small>
+                )}
               </label>
             ) : null}
             <label className="field-group">
@@ -591,25 +728,46 @@ export function NewRomaneioPage() {
         <section className="page-card romaneio-panel">
           <div className="admin-section-head">
             <div>
-              <div className="sec">Itens selecionados</div>
+              <div className="sec">{romaneioType === 'INBOUND' ? 'Itens retornando' : 'Itens selecionados'}</div>
               <div className="rel-meta">{selectedItems.length} item(ns)</div>
             </div>
           </div>
-          {!selectedItems.length && <div className="rel-meta">Nenhum item adicionado.</div>}
+          {!selectedItems.length && (
+            <div className="rel-meta">
+              {romaneioType === 'INBOUND'
+                ? (returnItemsQuery.isLoading ? 'Carregando itens da saída...' : 'Nenhum item de saída disponível para retorno.')
+                : 'Nenhum item adicionado.'}
+            </div>
+          )}
           <div className="romaneio-selected-list">
             {selectedItems.map(item => (
               <div className="romaneio-selected-row" key={item.key}>
                 <div>
                   <strong>{[item.itemCode, item.itemName].filter(Boolean).join(' - ')}</strong>
-                  <div className="rel-meta">{item.categoryName} · {item.quantity} {item.unitLabel}</div>
+                  <div className="rel-meta">
+                    {item.categoryName} · {item.quantity} {item.unitLabel}
+                    {romaneioType === 'INBOUND' && item.returnMaxQuantity != null ? ` de ${item.returnMaxQuantity} ${item.unitLabel}` : ''}
+                  </div>
                 </div>
-                <button className="mini-btn danger" type="button" onClick={() => setSelectedItems(current => current.filter(selected => selected.key !== item.key))}>Remover</button>
+                <div className="romaneio-selected-actions">
+                  {romaneioType === 'INBOUND' && (
+                    <input
+                      type="number"
+                      min="0"
+                      max={item.returnMaxQuantity}
+                      step={romaneioUsesVariableQuantity(item.measureType) ? '0.1' : '1'}
+                      value={item.quantity}
+                      onChange={event => updateSelectedItemQuantity(item.key, event.target.value)}
+                    />
+                  )}
+                  <button className="mini-btn danger" type="button" onClick={() => setSelectedItems(current => current.filter(selected => selected.key !== item.key))}>Remover</button>
+                </div>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="page-card romaneio-panel">
+        {romaneioType === 'OUTBOUND' && <section className="page-card romaneio-panel">
           <div className="admin-toolbar">
             <div className="sec">Materiais disponíveis</div>
           </div>
@@ -617,13 +775,13 @@ export function NewRomaneioPage() {
             <span>Pesquisar item</span>
             <SearchBar value={catalogSearch} onChange={setCatalogSearch} placeholder="Código, item ou categoria" />
           </label>
-        </section>
+        </section>}
 
-        {catalogQuery.isLoading && <section className="page-card romaneio-panel">Carregando catálogo...</section>}
-        {!catalogQuery.isLoading && !groupedCatalog.length && (
+        {romaneioType === 'OUTBOUND' && catalogQuery.isLoading && <section className="page-card romaneio-panel">Carregando catálogo...</section>}
+        {romaneioType === 'OUTBOUND' && !catalogQuery.isLoading && !groupedCatalog.length && (
           <section className="page-card romaneio-panel">Nenhum item encontrado.</section>
         )}
-        {!!groupedCatalog.length && (
+        {romaneioType === 'OUTBOUND' && !!groupedCatalog.length && (
           <section className="page-card romaneio-panel">
             <div className="romaneio-accordion-list">
               {groupedCatalog.map(([category, items]) => {
@@ -682,7 +840,7 @@ export function NewRomaneioPage() {
           </section>
         )}
 
-        <section className="page-card romaneio-panel">
+        {romaneioType === 'OUTBOUND' && <section className="page-card romaneio-panel">
           <div className="sec">Item não listado</div>
           <div className="admin-form-grid manager-header-grid">
             <label className="field-group field-group-wide">
@@ -716,11 +874,11 @@ export function NewRomaneioPage() {
               <button className="secondary-button" type="button" onClick={addCustomItem}>Adicionar item livre</button>
             </div>
           </div>
-        </section>
+        </section>}
 
         <section className="bottom-bar-react">
           <button className="primary-button" type="submit" disabled={saveMutation.isPending || (isEditing && editQuery.isLoading)}>
-            {isEditing ? 'Salvar alterações' : 'Enviar romaneio'}
+            {isEditing ? 'Salvar alterações' : `Enviar ${romaneioTypeLabel(romaneioType).toLowerCase()}`}
           </button>
         </section>
       </form>
@@ -731,7 +889,7 @@ export function NewRomaneioPage() {
         ariaDescribedBy="romaneio-review-description"
         panelClassName="modal-card romaneio-review-modal"
       >
-        <div className="section-title" id="romaneio-review-title">Revisar itens do romaneio</div>
+        <div className="section-title" id="romaneio-review-title">Revisar romaneio de {romaneioTypeLabel(romaneioType).toLowerCase()}</div>
         <p className="placeholder-copy" id="romaneio-review-description">
           Confira os itens adicionados antes de confirmar o envio.
         </p>
@@ -740,13 +898,14 @@ export function NewRomaneioPage() {
             <span className="det-label">Projeto</span>
             <span className="det-val">{projectReferenceLabel}</span>
           </div>
+          <div className="det-row"><span className="det-label">Tipo</span><span className="det-val">{romaneioTypeLabel(romaneioType)}</span></div>
           <div className="det-row"><span className="det-label">Data</span><span className="det-val">{romaneioDate}</span></div>
           <div className="det-row"><span className="det-label">Motorista</span><span className="det-val">{driverName || '-'}</span></div>
           <div className="det-row"><span className="det-label">Placa</span><span className="det-val">{vehiclePlate || '-'}</span></div>
           <div className="det-row"><span className="det-label">Peso da carga</span><span className="det-val">{cargoWeight ? `${cargoWeight} ${cargoWeightUnit}` : '-'}</span></div>
         </div>
         <div className="romaneio-review-list" aria-label="Itens adicionados ao romaneio">
-          {selectedItems.map(item => (
+          {selectedItems.filter(item => Number(item.quantity) > 0).map(item => (
             <div className="romaneio-review-row" key={item.key}>
               <div>
                 <strong>{[item.itemCode, item.itemName].filter(Boolean).join(' - ')}</strong>
@@ -761,7 +920,7 @@ export function NewRomaneioPage() {
             Cancelar
           </button>
           <button className="primary-button" type="button" disabled={saveMutation.isPending} onClick={() => void confirmSubmit()}>
-            {isEditing ? 'Confirmar alterações' : 'Confirmar envio'}
+            {isEditing ? 'Confirmar alterações' : `Confirmar ${romaneioTypeLabel(romaneioType).toLowerCase()}`}
           </button>
         </div>
       </Modal>
