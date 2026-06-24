@@ -254,6 +254,76 @@ export async function setProjectBudgetRevision(projectId, codBd) {
   });
 }
 
+// Dashboard de acompanhamento: projetos cujo contrato bate com propostas importadas, com o
+// previsto (orçamento/revisão) e o realizado parcial (nº de RDOs = dias trabalhados, % prazo).
+export async function listCommercialDashboard() {
+  const [proposals, projects, budgets, rdoGroups] = await Promise.all([
+    prisma.commercialProposal.findMany({
+      select: {
+        codBd: true, codProp: true, nRev: true, salePrice: true, plannedCost: true,
+        expectedProfit: true, expectedMargin: true, plannedDays: true, workedDays: true,
+        numOperators: true, numSupervisors: true, numPerDay: true, numPerNight: true,
+        mobilizationLeadDays: true
+      }
+    }),
+    prisma.project.findMany({
+      where: { deletedAt: null },
+      select: { id: true, code: true, name: true, clientName: true, contractCode: true, commercialProposalCode: true, startDate: true }
+    }),
+    prisma.projectBudget.findMany({
+      where: { version: 1 },
+      select: {
+        projectId: true, sourceProposalCodBd: true, approvedAt: true, mobilizationLeadDays: true,
+        salePrice: true, plannedTotalCost: true, expectedProfit: true, expectedMargin: true, plannedDays: true
+      }
+    }),
+    prisma.report.groupBy({ by: ['projectId'], where: { reportType: 'RDO', deletedAt: null }, _count: { _all: true } })
+  ]);
+
+  const latestByProp = new Map();
+  const byCodBd = new Map();
+  for (const p of proposals) {
+    byCodBd.set(p.codBd, p);
+    const cur = latestByProp.get(p.codProp);
+    if (!cur || p.nRev > cur.nRev) latestByProp.set(p.codProp, p);
+  }
+  const budgetByProject = new Map(budgets.map(b => [b.projectId, b]));
+  const rdoByProject = new Map(rdoGroups.map(g => [g.projectId, g._count._all]));
+
+  const rows = [];
+  for (const project of projects) {
+    const codProp = projectProposalCode(project);
+    if (!Number.isInteger(codProp) || !latestByProp.has(codProp)) continue;
+    const budget = budgetByProject.get(project.id) || null;
+    const resolved = Boolean(project.commercialProposalCode) && Boolean(budget);
+    const source = (budget && byCodBd.get(budget.sourceProposalCodBd)) || latestByProp.get(codProp);
+    rows.push({
+      projectId: project.id,
+      code: project.code,
+      name: project.name,
+      clientName: project.clientName,
+      proposalCode: String(codProp),
+      resolved,
+      startDate: project.startDate ?? null,
+      approvedAt: budget?.approvedAt ?? null,
+      mobilizationLeadDays: budget?.mobilizationLeadDays ?? source?.mobilizationLeadDays ?? null,
+      salePrice: budget?.salePrice ?? source?.salePrice ?? null,
+      plannedTotalCost: budget?.plannedTotalCost ?? source?.plannedCost ?? null,
+      expectedProfit: budget?.expectedProfit ?? source?.expectedProfit ?? null,
+      expectedMargin: budget?.expectedMargin ?? source?.expectedMargin ?? null,
+      plannedDays: budget?.plannedDays ?? source?.plannedDays ?? null,
+      workedDays: source?.workedDays ?? null,
+      numOperators: source?.numOperators ?? null,
+      numSupervisors: source?.numSupervisors ?? null,
+      numPerDay: source?.numPerDay ?? null,
+      numPerNight: source?.numPerNight ?? null,
+      rdoCount: rdoByProject.get(project.id) ?? 0
+    });
+  }
+  rows.sort((a, b) => Number(a.resolved) - Number(b.resolved) || a.code.localeCompare(b.code));
+  return rows;
+}
+
 // Projetos cujo contrato bate com alguma proposta importada — sinalização na aba Projetos.
 // resolved = já houve escolha de revisão (commercialProposalCode preenchido).
 export async function listCommercialPendencias() {

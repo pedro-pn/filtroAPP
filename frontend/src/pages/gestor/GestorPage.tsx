@@ -29,6 +29,7 @@ import { useToast } from '../../components/ui/Toast';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { ProjectRevisionPicker } from '../../components/projects/ProjectRevisionPicker';
 import { JobRoleManager } from '../../components/projects/JobRoleManager';
+import { AcompanhamentoDashboard } from '../../components/projects/AcompanhamentoDashboard';
 import { getCommercialPendencias } from '../../api/acompanhamentoComercial';
 import { listJobRoles } from '../../api/jobRoles';
 import { useGestorBootstrap } from '../../hooks/useBootstrap';
@@ -67,6 +68,7 @@ type GestorTab =
   | 'aprovados'
   | 'arquivados'
   | 'projetos'
+  | 'acompanhamento'
   | 'equipe'
   | 'usuarios'
   | 'nps'
@@ -90,6 +92,7 @@ const gestorTabs: GestorTab[] = [
   'aprovados',
   'arquivados',
   'projetos',
+  'acompanhamento',
   'equipe',
   'usuarios',
   'nps',
@@ -4257,6 +4260,7 @@ export function GestorPage() {
   function renderTabContent() {
     if (tab === 'pendentes' || tab === 'aprovados') return renderReportTabContent();
     if (tab === 'projetos') return renderProjectsTab();
+    if (tab === 'acompanhamento') return <AcompanhamentoDashboard />;
     if (tab === 'arquivados') return renderArchivedProjectsTab();
     if (tab === 'equipe') return renderEquipeTab();
     if (tab === 'usuarios') return renderUsuariosTab();
@@ -4330,6 +4334,9 @@ export function GestorPage() {
             {pendingProjectRegistrationCount ? (
               <span className="nav-tab-count">{pendingProjectRegistrationCount}</span>
             ) : null}
+          </button>
+          <button className={`nav-tab ${tab === 'acompanhamento' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'acompanhamento'} onClick={() => setTab('acompanhamento')}>
+            Acompanhamento
           </button>
           <button className={`nav-tab ${tab === 'arquivados' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'arquivados'} onClick={() => setTab('arquivados')}>
             Arquivados

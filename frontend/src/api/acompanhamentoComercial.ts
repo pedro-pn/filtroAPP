@@ -56,6 +56,34 @@ export async function getCommercialPendencias(): Promise<CommercialPendencia[]> 
   return data;
 }
 
+export interface DashboardRow {
+  projectId: string;
+  code: string;
+  name: string;
+  clientName: string;
+  proposalCode: string;
+  resolved: boolean;
+  startDate?: string | null;
+  approvedAt?: string | null;
+  mobilizationLeadDays?: number | null;
+  salePrice?: string | number | null;
+  plannedTotalCost?: string | number | null;
+  expectedProfit?: string | number | null;
+  expectedMargin?: string | number | null;
+  plannedDays?: number | null;
+  workedDays?: number | null;
+  numOperators?: number | null;
+  numSupervisors?: number | null;
+  numPerDay?: number | null;
+  numPerNight?: number | null;
+  rdoCount: number;
+}
+
+export async function getCommercialDashboard(): Promise<DashboardRow[]> {
+  const { data } = await apiClient.get<DashboardRow[]>('/acompanhamento/comercial/dashboard');
+  return data;
+}
+
 export async function setProjectRevision(projectId: string, codBd: number) {
   const { data } = await apiClient.post(
     `/acompanhamento/comercial/projetos/${projectId}/revisao`,

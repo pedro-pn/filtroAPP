@@ -17,6 +17,7 @@ import env from '../../config/env.js';
 import asyncHandler from '../../lib/async-handler.js';
 import {
   importCommercialAccess,
+  listCommercialDashboard,
   listCommercialPendencias,
   listProjectRevisions,
   setProjectBudgetRevision,
@@ -90,6 +91,17 @@ router.get(
       take
     });
     res.json(imports);
+  })
+);
+
+// Dashboard de acompanhamento (previsto + realizado parcial por projeto).
+router.get(
+  '/dashboard',
+  requireAuth,
+  requireHubAdmin,
+  asyncHandler(async (_req, res) => {
+    const rows = await listCommercialDashboard();
+    res.json(rows);
   })
 );
 
