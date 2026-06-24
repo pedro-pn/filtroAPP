@@ -28,6 +28,7 @@ import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { useToast } from '../../components/ui/Toast';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { ProjectRevisionPicker } from '../../components/projects/ProjectRevisionPicker';
+import { JobRoleManager } from '../../components/projects/JobRoleManager';
 import { getCommercialPendencias } from '../../api/acompanhamentoComercial';
 import { listJobRoles } from '../../api/jobRoles';
 import { useGestorBootstrap } from '../../hooks/useBootstrap';
@@ -3478,6 +3479,7 @@ export function GestorPage() {
 
     return (
       <>
+          <JobRoleManager />
           <div className="admin-toolbar">
             <div className="sec">Equipe</div>
             {!showCollaboratorForm && !collaboratorEditingId ? (
