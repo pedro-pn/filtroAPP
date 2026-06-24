@@ -125,13 +125,22 @@ export function readProposals(buffer) {
   return reader.getTable(PROPOSAL_TABLE).getData();
 }
 
-// Garante um Project para a proposta: tenta casar por commercialProposalCode (= cod_prop);
-// senão cria um projeto pendente com código provisório PROP-<cod_prop>.
+// Garante um Project para a proposta. O número da proposta (cod_prop) é o mesmo número de contrato
+// cadastrado no projeto, então casa por contractCode (ou commercialProposalCode/code) e NÃO recria
+// pendente quando já existe. Quando precisa criar, o projeto pendente nasce "limpo":
+//   - code (número da missão): provisório = número da proposta (campo é único e obrigatório)
+//   - name: vazio (não há no Access; gestor preenche)
+//   - contractCode: número da proposta
 async function ensureProjectForProposal(tx, proposal) {
   const proposalCode = String(proposal.codProp);
   const existing = await tx.project.findFirst({
     where: {
-      OR: [{ commercialProposalCode: proposalCode }, { code: proposalCode }]
+      deletedAt: null,
+      OR: [
+        { contractCode: proposalCode },
+        { commercialProposalCode: proposalCode },
+        { code: proposalCode }
+      ]
     }
   });
   if (existing) {
@@ -146,51 +155,95 @@ async function ensureProjectForProposal(tx, proposal) {
 
   const project = await tx.project.create({
     data: {
-      code: `PROP-${proposalCode}`,
-      name: proposal.clientName ? `Proposta ${proposalCode} — ${proposal.clientName}` : `Proposta ${proposalCode}`,
-      clientName: proposal.clientName || 'A definir',
+      code: proposalCode,
+      name: '',
+      clientName: proposal.clientName || '',
       clientCnpj: proposal.clientCnpj || '',
-      contractCode: '',
+      contractCode: proposalCode,
       location: proposal.localObra || '',
       commercialProposalCode: proposalCode,
       registrationPending: true,
+      visibleToCollaborators: false,
       isActive: true
     }
   });
   return { project, created: true };
 }
 
-// Cria/atualiza o orçamento previsto (versão única "1") com os dados da revisão vigente.
-async function upsertBudget(tx, projectId, proposal) {
-  return tx.projectBudget.upsert({
+// Campos do orçamento a partir de uma proposta (tanto do mapeamento do import quanto da linha
+// já persistida em CommercialProposal — ambas usam plannedCost).
+function budgetFieldsFromProposal(proposal) {
+  return {
+    sourceProposalCodBd: proposal.codBd,
+    serviceModality: proposal.serviceModality ?? null,
+    salePrice: proposal.salePrice ?? null,
+    plannedTotalCost: proposal.plannedCost ?? null,
+    expectedProfit: proposal.expectedProfit ?? null,
+    expectedMargin: proposal.expectedMargin ?? null,
+    taxes: proposal.taxes ?? null,
+    plannedDays: proposal.plannedDays ?? null,
+    isComplete: proposal.isComplete ?? false
+  };
+}
+
+// Cria/atualiza o orçamento previsto (versão única "1") com os dados da revisão informada.
+// selectionStatus permanece como está (marcação manual da vencedora — P-19).
+async function upsertBudget(client, projectId, proposal) {
+  const fields = budgetFieldsFromProposal(proposal);
+  return client.projectBudget.upsert({
     where: { projectId_version: { projectId, version: 1 } },
-    create: {
-      projectId,
-      version: 1,
-      sourceProposalCodBd: proposal.codBd,
-      serviceModality: proposal.serviceModality,
-      salePrice: proposal.salePrice,
-      plannedTotalCost: proposal.plannedCost,
-      expectedProfit: proposal.expectedProfit,
-      expectedMargin: proposal.expectedMargin,
-      taxes: proposal.taxes,
-      plannedDays: proposal.plannedDays,
-      isComplete: proposal.isComplete,
-      source: 'ACCESS_IMPORT'
-      // selectionStatus permanece UNKNOWN — marcação manual da vencedora (P-19)
-    },
-    update: {
-      sourceProposalCodBd: proposal.codBd,
-      serviceModality: proposal.serviceModality,
-      salePrice: proposal.salePrice,
-      plannedTotalCost: proposal.plannedCost,
-      expectedProfit: proposal.expectedProfit,
-      expectedMargin: proposal.expectedMargin,
-      taxes: proposal.taxes,
-      plannedDays: proposal.plannedDays,
-      isComplete: proposal.isComplete
-    }
+    create: { projectId, version: 1, source: 'ACCESS_IMPORT', ...fields },
+    update: fields
   });
+}
+
+function projectProposalCode(project) {
+  return project.commercialProposalCode || project.contractCode || project.code || null;
+}
+
+// Lista as revisões (linhas do Access) da proposta de um projeto e indica a revisão vigente.
+export async function listProjectRevisions(projectId) {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true, commercialProposalCode: true, contractCode: true, code: true }
+  });
+  if (!project) throw new Error('Projeto não encontrado.');
+  const codProp = Number.parseInt(String(projectProposalCode(project) ?? ''), 10);
+  if (!Number.isInteger(codProp)) {
+    return { proposalCode: projectProposalCode(project), currentCodBd: null, revisions: [] };
+  }
+  const [revisions, budget] = await Promise.all([
+    prisma.commercialProposal.findMany({
+      where: { codProp },
+      orderBy: { nRev: 'desc' },
+      select: {
+        codBd: true, codProp: true, nRev: true, proposalDate: true, modifiedInAccessAt: true,
+        serviceModality: true, salePrice: true, plannedCost: true, expectedProfit: true,
+        expectedMargin: true, isComplete: true
+      }
+    }),
+    prisma.projectBudget.findUnique({
+      where: { projectId_version: { projectId, version: 1 } },
+      select: { sourceProposalCodBd: true }
+    })
+  ]);
+  return { proposalCode: String(codProp), currentCodBd: budget?.sourceProposalCodBd ?? null, revisions };
+}
+
+// Define qual revisão (codBd) é a que vale, recalculando o orçamento do projeto.
+export async function setProjectBudgetRevision(projectId, codBd) {
+  const proposal = await prisma.commercialProposal.findUnique({ where: { codBd } });
+  if (!proposal) throw new Error('Revisão não encontrada.');
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true, commercialProposalCode: true, contractCode: true, code: true }
+  });
+  if (!project) throw new Error('Projeto não encontrado.');
+  const codProp = Number.parseInt(String(projectProposalCode(project) ?? ''), 10);
+  if (proposal.codProp !== codProp) {
+    throw new Error('A revisão informada não pertence a este projeto.');
+  }
+  return upsertBudget(prisma, projectId, proposal);
 }
 
 /**

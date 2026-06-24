@@ -69,6 +69,7 @@ export interface Project {
   visibleToCollaborators: boolean;
   managerOnly: boolean;
   registrationPending?: boolean;
+  commercialProposalCode?: string | null;
   inhibitionServiceEnabled: boolean;
   requireServiceReportSignatures: boolean;
   clientName: string;

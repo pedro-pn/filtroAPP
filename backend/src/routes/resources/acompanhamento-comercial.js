@@ -11,10 +11,15 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
 import express, { Router } from 'express';
+import { z } from 'zod';
 
 import env from '../../config/env.js';
 import asyncHandler from '../../lib/async-handler.js';
-import { importCommercialAccess } from '../../lib/acompanhamento-access-import.js';
+import {
+  importCommercialAccess,
+  listProjectRevisions,
+  setProjectBudgetRevision
+} from '../../lib/acompanhamento-access-import.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth, requireHubAdmin } from '../../middleware/auth.js';
 
@@ -83,6 +88,38 @@ router.get(
       take
     });
     res.json(imports);
+  })
+);
+
+// Revisões da proposta de um projeto (interface simples para escolher qual revisão vale).
+router.get(
+  '/projetos/:projectId/revisoes',
+  requireAuth,
+  requireHubAdmin,
+  asyncHandler(async (req, res) => {
+    try {
+      const data = await listProjectRevisions(req.params.projectId);
+      res.json(data);
+    } catch (error) {
+      res.status(404).json({ error: error.message });
+    }
+  })
+);
+
+const revisionSchema = z.object({ codBd: z.number().int() });
+
+router.post(
+  '/projetos/:projectId/revisao',
+  requireAuth,
+  requireHubAdmin,
+  asyncHandler(async (req, res) => {
+    const { codBd } = revisionSchema.parse(req.body);
+    try {
+      const budget = await setProjectBudgetRevision(req.params.projectId, codBd);
+      res.json(budget);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
   })
 );
 

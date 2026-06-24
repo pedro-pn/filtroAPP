@@ -26,6 +26,7 @@ import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { useToast } from '../../components/ui/Toast';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
+import { ProjectRevisionPicker } from '../../components/projects/ProjectRevisionPicker';
 import { useGestorBootstrap } from '../../hooks/useBootstrap';
 import { useCollaboratorMutations } from '../../hooks/useCollaborators';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
@@ -1138,7 +1139,9 @@ function renderProjectCard(
       </div>
       {pendingRegistration ? (
         <div className="project-registration-alert">
-          Projeto criado automaticamente pelo romaneio. Complete o cadastro antes de usar em relatórios, ou exclua se o código não deve permanecer.
+          {project.commercialProposalCode
+            ? 'Projeto criado automaticamente pela importação do comercial (proposta). Complete o cadastro (número da missão, nome e demais dados) antes de usar em relatórios, ou exclua se o contrato não deve permanecer.'
+            : 'Projeto criado automaticamente pelo romaneio. Complete o cadastro antes de usar em relatórios, ou exclua se o código não deve permanecer.'}
         </div>
       ) : null}
       {options.children}
@@ -1172,6 +1175,7 @@ function renderProjectCard(
             <span className="det-label">Contrato</span>
             <span className="det-val">{project.contractCode || '-'}</span>
           </div>
+          {project.commercialProposalCode ? <ProjectRevisionPicker projectId={project.id} /> : null}
           <div className="det-row">
             <span className="det-label">Operador</span>
             <span className="det-val">{project.operator?.name || '-'}</span>
