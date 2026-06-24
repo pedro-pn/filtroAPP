@@ -30,6 +30,7 @@ import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { ProjectRevisionPicker } from '../../components/projects/ProjectRevisionPicker';
 import { JobRoleManager } from '../../components/projects/JobRoleManager';
 import { AcompanhamentoDashboard } from '../../components/projects/AcompanhamentoDashboard';
+import { CostEngineManager } from '../../components/projects/CostEngineManager';
 import { getCommercialPendencias } from '../../api/acompanhamentoComercial';
 import { listJobRoles } from '../../api/jobRoles';
 import { useGestorBootstrap } from '../../hooks/useBootstrap';
@@ -70,6 +71,7 @@ type GestorTab =
   | 'projetos'
   | 'acompanhamento'
   | 'equipe'
+  | 'custo'
   | 'usuarios'
   | 'nps'
   | 'estatisticas';
@@ -94,6 +96,7 @@ const gestorTabs: GestorTab[] = [
   'projetos',
   'acompanhamento',
   'equipe',
+  'custo',
   'usuarios',
   'nps',
   'estatisticas'
@@ -4263,6 +4266,7 @@ export function GestorPage() {
     if (tab === 'acompanhamento') return <AcompanhamentoDashboard />;
     if (tab === 'arquivados') return renderArchivedProjectsTab();
     if (tab === 'equipe') return renderEquipeTab();
+    if (tab === 'custo') return <CostEngineManager />;
     if (tab === 'usuarios') return renderUsuariosTab();
     if (tab === 'estatisticas') return renderEstatisticasTab();
     return renderNpsTab();
@@ -4343,6 +4347,9 @@ export function GestorPage() {
           </button>
           <button className={`nav-tab ${tab === 'equipe' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'equipe'} onClick={() => setTab('equipe')}>
             Equipe
+          </button>
+          <button className={`nav-tab ${tab === 'custo' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'custo'} onClick={() => setTab('custo')}>
+            Custo
           </button>
           <button className={`nav-tab ${tab === 'usuarios' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'usuarios'} onClick={() => setTab('usuarios')}>
             Usuários

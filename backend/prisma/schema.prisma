@@ -218,6 +218,31 @@ model ClientSegment {
   updatedAt DateTime @updatedAt
 }
 
+// Motor de custo (planilhas operador/auxiliar): perfil + parâmetros versionados.
+model CostProfile {
+  id            String             @id @default(cuid())
+  key           String             @unique // operador, auxiliar
+  label         String
+  isActive      Boolean            @default(true)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  parameterSets CostParameterSet[]
+}
+
+model CostParameterSet {
+  id              String      @id @default(cuid())
+  costProfileId   String
+  version         Int
+  params          Json // campos "amarelos" da planilha (salário, %s, benefícios, encargos)
+  note            String?
+  createdByUserId String?
+  createdAt       DateTime    @default(now())
+  profile         CostProfile @relation(fields: [costProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([costProfileId, version])
+  @@index([costProfileId])
+}
+
 // Lista gerenciável de cargos (substitui o texto livre em Collaborator.role).
 model JobRole {
   id        String   @id @default(cuid())
