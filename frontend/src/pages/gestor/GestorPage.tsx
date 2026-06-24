@@ -1357,7 +1357,7 @@ export function GestorPage() {
     }
     return map;
   }, [commercialPendenciasQuery.data]);
-  const jobRolesQuery = useQuery({ queryKey: ['job-roles'], queryFn: listJobRoles });
+  const jobRolesQuery = useQuery({ queryKey: ['job-roles'], queryFn: () => listJobRoles() });
   const jobRoleNames = useMemo(() => (jobRolesQuery.data || []).map(role => role.name), [jobRolesQuery.data]);
   const renderRoleOptions = (value: string) => {
     const showCurrent = Boolean(value) && !jobRoleNames.includes(value);
