@@ -101,6 +101,7 @@ const env = {
   signatureTokenSecret,
   previousSignatureTokenSecrets: parseList(process.env.SIGNATURE_TOKEN_SECRET_PREVIOUS),
   dataRetentionJobEnabled: parseBoolean(process.env.DATA_RETENTION_JOB_ENABLED, false),
+  commercialImportToken: process.env.COMMERCIAL_IMPORT_TOKEN || '',
   zapsignApiBaseUrl: process.env.ZAPSIGN_API_BASE_URL || 'https://api.zapsign.com.br/api/v1',
   libreOfficeBinary: process.env.LIBREOFFICE_BINARY || 'soffice',
   docxToPdfTimeoutMs: Number.isFinite(docxToPdfTimeoutMs) && docxToPdfTimeoutMs > 0 ? docxToPdfTimeoutMs : 60000,

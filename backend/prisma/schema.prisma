@@ -147,6 +147,30 @@ enum DataSubjectRequestStatus {
   CANCELLED
 }
 
+// === Módulo Acompanhamento de Projetos — importação comercial (Access) ===
+
+enum ServiceModality {
+  INLOCO
+  POP_SEDE
+}
+
+enum BudgetSelectionStatus {
+  UNKNOWN
+  CHOSEN
+  LOST
+}
+
+enum AccessImportSource {
+  SCRIPT
+  MANUAL
+}
+
+enum AccessImportStatus {
+  SUCCESS
+  PARTIAL
+  ERROR
+}
+
 model Collaborator {
   id               String    @id @default(cuid())
   code             String    @unique
@@ -219,6 +243,7 @@ model Project {
   includesSunday        Boolean           @default(false)
   operatorId            String?
   clientSegment         String?
+  commercialProposalCode String?          // = cod_prop do Access; reconciliação proposta↔projeto
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
   deletedAt             DateTime?
@@ -229,9 +254,11 @@ model Project {
   drafts                ReportDraft[]
   surveys               SatisfactionSurvey[]
   romaneios             Romaneio[]
+  budgets               ProjectBudget[]
 
   @@index([deletedAt])
   @@index([registrationPending])
+  @@index([commercialProposalCode])
 }
 
 model ProjectReportSeq {
@@ -692,6 +719,8 @@ model User {
   identityVerifiedDataSubjectRequests DataSubjectRequest[] @relation("DataSubjectRequestIdentityVerifiedByUser")
   dataSubjectResponseAttempts DataSubjectRequestResponseAttempt[] @relation("DataSubjectRequestResponseAttemptUser")
   notificationPreferenceTokens NotificationPreferenceToken[]
+  accessImports   AccessImport[] @relation("AccessImportUser")
+  selectedBudgets ProjectBudget[] @relation("ProjectBudgetSelectedBy")
 
   @@index([clientCnpj])
 }
@@ -1128,4 +1157,99 @@ model ReportAttachment {
   @@index([reportId])
   @@index([reportServiceId])
   @@index([storagePath])
+}
+
+// === Importação do banco comercial Access (propostas_bd.accdb) ===
+
+// Staging 1:1 da tabela `proposta` do Access (uma linha por revisão de proposta).
+model CommercialProposal {
+  id                 String           @id @default(cuid())
+  codBd              Int              @unique // cod_bd (PK do Access) — chave de idempotência
+  codProp            Int                      // cod_prop (nº da proposta)
+  nRev               Int              @default(0) // n_rev (revisão)
+  codNectar          Int?                     // cod_nectar (código externo CRM)
+  proposalDate       DateTime?                // data_proposta
+  createdInAccessAt  DateTime?                // dataCriacao
+  modifiedInAccessAt DateTime?                // dataMod
+  clientName         String?                  // nome_cliente
+  clientCnpj         String?                  // n_cnpj (como string)
+  contactName        String?                  // contato_cliente
+  contactEmail       String?                  // email_cliente
+  localObra          String?                  // local_obra
+  sede               String?                  // sede
+  elaborador         String?                  // elaborador_proposta
+  vendedor           String?                  // nome_vendedor
+  serviceModality    ServiceModality?         // derivado: INLOCO vs POP_SEDE
+  salePrice          Decimal?         @db.Decimal(14, 2) // valor_inloco | valor_pop_sede
+  plannedCost        Decimal?         @db.Decimal(14, 2) // valor_custos
+  expectedProfit     Decimal?         @db.Decimal(14, 2) // valor_lucro
+  expectedMargin     Decimal?         @db.Decimal(6, 2)  // margem_inloco | margem_pop_sede (%)
+  taxes              Decimal?         @db.Decimal(14, 2) // valor_imp
+  plannedDays        Int?                     // n_dias
+  workedDays         Int?                     // n_dias_trabalhados
+  numOperators       Int?                     // n_operadores
+  numSupervisors     Int?                     // n_encarregado
+  numPerDay          Int?                     // n_p_dia
+  numPerNight        Int?                     // n_p_noite
+  isComplete         Boolean          @default(false) // false quando sem valor de venda
+  rawRow             Json                     // linha original completa (à prova de futuro)
+  lastImportId       String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([codProp, nRev])
+  @@index([clientCnpj])
+  @@index([lastImportId])
+}
+
+// Log de cada importação do banco Access.
+model AccessImport {
+  id                     String             @id @default(cuid())
+  fileName               String
+  contentHash            String
+  source                 AccessImportSource @default(SCRIPT)
+  status                 AccessImportStatus @default(SUCCESS)
+  rowsRead               Int                @default(0)
+  created                Int                @default(0)
+  updated                Int                @default(0)
+  skipped                Int                @default(0)
+  pendingProjectsCreated Int                @default(0)
+  error                  String?
+  summary                Json?
+  importedByUserId       String?
+  importedBy             User?              @relation("AccessImportUser", fields: [importedByUserId], references: [id], onDelete: SetNull)
+  createdAt              DateTime           @default(now())
+
+  @@index([status, createdAt])
+  @@index([contentHash])
+  @@index([createdAt])
+}
+
+// Orçamento previsto derivado da proposta vigente (maior revisão por cod_prop).
+model ProjectBudget {
+  id                  String                @id @default(cuid())
+  projectId           String
+  version             Int                   @default(1)
+  sourceProposalCodBd Int?
+  serviceModality     ServiceModality?
+  salePrice           Decimal?              @db.Decimal(14, 2)
+  plannedTotalCost    Decimal?              @db.Decimal(14, 2)
+  expectedProfit      Decimal?              @db.Decimal(14, 2)
+  expectedMargin      Decimal?              @db.Decimal(6, 2)
+  taxes               Decimal?              @db.Decimal(14, 2)
+  plannedDays         Int?
+  selectionStatus     BudgetSelectionStatus @default(UNKNOWN)
+  selectedByUserId    String?
+  selectedBy          User?                 @relation("ProjectBudgetSelectedBy", fields: [selectedByUserId], references: [id], onDelete: SetNull)
+  selectedAt          DateTime?
+  isComplete          Boolean               @default(false)
+  source              String                @default("ACCESS_IMPORT")
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  project             Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, version])
+  @@index([projectId])
+  @@index([sourceProposalCodBd])
+  @@index([selectionStatus])
 }

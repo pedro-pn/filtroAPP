@@ -1,5 +1,6 @@
 import { Router } from 'express';
 
+import acompanhamentoComercialRouter from './resources/acompanhamento-comercial.js';
 import authRouter from './resources/auth.js';
 import bootstrapRouter from './resources/bootstrap.js';
 import collaboratorsRouter from './resources/collaborators.js';
@@ -49,6 +50,7 @@ router.use('/rdo', rdoRouter);
 router.use('/romaneio', romaneiosRouter);
 router.use('/epi', episRouter);
 router.use('/equipamentos', equipamentosRouter);
+router.use('/acompanhamento/comercial', acompanhamentoComercialRouter);
 router.use('/admin/accounts', usersRouter);
 router.use('/users', usersRouter);
 mountRdoRoutes(router);

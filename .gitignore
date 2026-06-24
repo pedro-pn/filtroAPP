@@ -35,6 +35,14 @@ Planejamento.txt
 Revisao-Ortografia.txt
 Testes manuais obrigatorios.md
 PLANEJAMENTO_*.md
+PLANO_*.md
+ANALISE_*.md
+
+# Dados locais sensíveis (clientes/salários) — nunca versionar
+*.accdb
+*.mdb
+custo_*.xlsx
+*:Zone.Identifier
 
 # Configurações locais do IDE/ferramentas (não compartilhar entre máquinas)
 .claude/settings.local.json
