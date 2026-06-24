@@ -125,49 +125,16 @@ export function readProposals(buffer) {
   return reader.getTable(PROPOSAL_TABLE).getData();
 }
 
-// Garante um Project para a proposta. O número da proposta (cod_prop) é o mesmo número de contrato
-// cadastrado no projeto, então casa por contractCode (ou commercialProposalCode/code) e NÃO recria
-// pendente quando já existe. Quando precisa criar, o projeto pendente nasce "limpo":
-//   - code (número da missão): provisório = número da proposta (campo é único e obrigatório)
-//   - name: vazio (não há no Access; gestor preenche)
-//   - contractCode: número da proposta
-async function ensureProjectForProposal(tx, proposal) {
-  const proposalCode = String(proposal.codProp);
-  const existing = await tx.project.findFirst({
-    where: {
-      deletedAt: null,
-      OR: [
-        { contractCode: proposalCode },
-        { commercialProposalCode: proposalCode },
-        { code: proposalCode }
-      ]
-    }
-  });
-  if (existing) {
-    if (!existing.commercialProposalCode) {
-      await tx.project.update({
-        where: { id: existing.id },
-        data: { commercialProposalCode: proposalCode }
-      });
-    }
-    return { project: existing, created: false };
-  }
+// Extrai o "código do contrato" (número da proposta) da primeira parte de um texto.
+// Ex.: "4096 - Rev. 1" -> 4096 · "4096" -> 4096 · "Sede 4096" -> 4096.
+export function contractToProposalCode(value) {
+  const match = String(value ?? '').match(/\d+/);
+  return match ? Number.parseInt(match[0], 10) : null;
+}
 
-  const project = await tx.project.create({
-    data: {
-      code: proposalCode,
-      name: '',
-      clientName: proposal.clientName || '',
-      clientCnpj: proposal.clientCnpj || '',
-      contractCode: proposalCode,
-      location: proposal.localObra || '',
-      commercialProposalCode: proposalCode,
-      registrationPending: true,
-      visibleToCollaborators: false,
-      isActive: true
-    }
-  });
-  return { project, created: true };
+// Número da proposta associado a um projeto, pela 1ª parte do contrato (fallback no código).
+function projectProposalCode(project) {
+  return contractToProposalCode(project.contractCode) ?? contractToProposalCode(project.code);
 }
 
 // Campos do orçamento a partir de uma proposta (tanto do mapeamento do import quanto da linha
@@ -197,20 +164,16 @@ async function upsertBudget(client, projectId, proposal) {
   });
 }
 
-function projectProposalCode(project) {
-  return project.commercialProposalCode || project.contractCode || project.code || null;
-}
-
-// Lista as revisões (linhas do Access) da proposta de um projeto e indica a revisão vigente.
+// Lista as revisões (linhas do Access) cujo contrato bate com o do projeto e indica a vigente.
 export async function listProjectRevisions(projectId) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: { id: true, commercialProposalCode: true, contractCode: true, code: true }
   });
   if (!project) throw new Error('Projeto não encontrado.');
-  const codProp = Number.parseInt(String(projectProposalCode(project) ?? ''), 10);
+  const codProp = projectProposalCode(project);
   if (!Number.isInteger(codProp)) {
-    return { proposalCode: projectProposalCode(project), currentCodBd: null, revisions: [] };
+    return { proposalCode: null, currentCodBd: null, resolved: false, revisions: [] };
   }
   const [revisions, budget] = await Promise.all([
     prisma.commercialProposal.findMany({
@@ -227,10 +190,15 @@ export async function listProjectRevisions(projectId) {
       select: { sourceProposalCodBd: true }
     })
   ]);
-  return { proposalCode: String(codProp), currentCodBd: budget?.sourceProposalCodBd ?? null, revisions };
+  return {
+    proposalCode: String(codProp),
+    currentCodBd: budget?.sourceProposalCodBd ?? null,
+    resolved: Boolean(project.commercialProposalCode),
+    revisions
+  };
 }
 
-// Define qual revisão (codBd) é a que vale, recalculando o orçamento do projeto.
+// Define qual revisão (codBd) é a que vale: recalcula o orçamento e marca o projeto como resolvido.
 export async function setProjectBudgetRevision(projectId, codBd) {
   const proposal = await prisma.commercialProposal.findUnique({ where: { codBd } });
   if (!proposal) throw new Error('Revisão não encontrada.');
@@ -239,11 +207,47 @@ export async function setProjectBudgetRevision(projectId, codBd) {
     select: { id: true, commercialProposalCode: true, contractCode: true, code: true }
   });
   if (!project) throw new Error('Projeto não encontrado.');
-  const codProp = Number.parseInt(String(projectProposalCode(project) ?? ''), 10);
+  const codProp = projectProposalCode(project);
   if (proposal.codProp !== codProp) {
     throw new Error('A revisão informada não pertence a este projeto.');
   }
-  return upsertBudget(prisma, projectId, proposal);
+  return prisma.$transaction(async (tx) => {
+    const budget = await upsertBudget(tx, projectId, proposal);
+    await tx.project.update({
+      where: { id: projectId },
+      data: { commercialProposalCode: String(codProp) }
+    });
+    return budget;
+  });
+}
+
+// Projetos cujo contrato bate com alguma proposta importada — sinalização na aba Projetos.
+// resolved = já houve escolha de revisão (commercialProposalCode preenchido).
+export async function listCommercialPendencias() {
+  const grouped = await prisma.commercialProposal.groupBy({
+    by: ['codProp'],
+    _count: { _all: true }
+  });
+  if (grouped.length === 0) return [];
+  const countByProp = new Map(grouped.map(g => [g.codProp, g._count._all]));
+
+  const projects = await prisma.project.findMany({
+    where: { deletedAt: null },
+    select: { id: true, code: true, contractCode: true, commercialProposalCode: true }
+  });
+
+  const result = [];
+  for (const project of projects) {
+    const codProp = projectProposalCode(project);
+    if (!Number.isInteger(codProp) || !countByProp.has(codProp)) continue;
+    result.push({
+      projectId: project.id,
+      proposalCode: String(codProp),
+      revisionCount: countByProp.get(codProp),
+      resolved: Boolean(project.commercialProposalCode)
+    });
+  }
+  return result;
 }
 
 /**
@@ -274,37 +278,15 @@ export async function importCommercialAccess({ buffer, fileName, importedByUserI
 
   let created = 0;
   let updated = 0;
-  let pendingProjectsCreated = 0;
-  const errors = [];
 
-  // Revisão vigente por proposta = maior nRev.
-  const latestByProp = new Map();
-  for (const p of proposals) {
-    const current = latestByProp.get(p.codProp);
-    if (!current || p.nRev > current.nRev) latestByProp.set(p.codProp, p);
-  }
-
+  // A importação apenas popula o staging (CommercialProposal). Não cria missões: a maioria das
+  // propostas não fecha. A vinculação a um projeto acontece sob demanda, quando já existe uma
+  // missão cujo contrato bate (ver listCommercialPendencias / setProjectBudgetRevision).
   const result = await prisma.$transaction(async (tx) => {
-    // 1) staging 1:1 (upsert por cod_bd)
     for (const p of proposals) {
       const existing = await tx.commercialProposal.findUnique({ where: { codBd: p.codBd } });
-      await tx.commercialProposal.upsert({
-        where: { codBd: p.codBd },
-        create: p,
-        update: p
-      });
+      await tx.commercialProposal.upsert({ where: { codBd: p.codBd }, create: p, update: p });
       if (existing) updated += 1; else created += 1;
-    }
-
-    // 2) derivação do orçamento da revisão vigente
-    for (const proposal of latestByProp.values()) {
-      try {
-        const { project, created: projCreated } = await ensureProjectForProposal(tx, proposal);
-        if (projCreated) pendingProjectsCreated += 1;
-        await upsertBudget(tx, project.id, proposal);
-      } catch (error) {
-        errors.push({ codProp: proposal.codProp, message: error.message });
-      }
     }
 
     return tx.accessImport.create({
@@ -312,14 +294,13 @@ export async function importCommercialAccess({ buffer, fileName, importedByUserI
         fileName,
         contentHash,
         source,
-        status: errors.length ? 'PARTIAL' : 'SUCCESS',
+        status: 'SUCCESS',
         rowsRead: rawRows.length,
         created,
         updated,
         skipped: rawRows.length - proposals.length,
-        pendingProjectsCreated,
-        error: errors.length ? `${errors.length} proposta(s) com erro` : null,
-        summary: { proposals: proposals.length, budgets: latestByProp.size, errors },
+        pendingProjectsCreated: 0,
+        summary: { proposals: proposals.length, distinctProposals: new Set(proposals.map(p => p.codProp)).size },
         importedByUserId
       }
     });
@@ -332,8 +313,6 @@ export async function importCommercialAccess({ buffer, fileName, importedByUserI
     created,
     updated,
     skipped: rawRows.length - proposals.length,
-    budgets: latestByProp.size,
-    pendingProjectsCreated,
-    errors
+    distinctProposals: new Set(proposals.map(p => p.codProp)).size
   };
 }

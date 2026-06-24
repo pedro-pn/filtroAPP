@@ -17,6 +17,7 @@ import env from '../../config/env.js';
 import asyncHandler from '../../lib/async-handler.js';
 import {
   importCommercialAccess,
+  listCommercialPendencias,
   listProjectRevisions,
   setProjectBudgetRevision
 } from '../../lib/acompanhamento-access-import.js';
@@ -88,6 +89,17 @@ router.get(
       take
     });
     res.json(imports);
+  })
+);
+
+// Projetos cujo contrato bate com propostas importadas (sinalização de pendência na aba Projetos).
+router.get(
+  '/pendencias',
+  requireAuth,
+  requireHubAdmin,
+  asyncHandler(async (_req, res) => {
+    const pendencias = await listCommercialPendencias();
+    res.json(pendencias);
   })
 );
 

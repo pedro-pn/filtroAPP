@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState, type Dispatch, type DragEvent, type FormEvent, type KeyboardEvent, type SetStateAction } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 
 import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
@@ -27,6 +28,7 @@ import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { useToast } from '../../components/ui/Toast';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { ProjectRevisionPicker } from '../../components/projects/ProjectRevisionPicker';
+import { getCommercialPendencias } from '../../api/acompanhamentoComercial';
 import { useGestorBootstrap } from '../../hooks/useBootstrap';
 import { useCollaboratorMutations } from '../../hooks/useCollaborators';
 import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
@@ -1111,6 +1113,7 @@ function renderProjectCard(
     surveyPending?: boolean;
     children?: ReactNode;
     segments?: ClientSegment[];
+    commercialPendencia?: { proposalCode: string; revisionCount: number; resolved: boolean } | null;
   }
 ) {
   const survey = latestSurvey(project);
@@ -1139,9 +1142,12 @@ function renderProjectCard(
       </div>
       {pendingRegistration ? (
         <div className="project-registration-alert">
-          {project.commercialProposalCode
-            ? 'Projeto criado automaticamente pela importação do comercial (proposta). Complete o cadastro (número da missão, nome e demais dados) antes de usar em relatórios, ou exclua se o contrato não deve permanecer.'
-            : 'Projeto criado automaticamente pelo romaneio. Complete o cadastro antes de usar em relatórios, ou exclua se o código não deve permanecer.'}
+          Projeto criado automaticamente pelo romaneio. Complete o cadastro antes de usar em relatórios, ou exclua se o código não deve permanecer.
+        </div>
+      ) : null}
+      {options.commercialPendencia && !options.commercialPendencia.resolved ? (
+        <div className="project-registration-alert">
+          Há {options.commercialPendencia.revisionCount} proposta(s) importada(s) do comercial para o contrato {options.commercialPendencia.proposalCode}. Abra os detalhes e escolha a revisão que vale para esta missão.
         </div>
       ) : null}
       {options.children}
@@ -1175,7 +1181,7 @@ function renderProjectCard(
             <span className="det-label">Contrato</span>
             <span className="det-val">{project.contractCode || '-'}</span>
           </div>
-          {project.commercialProposalCode ? <ProjectRevisionPicker projectId={project.id} /> : null}
+          {options.commercialPendencia ? <ProjectRevisionPicker projectId={project.id} /> : null}
           <div className="det-row">
             <span className="det-label">Operador</span>
             <span className="det-val">{project.operator?.name || '-'}</span>
@@ -1335,6 +1341,14 @@ export function GestorPage() {
   const draftsQuery = useDrafts();
   const gestorBootstrapQuery = useGestorBootstrap();
   const activeProjectsQuery = { data: gestorBootstrapQuery.data?.activeProjects, isLoading: gestorBootstrapQuery.isLoading };
+  const commercialPendenciasQuery = useQuery({ queryKey: ['commercial-pendencias'], queryFn: getCommercialPendencias });
+  const commercialPendenciaByProject = useMemo(() => {
+    const map = new Map<string, { proposalCode: string; revisionCount: number; resolved: boolean }>();
+    for (const pendencia of commercialPendenciasQuery.data || []) {
+      map.set(pendencia.projectId, { proposalCode: pendencia.proposalCode, revisionCount: pendencia.revisionCount, resolved: pendencia.resolved });
+    }
+    return map;
+  }, [commercialPendenciasQuery.data]);
   const archivedProjectsQuery = { data: gestorBootstrapQuery.data?.archivedProjects, isLoading: gestorBootstrapQuery.isLoading };
   const collaboratorsQuery = { data: gestorBootstrapQuery.data?.collaborators, isLoading: gestorBootstrapQuery.isLoading };
   const internalUsersQuery = useUsers('internal');
@@ -3048,6 +3062,7 @@ export function GestorPage() {
     }
 
     const renderEditableProjectCard = (project: Project) => renderProjectCard(project, {
+      commercialPendencia: commercialPendenciaByProject.get(project.id) ?? null,
       children: projectEditingId === project.id ? (
         <form className="admin-inline-form admin-inline-grid" onSubmit={handleProjectSubmit}>
             <div className="field-group">
@@ -3396,6 +3411,7 @@ export function GestorPage() {
             {archivedProjectCards.map(({ project, projectReports }) => {
               const projectClosed = closedArchivedProjectIds.includes(project.id);
               return renderProjectCard(project, {
+                commercialPendencia: commercialPendenciaByProject.get(project.id) ?? null,
                 children: (
                   <>
                     {projectReports.length ? (

@@ -27,6 +27,18 @@ export async function getProjectRevisions(projectId: string): Promise<ProjectRev
   return data;
 }
 
+export interface CommercialPendencia {
+  projectId: string;
+  proposalCode: string;
+  revisionCount: number;
+  resolved: boolean;
+}
+
+export async function getCommercialPendencias(): Promise<CommercialPendencia[]> {
+  const { data } = await apiClient.get<CommercialPendencia[]>('/acompanhamento/comercial/pendencias');
+  return data;
+}
+
 export async function setProjectRevision(projectId: string, codBd: number) {
   const { data } = await apiClient.post(
     `/acompanhamento/comercial/projetos/${projectId}/revisao`,

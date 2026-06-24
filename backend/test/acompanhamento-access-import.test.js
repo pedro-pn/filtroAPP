@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  contractToProposalCode,
   deriveSale,
   mapProposalRow,
   toCnpj,
@@ -10,6 +11,16 @@ import {
   toNumber,
   toStr
 } from '../src/lib/acompanhamento-access-import.js';
+
+test('contractToProposalCode extrai a primeira parte numérica do contrato', () => {
+  assert.equal(contractToProposalCode('4096 - Rev. 1'), 4096);
+  assert.equal(contractToProposalCode('4096'), 4096);
+  assert.equal(contractToProposalCode(' 4096 '), 4096);
+  assert.equal(contractToProposalCode('4096 rev2'), 4096);
+  assert.equal(contractToProposalCode(''), null);
+  assert.equal(contractToProposalCode(null), null);
+  assert.equal(contractToProposalCode('sem numero'), null);
+});
 
 test('toNumber lida com number, bigint, texto sujo e nulo', () => {
   assert.equal(toNumber(185000), 185000);

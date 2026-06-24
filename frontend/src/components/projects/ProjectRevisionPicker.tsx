@@ -30,6 +30,7 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
     onSuccess: () => {
       showToast('Revisão do orçamento atualizada.');
       queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ['commercial-pendencias'] });
     },
     onError: () => showToast('Não foi possível atualizar a revisão.')
   });
@@ -45,7 +46,7 @@ export function ProjectRevisionPicker({ projectId }: { projectId: string }) {
 
   const revisions = data?.revisions ?? [];
   const current = data?.currentCodBd ?? null;
-  if (revisions.length <= 1) return null;
+  if (revisions.length === 0) return null;
 
   const chosen = selected ?? current ?? revisions[0]?.codBd ?? null;
 
