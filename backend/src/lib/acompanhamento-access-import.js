@@ -171,12 +171,12 @@ async function upsertBudget(client, projectId, proposal) {
 export async function listProjectRevisions(projectId) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    select: { id: true, commercialProposalCode: true, contractCode: true, code: true }
+    select: { id: true, commercialProposalCode: true, contractCode: true, code: true, startDate: true }
   });
   if (!project) throw new Error('Projeto não encontrado.');
   const codProp = projectProposalCode(project);
   if (!Number.isInteger(codProp)) {
-    return { proposalCode: null, currentCodBd: null, resolved: false, revisions: [] };
+    return { proposalCode: null, currentCodBd: null, resolved: false, startDate: project.startDate ?? null, revisions: [] };
   }
   const [revisions, budget] = await Promise.all([
     prisma.commercialProposal.findMany({
@@ -185,7 +185,9 @@ export async function listProjectRevisions(projectId) {
       select: {
         codBd: true, codProp: true, nRev: true, proposalDate: true, modifiedInAccessAt: true,
         serviceModality: true, salePrice: true, plannedCost: true, expectedProfit: true,
-        expectedMargin: true, isComplete: true
+        expectedMargin: true, taxes: true, plannedDays: true, workedDays: true,
+        numOperators: true, numSupervisors: true, numPerDay: true, numPerNight: true,
+        mobilizationLeadDays: true, isComplete: true
       }
     }),
     prisma.projectBudget.findUnique({
@@ -199,20 +201,33 @@ export async function listProjectRevisions(projectId) {
     resolved: Boolean(project.commercialProposalCode),
     approvedAt: budget?.approvedAt ?? null,
     mobilizationLeadDays: budget?.mobilizationLeadDays ?? null,
+    startDate: project.startDate ?? null,
     revisions
   };
 }
 
-// Edita a data de aprovação do contrato (base do prazo de mobilização). null limpa o campo.
-export async function setBudgetApprovalDate(projectId, approvedAt) {
-  const budget = await prisma.projectBudget.findUnique({
-    where: { projectId_version: { projectId, version: 1 } },
-    select: { id: true }
-  });
-  if (!budget) throw new Error('Orçamento não encontrado para o projeto. Escolha uma revisão primeiro.');
-  return prisma.projectBudget.update({
-    where: { projectId_version: { projectId, version: 1 } },
-    data: { approvedAt: approvedAt ? new Date(approvedAt) : null }
+// Edita o cronograma: data de aprovação do contrato (no orçamento) e início real (no projeto).
+// Cada campo é opcional; passar null limpa. approvedAt exige um orçamento já escolhido.
+export async function setProjectSchedule(projectId, { approvedAt, startDate } = {}) {
+  return prisma.$transaction(async (tx) => {
+    if (approvedAt !== undefined) {
+      const budget = await tx.projectBudget.findUnique({
+        where: { projectId_version: { projectId, version: 1 } },
+        select: { id: true }
+      });
+      if (!budget) throw new Error('Orçamento não encontrado para o projeto. Escolha uma revisão primeiro.');
+      await tx.projectBudget.update({
+        where: { projectId_version: { projectId, version: 1 } },
+        data: { approvedAt: approvedAt ? new Date(approvedAt) : null }
+      });
+    }
+    if (startDate !== undefined) {
+      await tx.project.update({
+        where: { id: projectId },
+        data: { startDate: startDate ? new Date(startDate) : null }
+      });
+    }
+    return { ok: true };
   });
 }
 

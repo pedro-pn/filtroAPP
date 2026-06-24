@@ -11,6 +11,14 @@ export interface CommercialRevision {
   plannedCost?: string | number | null;
   expectedProfit?: string | number | null;
   expectedMargin?: string | number | null;
+  taxes?: string | number | null;
+  plannedDays?: number | null;
+  workedDays?: number | null;
+  numOperators?: number | null;
+  numSupervisors?: number | null;
+  numPerDay?: number | null;
+  numPerNight?: number | null;
+  mobilizationLeadDays?: number | null;
   isComplete?: boolean;
 }
 
@@ -20,7 +28,13 @@ export interface ProjectRevisions {
   resolved?: boolean;
   approvedAt?: string | null;
   mobilizationLeadDays?: number | null;
+  startDate?: string | null;
   revisions: CommercialRevision[];
+}
+
+export interface ProjectSchedulePayload {
+  approvedAt?: string | null;
+  startDate?: string | null;
 }
 
 export async function getProjectRevisions(projectId: string): Promise<ProjectRevisions> {
@@ -50,10 +64,10 @@ export async function setProjectRevision(projectId: string, codBd: number) {
   return data;
 }
 
-export async function setBudgetApprovalDate(projectId: string, approvedAt: string | null) {
+export async function setProjectSchedule(projectId: string, payload: ProjectSchedulePayload) {
   const { data } = await apiClient.patch(
-    `/acompanhamento/comercial/projetos/${projectId}/aprovacao`,
-    { approvedAt }
+    `/acompanhamento/comercial/projetos/${projectId}/cronograma`,
+    payload
   );
   return data;
 }

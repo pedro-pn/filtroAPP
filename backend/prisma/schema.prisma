@@ -256,7 +256,8 @@ model Project {
   operatorId            String?
   clientSegment         String?
   commercialProposalCode String?          // = cod_prop do Access; reconciliação proposta↔projeto
-  createdAt             DateTime          @default(now())
+  startDate            DateTime?           // início real da execução (manual, gestor/coordenador)
+  createdAt            DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
   deletedAt             DateTime?
   operator              Collaborator?     @relation("ProjectOperator", fields: [operatorId], references: [id], onDelete: SetNull)

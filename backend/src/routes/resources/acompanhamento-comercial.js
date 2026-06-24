@@ -19,8 +19,8 @@ import {
   importCommercialAccess,
   listCommercialPendencias,
   listProjectRevisions,
-  setBudgetApprovalDate,
-  setProjectBudgetRevision
+  setProjectBudgetRevision,
+  setProjectSchedule
 } from '../../lib/acompanhamento-access-import.js';
 import prisma from '../../lib/prisma.js';
 import { requireAuth, requireHubAdmin } from '../../middleware/auth.js';
@@ -136,17 +136,20 @@ router.post(
   })
 );
 
-const approvalSchema = z.object({ approvedAt: z.string().datetime().nullable() });
+const scheduleSchema = z.object({
+  approvedAt: z.string().datetime().nullable().optional(),
+  startDate: z.string().datetime().nullable().optional()
+});
 
 router.patch(
-  '/projetos/:projectId/aprovacao',
+  '/projetos/:projectId/cronograma',
   requireAuth,
   requireHubAdmin,
   asyncHandler(async (req, res) => {
-    const { approvedAt } = approvalSchema.parse(req.body);
+    const data = scheduleSchema.parse(req.body);
     try {
-      const budget = await setBudgetApprovalDate(req.params.projectId, approvedAt);
-      res.json(budget);
+      await setProjectSchedule(req.params.projectId, data);
+      res.json({ ok: true });
     } catch (error) {
       res.status(400).json({ error: error.message });
     }
