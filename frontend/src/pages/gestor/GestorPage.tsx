@@ -1255,6 +1255,7 @@ export function GestorPage() {
   const pageScrollRef = useRef<HTMLDivElement | null>(null);
   const restoredScrollKeysRef = useRef<Set<string>>(new Set());
   const [tab, setTab] = useState<GestorTab>(() => parseGestorTab(searchParams.get('tab')));
+  const [equipeSubTab, setEquipeSubTab] = useState<'colaboradores' | 'cargos'>('colaboradores');
   // Busca persistida por aba: ao voltar (de outra aba ou do detalhe), restaura o termo da aba.
   const [gestorSearch, setGestorSearch] = usePersistentSearch(`gestor-search:${user?.id || 'anonymous'}:${tab}`);
   // Só o valor enviado às queries é adiado; a filtragem client-side segue instantânea.
@@ -3475,6 +3476,22 @@ export function GestorPage() {
   }
 
   function renderEquipeTab() {
+    return (
+      <>
+        <div className="nav-tabs" role="tablist" aria-label="Seções da equipe" style={{ marginBottom: 12 }}>
+          <button className={`nav-tab ${equipeSubTab === 'colaboradores' ? 'active' : ''}`} type="button" role="tab" aria-selected={equipeSubTab === 'colaboradores'} onClick={() => setEquipeSubTab('colaboradores')}>
+            Colaboradores
+          </button>
+          <button className={`nav-tab ${equipeSubTab === 'cargos' ? 'active' : ''}`} type="button" role="tab" aria-selected={equipeSubTab === 'cargos'} onClick={() => setEquipeSubTab('cargos')}>
+            Cargos
+          </button>
+        </div>
+        {equipeSubTab === 'cargos' ? <JobRoleManager /> : renderColaboradoresSubTab()}
+      </>
+    );
+  }
+
+  function renderColaboradoresSubTab() {
     if (collaboratorsQuery.isLoading) {
       return <div className="page-card placeholder-copy">Carregando colaboradores...</div>;
     }
@@ -3485,7 +3502,6 @@ export function GestorPage() {
 
     return (
       <>
-          <JobRoleManager />
           <div className="admin-toolbar">
             <div className="sec">Equipe</div>
             {!showCollaboratorForm && !collaboratorEditingId ? (
