@@ -15,6 +15,7 @@
     "import:collaborators-csv": "node scripts/import-collaborators-csv.js",
     "normalize:collaborator-roles": "node scripts/normalize-collaborator-roles.js",
     "backfill:commercial-components": "node scripts/backfill-commercial-components.js",
+    "omie:explore": "node scripts/omie-explore.js",
     "import:inhibition-systems-csv": "node scripts/import-inhibition-systems-csv.js",
     "migrate:signatures": "node scripts/migrate-signatures-to-dataurl.js",
     "retention:dry-run": "node scripts/run-data-retention.js",

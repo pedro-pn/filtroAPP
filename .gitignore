@@ -44,6 +44,10 @@ ANALISE_*.md
 custo_*.xlsx
 *:Zone.Identifier
 
+# Saída da descoberta da API Omie (pode conter dados financeiros)
+omie-*.json
+backend/omie-*.json
+
 # Configurações locais do IDE/ferramentas (não compartilhar entre máquinas)
 .claude/settings.local.json
 
