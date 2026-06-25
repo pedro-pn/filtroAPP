@@ -1616,7 +1616,7 @@ a {
 
 .acp-filters {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1.4fr;
+  grid-template-columns: 2fr 1fr 1.6fr;
   gap: 12px;
   align-items: end;
 }
@@ -1655,7 +1655,12 @@ a {
 .acp-table td { padding: 7px 10px; border-bottom: 1px solid #f1f3f2; white-space: nowrap; }
 .acp-table tbody tr:hover { background: #f7faf8; }
 
-.acp-manage { min-width: min(560px, 90vw); }
+.acp-manage-card { width: min(100%, 680px); }
+.acp-manage { display: flex; flex-direction: column; gap: 10px; }
+.acp-manage .det-row { flex-wrap: wrap; }
+.acp-manage .det-val { text-align: left; }
+.acp-manage .admin-inline-grid { grid-template-columns: 1fr 1fr; }
+@media (max-width: 520px) { .acp-manage .admin-inline-grid { grid-template-columns: 1fr; } }
 
 .det-inline-actions select,
 .det-inline-actions input {

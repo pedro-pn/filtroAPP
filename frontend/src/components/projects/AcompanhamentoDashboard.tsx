@@ -54,7 +54,6 @@ export function AcompanhamentoDashboard() {
   const { data, isLoading } = useQuery({ queryKey: ['commercial-dashboard'], queryFn: getCommercialDashboard });
 
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<'todos' | 'resolvido' | 'pendente'>('todos');
   const [modality, setModality] = useState<'todas' | 'INLOCO' | 'POP_SEDE'>('todas');
   const [metricKey, setMetricKey] = useState('custo');
   const [managed, setManaged] = useState<DashboardRow | null>(null);
@@ -65,8 +64,6 @@ export function AcompanhamentoDashboard() {
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     return rows.filter(row => {
-      if (status === 'resolvido' && !row.resolved) return false;
-      if (status === 'pendente' && row.resolved) return false;
       if (modality !== 'todas' && row.serviceModality !== modality) return false;
       if (term) {
         const hay = `${row.code} ${row.name} ${row.clientName} ${row.proposalCode}`.toLowerCase();
@@ -74,7 +71,7 @@ export function AcompanhamentoDashboard() {
       }
       return true;
     });
-  }, [rows, search, status, modality]);
+  }, [rows, search, modality]);
 
   const chartData = useMemo(() => {
     return filtered
@@ -89,8 +86,7 @@ export function AcompanhamentoDashboard() {
     count: filtered.length,
     venda: filtered.reduce((s, r) => s + (toNum(r.salePrice) ?? 0), 0),
     custo: filtered.reduce((s, r) => s + (toNum(r.plannedTotalCost) ?? 0), 0),
-    metric: filtered.reduce((s, r) => s + (metric.get(r) ?? 0), 0),
-    resolved: filtered.filter(r => r.resolved).length
+    metric: filtered.reduce((s, r) => s + (metric.get(r) ?? 0), 0)
   }), [filtered, metric]);
 
   if (isLoading) return <div className="page-card placeholder-copy">Carregando acompanhamento…</div>;
@@ -113,14 +109,6 @@ export function AcompanhamentoDashboard() {
           <input id="acp-search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Ex.: 4069 ou nome do cliente" />
         </div>
         <div className="field-group">
-          <label htmlFor="acp-status">Status</label>
-          <select id="acp-status" value={status} onChange={e => setStatus(e.target.value as typeof status)}>
-            <option value="todos">Todos</option>
-            <option value="resolvido">Resolvidos</option>
-            <option value="pendente">Pendentes</option>
-          </select>
-        </div>
-        <div className="field-group">
           <label htmlFor="acp-modality">Modalidade</label>
           <select id="acp-modality" value={modality} onChange={e => setModality(e.target.value as typeof modality)}>
             <option value="todas">Todas</option>
@@ -141,7 +129,6 @@ export function AcompanhamentoDashboard() {
         <div className="acp-kpi">
           <span className="acp-kpi-label">Projetos</span>
           <span className="acp-kpi-value">{totals.count}</span>
-          <span className="acp-kpi-foot">{totals.resolved} resolvidos</span>
         </div>
         <div className="acp-kpi">
           <span className="acp-kpi-label">Venda prevista</span>
@@ -193,7 +180,6 @@ export function AcompanhamentoDashboard() {
                 <th>Margem</th>
                 <th>Dias (prev/trab)</th>
                 <th>RDOs</th>
-                <th>Status</th>
                 <th></th>
               </tr>
             </thead>
@@ -208,8 +194,7 @@ export function AcompanhamentoDashboard() {
                   <td>{pct(row.expectedMargin)}</td>
                   <td>{row.plannedDays ?? '—'} / {row.workedDays ?? '—'}</td>
                   <td>{row.rdoCount}</td>
-                  <td>{row.resolved ? <span className="badge badge-ok">Resolvido</span> : <span className="badge badge-pen">Pendente</span>}</td>
-                  <td><button type="button" className="mini-btn" onClick={() => setManaged(row)}>Gerir</button></td>
+                  <td><button type="button" className="mini-btn" onClick={() => setManaged(row)}>Cronograma</button></td>
                 </tr>
               ))}
             </tbody>
@@ -217,9 +202,9 @@ export function AcompanhamentoDashboard() {
         </div>
       </div>
 
-      <Modal open={managed !== null} onClose={() => setManaged(null)} ariaLabelledBy="acp-manage-title">
+      <Modal open={managed !== null} onClose={() => setManaged(null)} ariaLabelledBy="acp-manage-title" panelClassName="modal-card acp-manage-card">
         {managed ? (
-          <div className="modal-body acp-manage">
+          <div className="acp-manage">
             <div className="admin-toolbar full">
               <div className="sec" id="acp-manage-title">Cronograma — {managed.code}{managed.name ? ` — ${managed.name}` : ''}</div>
               <button className="mini-btn alt" type="button" onClick={() => setManaged(null)}>Fechar</button>

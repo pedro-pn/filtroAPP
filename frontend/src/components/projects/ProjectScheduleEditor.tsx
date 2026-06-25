@@ -69,7 +69,7 @@ export function ProjectScheduleEditor({ projectId }: { projectId: string }) {
   const currentRevision: CommercialRevision | undefined = revisions.find(r => r.codBd === current) ?? undefined;
 
   if (current == null || !currentRevision) {
-    return <div className="placeholder-copy">Escolha a revisão que vale (aba Projetos) para gerir o cronograma.</div>;
+    return <div className="placeholder-copy">Aguardando seleção do contrato fechado pela gestão.</div>;
   }
 
   const approvalValue = approvalEdit ?? toDateInput(data?.approvedAt);
