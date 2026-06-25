@@ -16,11 +16,12 @@ import { omieCall, omieConfigured } from '../src/lib/omie-client.js';
 
 const PRESETS = [
   { name: 'projetos', path: '/geral/projetos/', call: 'ListarProjetos', param: { pagina: 1, registros_por_pagina: 50 } },
+  { name: 'categorias', path: '/geral/categorias/', call: 'ListarCategorias', param: { pagina: 1, registros_por_pagina: 50 } },
   { name: 'contas-pagar', path: '/financas/contapagar/', call: 'ListarContasPagar', param: { pagina: 1, registros_por_pagina: 20, apenas_importado_api: 'N' } }
 ];
 
-// Candidatos para o método de listagem de pedido de compra (nome incerto).
-const PEDIDO_COMPRA_CALLS = ['ListarPedidosCompra', 'PesquisarPedCompra', 'ListarPedComp', 'ListarPedidoCompra'];
+// Candidatos para o método de listagem de pedido de compra (convenção: IncluirPedCompra -> ListarPedCompra).
+const PEDIDO_COMPRA_CALLS = ['ListarPedCompra', 'ListarPedidosCompra', 'PesquisarPedCompra', 'ListarPedidoCompra'];
 
 // Testa se ListarContasPagar aceita filtro por codigo_projeto (decisivo p/ não varrer 40k+ títulos).
 async function probeContasPagarFilter() {
