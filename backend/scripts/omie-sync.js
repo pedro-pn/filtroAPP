@@ -16,9 +16,10 @@ async function main() {
     process.exit(1);
   }
   const only = process.argv[2];
+  const sinceDays = process.argv[3] ? Number(process.argv[3]) : null; // ex.: omie:sync compras 30
   if (only === 'projetos') console.log('projetos:', await syncOmieProjects());
   else if (only === 'categorias') console.log('categorias:', await syncOmieCategories());
-  else if (only === 'compras') console.log('compras:', await syncOmiePurchases());
+  else if (only === 'compras') console.log('compras:', await syncOmiePurchases({ sinceDays }));
   else console.log('tudo:', JSON.stringify(await syncOmieAll(), null, 2));
 }
 
