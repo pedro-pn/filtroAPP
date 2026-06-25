@@ -8,6 +8,7 @@ import { startDataRetentionJob } from './lib/data-retention.js';
 import { syncRomaneioCatalog } from './lib/romaneio-catalog.js';
 import { startSignatureReminderJob } from './lib/signature-reminders.js';
 import { startSurveyReminderJob } from './lib/survey-reminders.js';
+import { startOmieSyncJob } from './lib/omie-sync.js';
 import { startLegacyZapSignReconciliationJob } from './lib/zapsign-legacy-reconciliation.js';
 
 const server = http.createServer(app);
@@ -35,6 +36,7 @@ server.listen(env.port, () => {
   startCalibrationReminderJob();
   startMonthlyAllocationReportJob();
   startLegacyZapSignReconciliationJob();
+  startOmieSyncJob();
   syncRomaneioCatalog().catch(error => {
     console.error('Falha ao sincronizar catálogo de romaneio na inicialização.', error);
   });

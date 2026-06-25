@@ -6,7 +6,8 @@
  * então as compras são puxadas por projeto (leve).
  */
 
-import { omieCall } from './omie-client.js';
+import env from '../config/env.js';
+import { omieCall, omieConfigured } from './omie-client.js';
 import prisma from './prisma.js';
 
 const PAGE_SIZE = 500;
@@ -181,9 +182,53 @@ export async function syncOmiePurchases({ triggeredBy = 'SCRIPT', sinceDays = nu
   }
 }
 
-export async function syncOmieAll({ triggeredBy = 'SCRIPT' } = {}) {
+export async function syncOmieAll({ triggeredBy = 'SCRIPT', sinceDays = null } = {}) {
   const projects = await syncOmieProjects({ triggeredBy });
   const categories = await syncOmieCategories({ triggeredBy });
-  const purchases = await syncOmiePurchases({ triggeredBy });
+  const purchases = await syncOmiePurchases({ triggeredBy, sinceDays });
   return { projects, categories, purchases };
+}
+
+// === Job agendado (in-process, padrão do app) ===
+// Atualiza projetos/categorias e puxa as compras incrementais (janela de N dias). O backfill
+// completo continua sendo manual (npm run omie:sync compras, sem janela).
+let omieJobRunning = false;
+
+export function startOmieSyncJob() {
+  if (!env.omieSyncEnabled) {
+    console.log('[omie-sync] job desabilitado (OMIE_SYNC_ENABLED=false).');
+    return;
+  }
+  if (!omieConfigured()) {
+    console.warn('[omie-sync] OMIE_APP_KEY/OMIE_APP_SECRET ausentes; job não iniciado.');
+    return;
+  }
+
+  const intervalMinutes = Number.isFinite(env.omieSyncIntervalMinutes) && env.omieSyncIntervalMinutes >= 5 ? env.omieSyncIntervalMinutes : 360;
+  const sinceDays = Number.isFinite(env.omieSyncSinceDays) && env.omieSyncSinceDays > 0 ? env.omieSyncSinceDays : 7;
+  const intervalMs = intervalMinutes * 60 * 1000;
+
+  const run = async () => {
+    if (omieJobRunning) {
+      console.warn('[omie-sync] ciclo anterior ainda em execução; pulando.');
+      return;
+    }
+    omieJobRunning = true;
+    try {
+      const result = await syncOmieAll({ triggeredBy: 'SCHEDULE', sinceDays });
+      console.log('[omie-sync] ciclo concluído:', JSON.stringify(result));
+    } catch (error) {
+      console.error('[omie-sync] falha no ciclo:', error.message);
+    } finally {
+      omieJobRunning = false;
+    }
+  };
+
+  const timer = setInterval(run, intervalMs);
+  if (typeof timer.unref === 'function') timer.unref();
+  // primeiro ciclo logo após o boot (não bloqueia a inicialização)
+  const kickoff = setTimeout(run, 60 * 1000);
+  if (typeof kickoff.unref === 'function') kickoff.unref();
+
+  console.log(`[omie-sync] agendado a cada ${intervalMinutes} min (compras incrementais ${sinceDays}d).`);
 }
