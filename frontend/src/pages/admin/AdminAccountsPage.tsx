@@ -39,6 +39,8 @@ const roleOptions: Array<{ value: ModuleRole; label: string; accountTypes: Accou
   { value: 'epi:collaborator', label: 'EPI - Colaborador', accountTypes: ['ADMIN', 'INTERNAL'] },
   { value: 'equipamentos:manager', label: 'Equipamentos - Gestor', accountTypes: ['ADMIN', 'INTERNAL'] },
   { value: 'equipamentos:viewer', label: 'Equipamentos - Visualizador', accountTypes: ['ADMIN', 'INTERNAL'] },
+  { value: 'acompanhamento:manager', label: 'Acompanhamento - Gestor', accountTypes: ['ADMIN', 'INTERNAL'] },
+  { value: 'acompanhamento:viewer', label: 'Acompanhamento - Visualizador', accountTypes: ['ADMIN', 'INTERNAL'] },
   { value: 'privacy:admin', label: 'Privacidade - Admin', accountTypes: ['ADMIN'] }
 ];
 

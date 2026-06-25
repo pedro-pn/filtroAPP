@@ -85,6 +85,7 @@ enum AppModule {
   EPI
   PRIVACY
   EQUIPAMENTOS
+  ACOMPANHAMENTO
 }
 
 enum ModuleRoleCode {
@@ -99,6 +100,8 @@ enum ModuleRoleCode {
   PRIVACY_ADMIN
   EQUIPAMENTOS_MANAGER
   EQUIPAMENTOS_VIEWER
+  ACOMPANHAMENTO_MANAGER
+  ACOMPANHAMENTO_VIEWER
 }
 
 enum RomaneioItemKind {

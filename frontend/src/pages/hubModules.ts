@@ -2,7 +2,7 @@ import { roleHomePath } from '../auth/rolePath';
 import type { AuthUser, ModuleRole } from '../types/auth';
 
 export interface HubModuleEntry {
-  id: 'rdo' | 'admin' | 'romaneio' | 'epi' | 'equipamentos' | 'privacy' | 'none';
+  id: 'rdo' | 'admin' | 'romaneio' | 'epi' | 'equipamentos' | 'acompanhamento' | 'privacy' | 'none';
   badge: string;
   title: string;
   copy: string;
@@ -19,6 +19,7 @@ export function hubModulesForUser(user: Pick<AuthUser, 'accountType' | 'moduleRo
   const canAccessRomaneio = hasAnyRole(user, ['romaneio:manager', 'romaneio:operator']);
   const canAccessEpi = hasAnyRole(user, ['epi:technician', 'epi:collaborator']);
   const canAccessEquipamentos = hasAnyRole(user, ['equipamentos:manager', 'equipamentos:viewer']);
+  const canAccessAcompanhamento = hasAnyRole(user, ['acompanhamento:manager', 'acompanhamento:viewer']);
   const canAccessPrivacy = hasAnyRole(user, ['privacy:admin']);
   const isAdmin = user?.accountType === 'ADMIN' || user?.role === 'MANAGER';
   const modules: HubModuleEntry[] = [
@@ -42,6 +43,13 @@ export function hubModulesForUser(user: Pick<AuthUser, 'accountType' | 'moduleRo
       title: 'Equipamentos',
       copy: 'Cadastro, calibração, documentação técnica e notificações dos equipamentos.',
       path: '/equipamentos'
+    }] : []),
+    ...(canAccessAcompanhamento ? [{
+      id: 'acompanhamento' as const,
+      badge: 'ACP',
+      title: 'Acompanhamento de Projetos',
+      copy: 'Dashboard de previsto x realizado, custos e cronograma dos projetos.',
+      path: '/acompanhamento'
     }] : []),
     ...(canAccessRomaneio ? [{
       id: 'romaneio' as const,

@@ -11,7 +11,9 @@ export type ModuleRole =
   | 'epi:collaborator'
   | 'privacy:admin'
   | 'equipamentos:manager'
-  | 'equipamentos:viewer';
+  | 'equipamentos:viewer'
+  | 'acompanhamento:manager'
+  | 'acompanhamento:viewer';
 
 export interface AuthUser {
   id: string;

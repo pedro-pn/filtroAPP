@@ -12,6 +12,7 @@ import prisma from '../lib/prisma.js';
 export const RDO_INTERNAL_ROLES = ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator'];
 export const RDO_ACCESS_ROLES = [...RDO_INTERNAL_ROLES, 'rdo:client'];
 export const EQUIPAMENTOS_ACCESS_ROLES = ['equipamentos:manager', 'equipamentos:viewer'];
+export const ACOMPANHAMENTO_ACCESS_ROLES = ['acompanhamento:manager', 'acompanhamento:viewer'];
 export const INTERNAL_ACCOUNT_ROLES = [
   ...RDO_INTERNAL_ROLES,
   'romaneio:manager',
@@ -19,7 +20,8 @@ export const INTERNAL_ACCOUNT_ROLES = [
   'epi:technician',
   'epi:collaborator',
   'privacy:admin',
-  ...EQUIPAMENTOS_ACCESS_ROLES
+  ...EQUIPAMENTOS_ACCESS_ROLES,
+  ...ACOMPANHAMENTO_ACCESS_ROLES
 ];
 export const ROMANEIO_ACCESS_ROLES = INTERNAL_ACCOUNT_ROLES;
 
@@ -150,6 +152,23 @@ export function requireEquipamentosAccess(req, res, next) {
 export function requireEquipamentosManager(req, res, next) {
   if (!req.auth || !hasModuleRole(req.auth.user, 'equipamentos:manager')) {
     return res.status(403).json({ error: 'Acesso restrito ao gestor de Equipamentos.' });
+  }
+
+  next();
+}
+
+// Acompanhamento: admin do hub OU papel do módulo (mantém admins com acesso).
+export function requireAcompanhamentoAccess(req, res, next) {
+  if (!req.auth || (req.auth.user.accountType !== 'ADMIN' && !hasModuleRole(req.auth.user, ACOMPANHAMENTO_ACCESS_ROLES))) {
+    return res.status(403).json({ error: 'Acesso restrito ao módulo Acompanhamento.' });
+  }
+
+  next();
+}
+
+export function requireAcompanhamentoManager(req, res, next) {
+  if (!req.auth || (req.auth.user.accountType !== 'ADMIN' && !hasModuleRole(req.auth.user, 'acompanhamento:manager'))) {
+    return res.status(403).json({ error: 'Acesso restrito ao gestor de Acompanhamento.' });
   }
 
   next();

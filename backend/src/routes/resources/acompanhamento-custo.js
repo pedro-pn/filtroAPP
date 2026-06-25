@@ -11,7 +11,7 @@ import { z } from 'zod';
 import asyncHandler from '../../lib/async-handler.js';
 import { computeMonthlyCost } from '../../lib/acompanhamento-cost-engine.js';
 import prisma from '../../lib/prisma.js';
-import { requireAuth, requireHubAdmin } from '../../middleware/auth.js';
+import { requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
 
@@ -24,7 +24,7 @@ async function latestParams(key) {
   return { profile, set: profile.parameterSets[0] ?? null };
 }
 
-router.get('/perfis', requireAuth, requireHubAdmin, asyncHandler(async (_req, res) => {
+router.get('/perfis', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (_req, res) => {
   const profiles = await prisma.costProfile.findMany({
     where: { isActive: true },
     orderBy: { label: 'asc' },
@@ -42,7 +42,7 @@ router.get('/perfis', requireAuth, requireHubAdmin, asyncHandler(async (_req, re
 
 const paramsSchema = z.object({ params: z.record(z.any()), note: z.string().optional() });
 
-router.put('/perfis/:key/parametros', requireAuth, requireHubAdmin, asyncHandler(async (req, res) => {
+router.put('/perfis/:key/parametros', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const { params, note } = paramsSchema.parse(req.body);
   const current = await latestParams(req.params.key);
   if (!current) return res.status(404).json({ error: 'Perfil de custo não encontrado.' });
@@ -65,7 +65,7 @@ const simulateSchema = z.object({
   inputs: z.record(z.any()).default({})
 });
 
-router.post('/simular', requireAuth, requireHubAdmin, asyncHandler(async (req, res) => {
+router.post('/simular', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
   const { profileKey, params, inputs } = simulateSchema.parse(req.body);
   let effectiveParams = params;
   if (!effectiveParams && profileKey) {

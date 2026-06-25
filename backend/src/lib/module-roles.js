@@ -9,7 +9,8 @@ export const AppModules = {
   ROMANEIO: 'ROMANEIO',
   EPI: 'EPI',
   PRIVACY: 'PRIVACY',
-  EQUIPAMENTOS: 'EQUIPAMENTOS'
+  EQUIPAMENTOS: 'EQUIPAMENTOS',
+  ACOMPANHAMENTO: 'ACOMPANHAMENTO'
 };
 
 export const ModuleRoleCodes = {
@@ -23,7 +24,9 @@ export const ModuleRoleCodes = {
   EPI_COLLABORATOR: 'EPI_COLLABORATOR',
   PRIVACY_ADMIN: 'PRIVACY_ADMIN',
   EQUIPAMENTOS_MANAGER: 'EQUIPAMENTOS_MANAGER',
-  EQUIPAMENTOS_VIEWER: 'EQUIPAMENTOS_VIEWER'
+  EQUIPAMENTOS_VIEWER: 'EQUIPAMENTOS_VIEWER',
+  ACOMPANHAMENTO_MANAGER: 'ACOMPANHAMENTO_MANAGER',
+  ACOMPANHAMENTO_VIEWER: 'ACOMPANHAMENTO_VIEWER'
 };
 
 const LEGACY_ROLE_TO_ACCOUNT_TYPE = {
@@ -51,7 +54,9 @@ const MODULE_ROLE_TO_PUBLIC = {
   [ModuleRoleCodes.EPI_COLLABORATOR]: 'epi:collaborator',
   [ModuleRoleCodes.PRIVACY_ADMIN]: 'privacy:admin',
   [ModuleRoleCodes.EQUIPAMENTOS_MANAGER]: 'equipamentos:manager',
-  [ModuleRoleCodes.EQUIPAMENTOS_VIEWER]: 'equipamentos:viewer'
+  [ModuleRoleCodes.EQUIPAMENTOS_VIEWER]: 'equipamentos:viewer',
+  [ModuleRoleCodes.ACOMPANHAMENTO_MANAGER]: 'acompanhamento:manager',
+  [ModuleRoleCodes.ACOMPANHAMENTO_VIEWER]: 'acompanhamento:viewer'
 };
 
 const PUBLIC_TO_MODULE_ROLE = Object.fromEntries(
@@ -69,7 +74,9 @@ const MODULE_BY_ROLE = {
   [ModuleRoleCodes.EPI_COLLABORATOR]: AppModules.EPI,
   [ModuleRoleCodes.PRIVACY_ADMIN]: AppModules.PRIVACY,
   [ModuleRoleCodes.EQUIPAMENTOS_MANAGER]: AppModules.EQUIPAMENTOS,
-  [ModuleRoleCodes.EQUIPAMENTOS_VIEWER]: AppModules.EQUIPAMENTOS
+  [ModuleRoleCodes.EQUIPAMENTOS_VIEWER]: AppModules.EQUIPAMENTOS,
+  [ModuleRoleCodes.ACOMPANHAMENTO_MANAGER]: AppModules.ACOMPANHAMENTO,
+  [ModuleRoleCodes.ACOMPANHAMENTO_VIEWER]: AppModules.ACOMPANHAMENTO
 };
 
 export function accountTypeForLegacyRole(role) {

@@ -24,7 +24,7 @@ import {
   setProjectSchedule
 } from '../../lib/acompanhamento-access-import.js';
 import prisma from '../../lib/prisma.js';
-import { requireAuth, requireHubAdmin } from '../../middleware/auth.js';
+import { requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth } from '../../middleware/auth.js';
 
 const router = Router();
 
@@ -83,7 +83,7 @@ router.post(
 router.get(
   '/imports',
   requireAuth,
-  requireHubAdmin,
+  requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
     const take = Math.min(Number(req.query.limit) || 50, 200);
     const imports = await prisma.accessImport.findMany({
@@ -98,7 +98,7 @@ router.get(
 router.get(
   '/dashboard',
   requireAuth,
-  requireHubAdmin,
+  requireAcompanhamentoAccess,
   asyncHandler(async (_req, res) => {
     const rows = await listCommercialDashboard();
     res.json(rows);
@@ -109,7 +109,7 @@ router.get(
 router.get(
   '/pendencias',
   requireAuth,
-  requireHubAdmin,
+  requireAcompanhamentoAccess,
   asyncHandler(async (_req, res) => {
     const pendencias = await listCommercialPendencias();
     res.json(pendencias);
@@ -120,7 +120,7 @@ router.get(
 router.get(
   '/projetos/:projectId/revisoes',
   requireAuth,
-  requireHubAdmin,
+  requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
     try {
       const data = await listProjectRevisions(req.params.projectId);
@@ -136,7 +136,7 @@ const revisionSchema = z.object({ codBd: z.number().int() });
 router.post(
   '/projetos/:projectId/revisao',
   requireAuth,
-  requireHubAdmin,
+  requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
     const { codBd } = revisionSchema.parse(req.body);
     try {
@@ -156,7 +156,7 @@ const scheduleSchema = z.object({
 router.patch(
   '/projetos/:projectId/cronograma',
   requireAuth,
-  requireHubAdmin,
+  requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
     const data = scheduleSchema.parse(req.body);
     try {

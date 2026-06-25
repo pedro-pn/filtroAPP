@@ -1,0 +1,5 @@
+-- Novo módulo Acompanhamento de Projetos: valores de enum (AppModule + ModuleRoleCode)
+
+ALTER TYPE "AppModule" ADD VALUE IF NOT EXISTS 'ACOMPANHAMENTO';
+ALTER TYPE "ModuleRoleCode" ADD VALUE IF NOT EXISTS 'ACOMPANHAMENTO_MANAGER';
+ALTER TYPE "ModuleRoleCode" ADD VALUE IF NOT EXISTS 'ACOMPANHAMENTO_VIEWER';
