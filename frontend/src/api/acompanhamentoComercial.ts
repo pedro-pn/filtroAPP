@@ -83,8 +83,10 @@ export interface DashboardRow {
   realizedPaid?: string | number | null;
 }
 
-export async function getCommercialDashboard(): Promise<DashboardRow[]> {
-  const { data } = await apiClient.get<DashboardRow[]>('/acompanhamento/comercial/dashboard');
+export async function getCommercialDashboard(categoryCode?: string): Promise<DashboardRow[]> {
+  const { data } = await apiClient.get<DashboardRow[]>('/acompanhamento/comercial/dashboard', {
+    params: categoryCode ? { category: categoryCode } : undefined
+  });
   return data;
 }
 

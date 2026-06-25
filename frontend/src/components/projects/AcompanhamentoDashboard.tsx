@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-import { getCommercialDashboard, type DashboardRow } from '../../api/acompanhamentoComercial';
+import { getCommercialDashboard, getRealizedByCategory, type DashboardRow } from '../../api/acompanhamentoComercial';
 import { Modal } from '../ui/Modal';
 import { ProjectScheduleEditor } from './ProjectScheduleEditor';
 import { RealizedCategoryBreakdown } from './RealizedCategoryBreakdown';
@@ -32,8 +32,8 @@ interface Metric {
 
 const METRICS: Metric[] = [
   { key: 'custo', label: 'Custo previsto (total)', unit: 'brl', get: r => toNum(r.plannedTotalCost) },
-  { key: 'realizadoPago', label: 'Realizado — gasto (Omie)', unit: 'brl', get: r => toNum(r.realizedPaid) },
-  { key: 'realizadoTotal', label: 'Realizado — comprometido (Omie)', unit: 'brl', get: r => toNum(r.realizedCost) },
+  { key: 'realizadoPago', label: 'Realizado — pago', unit: 'brl', get: r => toNum(r.realizedPaid) },
+  { key: 'realizadoTotal', label: 'Realizado — total (pago + a pagar)', unit: 'brl', get: r => toNum(r.realizedCost) },
   { key: 'venda', label: 'Preço de venda', unit: 'brl', get: r => toNum(r.salePrice) },
   { key: 'lucro', label: 'Lucro previsto', unit: 'brl', get: r => toNum(r.expectedProfit) },
   { key: 'he', label: 'Hora extra', unit: 'brl', get: r => comp(r, 'he') },
@@ -54,12 +54,17 @@ function fmt(value: number | null, unit: Unit) {
 }
 
 export function AcompanhamentoDashboard() {
-  const { data, isLoading } = useQuery({ queryKey: ['commercial-dashboard'], queryFn: getCommercialDashboard });
-
   const [search, setSearch] = useState('');
   const [modality, setModality] = useState<'todas' | 'INLOCO' | 'POP_SEDE'>('todas');
+  const [category, setCategory] = useState('');
   const [metricKey, setMetricKey] = useState('custo');
   const [managed, setManaged] = useState<DashboardRow | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['commercial-dashboard', category],
+    queryFn: () => getCommercialDashboard(category || undefined)
+  });
+  const categoriesQuery = useQuery({ queryKey: ['realized-categories', 'all'], queryFn: () => getRealizedByCategory() });
 
   const rows = useMemo(() => data ?? [], [data]);
   const metric = METRICS.find(m => m.key === metricKey) ?? METRICS[0];
@@ -117,6 +122,15 @@ export function AcompanhamentoDashboard() {
             <option value="todas">Todas</option>
             <option value="INLOCO">In loco</option>
             <option value="POP_SEDE">Na sede</option>
+          </select>
+        </div>
+        <div className="field-group">
+          <label htmlFor="acp-category">Categoria de gasto (realizado)</label>
+          <select id="acp-category" value={category} onChange={e => setCategory(e.target.value)}>
+            <option value="">Todas</option>
+            {(categoriesQuery.data ?? [])
+              .filter(c => c.categoriaCodigo)
+              .map(c => <option key={c.categoriaCodigo} value={c.categoriaCodigo as string}>{c.categoria}</option>)}
           </select>
         </div>
         <div className="field-group">

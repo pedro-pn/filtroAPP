@@ -99,8 +99,9 @@ router.get(
   '/dashboard',
   requireAuth,
   requireAcompanhamentoAccess,
-  asyncHandler(async (_req, res) => {
-    const rows = await listCommercialDashboard();
+  asyncHandler(async (req, res) => {
+    const categoryCode = typeof req.query.category === 'string' && req.query.category ? req.query.category : null;
+    const rows = await listCommercialDashboard({ categoryCode });
     res.json(rows);
   })
 );

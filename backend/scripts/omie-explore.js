@@ -19,9 +19,7 @@ const PRESETS = [
   { name: 'categorias', path: '/geral/categorias/', call: 'ListarCategorias', param: { pagina: 1, registros_por_pagina: 50 } },
   { name: 'contas-pagar', path: '/financas/contapagar/', call: 'ListarContasPagar', param: { pagina: 1, registros_por_pagina: 20, apenas_importado_api: 'N' } }
 ];
-
-// Candidatos para o método de listagem de pedido de compra (convenção: IncluirPedCompra -> ListarPedCompra).
-const PEDIDO_COMPRA_CALLS = ['ListarPedCompra', 'ListarPedidosCompra', 'PesquisarPedCompra', 'ListarPedidoCompra'];
+// Pedido de compra: confirmado que NÃO é necessário (contas a pagar já engloba tudo).
 
 // Testa se ListarContasPagar aceita filtro por codigo_projeto (decisivo p/ não varrer 40k+ títulos).
 async function probeContasPagarFilter() {
@@ -40,25 +38,6 @@ async function probeContasPagarFilter() {
   } catch (error) {
     console.log('  ERRO no probe:', error.message);
   }
-}
-
-async function probePedidoCompra() {
-  console.log('\n===== pedidos-compra (testando nomes de método) =====');
-  for (const call of PEDIDO_COMPRA_CALLS) {
-    try {
-      const json = await omieCall('/produtos/pedidocompra/', call, { pagina: 1, registros_por_pagina: 5 });
-      console.log(`  OK com call "${call}".`);
-      describe('pedidos-compra', json);
-      const file = 'omie-pedidos-compra.json';
-      const { writeFileSync: w } = await import('node:fs');
-      w(file, JSON.stringify(json, null, 2));
-      console.log(`  JSON salvo em ${file}`);
-      return;
-    } catch (error) {
-      console.log(`  "${call}" -> ${error.message}`);
-    }
-  }
-  console.log('  Nenhum nome funcionou; confirmar na doc do Omie.');
 }
 
 function preview(value, depth = 0) {
@@ -122,7 +101,6 @@ async function main() {
   }
   if (!only) {
     await probeContasPagarFilter();
-    await probePedidoCompra();
   }
 }
 

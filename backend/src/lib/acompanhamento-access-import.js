@@ -275,7 +275,8 @@ export async function setProjectBudgetRevision(projectId, codBd) {
 
 // Dashboard de acompanhamento: projetos cujo contrato bate com propostas importadas, com o
 // previsto (orçamento/revisão) e o realizado parcial (nº de RDOs = dias trabalhados, % prazo).
-export async function listCommercialDashboard() {
+export async function listCommercialDashboard({ categoryCode = null } = {}) {
+  const realizedWhere = { projectId: { not: null }, ...(categoryCode ? { categoriaCodigo: categoryCode } : {}) };
   const [proposals, projects, budgets, rdoGroups, omieTotals, omiePaid] = await Promise.all([
     prisma.commercialProposal.findMany({
       select: {
@@ -297,8 +298,8 @@ export async function listCommercialDashboard() {
       }
     }),
     prisma.report.groupBy({ by: ['projectId'], where: { reportType: 'RDO', deletedAt: null }, _count: { _all: true } }),
-    prisma.omiePurchase.groupBy({ by: ['projectId'], where: { projectId: { not: null } }, _sum: { valor: true } }),
-    prisma.omiePurchase.groupBy({ by: ['projectId'], where: { projectId: { not: null }, statusTitulo: 'PAGO' }, _sum: { valor: true } })
+    prisma.omiePurchase.groupBy({ by: ['projectId'], where: realizedWhere, _sum: { valor: true } }),
+    prisma.omiePurchase.groupBy({ by: ['projectId'], where: { ...realizedWhere, statusTitulo: 'PAGO' }, _sum: { valor: true } })
   ]);
 
   const latestByProp = new Map();
