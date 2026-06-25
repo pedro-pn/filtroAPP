@@ -1612,7 +1612,11 @@ a {
 }
 
 /* === Dashboard Acompanhamento === */
-.acp-dash { display: flex; flex-direction: column; gap: 14px; }
+/* Área de conteúdo do módulo: ocupa o restante e PODE encolher (min-width:0),
+   senão a tabela larga estoura o layout para a direita. */
+.equip-content { flex: 1 1 auto; min-width: 0; }
+.acp-dash { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.acp-dash .page-card { min-width: 0; max-width: 100%; box-sizing: border-box; }
 
 .acp-filters {
   display: grid;
