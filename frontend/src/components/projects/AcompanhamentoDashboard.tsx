@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { getCommercialDashboard, type DashboardRow } from '../../api/acompanhamentoComercial';
+import { ProjectScheduleEditor } from './ProjectScheduleEditor';
 
 function toNum(value?: string | number | null) {
   if (value === null || value === undefined || value === '') return null;
@@ -28,6 +30,7 @@ function consumedPct(row: DashboardRow) {
 
 export function AcompanhamentoDashboard() {
   const { data, isLoading } = useQuery({ queryKey: ['commercial-dashboard'], queryFn: getCommercialDashboard });
+  const [selected, setSelected] = useState<DashboardRow | null>(null);
 
   if (isLoading) return <div className="page-card placeholder-copy">Carregando acompanhamento…</div>;
 
@@ -63,6 +66,7 @@ export function AcompanhamentoDashboard() {
               <th style={{ padding: '6px 8px' }}>% prazo</th>
               <th style={{ padding: '6px 8px' }}>Equipe (op/enc · d/n)</th>
               <th style={{ padding: '6px 8px' }}>Status</th>
+              <th style={{ padding: '6px 8px' }}></th>
             </tr>
           </thead>
           <tbody>
@@ -87,12 +91,24 @@ export function AcompanhamentoDashboard() {
                       ? <span className="badge badge-ok">Resolvido</span>
                       : <span className="badge badge-pen">Pendente</span>}
                   </td>
+                  <td style={{ padding: '6px 8px' }}>
+                    <button type="button" className="mini-btn" onClick={() => setSelected(current => current?.projectId === row.projectId ? null : row)}>
+                      {selected?.projectId === row.projectId ? 'Fechar' : 'Gerir'}
+                    </button>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+
+      {selected ? (
+        <div className="page-card" style={{ marginTop: 12 }}>
+          <div className="sec">Cronograma — {selected.code}{selected.name ? ` — ${selected.name}` : ''}</div>
+          <ProjectScheduleEditor projectId={selected.projectId} />
+        </div>
+      ) : null}
     </div>
   );
 }

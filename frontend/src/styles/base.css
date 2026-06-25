@@ -1603,6 +1603,19 @@ a {
   border-bottom: none;
 }
 
+.det-inline-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.det-inline-actions select,
+.det-inline-actions input {
+  max-width: 220px;
+}
+
 .det-row span {
   min-width: 0;
   overflow-wrap: anywhere;
