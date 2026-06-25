@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getCommercialDashboard, type DashboardRow } from '../../api/acompanhamentoComercial';
 import { Modal } from '../ui/Modal';
 import { ProjectScheduleEditor } from './ProjectScheduleEditor';
+import { RealizedCategoryBreakdown } from './RealizedCategoryBreakdown';
 
 function toNum(value?: string | number | null) {
   if (value === null || value === undefined || value === '') return null;
@@ -165,6 +166,13 @@ export function AcompanhamentoDashboard() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Realizado por categoria (global, todas as compras Omie vinculadas) */}
+      <div className="page-card">
+        <div className="sec">Realizado por categoria de gasto</div>
+        <p className="placeholder-copy" style={{ margin: '4px 0 10px' }}>Compras do Omie por categoria (hospedagem, material, etc.), somando todos os projetos vinculados.</p>
+        <RealizedCategoryBreakdown />
       </div>
 
       {/* Tabela */}

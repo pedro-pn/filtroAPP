@@ -88,6 +88,20 @@ export async function getCommercialDashboard(): Promise<DashboardRow[]> {
   return data;
 }
 
+export interface RealizedCategory {
+  categoriaCodigo: string | null;
+  categoria: string;
+  total: string | number | null;
+  count: number;
+}
+
+export async function getRealizedByCategory(projectId?: string): Promise<RealizedCategory[]> {
+  const { data } = await apiClient.get<RealizedCategory[]>('/acompanhamento/comercial/realizado-categorias', {
+    params: projectId ? { projectId } : undefined
+  });
+  return data;
+}
+
 export async function setProjectRevision(projectId: string, codBd: number) {
   const { data } = await apiClient.post(
     `/acompanhamento/comercial/projetos/${projectId}/revisao`,

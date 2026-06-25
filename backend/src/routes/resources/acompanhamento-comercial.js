@@ -105,6 +105,32 @@ router.get(
   })
 );
 
+// Realizado (compras Omie) agrupado por categoria de gasto. Opcional: ?projectId= para um projeto.
+router.get(
+  '/realizado-categorias',
+  requireAuth,
+  requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.query.projectId === 'string' && req.query.projectId ? req.query.projectId : null;
+    const where = projectId ? { projectId } : { projectId: { not: null } };
+    const groups = await prisma.omiePurchase.groupBy({
+      by: ['categoriaCodigo', 'categoriaDescricao'],
+      where,
+      _sum: { valor: true },
+      _count: { _all: true }
+    });
+    const rows = groups
+      .map(g => ({
+        categoriaCodigo: g.categoriaCodigo,
+        categoria: g.categoriaDescricao || g.categoriaCodigo || 'Sem categoria',
+        total: g._sum.valor,
+        count: g._count._all
+      }))
+      .sort((a, b) => Number(b.total ?? 0) - Number(a.total ?? 0));
+    res.json(rows);
+  })
+);
+
 // Projetos cujo contrato bate com propostas importadas (sinalização de pendência na aba Projetos).
 router.get(
   '/pendencias',

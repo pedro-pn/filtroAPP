@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { getProjectRevisions, setProjectSchedule, type CommercialRevision } from '../../api/acompanhamentoComercial';
 import { useToast } from '../ui/Toast';
+import { RealizedCategoryBreakdown } from './RealizedCategoryBreakdown';
 
 function toNum(value?: string | number | null) {
   if (value === null || value === undefined || value === '') return null;
@@ -119,6 +120,9 @@ export function ProjectScheduleEditor({ projectId }: { projectId: string }) {
           {consumedPct != null ? ` · prazo consumido ${consumedPct}%` : ''}
         </span>
       </div>
+
+      <div className="sec" style={{ marginTop: 12 }}>Realizado por categoria (Omie)</div>
+      <RealizedCategoryBreakdown projectId={projectId} limit={10} />
     </div>
   );
 }

@@ -1645,6 +1645,8 @@ a {
 
 .acp-bars { display: flex; flex-direction: column; gap: 8px; }
 .acp-bar-row { display: grid; grid-template-columns: 92px 1fr auto; gap: 10px; align-items: center; font-size: 13px; }
+.acp-bars-cat .acp-bar-row { grid-template-columns: 200px 1fr auto; }
+@media (max-width: 520px) { .acp-bars-cat .acp-bar-row { grid-template-columns: 120px 1fr auto; } }
 .acp-bar-label { font-weight: 600; color: #30503a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acp-bar-track { background: #eef2ef; border-radius: 999px; height: 14px; overflow: hidden; }
 .acp-bar-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #3f6f55, #5c8a6c); }
