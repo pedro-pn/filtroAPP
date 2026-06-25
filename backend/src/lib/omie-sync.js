@@ -46,7 +46,8 @@ async function finishRun(id, status, data = {}) {
 }
 
 // Itera todas as páginas de um Listar, chamando onPage(records) por página.
-async function paginate(path, call, baseParam, recordsKey, onPage) {
+// Loga o progresso (útil em listagens grandes como contas a pagar).
+async function paginate(path, call, baseParam, recordsKey, onPage, label = call) {
   let page = 1;
   let totalPages = 1;
   let read = 0;
@@ -56,6 +57,9 @@ async function paginate(path, call, baseParam, recordsKey, onPage) {
     const records = json[recordsKey] || [];
     read += records.length;
     await onPage(records);
+    if (totalPages > 1) {
+      console.log(`  [${label}] página ${page}/${totalPages} · lidos ${read}`);
+    }
     page += 1;
   } while (page <= totalPages);
   return read;
@@ -69,19 +73,21 @@ export async function syncOmieProjects({ triggeredBy = 'SCRIPT' } = {}) {
     const projectByCode = new Map(projects.map(p => [String(p.code).trim(), p.id]));
 
     let written = 0;
+    let matched = 0;
     const read = await paginate('/geral/projetos/', 'ListarProjetos', {}, 'cadastro', async (records) => {
       for (const r of records) {
         const codigo = String(r.codigo);
         const osNumber = osNumberFromName(r.nome);
         const projectId = osNumber ? projectByCode.get(osNumber) ?? null : null;
+        if (projectId) matched += 1;
         const data = { codigo, osNumber, nome: r.nome ?? null, inativo: r.inativo === 'S', projectId, syncedAt: new Date() };
         await prisma.omieProject.upsert({ where: { codigo }, create: data, update: data });
         written += 1;
       }
     });
 
-    await finishRun(run.id, 'SUCCESS', { recordsRead: read, recordsWritten: written });
-    return { read, written };
+    await finishRun(run.id, 'SUCCESS', { recordsRead: read, recordsWritten: written, summary: { matched } });
+    return { read, written, matched };
   } catch (error) {
     await finishRun(run.id, 'ERROR', { error: error.message });
     throw error;
