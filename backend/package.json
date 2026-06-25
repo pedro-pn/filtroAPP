@@ -14,6 +14,7 @@
     "import:master-data": "node scripts/import-master-data.js",
     "import:collaborators-csv": "node scripts/import-collaborators-csv.js",
     "normalize:collaborator-roles": "node scripts/normalize-collaborator-roles.js",
+    "backfill:commercial-components": "node scripts/backfill-commercial-components.js",
     "import:inhibition-systems-csv": "node scripts/import-inhibition-systems-csv.js",
     "migrate:signatures": "node scripts/migrate-signatures-to-dataurl.js",
     "retention:dry-run": "node scripts/run-data-retention.js",

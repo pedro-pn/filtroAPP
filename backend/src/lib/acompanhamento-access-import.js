@@ -99,7 +99,26 @@ export function mapProposalRow(row) {
     numPerDay: toInt(row.n_p_dia),
     numPerNight: toInt(row.n_p_noite),
     isComplete: salePrice !== null,
+    components: componentsFromRow(row),
     rawRow: serializeRaw(row)
+  };
+}
+
+// Componentes de custo/preço normalizados (também usado no backfill a partir do rawRow).
+export function componentsFromRow(row) {
+  return {
+    he: toNumber(row.valor_he),
+    standby: toNumber(row.valor_standby),
+    diaria: toNumber(row.valor_diaria),
+    analise: toNumber(row.valor_analise),
+    mobEquipe: toNumber(row.valor_mob_equipe),
+    mobEquipamento: toNumber(row.valor_mob_equipamento),
+    desmobExtra: toNumber(row.valor_desmob_extra),
+    diariaEquipamento: toNumber(row.diaria_equipamento),
+    elemento: toNumber(row.valor_elemento),
+    litro: toNumber(row.valor_litro),
+    efluente: toNumber(row.total_efluente),
+    adto: toNumber(row.adto)
   };
 }
 
@@ -263,7 +282,7 @@ export async function listCommercialDashboard() {
         codBd: true, codProp: true, nRev: true, salePrice: true, plannedCost: true,
         expectedProfit: true, expectedMargin: true, plannedDays: true, workedDays: true,
         numOperators: true, numSupervisors: true, numPerDay: true, numPerNight: true,
-        mobilizationLeadDays: true
+        mobilizationLeadDays: true, serviceModality: true, components: true
       }
     }),
     prisma.project.findMany({
@@ -317,6 +336,8 @@ export async function listCommercialDashboard() {
       numSupervisors: source?.numSupervisors ?? null,
       numPerDay: source?.numPerDay ?? null,
       numPerNight: source?.numPerNight ?? null,
+      serviceModality: source?.serviceModality ?? null,
+      components: source?.components ?? {},
       rdoCount: rdoByProject.get(project.id) ?? 0
     });
   }

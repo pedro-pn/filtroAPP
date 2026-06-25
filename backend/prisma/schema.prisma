@@ -1234,6 +1234,7 @@ model CommercialProposal {
   numPerDay          Int?                     // n_p_dia
   numPerNight        Int?                     // n_p_noite
   isComplete         Boolean          @default(false) // false quando sem valor de venda
+  components         Json             @default("{}") // componentes de custo/preço normalizados (HE, standby, diárias, mobilização...)
   rawRow             Json                     // linha original completa (à prova de futuro)
   lastImportId       String?
   createdAt          DateTime         @default(now())

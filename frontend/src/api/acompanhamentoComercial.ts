@@ -76,6 +76,8 @@ export interface DashboardRow {
   numSupervisors?: number | null;
   numPerDay?: number | null;
   numPerNight?: number | null;
+  serviceModality?: 'INLOCO' | 'POP_SEDE' | null;
+  components?: Record<string, number | null>;
   rdoCount: number;
 }
 
