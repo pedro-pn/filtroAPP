@@ -16,10 +16,49 @@ import { omieCall, omieConfigured } from '../src/lib/omie-client.js';
 
 const PRESETS = [
   { name: 'projetos', path: '/geral/projetos/', call: 'ListarProjetos', param: { pagina: 1, registros_por_pagina: 50 } },
-  { name: 'contas-pagar', path: '/financas/contapagar/', call: 'ListarContasPagar', param: { pagina: 1, registros_por_pagina: 20, apenas_importado_api: 'N' } },
-  // ⚠ confirmar o nome do método de listagem de pedido de compra (pode ser ListarPedidosCompras ou PesquisarLancamentos)
-  { name: 'pedidos-compra', path: '/produtos/pedidocompra/', call: 'ListarPedidosCompras', param: { pagina: 1, registros_por_pagina: 20 } }
+  { name: 'contas-pagar', path: '/financas/contapagar/', call: 'ListarContasPagar', param: { pagina: 1, registros_por_pagina: 20, apenas_importado_api: 'N' } }
 ];
+
+// Candidatos para o método de listagem de pedido de compra (nome incerto).
+const PEDIDO_COMPRA_CALLS = ['ListarPedidosCompra', 'PesquisarPedCompra', 'ListarPedComp', 'ListarPedidoCompra'];
+
+// Testa se ListarContasPagar aceita filtro por codigo_projeto (decisivo p/ não varrer 40k+ títulos).
+async function probeContasPagarFilter() {
+  console.log('\n===== probe: contas a pagar filtradas por projeto =====');
+  try {
+    const base = await omieCall('/financas/contapagar/', 'ListarContasPagar', { pagina: 1, registros_por_pagina: 1 });
+    const first = (base.conta_pagar_cadastro || [])[0];
+    const codigoProjeto = first?.codigo_projeto;
+    if (!codigoProjeto) { console.log('  sem codigo_projeto no 1º título; pulei.'); return; }
+    console.log('  total geral:', base.total_de_registros, '· testando codigo_projeto =', codigoProjeto);
+    const filtered = await omieCall('/financas/contapagar/', 'ListarContasPagar', { pagina: 1, registros_por_pagina: 5, codigo_projeto: codigoProjeto });
+    console.log('  total filtrado por codigo_projeto:', filtered.total_de_registros);
+    console.log(filtered.total_de_registros < base.total_de_registros
+      ? '  => filtro por codigo_projeto FUNCIONA (podemos puxar por projeto).'
+      : '  => filtro por codigo_projeto IGNORADO (precisa varrer por data e filtrar no app).');
+  } catch (error) {
+    console.log('  ERRO no probe:', error.message);
+  }
+}
+
+async function probePedidoCompra() {
+  console.log('\n===== pedidos-compra (testando nomes de método) =====');
+  for (const call of PEDIDO_COMPRA_CALLS) {
+    try {
+      const json = await omieCall('/produtos/pedidocompra/', call, { pagina: 1, registros_por_pagina: 5 });
+      console.log(`  OK com call "${call}".`);
+      describe('pedidos-compra', json);
+      const file = 'omie-pedidos-compra.json';
+      const { writeFileSync: w } = await import('node:fs');
+      w(file, JSON.stringify(json, null, 2));
+      console.log(`  JSON salvo em ${file}`);
+      return;
+    } catch (error) {
+      console.log(`  "${call}" -> ${error.message}`);
+    }
+  }
+  console.log('  Nenhum nome funcionou; confirmar na doc do Omie.');
+}
 
 function preview(value, depth = 0) {
   if (value === null || value === undefined) return String(value);
@@ -79,6 +118,10 @@ async function main() {
   for (const preset of presets) {
     // eslint-disable-next-line no-await-in-loop
     await run(preset);
+  }
+  if (!only) {
+    await probeContasPagarFilter();
+    await probePedidoCompra();
   }
 }
 
