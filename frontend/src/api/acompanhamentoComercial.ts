@@ -79,6 +79,8 @@ export interface DashboardRow {
   serviceModality?: 'INLOCO' | 'POP_SEDE' | null;
   components?: Record<string, number | null>;
   rdoCount: number;
+  realizedCost?: string | number | null;
+  realizedPaid?: string | number | null;
 }
 
 export async function getCommercialDashboard(): Promise<DashboardRow[]> {

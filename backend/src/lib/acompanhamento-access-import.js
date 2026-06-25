@@ -276,7 +276,7 @@ export async function setProjectBudgetRevision(projectId, codBd) {
 // Dashboard de acompanhamento: projetos cujo contrato bate com propostas importadas, com o
 // previsto (orçamento/revisão) e o realizado parcial (nº de RDOs = dias trabalhados, % prazo).
 export async function listCommercialDashboard() {
-  const [proposals, projects, budgets, rdoGroups] = await Promise.all([
+  const [proposals, projects, budgets, rdoGroups, omieTotals, omiePaid] = await Promise.all([
     prisma.commercialProposal.findMany({
       select: {
         codBd: true, codProp: true, nRev: true, salePrice: true, plannedCost: true,
@@ -296,7 +296,9 @@ export async function listCommercialDashboard() {
         salePrice: true, plannedTotalCost: true, expectedProfit: true, expectedMargin: true, plannedDays: true
       }
     }),
-    prisma.report.groupBy({ by: ['projectId'], where: { reportType: 'RDO', deletedAt: null }, _count: { _all: true } })
+    prisma.report.groupBy({ by: ['projectId'], where: { reportType: 'RDO', deletedAt: null }, _count: { _all: true } }),
+    prisma.omiePurchase.groupBy({ by: ['projectId'], where: { projectId: { not: null } }, _sum: { valor: true } }),
+    prisma.omiePurchase.groupBy({ by: ['projectId'], where: { projectId: { not: null }, statusTitulo: 'PAGO' }, _sum: { valor: true } })
   ]);
 
   const latestByProp = new Map();
@@ -308,6 +310,8 @@ export async function listCommercialDashboard() {
   }
   const budgetByProject = new Map(budgets.map(b => [b.projectId, b]));
   const rdoByProject = new Map(rdoGroups.map(g => [g.projectId, g._count._all]));
+  const realizedByProject = new Map(omieTotals.map(g => [g.projectId, g._sum.valor]));
+  const realizedPaidByProject = new Map(omiePaid.map(g => [g.projectId, g._sum.valor]));
 
   const rows = [];
   for (const project of projects) {
@@ -338,7 +342,9 @@ export async function listCommercialDashboard() {
       numPerNight: source?.numPerNight ?? null,
       serviceModality: source?.serviceModality ?? null,
       components: source?.components ?? {},
-      rdoCount: rdoByProject.get(project.id) ?? 0
+      rdoCount: rdoByProject.get(project.id) ?? 0,
+      realizedCost: realizedByProject.get(project.id) ?? null,
+      realizedPaid: realizedPaidByProject.get(project.id) ?? null
     });
   }
   rows.sort((a, b) => Number(a.resolved) - Number(b.resolved) || a.code.localeCompare(b.code));

@@ -296,6 +296,8 @@ model Project {
   surveys               SatisfactionSurvey[]
   romaneios             Romaneio[]
   budgets               ProjectBudget[]
+  omieProjects          OmieProject[]
+  omiePurchases         OmiePurchase[]
 
   @@index([deletedAt])
   @@index([registrationPending])
@@ -1297,4 +1299,74 @@ model ProjectBudget {
   @@index([projectId])
   @@index([sourceProposalCodBd])
   @@index([selectionStatus])
+}
+
+// === Integração Omie (compras realizadas por projeto) ===
+
+// Cache dos projetos do Omie (codigo interno -> nº da OS/missão extraído do nome).
+model OmieProject {
+  id        String   @id @default(cuid())
+  codigo    String   @unique // codigo interno do Omie
+  osNumber  String? // nº da OS/missão (= Project.code) extraído do nome
+  nome      String?
+  inativo   Boolean  @default(false)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  syncedAt  DateTime @default(now())
+
+  @@index([osNumber])
+  @@index([projectId])
+}
+
+model OmieCategory {
+  id        String   @id @default(cuid())
+  codigo    String   @unique // codigo_categoria (ex.: 2.04.92)
+  descricao String?
+  syncedAt  DateTime @default(now())
+}
+
+// Título a pagar do Omie = gasto realizado vinculado a um projeto.
+model OmiePurchase {
+  id                    String    @id @default(cuid())
+  omieId                String    @unique // codigo_lancamento_omie
+  codigoProjeto         String? // codigo interno do Omie
+  projectId             String?
+  osNumber              String?
+  valor                 Decimal?  @db.Decimal(14, 2) // valor_documento
+  statusTitulo          String? // PAGO, ABERTO, ...
+  categoriaCodigo       String?
+  categoriaDescricao    String?
+  fornecedorCodigo      String?
+  numeroDocumento       String?
+  numeroDocumentoFiscal String?
+  origem                String? // id_origem (APIP, etc.)
+  dataEmissao           DateTime?
+  dataVencimento        DateTime?
+  dataPrevisao          DateTime?
+  linkStatus            String    @default("LINKED") // LINKED | UNMATCHED
+  rawPayload            Json
+  syncedAt              DateTime  @default(now())
+  project               Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([codigoProjeto])
+  @@index([categoriaCodigo])
+  @@index([statusTitulo])
+}
+
+model IntegrationSyncRun {
+  id             String    @id @default(cuid())
+  integration    String // 'OMIE'
+  scope          String? // projects | categories | purchases
+  status         String    @default("RUNNING") // RUNNING | SUCCESS | ERROR
+  recordsRead    Int       @default(0)
+  recordsWritten Int       @default(0)
+  error          String?
+  summary        Json?
+  triggeredBy    String? // SCRIPT | SCHEDULE | MANUAL
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
+
+  @@index([integration, startedAt])
+  @@index([status])
 }

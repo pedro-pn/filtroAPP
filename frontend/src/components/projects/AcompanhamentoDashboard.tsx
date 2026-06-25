@@ -31,6 +31,8 @@ interface Metric {
 
 const METRICS: Metric[] = [
   { key: 'custo', label: 'Custo previsto (total)', unit: 'brl', get: r => toNum(r.plannedTotalCost) },
+  { key: 'realizadoPago', label: 'Realizado — gasto (Omie)', unit: 'brl', get: r => toNum(r.realizedPaid) },
+  { key: 'realizadoTotal', label: 'Realizado — comprometido (Omie)', unit: 'brl', get: r => toNum(r.realizedCost) },
   { key: 'venda', label: 'Preço de venda', unit: 'brl', get: r => toNum(r.salePrice) },
   { key: 'lucro', label: 'Lucro previsto', unit: 'brl', get: r => toNum(r.expectedProfit) },
   { key: 'he', label: 'Hora extra', unit: 'brl', get: r => comp(r, 'he') },
@@ -177,6 +179,7 @@ export function AcompanhamentoDashboard() {
                 <th>Contrato</th>
                 <th>Venda</th>
                 <th>Custo prev.</th>
+                <th>Realizado</th>
                 <th>Margem</th>
                 <th>Dias (prev/trab)</th>
                 <th>RDOs</th>
@@ -191,6 +194,7 @@ export function AcompanhamentoDashboard() {
                   <td>{row.proposalCode}</td>
                   <td>{brl(toNum(row.salePrice))}</td>
                   <td>{brl(toNum(row.plannedTotalCost))}</td>
+                  <td>{brl(toNum(row.realizedPaid))}</td>
                   <td>{pct(row.expectedMargin)}</td>
                   <td>{row.plannedDays ?? '—'} / {row.workedDays ?? '—'}</td>
                   <td>{row.rdoCount}</td>
