@@ -57,7 +57,9 @@ const ACCOUNT_MODULE_ROLE_COMPATIBILITY = {
     'epi:collaborator',
     'privacy:admin',
     'equipamentos:manager',
-    'equipamentos:viewer'
+    'equipamentos:viewer',
+    'acompanhamento:manager',
+    'acompanhamento:viewer'
   ]),
   [AccountType.INTERNAL]: new Set([
     'rdo:coordinator',
@@ -68,7 +70,9 @@ const ACCOUNT_MODULE_ROLE_COMPATIBILITY = {
     'epi:collaborator',
     'privacy:admin',
     'equipamentos:manager',
-    'equipamentos:viewer'
+    'equipamentos:viewer',
+    'acompanhamento:manager',
+    'acompanhamento:viewer'
   ]),
   [AccountType.CLIENT]: new Set(['rdo:client'])
 };
