@@ -4,6 +4,7 @@ import type { AuthUser } from '../types/auth';
 export type AppModuleId = 'rdo' | 'admin' | 'romaneio' | 'epi' | 'equipamentos' | 'privacy';
 
 const LAST_MODULE_KEY_PREFIX = 'filtrovali:last-module:';
+const HUB_FIRST_LOGIN_TUTORIAL_KEY_PREFIX = 'filtrovali:hub-first-login-tutorial:';
 const LEGACY_RDO_PATHS = [
   '/home',
   '/andamento',
@@ -17,6 +18,10 @@ const LEGACY_RDO_PATHS = [
 
 function storageKey(user: Pick<AuthUser, 'id'>) {
   return `${LAST_MODULE_KEY_PREFIX}${user.id}`;
+}
+
+function hubFirstLoginTutorialStorageKey(user: Pick<AuthUser, 'id'>) {
+  return `${HUB_FIRST_LOGIN_TUTORIAL_KEY_PREFIX}${user.id}`;
 }
 
 function safeLocalStorageGet(key: string) {
@@ -33,6 +38,29 @@ function safeLocalStorageSet(key: string, value: string) {
   } catch {
     // localStorage can be unavailable in private or restricted contexts.
   }
+}
+
+function isClientAccount(user: Pick<AuthUser, 'accountType' | 'role'> | null | undefined) {
+  return user?.accountType === 'CLIENT' || user?.role === 'CLIENT';
+}
+
+export function availableHubModulesForUser(user: AuthUser | null | undefined) {
+  return hubModulesForUser(user).filter(module => module.path && !module.disabled);
+}
+
+export function hasSeenHubFirstLoginTutorial(user: Pick<AuthUser, 'id'> | null | undefined) {
+  if (!user) return true;
+  return safeLocalStorageGet(hubFirstLoginTutorialStorageKey(user)) === '1';
+}
+
+export function markHubFirstLoginTutorialSeen(user: Pick<AuthUser, 'id'> | null | undefined) {
+  if (!user) return;
+  safeLocalStorageSet(hubFirstLoginTutorialStorageKey(user), '1');
+}
+
+export function shouldOpenHubOnFirstLogin(user: AuthUser | null | undefined) {
+  if (!user || isClientAccount(user)) return false;
+  return availableHubModulesForUser(user).length > 1 && !hasSeenHubFirstLoginTutorial(user);
 }
 
 export function moduleIdFromPath(pathname: string): AppModuleId | null {
@@ -69,10 +97,11 @@ export function rememberedModulePath(user: AuthUser | null | undefined) {
 
 export function preferredEntryPath(user: AuthUser | null | undefined) {
   if (!user) return '/login';
-  if (user.accountType === 'CLIENT' || user.role === 'CLIENT') return '/rdo/cliente';
+  if (isClientAccount(user)) return '/rdo/cliente';
+  if (shouldOpenHubOnFirstLogin(user)) return '/modulos';
   const remembered = rememberedModulePath(user);
   if (remembered) return remembered;
-  const modules = hubModulesForUser(user).filter(module => module.path && !module.disabled);
+  const modules = availableHubModulesForUser(user);
   return modules[0]?.path || '/modulos';
 }
 

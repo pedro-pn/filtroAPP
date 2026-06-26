@@ -246,7 +246,7 @@ test('preferred entry path uses the last accessible module for the signed-in acc
   };
 
   try {
-    const { preferredEntryPath, rememberModuleAccess } = await loadModuleNavigation();
+    const { markHubFirstLoginTutorialSeen, preferredEntryPath, rememberModuleAccess } = await loadModuleNavigation();
     const user = {
       id: 'admin-multi',
       username: 'admin-multi',
@@ -258,8 +258,9 @@ test('preferred entry path uses the last accessible module for the signed-in acc
       isActive: true
     };
 
-    assert.equal(preferredEntryPath(user), '/rdo/gestor');
     rememberModuleAccess(user, '/romaneio');
+    assert.equal(preferredEntryPath(user), '/modulos');
+    markHubFirstLoginTutorialSeen(user);
     assert.equal(preferredEntryPath(user), '/romaneio');
     rememberModuleAccess(user, '/epi');
     assert.equal(preferredEntryPath(user), '/epi');
@@ -268,6 +269,51 @@ test('preferred entry path uses the last accessible module for the signed-in acc
   } finally {
     delete globalThis.window;
   }
+});
+
+test('multi-module internal accounts open the modules hub until the first-login tutorial is seen', async () => {
+  const stored = new Map();
+  globalThis.window = {
+    localStorage: {
+      getItem: key => stored.get(key) || null,
+      setItem: (key, value) => stored.set(key, value)
+    }
+  };
+
+  try {
+    const { markHubFirstLoginTutorialSeen, preferredEntryPath } = await loadModuleNavigation();
+    const user = {
+      id: 'internal-multi',
+      username: 'internal-multi',
+      name: 'Interno Multi',
+      email: null,
+      role: 'COLLABORATOR',
+      accountType: 'INTERNAL',
+      moduleRoles: ['rdo:collaborator', 'romaneio:operator', 'epi:technician'],
+      isActive: true
+    };
+
+    assert.equal(preferredEntryPath(user), '/modulos');
+    markHubFirstLoginTutorialSeen(user);
+    assert.equal(preferredEntryPath(user), '/rdo/home');
+  } finally {
+    delete globalThis.window;
+  }
+});
+
+test('single-module internal accounts keep entering their module directly', async () => {
+  const { preferredEntryPath } = await loadModuleNavigation();
+
+  assert.equal(preferredEntryPath({
+    id: 'internal-epi',
+    username: 'internal-epi',
+    name: 'Interno EPI',
+    email: null,
+    role: 'COLLABORATOR',
+    accountType: 'INTERNAL',
+    moduleRoles: ['epi:technician'],
+    isActive: true
+  }), '/epi');
 });
 
 test('preferred entry path keeps client accounts inside the reports module', async () => {
