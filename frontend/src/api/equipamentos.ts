@@ -63,7 +63,7 @@ export interface EquipmentCategory {
 
 export interface EquipmentAttachment {
   id: string;
-  kind: 'CALIBRATION_CERTIFICATE' | 'TECHNICAL_DOC' | 'TECHNICAL_TEMPLATE' | 'TECHNICAL_DOC_GENERATED';
+  kind: 'CALIBRATION_CERTIFICATE' | 'TECHNICAL_DOC' | 'TECHNICAL_TEMPLATE' | 'TECHNICAL_DOC_GENERATED' | 'TECHNICAL_PHOTO';
   fileName: string;
   mimeType: string;
   publicToken: string;
@@ -87,6 +87,7 @@ export interface CompanyEquipment {
   hasTechnicalDoc: boolean;
   isActive: boolean;
   calibrationCertificate?: EquipmentAttachment | null;
+  calibrationCertificateArchive?: EquipmentAttachment[];
   technicalDoc?: EquipmentAttachment | null;
   technicalDocGenerated?: EquipmentAttachment | null;
   technicalDocGeneratedOutdated?: boolean;
