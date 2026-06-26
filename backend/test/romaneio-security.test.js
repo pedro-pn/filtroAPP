@@ -769,6 +769,32 @@ test('Romaneio return-items endpoint lists available outbound balance by project
         sortOrder: 0
       }]
     }, {
+      id: 'saida-2',
+      type: 'OUTBOUND',
+      items: [{
+        catalogItemId: 'catalog-filter',
+        itemCode: 'UF-01',
+        itemName: 'Unidade filtrante',
+        categoryName: 'Equipamentos',
+        kind: 'EQUIPMENT',
+        measureType: 'UNIT',
+        quantity: 3,
+        unitLabel: 'unidade',
+        isCustom: false,
+        sortOrder: 0
+      }, {
+        catalogItemId: 'catalog-hose',
+        itemCode: 'MG-01',
+        itemName: 'Mangueira',
+        categoryName: 'Mangueiras',
+        kind: 'CONNECTION',
+        measureType: 'LENGTH',
+        quantity: 12,
+        unitLabel: 'm',
+        isCustom: false,
+        sortOrder: 1
+      }]
+    }, {
       id: 'entrada-antiga',
       type: 'INBOUND',
       items: [{
@@ -809,8 +835,10 @@ test('Romaneio return-items endpoint lists available outbound balance by project
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.json.projectId, 'project-1');
-  assert.equal(response.json.items.length, 1);
-  assert.equal(response.json.items[0].maxQuantity, 1);
+  assert.equal(response.json.items.length, 2);
+  assert.equal(response.json.items[0].maxQuantity, 4);
+  assert.equal(response.json.items[1].catalogItemId, 'catalog-hose');
+  assert.equal(response.json.items[1].maxQuantity, 12);
   assert.deepEqual(projectCalls[0].where, {
     code: { equals: '5797', mode: 'insensitive' },
     deletedAt: null,
