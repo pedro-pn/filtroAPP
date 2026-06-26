@@ -45,9 +45,23 @@ POSTGRES_USER="${POSTGRES_USER:-postgres}"
 REPORTS_VOLUME="${REPORTS_VOLUME:-filtrovali_relatorios}"
 CERTS_VOLUME="${CERTS_VOLUME:-filtrovali_certs}"
 BACKUP_ROOT="${BACKUP_ROOT:-/root/backups/filtrovali}"
+BACKUP_LOCK_FILE="${BACKUP_LOCK_FILE:-$BACKUP_ROOT/backup-prod.lock}"
+BACKUP_LOCK_TIMEOUT_SECONDS="${BACKUP_LOCK_TIMEOUT_SECONDS:-0}"
 INCLUDE_CERTS="${INCLUDE_CERTS:-true}"
 INCLUDE_REPORTS="${INCLUDE_REPORTS:-true}"
 AWS_S3_URI="${AWS_S3_URI:-}"
+
+mkdir -p "$BACKUP_ROOT"
+
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"$BACKUP_LOCK_FILE"
+  if ! flock -w "$BACKUP_LOCK_TIMEOUT_SECONDS" 9; then
+    echo "[backup] another backup is already running; skipping this run"
+    exit 0
+  fi
+else
+  echo "[backup] flock not found, continuing without concurrency lock" >&2
+fi
 
 TIMESTAMP="$(date +%F-%H%M%S)"
 RUN_DIR="$BACKUP_ROOT/$TIMESTAMP"

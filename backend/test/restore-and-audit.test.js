@@ -128,6 +128,21 @@ test('backup default includes certs required by restore default', () => {
   assert.match(restoreScript, /certs\.tar\.gz/);
 });
 
+test('backup script prevents concurrent runs before upload and cleanup', () => {
+  const script = fs.readFileSync(new URL('../../deploy/backup-prod.sh', import.meta.url), 'utf8');
+  const lockIndex = script.indexOf('flock -w "$BACKUP_LOCK_TIMEOUT_SECONDS" 9');
+  const timestampIndex = script.indexOf('TIMESTAMP="$(date +%F-%H%M%S)"');
+  const uploadIndex = script.indexOf('aws s3 cp "$RUN_DIR" "$AWS_S3_URI/$TIMESTAMP" --recursive');
+  const cleanupIndex = script.indexOf('find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -name "20*"');
+
+  assert.match(script, /BACKUP_LOCK_FILE="\$\{BACKUP_LOCK_FILE:-\$BACKUP_ROOT\/backup-prod\.lock\}"/);
+  assert.match(script, /BACKUP_LOCK_TIMEOUT_SECONDS="\$\{BACKUP_LOCK_TIMEOUT_SECONDS:-0\}"/);
+  assert.ok(lockIndex !== -1, 'backup script must acquire a lock');
+  assert.ok(lockIndex < timestampIndex, 'lock must be acquired before creating the run directory');
+  assert.ok(lockIndex < uploadIndex, 'lock must be held while uploading to S3');
+  assert.ok(lockIndex < cleanupIndex, 'lock must be held while pruning local backups');
+});
+
 test('restore script aborts before docker when reports archive is required and missing', () => {
   const { result, dockerCalls } = runRestoreWithFakeDocker({
     RESTORE_REPORTS: 'true',
