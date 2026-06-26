@@ -98,3 +98,15 @@ test('technicalDatasheetFileName usa o padrão Datasheet - código - nome', () =
     'Datasheet - CMR 001 - Compressor 10 PCM.pdf'
   );
 });
+
+test('technicalDatasheetFileName inclui a revisão no nome quando informada', () => {
+  assert.equal(
+    technicalDatasheetFileName({ code: 'CMR 001', name: 'Compressor 10 PCM' }, 3),
+    'Datasheet - CMR 001 - Compressor 10 PCM - Rev 3.pdf'
+  );
+  // null/ausente não adiciona sufixo (mantém retrocompatibilidade).
+  assert.equal(
+    technicalDatasheetFileName({ code: 'CMR 001', name: 'Compressor 10 PCM' }, null),
+    'Datasheet - CMR 001 - Compressor 10 PCM.pdf'
+  );
+});
