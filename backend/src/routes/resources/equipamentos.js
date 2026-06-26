@@ -307,15 +307,20 @@ router.get('/', asyncHandler(async (req, res) => {
 }));
 
 async function persistAttachments(equipmentId, { calibrationCertificate, technicalDoc, technicalPhotos, removeTechnicalPhotoIds }) {
+  const created = {
+    calibrationCertificate: null,
+    technicalDoc: null,
+    technicalPhotos: []
+  };
   if (calibrationCertificate) {
-    await createEquipmentAttachment(prisma, {
+    created.calibrationCertificate = await createEquipmentAttachment(prisma, {
       equipmentId,
       kind: EquipmentAttachmentKinds.CALIBRATION_CERTIFICATE,
       upload: calibrationCertificate
     });
   }
   if (technicalDoc) {
-    await createEquipmentAttachment(prisma, {
+    created.technicalDoc = await createEquipmentAttachment(prisma, {
       equipmentId,
       kind: EquipmentAttachmentKinds.TECHNICAL_DOC,
       upload: technicalDoc
@@ -327,8 +332,40 @@ async function persistAttachments(equipmentId, { calibrationCertificate, technic
   if (Array.isArray(technicalPhotos)) {
     for (const upload of technicalPhotos) {
       // eslint-disable-next-line no-await-in-loop
-      await createEquipmentPhoto(prisma, { equipmentId, upload });
+      const photo = await createEquipmentPhoto(prisma, { equipmentId, upload });
+      if (photo) created.technicalPhotos.push(photo);
     }
+  }
+  return created;
+}
+
+// Gera o PDF "atual" dos Dados Técnicos com os dados recém-salvos e o guarda como o
+// datasheet gerado mais recente (servido no botão de baixar do card). O PDF anterior
+// continua existindo e passa automaticamente a constar como ARQUIVADO no histórico —
+// cada revisão tem seu próprio PDF, com a revisão no nome ("… - Rev N.pdf").
+// Chamado APÓS gravar dados e fotos, para o PDF refletir o estado final.
+// Best-effort: uma falha na geração não bloqueia o salvamento dos dados técnicos.
+async function regenerateCurrentTechnicalDoc(equipmentId) {
+  const equipment = await prisma.companyEquipment.findUnique({
+    where: { id: equipmentId },
+    include: { category: true }
+  });
+  const category = equipment?.category;
+  if (!category?.technicalDocEnabled) return;
+  const data = equipment.technicalData;
+  if (!data || typeof data !== 'object' || !Object.keys(data).length) return;
+  const revision = equipment.technicalRevision || 1;
+  try {
+    const photoAssets = await resolveEquipmentPhotoAssets(prisma, equipment.id);
+    const { bytes, fileName } = await generateTechnicalDatasheetPdf(equipment, category, photoAssets, revision);
+    await createGeneratedEquipmentAttachment(prisma, {
+      equipmentId: equipment.id,
+      kind: EquipmentAttachmentKinds.TECHNICAL_DOC_GENERATED,
+      fileName,
+      bytes
+    });
+  } catch (error) {
+    console.error('Falha ao gerar datasheet da revisão:', error);
   }
 }
 
@@ -386,8 +423,8 @@ router.put('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => 
     ...(fields.technicalFieldOverrides !== undefined ? { technicalFieldOverrides: fields.technicalFieldOverrides } : {}),
     ...(fields.hasTechnicalDoc !== undefined ? { hasTechnicalDoc: fields.hasTechnicalDoc } : {})
   };
-  // Editar o datasheet marca a data (sinaliza "PDF desatualizado"); a revisão só sobe
-  // quando o gestor liga o toggle "Incrementar revisão" (bumpRevision).
+  // Ao alterar os Dados Técnicos, a revisão sobe automaticamente (bumpRevision, enviado
+  // pelo front quando há mudança) e o PDF dos dados ANTERIORES é arquivado no histórico.
   if (fields.technicalData !== undefined) {
     payload.technicalData = fields.technicalData;
     payload.technicalUpdatedAt = new Date();
@@ -406,17 +443,19 @@ router.put('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => 
   }
   const previous = await prisma.companyEquipment.findUnique({ where: { id: req.params.id }, select: { expiresAt: true } });
   const item = await prisma.companyEquipment.update({ where: { id: req.params.id }, data: payload });
-  await persistAttachments(item.id, { calibrationCertificate, technicalDoc, technicalPhotos, removeTechnicalPhotoIds });
-  if (removeCalibrationCertificate && !calibrationCertificate) {
-    await removeEquipmentAttachments(prisma, item.id, EquipmentAttachmentKinds.CALIBRATION_CERTIFICATE);
+  const createdAttachments = await persistAttachments(item.id, { calibrationCertificate, technicalDoc, technicalPhotos, removeTechnicalPhotoIds });
+  if (removeCalibrationCertificate) {
+    await removeEquipmentAttachments(prisma, item.id, EquipmentAttachmentKinds.CALIBRATION_CERTIFICATE, {
+      exceptIds: [createdAttachments.calibrationCertificate?.id]
+    });
   }
   if (removeTechnicalDoc && !technicalDoc) {
     await removeEquipmentAttachments(prisma, item.id, EquipmentAttachmentKinds.TECHNICAL_DOC);
   }
-  // Ao incrementar a revisão, o datasheet anterior é descartado (não fica arquivado):
-  // a nova revisão começa limpa e o próximo PDF gerado é o oficial.
+  // Houve mudança nos dados técnicos (bumpRevision): gera o PDF da nova revisão como o
+  // datasheet atual. O da revisão anterior continua e vira "arquivado" no histórico.
   if (fields.bumpRevision) {
-    await removeEquipmentAttachments(prisma, item.id, EquipmentAttachmentKinds.TECHNICAL_DOC_GENERATED);
+    await regenerateCurrentTechnicalDoc(item.id);
   }
   invalidateCaches();
   await syncRomaneioCatalog();
@@ -431,7 +470,7 @@ router.put('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => 
 }));
 
 // Gera (ou regenera) o datasheet em PDF a partir dos Dados Técnicos preenchidos.
-// Substitui o datasheet gerado anterior e devolve o anexo já com a URL pública.
+// O PDF novo vira o atual; os anteriores permanecem no histórico.
 router.post('/:id/technical-doc', requireEquipamentosManager, asyncHandler(async (req, res) => {
   const equipment = await prisma.companyEquipment.findUnique({
     where: { id: req.params.id },

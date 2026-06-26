@@ -8300,9 +8300,25 @@ select {
   font-family: inherit;
 }
 
+.equip-technical-action {
+  justify-content: center;
+}
+
 .equip-card .report-card-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
   margin-top: auto;
   padding-top: 4px;
+}
+
+.equip-card .report-card-actions .mini-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+  padding-left: 8px;
+  padding-right: 8px;
+  white-space: nowrap;
 }
 
 /* === Dados Técnicos (datasheet) === */
@@ -8521,6 +8537,39 @@ select {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+}
+
+/* X de fechar fixo no canto: fica sobre a área que rola e não some com a rolagem.
+   Alinhado ao padding do modal (18px) e à linha do título para não destoar. */
+.equip-modal-close-float {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 6;
+  width: 30px;
+  height: 30px;
+  font-size: 19px;
+  color: var(--mu);
+  background: var(--wh);
+  border-color: transparent;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.equip-modal-close-float:hover {
+  background: #f1f2f1;
+  color: var(--tx);
+  border-color: var(--br);
+}
+
+.equip-modal-close-float:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* Reserva espaço no cabeçalho para o título não passar por baixo do X flutuante. */
+.equip-form-head.has-float-close {
+  padding-right: 36px;
 }
 
 .equip-form {
@@ -8529,6 +8578,21 @@ select {
   gap: 14px;
   overflow-y: auto;
   padding-right: 4px;
+}
+
+/* Cabeçalho fixo do modal (título + abas): fica fora da rolagem e nunca some. */
+.equip-modal-head {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+/* Quando há cabeçalho fixo, o form é só a área rolável e ocupa o espaço restante. */
+.equip-modal-head + .equip-form {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .equip-form-head {
@@ -8578,6 +8642,45 @@ select {
 
 .equip-form .field-row .field-group {
   flex: 1 1 160px;
+}
+
+.equip-form-tabs {
+  margin-top: -2px;
+}
+
+.equip-calibration-history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.equip-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  padding: 10px 12px;
+  background: #fafafa;
+}
+
+.equip-history-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.equip-history-meta strong {
+  font-size: 13px;
+  color: var(--tx);
+}
+
+.equip-history-meta span {
+  font-size: 12px;
+  color: var(--mu);
+  overflow-wrap: anywhere;
 }
 
 .equip-toggle-block {
@@ -8639,22 +8742,34 @@ select {
   padding: 12px;
 }
 
-/* Bloco "Doc. técnica" no card: título + botão PDF (verde) para baixar */
-.equip-doc {
+.equip-doc-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 8px;
+  gap: 8px;
+}
+
+/* Blocos de download no card: certificado e datasheet técnico seguem o mesmo visual. */
+.equip-doc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: #fafafa;
 }
 
 .equip-doc-title {
   font-size: 12px;
   font-weight: 600;
   color: var(--mu);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .equip-doc-pdf {
-  align-self: flex-start;
+  flex: 0 0 auto;
   text-decoration: none;
 }
 
@@ -8944,6 +9059,20 @@ select {
   color: var(--rd);
   font-size: 13px;
   font-weight: 600;
+}
+
+/* Aviso de nova revisão dos dados técnicos (aparece quando há alterações). */
+.tech-revision-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #f3b3b5;
+  border-left: 3px solid var(--rd);
+  border-radius: var(--rs);
+  background: #fff5f5;
+  color: var(--rd);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .equip-form-actions {

@@ -253,14 +253,16 @@ export async function buildTechnicalDatasheetDocx(equipment, category, photoAsse
   return zip.toBuffer();
 }
 
-export function technicalDatasheetFileName(equipment) {
-  const base = safePath(`Datasheet - ${equipment?.code || ''} - ${equipment?.name || ''}`)
+export function technicalDatasheetFileName(equipment, revision = null) {
+  const revPart = revision != null && revision !== '' ? ` - Rev ${revision}` : '';
+  const base = safePath(`Datasheet - ${equipment?.code || ''} - ${equipment?.name || ''}${revPart}`)
     .replace(/^-+|-+$/g, '').trim();
   return `${base || 'Datasheet'}.pdf`;
 }
 
 // Gera o datasheet em PDF e devolve os bytes (sem persistir como anexo).
-export async function generateTechnicalDatasheetPdf(equipment, category, photoAssets = []) {
+// `revision`, quando informado, é incluído no nome do arquivo ("… - Rev N.pdf").
+export async function generateTechnicalDatasheetPdf(equipment, category, photoAssets = [], revision = null) {
   const docxBytes = await buildTechnicalDatasheetDocx(equipment, category, photoAssets);
   const tmpDir = path.join(env.uploadDir, 'Equipamentos', 'tmp');
   await fs.mkdir(tmpDir, { recursive: true });
@@ -271,7 +273,7 @@ export async function generateTechnicalDatasheetPdf(equipment, category, photoAs
   try {
     await convertDocxToPdf(docxPath, pdfPath);
     const bytes = await fs.readFile(pdfPath);
-    return { bytes, fileName: technicalDatasheetFileName(equipment) };
+    return { bytes, fileName: technicalDatasheetFileName(equipment, revision) };
   } finally {
     await fs.rm(docxPath, { force: true }).catch(() => {});
     await fs.rm(pdfPath, { force: true }).catch(() => {});

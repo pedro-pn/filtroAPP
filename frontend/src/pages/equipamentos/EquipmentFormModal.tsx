@@ -8,13 +8,14 @@ import type {
 } from '../../api/equipamentos';
 import { Modal } from '../../components/ui/Modal';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
-import { dateInputValue, fileToDataUrl } from './equipmentStatus';
+import { dateInputValue, fileToDataUrl, formatDate } from './equipmentStatus';
 
 interface Props {
   open: boolean;
   category: EquipmentCategory;
   equipment: CompanyEquipment | null;
   saving: boolean;
+  isManager: boolean;
   onClose: () => void;
   onSubmit: (payload: EquipmentPayload) => void;
 }
@@ -26,11 +27,13 @@ async function pdfUpload(file: File | null): Promise<PdfUpload | undefined> {
   return { fileName: file.name, mimeType: 'application/pdf', dataUrl: await fileToDataUrl(file) };
 }
 
-export function EquipmentFormModal({ open, category, equipment, saving, onClose, onSubmit }: Props) {
+export function EquipmentFormModal({ open, category, equipment, saving, isManager, onClose, onSubmit }: Props) {
   const fields = useMemo(
     () => [...(category.fieldSchema || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     [category.fieldSchema]
   );
+  const canShowCalibrationHistory = Boolean(isManager && equipment && category.supportsCalibration);
+  const [activeTab, setActiveTab] = useState<'dados' | 'historico'>('dados');
 
   const [code, setCode] = useState(equipment?.code || '');
   const [name, setName] = useState(equipment?.name || '');
@@ -78,7 +81,7 @@ export function EquipmentFormModal({ open, category, equipment, saving, onClose,
         hasTechnicalDoc: category.supportsTechnicalDoc,
         calibrationCertificate,
         technicalDoc,
-        removeCalibrationCertificate: removeCert && !certFile,
+        removeCalibrationCertificate: removeCert,
         removeTechnicalDoc: removeDoc && !docFile
       });
     } catch (err) {
@@ -88,98 +91,152 @@ export function EquipmentFormModal({ open, category, equipment, saving, onClose,
 
   return (
     <Modal open={open} onClose={onClose} ariaLabelledBy="equipment-form-title" panelClassName="modal-card equip-modal">
+      <button
+        className="equip-modal-close-float icon-button"
+        type="button"
+        aria-label="Fechar cadastro do equipamento"
+        title="Fechar"
+        onClick={onClose}
+        disabled={saving}
+      >
+        ×
+      </button>
       <form className="equip-form" onSubmit={handleSubmit}>
-        <header className="equip-form-head">
+        <header className="equip-form-head has-float-close">
           <h3 id="equipment-form-title">{equipment ? 'Editar equipamento' : 'Novo equipamento'}</h3>
           <span className="equip-form-sub">{category.name}</span>
         </header>
 
-        <div className="field-group">
-          <label htmlFor="equip-code">Código *</label>
-          <input id="equip-code" type="text" value={code} required onChange={e => setCode(e.target.value)} />
-        </div>
-        <div className="field-group">
-          <label htmlFor="equip-name">Nome / Identificação *</label>
-          <input id="equip-name" type="text" value={name} required onChange={e => setName(e.target.value)} />
-        </div>
-
-        {fields.map(field => (
-          <div className="field-group" key={field.key}>
-            <label htmlFor={`equip-attr-${field.key}`}>{field.label}{field.required ? ' *' : ''}</label>
-            {field.type === 'textarea' ? (
-              <textarea
-                id={`equip-attr-${field.key}`}
-                value={attributes[field.key] || ''}
-                required={field.required}
-                onChange={e => setAttribute(field.key, e.target.value)}
-              />
-            ) : field.type === 'select' ? (
-              <select
-                id={`equip-attr-${field.key}`}
-                value={attributes[field.key] || ''}
-                required={field.required}
-                onChange={e => setAttribute(field.key, e.target.value)}
-              >
-                <option value="">Selecione…</option>
-                {(field.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            ) : (
-              <input
-                id={`equip-attr-${field.key}`}
-                type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
-                value={attributes[field.key] || ''}
-                required={field.required}
-                onChange={e => setAttribute(field.key, e.target.value)}
-              />
-            )}
-          </div>
-        ))}
-
-        {category.supportsCalibration && (
-          <div className="equip-toggle-block">
-            <label className="equip-toggle">
-              <input type="checkbox" checked={hasCalibration} onChange={e => setHasCalibration(e.target.checked)} />
-              <span>Possui calibração</span>
-            </label>
-            {hasCalibration && (
-              <>
-                <div className="equip-toggle-fields">
-                  <div className="field-group">
-                    <label htmlFor="equip-cal-at">Data de calibração *</label>
-                    <input id="equip-cal-at" type="date" value={calibratedAt} onChange={e => setCalibratedAt(e.target.value)} />
-                  </div>
-                  <div className="field-group">
-                    <label htmlFor="equip-exp-at">Vencimento *</label>
-                    <input id="equip-exp-at" type="date" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
-                  </div>
-                </div>
-                <PdfDropzone
-                  id="equip-cert"
-                  label="Certificado de calibração (PDF)"
-                  file={certFile}
-                  onFile={setCertFile}
-                  currentName={equipment?.calibrationCertificate?.fileName}
-                  currentUrl={equipment?.calibrationCertificate?.publicUrl}
-                  currentRemoved={removeCert}
-                  onCurrentRemovedChange={setRemoveCert}
-                />
-              </>
-            )}
+        {canShowCalibrationHistory && (
+          <div className="filter-tabs equip-form-tabs" role="tablist" aria-label="Seções do equipamento">
+            <button
+              className={`filter-tab ${activeTab === 'dados' ? 'active' : ''}`}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'dados'}
+              onClick={() => setActiveTab('dados')}
+            >
+              Dados
+            </button>
+            <button
+              className={`filter-tab ${activeTab === 'historico' ? 'active' : ''}`}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'historico'}
+              onClick={() => setActiveTab('historico')}
+            >
+              Histórico de calibração
+            </button>
           </div>
         )}
 
-        {category.supportsTechnicalDoc && (
-          <div className="equip-toggle-block">
-            <PdfDropzone
-              id="equip-doc"
-              label="Documentação técnica (PDF) — opcional"
-              file={docFile}
-              onFile={setDocFile}
-              currentName={equipment?.technicalDoc?.fileName}
-              currentUrl={equipment?.technicalDoc?.publicUrl}
-              currentRemoved={removeDoc}
-              onCurrentRemovedChange={setRemoveDoc}
-            />
+        {activeTab === 'dados' ? (
+          <>
+            <div className="field-group">
+              <label htmlFor="equip-code">Código *</label>
+              <input id="equip-code" type="text" value={code} required onChange={e => setCode(e.target.value)} />
+            </div>
+            <div className="field-group">
+              <label htmlFor="equip-name">Nome / Identificação *</label>
+              <input id="equip-name" type="text" value={name} required onChange={e => setName(e.target.value)} />
+            </div>
+
+            {fields.map(field => (
+              <div className="field-group" key={field.key}>
+                <label htmlFor={`equip-attr-${field.key}`}>{field.label}{field.required ? ' *' : ''}</label>
+                {field.type === 'textarea' ? (
+                  <textarea
+                    id={`equip-attr-${field.key}`}
+                    value={attributes[field.key] || ''}
+                    required={field.required}
+                    onChange={e => setAttribute(field.key, e.target.value)}
+                  />
+                ) : field.type === 'select' ? (
+                  <select
+                    id={`equip-attr-${field.key}`}
+                    value={attributes[field.key] || ''}
+                    required={field.required}
+                    onChange={e => setAttribute(field.key, e.target.value)}
+                  >
+                    <option value="">Selecione…</option>
+                    {(field.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    id={`equip-attr-${field.key}`}
+                    type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+                    value={attributes[field.key] || ''}
+                    required={field.required}
+                    onChange={e => setAttribute(field.key, e.target.value)}
+                  />
+                )}
+              </div>
+            ))}
+
+            {category.supportsCalibration && (
+              <div className="equip-toggle-block">
+                <label className="equip-toggle">
+                  <input type="checkbox" checked={hasCalibration} onChange={e => setHasCalibration(e.target.checked)} />
+                  <span>Possui calibração</span>
+                </label>
+                {hasCalibration && (
+                  <>
+                    <div className="equip-toggle-fields">
+                      <div className="field-group">
+                        <label htmlFor="equip-cal-at">Data de calibração *</label>
+                        <input id="equip-cal-at" type="date" value={calibratedAt} onChange={e => setCalibratedAt(e.target.value)} />
+                      </div>
+                      <div className="field-group">
+                        <label htmlFor="equip-exp-at">Vencimento *</label>
+                        <input id="equip-exp-at" type="date" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
+                      </div>
+                    </div>
+                    <PdfDropzone
+                      id="equip-cert"
+                      label="Certificado de calibração (PDF)"
+                      file={certFile}
+                      onFile={setCertFile}
+                      currentName={equipment?.calibrationCertificate?.fileName}
+                      currentUrl={equipment?.calibrationCertificate?.publicUrl}
+                      currentRemoved={removeCert}
+                      onCurrentRemovedChange={setRemoveCert}
+                    />
+                  </>
+                )}
+              </div>
+            )}
+
+            {category.supportsTechnicalDoc && (
+              <div className="equip-toggle-block">
+                <PdfDropzone
+                  id="equip-doc"
+                  label="Documentação técnica (PDF) — opcional"
+                  file={docFile}
+                  onFile={setDocFile}
+                  currentName={equipment?.technicalDoc?.fileName}
+                  currentUrl={equipment?.technicalDoc?.publicUrl}
+                  currentRemoved={removeDoc}
+                  onCurrentRemovedChange={setRemoveDoc}
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="equip-calibration-history" role="tabpanel" aria-label="Histórico de certificados de calibração">
+            {[equipment?.calibrationCertificate, ...(equipment?.calibrationCertificateArchive || [])].filter(Boolean).map((certificate, index) => (
+              <div className="equip-history-row" key={certificate!.id}>
+                <div className="equip-history-meta">
+                  <strong>{index === 0 ? 'Certificado atual' : `Certificado arquivado #${index}`}</strong>
+                  <span>{formatDate(certificate!.createdAt)} · {certificate!.fileName}</span>
+                </div>
+                <a className="mini-btn alt" href={certificate!.publicUrl} target="_blank" rel="noreferrer">
+                  Baixar
+                </a>
+              </div>
+            ))}
+            {!equipment?.calibrationCertificate && !(equipment?.calibrationCertificateArchive || []).length && (
+              <p className="rel-meta">Nenhum certificado de calibração cadastrado.</p>
+            )}
           </div>
         )}
 

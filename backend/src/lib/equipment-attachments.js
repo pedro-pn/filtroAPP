@@ -78,6 +78,10 @@ export function withCurrentAttachments(item) {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   const generated = generatedAll[0] || null;
   const legacyDoc = latest(EquipmentAttachmentKinds.TECHNICAL_DOC);
+  const calibrationCertificates = attachments
+    .filter(att => att.kind === EquipmentAttachmentKinds.CALIBRATION_CERTIFICATE)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const calibrationCertificate = calibrationCertificates[0] || null;
   const archive = [...generatedAll.slice(1), ...(legacyDoc ? [legacyDoc] : [])]
     .map(serializeEquipmentAttachment);
   // "Desatualizado": os Dados Técnicos foram editados depois do datasheet gerado.
@@ -91,7 +95,8 @@ export function withCurrentAttachments(item) {
     .map(serializeEquipmentAttachment);
   return {
     ...rest,
-    calibrationCertificate: serializeEquipmentAttachment(latest(EquipmentAttachmentKinds.CALIBRATION_CERTIFICATE)),
+    calibrationCertificate: serializeEquipmentAttachment(calibrationCertificate),
+    calibrationCertificateArchive: calibrationCertificates.slice(1).map(serializeEquipmentAttachment),
     technicalDoc: serializeEquipmentAttachment(legacyDoc),
     technicalDocGenerated: serializeEquipmentAttachment(generated),
     technicalDocGeneratedOutdated: generatedOutdated,
@@ -239,10 +244,16 @@ export async function createGeneratedEquipmentAttachment(client, { equipmentId, 
 // Remove todos os anexos de um tipo (certificado/doc técnica) do equipamento.
 // O arquivo físico só é apagado dos anexos do próprio módulo (sob "Equipamentos/");
 // os migrados compartilham o arquivo com registros antigos e são preservados.
-export async function removeEquipmentAttachments(client, equipmentId, kind) {
-  const rows = await client.equipmentAttachment.findMany({ where: { equipmentId, kind } });
+export async function removeEquipmentAttachments(client, equipmentId, kind, options = {}) {
+  const exceptIds = new Set((options.exceptIds || []).filter(Boolean));
+  const where = {
+    equipmentId,
+    kind,
+    ...(exceptIds.size ? { id: { notIn: [...exceptIds] } } : {})
+  };
+  const rows = await client.equipmentAttachment.findMany({ where });
   if (!rows.length) return 0;
-  await client.equipmentAttachment.deleteMany({ where: { equipmentId, kind } });
+  await client.equipmentAttachment.deleteMany({ where: { equipmentId, kind, id: { in: rows.map(row => row.id) } } });
   for (const row of rows) {
     if (!row.storagePath || !row.storagePath.startsWith('Equipamentos/')) continue;
     const targetPath = path.resolve(env.uploadDir, row.storagePath.split('/').join(path.sep));
@@ -323,6 +334,14 @@ function attachmentEquipmentAttrs(equipment) {
 //  - Documentação técnica: "Datasheet - [código] - [nome]"
 //  - Certificado de calibração: "Certificado de calibração - [código] - [serial quando houver] - [nome]"
 export function equipmentAttachmentFileName(attachment) {
+  // Datasheets arquivados já guardam um nome com a revisão ("… - Rev N.pdf");
+  // preserva esse nome (snapshot da revisão) para o download.
+  if (
+    attachment?.kind === EquipmentAttachmentKinds.TECHNICAL_DOC_GENERATED &&
+    /\bRev\s*\d+/i.test(String(attachment?.fileName || ''))
+  ) {
+    return String(attachment.fileName);
+  }
   const equipment = attachment?.equipment || {};
   const code = String(equipment.code || '').trim();
   const name = String(equipment.name || '').trim();
