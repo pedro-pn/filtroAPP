@@ -4,9 +4,11 @@ import test from 'node:test';
 import env from '../src/config/env.js';
 import {
   CalibrationReminderMilestone,
+  isCalibrationReminderWindow,
   notifyCalibrationUpdated,
   processCalibrationReminders,
-  shouldNotifyCalibrationUpdated
+  shouldNotifyCalibrationUpdated,
+  startCalibrationReminderJob
 } from '../src/lib/calibration-reminders.js';
 
 const NOW = new Date('2026-06-05T12:00:00.000Z');
@@ -80,6 +82,41 @@ async function runScenario(options) {
   });
   return { client, messages, result };
 }
+
+test('calibration reminder automatic job only runs between 9h and 10h in Sao Paulo', () => {
+  assert.equal(isCalibrationReminderWindow(new Date('2026-06-05T11:59:00.000Z')), false);
+  assert.equal(isCalibrationReminderWindow(new Date('2026-06-05T12:00:00.000Z')), true);
+  assert.equal(isCalibrationReminderWindow(new Date('2026-06-05T12:30:00.000Z')), true);
+  assert.equal(isCalibrationReminderWindow(new Date('2026-06-05T13:00:00.000Z')), false);
+});
+
+test('calibration reminder automatic job skips immediate run outside the morning window', () => {
+  let calls = 0;
+  const timer = startCalibrationReminderJob({
+    nowFn: () => new Date('2026-06-06T01:00:00.000Z'),
+    processFn: async () => {
+      calls += 1;
+    },
+    intervalMs: 60 * 60 * 1000
+  });
+  clearInterval(timer);
+
+  assert.equal(calls, 0);
+});
+
+test('calibration reminder automatic job runs immediately inside the morning window', () => {
+  let calls = 0;
+  const timer = startCalibrationReminderJob({
+    nowFn: () => new Date('2026-06-05T12:15:00.000Z'),
+    processFn: async () => {
+      calls += 1;
+    },
+    intervalMs: 60 * 60 * 1000
+  });
+  clearInterval(timer);
+
+  assert.equal(calls, 1);
+});
 
 test('skips calibration reminder job when operational emails are disabled', async t => {
   const original = env.sendClientEmails;

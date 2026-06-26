@@ -44,6 +44,7 @@ Por padrão ele usa:
 - `REPORTS_VOLUME=filtrovali_relatorios`
 - `INCLUDE_REPORTS=true`
 - `INCLUDE_CERTS=true`
+- `BACKUP_LOCK_TIMEOUT_SECONDS=0`
 - mantém localmente o backup mais recente em `latest`
 
 ## Variáveis opcionais
@@ -52,7 +53,13 @@ Por padrão ele usa:
 AWS_S3_URI=s3://meu-bucket/filtrovali-backups
 INCLUDE_CERTS=false
 INCLUDE_REPORTS=true
+BACKUP_LOCK_TIMEOUT_SECONDS=0
 ```
+
+O script usa um lock em `$BACKUP_ROOT/backup-prod.lock` para impedir execuções
+simultâneas. Por padrão, se outro backup já estiver rodando, a nova execução é
+ignorada com sucesso. Para um backup que deve esperar outro terminar, defina
+`BACKUP_LOCK_TIMEOUT_SECONDS` com o tempo máximo de espera em segundos.
 
 ## Agendamento no cron
 
@@ -64,13 +71,16 @@ crontab -e
 
 ```cron
 # Horário — banco + relatórios + certificados
-0 * * * * AWS_S3_URI=s3://filtrovali-backups/hourly INCLUDE_CERTS=true /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
+# Evita a janela dos backups mensal/diário; se outro backup ainda estiver rodando, pula esta execução.
+0 0,3-23 * * * AWS_S3_URI=s3://filtrovali-backups/hourly INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=0 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
 
 # Diário às 02h — banco + relatórios + certificados
-0 2 * * * AWS_S3_URI=s3://filtrovali-backups/daily INCLUDE_CERTS=true /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
+# Espera até 2h se houver outro backup finalizando.
+0 2 * * * AWS_S3_URI=s3://filtrovali-backups/daily INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
 
 # Mensal todo dia 1 às 01h — banco + relatórios + certificados
-0 1 1 * * AWS_S3_URI=s3://filtrovali-backups/monthly INCLUDE_CERTS=true /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
+# Espera até 2h se houver outro backup finalizando.
+0 1 1 * * AWS_S3_URI=s3://filtrovali-backups/monthly INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
 ```
 
 ## Restore do banco

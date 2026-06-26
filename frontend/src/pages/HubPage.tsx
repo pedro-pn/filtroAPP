@@ -1,8 +1,9 @@
-import { Fragment, useEffect, useMemo, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext';
-import { accountPageStateFromPath } from '../auth/moduleNavigation';
+import { accountPageStateFromPath, availableHubModulesForUser } from '../auth/moduleNavigation';
+import { HubTutorial } from '../components/HubTutorial';
 import { roleHomePath } from '../auth/rolePath';
 import { Shell } from '../layout/Shell';
 import { TopBar } from '../layout/TopBar';
@@ -108,11 +109,12 @@ function ChevronRight() {
 export function HubPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const tutorialTrigger = useRef<(() => void) | null>(null);
 
   const isClient = user?.accountType === 'CLIENT' || user?.role === 'CLIENT';
   const isAdmin = user?.accountType === 'ADMIN';
   const modules = useMemo(() => hubModulesForUser(user), [user]);
-  const availableModules = useMemo(() => modules.filter(m => m.path && !m.disabled), [modules]);
+  const availableModules = useMemo(() => availableHubModulesForUser(user), [user]);
   const shouldRedirect = !isAdmin && availableModules.length === 1;
 
   const firstName = user?.name?.split(' ')[0] || 'Usuário';
@@ -143,6 +145,13 @@ export function HubPage() {
         showLogo
         actions={
           <>
+            <button
+              className="topbar-chip"
+              type="button"
+              onClick={() => tutorialTrigger.current?.()}
+            >
+              Ver tutorial
+            </button>
             <button
               className="topbar-chip"
               type="button"
@@ -180,6 +189,7 @@ export function HubPage() {
                 {isFirstWide && idx > 0 && <div className="hub-divider" role="separator" />}
                 <button
                   className={`hub-module-card${isWide ? ' hub-module-card--wide' : ''}${module.disabled ? ' is-disabled' : ''}`}
+                  data-hub-module-id={module.id}
                   disabled={module.disabled}
                   type="button"
                   onClick={path ? () => navigate(path) : undefined}
@@ -206,6 +216,14 @@ export function HubPage() {
           })}
         </div>
       </main>
+      {user && (
+        <HubTutorial
+          user={user}
+          modules={modules}
+          ready={!shouldRedirect}
+          triggerRef={tutorialTrigger}
+        />
+      )}
     </Shell>
   );
 }

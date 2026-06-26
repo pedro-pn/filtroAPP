@@ -22,12 +22,9 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
   const cardRef = useRef<HTMLElement | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  const [showArchive, setShowArchive] = useState(false);
-
   const status = calibrationStatus(item);
   // "Doc. técnica" serve sempre o datasheet gerado mais recente; cai para o PDF legado.
   const currentDoc = item.technicalDocGenerated || item.technicalDoc || null;
-  const archive = item.technicalDocArchive || [];
   // Tipos de documento que ainda podem ser adicionados arrastando para o card.
   const canTech = isManager && category.supportsTechnicalDoc && !item.technicalDoc;
   const canCert = isManager && category.supportsCalibration && item.hasCalibration && !item.calibrationCertificate;
@@ -107,40 +104,35 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
           </>
         )}
       </dl>
-      <div className="equip-card-links">
-        {category.technicalDocEnabled && onOpenTechnical && (
-          <button className="equip-link equip-link-btn" type="button" onClick={onOpenTechnical} data-equip-technical-button>
-            Dados técnicos{item.technicalRevision > 0 ? ' ●' : ''}
-          </button>
-        )}
-        {item.calibrationCertificate && (
-          <a className="equip-link" href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer" data-equip-cert-link>Certificado</a>
-        )}
-        {isManager && archive.length > 0 && (
-          <button className="equip-link equip-link-btn" type="button" onClick={() => setShowArchive(v => !v)}>
-            Arquivados ({archive.length})
-          </button>
-        )}
-      </div>
-      {currentDoc && (
-        <div className="equip-doc">
-          <span className="equip-doc-title">Doc. técnica</span>
-          <a className="mini-btn equip-doc-pdf" href={currentDoc.publicUrl} target="_blank" rel="noreferrer" data-equip-technical-doc-link>⤓ PDF</a>
+      {(item.calibrationCertificate || currentDoc) && (
+        <div className="equip-doc-list">
+          {item.calibrationCertificate && (
+            <div className="equip-doc">
+              <span className="equip-doc-title">Certificado de calibração</span>
+              <a className="mini-btn equip-doc-pdf" href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer" data-equip-cert-link>⤓ PDF</a>
+            </div>
+          )}
+          {currentDoc && (
+            <div className="equip-doc">
+              <span className="equip-doc-title">Dados técnicos</span>
+              <a className="mini-btn equip-doc-pdf" href={currentDoc.publicUrl} target="_blank" rel="noreferrer" data-equip-technical-doc-link>⤓ PDF</a>
+            </div>
+          )}
         </div>
       )}
-      {showArchive && archive.length > 0 && (
-        <ul className="equip-archive">
-          {archive.map(doc => (
-            <li key={doc.id}>
-              <a href={doc.publicUrl} target="_blank" rel="noreferrer">{formatDate(doc.createdAt)} — {doc.fileName}</a>
-            </li>
-          ))}
-        </ul>
-      )}
-      {isManager && (
+      {(isManager || (category.technicalDocEnabled && onOpenTechnical)) && (
         <div className="report-card-actions">
-          <button className="mini-btn alt" type="button" onClick={onEdit}>Editar</button>
-          <button className="mini-btn danger" type="button" onClick={onRemove}>Remover</button>
+          {category.technicalDocEnabled && onOpenTechnical && (
+            <button className="mini-btn alt equip-technical-action" type="button" onClick={onOpenTechnical} title={isManager ? 'Editar dados técnicos' : 'Ver dados técnicos'} data-equip-technical-button>
+              {isManager ? 'Dados' : 'Ver dados'}{item.technicalRevision > 0 ? ' ●' : ''}
+            </button>
+          )}
+          {isManager && (
+            <>
+              <button className="mini-btn alt" type="button" onClick={onEdit} title="Editar cadastro">Cadastro</button>
+              <button className="mini-btn danger" type="button" onClick={onRemove}>Remover</button>
+            </>
+          )}
         </div>
       )}
     </article>

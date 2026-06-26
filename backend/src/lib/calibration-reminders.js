@@ -8,6 +8,9 @@ import { getMissingMailerConfig, outboundEmailsEnabled, sendMail } from './maile
 import prisma from './prisma.js';
 
 const REMINDER_INTERVAL_MS = 60 * 60 * 1000;
+const REMINDER_WINDOW_START_HOUR = 9;
+const REMINDER_WINDOW_END_HOUR = 10;
+const REMINDER_TIME_ZONE = 'America/Sao_Paulo';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const CalibrationReminderMilestone = {
@@ -315,14 +318,33 @@ export async function processCalibrationReminders({
   return { checked: equipment.length, sent };
 }
 
-export function startCalibrationReminderJob() {
+function hourInTimeZone(now, timeZone) {
+  const hour = new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    hour12: false,
+    timeZone
+  }).formatToParts(now).find(part => part.type === 'hour')?.value;
+  return Number(hour);
+}
+
+export function isCalibrationReminderWindow(now = new Date(), timeZone = REMINDER_TIME_ZONE) {
+  const hour = hourInTimeZone(now, timeZone);
+  return hour >= REMINDER_WINDOW_START_HOUR && hour < REMINDER_WINDOW_END_HOUR;
+}
+
+export function startCalibrationReminderJob({
+  processFn = processCalibrationReminders,
+  nowFn = () => new Date(),
+  intervalMs = REMINDER_INTERVAL_MS
+} = {}) {
   const run = () => {
-    processCalibrationReminders().catch(error => {
+    if (!isCalibrationReminderWindow(nowFn())) return;
+    Promise.resolve(processFn()).catch(error => {
       console.error('Falha no job de lembretes de calibração.', error);
     });
   };
   run();
-  const timer = setInterval(run, REMINDER_INTERVAL_MS);
+  const timer = setInterval(run, intervalMs);
   timer.unref?.();
   return timer;
 }

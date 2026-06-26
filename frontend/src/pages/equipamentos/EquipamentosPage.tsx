@@ -267,20 +267,6 @@ export function EquipamentosPage() {
           align: 'start'
         }
       });
-      if (target.generatedTechnicalItem || target.technicalItem.technicalDocGenerated || target.technicalItem.technicalDoc || isManager) {
-        steps.push({
-          element: '[data-equip-technical-doc-bar]',
-          popover: {
-            title: 'Datasheet em PDF',
-            description:
-              isManager
-                ? 'Neste bloco o gestor baixa o datasheet existente ou gera uma nova versão quando alterar informações.'
-                : 'Quando disponível, use este bloco para baixar o datasheet técnico do equipamento em PDF.',
-            side: 'top',
-            align: 'start'
-          }
-        });
-      }
       if (isManager) {
         if (category.technicalSchema?.length) {
           steps.push({
@@ -299,7 +285,7 @@ export function EquipamentosPage() {
           popover: {
             title: 'Salvar alterações',
             description:
-              'Após revisar os campos, salve os dados técnicos. Se precisar de uma nova revisão, marque a opção de incrementar revisão antes de salvar.',
+              'Após revisar os campos, salve os dados técnicos. Sempre que algo muda, uma nova revisão é gerada automaticamente e o PDF da revisão anterior fica arquivado no histórico.',
             side: 'top',
             align: 'end'
           }
@@ -374,19 +360,6 @@ export function EquipamentosPage() {
         onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível salvar.', 'error')
       }
     );
-  }
-
-  function handleGenerateDatasheet() {
-    if (!technicalForm) return;
-    mutations.generateDatasheet.mutate(technicalForm.item.id, {
-      onSuccess: attachment => {
-        showToast('Datasheet gerado.', 'success');
-        setTechnicalForm(prev => (prev
-          ? { ...prev, item: { ...prev.item, technicalDocGenerated: attachment, technicalDocGeneratedOutdated: false } }
-          : prev));
-      },
-      onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível gerar o datasheet.', 'error')
-    });
   }
 
   function handleCategorySubmit(payload: EquipmentCategoryPayload) {
@@ -594,6 +567,7 @@ export function EquipamentosPage() {
           category={equipmentForm.category}
           equipment={equipmentForm.item}
           saving={savingEquipment}
+          isManager={isManager}
           onClose={() => setEquipmentForm(null)}
           onSubmit={handleEquipmentSubmit}
         />
@@ -609,8 +583,6 @@ export function EquipamentosPage() {
           isManager={isManager}
           onClose={() => setTechnicalForm(null)}
           onSubmit={handleTechnicalSubmit}
-          onGenerate={handleGenerateDatasheet}
-          generating={mutations.generateDatasheet.isPending}
         />
       )}
 
