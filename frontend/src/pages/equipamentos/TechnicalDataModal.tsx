@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent } from 'react';
+import { useMemo, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 
 import type {
   CompanyEquipment,
@@ -73,6 +73,137 @@ function asMeasure(value: TechValue, field: TechnicalFieldDefinition, catalog: M
     return { value: v.value ?? '', unit: v.unit ?? defaultUnit(field, catalog) };
   }
   return { value: '', unit: defaultUnit(field, catalog) };
+}
+
+function isBlankValue(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value === 'string') return value.trim() === '';
+  if (Array.isArray(value)) return value.length === 0;
+  return false;
+}
+
+function scalarSummaryValue(field: TechnicalFieldDefinition, value: TechValue, catalog: MeasurementDimension[]): ReactNode {
+  if (field.type === 'measure') {
+    const measure = asMeasure(value, field, catalog);
+    return measure.value ? `${measure.value}${measure.unit ? ` ${measure.unit}` : ''}` : '—';
+  }
+
+  if (field.type === 'boolean') {
+    if (value === true) return 'Sim';
+    if (value === false) return 'Não';
+    return '—';
+  }
+
+  if (field.type === 'date') return formatDate(typeof value === 'string' ? value : null);
+
+  if (field.type === 'multiselect') {
+    const items = Array.isArray(value) ? value.map(item => String(item)).filter(Boolean) : [];
+    return items.length ? (
+      <span className="tech-summary-chips">
+        {items.map(item => <span className="tech-summary-chip" key={item}>{item}</span>)}
+      </span>
+    ) : '—';
+  }
+
+  if (isBlankValue(value)) return '—';
+  if (Array.isArray(value)) return value.map(item => String(item)).join(', ');
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function TechnicalSummaryValue({ field, value, catalog }: {
+  field: TechnicalFieldDefinition;
+  value: TechValue;
+  catalog: MeasurementDimension[];
+}) {
+  if (field.type !== 'group') {
+    return <>{scalarSummaryValue(field, value, catalog)}</>;
+  }
+
+  const items = Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
+  const subFields = sortByOrder(field.itemSchema || []);
+  const itemLabel = field.itemLabel || 'Item';
+
+  if (!items.length) return <span className="tech-summary-empty">Nenhum {itemLabel.toLowerCase()} informado.</span>;
+
+  return (
+    <div className="tech-summary-group">
+      {items.map((item, index) => (
+        <div className="tech-summary-group-item" key={index}>
+          <strong>{itemLabel} #{index + 1}</strong>
+          <dl>
+            {subFields.map(sub => (
+              <div key={sub.key}>
+                <dt>{sub.label}</dt>
+                <dd><TechnicalSummaryValue field={sub} value={item[sub.key]} catalog={catalog} /></dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TechnicalSummary({ category, equipment, sections, data, overrides, unitsCatalog }: {
+  category: EquipmentCategory;
+  equipment: CompanyEquipment;
+  sections: { section: string; items: TechnicalFieldDefinition[] }[];
+  data: Record<string, unknown>;
+  overrides: Record<string, boolean>;
+  unitsCatalog: MeasurementDimension[];
+}) {
+  const photos = equipment.technicalPhotos || [];
+
+  if (!sections.length) {
+    return (
+      <p className="rel-meta">
+        Nenhum campo técnico configurado para a categoria “{category.name}”. Peça ao gestor para configurar.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      {sections.map(({ section, items }) => (
+        <section className="tech-section tech-summary-section" key={section || '_default'}>
+          {section && <h4>{section}</h4>}
+          <dl className="tech-summary-list">
+            {items.map(field => {
+              const included = !field.optionalPerEquipment || (overrides[field.key] ?? true);
+              return (
+                <div className={`tech-summary-row${included ? '' : ' is-muted'}`} key={field.key}>
+                  <dt>{field.label}</dt>
+                  <dd>
+                    {included ? (
+                      <TechnicalSummaryValue field={field} value={data[field.key]} catalog={unitsCatalog} />
+                    ) : (
+                      <span className="tech-summary-empty">Não aplicável</span>
+                    )}
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+        </section>
+      ))}
+
+      <section className="tech-section tech-summary-section tech-photos">
+        <h4>Fotos</h4>
+        {photos.length ? (
+          <div className="tech-photo-grid">
+            {photos.map(photo => (
+              <a className="tech-photo" key={photo.id} href={photo.publicUrl} target="_blank" rel="noreferrer">
+                <img src={photo.publicUrl} alt={photo.fileName} loading="lazy" />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p className="tech-summary-empty">Nenhuma foto cadastrada.</p>
+        )}
+      </section>
+    </>
+  );
 }
 
 // Renderiza um único campo (escalar) — reutilizado no topo e dentro de itens de grupo.
@@ -391,7 +522,8 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
 
       <form className="equip-form tech-form" onSubmit={handleSubmit} data-equip-technical-modal>
         {activeTab === 'dados' ? (
-          <>
+          isManager ? (
+            <>
             {fields.length === 0 && (
               <p className="rel-meta">
                 Nenhum campo técnico configurado para a categoria “{category.name}”.
@@ -507,7 +639,17 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
                 atualizados e a revisão anterior fica arquivada no histórico.
               </p>
             )}
-          </>
+            </>
+          ) : (
+            <TechnicalSummary
+              category={category}
+              equipment={equipment}
+              sections={sections}
+              data={data}
+              overrides={overrides}
+              unitsCatalog={unitsCatalog}
+            />
+          )
         ) : (
           <div className="equip-calibration-history" role="tabpanel" aria-label="Histórico de revisões dos dados técnicos">
             {technicalPdfHistory.map((pdf, index) => {

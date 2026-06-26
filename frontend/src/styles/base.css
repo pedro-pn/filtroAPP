@@ -8439,6 +8439,112 @@ select {
   gap: 10px;
 }
 
+.tech-summary-section {
+  gap: 10px;
+}
+
+.tech-summary-section > h4 {
+  margin: 0;
+  color: var(--g);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tech-summary-list,
+.tech-summary-group-item dl {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.tech-summary-row,
+.tech-summary-group-item dl > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.42fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.tech-summary-row:last-child,
+.tech-summary-group-item dl > div:last-child {
+  border-bottom: 0;
+}
+
+.tech-summary-row dt,
+.tech-summary-group-item dt {
+  color: var(--mu);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.tech-summary-row dd,
+.tech-summary-group-item dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--tx);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.tech-summary-row.is-muted dd,
+.tech-summary-empty {
+  color: var(--mu);
+}
+
+.tech-summary-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tech-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--br);
+  border-radius: 999px;
+  padding: 2px 9px;
+  background: #fafafa;
+  color: var(--tx);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tech-summary-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tech-summary-group-item {
+  border: 1px dashed var(--br);
+  border-radius: var(--rs);
+  padding: 10px 12px;
+  background: #fafafa;
+}
+
+.tech-summary-group-item > strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--tx);
+  font-size: 13px;
+}
+
+@media (max-width: 520px) {
+  .tech-summary-row,
+  .tech-summary-group-item dl > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
 /* Badges de status */
 .equip-badge {
   display: inline-flex;
