@@ -140,6 +140,17 @@ const publicSignatureLimiter = createMemoryRateLimit({
 });
 const pdfDownloadJobs = new Map();
 let activeGeneratedPdfDownloads = 0;
+const REPORT_APPROVAL_JOB_STATUS = {
+  PENDING: 'PENDING',
+  RUNNING: 'RUNNING',
+  FAILED: 'FAILED',
+  COMPLETED: 'COMPLETED',
+  SKIPPED: 'SKIPPED'
+};
+const REPORT_APPROVAL_JOB_STALE_MS = 15 * 60 * 1000;
+const REPORT_APPROVAL_JOB_INTERVAL_MS = 10 * 1000;
+let reportApprovalJobRunning = false;
+let reportApprovalJobScheduled = false;
 
 async function uniqueSignatureValidationCode() {
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -3210,6 +3221,220 @@ function reportWithSignatureEmailDelivery(item, signaturePreparation) {
     ...item,
     signatureEmailDelivery: delivery
   };
+}
+
+function approvalJobRunnableWhere(staleCutoff) {
+  return {
+    OR: [
+      { status: REPORT_APPROVAL_JOB_STATUS.PENDING },
+      {
+        status: REPORT_APPROVAL_JOB_STATUS.FAILED,
+        OR: [
+          { lockedAt: null },
+          { lockedAt: { lt: staleCutoff } }
+        ]
+      },
+      {
+        status: REPORT_APPROVAL_JOB_STATUS.RUNNING,
+        lockedAt: { lt: staleCutoff }
+      }
+    ]
+  };
+}
+
+function approvalJobErrorText(error) {
+  return String(error?.stack || error?.message || error || 'Falha no pós-processamento da aprovação.').slice(0, 4000);
+}
+
+async function enqueueReportApprovalPostProcessingJob(client, {
+  reportId,
+  approvedTransition,
+  wasClientRejection,
+  reviewedByUserId,
+  evidence
+}) {
+  await client.reportApprovalPostProcessingJob.upsert({
+    where: { reportId },
+    create: {
+      reportId,
+      approvedTransition,
+      wasClientRejection,
+      reviewedByUserId,
+      evidence: evidence || {},
+      status: REPORT_APPROVAL_JOB_STATUS.PENDING
+    },
+    update: {
+      approvedTransition,
+      wasClientRejection,
+      reviewedByUserId,
+      evidence: evidence || {},
+      status: REPORT_APPROVAL_JOB_STATUS.PENDING,
+      lockedAt: null,
+      completedAt: null,
+      error: null,
+      attempts: 0
+    }
+  });
+}
+
+async function claimReportApprovalPostProcessingJob(now = new Date()) {
+  const where = approvalJobRunnableWhere(new Date(now.getTime() - REPORT_APPROVAL_JOB_STALE_MS));
+  const candidate = await prisma.reportApprovalPostProcessingJob.findFirst({
+    where,
+    orderBy: [{ createdAt: 'asc' }]
+  });
+  if (!candidate) return null;
+
+  const claimed = await prisma.reportApprovalPostProcessingJob.updateMany({
+    where: { id: candidate.id, ...where },
+    data: {
+      status: REPORT_APPROVAL_JOB_STATUS.RUNNING,
+      lockedAt: now,
+      error: null,
+      attempts: { increment: 1 }
+    }
+  });
+  if (claimed.count !== 1) return null;
+
+  return prisma.reportApprovalPostProcessingJob.findUnique({ where: { id: candidate.id } });
+}
+
+async function syncApprovedDerivedReports(tx, report) {
+  await syncApprovedRtpReports(tx, report);
+  await syncApprovedRlqReports(tx, report);
+  await syncApprovedRcpReports(tx, report);
+  await syncApprovedRlmReports(tx, report);
+  await syncApprovedRlfReports(tx, report);
+  await syncApprovedRliReports(tx, report);
+}
+
+async function organizeDerivedReportUploads(parentReport) {
+  const derived = await prisma.report.findMany({
+    where: derivedReportsForProjectWhere(parentReport.projectId),
+    include
+  });
+  for (const item of derived) {
+    if (item.specialConditions?.parentRdoId === parentReport.id) {
+      await organizeAndSyncReportUploadAttachments(item);
+    }
+  }
+}
+
+async function completeReportApprovalPostProcessingJob(job, status, data = {}) {
+  await prisma.reportApprovalPostProcessingJob.update({
+    where: { id: job.id },
+    data: {
+      status,
+      lockedAt: status === REPORT_APPROVAL_JOB_STATUS.FAILED ? new Date() : null,
+      completedAt: status === REPORT_APPROVAL_JOB_STATUS.COMPLETED || status === REPORT_APPROVAL_JOB_STATUS.SKIPPED
+        ? new Date()
+        : null,
+      ...data
+    }
+  });
+}
+
+async function processReportApprovalPostProcessingJob(job) {
+  try {
+    const report = await prisma.report.findUnique({
+      where: { id: job.reportId },
+      include
+    });
+    if (!report || isReportUnavailable(report) || report.status !== ReportStatus.APPROVED) {
+      await completeReportApprovalPostProcessingJob(job, REPORT_APPROVAL_JOB_STATUS.SKIPPED);
+      return;
+    }
+
+    if (job.approvedTransition) {
+      await prisma.$transaction(async tx => {
+        const current = await tx.report.findUnique({
+          where: { id: job.reportId },
+          include
+        });
+        if (!current || isReportUnavailable(current) || current.status !== ReportStatus.APPROVED) return;
+        await syncApprovedDerivedReports(tx, current);
+      });
+    }
+
+    const fresh = await prisma.report.findUnique({
+      where: { id: job.reportId },
+      include
+    });
+    if (!fresh || isReportUnavailable(fresh) || fresh.status !== ReportStatus.APPROVED) {
+      await completeReportApprovalPostProcessingJob(job, REPORT_APPROVAL_JOB_STATUS.SKIPPED);
+      return;
+    }
+
+    await organizeDerivedReportUploads(fresh);
+    await ensureInternalSignatureRoundAndNotify(
+      fresh,
+      job.reviewedByUserId,
+      job.evidence || {}
+    );
+
+    if (job.approvedTransition) {
+      if (job.wasClientRejection) {
+        queueReapprovedReportNotification(fresh);
+      } else {
+        queueApprovedReportNotification(fresh);
+      }
+    }
+
+    statisticsProjectsCache.clear();
+    await completeReportApprovalPostProcessingJob(job, REPORT_APPROVAL_JOB_STATUS.COMPLETED, { error: null });
+  } catch (error) {
+    console.error('Falha no pós-processamento da aprovação do relatório.', {
+      jobId: job.id,
+      reportId: job.reportId,
+      error: error?.message || error
+    });
+    await completeReportApprovalPostProcessingJob(job, REPORT_APPROVAL_JOB_STATUS.FAILED, {
+      error: approvalJobErrorText(error)
+    }).catch(updateError => {
+      console.error('Falha ao marcar job de pós-processamento como FAILED.', {
+        jobId: job.id,
+        reportId: job.reportId,
+        error: updateError?.message || updateError
+      });
+    });
+  }
+}
+
+export async function runReportApprovalPostProcessingQueue({ maxJobs = 5 } = {}) {
+  if (reportApprovalJobRunning) return 0;
+  reportApprovalJobRunning = true;
+  let processed = 0;
+  try {
+    while (processed < maxJobs) {
+      const job = await claimReportApprovalPostProcessingJob();
+      if (!job) break;
+      await processReportApprovalPostProcessingJob(job);
+      processed += 1;
+    }
+  } finally {
+    reportApprovalJobRunning = false;
+  }
+  return processed;
+}
+
+export function scheduleReportApprovalPostProcessing() {
+  if (reportApprovalJobScheduled) return;
+  reportApprovalJobScheduled = true;
+  setImmediate(async () => {
+    reportApprovalJobScheduled = false;
+    try {
+      await runReportApprovalPostProcessingQueue();
+    } catch (error) {
+      console.error('Falha ao executar fila de pós-processamento de aprovação.', error);
+    }
+  });
+}
+
+export function startReportApprovalPostProcessingJob({ intervalMs = REPORT_APPROVAL_JOB_INTERVAL_MS } = {}) {
+  scheduleReportApprovalPostProcessing();
+  const timer = setInterval(scheduleReportApprovalPostProcessing, intervalMs);
+  timer.unref?.();
+  return timer;
 }
 
 async function getReportDocxDownload(report) {
@@ -6917,41 +7142,28 @@ router.patch('/:id/status', requireAuth, requireRdoAccess, asyncHandler(async (r
 
     if (data.status === ReportStatus.APPROVED && previous?.status !== ReportStatus.APPROVED) {
       approvedTransition = true;
-      await syncApprovedRtpReports(tx, updated);
-      await syncApprovedRlqReports(tx, updated);
-      await syncApprovedRcpReports(tx, updated);
-      await syncApprovedRlmReports(tx, updated);
-      await syncApprovedRlfReports(tx, updated);
-      await syncApprovedRliReports(tx, updated);
+    }
+
+    if (data.status === ReportStatus.APPROVED) {
+      await enqueueReportApprovalPostProcessingJob(tx, {
+        reportId: updated.id,
+        approvedTransition,
+        wasClientRejection,
+        reviewedByUserId: req.auth.user.id,
+        evidence
+      });
     }
 
     return updated;
   });
   const tPatchTx = Date.now();
 
-  let signaturePreparation = null;
   if (data.status === ReportStatus.APPROVED) {
-    const derived = await prisma.report.findMany({
-      where: derivedReportsForProjectWhere(item.projectId),
-      include
-    });
-    for (const d of derived) {
-      if (d.specialConditions?.parentRdoId === item.id) await organizeAndSyncReportUploadAttachments(d);
-    }
-    if (approvedTransition) {
-      signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
-      if (wasClientRejection) {
-        queueReapprovedReportNotification(item);
-      } else {
-        queueApprovedReportNotification(item);
-      }
-    } else {
-      signaturePreparation = await ensureInternalSignatureRoundAndNotify(item, req.auth.user.id, evidence);
-    }
+    scheduleReportApprovalPostProcessing();
   }
   logSlowOperation('reports.status.update', Date.now() - tPatch0, { txMs: tPatchTx - tPatch0, newStatus: data.status });
   statisticsProjectsCache.clear();
-  res.json(reportWithSignatureEmailDelivery(item, signaturePreparation));
+  res.json(reportWithSignatureEmailDelivery(item, null));
 }));
 
 router.post('/:id/request-signature', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {

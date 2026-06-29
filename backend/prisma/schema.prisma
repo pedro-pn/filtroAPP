@@ -298,6 +298,7 @@ model Report {
   versions        ReportVersion[]
   reportSignatures ReportSignature[]
   auditLogs       ReportAuditLog[]
+  approvalPostProcessingJobs ReportApprovalPostProcessingJob[]
 
   @@unique([projectId, reportType, sequenceNumber])
   @@index([projectId])
@@ -310,6 +311,26 @@ model Report {
   @@index([reportType, status, reportDate])
   @@index([projectId, reportType, status, reportDate])
   @@index([deletedAt])
+}
+
+model ReportApprovalPostProcessingJob {
+  id              String   @id @default(cuid())
+  reportId        String   @unique
+  status          String   @default("PENDING")
+  approvedTransition Boolean @default(false)
+  wasClientRejection Boolean @default(false)
+  reviewedByUserId String?
+  evidence        Json?
+  attempts        Int      @default(0)
+  lockedAt        DateTime?
+  completedAt     DateTime?
+  error           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  report          Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([status, lockedAt])
+  @@index([createdAt])
 }
 
 model ClientReportReview {

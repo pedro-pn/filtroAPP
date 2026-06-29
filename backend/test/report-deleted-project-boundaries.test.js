@@ -737,6 +737,7 @@ test('PATCH report status can approve while hiding rejected overtime', async t =
   const originals = {
     reportFindUnique: prisma.report.findUnique,
     reportFindMany: prisma.report.findMany,
+    approvalJob: prisma.reportApprovalPostProcessingJob,
     transaction: prisma.$transaction
   };
   let currentReport = activeReport({
@@ -771,6 +772,10 @@ test('PATCH report status can approve while hiding rejected overtime', async t =
 
   prisma.report.findUnique = async () => currentReport;
   prisma.report.findMany = async () => [];
+  prisma.reportApprovalPostProcessingJob = {
+    findFirst: async () => null,
+    upsert: async () => ({ id: 'approval-job-1', reportId: currentReport.id })
+  };
   prisma.$transaction = async callback => callback({
     report: {
       async update(args) {
@@ -784,11 +789,13 @@ test('PATCH report status can approve while hiding rejected overtime', async t =
         };
         return currentReport;
       }
-    }
+    },
+    reportApprovalPostProcessingJob: prisma.reportApprovalPostProcessingJob
   });
   t.after(() => {
     prisma.report.findUnique = originals.reportFindUnique;
     prisma.report.findMany = originals.reportFindMany;
+    prisma.reportApprovalPostProcessingJob = originals.approvalJob;
     prisma.$transaction = originals.transaction;
   });
 
@@ -796,6 +803,7 @@ test('PATCH report status can approve while hiding rejected overtime', async t =
     status: ReportStatus.APPROVED,
     acceptOvertime: false
   });
+  await new Promise(resolve => setImmediate(resolve));
 
   assert.equal(response.statusCode, 200);
   assert.equal(Object.hasOwn(updateData, 'daytimeOvertimeMinutes'), false);
