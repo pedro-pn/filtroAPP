@@ -82,6 +82,19 @@ function isBlankValue(value: unknown): boolean {
   return false;
 }
 
+function hasRecordContent(value: Record<string, unknown> | null | undefined): boolean {
+  return Boolean(value && Object.keys(value).length > 0);
+}
+
+function hasTechnicalRevisionBaseline(equipment: CompanyEquipment): boolean {
+  return Boolean(
+    equipment.technicalUpdatedAt ||
+    (equipment.technicalRevision ?? 0) > 0 ||
+    hasRecordContent(equipment.technicalData) ||
+    hasRecordContent(equipment.technicalFieldOverrides)
+  );
+}
+
 function scalarSummaryValue(field: TechnicalFieldDefinition, value: TechValue, catalog: MeasurementDimension[]): ReactNode {
   if (field.type === 'measure') {
     const measure = asMeasure(value, field, catalog);
@@ -384,6 +397,8 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
   const photosChanged = newPhotos.length > 0 || removedPhotoIds.length > 0;
   const hasChanges = dataChanged || overridesChanged || photosChanged;
   const currentRevision = equipment.technicalRevision ?? 0;
+  const revisionBaselineExists = hasTechnicalRevisionBaseline(equipment);
+  const willBumpRevision = hasChanges && revisionBaselineExists;
 
   // Histórico: todos os PDFs de revisões arquivadas (mais recente primeiro) + PDF legado.
   const currentTechnicalPdf = equipment.technicalDocGenerated || equipment.technicalDoc || null;
@@ -473,7 +488,7 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
     for (const field of fields) {
       if (isIncluded(field)) cleaned[field.key] = data[field.key];
     }
-    onSubmit(cleaned, overrides, { add: newPhotos, removeIds: removedPhotoIds }, hasChanges);
+    onSubmit(cleaned, overrides, { add: newPhotos, removeIds: removedPhotoIds }, willBumpRevision);
   }
 
   return (
@@ -632,7 +647,7 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
               </div>
             </fieldset>
 
-            {isManager && hasChanges && (
+            {isManager && willBumpRevision && (
               <p className="tech-revision-warning" role="alert" data-equip-technical-revision-warning>
                 Há alterações não salvas. Ao salvar, será gerada uma nova revisão dos dados técnicos
                 (revisão {currentRevision} → {currentRevision + 1}): um novo PDF é gerado com os dados
