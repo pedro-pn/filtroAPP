@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 
 import env from '../config/env.js';
 import prisma from './prisma.js';
+import { equipmentSerialNumber } from './equipment-attributes.js';
 import { readStoredImageAsset } from './stored-image.js';
 
 // Sob /api para reaproveitar o roteamento já existente do proxy/nginx até o
@@ -326,10 +327,6 @@ export async function resolvePublicEquipmentAttachment(token) {
   return { attachment, targetPath };
 }
 
-function attachmentEquipmentAttrs(equipment) {
-  return equipment && typeof equipment.attributes === 'object' && equipment.attributes ? equipment.attributes : {};
-}
-
 // Nome do arquivo no download, conforme padrão pedido:
 //  - Documentação técnica: "Datasheet - [código] - [nome]"
 //  - Certificado de calibração: "Certificado de calibração - [código] - [serial quando houver] - [nome]"
@@ -345,7 +342,7 @@ export function equipmentAttachmentFileName(attachment) {
   const equipment = attachment?.equipment || {};
   const code = String(equipment.code || '').trim();
   const name = String(equipment.name || '').trim();
-  const serial = String(attachmentEquipmentAttrs(equipment).serialNumber || '').trim();
+  const serial = equipmentSerialNumber(equipment);
   const isDatasheet = attachment?.kind === EquipmentAttachmentKinds.TECHNICAL_DOC
     || attachment?.kind === EquipmentAttachmentKinds.TECHNICAL_DOC_GENERATED;
   const parts = isDatasheet

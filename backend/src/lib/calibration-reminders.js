@@ -4,6 +4,7 @@ import {
   buildCalibrationUpdatedEmailTemplate
 } from './email-templates.js';
 import { activeRecipientEmails, getEquipmentNotificationConfig } from './equipment-notifications.js';
+import { equipmentSerialNumber } from './equipment-attributes.js';
 import { getMissingMailerConfig, outboundEmailsEnabled, sendMail } from './mailer.js';
 import prisma from './prisma.js';
 
@@ -75,13 +76,12 @@ function categoryLogEquipmentId(category) {
 
 // Projeta um CompanyEquipment calibrável para a forma usada pelas notificações.
 export function normalizeCompanyEquipment(item) {
-  const attributes = item?.attributes && typeof item.attributes === 'object' ? item.attributes : {};
   return {
     equipmentType: 'EQUIPMENT',
     equipmentId: item?.id,
     category: item?.category?.name || 'Equipamentos',
     code: item?.code || '',
-    serialNumber: attributes.serialNumber || '',
+    serialNumber: equipmentSerialNumber(item),
     calibratedAt: item?.calibratedAt || null,
     expiresAt: item?.expiresAt || null
   };
