@@ -492,7 +492,13 @@ export function TechnicalDataModal({ open, category, equipment, unitsCatalog, sa
   }
 
   return (
-    <Modal open={open} onClose={onClose} ariaLabelledBy="tech-data-title" panelClassName="modal-card equip-modal">
+    <Modal
+      open={open}
+      onClose={onClose}
+      ariaLabelledBy="tech-data-title"
+      panelClassName="modal-card equip-modal"
+      closeOnBackdrop={false}
+    >
       <button
         className="equip-modal-close-float icon-button"
         type="button"
