@@ -80,7 +80,16 @@ const REPORT_LIST_MAX_PAGE_SIZE = 100;
 const COLLABORATOR_EDIT_NOTE = 'Editado pelo colaborador';
 const CLIENT_REJECTION_KEY = '__clientRejectedAt';
 const MANUAL_REPORT_UPLOAD_KEY = '__manualUpload';
+export const MANUAL_DERIVED_SERVICE_REPORT_EDIT_KEY = '__manualDerivedServiceReportEdit';
 const MANUAL_REPORT_MAX_PDF_BYTES = 20 * 1024 * 1024;
+const DERIVED_SERVICE_REPORT_TYPES = new Set([
+  ReportType.RTP,
+  ReportType.RLQ,
+  ReportType.RCPU,
+  ReportType.RLM,
+  ReportType.RLF,
+  ReportType.RLI
+]);
 
 function reportDateUnchanged(existingReport, nextReportDate) {
   return Boolean(existingReport?.reportDate && reportDateKey(existingReport.reportDate) === reportDateKey(nextReportDate));
@@ -740,6 +749,41 @@ function manualReportRequiresSignature(report) {
 
 function manualReportAllowsOptionalSignature(report) {
   return manualReportUploadMeta(report).allowsOptionalSignature === true;
+}
+
+export function isDerivedServiceReport(report) {
+  const special = plainObject(report?.specialConditions);
+  return DERIVED_SERVICE_REPORT_TYPES.has(report?.reportType)
+    && special.serviceOnly !== true
+    && Boolean(special.parentRdoId);
+}
+
+export function hasManualDerivedServiceReportEdit(report) {
+  const meta = plainObject(report?.specialConditions?.[MANUAL_DERIVED_SERVICE_REPORT_EDIT_KEY]);
+  return Boolean(meta.editedAt);
+}
+
+export function shouldSkipDerivedServiceAutoSync(report) {
+  return isDerivedServiceReport(report) && hasManualDerivedServiceReportEdit(report);
+}
+
+export function markManualDerivedServiceReportEdit(specialConditions, userId) {
+  const next = cloneJson(plainObject(specialConditions));
+  next[MANUAL_DERIVED_SERVICE_REPORT_EDIT_KEY] = {
+    editedAt: new Date().toISOString(),
+    editedByUserId: userId || null
+  };
+  return next;
+}
+
+export function canDirectEditDerivedServiceReport(user, report, parentRdo) {
+  return user?.role === 'MANAGER'
+    && isDerivedServiceReport(report)
+    && report?.status !== ReportStatus.SIGNED
+    && !hasActiveSignedInternalSignature(report)
+    && parentRdo?.reportType === ReportType.RDO
+    && parentRdo?.status === ReportStatus.SIGNED
+    && !parentRdo?.deletedAt;
 }
 
 function linkedServiceReportRequiresRelease(report) {
@@ -2676,6 +2720,24 @@ async function withCurrentServiceLeaderSnapshot(report) {
   };
 }
 
+async function withDerivedServiceReportParentMeta(report, client = prisma) {
+  if (!isDerivedServiceReport(report)) return report;
+  const parentRdoId = report.specialConditions?.parentRdoId;
+  const parent = await client.report.findUnique({
+    where: { id: parentRdoId },
+    select: {
+      id: true,
+      reportType: true,
+      status: true,
+      deletedAt: true
+    }
+  });
+  return {
+    ...report,
+    parentRdoStatus: parent?.reportType === ReportType.RDO && !parent.deletedAt ? parent.status : null
+  };
+}
+
 async function generateReportPdfAsset(report) {
   report = await withCurrentServiceLeaderSnapshot(report);
   report = withServiceUploadFields(report);
@@ -2701,9 +2763,10 @@ async function generateReportDocxAsset(report) {
 }
 
 async function refreshDerivedReportSource(report) {
-  if (![ReportType.RTP, ReportType.RLQ, ReportType.RCPU, ReportType.RLM, ReportType.RLF, ReportType.RLI].includes(report.reportType)) {
+  if (!DERIVED_SERVICE_REPORT_TYPES.has(report.reportType)) {
     return report;
   }
+  if (shouldSkipDerivedServiceAutoSync(report)) return report;
   const parentRdoId = report.specialConditions?.parentRdoId;
   if (!parentRdoId) return report;
 
@@ -4449,6 +4512,7 @@ async function syncApprovedRtpReports(tx, report) {
     };
 
     if (existingRtp) {
+      if (shouldSkipDerivedServiceAutoSync(existingRtp)) continue;
       await validateDerivedReportSequenceMove(tx, existingRtp, report.projectId, ReportType.RTP);
       await tx.reportCollaborator.deleteMany({ where: { reportId: existingRtp.id } });
       await tx.reportService.deleteMany({ where: { reportId: existingRtp.id } });
@@ -4623,6 +4687,7 @@ async function syncApprovedRlqReports(tx, report) {
     const existingRlq = serviceLinkKey ? findExistingByLinkKeys(existingByLinkKey, service, service.id) : null;
 
     if (existingRlq) {
+      if (shouldSkipDerivedServiceAutoSync(existingRlq)) continue;
       await validateDerivedReportSequenceMove(tx, existingRlq, report.projectId, ReportType.RLQ);
       await tx.reportCollaborator.deleteMany({ where: { reportId: existingRlq.id } });
       await tx.reportService.deleteMany({ where: { reportId: existingRlq.id } });
@@ -5246,6 +5311,7 @@ async function syncApprovedRcpReports(tx, report) {
     };
 
     if (existingRcp) {
+      if (shouldSkipDerivedServiceAutoSync(existingRcp)) continue;
       await validateDerivedReportSequenceMove(tx, existingRcp, report.projectId, ReportType.RCPU);
       await tx.reportCollaborator.deleteMany({ where: { reportId: existingRcp.id } });
       await tx.reportService.deleteMany({ where: { reportId: existingRcp.id } });
@@ -5406,6 +5472,7 @@ async function syncApprovedRlmReports(tx, report) {
     const existingRlm = serviceLinkKey ? findExistingByLinkKeys(existingByLinkKey, service, service.id) : null;
 
     if (existingRlm) {
+      if (shouldSkipDerivedServiceAutoSync(existingRlm)) continue;
       await validateDerivedReportSequenceMove(tx, existingRlm, report.projectId, ReportType.RLM);
       await tx.reportCollaborator.deleteMany({ where: { reportId: existingRlm.id } });
       await tx.reportService.deleteMany({ where: { reportId: existingRlm.id } });
@@ -5558,6 +5625,7 @@ async function syncApprovedInhibitionReports(tx, report, targetReportType) {
     const existingReport = serviceLinkKey ? findExistingByLinkKeys(existingByLinkKey, service, service.id) : null;
 
     if (existingReport) {
+      if (shouldSkipDerivedServiceAutoSync(existingReport)) continue;
       await validateDerivedReportSequenceMove(tx, existingReport, report.projectId, targetReportType);
       await tx.reportCollaborator.deleteMany({ where: { reportId: existingReport.id } });
       await tx.reportService.deleteMany({ where: { reportId: existingReport.id } });
@@ -5631,6 +5699,25 @@ function independentReportTypesForService(service) {
       return [ReportType.RLM];
     default:
       return [];
+  }
+}
+
+function validateDirectDerivedServiceReportPayload(existing, data) {
+  if (data.projectId !== existing.projectId || data.reportType !== existing.reportType) {
+    const error = new Error('Relatórios de serviço vinculados ao RDO não podem trocar projeto ou tipo.');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!Array.isArray(data.services) || data.services.length !== 1) {
+    const error = new Error('Relatórios de serviço vinculados ao RDO devem manter um único serviço.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const previousServiceType = existing.services?.[0]?.serviceType;
+  if (previousServiceType && data.services[0]?.serviceType !== previousServiceType) {
+    const error = new Error('O tipo do serviço vinculado ao RDO não pode ser alterado diretamente.');
+    error.statusCode = 400;
+    throw error;
   }
 }
 
@@ -5756,6 +5843,37 @@ async function buildIndependentSpecialConditions(tx, reportType, sourceReport, s
   }
 
   return base;
+}
+
+async function buildDirectDerivedServiceSpecialConditions(tx, project, existing, data, collaboratorIds, userId, baseSpecialConditions) {
+  const existingSpecial = plainObject(existing.specialConditions);
+  const service = data.services[0];
+  const sourceReport = sourceReportForIndependentService(project, {
+    ...data,
+    createdByUserId: existing.createdByUserId || userId
+  }, collaboratorIds, existing.reviewedByUserId || userId);
+  const resolvedSpecial = await buildIndependentSpecialConditions(
+    tx,
+    data.reportType,
+    sourceReport,
+    {
+      ...service,
+      id: String(existingSpecial.serviceLinkKey || existingSpecial.serviceId || service.id || ''),
+      finalized: true,
+      extraData: normalizeStoredReportUploadUrls(service.extraData || {})
+    }
+  );
+  const next = {
+    ...plainObject(baseSpecialConditions),
+    ...resolvedSpecial,
+    parentRdoId: existingSpecial.parentRdoId,
+    serviceId: existingSpecial.serviceId,
+    serviceLinkKey: existingSpecial.serviceLinkKey || existingSpecial.serviceId || resolvedSpecial.serviceLinkKey,
+    serviceType: existingSpecial.serviceType || service.serviceType
+  };
+  delete next.serviceOnly;
+  delete next.source;
+  return markManualDerivedServiceReportEdit(next, userId);
 }
 
 async function createIndependentServiceReports(tx, project, data, managerUserId) {
@@ -6395,7 +6513,7 @@ router.get('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   }
 
   grantReportUploadAccess(req.auth, item);
-  res.json(item);
+  res.json(await withDerivedServiceReportParentMeta(item));
 }));
 
 router.get('/:id/pdf', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
@@ -6669,9 +6787,31 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   });
   if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
   const isServiceOnlyReport = existing.specialConditions?.serviceOnly === true;
+  const isDirectDerivedServiceReport = isDerivedServiceReport(existing);
   const manualUploadedReport = isManualUploadedReport(existing);
   if (isServiceOnlyReport && req.auth.user.role !== 'MANAGER') {
     return res.status(403).json({ error: 'Apenas o gestor pode editar relatórios somente de serviço.' });
+  }
+  let parentRdoForDirectServiceEdit = null;
+  if (isDirectDerivedServiceReport) {
+    parentRdoForDirectServiceEdit = await prisma.report.findUnique({
+      where: { id: existing.specialConditions.parentRdoId },
+      select: {
+        id: true,
+        reportType: true,
+        status: true,
+        deletedAt: true
+      }
+    });
+    if (req.auth.user.role !== 'MANAGER') {
+      return res.status(403).json({ error: 'Apenas o gestor pode editar diretamente relatórios de serviço vinculados ao RDO.' });
+    }
+    if (!canDirectEditDerivedServiceReport(req.auth.user, existing, parentRdoForDirectServiceEdit)) {
+      return res.status(409).json({
+        error: 'Relatórios de serviço vinculados só podem ser editados diretamente pelo gestor após a assinatura do RDO pai e antes da assinatura do próprio relatório de serviço.'
+      });
+    }
+    validateDirectDerivedServiceReportPayload(existing, data);
   }
   if (isServiceOnlyReport && !manualUploadedReport) {
     const firstService = data.services[0];
@@ -6711,7 +6851,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
   const hasApprovedVersion = !!(existing.approvedAt || existing.status === ReportStatus.APPROVED || existing.specialConditions?.__editOriginalSnapshot);
   const isManagerFixingClientRejection = req.auth.user.role === 'MANAGER' && hasActiveClientRejection(existing);
   const evidence = signatureEvidenceFromRequest(req);
-  const unfinalizedDerivedRefs = data.deleteUnfinalizedDerivedReports === true
+  const unfinalizedDerivedRefs = existing.reportType === ReportType.RDO && data.deleteUnfinalizedDerivedReports === true
     ? demotedFinalizedServiceRefs(existing.services || [], data.services || [])
     : [];
   const trustedStoragePaths = trustedStoragePathsFromSnapshot(buildReportSnapshot(existing));
@@ -6769,7 +6909,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
             }
           : {});
     const overtimeRejected = specialConditions?.overtimeAccepted === false;
-    const storedSpecialConditionsBase = {
+    const storedSpecialConditionsBaseSeed = {
       ...(req.auth.user.role === 'MANAGER'
         ? withClientRejectionCleared(stripInternalEditState(specialConditions))
         : stripInternalEditState(specialConditions)),
@@ -6777,6 +6917,17 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
       overtimeSummary: overtime,
       ...internalEditState
     };
+    const storedSpecialConditionsBase = isDirectDerivedServiceReport
+      ? await buildDirectDerivedServiceSpecialConditions(
+          tx,
+          project,
+          existing,
+          data,
+          collaboratorIds,
+          req.auth.user.id,
+          storedSpecialConditionsBaseSeed
+        )
+      : storedSpecialConditionsBaseSeed;
     const storedSpecialConditions = overtimeRejected
       ? markOvertimeRejected(storedSpecialConditionsBase)
       : (() => {
@@ -6826,7 +6977,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
         overtimeReason: data.overtimeReason || null,
         dailyDescription: data.dailyDescription || null,
         specialConditions: withLeaderSnapshot(storedSpecialConditions, leaderSnapshot),
-        pendingDerivedTypes: isServiceOnlyReport ? [] : collectPendingDerivedTypes(data.services),
+        pendingDerivedTypes: isServiceOnlyReport || isDirectDerivedServiceReport ? [] : collectPendingDerivedTypes(data.services),
         status: nextStatus,
         reviewNotes: req.auth.user.role === 'MANAGER'
           ? existing.reviewNotes
@@ -6898,7 +7049,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     if (isManagerFixingClientRejection) queueReapprovedReportNotification(organizedItem);
   }
   statisticsProjectsCache.clear();
-  res.json(reportWithSignatureEmailDelivery(organizedItem, signaturePreparation));
+  res.json(await withDerivedServiceReportParentMeta(reportWithSignatureEmailDelivery(organizedItem, signaturePreparation)));
 }));
 
 router.patch('/:id/sequence', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => {
