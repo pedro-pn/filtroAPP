@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { getProjectRevisions, setProjectSchedule, type CommercialRevision } from '../../api/acompanhamentoComercial';
 import { useToast } from '../ui/Toast';
+import { ProjectPlannedScopeEditor } from './ProjectPlannedScopeEditor';
 import { RealizedCategoryBreakdown } from './RealizedCategoryBreakdown';
 
 function toNum(value?: string | number | null) {
@@ -121,7 +122,10 @@ export function ProjectScheduleEditor({ projectId }: { projectId: string }) {
         </span>
       </div>
 
-      <div className="sec" style={{ marginTop: 12 }}>Realizado por categoria (Omie)</div>
+      <div className="acp-scope-divider" />
+      <ProjectPlannedScopeEditor projectId={projectId} />
+
+      <div className="sec" style={{ marginTop: 16 }}>Realizado por categoria (Omie)</div>
       <RealizedCategoryBreakdown projectId={projectId} limit={10} />
     </div>
   );

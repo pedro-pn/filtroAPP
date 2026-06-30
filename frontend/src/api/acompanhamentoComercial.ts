@@ -119,3 +119,47 @@ export async function setProjectSchedule(projectId: string, payload: ProjectSche
   );
   return data;
 }
+
+// --- Escopo previsto: quantitativo de serviços vendidos + previsão de hora extra ---
+
+export type TubingUnit = 'M' | 'KG';
+export type ReservoirUnit = 'UN' | 'KG';
+
+export interface PlannedService {
+  id?: string;
+  serviceType: string;
+  tubingQty?: string | number | null;
+  tubingUnit?: TubingUnit | null;
+  oilLiters?: string | number | null;
+  reservoirQty?: string | number | null;
+  reservoirUnit?: ReservoirUnit | null;
+  note?: string | null;
+}
+
+export interface PlannedOvertime {
+  id?: string;
+  jobRoleId?: string | null;
+  roleName?: string | null;
+  collaboratorCount: number;
+  hours: string | number;
+}
+
+export interface PlannedScope {
+  services: PlannedService[];
+  overtime: PlannedOvertime[];
+}
+
+export async function getPlannedScope(projectId: string): Promise<PlannedScope> {
+  const { data } = await apiClient.get<PlannedScope>(
+    `/acompanhamento/comercial/projetos/${projectId}/escopo-previsto`
+  );
+  return data;
+}
+
+export async function setPlannedScope(projectId: string, payload: PlannedScope): Promise<PlannedScope> {
+  const { data } = await apiClient.put<PlannedScope>(
+    `/acompanhamento/comercial/projetos/${projectId}/escopo-previsto`,
+    payload
+  );
+  return data;
+}

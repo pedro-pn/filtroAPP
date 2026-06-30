@@ -1668,6 +1668,36 @@ a {
 .acp-manage .admin-inline-grid { grid-template-columns: 1fr 1fr; }
 @media (max-width: 520px) { .acp-manage .admin-inline-grid { grid-template-columns: 1fr; } }
 
+/* Escopo previsto (serviços vendidos + previsão de hora extra) no modal do cronograma */
+.acp-scope-divider { border-top: 1px solid var(--border, #e2e4ea); margin: 6px 0 2px; }
+.acp-scope-list { display: flex; flex-direction: column; gap: 8px; }
+.acp-scope-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 0.9fr 1fr auto;
+  gap: 8px;
+  align-items: end;
+  padding: 8px;
+  border: 1px solid var(--border, #e2e4ea);
+  border-radius: 8px;
+  background: var(--surface-2, #f7f8fa);
+}
+.acp-scope-row.acp-scope-ot { grid-template-columns: 1.4fr 1fr 1fr auto; }
+.acp-scope-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.acp-scope-field > label { font-size: 11px; color: var(--muted, #6b7280); }
+.acp-scope-field input,
+.acp-scope-field select { width: 100%; min-width: 0; }
+.acp-scope-measure { display: flex; gap: 4px; align-items: center; }
+.acp-scope-measure input { flex: 1 1 auto; min-width: 0; }
+.acp-scope-measure select { flex: 0 0 auto; width: auto; }
+.acp-scope-unit { font-size: 12px; color: var(--muted, #6b7280); flex: 0 0 auto; }
+.acp-scope-del { align-self: end; padding: 6px 9px; }
+@media (max-width: 560px) {
+  .acp-scope-row,
+  .acp-scope-row.acp-scope-ot { grid-template-columns: 1fr 1fr; }
+  .acp-scope-type { grid-column: 1 / -1; }
+  .acp-scope-del { grid-column: 1 / -1; justify-self: start; }
+}
+
 .det-inline-actions select,
 .det-inline-actions input {
   max-width: 220px;

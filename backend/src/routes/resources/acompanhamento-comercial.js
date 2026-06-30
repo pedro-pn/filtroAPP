@@ -23,6 +23,7 @@ import {
   setProjectBudgetRevision,
   setProjectSchedule
 } from '../../lib/acompanhamento-access-import.js';
+import { getPlannedScope, setPlannedScope } from '../../lib/acompanhamento-planned-scope.js';
 import prisma from '../../lib/prisma.js';
 import { requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth } from '../../middleware/auth.js';
 
@@ -189,6 +190,63 @@ router.patch(
     try {
       await setProjectSchedule(req.params.projectId, data);
       res.json({ ok: true });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  })
+);
+
+// === Escopo previsto: quantitativo de serviços vendidos + previsão de hora extra (manual) ===
+
+const tubingUnit = z.enum(['M', 'KG']);
+const reservoirUnit = z.enum(['UN', 'KG']);
+const qty = z.number().nonnegative().nullable().optional();
+
+const plannedServiceSchema = z.object({
+  serviceType: z.string().trim().min(1).max(60),
+  tubingQty: qty,
+  tubingUnit: tubingUnit.nullable().optional(),
+  oilLiters: qty,
+  reservoirQty: qty,
+  reservoirUnit: reservoirUnit.nullable().optional(),
+  note: z.string().max(300).nullable().optional()
+});
+
+const plannedOvertimeSchema = z.object({
+  jobRoleId: z.string().nullable().optional(),
+  roleName: z.string().max(80).nullable().optional(),
+  collaboratorCount: z.number().int().positive().max(999),
+  hours: z.number().nonnegative().max(100000)
+});
+
+const plannedScopeSchema = z.object({
+  services: z.array(plannedServiceSchema).max(50).default([]),
+  overtime: z.array(plannedOvertimeSchema).max(50).default([])
+});
+
+router.get(
+  '/projetos/:projectId/escopo-previsto',
+  requireAuth,
+  requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    try {
+      const scope = await getPlannedScope(req.params.projectId);
+      res.json(scope);
+    } catch (error) {
+      res.status(404).json({ error: error.message });
+    }
+  })
+);
+
+router.put(
+  '/projetos/:projectId/escopo-previsto',
+  requireAuth,
+  requireAcompanhamentoManager,
+  asyncHandler(async (req, res) => {
+    const data = plannedScopeSchema.parse(req.body);
+    try {
+      const scope = await setPlannedScope(req.params.projectId, data);
+      res.json(scope);
     } catch (error) {
       res.status(400).json({ error: error.message });
     }

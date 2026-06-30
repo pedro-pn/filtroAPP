@@ -163,6 +163,14 @@ enum BudgetSelectionStatus {
   LOST
 }
 
+// Unidade de medida do quantitativo previsto de serviços (escopo vendido).
+enum PlannedMeasureUnit {
+  M  // metros (tubulação)
+  KG // quilos (tubulação ou reservatório)
+  UN // unidades (reservatório)
+  L  // litros (óleo)
+}
+
 enum AccessImportSource {
   SCRIPT
   MANUAL
@@ -254,6 +262,7 @@ model JobRole {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  plannedOvertime ProjectPlannedOvertime[]
 
   @@index([isActive, order])
 }
@@ -298,6 +307,8 @@ model Project {
   budgets               ProjectBudget[]
   omieProjects          OmieProject[]
   omiePurchases         OmiePurchase[]
+  plannedServices       ProjectPlannedService[]
+  plannedOvertime       ProjectPlannedOvertime[]
 
   @@index([deletedAt])
   @@index([registrationPending])
@@ -1299,6 +1310,45 @@ model ProjectBudget {
   @@index([projectId])
   @@index([sourceProposalCodBd])
   @@index([selectionStatus])
+}
+
+// Quantitativo previsto de serviço vendido (escopo). Hoje é preenchido manualmente no cronograma —
+// idealmente viria do banco comercial, que ainda não carrega esses campos.
+model ProjectPlannedService {
+  id            String              @id @default(cuid())
+  projectId     String
+  serviceType   String              // LIMPEZA_QUIMICA | TESTE_PRESSAO | FLUSHING | FILTRAGEM | (livre)
+  tubingQty     Decimal?            @db.Decimal(14, 2) // tubulações
+  tubingUnit    PlannedMeasureUnit? // M | KG
+  oilLiters     Decimal?            @db.Decimal(14, 2) // litros de óleo
+  reservoirQty  Decimal?            @db.Decimal(14, 2) // reservatórios
+  reservoirUnit PlannedMeasureUnit? // UN | KG
+  note          String?
+  order         Int                 @default(0)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  project       Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+// Previsão de hora extra vendida: por cargo, nº de colaboradores e horas previstas.
+model ProjectPlannedOvertime {
+  id                String   @id @default(cuid())
+  projectId         String
+  jobRoleId         String?
+  roleName          String?  // rótulo do cargo (snapshot/fallback quando sem jobRoleId)
+  collaboratorCount Int      @default(1)
+  hours             Decimal  @default(0) @db.Decimal(10, 2)
+  note              String?
+  order             Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  jobRole           JobRole? @relation(fields: [jobRoleId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([jobRoleId])
 }
 
 // === Integração Omie (compras realizadas por projeto) ===
