@@ -49,7 +49,8 @@ BACKUP_LOCK_FILE="${BACKUP_LOCK_FILE:-$BACKUP_ROOT/backup-prod.lock}"
 BACKUP_LOCK_TIMEOUT_SECONDS="${BACKUP_LOCK_TIMEOUT_SECONDS:-0}"
 INCLUDE_CERTS="${INCLUDE_CERTS:-true}"
 INCLUDE_REPORTS="${INCLUDE_REPORTS:-true}"
-AWS_S3_URI="${AWS_S3_URI:-}"
+B2_URI="${B2_URI:-}"
+B2_PROFILE="${B2_PROFILE:-}"
 
 mkdir -p "$BACKUP_ROOT"
 
@@ -96,13 +97,19 @@ ln -s "$RUN_DIR" "$LATEST_LINK"
 
 UPLOAD_SUCCEEDED=false
 
-if [ -n "$AWS_S3_URI" ]; then
-  if command -v aws >/dev/null 2>&1; then
-    echo "[backup] uploading to $AWS_S3_URI/$TIMESTAMP"
-    aws s3 cp "$RUN_DIR" "$AWS_S3_URI/$TIMESTAMP" --recursive
+if [ -n "$B2_URI" ]; then
+  if command -v b2 >/dev/null 2>&1; then
+    B2_ARGS=()
+    if [ -n "$B2_PROFILE" ]; then
+      B2_ARGS+=(--profile "$B2_PROFILE")
+    fi
+
+    B2_DEST="${B2_URI%/}/$TIMESTAMP"
+    echo "[backup] uploading to $B2_DEST"
+    b2 "${B2_ARGS[@]}" sync --no-progress "$RUN_DIR" "$B2_DEST"
     UPLOAD_SUCCEEDED=true
   else
-    echo "[backup] aws cli not found, skipping S3 upload" >&2
+    echo "[backup] b2 cli not found, skipping Backblaze B2 upload" >&2
   fi
 fi
 
@@ -110,7 +117,7 @@ if [ "$UPLOAD_SUCCEEDED" = "true" ]; then
   echo "[backup] removing local backups except latest"
   find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -name "20*" ! -path "$RUN_DIR" -exec rm -rf {} +
 else
-  echo "[backup] keeping local backups because S3 upload did not complete"
+  echo "[backup] keeping local backups because remote upload did not complete"
 fi
 
 echo "[backup] done: $RUN_DIR"
