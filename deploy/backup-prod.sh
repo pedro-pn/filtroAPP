@@ -4,6 +4,9 @@ set -euo pipefail
 TELEGRAM_TOKEN="${TELEGRAM_TOKEN:-}"
 TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
 
+PATH="/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+export PATH
+
 notify_failure() {
   local exit_code="$?"
   local line_no="${BASH_LINENO[0]}"
@@ -50,6 +53,7 @@ BACKUP_LOCK_TIMEOUT_SECONDS="${BACKUP_LOCK_TIMEOUT_SECONDS:-0}"
 INCLUDE_CERTS="${INCLUDE_CERTS:-true}"
 INCLUDE_REPORTS="${INCLUDE_REPORTS:-true}"
 B2_URI="${B2_URI:-}"
+B2_BIN="${B2_BIN:-b2}"
 
 mkdir -p "$BACKUP_ROOT"
 
@@ -97,13 +101,13 @@ ln -s "$RUN_DIR" "$LATEST_LINK"
 UPLOAD_SUCCEEDED=false
 
 if [ -n "$B2_URI" ]; then
-  if command -v b2 >/dev/null 2>&1; then
+  if command -v "$B2_BIN" >/dev/null 2>&1; then
     B2_DEST="${B2_URI%/}/$TIMESTAMP"
     echo "[backup] uploading to $B2_DEST"
-    b2 sync "$RUN_DIR" "$B2_DEST"
+    "$B2_BIN" sync "$RUN_DIR" "$B2_DEST"
     UPLOAD_SUCCEEDED=true
   else
-    echo "[backup] b2 cli not found, skipping Backblaze B2 upload" >&2
+    echo "[backup] b2 command not found, skipping Backblaze B2 upload" >&2
   fi
 fi
 

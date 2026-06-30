@@ -51,10 +51,13 @@ Por padrão ele usa:
 
 ```bash
 B2_URI=b2://meu-bucket/filtrovali-backups
+B2_BIN=/root/.local/bin/b2
 INCLUDE_CERTS=false
 INCLUDE_REPORTS=true
 BACKUP_LOCK_TIMEOUT_SECONDS=0
 ```
+
+`B2_BIN` é opcional. Use apenas se o cron não encontrar o comando `b2`.
 
 O script usa um lock em `$BACKUP_ROOT/backup-prod.lock` para impedir execuções
 simultâneas. Por padrão, se outro backup já estiver rodando, a nova execução é
@@ -113,6 +116,19 @@ Teste o acesso:
 
 ```bash
 sudo -H b2 bucket list
+```
+
+Se o comando funcionar no terminal, mas o cron registrar
+`b2 command not found`, descubra o caminho absoluto e informe no cron:
+
+```bash
+command -v b2
+```
+
+Exemplo:
+
+```cron
+B2_BIN=/root/.local/bin/b2
 ```
 
 Rode um backup manual:
