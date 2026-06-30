@@ -164,11 +164,13 @@ enum BudgetSelectionStatus {
 }
 
 // Unidade de medida do quantitativo previsto de serviços (escopo vendido).
+// Em uso hoje: M (tubulação) e L (óleo) — as que casam com o realizado do RDO. KG/T/UN ficam
+// reservadas para quando o RDO passar a capturar peso/tanques (sem fonte de realizado por ora).
 enum PlannedMeasureUnit {
   M  // metros (tubulação)
-  KG // quilos (tubulação ou tanque)
-  T  // toneladas (tubulação)
-  UN // unidades (tanque)
+  KG // quilos (reservado)
+  T  // toneladas (reservado)
+  UN // unidades (reservado)
   L  // litros (óleo)
 }
 
@@ -1315,7 +1317,8 @@ model ProjectBudget {
 
 // Serviço vendido (escopo) previsto. Hoje é preenchido manualmente no cronograma — idealmente viria
 // do banco comercial, que ainda não carrega esses campos. Cada serviço agrupa um ou mais "sistemas"
-// (tubulações, tanques, óleo), cada um com seu quantitativo.
+// (tubulações em m, óleo em L), cada um com seu quantitativo — alinhado ao que o RDO registra como
+// realizado, para entrar no cálculo de avanço.
 model ProjectPlannedService {
   id          String                        @id @default(cuid())
   projectId   String
@@ -1334,9 +1337,9 @@ model ProjectPlannedService {
 model ProjectPlannedServiceSystem {
   id         String                @id @default(cuid())
   serviceId  String
-  systemType String                // TUBULACAO | TANQUE | OLEO
+  systemType String                // TUBULACAO | OLEO
   quantity   Decimal?              @db.Decimal(14, 2)
-  unit       PlannedMeasureUnit?   // unidade compatível com o tipo de sistema
+  unit       PlannedMeasureUnit?   // unidade do sistema (TUBULACAO=M, OLEO=L)
   order      Int                   @default(0)
   service    ProjectPlannedService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 

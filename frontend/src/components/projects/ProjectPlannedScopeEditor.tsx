@@ -21,36 +21,35 @@ const SERVICE_TYPES: Array<{ value: string; label: string }> = [
 
 const SYSTEM_LABELS: Record<PlannedSystemType, string> = {
   TUBULACAO: 'Tubulações',
-  TANQUE: 'Tanques',
   OLEO: 'Óleo'
+};
+
+// Unidade única de cada sistema — escolhida para casar com o que o RDO registra como realizado:
+// tubulação por comprimento (m, soma de tubes[].c) e óleo por volume (L, volumeOleo). Por isso não
+// há peso (kg/t) nem tanques aqui: o RDO não captura esses quantitativos.
+const SYSTEM_UNIT: Record<PlannedSystemType, PlannedMeasureUnit> = {
+  TUBULACAO: 'M',
+  OLEO: 'L'
 };
 const UNIT_LABELS: Record<PlannedMeasureUnit, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
 
-// Unidades compatíveis com cada tipo de sistema.
-const SYSTEM_UNITS: Record<PlannedSystemType, PlannedMeasureUnit[]> = {
-  TUBULACAO: ['M', 'KG', 'T'], // comprimento (m) ou peso (kg, t)
-  TANQUE: ['UN', 'KG'], // unidades (un) ou peso (kg)
-  OLEO: ['L'] // litros
-};
-
-// Tipos de sistema permitidos por serviço.
+// Tipos de sistema permitidos por serviço (alinhados ao que cada serviço registra no RDO).
 const SERVICE_SYSTEMS: Record<string, PlannedSystemType[]> = {
-  LIMPEZA_QUIMICA: ['TUBULACAO', 'TANQUE', 'OLEO'],
+  LIMPEZA_QUIMICA: ['TUBULACAO'],
   TESTE_PRESSAO: ['TUBULACAO'],
-  FLUSHING: ['TUBULACAO', 'TANQUE', 'OLEO'],
+  FLUSHING: ['TUBULACAO', 'OLEO'],
   FILTRAGEM: ['OLEO']
 };
-const ALL_SYSTEMS: PlannedSystemType[] = ['TUBULACAO', 'TANQUE', 'OLEO'];
+const ALL_SYSTEMS: PlannedSystemType[] = ['TUBULACAO', 'OLEO'];
 
 const allowedSystems = (serviceType: string) => SERVICE_SYSTEMS[serviceType] ?? ALL_SYSTEMS;
-const defaultUnit = (systemType: PlannedSystemType) => SYSTEM_UNITS[systemType][0];
 
 // Linhas locais usam string nos campos numéricos (inputs controlados); convertem no salvar.
+// A unidade é derivada do systemType (SYSTEM_UNIT), não editável.
 interface SystemRow {
   key: string;
   systemType: PlannedSystemType;
   quantity: string;
-  unit: PlannedMeasureUnit;
 }
 interface ServiceRow {
   key: string;
@@ -83,11 +82,7 @@ function fromScope(scope: PlannedScope): { services: ServiceRow[]; overtime: Ove
         serviceType,
         systems: (s.systems ?? [])
           .filter(sys => allowed.includes(sys.systemType))
-          .map(sys => {
-            const units = SYSTEM_UNITS[sys.systemType];
-            const unit = sys.unit && units.includes(sys.unit) ? sys.unit : units[0];
-            return { key: nextKey(), systemType: sys.systemType, quantity: toStr(sys.quantity), unit };
-          })
+          .map(sys => ({ key: nextKey(), systemType: sys.systemType, quantity: toStr(sys.quantity) }))
       };
     }),
     overtime: scope.overtime.map(o => ({
@@ -103,7 +98,7 @@ function normalize(services: ServiceRow[], overtime: OvertimeRow[]) {
   return JSON.stringify({
     services: services.map(s => ({
       serviceType: s.serviceType,
-      systems: s.systems.map(sys => ({ systemType: sys.systemType, quantity: sys.quantity, unit: sys.unit }))
+      systems: s.systems.map(sys => ({ systemType: sys.systemType, quantity: sys.quantity }))
     })),
     overtime: overtime.map(o => ({ jobRoleId: o.jobRoleId, collaboratorCount: o.collaboratorCount, hours: o.hours }))
   });
@@ -150,7 +145,7 @@ export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) 
         systems: s.systems.map(sys => ({
           systemType: sys.systemType,
           quantity: toNum(sys.quantity),
-          unit: sys.unit
+          unit: SYSTEM_UNIT[sys.systemType]
         }))
       })),
       overtime: overtime
@@ -177,26 +172,16 @@ export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) 
       if (s.key !== serviceKey) return s;
       const used = new Set(s.systems.map(sys => sys.systemType));
       const next = allowedSystems(s.serviceType).find(t => !used.has(t)) ?? allowedSystems(s.serviceType)[0];
-      return { ...s, systems: [...s.systems, { key: nextKey(), systemType: next, quantity: '', unit: defaultUnit(next) }] };
+      return { ...s, systems: [...s.systems, { key: nextKey(), systemType: next, quantity: '' }] };
     }));
   }
 
   function changeSystem(serviceKey: string, sysKey: string, patch: Partial<SystemRow>) {
-    setServices(prev => prev.map(s => {
-      if (s.key !== serviceKey) return s;
-      return {
-        ...s,
-        systems: s.systems.map(sys => {
-          if (sys.key !== sysKey) return sys;
-          const merged = { ...sys, ...patch };
-          // Ao trocar o tipo de sistema, garante uma unidade compatível.
-          if (patch.systemType && !SYSTEM_UNITS[merged.systemType].includes(merged.unit)) {
-            merged.unit = defaultUnit(merged.systemType);
-          }
-          return merged;
-        })
-      };
-    }));
+    setServices(prev => prev.map(s => (
+      s.key === serviceKey
+        ? { ...s, systems: s.systems.map(sys => (sys.key === sysKey ? { ...sys, ...patch } : sys)) }
+        : s
+    )));
   }
 
   function removeSystem(serviceKey: string, sysKey: string) {
@@ -236,40 +221,31 @@ export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) 
                 <div className="placeholder-copy" style={{ margin: '4px 0' }}>Nenhum sistema adicionado.</div>
               ) : (
                 <div className="acp-sys-list">
-                  {svc.systems.map(sys => {
-                    const units = SYSTEM_UNITS[sys.systemType];
-                    return (
-                      <div className="acp-sys-row" key={sys.key}>
-                        <div className="field-group">
-                          <label>Sistema</label>
-                          <select
-                            value={sys.systemType}
-                            onChange={e => changeSystem(svc.key, sys.key, { systemType: e.target.value as PlannedSystemType })}
-                          >
-                            {allowedSystems(svc.serviceType).map(t => <option key={t} value={t}>{SYSTEM_LABELS[t]}</option>)}
-                          </select>
-                        </div>
-                        <div className="field-group">
-                          <label>Quantidade</label>
-                          <div className="num-unit">
-                            <input
-                              type="number" min="0" step="any" inputMode="decimal" placeholder="0"
-                              value={sys.quantity}
-                              onChange={e => changeSystem(svc.key, sys.key, { quantity: e.target.value })}
-                            />
-                            <select
-                              value={sys.unit}
-                              disabled={units.length === 1}
-                              onChange={e => changeSystem(svc.key, sys.key, { unit: e.target.value as PlannedMeasureUnit })}
-                            >
-                              {units.map(u => <option key={u} value={u}>{UNIT_LABELS[u]}</option>)}
-                            </select>
-                          </div>
-                        </div>
-                        <button type="button" className="mini-btn alt acp-sys-del" onClick={() => removeSystem(svc.key, sys.key)} aria-label="Remover sistema">✕</button>
+                  {svc.systems.map(sys => (
+                    <div className="acp-sys-row" key={sys.key}>
+                      <div className="field-group">
+                        <label>Sistema</label>
+                        <select
+                          value={sys.systemType}
+                          onChange={e => changeSystem(svc.key, sys.key, { systemType: e.target.value as PlannedSystemType })}
+                        >
+                          {allowedSystems(svc.serviceType).map(t => <option key={t} value={t}>{SYSTEM_LABELS[t]}</option>)}
+                        </select>
                       </div>
-                    );
-                  })}
+                      <div className="field-group">
+                        <label>Quantidade ({UNIT_LABELS[SYSTEM_UNIT[sys.systemType]]})</label>
+                        <div className="num-unit">
+                          <input
+                            type="number" min="0" step="any" inputMode="decimal" placeholder="0"
+                            value={sys.quantity}
+                            onChange={e => changeSystem(svc.key, sys.key, { quantity: e.target.value })}
+                          />
+                          <span className="acp-unit-tag">{UNIT_LABELS[SYSTEM_UNIT[sys.systemType]]}</span>
+                        </div>
+                      </div>
+                      <button type="button" className="mini-btn alt acp-sys-del" onClick={() => removeSystem(svc.key, sys.key)} aria-label="Remover sistema">✕</button>
+                    </div>
+                  ))}
                 </div>
               )}
 

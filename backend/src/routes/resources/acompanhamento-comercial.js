@@ -198,12 +198,12 @@ router.patch(
 
 // === Escopo previsto: quantitativo de serviços vendidos + previsão de hora extra (manual) ===
 
-const measureUnit = z.enum(['M', 'KG', 'T', 'UN', 'L']);
-
+// Só tubulação (m) e óleo (L): são os quantitativos que o RDO registra como realizado, para o
+// previsto poder entrar no cálculo de avanço. Tanques e peso (kg/t) não têm fonte no RDO.
 const plannedSystemSchema = z.object({
-  systemType: z.enum(['TUBULACAO', 'TANQUE', 'OLEO']),
+  systemType: z.enum(['TUBULACAO', 'OLEO']),
   quantity: z.number().nonnegative().nullable().optional(),
-  unit: measureUnit.nullable().optional()
+  unit: z.enum(['M', 'L']).nullable().optional()
 });
 
 const plannedServiceSchema = z.object({
