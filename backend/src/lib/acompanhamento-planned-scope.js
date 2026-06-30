@@ -26,7 +26,8 @@ export async function getPlannedScope(projectId) {
   const [services, overtime] = await Promise.all([
     prisma.projectPlannedService.findMany({
       where: { projectId },
-      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }]
+      orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
+      include: { systems: { orderBy: [{ order: 'asc' }] } }
     }),
     prisma.projectPlannedOvertime.findMany({
       where: { projectId },
@@ -39,12 +40,12 @@ export async function getPlannedScope(projectId) {
     services: services.map(s => ({
       id: s.id,
       serviceType: s.serviceType,
-      tubingQty: s.tubingQty,
-      tubingUnit: s.tubingUnit,
-      oilLiters: s.oilLiters,
-      reservoirQty: s.reservoirQty,
-      reservoirUnit: s.reservoirUnit,
-      note: s.note
+      note: s.note,
+      systems: s.systems.map(sys => ({
+        systemType: sys.systemType,
+        quantity: sys.quantity,
+        unit: sys.unit
+      }))
     })),
     overtime: overtime.map(o => ({
       id: o.id,
@@ -70,22 +71,26 @@ export async function setPlannedScope(projectId, { services = [], overtime = [] 
   const roleNameById = new Map(roles.map(r => [r.id, r.name]));
 
   await prisma.$transaction(async (tx) => {
+    // Apaga os serviços (cascata derruba os sistemas) e a HE, depois recria tudo.
     await tx.projectPlannedService.deleteMany({ where: { projectId } });
     await tx.projectPlannedOvertime.deleteMany({ where: { projectId } });
 
-    if (services.length) {
-      await tx.projectPlannedService.createMany({
-        data: services.map((s, index) => ({
+    for (const [index, s] of services.entries()) {
+      await tx.projectPlannedService.create({
+        data: {
           projectId,
           serviceType: s.serviceType,
-          tubingQty: num(s.tubingQty),
-          tubingUnit: s.tubingUnit ?? null,
-          oilLiters: num(s.oilLiters),
-          reservoirQty: num(s.reservoirQty),
-          reservoirUnit: s.reservoirUnit ?? null,
           note: s.note?.trim() || null,
-          order: index
-        }))
+          order: index,
+          systems: {
+            create: (s.systems ?? []).map((sys, sysIndex) => ({
+              systemType: sys.systemType,
+              quantity: num(sys.quantity),
+              unit: sys.unit ?? null,
+              order: sysIndex
+            }))
+          }
+        }
       });
     }
 

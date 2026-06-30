@@ -4,9 +4,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getPlannedScope,
   setPlannedScope,
+  type PlannedMeasureUnit,
   type PlannedScope,
-  type ReservoirUnit,
-  type TubingUnit
+  type PlannedSystemType
 } from '../../api/acompanhamentoComercial';
 import { listJobRoles } from '../../api/jobRoles';
 import { useToast } from '../ui/Toast';
@@ -19,15 +19,43 @@ const SERVICE_TYPES: Array<{ value: string; label: string }> = [
   { value: 'FILTRAGEM', label: 'Filtragem' }
 ];
 
+const SYSTEM_LABELS: Record<PlannedSystemType, string> = {
+  TUBULACAO: 'Tubulações',
+  TANQUE: 'Tanques',
+  OLEO: 'Óleo'
+};
+const UNIT_LABELS: Record<PlannedMeasureUnit, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
+
+// Unidades compatíveis com cada tipo de sistema.
+const SYSTEM_UNITS: Record<PlannedSystemType, PlannedMeasureUnit[]> = {
+  TUBULACAO: ['M', 'KG', 'T'], // comprimento (m) ou peso (kg, t)
+  TANQUE: ['UN', 'KG'], // unidades (un) ou peso (kg)
+  OLEO: ['L'] // litros
+};
+
+// Tipos de sistema permitidos por serviço.
+const SERVICE_SYSTEMS: Record<string, PlannedSystemType[]> = {
+  LIMPEZA_QUIMICA: ['TUBULACAO', 'TANQUE', 'OLEO'],
+  TESTE_PRESSAO: ['TUBULACAO'],
+  FLUSHING: ['TUBULACAO', 'TANQUE', 'OLEO'],
+  FILTRAGEM: ['OLEO']
+};
+const ALL_SYSTEMS: PlannedSystemType[] = ['TUBULACAO', 'TANQUE', 'OLEO'];
+
+const allowedSystems = (serviceType: string) => SERVICE_SYSTEMS[serviceType] ?? ALL_SYSTEMS;
+const defaultUnit = (systemType: PlannedSystemType) => SYSTEM_UNITS[systemType][0];
+
 // Linhas locais usam string nos campos numéricos (inputs controlados); convertem no salvar.
+interface SystemRow {
+  key: string;
+  systemType: PlannedSystemType;
+  quantity: string;
+  unit: PlannedMeasureUnit;
+}
 interface ServiceRow {
   key: string;
   serviceType: string;
-  tubingQty: string;
-  tubingUnit: TubingUnit;
-  oilLiters: string;
-  reservoirQty: string;
-  reservoirUnit: ReservoirUnit;
+  systems: SystemRow[];
 }
 interface OvertimeRow {
   key: string;
@@ -47,15 +75,21 @@ const toNum = (v: string) => {
 
 function fromScope(scope: PlannedScope): { services: ServiceRow[]; overtime: OvertimeRow[] } {
   return {
-    services: scope.services.map(s => ({
-      key: nextKey(),
-      serviceType: s.serviceType || 'LIMPEZA_QUIMICA',
-      tubingQty: toStr(s.tubingQty),
-      tubingUnit: (s.tubingUnit as TubingUnit) || 'M',
-      oilLiters: toStr(s.oilLiters),
-      reservoirQty: toStr(s.reservoirQty),
-      reservoirUnit: (s.reservoirUnit as ReservoirUnit) || 'UN'
-    })),
+    services: scope.services.map(s => {
+      const serviceType = s.serviceType || 'LIMPEZA_QUIMICA';
+      const allowed = allowedSystems(serviceType);
+      return {
+        key: nextKey(),
+        serviceType,
+        systems: (s.systems ?? [])
+          .filter(sys => allowed.includes(sys.systemType))
+          .map(sys => {
+            const units = SYSTEM_UNITS[sys.systemType];
+            const unit = sys.unit && units.includes(sys.unit) ? sys.unit : units[0];
+            return { key: nextKey(), systemType: sys.systemType, quantity: toStr(sys.quantity), unit };
+          })
+      };
+    }),
     overtime: scope.overtime.map(o => ({
       key: nextKey(),
       jobRoleId: o.jobRoleId || '',
@@ -65,7 +99,17 @@ function fromScope(scope: PlannedScope): { services: ServiceRow[]; overtime: Ove
   };
 }
 
-// Editor do escopo previsto (vendido): quantitativo por serviço + previsão de hora extra.
+function normalize(services: ServiceRow[], overtime: OvertimeRow[]) {
+  return JSON.stringify({
+    services: services.map(s => ({
+      serviceType: s.serviceType,
+      systems: s.systems.map(sys => ({ systemType: sys.systemType, quantity: sys.quantity, unit: sys.unit }))
+    })),
+    overtime: overtime.map(o => ({ jobRoleId: o.jobRoleId, collaboratorCount: o.collaboratorCount, hours: o.hours }))
+  });
+}
+
+// Editor do escopo previsto (vendido): serviços com seus sistemas + previsão de hora extra.
 // Preenchimento manual — esses dados ainda não vêm do banco comercial.
 export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
@@ -84,13 +128,10 @@ export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) 
     const next = fromScope(data);
     setServices(next.services);
     setOvertime(next.overtime);
-    setBaseline(JSON.stringify(next.services.map(stripKey)) + JSON.stringify(next.overtime.map(stripKey)));
+    setBaseline(normalize(next.services, next.overtime));
   }, [data]);
 
-  const dirty = useMemo(() => {
-    const current = JSON.stringify(services.map(stripKey)) + JSON.stringify(overtime.map(stripKey));
-    return current !== baseline;
-  }, [services, overtime, baseline]);
+  const dirty = useMemo(() => normalize(services, overtime) !== baseline, [services, overtime, baseline]);
 
   const mutation = useMutation({
     mutationFn: (payload: PlannedScope) => setPlannedScope(projectId, payload),
@@ -106,11 +147,11 @@ export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) 
     const payload: PlannedScope = {
       services: services.map(s => ({
         serviceType: s.serviceType,
-        tubingQty: toNum(s.tubingQty),
-        tubingUnit: toNum(s.tubingQty) === null ? null : s.tubingUnit,
-        oilLiters: toNum(s.oilLiters),
-        reservoirQty: toNum(s.reservoirQty),
-        reservoirUnit: toNum(s.reservoirQty) === null ? null : s.reservoirUnit
+        systems: s.systems.map(sys => ({
+          systemType: sys.systemType,
+          quantity: toNum(sys.quantity),
+          unit: sys.unit
+        }))
       })),
       overtime: overtime
         .filter(o => o.jobRoleId || toNum(o.hours))
@@ -123,70 +164,118 @@ export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) 
     mutation.mutate(payload);
   }
 
+  // Troca o serviço: descarta sistemas não permitidos pelo novo tipo.
+  function changeServiceType(key: string, serviceType: string) {
+    const allowed = allowedSystems(serviceType);
+    setServices(prev => prev.map(s => (
+      s.key === key ? { ...s, serviceType, systems: s.systems.filter(sys => allowed.includes(sys.systemType)) } : s
+    )));
+  }
+
+  function addSystem(serviceKey: string) {
+    setServices(prev => prev.map(s => {
+      if (s.key !== serviceKey) return s;
+      const used = new Set(s.systems.map(sys => sys.systemType));
+      const next = allowedSystems(s.serviceType).find(t => !used.has(t)) ?? allowedSystems(s.serviceType)[0];
+      return { ...s, systems: [...s.systems, { key: nextKey(), systemType: next, quantity: '', unit: defaultUnit(next) }] };
+    }));
+  }
+
+  function changeSystem(serviceKey: string, sysKey: string, patch: Partial<SystemRow>) {
+    setServices(prev => prev.map(s => {
+      if (s.key !== serviceKey) return s;
+      return {
+        ...s,
+        systems: s.systems.map(sys => {
+          if (sys.key !== sysKey) return sys;
+          const merged = { ...sys, ...patch };
+          // Ao trocar o tipo de sistema, garante uma unidade compatível.
+          if (patch.systemType && !SYSTEM_UNITS[merged.systemType].includes(merged.unit)) {
+            merged.unit = defaultUnit(merged.systemType);
+          }
+          return merged;
+        })
+      };
+    }));
+  }
+
+  function removeSystem(serviceKey: string, sysKey: string) {
+    setServices(prev => prev.map(s => (
+      s.key === serviceKey ? { ...s, systems: s.systems.filter(sys => sys.key !== sysKey) } : s
+    )));
+  }
+
   if (isLoading) return <div className="placeholder-copy">Carregando escopo…</div>;
 
   return (
     <div className="acp-scope">
       <div className="sec" style={{ marginTop: 4 }}>Serviços previstos (vendido)</div>
-      <p className="placeholder-copy" style={{ margin: '2px 0 6px' }}>
-        Preenchimento manual — quantitativo vendido por serviço.
+      <p className="placeholder-copy" style={{ margin: '2px 0 8px' }}>
+        Preenchimento manual — para cada serviço, adicione os sistemas vendidos e seus quantitativos.
       </p>
 
       {services.length === 0 ? (
         <div className="placeholder-copy">Nenhum serviço previsto.</div>
       ) : (
-        <div className="acp-scope-list">
-          {services.map(row => (
-            <div className="acp-scope-row" key={row.key}>
-              <div className="acp-scope-field acp-scope-type">
-                <label>Serviço</label>
-                <select
-                  value={row.serviceType}
-                  onChange={e => updateRow(setServices, row.key, { serviceType: e.target.value })}
-                >
-                  {SERVICE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-              </div>
-              <div className="acp-scope-field">
-                <label>Tubulação</label>
-                <div className="acp-scope-measure">
-                  <input
-                    type="number" min="0" step="any" inputMode="decimal" placeholder="0"
-                    value={row.tubingQty}
-                    onChange={e => updateRow(setServices, row.key, { tubingQty: e.target.value })}
-                  />
-                  <select value={row.tubingUnit} onChange={e => updateRow(setServices, row.key, { tubingUnit: e.target.value as TubingUnit })}>
-                    <option value="M">m</option>
-                    <option value="KG">kg</option>
+        <div className="acp-svc-list">
+          {services.map(svc => (
+            <div className="acp-svc-card" key={svc.key}>
+              <div className="acp-svc-head">
+                <div className="field-group">
+                  <label>Serviço</label>
+                  <select value={svc.serviceType} onChange={e => changeServiceType(svc.key, e.target.value)}>
+                    {SERVICE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
                 </div>
+                <button type="button" className="mini-btn alt" onClick={() => setServices(prev => prev.filter(s => s.key !== svc.key))}>
+                  Remover serviço
+                </button>
               </div>
-              <div className="acp-scope-field">
-                <label>Óleo</label>
-                <div className="acp-scope-measure">
-                  <input
-                    type="number" min="0" step="any" inputMode="decimal" placeholder="0"
-                    value={row.oilLiters}
-                    onChange={e => updateRow(setServices, row.key, { oilLiters: e.target.value })}
-                  />
-                  <span className="acp-scope-unit">L</span>
+
+              {svc.systems.length === 0 ? (
+                <div className="placeholder-copy" style={{ margin: '4px 0' }}>Nenhum sistema adicionado.</div>
+              ) : (
+                <div className="acp-sys-list">
+                  {svc.systems.map(sys => {
+                    const units = SYSTEM_UNITS[sys.systemType];
+                    return (
+                      <div className="acp-sys-row" key={sys.key}>
+                        <div className="field-group">
+                          <label>Sistema</label>
+                          <select
+                            value={sys.systemType}
+                            onChange={e => changeSystem(svc.key, sys.key, { systemType: e.target.value as PlannedSystemType })}
+                          >
+                            {allowedSystems(svc.serviceType).map(t => <option key={t} value={t}>{SYSTEM_LABELS[t]}</option>)}
+                          </select>
+                        </div>
+                        <div className="field-group">
+                          <label>Quantidade</label>
+                          <div className="num-unit">
+                            <input
+                              type="number" min="0" step="any" inputMode="decimal" placeholder="0"
+                              value={sys.quantity}
+                              onChange={e => changeSystem(svc.key, sys.key, { quantity: e.target.value })}
+                            />
+                            <select
+                              value={sys.unit}
+                              disabled={units.length === 1}
+                              onChange={e => changeSystem(svc.key, sys.key, { unit: e.target.value as PlannedMeasureUnit })}
+                            >
+                              {units.map(u => <option key={u} value={u}>{UNIT_LABELS[u]}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <button type="button" className="mini-btn alt acp-sys-del" onClick={() => removeSystem(svc.key, sys.key)} aria-label="Remover sistema">✕</button>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-              <div className="acp-scope-field">
-                <label>Reservatórios</label>
-                <div className="acp-scope-measure">
-                  <input
-                    type="number" min="0" step="any" inputMode="decimal" placeholder="0"
-                    value={row.reservoirQty}
-                    onChange={e => updateRow(setServices, row.key, { reservoirQty: e.target.value })}
-                  />
-                  <select value={row.reservoirUnit} onChange={e => updateRow(setServices, row.key, { reservoirUnit: e.target.value as ReservoirUnit })}>
-                    <option value="UN">un</option>
-                    <option value="KG">kg</option>
-                  </select>
-                </div>
-              </div>
-              <button type="button" className="mini-btn alt acp-scope-del" onClick={() => removeRow(setServices, row.key)} aria-label="Remover serviço">✕</button>
+              )}
+
+              <button type="button" className="mini-btn alt acp-add-sys" onClick={() => addSystem(svc.key)}>
+                + Adicionar sistema
+              </button>
             </div>
           ))}
         </div>
@@ -194,33 +283,34 @@ export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) 
       <button
         type="button"
         className="mini-btn"
-        style={{ marginTop: 6 }}
-        onClick={() => setServices(prev => [...prev, {
-          key: nextKey(), serviceType: 'LIMPEZA_QUIMICA', tubingQty: '', tubingUnit: 'M', oilLiters: '', reservoirQty: '', reservoirUnit: 'UN'
-        }])}
+        style={{ marginTop: 8 }}
+        onClick={() => setServices(prev => {
+          const serviceType = 'LIMPEZA_QUIMICA';
+          return [...prev, { key: nextKey(), serviceType, systems: [] }];
+        })}
       >
         + Adicionar serviço
       </button>
 
-      <div className="sec" style={{ marginTop: 16 }}>Previsão de hora extra</div>
-      <p className="placeholder-copy" style={{ margin: '2px 0 6px' }}>
+      <div className="sec" style={{ marginTop: 18 }}>Previsão de hora extra</div>
+      <p className="placeholder-copy" style={{ margin: '2px 0 8px' }}>
         Por cargo, nº de colaboradores e total de horas previstas.
       </p>
 
       {overtime.length === 0 ? (
         <div className="placeholder-copy">Nenhuma hora extra prevista.</div>
       ) : (
-        <div className="acp-scope-list">
+        <div className="acp-ot-list">
           {overtime.map(row => (
-            <div className="acp-scope-row acp-scope-ot" key={row.key}>
-              <div className="acp-scope-field acp-scope-type">
+            <div className="acp-ot-row" key={row.key}>
+              <div className="field-group acp-ot-role">
                 <label>Cargo</label>
                 <select value={row.jobRoleId} onChange={e => updateRow(setOvertime, row.key, { jobRoleId: e.target.value })}>
                   <option value="">— selecione —</option>
                   {(roles ?? []).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </select>
               </div>
-              <div className="acp-scope-field">
+              <div className="field-group">
                 <label>Colaboradores</label>
                 <input
                   type="number" min="1" step="1" inputMode="numeric" placeholder="1"
@@ -228,7 +318,7 @@ export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) 
                   onChange={e => updateRow(setOvertime, row.key, { collaboratorCount: e.target.value })}
                 />
               </div>
-              <div className="acp-scope-field">
+              <div className="field-group">
                 <label>Horas previstas</label>
                 <input
                   type="number" min="0" step="any" inputMode="decimal" placeholder="0"
@@ -236,7 +326,7 @@ export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) 
                   onChange={e => updateRow(setOvertime, row.key, { hours: e.target.value })}
                 />
               </div>
-              <button type="button" className="mini-btn alt acp-scope-del" onClick={() => removeRow(setOvertime, row.key)} aria-label="Remover hora extra">✕</button>
+              <button type="button" className="mini-btn alt acp-sys-del" onClick={() => removeRow(setOvertime, row.key)} aria-label="Remover hora extra">✕</button>
             </div>
           ))}
         </div>
@@ -244,25 +334,19 @@ export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) 
       <button
         type="button"
         className="mini-btn"
-        style={{ marginTop: 6 }}
+        style={{ marginTop: 8 }}
         onClick={() => setOvertime(prev => [...prev, { key: nextKey(), jobRoleId: '', collaboratorCount: '1', hours: '' }])}
       >
         + Adicionar hora extra
       </button>
 
-      <div style={{ marginTop: 14 }}>
+      <div style={{ marginTop: 16 }}>
         <button type="button" className="mini-btn" disabled={mutation.isPending || !dirty} onClick={save}>
           {mutation.isPending ? 'Salvando…' : 'Salvar escopo previsto'}
         </button>
       </div>
     </div>
   );
-}
-
-function stripKey<T extends { key: string }>(row: T) {
-  const { key, ...rest } = row;
-  void key;
-  return rest;
 }
 
 function updateRow<T extends { key: string }>(

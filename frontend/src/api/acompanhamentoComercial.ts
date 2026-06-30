@@ -122,18 +122,20 @@ export async function setProjectSchedule(projectId: string, payload: ProjectSche
 
 // --- Escopo previsto: quantitativo de serviços vendidos + previsão de hora extra ---
 
-export type TubingUnit = 'M' | 'KG';
-export type ReservoirUnit = 'UN' | 'KG';
+export type PlannedMeasureUnit = 'M' | 'KG' | 'T' | 'UN' | 'L';
+export type PlannedSystemType = 'TUBULACAO' | 'TANQUE' | 'OLEO';
+
+export interface PlannedServiceSystem {
+  systemType: PlannedSystemType;
+  quantity?: string | number | null;
+  unit?: PlannedMeasureUnit | null;
+}
 
 export interface PlannedService {
   id?: string;
   serviceType: string;
-  tubingQty?: string | number | null;
-  tubingUnit?: TubingUnit | null;
-  oilLiters?: string | number | null;
-  reservoirQty?: string | number | null;
-  reservoirUnit?: ReservoirUnit | null;
   note?: string | null;
+  systems: PlannedServiceSystem[];
 }
 
 export interface PlannedOvertime {

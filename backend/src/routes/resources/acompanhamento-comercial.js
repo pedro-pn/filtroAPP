@@ -198,18 +198,18 @@ router.patch(
 
 // === Escopo previsto: quantitativo de serviços vendidos + previsão de hora extra (manual) ===
 
-const tubingUnit = z.enum(['M', 'KG']);
-const reservoirUnit = z.enum(['UN', 'KG']);
-const qty = z.number().nonnegative().nullable().optional();
+const measureUnit = z.enum(['M', 'KG', 'T', 'UN', 'L']);
+
+const plannedSystemSchema = z.object({
+  systemType: z.enum(['TUBULACAO', 'TANQUE', 'OLEO']),
+  quantity: z.number().nonnegative().nullable().optional(),
+  unit: measureUnit.nullable().optional()
+});
 
 const plannedServiceSchema = z.object({
   serviceType: z.string().trim().min(1).max(60),
-  tubingQty: qty,
-  tubingUnit: tubingUnit.nullable().optional(),
-  oilLiters: qty,
-  reservoirQty: qty,
-  reservoirUnit: reservoirUnit.nullable().optional(),
-  note: z.string().max(300).nullable().optional()
+  note: z.string().max(300).nullable().optional(),
+  systems: z.array(plannedSystemSchema).max(20).default([])
 });
 
 const plannedOvertimeSchema = z.object({

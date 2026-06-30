@@ -166,8 +166,9 @@ enum BudgetSelectionStatus {
 // Unidade de medida do quantitativo previsto de serviços (escopo vendido).
 enum PlannedMeasureUnit {
   M  // metros (tubulação)
-  KG // quilos (tubulação ou reservatório)
-  UN // unidades (reservatório)
+  KG // quilos (tubulação ou tanque)
+  T  // toneladas (tubulação)
+  UN // unidades (tanque)
   L  // litros (óleo)
 }
 
@@ -1312,24 +1313,34 @@ model ProjectBudget {
   @@index([selectionStatus])
 }
 
-// Quantitativo previsto de serviço vendido (escopo). Hoje é preenchido manualmente no cronograma —
-// idealmente viria do banco comercial, que ainda não carrega esses campos.
+// Serviço vendido (escopo) previsto. Hoje é preenchido manualmente no cronograma — idealmente viria
+// do banco comercial, que ainda não carrega esses campos. Cada serviço agrupa um ou mais "sistemas"
+// (tubulações, tanques, óleo), cada um com seu quantitativo.
 model ProjectPlannedService {
-  id            String              @id @default(cuid())
-  projectId     String
-  serviceType   String              // LIMPEZA_QUIMICA | TESTE_PRESSAO | FLUSHING | FILTRAGEM | (livre)
-  tubingQty     Decimal?            @db.Decimal(14, 2) // tubulações
-  tubingUnit    PlannedMeasureUnit? // M | KG
-  oilLiters     Decimal?            @db.Decimal(14, 2) // litros de óleo
-  reservoirQty  Decimal?            @db.Decimal(14, 2) // reservatórios
-  reservoirUnit PlannedMeasureUnit? // UN | KG
-  note          String?
-  order         Int                 @default(0)
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
-  project       Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id          String                        @id @default(cuid())
+  projectId   String
+  serviceType String                        // LIMPEZA_QUIMICA | TESTE_PRESSAO | FLUSHING | FILTRAGEM | (livre)
+  note        String?
+  order       Int                           @default(0)
+  createdAt   DateTime                      @default(now())
+  updatedAt   DateTime                      @updatedAt
+  project     Project                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  systems     ProjectPlannedServiceSystem[]
 
   @@index([projectId])
+}
+
+// Sistema/quantitativo de um serviço previsto: tubulações (m/kg/t), tanques (un/kg) ou óleo (L).
+model ProjectPlannedServiceSystem {
+  id         String                @id @default(cuid())
+  serviceId  String
+  systemType String                // TUBULACAO | TANQUE | OLEO
+  quantity   Decimal?              @db.Decimal(14, 2)
+  unit       PlannedMeasureUnit?   // unidade compatível com o tipo de sistema
+  order      Int                   @default(0)
+  service    ProjectPlannedService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([serviceId])
 }
 
 // Previsão de hora extra vendida: por cargo, nº de colaboradores e horas previstas.
