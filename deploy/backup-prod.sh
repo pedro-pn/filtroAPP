@@ -50,7 +50,6 @@ BACKUP_LOCK_TIMEOUT_SECONDS="${BACKUP_LOCK_TIMEOUT_SECONDS:-0}"
 INCLUDE_CERTS="${INCLUDE_CERTS:-true}"
 INCLUDE_REPORTS="${INCLUDE_REPORTS:-true}"
 B2_URI="${B2_URI:-}"
-B2_PROFILE="${B2_PROFILE:-}"
 
 mkdir -p "$BACKUP_ROOT"
 
@@ -99,14 +98,9 @@ UPLOAD_SUCCEEDED=false
 
 if [ -n "$B2_URI" ]; then
   if command -v b2 >/dev/null 2>&1; then
-    B2_ARGS=()
-    if [ -n "$B2_PROFILE" ]; then
-      B2_ARGS+=(--profile "$B2_PROFILE")
-    fi
-
     B2_DEST="${B2_URI%/}/$TIMESTAMP"
     echo "[backup] uploading to $B2_DEST"
-    b2 "${B2_ARGS[@]}" sync --no-progress "$RUN_DIR" "$B2_DEST"
+    b2 sync "$RUN_DIR" "$B2_DEST"
     UPLOAD_SUCCEEDED=true
   else
     echo "[backup] b2 cli not found, skipping Backblaze B2 upload" >&2

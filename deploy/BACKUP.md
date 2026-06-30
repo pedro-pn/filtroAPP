@@ -51,14 +51,10 @@ Por padrão ele usa:
 
 ```bash
 B2_URI=b2://meu-bucket/filtrovali-backups
-B2_PROFILE=backblaze
 INCLUDE_CERTS=false
 INCLUDE_REPORTS=true
 BACKUP_LOCK_TIMEOUT_SECONDS=0
 ```
-
-`B2_PROFILE` é opcional. Use quando você autorizou a CLI `b2` com um perfil
-nomeado.
 
 O script usa um lock em `$BACKUP_ROOT/backup-prod.lock` para impedir execuções
 simultâneas. Por padrão, se outro backup já estiver rodando, a nova execução é
@@ -94,9 +90,8 @@ Não use a Master Application Key da conta. Crie uma Application Key nova,
 restrita ao bucket de backup. Para operação simples de backup e teste de
 restore, use acesso `Read and Write`.
 
-Para evitar que as credenciais apareçam no histórico do shell ou na lista de
-processos, salve-as em arquivos protegidos e autorize usando variáveis de
-ambiente:
+Para evitar que as credenciais apareçam no histórico do shell, salve-as em
+arquivos protegidos e autorize usando variáveis de ambiente:
 
 ```bash
 sudo install -d -m 700 /root/.config/newrdo-backup
@@ -114,22 +109,15 @@ export B2_APPLICATION_KEY="<applicationKey-do-backblaze>"
 sudo -H bash -lc 'source /root/.config/newrdo-backup/b2.env && b2 account authorize'
 ```
 
-Com `B2_PROFILE`, a autorização fica em um cache separado:
-
-```bash
-sudo -H bash -lc 'source /root/.config/newrdo-backup/b2.env && b2 --profile backblaze account authorize'
-```
-
 Teste o acesso:
 
 ```bash
-b2 --profile backblaze bucket list
+sudo -H b2 bucket list
 ```
 
 Rode um backup manual:
 
 ```bash
-B2_PROFILE=backblaze \
 B2_URI=b2://filtrovali-backups/daily \
 ./deploy/backup-prod.sh
 ```
@@ -158,15 +146,15 @@ crontab -e
 ```cron
 # Horário — banco + relatórios + certificados
 # Evita a janela dos backups mensal/diário; se outro backup ainda estiver rodando, pula esta execução.
-0 0,3-23 * * * B2_PROFILE=backblaze B2_URI=b2://filtrovali-backups/hourly INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=0 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
+0 0,3-23 * * * B2_URI=b2://filtrovali-backups/hourly INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=0 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
 
 # Diário às 02h — banco + relatórios + certificados
 # Espera até 2h se houver outro backup finalizando.
-0 2 * * * B2_PROFILE=backblaze B2_URI=b2://filtrovali-backups/daily INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
+0 2 * * * B2_URI=b2://filtrovali-backups/daily INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
 
 # Mensal todo dia 1 às 01h — banco + relatórios + certificados
 # Espera até 2h se houver outro backup finalizando.
-0 1 1 * * B2_PROFILE=backblaze B2_URI=b2://filtrovali-backups/monthly INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
+0 1 1 * * B2_URI=b2://filtrovali-backups/monthly INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
 ```
 
 ## Restore do banco
