@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ReportSummary } from '../../types/domain';
 import { groupByProject } from '../../utils/groupByProject';
-import { ProjectSortButton, compareReportTypes, sortProjectGroups, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
+import { compareReportTypes, sortProjectGroups, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
+import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { InfiniteScrollSentinel } from '../ui/InfiniteScrollSentinel';
 import { ReportSummaryCard } from './ReportSummaryCard';
 

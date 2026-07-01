@@ -5,7 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { rdoReportDetailPath } from '../../auth/rolePath';
 import type { ReportSummary } from '../../types/domain';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
-import { serviceTypeLabels } from './ServiceFields';
+import { serviceTypeLabels } from './serviceTypes';
 import { SignatureProgress } from './SignatureProgress';
 
 const statusMap: Record<string, { label: string; className: string }> = {

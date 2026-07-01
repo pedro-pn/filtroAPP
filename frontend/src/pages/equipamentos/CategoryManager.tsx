@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { EquipmentCategory } from '../../api/equipamentos';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/ToastContext';
 import { useEquipamentoMutations } from '../../hooks/useEquipamentos';
-import { ProjectSortButton, type ProjectSortDirection } from '../../utils/projectSort';
+import { type ProjectSortDirection } from '../../utils/projectSort';
+import { ProjectSortButton } from '../../utils/ProjectSortButton';
 
 interface Props {
   categories: EquipmentCategory[];

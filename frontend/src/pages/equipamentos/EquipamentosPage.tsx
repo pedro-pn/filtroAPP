@@ -6,7 +6,7 @@ import type { DriveStep } from 'driver.js';
 import type { CompanyEquipment, EquipmentCategory, EquipmentCategoryPayload, EquipmentPayload, ImageUpload } from '../../api/equipamentos';
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/ToastContext';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useEquipamentoMutations, useEquipamentos, useEquipmentCategories, useRdoSlots, useUnitsCatalog } from '../../hooks/useEquipamentos';
@@ -20,7 +20,8 @@ import { EquipmentFormModal } from './EquipmentFormModal';
 import { TechnicalDataModal } from './TechnicalDataModal';
 import { NotificationsConfig } from './NotificationsConfig';
 import { RdoSlotsConfig } from './RdoSlotsConfig';
-import { ProjectSortButton, type ProjectSortDirection } from '../../utils/projectSort';
+import { type ProjectSortDirection } from '../../utils/projectSort';
+import { ProjectSortButton } from '../../utils/ProjectSortButton';
 
 type ActiveTab = { kind: 'category'; id: string } | { kind: 'dashboard' } | { kind: 'config' } | { kind: 'notifications' };
 
@@ -81,7 +82,7 @@ export function EquipamentosPage() {
     () => [...(categoriesQuery.data || [])].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)),
     [categoriesQuery.data]
   );
-  const equipment = equipmentQuery.data || [];
+  const equipment = useMemo(() => equipmentQuery.data || [], [equipmentQuery.data]);
   // Categorias atualmente vinculadas a algum slot de relatório (override ou padrão).
   const rdoLinkedCategoryIds = useMemo(
     () => new Set((rdoSlotsQuery.data || []).flatMap(slot => slot.categoryIds)),
