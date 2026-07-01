@@ -3,8 +3,14 @@ import test from 'node:test';
 
 import { publicUser } from '../src/lib/auth.js';
 import {
+  accountTypeForLegacyRole,
   hasModuleRole,
+  moduleForRole,
+  moduleRoleForLegacyRole,
   moduleRoleRows,
+  prismaModuleRole,
+  publicModuleRole,
+  publicModuleRoleDefinitions,
   serializeModuleRoles
 } from '../src/lib/module-roles.js';
 import {
@@ -109,6 +115,22 @@ test('moduleRoleRows converts public role codes for Prisma writes', () => {
       { userId: 'user-1', module: 'PRIVACY', role: 'PRIVACY_ADMIN' }
     ]
   );
+});
+
+test('module role conversion helpers are registry-backed', () => {
+  assert.equal(accountTypeForLegacyRole('MANAGER'), 'ADMIN');
+  assert.equal(moduleRoleForLegacyRole('COORDINATOR'), 'RDO_COORDINATOR');
+  assert.equal(publicModuleRole('ROMANEIO_OPERATOR'), 'romaneio:operator');
+  assert.equal(prismaModuleRole('equipamentos:viewer'), 'EQUIPAMENTOS_VIEWER');
+  assert.equal(moduleForRole('PRIVACY_ADMIN'), 'PRIVACY');
+});
+
+test('module role definitions are loaded from the shared registry', () => {
+  const roles = publicModuleRoleDefinitions();
+
+  assert.equal(roles.some(role => role.public === 'rdo:manager' && role.code === 'RDO_MANAGER'), true);
+  assert.equal(roles.some(role => role.public === 'equipamentos:viewer' && role.prismaModule === 'EQUIPAMENTOS'), true);
+  assert.equal(roles.some(role => role.public === 'privacy:admin' && role.assignableAccountTypes.includes('ADMIN')), true);
 });
 
 test('hasModuleRole checks persisted module roles for hub admins and regular accounts', () => {

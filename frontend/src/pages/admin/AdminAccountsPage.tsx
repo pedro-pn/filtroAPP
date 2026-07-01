@@ -9,13 +9,20 @@ import { useUserMutations, useUsers } from '../../hooks/useUsers';
 import { useCollaborators } from '../../hooks/useCollaborators';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
+import {
+  assignableRoleOptionsForAccountType,
+  moduleIdForPublicRole,
+  moduleRegistry,
+  moduleRoleLabel,
+  sameModuleRoles
+} from '../../modules/registry';
 import { rolesForAccountType } from './accountRoleRules';
 import type { UserPayload } from '../../api/users';
 import type { AccountType, ModuleRole, UserRole } from '../../types/auth';
 import type { InternalUserSummary } from '../../types/domain';
 
 type AccountFilter = 'all' | AccountType;
-type ModuleFilter = 'all' | 'rdo' | 'romaneio' | 'epi' | 'equipamentos' | 'privacy';
+type ModuleFilter = 'all' | string;
 
 interface AccountFormState {
   accountType: AccountType;
@@ -27,20 +34,6 @@ interface AccountFormState {
   collaboratorId: string;
   moduleRoles: ModuleRole[];
 }
-
-const roleOptions: Array<{ value: ModuleRole; label: string; accountTypes: AccountType[] }> = [
-  { value: 'rdo:manager', label: 'RDO - Gestor', accountTypes: ['ADMIN'] },
-  { value: 'rdo:coordinator', label: 'RDO - Coordenador', accountTypes: ['INTERNAL'] },
-  { value: 'rdo:collaborator', label: 'RDO - Colaborador', accountTypes: ['INTERNAL'] },
-  { value: 'rdo:client', label: 'RDO - Cliente', accountTypes: ['CLIENT'] },
-  { value: 'romaneio:manager', label: 'Romaneio - Gestor', accountTypes: ['ADMIN', 'INTERNAL'] },
-  { value: 'romaneio:operator', label: 'Romaneio - Operador', accountTypes: ['ADMIN', 'INTERNAL'] },
-  { value: 'epi:technician', label: 'EPI - Técnico', accountTypes: ['ADMIN', 'INTERNAL'] },
-  { value: 'epi:collaborator', label: 'EPI - Colaborador', accountTypes: ['ADMIN', 'INTERNAL'] },
-  { value: 'equipamentos:manager', label: 'Equipamentos - Gestor', accountTypes: ['ADMIN', 'INTERNAL'] },
-  { value: 'equipamentos:viewer', label: 'Equipamentos - Visualizador', accountTypes: ['ADMIN', 'INTERNAL'] },
-  { value: 'privacy:admin', label: 'Privacidade - Admin', accountTypes: ['ADMIN'] }
-];
 
 const emptyForm: AccountFormState = {
   accountType: 'INTERNAL',
@@ -59,17 +52,8 @@ function accountTypeLabel(accountType?: AccountType) {
   return 'Interno';
 }
 
-function moduleRoleLabel(role: ModuleRole) {
-  return roleOptions.find(item => item.value === role)?.label || role;
-}
-
 function moduleForRole(role: ModuleRole) {
-  return role.split(':')[0] as ModuleFilter;
-}
-
-function sameModuleRoles(role: ModuleRole) {
-  const module = moduleForRole(role);
-  return roleOptions.map(option => option.value).filter(optionRole => moduleForRole(optionRole) === module);
+  return moduleIdForPublicRole(role) || role.split(':')[0];
 }
 
 function legacyRoleForForm(form: AccountFormState): UserRole {
@@ -149,7 +133,7 @@ export function AdminAccountsPage() {
       });
   }, [accountFilter, moduleFilter, search, usersQuery.data]);
 
-  const availableRoleOptions = roleOptions.filter(option => option.accountTypes.includes(form.accountType));
+  const availableRoleOptions = assignableRoleOptionsForAccountType(form.accountType);
   const isSaving = userMutations.createUser.isPending || userMutations.updateUser.isPending;
 
   function resetForm() {
@@ -410,11 +394,9 @@ export function AdminAccountsPage() {
             <label htmlFor="account-module-filter">Módulo</label>
             <select id="account-module-filter" value={moduleFilter} onChange={event => setModuleFilter(event.target.value as ModuleFilter)}>
               <option value="all">Todos</option>
-              <option value="rdo">RDO</option>
-              <option value="romaneio">Romaneio</option>
-              <option value="epi">EPI</option>
-              <option value="equipamentos">Equipamentos</option>
-              <option value="privacy">Privacidade</option>
+              {moduleRegistry.filter(module => module.roles.length).map(module => (
+                <option key={module.id} value={module.id}>{module.title}</option>
+              ))}
             </select>
           </div>
         </section>

@@ -64,6 +64,9 @@ invalidar as credenciais vindas do dump de produção:
 ```
 STAGING_POSTGRES_PASSWORD=escolha-uma-senha-forte
 DATABASE_URL="postgresql://postgres:escolha-uma-senha-forte@postgres:5432/filtrovali?schema=public"
+TRUST_PROXY=false
+SURVEY_TOKEN_SECRET=segredo-longo-para-homologacao
+SIGNATURE_TOKEN_SECRET=outro-segredo-longo-para-homologacao
 STAGING_ADMIN_USERNAME=staging-admin
 STAGING_ADMIN_PASSWORD=outra-senha-forte
 ```
