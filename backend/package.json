@@ -26,7 +26,7 @@
     "repair:report-file-paths": "node scripts/repair-report-file-paths.js"
   },
   "dependencies": {
-    "@prisma/client": "^6.6.0",
+    "@prisma/client": "^7.8.0",
     "@xmldom/xmldom": "^0.9.9",
     "adm-zip": "^0.5.17",
     "cors": "^2.8.5",
