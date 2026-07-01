@@ -70,6 +70,14 @@ import {
   syncReportUploadAttachments
 } from '../../lib/report-upload-attachments.js';
 import { grantReportUploadAccess, grantReportsUploadAccess } from '../../lib/transient-upload-access.js';
+import {
+  REPORT_APPROVAL_JOB_STATUS,
+  completeReportApprovalPostProcessingJob,
+  configureReportApprovalPostProcessingProcessor,
+  enqueueReportApprovalPostProcessingJob,
+  reportApprovalJobErrorText,
+  scheduleReportApprovalPostProcessing
+} from '../../lib/reports/jobs.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 
 const router = Router();
@@ -149,18 +157,6 @@ const publicSignatureLimiter = createMemoryRateLimit({
 });
 const pdfDownloadJobs = new Map();
 let activeGeneratedPdfDownloads = 0;
-const REPORT_APPROVAL_JOB_STATUS = {
-  PENDING: 'PENDING',
-  RUNNING: 'RUNNING',
-  FAILED: 'FAILED',
-  COMPLETED: 'COMPLETED',
-  SKIPPED: 'SKIPPED'
-};
-const REPORT_APPROVAL_JOB_STALE_MS = 15 * 60 * 1000;
-const REPORT_APPROVAL_JOB_INTERVAL_MS = 10 * 1000;
-let reportApprovalJobRunning = false;
-let reportApprovalJobScheduled = false;
-
 async function uniqueSignatureValidationCode() {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const code = createSignatureValidationCode();
@@ -3286,82 +3282,6 @@ function reportWithSignatureEmailDelivery(item, signaturePreparation) {
   };
 }
 
-function approvalJobRunnableWhere(staleCutoff) {
-  return {
-    OR: [
-      { status: REPORT_APPROVAL_JOB_STATUS.PENDING },
-      {
-        status: REPORT_APPROVAL_JOB_STATUS.FAILED,
-        OR: [
-          { lockedAt: null },
-          { lockedAt: { lt: staleCutoff } }
-        ]
-      },
-      {
-        status: REPORT_APPROVAL_JOB_STATUS.RUNNING,
-        lockedAt: { lt: staleCutoff }
-      }
-    ]
-  };
-}
-
-function approvalJobErrorText(error) {
-  return String(error?.stack || error?.message || error || 'Falha no pós-processamento da aprovação.').slice(0, 4000);
-}
-
-async function enqueueReportApprovalPostProcessingJob(client, {
-  reportId,
-  approvedTransition,
-  wasClientRejection,
-  reviewedByUserId,
-  evidence
-}) {
-  await client.reportApprovalPostProcessingJob.upsert({
-    where: { reportId },
-    create: {
-      reportId,
-      approvedTransition,
-      wasClientRejection,
-      reviewedByUserId,
-      evidence: evidence || {},
-      status: REPORT_APPROVAL_JOB_STATUS.PENDING
-    },
-    update: {
-      approvedTransition,
-      wasClientRejection,
-      reviewedByUserId,
-      evidence: evidence || {},
-      status: REPORT_APPROVAL_JOB_STATUS.PENDING,
-      lockedAt: null,
-      completedAt: null,
-      error: null,
-      attempts: 0
-    }
-  });
-}
-
-async function claimReportApprovalPostProcessingJob(now = new Date()) {
-  const where = approvalJobRunnableWhere(new Date(now.getTime() - REPORT_APPROVAL_JOB_STALE_MS));
-  const candidate = await prisma.reportApprovalPostProcessingJob.findFirst({
-    where,
-    orderBy: [{ createdAt: 'asc' }]
-  });
-  if (!candidate) return null;
-
-  const claimed = await prisma.reportApprovalPostProcessingJob.updateMany({
-    where: { id: candidate.id, ...where },
-    data: {
-      status: REPORT_APPROVAL_JOB_STATUS.RUNNING,
-      lockedAt: now,
-      error: null,
-      attempts: { increment: 1 }
-    }
-  });
-  if (claimed.count !== 1) return null;
-
-  return prisma.reportApprovalPostProcessingJob.findUnique({ where: { id: candidate.id } });
-}
-
 async function syncApprovedDerivedReports(tx, report) {
   await syncApprovedRtpReports(tx, report);
   await syncApprovedRlqReports(tx, report);
@@ -3381,20 +3301,6 @@ async function organizeDerivedReportUploads(parentReport) {
       await organizeAndSyncReportUploadAttachments(item);
     }
   }
-}
-
-async function completeReportApprovalPostProcessingJob(job, status, data = {}) {
-  await prisma.reportApprovalPostProcessingJob.update({
-    where: { id: job.id },
-    data: {
-      status,
-      lockedAt: status === REPORT_APPROVAL_JOB_STATUS.FAILED ? new Date() : null,
-      completedAt: status === REPORT_APPROVAL_JOB_STATUS.COMPLETED || status === REPORT_APPROVAL_JOB_STATUS.SKIPPED
-        ? new Date()
-        : null,
-      ...data
-    }
-  });
 }
 
 async function processReportApprovalPostProcessingJob(job) {
@@ -3452,7 +3358,7 @@ async function processReportApprovalPostProcessingJob(job) {
       error: error?.message || error
     });
     await completeReportApprovalPostProcessingJob(job, REPORT_APPROVAL_JOB_STATUS.FAILED, {
-      error: approvalJobErrorText(error)
+      error: reportApprovalJobErrorText(error)
     }).catch(updateError => {
       console.error('Falha ao marcar job de pós-processamento como FAILED.', {
         jobId: job.id,
@@ -3463,42 +3369,7 @@ async function processReportApprovalPostProcessingJob(job) {
   }
 }
 
-export async function runReportApprovalPostProcessingQueue({ maxJobs = 5 } = {}) {
-  if (reportApprovalJobRunning) return 0;
-  reportApprovalJobRunning = true;
-  let processed = 0;
-  try {
-    while (processed < maxJobs) {
-      const job = await claimReportApprovalPostProcessingJob();
-      if (!job) break;
-      await processReportApprovalPostProcessingJob(job);
-      processed += 1;
-    }
-  } finally {
-    reportApprovalJobRunning = false;
-  }
-  return processed;
-}
-
-export function scheduleReportApprovalPostProcessing() {
-  if (reportApprovalJobScheduled) return;
-  reportApprovalJobScheduled = true;
-  setImmediate(async () => {
-    reportApprovalJobScheduled = false;
-    try {
-      await runReportApprovalPostProcessingQueue();
-    } catch (error) {
-      console.error('Falha ao executar fila de pós-processamento de aprovação.', error);
-    }
-  });
-}
-
-export function startReportApprovalPostProcessingJob({ intervalMs = REPORT_APPROVAL_JOB_INTERVAL_MS } = {}) {
-  scheduleReportApprovalPostProcessing();
-  const timer = setInterval(scheduleReportApprovalPostProcessing, intervalMs);
-  timer.unref?.();
-  return timer;
-}
+configureReportApprovalPostProcessingProcessor(processReportApprovalPostProcessingJob);
 
 async function getReportDocxDownload(report) {
   const saved = await generateReportDocxAsset(report);

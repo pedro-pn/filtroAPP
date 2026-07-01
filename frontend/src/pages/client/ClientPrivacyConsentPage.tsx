@@ -6,7 +6,7 @@ import { exportMyData, requestMyDataDeletion } from '../../api/privacy';
 import { useAuth } from '../../auth/AuthContext';
 import { CLIENT_PRIVACY_NOTICE_VERSION } from '../../constants/privacy';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/ToastContext';
 import { downloadBlob } from '../../utils/download';
 
 export function ClientPrivacyConsentPage() {
