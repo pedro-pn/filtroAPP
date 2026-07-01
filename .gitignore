@@ -35,6 +35,13 @@ Planejamento.txt
 Revisao-Ortografia.txt
 Testes manuais obrigatorios.md
 PLANEJAMENTO_*.md
+ANALISE_UX_POS_PERFORMANCE.md
+DIAGNOSTICO_ARQUITETURA_MODULAR.md
+PLANO_MODULO_ACOMPANHAMENTO_PROJETOS.md
+PLANO_MODULO_EQUIPAMENTOS.md
+custo_auxiliar.xlsx
+custo_operador.xlsx
+propostas_bd.accdb
 
 # Configurações locais do IDE/ferramentas (não compartilhar entre máquinas)
 .claude/settings.local.json
