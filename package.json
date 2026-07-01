@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "architecture:check": "node scripts/architecture-check.mjs"
+  },
   "dependencies": {
     "codex": "^0.2.3"
   }

@@ -14,6 +14,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  architecture:
+    name: Architecture
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run architecture check
+        run: npm run architecture:check
+
   backend:
     name: Backend
     runs-on: ubuntu-latest
@@ -41,7 +56,6 @@ jobs:
         run: npm ci
 
       - name: Generate audit report
-        continue-on-error: true
         run: |
           mkdir -p ../audit-reports
           npm audit --audit-level=high --json > ../audit-reports/backend-audit.json
@@ -81,7 +95,6 @@ jobs:
         run: npm ci
 
       - name: Generate audit report
-        continue-on-error: true
         run: |
           mkdir -p ../audit-reports
           npm audit --audit-level=high --json > ../audit-reports/frontend-audit.json
@@ -96,6 +109,9 @@ jobs:
 
       - name: Run frontend tests
         run: npm test
+
+      - name: Run frontend lint
+        run: npm run lint
 
       - name: Build frontend
         run: npm run build

@@ -507,7 +507,7 @@ export function useAccumulatedReportsPage(
         return next;
       });
       return data;
-    } catch (error) {
+    } catch {
       setGroupErrorKeys(current => current.includes(loadingKey) ? current : [...current, loadingKey]);
       return null;
     } finally {
