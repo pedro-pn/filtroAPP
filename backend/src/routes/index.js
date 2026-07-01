@@ -20,6 +20,7 @@ import surveysRouter from './resources/surveys.js';
 import unitsRouter from './resources/units.js';
 import uploadsRouter from './resources/uploads.js';
 import usersRouter from './resources/users.js';
+// module:scaffold import
 
 const router = Router();
 
@@ -49,6 +50,7 @@ router.use('/rdo', rdoRouter);
 router.use('/romaneio', romaneiosRouter);
 router.use('/epi', episRouter);
 router.use('/equipamentos', equipamentosRouter);
+// module:scaffold mount
 router.use('/admin/accounts', usersRouter);
 router.use('/users', usersRouter);
 mountRdoRoutes(router);

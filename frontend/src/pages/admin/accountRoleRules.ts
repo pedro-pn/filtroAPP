@@ -1,11 +1,9 @@
 import type { AccountType, ModuleRole } from '../../types/auth';
+import { rolesCompatibleWithAccountType } from '../../modules/registry';
 
 export function rolesForAccountType(accountType: AccountType, currentRoles: ModuleRole[]): ModuleRole[] {
   if (accountType === 'CLIENT') return ['rdo:client'];
-  if (accountType === 'ADMIN') {
-    const roles = currentRoles.filter(role => role !== 'rdo:client' && role !== 'rdo:coordinator' && role !== 'rdo:collaborator');
-    return Array.from(new Set<ModuleRole>(roles));
-  }
-  const roles = currentRoles.filter(role => role !== 'rdo:client' && role !== 'rdo:manager');
+  const compatibleRoles = new Set(rolesCompatibleWithAccountType(accountType));
+  const roles = currentRoles.filter(role => compatibleRoles.has(role));
   return Array.from(new Set<ModuleRole>(roles));
 }

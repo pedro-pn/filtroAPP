@@ -12,7 +12,8 @@ import { useAccumulatedReportsPage } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useInfiniteScrollSentinel } from '../../hooks/useInfiniteScrollSentinel';
 import { usePersistentSearch } from '../../hooks/usePersistentSearch';
-import { ProjectSortButton, type ProjectSortDirection } from '../../utils/projectSort';
+import { type ProjectSortDirection } from '../../utils/projectSort';
+import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
 type MyReportsTab = 'pending' | 'approved';
