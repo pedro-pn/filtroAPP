@@ -62,6 +62,36 @@ async function loadModuleNavigation() {
   }
 }
 
+async function loadModuleRegistry() {
+  const server = await createServer({
+    configFile: false,
+    root: new URL('..', import.meta.url).pathname,
+    server: { middlewareMode: true },
+    appType: 'custom'
+  });
+
+  try {
+    return await server.ssrLoadModule('/src/modules/registry.ts');
+  } finally {
+    await server.close();
+  }
+}
+
+async function loadRolePath() {
+  const server = await createServer({
+    configFile: false,
+    root: new URL('..', import.meta.url).pathname,
+    server: { middlewareMode: true },
+    appType: 'custom'
+  });
+
+  try {
+    return await server.ssrLoadModule('/src/auth/rolePath.ts');
+  } finally {
+    await server.close();
+  }
+}
+
 const adminWithEpiOnly = {
   id: 'admin-epi',
   username: 'admin-epi',
@@ -219,10 +249,36 @@ test('module navigation maps legacy reports paths to the RDO module', async () =
   assert.equal(moduleIdFromPath('/relatorios/report-1'), 'rdo');
   assert.equal(moduleIdFromPath('/romaneio'), 'romaneio');
   assert.equal(moduleIdFromPath('/epi'), 'epi');
+  assert.equal(moduleIdFromPath('/equipamentos'), 'equipamentos');
   assert.equal(moduleIdFromPath('/privacidade/solicitacoes'), 'privacy');
   assert.equal(moduleIdFromPath('/privacidade/direitos'), null);
   assert.equal(moduleIdFromPath('/assinar/token'), null);
   assert.equal(moduleIdFromPath('/epi/assinar/token'), null);
+});
+
+test('module registry provides route paths and access groups', async () => {
+  const { moduleRouteAccess, moduleRoutePath } = await loadModuleRegistry();
+
+  assert.equal(moduleRoutePath('romaneio', 'new'), '/romaneio/novo');
+  assert.deepEqual(moduleRouteAccess('romaneio'), {
+    allowedAccountTypes: ['ADMIN', 'INTERNAL'],
+    allowedModuleRoles: ['romaneio:manager', 'romaneio:operator']
+  });
+  assert.deepEqual(moduleRouteAccess('rdo', 'manager'), {
+    allowedRoles: ['MANAGER'],
+    allowedModuleRoles: ['rdo:manager']
+  });
+});
+
+test('RDO role path helpers resolve paths from the registry', async () => {
+  const { rdoReportDetailPath, roleHomePath } = await loadRolePath();
+
+  assert.equal(roleHomePath('MANAGER'), '/rdo/gestor');
+  assert.equal(roleHomePath('COORDINATOR'), '/rdo/coordenador');
+  assert.equal(roleHomePath('CLIENT'), '/rdo/cliente');
+  assert.equal(roleHomePath('COLLABORATOR'), '/rdo/home');
+  assert.equal(rdoReportDetailPath({ role: 'MANAGER' }, 'report-1'), '/rdo/gestor/relatorio/report-1');
+  assert.equal(rdoReportDetailPath({ role: 'CLIENT' }, 'report-1'), '/rdo/cliente/relatorio/report-1');
 });
 
 test('ADMIN accounts get the privacy hub module', async () => {

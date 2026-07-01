@@ -4,23 +4,6 @@ import type { Manometer, ParticleCounter, Unit } from '../../types/domain';
 import type { UploadedFile } from '../../api/uploads';
 import { UploadField } from '../ui/UploadField';
 
-export const serviceTypeLabels: Record<string, string> = {
-  limpeza: 'Limpeza química',
-  pressao: 'Teste de pressão',
-  flushing: 'Flushing',
-  filtragem: 'Filtragem',
-  mecanica: 'Limpeza mecânica',
-  inibicao: 'Inibição',
-  LIMPEZA: 'Limpeza química',
-  PRESSAO: 'Teste de pressão',
-  FLUSHING: 'Flushing',
-  FILTRAGEM: 'Filtragem',
-  MECANICA: 'Limpeza mecânica',
-  INIBICAO: 'Inibição'
-};
-
-export const serviceTypeOptions = ['limpeza', 'pressao', 'flushing', 'filtragem', 'mecanica', 'inibicao'] as const;
-
 const etapasPorTipo: Record<string, string[]> = {
   LIMPEZA: [
     'Montagem do sistema', 'Teste de estanqueidade', 'Desengraxe',

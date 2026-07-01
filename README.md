@@ -338,6 +338,9 @@ Nginx :443 (SSL Let's Encrypt)
 | `APP_URL` | Sim | URL base pública (use `https://app.filtrovali.com.br`; usado em links de e-mail) |
 | `ALLOWED_ORIGIN` | Sim | Origem(s) CORS permitida(s), separadas por vírgula. Inclua `https://app.filtrovali.com.br` e, durante a transição, `https://relatorios.filtrovali.com.br` |
 | `TRUST_PROXY` | Sim em produção | Configuração Express `trust proxy`. Na stack Docker com Nginx use `uniquelocal` ou CIDRs explícitos; use `false` apenas se o backend não estiver atrás de proxy |
+| `SURVEY_TOKEN_SECRET` | Sim em produção | Segredo longo e estável para tokens de pesquisa |
+| `SIGNATURE_TOKEN_SECRET` | Sim em produção | Segredo longo e estável para links de assinatura de RDO |
+| `SIGNATURE_TOKEN_SECRET_PREVIOUS` | Não | Segredos antigos aceitos durante rotação de tokens de assinatura |
 | `SMTP_HOST` | Sim | Servidor SMTP (ex: `smtp.office365.com`) |
 | `SMTP_PORT` | Sim | Porta SMTP (padrão: `587`) |
 | `SMTP_SECURE` | Não | `true` para SSL direto (porta 465) |
