@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 import type { NotificationConfig } from '../../api/equipamentos';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/ToastContext';
 import {
   useNotificationAccounts,
   useNotificationConfig,

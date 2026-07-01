@@ -9,7 +9,7 @@ import { syncRomaneioCatalog } from './lib/romaneio-catalog.js';
 import { startSignatureReminderJob } from './lib/signature-reminders.js';
 import { startSurveyReminderJob } from './lib/survey-reminders.js';
 import { startLegacyZapSignReconciliationJob } from './lib/zapsign-legacy-reconciliation.js';
-import { startReportApprovalPostProcessingJob } from './routes/resources/reports.js';
+import { startReportApprovalPostProcessingJob } from './lib/reports/jobs.js';
 
 const server = http.createServer(app);
 

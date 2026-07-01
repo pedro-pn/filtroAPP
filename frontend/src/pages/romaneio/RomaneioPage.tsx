@@ -26,7 +26,7 @@ import {
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { SearchBar } from '../../components/ui/SearchBar';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/ToastContext';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { downloadBlob } from '../../utils/download';
@@ -203,8 +203,9 @@ export function RomaneioPage() {
   });
 
   const groupedRomaneios = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof romaneiosQuery.data>>();
-    (romaneiosQuery.data || []).forEach(item => {
+    const items = romaneiosQuery.data || [];
+    const map = new Map<string, typeof items>();
+    items.forEach(item => {
       const key = item.project ? `Missão ${item.project.code} - ${item.project.name}` : 'Sem projeto';
       if (!map.has(key)) map.set(key, []);
       map.get(key)?.push(item);

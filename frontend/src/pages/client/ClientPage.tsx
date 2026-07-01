@@ -13,7 +13,7 @@ import { ClientTutorial } from '../../components/ClientTutorial';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { SignatureProgress } from '../../components/reports/SignatureProgress';
 import { SignatureDialog } from '../../components/reports/SignatureDialog';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/ToastContext';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../../constants/privacy';
 import { useAccumulatedReportsPage, useReportMutations } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
@@ -31,7 +31,8 @@ import { clientCanSignReport, clientSignerPrefillNameForReport } from '../../uti
 import { downloadBlob } from '../../utils/download';
 import { formatCnpj } from '../../utils/formatCnpj';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
-import { compareReportTypes, ProjectSortButton, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
+import { compareReportTypes, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
+import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { reportDownloadFileName } from '../../utils/reportFileName';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 

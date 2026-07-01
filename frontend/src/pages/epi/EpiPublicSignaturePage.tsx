@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { confirmEpiPublicSignature, epiPublicSignaturePdfUrl, getEpiPublicSignature } from '../../api/epi';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { SignatureDialog } from '../../components/reports/SignatureDialog';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/ToastContext';
 import { SIGNATURE_EPI_NOTICE_VERSION } from '../../constants/privacy';
 import { formatDateOnlyPtBr } from '../../utils/dateOnly';
 
