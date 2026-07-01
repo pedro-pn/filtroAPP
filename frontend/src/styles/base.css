@@ -1680,8 +1680,10 @@ a {
   padding: 10px 12px;
   background: var(--bg);
 }
-.acp-svc-head { display: flex; align-items: end; justify-content: space-between; gap: 10px; }
-.acp-svc-head .field-group { flex: 1 1 auto; max-width: 320px; }
+.acp-svc-head { display: flex; align-items: end; gap: 10px; }
+.acp-svc-head .acp-svc-type-fg { flex: 1 1 auto; max-width: 320px; }
+.acp-svc-head .acp-svc-weight-fg { flex: 0 0 110px; }
+.acp-svc-head .mini-btn { margin-left: auto; }
 .acp-sys-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .acp-sys-row {
   display: grid;
@@ -1704,6 +1706,23 @@ a {
   border: 1px solid var(--br);
   border-radius: var(--rs);
 }
+
+/* Barra de avanço (tabela + modal) */
+.acp-prog { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.acp-prog-bar { flex: 1 1 auto; height: 8px; background: var(--br); border-radius: 999px; overflow: hidden; }
+.acp-prog-bar.big { height: 12px; }
+.acp-prog-bar > span { display: block; height: 100%; background: var(--g); border-radius: 999px; }
+.acp-prog-val { flex: 0 0 auto; font-size: 12px; color: var(--mu); min-width: 42px; text-align: right; }
+
+.acp-progress { display: flex; flex-direction: column; gap: 8px; }
+.acp-progress-total { display: flex; align-items: center; gap: 12px; }
+.acp-progress-total > .acp-prog-bar { flex: 1 1 auto; }
+.acp-progress-total > strong { flex: 0 0 auto; font-size: 18px; }
+.acp-progress-list { display: flex; flex-direction: column; gap: 8px; }
+.acp-progress-svc { border: 1px solid var(--br); border-radius: var(--rs); padding: 8px 10px; background: var(--bg); }
+.acp-progress-svc-head { display: flex; justify-content: space-between; gap: 10px; font-weight: 600; }
+.acp-progress-meta { font-weight: 400; color: var(--mu); font-size: 12px; }
+.acp-progress-sys { margin: 4px 0 0; padding-left: 16px; color: var(--mu); font-size: 12px; }
 
 /* Previsão de hora extra */
 .acp-ot-list { display: flex; flex-direction: column; gap: 8px; }

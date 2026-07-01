@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getProjectRevisions, setProjectSchedule, type CommercialRevision } from '../../api/acompanhamentoComercial';
 import { useToast } from '../ui/Toast';
 import { ProjectPlannedScopeEditor } from './ProjectPlannedScopeEditor';
+import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
 import { RealizedCategoryBreakdown } from './RealizedCategoryBreakdown';
 
 function toNum(value?: string | number | null) {
@@ -121,6 +122,10 @@ export function ProjectScheduleEditor({ projectId }: { projectId: string }) {
           {consumedPct != null ? ` · prazo consumido ${consumedPct}%` : ''}
         </span>
       </div>
+
+      <div className="acp-scope-divider" />
+      <div className="sec" style={{ marginTop: 4 }}>Avanço físico (RDO × previsto)</div>
+      <ProjectProgressBreakdown projectId={projectId} />
 
       <div className="acp-scope-divider" />
       <ProjectPlannedScopeEditor projectId={projectId} />

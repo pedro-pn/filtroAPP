@@ -22,7 +22,7 @@ function comp(row: DashboardRow, key: string) {
   return toNum(row.components?.[key] ?? null);
 }
 
-type Unit = 'brl' | 'num';
+type Unit = 'brl' | 'num' | 'pct';
 interface Metric {
   key: string;
   label: string;
@@ -31,6 +31,7 @@ interface Metric {
 }
 
 const METRICS: Metric[] = [
+  { key: 'avanco', label: 'Avanço físico (%)', unit: 'pct', get: r => r.progressPct ?? null },
   { key: 'custo', label: 'Custo previsto (total)', unit: 'brl', get: r => toNum(r.plannedTotalCost) },
   { key: 'realizadoPago', label: 'Realizado — pago', unit: 'brl', get: r => toNum(r.realizedPaid) },
   { key: 'realizadoTotal', label: 'Realizado — total (pago + a pagar)', unit: 'brl', get: r => toNum(r.realizedCost) },
@@ -50,7 +51,9 @@ const METRICS: Metric[] = [
 
 function fmt(value: number | null, unit: Unit) {
   if (value === null) return '—';
-  return unit === 'brl' ? brl(value) : value.toLocaleString('pt-BR');
+  if (unit === 'brl') return brl(value);
+  if (unit === 'pct') return `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+  return value.toLocaleString('pt-BR');
 }
 
 export function AcompanhamentoDashboard() {
@@ -205,6 +208,7 @@ export function AcompanhamentoDashboard() {
                 <th>Margem</th>
                 <th>Dias (prev/trab)</th>
                 <th>RDOs</th>
+                <th>Avanço</th>
                 <th></th>
               </tr>
             </thead>
@@ -220,6 +224,12 @@ export function AcompanhamentoDashboard() {
                   <td>{pct(row.expectedMargin)}</td>
                   <td>{row.plannedDays ?? '—'} / {row.workedDays ?? '—'}</td>
                   <td>{row.rdoCount}</td>
+                  <td>{row.progressPct == null ? '—' : (
+                    <div className="acp-prog" title={`${row.progressPct}% de avanço`}>
+                      <div className="acp-prog-bar"><span style={{ width: `${Math.min(row.progressPct, 100)}%` }} /></div>
+                      <span className="acp-prog-val">{pct(row.progressPct)}</span>
+                    </div>
+                  )}</td>
                   <td><button type="button" className="mini-btn" onClick={() => setManaged(row)}>Cronograma</button></td>
                 </tr>
               ))}

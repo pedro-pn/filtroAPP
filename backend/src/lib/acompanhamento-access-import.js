@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import MDBReader from 'mdb-reader';
 
 import prisma from './prisma.js';
+import { computeProgressForProjects } from './acompanhamento-avanco.js';
 
 const PROPOSAL_TABLE = 'proposta';
 
@@ -345,9 +346,17 @@ export async function listCommercialDashboard({ categoryCode = null } = {}) {
       components: source?.components ?? {},
       rdoCount: rdoByProject.get(project.id) ?? 0,
       realizedCost: realizedByProject.get(project.id) ?? null,
-      realizedPaid: realizedPaidByProject.get(project.id) ?? null
+      realizedPaid: realizedPaidByProject.get(project.id) ?? null,
+      progressPct: null
     });
   }
+
+  // Avanço físico (RDO ponderado por serviço) dos projetos exibidos, em lote.
+  const progressByProject = await computeProgressForProjects(rows.map(r => r.projectId));
+  for (const row of rows) {
+    row.progressPct = progressByProject.get(row.projectId)?.progressPct ?? null;
+  }
+
   rows.sort((a, b) => Number(a.resolved) - Number(b.resolved) || a.code.localeCompare(b.code));
   return rows;
 }

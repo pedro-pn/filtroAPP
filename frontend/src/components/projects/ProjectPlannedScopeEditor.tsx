@@ -54,6 +54,7 @@ interface SystemRow {
 interface ServiceRow {
   key: string;
   serviceType: string;
+  weight: string;
   systems: SystemRow[];
 }
 interface OvertimeRow {
@@ -80,6 +81,7 @@ function fromScope(scope: PlannedScope): { services: ServiceRow[]; overtime: Ove
       return {
         key: nextKey(),
         serviceType,
+        weight: s.weight === null || s.weight === undefined ? '1' : toStr(s.weight),
         systems: (s.systems ?? [])
           .filter(sys => allowed.includes(sys.systemType))
           .map(sys => ({ key: nextKey(), systemType: sys.systemType, quantity: toStr(sys.quantity) }))
@@ -98,6 +100,7 @@ function normalize(services: ServiceRow[], overtime: OvertimeRow[]) {
   return JSON.stringify({
     services: services.map(s => ({
       serviceType: s.serviceType,
+      weight: s.weight,
       systems: s.systems.map(sys => ({ systemType: sys.systemType, quantity: sys.quantity }))
     })),
     overtime: overtime.map(o => ({ jobRoleId: o.jobRoleId, collaboratorCount: o.collaboratorCount, hours: o.hours }))
@@ -134,6 +137,7 @@ export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) 
       showToast('Escopo previsto salvo.');
       queryClient.setQueryData(queryKey, saved);
       queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['project-progress', projectId] });
     },
     onError: () => showToast('Não foi possível salvar o escopo previsto.')
   });
@@ -142,6 +146,7 @@ export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) 
     const payload: PlannedScope = {
       services: services.map(s => ({
         serviceType: s.serviceType,
+        weight: toNum(s.weight) ?? 1,
         systems: s.systems.map(sys => ({
           systemType: sys.systemType,
           quantity: toNum(sys.quantity),
@@ -206,11 +211,19 @@ export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) 
           {services.map(svc => (
             <div className="acp-svc-card" key={svc.key}>
               <div className="acp-svc-head">
-                <div className="field-group">
+                <div className="field-group acp-svc-type-fg">
                   <label>Serviço</label>
                   <select value={svc.serviceType} onChange={e => changeServiceType(svc.key, e.target.value)}>
                     {SERVICE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
+                </div>
+                <div className="field-group acp-svc-weight-fg">
+                  <label title="Peso deste serviço no avanço do projeto">Peso (avanço)</label>
+                  <input
+                    type="number" min="0" step="any" inputMode="decimal" placeholder="1"
+                    value={svc.weight}
+                    onChange={e => updateRow(setServices, svc.key, { weight: e.target.value })}
+                  />
                 </div>
                 <button type="button" className="mini-btn alt" onClick={() => setServices(prev => prev.filter(s => s.key !== svc.key))}>
                   Remover serviço
@@ -260,10 +273,7 @@ export function ProjectPlannedScopeEditor({ projectId }: { projectId: string }) 
         type="button"
         className="mini-btn"
         style={{ marginTop: 8 }}
-        onClick={() => setServices(prev => {
-          const serviceType = 'LIMPEZA_QUIMICA';
-          return [...prev, { key: nextKey(), serviceType, systems: [] }];
-        })}
+        onClick={() => setServices(prev => [...prev, { key: nextKey(), serviceType: 'LIMPEZA_QUIMICA', weight: '1', systems: [] }])}
       >
         + Adicionar serviço
       </button>

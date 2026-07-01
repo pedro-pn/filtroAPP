@@ -81,6 +81,7 @@ export interface DashboardRow {
   rdoCount: number;
   realizedCost?: string | number | null;
   realizedPaid?: string | number | null;
+  progressPct?: number | null;
 }
 
 export async function getCommercialDashboard(categoryCode?: string): Promise<DashboardRow[]> {
@@ -134,6 +135,7 @@ export interface PlannedServiceSystem {
 export interface PlannedService {
   id?: string;
   serviceType: string;
+  weight?: string | number | null;
   note?: string | null;
   systems: PlannedServiceSystem[];
 }
@@ -162,6 +164,36 @@ export async function setPlannedScope(projectId: string, payload: PlannedScope):
   const { data } = await apiClient.put<PlannedScope>(
     `/acompanhamento/comercial/projetos/${projectId}/escopo-previsto`,
     payload
+  );
+  return data;
+}
+
+// --- Avanço físico (RDO ponderado por serviço) ---
+
+export interface ProgressSystem {
+  systemType: PlannedSystemType;
+  unit: PlannedMeasureUnit | null;
+  plannedQty: number | null;
+  realizedQty: number | null;
+  pct: number | null;
+}
+
+export interface ProgressService {
+  serviceType: string;
+  weight: number;
+  executionPct: number | null;
+  systems: ProgressSystem[];
+}
+
+export interface ProjectProgress {
+  hasScope: boolean;
+  progressPct: number | null;
+  services: ProgressService[];
+}
+
+export async function getProjectProgress(projectId: string): Promise<ProjectProgress> {
+  const { data } = await apiClient.get<ProjectProgress>(
+    `/acompanhamento/comercial/projetos/${projectId}/avanco`
   );
   return data;
 }

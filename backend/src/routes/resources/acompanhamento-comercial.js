@@ -24,6 +24,7 @@ import {
   setProjectSchedule
 } from '../../lib/acompanhamento-access-import.js';
 import { getPlannedScope, setPlannedScope } from '../../lib/acompanhamento-planned-scope.js';
+import { computeProjectProgress } from '../../lib/acompanhamento-avanco.js';
 import prisma from '../../lib/prisma.js';
 import { requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth } from '../../middleware/auth.js';
 
@@ -208,6 +209,7 @@ const plannedSystemSchema = z.object({
 
 const plannedServiceSchema = z.object({
   serviceType: z.string().trim().min(1).max(60),
+  weight: z.number().nonnegative().max(9999).optional(),
   note: z.string().max(300).nullable().optional(),
   systems: z.array(plannedSystemSchema).max(20).default([])
 });
@@ -249,6 +251,21 @@ router.put(
       res.json(scope);
     } catch (error) {
       res.status(400).json({ error: error.message });
+    }
+  })
+);
+
+// Avanço físico do projeto (RDO ponderado por serviço) — previsto × realizado dos RDOs.
+router.get(
+  '/projetos/:projectId/avanco',
+  requireAuth,
+  requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    try {
+      const progress = await computeProjectProgress(req.params.projectId);
+      res.json(progress);
+    } catch (error) {
+      res.status(404).json({ error: error.message });
     }
   })
 );

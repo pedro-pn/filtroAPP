@@ -40,6 +40,7 @@ export async function getPlannedScope(projectId) {
     services: services.map(s => ({
       id: s.id,
       serviceType: s.serviceType,
+      weight: s.weight,
       note: s.note,
       systems: s.systems.map(sys => ({
         systemType: sys.systemType,
@@ -80,6 +81,7 @@ export async function setPlannedScope(projectId, { services = [], overtime = [] 
         data: {
           projectId,
           serviceType: s.serviceType,
+          weight: num(s.weight) ?? 1,
           note: s.note?.trim() || null,
           order: index,
           systems: {

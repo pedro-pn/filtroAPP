@@ -1323,6 +1323,7 @@ model ProjectPlannedService {
   id          String                        @id @default(cuid())
   projectId   String
   serviceType String                        // LIMPEZA_QUIMICA | TESTE_PRESSAO | FLUSHING | FILTRAGEM | (livre)
+  weight      Decimal                       @default(1) @db.Decimal(6, 2) // peso do serviço no avanço do projeto (D-3)
   note        String?
   order       Int                           @default(0)
   createdAt   DateTime                      @default(now())
@@ -1333,7 +1334,7 @@ model ProjectPlannedService {
   @@index([projectId])
 }
 
-// Sistema/quantitativo de um serviço previsto: tubulações (m/kg/t), tanques (un/kg) ou óleo (L).
+// Sistema/quantitativo de um serviço previsto: tubulações (m) ou óleo (L).
 model ProjectPlannedServiceSystem {
   id         String                @id @default(cuid())
   serviceId  String
