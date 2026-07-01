@@ -236,11 +236,24 @@ function checkModuleRegistry() {
   }
 }
 
+function checkBackendRuntimeAssets() {
+  const dockerfile = read('backend/Dockerfile');
+  if (!/COPY\s+shared\s+\/workspace\/shared\b/.test(dockerfile)) {
+    failures.push('backend/Dockerfile precisa copiar shared para /workspace/shared; o backend carrega shared/modules/registry.json no runtime.');
+  }
+
+  const localCompose = read('docker-compose.local.yml');
+  if (!localCompose.includes('./shared:/workspace/shared:ro')) {
+    failures.push('docker-compose.local.yml precisa montar ./shared em /workspace/shared:ro para o backend local usar o registry atualizado.');
+  }
+}
+
 checkLineBudgets();
 checkRootLibFiles();
 checkServerRouteImports();
 checkRouteJobExports();
 checkModuleRegistry();
+checkBackendRuntimeAssets();
 
 if (failures.length) {
   console.error('Architecture check failed:');
