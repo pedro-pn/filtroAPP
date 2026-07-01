@@ -27,6 +27,47 @@ function normalizeName(value) {
   return stringValue(value).replace(/\s+/g, ' ').toLowerCase();
 }
 
+function normalizeEmail(value) {
+  return stringValue(value).toLowerCase();
+}
+
+function uniqueRecipientsByEmail(recipients) {
+  const byEmail = new Map();
+  for (const recipient of recipients || []) {
+    const email = normalizeEmail(recipient?.email);
+    if (!email || byEmail.has(email)) continue;
+    byEmail.set(email, { ...recipient, email });
+  }
+  return Array.from(byEmail.values());
+}
+
+function errorMessage(error) {
+  return String(error?.message || error).slice(0, 1000);
+}
+
+async function claimRecipientDelivery({ yearMonth, email, client }) {
+  try {
+    await client.allocationReportRecipientDelivery.create({
+      data: { yearMonth, email, status: 'CLAIMED' }
+    });
+    return true;
+  } catch (error) {
+    if (error?.code === 'P2002') return false;
+    throw error;
+  }
+}
+
+async function markRecipientDelivery({ yearMonth, email, client, status, error = null }) {
+  await client.allocationReportRecipientDelivery.updateMany({
+    where: { yearMonth, email },
+    data: {
+      status,
+      error,
+      sentAt: status === 'SENT' ? new Date() : null
+    }
+  });
+}
+
 function monthStart(yearMonth) {
   const match = String(yearMonth || '').match(/^(\d{4})-(\d{2})$/);
   if (!match) return null;
@@ -416,11 +457,12 @@ export async function buildMonthlyAllocationPdf(data) {
 }
 
 export async function sendMonthlyAllocationReport({ yearMonth, mailer = sendMail, client = prisma } = {}) {
-  const recipients = await client.allocationReportRecipient.findMany({
+  const recipientRows = await client.allocationReportRecipient.findMany({
     where: { isActive: true },
     select: { email: true, name: true },
     orderBy: { email: 'asc' }
   });
+  const recipients = uniqueRecipientsByEmail(recipientRows);
   if (recipients.length === 0) return { skipped: true, reason: 'no_recipients', sent: 0 };
 
   const data = await buildMonthlyAllocationSummary({ yearMonth, client });
@@ -430,17 +472,49 @@ export async function sendMonthlyAllocationReport({ yearMonth, mailer = sendMail
     summary: data.summary
   });
 
-  await Promise.all(recipients.map(recipient => mailer({
-    to: recipient.email,
-    ...template,
-    attachments: [{
-      filename: `alocacao-colaboradores-${yearMonth}.pdf`,
-      content: pdf,
-      contentType: 'application/pdf'
-    }]
-  })));
+  let sent = 0;
+  let skippedExisting = 0;
+  let failed = 0;
 
-  return { skipped: false, sent: recipients.length, allocationCount: data.summary.allocationCount };
+  for (const recipient of recipients) {
+    const claimed = await claimRecipientDelivery({ yearMonth, email: recipient.email, client });
+    if (!claimed) {
+      skippedExisting += 1;
+      continue;
+    }
+
+    try {
+      await mailer({
+        to: recipient.email,
+        ...template,
+        attachments: [{
+          filename: `alocacao-colaboradores-${yearMonth}.pdf`,
+          content: pdf,
+          contentType: 'application/pdf'
+        }]
+      });
+      await markRecipientDelivery({ yearMonth, email: recipient.email, client, status: 'SENT' });
+      sent += 1;
+    } catch (error) {
+      failed += 1;
+      await markRecipientDelivery({
+        yearMonth,
+        email: recipient.email,
+        client,
+        status: 'ERROR',
+        error: errorMessage(error)
+      }).catch(() => {});
+      console.error(`Falha ao enviar relatório mensal de alocação para ${recipient.email}.`, error);
+    }
+  }
+
+  return {
+    skipped: false,
+    sent,
+    skippedExisting,
+    failed,
+    allocationCount: data.summary.allocationCount
+  };
 }
 
 async function claimDelivery(yearMonth, client) {
@@ -483,9 +557,9 @@ export async function processMonthlyAllocationReport({ now = new Date(), client 
     await client.allocationReportDelivery.update({
       where: { yearMonth },
       data: {
-        status: result.skipped ? 'SKIPPED' : 'SENT',
-        recipientCount: result.sent || 0,
-        error: result.skipped ? result.reason : null,
+        status: result.failed ? 'SENT_WITH_ERRORS' : (result.skipped ? 'SKIPPED' : 'SENT'),
+        recipientCount: (result.sent || 0) + (result.skippedExisting || 0) + (result.failed || 0),
+        error: result.failed ? `${result.failed} destinatário(s) com falha no envio.` : (result.skipped ? result.reason : null),
         sentAt: new Date()
       }
     });
@@ -495,7 +569,7 @@ export async function processMonthlyAllocationReport({ now = new Date(), client 
       where: { yearMonth },
       data: {
         status: 'ERROR',
-        error: String(error?.message || error).slice(0, 1000)
+        error: errorMessage(error)
       }
     }).catch(() => {});
     throw error;
