@@ -10,6 +10,13 @@
 Os dados do banco em produção ficam no volume Docker `filtrovali_pgdata`, mas isso
 é apenas persistência local no host. Não substitui backup externo.
 
+## Fonte de verdade operacional
+
+Este arquivo é a referência operacional de backup e restore. Qualquer PR que altere
+`deploy/backup-prod.sh`, `deploy/restore-prod.sh`, `deploy/sync-staging.sh`,
+`docker-compose*.yml`, nomes de serviços, nomes de volumes ou artefatos salvos deve
+atualizar este documento na mesma mudança.
+
 ## Script pronto
 
 O arquivo `deploy/backup-prod.sh` faz:
@@ -18,8 +25,11 @@ O arquivo `deploy/backup-prod.sh` faz:
 - compactação do volume `filtrovali_relatorios`
 - compactação do volume `filtrovali_certs`
 - checksum SHA256
+- lock com `flock` para evitar execuções simultâneas
+- atualização do symlink local `latest`
 - envio opcional para Backblaze B2
 - limpeza dos backups locais antigos quando o envio remoto termina com sucesso
+- alerta opcional de falha por Telegram
 
 ## Uso no servidor
 
@@ -35,19 +45,34 @@ chmod +x deploy/backup-prod.sh
 ./deploy/backup-prod.sh
 ```
 
-Por padrão ele usa:
+## Variáveis do backup
 
-- `PROJECT_DIR` detectado automaticamente pelo caminho do script
-- `BACKUP_ROOT=/root/backups/filtrovali`
-- `POSTGRES_DB=filtrovali`
-- `POSTGRES_USER=postgres`
-- `REPORTS_VOLUME=filtrovali_relatorios`
-- `INCLUDE_REPORTS=true`
-- `INCLUDE_CERTS=true`
-- `BACKUP_LOCK_TIMEOUT_SECONDS=0`
-- mantém localmente o backup mais recente em `latest`
+| Variável | Padrão | Uso |
+| --- | --- | --- |
+| `PROJECT_DIR` | diretório pai de `deploy/` | raiz do projeto usada pelo `docker compose` |
+| `COMPOSE_FILE` | `docker-compose.prod.yml` | compose usado pelo backup |
+| `POSTGRES_SERVICE` | `postgres` | serviço do banco no compose |
+| `POSTGRES_DB` | `filtrovali` | banco exportado pelo `pg_dump` |
+| `POSTGRES_USER` | `postgres` | usuário do `pg_dump` |
+| `REPORTS_VOLUME` | `filtrovali_relatorios` | volume compactado em `relatorios.tar.gz` |
+| `CERTS_VOLUME` | `filtrovali_certs` | volume compactado em `certs.tar.gz` |
+| `BACKUP_ROOT` | `/root/backups/filtrovali` | diretório local dos backups |
+| `BACKUP_LOCK_FILE` | `$BACKUP_ROOT/backup-prod.lock` | lock de concorrência |
+| `BACKUP_LOCK_TIMEOUT_SECONDS` | `0` | tempo máximo para esperar outro backup terminar |
+| `INCLUDE_REPORTS` | `true` | inclui `relatorios.tar.gz` |
+| `INCLUDE_CERTS` | `true` | inclui `certs.tar.gz` |
+| `B2_URI` | vazio | destino remoto opcional, ex.: `b2://bucket/prefix` |
+| `B2_BIN` | `b2` | comando da CLI Backblaze B2 |
+| `TELEGRAM_TOKEN` | vazio | token do bot para alerta de falha |
+| `TELEGRAM_CHAT_ID` | vazio | chat que recebe alerta de falha |
 
-## Variáveis opcionais
+Cada execução cria uma pasta com timestamp em `BACKUP_ROOT` e atualiza o symlink
+`latest` para o backup mais recente. Se `B2_URI` estiver configurado e o envio
+remoto terminar com sucesso, o script remove backups locais antigos e mantém só o
+backup apontado por `latest`. Se o envio remoto falhar ou estiver desabilitado, os
+backups locais são mantidos.
+
+## Exemplo de override
 
 ```bash
 B2_URI=b2://meu-bucket/filtrovali-backups
@@ -55,6 +80,8 @@ B2_BIN=/root/.local/bin/b2
 INCLUDE_CERTS=false
 INCLUDE_REPORTS=true
 BACKUP_LOCK_TIMEOUT_SECONDS=0
+TELEGRAM_TOKEN=123456:token-do-bot
+TELEGRAM_CHAT_ID=-1001234567890
 ```
 
 `B2_BIN` é opcional. Use apenas se o cron não encontrar o comando `b2`.
@@ -63,6 +90,11 @@ O script usa um lock em `$BACKUP_ROOT/backup-prod.lock` para impedir execuções
 simultâneas. Por padrão, se outro backup já estiver rodando, a nova execução é
 ignorada com sucesso. Para um backup que deve esperar outro terminar, defina
 `BACKUP_LOCK_TIMEOUT_SECONDS` com o tempo máximo de espera em segundos.
+
+Se `TELEGRAM_TOKEN` e `TELEGRAM_CHAT_ID` estiverem definidos, qualquer erro no
+script dispara uma mensagem com servidor, data, linha, comando e exit code. Isso
+cobre falha de execução. Alerta de backup velho ou ausente ainda deve ser tratado
+por monitoramento externo ou pela Fase de observabilidade.
 
 ## Backblaze B2
 
@@ -175,6 +207,10 @@ crontab -e
 
 ## Restore do banco
 
+O restore manual continua possível para recuperação pontual, mas o fluxo preferido
+é o restore automatizado da seção seguinte porque valida checksums e troca volumes
+antes de publicar a aplicação.
+
 Suba a stack e depois restaure:
 
 ```bash
@@ -198,7 +234,7 @@ O arquivo `deploy/restore-prod.sh` automatiza:
 - restore do volume `filtrovali_relatorios` a partir do staging antes do drop do banco
 - restore opcional de `filtrovali_certs` a partir do staging antes do drop do banco
 - restore do banco
-- `prisma migrate deploy` em container one-off (aplica migrations versionadas)
+- `prisma migrate deploy` opcional em container one-off quando `RUN_MIGRATIONS=true`
 - subida de backend/nginx somente após banco, migrations e arquivos concluírem
 
 Uso:
@@ -210,6 +246,27 @@ chmod +x deploy/restore-prod.sh
 ```bash
 BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 ./deploy/restore-prod.sh
 ```
+
+### Variáveis do restore
+
+| Variável | Padrão | Uso |
+| --- | --- | --- |
+| `BACKUP_SOURCE` | obrigatório | diretório contendo `postgres.sql.gz` |
+| `PROJECT_DIR` | diretório pai de `deploy/` | raiz do projeto usada pelo `docker compose` |
+| `COMPOSE_FILE` | `docker-compose.prod.yml` | compose usado pelo restore |
+| `POSTGRES_SERVICE` | `postgres` | serviço do banco no compose |
+| `BACKEND_SERVICE` | `backend` | serviço de backend parado e reiniciado |
+| `NGINX_SERVICE` | `nginx` | serviço público parado e reiniciado |
+| `POSTGRES_DB` | `filtrovali` | banco recriado e restaurado |
+| `POSTGRES_USER` | `postgres` | usuário de restore |
+| `REPORTS_VOLUME` | `filtrovali_relatorios` | volume restaurado de `relatorios.tar.gz` |
+| `CERTS_VOLUME` | `filtrovali_certs` | volume restaurado de `certs.tar.gz` |
+| `RESTORE_REPORTS` | `true` | restaura relatórios quando o arquivo existe |
+| `RESTORE_CERTS` | `true` | restaura certificados quando o arquivo existe |
+| `REQUIRE_CHECKSUMS` | `true` | exige e valida `SHA256SUMS` |
+| `ALLOW_PARTIAL_RESTORE` | `false` | permite restore sem todos os artefatos habilitados |
+| `RUN_MIGRATIONS` | `false` | roda `prisma migrate deploy` após restaurar o banco |
+| `RESTORE_STAGING_DIR` | temporário | diretório para validar arquivos antes de trocar volumes |
 
 Sem restaurar certificados:
 
@@ -223,11 +280,27 @@ Restore parcial explícito (uso excepcional, pois o banco pode referenciar arqui
 BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 ALLOW_PARTIAL_RESTORE=true ./deploy/restore-prod.sh
 ```
 
-Sem rodar migrations:
+Rodando migrations após restaurar o banco:
 
 ```bash
-BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 RUN_MIGRATIONS=false ./deploy/restore-prod.sh
+BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 RUN_MIGRATIONS=true ./deploy/restore-prod.sh
 ```
+
+Use `REQUIRE_CHECKSUMS=false` apenas em recuperação excepcional, quando o backup
+foi validado por outro meio e o arquivo `SHA256SUMS` não está disponível.
+
+## Checklist para mudanças futuras
+
+- Se mudar nomes de serviços ou volumes em `docker-compose*.yml`, atualize as tabelas
+  de variáveis deste arquivo.
+- Se o backup passar a salvar novo artefato, documente o arquivo gerado e inclua o
+  comportamento correspondente no restore.
+- Se o restore ganhar nova etapa destrutiva ou novo modo parcial, documente o risco e
+  o comando explícito necessário para habilitar.
+- Se a sincronização de staging mudar a origem dos backups ou o tratamento do symlink
+  `latest`, atualize este arquivo e `deploy/STAGING.md`.
+- Antes de mergear mudanças operacionais, rode pelo menos `git diff --check` e um
+  teste manual em staging ou ambiente descartável quando houver alteração de script.
 
 ## Estratégia recomendada
 

@@ -174,6 +174,7 @@ Os dados ficam persistidos localmente nos volumes Docker:
 
 - `filtrovali_pgdata`
 - `filtrovali_relatorios`
+- `filtrovali_certs`
 
 Para backup operacional do servidor, use:
 
@@ -184,5 +185,6 @@ O fluxo recomendado é:
 
 1. `pg_dump` do PostgreSQL
 2. compactação do volume `filtrovali_relatorios`
-3. cópia para S3 ou outro destino externo
-4. snapshot periódico do disco EBS
+3. compactação do volume `filtrovali_certs`
+4. cópia para Backblaze B2 ou outro destino externo
+5. snapshot periódico do disco EBS
