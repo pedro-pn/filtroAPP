@@ -77,8 +77,27 @@ Evitar misturar no mesmo arquivo:
 
 ## Permissoes
 
-Modulo novo deve usar roles modulares em `backend/src/lib/module-roles.js`, no
-formato:
+Modulo novo deve nascer no registry compartilhado `shared/modules/registry.json`.
+Esse arquivo e a fonte de verdade para:
+
+- identificacao do modulo;
+- roles publicas e codigos Prisma;
+- card do hub;
+- rotas principais;
+- grupos de acesso usados pelo frontend;
+- fallback de roles legadas.
+
+Depois de alterar o registry, rode:
+
+```bash
+npm run modules:generate
+```
+
+O CI valida que `frontend/src/modules/registry.generated.ts` esta sincronizado
+com `shared/modules/registry.json` e que os enums `AppModule` e `ModuleRoleCode`
+do Prisma contem os valores declarados no registry.
+
+Roles modulares seguem o formato:
 
 ```text
 <modulo>:manager
@@ -88,6 +107,31 @@ formato:
 
 Evitar novas regras baseadas apenas em `MANAGER`, `COORDINATOR` ou `ADMIN`, exceto
 quando a regra for realmente de administracao global.
+
+## Scaffold
+
+Para criar a estrutura inicial de um modulo, use:
+
+```bash
+npm run new:module -- <nome-do-modulo> --title "Nome do Modulo"
+```
+
+O scaffold cria:
+
+- entrada em `shared/modules/registry.json`;
+- arquivo gerado do frontend via `npm run modules:generate`;
+- valores novos em `backend/prisma/schema.prisma`;
+- migration SQL para `AppModule` e `ModuleRoleCode`;
+- rota em `backend/src/routes/resources/<modulo>.js`;
+- service inicial em `backend/src/lib/<modulo>/service.js`;
+- teste backend inicial;
+- API, hook, pagina e teste frontend iniciais;
+- mount no `backend/src/routes/index.js`;
+- rota no `frontend/src/modules/moduleRoutes.tsx`.
+
+O scaffold entrega apenas a casca minima e segura. A regra de negocio real,
+auditoria, documentos, jobs e testes do fluxo principal ainda precisam ser
+implementados no PR do modulo.
 
 ## Banco
 
@@ -142,5 +186,6 @@ Um modulo novo so esta pronto quando:
 - nao cria arquivo novo solto em `backend/src/lib/`;
 - nao exporta job de rota;
 - tem env validada quando precisar de configuracao;
+- esta registrado em `shared/modules/registry.json` e com registry gerado;
 - tem teste automatizado;
 - passa no CI completo.
