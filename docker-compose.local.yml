@@ -37,6 +37,7 @@ services:
       - ./backend/prisma:/workspace/backend/prisma
       - ./backend/scripts:/workspace/backend/scripts
       - ./backend/assets:/workspace/backend/assets
+      - ./shared:/workspace/shared:ro
       - ./Modelos:/workspace/Modelos
       - ./equipamentos:/workspace/equipamentos:ro
       - filtrovali_local_relatorios:/data/relatorios

@@ -19,10 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
 
@@ -43,10 +43,10 @@ jobs:
       SURVEY_TOKEN_SECRET: ci-survey-token-secret
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -62,7 +62,7 @@ jobs:
 
       - name: Upload backend audit report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-audit
           path: audit-reports/backend-audit.json
@@ -82,10 +82,10 @@ jobs:
         working-directory: frontend
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -101,7 +101,7 @@ jobs:
 
       - name: Upload frontend audit report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-audit
           path: audit-reports/frontend-audit.json
@@ -115,3 +115,18 @@ jobs:
 
       - name: Build frontend
         run: npm run build
+
+  docker:
+    name: Docker
+    runs-on: ubuntu-latest
+    env:
+      STAGING_POSTGRES_PASSWORD: ci-staging-postgres-password
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Prepare build env files
+        run: touch backend/.env.staging
+
+      - name: Build staging images
+        run: docker compose -f docker-compose.staging.yml build backend nginx

@@ -9,7 +9,9 @@ import { Shell } from '../layout/Shell';
 import { TopBar } from '../layout/TopBar';
 import { hubModulesForUser, type HubModuleEntry } from './hubModules';
 
-const MODULE_ICONS: Record<HubModuleEntry['id'], ReactNode> = {
+const DEFAULT_MODULE_ICON = <circle cx="12" cy="12" r="9" />;
+
+const MODULE_ICONS: Partial<Record<HubModuleEntry['id'], ReactNode>> = {
   rdo: (
     <>
       <rect x="3" y="12" width="4" height="8" rx="1" />
@@ -47,10 +49,10 @@ const MODULE_ICONS: Record<HubModuleEntry['id'], ReactNode> = {
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33a1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </>
   ),
-  none: <circle cx="12" cy="12" r="9" />,
+  none: DEFAULT_MODULE_ICON,
 };
 
-const MODULE_ACCENTS: Record<HubModuleEntry['id'], string> = {
+const MODULE_ACCENTS: Partial<Record<HubModuleEntry['id'], string>> = {
   rdo: '#30503a',
   admin: '#4a7c5e',
   privacy: '#3a6a5c',
@@ -75,7 +77,7 @@ function ModuleIcon({ id }: { id: HubModuleEntry['id'] }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      {MODULE_ICONS[id]}
+      {MODULE_ICONS[id] || DEFAULT_MODULE_ICON}
     </svg>
   );
 }
@@ -175,7 +177,7 @@ export function HubPage() {
             const isWide = WIDE_MODULES.has(module.id);
             const isFirstWide = isWide && modules.slice(0, idx).every(m => !WIDE_MODULES.has(m.id));
             const path = module.path;
-            const accent = MODULE_ACCENTS[module.id];
+            const accent = MODULE_ACCENTS[module.id] || '#30503a';
 
             return (
               <Fragment key={module.id}>
