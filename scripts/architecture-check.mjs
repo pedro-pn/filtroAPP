@@ -1,6 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  generatedFrontendRegistryPath,
+  generatedRegistrySource,
+  loadModuleRegistry,
+  validateModuleRegistry
+} from './generate-module-registry.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -186,10 +192,55 @@ function checkRouteJobExports() {
   }
 }
 
+function prismaEnumValues(schema, enumName) {
+  const match = schema.match(new RegExp(`enum\\s+${enumName}\\s+\\{([\\s\\S]*?)\\}`));
+  if (!match) return new Set();
+  return new Set(match[1]
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith('//'))
+    .map(line => line.split(/\s+/)[0])
+    .filter(Boolean));
+}
+
+function checkModuleRegistry() {
+  const registry = loadModuleRegistry();
+  const registryFailures = validateModuleRegistry(registry);
+  for (const failure of registryFailures) {
+    failures.push(`shared/modules/registry.json: ${failure}`);
+  }
+
+  const generatedRelativePath = toPosix(path.relative(repoRoot, generatedFrontendRegistryPath));
+  const expectedGenerated = generatedRegistrySource(registry);
+  const actualGenerated = fs.existsSync(generatedFrontendRegistryPath)
+    ? fs.readFileSync(generatedFrontendRegistryPath, 'utf8')
+    : '';
+
+  if (actualGenerated !== expectedGenerated) {
+    failures.push(`${generatedRelativePath} esta desatualizado. Rode npm run modules:generate.`);
+  }
+
+  const schema = read('backend/prisma/schema.prisma');
+  const appModuleValues = prismaEnumValues(schema, 'AppModule');
+  const moduleRoleValues = prismaEnumValues(schema, 'ModuleRoleCode');
+
+  for (const module of registry.modules) {
+    if (module.prismaModule && !appModuleValues.has(module.prismaModule)) {
+      failures.push(`shared/modules/registry.json declara prismaModule ${module.prismaModule}, mas backend/prisma/schema.prisma nao contem esse AppModule.`);
+    }
+    for (const role of module.roles || []) {
+      if (!moduleRoleValues.has(role.code)) {
+        failures.push(`shared/modules/registry.json declara role ${role.code}, mas backend/prisma/schema.prisma nao contem esse ModuleRoleCode.`);
+      }
+    }
+  }
+}
+
 checkLineBudgets();
 checkRootLibFiles();
 checkServerRouteImports();
 checkRouteJobExports();
+checkModuleRegistry();
 
 if (failures.length) {
   console.error('Architecture check failed:');
