@@ -4,8 +4,18 @@ import { test } from 'node:test';
 import {
   normalizeRdoServiceType,
   realizedFromExtraData,
+  isServiceFinalized,
   buildProgress
 } from '../src/lib/acompanhamento-avanco.js';
+
+test('isServiceFinalized: coluna booleana e campo textual do extraData', () => {
+  assert.equal(isServiceFinalized({ finalized: true }), true);
+  assert.equal(isServiceFinalized({ finalized: false }), false);
+  assert.equal(isServiceFinalized({ finalized: null, extraData: { 'Serviço finalizado?': 'Sim' } }), true);
+  assert.equal(isServiceFinalized({ extraData: { 'Serviço finalizado?': 'Não' } }), false);
+  assert.equal(isServiceFinalized({}), false);
+  assert.equal(isServiceFinalized(null), false);
+});
 
 test('normalizeRdoServiceType aceita os vários formatos do RDO', () => {
   assert.equal(normalizeRdoServiceType('limpeza'), 'LIMPEZA_QUIMICA');

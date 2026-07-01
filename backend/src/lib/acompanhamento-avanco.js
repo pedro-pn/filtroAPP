@@ -9,8 +9,9 @@
  * avanço_% = Σ(peso_s × execução_s) ÷ Σ(peso_s)
  *   execução_s = média das execuções dos sistemas do serviço; execução_sistema = min(real/prev, 1).
  *
- * Premissa: cada RDO reporta o quantitativo feito naquele dia (incremental) — somamos todos os RDOs
- * não excluídos. Se os RDOs forem preenchidos de forma cumulativa, esta soma superestima.
+ * Contabilização: só entram serviços **finalizados** (`ReportService.finalized`). Um serviço que dura
+ * vários dias aparece em vários RDOs, mas é finalizado uma única vez (as ocorrências em aberto são
+ * "em andamento" — ver ongoingServices no front); assim cada atividade conta uma vez, no fechamento.
  */
 
 import prisma from './prisma.js';
@@ -38,6 +39,14 @@ function num(value) {
   text = text.replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
   const n = Number.parseFloat(text);
   return Number.isFinite(n) ? n : null;
+}
+
+// Um serviço só conta no realizado quando finalizado. Espelha serviceFinalized do front
+// (utils/ongoingServices.ts): coluna booleana ou o campo textual em extraData.
+export function isServiceFinalized(service) {
+  if (typeof service?.finalized === 'boolean') return service.finalized;
+  const stored = service?.extraData?.['Serviço finalizado?'];
+  return typeof stored === 'string' && ['sim', 'true', 'finalizado'].includes(stored.trim().toLowerCase());
 }
 
 // Extrai o realizado comparável de um ReportService.extraData: tubulação (m) e óleo (L).
@@ -120,10 +129,11 @@ async function aggregateRealized(projectIds) {
 
   const services = await prisma.reportService.findMany({
     where: { report: { projectId: { in: projectIds }, deletedAt: null } },
-    select: { serviceType: true, extraData: true, report: { select: { projectId: true } } }
+    select: { finalized: true, serviceType: true, extraData: true, report: { select: { projectId: true } } }
   });
 
   for (const svc of services) {
+    if (!isServiceFinalized(svc)) continue; // só serviços finalizados entram no avanço
     const canonical = normalizeRdoServiceType(svc.serviceType);
     if (!canonical) continue;
     const projectId = svc.report?.projectId;

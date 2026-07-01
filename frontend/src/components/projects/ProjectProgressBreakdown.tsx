@@ -48,7 +48,8 @@ export function ProjectProgressBreakdown({ projectId }: { projectId: string }) {
         ))}
       </div>
       <p className="placeholder-copy" style={{ marginTop: 6, fontSize: 11 }}>
-        Realizado somado dos RDOs (tubulação por metro, óleo por litro). Avanço = média das execuções por
+        Realizado = serviços <strong>finalizados</strong> nos RDOs (tubulação por metro, óleo por litro);
+        um serviço que dura vários dias conta uma vez, no fechamento. Avanço = média das execuções por
         serviço, ponderada pelo peso; cada sistema limitado a 100%.
       </p>
     </div>
