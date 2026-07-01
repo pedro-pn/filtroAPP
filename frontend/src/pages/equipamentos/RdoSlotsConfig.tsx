@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import type { EquipmentCategory, RdoEquipmentSlot } from '../../api/equipamentos';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/ToastContext';
 import { useEquipamentoMutations, useRdoSlots } from '../../hooks/useEquipamentos';
 
 interface Props {

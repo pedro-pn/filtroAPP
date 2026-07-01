@@ -1,8 +1,15 @@
 import { roleHomePath } from '../auth/rolePath';
-import type { AuthUser, ModuleRole } from '../types/auth';
+import {
+  isHubAdmin,
+  moduleRegistry,
+  noneHubModule,
+  userHasAnyPublicRole,
+  type HubModuleId
+} from '../modules/registry';
+import type { AuthUser } from '../types/auth';
 
 export interface HubModuleEntry {
-  id: 'rdo' | 'admin' | 'romaneio' | 'epi' | 'equipamentos' | 'privacy' | 'none';
+  id: HubModuleId;
   badge: string;
   title: string;
   copy: string;
@@ -10,67 +17,38 @@ export interface HubModuleEntry {
   disabled?: boolean;
 }
 
-function hasAnyRole(user: Pick<AuthUser, 'moduleRoles'> | null | undefined, roles: ModuleRole[]) {
-  return roles.some(role => user?.moduleRoles?.includes(role));
+type HubConfig = {
+  enabled?: boolean;
+  adminOnly?: boolean;
+  roles?: readonly string[];
+  path?: string;
+  pathStrategy?: 'roleHome';
+};
+
+function modulePathForHub(
+  module: (typeof moduleRegistry)[number],
+  user: Pick<AuthUser, 'accountType' | 'moduleRoles' | 'role'> | null | undefined
+) {
+  const hub = module.hub as HubConfig | undefined;
+  if (hub?.pathStrategy === 'roleHome') return roleHomePath(user?.role);
+  return hub?.path;
 }
 
 export function hubModulesForUser(user: Pick<AuthUser, 'accountType' | 'moduleRoles' | 'role'> | null | undefined): HubModuleEntry[] {
-  const canAccessRdo = hasAnyRole(user, ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator']);
-  const canAccessRomaneio = hasAnyRole(user, ['romaneio:manager', 'romaneio:operator']);
-  const canAccessEpi = hasAnyRole(user, ['epi:technician', 'epi:collaborator']);
-  const canAccessEquipamentos = hasAnyRole(user, ['equipamentos:manager', 'equipamentos:viewer']);
-  const canAccessPrivacy = hasAnyRole(user, ['privacy:admin']);
-  const isAdmin = user?.accountType === 'ADMIN' || user?.role === 'MANAGER';
-  const modules: HubModuleEntry[] = [
-    ...(canAccessRdo ? [{
-      id: 'rdo' as const,
-      badge: 'RDO',
-      title: 'Relatórios e Projetos',
-      copy: 'Controle de relatórios, aprovações, clientes e estatísticas.',
-      path: roleHomePath(user?.role)
-    }] : []),
-    ...(isAdmin ? [{
-      id: 'admin' as const,
-      badge: 'ADM',
-      title: 'Gestão de Contas',
-      copy: 'Administração inicial de usuários e acessos do hub.',
-      path: '/admin/accounts'
-    }] : []),
-    ...(canAccessEquipamentos ? [{
-      id: 'equipamentos' as const,
-      badge: 'EQP',
-      title: 'Equipamentos',
-      copy: 'Cadastro, calibração, documentação técnica e notificações dos equipamentos.',
-      path: '/equipamentos'
-    }] : []),
-    ...(canAccessRomaneio ? [{
-      id: 'romaneio' as const,
-      badge: 'ROM',
-      title: 'Romaneio de Equipamentos',
-      copy: 'Controle de romaneios, equipamentos e notificações.',
-      path: '/romaneio'
-    }] : []),
-    ...(canAccessEpi ? [{
-      id: 'epi' as const,
-      badge: 'EPI',
-      title: 'Liberação de EPI',
-      copy: 'Fichas de entrega, devolução e assinatura por colaborador.',
-      path: '/epi'
-    }] : []),
-    ...(canAccessPrivacy ? [{
-      id: 'privacy' as const,
-      badge: 'LGPD',
-      title: 'Privacidade',
-      copy: 'Acompanhe solicitações de titulares e protocolos LGPD.',
-      path: '/privacidade/solicitacoes'
-    }] : [])
-  ];
+  const modules: HubModuleEntry[] = moduleRegistry
+    .filter(module => module.hub?.enabled)
+    .filter(module => {
+      const hub = module.hub as HubConfig | undefined;
+      if (hub?.adminOnly) return isHubAdmin(user);
+      return userHasAnyPublicRole(user, hub?.roles);
+    })
+    .map(module => ({
+      id: module.id,
+      badge: module.badge,
+      title: module.title,
+      copy: module.copy,
+      path: modulePathForHub(module, user)
+    }));
 
-  return modules.length ? modules : [{
-    id: 'none',
-    badge: 'APP',
-    title: 'Nenhum módulo liberado',
-    copy: 'Solicite a revisão dos acessos da conta.',
-    disabled: true
-  }];
+  return modules.length ? modules : [noneHubModule];
 }

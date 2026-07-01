@@ -4,7 +4,7 @@ import { keepPreviousData, QueryClient, QueryClientProvider } from '@tanstack/re
 import { BrowserRouter } from 'react-router-dom';
 
 import App from './App';
-import { AuthProvider } from './auth/AuthContext';
+import { AuthProvider } from './auth/AuthProvider';
 import { ToastProvider } from './components/ui/Toast';
 import { MaintenancePage } from './pages/MaintenancePage';
 import './styles/variables.css';

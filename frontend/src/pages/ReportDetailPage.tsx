@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-
 import { downloadReportDocx, downloadReportPdf } from '../api/reports';
 
 import { useAuth } from '../auth/AuthContext';
 import { accountPageStateFromPath } from '../auth/moduleNavigation';
 import { roleHomePath } from '../auth/rolePath';
 import type { UploadedFile } from '../api/uploads';
-import { ServiceCollaboratorsBlock, ServiceFields, serviceTypeLabels } from '../components/reports/ServiceFields';
+import { ServiceCollaboratorsBlock, ServiceFields } from '../components/reports/ServiceFields';
+import { serviceTypeLabels } from '../components/reports/serviceTypes';
 import { SignatureProgress } from '../components/reports/SignatureProgress';
 import { SignatureDialog } from '../components/reports/SignatureDialog';
 import { PrivacyNotice } from '../components/privacy/PrivacyNotice';
-import { useToast } from '../components/ui/Toast';
+import { useToast } from '../components/ui/ToastContext';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../constants/privacy';
 import { useReportDetailBootstrap } from '../hooks/useBootstrap';
 import { useReport, useReportAudit, useReportMutations } from '../hooks/useReports';

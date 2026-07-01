@@ -1,7 +1,7 @@
 import { useRef, useState, type DragEvent } from 'react';
 
 import type { CompanyEquipment, EquipmentCategory } from '../../api/equipamentos';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/ToastContext';
 import { useEquipamentoMutations } from '../../hooks/useEquipamentos';
 import { calibrationStatus, fileToDataUrl, formatDate, statusLabel } from './equipmentStatus';
 

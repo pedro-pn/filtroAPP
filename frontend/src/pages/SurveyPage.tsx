@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { getPublicSurvey, submitPublicSurvey, type SurveyQuestion, type SurveyResponsePayload } from '../api/surveys';
 import { PrivacyNotice } from '../components/privacy/PrivacyNotice';
-import { useToast } from '../components/ui/Toast';
+import { useToast } from '../components/ui/ToastContext';
 import { SURVEY_NOTICE_VERSION } from '../constants/privacy';
 
 const assetsBaseUrl = (import.meta.env.VITE_ASSETS_BASE_URL || '').replace(/\/$/, '');
