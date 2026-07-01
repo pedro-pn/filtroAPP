@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const lineBudgets = new Map([
-  ['backend/src/routes/resources/reports.js', 7626],
+  ['backend/src/routes/resources/reports.js', 7497],
   ['frontend/src/pages/gestor/GestorPage.tsx', 4581],
   ['frontend/src/pages/ReportDetailPage.tsx', 2082],
   ['frontend/src/pages/collaborator/NewReportPage.tsx', 1702]
@@ -81,17 +81,8 @@ const allowedRootLibFiles = new Set([
   'zod-error.js'
 ]);
 
-const allowedLegacyRouteImports = new Map([
-  ['./routes/resources/reports.js', new Set(['startReportApprovalPostProcessingJob'])]
-]);
-
-const allowedLegacyRouteExports = new Map([
-  ['backend/src/routes/resources/reports.js', new Set([
-    'runReportApprovalPostProcessingQueue',
-    'scheduleReportApprovalPostProcessing',
-    'startReportApprovalPostProcessingJob'
-  ])]
-]);
+const allowedLegacyRouteImports = new Map();
+const allowedLegacyRouteExports = new Map();
 
 const failures = [];
 
