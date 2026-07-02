@@ -241,6 +241,9 @@ function checkBackendRuntimeAssets() {
   if (!/COPY\s+shared\s+\/workspace\/shared\b/.test(dockerfile)) {
     failures.push('backend/Dockerfile precisa copiar shared para /workspace/shared; o backend carrega shared/modules/registry.json no runtime.');
   }
+  if (fs.existsSync(repoPath('backend/prisma.config.ts')) && !/COPY\s+backend\/prisma\.config\.ts\s+\.\/prisma\.config\.ts\b/.test(dockerfile)) {
+    failures.push('backend/Dockerfile precisa copiar backend/prisma.config.ts; Prisma 7 usa esse arquivo em migrate/generate no runtime Docker.');
+  }
 
   const localCompose = read('docker-compose.local.yml');
   if (!localCompose.includes('./shared:/workspace/shared:ro')) {
