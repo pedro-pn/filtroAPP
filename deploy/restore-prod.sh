@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+RESTORE_STARTED_AT="$(date -Iseconds)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${PROJECT_DIR:-$(dirname "$SCRIPT_DIR")}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
@@ -18,7 +19,41 @@ RESTORE_CERTS="${RESTORE_CERTS:-true}"
 REQUIRE_CHECKSUMS="${REQUIRE_CHECKSUMS:-true}"
 ALLOW_PARTIAL_RESTORE="${ALLOW_PARTIAL_RESTORE:-false}"
 RESTORE_STAGING_DIR="${RESTORE_STAGING_DIR:-}"
+RESTORE_STATUS_FILE="${RESTORE_STATUS_FILE:-/root/backups/filtrovali/status/restore-latest.json}"
 CLEANUP_RESTORE_STAGING=false
+
+write_restore_status() {
+  local status="$1"
+  local exit_code="${2:-0}"
+  local line_no="${3:-0}"
+  local finished_at
+  finished_at="$(date -Iseconds)"
+  mkdir -p "$(dirname "$RESTORE_STATUS_FILE")"
+  cat > "${RESTORE_STATUS_FILE}.tmp" <<EOF
+{
+  "kind": "restore",
+  "status": "$status",
+  "startedAt": "$RESTORE_STARTED_AT",
+  "finishedAt": "$finished_at",
+  "backupSource": "$BACKUP_SOURCE",
+  "restoreReports": $RESTORE_REPORTS,
+  "restoreCerts": $RESTORE_CERTS,
+  "runMigrations": $RUN_MIGRATIONS,
+  "allowPartialRestore": $ALLOW_PARTIAL_RESTORE,
+  "exitCode": $exit_code,
+  "line": $line_no
+}
+EOF
+  mv "${RESTORE_STATUS_FILE}.tmp" "$RESTORE_STATUS_FILE"
+}
+
+notify_restore_failure() {
+  local exit_code="$?"
+  local line_no="${BASH_LINENO[0]}"
+  echo "[restore] failed with exit code $exit_code at line $line_no" >&2
+  write_restore_status "FAILURE" "$exit_code" "$line_no" || true
+  exit "$exit_code"
+}
 
 cleanup_restore_staging() {
   if [ "$CLEANUP_RESTORE_STAGING" = "true" ] && [ -n "$RESTORE_STAGING_DIR" ]; then
@@ -26,6 +61,7 @@ cleanup_restore_staging() {
   fi
 }
 trap cleanup_restore_staging EXIT
+trap notify_restore_failure ERR
 
 if [ -z "$BACKUP_SOURCE" ]; then
   echo "[restore] set BACKUP_SOURCE to the directory containing postgres.sql.gz" >&2
@@ -123,3 +159,4 @@ echo "[restore] starting application services"
 docker compose -f "$COMPOSE_FILE" up -d --no-recreate "$BACKEND_SERVICE" "$NGINX_SERVICE"
 
 echo "[restore] done"
+write_restore_status "SUCCESS" 0 0 || true

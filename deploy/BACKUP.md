@@ -20,6 +20,8 @@ O arquivo `deploy/backup-prod.sh` faz:
 - checksum SHA256
 - envio opcional para Backblaze B2
 - limpeza dos backups locais antigos quando o envio remoto termina com sucesso
+- publicação de status operacional em JSON para o backend monitorar backup velho,
+  ausente ou com falha
 
 ## Uso no servidor
 
@@ -45,6 +47,7 @@ Por padrão ele usa:
 - `INCLUDE_REPORTS=true`
 - `INCLUDE_CERTS=true`
 - `BACKUP_LOCK_TIMEOUT_SECONDS=0`
+- `BACKUP_STATUS_FILE=/root/backups/filtrovali/status/backup-latest.json`
 - `LOCAL_BACKUP_KEEP` vazio, sem retenção local por quantidade
 - mantém localmente o backup mais recente em `latest`
 
@@ -57,6 +60,7 @@ INCLUDE_CERTS=false
 INCLUDE_REPORTS=true
 BACKUP_LOCK_TIMEOUT_SECONDS=0
 LOCAL_BACKUP_KEEP=5
+BACKUP_STATUS_FILE=/root/backups/filtrovali/status/backup-latest.json
 ```
 
 `B2_BIN` é opcional. Use apenas se o cron não encontrar o comando `b2`.
@@ -69,6 +73,40 @@ O script usa um lock em `$BACKUP_ROOT/backup-prod.lock` para impedir execuções
 simultâneas. Por padrão, se outro backup já estiver rodando, a nova execução é
 ignorada com sucesso. Para um backup que deve esperar outro terminar, defina
 `BACKUP_LOCK_TIMEOUT_SECONDS` com o tempo máximo de espera em segundos.
+
+## Status operacional do backup
+
+Ao final de cada backup, ou quando ocorre falha, o script atualiza um JSON em
+`BACKUP_STATUS_FILE`. Exemplo:
+
+```json
+{
+  "kind": "backup",
+  "status": "SUCCESS",
+  "startedAt": "2026-07-02T02:00:00-03:00",
+  "finishedAt": "2026-07-02T02:04:00-03:00",
+  "backupRoot": "/root/backups/filtrovali",
+  "runDir": "/root/backups/filtrovali/2026-07-02-020000",
+  "includeReports": true,
+  "includeCerts": true,
+  "b2Configured": true,
+  "uploadSucceeded": true,
+  "exitCode": 0,
+  "line": 0
+}
+```
+
+Para o endpoint administrativo `GET /api/operations/status` monitorar isso, monte
+o arquivo no container backend como leitura e configure:
+
+```env
+OPERATIONS_BACKUP_STATUS_FILE=/ops-status/backup-latest.json
+OPERATIONS_REQUIRE_BACKUP_STATUS=true
+OPERATIONS_BACKUP_MAX_AGE_HOURS=26
+```
+
+Se o arquivo estiver ausente, inválido, com `status=FAILURE` ou mais velho que
+`OPERATIONS_BACKUP_MAX_AGE_HOURS`, o status operacional passa a retornar problema.
 
 ## Backblaze B2
 
@@ -206,6 +244,7 @@ O arquivo `deploy/restore-prod.sh` automatiza:
 - restore do banco
 - `prisma migrate deploy` em container one-off (aplica migrations versionadas)
 - subida de backend/nginx somente após banco, migrations e arquivos concluírem
+- publicação de status operacional em JSON para comprovar o último restore/teste
 
 Uso:
 
@@ -215,6 +254,16 @@ chmod +x deploy/restore-prod.sh
 
 ```bash
 BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 ./deploy/restore-prod.sh
+```
+
+Por padrão, o restore escreve status em
+`/root/backups/filtrovali/status/restore-latest.json`. Para o backend monitorar o
+último restore testado, monte esse arquivo no container e configure:
+
+```env
+OPERATIONS_RESTORE_STATUS_FILE=/ops-status/restore-latest.json
+OPERATIONS_REQUIRE_RESTORE_STATUS=true
+OPERATIONS_RESTORE_MAX_AGE_DAYS=30
 ```
 
 Sem restaurar certificados:

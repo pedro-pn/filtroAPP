@@ -135,7 +135,18 @@ const rawEnvSchema = z.object({
   LIBREOFFICE_BINARY: stringWithDefault('soffice'),
   DOCX_TO_PDF_TIMEOUT_MS: integerWithDefault('DOCX_TO_PDF_TIMEOUT_MS', 60000, { min: 1 }),
   PRISMA_SLOW_QUERY_MS: integerWithDefault('PRISMA_SLOW_QUERY_MS', 0, { min: 0 }),
-  SLOW_OPERATION_LOG_MS: integerWithDefault('SLOW_OPERATION_LOG_MS', 0, { min: 0 })
+  SLOW_OPERATION_LOG_MS: integerWithDefault('SLOW_OPERATION_LOG_MS', 0, { min: 0 }),
+  OPERATIONS_BACKUP_STATUS_FILE: stringWithDefault(''),
+  OPERATIONS_RESTORE_STATUS_FILE: stringWithDefault(''),
+  OPERATIONS_REQUIRE_BACKUP_STATUS: booleanWithDefault('OPERATIONS_REQUIRE_BACKUP_STATUS', false),
+  OPERATIONS_REQUIRE_RESTORE_STATUS: booleanWithDefault('OPERATIONS_REQUIRE_RESTORE_STATUS', false),
+  OPERATIONS_BACKUP_MAX_AGE_HOURS: integerWithDefault('OPERATIONS_BACKUP_MAX_AGE_HOURS', 26, { min: 1 }),
+  OPERATIONS_RESTORE_MAX_AGE_DAYS: integerWithDefault('OPERATIONS_RESTORE_MAX_AGE_DAYS', 30, { min: 1 }),
+  OPERATIONS_ALERT_JOB_ENABLED: booleanWithDefault('OPERATIONS_ALERT_JOB_ENABLED', false),
+  OPERATIONS_ALERT_INTERVAL_MS: integerWithDefault('OPERATIONS_ALERT_INTERVAL_MS', 60 * 60 * 1000, { min: 60_000 }),
+  OPERATIONS_ALERT_WEBHOOK_URL: stringWithDefault(''),
+  ERROR_TRACKING_WEBHOOK_URL: stringWithDefault(''),
+  ERROR_TRACKING_PROVIDER: stringWithDefault('webhook')
 }).passthrough().superRefine((value, ctx) => {
   const trustProxyConfigured = value.TRUST_PROXY !== undefined && String(value.TRUST_PROXY).trim() !== '';
   const trustProxy = parseTrustProxy(value.TRUST_PROXY);
@@ -219,6 +230,17 @@ export function loadEnv(source = process.env) {
     docxToPdfTimeoutMs: raw.DOCX_TO_PDF_TIMEOUT_MS,
     prismaSlowQueryMs: raw.PRISMA_SLOW_QUERY_MS,
     slowOperationLogMs: raw.SLOW_OPERATION_LOG_MS,
+    operationsBackupStatusFile: raw.OPERATIONS_BACKUP_STATUS_FILE,
+    operationsRestoreStatusFile: raw.OPERATIONS_RESTORE_STATUS_FILE,
+    operationsRequireBackupStatus: raw.OPERATIONS_REQUIRE_BACKUP_STATUS,
+    operationsRequireRestoreStatus: raw.OPERATIONS_REQUIRE_RESTORE_STATUS,
+    operationsBackupMaxAgeHours: raw.OPERATIONS_BACKUP_MAX_AGE_HOURS,
+    operationsRestoreMaxAgeDays: raw.OPERATIONS_RESTORE_MAX_AGE_DAYS,
+    operationsAlertJobEnabled: raw.OPERATIONS_ALERT_JOB_ENABLED,
+    operationsAlertIntervalMs: raw.OPERATIONS_ALERT_INTERVAL_MS,
+    operationsAlertWebhookUrl: raw.OPERATIONS_ALERT_WEBHOOK_URL,
+    errorTrackingWebhookUrl: raw.ERROR_TRACKING_WEBHOOK_URL,
+    errorTrackingProvider: raw.ERROR_TRACKING_PROVIDER,
     nodeEnv: raw.NODE_ENV
   };
 }

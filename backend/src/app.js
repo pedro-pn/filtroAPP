@@ -10,6 +10,7 @@ import env from './config/env.js';
 import asyncHandler from './lib/async-handler.js';
 import { resolvePublicCalibrationCertificate } from './lib/calibration-certificates.js';
 import { equipmentAttachmentFileName, inlineContentDisposition, resolvePublicEquipmentAttachment } from './lib/equipment-attachments.js';
+import { captureOperationalError } from './lib/operations/error-tracking.js';
 import { localizedZodErrorDetails, localizedZodIssues } from './lib/zod-error.js';
 import { requireAuth } from './middleware/auth.js';
 import { requestMetrics } from './middleware/request-metrics.js';
@@ -109,7 +110,7 @@ app.get('/health', (_req, res) => {
 
 app.use('/api', apiRouter);
 
-app.use((err, _req, res, _next) => {
+app.use((err, req, res, _next) => {
   console.error(err);
 
   if (err instanceof ZodError) {
@@ -152,6 +153,18 @@ app.use((err, _req, res, _next) => {
 
   const isProduction = env.nodeEnv === 'production';
   const status = err.status || err.statusCode || 500;
+  if (status >= 500) {
+    captureOperationalError(err, {
+      source: 'backend.http',
+      context: {
+        method: req.method,
+        path: req.originalUrl || req.url,
+        statusCode: status
+      }
+    }).catch(captureError => {
+      console.warn('Falha ao reportar erro HTTP operacional.', captureError);
+    });
+  }
   res.status(status).json({
     error: status >= 500 && isProduction ? 'Erro interno do servidor.' : (err.message || 'Erro interno do servidor.')
   });
