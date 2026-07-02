@@ -5,20 +5,23 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
+import { AUDIT_ENTITY_TYPES, AUDIT_MODULES, recordAuditEvent } from '../../lib/audit/events.js';
 import { saveEpiPdf } from '../../lib/epi-docx.js';
 import {
   decodableSignatureImageDataUrl,
-  internalSignatureTokenExpiresAt,
-  signatureEvidenceFromRequest
-} from '../../lib/internal-report-signatures.js';
+  signatureEvidenceFromRequest,
+  signatureTokenExpiresAt
+} from '../../lib/signatures/common.js';
 import { hasModuleRole } from '../../lib/module-roles.js';
 import prisma from '../../lib/prisma.js';
 import { SIGNATURE_EPI_NOTICE_VERSION, validatePrivacyNoticeAcknowledgement } from '../../lib/privacy-consent.js';
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import { requireAuth } from '../../middleware/auth.js';
 import env from '../../config/env.js';
+import { makeCommonSchemas } from '../../../../shared/schemas/common.js';
 
 const router = Router();
+const commonSchemas = makeCommonSchemas(z);
 const EPI_SIGNATURE_TOKEN_DAYS = 7;
 const EPI_SIGNED_PUBLIC_PDF_HOURS = 24;
 const publicSignatureLimiter = createMemoryRateLimit({
@@ -35,17 +38,17 @@ const profileSchema = z.object({
   admissionDate: z.string().trim().optional().nullable()
 });
 
-const optionalCaSchema = z.string().trim().max(80).optional().nullable().transform(value => value || '');
+const optionalCaSchema = commonSchemas.optionalTrimmedString({ max: 80, emptyAs: '' });
 
 const catalogSchema = z.object({
-  name: z.string().trim().min(1).max(180),
+  name: commonSchemas.nonEmptyTrimmedString({ max: 180 }),
   ca: optionalCaSchema,
   isActive: z.boolean().default(true)
 });
 
 const recordSchema = z.object({
   catalogItemId: z.string().trim().optional().nullable(),
-  epiName: z.string().trim().min(1, 'Informe o nome do EPI.').max(180),
+  epiName: commonSchemas.nonEmptyTrimmedString({ max: 180, message: 'Informe o nome do EPI.' }),
   ca: optionalCaSchema,
   quantity: z.coerce.number().int('Quantidade deve ser um número inteiro.').positive('Quantidade deve ser maior que zero.').max(999).default(1),
   lendDate: z.string().trim().min(1, 'Informe a data de fornecimento.'),
@@ -53,11 +56,11 @@ const recordSchema = z.object({
 });
 
 const signatureRequestSchema = z.object({
-  recordIds: z.array(z.string().min(1)).min(1).max(100)
+  recordIds: commonSchemas.stringIdList({ min: 1, max: 100 })
 });
 
 const archiveRecordsSchema = z.object({
-  recordIds: z.array(z.string().min(1)).min(1).max(100),
+  recordIds: commonSchemas.stringIdList({ min: 1, max: 100 }),
   archived: z.boolean().default(true)
 });
 
@@ -412,14 +415,13 @@ export async function publicPdfEpiRequestOrThrow(token, tx = prisma) {
 }
 
 async function createEpiSignatureRequestAuditLog(tx, requestId, action, evidence = {}) {
-  if (!requestId || !tx.epiSignatureRequestAuditLog?.create) return null;
-  return tx.epiSignatureRequestAuditLog.create({
-    data: {
-      requestId,
-      action,
-      ipAddress: evidence.ipAddress || null,
-      userAgent: evidence.userAgent || null
-    }
+  if (!requestId) return null;
+  return recordAuditEvent(tx, {
+    module: AUDIT_MODULES.EPI,
+    entityType: AUDIT_ENTITY_TYPES.EPI_SIGNATURE_REQUEST,
+    entityId: requestId,
+    action,
+    evidence
   });
 }
 
@@ -575,7 +577,7 @@ async function createPendingReturnSignatureRequest(tx, { current, returnedAt, us
         collaboratorId,
         requestedByUserId: userId,
         tokenHash: tokenHash(token),
-        expiresAt: internalSignatureTokenExpiresAt(EPI_SIGNATURE_TOKEN_DAYS)
+        expiresAt: signatureTokenExpiresAt(EPI_SIGNATURE_TOKEN_DAYS)
       }
     });
     const record = await tx.epiRecord.update({
@@ -594,7 +596,7 @@ async function createPendingReturnSignatureRequest(tx, { current, returnedAt, us
       collaboratorId,
       requestedByUserId: userId,
       tokenHash: tokenHash(token),
-      expiresAt: internalSignatureTokenExpiresAt(EPI_SIGNATURE_TOKEN_DAYS)
+      expiresAt: signatureTokenExpiresAt(EPI_SIGNATURE_TOKEN_DAYS)
     }
   });
   let record;
@@ -1090,7 +1092,7 @@ router.post('/collaborators/:id/signature-requests', requireEpiTechnician, async
         collaboratorId: req.params.id,
         requestedByUserId: req.auth.user.id,
         tokenHash: tokenHash(token),
-        expiresAt: internalSignatureTokenExpiresAt(EPI_SIGNATURE_TOKEN_DAYS)
+        expiresAt: signatureTokenExpiresAt(EPI_SIGNATURE_TOKEN_DAYS)
       }
     });
     const result = await tx.epiRecord.updateMany({

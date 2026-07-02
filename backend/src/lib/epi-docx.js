@@ -6,7 +6,7 @@ import AdmZip from 'adm-zip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import env from '../config/env.js';
-import { parseSignatureImageDataUrl } from './internal-report-signatures.js';
+import { parseSignatureImageDataUrl } from './signatures/common.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
 
 const __filename = fileURLToPath(import.meta.url);
