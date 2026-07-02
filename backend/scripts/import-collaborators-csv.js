@@ -1,9 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { PrismaClient } from '@prisma/client';
+import prisma from '../src/lib/prisma.js';
 
-const prisma = new PrismaClient();
 
 function usage() {
   return [
