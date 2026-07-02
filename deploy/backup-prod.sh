@@ -54,6 +54,39 @@ INCLUDE_CERTS="${INCLUDE_CERTS:-true}"
 INCLUDE_REPORTS="${INCLUDE_REPORTS:-true}"
 B2_URI="${B2_URI:-}"
 B2_BIN="${B2_BIN:-b2}"
+LOCAL_BACKUP_KEEP="${LOCAL_BACKUP_KEEP:-}"
+
+prune_local_backups() {
+  local backup_root="$1"
+  local keep="$2"
+
+  if ! [[ "$keep" =~ ^[1-9][0-9]*$ ]]; then
+    echo "[backup] LOCAL_BACKUP_KEEP must be a positive integer; got '$keep'" >&2
+    return 1
+  fi
+
+  local backups=()
+  mapfile -t backups < <(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -name "20*" -printf "%f\n" | sort -r)
+
+  local total="${#backups[@]}"
+  if [ "$total" -le "$keep" ]; then
+    echo "[backup] local retention: $total backup(s) found; keeping up to $keep"
+    return 0
+  fi
+
+  echo "[backup] local retention: keeping newest $keep backup(s), deleting $((total - keep)) old backup(s)"
+
+  local index=0
+  local backup_name
+  for backup_name in "${backups[@]}"; do
+    index=$((index + 1))
+    if [ "$index" -le "$keep" ]; then
+      continue
+    fi
+
+    rm -rf "$backup_root/$backup_name"
+  done
+}
 
 mkdir -p "$BACKUP_ROOT"
 
@@ -111,7 +144,9 @@ if [ -n "$B2_URI" ]; then
   fi
 fi
 
-if [ "$UPLOAD_SUCCEEDED" = "true" ]; then
+if [ -n "$LOCAL_BACKUP_KEEP" ]; then
+  prune_local_backups "$BACKUP_ROOT" "$LOCAL_BACKUP_KEEP"
+elif [ "$UPLOAD_SUCCEEDED" = "true" ]; then
   echo "[backup] removing local backups except latest"
   find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -name "20*" ! -path "$RUN_DIR" -exec rm -rf {} +
 else

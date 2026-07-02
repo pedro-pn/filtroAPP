@@ -45,6 +45,7 @@ Por padrão ele usa:
 - `INCLUDE_REPORTS=true`
 - `INCLUDE_CERTS=true`
 - `BACKUP_LOCK_TIMEOUT_SECONDS=0`
+- `LOCAL_BACKUP_KEEP` vazio, sem retenção local por quantidade
 - mantém localmente o backup mais recente em `latest`
 
 ## Variáveis opcionais
@@ -55,9 +56,14 @@ B2_BIN=/root/.local/bin/b2
 INCLUDE_CERTS=false
 INCLUDE_REPORTS=true
 BACKUP_LOCK_TIMEOUT_SECONDS=0
+LOCAL_BACKUP_KEEP=5
 ```
 
 `B2_BIN` é opcional. Use apenas se o cron não encontrar o comando `b2`.
+
+`LOCAL_BACKUP_KEEP` limita quantos diretórios de backup com timestamp ficam em
+`BACKUP_ROOT`. Por exemplo, `LOCAL_BACKUP_KEEP=5` mantém os 5 backups locais
+mais recentes mesmo quando o upload para o Backblaze B2 está desativado.
 
 O script usa um lock em `$BACKUP_ROOT/backup-prod.lock` para impedir execuções
 simultâneas. Por padrão, se outro backup já estiver rodando, a nova execução é
