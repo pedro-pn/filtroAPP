@@ -1,23 +1,23 @@
+import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
 import env from '../config/env.js';
 import { databaseUrlWithConnectionLimit } from './prisma-url.js';
 
-function prismaClientOptions() {
-  const options = {};
+export function createPrismaClient() {
   const databaseUrl = databaseUrlWithConnectionLimit(env.databaseUrl, env.databaseConnectionLimit);
+  const options = {
+    adapter: new PrismaPg({ connectionString: databaseUrl })
+  };
 
-  if (databaseUrl) {
-    options.datasources = { db: { url: databaseUrl } };
-  }
   if (env.prismaSlowQueryMs > 0) {
     options.log = [{ emit: 'event', level: 'query' }];
   }
 
-  return options;
+  return new PrismaClient(options);
 }
 
-const prisma = new PrismaClient(prismaClientOptions());
+const prisma = createPrismaClient();
 
 if (env.prismaSlowQueryMs > 0) {
   prisma.$on('query', event => {

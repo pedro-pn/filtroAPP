@@ -9,6 +9,7 @@ WORKDIR /workspace/backend
 COPY backend/package*.json ./
 RUN npm ci
 
+COPY backend/prisma.config.ts ./prisma.config.ts
 COPY backend/prisma ./prisma
 RUN npx prisma generate
 

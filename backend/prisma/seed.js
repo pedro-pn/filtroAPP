@@ -1,13 +1,10 @@
-import prismaPkg from '@prisma/client';
+import { ReportType, UserRole } from '@prisma/client';
 
 import { hashPassword } from '../src/lib/password.js';
 import { normalizeCnpj } from '../src/lib/cnpj.js';
 import { seedInhibitionOptions } from '../src/lib/inhibition-options.js';
 import { accountTypeForLegacyRole, defaultPublicModuleRolesForLegacyRole, moduleRoleRows } from '../src/lib/module-roles.js';
-
-const { PrismaClient, ReportType, UserRole } = prismaPkg;
-
-const prisma = new PrismaClient();
+import prisma from '../src/lib/prisma.js';
 
 async function main() {
   const collaborators = [
