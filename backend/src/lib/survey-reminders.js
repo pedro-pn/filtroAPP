@@ -1,4 +1,5 @@
 import prisma from './prisma.js';
+import { runTrackedJob } from './jobs/runner.js';
 import { notifySurveyExpired, sendSurveyReminder } from './survey-mail.js';
 import { decryptSurveyToken } from './survey-token.js';
 
@@ -148,7 +149,10 @@ function runSurveyJobs() {
 
 export function startSurveyReminderJob() {
   const run = () => {
-    runSurveyJobs().catch(error => {
+    runTrackedJob('survey-reminders', runSurveyJobs, {
+      lockTtlMs: REMINDER_INTERVAL_MS * 2,
+      metadata: { intervalMs: REMINDER_INTERVAL_MS }
+    }).catch(error => {
       console.error('Falha no job de pesquisas.', error);
     });
   };

@@ -7,6 +7,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import prisma from './prisma.js';
 import { formatCnpj } from './cnpj.js';
 import { buildMonthlyAllocationReportEmailTemplate } from './email-templates.js';
+import { runTrackedJob } from './jobs/runner.js';
 import { getMissingMailerConfig, sendMail } from './mailer.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -578,7 +579,10 @@ export async function processMonthlyAllocationReport({ now = new Date(), client 
 
 export function startMonthlyAllocationReportJob() {
   const run = () => {
-    processMonthlyAllocationReport().catch(error => {
+    runTrackedJob('monthly-allocation-report', processMonthlyAllocationReport, {
+      lockTtlMs: JOB_INTERVAL_MS * 2,
+      metadata: { intervalMs: JOB_INTERVAL_MS }
+    }).catch(error => {
       console.error('Falha no job de relatório mensal de alocação.', error);
     });
   };

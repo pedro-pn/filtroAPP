@@ -10,6 +10,7 @@ import equipamentosRouter from './resources/equipamentos.js';
 import equipmentRouter from './resources/equipment.js';
 import inhibitionOptionsRouter from './resources/inhibition-options.js';
 import manometersRouter from './resources/manometers.js';
+import operationsRouter from './resources/operations.js';
 import projectSegmentsRouter from './resources/project-segments.js';
 import privacyRouter from './resources/privacy.js';
 import projectsRouter from './resources/projects.js';
@@ -50,6 +51,7 @@ router.use('/rdo', rdoRouter);
 router.use('/romaneio', romaneiosRouter);
 router.use('/epi', episRouter);
 router.use('/equipamentos', equipamentosRouter);
+router.use('/operations', operationsRouter);
 // module:scaffold mount
 router.use('/admin/accounts', usersRouter);
 router.use('/users', usersRouter);

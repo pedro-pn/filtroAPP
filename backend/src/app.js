@@ -12,6 +12,7 @@ import { resolvePublicCalibrationCertificate } from './lib/calibration-certifica
 import { equipmentAttachmentFileName, inlineContentDisposition, resolvePublicEquipmentAttachment } from './lib/equipment-attachments.js';
 import { localizedZodErrorDetails, localizedZodIssues } from './lib/zod-error.js';
 import { requireAuth } from './middleware/auth.js';
+import { requestMetrics } from './middleware/request-metrics.js';
 import apiRouter from './routes/index.js';
 import {
   authorizeStoredFile,
@@ -64,6 +65,7 @@ app.use((req, res, next) => {
   return express.json({ limit })(req, res, next);
 });
 app.use(morgan('dev'));
+app.use(requestMetrics);
 
 async function serveAuthorizedStoredFile(req, res) {
   const normalizedPath = normalizeRelativeUploadPath(req.params[0]);

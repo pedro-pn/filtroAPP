@@ -5,6 +5,7 @@ import { addNotificationPreferencesLink, buildBatchReportSignatureReminderEmailT
 import { clientEmailsEnabled, getMissingMailerConfig, sendClientMail, sendMail } from './mailer.js';
 import { NotificationEmailCategory, notificationRecipientsForEmails } from './notification-preferences.js';
 import prisma from './prisma.js';
+import { runTrackedJob } from './jobs/runner.js';
 import {
   createSignatureToken,
   decryptSignatureToken,
@@ -290,7 +291,10 @@ export async function processSignatureReminders({ limit = 25, mailer = sendClien
 
 export function startSignatureReminderJob() {
   const run = () => {
-    processSignatureReminders().catch(error => {
+    runTrackedJob('signature-reminders', processSignatureReminders, {
+      lockTtlMs: REMINDER_INTERVAL_MS * 2,
+      metadata: { intervalMs: REMINDER_INTERVAL_MS }
+    }).catch(error => {
       console.error('Falha no job de lembretes de assinatura.', error);
     });
   };
