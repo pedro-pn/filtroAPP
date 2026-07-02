@@ -197,3 +197,27 @@ export async function getProjectProgress(projectId: string): Promise<ProjectProg
   );
   return data;
 }
+
+// --- Cards da aba Projetos ---
+
+export type LastDayStatus = 'TRABALHADO' | 'PARADO' | 'SEM_RDO';
+
+export interface ProjectCard {
+  projectId: string;
+  code: string;
+  name: string;
+  clientName: string;
+  workedDays: number;
+  totalDays: number | null;
+  daysConsumedPct: number | null;
+  progressPct: number | null;
+  lastDay: { date: string | null; status: LastDayStatus };
+  collaboratorsCount: number;
+  startDate: string | null;
+  expectedEndDate: string | null;
+}
+
+export async function getProjectCards(): Promise<ProjectCard[]> {
+  const { data } = await apiClient.get<ProjectCard[]>('/acompanhamento/comercial/projetos-cards');
+  return data;
+}

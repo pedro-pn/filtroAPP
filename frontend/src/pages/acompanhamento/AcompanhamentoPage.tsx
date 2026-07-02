@@ -6,9 +6,10 @@ import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { AcompanhamentoDashboard } from '../../components/projects/AcompanhamentoDashboard';
+import { ProjectCardsBoard } from '../../components/projects/ProjectCardsBoard';
 import { CostEngineManager } from '../../components/projects/CostEngineManager';
 
-type Section = 'dashboard' | 'custo';
+type Section = 'dashboard' | 'projetos' | 'custo';
 
 export function AcompanhamentoPage() {
   const navigate = useNavigate();
@@ -41,6 +42,10 @@ export function AcompanhamentoPage() {
               <span className="equip-nav-ico" aria-hidden="true">◧</span>
               <span className="equip-nav-label">Dashboard</span>
             </button>
+            <button className={`equip-nav-item ${section === 'projetos' ? 'active' : ''}`} type="button" aria-current={section === 'projetos'} onClick={() => setSection('projetos')}>
+              <span className="equip-nav-ico" aria-hidden="true">▦</span>
+              <span className="equip-nav-label">Projetos</span>
+            </button>
             <button className={`equip-nav-item ${section === 'custo' ? 'active' : ''}`} type="button" aria-current={section === 'custo'} onClick={() => setSection('custo')}>
               <span className="equip-nav-ico" aria-hidden="true">$</span>
               <span className="equip-nav-label">Custo</span>
@@ -56,12 +61,15 @@ export function AcompanhamentoPage() {
               onChange={event => setSection(event.target.value as Section)}
             >
               <option value="dashboard">Dashboard</option>
+              <option value="projetos">Projetos</option>
               <option value="custo">Custo</option>
             </select>
           </div>
 
           <section className="equip-content">
-            {section === 'dashboard' ? <AcompanhamentoDashboard /> : <CostEngineManager />}
+            {section === 'dashboard' ? <AcompanhamentoDashboard />
+              : section === 'projetos' ? <ProjectCardsBoard />
+              : <CostEngineManager />}
           </section>
         </div>
       </main>

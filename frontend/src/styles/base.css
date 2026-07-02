@@ -1724,6 +1724,45 @@ a {
 .acp-progress-meta { font-weight: 400; color: var(--mu); font-size: 12px; }
 .acp-progress-sys { margin: 4px 0 0; padding-left: 16px; color: var(--mu); font-size: 12px; }
 
+/* Aba Projetos — cards */
+.acp-pcards-wrap { display: flex; flex-direction: column; gap: 12px; }
+.acp-pcards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+.acp-pcard {
+  border: 1px solid var(--br);
+  border-radius: var(--r);
+  background: var(--wh);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: var(--shadow);
+}
+.acp-pcard-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.acp-pcard-head > strong { font-size: 15px; color: var(--g); }
+.acp-pcard-name { font-weight: 600; }
+.acp-pcard-client { font-size: 12px; color: var(--mu); margin-top: -6px; }
+.acp-pcard-metric { display: flex; flex-direction: column; gap: 4px; }
+.acp-pcard-metric-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.acp-pcard-metric-val { color: var(--mu); font-size: 12px; text-align: right; }
+.acp-pcard-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; align-items: center; }
+.acp-pcard-row > span:first-child { color: var(--mu); }
+.acp-pcard-strong { font-weight: 700; }
+.acp-pcard-status { font-weight: 600; font-size: 12px; padding: 2px 8px; border-radius: 999px; }
+.acp-pcard-status.ok { color: #1f7a3d; background: #e6f4ea; }
+.acp-pcard-status.warn { color: #92400e; background: #fef3c7; }
+.acp-pcard-status.muted { color: var(--mu); background: var(--bg); }
+.acp-pcard-dates {
+  display: flex; justify-content: space-between; gap: 10px;
+  border-top: 1px solid var(--br); padding-top: 8px;
+}
+.acp-pcard-dates > div { display: flex; flex-direction: column; gap: 2px; }
+.acp-pcard-dates span { font-size: 11px; color: var(--mu); }
+.acp-pcard-dates strong { font-size: 13px; }
+
 /* Previsão de hora extra */
 .acp-ot-list { display: flex; flex-direction: column; gap: 8px; }
 .acp-ot-row {

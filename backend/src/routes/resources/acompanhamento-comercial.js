@@ -25,6 +25,7 @@ import {
 } from '../../lib/acompanhamento-access-import.js';
 import { getPlannedScope, setPlannedScope } from '../../lib/acompanhamento-planned-scope.js';
 import { computeProjectProgress } from '../../lib/acompanhamento-avanco.js';
+import { listProjectCards } from '../../lib/acompanhamento-project-cards.js';
 import prisma from '../../lib/prisma.js';
 import { requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth } from '../../middleware/auth.js';
 
@@ -105,6 +106,17 @@ router.get(
     const categoryCode = typeof req.query.category === 'string' && req.query.category ? req.query.category : null;
     const rows = await listCommercialDashboard({ categoryCode });
     res.json(rows);
+  })
+);
+
+// Cards da aba "Projetos": indicadores por projeto (dias trabalhados, avanço, colaboradores, prazos).
+router.get(
+  '/projetos-cards',
+  requireAuth,
+  requireAcompanhamentoAccess,
+  asyncHandler(async (_req, res) => {
+    const cards = await listProjectCards();
+    res.json(cards);
   })
 );
 
