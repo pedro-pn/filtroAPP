@@ -98,8 +98,8 @@ app.get('/api/equipamentos-anexos/:token', asyncHandler(async (req, res) => {
   res.setHeader('Content-Disposition', inlineContentDisposition(equipmentAttachmentFileName(resolved.attachment)));
   return res.sendFile(resolved.targetPath);
 }));
-app.get('/relatorios/*', requireAuth, asyncHandler(serveAuthorizedStoredFile));
-app.get('/uploads/*', requireAuth, asyncHandler(serveAuthorizedStoredFile));
+app.get('/relatorios/*storedFilePath', requireAuth, asyncHandler(serveAuthorizedStoredFile));
+app.get('/uploads/*storedFilePath', requireAuth, asyncHandler(serveAuthorizedStoredFile));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true });

@@ -396,8 +396,12 @@ export async function authorizeStoredFile(req, normalizedPath) {
   return hasModuleRole(user, RDO_INTERNAL_ROLES) && await canAccessDraftUpload(req.auth, normalizedPath);
 }
 
-router.get('/file/*', requireAuth, asyncHandler(async (req, res) => {
-  const normalizedPath = normalizeRelativeUploadPath(req.params[0]);
+function wildcardFilePath(value) {
+  return Array.isArray(value) ? value.join('/') : value;
+}
+
+router.get('/file/*filePath', requireAuth, asyncHandler(async (req, res) => {
+  const normalizedPath = normalizeRelativeUploadPath(wildcardFilePath(req.params.filePath));
   const targetPath = resolveStoredFilePath(normalizedPath);
   if (!targetPath) {
     return res.status(404).json({ error: 'Arquivo não encontrado.' });
