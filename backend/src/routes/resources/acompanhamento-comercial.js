@@ -26,6 +26,7 @@ import {
 import { getPlannedScope, setPlannedScope } from '../../lib/acompanhamento-planned-scope.js';
 import { computeProjectProgress } from '../../lib/acompanhamento-avanco.js';
 import { listProjectCards } from '../../lib/acompanhamento-project-cards.js';
+import { getProjectDetail } from '../../lib/acompanhamento-project-detail.js';
 import prisma from '../../lib/prisma.js';
 import { requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth } from '../../middleware/auth.js';
 
@@ -191,7 +192,8 @@ router.post(
 
 const scheduleSchema = z.object({
   approvedAt: z.string().datetime().nullable().optional(),
-  startDate: z.string().datetime().nullable().optional()
+  startDate: z.string().datetime().nullable().optional(),
+  mobilizationDate: z.string().datetime().nullable().optional()
 });
 
 router.patch(
@@ -263,6 +265,21 @@ router.put(
       res.json(scope);
     } catch (error) {
       res.status(400).json({ error: error.message });
+    }
+  })
+);
+
+// Dashboard detalhado de um projeto (aberto ao clicar no card da aba Projetos).
+router.get(
+  '/projetos/:projectId/detalhe',
+  requireAuth,
+  requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    try {
+      const detail = await getProjectDetail(req.params.projectId);
+      res.json(detail);
+    } catch (error) {
+      res.status(404).json({ error: error.message });
     }
   })
 );

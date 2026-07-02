@@ -295,6 +295,7 @@ model Project {
   operatorId            String?
   clientSegment         String?
   commercialProposalCode String?          // = cod_prop do Access; reconciliação proposta↔projeto
+  mobilizationDate     DateTime?           // data de mobilização (manual, gestor/coordenador)
   startDate            DateTime?           // início real da execução (manual, gestor/coordenador)
   createdAt            DateTime          @default(now())
   updatedAt             DateTime          @updatedAt

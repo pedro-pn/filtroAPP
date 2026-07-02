@@ -29,12 +29,14 @@ export interface ProjectRevisions {
   approvedAt?: string | null;
   mobilizationLeadDays?: number | null;
   startDate?: string | null;
+  mobilizationDate?: string | null;
   revisions: CommercialRevision[];
 }
 
 export interface ProjectSchedulePayload {
   approvedAt?: string | null;
   startDate?: string | null;
+  mobilizationDate?: string | null;
 }
 
 export async function getProjectRevisions(projectId: string): Promise<ProjectRevisions> {
@@ -219,5 +221,41 @@ export interface ProjectCard {
 
 export async function getProjectCards(): Promise<ProjectCard[]> {
   const { data } = await apiClient.get<ProjectCard[]>('/acompanhamento/comercial/projetos-cards');
+  return data;
+}
+
+// --- Dashboard detalhado de um projeto ---
+
+export type DayStatus = 'TRABALHADO' | 'STANDBY' | 'PARADO';
+
+export interface ProjectDetail {
+  header: {
+    code: string;
+    clientName: string;
+    proposalCode: string | null;
+    lastRdoDate: string | null;
+    segment: string | null;
+  };
+  diasCorridos: { elapsed: number | null; planned: number | null; pct: number | null };
+  diasTrabalhados: { worked: number; planned: number | null; pct: number | null };
+  consumo: { gasto: number; previsto: number | null; pct: number | null };
+  maioresGastos: Array<{ categoria: string; total: number }>;
+  avancoPct: number | null;
+  standby: { count: number; minutes: number };
+  ultimosDias: Array<{ date: string; status: DayStatus; workedMinutes: number; standbyMinutes: number }>;
+  overtimeMinutes: number;
+  colaboradores: Array<{ name: string; role: string }>;
+  footer: {
+    mobilizationDate: string | null;
+    startDate: string | null;
+    expectedEndDate: string | null;
+    projectedEndByPace: string | null;
+  };
+}
+
+export async function getProjectDetail(projectId: string): Promise<ProjectDetail> {
+  const { data } = await apiClient.get<ProjectDetail>(
+    `/acompanhamento/comercial/projetos/${projectId}/detalhe`
+  );
   return data;
 }

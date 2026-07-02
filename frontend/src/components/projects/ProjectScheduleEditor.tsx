@@ -52,15 +52,19 @@ export function ProjectScheduleEditor({ projectId }: { projectId: string }) {
   const { data, isLoading } = useQuery({ queryKey, queryFn: () => getProjectRevisions(projectId) });
   const [approvalEdit, setApprovalEdit] = useState<string | null>(null);
   const [startEdit, setStartEdit] = useState<string | null>(null);
+  const [mobEdit, setMobEdit] = useState<string | null>(null);
 
   const scheduleMutation = useMutation({
-    mutationFn: (payload: { approvedAt?: string | null; startDate?: string | null }) => setProjectSchedule(projectId, payload),
+    mutationFn: (payload: { approvedAt?: string | null; startDate?: string | null; mobilizationDate?: string | null }) => setProjectSchedule(projectId, payload),
     onSuccess: () => {
       showToast('Cronograma atualizado.');
       setApprovalEdit(null);
       setStartEdit(null);
+      setMobEdit(null);
       queryClient.invalidateQueries({ queryKey });
       queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['project-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] });
     },
     onError: () => showToast('Não foi possível atualizar o cronograma.')
   });
@@ -77,13 +81,16 @@ export function ProjectScheduleEditor({ projectId }: { projectId: string }) {
 
   const approvalValue = approvalEdit ?? toDateInput(data?.approvedAt);
   const startValue = startEdit ?? toDateInput(data?.startDate);
+  const mobValue = mobEdit ?? toDateInput(data?.mobilizationDate);
   const leadDays = data?.mobilizationLeadDays ?? null;
   const deadline = approvalValue && leadDays != null ? addDays(approvalValue, leadDays) : '';
   const late = Boolean(startValue && deadline && startValue > deadline);
   const plannedDays = currentRevision.plannedDays ?? null;
   const consumed = startValue && plannedDays ? daysBetween(startValue, new Date()) : null;
   const consumedPct = consumed != null && plannedDays ? Math.round((consumed / plannedDays) * 100) : null;
-  const dirty = approvalValue !== toDateInput(data?.approvedAt) || startValue !== toDateInput(data?.startDate);
+  const dirty = approvalValue !== toDateInput(data?.approvedAt)
+    || startValue !== toDateInput(data?.startDate)
+    || mobValue !== toDateInput(data?.mobilizationDate);
 
   return (
     <div className="det-section">
@@ -100,6 +107,10 @@ export function ProjectScheduleEditor({ projectId }: { projectId: string }) {
           <input id={`acp-aprov-${projectId}`} type="date" value={approvalValue} onChange={e => setApprovalEdit(e.target.value)} />
         </div>
         <div className="field-group">
+          <label htmlFor={`acp-mob-${projectId}`}>Mobilização</label>
+          <input id={`acp-mob-${projectId}`} type="date" value={mobValue} onChange={e => setMobEdit(e.target.value)} />
+        </div>
+        <div className="field-group">
           <label htmlFor={`acp-inicio-${projectId}`}>Início real</label>
           <input id={`acp-inicio-${projectId}`} type="date" value={startValue} onChange={e => setStartEdit(e.target.value)} />
         </div>
@@ -109,7 +120,7 @@ export function ProjectScheduleEditor({ projectId }: { projectId: string }) {
           type="button"
           className="mini-btn"
           disabled={scheduleMutation.isPending || !dirty}
-          onClick={() => scheduleMutation.mutate({ approvedAt: isoOrNull(approvalValue), startDate: isoOrNull(startValue) })}
+          onClick={() => scheduleMutation.mutate({ approvedAt: isoOrNull(approvalValue), startDate: isoOrNull(startValue), mobilizationDate: isoOrNull(mobValue) })}
         >
           {scheduleMutation.isPending ? 'Salvando…' : 'Salvar cronograma'}
         </button>

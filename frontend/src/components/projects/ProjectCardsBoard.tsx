@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { getProjectCards, type LastDayStatus, type ProjectCard } from '../../api/acompanhamentoComercial';
+import { ProjectDetailDashboard } from './ProjectDetailDashboard';
 
 function formatDate(iso?: string | null) {
   if (!iso) return '—';
@@ -24,10 +25,16 @@ function Bar({ value }: { value: number | null }) {
   );
 }
 
-function Card({ card }: { card: ProjectCard }) {
+function Card({ card, onOpen }: { card: ProjectCard; onOpen: () => void }) {
   const status = STATUS_META[card.lastDay.status];
   return (
-    <div className="acp-pcard">
+    <div
+      className="acp-pcard acp-pcard-click"
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
+    >
       <div className="acp-pcard-head">
         <strong>{card.code}</strong>
         <span className="acp-pcard-name">{card.name || '—'}</span>
@@ -75,7 +82,12 @@ function Card({ card }: { card: ProjectCard }) {
 // Aba "Projetos": um card por projeto com previsto x realizado (dias, avanço, colaboradores, prazos).
 export function ProjectCardsBoard() {
   const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<string | null>(null);
   const { data, isLoading } = useQuery({ queryKey: ['project-cards'], queryFn: () => getProjectCards() });
+
+  if (selected) {
+    return <ProjectDetailDashboard projectId={selected} onBack={() => setSelected(null)} />;
+  }
 
   const cards = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -111,7 +123,7 @@ export function ProjectCardsBoard() {
       </div>
 
       <div className="acp-pcards-grid">
-        {cards.map(card => <Card key={card.projectId} card={card} />)}
+        {cards.map(card => <Card key={card.projectId} card={card} onOpen={() => setSelected(card.projectId)} />)}
       </div>
     </div>
   );

@@ -191,12 +191,12 @@ async function upsertBudget(client, projectId, proposal) {
 export async function listProjectRevisions(projectId) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    select: { id: true, commercialProposalCode: true, contractCode: true, code: true, startDate: true }
+    select: { id: true, commercialProposalCode: true, contractCode: true, code: true, startDate: true, mobilizationDate: true }
   });
   if (!project) throw new Error('Projeto não encontrado.');
   const codProp = projectProposalCode(project);
   if (!Number.isInteger(codProp)) {
-    return { proposalCode: null, currentCodBd: null, resolved: false, startDate: project.startDate ?? null, revisions: [] };
+    return { proposalCode: null, currentCodBd: null, resolved: false, startDate: project.startDate ?? null, mobilizationDate: project.mobilizationDate ?? null, revisions: [] };
   }
   const [revisions, budget] = await Promise.all([
     prisma.commercialProposal.findMany({
@@ -222,13 +222,14 @@ export async function listProjectRevisions(projectId) {
     approvedAt: budget?.approvedAt ?? null,
     mobilizationLeadDays: budget?.mobilizationLeadDays ?? null,
     startDate: project.startDate ?? null,
+    mobilizationDate: project.mobilizationDate ?? null,
     revisions
   };
 }
 
 // Edita o cronograma: data de aprovação do contrato (no orçamento) e início real (no projeto).
 // Cada campo é opcional; passar null limpa. approvedAt exige um orçamento já escolhido.
-export async function setProjectSchedule(projectId, { approvedAt, startDate } = {}) {
+export async function setProjectSchedule(projectId, { approvedAt, startDate, mobilizationDate } = {}) {
   return prisma.$transaction(async (tx) => {
     if (approvedAt !== undefined) {
       const budget = await tx.projectBudget.findUnique({
@@ -241,11 +242,11 @@ export async function setProjectSchedule(projectId, { approvedAt, startDate } = 
         data: { approvedAt: approvedAt ? new Date(approvedAt) : null }
       });
     }
-    if (startDate !== undefined) {
-      await tx.project.update({
-        where: { id: projectId },
-        data: { startDate: startDate ? new Date(startDate) : null }
-      });
+    const projectData = {};
+    if (startDate !== undefined) projectData.startDate = startDate ? new Date(startDate) : null;
+    if (mobilizationDate !== undefined) projectData.mobilizationDate = mobilizationDate ? new Date(mobilizationDate) : null;
+    if (Object.keys(projectData).length > 0) {
+      await tx.project.update({ where: { id: projectId }, data: projectData });
     }
     return { ok: true };
   });
