@@ -19,6 +19,7 @@ import { HubPage } from './pages/HubPage';
 import { moduleRouteElements } from './modules/moduleRoutes';
 import { moduleRouteAccess, moduleRoutePath } from './modules/registry';
 import { NotificationPreferencesPage } from './pages/NotificationPreferencesPage';
+import { OperationsPage } from './pages/OperationsPage';
 import { ReportDetailPage } from './pages/ReportDetailPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { GestorPage } from './pages/gestor/GestorPage';
@@ -78,6 +79,10 @@ export default function App() {
           <Route path="/" element={<RootRedirect />} />
           <Route path="/modulos" element={<HubPage />} />
           <Route path="/conta" element={<AccountPage />} />
+        </Route>
+
+        <Route element={<RoleRoute allowedAccountTypes={['ADMIN']} />}>
+          <Route path="/operacoes" element={<OperationsPage />} />
         </Route>
 
         <Route element={<RoleRoute {...RDO_REPORT_WRITE_ACCESS} />}>

@@ -3,6 +3,9 @@ set -euo pipefail
 
 TELEGRAM_TOKEN="${TELEGRAM_TOKEN:-}"
 TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
+BACKUP_STARTED_AT="$(date -Iseconds)"
+RUN_DIR=""
+UPLOAD_SUCCEEDED=false
 
 PATH="/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 export PATH
@@ -13,6 +16,7 @@ notify_failure() {
   local cmd="${BASH_COMMAND}"
 
   echo "[backup] failed with exit code $exit_code at line $line_no: $cmd" >&2
+  write_backup_status "FAILURE" "$exit_code" "$line_no" || true
 
   if [ -n "$TELEGRAM_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
     local host
@@ -37,8 +41,6 @@ Exit code: $exit_code"
   exit "$exit_code"
 }
 
-trap notify_failure ERR
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${PROJECT_DIR:-$(dirname "$SCRIPT_DIR")}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
@@ -49,12 +51,39 @@ REPORTS_VOLUME="${REPORTS_VOLUME:-filtrovali_relatorios}"
 CERTS_VOLUME="${CERTS_VOLUME:-filtrovali_certs}"
 BACKUP_ROOT="${BACKUP_ROOT:-/root/backups/filtrovali}"
 BACKUP_LOCK_FILE="${BACKUP_LOCK_FILE:-$BACKUP_ROOT/backup-prod.lock}"
+BACKUP_STATUS_FILE="${BACKUP_STATUS_FILE:-$BACKUP_ROOT/status/backup-latest.json}"
 BACKUP_LOCK_TIMEOUT_SECONDS="${BACKUP_LOCK_TIMEOUT_SECONDS:-0}"
 INCLUDE_CERTS="${INCLUDE_CERTS:-true}"
 INCLUDE_REPORTS="${INCLUDE_REPORTS:-true}"
 B2_URI="${B2_URI:-}"
 B2_BIN="${B2_BIN:-b2}"
 LOCAL_BACKUP_KEEP="${LOCAL_BACKUP_KEEP:-}"
+
+write_backup_status() {
+  local status="$1"
+  local exit_code="${2:-0}"
+  local line_no="${3:-0}"
+  local finished_at
+  finished_at="$(date -Iseconds)"
+  mkdir -p "$(dirname "$BACKUP_STATUS_FILE")"
+  cat > "${BACKUP_STATUS_FILE}.tmp" <<EOF
+{
+  "kind": "backup",
+  "status": "$status",
+  "startedAt": "$BACKUP_STARTED_AT",
+  "finishedAt": "$finished_at",
+  "backupRoot": "$BACKUP_ROOT",
+  "runDir": "$RUN_DIR",
+  "includeReports": $INCLUDE_REPORTS,
+  "includeCerts": $INCLUDE_CERTS,
+  "b2Configured": $(if [ -n "$B2_URI" ]; then echo true; else echo false; fi),
+  "uploadSucceeded": $UPLOAD_SUCCEEDED,
+  "exitCode": $exit_code,
+  "line": $line_no
+}
+EOF
+  mv "${BACKUP_STATUS_FILE}.tmp" "$BACKUP_STATUS_FILE"
+}
 
 prune_local_backups() {
   local backup_root="$1"
@@ -87,6 +116,8 @@ prune_local_backups() {
     rm -rf "$backup_root/$backup_name"
   done
 }
+
+trap notify_failure ERR
 
 mkdir -p "$BACKUP_ROOT"
 
@@ -131,8 +162,6 @@ LATEST_LINK="$BACKUP_ROOT/latest"
 rm -f "$LATEST_LINK"
 ln -s "$RUN_DIR" "$LATEST_LINK"
 
-UPLOAD_SUCCEEDED=false
-
 if [ -n "$B2_URI" ]; then
   if command -v "$B2_BIN" >/dev/null 2>&1; then
     B2_DEST="${B2_URI%/}/$TIMESTAMP"
@@ -154,3 +183,4 @@ else
 fi
 
 echo "[backup] done: $RUN_DIR"
+write_backup_status "SUCCESS" 0 0 || true

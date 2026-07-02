@@ -147,6 +147,15 @@ export function HubPage() {
             >
               Ver tutorial
             </button>
+            {isAdmin && (
+              <button
+                className="topbar-chip"
+                type="button"
+                onClick={() => navigate('/operacoes')}
+              >
+                Operação
+              </button>
+            )}
             <button
               className="topbar-chip"
               type="button"

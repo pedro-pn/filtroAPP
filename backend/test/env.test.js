@@ -17,6 +17,11 @@ test('loadEnv parses defaults from a minimal valid environment', () => {
   assert.equal(env.sendClientEmails, true);
   assert.equal(env.trustProxy, false);
   assert.deepEqual(env.allowedOrigins, []);
+  assert.equal(env.operationsBackupStatusFile, '');
+  assert.equal(env.operationsRequireBackupStatus, false);
+  assert.equal(env.operationsBackupMaxAgeHours, 26);
+  assert.equal(env.operationsAlertJobEnabled, false);
+  assert.equal(env.errorTrackingWebhookUrl, '');
 });
 
 test('loadEnv fails fast when DATABASE_URL is missing', () => {
