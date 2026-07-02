@@ -53,6 +53,14 @@ const schema = z.object({
   })).default([])
 });
 
+function parseProjectUpdateInput(input) {
+  const parsed = schema.partial().parse(input);
+  const presentKeys = new Set(Object.keys(input && typeof input === 'object' ? input : {}));
+  return Object.fromEntries(
+    Object.entries(parsed).filter(([key]) => presentKeys.has(key))
+  );
+}
+
 function splitPersonName(name = '') {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
   return {
@@ -376,7 +384,7 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
 }));
 
 router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
-  const parsed = schema.partial().parse(req.body);
+  const parsed = parseProjectUpdateInput(req.body);
   const shouldReconcileClientSigners = parsed.clientEmailPrimary !== undefined
     || parsed.clientSignerFirstName !== undefined
     || parsed.clientSignerLastName !== undefined
