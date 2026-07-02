@@ -1,8 +1,7 @@
 import fs from 'node:fs/promises';
 
-import { PrismaClient } from '@prisma/client';
+import prisma from '../src/lib/prisma.js';
 
-const prisma = new PrismaClient();
 
 function collaboratorCodeFromId(id) {
   return `COL-${String(id).trim().padStart(3, '0')}`;
