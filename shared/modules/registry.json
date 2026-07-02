@@ -1,0 +1,332 @@
+{
+  "legacyRoleDefaults": {
+    "MANAGER": {
+      "accountType": "ADMIN",
+      "moduleRole": "rdo:manager"
+    },
+    "COORDINATOR": {
+      "accountType": "INTERNAL",
+      "moduleRole": "rdo:coordinator"
+    },
+    "COLLABORATOR": {
+      "accountType": "INTERNAL",
+      "moduleRole": "rdo:collaborator"
+    },
+    "CLIENT": {
+      "accountType": "CLIENT",
+      "moduleRole": "rdo:client"
+    }
+  },
+  "noneModule": {
+    "id": "none",
+    "badge": "APP",
+    "title": "Nenhum módulo liberado",
+    "copy": "Solicite a revisão dos acessos da conta.",
+    "disabled": true
+  },
+  "modules": [
+    {
+      "id": "rdo",
+      "prismaModule": "RDO",
+      "badge": "RDO",
+      "title": "Relatórios e Projetos",
+      "copy": "Controle de relatórios, aprovações, clientes e estatísticas.",
+      "hub": {
+        "enabled": true,
+        "roles": ["rdo:manager", "rdo:coordinator", "rdo:collaborator"],
+        "pathStrategy": "roleHome"
+      },
+      "pathPrefixes": [
+        "/rdo",
+        "/home",
+        "/andamento",
+        "/meus-relatorios",
+        "/relatorio",
+        "/relatorios",
+        "/gestor",
+        "/coordenador",
+        "/cliente"
+      ],
+      "routes": {
+        "root": "/rdo",
+        "newReport": "/rdo/relatorio/novo",
+        "newReportsAlias": "/rdo/relatorios/novo",
+        "reportDetail": "/rdo/relatorios/:id",
+        "collaboratorHome": "/rdo/home",
+        "ongoingServices": "/rdo/andamento",
+        "myReports": "/rdo/meus-relatorios",
+        "myArchivedReports": "/rdo/meus-relatorios/arquivados",
+        "managerHome": "/rdo/gestor",
+        "managerReportDetail": "/rdo/gestor/relatorio/:id",
+        "coordinatorHome": "/rdo/coordenador",
+        "coordinatorReportDetail": "/rdo/coordenador/relatorio/:id",
+        "clientHome": "/rdo/cliente",
+        "clientReportDetail": "/rdo/cliente/relatorio/:id"
+      },
+      "legacyRoutes": {
+        "newReport": "/relatorio/novo",
+        "newReportsAlias": "/relatorios/novo",
+        "reportDetail": "/relatorios/:id",
+        "collaboratorHome": "/home",
+        "ongoingServices": "/andamento",
+        "myReports": "/meus-relatorios",
+        "myArchivedReports": "/meus-relatorios/arquivados",
+        "managerHome": "/gestor",
+        "managerReportDetail": "/gestor/relatorio/:id",
+        "coordinatorHome": "/coordenador",
+        "coordinatorReportDetail": "/coordenador/relatorio/:id",
+        "clientHome": "/cliente",
+        "clientReportDetail": "/cliente/relatorio/:id"
+      },
+      "routeGroups": {
+        "reportWrite": {
+          "allowedRoles": ["COLLABORATOR", "MANAGER", "COORDINATOR"],
+          "allowedModuleRoles": ["rdo:collaborator", "rdo:manager", "rdo:coordinator"]
+        },
+        "collaborator": {
+          "allowedRoles": ["COLLABORATOR"],
+          "allowedModuleRoles": ["rdo:collaborator"]
+        },
+        "manager": {
+          "allowedRoles": ["MANAGER"],
+          "allowedModuleRoles": ["rdo:manager"]
+        },
+        "coordinator": {
+          "allowedRoles": ["COORDINATOR"],
+          "allowedModuleRoles": ["rdo:coordinator"]
+        },
+        "client": {
+          "allowedRoles": ["CLIENT"],
+          "allowedModuleRoles": ["rdo:client"]
+        }
+      },
+      "roles": [
+        {
+          "code": "RDO_MANAGER",
+          "public": "rdo:manager",
+          "label": "RDO - Gestor",
+          "accountTypes": ["ADMIN"],
+          "requiredLegacyRole": "MANAGER"
+        },
+        {
+          "code": "RDO_COORDINATOR",
+          "public": "rdo:coordinator",
+          "label": "RDO - Coordenador",
+          "accountTypes": ["INTERNAL"],
+          "requiredLegacyRole": "COORDINATOR"
+        },
+        {
+          "code": "RDO_COLLABORATOR",
+          "public": "rdo:collaborator",
+          "label": "RDO - Colaborador",
+          "accountTypes": ["INTERNAL"],
+          "requiredLegacyRole": "COLLABORATOR"
+        },
+        {
+          "code": "RDO_CLIENT",
+          "public": "rdo:client",
+          "label": "RDO - Cliente",
+          "accountTypes": ["CLIENT"],
+          "requiredLegacyRole": "CLIENT"
+        }
+      ]
+    },
+    {
+      "id": "admin",
+      "badge": "ADM",
+      "title": "Gestão de Contas",
+      "copy": "Administração inicial de usuários e acessos do hub.",
+      "hub": {
+        "enabled": true,
+        "adminOnly": true,
+        "path": "/admin/accounts"
+      },
+      "pathPrefixes": ["/admin"],
+      "routes": {
+        "accounts": "/admin/accounts"
+      },
+      "routeGroups": {
+        "accounts": {
+          "allowedAccountTypes": ["ADMIN"]
+        }
+      },
+      "roles": []
+    },
+    {
+      "id": "equipamentos",
+      "prismaModule": "EQUIPAMENTOS",
+      "badge": "EQP",
+      "title": "Equipamentos",
+      "copy": "Cadastro, calibração, documentação técnica e notificações dos equipamentos.",
+      "hub": {
+        "enabled": true,
+        "roles": ["equipamentos:manager", "equipamentos:viewer"],
+        "path": "/equipamentos"
+      },
+      "pathPrefixes": ["/equipamentos"],
+      "routes": {
+        "index": "/equipamentos"
+      },
+      "routeGroups": {
+        "default": {
+          "allowedAccountTypes": ["ADMIN", "INTERNAL"],
+          "allowedModuleRoles": ["equipamentos:manager", "equipamentos:viewer"]
+        }
+      },
+      "roles": [
+        {
+          "code": "EQUIPAMENTOS_MANAGER",
+          "public": "equipamentos:manager",
+          "label": "Equipamentos - Gestor",
+          "accountTypes": ["ADMIN", "INTERNAL"]
+        },
+        {
+          "code": "EQUIPAMENTOS_VIEWER",
+          "public": "equipamentos:viewer",
+          "label": "Equipamentos - Visualizador",
+          "accountTypes": ["ADMIN", "INTERNAL"]
+        }
+      ]
+    },
+    {
+      "id": "acompanhamento",
+      "prismaModule": "ACOMPANHAMENTO",
+      "badge": "ACP",
+      "title": "Acompanhamento de Projetos",
+      "copy": "Dashboard de previsto x realizado, custos e cronograma dos projetos.",
+      "hub": {
+        "enabled": true,
+        "roles": ["acompanhamento:manager", "acompanhamento:viewer"],
+        "path": "/acompanhamento"
+      },
+      "pathPrefixes": ["/acompanhamento"],
+      "routes": {
+        "index": "/acompanhamento"
+      },
+      "routeGroups": {
+        "default": {
+          "allowedAccountTypes": ["ADMIN", "INTERNAL"],
+          "allowedModuleRoles": ["acompanhamento:manager", "acompanhamento:viewer"]
+        }
+      },
+      "roles": [
+        {
+          "code": "ACOMPANHAMENTO_MANAGER",
+          "public": "acompanhamento:manager",
+          "label": "Acompanhamento - Gestor",
+          "accountTypes": ["ADMIN", "INTERNAL"]
+        },
+        {
+          "code": "ACOMPANHAMENTO_VIEWER",
+          "public": "acompanhamento:viewer",
+          "label": "Acompanhamento - Visualizador",
+          "accountTypes": ["ADMIN", "INTERNAL"]
+        }
+      ]
+    },
+    {
+      "id": "romaneio",
+      "prismaModule": "ROMANEIO",
+      "badge": "ROM",
+      "title": "Romaneio de Equipamentos",
+      "copy": "Controle de romaneios, equipamentos e notificações.",
+      "hub": {
+        "enabled": true,
+        "roles": ["romaneio:manager", "romaneio:operator"],
+        "path": "/romaneio"
+      },
+      "pathPrefixes": ["/romaneio"],
+      "routes": {
+        "index": "/romaneio",
+        "new": "/romaneio/novo"
+      },
+      "routeGroups": {
+        "default": {
+          "allowedAccountTypes": ["ADMIN", "INTERNAL"],
+          "allowedModuleRoles": ["romaneio:manager", "romaneio:operator"]
+        }
+      },
+      "roles": [
+        {
+          "code": "ROMANEIO_MANAGER",
+          "public": "romaneio:manager",
+          "label": "Romaneio - Gestor",
+          "accountTypes": ["ADMIN", "INTERNAL"]
+        },
+        {
+          "code": "ROMANEIO_OPERATOR",
+          "public": "romaneio:operator",
+          "label": "Romaneio - Operador",
+          "accountTypes": ["ADMIN", "INTERNAL"]
+        }
+      ]
+    },
+    {
+      "id": "epi",
+      "prismaModule": "EPI",
+      "badge": "EPI",
+      "title": "Liberação de EPI",
+      "copy": "Fichas de entrega, devolução e assinatura por colaborador.",
+      "hub": {
+        "enabled": true,
+        "roles": ["epi:technician", "epi:collaborator"],
+        "path": "/epi"
+      },
+      "pathPrefixes": ["/epi"],
+      "pathExclusions": ["/epi/assinar"],
+      "routes": {
+        "index": "/epi"
+      },
+      "routeGroups": {
+        "default": {
+          "allowedAccountTypes": ["ADMIN", "INTERNAL"],
+          "allowedModuleRoles": ["epi:technician", "epi:collaborator"]
+        }
+      },
+      "roles": [
+        {
+          "code": "EPI_TECHNICIAN",
+          "public": "epi:technician",
+          "label": "EPI - Técnico",
+          "accountTypes": ["ADMIN", "INTERNAL"]
+        },
+        {
+          "code": "EPI_COLLABORATOR",
+          "public": "epi:collaborator",
+          "label": "EPI - Colaborador",
+          "accountTypes": ["ADMIN", "INTERNAL"]
+        }
+      ]
+    },
+    {
+      "id": "privacy",
+      "prismaModule": "PRIVACY",
+      "badge": "LGPD",
+      "title": "Privacidade",
+      "copy": "Acompanhe solicitações de titulares e protocolos LGPD.",
+      "hub": {
+        "enabled": true,
+        "roles": ["privacy:admin"],
+        "path": "/privacidade/solicitacoes"
+      },
+      "pathPrefixes": ["/privacidade/solicitacoes"],
+      "routes": {
+        "requests": "/privacidade/solicitacoes"
+      },
+      "routeGroups": {
+        "default": {
+          "allowedModuleRoles": ["privacy:admin"]
+        }
+      },
+      "roles": [
+        {
+          "code": "PRIVACY_ADMIN",
+          "public": "privacy:admin",
+          "label": "Privacidade - Admin",
+          "accountTypes": ["ADMIN", "INTERNAL"],
+          "assignableAccountTypes": ["ADMIN"]
+        }
+      ]
+    }
+  ]
+}

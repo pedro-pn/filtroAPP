@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-
 import { downloadReportDocx, downloadReportPdf } from '../api/reports';
 
 import { useAuth } from '../auth/AuthContext';
 import { accountPageStateFromPath } from '../auth/moduleNavigation';
 import { roleHomePath } from '../auth/rolePath';
 import type { UploadedFile } from '../api/uploads';
-import { ServiceCollaboratorsBlock, ServiceFields, serviceTypeLabels } from '../components/reports/ServiceFields';
+import { ServiceCollaboratorsBlock, ServiceFields } from '../components/reports/ServiceFields';
+import { serviceTypeLabels } from '../components/reports/serviceTypes';
 import { SignatureProgress } from '../components/reports/SignatureProgress';
 import { SignatureDialog } from '../components/reports/SignatureDialog';
 import { PrivacyNotice } from '../components/privacy/PrivacyNotice';
-import { useToast } from '../components/ui/Toast';
+import { useToast } from '../components/ui/ToastContext';
 import { SIGNATURE_RDO_NOTICE_VERSION } from '../constants/privacy';
 import { useReportDetailBootstrap } from '../hooks/useBootstrap';
 import { useReport, useReportAudit, useReportMutations } from '../hooks/useReports';
@@ -81,6 +81,7 @@ const serviceTypeModalOptions = [
   { type: 'inibicao', icon: '🛡️', name: 'Inibição' },
 ] as const;
 const serviceOnlySupportedTypes = new Set(['limpeza', 'pressao', 'filtragem', 'flushing', 'mecanica']);
+const derivedServiceReportTypes = new Set(['RTP', 'RLQ', 'RCPU', 'RLM', 'RLF', 'RLI']);
 
 interface RdoServiceForm {
   id: string;
@@ -302,6 +303,20 @@ function isServiceOnlyReport(report: ReportSummary) {
   return report.specialConditions?.serviceOnly === true;
 }
 
+function isDerivedServiceReport(report: ReportSummary) {
+  return derivedServiceReportTypes.has(report.reportType)
+    && report.specialConditions?.serviceOnly !== true
+    && typeof report.specialConditions?.parentRdoId === 'string'
+    && Boolean(report.specialConditions.parentRdoId);
+}
+
+function canEditDerivedServiceReport(report: ReportSummary, role?: string) {
+  return role === 'MANAGER'
+    && isDerivedServiceReport(report)
+    && report.status !== 'SIGNED'
+    && report.parentRdoStatus === 'SIGNED';
+}
+
 function reportAcceptsOvertime(report: ReportSummary) {
   return asRecord(report.specialConditions).overtimeAccepted !== false;
 }
@@ -494,6 +509,7 @@ function reportToForm(report: ReportSummary): RdoFormState {
   const standbyDetails = asRecord(specialConditions.standbyDetails);
   const noturnoDetails = asRecord(specialConditions.noturnoDetails);
   const serviceOnly = isServiceOnlyReport(report);
+  const serviceReportMode = serviceOnly || isDerivedServiceReport(report);
   const serviceData = asRecord(specialConditions.serviceData);
   const nightCollaboratorIds = Array.isArray(noturnoDetails.collaboratorIds)
     ? noturnoDetails.collaboratorIds.filter((id): id is string => typeof id === 'string')
@@ -520,7 +536,7 @@ function reportToForm(report: ReportSummary): RdoFormState {
     dailyDescription: report.dailyDescription || '',
     generalUploads: asUploadedFiles(specialConditions.generalUploads),
     services: (report.services || []).map(service => {
-      const serviceForForm = serviceOnly
+      const serviceForForm = serviceReportMode
         ? {
             ...service,
             extraData: {
@@ -551,13 +567,28 @@ function buildPayload(
   } = {}
 ): Omit<ReportPayload, 'createdByUserId' | 'status'> {
   const serviceOnly = isServiceOnlyReport(report);
+  const derivedServiceReport = isDerivedServiceReport(report);
+  const serviceReportMode = serviceOnly || derivedServiceReport;
   const manualReport = isManualUploadedReport(report);
   const firstService = form.services[0];
-  const effectiveArrivalTime = serviceOnly ? getString(firstService?.data.startTime) || form.arrivalTime || '00:00' : form.arrivalTime;
-  const effectiveDepartureTime = serviceOnly ? getString(firstService?.data.endTime) || form.departureTime || '00:00' : form.departureTime;
-  const effectiveLunchBreak = serviceOnly ? '00:00:00' : form.lunchBreak;
+  const effectiveArrivalTime = serviceReportMode ? getString(firstService?.data.startTime) || form.arrivalTime || '00:00' : form.arrivalTime;
+  const effectiveDepartureTime = serviceReportMode ? getString(firstService?.data.endTime) || form.departureTime || '00:00' : form.departureTime;
+  const effectiveLunchBreak = serviceReportMode ? '00:00:00' : form.lunchBreak;
   const overtimeAccepted = options.acceptOvertime !== false;
   const manualServiceData = manualServiceDataFromForm(report, form);
+  const services = form.services.map(service => {
+    const explicitServiceCollaborators = Object.prototype.hasOwnProperty.call(service.data, 'serviceCollaboratorIds');
+    return buildReportServicePayload(serviceReportMode ? { ...service, data: { ...service.data, finalized: true, aprovadoCliente: 'Sim' } } : service, {
+      collaboratorIds: manualReport
+        ? []
+        : explicitServiceCollaborators && Array.isArray(service.data.serviceCollaboratorIds)
+        ? service.data.serviceCollaboratorIds.filter((id): id is string => typeof id === 'string')
+        : serviceReportMode ? form.collaboratorIds : Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds])),
+      collaborators: resources.collaborators || [],
+      equipment: resources.equipment || [],
+      units: resources.units || []
+    });
+  });
 
   return {
     projectId: form.projectId || report.projectId,
@@ -574,6 +605,11 @@ function buildPayload(
       ? {
           ...asRecord(report.specialConditions),
           ...manualServiceData
+        }
+      : derivedServiceReport
+      ? {
+          ...asRecord(report.specialConditions),
+          serviceData: asRecord(services[0]?.extraData)
         }
       : {
           ...asRecord(report.specialConditions),
@@ -597,19 +633,7 @@ function buildPayload(
           }
         },
     collaboratorIds: manualReport ? [] : form.collaboratorIds,
-    services: form.services.map(service => {
-      const explicitServiceCollaborators = Object.prototype.hasOwnProperty.call(service.data, 'serviceCollaboratorIds');
-      return buildReportServicePayload(serviceOnly ? { ...service, data: { ...service.data, finalized: true, aprovadoCliente: 'Sim' } } : service, {
-        collaboratorIds: manualReport
-          ? []
-          : explicitServiceCollaborators && Array.isArray(service.data.serviceCollaboratorIds)
-          ? service.data.serviceCollaboratorIds.filter((id): id is string => typeof id === 'string')
-          : serviceOnly ? form.collaboratorIds : Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds])),
-        collaborators: resources.collaborators || [],
-        equipment: resources.equipment || [],
-        units: resources.units || []
-      });
-    })
+    services
   };
 }
 
@@ -630,6 +654,8 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const derivedDeletionResolverRef = useRef<((deleteReports: boolean | null) => void) | null>(null);
   const readOnly = report.status === 'SIGNED';
   const serviceOnly = isServiceOnlyReport(report);
+  const derivedServiceReport = isDerivedServiceReport(report);
+  const serviceReportMode = serviceOnly || derivedServiceReport;
   const manualReport = isManualUploadedReport(report);
   const manualServiceReport = manualReport && report.reportType !== 'RDO';
   const isManager = user?.role === 'MANAGER';
@@ -666,26 +692,26 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
     ? `Número já usado no relatório ${sequenceConflict.reportType} ${sequenceConflict.sequenceNumber}.`
     : 'Usado para manter a sequência do projeto e dos relatórios derivados.';
   const serviceOptions = useMemo(() => {
-    const allowed = serviceOnly
+    const allowed = serviceReportMode
       ? serviceTypeModalOptions.filter(option => serviceOnlySupportedTypes.has(option.type))
       : serviceTypeModalOptions;
     return allowed.filter(option => option.type !== 'inibicao' || selectedProject?.inhibitionServiceEnabled === true);
-  }, [serviceOnly, selectedProject?.inhibitionServiceEnabled]);
+  }, [serviceReportMode, selectedProject?.inhibitionServiceEnabled]);
   const selectedCollaboratorIds = useMemo(
-    () => new Set(manualReport ? [] : serviceOnly ? form.collaboratorIds : [...form.collaboratorIds, ...form.nightCollaboratorIds]),
-    [manualReport, serviceOnly, form.collaboratorIds, form.nightCollaboratorIds]
+    () => new Set(manualReport ? [] : serviceReportMode ? form.collaboratorIds : [...form.collaboratorIds, ...form.nightCollaboratorIds]),
+    [manualReport, serviceReportMode, form.collaboratorIds, form.nightCollaboratorIds]
   );
   const collaborators = (bootstrapQuery.data?.collaborators || []).filter(item => item.isActive || selectedCollaboratorIds.has(item.id));
   const serviceCollaboratorOptions = useMemo(() => {
     if (manualReport) return [];
-    const ids = serviceOnly ? form.collaboratorIds : Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds]));
+    const ids = serviceReportMode ? form.collaboratorIds : Array.from(new Set([...form.collaboratorIds, ...form.nightCollaboratorIds]));
     return ids
       .map(id => {
         const collaborator = collaborators.find(item => item.id === id);
         return collaborator ? { id: collaborator.id, name: collaborator.name } : null;
       })
       .filter((item): item is { id: string; name: string } => Boolean(item));
-  }, [manualReport, serviceOnly, form.collaboratorIds, form.nightCollaboratorIds, collaborators]);
+  }, [manualReport, serviceReportMode, form.collaboratorIds, form.nightCollaboratorIds, collaborators]);
   const equipment = bootstrapQuery.data?.equipment || [];
   const units = bootstrapQuery.data?.units || [];
   const manometers = bootstrapQuery.data?.manometers || [];
@@ -694,7 +720,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
   const rdoSlotMap = bootstrapQuery.data?.rdoSlotMap;
   const inhibitionOptions = bootstrapQuery.data?.inhibitionOptions;
   const overtimeApproval = overtimeMinutesFromReport(report);
-  const showOvertimeApproval = isManager && canApproveInEditor && !serviceOnly && overtimeApproval.total > 0;
+  const showOvertimeApproval = isManager && canApproveInEditor && !serviceReportMode && overtimeApproval.total > 0;
 
   function setField<K extends keyof RdoFormState>(field: K, value: RdoFormState[K]) {
     setForm(current => ({ ...current, [field]: value }));
@@ -876,7 +902,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             <select
               id="rdo-project"
               value={form.projectId || ''}
-              disabled={readOnly}
+              disabled={readOnly || derivedServiceReport}
               onChange={event => setField('projectId', event.target.value || null)}
               required
             >
@@ -945,7 +971,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               </div>
             </>
           ) : null}
-          {!serviceOnly ? (
+          {!serviceReportMode ? (
           <div className="field-group">
             <label htmlFor="rdo-arrival">Chegada</label>
             <input
@@ -958,7 +984,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             />
           </div>
           ) : null}
-          {!serviceOnly ? (
+          {!serviceReportMode ? (
           <div className="field-group">
             <label htmlFor="rdo-departure">Saída</label>
             <input
@@ -971,7 +997,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
             />
           </div>
           ) : null}
-          {!serviceOnly ? (
+          {!serviceReportMode ? (
           <div className="field-group">
             <label htmlFor="rdo-lunch">{TEXT.interval}</label>
             <input
@@ -1010,7 +1036,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         </section>
       ) : null}
 
-      {!serviceOnly ? (
+      {!serviceReportMode ? (
       <section className="page-card">
         <div className="section-title">Condições especiais</div>
         <div className="tog-row">
@@ -1123,7 +1149,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     <span>{serviceTypeLabels[normalizeServiceType(service.type)] || service.type}</span>
                     <span className="svc-card-badge">{TEXT.service} {index + 1}</span>
                   </div>
-                  {!readOnly && !serviceOnly ? (
+                  {!readOnly && !serviceReportMode ? (
                     <div className="admin-card-actions">
                       <button className="svc-remove" type="button" onClick={() => removeService(service.id)}>
                         Remover
@@ -1197,7 +1223,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                     collaboratorOptions={serviceCollaboratorOptions}
                     groupKey={service.id}
                     projectId={form.projectId}
-                    hideFinalization={serviceOnly}
+                    hideFinalization={serviceReportMode}
                   />
                 </div>
               </article>
@@ -1206,7 +1232,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         ) : (
           <p className="placeholder-copy">{TEXT.noService}</p>
         )}
-        {!readOnly && !serviceOnly ? (
+        {!readOnly && !serviceReportMode ? (
           <div className="admin-form-actions" style={{ marginTop: 12 }}>
             <button
               className="secondary-button"
@@ -1220,7 +1246,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
         ) : null}
       </section>
 
-      {!serviceOnly ? (
+      {!serviceReportMode ? (
       <section className="page-card">
         <div className="section-title">{TEXT.finalization}</div>
         <div className="admin-form-grid">
@@ -1323,7 +1349,7 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
               {hasActiveClientRejection(report) ? 'Salvar e Reenviar' : 'Salvar e Aprovar'}
             </button>
           ) : null}
-          {isManager && !serviceOnly ? (
+          {isManager && !serviceReportMode ? (
             <button
               className="danger-button"
               type="button"
@@ -1996,16 +2022,17 @@ export function ReportDetailPage() {
   }
 
   const report = reportQuery.data;
+  const canEditLinkedServiceReport = report ? canEditDerivedServiceReport(report, user?.role) : false;
   const showRdoEditor =
     !!report
-    && report.status !== 'SIGNED'
     && (
-      (report.reportType === 'RDO' && (
+      (report.status !== 'SIGNED' && report.reportType === 'RDO' && (
         user?.role === 'MANAGER'
         || collaboratorCanEditReport(user, report)
         || (user?.role === 'COORDINATOR' && report.createdByUserId === user.id)
       ))
-      || (user?.role === 'MANAGER' && isServiceOnlyReport(report))
+      || (report.status !== 'SIGNED' && user?.role === 'MANAGER' && isServiceOnlyReport(report))
+      || canEditLinkedServiceReport
     );
 
   return (

@@ -98,6 +98,48 @@ const equipmentSchema = z.object({
   removeTechnicalDoc: z.boolean().optional()
 });
 
+function technicalRecord(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function stableTechnicalJson(value) {
+  return JSON.stringify(technicalRecord(value));
+}
+
+function hasTechnicalRecordContent(value) {
+  return Object.keys(technicalRecord(value)).length > 0;
+}
+
+export function hasTechnicalRevisionBaseline(equipment) {
+  return Boolean(
+    equipment?.technicalUpdatedAt ||
+    Number(equipment?.technicalRevision || 0) > 0 ||
+    hasTechnicalRecordContent(equipment?.technicalData) ||
+    hasTechnicalRecordContent(equipment?.technicalFieldOverrides)
+  );
+}
+
+export function technicalPayloadChanged(previous, fields, attachments = {}) {
+  if (fields.technicalData !== undefined && stableTechnicalJson(fields.technicalData) !== stableTechnicalJson(previous?.technicalData)) {
+    return true;
+  }
+  if (
+    fields.technicalFieldOverrides !== undefined &&
+    stableTechnicalJson(fields.technicalFieldOverrides) !== stableTechnicalJson(previous?.technicalFieldOverrides)
+  ) {
+    return true;
+  }
+  if (Array.isArray(attachments.technicalPhotos) && attachments.technicalPhotos.length > 0) return true;
+  if (Array.isArray(attachments.removeTechnicalPhotoIds) && attachments.removeTechnicalPhotoIds.length > 0) return true;
+  return false;
+}
+
+export function shouldIncrementTechnicalRevision(previous, fields, attachments = {}) {
+  return fields?.bumpRevision === true
+    && hasTechnicalRevisionBaseline(previous)
+    && technicalPayloadChanged(previous, fields, attachments);
+}
+
 async function uniqueSystemKey(name) {
   const base = slugifySystemKey(name);
   let candidate = base;
@@ -354,7 +396,7 @@ async function regenerateCurrentTechnicalDoc(equipmentId) {
   if (!category?.technicalDocEnabled) return;
   const data = equipment.technicalData;
   if (!data || typeof data !== 'object' || !Object.keys(data).length) return;
-  const revision = equipment.technicalRevision || 1;
+  const revision = equipment.technicalRevision ?? 0;
   try {
     const photoAssets = await resolveEquipmentPhotoAssets(prisma, equipment.id);
     const { bytes, fileName } = await generateTechnicalDatasheetPdf(equipment, category, photoAssets, revision);
@@ -372,6 +414,11 @@ async function regenerateCurrentTechnicalDoc(equipmentId) {
 router.post('/', requireEquipamentosManager, asyncHandler(async (req, res) => {
   const data = equipmentSchema.parse(req.body);
   const { calibrationCertificate, technicalDoc, technicalPhotos, ...fields } = data;
+  const startsWithTechnicalContent = Boolean(
+    hasTechnicalRecordContent(fields.technicalData) ||
+    hasTechnicalRecordContent(fields.technicalFieldOverrides) ||
+    (Array.isArray(technicalPhotos) && technicalPhotos.length > 0)
+  );
   const baseData = {
     code: fields.code,
     name: fields.name,
@@ -379,8 +426,8 @@ router.post('/', requireEquipamentosManager, asyncHandler(async (req, res) => {
     attributes: fields.attributes ?? {},
     technicalData: fields.technicalData ?? {},
     technicalFieldOverrides: fields.technicalFieldOverrides ?? {},
-    technicalRevision: fields.technicalData ? 1 : 0,
-    technicalUpdatedAt: fields.technicalData ? new Date() : null,
+    technicalRevision: 0,
+    technicalUpdatedAt: startsWithTechnicalContent ? new Date() : null,
     hasCalibration: fields.hasCalibration ?? false,
     calibratedAt: fields.hasCalibration && fields.calibratedAt ? new Date(fields.calibratedAt) : null,
     expiresAt: fields.hasCalibration && fields.expiresAt ? new Date(fields.expiresAt) : null,
@@ -400,6 +447,9 @@ router.post('/', requireEquipamentosManager, asyncHandler(async (req, res) => {
     ? await prisma.companyEquipment.update({ where: { id: existing.id }, data: { ...baseData, isActive: true } })
     : await prisma.companyEquipment.create({ data: baseData });
   await persistAttachments(item.id, { calibrationCertificate, technicalDoc, technicalPhotos });
+  if (startsWithTechnicalContent) {
+    await regenerateCurrentTechnicalDoc(item.id);
+  }
   invalidateCaches();
   await syncRomaneioCatalog();
   const fresh = await prisma.companyEquipment.findUnique({
@@ -415,6 +465,18 @@ router.put('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => 
     calibrationCertificate, technicalDoc, technicalPhotos, removeTechnicalPhotoIds,
     removeCalibrationCertificate, removeTechnicalDoc, ...fields
   } = data;
+  const previous = await prisma.companyEquipment.findUnique({
+    where: { id: req.params.id },
+    select: {
+      expiresAt: true,
+      technicalData: true,
+      technicalFieldOverrides: true,
+      technicalRevision: true,
+      technicalUpdatedAt: true
+    }
+  });
+  const technicalChanged = technicalPayloadChanged(previous, fields, { technicalPhotos, removeTechnicalPhotoIds });
+  const shouldBumpRevision = shouldIncrementTechnicalRevision(previous, fields, { technicalPhotos, removeTechnicalPhotoIds });
   const payload = {
     ...(fields.code !== undefined ? { code: fields.code } : {}),
     ...(fields.name !== undefined ? { name: fields.name } : {}),
@@ -423,15 +485,16 @@ router.put('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => 
     ...(fields.technicalFieldOverrides !== undefined ? { technicalFieldOverrides: fields.technicalFieldOverrides } : {}),
     ...(fields.hasTechnicalDoc !== undefined ? { hasTechnicalDoc: fields.hasTechnicalDoc } : {})
   };
-  // Ao alterar os Dados Técnicos, a revisão sobe automaticamente (bumpRevision, enviado
-  // pelo front quando há mudança) e o PDF dos dados ANTERIORES é arquivado no histórico.
+  // Após o primeiro preenchimento, alterações nos Dados Técnicos geram nova revisão.
+  // O primeiro preenchimento salva a linha-base como revisão 0.
   if (fields.technicalData !== undefined) {
     payload.technicalData = fields.technicalData;
+  }
+  if (technicalChanged) {
     payload.technicalUpdatedAt = new Date();
   }
-  if (fields.bumpRevision) {
+  if (shouldBumpRevision) {
     payload.technicalRevision = { increment: 1 };
-    payload.technicalUpdatedAt = new Date();
   }
   if (fields.hasCalibration !== undefined) {
     payload.hasCalibration = fields.hasCalibration;
@@ -441,7 +504,6 @@ router.put('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => 
     if (fields.calibratedAt !== undefined) payload.calibratedAt = fields.calibratedAt ? new Date(fields.calibratedAt) : null;
     if (fields.expiresAt !== undefined) payload.expiresAt = fields.expiresAt ? new Date(fields.expiresAt) : null;
   }
-  const previous = await prisma.companyEquipment.findUnique({ where: { id: req.params.id }, select: { expiresAt: true } });
   const item = await prisma.companyEquipment.update({ where: { id: req.params.id }, data: payload });
   const createdAttachments = await persistAttachments(item.id, { calibrationCertificate, technicalDoc, technicalPhotos, removeTechnicalPhotoIds });
   if (removeCalibrationCertificate) {
@@ -452,9 +514,9 @@ router.put('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => 
   if (removeTechnicalDoc && !technicalDoc) {
     await removeEquipmentAttachments(prisma, item.id, EquipmentAttachmentKinds.TECHNICAL_DOC);
   }
-  // Houve mudança nos dados técnicos (bumpRevision): gera o PDF da nova revisão como o
-  // datasheet atual. O da revisão anterior continua e vira "arquivado" no histórico.
-  if (fields.bumpRevision) {
+  // Gera o PDF da linha-base ou da nova revisão como datasheet atual. Quando há
+  // revisão nova, o PDF anterior continua e vira "arquivado" no histórico.
+  if (technicalChanged && (shouldBumpRevision || !hasTechnicalRevisionBaseline(previous))) {
     await regenerateCurrentTechnicalDoc(item.id);
   }
   invalidateCaches();

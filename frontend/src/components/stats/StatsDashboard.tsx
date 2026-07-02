@@ -1234,7 +1234,17 @@ function MonthlyAllocationDashboard() {
           : 'Envio não realizado.');
         return;
       }
-      setMessage(`E-mail enviado para ${result.sent} destinatário${result.sent === 1 ? '' : 's'}.`);
+      const parts = [];
+      if (result.sent > 0) {
+        parts.push(`E-mail enviado para ${result.sent} destinatário${result.sent === 1 ? '' : 's'}.`);
+      }
+      if ((result.skippedExisting || 0) > 0) {
+        parts.push(`${result.skippedExisting} destinatário${result.skippedExisting === 1 ? '' : 's'} já tinha${result.skippedExisting === 1 ? '' : 'm'} envio registrado para este mês.`);
+      }
+      if ((result.failed || 0) > 0) {
+        parts.push(`${result.failed} destinatário${result.failed === 1 ? '' : 's'} com falha no envio.`);
+      }
+      setMessage(parts.join(' ') || 'Nenhum novo e-mail foi enviado.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível enviar o relatório agora.');
     }

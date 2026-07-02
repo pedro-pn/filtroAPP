@@ -9,7 +9,9 @@ import { Shell } from '../layout/Shell';
 import { TopBar } from '../layout/TopBar';
 import { hubModulesForUser, type HubModuleEntry } from './hubModules';
 
-const MODULE_ICONS: Record<HubModuleEntry['id'], ReactNode> = {
+const DEFAULT_MODULE_ICON = <circle cx="12" cy="12" r="9" />;
+
+const MODULE_ICONS: Partial<Record<HubModuleEntry['id'], ReactNode>> = {
   rdo: (
     <>
       <rect x="3" y="12" width="4" height="8" rx="1" />
@@ -53,10 +55,10 @@ const MODULE_ICONS: Record<HubModuleEntry['id'], ReactNode> = {
       <path d="M7 15l3-4l3 3l4-6" />
     </>
   ),
-  none: <circle cx="12" cy="12" r="9" />,
+  none: DEFAULT_MODULE_ICON,
 };
 
-const MODULE_ACCENTS: Record<HubModuleEntry['id'], string> = {
+const MODULE_ACCENTS: Partial<Record<HubModuleEntry['id'], string>> = {
   rdo: '#30503a',
   admin: '#4a7c5e',
   privacy: '#3a6a5c',
@@ -82,7 +84,7 @@ function ModuleIcon({ id }: { id: HubModuleEntry['id'] }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      {MODULE_ICONS[id]}
+      {MODULE_ICONS[id] || DEFAULT_MODULE_ICON}
     </svg>
   );
 }
@@ -152,6 +154,15 @@ export function HubPage() {
             >
               Ver tutorial
             </button>
+            {isAdmin && (
+              <button
+                className="topbar-chip"
+                type="button"
+                onClick={() => navigate('/operacoes')}
+              >
+                Operação
+              </button>
+            )}
             <button
               className="topbar-chip"
               type="button"
@@ -182,7 +193,7 @@ export function HubPage() {
             const isWide = WIDE_MODULES.has(module.id);
             const isFirstWide = isWide && modules.slice(0, idx).every(m => !WIDE_MODULES.has(m.id));
             const path = module.path;
-            const accent = MODULE_ACCENTS[module.id];
+            const accent = MODULE_ACCENTS[module.id] || '#30503a';
 
             return (
               <Fragment key={module.id}>

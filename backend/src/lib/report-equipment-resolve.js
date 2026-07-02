@@ -4,6 +4,7 @@
 // já consomem (code, scale, serialNumber, currentCalibrationCertificate).
 
 import { equipmentAttachmentsInclude, serializeEquipmentAttachment } from './equipment-attachments.js';
+import { equipmentSerialNumber } from './equipment-attributes.js';
 
 function attrs(item) {
   return item && typeof item.attributes === 'object' && item.attributes ? item.attributes : {};
@@ -60,7 +61,7 @@ export async function resolveReportCounter(client, id) {
   return {
     id: item.id,
     code: item.code,
-    serialNumber: attrs(item).serialNumber || '',
+    serialNumber: equipmentSerialNumber(item),
     currentCalibrationCertificate: latestCertificate(item)
   };
 }

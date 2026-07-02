@@ -7,7 +7,7 @@
 export const MEASUREMENT_DIMENSIONS = {
   pressao: { label: 'Pressão', units: ['bar', 'kgf/cm²', 'psi', 'kPa', 'MPa'], default: 'bar' },
   vazao: { label: 'Vazão', units: ['L/min', 'm³/h', 'L/h', 'GPM'], default: 'L/min' },
-  potencia: { label: 'Potência', units: ['kW', 'CV', 'hp', 'W'], default: 'kW' },
+  potencia: { label: 'Potência', units: ['kW', 'kVA', 'CV', 'hp', 'W'], default: 'kW' },
   tensao: { label: 'Tensão', units: ['V', 'kV', 'VCA', 'VCC'], default: 'V' },
   corrente: { label: 'Corrente', units: ['A', 'mA'], default: 'A' },
   temperatura: { label: 'Temperatura', units: ['°C', '°F', 'K'], default: '°C' },
@@ -47,6 +47,7 @@ const UNIT_HINT_TO_DIMENSION = {
   'bar / kgf/cm² / psi': 'pressao',
   'L/min ou m³/h': 'vazao',
   'CV / kW / hp / W': 'potencia',
+  'CV / kW / kVA / hp / W': 'potencia',
   'V / VCA': 'tensao',
   'A ou kW': 'corrente',
   '°C': 'temperatura',

@@ -25,7 +25,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { Modal } from '../../components/ui/Modal';
 import { SearchBar } from '../../components/ui/SearchBar';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/ToastContext';
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { downloadBlob } from '../../utils/download';

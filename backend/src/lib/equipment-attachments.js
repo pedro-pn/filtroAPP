@@ -1,10 +1,17 @@
-import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import env from '../config/env.js';
+import {
+  inlineContentDisposition as commonInlineContentDisposition,
+  publicPathForToken,
+  publicUrlForPath,
+  resolveManagedDocumentPath,
+  unlinkManagedDocumentFile,
+  writeManagedDocumentFile
+} from './documents/storage.js';
 import prisma from './prisma.js';
+import { equipmentSerialNumber } from './equipment-attributes.js';
 import { readStoredImageAsset } from './stored-image.js';
 
 // Sob /api para reaproveitar o roteamento já existente do proxy/nginx até o
@@ -36,18 +43,8 @@ const KIND_FOLDER = {
   TECHNICAL_PHOTO: 'Fotos Dados Técnicos'
 };
 
-function safePath(value) {
-  return String(value ?? '').replace(/[<>:"/\\|?*\n\r]/g, '_').trim();
-}
-
-function publicPathForToken(token) {
-  return `${PUBLIC_PATH_PREFIX}/${encodeURIComponent(token)}`;
-}
-
 export function publicEquipmentAttachmentUrl(token) {
-  const pathValue = publicPathForToken(token);
-  const appUrl = String(env.appUrl || '').replace(/\/+$/, '');
-  return appUrl ? `${appUrl}${pathValue}` : pathValue;
+  return publicUrlForPath(publicPathForToken(PUBLIC_PATH_PREFIX, token));
 }
 
 export function serializeEquipmentAttachment(attachment) {
@@ -139,13 +136,14 @@ function parsePdfUpload(upload) {
 
 async function writeAttachmentFile({ kind, token, fileName, bytes, extension = 'pdf' }) {
   const folder = KIND_FOLDER[kind] || 'Anexos';
-  const dir = path.join(env.uploadDir, 'Equipamentos', folder);
-  await fs.mkdir(dir, { recursive: true });
-  const baseName = safePath(path.basename(fileName, path.extname(fileName))) || 'anexo';
-  const targetName = `${baseName}-${token}.${extension}`;
-  const targetPath = path.join(dir, targetName);
-  await fs.writeFile(targetPath, bytes, { flag: 'wx' });
-  return path.relative(env.uploadDir, targetPath).split(path.sep).join('/');
+  return writeManagedDocumentFile({
+    rootDir: env.uploadDir,
+    folderParts: ['Equipamentos', folder],
+    token,
+    fileName,
+    bytes,
+    extension
+  });
 }
 
 // Valida uma foto enviada como dataURL de imagem (PNG/JPG/WEBP).
@@ -255,16 +253,8 @@ export async function removeEquipmentAttachments(client, equipmentId, kind, opti
   if (!rows.length) return 0;
   await client.equipmentAttachment.deleteMany({ where: { equipmentId, kind, id: { in: rows.map(row => row.id) } } });
   for (const row of rows) {
-    if (!row.storagePath || !row.storagePath.startsWith('Equipamentos/')) continue;
-    const targetPath = path.resolve(env.uploadDir, row.storagePath.split('/').join(path.sep));
-    const root = path.resolve(env.uploadDir);
-    const relative = path.relative(root, targetPath);
-    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) continue;
-    try {
-      await fs.unlink(targetPath);
-    } catch {
-      // Arquivo já ausente — ignora.
-    }
+    // eslint-disable-next-line no-await-in-loop
+    await unlinkManagedDocumentFile(row.storagePath, { rootDir: env.uploadDir, requiredPrefix: 'Equipamentos/' });
   }
   return rows.length;
 }
@@ -279,16 +269,8 @@ export async function removeEquipmentAttachmentsByIds(client, equipmentId, ids) 
   if (!rows.length) return 0;
   await client.equipmentAttachment.deleteMany({ where: { id: { in: rows.map(r => r.id) } } });
   for (const row of rows) {
-    if (!row.storagePath || !row.storagePath.startsWith('Equipamentos/')) continue;
-    const targetPath = path.resolve(env.uploadDir, row.storagePath.split('/').join(path.sep));
-    const root = path.resolve(env.uploadDir);
-    const relative = path.relative(root, targetPath);
-    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) continue;
-    try {
-      await fs.unlink(targetPath);
-    } catch {
-      // Arquivo já ausente — ignora.
-    }
+    // eslint-disable-next-line no-await-in-loop
+    await unlinkManagedDocumentFile(row.storagePath, { rootDir: env.uploadDir, requiredPrefix: 'Equipamentos/' });
   }
   return rows.length;
 }
@@ -318,16 +300,11 @@ export async function resolvePublicEquipmentAttachment(token) {
   });
   if (!attachment) return null;
 
-  const targetPath = path.resolve(env.uploadDir, attachment.storagePath.split('/').join(path.sep));
-  const root = path.resolve(env.uploadDir);
-  const relative = path.relative(root, targetPath);
-  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return null;
-  if (!fsSync.existsSync(targetPath) || !fsSync.statSync(targetPath).isFile()) return null;
+  const targetPath = resolveManagedDocumentPath(attachment.storagePath, {
+    rootDir: env.uploadDir
+  });
+  if (!targetPath) return null;
   return { attachment, targetPath };
-}
-
-function attachmentEquipmentAttrs(equipment) {
-  return equipment && typeof equipment.attributes === 'object' && equipment.attributes ? equipment.attributes : {};
 }
 
 // Nome do arquivo no download, conforme padrão pedido:
@@ -345,7 +322,7 @@ export function equipmentAttachmentFileName(attachment) {
   const equipment = attachment?.equipment || {};
   const code = String(equipment.code || '').trim();
   const name = String(equipment.name || '').trim();
-  const serial = String(attachmentEquipmentAttrs(equipment).serialNumber || '').trim();
+  const serial = equipmentSerialNumber(equipment);
   const isDatasheet = attachment?.kind === EquipmentAttachmentKinds.TECHNICAL_DOC
     || attachment?.kind === EquipmentAttachmentKinds.TECHNICAL_DOC_GENERATED;
   const parts = isDatasheet
@@ -357,9 +334,5 @@ export function equipmentAttachmentFileName(attachment) {
 
 // Content-Disposition "inline" (abre no navegador) preservando o nome no salvar.
 export function inlineContentDisposition(fileName) {
-  const ascii = String(fileName)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^A-Za-z0-9 ._\-]/g, '_');
-  return `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+  return commonInlineContentDisposition(fileName);
 }

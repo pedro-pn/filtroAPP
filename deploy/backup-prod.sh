@@ -3,6 +3,12 @@ set -euo pipefail
 
 TELEGRAM_TOKEN="${TELEGRAM_TOKEN:-}"
 TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-}"
+BACKUP_STARTED_AT="$(date -Iseconds)"
+RUN_DIR=""
+UPLOAD_SUCCEEDED=false
+
+PATH="/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+export PATH
 
 notify_failure() {
   local exit_code="$?"
@@ -10,6 +16,7 @@ notify_failure() {
   local cmd="${BASH_COMMAND}"
 
   echo "[backup] failed with exit code $exit_code at line $line_no: $cmd" >&2
+  write_backup_status "FAILURE" "$exit_code" "$line_no" || true
 
   if [ -n "$TELEGRAM_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
     local host
@@ -34,8 +41,6 @@ Exit code: $exit_code"
   exit "$exit_code"
 }
 
-trap notify_failure ERR
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${PROJECT_DIR:-$(dirname "$SCRIPT_DIR")}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
@@ -46,10 +51,73 @@ REPORTS_VOLUME="${REPORTS_VOLUME:-filtrovali_relatorios}"
 CERTS_VOLUME="${CERTS_VOLUME:-filtrovali_certs}"
 BACKUP_ROOT="${BACKUP_ROOT:-/root/backups/filtrovali}"
 BACKUP_LOCK_FILE="${BACKUP_LOCK_FILE:-$BACKUP_ROOT/backup-prod.lock}"
+BACKUP_STATUS_FILE="${BACKUP_STATUS_FILE:-$BACKUP_ROOT/status/backup-latest.json}"
 BACKUP_LOCK_TIMEOUT_SECONDS="${BACKUP_LOCK_TIMEOUT_SECONDS:-0}"
 INCLUDE_CERTS="${INCLUDE_CERTS:-true}"
 INCLUDE_REPORTS="${INCLUDE_REPORTS:-true}"
-AWS_S3_URI="${AWS_S3_URI:-}"
+B2_URI="${B2_URI:-}"
+B2_BIN="${B2_BIN:-b2}"
+LOCAL_BACKUP_KEEP="${LOCAL_BACKUP_KEEP:-}"
+
+write_backup_status() {
+  local status="$1"
+  local exit_code="${2:-0}"
+  local line_no="${3:-0}"
+  local finished_at
+  finished_at="$(date -Iseconds)"
+  mkdir -p "$(dirname "$BACKUP_STATUS_FILE")"
+  cat > "${BACKUP_STATUS_FILE}.tmp" <<EOF
+{
+  "kind": "backup",
+  "status": "$status",
+  "startedAt": "$BACKUP_STARTED_AT",
+  "finishedAt": "$finished_at",
+  "backupRoot": "$BACKUP_ROOT",
+  "runDir": "$RUN_DIR",
+  "includeReports": $INCLUDE_REPORTS,
+  "includeCerts": $INCLUDE_CERTS,
+  "b2Configured": $(if [ -n "$B2_URI" ]; then echo true; else echo false; fi),
+  "uploadSucceeded": $UPLOAD_SUCCEEDED,
+  "exitCode": $exit_code,
+  "line": $line_no
+}
+EOF
+  mv "${BACKUP_STATUS_FILE}.tmp" "$BACKUP_STATUS_FILE"
+}
+
+prune_local_backups() {
+  local backup_root="$1"
+  local keep="$2"
+
+  if ! [[ "$keep" =~ ^[1-9][0-9]*$ ]]; then
+    echo "[backup] LOCAL_BACKUP_KEEP must be a positive integer; got '$keep'" >&2
+    return 1
+  fi
+
+  local backups=()
+  mapfile -t backups < <(find "$backup_root" -mindepth 1 -maxdepth 1 -type d -name "20*" -printf "%f\n" | sort -r)
+
+  local total="${#backups[@]}"
+  if [ "$total" -le "$keep" ]; then
+    echo "[backup] local retention: $total backup(s) found; keeping up to $keep"
+    return 0
+  fi
+
+  echo "[backup] local retention: keeping newest $keep backup(s), deleting $((total - keep)) old backup(s)"
+
+  local index=0
+  local backup_name
+  for backup_name in "${backups[@]}"; do
+    index=$((index + 1))
+    if [ "$index" -le "$keep" ]; then
+      continue
+    fi
+
+    rm -rf "$backup_root/$backup_name"
+  done
+}
+
+trap notify_failure ERR
 
 mkdir -p "$BACKUP_ROOT"
 
@@ -94,23 +162,25 @@ LATEST_LINK="$BACKUP_ROOT/latest"
 rm -f "$LATEST_LINK"
 ln -s "$RUN_DIR" "$LATEST_LINK"
 
-UPLOAD_SUCCEEDED=false
-
-if [ -n "$AWS_S3_URI" ]; then
-  if command -v aws >/dev/null 2>&1; then
-    echo "[backup] uploading to $AWS_S3_URI/$TIMESTAMP"
-    aws s3 cp "$RUN_DIR" "$AWS_S3_URI/$TIMESTAMP" --recursive
+if [ -n "$B2_URI" ]; then
+  if command -v "$B2_BIN" >/dev/null 2>&1; then
+    B2_DEST="${B2_URI%/}/$TIMESTAMP"
+    echo "[backup] uploading to $B2_DEST"
+    "$B2_BIN" sync "$RUN_DIR" "$B2_DEST"
     UPLOAD_SUCCEEDED=true
   else
-    echo "[backup] aws cli not found, skipping S3 upload" >&2
+    echo "[backup] b2 command not found, skipping Backblaze B2 upload" >&2
   fi
 fi
 
-if [ "$UPLOAD_SUCCEEDED" = "true" ]; then
+if [ -n "$LOCAL_BACKUP_KEEP" ]; then
+  prune_local_backups "$BACKUP_ROOT" "$LOCAL_BACKUP_KEEP"
+elif [ "$UPLOAD_SUCCEEDED" = "true" ]; then
   echo "[backup] removing local backups except latest"
   find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -name "20*" ! -path "$RUN_DIR" -exec rm -rf {} +
 else
-  echo "[backup] keeping local backups because S3 upload did not complete"
+  echo "[backup] keeping local backups because remote upload did not complete"
 fi
 
 echo "[backup] done: $RUN_DIR"
+write_backup_status "SUCCESS" 0 0 || true

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import prisma from './prisma.js';
+import { equipmentSerialNumber } from './equipment-attributes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -192,8 +193,7 @@ async function readFileCatalogRows() {
 // Apenas categorias com syncToRomaneio=true entram no catálogo.
 function buildEquipmentCatalogRows(equipmentList) {
   return equipmentList.map(item => {
-    const attributes = item.attributes && typeof item.attributes === 'object' ? item.attributes : {};
-    const serial = attributes.serialNumber || '';
+    const serial = equipmentSerialNumber(item);
     return {
       sourceType: 'EQUIPAMENTOS',
       sourceId: item.id,

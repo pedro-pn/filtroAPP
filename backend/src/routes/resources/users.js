@@ -16,6 +16,8 @@ import {
   moduleRoleRows,
   normalizePublicModuleRoles,
   prismaModuleRole,
+  publicModuleRolesForAccountType,
+  requiredLegacyRoleForPublicModuleRole,
   serializeModuleRoles
 } from '../../lib/module-roles.js';
 import { hashPassword } from '../../lib/password.js';
@@ -48,35 +50,6 @@ function clientCnpjForAccount(username, accountType) {
   return cnpj.length === 14 ? cnpj : null;
 }
 
-const ACCOUNT_MODULE_ROLE_COMPATIBILITY = {
-  [AccountType.ADMIN]: new Set([
-    'rdo:manager',
-    'romaneio:manager',
-    'romaneio:operator',
-    'epi:technician',
-    'epi:collaborator',
-    'privacy:admin',
-    'equipamentos:manager',
-    'equipamentos:viewer',
-    'acompanhamento:manager',
-    'acompanhamento:viewer'
-  ]),
-  [AccountType.INTERNAL]: new Set([
-    'rdo:coordinator',
-    'rdo:collaborator',
-    'romaneio:manager',
-    'romaneio:operator',
-    'epi:technician',
-    'epi:collaborator',
-    'privacy:admin',
-    'equipamentos:manager',
-    'equipamentos:viewer',
-    'acompanhamento:manager',
-    'acompanhamento:viewer'
-  ]),
-  [AccountType.CLIENT]: new Set(['rdo:client'])
-};
-
 function assertRoleAccountCompatibility(accountType, role, moduleRoles) {
   if (accountType === AccountType.ADMIN && role !== UserRole.MANAGER) {
     const error = new Error('Contas ADMIN devem usar role legado MANAGER.');
@@ -94,7 +67,7 @@ function assertRoleAccountCompatibility(accountType, role, moduleRoles) {
     throw error;
   }
 
-  const allowedRoles = ACCOUNT_MODULE_ROLE_COMPATIBILITY[accountType] || new Set();
+  const allowedRoles = new Set(publicModuleRolesForAccountType(accountType));
   const incompatibleRole = moduleRoles.find(moduleRole => !allowedRoles.has(moduleRole));
   if (incompatibleRole) {
     const error = new Error(`Role de módulo ${incompatibleRole} incompatível com conta ${accountType}.`);
@@ -102,14 +75,10 @@ function assertRoleAccountCompatibility(accountType, role, moduleRoles) {
     throw error;
   }
 
-  if (accountType === AccountType.INTERNAL) {
-    if (moduleRoles.includes('rdo:coordinator') && role !== UserRole.COORDINATOR) {
-      const error = new Error('Role de módulo rdo:coordinator exige role legado COORDINATOR.');
-      error.status = 400;
-      throw error;
-    }
-    if (moduleRoles.includes('rdo:collaborator') && role !== UserRole.COLLABORATOR) {
-      const error = new Error('Role de módulo rdo:collaborator exige role legado COLLABORATOR.');
+  for (const moduleRole of moduleRoles) {
+    const requiredLegacyRole = requiredLegacyRoleForPublicModuleRole(moduleRole);
+    if (requiredLegacyRole && role !== requiredLegacyRole) {
+      const error = new Error(`Role de módulo ${moduleRole} exige role legado ${requiredLegacyRole}.`);
       error.status = 400;
       throw error;
     }

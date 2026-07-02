@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { getCostProfiles, saveCostParams, simulateCost, type CostParams, type CostResult } from '../../api/acompanhamentoCusto';
-import { useToast } from '../ui/Toast';
+import { useToast } from '../ui/ToastContext';
 
 const PARAM_FIELDS: Array<[string, string]> = [
   ['salarioBase', 'Salário base (R$)'],

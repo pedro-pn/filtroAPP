@@ -1,20 +1,9 @@
 import { hubModulesForUser } from '../pages/hubModules';
+import { modulePathExclusions, modulePathPrefixes, moduleRegistry, type AppModuleId } from '../modules/registry';
 import type { AuthUser } from '../types/auth';
-
-export type AppModuleId = 'rdo' | 'admin' | 'romaneio' | 'epi' | 'equipamentos' | 'privacy';
 
 const LAST_MODULE_KEY_PREFIX = 'filtrovali:last-module:';
 const HUB_FIRST_LOGIN_TUTORIAL_KEY_PREFIX = 'filtrovali:hub-first-login-tutorial:';
-const LEGACY_RDO_PATHS = [
-  '/home',
-  '/andamento',
-  '/meus-relatorios',
-  '/relatorio',
-  '/relatorios',
-  '/gestor',
-  '/coordenador',
-  '/cliente'
-];
 
 function storageKey(user: Pick<AuthUser, 'id'>) {
   return `${LAST_MODULE_KEY_PREFIX}${user.id}`;
@@ -44,6 +33,10 @@ function isClientAccount(user: Pick<AuthUser, 'accountType' | 'role'> | null | u
   return user?.accountType === 'CLIENT' || user?.role === 'CLIENT';
 }
 
+function pathMatchesPrefix(path: string, prefix: string) {
+  return path === prefix || path.startsWith(`${prefix}/`);
+}
+
 export function availableHubModulesForUser(user: AuthUser | null | undefined) {
   return hubModulesForUser(user).filter(module => module.path && !module.disabled);
 }
@@ -65,14 +58,10 @@ export function shouldOpenHubOnFirstLogin(user: AuthUser | null | undefined) {
 
 export function moduleIdFromPath(pathname: string): AppModuleId | null {
   const path = pathname || '/';
-  if (path === '/epi/assinar' || path.startsWith('/epi/assinar/')) return null;
-  if (path === '/rdo' || path.startsWith('/rdo/')) return 'rdo';
-  if (path === '/admin' || path.startsWith('/admin/')) return 'admin';
-  if (path === '/privacidade/solicitacoes' || path.startsWith('/privacidade/solicitacoes/')) return 'privacy';
-  if (path === '/romaneio' || path.startsWith('/romaneio/')) return 'romaneio';
-  if (path === '/epi' || path.startsWith('/epi/')) return 'epi';
-  if (path === '/equipamentos' || path.startsWith('/equipamentos/')) return 'equipamentos';
-  if (LEGACY_RDO_PATHS.some(prefix => path === prefix || path.startsWith(`${prefix}/`))) return 'rdo';
+  for (const module of moduleRegistry) {
+    if (modulePathExclusions(module.id).some(prefix => pathMatchesPrefix(path, prefix))) return null;
+    if (modulePathPrefixes(module.id).some(prefix => pathMatchesPrefix(path, prefix))) return module.id;
+  }
   return null;
 }
 

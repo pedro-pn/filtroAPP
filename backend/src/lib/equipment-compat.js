@@ -10,6 +10,7 @@ import {
   UNIT_SYSTEMKEY_PREFIX,
   legacyUnitCategory
 } from './equipment-categories.js';
+import { equipmentSerialNumber } from './equipment-attributes.js';
 
 function attrs(item) {
   return item && typeof item.attributes === 'object' && item.attributes ? item.attributes : {};
@@ -70,7 +71,7 @@ export async function listParticleCountersCompat() {
   return items.map(item => ({
     id: item.id,
     code: item.code,
-    serialNumber: attrs(item).serialNumber || '',
+    serialNumber: equipmentSerialNumber(item),
     category: attrs(item).subCategory || item.category.name,
     calibratedAt: item.calibratedAt,
     expiresAt: item.expiresAt,
@@ -94,7 +95,7 @@ export async function listRdoEquipments() {
       code: item.code,
       name: item.name,
       categoryId: item.categoryId,
-      serialNumber: attributes.serialNumber || '',
+      serialNumber: equipmentSerialNumber(item),
       scale: attributes.scale || '',
       isActive: true
     };

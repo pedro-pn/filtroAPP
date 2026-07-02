@@ -40,7 +40,7 @@ import prisma from '../src/lib/prisma.js';
 
 const validSignatureImageDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
 
-test('manager approval waits for public signature link delivery', async () => {
+test('manager approval preflights signature delivery and enqueues post-processing', async () => {
   const source = await fs.readFile(new URL('../src/routes/resources/reports.js', import.meta.url), 'utf8');
   const statusRouteStart = source.indexOf("router.patch('/:id/status'");
   const statusRouteEnd = source.indexOf("router.post('/:id/request-signature'", statusRouteStart);
@@ -48,7 +48,10 @@ test('manager approval waits for public signature link delivery', async () => {
 
   assert.ok(statusRouteStart !== -1 && statusRouteEnd !== -1, 'status route must be located');
   assert.match(statusRoute, /await assertApprovedReportSignatureEmailPreflight/);
-  assert.match(statusRoute, /await ensureInternalSignatureRoundAndNotify/);
+  assert.match(statusRoute, /await enqueueReportApprovalPostProcessingJob/);
+  assert.match(statusRoute, /scheduleReportApprovalPostProcessing\(\)/);
+  assert.doesNotMatch(statusRoute, /await ensureInternalSignatureRoundAndNotify/);
+  assert.match(source, /await ensureInternalSignatureRoundAndNotify/);
   assert.doesNotMatch(statusRoute, /throwOnEmailFailure:\s*true/);
 });
 

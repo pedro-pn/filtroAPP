@@ -102,10 +102,13 @@ test('measurement catalog maps unit hints from the tracking JSON', () => {
   assert.equal(dimensionFromUnitHint('bar / kgf/cm² / psi'), 'pressao');
   assert.equal(dimensionFromUnitHint('L/min ou m³/h'), 'vazao');
   assert.equal(dimensionFromUnitHint('CV / kW / hp / W'), 'potencia');
+  assert.equal(dimensionFromUnitHint('CV / kW / kVA / hp / W'), 'potencia');
   assert.equal(dimensionFromUnitHint('rpm'), 'rotacao');
   assert.equal(dimensionFromUnitHint(null), null);
   assert.equal(defaultUnitFor('pressao'), 'bar');
+  assert.equal(normalizeUnit('potencia', 'kVA'), 'kVA');
   assert.equal(normalizeUnit('pressao', 'psi'), 'psi');
   assert.equal(normalizeUnit('pressao', 'xx'), 'bar');
+  assert.ok(measurementCatalog().find(d => d.key === 'potencia')?.units.includes('kVA'));
   assert.ok(measurementCatalog().length >= 13);
 });

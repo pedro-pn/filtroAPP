@@ -18,8 +18,10 @@ O arquivo `deploy/backup-prod.sh` faz:
 - compactação do volume `filtrovali_relatorios`
 - compactação do volume `filtrovali_certs`
 - checksum SHA256
-- envio opcional para S3
-- limpeza dos backups locais antigos quando o envio ao S3 termina com sucesso
+- envio opcional para Backblaze B2
+- limpeza dos backups locais antigos quando o envio remoto termina com sucesso
+- publicação de status operacional em JSON para o backend monitorar backup velho,
+  ausente ou com falha
 
 ## Uso no servidor
 
@@ -45,21 +47,153 @@ Por padrão ele usa:
 - `INCLUDE_REPORTS=true`
 - `INCLUDE_CERTS=true`
 - `BACKUP_LOCK_TIMEOUT_SECONDS=0`
+- `BACKUP_STATUS_FILE=/root/backups/filtrovali/status/backup-latest.json`
+- `LOCAL_BACKUP_KEEP` vazio, sem retenção local por quantidade
 - mantém localmente o backup mais recente em `latest`
 
 ## Variáveis opcionais
 
 ```bash
-AWS_S3_URI=s3://meu-bucket/filtrovali-backups
+B2_URI=b2://meu-bucket/filtrovali-backups
+B2_BIN=/root/.local/bin/b2
 INCLUDE_CERTS=false
 INCLUDE_REPORTS=true
 BACKUP_LOCK_TIMEOUT_SECONDS=0
+LOCAL_BACKUP_KEEP=5
+BACKUP_STATUS_FILE=/root/backups/filtrovali/status/backup-latest.json
 ```
+
+`B2_BIN` é opcional. Use apenas se o cron não encontrar o comando `b2`.
+
+`LOCAL_BACKUP_KEEP` limita quantos diretórios de backup com timestamp ficam em
+`BACKUP_ROOT`. Por exemplo, `LOCAL_BACKUP_KEEP=5` mantém os 5 backups locais
+mais recentes mesmo quando o upload para o Backblaze B2 está desativado.
 
 O script usa um lock em `$BACKUP_ROOT/backup-prod.lock` para impedir execuções
 simultâneas. Por padrão, se outro backup já estiver rodando, a nova execução é
 ignorada com sucesso. Para um backup que deve esperar outro terminar, defina
 `BACKUP_LOCK_TIMEOUT_SECONDS` com o tempo máximo de espera em segundos.
+
+## Status operacional do backup
+
+Ao final de cada backup, ou quando ocorre falha, o script atualiza um JSON em
+`BACKUP_STATUS_FILE`. Exemplo:
+
+```json
+{
+  "kind": "backup",
+  "status": "SUCCESS",
+  "startedAt": "2026-07-02T02:00:00-03:00",
+  "finishedAt": "2026-07-02T02:04:00-03:00",
+  "backupRoot": "/root/backups/filtrovali",
+  "runDir": "/root/backups/filtrovali/2026-07-02-020000",
+  "includeReports": true,
+  "includeCerts": true,
+  "b2Configured": true,
+  "uploadSucceeded": true,
+  "exitCode": 0,
+  "line": 0
+}
+```
+
+Para o endpoint administrativo `GET /api/operations/status` monitorar isso, monte
+o arquivo no container backend como leitura e configure:
+
+```env
+OPERATIONS_BACKUP_STATUS_FILE=/ops-status/backup-latest.json
+OPERATIONS_REQUIRE_BACKUP_STATUS=true
+OPERATIONS_BACKUP_MAX_AGE_HOURS=26
+```
+
+Se o arquivo estiver ausente, inválido, com `status=FAILURE` ou mais velho que
+`OPERATIONS_BACKUP_MAX_AGE_HOURS`, o status operacional passa a retornar problema.
+
+## Backblaze B2
+
+O script usa a CLI oficial `b2`, da Backblaze, e envia os arquivos para um
+caminho `b2://bucket/prefix`.
+
+1. Crie um bucket privado no Backblaze B2.
+2. Crie uma Application Key com acesso somente ao bucket de backup.
+3. Instale a CLI `b2` no servidor, se ainda não existir.
+4. Autorize a CLI `b2` com essas credenciais.
+
+```bash
+python3 -m pip install --upgrade b2
+```
+
+Se o cron roda como `root`, autorize como `root`:
+
+```bash
+sudo -H b2 account authorize
+```
+
+A CLI vai usar:
+
+- `applicationKeyId`: Key ID do Backblaze
+- `applicationKey`: Application Key do Backblaze
+
+Não use a Master Application Key da conta. Crie uma Application Key nova,
+restrita ao bucket de backup. Para operação simples de backup e teste de
+restore, use acesso `Read and Write`.
+
+Para evitar que as credenciais apareçam no histórico do shell, salve-as em
+arquivos protegidos e autorize usando variáveis de ambiente:
+
+```bash
+sudo install -d -m 700 /root/.config/newrdo-backup
+sudo editor /root/.config/newrdo-backup/b2.env
+sudo chmod 600 /root/.config/newrdo-backup/b2.env
+```
+
+```bash
+# /root/.config/newrdo-backup/b2.env
+export B2_APPLICATION_KEY_ID="<keyID-do-backblaze>"
+export B2_APPLICATION_KEY="<applicationKey-do-backblaze>"
+```
+
+```bash
+sudo -H bash -lc 'source /root/.config/newrdo-backup/b2.env && b2 account authorize'
+```
+
+Teste o acesso:
+
+```bash
+sudo -H b2 bucket list
+```
+
+Se o comando funcionar no terminal, mas o cron registrar
+`b2 command not found`, descubra o caminho absoluto e informe no cron:
+
+```bash
+command -v b2
+```
+
+Exemplo:
+
+```cron
+B2_BIN=/root/.local/bin/b2
+```
+
+Rode um backup manual:
+
+```bash
+B2_URI=b2://filtrovali-backups/daily \
+./deploy/backup-prod.sh
+```
+
+### Retenção automática no Backblaze
+
+Configure a expiração no painel do Backblaze, em Lifecycle Rules do bucket. Uma
+estratégia simples:
+
+- prefixo `hourly/`: deletar após 7 dias
+- prefixo `daily/`: deletar após 60 dias
+- prefixo `monthly/`: deletar após 365 dias
+
+Para os backups deste script, cada execução cria arquivos novos dentro de uma
+pasta com timestamp. Por isso a regra precisa expirar arquivos por idade do
+upload/prefixo, não apenas versões antigas do mesmo arquivo.
 
 ## Agendamento no cron
 
@@ -72,15 +206,15 @@ crontab -e
 ```cron
 # Horário — banco + relatórios + certificados
 # Evita a janela dos backups mensal/diário; se outro backup ainda estiver rodando, pula esta execução.
-0 0,3-23 * * * AWS_S3_URI=s3://filtrovali-backups/hourly INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=0 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
+0 0,3-23 * * * B2_URI=b2://filtrovali-backups/hourly INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=0 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
 
 # Diário às 02h — banco + relatórios + certificados
 # Espera até 2h se houver outro backup finalizando.
-0 2 * * * AWS_S3_URI=s3://filtrovali-backups/daily INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
+0 2 * * * B2_URI=b2://filtrovali-backups/daily INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
 
 # Mensal todo dia 1 às 01h — banco + relatórios + certificados
 # Espera até 2h se houver outro backup finalizando.
-0 1 1 * * AWS_S3_URI=s3://filtrovali-backups/monthly INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
+0 1 1 * * B2_URI=b2://filtrovali-backups/monthly INCLUDE_CERTS=true BACKUP_LOCK_TIMEOUT_SECONDS=7200 /root/apps/filtroAPP/deploy/backup-prod.sh >> /root/logs/backup-filtrovali.log 2>&1
 ```
 
 ## Restore do banco
@@ -110,6 +244,7 @@ O arquivo `deploy/restore-prod.sh` automatiza:
 - restore do banco
 - `prisma migrate deploy` em container one-off (aplica migrations versionadas)
 - subida de backend/nginx somente após banco, migrations e arquivos concluírem
+- publicação de status operacional em JSON para comprovar o último restore/teste
 
 Uso:
 
@@ -119,6 +254,16 @@ chmod +x deploy/restore-prod.sh
 
 ```bash
 BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 ./deploy/restore-prod.sh
+```
+
+Por padrão, o restore escreve status em
+`/root/backups/filtrovali/status/restore-latest.json`. Para o backend monitorar o
+último restore testado, monte esse arquivo no container e configure:
+
+```env
+OPERATIONS_RESTORE_STATUS_FILE=/ops-status/restore-latest.json
+OPERATIONS_REQUIRE_RESTORE_STATUS=true
+OPERATIONS_RESTORE_MAX_AGE_DAYS=30
 ```
 
 Sem restaurar certificados:
@@ -141,7 +286,7 @@ BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 RUN_MIGRATIONS=false ./
 
 ## Estratégia recomendada
 
-- Backup horário completo (banco + relatórios + certificados) com retenção curta no S3
+- Backup horário completo (banco + relatórios + certificados) com retenção curta no Backblaze B2
 - Backup diário completo com retenção longa
 - Snapshot periódico do disco EBS
 - Teste de restore pelo menos uma vez

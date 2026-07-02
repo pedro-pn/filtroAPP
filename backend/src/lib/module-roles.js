@@ -1,90 +1,59 @@
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const moduleRegistryData = require('../../../shared/modules/registry.json');
+
+const modules = moduleRegistryData.modules;
+const roleDefinitions = modules.flatMap(module => (
+  module.roles.map(role => ({
+    ...role,
+    moduleId: module.id,
+    prismaModule: module.prismaModule
+  }))
+));
+
+const roleByPrismaCode = new Map(roleDefinitions.map(role => [role.code, role]));
+const roleByPublicCode = new Map(roleDefinitions.map(role => [role.public, role]));
+
 export const AccountTypes = {
   ADMIN: 'ADMIN',
   INTERNAL: 'INTERNAL',
   CLIENT: 'CLIENT'
 };
 
-export const AppModules = {
-  RDO: 'RDO',
-  ROMANEIO: 'ROMANEIO',
-  EPI: 'EPI',
-  PRIVACY: 'PRIVACY',
-  EQUIPAMENTOS: 'EQUIPAMENTOS',
-  ACOMPANHAMENTO: 'ACOMPANHAMENTO'
-};
+export const AppModules = Object.freeze(Object.fromEntries(
+  modules
+    .filter(module => module.prismaModule)
+    .map(module => [module.prismaModule, module.prismaModule])
+));
 
-export const ModuleRoleCodes = {
-  RDO_MANAGER: 'RDO_MANAGER',
-  RDO_COORDINATOR: 'RDO_COORDINATOR',
-  RDO_COLLABORATOR: 'RDO_COLLABORATOR',
-  RDO_CLIENT: 'RDO_CLIENT',
-  ROMANEIO_MANAGER: 'ROMANEIO_MANAGER',
-  ROMANEIO_OPERATOR: 'ROMANEIO_OPERATOR',
-  EPI_TECHNICIAN: 'EPI_TECHNICIAN',
-  EPI_COLLABORATOR: 'EPI_COLLABORATOR',
-  PRIVACY_ADMIN: 'PRIVACY_ADMIN',
-  EQUIPAMENTOS_MANAGER: 'EQUIPAMENTOS_MANAGER',
-  EQUIPAMENTOS_VIEWER: 'EQUIPAMENTOS_VIEWER',
-  ACOMPANHAMENTO_MANAGER: 'ACOMPANHAMENTO_MANAGER',
-  ACOMPANHAMENTO_VIEWER: 'ACOMPANHAMENTO_VIEWER'
-};
+export const ModuleRoleCodes = Object.freeze(Object.fromEntries(
+  roleDefinitions.map(role => [role.code, role.code])
+));
 
-const LEGACY_ROLE_TO_ACCOUNT_TYPE = {
-  MANAGER: AccountTypes.ADMIN,
-  COORDINATOR: AccountTypes.INTERNAL,
-  COLLABORATOR: AccountTypes.INTERNAL,
-  CLIENT: AccountTypes.CLIENT
-};
-
-const LEGACY_ROLE_TO_MODULE_ROLE = {
-  MANAGER: ModuleRoleCodes.RDO_MANAGER,
-  COORDINATOR: ModuleRoleCodes.RDO_COORDINATOR,
-  COLLABORATOR: ModuleRoleCodes.RDO_COLLABORATOR,
-  CLIENT: ModuleRoleCodes.RDO_CLIENT
-};
-
-const MODULE_ROLE_TO_PUBLIC = {
-  [ModuleRoleCodes.RDO_MANAGER]: 'rdo:manager',
-  [ModuleRoleCodes.RDO_COORDINATOR]: 'rdo:coordinator',
-  [ModuleRoleCodes.RDO_COLLABORATOR]: 'rdo:collaborator',
-  [ModuleRoleCodes.RDO_CLIENT]: 'rdo:client',
-  [ModuleRoleCodes.ROMANEIO_MANAGER]: 'romaneio:manager',
-  [ModuleRoleCodes.ROMANEIO_OPERATOR]: 'romaneio:operator',
-  [ModuleRoleCodes.EPI_TECHNICIAN]: 'epi:technician',
-  [ModuleRoleCodes.EPI_COLLABORATOR]: 'epi:collaborator',
-  [ModuleRoleCodes.PRIVACY_ADMIN]: 'privacy:admin',
-  [ModuleRoleCodes.EQUIPAMENTOS_MANAGER]: 'equipamentos:manager',
-  [ModuleRoleCodes.EQUIPAMENTOS_VIEWER]: 'equipamentos:viewer',
-  [ModuleRoleCodes.ACOMPANHAMENTO_MANAGER]: 'acompanhamento:manager',
-  [ModuleRoleCodes.ACOMPANHAMENTO_VIEWER]: 'acompanhamento:viewer'
-};
-
-const PUBLIC_TO_MODULE_ROLE = Object.fromEntries(
-  Object.entries(MODULE_ROLE_TO_PUBLIC).map(([code, publicCode]) => [publicCode, code])
+const LEGACY_ROLE_TO_ACCOUNT_TYPE = Object.fromEntries(
+  Object.entries(moduleRegistryData.legacyRoleDefaults).map(([role, config]) => [role, config.accountType])
 );
 
-const MODULE_BY_ROLE = {
-  [ModuleRoleCodes.RDO_MANAGER]: AppModules.RDO,
-  [ModuleRoleCodes.RDO_COORDINATOR]: AppModules.RDO,
-  [ModuleRoleCodes.RDO_COLLABORATOR]: AppModules.RDO,
-  [ModuleRoleCodes.RDO_CLIENT]: AppModules.RDO,
-  [ModuleRoleCodes.ROMANEIO_MANAGER]: AppModules.ROMANEIO,
-  [ModuleRoleCodes.ROMANEIO_OPERATOR]: AppModules.ROMANEIO,
-  [ModuleRoleCodes.EPI_TECHNICIAN]: AppModules.EPI,
-  [ModuleRoleCodes.EPI_COLLABORATOR]: AppModules.EPI,
-  [ModuleRoleCodes.PRIVACY_ADMIN]: AppModules.PRIVACY,
-  [ModuleRoleCodes.EQUIPAMENTOS_MANAGER]: AppModules.EQUIPAMENTOS,
-  [ModuleRoleCodes.EQUIPAMENTOS_VIEWER]: AppModules.EQUIPAMENTOS,
-  [ModuleRoleCodes.ACOMPANHAMENTO_MANAGER]: AppModules.ACOMPANHAMENTO,
-  [ModuleRoleCodes.ACOMPANHAMENTO_VIEWER]: AppModules.ACOMPANHAMENTO
-};
+const LEGACY_ROLE_TO_PUBLIC_MODULE_ROLE = Object.fromEntries(
+  Object.entries(moduleRegistryData.legacyRoleDefaults).map(([role, config]) => [role, config.moduleRole])
+);
+
+const MODULE_ROLE_TO_PUBLIC = Object.fromEntries(
+  roleDefinitions.map(role => [role.code, role.public])
+);
+
+const PUBLIC_TO_MODULE_ROLE = Object.fromEntries(
+  roleDefinitions.map(role => [role.public, role.code])
+);
 
 export function accountTypeForLegacyRole(role) {
   return LEGACY_ROLE_TO_ACCOUNT_TYPE[role] || AccountTypes.INTERNAL;
 }
 
 export function moduleRoleForLegacyRole(role) {
-  return LEGACY_ROLE_TO_MODULE_ROLE[role] || ModuleRoleCodes.RDO_COLLABORATOR;
+  const publicRole = LEGACY_ROLE_TO_PUBLIC_MODULE_ROLE[role] || LEGACY_ROLE_TO_PUBLIC_MODULE_ROLE.COLLABORATOR;
+  return prismaModuleRole(publicRole) || ModuleRoleCodes.RDO_COLLABORATOR;
 }
 
 export function publicModuleRole(code) {
@@ -96,12 +65,43 @@ export function prismaModuleRole(publicCode) {
 }
 
 export function moduleForRole(role) {
-  return MODULE_BY_ROLE[role] || null;
+  return roleByPrismaCode.get(role)?.prismaModule || null;
 }
 
 export function defaultPublicModuleRolesForLegacyRole(role) {
   const moduleRole = publicModuleRole(moduleRoleForLegacyRole(role));
   return moduleRole ? [moduleRole] : [];
+}
+
+export function publicModuleRoleDefinitions() {
+  return roleDefinitions.map(role => ({
+    code: role.code,
+    public: role.public,
+    label: role.label,
+    moduleId: role.moduleId,
+    prismaModule: role.prismaModule,
+    accountTypes: [...role.accountTypes],
+    assignableAccountTypes: [...(role.assignableAccountTypes || role.accountTypes)],
+    requiredLegacyRole: role.requiredLegacyRole || null
+  }));
+}
+
+export function publicModuleRolesForAccountType(accountType) {
+  return roleDefinitions
+    .filter(role => role.accountTypes.includes(accountType))
+    .map(role => role.public);
+}
+
+export function publicModuleRolesForModule(moduleId, options = {}) {
+  const { includeClient = true } = options;
+  return roleDefinitions
+    .filter(role => role.moduleId === moduleId)
+    .filter(role => includeClient || !role.accountTypes.includes(AccountTypes.CLIENT))
+    .map(role => role.public);
+}
+
+export function requiredLegacyRoleForPublicModuleRole(publicCode) {
+  return roleByPublicCode.get(publicCode)?.requiredLegacyRole || null;
 }
 
 export function serializeModuleRoles(user) {

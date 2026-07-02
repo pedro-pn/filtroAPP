@@ -78,9 +78,14 @@ Isso remove o bloqueio principal que existia para o `P3`.
 
 1. Preencher `backend/.env.production` com segredos e URLs reais
    - Definir `TRUST_PROXY=uniquelocal` para a stack Docker com Nginx, ou CIDRs explícitos da rede/proxy confiável.
+   - Definir `SURVEY_TOKEN_SECRET` com um segredo longo e estável para tokens de pesquisa.
    - Definir `SIGNATURE_TOKEN_SECRET` com um segredo longo e estável para os links de assinatura de RDO.
    - Em upgrades de versões antigas, definir `SIGNATURE_TOKEN_SECRET_PREVIOUS` com a chave anterior. Se não havia `SURVEY_TOKEN_SECRET`, a chave anterior era o `DATABASE_URL`.
    - Em homologação/teste com banco de produção, definir `SEND_CLIENT_EMAILS=false` para bloquear todos os envios operacionais do sistema.
+   - Para observabilidade operacional, configurar `OPERATIONS_BACKUP_STATUS_FILE`,
+     `OPERATIONS_RESTORE_STATUS_FILE`, `OPERATIONS_REQUIRE_BACKUP_STATUS=true`,
+     `OPERATIONS_REQUIRE_RESTORE_STATUS=true`, `OPERATIONS_ALERT_WEBHOOK_URL` e
+     `ERROR_TRACKING_WEBHOOK_URL` quando esses recursos estiverem ativos.
 2. Garantir que o Compose receba `POSTGRES_PASSWORD`. Use `--env-file backend/.env.production` nos comandos abaixo ou mantenha um `.env` na raiz do projeto no servidor com essa variável.
 3. Buildar as imagens sem iniciar o backend. O comando de start do backend aplica
    migrations automaticamente, então ele não deve subir antes do preflight dos índices:
@@ -158,6 +163,47 @@ use:
 ```bash
 docker compose -f docker-compose.prod.yml exec backend npm run audit:report-files -- --fail-on-missing
 ```
+
+## Observabilidade operacional
+
+O backend expõe `GET /api/operations/status` para administradores. O endpoint
+mostra:
+
+- últimos jobs recorrentes e locks ativos;
+- fila de pós-processamento de aprovação;
+- retenção de dados;
+- último backup e último restore/teste, quando os arquivos de status estiverem
+  montados no container;
+- estado do rastreamento de erros e do job de alertas.
+
+Configuração recomendada em produção:
+
+```env
+OPERATIONS_BACKUP_STATUS_FILE=/ops-status/backup-latest.json
+OPERATIONS_RESTORE_STATUS_FILE=/ops-status/restore-latest.json
+OPERATIONS_REQUIRE_BACKUP_STATUS=true
+OPERATIONS_REQUIRE_RESTORE_STATUS=true
+OPERATIONS_BACKUP_MAX_AGE_HOURS=26
+OPERATIONS_RESTORE_MAX_AGE_DAYS=30
+OPERATIONS_ALERT_JOB_ENABLED=true
+OPERATIONS_ALERT_INTERVAL_MS=3600000
+OPERATIONS_ALERT_WEBHOOK_URL=https://seu-monitoramento.example/webhook
+ERROR_TRACKING_PROVIDER=webhook
+ERROR_TRACKING_WEBHOOK_URL=https://seu-monitoramento.example/errors
+```
+
+O frontend também pode enviar erros não tratados para o backend:
+
+```env
+VITE_ERROR_TRACKING_ENABLED=true
+```
+
+Se o endpoint padrão `/api/operations/client-errors` não for usado, defina
+`VITE_ERROR_TRACKING_ENDPOINT`.
+
+Os scripts `deploy/backup-prod.sh` e `deploy/restore-prod.sh` escrevem os arquivos
+de status. O compose/deploy deve montar o diretório desses arquivos no backend em
+modo somente leitura.
 
 ## Certificado
 

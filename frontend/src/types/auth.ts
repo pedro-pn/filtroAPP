@@ -1,19 +1,8 @@
+import type { PublicModuleRole } from '../modules/registry';
+
 export type UserRole = 'COLLABORATOR' | 'MANAGER' | 'COORDINATOR' | 'CLIENT';
 export type AccountType = 'ADMIN' | 'INTERNAL' | 'CLIENT';
-export type ModuleRole =
-  | 'rdo:manager'
-  | 'rdo:coordinator'
-  | 'rdo:collaborator'
-  | 'rdo:client'
-  | 'romaneio:manager'
-  | 'romaneio:operator'
-  | 'epi:technician'
-  | 'epi:collaborator'
-  | 'privacy:admin'
-  | 'equipamentos:manager'
-  | 'equipamentos:viewer'
-  | 'acompanhamento:manager'
-  | 'acompanhamento:viewer';
+export type ModuleRole = PublicModuleRole;
 
 export interface AuthUser {
   id: string;

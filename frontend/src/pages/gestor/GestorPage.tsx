@@ -2,9 +2,9 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-
 import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
-import { compareReportTypes, ProjectSortButton, sortProjects, sortReportsInGroup } from '../../utils/projectSort';
+import { compareReportTypes, sortProjects, sortReportsInGroup } from '../../utils/projectSort';
+import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { reportDownloadFileName } from '../../utils/reportFileName';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
@@ -25,7 +25,7 @@ import { SearchBar } from '../../components/ui/SearchBar';
 import { Modal } from '../../components/ui/Modal';
 import { ReasonDialog } from '../../components/ui/ReasonDialog';
 import { PdfDropzone } from '../../components/ui/PdfDropzone';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/ToastContext';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { ProjectRevisionPicker } from '../../components/projects/ProjectRevisionPicker';
 import { JobRoleManager } from '../../components/projects/JobRoleManager';

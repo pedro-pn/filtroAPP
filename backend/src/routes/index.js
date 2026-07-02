@@ -13,6 +13,7 @@ import equipmentRouter from './resources/equipment.js';
 import inhibitionOptionsRouter from './resources/inhibition-options.js';
 import jobRolesRouter from './resources/job-roles.js';
 import manometersRouter from './resources/manometers.js';
+import operationsRouter from './resources/operations.js';
 import projectSegmentsRouter from './resources/project-segments.js';
 import privacyRouter from './resources/privacy.js';
 import projectsRouter from './resources/projects.js';
@@ -23,6 +24,7 @@ import surveysRouter from './resources/surveys.js';
 import unitsRouter from './resources/units.js';
 import uploadsRouter from './resources/uploads.js';
 import usersRouter from './resources/users.js';
+// module:scaffold import
 
 const router = Router();
 
@@ -55,6 +57,8 @@ router.use('/epi', episRouter);
 router.use('/equipamentos', equipamentosRouter);
 router.use('/acompanhamento/comercial', acompanhamentoComercialRouter);
 router.use('/acompanhamento/custo', acompanhamentoCustoRouter);
+router.use('/operations', operationsRouter);
+// module:scaffold mount
 router.use('/admin/accounts', usersRouter);
 router.use('/users', usersRouter);
 mountRdoRoutes(router);

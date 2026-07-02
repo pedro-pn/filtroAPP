@@ -9,6 +9,7 @@ WORKDIR /workspace/backend
 COPY backend/package*.json ./
 RUN npm ci
 
+COPY backend/prisma.config.ts ./prisma.config.ts
 COPY backend/prisma ./prisma
 RUN npx prisma generate
 
@@ -16,6 +17,7 @@ COPY backend/src ./src
 COPY backend/scripts ./scripts
 COPY backend/data ./data
 COPY backend/assets ./assets
+COPY shared /workspace/shared
 RUN mkdir -p /data/assets && cp -R ./assets/. /data/assets/
 COPY Modelos /workspace/Modelos
 COPY equipamentos /workspace/equipamentos

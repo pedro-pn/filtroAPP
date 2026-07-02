@@ -223,6 +223,7 @@ export interface ReportSummary {
   createdAt: string;
   updatedAt: string;
   deletedAt?: string | null;
+  parentRdoStatus?: ReportStatus | null;
   project: Project;
   collaborators?: Array<{
     collaboratorId: string;

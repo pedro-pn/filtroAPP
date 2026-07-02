@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum ReportType {
@@ -382,6 +381,7 @@ model Report {
   versions        ReportVersion[]
   reportSignatures ReportSignature[]
   auditLogs       ReportAuditLog[]
+  approvalPostProcessingJobs ReportApprovalPostProcessingJob[]
 
   @@unique([projectId, reportType, sequenceNumber])
   @@index([projectId])
@@ -394,6 +394,26 @@ model Report {
   @@index([reportType, status, reportDate])
   @@index([projectId, reportType, status, reportDate])
   @@index([deletedAt])
+}
+
+model ReportApprovalPostProcessingJob {
+  id              String   @id @default(cuid())
+  reportId        String   @unique
+  status          String   @default("PENDING")
+  approvedTransition Boolean @default(false)
+  wasClientRejection Boolean @default(false)
+  reviewedByUserId String?
+  evidence        Json?
+  attempts        Int      @default(0)
+  lockedAt        DateTime?
+  completedAt     DateTime?
+  error           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  report          Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([status, lockedAt])
+  @@index([createdAt])
 }
 
 model ClientReportReview {
@@ -1003,6 +1023,23 @@ model AllocationReportDelivery {
   @@index([status])
 }
 
+model AllocationReportRecipientDelivery {
+  id        String    @id @default(cuid())
+  yearMonth String
+  email     String
+  status    String    @default("CLAIMED")
+  error     String?
+  sentAt    DateTime?
+  claimedAt DateTime  @default(now())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([yearMonth, email])
+  @@index([yearMonth])
+  @@index([status])
+  @@index([sentAt])
+}
+
 model ModuleRole {
   id        String         @id @default(uuid())
   userId    String
@@ -1029,6 +1066,35 @@ model DataRetentionRun {
 
   @@index([status, startedAt])
   @@index([startedAt])
+}
+
+model JobRun {
+  id         String    @id @default(cuid())
+  name       String
+  status     String    @default("RUNNING")
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+  metadata   Json?
+  result     Json?
+  error      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([name, startedAt])
+  @@index([name, status, startedAt])
+  @@index([status, startedAt])
+}
+
+model JobLock {
+  name      String   @id
+  owner     String
+  lockedAt  DateTime @default(now())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
 }
 
 model SatisfactionSurvey {

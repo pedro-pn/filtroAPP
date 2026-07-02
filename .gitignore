@@ -37,6 +37,7 @@ Testes manuais obrigatorios.md
 PLANEJAMENTO_*.md
 PLANO_*.md
 ANALISE_*.md
+DIAGNOSTICO_ARQUITETURA_MODULAR.md
 
 # Dados locais sensíveis (clientes/salários) — nunca versionar
 *.accdb

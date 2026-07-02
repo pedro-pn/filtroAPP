@@ -1,18 +1,49 @@
 import 'dotenv/config';
 import path from 'node:path';
+import { z } from 'zod';
 
-const reportsDir = process.env.REPORTS_DIR || process.env.UPLOAD_DIR || path.resolve(process.cwd(), 'Relatórios');
-const smtpPort = Number(process.env.SMTP_PORT || 587);
-const docxToPdfTimeoutMs = Number(process.env.DOCX_TO_PDF_TIMEOUT_MS || 60000);
-const databaseConnectionLimit = Number(process.env.DATABASE_CONNECTION_LIMIT || 0);
-const prismaSlowQueryMs = Number(process.env.PRISMA_SLOW_QUERY_MS || 0);
-const slowOperationLogMs = Number(process.env.SLOW_OPERATION_LOG_MS || 0);
-const resourceListCacheTtlMs = Number(process.env.RESOURCE_LIST_CACHE_TTL_MS ?? 60000);
-const dashboardCacheTtlMs = Number(process.env.DASHBOARD_CACHE_TTL_MS ?? 60000);
+function emptyToUndefined(value) {
+  if (value === undefined || value === null) return undefined;
+  const text = String(value).trim();
+  return text === '' ? undefined : text;
+}
 
-function parseBoolean(value, fallback = false) {
-  if (value === undefined || value === null || value === '') return fallback;
-  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+function requiredString(name) {
+  return z.preprocess(
+    emptyToUndefined,
+    z.string({
+      required_error: `${name} deve ser configurado.`,
+      invalid_type_error: `${name} deve ser texto.`
+    }).min(1, `${name} deve ser configurado.`)
+  );
+}
+
+function stringWithDefault(defaultValue = '') {
+  return z.preprocess(emptyToUndefined, z.string().default(defaultValue));
+}
+
+function integerWithDefault(name, defaultValue, { min, max } = {}) {
+  let schema = z.number({
+    invalid_type_error: `${name} deve ser numerico.`
+  }).int(`${name} deve ser inteiro.`);
+  if (min !== undefined) schema = schema.min(min, `${name} deve ser maior ou igual a ${min}.`);
+  if (max !== undefined) schema = schema.max(max, `${name} deve ser menor ou igual a ${max}.`);
+
+  return z.preprocess(value => {
+    const normalized = emptyToUndefined(value);
+    return normalized === undefined ? defaultValue : Number(normalized);
+  }, schema);
+}
+
+function booleanWithDefault(name, defaultValue) {
+  return z.preprocess(value => {
+    const normalized = emptyToUndefined(value);
+    if (normalized === undefined) return defaultValue;
+    const lower = String(normalized).toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(lower)) return true;
+    if (['0', 'false', 'no', 'off'].includes(lower)) return false;
+    return normalized;
+  }, z.boolean({ invalid_type_error: `${name} deve ser booleano (true/false).` }));
 }
 
 function parseOrigins(value) {
@@ -56,63 +87,176 @@ export function assertProductionSignatureTokenSecretConfigured({ nodeEnv, signat
   }
 }
 
-const nodeEnv = process.env.NODE_ENV || 'development';
-const trustProxyConfigured = process.env.TRUST_PROXY !== undefined && String(process.env.TRUST_PROXY).trim() !== '';
-const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
-const signatureTokenSecret = process.env.SIGNATURE_TOKEN_SECRET || '';
-assertProductionTrustProxyConfigured({ nodeEnv, trustProxyConfigured, trustProxy });
-assertProductionSignatureTokenSecretConfigured({ nodeEnv, signatureTokenSecret });
+export function assertProductionSurveyTokenSecretConfigured({ nodeEnv, surveyTokenSecret }) {
+  if (nodeEnv !== 'production') return;
+  if (!surveyTokenSecret) {
+    throw new Error('SURVEY_TOKEN_SECRET deve ser configurado explicitamente em produção.');
+  }
+}
 
-const env = {
-  port: Number(process.env.PORT || 4000),
-  databaseUrl: process.env.DATABASE_URL || '',
-  databaseConnectionLimit: Number.isInteger(databaseConnectionLimit) && databaseConnectionLimit > 0
-    ? databaseConnectionLimit
-    : 0,
-  resourceListCacheTtlMs: Number.isFinite(resourceListCacheTtlMs) && resourceListCacheTtlMs >= 0
-    ? resourceListCacheTtlMs
-    : 60000,
-  dashboardCacheTtlMs: Number.isFinite(dashboardCacheTtlMs) && dashboardCacheTtlMs >= 0
-    ? dashboardCacheTtlMs
-    : 60000,
-  assetsDir: process.env.ASSETS_DIR || path.resolve(process.cwd(), 'assets'),
-  reportsDir,
-  uploadDir: reportsDir,
-  appUrl: process.env.APP_URL || '',
-  allowedOrigin: process.env.ALLOWED_ORIGIN || '',
-  allowedOrigins: parseOrigins(process.env.ALLOWED_ORIGIN),
-  trustProxy,
-  trustProxyConfigured,
-  smtpHost: process.env.SMTP_HOST || '',
-  smtpPort: Number.isFinite(smtpPort) ? smtpPort : 587,
-  smtpSecure: parseBoolean(process.env.SMTP_SECURE, false),
-  smtpUser: process.env.SMTP_USER || '',
-  smtpPass: process.env.SMTP_PASS || '',
-  smtpFrom: process.env.SMTP_FROM || '',
-  smtpTestDest: process.env.SMTP_TEST_DEST || '',
-  sendClientEmails: parseBoolean(process.env.SEND_CLIENT_EMAILS, true),
-  privacyNotificationEmail: process.env.PRIVACY_NOTIFICATION_EMAIL || process.env.LGPD_NOTIFICATION_EMAIL || '',
-  zapsignApiToken: process.env.ZAPSIGN_API_TOKEN || '',
-  zapsignRefreshToken: process.env.ZAPSIGN_REFRESH_TOKEN || process.env.APSIGN_REFRESH_TOKEN || '',
-  zapsignUsername: process.env.ZAPSIGN_USERNAME || process.env.ZAPSIGN_LOGIN || process.env.ZAPSIGN_EMAIL || '',
-  zapsignPassword: process.env.ZAPSIGN_PASSWORD || process.env.ZAPSIGN_SENHA || '',
-  zapsignOrganizationId: process.env.ZAPSIGN_ORGANIZATION_ID || process.env.ZAPSIGN_ORG_ID || '',
-  surveyTokenSecret: process.env.SURVEY_TOKEN_SECRET || '',
-  signatureTokenSecret,
-  previousSignatureTokenSecrets: parseList(process.env.SIGNATURE_TOKEN_SECRET_PREVIOUS),
-  dataRetentionJobEnabled: parseBoolean(process.env.DATA_RETENTION_JOB_ENABLED, false),
-  commercialImportToken: process.env.COMMERCIAL_IMPORT_TOKEN || '',
-  omieAppKey: process.env.OMIE_APP_KEY || '',
-  omieAppSecret: process.env.OMIE_APP_SECRET || '',
-  omieSyncEnabled: parseBoolean(process.env.OMIE_SYNC_ENABLED, false),
-  omieSyncIntervalMinutes: Number(process.env.OMIE_SYNC_INTERVAL_MINUTES || 360),
-  omieSyncSinceDays: Number(process.env.OMIE_SYNC_SINCE_DAYS || 7),
-  zapsignApiBaseUrl: process.env.ZAPSIGN_API_BASE_URL || 'https://api.zapsign.com.br/api/v1',
-  libreOfficeBinary: process.env.LIBREOFFICE_BINARY || 'soffice',
-  docxToPdfTimeoutMs: Number.isFinite(docxToPdfTimeoutMs) && docxToPdfTimeoutMs > 0 ? docxToPdfTimeoutMs : 60000,
-  prismaSlowQueryMs: Number.isFinite(prismaSlowQueryMs) && prismaSlowQueryMs > 0 ? prismaSlowQueryMs : 0,
-  slowOperationLogMs: Number.isFinite(slowOperationLogMs) && slowOperationLogMs > 0 ? slowOperationLogMs : 0,
-  nodeEnv
-};
+const rawEnvSchema = z.object({
+  NODE_ENV: stringWithDefault('development'),
+  PORT: integerWithDefault('PORT', 4000, { min: 1, max: 65535 }),
+  DATABASE_URL: requiredString('DATABASE_URL'),
+  DATABASE_CONNECTION_LIMIT: integerWithDefault('DATABASE_CONNECTION_LIMIT', 0, { min: 0 }),
+  RESOURCE_LIST_CACHE_TTL_MS: integerWithDefault('RESOURCE_LIST_CACHE_TTL_MS', 60000, { min: 0 }),
+  DASHBOARD_CACHE_TTL_MS: integerWithDefault('DASHBOARD_CACHE_TTL_MS', 60000, { min: 0 }),
+  ASSETS_DIR: stringWithDefault(path.resolve(process.cwd(), 'assets')),
+  REPORTS_DIR: stringWithDefault(''),
+  UPLOAD_DIR: stringWithDefault(''),
+  APP_URL: stringWithDefault(''),
+  ALLOWED_ORIGIN: stringWithDefault(''),
+  TRUST_PROXY: z.preprocess(emptyToUndefined, z.string().optional()),
+  SMTP_HOST: stringWithDefault(''),
+  SMTP_PORT: integerWithDefault('SMTP_PORT', 587, { min: 1, max: 65535 }),
+  SMTP_SECURE: booleanWithDefault('SMTP_SECURE', false),
+  SMTP_USER: stringWithDefault(''),
+  SMTP_PASS: stringWithDefault(''),
+  SMTP_FROM: stringWithDefault(''),
+  SMTP_TEST_DEST: stringWithDefault(''),
+  SEND_CLIENT_EMAILS: booleanWithDefault('SEND_CLIENT_EMAILS', true),
+  PRIVACY_NOTIFICATION_EMAIL: stringWithDefault(''),
+  LGPD_NOTIFICATION_EMAIL: stringWithDefault(''),
+  ZAPSIGN_API_TOKEN: stringWithDefault(''),
+  ZAPSIGN_REFRESH_TOKEN: stringWithDefault(''),
+  APSIGN_REFRESH_TOKEN: stringWithDefault(''),
+  ZAPSIGN_USERNAME: stringWithDefault(''),
+  ZAPSIGN_LOGIN: stringWithDefault(''),
+  ZAPSIGN_EMAIL: stringWithDefault(''),
+  ZAPSIGN_PASSWORD: stringWithDefault(''),
+  ZAPSIGN_SENHA: stringWithDefault(''),
+  ZAPSIGN_ORGANIZATION_ID: stringWithDefault(''),
+  ZAPSIGN_ORG_ID: stringWithDefault(''),
+  SURVEY_TOKEN_SECRET: stringWithDefault(''),
+  SIGNATURE_TOKEN_SECRET: stringWithDefault(''),
+  SIGNATURE_TOKEN_SECRET_PREVIOUS: stringWithDefault(''),
+  DATA_RETENTION_JOB_ENABLED: booleanWithDefault('DATA_RETENTION_JOB_ENABLED', false),
+  ZAPSIGN_API_BASE_URL: stringWithDefault('https://api.zapsign.com.br/api/v1'),
+  LIBREOFFICE_BINARY: stringWithDefault('soffice'),
+  DOCX_TO_PDF_TIMEOUT_MS: integerWithDefault('DOCX_TO_PDF_TIMEOUT_MS', 60000, { min: 1 }),
+  PRISMA_SLOW_QUERY_MS: integerWithDefault('PRISMA_SLOW_QUERY_MS', 0, { min: 0 }),
+  SLOW_OPERATION_LOG_MS: integerWithDefault('SLOW_OPERATION_LOG_MS', 0, { min: 0 }),
+  OPERATIONS_BACKUP_STATUS_FILE: stringWithDefault(''),
+  OPERATIONS_RESTORE_STATUS_FILE: stringWithDefault(''),
+  OPERATIONS_REQUIRE_BACKUP_STATUS: booleanWithDefault('OPERATIONS_REQUIRE_BACKUP_STATUS', false),
+  OPERATIONS_REQUIRE_RESTORE_STATUS: booleanWithDefault('OPERATIONS_REQUIRE_RESTORE_STATUS', false),
+  OPERATIONS_BACKUP_MAX_AGE_HOURS: integerWithDefault('OPERATIONS_BACKUP_MAX_AGE_HOURS', 26, { min: 1 }),
+  OPERATIONS_RESTORE_MAX_AGE_DAYS: integerWithDefault('OPERATIONS_RESTORE_MAX_AGE_DAYS', 30, { min: 1 }),
+  OPERATIONS_ALERT_JOB_ENABLED: booleanWithDefault('OPERATIONS_ALERT_JOB_ENABLED', false),
+  OPERATIONS_ALERT_INTERVAL_MS: integerWithDefault('OPERATIONS_ALERT_INTERVAL_MS', 60 * 60 * 1000, { min: 60_000 }),
+  OPERATIONS_ALERT_WEBHOOK_URL: stringWithDefault(''),
+  ERROR_TRACKING_WEBHOOK_URL: stringWithDefault(''),
+  ERROR_TRACKING_PROVIDER: stringWithDefault('webhook'),
+  COMMERCIAL_IMPORT_TOKEN: stringWithDefault(''),
+  OMIE_APP_KEY: stringWithDefault(''),
+  OMIE_APP_SECRET: stringWithDefault(''),
+  OMIE_SYNC_ENABLED: booleanWithDefault('OMIE_SYNC_ENABLED', false),
+  OMIE_SYNC_INTERVAL_MINUTES: integerWithDefault('OMIE_SYNC_INTERVAL_MINUTES', 360, { min: 1 }),
+  OMIE_SYNC_SINCE_DAYS: integerWithDefault('OMIE_SYNC_SINCE_DAYS', 7, { min: 1 })
+}).passthrough().superRefine((value, ctx) => {
+  const trustProxyConfigured = value.TRUST_PROXY !== undefined && String(value.TRUST_PROXY).trim() !== '';
+  const trustProxy = parseTrustProxy(value.TRUST_PROXY);
+
+  for (const check of [
+    () => assertProductionTrustProxyConfigured({ nodeEnv: value.NODE_ENV, trustProxyConfigured, trustProxy }),
+    () => assertProductionSignatureTokenSecretConfigured({
+      nodeEnv: value.NODE_ENV,
+      signatureTokenSecret: value.SIGNATURE_TOKEN_SECRET
+    }),
+    () => assertProductionSurveyTokenSecretConfigured({
+      nodeEnv: value.NODE_ENV,
+      surveyTokenSecret: value.SURVEY_TOKEN_SECRET
+    })
+  ]) {
+    try {
+      check();
+    } catch (error) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+});
+
+function formatEnvIssues(error) {
+  return error.issues
+    .map(issue => {
+      const pathName = issue.path.length ? issue.path.join('.') : 'ambiente';
+      return `- ${pathName}: ${issue.message}`;
+    })
+    .join('\n');
+}
+
+export function loadEnv(source = process.env) {
+  const result = rawEnvSchema.safeParse(source);
+  if (!result.success) {
+    throw new Error(`Configuração de ambiente inválida:\n${formatEnvIssues(result.error)}`);
+  }
+
+  const raw = result.data;
+  const reportsDir = raw.REPORTS_DIR || raw.UPLOAD_DIR || path.resolve(process.cwd(), 'Relatórios');
+  const trustProxyConfigured = raw.TRUST_PROXY !== undefined && String(raw.TRUST_PROXY).trim() !== '';
+  const trustProxy = parseTrustProxy(raw.TRUST_PROXY);
+
+  return {
+    port: raw.PORT,
+    databaseUrl: raw.DATABASE_URL,
+    databaseConnectionLimit: raw.DATABASE_CONNECTION_LIMIT,
+    resourceListCacheTtlMs: raw.RESOURCE_LIST_CACHE_TTL_MS,
+    dashboardCacheTtlMs: raw.DASHBOARD_CACHE_TTL_MS,
+    assetsDir: raw.ASSETS_DIR,
+    reportsDir,
+    uploadDir: reportsDir,
+    appUrl: raw.APP_URL,
+    allowedOrigin: raw.ALLOWED_ORIGIN,
+    allowedOrigins: parseOrigins(raw.ALLOWED_ORIGIN),
+    trustProxy,
+    trustProxyConfigured,
+    smtpHost: raw.SMTP_HOST,
+    smtpPort: raw.SMTP_PORT,
+    smtpSecure: raw.SMTP_SECURE,
+    smtpUser: raw.SMTP_USER,
+    smtpPass: raw.SMTP_PASS,
+    smtpFrom: raw.SMTP_FROM,
+    smtpTestDest: raw.SMTP_TEST_DEST,
+    sendClientEmails: raw.SEND_CLIENT_EMAILS,
+    privacyNotificationEmail: raw.PRIVACY_NOTIFICATION_EMAIL || raw.LGPD_NOTIFICATION_EMAIL,
+    zapsignApiToken: raw.ZAPSIGN_API_TOKEN,
+    zapsignRefreshToken: raw.ZAPSIGN_REFRESH_TOKEN || raw.APSIGN_REFRESH_TOKEN,
+    zapsignUsername: raw.ZAPSIGN_USERNAME || raw.ZAPSIGN_LOGIN || raw.ZAPSIGN_EMAIL,
+    zapsignPassword: raw.ZAPSIGN_PASSWORD || raw.ZAPSIGN_SENHA,
+    zapsignOrganizationId: raw.ZAPSIGN_ORGANIZATION_ID || raw.ZAPSIGN_ORG_ID,
+    surveyTokenSecret: raw.SURVEY_TOKEN_SECRET,
+    signatureTokenSecret: raw.SIGNATURE_TOKEN_SECRET,
+    previousSignatureTokenSecrets: parseList(raw.SIGNATURE_TOKEN_SECRET_PREVIOUS),
+    dataRetentionJobEnabled: raw.DATA_RETENTION_JOB_ENABLED,
+    zapsignApiBaseUrl: raw.ZAPSIGN_API_BASE_URL,
+    libreOfficeBinary: raw.LIBREOFFICE_BINARY,
+    docxToPdfTimeoutMs: raw.DOCX_TO_PDF_TIMEOUT_MS,
+    prismaSlowQueryMs: raw.PRISMA_SLOW_QUERY_MS,
+    slowOperationLogMs: raw.SLOW_OPERATION_LOG_MS,
+    operationsBackupStatusFile: raw.OPERATIONS_BACKUP_STATUS_FILE,
+    operationsRestoreStatusFile: raw.OPERATIONS_RESTORE_STATUS_FILE,
+    operationsRequireBackupStatus: raw.OPERATIONS_REQUIRE_BACKUP_STATUS,
+    operationsRequireRestoreStatus: raw.OPERATIONS_REQUIRE_RESTORE_STATUS,
+    operationsBackupMaxAgeHours: raw.OPERATIONS_BACKUP_MAX_AGE_HOURS,
+    operationsRestoreMaxAgeDays: raw.OPERATIONS_RESTORE_MAX_AGE_DAYS,
+    operationsAlertJobEnabled: raw.OPERATIONS_ALERT_JOB_ENABLED,
+    operationsAlertIntervalMs: raw.OPERATIONS_ALERT_INTERVAL_MS,
+    operationsAlertWebhookUrl: raw.OPERATIONS_ALERT_WEBHOOK_URL,
+    errorTrackingWebhookUrl: raw.ERROR_TRACKING_WEBHOOK_URL,
+    errorTrackingProvider: raw.ERROR_TRACKING_PROVIDER,
+    commercialImportToken: raw.COMMERCIAL_IMPORT_TOKEN,
+    omieAppKey: raw.OMIE_APP_KEY,
+    omieAppSecret: raw.OMIE_APP_SECRET,
+    omieSyncEnabled: raw.OMIE_SYNC_ENABLED,
+    omieSyncIntervalMinutes: raw.OMIE_SYNC_INTERVAL_MINUTES,
+    omieSyncSinceDays: raw.OMIE_SYNC_SINCE_DAYS,
+    nodeEnv: raw.NODE_ENV
+  };
+}
+
+const env = loadEnv();
 
 export default env;

@@ -164,6 +164,8 @@ export interface SendAllocationReportResponse {
   skipped: boolean;
   reason?: string;
   sent: number;
+  skippedExisting?: number;
+  failed?: number;
   allocationCount?: number;
 }
 

@@ -1,7 +1,7 @@
 import asyncHandler from '../lib/async-handler.js';
 import { hashToken, publicUser } from '../lib/auth.js';
 import { trustedClientAccessScopeForUser } from '../lib/client-project-access.js';
-import { hasModuleRole } from '../lib/module-roles.js';
+import { AccountTypes, hasModuleRole, publicModuleRolesForAccountType, publicModuleRolesForModule } from '../lib/module-roles.js';
 import {
   CLIENT_PRIVACY_NOTICE_VERSION,
   clientPrivacyConsentRequired,
@@ -9,21 +9,15 @@ import {
 } from '../lib/privacy-consent.js';
 import prisma from '../lib/prisma.js';
 
-export const RDO_INTERNAL_ROLES = ['rdo:manager', 'rdo:coordinator', 'rdo:collaborator'];
-export const RDO_ACCESS_ROLES = [...RDO_INTERNAL_ROLES, 'rdo:client'];
-export const EQUIPAMENTOS_ACCESS_ROLES = ['equipamentos:manager', 'equipamentos:viewer'];
-export const ACOMPANHAMENTO_ACCESS_ROLES = ['acompanhamento:manager', 'acompanhamento:viewer'];
-export const INTERNAL_ACCOUNT_ROLES = [
-  ...RDO_INTERNAL_ROLES,
-  'romaneio:manager',
-  'romaneio:operator',
-  'epi:technician',
-  'epi:collaborator',
-  'privacy:admin',
-  ...EQUIPAMENTOS_ACCESS_ROLES,
-  ...ACOMPANHAMENTO_ACCESS_ROLES
-];
-export const ROMANEIO_ACCESS_ROLES = INTERNAL_ACCOUNT_ROLES;
+export const RDO_INTERNAL_ROLES = publicModuleRolesForModule('rdo', { includeClient: false });
+export const RDO_ACCESS_ROLES = publicModuleRolesForModule('rdo');
+export const EQUIPAMENTOS_ACCESS_ROLES = publicModuleRolesForModule('equipamentos');
+export const ACOMPANHAMENTO_ACCESS_ROLES = publicModuleRolesForModule('acompanhamento');
+export const INTERNAL_ACCOUNT_ROLES = Array.from(new Set([
+  ...publicModuleRolesForAccountType(AccountTypes.ADMIN),
+  ...publicModuleRolesForAccountType(AccountTypes.INTERNAL)
+]));
+export const ROMANEIO_ACCESS_ROLES = publicModuleRolesForModule('romaneio');
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));

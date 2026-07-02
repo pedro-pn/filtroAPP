@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { createJobRole, deactivateJobRole, listJobRoles, updateJobRole } from '../../api/jobRoles';
-import { useToast } from '../ui/Toast';
+import { useToast } from '../ui/ToastContext';
 
 // Administração da lista de cargos (JobRole). Permite adicionar, renomear e desativar/reativar.
 export function JobRoleManager() {

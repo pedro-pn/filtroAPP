@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { getProjectRevisions, setProjectRevision } from '../../api/acompanhamentoComercial';
-import { useToast } from '../ui/Toast';
+import { useToast } from '../ui/ToastContext';
 
 function formatBRL(value?: string | number | null) {
   if (value === null || value === undefined || value === '') return '—';

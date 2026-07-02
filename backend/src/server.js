@@ -5,13 +5,33 @@ import env from './config/env.js';
 import { startMonthlyAllocationReportJob } from './lib/allocation-monthly-report.js';
 import { startCalibrationReminderJob } from './lib/calibration-reminders.js';
 import { startDataRetentionJob } from './lib/data-retention.js';
+import { captureOperationalError } from './lib/operations/error-tracking.js';
+import { startOperationalAlertJob } from './lib/operations/alerts.js';
 import { syncRomaneioCatalog } from './lib/romaneio-catalog.js';
 import { startSignatureReminderJob } from './lib/signature-reminders.js';
 import { startSurveyReminderJob } from './lib/survey-reminders.js';
 import { startOmieSyncJob } from './lib/omie-sync.js';
 import { startLegacyZapSignReconciliationJob } from './lib/zapsign-legacy-reconciliation.js';
+import { startReportApprovalPostProcessingJob } from './lib/reports/jobs.js';
 
 const server = http.createServer(app);
+
+function reportProcessError(error, source) {
+  captureOperationalError(error, {
+    source,
+    context: { process: 'backend' }
+  }).catch(captureError => {
+    console.warn('Falha ao reportar erro operacional do processo.', captureError);
+  });
+}
+
+process.on('unhandledRejection', reason => {
+  reportProcessError(reason instanceof Error ? reason : new Error(String(reason)), 'backend.unhandledRejection');
+});
+
+process.on('uncaughtExceptionMonitor', error => {
+  reportProcessError(error, 'backend.uncaughtException');
+});
 
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
@@ -37,6 +57,8 @@ server.listen(env.port, () => {
   startMonthlyAllocationReportJob();
   startLegacyZapSignReconciliationJob();
   startOmieSyncJob();
+  startReportApprovalPostProcessingJob();
+  startOperationalAlertJob();
   syncRomaneioCatalog().catch(error => {
     console.error('Falha ao sincronizar catálogo de romaneio na inicialização.', error);
   });

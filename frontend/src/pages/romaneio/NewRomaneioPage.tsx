@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -25,7 +25,7 @@ import {
 
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
-import { useToast } from '../../components/ui/Toast';
+import { useToast } from '../../components/ui/ToastContext';
 import { Modal } from '../../components/ui/Modal';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { Shell } from '../../layout/Shell';
@@ -116,6 +116,16 @@ function returnItemsToSelectedItems(items: RomaneioReturnItem[]): SelectedItem[]
 
 function romaneioTypeLabel(type: RomaneioType) {
   return type === 'INBOUND' ? 'Entrada' : 'Saída';
+}
+
+function draftProjectDateKey(draft: { projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) {
+  const payload = draft.payload || {};
+  const draftProjectId = draft.projectId || (typeof payload.projectId === 'string' ? payload.projectId : '');
+  const draftProjectCode = typeof payload.projectCode === 'string' ? numericProjectCode(payload.projectCode) : '';
+  const draftReportDate = draft.reportDate || (typeof payload.reportDate === 'string' ? payload.reportDate : '');
+  const draftType = payload.romaneioType === 'INBOUND' ? 'INBOUND' : 'OUTBOUND';
+  const projectKey = draftProjectId || (draftProjectCode ? `code:${draftProjectCode}` : '');
+  return projectKey && draftReportDate ? `${draftType}|${projectKey}|${draftReportDate.slice(0, 10)}` : '';
 }
 
 export function NewRomaneioPage() {
@@ -310,28 +320,18 @@ export function NewRomaneioPage() {
     });
   }
 
-  function draftProjectDateKey(draft: { projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) {
-    const payload = draft.payload || {};
-    const draftProjectId = draft.projectId || (typeof payload.projectId === 'string' ? payload.projectId : '');
-    const draftProjectCode = typeof payload.projectCode === 'string' ? numericProjectCode(payload.projectCode) : '';
-    const draftReportDate = draft.reportDate || (typeof payload.reportDate === 'string' ? payload.reportDate : '');
-    const draftType = payload.romaneioType === 'INBOUND' ? 'INBOUND' : 'OUTBOUND';
-    const projectKey = draftProjectId || (draftProjectCode ? `code:${draftProjectCode}` : '');
-    return projectKey && draftReportDate ? `${draftType}|${projectKey}|${draftReportDate.slice(0, 10)}` : '';
-  }
-
-  function currentDraftKey() {
+  const currentDraftKey = useCallback(() => {
     const projectKey = projectId || (typedProjectCode ? `code:${typedProjectCode.toUpperCase()}` : '');
     return projectKey && romaneioDate ? `${romaneioType}|${projectKey}|${romaneioDate.slice(0, 10)}` : '';
-  }
+  }, [projectId, romaneioDate, romaneioType, typedProjectCode]);
 
-  function matchingDraftIds() {
+  const matchingDraftIds = useCallback(() => {
     const key = currentDraftKey();
     if (!key) return [];
     return (draftsQuery.data || []).filter(draft => draftProjectDateKey(draft) === key).map(draft => draft.id);
-  }
+  }, [currentDraftKey, draftsQuery.data]);
 
-  function buildDraftPayload(): RomaneioDraftPayload {
+  const buildDraftPayload = useCallback((): RomaneioDraftPayload => {
     return {
       projectId: projectId || null,
       projectCode: typedProjectCode || null,
@@ -356,9 +356,22 @@ export function NewRomaneioPage() {
         custom
       }
     };
-  }
+  }, [
+    cargoWeight,
+    cargoWeightUnit,
+    custom,
+    driverName,
+    projectId,
+    quantities,
+    romaneioDate,
+    romaneioType,
+    selectedItems,
+    selectedProject,
+    typedProjectCode,
+    vehiclePlate
+  ]);
 
-  function hydrateDraft(draft: { id: string; projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) {
+  const hydrateDraft = useCallback((draft: { id: string; projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) => {
     const payload = draft.payload || {};
     const nextProjectId = typeof payload.projectId === 'string' ? payload.projectId : draft.projectId || '';
     const nextProjectCode = typeof payload.projectCode === 'string' ? numericProjectCode(payload.projectCode) : '';
@@ -392,7 +405,7 @@ export function NewRomaneioPage() {
     ));
     const nextProjectKey = nextProjectId || (nextProjectCode.trim() ? `code:${nextProjectCode.trim().toUpperCase()}` : '');
     hydratedDraftKeyRef.current = nextProjectKey && nextDate ? `${nextType}|${nextProjectKey}|${nextDate.slice(0, 10)}` : '';
-  }
+  }, []);
 
   useEffect(() => {
     if (isEditing || !draftParam || !draftsQuery.data?.length) return;
@@ -401,7 +414,7 @@ export function NewRomaneioPage() {
     if (!draft) return;
     hydrateDraft(draft);
     showToast('Rascunho carregado.');
-  }, [isEditing, draftParam, draftsQuery.data, draftId]);
+  }, [isEditing, draftParam, draftsQuery.data, draftId, hydrateDraft, showToast]);
 
   useEffect(() => {
     const romaneio = editQuery.data;
@@ -454,7 +467,7 @@ export function NewRomaneioPage() {
 
     hydrateDraft(draft);
     showToast('Rascunho carregado.');
-  }, [isEditing, romaneioType, projectId, manualProjectCode, romaneioDate, draftsQuery.data, draftParam, draftId]);
+  }, [isEditing, romaneioType, projectId, manualProjectCode, romaneioDate, draftsQuery.data, draftParam, draftId, currentDraftKey, hydrateDraft, showToast]);
 
   useEffect(() => {
     if (isEditing) return;
@@ -510,6 +523,8 @@ export function NewRomaneioPage() {
     selectedProject,
     draftId,
     draftsQuery.data,
+    buildDraftPayload,
+    matchingDraftIds,
     queryClient,
     isEditing
   ]);

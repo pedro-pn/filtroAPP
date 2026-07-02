@@ -1,4 +1,9 @@
 {
+  "scripts": {
+    "architecture:check": "node scripts/architecture-check.mjs",
+    "modules:generate": "node scripts/generate-module-registry.mjs",
+    "new:module": "node scripts/new-module.mjs"
+  },
   "dependencies": {
     "codex": "^0.2.3"
   }
