@@ -85,16 +85,17 @@ export function ProjectCardsBoard() {
   const [selected, setSelected] = useState<string | null>(null);
   const { data, isLoading } = useQuery({ queryKey: ['project-cards'], queryFn: () => getProjectCards() });
 
-  if (selected) {
-    return <ProjectDetailDashboard projectId={selected} onBack={() => setSelected(null)} />;
-  }
-
   const cards = useMemo(() => {
     const term = search.trim().toLowerCase();
     const list = data ?? [];
     if (!term) return list;
     return list.filter(c => `${c.code} ${c.name} ${c.clientName}`.toLowerCase().includes(term));
   }, [data, search]);
+
+  // Todos os hooks acima; só então a troca para o dashboard do projeto (Rules of Hooks).
+  if (selected) {
+    return <ProjectDetailDashboard projectId={selected} onBack={() => setSelected(null)} />;
+  }
 
   if (isLoading) return <div className="page-card placeholder-copy">Carregando projetos…</div>;
 
