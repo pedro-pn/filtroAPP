@@ -982,6 +982,35 @@ model DataRetentionRun {
   @@index([startedAt])
 }
 
+model JobRun {
+  id         String    @id @default(cuid())
+  name       String
+  status     String    @default("RUNNING")
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+  metadata   Json?
+  result     Json?
+  error      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([name, startedAt])
+  @@index([name, status, startedAt])
+  @@index([status, startedAt])
+}
+
+model JobLock {
+  name      String   @id
+  owner     String
+  lockedAt  DateTime @default(now())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
+}
+
 model SatisfactionSurvey {
   id                 String    @id @default(cuid())
   projectId          String

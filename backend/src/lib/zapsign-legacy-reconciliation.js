@@ -1,6 +1,7 @@
 import { ClientReviewAction, ReportStatus, ReportType } from '@prisma/client';
 
 import prisma from './prisma.js';
+import { runTrackedJob } from './jobs/runner.js';
 import { getZapSignDocument } from './zapsign.js';
 
 const LEGACY_RECONCILIATION_INTERVAL_MS = 15 * 60 * 1000;
@@ -196,7 +197,10 @@ export function startLegacyZapSignReconciliationJob() {
   const run = () => {
     if (reconciliationInFlight) return;
     reconciliationInFlight = true;
-    processPendingLegacyZapSignReports()
+    runTrackedJob('legacy-zapsign-reconciliation', processPendingLegacyZapSignReports, {
+      lockTtlMs: LEGACY_RECONCILIATION_INTERVAL_MS * 2,
+      metadata: { intervalMs: LEGACY_RECONCILIATION_INTERVAL_MS }
+    })
       .catch(error => {
         console.error('Falha no job de reconciliação legada ZapSign.', error);
       })

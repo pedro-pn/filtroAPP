@@ -5,6 +5,7 @@ import {
 } from './email-templates.js';
 import { activeRecipientEmails, getEquipmentNotificationConfig } from './equipment-notifications.js';
 import { equipmentSerialNumber } from './equipment-attributes.js';
+import { runTrackedJob } from './jobs/runner.js';
 import { getMissingMailerConfig, outboundEmailsEnabled, sendMail } from './mailer.js';
 import prisma from './prisma.js';
 
@@ -335,11 +336,18 @@ export function isCalibrationReminderWindow(now = new Date(), timeZone = REMINDE
 export function startCalibrationReminderJob({
   processFn = processCalibrationReminders,
   nowFn = () => new Date(),
-  intervalMs = REMINDER_INTERVAL_MS
+  intervalMs = REMINDER_INTERVAL_MS,
+  track = processFn === processCalibrationReminders
 } = {}) {
   const run = () => {
     if (!isCalibrationReminderWindow(nowFn())) return;
-    Promise.resolve(processFn()).catch(error => {
+    const promise = track
+      ? runTrackedJob('calibration-reminders', () => processFn(), {
+        lockTtlMs: intervalMs * 2,
+        metadata: { intervalMs }
+      })
+      : Promise.resolve(processFn());
+    promise.catch(error => {
       console.error('Falha no job de lembretes de calibração.', error);
     });
   };
