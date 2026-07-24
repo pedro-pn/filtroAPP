@@ -1,0 +1,465 @@
+<title>Modelo — Painel de Operações · RDO</title>
+<style>
+  :root {
+    /* Marca — verde-floresta conquistado, sistematizado */
+    --pine-900: #14251b;
+    --pine-800: #1c3324;
+    --pine-700: #243d2c;
+    --forest:   #30503a;
+    --forest-600:#3d6449;
+    /* Aposta estética: teal "água filtrada" — único accent de interação/dado */
+    --water:    #0e8a8f;
+    --water-600:#0b7176;
+    --water-tint:#e2f1f1;
+    /* Neutros com viés verde (escolhidos, não default cinza) */
+    --canvas:   #f2f5f2;
+    --surface:  #ffffff;
+    --surface-2:#eef2ee;
+    --ink:      #15221b;
+    --muted:    #5c6c61;
+    --faint:    #8a988e;
+    --line:     #dce4dd;
+    --line-strong:#c6d1c8;
+    /* Sinais semânticos — separados do accent */
+    --ok:      #2f7d4f;   --ok-bg:#e6f3ec;
+    --warn:    #a86617;   --warn-bg:#fbefda;
+    --danger:  #b42318;   --danger-bg:#fbe9e7;
+    --info:    #11437e;   --info-bg:#e5edf6;
+
+    --r: 12px; --rs: 8px; --rx: 999px;
+    --shadow: 0 1px 2px rgba(20,30,22,.06), 0 8px 24px rgba(20,30,22,.06);
+    --shadow-lg: 0 12px 40px rgba(20,30,22,.14);
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", "Segoe UI Mono", Menlo, monospace;
+    --ui: "Segoe UI", system-ui, -apple-system, "Inter", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --pine-900:#0c1610; --pine-800:#12211a; --pine-700:#1a2c22;
+      --forest:#5f9273; --forest-600:#71a487;
+      --water:#2fbdc2; --water-600:#26a6ab; --water-tint:#12302f;
+      --canvas:#0d1511; --surface:#141f18; --surface-2:#1a271f;
+      --ink:#e7efe9; --muted:#9bab9f; --faint:#6f8175;
+      --line:#26362c; --line-strong:#334739;
+      --ok:#5ab984; --ok-bg:#132b1e; --warn:#d6a24a; --warn-bg:#2e2410;
+      --danger:#e08278; --danger-bg:#2e1512; --info:#7ba7db; --info-bg:#0f1f31;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="light"] {
+    --pine-900:#14251b; --pine-800:#1c3324; --pine-700:#243d2c;
+    --forest:#30503a; --forest-600:#3d6449;
+    --water:#0e8a8f; --water-600:#0b7176; --water-tint:#e2f1f1;
+    --canvas:#f2f5f2; --surface:#ffffff; --surface-2:#eef2ee;
+    --ink:#15221b; --muted:#5c6c61; --faint:#8a988e; --line:#dce4dd; --line-strong:#c6d1c8;
+    --ok:#2f7d4f; --ok-bg:#e6f3ec; --warn:#a86617; --warn-bg:#fbefda;
+    --danger:#b42318; --danger-bg:#fbe9e7; --info:#11437e; --info-bg:#e5edf6;
+    --shadow: 0 1px 2px rgba(20,30,22,.06), 0 8px 24px rgba(20,30,22,.06);
+    --shadow-lg: 0 12px 40px rgba(20,30,22,.14);
+  }
+  :root[data-theme="dark"] {
+    --pine-900:#0c1610; --pine-800:#12211a; --pine-700:#1a2c22;
+    --forest:#5f9273; --forest-600:#71a487;
+    --water:#2fbdc2; --water-600:#26a6ab; --water-tint:#12302f;
+    --canvas:#0d1511; --surface:#141f18; --surface-2:#1a271f;
+    --ink:#e7efe9; --muted:#9bab9f; --faint:#6f8175; --line:#26362c; --line-strong:#334739;
+    --ok:#5ab984; --ok-bg:#132b1e; --warn:#d6a24a; --warn-bg:#2e2410;
+    --danger:#e08278; --danger-bg:#2e1512; --info:#7ba7db; --info-bg:#0f1f31;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+    --shadow-lg: 0 12px 40px rgba(0,0,0,.5);
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--ui); font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  h1,h2,h3,h4 { margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+  .num { font-variant-numeric: tabular-nums; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  a { color: var(--water-600); text-decoration: none; }
+  button { font: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--water); outline-offset: 2px; border-radius: 4px; }
+
+  /* ---------- página de apresentação ---------- */
+  .wrap { max-width: 1360px; margin: 0 auto; padding: 28px 20px 72px; }
+  .pitch-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 22px; }
+  .pitch-head h1 { font-size: 30px; font-weight: 700; }
+  .pitch-head p { margin: 6px 0 0; color: var(--muted); max-width: 62ch; }
+  .toolbar-top { display: flex; gap: 8px; align-items: center; }
+  .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--rx); padding: 3px; gap: 2px; }
+  .seg button { border: 0; background: transparent; color: var(--muted); padding: 6px 14px; border-radius: var(--rx); font-weight: 600; font-size: 13px; }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+
+  /* ---------- CONSOLE SHELL ---------- */
+  .console { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-lg); overflow: hidden; display: grid; grid-template-columns: 236px 1fr; min-height: 720px; }
+  .frame-mobile .console { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; min-height: 720px; }
+
+  /* rail */
+  .rail { background: linear-gradient(180deg, var(--pine-800), var(--pine-900)); color: #dfe8e0; display: flex; flex-direction: column; padding: 16px 12px; gap: 4px; }
+  .rail-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 14px; }
+  .rail-mark { width: 34px; height: 34px; border-radius: 9px; background: var(--forest); display: grid; place-items: center; flex: 0 0 auto; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+  .rail-mark svg { width: 20px; height: 20px; }
+  .rail-brand b { font-size: 15px; color: #fff; letter-spacing: -.01em; }
+  .rail-brand span { display: block; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: #8fb39c; }
+  .rail-label { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #6f9080; padding: 14px 10px 6px; }
+  .rail-item { display: flex; align-items: center; gap: 11px; padding: 9px 10px; border-radius: var(--rs); color: #c4d3c8; font-weight: 500; border: 0; background: transparent; width: 100%; text-align: left; position: relative; }
+  .rail-item svg { width: 18px; height: 18px; flex: 0 0 auto; opacity: .85; }
+  .rail-item .count { margin-left: auto; font-size: 11px; font-weight: 700; color: #86a793; font-variant-numeric: tabular-nums; }
+  .rail-item:hover { background: rgba(255,255,255,.06); color: #eaf2ec; }
+  .rail-item.active { background: rgba(255,255,255,.08); color: #fff; }
+  .rail-item.active::before { content: ""; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--water); }
+  .rail-item.active .count { color: var(--water); }
+  .rail-foot { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px; border-top: 1px solid rgba(255,255,255,.08); }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--water-600); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 12px; flex: 0 0 auto; }
+  .rail-foot small { color: #a9c0b1; display: block; font-size: 11px; }
+  .rail-foot b { color: #eaf2ec; font-size: 13px; }
+
+  /* workspace */
+  .work { display: flex; flex-direction: column; min-width: 0; background: var(--canvas); }
+  .ctx { display: flex; align-items: center; gap: 16px; padding: 14px 22px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .crumb { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  .crumb b { color: var(--ink); font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+  .crumb svg { width: 15px; height: 15px; opacity: .5; }
+  .ctx-metrics { margin-left: auto; display: flex; gap: 8px; }
+  .kpi { padding: 6px 12px; border-radius: var(--rs); background: var(--surface-2); border: 1px solid var(--line); text-align: right; }
+  .kpi .eyebrow { font-size: 9.5px; letter-spacing: .1em; }
+  .kpi b { font-size: 18px; font-variant-numeric: tabular-nums; display: block; line-height: 1.1; }
+  .kpi.ok b { color: var(--ok); } .kpi.warn b { color: var(--warn); } .kpi.danger b { color: var(--danger); }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 22px; }
+  .search { flex: 1 1 260px; max-width: 380px; display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--rs); padding: 0 12px; height: 38px; }
+  .search svg { width: 16px; height: 16px; color: var(--faint); flex: 0 0 auto; }
+  .search input { border: 0; background: transparent; outline: none; color: var(--ink); width: 100%; font-size: 14px; }
+  .tabs { display: inline-flex; gap: 2px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--rx); padding: 3px; }
+  .tabs button { border: 0; background: transparent; color: var(--muted); padding: 6px 13px; border-radius: var(--rx); font-weight: 600; font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tabs button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+  .tabs button .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .btn { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 15px; border-radius: var(--rs); border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 600; font-size: 13px; }
+  .btn svg { width: 16px; height: 16px; }
+  .btn.primary { background: var(--forest); border-color: var(--forest); color: #fff; }
+  .btn.primary:hover { background: var(--forest-600); }
+  .btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+
+  /* content split: lista + painel lateral */
+  .split { display: grid; grid-template-columns: 1fr 312px; gap: 16px; padding: 4px 22px 24px; align-items: start; min-height: 0; }
+  .frame-mobile .split { grid-template-columns: 1fr; }
+  .frame-mobile .aside { display: none; }
+  .frame-mobile .ctx-metrics { display: none; }
+  .frame-mobile .rail { flex-direction: row; overflow-x: auto; padding: 8px; align-items: center; gap: 2px; }
+  .frame-mobile .rail-brand, .frame-mobile .rail-label, .frame-mobile .rail-foot, .frame-mobile .rail-item .count { display: none; }
+  .frame-mobile .rail-item { flex-direction: column; gap: 3px; font-size: 10px; padding: 6px 10px; min-width: 62px; }
+  .frame-mobile .rail-item.active::before { left: 8px; right: 8px; top: auto; bottom: -8px; width: auto; height: 3px; }
+  .frame-mobile .col-serv, .frame-mobile .col-sign, .frame-mobile .col-time { display: none; }
+
+  /* lista de relatórios */
+  .list-head, .row { display: grid; grid-template-columns: 42px 1.6fr 1.4fr 118px 120px 92px; align-items: center; gap: 12px; }
+  .frame-mobile .list-head, .frame-mobile .row { grid-template-columns: 40px 1fr 96px; }
+  .list-head { padding: 0 14px 8px; }
+  .list-head span { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .frame-mobile .list-head span.h-serv, .frame-mobile .list-head span.h-sign, .frame-mobile .list-head span.h-time { display: none; }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .row { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: var(--rs); padding: 12px 14px; transition: border-color .12s, box-shadow .12s, transform .12s; cursor: pointer; }
+  .row:hover { box-shadow: var(--shadow); border-color: var(--line-strong); transform: translateY(-1px); }
+  .row.sig-signed  { border-left-color: var(--ok); }
+  .row.sig-approved{ border-left-color: var(--info); }
+  .row.sig-pending { border-left-color: var(--warn); }
+  .row.sig-returned{ border-left-color: var(--danger); }
+  .type-badge { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: .02em; color: var(--forest); background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; height: 34px; display: grid; place-items: center; }
+  :root[data-theme="dark"] .type-badge, .rail .type-badge { color: var(--forest); }
+  .cell-title b { font-weight: 600; display: block; letter-spacing: -.005em; }
+  .cell-title .sub, .cell-serv, .cell-owner small { color: var(--muted); font-size: 12.5px; }
+  .cell-owner { display: flex; align-items: center; gap: 9px; }
+  .cell-owner .ini { width: 26px; height: 26px; border-radius: 50%; background: var(--water-tint); color: var(--water-600); display: grid; place-items: center; font-weight: 700; font-size: 10.5px; flex: 0 0 auto; }
+  .cell-owner b { font-weight: 600; font-size: 13px; }
+  .cell-time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12.5px; }
+  .cell-serv { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .frame-mobile .cell-title .sub-mobile { display: block; }
+  .sub-mobile { display: none; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  /* pill de status */
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: var(--rx); font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.signed  { color: var(--ok);     background: var(--ok-bg); }
+  .pill.approved{ color: var(--info);   background: var(--info-bg); }
+  .pill.pending { color: var(--warn);   background: var(--warn-bg); }
+  .pill.returned{ color: var(--danger); background: var(--danger-bg); }
+  .pill.edited  { color: var(--muted);  background: var(--surface-2); }
+
+  /* progresso de assinatura (segmentos) */
+  .sign { display: flex; align-items: center; gap: 7px; }
+  .sign-track { display: flex; gap: 3px; }
+  .sign-seg { width: 16px; height: 5px; border-radius: 3px; background: var(--line-strong); }
+  .sign-seg.done { background: var(--water); }
+  .sign small { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+  .note { grid-column: 1 / -1; margin-top: 10px; padding: 9px 12px; background: var(--danger-bg); border-radius: var(--rs); font-size: 12.5px; color: var(--ink); border: 1px solid transparent; }
+  .note b { color: var(--danger); }
+
+  /* painel lateral */
+  .aside { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+  .card h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; margin-bottom: 14px; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { padding: 11px 12px; border-radius: var(--rs); background: var(--surface-2); }
+  .stat b { font-size: 24px; font-variant-numeric: tabular-nums; display: block; line-height: 1; letter-spacing: -.02em; }
+  .stat span { font-size: 11.5px; color: var(--muted); display: flex; align-items: center; gap: 5px; margin-top: 5px; }
+  .stat span::before { content:""; width: 7px; height: 7px; border-radius: 50%; }
+  .stat.ok span::before { background: var(--ok); } .stat.info span::before { background: var(--info); }
+  .stat.warn span::before { background: var(--warn); } .stat.danger span::before { background: var(--danger); }
+
+  .spark-wrap { display: flex; align-items: flex-end; justify-content: space-between; gap: 4px; height: 68px; margin-top: 4px; }
+  .bar { flex: 1; background: linear-gradient(180deg, var(--water), var(--water-600)); border-radius: 3px 3px 0 0; opacity: .55; position: relative; }
+  .bar.peak { opacity: 1; }
+  .spark-x { display: flex; justify-content: space-between; margin-top: 6px; }
+  .spark-x span { font-size: 10px; color: var(--faint); flex: 1; text-align: center; }
+
+  .feed { display: flex; flex-direction: column; gap: 0; }
+  .feed-item { display: flex; gap: 11px; padding: 9px 0; border-top: 1px solid var(--line); }
+  .feed-item:first-child { border-top: 0; }
+  .feed-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex: 0 0 auto; background: var(--water); }
+  .feed-item.ok .feed-dot { background: var(--ok); } .feed-item.warn .feed-dot { background: var(--warn); }
+  .feed-item p { margin: 0; font-size: 12.5px; }
+  .feed-item time { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+
+  /* ---------- SPEC de tokens ---------- */
+  .spec { margin-top: 34px; }
+  .spec h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); margin-bottom: 16px; }
+  .spec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+  .swatch { border-radius: var(--rs); overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
+  .swatch .chip { height: 62px; display: flex; align-items: flex-end; padding: 8px 10px; color: #fff; font-size: 11px; font-weight: 600; font-family: var(--mono); }
+  .swatch .meta { padding: 9px 10px; }
+  .swatch .meta b { font-size: 12.5px; display: block; } .swatch .meta span { font-size: 11.5px; color: var(--muted); }
+  .type-row { display: flex; align-items: baseline; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .type-row span { width: 120px; font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: .08em; flex: 0 0 auto; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+  @media (max-width: 900px) {
+    .console { grid-template-columns: 1fr; }
+    .rail { flex-direction: row; overflow-x: auto; padding: 8px; align-items: center; }
+    .rail-brand, .rail-label, .rail-foot, .rail-item .count { display: none; }
+    .rail-item { flex-direction: column; gap: 3px; font-size: 10px; min-width: 62px; }
+    .rail-item.active::before { left: 8px; right: 8px; top: auto; bottom: -8px; width: auto; height: 3px; }
+    .split { grid-template-columns: 1fr; }
+    .aside { position: static; }
+    .list-head, .row { grid-template-columns: 40px 1fr 96px; }
+    .col-serv, .col-sign, .col-time, .h-serv, .h-sign, .h-time { display: none; }
+    .sub-mobile { display: block; }
+    .ctx-metrics { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="pitch-head">
+    <div>
+      <div class="eyebrow">Filtrovali · Reformulação de UI — modelo para validação</div>
+      <h1>Painel de Operações — módulo RDO</h1>
+      <p>O mesmo shell de console (rail + header de contexto + workspace) que Equipamentos já usa, agora aplicado ao módulo de Relatórios. Desktop ocupa a largura toda; o mobile continua em coluna única. Alterne abaixo para comparar.</p>
+    </div>
+    <div class="toolbar-top">
+      <div class="seg" role="group" aria-label="Dispositivo">
+        <button id="d-desk" aria-pressed="true" onclick="setFrame('desk')">Desktop</button>
+        <button id="d-mob" aria-pressed="false" onclick="setFrame('mob')">Mobile</button>
+      </div>
+      <div class="seg" role="group" aria-label="Tema">
+        <button id="t-light" aria-pressed="true" onclick="setTheme('light')">Claro</button>
+        <button id="t-dark" aria-pressed="false" onclick="setTheme('dark')">Escuro</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="frame" id="frame">
+    <div class="console">
+      <!-- RAIL -->
+      <nav class="rail" aria-label="Módulos">
+        <div class="rail-brand">
+          <span class="rail-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c3.5 4 6 6.5 6 9.5A6 6 0 0 1 6 12.5C6 9.5 8.5 7 12 3z"/></svg></span>
+          <div><b>Filtrovali</b><span>Operações</span></div>
+        </div>
+        <div class="rail-label">Módulos</div>
+        <button class="rail-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 5a3 3 0 0 1 6 0v1H9z"/><path d="M9 11h6"/><path d="M9 15h5"/></svg>Relatórios<span class="count">54</span></button>
+        <button class="rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>Equipamentos<span class="count">27</span></button>
+        <button class="rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5L12 3l9 4.5l-9 4.5z"/><path d="M3 7.5v9L12 21l9-4.5v-9"/></svg>Estoque<span class="count">8</span></button>
+        <button class="rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2l4-4"/><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1-8.5 15a12 12 0 0 1-8.5-15a12 12 0 0 0 8.5-3z"/></svg>EPI</button>
+        <button class="rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 1.5l2.7-.2l.8 2.6l2.2 1.6l-1 2.5l1 2.5l-2.2 1.6l-.8 2.6l-2.7-.2L12 20l-2.2-1.5l-2.7.2l-.8-2.6l-2.2-1.6l1-2.5l-1-2.5l2.2-1.6l.8-2.6l2.7.2z"/><path d="M8.7 12l2.1 2.1l4.5-4.6"/></svg>Qualidade</button>
+        <button class="rail-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l3-4l3 3l4-6"/></svg>Acompanhamento</button>
+        <div class="rail-foot">
+          <span class="avatar">AR</span>
+          <div><b>Ana Reis</b><small>Coordenação</small></div>
+        </div>
+      </nav>
+
+      <!-- WORKSPACE -->
+      <div class="work">
+        <div class="ctx">
+          <div class="crumb">
+            Operações <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6l-6 6"/></svg> <b>Relatórios</b>
+          </div>
+          <div class="ctx-metrics">
+            <div class="kpi warn"><div class="eyebrow">Pendentes</div><b class="num">6</b></div>
+            <div class="kpi info"><div class="eyebrow">Aprovados</div><b class="num">12</b></div>
+            <div class="kpi ok"><div class="eyebrow">Assinados</div><b class="num">34</b></div>
+            <div class="kpi danger"><div class="eyebrow">Devolvidos</div><b class="num">2</b></div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input placeholder="Buscar por obra, colaborador ou nº do relatório" aria-label="Buscar relatórios">
+          </div>
+          <div class="tabs" id="tabs" role="tablist">
+            <button class="on" role="tab" aria-selected="true">Todos <span class="num">54</span></button>
+            <button role="tab" aria-selected="false"><span class="dot" style="background:var(--warn)"></span>Pendentes <span class="num">6</span></button>
+            <button role="tab" aria-selected="false"><span class="dot" style="background:var(--danger)"></span>Devolvidos <span class="num">2</span></button>
+            <button role="tab" aria-selected="false"><span class="dot" style="background:var(--ok)"></span>Assinados <span class="num">34</span></button>
+          </div>
+          <button class="btn ghost" aria-label="Exportar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>Exportar</button>
+          <button class="btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Novo relatório</button>
+        </div>
+
+        <div class="split">
+          <section aria-label="Lista de relatórios">
+            <div class="list-head">
+              <span></span><span>Relatório</span><span class="h-serv col-serv">Serviço</span>
+              <span class="h-owner">Responsável</span><span class="h-sign col-sign">Assinaturas</span><span class="h-status">Status</span>
+            </div>
+            <div class="list" id="list">
+
+              <article class="row sig-signed" tabindex="0">
+                <div class="type-badge">RDO<br>128</div>
+                <div class="cell-title"><b>ETA Vale do Aço</b><span class="sub">24/07 · 07:40–16:20</span><span class="sub-mobile">Ana Reis · Manutenção · Bomba BD-04</span></div>
+                <div class="cell-serv col-serv">Manutenção · Bomba dosadora BD-04 · Dosagem</div>
+                <div class="cell-owner"><span class="ini">AR</span><b>Ana Reis</b></div>
+                <div class="sign col-sign"><div class="sign-track"><i class="sign-seg done"></i><i class="sign-seg done"></i><i class="sign-seg done"></i></div><small>3/3</small></div>
+                <div><span class="pill signed">Assinado</span></div>
+              </article>
+
+              <article class="row sig-approved" tabindex="0">
+                <div class="type-badge">RDO<br>127</div>
+                <div class="cell-title"><b>ETA Vale do Aço</b><span class="sub">23/07 · 08:10–15:30</span><span class="sub-mobile">Ana Reis · Manutenção · Filtro FL-02</span></div>
+                <div class="cell-serv col-serv">Manutenção preventiva · Filtro FL-02 · Retrolavagem</div>
+                <div class="cell-owner"><span class="ini">AR</span><b>Ana Reis</b></div>
+                <div class="sign col-sign"><div class="sign-track"><i class="sign-seg done"></i><i class="sign-seg done"></i><i class="sign-seg"></i></div><small>2/3</small></div>
+                <div><span class="pill approved">Aprovado</span></div>
+              </article>
+
+              <article class="row sig-pending" tabindex="0">
+                <div class="type-badge">RTP<br>045</div>
+                <div class="cell-title"><b>ETE Serra Azul</b><span class="sub">23/07 · 06:50–14:00</span><span class="sub-mobile">Marcos Lima · Coleta de amostras</span></div>
+                <div class="cell-serv col-serv">Coleta de amostras · Reator UASB · Efluente</div>
+                <div class="cell-owner"><span class="ini">ML</span><b>Marcos Lima</b></div>
+                <div class="sign col-sign"><div class="sign-track"><i class="sign-seg"></i><i class="sign-seg"></i></div><small>0/2</small></div>
+                <div><span class="pill pending">Pendente</span></div>
+              </article>
+
+              <article class="row sig-returned" tabindex="0">
+                <div class="type-badge">RLQ<br>012</div>
+                <div class="cell-title"><b>Estação Ipê</b><span class="sub">22/07 · 09:00–12:20</span><span class="sub-mobile">Júlia Nunes · Análise laboratorial</span></div>
+                <div class="cell-serv col-serv">Análise laboratorial · Turbidez · Cloro residual</div>
+                <div class="cell-owner"><span class="ini">JN</span><b>Júlia Nunes</b></div>
+                <div class="sign col-sign"><div class="sign-track"><i class="sign-seg done"></i><i class="sign-seg"></i></div><small>1/2</small></div>
+                <div><span class="pill returned">Devolvido</span></div>
+                <div class="note"><b>Reprovação do cliente — 22/07:</b> Faltou anexar o laudo de turbidez do ponto de captação.</div>
+              </article>
+
+              <article class="row sig-pending" tabindex="0">
+                <div class="type-badge">RLM<br>089</div>
+                <div class="cell-title"><b>ETA Vale do Aço</b><span class="sub">22/07 · 13:15–17:40</span><span class="sub-mobile">Pedro Alves · Manutenção mecânica</span></div>
+                <div class="cell-serv col-serv">Manutenção mecânica · Soprador SP-01 · Troca de rolamento</div>
+                <div class="cell-owner"><span class="ini">PA</span><b>Pedro Alves</b></div>
+                <div class="sign col-sign"><div class="sign-track"><i class="sign-seg done"></i><i class="sign-seg"></i><i class="sign-seg"></i></div><small>1/3</small></div>
+                <div><span class="pill edited">Editado</span></div>
+              </article>
+
+              <article class="row sig-signed" tabindex="0">
+                <div class="type-badge">RLF<br>031</div>
+                <div class="cell-title"><b>Estação Ipê</b><span class="sub">21/07 · 07:30–16:00</span><span class="sub-mobile">Júlia Nunes · Limpeza de filtro</span></div>
+                <div class="cell-serv col-serv">Limpeza de filtro · Leito de areia · Backwash</div>
+                <div class="cell-owner"><span class="ini">JN</span><b>Júlia Nunes</b></div>
+                <div class="sign col-sign"><div class="sign-track"><i class="sign-seg done"></i><i class="sign-seg done"></i></div><small>2/2</small></div>
+                <div><span class="pill signed">Assinado</span></div>
+              </article>
+
+            </div>
+          </section>
+
+          <!-- painel lateral -->
+          <aside class="aside">
+            <div class="card">
+              <h3>Resumo da semana</h3>
+              <div class="stat-grid">
+                <div class="stat ok"><b class="num">34</b><span>Assinados</span></div>
+                <div class="stat info"><b class="num">12</b><span>Aprovados</span></div>
+                <div class="stat warn"><b class="num">6</b><span>Pendentes</span></div>
+                <div class="stat danger"><b class="num">2</b><span>Devolvidos</span></div>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Assinaturas por dia</h3>
+              <div class="spark-wrap" aria-hidden="true">
+                <div class="bar" style="height:38%"></div><div class="bar" style="height:56%"></div>
+                <div class="bar" style="height:44%"></div><div class="bar" style="height:72%"></div>
+                <div class="bar peak" style="height:100%"></div><div class="bar" style="height:64%"></div>
+                <div class="bar" style="height:28%"></div>
+              </div>
+              <div class="spark-x"><span>seg</span><span>ter</span><span>qua</span><span>qui</span><span>sex</span><span>sáb</span><span>dom</span></div>
+            </div>
+            <div class="card">
+              <h3>Atividade recente</h3>
+              <div class="feed">
+                <div class="feed-item ok"><span class="feed-dot"></span><div><p><b>RDO 128</b> assinado pelo cliente</p><time>há 12 min</time></div></div>
+                <div class="feed-item warn"><span class="feed-dot"></span><div><p><b>RTP 045</b> aguardando aprovação</p><time>há 1 h</time></div></div>
+                <div class="feed-item"><span class="feed-dot"></span><div><p><b>RLM 089</b> editado por Pedro Alves</p><time>há 3 h</time></div></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SPEC -->
+  <section class="spec">
+    <h2>Sistema visual — tokens</h2>
+    <div class="spec-grid">
+      <div class="swatch"><div class="chip" style="background:var(--forest)">#30503a</div><div class="meta"><b>Verde-floresta</b><span>Marca · botões primários · nav</span></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--pine-900)">#14251b</div><div class="meta"><b>Pinho</b><span>Rail de módulos · fundo escuro</span></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--water)">#0e8a8f</div><div class="meta"><b>Água filtrada</b><span>Accent único · foco · dado · nav ativa</span></div></div>
+      <div class="swatch"><div class="chip" style="background:var(--ink)">texto</div><div class="meta"><b>Tinta</b><span>Neutro com viés verde, não cinza puro</span></div></div>
+    </div>
+
+    <div style="margin-top:26px; max-width:640px">
+      <div class="type-row"><span>Título</span><b style="font-size:24px; letter-spacing:-.02em">Relatório Diário de Obra</b></div>
+      <div class="type-row"><span>Corpo</span><span style="width:auto; color:var(--ink); text-transform:none; letter-spacing:0; font-size:14px">Segoe UI / system-ui — leitura confortável em ~65 caracteres.</span></div>
+      <div class="type-row"><span>Métrica</span><b class="num" style="font-size:22px; font-family:var(--mono)">128 · 07:40</b></div>
+      <div class="type-row"><span>Label</span><span class="eyebrow" style="width:auto">Assinaturas pendentes</span></div>
+    </div>
+
+    <div class="legend">
+      <span class="pill pending">Pendente</span>
+      <span class="pill approved">Aprovado</span>
+      <span class="pill signed">Assinado</span>
+      <span class="pill returned">Devolvido</span>
+      <span class="pill edited">Editado</span>
+    </div>
+    <p style="color:var(--muted); margin-top:14px; max-width:64ch; font-size:13px">Status codificado em <b>forma + cor</b>: pill + faixa lateral de severidade no card. Numerais tabulares em toda métrica, data e contador. Sem emojis — badges tipográficos (<span style="font-family:var(--mono)">RDO</span>, <span style="font-family:var(--mono)">RTP</span>, <span style="font-family:var(--mono)">RLQ</span>) dão o tom de instrumento.</p>
+  </section>
+</div>
+
+<script>
+  function setFrame(m){
+    document.getElementById('frame').className = 'frame' + (m==='mob' ? ' frame-mobile' : '');
+    document.getElementById('d-desk').setAttribute('aria-pressed', m==='desk');
+    document.getElementById('d-mob').setAttribute('aria-pressed', m==='mob');
+  }
+  function setTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    document.getElementById('t-light').setAttribute('aria-pressed', t==='light');
+    document.getElementById('t-dark').setAttribute('aria-pressed', t==='dark');
+  }
+  // abas
+  document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('#tabs button').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-selected','false'); });
+    b.classList.add('on'); b.setAttribute('aria-selected','true');
+  }));
+</script>
