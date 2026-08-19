@@ -14,7 +14,7 @@
     "@hookform/resolvers": "^5.9.1",
     "@tanstack/react-query": "^5.101.4",
     "axios": "^1.19.0",
-    "driver.js": "^1.7.0",
+    "driver.js": "^1.8.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-hook-form": "^7.81.0",
