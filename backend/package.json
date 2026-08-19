@@ -31,7 +31,7 @@
     "import:rdo-manual-pdfs": "node scripts/import-manual-rdo-pdfs.js"
   },
   "dependencies": {
-    "@napi-rs/canvas": "^1.0.5",
+    "@napi-rs/canvas": "^1.0.6",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@tesseract.js-data/por": "^1.0.0",
