@@ -3,12 +3,35 @@ import test from 'node:test';
 import { z } from 'zod';
 import { API_SCOPES, publicApiOperations } from '../../backend/src/lib/api-credentials/catalog.js';
 import { makePlaygroundParameterSchema, buildPlaygroundInput, playgroundParameterDefaults } from '../../shared/schemas/playground-parameters.js';
-import { operationsForScope } from '../src/components/admin/api-tokens/apiOperations.ts';
+import { exampleOperationForCredential, operationsForScope } from '../src/components/admin/api-tokens/apiOperations.ts';
 import { redactedRequestPreview } from '../src/components/admin/api-tokens/apiRequestFormatting.ts';
 
 const operations = publicApiOperations();
 const operation = id => operations.find(op => op.operationId === id);
 const schema = (op, scopes = API_SCOPES.map(scope => scope.code)) => makePlaygroundParameterSchema(z, op.parameters, { maxPageSize: 3, scopes });
+
+test('one-time token example uses a collection allowed by the granted permissions in each area', () => {
+  for (const [scope, path] of [
+    ['projetos.read', '/projetos'],
+    ['estoque.itens.read', '/estoque/itens'],
+    ['rdo.relatorios.read', '/rdo/relatorios'],
+    ['qualidade.naturezas.read', '/qualidade/naturezas']
+  ]) {
+    const example = exampleOperationForCredential(operations, [scope]);
+    assert.equal(example?.path, path);
+    assert.equal(schema(example, [scope]).safeParse({}).success, true);
+  }
+});
+
+test('one-time token example never falls back to unauthorized queries or operations needing an ID', () => {
+  assert.equal(exampleOperationForCredential(operations, []), undefined);
+  assert.equal(exampleOperationForCredential([], ['projetos.read']), undefined);
+  assert.equal(exampleOperationForCredential(operations, ['qualidade.evidencias.download']), undefined);
+  const scopes = ['qualidade.registros.read', 'qualidade.evidencias.metadata.read', 'qualidade.evidencias.download'];
+  assert.equal(exampleOperationForCredential([
+    operation('quality.evidence.download'), operation('quality.records.get'), operation('quality.records.list')
+  ], scopes)?.path, '/qualidade/registros');
+});
 
 test('all implemented permissions select matching operations, including optional quality and downloads', () => {
   for (const scope of API_SCOPES) {

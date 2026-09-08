@@ -104,7 +104,8 @@ export const missionInputSchema = z.object({
     values => new Set(values.map(item => item.collaboratorId)).size === values.length,
     'Cada colaborador deve possuir somente um período individual.'
   ),
-  confirmedMissionOverlapCollaboratorIds: z.array(idSchema).max(500).optional().default([])
+  confirmedMissionOverlapCollaboratorIds: z.array(idSchema).max(500).optional().default([]),
+  confirmedInactiveCollaboratorIds: z.array(idSchema).max(500).optional().default([])
 }).superRefine((value, context) => {
   const collaboratorIds = new Set(value.collaboratorIds);
   value.allocationPeriods.forEach((period, index) => {
@@ -131,7 +132,8 @@ export const allocationInputSchema = z.object({
   jobRoleId: idSchema,
   mobilizationDate: dateOnlySchema.optional(),
   demobilizationDate: dateOnlySchema.optional(),
-  allowMissionOverlap: z.boolean().optional().default(false)
+  allowMissionOverlap: z.boolean().optional().default(false),
+  allowInactiveCollaborator: z.boolean().optional().default(false)
 }).refine(value => !value.mobilizationDate || !value.demobilizationDate || value.demobilizationDate >= value.mobilizationDate, {
   path: ['demobilizationDate'],
   message: 'A desmobilização individual não pode ser anterior à mobilização.'
@@ -140,7 +142,8 @@ export const allocationInputSchema = z.object({
 export const allocationPeriodInputSchema = z.object({
   mobilizationDate: dateOnlySchema,
   demobilizationDate: dateOnlySchema,
-  allowMissionOverlap: z.boolean().optional().default(false)
+  allowMissionOverlap: z.boolean().optional().default(false),
+  allowInactiveCollaborator: z.boolean().optional().default(false)
 }).refine(value => value.demobilizationDate >= value.mobilizationDate, {
   path: ['demobilizationDate'],
   message: 'A desmobilização individual não pode ser anterior à mobilização.'
@@ -148,7 +151,8 @@ export const allocationPeriodInputSchema = z.object({
 
 export const mobilizationCycleInputSchema = z.object({
   mobilizationDate: dateOnlySchema,
-  demobilizationDate: dateOnlySchema.nullable().optional()
+  demobilizationDate: dateOnlySchema.nullable().optional(),
+  allowInactiveCollaborator: z.boolean().optional().default(false)
 }).refine(value => !value.demobilizationDate || value.demobilizationDate >= value.mobilizationDate, {
   path: ['demobilizationDate'],
   message: 'A desmobilização não pode ser anterior à mobilização.'

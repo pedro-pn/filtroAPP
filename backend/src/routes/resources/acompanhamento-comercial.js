@@ -22,6 +22,7 @@ import { computeProjectProgress } from '../../lib/acompanhamento/avanco.js';
 import { buildOmieCostCategoryWhere } from '../../lib/acompanhamento/cost-categories.js';
 import { listProjectCards } from '../../lib/acompanhamento/project-cards.js';
 import { getProjectStandbyHistory } from '../../lib/acompanhamento/standby-history.js';
+import { getMissionGroupRomaneios, getProjectRomaneios } from '../../lib/acompanhamento/project-romaneios.js';
 import { groupProjectCards } from '../../lib/acompanhamento/project-card-groups.js';
 import { groupDashboardRows } from '../../lib/acompanhamento/dashboard-groups.js';
 import { getProjectDetail } from '../../lib/acompanhamento/project-detail.js';
@@ -233,6 +234,32 @@ router.get(
     const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
     const [cards, groups] = await Promise.all([listProjectCards({ includeAdminOnlyCategories }), loadActiveMissionGroups()]);
     res.json(groupProjectCards(cards, groups));
+  })
+);
+
+router.get(
+  '/projetos/:projectId/romaneios',
+  requireAuth,
+  requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    const { projectId } = projectIdParamSchema.parse(req.params);
+    const result = await getProjectRomaneios(projectId);
+    if (!result) return res.status(404).json({ error: 'Projeto não encontrado.' });
+    return res.json(result);
+  })
+);
+
+router.get(
+  '/grupos-missoes/:groupId/romaneios',
+  requireAuth,
+  requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    try {
+      const groupId = z.string().trim().min(1).max(200).parse(req.params.groupId);
+      return res.json(await getMissionGroupRomaneios(groupId));
+    } catch (error) {
+      return missionGroupErrorResponse(error, res);
+    }
   })
 );
 

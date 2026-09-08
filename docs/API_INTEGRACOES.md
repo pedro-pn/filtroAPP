@@ -2,11 +2,13 @@
 
 Esta API fornece leitura controlada dos dados do Filtrovali sem conceder acesso direto ao banco. Estão implementadas 33 permissões e 35 operações externas GET, incluindo Qualidade, cadastros operacionais e a expansão de relatórios, estoque e manutenção. A disponibilidade no ambiente depende da publicação e homologação do código pelo operador; esta implementação não executa deploy.
 
+O endereço base comum a todas as áreas é `/api/integracoes/v1`. Acrescente o caminho da consulta desejada, como `/projetos`, `/estoque/itens` ou `/qualidade/registros`. O segmento `/qualidade` identifica apenas as consultas desse setor. Na exibição única do token, o exemplo em cURL usa uma consulta compatível com as permissões concedidas.
+
 ## Autenticação
 
 Uma conta `ADMIN` gera a credencial em **Administração → Tokens de API**. O valor completo aparece uma única vez; guarde-o em um cofre de segredos e identifique o responsável e a finalidade. Sessões humanas do app não funcionam nesta árvore e tokens de integração não funcionam como login.
 
-No formulário, defina finalidade e destinatário, início/vencimento, escopos, recorte de projetos, CIDRs permitidos e cotas. Prefira validade curta, projetos selecionados e apenas `qualidade.registros.read`; acrescente metadados, download ou excluídos somente quando o consumidor realmente precisar. Credencial sem expiração exige confirmação explícita de risco.
+No formulário, defina finalidade e destinatário, início/vencimento, escopos, recorte de projetos, CIDRs permitidos e cotas. Nenhuma permissão vem selecionada. Prefira validade curta, projetos selecionados e somente as permissões necessárias ao consumidor; acrescente metadados, download ou excluídos quando necessário. Credencial sem expiração exige confirmação explícita de risco.
 
 Configure o segredo no processo consumidor sem colocá-lo em código, URL, planilha ou log:
 

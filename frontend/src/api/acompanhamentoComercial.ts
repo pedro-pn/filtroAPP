@@ -609,7 +609,7 @@ export interface ProjectCard {
   laborHours: number | null; // jornada analítica do Ponto Mais apropriada ao projeto
   stockCost: number; // consumo líquido de produtos químicos/filtros via romaneio
   manualCost: number; // custos lançados manualmente no acompanhamento
-  equipment: Array<{ name: string; days: number; since: string }>; // equipamentos (módulo Equipamentos) em obra
+  equipment: Array<{ code: string | null; name: string; days: number; since: string }>; // equipamentos (módulo Equipamentos) em obra
   alerts: ProjectAlert[];
 }
 
@@ -721,7 +721,19 @@ export interface ProjectDetailCollaborator {
     }>;
   }>;
   sobreposicaoHoras: number;
-  horasRelatoriosPorData: Array<{ data: string; horas: number }>;
+  horasRelatoriosPorData: Array<{
+    data: string;
+    horas: number;
+    /** Relatórios-fonte, preservados mesmo quando o grupo deduplica a jornada por data. */
+    relatorios?: Array<{
+      id: string;
+      tipo: string;
+      numero: number | null;
+      projetoId: string;
+      projetoCodigo: string | null;
+      horas: number;
+    }>;
+  }>;
   custo: number | null;
   custoHora: number | null;
   /** Parcela proporcional do custo apropriado correspondente às horas de deslocamento. */
@@ -799,7 +811,7 @@ export interface ProjectDetail {
   }>;
   overtimeMinutes: number;
   colaboradores: ProjectDetailCollaborator[];
-  equipamentos: Array<{ name: string; days: number; since: string }>;
+  equipamentos: Array<{ code: string | null; name: string; days: number; since: string }>;
   plannedScope?: PlannedScope;
   footer: {
     mobilizationDate: string | null;
@@ -816,6 +828,38 @@ export async function getProjectDetail(projectId: string): Promise<ProjectDetail
 
 export async function getMissionGroupDetail(groupId: string): Promise<ProjectDetail> {
   const { data } = await apiClient.get<ProjectDetail>(`/acompanhamento/comercial/grupos-missoes/${groupId}/detalhe`);
+  return data;
+}
+
+export interface ProjectRomaneio {
+  id: string;
+  type: 'OUTBOUND' | 'INBOUND';
+  romaneioDate: string;
+  vehiclePlate: string;
+  project: { id: string; code: string; name: string | null };
+  items: Array<{
+    id: string;
+    itemCode: string | null;
+    itemName: string;
+    categoryName: string;
+    quantity: string | number;
+    unitLabel: string;
+    isCustom: boolean;
+    isExtra: boolean;
+  }>;
+}
+
+export interface ProjectRomaneiosResponse {
+  romaneios: ProjectRomaneio[];
+}
+
+export async function getProjectRomaneios(projectId: string): Promise<ProjectRomaneiosResponse> {
+  const { data } = await apiClient.get<ProjectRomaneiosResponse>(`/acompanhamento/comercial/projetos/${projectId}/romaneios`);
+  return data;
+}
+
+export async function getMissionGroupRomaneios(groupId: string): Promise<ProjectRomaneiosResponse> {
+  const { data } = await apiClient.get<ProjectRomaneiosResponse>(`/acompanhamento/comercial/grupos-missoes/${groupId}/romaneios`);
   return data;
 }
 
