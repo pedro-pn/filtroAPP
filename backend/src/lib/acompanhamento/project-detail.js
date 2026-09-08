@@ -552,7 +552,7 @@ export async function getProjectDetail(projectId, {
     .map(e => {
       const since = new Date(e.sinceDate);
       const days = Math.max(0, Math.round((equipmentEndDate.getTime() - since.getTime()) / 86400000));
-      return { name: e.name, days, since: e.sinceDate };
+      return { code: e.code, name: e.name, days, since: e.sinceDate };
     })
     .sort((a, b) => b.days - a.days);
 

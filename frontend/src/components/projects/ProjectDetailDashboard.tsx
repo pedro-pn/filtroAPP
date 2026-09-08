@@ -1358,7 +1358,7 @@ export function ProjectDetailDashboard({
             <div className="acp-det-equips-grid" style={{ marginTop: 8 }}>
               {equipamentos.map((e, i) => (
                 <div className="acp-det-equip-item" key={`${e.name}-${i}`}>
-                  <span>{e.name}</span>
+                  <span>{e.code ? `${e.code} — ${e.name}` : e.name}</span>
                   <strong>{e.days} dia{e.days === 1 ? '' : 's'}</strong>
                   <small>desde {fmtDate(e.since)}</small>
                 </div>
