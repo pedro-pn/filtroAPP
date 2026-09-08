@@ -14,7 +14,8 @@ import { ConfirmDialog } from '../../../components/ui/ConfirmDialog';
 import { Modal } from '../../../components/ui/Modal';
 import { displayDateOnly } from '../../../utils/calendarGrid';
 import { AVAILABILITY_STATUSES, buildMissionAvailabilityColumns, type AvailabilityStatus } from '../../../utils/collaboratorAvailability';
-import { filterMissionTeamCollaborators, toggleMissionCollaborator } from '../../../utils/missionTeam';
+import { allocationOverlapsPeriod } from '../../../utils/missionAllocationPeriod';
+import { filterCollaboratorsByActivity, filterMissionTeamCollaborators, toggleMissionCollaborator, type CollaboratorActivityFilter } from '../../../utils/missionTeam';
 
 const COLUMN_META: Record<AvailabilityStatus, { label: string; description: string }> = {
   AVAILABLE: { label: 'Disponíveis', description: 'Livres durante todo o período' },
@@ -48,18 +49,20 @@ export function MissionTeamSelector({ mission, planId, roles, selectedIds, alloc
   loading: boolean;
   disabled: boolean;
   error?: string;
-  onChange: (value: string[], confirmedMissionOverlapCollaboratorIds: string[]) => void;
+  onChange: (value: string[], confirmedMissionOverlapCollaboratorIds: string[], confirmedInactiveCollaboratorIds: string[]) => void;
   onAllocationPeriodsChange: (value: AllocationPeriodDraft[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [activityFilter, setActivityFilter] = useState<CollaboratorActivityFilter>('ACTIVE');
+  const [inactiveConfirmationIds, setInactiveConfirmationIds] = useState<string[]>([]);
   const [draftIds, setDraftIds] = useState<string[]>(selectedIds);
   const [overlapConfirmationIds, setOverlapConfirmationIds] = useState<string[]>([]);
   const validPeriod = Boolean(/^\d{4}-\d{2}-\d{2}$/.test(startDate) && /^\d{4}-\d{2}-\d{2}$/.test(endDate) && startDate <= endDate);
   const collaborators = useQuery({
-    queryKey: ['efetivo-mission-team-collaborators', startDate],
-    queryFn: () => listPlanningCollaborators({ date: startDate }),
+    queryKey: ['efetivo-mission-team-collaborators', startDate, 'include-inactive'],
+    queryFn: () => listPlanningCollaborators({ date: startDate, includeInactive: true }),
     enabled: open && validPeriod
   });
   const missions = useQuery({
@@ -89,7 +92,7 @@ export function MissionTeamSelector({ mission, planId, roles, selectedIds, alloc
         jobRoleId: collaborator.jobRoleId,
         admissionDate: null,
         terminationDate: null,
-        isActive: false,
+        isActive: collaborator.isActive ?? true,
         status: 'OUTSIDE_EMPLOYMENT' as const,
         plannedUtilization90d: null,
         vacationAlert: null
@@ -98,7 +101,7 @@ export function MissionTeamSelector({ mission, planId, roles, selectedIds, alloc
     return result;
   }, [collaborators.data, mission, selectedIds]);
   const { columns, otherUnavailable } = useMemo(() => validPeriod
-    ? buildMissionAvailabilityColumns(options, missions.data || [], absences.data || [], startDate, endDate, mission?.id)
+    ? buildMissionAvailabilityColumns(filterCollaboratorsByActivity(options, 'ACTIVE'), missions.data || [], absences.data || [], startDate, endDate, mission?.id)
     : buildMissionAvailabilityColumns([], [], [], '2000-01-01', '2000-01-01'),
   [absences.data, endDate, mission?.id, missions.data, options, startDate, validPeriod]);
   const operationalRoleIds = useMemo(() => new Set(roles.filter(role => role.isOperational).map(role => role.id)), [roles]);
@@ -111,26 +114,32 @@ export function MissionTeamSelector({ mission, planId, roles, selectedIds, alloc
   const queryLoading = loading || collaborators.isLoading || missions.isLoading || absences.isLoading;
   const queryError = collaborators.isError || missions.isError || absences.isError;
   const visibleIds = new Set(AVAILABILITY_STATUSES.flatMap(status => columns[status].map(entry => entry.collaborator.id)));
-  const hiddenSelected = options.filter(collaborator => draftIds.includes(collaborator.id) && !visibleIds.has(collaborator.id));
+  const hiddenSelected = options.filter(collaborator => draftIds.includes(collaborator.id) && !visibleIds.has(collaborator.id)
+    && (activityFilter === 'ACTIVE' || collaborator.isActive !== false));
+  const inactivePeople = filterMissionTeamCollaborators(filterCollaboratorsByActivity(options, 'INACTIVE'), search)
+    .filter(person => !roleFilter || person.jobRoleId === roleFilter);
+  const inactiveDraftIds = options.filter(person => person.isActive === false && draftIds.includes(person.id)).map(person => person.id);
   const existingConfirmedOverlapIds = mission?.allocations
     .filter(allocation => allocation.allowMissionOverlap)
     .map(allocation => allocation.collaboratorId) || [];
-  const overlappingDraftIds = [...new Set(['AWAITING_MOBILIZATION', 'MOBILIZED']
-    .flatMap(status => columns[status as AvailabilityStatus])
-    .filter(entry => draftIds.includes(entry.collaborator.id)
-      && !existingConfirmedOverlapIds.includes(entry.collaborator.id))
-    .map(entry => entry.collaborator.id))];
-  const applyTeam = (confirmedIds: string[] = []) => {
+  const overlappingDraftIds = draftIds.filter(id => !existingConfirmedOverlapIds.includes(id)
+    && (missions.data || []).some(otherMission => otherMission.id !== mission?.id
+      && otherMission.scheduleStatus === 'CONFIRMED'
+      && otherMission.allocations.some(allocation => allocation.collaboratorId === id
+        && allocationOverlapsPeriod(allocation, otherMission, startDate, endDate))));
+  const applyTeam = (confirmedIds: string[] = [], confirmedInactiveIds: string[] = []) => {
     onChange(draftIds, [...new Set([
       ...existingConfirmedOverlapIds.filter(id => draftIds.includes(id)),
       ...confirmedIds
-    ])]);
+    ])], confirmedInactiveIds);
     setOverlapConfirmationIds([]);
+    setInactiveConfirmationIds([]);
     setOpen(false);
   };
   const requestApplyTeam = () => {
-    if (overlappingDraftIds.length) {
+    if (overlappingDraftIds.length || inactiveDraftIds.length) {
       setOverlapConfirmationIds(overlappingDraftIds);
+      setInactiveConfirmationIds(inactiveDraftIds);
       return;
     }
     applyTeam();
@@ -153,7 +162,7 @@ export function MissionTeamSelector({ mission, planId, roles, selectedIds, alloc
         <legend>Equipe da missão</legend>
         <div className="efetivo-team-picker-trigger">
           <div><strong>{selectedIds.length} {selectedIds.length === 1 ? 'colaborador selecionado' : 'colaboradores selecionados'}</strong><span>Consulte a disponibilidade considerando todas as datas da programação.</span></div>
-          <Button variant="secondary" disabled={disabled} onClick={() => { setSearch(''); setRoleFilter(''); setOpen(true); }}>Ver colaboradores</Button>
+          <Button variant="secondary" disabled={disabled} onClick={() => { setSearch(''); setRoleFilter(''); setOverlapConfirmationIds([]); setInactiveConfirmationIds([]); setOpen(true); }}>Ver colaboradores</Button>
         </div>
         {!validPeriod ? <span className="field-hint">Preencha a mobilização e o fim da execução para consultar os colaboradores.</span> : null}
         {roleSummary.length ? <div className="efetivo-team-summary" aria-label="Resumo da equipe por cargo">{roleSummary.map(([role, count]) => <span key={role}>{role} <strong>{count}</strong></span>)}</div> : null}
@@ -184,6 +193,7 @@ export function MissionTeamSelector({ mission, planId, roles, selectedIds, alloc
           <header className="efetivo-modal-header"><div><h3 id="mission-team-dialog-title">Colaboradores por disponibilidade</h3><p id="mission-team-dialog-description">{displayDateOnly(startDate)} a {displayDateOnly(endDate)} · pessoas já alocadas podem ser selecionadas mediante confirmação.</p></div><button className="icon-button" type="button" aria-label="Fechar" onClick={() => setOpen(false)}>×</button></header>
           <div className="efetivo-modal-body efetivo-team-availability-body">
             <div className="efetivo-team-dialog-toolbar">
+              <label className="field-group" htmlFor="mission-team-activity"><span>Situação cadastral</span><select id="mission-team-activity" value={activityFilter} onChange={event => setActivityFilter(event.target.value as CollaboratorActivityFilter)}><option value="ACTIVE">Ativos</option><option value="INACTIVE">Inativos</option><option value="ALL">Todos</option></select></label>
               <label className="field-group" htmlFor="mission-team-search"><span>Buscar por nome ou cargo</span><input id="mission-team-search" type="search" value={search} placeholder="Ex.: mantenedor ou nome" onChange={event => setSearch(event.target.value)} /></label>
               <label className="field-group" htmlFor="mission-team-role-filter"><span>Filtrar por cargo</span><select id="mission-team-role-filter" value={roleFilter} onChange={event => setRoleFilter(event.target.value)}><option value="">Todos os cargos</option>{roles.filter(role => role.isOperational).map(role => <option value={role.id} key={role.id}>{role.name}</option>)}</select></label>
               <strong>{draftIds.length} selecionado(s)</strong>
@@ -193,8 +203,18 @@ export function MissionTeamSelector({ mission, planId, roles, selectedIds, alloc
               : queryError ? <p className="placeholder-copy">Não foi possível consultar a disponibilidade.</p>
                 : <>
                   {otherUnavailable ? <p className="efetivo-availability-note">{otherUnavailable} colaborador(es) em folga, afastamento ou fora do vínculo no período não aparecem no quadro.</p> : null}
-                  {hiddenSelected.length ? <div className="efetivo-team-hidden-selected"><strong>Selecionados fora do quadro</strong><span>Podem ser removidos, mas não selecionados novamente para este período.</span>{hiddenSelected.map(collaborator => <div key={collaborator.id}><span>{collaborator.name} · {collaborator.role || 'Cargo não informado'}</span><Button variant="mini" onClick={() => setDraftIds(current => toggleMissionCollaborator(current, collaborator.id, false))}>Remover</Button></div>)}</div> : null}
-                  <section className="efetivo-availability-kanban efetivo-team-availability-kanban" aria-label="Disponibilidade dos colaboradores para a missão">
+                  {hiddenSelected.length ? <div className="efetivo-team-hidden-selected"><strong>Selecionados fora do quadro</strong><span>Use o filtro Inativos para consultar os colaboradores desligados.</span>{hiddenSelected.map(collaborator => <div key={collaborator.id}><span>{collaborator.name} · {collaborator.role || 'Cargo não informado'}</span><Button variant="mini" onClick={() => setDraftIds(current => toggleMissionCollaborator(current, collaborator.id, false))}>Remover</Button></div>)}</div> : null}
+                  {activityFilter !== 'ACTIVE' ? <section className="efetivo-cycle-section" aria-label="Colaboradores inativos">
+                    <p className="efetivo-cycle-warning">Colaboradores inativos podem ser selecionados para registrar o histórico de mobilização e desmobilização, mediante confirmação.</p>
+                    <div className="efetivo-compact-list">{inactivePeople.map(person => {
+                      const selected = draftIds.includes(person.id);
+                      const hasRole = Boolean(person.jobRoleId && operationalRoleIds.has(person.jobRoleId));
+                      return <article className={`efetivo-availability-card efetivo-team-availability-card ${selected ? 'selected' : ''}`} key={person.id}>
+                        <label><input type="checkbox" checked={selected} disabled={disabled || (!hasRole && !selected)} onChange={event => setDraftIds(current => toggleMissionCollaborator(current, person.id, event.target.checked))} /><div className="efetivo-availability-person"><i aria-hidden="true">{initials(person.name)}</i><span><strong>{person.name}</strong><small>{person.role || 'Cargo não informado'} · Inativo</small></span></div></label>
+                      </article>;
+                    })}{!inactivePeople.length ? <p>Nenhum colaborador inativo encontrado.</p> : null}</div>
+                  </section> : null}
+                  {activityFilter !== 'INACTIVE' ? <section className="efetivo-availability-kanban efetivo-team-availability-kanban" aria-label="Disponibilidade dos colaboradores para a missão">
                     {AVAILABILITY_STATUSES.map(status => {
                       const entries = columns[status].filter(entry => (
                         (!roleFilter || entry.collaborator.jobRoleId === roleFilter)
@@ -223,21 +243,21 @@ export function MissionTeamSelector({ mission, planId, roles, selectedIds, alloc
                         </div>
                       );
                     })}
-                  </section>
+                  </section> : null}
                 </>}
           </div>
           <footer className="efetivo-modal-footer"><Button variant="secondary" onClick={() => setOpen(false)}>Cancelar</Button><Button disabled={!validPeriod || queryLoading || queryError} onClick={requestApplyTeam}>Aplicar equipe</Button></footer>
         </div>
       </Modal>, document.body)}
       <ConfirmDialog
-        open={overlapConfirmationIds.length > 0}
-        title="Confirmar colaborador em mais de uma missão?"
-        description="Os colaboradores destacados já possuem outra missão no período. A sobreposição ficará registrada na programação."
-        highlight={overlapConfirmationIds.map(id => options.find(item => item.id === id)?.name).filter(Boolean).join(', ')}
-        confirmLabel="Confirmar sobreposição"
+        open={overlapConfirmationIds.length > 0 || inactiveConfirmationIds.length > 0}
+        title={inactiveConfirmationIds.length ? 'Confirmar colaboradores inativos?' : 'Confirmar colaborador em mais de uma missão?'}
+        description={[inactiveConfirmationIds.length ? 'A equipe inclui colaboradores inativos. Confirme a inclusão para registrar o histórico de mobilização e desmobilização.' : '', overlapConfirmationIds.length ? 'Há colaboradores em outra missão no período. A sobreposição também será confirmada.' : ''].filter(Boolean).join(' ')}
+        highlight={[...new Set([...inactiveConfirmationIds, ...overlapConfirmationIds])].map(id => options.find(item => item.id === id)?.name).filter(Boolean).join(', ')}
+        confirmLabel={inactiveConfirmationIds.length ? 'Confirmar inclusão' : 'Confirmar sobreposição'}
         danger={false}
-        onConfirm={() => applyTeam(overlapConfirmationIds)}
-        onCancel={() => setOverlapConfirmationIds([])}
+        onConfirm={() => applyTeam(overlapConfirmationIds, inactiveConfirmationIds)}
+        onCancel={() => { setOverlapConfirmationIds([]); setInactiveConfirmationIds([]); }}
       />
     </>
   );

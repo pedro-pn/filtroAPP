@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { combineProgressHistory, groupProjectCards } from '../src/lib/acompanhamento/project-card-groups.js';
+import { combineEquipment, combineProgressHistory, groupProjectCards } from '../src/lib/acompanhamento/project-card-groups.js';
 
 function card(overrides = {}) {
   return {
@@ -67,6 +67,22 @@ function group(overrides = {}) {
     ]
   };
 }
+
+test('combineEquipment preserves distinct TAGs with the same name and departure date', () => {
+  const since = '2026-08-22T00:00:00.000Z';
+  const equipment = combineEquipment([
+    { equipment: [
+      { code: 'UFI 008', name: 'Unidade de filtragem', since, days: 3 },
+      { code: 'UFI 009', name: 'Unidade de filtragem', since, days: 3 }
+    ] },
+    { equipment: [{ code: 'UFI 008', name: 'Unidade de filtragem', since, days: 5 }] }
+  ]);
+
+  assert.deepEqual(equipment, [
+    { code: 'UFI 008', name: 'Unidade de filtragem', since, days: 5 },
+    { code: 'UFI 009', name: 'Unidade de filtragem', since, days: 3 }
+  ]);
+});
 
 test('groupProjectCards hides child cards and emits one consolidated group card', () => {
   const result = groupProjectCards([

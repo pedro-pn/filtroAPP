@@ -250,7 +250,7 @@ export async function listProjectCards({ includeAdminOnlyCategories = true } = {
       .map(e => {
         const since = new Date(e.sinceDate);
         const days = Math.max(0, Math.round((equipEndDate.getTime() - since.getTime()) / 86400000));
-        return { name: e.name, days, since: e.sinceDate };
+        return { code: e.code, name: e.name, days, since: e.sinceDate };
       })
       .sort((x, y) => y.days - x.days);
 
@@ -328,7 +328,7 @@ export async function listProjectCards({ includeAdminOnlyCategories = true } = {
       laborHours: laborByProject.get(row.projectId)?.hours ?? null,
       stockCost,
       manualCost: toNum(row.manualCost) ?? 0,
-      equipment, // equipamentos (módulo Equipamentos) em obra: { name, days, since }
+      equipment, // equipamentos (módulo Equipamentos) em obra: { code, name, days, since }
       alerts
     };
   });

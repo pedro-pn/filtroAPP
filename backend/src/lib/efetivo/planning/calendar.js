@@ -3,6 +3,7 @@ import { conflictDescriptor } from './errors.js';
 import { allocationPeriods, missionCycles } from './allocation-period.js';
 import { missionEndsOnOrAfter } from './mission-period.js';
 import { resolvePlanningDatabase, getActiveOfficialPlan } from './plan-context.js';
+import { efetivoProjectWhere } from '../project-visibility.js';
 
 function utcDate(value) {
   return new Date(`${parseDateKey(value)}T00:00:00.000Z`);
@@ -18,6 +19,7 @@ export async function getPlanningCalendar(filters, dependencies = {}) {
       where: {
         planId: plan.id,
         deletedAt: null,
+        project: efetivoProjectWhere(),
         scheduleStatus: 'CONFIRMED',
         mobilizationDate: { lte: utcDate(endDate) },
         ...missionEndsOnOrAfter(utcDate(startDate)),
