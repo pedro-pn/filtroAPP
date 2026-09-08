@@ -46,7 +46,7 @@ export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialV
     defaultValues: initialValues ? { ...initialValues, startsAt: localCredentialDate(initialValues.startsAt), expiresAt: initialValues.expiresAt ? localCredentialDate(initialValues.expiresAt) : null, neverExpiresConfirmation: '' } : {
       name: '', purpose: '', recipientName: '',
       startsAt: localDateTime(now), expiresAt: localDateTime(new Date(now.getTime() + expiryDurations['30d'])), neverExpiresConfirmation: '',
-      scopeCodes: ['qualidade.registros.read'], projectAccess: { mode: 'ALL', projectIds: [] },
+      scopeCodes: [], projectAccess: { mode: 'ALL', projectIds: [] },
       allowedIpCidrs: [], allowedFormats: ['JSON'],
       limits: { requestsPerMinute: 60, requestsPerDay: 10000, rowsPerDay: 500000, maxPageSize: 100 }
     }
@@ -110,7 +110,7 @@ export function ApiCredentialForm({ scopes, onSubmit, disabled = false, initialV
             <div className="api-form-grid api-identity-grid">
               <div className={`field-group ${field('name') ? 'field-invalid' : ''}`}>
                 <label htmlFor="api-token-name">Nome do token *</label>
-                <input id="api-token-name" placeholder="Ex.: Exportação da qualidade" {...register('name')} aria-invalid={Boolean(field('name'))} aria-describedby={field('name') ? 'api-name-error' : undefined} />
+                <input id="api-token-name" placeholder="Ex.: Integração de dados" {...register('name')} aria-invalid={Boolean(field('name'))} aria-describedby={field('name') ? 'api-name-error' : undefined} />
                 {field('name') ? <span id="api-name-error" className="field-error">{field('name')}</span> : null}
               </div>
               <div className={`field-group ${field('recipientName') ? 'field-invalid' : ''}`}>

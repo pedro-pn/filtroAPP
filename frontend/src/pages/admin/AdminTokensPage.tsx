@@ -194,7 +194,7 @@ export function AdminTokensPage() {
           </section> : null}
         </>}
       </main>
-      <ApiTokenRevealModal issued={issued} onClose={() => setIssued(null)} />
+      <ApiTokenRevealModal issued={issued} operations={operations} onClose={() => setIssued(null)} />
     </Shell>
   );
 }
