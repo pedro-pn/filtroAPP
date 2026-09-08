@@ -34,6 +34,15 @@ test('loadEnv parses defaults from a minimal valid environment', () => {
   assert.equal(env.assinaturasTokenMaxDays, 90);
   assert.equal(env.assinaturasDeletedRetentionDays, 90);
   assert.equal(env.assinaturasPreviewScale, 1.5);
+  assert.deepEqual(env.apiTokenHashKeys, { 1: '' });
+  assert.equal(env.apiTokenActiveKeyVersion, 1);
+  assert.equal(env.apiTokenGlobalMaxPageSize, 500);
+  assert.equal(env.apiTokenDefaultRequestsPerMinute, 60);
+  assert.equal(env.apiTokenDefaultRequestsPerDay, 10000);
+  assert.equal(env.apiTokenDefaultRowsPerDay, 500000);
+  assert.equal(env.apiTokenCoarseIpRequestsPerMinute, 300);
+  assert.equal(env.apiTokenLogRetentionDays, 365);
+  assert.equal(env.apiTokenMaxOverlapMinutes, 60);
 });
 
 test('loadEnv selects and parses Microsoft OAuth2 application authentication', () => {
@@ -147,6 +156,16 @@ test('loadEnv enforces production security variables', () => {
     NODE_ENV: 'production',
     TRUST_PROXY: '1',
     SIGNATURE_TOKEN_SECRET: 'signature-secret',
-    SURVEY_TOKEN_SECRET: 'survey-secret'
+    SURVEY_TOKEN_SECRET: 'survey-secret',
+    API_TOKEN_HASH_KEY_V1: 'api-token-secret-with-at-least-32-characters'
   }));
+
+  assert.throws(() => loadEnv({
+    DATABASE_URL: databaseUrl,
+    NODE_ENV: 'production',
+    TRUST_PROXY: '1',
+    SIGNATURE_TOKEN_SECRET: 'signature-secret',
+    SURVEY_TOKEN_SECRET: 'survey-secret',
+    API_TOKEN_HASH_KEY_V1: 'curta'
+  }), /API_TOKEN_HASH_KEY_V1/);
 });

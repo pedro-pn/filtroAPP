@@ -26,6 +26,7 @@ import {
   canStartOperationalReportsNovelty,
   OPERATIONAL_REPORTS_NOVELTY_STORAGE_PREFIX
 } from '../utils/operationalReportsNovelty';
+import { markApiTokenPlaygroundNoveltySeen, shouldShowApiTokenPlaygroundNovelty } from './admin/apiTokenPlaygroundNovelty';
 
 const DEFAULT_MODULE_ICON = <circle cx="12" cy="12" r="9" />;
 
@@ -206,12 +207,14 @@ export function HubPage() {
     const seen = user ? operationalNoveltySeen(user.id) : false;
     return canStartOperationalReportsNovelty({ user, eligible, seen });
   });
-  const shouldRedirect = baseShouldRedirect && !acompNoveltyActive && !qualityNoveltyActive && !efetivoNoveltyActive && !operationalNoveltyActive;
+  const [apiTokenNoveltyActive, setApiTokenNoveltyActive] = useState(() => shouldShowApiTokenPlaygroundNovelty(user));
+  const shouldRedirect = baseShouldRedirect && !acompNoveltyActive && !qualityNoveltyActive && !efetivoNoveltyActive && !operationalNoveltyActive && !apiTokenNoveltyActive;
 
   useEffect(() => {
     setAcompNoveltyActive(userHasAcompanhamentoModule(user) && !hasSeenAcompanhamentoNovelty(user));
     setQualityNoveltyActive(shouldShowQualidadeNovelty(user));
     setEfetivoNoveltyActive(shouldShowEfetivoHubNovelty(user));
+    setApiTokenNoveltyActive(shouldShowApiTokenPlaygroundNovelty(user));
     const eligible = canAccessOperationalModule(user?.reportEmissionPermissions || []);
     const seen = user ? operationalNoveltySeen(user.id) : false;
     setOperationalNoveltyActive(
@@ -316,6 +319,9 @@ export function HubPage() {
                     } else if (module.id === 'maintenance-production' && user) {
                       markOperationalNoveltySeen(user.id);
                       setOperationalNoveltyActive(false);
+                    } else if (module.id === 'admin') {
+                      markApiTokenPlaygroundNoveltySeen(user);
+                      setApiTokenNoveltyActive(false);
                     }
                     navigate(path);
                   } : undefined}
@@ -331,6 +337,9 @@ export function HubPage() {
                   )}
                   {module.id === 'maintenance-production' && operationalNoveltyActive && (
                     <span className="hub-card-new" aria-label="Novo módulo">Novo</span>
+                  )}
+                  {module.id === 'admin' && apiTokenNoveltyActive && (
+                    <span className="hub-card-new" aria-label="Novo recurso de tokens de API">Novo</span>
                   )}
                   <div className="hub-card-accent" style={{ background: accent }} />
                   <div className="hub-card-icon">

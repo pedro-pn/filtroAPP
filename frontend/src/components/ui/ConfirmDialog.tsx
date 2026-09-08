@@ -19,7 +19,7 @@ interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
-export function ConfirmDialog({ open, title, description, highlight, confirmLabel = 'Remover', cancelLabel = 'Cancelar', danger = true, confirmationText, confirmationLabel = 'Digite para confirmar', confirmDisabled = false, children, onConfirm, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({ open, title, description, highlight, confirmLabel = 'Remover', cancelLabel = 'Cancelar', danger = true, confirmationText, confirmationLabel, confirmDisabled = false, children, onConfirm, onCancel }: ConfirmDialogProps) {
   const [typedConfirmation, setTypedConfirmation] = useState('');
   useEffect(() => {
     if (!open) setTypedConfirmation('');
@@ -42,7 +42,7 @@ export function ConfirmDialog({ open, title, description, highlight, confirmLabe
       ) : null}
       {confirmationText ? (
         <div className={`field-group ${typedConfirmation && !confirmationMatches ? 'field-invalid' : ''}`}>
-          <label htmlFor="confirm-dialog-text">{confirmationLabel}</label>
+          <label htmlFor="confirm-dialog-text">{confirmationLabel ?? <>Digite <strong>{confirmationText}</strong> para confirmar</>}</label>
           <input id="confirm-dialog-text" value={typedConfirmation} aria-invalid={Boolean(typedConfirmation && !confirmationMatches)} onChange={event => setTypedConfirmation(event.target.value)} autoComplete="off" />
           {typedConfirmation && !confirmationMatches ? <div className="field-error">O texto informado não confere.</div> : null}
         </div>

@@ -401,6 +401,29 @@ enum QualityStatus {
   DIVULGADO
 }
 
+enum ApiProjectAccessMode {
+  ALL
+  SELECTED
+}
+
+enum ApiUsageWindowKind {
+  MINUTE
+  DAY
+}
+
+enum ApiCredentialEventType {
+  CREATED
+  SECRET_REVEALED
+  METADATA_UPDATED
+  RESTRICTIONS_REDUCED
+  SCOPE_REDUCTION
+  PRIVILEGE_INCREASE_REJECTED
+  TESTED
+  ROTATED
+  REVOKED
+  EXPIRED_NOTICE
+}
+
 model Collaborator {
   id                             String                           @id @default(cuid())
   code                           String                           @unique
@@ -838,6 +861,7 @@ model Project {
   acompanhamentoGroupMembers AcompanhamentoMissionGroupMember[]
   primaryLaborMissionGroups  AcompanhamentoMissionGroup[]       @relation("AcompanhamentoMissionGroupPrimaryLaborProject")
   qualityRecords             QualityRecord[]
+  apiCredentialProjects      ApiCredentialProject[]
   pontoProjectTagAliases     PontoProjectTagAlias[]
   pontoDayProjectOverrides   PontoDayProjectOverride[]
   efetivoMissionPlans        EfetivoMissionPlan[]
@@ -1377,8 +1401,8 @@ model MaintenanceProfile {
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
   items              MaintenanceProfileItem[]
-  categoryDefaults   EquipmentCategory[]       @relation("CategoryMaintenanceProfile")
-  equipment          CompanyEquipment[]        @relation("EquipmentMaintenanceProfile")
+  categoryDefaults   EquipmentCategory[]      @relation("CategoryMaintenanceProfile")
+  equipment          CompanyEquipment[]       @relation("EquipmentMaintenanceProfile")
   maintenanceRecords MaintenanceRecord[]
 
   @@index([isActive, order])
@@ -1616,57 +1640,57 @@ model CalibrationNotificationLog {
 // === Módulo Equipamentos ===
 
 model EquipmentCategory {
-  id                   String             @id @default(cuid())
-  systemKey            String             @unique // slug imutável usado pelo RDO/romaneio
-  name                 String // rótulo editável (vira a aba)
-  maintenanceProfileId String?
+  id                      String              @id @default(cuid())
+  systemKey               String              @unique // slug imutável usado pelo RDO/romaneio
+  name                    String // rótulo editável (vira a aba)
+  maintenanceProfileId    String?
   maintenanceIntervalDays Int?
-  showInMaintenance    Boolean            @default(true)
-  order                Int                @default(0)
-  fieldSchema          Json               @default("[]") // [{ key, label, type, required, options?, order, showInDashboard? }]
-  technicalSchema      Json               @default("[]") // dados técnicos: [{ key, label, type, group?, unit?, options?, repeatable?, itemSchema?, optionalPerEquipment?, showInDoc?, order }]
-  checklistEnabled     Boolean            @default(false)
-  checklistItems       Json               @default("[]") // pontos de checagem herdados pelos equipamentos da categoria
-  checklistDisplayMode String             @default("AUTO") // AUTO | TAG | NAME para <<nomeoutag>>
-  technicalDocEnabled  Boolean            @default(false) // liga a aba "Dados Técnicos" (datasheet estruturado + geração DOCX→PDF)
-  technicalTemplateId  String? // DOCX modelo da categoria (Etapa F); null = usa o modelo genérico
-  supportsCalibration  Boolean            @default(false)
-  supportsTechnicalDoc Boolean            @default(true) // anexo PDF legado (mantido como histórico)
-  syncToRomaneio       Boolean            @default(false)
-  isSystemManaged      Boolean            @default(false) // categorias consumidas pelo RDO (não removíveis)
-  isActive             Boolean            @default(true)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  maintenanceProfile   MaintenanceProfile? @relation("CategoryMaintenanceProfile", fields: [maintenanceProfileId], references: [id], onDelete: SetNull)
-  equipment            CompanyEquipment[]
+  showInMaintenance       Boolean             @default(true)
+  order                   Int                 @default(0)
+  fieldSchema             Json                @default("[]") // [{ key, label, type, required, options?, order, showInDashboard? }]
+  technicalSchema         Json                @default("[]") // dados técnicos: [{ key, label, type, group?, unit?, options?, repeatable?, itemSchema?, optionalPerEquipment?, showInDoc?, order }]
+  checklistEnabled        Boolean             @default(false)
+  checklistItems          Json                @default("[]") // pontos de checagem herdados pelos equipamentos da categoria
+  checklistDisplayMode    String              @default("AUTO") // AUTO | TAG | NAME para <<nomeoutag>>
+  technicalDocEnabled     Boolean             @default(false) // liga a aba "Dados Técnicos" (datasheet estruturado + geração DOCX→PDF)
+  technicalTemplateId     String? // DOCX modelo da categoria (Etapa F); null = usa o modelo genérico
+  supportsCalibration     Boolean             @default(false)
+  supportsTechnicalDoc    Boolean             @default(true) // anexo PDF legado (mantido como histórico)
+  syncToRomaneio          Boolean             @default(false)
+  isSystemManaged         Boolean             @default(false) // categorias consumidas pelo RDO (não removíveis)
+  isActive                Boolean             @default(true)
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  maintenanceProfile      MaintenanceProfile? @relation("CategoryMaintenanceProfile", fields: [maintenanceProfileId], references: [id], onDelete: SetNull)
+  equipment               CompanyEquipment[]
 
   @@index([maintenanceProfileId])
 }
 
 model CompanyEquipment {
-  id                      String                @id @default(cuid())
-  code                    String                @unique
-  name                    String
-  categoryId              String
-  maintenanceProfileId    String?
-  maintenanceProfileOverride Boolean             @default(false)
-  attributes              Json                  @default("{}") // valores dos campos dinâmicos, keyed por field.key
-  technicalData           Json                  @default("{}") // valores do datasheet, keyed por technicalSchema.key
-  technicalFieldOverrides Json                  @default("{}") // inclusão/exclusão de campos optionalPerEquipment, keyed por key -> bool
-  checklistItems          Json? // null = herda da categoria; array = override integral
-  technicalRevision       Int                   @default(0)
-  technicalUpdatedAt      DateTime?
-  hasCalibration          Boolean               @default(false)
-  calibratedAt            DateTime?
-  expiresAt               DateTime?
-  hasTechnicalDoc         Boolean               @default(false)
-  isActive                Boolean               @default(true)
-  createdAt               DateTime              @default(now())
-  updatedAt               DateTime              @updatedAt
-  category                EquipmentCategory     @relation(fields: [categoryId], references: [id])
-  maintenanceProfile      MaintenanceProfile?   @relation("EquipmentMaintenanceProfile", fields: [maintenanceProfileId], references: [id], onDelete: SetNull)
-  attachments             EquipmentAttachment[]
-  maintenanceRecords      MaintenanceRecord[]
+  id                         String                @id @default(cuid())
+  code                       String                @unique
+  name                       String
+  categoryId                 String
+  maintenanceProfileId       String?
+  maintenanceProfileOverride Boolean               @default(false)
+  attributes                 Json                  @default("{}") // valores dos campos dinâmicos, keyed por field.key
+  technicalData              Json                  @default("{}") // valores do datasheet, keyed por technicalSchema.key
+  technicalFieldOverrides    Json                  @default("{}") // inclusão/exclusão de campos optionalPerEquipment, keyed por key -> bool
+  checklistItems             Json? // null = herda da categoria; array = override integral
+  technicalRevision          Int                   @default(0)
+  technicalUpdatedAt         DateTime?
+  hasCalibration             Boolean               @default(false)
+  calibratedAt               DateTime?
+  expiresAt                  DateTime?
+  hasTechnicalDoc            Boolean               @default(false)
+  isActive                   Boolean               @default(true)
+  createdAt                  DateTime              @default(now())
+  updatedAt                  DateTime              @updatedAt
+  category                   EquipmentCategory     @relation(fields: [categoryId], references: [id])
+  maintenanceProfile         MaintenanceProfile?   @relation("EquipmentMaintenanceProfile", fields: [maintenanceProfileId], references: [id], onDelete: SetNull)
+  attachments                EquipmentAttachment[]
+  maintenanceRecords         MaintenanceRecord[]
 
   @@index([categoryId])
   @@index([maintenanceProfileId])
@@ -1902,6 +1926,13 @@ model User {
   maintenanceRecordsReviewed           MaintenanceRecord[]                 @relation("MaintenanceReviewer")
   maintenanceConfigurationUpdates      MaintenanceConfiguration[]          @relation("MaintenanceConfigurationUpdater")
   operationalReviewAudits              OperationalReviewAudit[]            @relation("OperationalReviewAuditActor")
+  apiCredentialsCreated                ApiCredential[]                     @relation("ApiCredentialCreatedBy")
+  apiCredentialsRevoked                ApiCredential[]                     @relation("ApiCredentialRevokedBy")
+  apiCredentialScopesGranted           ApiCredentialScope[]                @relation("ApiCredentialScopeGrantedBy")
+  apiCredentialScopesRevoked           ApiCredentialScope[]                @relation("ApiCredentialScopeRevokedBy")
+  apiCredentialProjectsGranted         ApiCredentialProject[]              @relation("ApiCredentialProjectGrantedBy")
+  apiCredentialProjectsRevoked         ApiCredentialProject[]              @relation("ApiCredentialProjectRevokedBy")
+  apiCredentialEvents                  ApiCredentialEvent[]                @relation("ApiCredentialEventActor")
 
   @@index([clientCnpj])
 }
@@ -1965,6 +1996,152 @@ model QualityRecord {
   @@index([updatedById])
   @@index([deletedAt])
   @@index([deletedById])
+  @@index([updatedAt, id])
+  @@index([deletedAt, updatedAt, id])
+}
+
+// === Credenciais da API de integrações ===
+
+model ApiCredential {
+  id                      String                 @id @default(cuid())
+  selector                String                 @unique
+  secretVerifier          String
+  hashKeyVersion          Int
+  secretLastFour          String
+  name                    String
+  purpose                 String
+  recipientName           String
+  recipientContact        String?
+  description             String?
+  startsAt                DateTime
+  expiresAt               DateTime?
+  neverExpiresConfirmedAt DateTime?
+  projectAccessMode       ApiProjectAccessMode
+  allowedIpCidrs          String[]               @default([])
+  allowedFormats          String[]               @default(["JSON"])
+  requestsPerMinute       Int                    @default(60)
+  requestsPerDay          Int                    @default(10000)
+  rowsPerDay              Int                    @default(500000)
+  maxPageSize             Int                    @default(100)
+  lastUsedAt              DateTime?
+  revokedAt               DateTime?
+  revokedByUserId         String?
+  revocationReason        String?
+  rotatedFromId           String?                @unique
+  overlapEndsAt           DateTime?
+  createdByUserId         String
+  version                 Int                    @default(1)
+  issuanceRequestId       String                 @unique
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+  createdBy               User                   @relation("ApiCredentialCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  revokedBy               User?                  @relation("ApiCredentialRevokedBy", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+  rotatedFrom             ApiCredential?         @relation("ApiCredentialRotation", fields: [rotatedFromId], references: [id], onDelete: Restrict)
+  replacement             ApiCredential?         @relation("ApiCredentialRotation")
+  scopes                  ApiCredentialScope[]
+  projects                ApiCredentialProject[]
+  events                  ApiCredentialEvent[]
+  requestLogs             ApiRequestLog[]
+  usageBuckets            ApiUsageBucket[]
+
+  @@index([revokedAt, expiresAt])
+  @@index([createdByUserId])
+  @@index([lastUsedAt])
+  @@index([name])
+  @@index([recipientName])
+}
+
+model ApiCredentialScope {
+  id              String        @id @default(cuid())
+  credentialId    String
+  scopeCode       String
+  grantedAt       DateTime      @default(now())
+  grantedByUserId String
+  revokedAt       DateTime?
+  revokedByUserId String?
+  credential      ApiCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  grantedBy       User          @relation("ApiCredentialScopeGrantedBy", fields: [grantedByUserId], references: [id], onDelete: Restrict)
+  revokedBy       User?         @relation("ApiCredentialScopeRevokedBy", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([credentialId, scopeCode])
+  @@index([credentialId, revokedAt])
+  @@index([scopeCode, revokedAt])
+}
+
+model ApiCredentialProject {
+  id              String        @id @default(cuid())
+  credentialId    String
+  projectId       String
+  grantedAt       DateTime      @default(now())
+  grantedByUserId String
+  revokedAt       DateTime?
+  revokedByUserId String?
+  credential      ApiCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  project         Project       @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  grantedBy       User          @relation("ApiCredentialProjectGrantedBy", fields: [grantedByUserId], references: [id], onDelete: Restrict)
+  revokedBy       User?         @relation("ApiCredentialProjectRevokedBy", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([credentialId, projectId])
+  @@index([credentialId, revokedAt])
+  @@index([projectId, revokedAt])
+}
+
+model ApiCredentialEvent {
+  id             String                 @id @default(cuid())
+  credentialId   String
+  actorUserId    String?
+  type           ApiCredentialEventType
+  reason         String?
+  summary        Json                   @default("{}")
+  requestId      String?                @unique
+  actorIp        String?
+  actorUserAgent String?
+  createdAt      DateTime               @default(now())
+  credential     ApiCredential          @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  actor          User?                  @relation("ApiCredentialEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([credentialId, createdAt])
+  @@index([type, createdAt])
+}
+
+model ApiRequestLog {
+  id            String        @id @default(cuid())
+  credentialId  String
+  requestId     String        @unique
+  operationId   String
+  scopeCode     String
+  pathTemplate  String
+  statusCode    Int
+  outcomeCode   String
+  responseRows  Int           @default(0)
+  responseBytes Int           @default(0)
+  durationMs    Int
+  clientIp      String?
+  userAgent     String?
+  filterSummary Json          @default("{}")
+  createdAt     DateTime      @default(now())
+  credential    ApiCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@index([credentialId, createdAt])
+  @@index([operationId, createdAt])
+  @@index([statusCode, createdAt])
+  @@index([createdAt])
+}
+
+model ApiUsageBucket {
+  id           String             @id @default(cuid())
+  credentialId String
+  windowKind   ApiUsageWindowKind
+  windowStart  DateTime
+  requests     Int                @default(0)
+  rows         Int                @default(0)
+  bytes        BigInt             @default(0)
+  updatedAt    DateTime           @updatedAt
+  credential   ApiCredential      @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@unique([credentialId, windowKind, windowStart])
+  @@index([windowKind, windowStart])
+  @@index([updatedAt])
 }
 
 model QualityEvidence {

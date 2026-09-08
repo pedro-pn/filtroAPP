@@ -107,6 +107,13 @@ export function assertProductionSurveyTokenSecretConfigured({ nodeEnv, surveyTok
   }
 }
 
+export function assertProductionApiTokenHashKeyConfigured({ nodeEnv, apiTokenHashKeyV1 }) {
+  if (nodeEnv !== 'production') return;
+  if (!apiTokenHashKeyV1 || apiTokenHashKeyV1.length < 32) {
+    throw new Error('API_TOKEN_HASH_KEY_V1 deve ser configurado em produção com pelo menos 32 caracteres.');
+  }
+}
+
 const rawEnvSchema = z.object({
   NODE_ENV: stringWithDefault('development'),
   PORT: integerWithDefault('PORT', 4000, { min: 1, max: 65535 }),
@@ -148,6 +155,15 @@ const rawEnvSchema = z.object({
   SURVEY_TOKEN_SECRET_PREVIOUS: stringWithDefault(''),
   SIGNATURE_TOKEN_SECRET: stringWithDefault(''),
   SIGNATURE_TOKEN_SECRET_PREVIOUS: stringWithDefault(''),
+  API_TOKEN_HASH_KEY_V1: stringWithDefault(''),
+  API_TOKEN_ACTIVE_KEY_VERSION: integerWithDefault('API_TOKEN_ACTIVE_KEY_VERSION', 1, { min: 1 }),
+  API_TOKEN_GLOBAL_MAX_PAGE_SIZE: integerWithDefault('API_TOKEN_GLOBAL_MAX_PAGE_SIZE', 500, { min: 1, max: 500 }),
+  API_TOKEN_DEFAULT_REQUESTS_PER_MINUTE: integerWithDefault('API_TOKEN_DEFAULT_REQUESTS_PER_MINUTE', 60, { min: 1 }),
+  API_TOKEN_DEFAULT_REQUESTS_PER_DAY: integerWithDefault('API_TOKEN_DEFAULT_REQUESTS_PER_DAY', 10000, { min: 1 }),
+  API_TOKEN_DEFAULT_ROWS_PER_DAY: integerWithDefault('API_TOKEN_DEFAULT_ROWS_PER_DAY', 500000, { min: 1 }),
+  API_TOKEN_COARSE_IP_REQUESTS_PER_MINUTE: integerWithDefault('API_TOKEN_COARSE_IP_REQUESTS_PER_MINUTE', 300, { min: 1 }),
+  API_TOKEN_LOG_RETENTION_DAYS: integerWithDefault('API_TOKEN_LOG_RETENTION_DAYS', 365, { min: 1 }),
+  API_TOKEN_MAX_OVERLAP_MINUTES: integerWithDefault('API_TOKEN_MAX_OVERLAP_MINUTES', 60, { min: 0, max: 1440 }),
   ASSINATURAS_MAX_PDF_MB: integerWithDefault('ASSINATURAS_MAX_PDF_MB', 20, { min: 1 }),
   ASSINATURAS_MAX_PAGES: integerWithDefault('ASSINATURAS_MAX_PAGES', 50, { min: 1 }),
   ASSINATURAS_MAX_SIGNERS: integerWithDefault('ASSINATURAS_MAX_SIGNERS', 20, { min: 1 }),
@@ -192,6 +208,10 @@ const rawEnvSchema = z.object({
     () => assertProductionSurveyTokenSecretConfigured({
       nodeEnv: value.NODE_ENV,
       surveyTokenSecret: value.SURVEY_TOKEN_SECRET
+    }),
+    () => assertProductionApiTokenHashKeyConfigured({
+      nodeEnv: value.NODE_ENV,
+      apiTokenHashKeyV1: value.API_TOKEN_HASH_KEY_V1
     })
   ]) {
     try {
@@ -265,6 +285,15 @@ export function loadEnv(source = process.env) {
     previousSurveyTokenSecrets: parseList(raw.SURVEY_TOKEN_SECRET_PREVIOUS),
     signatureTokenSecret: raw.SIGNATURE_TOKEN_SECRET,
     previousSignatureTokenSecrets: parseList(raw.SIGNATURE_TOKEN_SECRET_PREVIOUS),
+    apiTokenHashKeys: { [raw.API_TOKEN_ACTIVE_KEY_VERSION]: raw.API_TOKEN_HASH_KEY_V1 },
+    apiTokenActiveKeyVersion: raw.API_TOKEN_ACTIVE_KEY_VERSION,
+    apiTokenGlobalMaxPageSize: raw.API_TOKEN_GLOBAL_MAX_PAGE_SIZE,
+    apiTokenDefaultRequestsPerMinute: raw.API_TOKEN_DEFAULT_REQUESTS_PER_MINUTE,
+    apiTokenDefaultRequestsPerDay: raw.API_TOKEN_DEFAULT_REQUESTS_PER_DAY,
+    apiTokenDefaultRowsPerDay: raw.API_TOKEN_DEFAULT_ROWS_PER_DAY,
+    apiTokenCoarseIpRequestsPerMinute: raw.API_TOKEN_COARSE_IP_REQUESTS_PER_MINUTE,
+    apiTokenLogRetentionDays: raw.API_TOKEN_LOG_RETENTION_DAYS,
+    apiTokenMaxOverlapMinutes: raw.API_TOKEN_MAX_OVERLAP_MINUTES,
     assinaturasMaxPdfMb: raw.ASSINATURAS_MAX_PDF_MB,
     assinaturasMaxPages: raw.ASSINATURAS_MAX_PAGES,
     assinaturasMaxSigners: raw.ASSINATURAS_MAX_SIGNERS,

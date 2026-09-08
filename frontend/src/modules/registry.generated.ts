@@ -184,10 +184,16 @@ export const moduleRegistry = [
       "/admin"
     ],
     "routes": {
-      "accounts": "/admin/accounts"
+      "accounts": "/admin/accounts",
+      "tokens": "/admin/tokens"
     },
     "routeGroups": {
       "accounts": {
+        "allowedAccountTypes": [
+          "ADMIN"
+        ]
+      },
+      "tokens": {
         "allowedAccountTypes": [
           "ADMIN"
         ]
