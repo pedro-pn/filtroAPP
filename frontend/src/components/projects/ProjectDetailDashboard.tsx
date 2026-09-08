@@ -35,6 +35,7 @@ import { ProjectManualCostNovelty } from './ProjectManualCostNovelty';
 import { ProjectQualityDeviationsNovelty } from './ProjectQualityDeviationsNovelty';
 import { ProjectProgressHistoryNovelty } from './ProjectProgressHistoryNovelty';
 import { ProjectReportsDialog } from './ProjectReportsDialog';
+import { ProjectRomaneiosDialog } from './ProjectRomaneiosDialog';
 import { ProjectStandbyHistoryDialog } from './ProjectStandbyHistoryDialog';
 import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
 import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
@@ -603,7 +604,10 @@ export function ProjectDetailDashboard({
   const [additionalProposalsNoveltyActive, setAdditionalProposalsNoveltyActive] = useState(true);
   const [standbyHistoryNoveltyActive, setStandbyHistoryNoveltyActive] = useState(true);
   const [standbyHistoryOpen, setStandbyHistoryOpen] = useState(false);
-  const [appropriationCollaborator, setAppropriationCollaborator] = useState<ProjectDetailCollaborator | null>(null);
+  const [hoursDetail, setHoursDetail] = useState<{
+    collaborator: ProjectDetailCollaborator;
+    source: 'POINT' | 'REPORT';
+  } | null>(null);
   const [expandedQualityDeviationIds, setExpandedQualityDeviationIds] = useState<Set<string>>(() => new Set());
   const [manualCostFormOpen, setManualCostFormOpen] = useState(false);
   const [manualCostError, setManualCostError] = useState<string | null>(null);
@@ -1362,6 +1366,14 @@ export function ProjectDetailDashboard({
             </div>
           )}
         </details>
+        <div className="acp-det-romaneios-action">
+          <ProjectRomaneiosDialog
+            key={groupId || projectId}
+            projectId={projectId}
+            groupId={groupId}
+            missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code}`}
+          />
+        </div>
       </div>
 
       {/* Colaboradores em largura total: apropriação financeira em destaque e jornada dos RDOs para conferência. */}
@@ -1409,22 +1421,24 @@ export function ProjectDetailDashboard({
                             <button
                               type="button"
                               className="acp-collaborator-hours-trigger"
-                              onClick={() => setAppropriationCollaborator(c)}
+                              onClick={() => setHoursDetail({ collaborator: c, source: 'POINT' })}
                               title={`Conferir os dias apropriados de ${c.name}`}
                             >
                               {fmtHours(c.horasApropriadas)}
                             </button>
                           ) : c.horas > 0 ? (
-                            <PortalTip
-                              triggerClassName="acp-report-hours-fallback-tip"
-                              content="Estas horas vêm dos relatórios de execução (RDOs), pois não há horas do Ponto Mais apropriadas para este colaborador. Elas são exibidas como referência de jornada e não entram no custo apropriado."
-                              ariaLabel={`${fmtHours(c.horas)} provenientes dos relatórios de execução; não entram no custo apropriado`}
+                            <button
+                              type="button"
+                              className="acp-report-hours-fallback-trigger"
+                              onClick={() => setHoursDetail({ collaborator: c, source: 'REPORT' })}
+                              title={`Conferir os RDOs de origem da jornada de ${c.name}; estas horas não entram no custo apropriado`}
+                              aria-label={`Conferir ${fmtHours(c.horas)} dos relatórios de ${c.name}`}
                             >
                               <span className="acp-report-hours-fallback-value">
                                 {fmtHours(c.horas)}
                                 <small>RDO</small>
                               </span>
-                            </PortalTip>
+                            </button>
                           ) : fmtHours(c.horasApropriadas)}
                         </td>
                         <td data-label="Custo apropriado" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{brl(c.custo)}</td>
@@ -1500,8 +1514,10 @@ export function ProjectDetailDashboard({
       />
 
       <ProjectCollaboratorHoursDialog
-        collaborator={appropriationCollaborator}
-        onClose={() => setAppropriationCollaborator(null)}
+        collaborator={hoursDetail?.collaborator ?? null}
+        source={hoursDetail?.source}
+        isGroup={isGroup}
+        onClose={() => setHoursDetail(null)}
       />
 
       <Modal open={scheduleProject !== null} onClose={closeSchedule} ariaLabelledBy="acp-detail-schedule-title" panelClassName="modal-card acp-manage-card">
