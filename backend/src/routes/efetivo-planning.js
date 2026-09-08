@@ -99,7 +99,11 @@ const missionListQuerySchema = z.object({
   stage: missionStageSchema.optional()
 });
 const missionPendingQuerySchema = z.object({ planId: idSchema.optional() });
-const collaboratorListQuerySchema = datePositionQuerySchema.extend({ search: z.string().trim().max(120).optional() });
+const includeInactiveQuerySchema = z.enum(['true', 'false']).optional().transform(value => value === 'true');
+const collaboratorListQuerySchema = datePositionQuerySchema.extend({
+  search: z.string().trim().max(120).optional(),
+  includeInactive: includeInactiveQuerySchema
+});
 const absenceListQuerySchema = z.object({
   collaboratorId: idSchema.optional(),
   startDate: dateOnlySchema.optional(),
@@ -110,6 +114,7 @@ const holidayListSchema = z.object({ startDate: dateOnlySchema.optional(), endDa
 const activitySchema = z.object({ cursor: z.string().datetime().optional(), limit: z.coerce.number().int().min(1).max(100).optional() });
 const eligibleCollaboratorsQuerySchema = z.object({
   jobRoleId: idSchema,
+  includeInactive: includeInactiveQuerySchema,
   mobilizationDate: dateOnlySchema.optional(),
   demobilizationDate: dateOnlySchema.optional()
 }).refine(value => !value.mobilizationDate || !value.demobilizationDate || value.demobilizationDate >= value.mobilizationDate, {

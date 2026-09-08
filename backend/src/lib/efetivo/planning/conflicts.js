@@ -9,10 +9,10 @@ export async function lockCollaborator(tx, collaboratorId) {
   }
 }
 
-export function collaboratorIsEmployedForPeriod(collaborator, period) {
+export function collaboratorIsEmployedForPeriod(collaborator, period, { allowInactiveCollaborator = false } = {}) {
   const admission = collaborator.admissionDate ? parseDateKey(collaborator.admissionDate) : null;
   const termination = collaborator.terminationDate ? parseDateKey(collaborator.terminationDate) : null;
-  return collaborator.isActive !== false
+  return (collaborator.isActive !== false || allowInactiveCollaborator)
     && (!admission || admission <= parseDateKey(period.startDate))
     && (!termination || termination >= parseDateKey(period.endDate));
 }
@@ -25,10 +25,11 @@ export function collectAllocationConflicts({
   allocations = [],
   ignoredMissionId = null,
   allowMissionOverlap = false,
+  allowInactiveCollaborator = false,
   requireCandidateMissionOverlapConfirmation = false
 }) {
   const conflicts = [];
-  if (!collaboratorIsEmployedForPeriod(collaborator, period)) {
+  if (!collaboratorIsEmployedForPeriod(collaborator, period, { allowInactiveCollaborator })) {
     conflicts.push(conflictDescriptor({
       collaborator,
       ...period,
