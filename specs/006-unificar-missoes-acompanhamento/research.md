@@ -44,7 +44,7 @@
 
 **Alternatives considered**:
 
-- Média simples de percentuais: rápida, mas distorce grupos com contratos de tamanhos diferentes.
+- Média simples de percentuais: rápida, mas distorce grupos com propostas de tamanhos diferentes.
 - Mostrar apenas totais monetários e esconder progresso: incompleto para o pedido "tudo".
 - Recalcular progresso físico por escopo único do grupo: exigiria unificar escopos heterogêneos e quebraria independência por missão.
 

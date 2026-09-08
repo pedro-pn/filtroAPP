@@ -22,7 +22,7 @@ const PRESETS = [
 ];
 // Pedido de compra: confirmado que NÃO é necessário (contas a pagar já engloba tudo).
 
-// Testa se ListarContasPagar aceita filtro por codigo_projeto (decisivo p/ não varrer 40k+ títulos).
+// Testa o filtro oficial por projeto (decisivo p/ não varrer 40k+ títulos).
 async function probeContasPagarFilter() {
   console.log('\n===== probe: contas a pagar filtradas por projeto =====');
   try {
@@ -31,11 +31,11 @@ async function probeContasPagarFilter() {
     const codigoProjeto = first?.codigo_projeto;
     if (!codigoProjeto) { console.log('  sem codigo_projeto no 1º título; pulei.'); return; }
     console.log('  total geral:', base.total_de_registros, '· testando codigo_projeto =', codigoProjeto);
-    const filtered = await omieCall('/financas/contapagar/', 'ListarContasPagar', { pagina: 1, registros_por_pagina: 5, codigo_projeto: codigoProjeto });
-    console.log('  total filtrado por codigo_projeto:', filtered.total_de_registros);
+    const filtered = await omieCall('/financas/contapagar/', 'ListarContasPagar', { pagina: 1, registros_por_pagina: 5, filtrar_por_projeto: codigoProjeto });
+    console.log('  total filtrado por filtrar_por_projeto:', filtered.total_de_registros);
     console.log(filtered.total_de_registros < base.total_de_registros
-      ? '  => filtro por codigo_projeto FUNCIONA (podemos puxar por projeto).'
-      : '  => filtro por codigo_projeto IGNORADO (precisa varrer por data e filtrar no app).');
+      ? '  => filtro filtrar_por_projeto FUNCIONA (podemos puxar por projeto).'
+      : '  => filtro filtrar_por_projeto IGNORADO (precisa varrer por data e filtrar no app).');
   } catch (error) {
     console.log('  ERRO no probe:', error.message);
   }

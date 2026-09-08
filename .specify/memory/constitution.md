@@ -1,15 +1,15 @@
 <!--
 Sync Impact Report
-- Version change: 1.5.0 → 1.6.0
-- Modified principles: Princípio II expandido para regras testáveis de overflow em abas/segmentos mobile
+- Version change: 1.8.0 → 1.9.0
+- Modified principles: Princípio VI ganhou a "Exceção de identidade portada", que permite a um módulo que reproduz fielmente um aplicativo aprovado preservar a identidade visual de origem sob quatro condições
 - Added sections: nenhuma
 - Removed sections: nenhuma
 - Templates requiring updates:
-  - ✅ .specify/templates/plan-template.md — gate visual passou a exigir abas/segmentos sem overflow
-  - ✅ .specify/templates/spec-template.md — contrato responsivo passou a capturar tabs/segmentos
-  - ✅ .specify/templates/tasks-template.md — tarefas de frontend passaram a auditar abas/segmentos
-  - ✅ docs/PADRAO_MODULO.md — padrão de frontend atualizado para tabs/segmentos mobile
-- Follow-up TODOs: nenhum
+  - ✅ .specify/templates/plan-template.md — gate visual passou a admitir a exceção de identidade portada
+  - ✅ .specify/templates/spec-template.md — contrato visual passou a declarar quando a identidade é portada
+  - ✅ .specify/templates/tasks-template.md — tarefas de frontend passaram a auditar escopo de CSS e paleta centralizada
+  - ✅ docs/PADRAO_MODULO.md — padrão de frontend atualizado com a exceção
+- Follow-up TODOs: reavaliar a exceção quando o módulo Comercial deixar de ser porte; se a identidade portada for promovida a padrão do app, abrir nova emenda atualizando variables.css, components/ui/ e o Princípio VI
 -->
 
 # Constitution do NewRDO
@@ -99,6 +99,17 @@ Nenhuma página, modal ou card pode nascer fora da formatação padrão do app. 
   DEVEM aparecer formatados com borda, raio, padding, foco e indicador visual de
   abertura consistentes com o app; dropdown com aparência padrão crua do navegador é
   violação bloqueante.
+- Ao tentar salvar formulário com campo obrigatório vazio ou inválido, o campo DEVE
+  receber o estado visual de erro do app: wrapper `.field-group.field-invalid`, controle
+  com `aria-invalid` quando aplicável e mensagem `.field-error` abaixo do campo. A
+  validação nativa do navegador não pode substituir esse padrão visual.
+- Toda reordenação visível ao usuário por drag and drop DEVE seguir o padrão compartilhado
+  do app: handle dedicado de arraste, item original substituído por placeholder com
+  espaço e legenda da posição atual, fantasma visual acompanhando o cursor/toque,
+  reorganização ao vivo durante o arraste, suporte mobile/touch via Pointer Events ou
+  equivalente com `touch-action: none`, cancelamento restaurando a ordem inicial e
+  persistência apenas da ordem final ao soltar. Drag and drop nativo do navegador não
+  pode ser o único mecanismo quando houver uso em mobile.
 - Listas suspensas customizadas (combobox, multiselect, filtros com menu) DEVEM usar
   componente existente do kit ou uma classe compartilhada baseada nos tokens. É
   proibido criar dropdown local sem estados de foco, disabled, erro e mobile definidos.
@@ -129,14 +140,48 @@ Nenhuma página, modal ou card pode nascer fora da formatação padrão do app. 
   trocar de seção. Persistência em `localStorage` só é aceita quando a URL exporia dado
   sensível ou quando o estado não representa navegação compartilhável.
 
+**Exceção de identidade portada.** Um módulo que reproduz fielmente um aplicativo já
+existente e aprovado pela diretoria PODE preservar a identidade visual de origem, desde
+que:
+
+- (a) todo o CSS fique escopado sob uma raiz do módulo, sem vazar seletor para o
+  restante do app e sem ser afetado por `base.css`;
+- (b) a paleta e as medidas próprias sejam declaradas como custom properties
+  prefixadas na raiz do módulo, em um bloco único, sem redefinir tokens globais de
+  `variables.css`. Valor hex/px solto espalhado pelos seletores não atende esta
+  alínea;
+- (c) os comportamentos obrigatórios sejam preservados — `aria-invalid` com mensagem
+  visível em campo inválido, `select` com estados de foco/disabled/erro, reordenação
+  no padrão compartilhado de drag and drop, navegação em URL/query params, tutorial
+  permanente de primeiro acesso e ausência de scroll horizontal de página em mobile;
+- (d) a exceção seja registrada no `plan.md` da feature e reavaliada quando o módulo
+  deixar de ser um porte e passar a evoluir por conta própria.
+
+Divergência visual entre módulos é estado transitório, nunca permanente. Só existem
+dois desfechos aceitáveis: o módulo converge para o kit, ou a identidade portada é
+promovida a padrão do app por nova emenda que atualize `variables.css`,
+`frontend/src/components/ui/` e este princípio. Enquanto a promoção não acontecer, esta
+exceção NÃO autoriza outro módulo a inventar identidade própria — ela vale apenas para
+porte fiel de aplicativo aprovado.
+
+Racional: forçar o kit sobre um porte fiel produziria retrabalho sem ganho para o
+usuário, que já conhece a tela de origem, e destruiria a paridade que torna a migração
+verificável. A exceção é de aparência; nenhuma garantia de acessibilidade,
+responsividade ou consistência funcional é dispensada. A exigência de paleta
+centralizada na alínea (b) existe para que a promoção a padrão do app, se ocorrer, seja
+uma troca de tokens e não uma reescrita.
+
 Racional: divergências visuais quase nunca são intencionais — surgem quando uma tela é
 construída sem olhar o kit e os tokens existentes, e depois custam passadas inteiras de
 padronização. Novidades sem divulgação deixam usuários sem descobrir fluxos novos; aviso
 e tutorial temporários tornam a adoção previsível sem criar pop-ups permanentes para
-funções pontuais. Abas que voltam para o início após F5 quebram o contexto operacional
-do usuário em campo e tornam a experiência inconsistente entre módulos. A regra torna a
-checagem objetiva em review: componente do kit usado? token usado? tela análoga
-seguida? novidade temporária implementada quando aplicável? refresh preserva a página?
+funções pontuais. Reordenações diferentes entre módulos geram erro em telas de campo,
+especialmente no toque; por isso todo drag and drop de ordenação precisa usar a mesma
+interação com handle, placeholder, fantasma e reorganização ao vivo. Abas que voltam
+para o início após F5 quebram o contexto operacional do usuário em campo e tornam a
+experiência inconsistente entre módulos. A regra torna a checagem objetiva em review:
+componente do kit usado? token usado? tela análoga seguida? novidade temporária
+implementada quando aplicável? drag and drop segue o padrão? refresh preserva a página?
 
 ## Restrições de Stack
 
@@ -178,4 +223,4 @@ corrigido.
   DEVEM verificar aderência aos Princípios I–VI; violações exigem justificativa
   registrada na seção Complexity Tracking do plano da feature.
 
-**Version**: 1.6.0 | **Ratified**: 2026-07-03 | **Last Amended**: 2026-07-17
+**Version**: 1.9.0 | **Ratified**: 2026-07-03 | **Last Amended**: 2026-07-28

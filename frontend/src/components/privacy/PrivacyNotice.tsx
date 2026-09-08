@@ -1,6 +1,6 @@
 import { PRIVACY_CONTACT } from '../../constants/privacy';
 
-type PrivacyNoticeVariant = 'signatureRdo' | 'signatureEpi' | 'survey' | 'clientAccount' | 'collaboratorSignature';
+type PrivacyNoticeVariant = 'signatureRdo' | 'signatureEpi' | 'signatureAvulsa' | 'survey' | 'clientAccount' | 'collaboratorSignature';
 
 interface PrivacyNoticeProps {
   variant: PrivacyNoticeVariant;
@@ -27,6 +27,15 @@ const noticeCopy: Record<PrivacyNoticeVariant, { title: string; details: string[
       'Base legal: execução de contrato de trabalho (Lei 13.709/2018, Art. 7°, V). Retenção: 20 anos, conforme NR-1 e entendimento consolidado do TST.'
     ],
     checkbox: 'Li e estou ciente do tratamento dos meus dados para assinatura de EPI.'
+  },
+  signatureAvulsa: {
+    title: 'Aviso de privacidade da assinatura eletrônica',
+    details: [
+      'Ao assinar este documento, serão armazenados seu nome declarado, a imagem da assinatura, endereço IP e informações do navegador/dispositivo.',
+      'Finalidade: comprovar a autoria, a integridade e o momento da assinatura eletrônica.',
+      'Base legal: execução de contrato e exercício regular de direitos (Lei 13.709/2018, Arts. 7°, V e VI). As evidências acompanham o documento pelo prazo legal aplicável.'
+    ],
+    checkbox: 'Li e estou ciente do tratamento dos meus dados para assinar este documento.'
   },
   survey: {
     title: 'Aviso de privacidade da pesquisa',

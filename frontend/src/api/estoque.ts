@@ -16,6 +16,14 @@ export interface PdfUpload {
   dataUrl: string;
 }
 
+export interface StockItemDocument {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  publicUrl: string;
+  createdAt: string;
+}
+
 export interface StockCategory {
   id: string;
   type: StockItemType;
@@ -54,7 +62,7 @@ export interface StockItem {
   filterMicron: string | null;
   unNumber: string | null;
   casNumber: string | null;
-  fispqUrl: string | null;
+  documents: StockItemDocument[];
   checklistEnabled: boolean;
   checklistItems: string[] | null;
   isActive: boolean;
@@ -78,7 +86,6 @@ export interface StockItemPayload {
   filterMicron?: string | null;
   unNumber?: string | null;
   casNumber?: string | null;
-  fispq?: PdfUpload | null;
   checklistEnabled?: boolean;
   checklistItems?: string[] | null;
 }
@@ -97,7 +104,24 @@ export interface StockBatchSummary {
 }
 
 export interface StockSummaryItem {
-  item: Pick<StockItem, 'id' | 'code' | 'name' | 'type' | 'unitLabel' | 'minQuantity' | 'isActive'>;
+  item: Pick<
+    StockItem,
+    | 'id'
+    | 'code'
+    | 'name'
+    | 'type'
+    | 'unitLabel'
+    | 'minQuantity'
+    | 'manufacturer'
+    | 'description'
+    | 'location'
+    | 'filterModel'
+    | 'filterKind'
+    | 'filterMicron'
+    | 'unNumber'
+    | 'casNumber'
+    | 'isActive'
+  > & { category: Pick<StockCategory, 'id' | 'name'> | null };
   balance: string;
   belowMin: boolean;
   batches: StockBatchSummary[];
@@ -141,6 +165,18 @@ export interface StockMovementPayload {
   confirmExpired?: boolean;
 }
 
+export interface StockReturnMovementsPayload {
+  reason: 'DEVOLUCAO_OBRA';
+  projectId: string;
+  date: string;
+  notes?: string;
+  items: Array<{
+    itemId: string;
+    batchId: string;
+    quantity: number | string;
+  }>;
+}
+
 export interface StockMovementListParams {
   itemId?: string;
   type?: StockMovementType;
@@ -148,6 +184,7 @@ export interface StockMovementListParams {
   projectId?: string;
   from?: string;
   to?: string;
+  dateOrder?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
 }
@@ -200,6 +237,18 @@ export async function removeStockItem(id: string) {
   await apiClient.delete(estoqueApiPath(`/itens/${id}`));
 }
 
+export async function createStockItemDocument(itemId: string, upload: PdfUpload) {
+  const response = await apiClient.post<StockItemDocument>(
+    estoqueApiPath(`/itens/${itemId}/documentos`),
+    upload
+  );
+  return response.data;
+}
+
+export async function removeStockItemDocument(itemId: string, documentId: string) {
+  await apiClient.delete(estoqueApiPath(`/itens/${itemId}/documentos/${documentId}`));
+}
+
 export async function getStockSummary() {
   const response = await apiClient.get<{ summary: StockSummaryItem[] }>(estoqueApiPath('/resumo'));
   return response.data.summary;
@@ -221,12 +270,24 @@ export async function createStockMovement(payload: StockMovementPayload) {
   return response.data;
 }
 
+export async function createStockReturnMovements(payload: StockReturnMovementsPayload) {
+  const response = await apiClient.post<{
+    movements: Array<StockMovement & { balances: { item: string; batch: string } }>;
+  }>(estoqueApiPath('/movimentacoes'), payload);
+  return response.data.movements;
+}
+
 export async function reverseStockMovement(id: string, notes?: string | null) {
   const response = await apiClient.post<StockMovement>(estoqueApiPath(`/movimentacoes/${id}/estorno`), { notes });
   return response.data;
 }
 
-export async function listStockBatches(itemId: string) {
-  const response = await apiClient.get<{ batches: StockBatchSummary[] }>(estoqueApiPath('/lotes'), { params: { itemId } });
+export async function listStockBatches(
+  itemId: string,
+  params?: { reason?: StockMovementReason; projectId?: string }
+) {
+  const response = await apiClient.get<{ batches: StockBatchSummary[] }>(estoqueApiPath('/lotes'), {
+    params: { itemId, ...params }
+  });
   return response.data.batches;
 }

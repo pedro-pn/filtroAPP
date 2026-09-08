@@ -1,3 +1,6 @@
+import { type ReactNode, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+
 import { Modal } from './Modal';
 
 interface ConfirmDialogProps {
@@ -8,36 +11,52 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
+  confirmationText?: string;
+  confirmationLabel?: string;
+  confirmDisabled?: boolean;
+  children?: ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-export function ConfirmDialog({
-  open,
-  title,
-  description,
-  highlight,
-  confirmLabel = 'Remover',
-  cancelLabel = 'Cancelar',
-  danger = true,
-  onConfirm,
-  onCancel
-}: ConfirmDialogProps) {
-  return (
-    <Modal
-      open={open}
-      onClose={onCancel}
-      ariaLabelledBy="confirm-dialog-title"
-      ariaDescribedBy="confirm-dialog-description"
-      panelClassName="modal-card confirm-dialog"
-    >
-      <div className="section-title" id="confirm-dialog-title">{title}</div>
-      {description ? <p className="placeholder-copy" id="confirm-dialog-description">{description}</p> : null}
-      {highlight ? <div className="confirm-dialog-item"><strong>{highlight}</strong></div> : null}
+export function ConfirmDialog({ open, title, description, highlight, confirmLabel = 'Remover', cancelLabel = 'Cancelar', danger = true, confirmationText, confirmationLabel, confirmDisabled = false, children, onConfirm, onCancel }: ConfirmDialogProps) {
+  const [typedConfirmation, setTypedConfirmation] = useState('');
+  useEffect(() => {
+    if (!open) setTypedConfirmation('');
+  }, [open]);
+  const confirmationMatches = !confirmationText || typedConfirmation === confirmationText;
+  const dialog = (
+    <Modal open={open} onClose={onCancel} ariaLabelledBy="confirm-dialog-title" ariaDescribedBy="confirm-dialog-description" backdropClassName="modal-backdrop confirm-dialog-backdrop" panelClassName="modal-card confirm-dialog">
+      <div className="section-title" id="confirm-dialog-title">
+        {title}
+      </div>
+      {description ? (
+        <p className="placeholder-copy" id="confirm-dialog-description">
+          {description}
+        </p>
+      ) : null}
+      {highlight ? (
+        <div className="confirm-dialog-item">
+          <strong>{highlight}</strong>
+        </div>
+      ) : null}
+      {confirmationText ? (
+        <div className={`field-group ${typedConfirmation && !confirmationMatches ? 'field-invalid' : ''}`}>
+          <label htmlFor="confirm-dialog-text">{confirmationLabel ?? <>Digite <strong>{confirmationText}</strong> para confirmar</>}</label>
+          <input id="confirm-dialog-text" value={typedConfirmation} aria-invalid={Boolean(typedConfirmation && !confirmationMatches)} onChange={event => setTypedConfirmation(event.target.value)} autoComplete="off" />
+          {typedConfirmation && !confirmationMatches ? <div className="field-error">O texto informado não confere.</div> : null}
+        </div>
+      ) : null}
+      {children}
       <div className="admin-form-actions confirm-dialog-actions">
-        <button className="secondary-button" type="button" onClick={onCancel}>{cancelLabel}</button>
-        <button className={danger ? 'danger-button' : 'primary-button'} type="button" onClick={onConfirm}>{confirmLabel}</button>
+        <button className="secondary-button" type="button" onClick={onCancel}>
+          {cancelLabel}
+        </button>
+        <button className={danger ? 'danger-button' : 'primary-button'} type="button" onClick={onConfirm} disabled={!confirmationMatches || confirmDisabled}>
+          {confirmLabel}
+        </button>
       </div>
     </Modal>
   );
+  return typeof document === 'undefined' ? null : createPortal(dialog, document.body);
 }

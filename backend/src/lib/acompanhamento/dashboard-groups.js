@@ -21,6 +21,34 @@ function combineComponents(rows) {
   return components;
 }
 
+function combineBudgetBreakdown(rows) {
+  const original = {
+    salePrice: sumValues(rows, row => row.originalSalePrice),
+    plannedTotalCost: sumValues(rows, row => row.originalPlannedTotalCost),
+    expectedProfit: sumValues(rows, row => row.originalExpectedProfit),
+    taxes: sumValues(rows, row => row.originalTaxes)
+  };
+  const additionalTotals = {
+    salePrice: sumValues(rows, row => row.additionalSalePrice),
+    plannedTotalCost: sumValues(rows, row => row.additionalPlannedTotalCost),
+    expectedProfit: sumValues(rows, row => row.additionalExpectedProfit),
+    taxes: sumValues(rows, row => row.additionalTaxes)
+  };
+  return {
+    original,
+    additionals: rows.flatMap(row => row.budgetBreakdown?.additionals ?? []),
+    additionalCount: sumValues(rows, row => row.budgetBreakdown?.additionalCount, { nullWhenEmpty: false }),
+    additionalTotals,
+    totals: {
+      salePrice: sumValues(rows, row => row.salePrice),
+      plannedTotalCost: sumValues(rows, row => row.plannedTotalCost),
+      expectedProfit: sumValues(rows, row => row.expectedProfit),
+      expectedMargin: ratioPct(sumValues(rows, row => row.expectedProfit), sumValues(rows, row => row.salePrice), { decimals: 2 }),
+      taxes: sumValues(rows, row => row.taxes)
+    }
+  };
+}
+
 function sameOrNull(rows, getter) {
   const values = Array.from(new Set(rows.map(getter).filter(value => value !== null && value !== undefined && value !== '')));
   return values.length === 1 ? values[0] : null;
@@ -53,6 +81,7 @@ function buildGroupRow(group, rowsByProjectId) {
   const plannedTotalCost = sumValues(visibleRows, row => row.plannedTotalCost);
   const realizedCost = sumValues(visibleRows, row => row.realizedCost);
   const progress = combineProgress(visibleRows);
+  const budgetBreakdown = combineBudgetBreakdown(visibleRows);
 
   return {
     kind: 'GROUP',
@@ -68,12 +97,22 @@ function buildGroupRow(group, rowsByProjectId) {
     approvedAt: null,
     mobilizationLeadDays: null,
     salePrice,
+    originalSalePrice: sumValues(visibleRows, row => row.originalSalePrice),
+    additionalSalePrice: sumValues(visibleRows, row => row.additionalSalePrice),
     invoicedRevenue: sumValues(visibleRows, row => row.invoicedRevenue),
     invoicedIss: sumValues(visibleRows, row => row.invoicedIss),
     invoiceCount: sumValues(visibleRows, row => row.invoiceCount, { nullWhenEmpty: false }),
     plannedTotalCost,
+    originalPlannedTotalCost: sumValues(visibleRows, row => row.originalPlannedTotalCost),
+    additionalPlannedTotalCost: sumValues(visibleRows, row => row.additionalPlannedTotalCost),
     expectedProfit,
+    originalExpectedProfit: sumValues(visibleRows, row => row.originalExpectedProfit),
+    additionalExpectedProfit: sumValues(visibleRows, row => row.additionalExpectedProfit),
     expectedMargin: ratioPct(expectedProfit, salePrice, { decimals: 2 }),
+    taxes: sumValues(visibleRows, row => row.taxes),
+    originalTaxes: sumValues(visibleRows, row => row.originalTaxes),
+    additionalTaxes: sumValues(visibleRows, row => row.additionalTaxes),
+    budgetBreakdown,
     plannedDays: sumValues(visibleRows, row => row.plannedDays),
     workedDays: sumValues(visibleRows, row => row.workedDays),
     numOperators: sumValues(visibleRows, row => row.numOperators),

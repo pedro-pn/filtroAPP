@@ -60,10 +60,12 @@ test('buildMonthlyAllocationSummary groups day and night allocations by collabor
     },
     collaborators: [{
       collaboratorId: 'collab-1',
-      collaborator: { id: 'collab-1', name: 'Ana Lima', role: 'Operadora' }
+      roleNameSnapshot: 'Operadora',
+      collaborator: { id: 'collab-1', name: 'Ana Lima', jobRole: { name: 'Operadora' } }
     }, {
       collaboratorId: 'collab-2',
-      collaborator: { id: 'collab-2', name: 'Bruno Souza', role: 'Técnico' }
+      roleNameSnapshot: 'Técnico',
+      collaborator: { id: 'collab-2', name: 'Bruno Souza', jobRole: { name: 'Técnico' } }
     }]
   }, {
     id: 'report-2',
@@ -80,7 +82,8 @@ test('buildMonthlyAllocationSummary groups day and night allocations by collabor
     },
     collaborators: [{
       collaboratorId: 'collab-1',
-      collaborator: { id: 'collab-1', name: 'Ana Lima', role: 'Operadora' }
+      roleNameSnapshot: 'Operadora',
+      collaborator: { id: 'collab-1', name: 'Ana Lima', jobRole: { name: 'Operadora' } }
     }]
   }];
 
@@ -129,7 +132,8 @@ test('processMonthlyAllocationReport sends the previous month on the first day',
     },
     collaborators: [{
       collaboratorId: 'collab-1',
-      collaborator: { id: 'collab-1', name: 'Ana Lima', role: 'Operadora' }
+      roleNameSnapshot: 'Operadora',
+      collaborator: { id: 'collab-1', name: 'Ana Lima', jobRole: { name: 'Operadora' } }
     }]
   }];
   const client = {

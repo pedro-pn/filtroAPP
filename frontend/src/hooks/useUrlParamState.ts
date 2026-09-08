@@ -1,5 +1,5 @@
 import { useCallback, useMemo, type Dispatch, type SetStateAction } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 
 type UrlParamStateOptions<T extends string> = {
   param: string;

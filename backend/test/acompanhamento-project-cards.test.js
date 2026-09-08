@@ -4,8 +4,27 @@ import { test } from 'node:test';
 import {
   buildWorkedHoursProgress,
   deriveProjectCardCategory,
+  deriveProjectTrackingState,
   lastDayStatus
 } from '../src/lib/acompanhamento/project-cards.js';
+
+test('arquivamento do acompanhamento é independente do status de relatórios', () => {
+  assert.deepEqual(deriveProjectTrackingState({ archivedInReports: false, archivedAt: '2026-08-06' }), {
+    archived: true,
+    archivedInReports: false,
+    archivedInAcompanhamento: true,
+    reviewed: false,
+    reviewedAt: null
+  });
+  assert.equal(deriveProjectTrackingState({ archivedInReports: true }).archived, true);
+});
+
+test('conferência só aparece para projeto efetivamente arquivado', () => {
+  const reviewedAt = '2026-08-06T12:00:00.000Z';
+  assert.equal(deriveProjectTrackingState({ reviewedAt }).reviewed, false);
+  assert.equal(deriveProjectTrackingState({ archivedInReports: true, reviewedAt }).reviewed, true);
+  assert.equal(deriveProjectTrackingState({ archivedAt: '2026-08-06', reviewedAt }).reviewedAt, reviewedAt);
+});
 
 const project = { workdayHours: '09:00', weekendWorkdayHours: '08:00' };
 // Quarta-feira (dia útil, jornada 9h)

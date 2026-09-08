@@ -56,6 +56,7 @@ console.log('Benefícios:          ', brl(b.beneficios));
 console.log('Passivo rescisório:  ', brl(b.passivoRescisorio));
 console.log('CUSTO TOTAL MENSAL (planilha):', brl(b.totalMensal));
 console.log('+ EPI/mês:           ', brl(r.epiMensal));
+console.log('+ Exames/trein./mês: ', brl(r.examsTrainingMensal), r.offshoreExamsTrainingApplied ? '(offshore)' : '(normal)');
 
 console.log('\n--- Folha no app ---');
 console.log('Fixo (× cobertura):  ', brl(r.fixoMensal));

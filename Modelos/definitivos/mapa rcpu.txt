@@ -4,7 +4,7 @@ MAPA DO MODELO DE FLUSHING E FILTRAGEM (RCPU)
 {{client}} - cliente do projeto
 {{cnpj}} - CNPJ do projeto
 {{local}} - local do projeto
-{{proposal}} - contrato do projeto
+{{proposal}} - proposta do projeto
 {{rcpu}} - número rcpu
 {{date}} - data do rdo
 

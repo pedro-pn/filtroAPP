@@ -9,6 +9,15 @@ coverage/
 frontend/.vite/
 frontend/vite.config.js
 frontend/vite.config.d.ts
+
+# Artefatos do Playwright podem conter imagens e dados sensíveis da interface
+output/playwright/
+frontend/output/playwright/
+**/.playwright-cli/
+playwright-report/
+test-results/
+blob-report/
+
 backend/node_modules/
 backend/.env
 backend/.env.*
@@ -74,6 +83,7 @@ backend/Relatórios/**
 
 # Added by code-review-graph
 .code-review-graph/
+.playwright-cli/
 
 # Saída do script de reparo de imagens
 faltantes-fotos.csv
@@ -83,3 +93,12 @@ backend/scripts/faltantes-fotos.csv
 PLANO_AUDITORIA_SEGURANCA.md
 FINDINGS_PENTEST.md
 RELATORIO_PENTEST_FILTROVALI.md
+
+# Configuracoes de ferramentas de IA especificas da maquina (caminhos absolutos).
+# As variantes portateis (.mcp.json, .opencode.json, .codebuddy/, .qoder/settings.json,
+# .gemini/, .claude/) sao versionadas.
+.kiro/settings/mcp.json
+.qoder/mcp.json
+opencode.jsonc
+.claude/settings.json.bak
+*.bak

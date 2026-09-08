@@ -10,6 +10,13 @@ export interface EpiCatalogItem {
   updatedAt: string;
 }
 
+export interface EpiJobRole {
+  id: string;
+  name: string;
+  order: number;
+  isActive: boolean;
+}
+
 export interface EpiRecord {
   id: string;
   collaboratorId: string;
@@ -38,7 +45,15 @@ export interface EpiRecord {
 }
 
 export interface EpiCollaborator extends Collaborator {
+  currentJobRole: EpiJobRole;
+  roleOverrideJobRole?: EpiJobRole | null;
+  effectiveRole: { jobRoleId: string | null; name: string; source: 'CANONICAL' | 'EPI_OVERRIDE' };
+  epiRoleOverride?: string | null;
   epiRecords: EpiRecord[];
+}
+
+export function effectiveEpiRole(collaborator: Pick<EpiCollaborator, 'effectiveRole'>) {
+  return collaborator.effectiveRole.name;
 }
 
 export interface EpiRecordPayload {
@@ -70,7 +85,12 @@ export async function listEpiCollaborators() {
   return data;
 }
 
-export async function updateEpiCollaboratorProfile(id: string, payload: { cpf?: string | null; registrationNumber?: string | null; admissionDate?: string | null }) {
+export async function listEpiJobRoles() {
+  const { data } = await apiClient.get<EpiJobRole[]>(epiApiPath('/job-roles'));
+  return data;
+}
+
+export async function updateEpiCollaboratorProfile(id: string, payload: { cpf?: string | null; registrationNumber?: string | null; admissionDate?: string | null; roleOverrideJobRoleId?: string | null }) {
   const { data } = await apiClient.put<EpiCollaborator>(epiApiPath(`/collaborators/${id}/profile`), payload);
   return data;
 }

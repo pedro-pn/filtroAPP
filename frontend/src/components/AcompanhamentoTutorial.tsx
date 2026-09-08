@@ -173,7 +173,7 @@ export function AcompanhamentoTutorial({
           popover: {
             title: '✨ Novidade: unificar projetos',
             description:
-              'Agora dá para agrupar missões do mesmo cliente no Acompanhamento. O card agrupado consolida custos, faturamento, colaboradores, impostos, progresso e cronograma, mantendo os contratos originais separados.'
+              'Agora dá para agrupar missões do mesmo cliente no Acompanhamento. O card agrupado consolida custos, faturamento, colaboradores, impostos, progresso e cronograma, mantendo as propostas originais separadas.'
           }
         });
       }

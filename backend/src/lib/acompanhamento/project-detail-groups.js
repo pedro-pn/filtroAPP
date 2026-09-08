@@ -119,7 +119,7 @@ function combineTopExpenses(details) {
     .slice(0, 5);
 }
 
-function combineRecentDays(details) {
+export function combineRecentDays(details) {
   const byDate = new Map();
   for (const { detail } of details) {
     for (const item of detail.ultimosDias ?? []) {
@@ -139,7 +139,7 @@ function combineRecentDays(details) {
   }
   return Array.from(byDate.values())
     .sort((a, b) => new Date(a.date) - new Date(b.date))
-    .slice(-5);
+    .slice(-10);
 }
 
 function normalizeKey(value) {
@@ -161,18 +161,104 @@ function combineCollaborators(details) {
       const existing = byPerson.get(key) ?? {
         name,
         role,
-        horas: 0,
+        horasLancadas: 0,
+        horasApropriadas: null,
+        horasDeslocamento: 0,
+        diasApropriados: new Map(),
+        horasRelatoriosPorData: new Map(),
         custo: null,
-        custoHora: null
+        custoHora: null,
+        custoDeslocamento: null
       };
-      existing.horas += toNumber(item.horas) ?? 0;
+      existing.horasLancadas += toNumber(item.horasLancadas) ?? toNumber(item.horas) ?? 0;
+      const horasApropriadas = toNumber(item.horasApropriadas);
+      if (horasApropriadas !== null) {
+        existing.horasApropriadas = (existing.horasApropriadas ?? 0) + horasApropriadas;
+      }
+      existing.horasDeslocamento += toNumber(item.horasDeslocamento) ?? 0;
+      for (const day of item.diasApropriados ?? []) {
+        if (!day?.data) continue;
+        const currentDay = existing.diasApropriados.get(day.data) ?? {
+          data: day.data,
+          horas: 0,
+          horasNormais: 0,
+          horasExtras: 0,
+          emViagem: false,
+          rdos: new Map()
+        };
+        currentDay.horas += toNumber(day.horas) ?? 0;
+        currentDay.horasNormais += toNumber(day.horasNormais) ?? 0;
+        currentDay.horasExtras += toNumber(day.horasExtras) ?? 0;
+        currentDay.emViagem = currentDay.emViagem || Boolean(day.emViagem);
+        for (const rdo of day.rdos ?? []) {
+          const rdoKey = `${rdo?.projetoId || ''}:${rdo?.numero ?? 'sem-numero'}`;
+          currentDay.rdos.set(rdoKey, rdo);
+        }
+        existing.diasApropriados.set(day.data, currentDay);
+      }
+      for (const day of item.horasRelatoriosPorData ?? []) {
+        if (!day?.data) continue;
+        const horas = toNumber(day.horas) ?? 0;
+        const currentDay = existing.horasRelatoriosPorData.get(day.data) ?? { horas: 0, relatorios: new Map() };
+        currentDay.horas = Math.max(currentDay.horas, horas);
+        for (const report of day.relatorios ?? []) {
+          currentDay.relatorios.set(report.id, report);
+        }
+        existing.horasRelatoriosPorData.set(day.data, currentDay);
+      }
       const cost = toNumber(item.custo);
       if (cost !== null) existing.custo = round2((existing.custo ?? 0) + cost);
+      const travelCost = toNumber(item.custoDeslocamento);
+      if (travelCost !== null) {
+        existing.custoDeslocamento = round2((existing.custoDeslocamento ?? 0) + travelCost);
+      }
       byPerson.set(key, existing);
     }
   }
   return Array.from(byPerson.values())
-    .map(item => ({ ...item, horas: round1(item.horas) }))
+    .map(item => {
+      const horasRelatoriosPorData = [...item.horasRelatoriosPorData.entries()]
+        .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+        .map(([data, day]) => ({
+          data,
+          horas: day.horas,
+          relatorios: [...day.relatorios.values()].sort((a, b) => (
+            String(a.projetoCodigo || '').localeCompare(String(b.projetoCodigo || ''), 'pt-BR', { numeric: true })
+            || String(a.tipo).localeCompare(String(b.tipo))
+            || (a.numero ?? 0) - (b.numero ?? 0)
+            || a.id.localeCompare(b.id)
+          ))
+        }));
+      const diasApropriados = [...item.diasApropriados.values()]
+        .sort((left, right) => left.data.localeCompare(right.data))
+        .map(day => ({
+          ...day,
+          rdos: [...day.rdos.values()]
+        }));
+      const horasSemSobreposicao = horasRelatoriosPorData.length
+        ? horasRelatoriosPorData.reduce((sum, day) => sum + day.horas, 0)
+        : item.horasLancadas;
+      const horasLancadas = round1(item.horasLancadas);
+      const horas = round1(horasSemSobreposicao);
+      const sobreposicaoHoras = round1(Math.max(0, item.horasLancadas - horasSemSobreposicao));
+      const custoHora = item.custo !== null && item.horasApropriadas > 0
+        ? item.custo / item.horasApropriadas
+        : null;
+      return {
+        name: item.name,
+        role: item.role,
+        horas,
+        horasLancadas,
+        horasApropriadas: item.horasApropriadas,
+        horasDeslocamento: round1(item.horasDeslocamento),
+        diasApropriados,
+        sobreposicaoHoras,
+        horasRelatoriosPorData,
+        custo: item.custo,
+        custoHora,
+        custoDeslocamento: item.custoDeslocamento
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 }
 
@@ -307,6 +393,8 @@ export function groupProjectDetails(group, memberDetails = []) {
     group: {
       id: group.id,
       name: group.name,
+      laborAllocationMode: group.laborAllocationMode || 'VISUAL_ONLY',
+      primaryLaborProjectId: group.primaryLaborProjectId || null,
       members
     },
     header: {
@@ -336,12 +424,28 @@ export function groupProjectDetails(group, memberDetails = []) {
       estoque: sumValues(details, item => item.detail.consumo?.estoque, { nullWhenEmpty: false }),
       manual: sumValues(details, item => item.detail.consumo?.manual, { nullWhenEmpty: false }),
       previsto,
+      previstoOriginal: sumValues(details, item => item.detail.consumo?.previstoOriginal),
+      previstoAdicional: sumValues(details, item => item.detail.consumo?.previstoAdicional),
       pct: ratioPct(gasto, previsto)
     },
     faturamento: {
       previsto: sumValues(details, item => item.detail.faturamento?.previsto),
+      previstoOriginal: sumValues(details, item => item.detail.faturamento?.previstoOriginal),
+      previstoAdicional: sumValues(details, item => item.detail.faturamento?.previstoAdicional),
       realizado: sumValues(details, item => item.detail.faturamento?.realizado),
       notas: sumValues(details, item => item.detail.faturamento?.notas, { nullWhenEmpty: false })
+    },
+    budgetBreakdown: {
+      original: {
+        salePrice: sumValues(details, item => item.detail.faturamento?.previstoOriginal),
+        plannedTotalCost: sumValues(details, item => item.detail.consumo?.previstoOriginal)
+      },
+      additionals: details.flatMap(item => item.detail.budgetBreakdown?.additionals ?? []),
+      additionalCount: sumValues(details, item => item.detail.budgetBreakdown?.additionalCount, { nullWhenEmpty: false }),
+      additionalTotals: {
+        salePrice: sumValues(details, item => item.detail.faturamento?.previstoAdicional),
+        plannedTotalCost: sumValues(details, item => item.detail.consumo?.previstoAdicional)
+      }
     },
     maoDeObra: {
       custo: laborCost,
@@ -381,7 +485,10 @@ export function groupProjectDetails(group, memberDetails = []) {
   };
 }
 
-export async function getMissionGroupDetail(groupId, { includeCollaboratorCosts = false } = {}) {
+export async function getMissionGroupDetail(groupId, {
+  includeCollaboratorCosts = false,
+  includeAdminOnlyCategories = true
+} = {}) {
   const [{ getProjectDetail }, { getPlannedScope }, { computeProjectProgress }] = await Promise.all([
     import('./project-detail.js'),
     import('./planned-scope.js'),
@@ -394,7 +501,7 @@ export async function getMissionGroupDetail(groupId, { includeCollaboratorCosts 
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
       .map(async member => {
         const [detail, plannedScope, progress] = await Promise.all([
-          getProjectDetail(member.projectId, { includeCollaboratorCosts }),
+          getProjectDetail(member.projectId, { includeCollaboratorCosts, includeAdminOnlyCategories }),
           getPlannedScope(member.projectId).catch(() => null),
           computeProjectProgress(member.projectId).catch(() => null)
         ]);

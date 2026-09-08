@@ -250,7 +250,7 @@ async function invalidateProjectInternalSignatureRounds(tx, projectId, {
 }
 
 export const projectListInclude = {
-  operator: true,
+  operator: { include: { jobRole: true } },
   authorizedUsers: {
     include: {
       user: {
@@ -263,7 +263,7 @@ export const projectListInclude = {
           accountType: true,
           isActive: true,
           collaboratorId: true,
-          collaborator: true,
+          collaborator: { include: { jobRole: true } },
           moduleRoles: true
         }
       }
@@ -287,6 +287,21 @@ export const projectListInclude = {
     }
   }
 };
+
+function collaboratorWithCurrentRole(collaborator) {
+  return collaborator ? { ...collaborator, role: collaborator.jobRole?.name || '' } : collaborator;
+}
+
+function projectWithCurrentRoles(project) {
+  return {
+    ...project,
+    operator: collaboratorWithCurrentRole(project.operator),
+    authorizedUsers: (project.authorizedUsers || []).map(link => ({
+      ...link,
+      user: link.user ? { ...link.user, collaborator: collaboratorWithCurrentRole(link.user.collaborator) } : link.user
+    }))
+  };
+}
 
 export async function projectListWhereForAuth(auth, activeParam, prismaClient = prisma, options = {}) {
   const where = { deletedAt: null };
@@ -331,7 +346,7 @@ router.get('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) => 
     include: projectListInclude,
     orderBy: { name: 'asc' }
   });
-  res.json(items);
+  res.json(items.map(projectWithCurrentRoles));
 }));
 
 router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
@@ -351,7 +366,7 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
         }
       },
       include: {
-        operator: true,
+        operator: { include: { jobRole: true } },
         authorizedUsers: {
           include: {
             user: {
@@ -364,7 +379,7 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
                 accountType: true,
                 isActive: true,
                 collaboratorId: true,
-                collaborator: true,
+                collaborator: { include: { jobRole: true } },
                 moduleRoles: true
               }
             }
@@ -380,7 +395,7 @@ router.post('/', requireAuth, requireRdoAccess, requireManager, asyncHandler(asy
     return created;
   });
   statisticsProjectsCache.clear();
-  res.status(201).json(item);
+  res.status(201).json(projectWithCurrentRoles(item));
 }));
 
 router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {
@@ -444,7 +459,8 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
         contractCode: true,
         location: true,
         managerOnly: true,
-        registrationPending: true
+        registrationPending: true,
+        isActive: true
       }
     });
     if (reportSequences) {
@@ -456,6 +472,11 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
 
     const projectUpdateData = {
       ...projectData,
+      ...(previousProject.isActive && projectData.isActive === false
+        ? { acompanhamentoReviewedAt: null, acompanhamentoReportArchivedAt: new Date() }
+        : !previousProject.isActive && projectData.isActive === true
+          ? { acompanhamentoReportArchivedAt: null }
+          : {}),
       ...(projectRegistrationComplete({ ...previousProject, ...projectData })
         ? { registrationPending: false }
         : {}),
@@ -478,7 +499,7 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
       where: { id: req.params.id },
       data: projectUpdateData,
       include: {
-        operator: true,
+        operator: { include: { jobRole: true } },
         authorizedUsers: {
           include: {
             user: {
@@ -491,7 +512,7 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
                 accountType: true,
                 isActive: true,
                 collaboratorId: true,
-                collaborator: true,
+                collaborator: { include: { jobRole: true } },
                 moduleRoles: true
               }
             }
@@ -528,7 +549,7 @@ router.put('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(a
   }
 
   statisticsProjectsCache.clear();
-  res.json(item);
+  res.json(projectWithCurrentRoles(item));
 }));
 
 router.delete('/:id', requireAuth, requireRdoAccess, requireManager, asyncHandler(async (req, res) => {

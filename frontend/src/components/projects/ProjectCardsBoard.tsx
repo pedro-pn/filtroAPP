@@ -1,21 +1,36 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import axios from 'axios';
 
 import {
   createMissionGroup,
   dissolveMissionGroup,
   getProjectCards,
+  renameMissionGroup,
+  setProjectTrackingState,
+  updateMissionGroupLaborPolicy,
   type LastDayStatus,
   type MissionGroupCard,
-  type ProjectCardCategory,
+  type MissionGroupLaborAllocationMode,
   type ProjectCardItem
 } from '../../api/acompanhamentoComercial';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { ProjectDetailDashboard } from './ProjectDetailDashboard';
+import { ProjectGroupRenameNovelty } from './ProjectGroupRenameNovelty';
+import { ProjectLaborPolicyNovelty } from './ProjectLaborPolicyNovelty';
+import { ProjectTrackingNovelties } from './ProjectTrackingNovelties';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
+import {
+  cardMatchesView,
+  parseCardsView,
+  type CardsView
+} from './projectCardViews';
 import type { AuthUser } from '../../types/auth';
+import {
+  hasSeenAcompanhamentoFinalizedMission,
+  markAcompanhamentoFinalizedMissionSeen
+} from '../../auth/moduleNavigation';
 
 function formatDate(iso?: string | null) {
   if (!iso) return '—';
@@ -48,6 +63,10 @@ function isGroupCard(card: ProjectCardItem): card is MissionGroupCard {
 
 function cardKey(card: ProjectCardItem) {
   return isGroupCard(card) ? `group-${card.groupId}` : card.projectId;
+}
+
+function memberOriginalLabel(member: MissionGroupCard['members'][number]) {
+  return [member.code, member.name || member.clientName].filter(Boolean).join(' — ');
 }
 
 function mutationErrorMessage(error: unknown, fallback: string) {
@@ -86,20 +105,56 @@ function Card({
   selected = false,
   canSelect = false,
   canManageGroups = false,
+  renaming = false,
+  renameValue = '',
+  renameError = null,
+  renameSaving = false,
   onOpen,
   onToggleSelect,
-  onDissolve
+  onStartRename,
+  onRenameValueChange,
+  onSubmitRename,
+  onCancelRename,
+  onDissolve,
+  laborPolicySaving = false,
+  onLaborPolicyChange,
+  canManage = false,
+  trackingSaving = false,
+  onArchive,
+  onReview,
+  recentlyFinalized = false
 }: {
   card: ProjectCardItem;
   selected?: boolean;
   canSelect?: boolean;
   canManageGroups?: boolean;
+  renaming?: boolean;
+  renameValue?: string;
+  renameError?: string | null;
+  renameSaving?: boolean;
   onOpen: () => void;
   onToggleSelect?: () => void;
+  onStartRename?: () => void;
+  onRenameValueChange?: (value: string) => void;
+  onSubmitRename?: () => void;
+  onCancelRename?: () => void;
   onDissolve?: () => void;
+  laborPolicySaving?: boolean;
+  onLaborPolicyChange?: (mode: MissionGroupLaborAllocationMode, primaryProjectId: string | null) => void;
+  canManage?: boolean;
+  trackingSaving?: boolean;
+  onArchive?: () => void;
+  onReview?: () => void;
+  recentlyFinalized?: boolean;
 }) {
   const grouped = isGroupCard(card);
   const status = STATUS_META[card.lastDay.status];
+  const originalNames = grouped
+    ? card.members
+      .map(memberOriginalLabel)
+      .filter(Boolean)
+      .join(' · ')
+    : '';
   const workedHours = card.workedHours ?? {
     normalWorkedHours: 0,
     overtimeWorkedHours: 0,
@@ -120,11 +175,17 @@ function Card({
   };
   return (
     <div
-      className={`acp-pcard acp-pcard-click${grouped ? ' acp-pcard-group' : ''}${selected ? ' selected' : ''}`}
+      className={`acp-pcard acp-pcard-click${grouped ? ' acp-pcard-group' : ''}${selected ? ' selected' : ''}${card.reviewed ? ' reviewed' : ''}${recentlyFinalized ? ' recently-finalized' : ''}`}
       role="button"
       tabIndex={0}
       onClick={handleOpen}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpen(); } }}
+      onKeyDown={e => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleOpen();
+        }
+      }}
     >
       <div className="acp-pcard-head">
         {canSelect && !grouped ? (
@@ -137,10 +198,90 @@ function Card({
             />
           </label>
         ) : null}
-        <strong>{card.code}</strong>
-        <span className="acp-pcard-name">{card.name || '—'}</span>
+        {!grouped ? <strong>{card.code}</strong> : null}
+        {renaming ? (
+          <form
+            className="acp-pcard-name-edit"
+            onClick={event => event.stopPropagation()}
+            onSubmit={event => {
+              event.preventDefault();
+              event.stopPropagation();
+              onSubmitRename?.();
+            }}
+          >
+            <input
+              type="text"
+              aria-label="Nome do card"
+              maxLength={120}
+              value={renameValue}
+              disabled={renameSaving}
+              autoFocus
+              onFocus={event => event.currentTarget.select()}
+              onChange={event => onRenameValueChange?.(event.target.value)}
+              onKeyDown={event => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  onCancelRename?.();
+                }
+              }}
+              required
+            />
+            <button
+              type="submit"
+              className="acp-pcard-icon-action"
+              title="Salvar nome"
+              aria-label="Salvar nome"
+              disabled={renameSaving}
+            >
+              <span aria-hidden="true">✓</span>
+            </button>
+            <button
+              type="button"
+              className="acp-pcard-icon-action muted"
+              title="Cancelar edição"
+              aria-label="Cancelar edição"
+              disabled={renameSaving}
+              onClick={onCancelRename}
+            >
+              <span aria-hidden="true">✕</span>
+            </button>
+          </form>
+        ) : (
+          <span className="acp-pcard-name">{card.name || '—'}</span>
+        )}
+        {grouped && canManageGroups && !renaming ? (
+          <button
+            type="button"
+            className="acp-pcard-icon-action"
+            data-acp-group-rename-start
+            title="Editar nome do card"
+            aria-label="Editar nome do card"
+            onClick={event => {
+              event.stopPropagation();
+              onStartRename?.();
+            }}
+          >
+            <span aria-hidden="true">✎</span>
+          </button>
+        ) : null}
       </div>
+      {grouped && renaming && renameError ? (
+        <div className="form-error acp-pcard-rename-error" onClick={event => event.stopPropagation()}>{renameError}</div>
+      ) : null}
+      {grouped && originalNames ? (
+        <div className="acp-pcard-original-names" title={originalNames}>{originalNames}</div>
+      ) : null}
       {card.clientName ? <div className="acp-pcard-client">{card.clientName}</div> : null}
+      {card.reviewed ? (
+        <div className="acp-reviewed-badge" title={card.reviewedAt ? `Conferido em ${formatDate(card.reviewedAt)}` : 'Conferido'}>
+          <span aria-hidden="true">✓</span> Conferido
+        </div>
+      ) : null}
+      {recentlyFinalized ? (
+        <div className="acp-finalized-notice" data-acp-finalized-notice>
+          <span aria-hidden="true">●</span> Missão finalizada recentemente
+        </div>
+      ) : null}
 
       {grouped ? (
         <div className="acp-group-members" aria-label="Missões unificadas">
@@ -180,6 +321,11 @@ function Card({
             {card.costConsumedPct != null ? ` · ${card.costConsumedPct}% consumido` : ''}
           </span>
         </div>
+        {card.additionalPlannedCost != null && Math.abs(card.additionalPlannedCost) > 0.005 ? (
+          <div className="acp-budget-split">
+            Original {brl(card.originalPlannedCost)} · Adicional {brl(card.additionalPlannedCost)}
+          </div>
+        ) : null}
         <Bar value={card.costConsumedPct} />
       </div>
 
@@ -215,7 +361,7 @@ function Card({
       </div>
 
       <div className="acp-pcard-row">
-        <span>Status último RDO</span>
+        <span>Status último relatório</span>
         <span className={`acp-pcard-status ${status.cls}`}>
           {status.label}{card.lastDay.date ? ` · ${formatDate(card.lastDay.date)}` : ''}
         </span>
@@ -240,6 +386,10 @@ function Card({
         const hasOffshore = card.laborCostBase != null && Math.round(card.laborCost) !== Math.round(card.laborCostBase);
         return (
           <>
+            <div className="acp-pcard-row">
+              <span>Horas apropriadas do Ponto<sup title="Jornada do Ponto Mais apropriada analiticamente a este projeto. Em execução compartilhada, ela pode aparecer integralmente em mais de uma missão."> *</sup></span>
+              <span className="acp-pcard-strong">{fmtHours(card.laborHours)}</span>
+            </div>
             <div className="acp-pcard-row">
               <span>Custo MO{hasOffshore ? ' c/ offshore' : ''}<sup title="Valor gasto com mão de obra do ponto, rateado para este projeto."> *</sup></span>
               <span className="acp-pcard-strong">{brl(card.laborCost)}</span>
@@ -269,7 +419,7 @@ function Card({
           </div>
           {card.equipment.slice(0, 6).map((e, i) => (
             <div className="acp-pcard-row acp-pcard-equip-item" key={i}>
-              <span>{e.name}</span>
+              <span>{e.code ? `${e.code} — ${e.name}` : e.name}</span>
               <span>{e.days} dia{e.days === 1 ? '' : 's'}</span>
             </div>
           ))}
@@ -288,7 +438,50 @@ function Card({
       </div>
 
       {grouped && canManageGroups ? (
-        <div className="acp-group-actions">
+        <div className="acp-group-actions" data-acp-labor-policy onClick={event => event.stopPropagation()}>
+          <div className="field-group acp-group-labor-policy">
+            <label htmlFor={`group-labor-mode-${card.groupId}`}>Apropriação da mão de obra</label>
+            <select
+              id={`group-labor-mode-${card.groupId}`}
+              value={card.laborAllocationMode || 'VISUAL_ONLY'}
+              disabled={laborPolicySaving}
+              onChange={event => {
+                const mode = event.target.value as MissionGroupLaborAllocationMode;
+                const primaryProjectId = mode === 'CONSOLIDATE_PRIMARY'
+                  ? card.primaryLaborProjectId || card.members[0]?.projectId || null
+                  : null;
+                onLaborPolicyChange?.(mode, primaryProjectId);
+              }}
+            >
+              <option value="VISUAL_ONLY">Somente mesclar o card</option>
+              <option value="SHARED_EXECUTION">Repetir jornada em cada missão</option>
+              <option value="CONSOLIDATE_PRIMARY">Consolidar em uma missão principal</option>
+            </select>
+            <span className="placeholder-copy">
+              {card.laborAllocationMode === 'SHARED_EXECUTION'
+                ? 'Cada RDO confirmado recebe a jornada integral do Ponto Mais; a folha mensal continua única.'
+                : card.laborAllocationMode === 'CONSOLIDATE_PRIMARY'
+                  ? 'Os RDOs deste grupo são apropriados uma única vez na missão principal.'
+                  : 'O agrupamento não altera a regra de apropriação da jornada.'}
+            </span>
+          </div>
+          {card.laborAllocationMode === 'CONSOLIDATE_PRIMARY' ? (
+            <div className="field-group acp-group-labor-policy">
+              <label htmlFor={`group-labor-primary-${card.groupId}`}>Missão principal</label>
+              <select
+                id={`group-labor-primary-${card.groupId}`}
+                value={card.primaryLaborProjectId || card.members[0]?.projectId || ''}
+                disabled={laborPolicySaving}
+                onChange={event => onLaborPolicyChange?.('CONSOLIDATE_PRIMARY', event.target.value || null)}
+              >
+                {card.members.map(member => (
+                  <option key={member.projectId} value={member.projectId}>
+                    {member.code} — {member.name || member.clientName || 'Missão'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           <button
             type="button"
             className="mini-btn alt"
@@ -301,28 +494,31 @@ function Card({
           </button>
         </div>
       ) : null}
+      {canManage ? (
+        <div className="acp-tracking-actions" data-acp-tracking-action onClick={event => event.stopPropagation()}>
+          {card.archived ? (
+            <>
+              <button type="button" className={`mini-btn${card.reviewed ? ' alt' : ''}`} data-acp-review-action disabled={trackingSaving} onClick={onReview}>
+                {card.reviewed ? 'Desmarcar conferência' : 'Marcar como conferido'}
+              </button>
+              {card.archivedInAcompanhamento ? (
+                <button type="button" className="mini-btn alt" disabled={trackingSaving} onClick={onArchive}>
+                  Restaurar no acompanhamento
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <button type="button" className="mini-btn alt" disabled={trackingSaving} onClick={onArchive}>
+              Arquivar no acompanhamento
+            </button>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-// Aba "Projetos": um card por projeto com previsto x realizado (dias, avanço, colaboradores, prazos).
-type CardsView = 'andamento' | 'futuros' | 'arquivados';
 type SelectedDetail = { kind: 'PROJECT'; id: string } | { kind: 'GROUP'; id: string };
-const CARD_VIEWS: CardsView[] = ['andamento', 'futuros', 'arquivados'];
-
-const VIEW_CATEGORY: Record<CardsView, ProjectCardCategory> = {
-  andamento: 'ANDAMENTO',
-  futuros: 'FUTURO',
-  arquivados: 'ARQUIVADO'
-};
-
-function cardCategory(card: ProjectCardItem): ProjectCardCategory {
-  return card.category ?? (card.archived ? 'ARQUIVADO' : 'ANDAMENTO');
-}
-
-function parseCardsView(value: string | null): CardsView {
-  return CARD_VIEWS.includes(value as CardsView) ? value as CardsView : 'andamento';
-}
 
 function selectedDetailFromParams(params: URLSearchParams): SelectedDetail | null {
   const groupId = params.get('group')?.trim();
@@ -335,11 +531,13 @@ export function ProjectCardsBoard({
   canManage = false,
   canManageGroups = false,
   canManageManualCosts = false,
+  canManageProjectNotes = false,
   progressHistoryNoveltyUser = null
 }: {
   canManage?: boolean;
   canManageGroups?: boolean;
   canManageManualCosts?: boolean;
+  canManageProjectNotes?: boolean;
   progressHistoryNoveltyUser?: Pick<AuthUser, 'id'> | null;
 }) {
   const queryClient = useQueryClient();
@@ -350,7 +548,14 @@ export function ProjectCardsBoard({
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedForGroup, setSelectedForGroup] = useState<Set<string>>(() => new Set());
   const [groupError, setGroupError] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<MissionGroupCard | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [groupRenameNoveltyActive, setGroupRenameNoveltyActive] = useState(true);
+  const [laborPolicyNoveltyActive, setLaborPolicyNoveltyActive] = useState(true);
   const [dissolveTarget, setDissolveTarget] = useState<MissionGroupCard | null>(null);
+  const [trackingTarget, setTrackingTarget] = useState<{ card: ProjectCardItem; action: 'archive' | 'restore' } | null>(null);
+  const [seenFinalizations, setSeenFinalizations] = useState<Set<string>>(() => new Set());
   const { data, isLoading } = useQuery({
     queryKey: ['project-cards'],
     queryFn: () => getProjectCards(),
@@ -390,6 +595,90 @@ export function ProjectCardsBoard({
       setGroupError(mutationErrorMessage(error, 'Não foi possível desmesclar este agrupamento.'));
     }
   });
+  const renameGroupMutation = useMutation({
+    mutationFn: ({ groupId, name }: { groupId: string; name: string }) => renameMissionGroup(groupId, name),
+    onSuccess: async () => {
+      setRenameTarget(null);
+      setRenameValue('');
+      setRenameError(null);
+      setGroupError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['project-cards'] }),
+        queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] }),
+        queryClient.invalidateQueries({ queryKey: ['mission-groups'] })
+      ]);
+    },
+    onError: (error: unknown) => {
+      setRenameError(mutationErrorMessage(error, 'Não foi possível alterar o nome deste agrupamento.'));
+    }
+  });
+  const laborPolicyMutation = useMutation({
+    mutationFn: ({
+      groupId,
+      laborAllocationMode,
+      primaryLaborProjectId
+    }: {
+      groupId: string;
+      laborAllocationMode: MissionGroupLaborAllocationMode;
+      primaryLaborProjectId: string | null;
+    }) => updateMissionGroupLaborPolicy(groupId, { laborAllocationMode, primaryLaborProjectId }),
+    onSuccess: async () => {
+      setGroupError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['project-cards'] }),
+        queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] }),
+        queryClient.invalidateQueries({ queryKey: ['mission-groups'] }),
+        queryClient.invalidateQueries({ queryKey: ['ponto-pontomais-pending'] }),
+        queryClient.invalidateQueries({ queryKey: ['ponto-colaboradores'] })
+      ]);
+    },
+    onError: (error: unknown) => {
+      setGroupError(mutationErrorMessage(error, 'Não foi possível atualizar a apropriação de mão de obra.'));
+    }
+  });
+  const trackingMutation = useMutation({
+    mutationFn: async ({ card, payload }: { card: ProjectCardItem; payload: { archived: boolean } | { reviewed: boolean } }) => {
+      const projectIds = isGroupCard(card) ? card.members.map(member => member.projectId) : [card.projectId];
+      await Promise.all(projectIds.map(projectId => setProjectTrackingState(projectId, payload)));
+    },
+    onSuccess: async () => {
+      setTrackingTarget(null);
+      setGroupError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['project-cards'] }),
+        queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] })
+      ]);
+    },
+    onError: (error: unknown) => {
+      setGroupError(mutationErrorMessage(error, 'Não foi possível atualizar o projeto no acompanhamento.'));
+    }
+  });
+  const openRenameGroup = (card: MissionGroupCard) => {
+    setRenameTarget(card);
+    setRenameValue(card.name || '');
+    setRenameError(null);
+  };
+  const closeRenameGroup = () => {
+    if (renameGroupMutation.isPending) return;
+    setRenameTarget(null);
+    setRenameValue('');
+    setRenameError(null);
+  };
+  const submitRenameGroup = () => {
+    if (!renameTarget || renameGroupMutation.isPending) return;
+    const name = renameValue.trim();
+    if (!name) {
+      setRenameError('Informe um nome para o card.');
+      return;
+    }
+    if (name.length > 120) {
+      setRenameError('Nome muito longo.');
+      return;
+    }
+    renameGroupMutation.mutate({ groupId: renameTarget.groupId, name });
+  };
   const setView = useCallback((nextView: CardsView) => {
     setSearchParams(currentParams => {
       const nextParams = new URLSearchParams(currentParams);
@@ -414,27 +703,33 @@ export function ProjectCardsBoard({
     }, { replace: true });
   }, [setSearchParams]);
 
-  // Separa pelo status operacional do card: em andamento, futuro ou arquivado.
+  // Separa pelo status operacional e tira dos arquivados as missões já conferidas.
   const counts = useMemo(() => {
     const list = data ?? [];
     return {
-      andamento: list.filter(c => cardCategory(c) === 'ANDAMENTO').length,
-      futuros: list.filter(c => cardCategory(c) === 'FUTURO').length,
-      arquivados: list.filter(c => cardCategory(c) === 'ARQUIVADO').length
+      andamento: list.filter(c => cardMatchesView(c, 'andamento')).length,
+      futuros: list.filter(c => cardMatchesView(c, 'futuros')).length,
+      arquivados: list.filter(c => cardMatchesView(c, 'arquivados')).length,
+      conferidas: list.filter(c => cardMatchesView(c, 'conferidas')).length
     };
   }, [data]);
 
   const cards = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const category = VIEW_CATEGORY[view];
     return (data ?? [])
-      .filter(c => cardCategory(c) === category)
+      .filter(c => cardMatchesView(c, view))
       .filter(c => {
         if (!term) return true;
         const members = isGroupCard(c) ? c.members.map(member => `${member.code} ${member.name} ${member.clientName} ${member.clientCnpj ?? ''}`).join(' ') : '';
         return `${c.code} ${c.name} ${c.clientName} ${c.clientCnpj ?? ''} ${members}`.toLowerCase().includes(term);
       });
   }, [data, search, view]);
+  const isRecentlyFinalized = useCallback((card: ProjectCardItem) => {
+    if (!card.reportArchivedAt || seenFinalizations.has(cardKey(card))) return false;
+    return !hasSeenAcompanhamentoFinalizedMission(progressHistoryNoveltyUser, cardKey(card), card.reportArchivedAt);
+  }, [progressHistoryNoveltyUser, seenFinalizations]);
+  const hasFinalizedNotice = cards.some(isRecentlyFinalized);
+  const hasReviewAction = canManageGroups && cards.some(card => card.archived);
 
   const selectedCount = selectedForGroup.size;
   const cancelSelection = () => {
@@ -463,8 +758,8 @@ export function ProjectCardsBoard({
   // Todos os hooks acima; só então a troca para o dashboard do projeto (Rules of Hooks).
   if (selected) {
     return selected.kind === 'GROUP'
-      ? <ProjectDetailDashboard groupId={selected.id} canManage={canManage} canManageManualCosts={canManageManualCosts} progressHistoryNoveltyUser={progressHistoryNoveltyUser} onBack={() => setSelected(null)} />
-      : <ProjectDetailDashboard projectId={selected.id} canManage={canManage} canManageManualCosts={canManageManualCosts} progressHistoryNoveltyUser={progressHistoryNoveltyUser} onBack={() => setSelected(null)} />;
+      ? <ProjectDetailDashboard groupId={selected.id} canManage={canManage} canManageManualCosts={canManageManualCosts} canManageProjectNotes={canManageProjectNotes} progressHistoryNoveltyUser={progressHistoryNoveltyUser} onBack={() => setSelected(null)} />
+      : <ProjectDetailDashboard projectId={selected.id} canManage={canManage} canManageManualCosts={canManageManualCosts} canManageProjectNotes={canManageProjectNotes} progressHistoryNoveltyUser={progressHistoryNoveltyUser} onBack={() => setSelected(null)} />;
   }
 
   if (isLoading) return <div className="page-card placeholder-copy">Carregando projetos…</div>;
@@ -473,7 +768,7 @@ export function ProjectCardsBoard({
     return (
       <div className="page-card placeholder-copy">
         Nenhum projeto com proposta comercial importada. Importe o banco do comercial e cadastre a
-        missão com o número do contrato.
+        missão com o número da proposta.
       </div>
     );
   }
@@ -502,6 +797,13 @@ export function ProjectCardsBoard({
             onClick={() => setView('arquivados')}
           >
             Arquivados <span className="acp-seg-count">{counts.arquivados}</span>
+          </button>
+          <button
+            type="button" role="tab" aria-selected={view === 'conferidas'}
+            className={`acp-seg-btn${view === 'conferidas' ? ' active' : ''}`}
+            onClick={() => setView('conferidas')}
+          >
+            Conferidas <span className="acp-seg-count">{counts.conferidas}</span>
           </button>
         </div>
         <div className="field-group acp-pcards-search">
@@ -559,7 +861,7 @@ export function ProjectCardsBoard({
         <div className="page-card placeholder-copy">
           {search.trim()
             ? 'Nenhum projeto encontrado para a busca nesta situação.'
-            : view === 'arquivados' ? 'Nenhum projeto arquivado.' : view === 'futuros' ? 'Nenhum projeto futuro.' : 'Nenhum projeto em andamento.'}
+            : view === 'conferidas' ? 'Nenhuma missão conferida.' : view === 'arquivados' ? 'Nenhum projeto arquivado aguardando conferência.' : view === 'futuros' ? 'Nenhum projeto futuro.' : 'Nenhum projeto em andamento.'}
         </div>
       ) : (
         <div className="acp-pcards-grid">
@@ -570,17 +872,60 @@ export function ProjectCardsBoard({
               selected={!isGroupCard(card) && selectedForGroup.has(card.projectId)}
               canSelect={canManageGroups && selectionMode}
               canManageGroups={canManageGroups}
+              canManage={canManageGroups}
+              trackingSaving={trackingMutation.isPending}
+              recentlyFinalized={isRecentlyFinalized(card)}
+              renaming={isGroupCard(card) && renameTarget?.groupId === card.groupId}
+              renameValue={renameValue}
+              renameError={isGroupCard(card) && renameTarget?.groupId === card.groupId ? renameError : null}
+              renameSaving={isGroupCard(card) && renameTarget?.groupId === card.groupId && renameGroupMutation.isPending}
               onOpen={() => {
+                if (isRecentlyFinalized(card)) {
+                  markAcompanhamentoFinalizedMissionSeen(progressHistoryNoveltyUser, cardKey(card), card.reportArchivedAt);
+                  setSeenFinalizations(current => new Set(current).add(cardKey(card)));
+                }
                 setSelected(isGroupCard(card)
                   ? { kind: 'GROUP', id: card.groupId }
                   : { kind: 'PROJECT', id: card.projectId });
               }}
               onToggleSelect={!isGroupCard(card) ? () => toggleSelected(card.projectId) : undefined}
+              onStartRename={isGroupCard(card) ? () => openRenameGroup(card) : undefined}
+              onRenameValueChange={value => {
+                setRenameValue(value);
+                setRenameError(null);
+              }}
+              onSubmitRename={submitRenameGroup}
+              onCancelRename={closeRenameGroup}
               onDissolve={isGroupCard(card) ? () => setDissolveTarget(card) : undefined}
+              laborPolicySaving={laborPolicyMutation.isPending}
+              onLaborPolicyChange={isGroupCard(card) ? (laborAllocationMode, primaryLaborProjectId) => {
+                laborPolicyMutation.mutate({ groupId: card.groupId, laborAllocationMode, primaryLaborProjectId });
+              } : undefined}
+              onArchive={() => setTrackingTarget({ card, action: card.archivedInAcompanhamento ? 'restore' : 'archive' })}
+              onReview={() => trackingMutation.mutate({ card, payload: { reviewed: !card.reviewed } })}
             />
           ))}
         </div>
       )}
+      <ConfirmDialog
+        open={trackingTarget !== null}
+        title={trackingTarget?.action === 'restore' ? 'Restaurar no acompanhamento' : 'Arquivar no acompanhamento'}
+        description={trackingTarget?.action === 'restore'
+          ? 'O projeto voltará à situação correspondente no Acompanhamento. O status em Relatórios não será alterado.'
+          : 'O projeto irá para a aba Arquivados somente no Acompanhamento. Relatórios permanecerá inalterado.'}
+        highlight={trackingTarget?.card.name}
+        confirmLabel={trackingMutation.isPending ? 'Salvando…' : trackingTarget?.action === 'restore' ? 'Restaurar' : 'Arquivar'}
+        cancelLabel="Cancelar"
+        danger={false}
+        onConfirm={() => {
+          if (trackingTarget && !trackingMutation.isPending) {
+            trackingMutation.mutate({ card: trackingTarget.card, payload: { archived: trackingTarget.action === 'archive' } });
+          }
+        }}
+        onCancel={() => {
+          if (!trackingMutation.isPending) setTrackingTarget(null);
+        }}
+      />
       <ConfirmDialog
         open={dissolveTarget !== null}
         title="Desmesclar missões"
@@ -595,6 +940,22 @@ export function ProjectCardsBoard({
         onCancel={() => {
           if (!dissolveGroupMutation.isPending) setDissolveTarget(null);
         }}
+      />
+      <ProjectGroupRenameNovelty
+        user={progressHistoryNoveltyUser}
+        enabled={groupRenameNoveltyActive && canManageGroups && !selectionMode && renameTarget === null}
+        onSeen={() => setGroupRenameNoveltyActive(false)}
+      />
+      <ProjectLaborPolicyNovelty
+        user={progressHistoryNoveltyUser}
+        enabled={laborPolicyNoveltyActive && canManageGroups && !selectionMode && renameTarget === null}
+        onSeen={() => setLaborPolicyNoveltyActive(false)}
+      />
+      <ProjectTrackingNovelties
+        user={progressHistoryNoveltyUser}
+        canManage={canManageGroups}
+        hasFinalizedNotice={hasFinalizedNotice}
+        hasReviewAction={hasReviewAction}
       />
     </div>
   );

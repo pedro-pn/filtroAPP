@@ -46,6 +46,8 @@ Por padrão ele usa:
 - `REPORTS_VOLUME=filtrovali_relatorios`
 - `INCLUDE_REPORTS=true`
 - `INCLUDE_CERTS=true`
+- `PROXY_VOLUME=infra_proxy_data`
+- `INCLUDE_PROXY=true`
 - `BACKUP_LOCK_TIMEOUT_SECONDS=0`
 - `BACKUP_STATUS_FILE=/root/backups/filtrovali/status/backup-latest.json`
 - `LOCAL_BACKUP_KEEP` vazio, sem retenção local por quantidade
@@ -57,6 +59,7 @@ Por padrão ele usa:
 B2_URI=b2://meu-bucket/filtrovali-backups
 B2_BIN=/root/.local/bin/b2
 INCLUDE_CERTS=false
+INCLUDE_PROXY=true
 INCLUDE_REPORTS=true
 BACKUP_LOCK_TIMEOUT_SECONDS=0
 LOCAL_BACKUP_KEEP=5
@@ -64,6 +67,12 @@ BACKUP_STATUS_FILE=/root/backups/filtrovali/status/backup-latest.json
 ```
 
 `B2_BIN` é opcional. Use apenas se o cron não encontrar o comando `b2`.
+
+`INCLUDE_PROXY` controla o arquivamento de `infra_proxy_data`, o volume do
+infra-proxy (Caddy). Ele guarda a chave da conta ACME e os certificados
+emitidos — sem ele, um restore em servidor novo reemite tudo do zero e pode
+esbarrar no rate limit do Let's Encrypt. Se o volume não existir, o backup
+apenas avisa no stderr e segue, em vez de gerar um `proxy.tar.gz` vazio.
 
 `LOCAL_BACKUP_KEEP` limita quantos diretórios de backup com timestamp ficam em
 `BACKUP_ROOT`. Por exemplo, `LOCAL_BACKUP_KEEP=5` mantém os 5 backups locais
@@ -238,11 +247,12 @@ docker run --rm -v filtrovali_relatorios:/to -v /caminho/do/backup:/backup alpin
 O arquivo `deploy/restore-prod.sh` automatiza:
 
 - validação de `SHA256SUMS`
-- preflight obrigatório de `postgres.sql.gz`, `relatorios.tar.gz` e `certs.tar.gz` quando seus restores estão habilitados
-- extração de `relatorios.tar.gz` e `certs.tar.gz` em staging temporário antes de tocar no banco
+- preflight obrigatório de `postgres.sql.gz`, `relatorios.tar.gz`, `certs.tar.gz` e `proxy.tar.gz` quando seus restores estão habilitados
+- extração de `relatorios.tar.gz`, `certs.tar.gz` e `proxy.tar.gz` em staging temporário antes de tocar no banco
 - subida apenas do Postgres e parada de backend/nginx antes de trocar volumes e banco
 - restore do volume `filtrovali_relatorios` a partir do staging antes do drop do banco
 - restore opcional de `filtrovali_certs` a partir do staging antes do drop do banco
+- restore opcional de `infra_proxy_data`, parando e subindo o infra-proxy em volta da troca
 - restore do banco
 - `prisma migrate deploy` em container one-off (aplica migrations versionadas)
 - subida de backend/nginx somente após banco, migrations e arquivos concluírem
@@ -273,6 +283,21 @@ Sem restaurar certificados:
 ```bash
 BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 RESTORE_CERTS=false ./deploy/restore-prod.sh
 ```
+
+### Restaurando o infra-proxy
+
+`RESTORE_PROXY` vem **desligado por padrão**, ao contrário do backup. Restaurar
+`infra_proxy_data` para e sobe o Caddy, derrubando o TLS de todos os apps da VPS
+— algo que faz sentido em recuperação de desastre num servidor novo, mas não num
+rollback de banco, onde o proxy em produção está saudável e não deve ser tocado.
+
+```bash
+BACKUP_SOURCE=/root/backups/filtrovali/2026-04-24-030001 RESTORE_PROXY=true ./deploy/restore-prod.sh
+```
+
+O Caddy mantém estado aberto em `/data` (conta ACME e locks), por isso o script
+o para antes de trocar o volume e o sobe de novo em seguida. Se o infra-proxy
+estiver em outro caminho, ajuste `PROXY_COMPOSE_FILE`.
 
 Restore parcial explícito (uso excepcional, pois o banco pode referenciar arquivos ausentes):
 

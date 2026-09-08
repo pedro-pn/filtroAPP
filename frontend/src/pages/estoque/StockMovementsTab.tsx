@@ -103,6 +103,7 @@ export function StockMovementsTab({ isManager }: Props) {
   const [projectId, setProjectId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [dateOrder, setDateOrder] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
   const [reverseTarget, setReverseTarget] = useState<{ id: string; label: string } | null>(null);
 
@@ -123,13 +124,14 @@ export function StockMovementsTab({ isManager }: Props) {
       projectId: projectId || undefined,
       from: from || undefined,
       to: to || undefined,
+      dateOrder,
       page: pageNumber,
       pageSize
     };
   }
 
   const movementsQuery = useQuery({
-    queryKey: ['estoque', 'movimentacoes', { itemId, type, reason, projectId, from, to, page }],
+    queryKey: ['estoque', 'movimentacoes', { itemId, type, reason, projectId, from, to, dateOrder, page }],
     queryFn: () => listStockMovements(movementListParams(page))
   });
 
@@ -240,6 +242,17 @@ export function StockMovementsTab({ isManager }: Props) {
             value={to}
             onChange={event => resetPage(() => setTo(event.target.value))}
           />
+        </div>
+        <div className="field-group stock-date-filter stock-order-filter">
+          <label htmlFor="stock-movements-date-order">Ordenar por data</label>
+          <select
+            id="stock-movements-date-order"
+            value={dateOrder}
+            onChange={event => resetPage(() => setDateOrder(event.target.value as 'asc' | 'desc'))}
+          >
+            <option value="desc">Mais recentes primeiro</option>
+            <option value="asc">Mais antigas primeiro</option>
+          </select>
         </div>
       </div>
 

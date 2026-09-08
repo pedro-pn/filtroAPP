@@ -45,6 +45,39 @@ function buildMonthly(days = []) {
   return monthly;
 }
 
+function consolidateBlocks(blocks = []) {
+  const byName = new Map();
+  for (const block of blocks) {
+    const normalizedName = normalizeName(block.rawName);
+    if (!normalizedName) continue;
+    let entry = byName.get(normalizedName);
+    if (!entry) {
+      entry = { ...block, normalizedName, daysByDate: new Map() };
+      byName.set(normalizedName, entry);
+    }
+    entry.rawName = block.rawName || entry.rawName;
+    entry.he70Minutes = Math.max(Number(entry.he70Minutes) || 0, Number(block.he70Minutes) || 0);
+    entry.he100Minutes = Math.max(Number(entry.he100Minutes) || 0, Number(block.he100Minutes) || 0);
+    for (const day of block.days || []) {
+      if (day?.date) entry.daysByDate.set(day.date, day);
+    }
+  }
+
+  return [...byName.values()].map(entry => {
+    const days = [...entry.daysByDate.values()].sort((left, right) => left.date.localeCompare(right.date));
+    const dates = days.map(day => day.date);
+    return {
+      ...entry,
+      days,
+      workedMinutes: days.reduce((sum, day) => sum + (Number(day.workedMinutes) || 0), 0),
+      nightMinutes: days.reduce((sum, day) => sum + (Number(day.nightMinutes) || 0), 0),
+      workedDays: days.filter(day => (Number(day.workedMinutes) || 0) > 0).map(day => day.date),
+      periodStart: dates[0] || entry.periodStart,
+      periodEnd: dates.at(-1) || entry.periodEnd
+    };
+  });
+}
+
 // Constrói o resolvedor nome-normalizado -> collaboratorId (aliases têm prioridade sobre o nome).
 async function buildNameResolver() {
   const [collaborators, aliases] = await Promise.all([
@@ -71,12 +104,13 @@ export async function importPonto({ buffer, fileName, importedByUserId = null })
 
   const resolve = await buildNameResolver();
   const unmatched = [];
-  const summaryRows = blocks.map(block => {
-    const normalizedName = normalizeName(block.rawName);
+  const summaryRows = consolidateBlocks(blocks).map(block => {
+    const normalizedName = block.normalizedName;
     const collaboratorId = resolve(normalizedName);
     if (!collaboratorId) unmatched.push({ rawName: block.rawName, normalizedName });
     return {
       collaboratorId,
+      sourceKey: `xlsx:${normalizedName}`,
       rawName: block.rawName,
       normalizedName,
       periodStart: new Date(`${block.periodStart}T00:00:00.000Z`),
@@ -95,6 +129,7 @@ export async function importPonto({ buffer, fileName, importedByUserId = null })
     data: {
       fileName,
       contentHash,
+      source: 'XLSX',
       periodStart: new Date(`${periodStart}T00:00:00.000Z`),
       periodEnd: new Date(`${periodEnd}T00:00:00.000Z`),
       rowsRead,

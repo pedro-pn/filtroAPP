@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 
 import {
   createRomaneioCatalogItem,
@@ -33,8 +33,15 @@ import { TopBar } from '../../layout/TopBar';
 import { downloadBlob } from '../../utils/download';
 import { defaultRomaneioUnit, romaneioMeasureLabel } from '../../utils/romaneioMeasure';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
+import { RomaneioQrLabelModal } from './RomaneioQrLabelModal';
+import { RomaneioQrNovelty } from './RomaneioQrNovelty';
 
 type Tab = 'romaneios' | 'equipamentos' | 'notificacoes';
+interface QrLabelSelection {
+  items: RomaneioCatalogItem[];
+  categoryName?: string;
+}
+
 const TABS: Tab[] = ['romaneios', 'equipamentos', 'notificacoes'];
 const NEW_CATEGORY_VALUE = '__new_category__';
 
@@ -137,6 +144,7 @@ export function RomaneioPage() {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [isDownloadingCatalogPdf, setIsDownloadingCatalogPdf] = useState(false);
+  const [qrLabelSelection, setQrLabelSelection] = useState<QrLabelSelection | null>(null);
 
   const projectsQuery = useQuery({ queryKey: ['romaneio-projects'], queryFn: () => listRomaneioProjects(true) });
   const romaneiosQuery = useQuery({
@@ -259,6 +267,15 @@ export function RomaneioPage() {
 
   const catalogCategories = useMemo(() => {
     return Array.from(new Set((catalogQuery.data || []).map(item => item.categoryName).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  }, [catalogQuery.data]);
+
+  const catalogItemsByCategory = useMemo(() => {
+    const map = new Map<string, RomaneioCatalogItem[]>();
+    (catalogQuery.data || []).forEach(item => {
+      if (!map.has(item.categoryName)) map.set(item.categoryName, []);
+      map.get(item.categoryName)?.push(item);
+    });
+    return map;
   }, [catalogQuery.data]);
 
   function handleCatalogCategoryChange(value: string) {
@@ -393,14 +410,14 @@ export function RomaneioPage() {
               <button className="secondary-button" type="button" onClick={downloadCatalogPdf} disabled={isDownloadingCatalogPdf}>
                 {isDownloadingCatalogPdf ? 'Gerando PDF...' : 'PDF modelo'}
               </button>
-              <button className="primary-button" type="button" onClick={() => navigate('/romaneio/novo')}>
+              <button className="primary-button" type="button" data-romaneio-create-trigger onClick={() => navigate('/romaneio/novo')}>
                 Criar romaneio
               </button>
             </div>
           </div>
           <div className="filter-tabs" role="tablist" aria-label="Áreas do romaneio">
             <button className={`filter-tab ${tab === 'romaneios' ? 'active' : ''}`} type="button" onClick={() => setTab('romaneios')}>Romaneios</button>
-            <button className={`filter-tab ${tab === 'equipamentos' ? 'active' : ''}`} type="button" onClick={() => setTab('equipamentos')}>Equipamentos</button>
+            <button className={`filter-tab ${tab === 'equipamentos' ? 'active' : ''}`} type="button" data-romaneio-equipment-tab onClick={() => setTab('equipamentos')}>Equipamentos</button>
             {isManager && <button className={`filter-tab ${tab === 'notificacoes' ? 'active' : ''}`} type="button" onClick={() => setTab('notificacoes')}>E-mails</button>}
           </div>
         </section>
@@ -581,7 +598,8 @@ export function RomaneioPage() {
               <div className="romaneio-accordion-list">
                 {groupedCatalog.map(([category, items]) => {
                   const expanded = !!catalogSearch.trim() || expandedCatalogCategories.has(category);
-                  const hasRdoOwnedItems = items.some(isRdoOwnedCatalogItem);
+                  const allCategoryItems = catalogItemsByCategory.get(category) || items;
+                  const hasRdoOwnedItems = allCategoryItems.some(isRdoOwnedCatalogItem);
                   return (
                     <div className="romaneio-accordion" key={category}>
                       <button
@@ -596,13 +614,21 @@ export function RomaneioPage() {
                       </button>
                       {expanded && (
                         <div className="romaneio-catalog-list">
-                          {isManager && !hasRdoOwnedItems ? (
-                            <div className="romaneio-category-actions">
+                          <div className="romaneio-category-actions">
+                            <button
+                              className="mini-btn alt"
+                              type="button"
+                              data-romaneio-category-qr-trigger
+                              onClick={() => setQrLabelSelection({ items: allCategoryItems, categoryName: category })}
+                            >
+                              QR codes da categoria ({allCategoryItems.length})
+                            </button>
+                            {isManager && !hasRdoOwnedItems ? (
                               <button className="mini-btn alt" type="button" onClick={() => startEditCategory(category)}>
                                 Editar categoria
                               </button>
-                            </div>
-                          ) : null}
+                            ) : null}
+                          </div>
                           {isManager && editingCategory === category ? (
                             <form className="admin-inline-form romaneio-category-edit" onSubmit={submitCategoryEdit}>
                               <div className="admin-form-grid manager-header-grid">
@@ -624,14 +650,24 @@ export function RomaneioPage() {
                                   <strong>{[item.code, item.name].filter(Boolean).join(' - ')}</strong>
                                   <div className="rel-meta">{catalogItemTypeLabel(item)} · {romaneioMeasureLabel(item.measureType)}</div>
                                 </div>
-                                {isManager && !isRdoOwnedCatalogItem(item) ? (
-                                  <div className="report-card-actions">
-                                    <button className="mini-btn alt" type="button" onClick={() => editCatalog(item)}>Editar</button>
-                                    <button className="mini-btn danger" type="button" onClick={() => removeCatalogMutation.mutate(item.id)}>Remover</button>
-                                  </div>
-                                ) : isManager && isRdoOwnedCatalogItem(item) ? (
-                                  <div className="rel-meta">{managedCatalogSourceLabel(item)}</div>
-                                ) : null}
+                                <div className="report-card-actions">
+                                  <button
+                                    className="mini-btn alt"
+                                    type="button"
+                                    data-romaneio-qr-label-trigger
+                                    onClick={() => setQrLabelSelection({ items: [item] })}
+                                  >
+                                    QR code
+                                  </button>
+                                  {isManager && !isRdoOwnedCatalogItem(item) ? (
+                                    <>
+                                      <button className="mini-btn alt" type="button" onClick={() => editCatalog(item)}>Editar</button>
+                                      <button className="mini-btn danger" type="button" onClick={() => removeCatalogMutation.mutate(item.id)}>Remover</button>
+                                    </>
+                                  ) : isManager && isRdoOwnedCatalogItem(item) ? (
+                                    <span className="rel-meta">{managedCatalogSourceLabel(item)}</span>
+                                  ) : null}
+                                </div>
                               </div>
                               {isManager && editingCatalogId === item.id && (
                                 <form className="admin-inline-form romaneio-inline-edit" onSubmit={event => submitCatalogEdit(event, item.id)}>
@@ -742,6 +778,24 @@ export function RomaneioPage() {
           </section>
         )}
       </main>
+      <RomaneioQrNovelty
+        user={user}
+        enabled={!catalogQuery.isLoading}
+        variant="overview"
+        hasQrLabelTarget={groupedCatalog.length > 0}
+        onShowQrLabels={() => {
+          setTab('equipamentos');
+          const firstCategory = groupedCatalog[0]?.[0];
+          if (firstCategory) {
+            setExpandedCatalogCategories(current => new Set([...current, firstCategory]));
+          }
+        }}
+      />
+      <RomaneioQrLabelModal
+        items={qrLabelSelection?.items || []}
+        categoryName={qrLabelSelection?.categoryName}
+        onClose={() => setQrLabelSelection(null)}
+      />
     </Shell>
   );
 }

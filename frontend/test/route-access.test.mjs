@@ -387,6 +387,77 @@ test('acompanhamento grouping novelty is local once-per-user and expires globall
   }
 });
 
+test('acompanhamento tracking campaigns last 10 days and finalized missions stay highlighted until seen', async () => {
+  const stored = new Map();
+  const originalNow = Date.now;
+  globalThis.window = {
+    localStorage: {
+      getItem: key => stored.get(key) || null,
+      setItem: (key, value) => stored.set(key, value)
+    }
+  };
+
+  try {
+    Date.now = () => new Date('2026-08-06T12:00:00-03:00').getTime();
+    const navigation = await loadModuleNavigation();
+    const user = { id: 'manager-tracking' };
+    assert.equal(navigation.shouldShowAcompanhamentoTrackingNovelty(user), true);
+    assert.equal(navigation.shouldShowAcompanhamentoFinalizedNovelty(user), true);
+    assert.equal(navigation.shouldShowAcompanhamentoReviewNovelty(user), true);
+
+    navigation.markAcompanhamentoTrackingNoveltySeen(user);
+    navigation.markAcompanhamentoFinalizedNoveltySeen(user);
+    navigation.markAcompanhamentoReviewNoveltySeen(user);
+    assert.equal(navigation.shouldShowAcompanhamentoTrackingNovelty(user), false);
+    assert.equal(navigation.shouldShowAcompanhamentoFinalizedNovelty(user), false);
+    assert.equal(navigation.shouldShowAcompanhamentoReviewNovelty(user), false);
+
+    const archivedAt = '2026-08-06T14:00:00.000Z';
+    assert.equal(navigation.hasSeenAcompanhamentoFinalizedMission(user, 'project-1', archivedAt), false);
+    navigation.markAcompanhamentoFinalizedMissionSeen(user, 'project-1', archivedAt);
+    assert.equal(navigation.hasSeenAcompanhamentoFinalizedMission(user, 'project-1', archivedAt), true);
+    assert.equal(navigation.hasSeenAcompanhamentoFinalizedMission(user, 'project-1', '2026-08-07T14:00:00.000Z'), false);
+
+    Date.now = () => new Date('2026-08-17T00:00:00-03:00').getTime();
+    assert.equal(navigation.shouldShowAcompanhamentoTrackingNovelty({ id: 'manager-new' }), false);
+    assert.equal(navigation.shouldShowAcompanhamentoFinalizedNovelty({ id: 'manager-new' }), false);
+    assert.equal(navigation.shouldShowAcompanhamentoReviewNovelty({ id: 'manager-new' }), false);
+  } finally {
+    Date.now = originalNow;
+    delete globalThis.window;
+  }
+});
+
+test('acompanhamento standby history novelty is local once-per-user and expires globally', async () => {
+  const stored = new Map();
+  const originalNow = Date.now;
+  globalThis.window = {
+    localStorage: {
+      getItem: key => stored.get(key) || null,
+      setItem: (key, value) => stored.set(key, value)
+    }
+  };
+
+  try {
+    Date.now = () => new Date('2026-08-25T12:00:00-03:00').getTime();
+    const {
+      markAcompanhamentoStandbyHistoryNoveltySeen,
+      shouldShowAcompanhamentoStandbyHistoryNovelty
+    } = await loadModuleNavigation();
+
+    assert.equal(shouldShowAcompanhamentoStandbyHistoryNovelty({ id: 'viewer-1' }), true);
+    markAcompanhamentoStandbyHistoryNoveltySeen({ id: 'viewer-1' });
+    assert.equal(shouldShowAcompanhamentoStandbyHistoryNovelty({ id: 'viewer-1' }), false);
+    assert.equal(shouldShowAcompanhamentoStandbyHistoryNovelty({ id: 'viewer-2' }), true);
+
+    Date.now = () => new Date('2026-09-05T00:00:00-03:00').getTime();
+    assert.equal(shouldShowAcompanhamentoStandbyHistoryNovelty({ id: 'viewer-3' }), false);
+  } finally {
+    Date.now = originalNow;
+    delete globalThis.window;
+  }
+});
+
 test('acompanhamento progress history novelty is local once-per-user and expires globally', async () => {
   const stored = new Map();
   const originalNow = Date.now;

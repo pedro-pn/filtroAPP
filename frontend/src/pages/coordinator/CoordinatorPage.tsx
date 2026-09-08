@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 
 import { downloadReportPdf } from '../../api/reports';
 import type { SurveyQuestion, SurveyResponses } from '../../api/surveys';
@@ -9,10 +9,12 @@ import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { rdoPath } from '../../auth/rolePath';
 import { DdsThemeManager } from '../../components/reports/DdsThemeManager';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
+import { ReportPdfBatchActions, ReportSelectionCheckbox } from '../../components/reports/ReportPdfBatchActions';
 import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/ToastContext';
+import { useDraftMutations, useDrafts } from '../../hooks/useDrafts';
 import { useProjects } from '../../hooks/useProjects';
 import { useAccumulatedReportsPage, useReportCounts } from '../../hooks/useReports';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
@@ -26,11 +28,12 @@ import { MonthlyAllocationDashboardOverlay, StatsDashboardOverlay, StatsOverview
 import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
-import type { Project, ReportSummary, SatisfactionSurveySummary } from '../../types/domain';
+import type { Project, ReportDraft, ReportSummary, SatisfactionSurveySummary } from '../../types/domain';
 import { downloadBlob } from '../../utils/download';
 import { compareReportTypes, sortProjects, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
 import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { reportDownloadFileName } from '../../utils/reportFileName';
+import { reportDraftDateLabel, reportDraftServiceCount, reportDraftToRdoState, SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
 import { matchesSearch, projectSearchParts, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
@@ -129,7 +132,7 @@ export function CoordinatorPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
-  const { reset } = useRdoStore();
+  const { hydrate, reset } = useRdoStore();
   const [tab, setTab] = useUrlParamState<CoordinatorTab>({
     param: 'tab',
     defaultValue: 'pending',
@@ -149,6 +152,7 @@ export function CoordinatorPage() {
   const [closedArchivedTypeKeys, setClosedArchivedTypeKeys] = useState<string[]>([]);
   const [archivedVisibleByType, setArchivedVisibleByType] = useState<Record<string, number>>({});
   const [archivedTypeSortDirections, setArchivedTypeSortDirections] = useState<Record<string, ProjectSortDirection>>({});
+  const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const showToast = useToast();
   const pendingReportFilters = {
     summary: true,
@@ -194,6 +198,8 @@ export function CoordinatorPage() {
   ]);
   const archivedProjectsQuery = useProjects(false);
   const surveysQuery = useSurveys();
+  const draftsQuery = useDrafts();
+  const draftMutations = useDraftMutations();
 
   const visibleReports = reportsQuery.items;
   const reportPagination = reportsQuery.pagination;
@@ -236,6 +242,11 @@ export function CoordinatorPage() {
     navigate(rdoPath('/relatorio/novo'));
   }
 
+  function handleResumeDraft(draft: ReportDraft) {
+    hydrate(reportDraftToRdoState(draft));
+    navigate(rdoPath(SITE_RDO_DRAFT_FORM_PATH));
+  }
+
   async function handleDownloadPdf(report: ReportSummary) {
     showToast('Gerando PDF...', 'info');
     try {
@@ -245,6 +256,33 @@ export function CoordinatorPage() {
     } catch (error) {
       showToast(error instanceof Error ? error.message : TEXT.downloadError, 'error');
     }
+  }
+
+  function renderBatchReportActions(reports: ReportSummary[]) {
+    return (
+      <ReportPdfBatchActions
+        reports={reports}
+        selectedIds={selectedReportIds}
+        onSelectionChange={setSelectedReportIds}
+      />
+    );
+  }
+
+  function renderSelectableReport(report: ReportSummary) {
+    return (
+      <ReportSummaryCard
+        key={report.id}
+        report={report}
+        leadingControl={(
+          <ReportSelectionCheckbox
+            reportId={report.id}
+            selectedIds={selectedReportIds}
+            onSelectionChange={setSelectedReportIds}
+          />
+        )}
+        actions={renderReportActions(report)}
+      />
+    );
   }
 
   function toggleArchivedProject(projectId: string) {
@@ -317,6 +355,7 @@ export function CoordinatorPage() {
         sortDirection={projectSortDir}
         showTypeSort
         storageKey={`coordinator-report-groups:${user?.id || user?.username || 'anonymous'}:${tab}`}
+        renderTypeActions={tab === 'approved' ? renderBatchReportActions : undefined}
         onLoadMoreType={reportsQuery.loadMoreGroup}
         onEnsureTypePage={reportsQuery.ensureGroupPage}
         isTypePageReady={reportsQuery.isGroupPageReady}
@@ -326,9 +365,9 @@ export function CoordinatorPage() {
         isTypePageErrored={reportsQuery.isGroupError}
         getTypeTotal={reportsQuery.groupTotal}
         getProjectTypeTotals={reportsQuery.projectTypeTotals}
-        renderReport={report => (
-          <ReportSummaryCard key={report.id} report={report} actions={renderReportActions(report)} />
-        )}
+        renderReport={report => tab === 'approved'
+          ? renderSelectableReport(report)
+          : <ReportSummaryCard key={report.id} report={report} actions={renderReportActions(report)} />}
       />
     );
   }
@@ -393,11 +432,10 @@ export function CoordinatorPage() {
             </div>
             {!typeClosed ? (
               <>
+                {visibleReports.length ? renderBatchReportActions(visibleReports) : null}
                 {visibleReports.length ? (
                   <div className="report-type-list">
-                    {visibleReports.map(report => (
-                      <ReportSummaryCard key={report.id} report={report} actions={renderReportActions(report)} />
-                    ))}
+                    {visibleReports.map(renderSelectableReport)}
                   </div>
                 ) : null}
                 {needsOrderedPage ? (
@@ -475,7 +513,7 @@ export function CoordinatorPage() {
         </div>
         <div className="det-section" style={{ marginTop: 12 }}>
           <div className="det-row"><span className="det-label">Cliente</span><span className="det-val">{project.clientName}</span></div>
-          <div className="det-row"><span className="det-label">Contrato</span><span className="det-val">{project.contractCode || '-'}</span></div>
+          <div className="det-row"><span className="det-label">Proposta</span><span className="det-val">{project.contractCode || '-'}</span></div>
           <div className="det-row"><span className="det-label">Local</span><span className="det-val">{project.location || '-'}</span></div>
           <div className="det-row"><span className="det-label">Líder</span><span className="det-val">{project.operator?.name || 'Não informado'}</span></div>
         </div>
@@ -589,6 +627,40 @@ export function CoordinatorPage() {
 
     if (reportsQuery.isLoading) return <ReportListSkeleton />;
 
+    const drafts = (draftsQuery.data || []).filter(draft => draft.projectId || draft.payload?.projectId);
+    const draftsBlock = tab === 'pending' && drafts.length ? (
+      <section className="page-card">
+        <div className="section-title">Relatórios em andamento</div>
+        <div className="admin-stack">
+          {drafts.map(draft => {
+            const serviceCount = reportDraftServiceCount(draft);
+            return (
+              <article className="card admin-card" key={draft.id}>
+                <div className="admin-card-head">
+                  <div>
+                    <div className="admin-card-title">{draft.title || 'Relatório em andamento'}</div>
+                    <div className="admin-card-meta">
+                      <span>{draft.project?.code || draft.projectId || 'Projeto'}</span>
+                      <span>{reportDraftDateLabel(draft)}</span>
+                      {serviceCount ? <span>{serviceCount} serviço(s)</span> : null}
+                    </div>
+                  </div>
+                  <div className="admin-card-actions">
+                    <button className="mini-btn alt" type="button" onClick={() => handleResumeDraft(draft)}>
+                      Continuar
+                    </button>
+                    <button className="mini-btn danger" type="button" onClick={() => draftMutations.removeDraft.mutate(draft.id)}>
+                      Excluir
+                    </button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    ) : null;
+
     return (
       <>
         <div className="admin-create-toolbar">
@@ -602,6 +674,7 @@ export function CoordinatorPage() {
             onToggle={() => setProjectSortDir(direction => direction === 'asc' ? 'desc' : 'asc')}
           />
         </div>
+        {draftsBlock}
         {!visibleReports.length ? (
           <div className="page-card placeholder-copy">
             {tab === 'pending' ? TEXT.noPending : TEXT.noApproved}

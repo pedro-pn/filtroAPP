@@ -2,6 +2,8 @@ import { ReportType } from '@prisma/client';
 import { z } from 'zod';
 
 import { calculateReportOvertime } from '../overtime.js';
+import { loadCorporateCalendar } from '../calendar/corporate-calendar.js';
+import { reportCollaboratorCreateManyData } from '../report-collaborators.js';
 
 export const MANUAL_REPORT_UPLOAD_KEY = '__manualUpload';
 
@@ -183,7 +185,7 @@ export async function enrichNightCollaboratorsInSpecialConditions(tx, specialCon
 
   const collaborators = await tx.collaborator.findMany({
     where: { id: { in: collaboratorIds } },
-    select: { id: true, name: true, role: true }
+    select: { id: true, name: true, jobRole: { select: { name: true } } }
   });
   const byId = new Map(collaborators.map(collaborator => [collaborator.id, collaborator]));
   const existing = Array.isArray(noturnoDetails.colaboradores)
@@ -199,7 +201,7 @@ export async function enrichNightCollaboratorsInSpecialConditions(tx, specialCon
       return {
         id,
         name: current.name || collaborator?.name || id,
-        role: current.role || collaborator?.role || ''
+        role: current.role || collaborator?.jobRole?.name || ''
       };
     })
   };
@@ -288,7 +290,8 @@ export async function buildManualReportOperationalFields(tx, project, reportDate
     lunchBreak: operationalData.lunchBreak || (operationalData.arrivalTime && operationalData.departureTime ? '01:00:00' : manualReportOperationalDefaults.lunchBreak),
     specialConditions
   };
-  const overtime = calculateReportOvertime(project, payload);
+  const corporateCalendar = await loadCorporateCalendar(tx, reportDate, reportDate);
+  const overtime = calculateReportOvertime(project, payload, corporateCalendar);
 
   return {
     data: {
@@ -376,6 +379,7 @@ export async function updateManualReportOperationalData({
       });
     }
     const operationalFields = await buildManualReportOperationalFields(tx, existing.project, nextReportDate, data, existing.reportType);
+    const reportCollaborators = await reportCollaboratorCreateManyData(tx, operationalFields.collaboratorIds);
     await tx.reportCollaborator.deleteMany({ where: { reportId: existing.id } });
     return tx.report.update({
       where: { id: existing.id },
@@ -390,7 +394,7 @@ export async function updateManualReportOperationalData({
         ...(operationalFields.collaboratorIds.length
           ? {
               collaborators: {
-                create: operationalFields.collaboratorIds.map(collaboratorId => ({ collaboratorId }))
+                create: reportCollaborators
               }
             }
           : {})

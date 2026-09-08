@@ -11,6 +11,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
 import { addPdfAnnotationsToHyperlinkText } from './pdf-link-annotations.js';
+import { buildReportCollaboratorRows } from './report-collaborators.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
 import { buildReportFileName } from './report-filename.js';
 import { readStoredImageAsset } from './stored-image.js';
@@ -414,7 +415,7 @@ function buildRtpBaseData(report) {
     tags: stringify(getField(sd, ['Desenhos / TAGs', 'Desenhos / Tags'])),
     obs: stringify(getField(sd, ['Observações', 'Observacoes'])),
     leadername: safeText(sc.__leaderSnapshot?.name || report.project?.operator?.name),
-    leaderposition: safeText(sc.__leaderSnapshot?.role || report.project?.operator?.role)
+    leaderposition: safeText(sc.__leaderSnapshot?.role || report.project?.operator?.jobRole?.name)
   };
 }
 
@@ -482,11 +483,7 @@ function expandRtpCollaborators(doc, collaborators) {
   }
   const clones = collaborators.map(c => {
     const clone = templateRow.cloneNode(true);
-    replacePlaceholders(clone, {
-      collaboratorname: c.name || '',
-      collaboratorposition: c.role || '',
-      collaboratorshift: c.shift || 'Diurno'
-    });
+    replacePlaceholders(clone, c);
     return clone;
   });
   cloneBefore(templateRow, clones);
@@ -497,12 +494,13 @@ function expandManometerRows(doc, manometers) {
   const templateRow = findFirstByText(doc, 'w:tr', '{{manometerscale}}');
   if (!templateRow) return;
   if (!manometers.length) {
-    replacePlaceholders(templateRow, { manometerscale: '', manometercert: '', manometercalibration: '', manometerexpiring: '' });
+    replacePlaceholders(templateRow, { manometer_tag: '', manometerscale: '', manometercert: '', manometercalibration: '', manometerexpiring: '' });
     return;
   }
   const clones = manometers.map(m => {
     const clone = templateRow.cloneNode(true);
     replacePlaceholders(clone, {
+      manometer_tag: m.code || '',
       manometerscale: m.scale || '',
       manometercert: m.certCode || '',
       manometercalibration: m.calibratedAt ? formatDatePt(m.calibratedAt) : '',
@@ -553,7 +551,7 @@ try {
 export async function buildRtpDocx(report) {
   const sc = report.specialConditions || {};
   const sd = sc.serviceData || {};
-  const collabs = sc.resolvedCollaborators || [];
+  const collabs = buildReportCollaboratorRows(report);
   const manos = sc.resolvedManometers || [];
 
   const baseData = buildRtpBaseDataResolved(report);

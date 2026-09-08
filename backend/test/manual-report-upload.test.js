@@ -18,10 +18,12 @@ const project = {
 
 function txWithCollaborators(ids) {
   return {
+    workforceHoliday: { findMany: async () => [] },
+    workforceCalendarState: { findUnique: async () => ({ id: 'global', revision: 1 }) },
     collaborator: {
       findMany: async ({ where }) => ids
         .filter(id => where.id.in.includes(id))
-        .map(id => ({ id, name: `Colaborador ${id}`, role: 'Técnico' }))
+        .map(id => ({ id, name: `Colaborador ${id}`, jobRole: { id: 'role-tech', name: 'Técnico' } }))
     }
   };
 }

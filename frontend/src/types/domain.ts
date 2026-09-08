@@ -1,22 +1,43 @@
-import type { AccountType, ModuleRole, UserRole } from './auth';
+import type { AccountType, ModuleRole, ReportEmissionPermission, UserRole } from './auth';
 
 export type UnitCategory = string;
-export type ReportType = 'RDO' | 'RTP' | 'RLQ' | 'RCPU' | 'RLM' | 'RLF' | 'RLI';
+export type ReportType = 'RDO' | 'RDO_MAINTENANCE' | 'RDO_PRODUCTION' | 'RTP' | 'RLQ' | 'RCPU' | 'RLM' | 'RLF' | 'RLI';
 export type ReportStatus = 'PENDING' | 'APPROVED' | 'RETURNED' | 'SIGNED';
 
 export interface Collaborator {
   id: string;
   code: string;
   name: string;
+  jobRoleId: string;
+  jobRole: { id: string; name: string; isActive?: boolean };
+  jobRoleHistory?: CollaboratorJobRoleHistory[];
+  /** Alias derivado de jobRole.name para consumidores visuais existentes. */
   role: string;
   email: string | null;
   cpf?: string | null;
   registrationNumber?: string | null;
   admissionDate?: string | null;
+  terminationDate?: string | null;
   signatureImage: string | null;
   signatureNoticeAcceptedAt?: string | null;
   signatureNoticeVersion?: string | null;
   isActive: boolean;
+}
+
+export interface CollaboratorJobRoleHistory {
+  id: string;
+  collaboratorId: string;
+  jobRoleId: string;
+  effectiveDate: string;
+  note: string | null;
+  jobRole: {
+    id: string;
+    name: string;
+    isActive?: boolean;
+    isOperational?: boolean;
+  };
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ProjectReportSequence {
@@ -162,6 +183,7 @@ export interface InternalUserSummary {
   role: UserRole;
   accountType?: AccountType;
   moduleRoles?: ModuleRole[];
+  reportEmissionPermissions?: ReportEmissionPermission[];
   isActive: boolean;
   collaboratorId?: string | null;
   collaborator?: Collaborator | null;

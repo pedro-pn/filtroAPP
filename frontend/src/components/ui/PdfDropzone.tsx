@@ -14,6 +14,10 @@ interface Props {
   onCurrentRemovedChange?: (removed: boolean) => void;
   accept?: string;
   disabled?: boolean;
+  emptyText?: string;
+  emptyHint?: string;
+  selectedHint?: string;
+  error?: string;
 }
 
 export function PdfDropzone({
@@ -29,7 +33,11 @@ export function PdfDropzone({
   accept = 'application/pdf,.pdf',
   disabled = false,
   multiple = false,
-  onFiles
+  onFiles,
+  emptyText,
+  emptyHint = 'ou clique para selecionar',
+  selectedHint,
+  error
 }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -61,13 +69,15 @@ export function PdfDropzone({
   }
 
   return (
-    <div className="field-group">
+    <div className={`field-group ${error ? 'field-invalid' : ''}`}>
       <label htmlFor={id}>{label}</label>
       <div
         className={`pdf-dropzone ${dragOver ? 'drag-over' : ''} ${selectedName ? 'has-file' : ''}`}
         role="button"
         tabIndex={disabled ? -1 : 0}
         aria-disabled={disabled}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${id}-error` : undefined}
         onClick={open}
         onKeyDown={handleKeyDown}
         onDragOver={event => {
@@ -94,8 +104,8 @@ export function PdfDropzone({
         />
         <span className="pdf-dropzone-icon" aria-hidden="true">⤓</span>
         <span className="pdf-dropzone-text">
-          <strong>{selectedName || (multiple ? 'Arraste os PDFs aqui' : 'Arraste o PDF aqui')}</strong>
-          <small>{selectedName ? (multiple ? 'Clique ou solte para adicionar mais' : 'Clique ou solte outro para substituir') : 'ou clique para selecionar'}</small>
+          <strong>{selectedName || emptyText || (multiple ? 'Arraste os PDFs aqui' : 'Arraste o PDF aqui')}</strong>
+          <small>{selectedName ? (selectedHint || (multiple ? 'Clique ou solte para adicionar mais' : 'Clique ou solte outro para substituir')) : emptyHint}</small>
         </span>
         {selectedName && !disabled ? (
           <button
@@ -115,6 +125,7 @@ export function PdfDropzone({
           </button>
         ) : null}
       </div>
+      {error ? <div className="field-error" id={`${id}-error`}>{error}</div> : null}
       {currentName && !selectedName && !currentRemoved ? (
         <div className="pdf-dropzone-current">
           {currentUrl

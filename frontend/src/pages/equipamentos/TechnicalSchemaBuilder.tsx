@@ -1,10 +1,17 @@
-import { useRef, useState, type DragEvent } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type PointerEvent } from 'react';
 
 import type {
   MeasurementDimension,
   TechnicalFieldDefinition,
   TechnicalFieldType
 } from '../../api/equipamentos';
+import {
+  createPointerDragGhost,
+  movePointerDragGhost,
+  reorderIdFromPoint,
+  setReorderDragImage,
+  type PointerDragState
+} from '../../utils/reorderDrag';
 
 const TECH_TYPES: Array<{ value: TechnicalFieldType; label: string }> = [
   { value: 'text', label: 'Texto' },
@@ -29,32 +36,10 @@ function reorderFields(fields: TechnicalFieldDefinition[], from: number, to: num
   return next;
 }
 
-function setTransparentDragPreview(event: DragEvent<HTMLButtonElement>) {
-  const row = event.currentTarget.closest('.tech-build-row');
-  if (!(row instanceof HTMLElement)) return;
-
-  const rect = row.getBoundingClientRect();
-  const preview = row.cloneNode(true) as HTMLElement;
-  preview.setAttribute('aria-hidden', 'true');
-  preview.style.position = 'fixed';
-  preview.style.top = '-1000px';
-  preview.style.left = '-1000px';
-  preview.style.width = `${rect.width}px`;
-  preview.style.pointerEvents = 'none';
-  preview.style.opacity = '0.42';
-  preview.style.transform = 'scale(0.985)';
-
-  document.body.appendChild(preview);
-  event.dataTransfer.setDragImage(
-    preview,
-    Math.max(0, Math.min(event.clientX - rect.left, rect.width)),
-    Math.max(0, Math.min(event.clientY - rect.top, rect.height))
-  );
-  window.setTimeout(() => preview.remove(), 0);
-}
-
 type FieldDragConfig = {
+  index: number;
   label: string;
+  scope: string;
   isDragging: boolean;
   isDragOver: boolean;
   onDragStart: (event: DragEvent<HTMLButtonElement>) => void;
@@ -62,6 +47,10 @@ type FieldDragConfig = {
   onDragOver: (event: DragEvent<HTMLDivElement>) => void;
   onDragLeave: () => void;
   onDrop: (event: DragEvent<HTMLDivElement>) => void;
+  onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
+  onPointerMove: (event: PointerEvent<HTMLButtonElement>) => void;
+  onPointerUp: (event: PointerEvent<HTMLButtonElement>) => void;
+  onPointerCancel: (event: PointerEvent<HTMLButtonElement>) => void;
 };
 
 // Editor de um campo. `nested` esconde tipo "grupo" e flags que não fazem sentido em subcampos.
@@ -75,8 +64,18 @@ function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested, drag }: 
 }) {
   const typeOptions = nested ? TECH_TYPES.filter(t => t.value !== 'group') : TECH_TYPES;
   const itemDragIndex = useRef<number | null>(null);
+  const itemStartSchema = useRef<TechnicalFieldDefinition[]>([]);
+  const itemSchemaRef = useRef<TechnicalFieldDefinition[]>(field.itemSchema || []);
+  const itemDropHandled = useRef(false);
+  const itemTouchDrag = useRef<PointerDragState | null>(null);
+  const itemScope = useRef(`tech-item-${Math.random().toString(36).slice(2)}`).current;
   const [itemDraggingIndex, setItemDraggingIndex] = useState<number | null>(null);
   const [itemOverIndex, setItemOverIndex] = useState<number | null>(null);
+  const itemRowSelector = `.tech-build-row[data-reorder-scope="${itemScope}"]`;
+
+  useEffect(() => {
+    if (itemDragIndex.current === null) itemSchemaRef.current = field.itemSchema || [];
+  }, [field.itemSchema]);
 
   function patchUnit(dimension: string) {
     const dim = unitsCatalog.find(d => d.key === dimension);
@@ -94,34 +93,87 @@ function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested, drag }: 
     setItemOverIndex(null);
   }
 
-  function handleItemDrop(targetIndex: number) {
+  function applyItemSchema(next: TechnicalFieldDefinition[]) {
+    itemSchemaRef.current = next;
+    onChange({ itemSchema: next });
+  }
+
+  function startItemDrag(index: number) {
+    itemDropHandled.current = false;
+    itemSchemaRef.current = field.itemSchema || [];
+    itemStartSchema.current = field.itemSchema || [];
+    itemDragIndex.current = index;
+    setItemDraggingIndex(index);
+    setItemOverIndex(index);
+  }
+
+  function applyItemReorder(targetIndex: number) {
     const from = itemDragIndex.current;
+    if (
+      from === null ||
+      from === targetIndex ||
+      !Number.isInteger(targetIndex) ||
+      targetIndex < 0 ||
+      targetIndex >= itemSchemaRef.current.length
+    ) return;
+    const next = reorderFields(itemSchemaRef.current, from, targetIndex);
+    itemDragIndex.current = targetIndex;
+    setItemDraggingIndex(targetIndex);
+    setItemOverIndex(targetIndex);
+    applyItemSchema(next);
+  }
+
+  function handleItemDrop(targetIndex: number) {
+    itemDropHandled.current = true;
+    applyItemReorder(targetIndex);
     clearItemDrag();
-    if (from === null || from === targetIndex) return;
-    onChange({ itemSchema: reorderFields(field.itemSchema || [], from, targetIndex) });
+  }
+
+  function handleItemDragEnd() {
+    if (!itemDropHandled.current) applyItemSchema(itemStartSchema.current);
+    itemDropHandled.current = false;
+    clearItemDrag();
+  }
+
+  function finishItemPointerDrag(event: PointerEvent<HTMLButtonElement>, persist: boolean) {
+    const state = itemTouchDrag.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    state.ghost.remove();
+    itemTouchDrag.current = null;
+    document.body.classList.remove('app-reorder-touching');
+    if (!persist) applyItemSchema(itemStartSchema.current);
+    clearItemDrag();
   }
 
   function itemDragConfig(index: number, label: string): FieldDragConfig {
     const source = label.trim() || `Subcampo ${index + 1}`;
     return {
+      index,
       label: `Arrastar ${source}`,
+      scope: itemScope,
       isDragging: itemDraggingIndex === index,
       isDragOver: itemOverIndex === index && itemDraggingIndex !== index,
       onDragStart: event => {
-        itemDragIndex.current = index;
-        setItemDraggingIndex(index);
+        startItemDrag(index);
         event.stopPropagation();
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('text/plain', source);
-        setTransparentDragPreview(event);
+        setReorderDragImage(event, itemRowSelector, 'app-reorder-drag-ghost');
       },
-      onDragEnd: () => clearItemDrag(),
+      onDragEnd: event => {
+        event.stopPropagation();
+        handleItemDragEnd();
+      },
       onDragOver: event => {
         if (itemDragIndex.current === null) return;
         event.preventDefault();
         event.stopPropagation();
         event.dataTransfer.dropEffect = 'move';
         setItemOverIndex(index);
+        applyItemReorder(index);
       },
       onDragLeave: () => {
         if (itemOverIndex === index) setItemOverIndex(null);
@@ -131,13 +183,39 @@ function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested, drag }: 
         event.preventDefault();
         event.stopPropagation();
         handleItemDrop(index);
-      }
+      },
+      onPointerDown: event => {
+        if (event.pointerType === 'mouse') return;
+        const row = event.currentTarget.closest(itemRowSelector);
+        if (!(row instanceof HTMLElement)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        startItemDrag(index);
+        document.body.classList.add('app-reorder-touching');
+        const state = createPointerDragGhost(row, event.clientX, event.clientY, 'app-reorder-touch-ghost');
+        state.pointerId = event.pointerId;
+        itemTouchDrag.current = state;
+      },
+      onPointerMove: event => {
+        const state = itemTouchDrag.current;
+        if (!state || state.pointerId !== event.pointerId || itemDragIndex.current === null) return;
+        event.preventDefault();
+        event.stopPropagation();
+        movePointerDragGhost(state, event.clientX, event.clientY);
+        const target = reorderIdFromPoint(event.clientX, event.clientY, itemRowSelector);
+        if (target !== null) applyItemReorder(Number(target));
+      },
+      onPointerUp: event => finishItemPointerDrag(event, true),
+      onPointerCancel: event => finishItemPointerDrag(event, false)
     };
   }
 
   return (
     <div
-      className={`tech-build-row ${nested ? 'nested' : ''} ${drag?.isDragging ? 'dragging' : ''} ${drag?.isDragOver ? 'drag-over' : ''}`}
+      className={`tech-build-row ${nested ? 'nested' : ''} ${drag?.isDragging ? 'drag-placeholder' : ''} ${drag?.isDragOver ? 'drag-over' : ''}`}
+      data-reorder-id={drag?.index}
+      data-reorder-scope={drag?.scope}
       onDragOver={drag?.onDragOver}
       onDragLeave={drag?.onDragLeave}
       onDrop={drag?.onDrop}
@@ -152,12 +230,17 @@ function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested, drag }: 
             title={drag.label}
             onDragStart={drag.onDragStart}
             onDragEnd={drag.onDragEnd}
+            onPointerDown={drag.onPointerDown}
+            onPointerMove={drag.onPointerMove}
+            onPointerUp={drag.onPointerUp}
+            onPointerCancel={drag.onPointerCancel}
           >
             ⠿
           </button>
         )}
         <input
           type="text"
+          aria-label="Rótulo do campo"
           placeholder="Rótulo do campo"
           value={field.label}
           onChange={e => onChange({ label: e.target.value })}
@@ -178,6 +261,7 @@ function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested, drag }: 
         {(field.type === 'select' || field.type === 'multiselect') && (
           <input
             type="text"
+            aria-label="Opções do campo"
             placeholder="Opções (separadas por vírgula)"
             value={(field.options || []).join(', ')}
             onChange={e => onChange({ options: e.target.value.split(',').map(o => o.trim()) })}
@@ -186,6 +270,7 @@ function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested, drag }: 
         {!nested && (
           <input
             type="text"
+            aria-label="Seção ou agrupamento"
             placeholder="Seção / agrupamento (ex.: Elétrico)"
             value={field.group || ''}
             onChange={e => onChange({ group: e.target.value })}
@@ -214,6 +299,7 @@ function FieldEditor({ field, onChange, onRemove, unitsCatalog, nested, drag }: 
           <div className="tech-build-group-opts">
             <input
               type="text"
+              aria-label="Rótulo do item"
               placeholder="Rótulo do item (ex.: Motor)"
               value={field.itemLabel || ''}
               onChange={e => onChange({ itemLabel: e.target.value })}
@@ -255,8 +341,17 @@ export function TechnicalSchemaBuilder({ value, onChange, unitsCatalog }: {
   unitsCatalog: MeasurementDimension[];
 }) {
   const dragIndex = useRef<number | null>(null);
+  const startValue = useRef<TechnicalFieldDefinition[]>([]);
+  const valueRef = useRef<TechnicalFieldDefinition[]>(value);
+  const dropHandled = useRef(false);
+  const touchDrag = useRef<PointerDragState | null>(null);
+  const rowSelector = '.tech-build-row[data-reorder-scope="tech-root"]';
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (dragIndex.current === null) valueRef.current = value;
+  }, [value]);
 
   function update(index: number, patch: Partial<TechnicalFieldDefinition>) {
     onChange(value.map((field, i) => (i === index ? { ...field, ...patch } : field)));
@@ -268,34 +363,87 @@ export function TechnicalSchemaBuilder({ value, onChange, unitsCatalog }: {
     setOverIndex(null);
   }
 
-  function handleDrop(targetIndex: number) {
+  function applyValue(next: TechnicalFieldDefinition[]) {
+    valueRef.current = next;
+    onChange(next);
+  }
+
+  function startDrag(index: number) {
+    dropHandled.current = false;
+    valueRef.current = value;
+    startValue.current = value;
+    dragIndex.current = index;
+    setDraggingIndex(index);
+    setOverIndex(index);
+  }
+
+  function applyReorder(targetIndex: number) {
     const from = dragIndex.current;
+    if (
+      from === null ||
+      from === targetIndex ||
+      !Number.isInteger(targetIndex) ||
+      targetIndex < 0 ||
+      targetIndex >= valueRef.current.length
+    ) return;
+    const next = reorderFields(valueRef.current, from, targetIndex);
+    dragIndex.current = targetIndex;
+    setDraggingIndex(targetIndex);
+    setOverIndex(targetIndex);
+    applyValue(next);
+  }
+
+  function handleDrop(targetIndex: number) {
+    dropHandled.current = true;
+    applyReorder(targetIndex);
     clearDrag();
-    if (from === null || from === targetIndex) return;
-    onChange(reorderFields(value, from, targetIndex));
+  }
+
+  function handleDragEnd() {
+    if (!dropHandled.current) applyValue(startValue.current);
+    dropHandled.current = false;
+    clearDrag();
+  }
+
+  function finishPointerDrag(event: PointerEvent<HTMLButtonElement>, persist: boolean) {
+    const state = touchDrag.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    state.ghost.remove();
+    touchDrag.current = null;
+    document.body.classList.remove('app-reorder-touching');
+    if (!persist) applyValue(startValue.current);
+    clearDrag();
   }
 
   function dragConfig(index: number, label: string): FieldDragConfig {
     const source = label.trim() || `Campo ${index + 1}`;
     return {
+      index,
       label: `Arrastar ${source}`,
+      scope: 'tech-root',
       isDragging: draggingIndex === index,
       isDragOver: overIndex === index && draggingIndex !== index,
       onDragStart: event => {
-        dragIndex.current = index;
-        setDraggingIndex(index);
+        startDrag(index);
         event.stopPropagation();
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('text/plain', source);
-        setTransparentDragPreview(event);
+        setReorderDragImage(event, rowSelector, 'app-reorder-drag-ghost');
       },
-      onDragEnd: () => clearDrag(),
+      onDragEnd: event => {
+        event.stopPropagation();
+        handleDragEnd();
+      },
       onDragOver: event => {
         if (dragIndex.current === null) return;
         event.preventDefault();
         event.stopPropagation();
         event.dataTransfer.dropEffect = 'move';
         setOverIndex(index);
+        applyReorder(index);
       },
       onDragLeave: () => {
         if (overIndex === index) setOverIndex(null);
@@ -305,7 +453,31 @@ export function TechnicalSchemaBuilder({ value, onChange, unitsCatalog }: {
         event.preventDefault();
         event.stopPropagation();
         handleDrop(index);
-      }
+      },
+      onPointerDown: event => {
+        if (event.pointerType === 'mouse') return;
+        const row = event.currentTarget.closest(rowSelector);
+        if (!(row instanceof HTMLElement)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        startDrag(index);
+        document.body.classList.add('app-reorder-touching');
+        const state = createPointerDragGhost(row, event.clientX, event.clientY, 'app-reorder-touch-ghost');
+        state.pointerId = event.pointerId;
+        touchDrag.current = state;
+      },
+      onPointerMove: event => {
+        const state = touchDrag.current;
+        if (!state || state.pointerId !== event.pointerId || dragIndex.current === null) return;
+        event.preventDefault();
+        event.stopPropagation();
+        movePointerDragGhost(state, event.clientX, event.clientY);
+        const target = reorderIdFromPoint(event.clientX, event.clientY, rowSelector);
+        if (target !== null) applyReorder(Number(target));
+      },
+      onPointerUp: event => finishPointerDrag(event, true),
+      onPointerCancel: event => finishPointerDrag(event, false)
     };
   }
 

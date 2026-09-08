@@ -124,6 +124,7 @@ test('runDataRetention removes expirable data and anonymizes operational metadat
     expiredPasswordTokens: 1,
     reportAuditLogsAnonymized: 2,
     epiAuditLogsAnonymized: 2,
+    signatureDocumentAuditLogsAnonymized: 0,
     satisfactionSurveysAnonymized: 2,
     abandonedDraftsDeleted: 0,
     abandonedDraftIdsDeleted: [],
@@ -133,6 +134,7 @@ test('runDataRetention removes expirable data and anonymizes operational metadat
       expiredPasswordTokens: 1,
       reportAuditLogs: 1,
       epiAuditLogs: 1,
+      signatureDocumentAuditLogs: 0,
       satisfactionSurveys: 1,
       abandonedDrafts: 0
     },
@@ -321,6 +323,7 @@ test('previewDataRetention counts affected rows without mutating data', async ()
     expiredPasswordTokens: 3,
     reportAuditLogsToAnonymize: 3,
     epiAuditLogsToAnonymize: 3,
+    signatureDocumentAuditLogsToAnonymize: 0,
     satisfactionSurveysToAnonymize: 3,
     abandonedDraftsToReview: 3,
     abandonedDraftPreviewLimit: 100,

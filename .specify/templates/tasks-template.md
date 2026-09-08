@@ -34,6 +34,15 @@ description: "Task list template for feature implementation"
 - For frontend tabs, segmented controls and tab-like filters, include a task to verify
   labels wrap/fit, use a responsive grid, scroll internally by design, or switch to a
   mobile select/menu without creating page-level horizontal scroll.
+- For frontend forms, include a task to verify that submitting with required fields
+  empty/invalid highlights the specific fields in red using the shared
+  `.field-group.field-invalid` + `.field-error` pattern, with `aria-invalid` where
+  applicable. Do not rely only on native browser validation UI.
+- For frontend surfaces with user-facing drag and drop reordering, include a task to
+  verify the shared pattern: dedicated handle, live reordering, placeholder/space with
+  position legend, visual ghost, cancel restores the initial order, drop persists only
+  the final order, and mobile/touch works via Pointer Events or equivalent with
+  `touch-action: none`.
 
 ## Path Conventions
 
@@ -182,6 +191,13 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX Visual contract implementation: each new/changed form control uses shared
   structure (`field-group`, `admin-form-grid`, `admin-inline-form`, or documented
   equivalent); no placeholder-only labels; no raw dropdown/select styling
+- [ ] TXXX Required-field validation UI: submit each new/changed frontend form with
+  mandatory fields empty and verify the exact fields receive
+  `.field-group.field-invalid`, `aria-invalid` where applicable, and `.field-error`
+  text below the control
+- [ ] TXXX Reorder drag/drop UI: verify each changed reorderable list uses the shared
+  handle + live placeholder/ghost pattern, restores the initial order on cancel, saves
+  only after drop, and works on mobile/touch
 - [ ] TXXX Navigation continuity: represent module-internal tabs/sections/detail views
   in URL/query params (or document a localStorage exception) and verify refresh/deep-link
   restores the same page without stale incompatible params
@@ -192,6 +208,10 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX Visual consistency pass: verify every Visual/UI Contract surface in desktop
   and mobile; dropdowns/selects have default, focus, disabled, error and empty states;
   desktop module width is not compressed; mobile layout has no horizontal page scroll
+- [ ] TXXX Ported-identity audit *(only when the spec declares the exception)*: verify
+  no module selector affects other modules and `base.css` does not affect the module;
+  verify palette/measurements live in a single prefixed custom-property block with no
+  stray hex/px duplicating them and no global token redefined
 - [ ] TXXX Run quickstart.md validation
 
 ---

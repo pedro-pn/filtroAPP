@@ -1,9 +1,11 @@
-import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 
 import { useAuth } from '../../auth/AuthContext';
 import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
+import { ReportPdfBatchActions, ReportSelectionCheckbox } from '../../components/reports/ReportPdfBatchActions';
+import { ReportSummaryCard } from '../../components/reports/ReportSummaryCard';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { ReportListSkeleton } from '../../components/ui/Skeleton';
 import { Shell } from '../../layout/Shell';
@@ -21,6 +23,7 @@ export function MyArchivedReportsPage() {
   // Busca persistida: ao abrir um relatório e voltar, o termo da busca é restaurado.
   const [search, setSearch] = usePersistentSearch(`my-archived-search:${user?.id || user?.username || 'anonymous'}`);
   const debouncedSearch = useDebouncedValue(search, 300);
+  const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const reportsQuery = useAccumulatedReportsPage({
     mine: true,
     summary: true,
@@ -81,6 +84,13 @@ export function MyArchivedReportsPage() {
           reports={groups}
           archived
           storageKey={`collaborator-archived-report-groups:${user?.id || user?.username || 'anonymous'}`}
+          renderTypeActions={typeReports => (
+            <ReportPdfBatchActions
+              reports={typeReports}
+              selectedIds={selectedReportIds}
+              onSelectionChange={setSelectedReportIds}
+            />
+          )}
           onLoadMoreType={reportsQuery.loadMoreGroup}
           onEnsureTypePage={reportsQuery.ensureGroupPage}
           isTypePageReady={reportsQuery.isGroupPageReady}
@@ -90,6 +100,19 @@ export function MyArchivedReportsPage() {
           isTypePageErrored={reportsQuery.isGroupError}
           getTypeTotal={reportsQuery.groupTotal}
           getProjectTypeTotals={reportsQuery.projectTypeTotals}
+          renderReport={report => (
+            <ReportSummaryCard
+              key={report.id}
+              report={report}
+              leadingControl={(
+                <ReportSelectionCheckbox
+                  reportId={report.id}
+                  selectedIds={selectedReportIds}
+                  onSelectionChange={setSelectedReportIds}
+                />
+              )}
+            />
+          )}
         />
         <div ref={loadMoreRef} aria-hidden="true" />
         {reportsQuery.hasMore || reportsQuery.isLoadingMore ? (

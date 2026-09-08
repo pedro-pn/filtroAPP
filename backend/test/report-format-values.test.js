@@ -77,6 +77,39 @@ test('buildReportDocx converts service observation line breaks to Word breaks', 
   assert.doesNotMatch(xml, /Primeira linha\r?\nSegunda linha/);
 });
 
+test('buildReportDocx allows a long activities row to continue on following PDF pages', async () => {
+  const marker = 'ATIVIDADE_EXTENSA_PARA_PAGINACAO';
+  const report = {
+    reportType: 'RDO',
+    sequenceNumber: 1,
+    reportDate: '2026-07-28',
+    dailyDescription: Array.from({ length: 100 }, (_, index) => `${marker}_${index}`).join('\n'),
+    project: {
+      code: '5761',
+      name: 'Projeto',
+      clientName: 'Cliente',
+      clientCnpj: '',
+      location: 'Local',
+      contractCode: '',
+      operator: {}
+    },
+    services: [],
+    collaborators: []
+  };
+
+  const zip = new AdmZip(await buildReportDocx(report));
+  const xml = zip.readAsText('word/document.xml');
+  const markerIndex = xml.indexOf(marker);
+  const rowStart = xml.lastIndexOf('<w:tr ', markerIndex);
+  const rowEnd = xml.indexOf('</w:tr>', markerIndex);
+  const activitiesRow = xml.slice(rowStart, rowEnd);
+
+  assert.ok(markerIndex >= 0);
+  assert.ok(rowStart >= 0 && rowEnd > markerIndex);
+  assert.doesNotMatch(activitiesRow, /<w:cantSplit\b/);
+  assert.doesNotMatch(activitiesRow, /<w:tblHeader\b/);
+});
+
 test('buildReportDocx hides rejected overtime from downloaded report without deleting internal data', async () => {
   const baseReport = {
     reportType: 'RDO',

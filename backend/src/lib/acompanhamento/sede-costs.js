@@ -174,8 +174,10 @@ export function buildSedeCostCards(purchases = [], {
   };
 }
 
-export async function listSedeCosts({ monthsLimit = null, range = null } = {}) {
-  const categoryWhere = await buildOmieCostCategoryWhere();
+export async function listSedeCosts({ monthsLimit = null, range = null, includeAdminOnlyCategories = true } = {}) {
+  const categoryWhere = await buildOmieCostCategoryWhere({
+    includeAdminOnly: includeAdminOnlyCategories
+  });
   const omieProjects = await prisma.omieProject.findMany({
     where: {
       OR: [

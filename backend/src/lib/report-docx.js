@@ -366,6 +366,29 @@ function removeNode(node) {
   if (node && node.parentNode) node.parentNode.removeChild(node);
 }
 
+function findAncestorByName(node, nodeName) {
+  let current = node?.parentNode || null;
+  while (current) {
+    if (current.nodeName === nodeName) return current;
+    current = current.parentNode;
+  }
+  return null;
+}
+
+function allowPlaceholderTableRowToSplit(doc, token) {
+  const paragraph = findFirstByText(doc, 'w:p', token);
+  const row = findAncestorByName(paragraph, 'w:tr');
+  if (!row) return;
+
+  const rowProperties = Array.from(row.childNodes || [])
+    .find(child => child.nodeName === 'w:trPr');
+  if (!rowProperties) return;
+
+  Array.from(rowProperties.childNodes || [])
+    .filter(child => child.nodeName === 'w:cantSplit' || child.nodeName === 'w:tblHeader')
+    .forEach(child => rowProperties.removeChild(child));
+}
+
 function setParagraphText(doc, paragraph, text) {
   if (!paragraph) return;
   const content = String(text || '');
@@ -436,7 +459,7 @@ function cloneBefore(node, clones) {
 }
 
 // Campos do DDS (Diálogo Diário de Segurança) por turno, a partir de specialConditions.dds.
-// Os temas são snapshots {id, name} gravados no relatório; relatórios antigos sem o bloco saem vazios.
+// Os temas são snapshots {id, name} gravados no relatório; sem DDS ativo, a tabela inteira é removida.
 export function buildDdsDocxFields(special) {
   const dds = (special && special.dds) || {};
   const hasNight = !!(special && special.noturno);
@@ -461,6 +484,16 @@ export function buildDdsDocxFields(special) {
     ddsnightend: nightFields.end,
     ddsnightthemes: nightFields.themes
   };
+}
+
+export function hasEnabledDds(special) {
+  const dds = (special && special.dds) || {};
+  return !!dds.diurno?.enabled || (!!special?.noturno && !!dds.noturno?.enabled);
+}
+
+function applyDdsTable(doc, special) {
+  if (hasEnabledDds(special)) return;
+  removeNode(findFirstByText(doc, 'w:tbl', '{{ddsdaystart}}'));
 }
 
 function buildDocxData(report) {
@@ -872,7 +905,9 @@ export async function buildReportDocx(report) {
   });
 
   updateXmlEntry(zip, 'word/document.xml', doc => {
+    allowPlaceholderTableRowToSplit(doc, '{{activities}}');
     setPlaceholderCellParagraphs(doc, '{{activities}}', baseData.activities);
+    applyDdsTable(doc, report.specialConditions);
     expandCollaborators(doc, report);
     expandServices(doc, report);
     replacePlaceholders(doc, baseData);

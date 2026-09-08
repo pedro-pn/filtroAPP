@@ -56,7 +56,22 @@
 - Visual consistency uses `frontend/src/components/ui/` and design tokens. Native
   `select` fields, custom dropdowns/comboboxes and multiselects must match the app
   standard states (default, focus, disabled, error, mobile), and desktop modules with
-  dashboards/tables/forms must use the wide module shell pattern.
+  dashboards/tables/forms must use the wide module shell pattern. Required fields must
+  use the shared invalid state when save is attempted empty/invalid: `.field-group`
+  plus `.field-invalid`, `aria-invalid` where applicable, and a `.field-error` message;
+  native browser validation UI is not sufficient.
+  *Ported-identity exception*: a module that faithfully reproduces an approved existing
+  app may keep its original visual identity if the plan declares it and all four
+  conditions hold — CSS fully scoped to a module root with no leakage either way,
+  palette/measurements declared as prefixed custom properties in a single block without
+  redefining global tokens, mandatory behaviors preserved (`aria-invalid` with visible
+  message, select states, shared drag and drop, URL params, first-access tutorial, no
+  page-level horizontal scroll on mobile), and the exception re-evaluated once the
+  module stops being a port.
+- User-facing drag and drop reordering uses the shared app pattern: dedicated drag
+  handle, live reordering while dragging, placeholder/space with position legend,
+  visual ghost, cancel restores the initial order, drop persists only the final order,
+  and mobile/touch works via Pointer Events or equivalent with `touch-action: none`.
 - New user-facing functions include the temporary novelty campaign when applicable:
   Driver.js-style centered novelty card, localStorage seen marker per user/browser,
   global expiration exactly 10 days after implementation date, and a guided tutorial
@@ -69,9 +84,9 @@
 
 **Required visual evidence when frontend changes are present:**
 
-| Surface | Existing reference audited | Shared component/classes | Field/dropdown states covered | Navigation persistence | Novelty/tutorial plan | Mobile/desktop overflow evidence |
-|---------|----------------------------|--------------------------|-------------------------------|------------------------|------------------------|----------------------------------|
-| [surface name] | [path + pattern checked] | [e.g., Modal, Button, field-group, admin-inline-form] | [default/focus/disabled/error/empty] | [URL/query params or N/A with reason] | [10-day novelty/tutorial or N/A with reason] | [viewport behavior; tabs/cards/grids/text overflow checked] |
+| Surface | Existing reference audited | Shared component/classes | Field/dropdown states covered | Reorder drag/drop pattern | Navigation persistence | Novelty/tutorial plan | Mobile/desktop overflow evidence |
+|---------|----------------------------|--------------------------|-------------------------------|---------------------------|------------------------|------------------------|----------------------------------|
+| [surface name] | [path + pattern checked] | [e.g., Modal, Button, field-group, admin-inline-form] | [default/focus/disabled/error/empty, including required-empty red highlight] | [handle + live placeholder/ghost + mobile touch, or N/A] | [URL/query params or N/A with reason] | [10-day novelty/tutorial or N/A with reason] | [viewport behavior; tabs/cards/grids/text overflow checked] |
 
 - A plan may reuse or clone an existing component only after checking that the source
   component still complies with the current constitution. If the source component has

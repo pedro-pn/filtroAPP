@@ -108,6 +108,12 @@
   components/classes. "Clone of X" is not enough unless X was checked against the
   current constitution and visual standard.
 
+  If this feature relies on the ported-identity exception (Princípio VI), state it
+  explicitly here: name the source app being reproduced, the module CSS root that scopes
+  every selector, the prefix of the module custom properties, and confirm that the
+  mandatory behaviors are still delivered. Without that declaration the exception does
+  not apply and the standard kit/tokens rules hold.
+
   For new user-facing functions, describe the 10-day novelty campaign and guided
   tutorial for first access. If this is a new module, describe the permanent first-access
   module tutorial instead. If no novelty/tutorial applies, state the reason.
@@ -120,11 +126,20 @@
   converted to cards, badges, metric values, links and action rows avoid page-level
   horizontal scroll on narrow phones. Include the expected behavior for long labels and
   large numeric values.
+
+  For forms, define the required-field empty/error behavior: saving with a mandatory
+  field empty or invalid must highlight the specific field in red using the shared
+  field-group/field-invalid/field-error pattern, not only browser-native validation.
+
+  For user-facing reordering by drag and drop, define the shared interaction pattern:
+  dedicated drag handle, live reordering while dragging, placeholder/space with position
+  legend, visual ghost, cancel restoring the initial order, final persistence only on
+  drop, and mobile/touch support via Pointer Events or equivalent with touch-action none.
 -->
 
-| Surface | Existing reference inspected | Components/classes to use | Form/dropdown pattern | Navigation persistence | Novelty/tutorial contract | Responsive/overflow contract |
-|---------|------------------------------|---------------------------|-----------------------|------------------------|---------------------------|------------------------------|
-| [e.g., Manager create form] | [file/class inspected] | [ui component or CSS class] | [field-group/admin-inline-form/shared dropdown] | [URL/query params, localStorage exception, or N/A] | [10-day novelty/tutorial, permanent module tutorial, or N/A] | [mobile + desktop behavior; no tab/card/grid/text overflow] |
+| Surface | Existing reference inspected | Components/classes to use | Form/dropdown pattern | Reorder drag/drop pattern | Navigation persistence | Novelty/tutorial contract | Responsive/overflow contract |
+|---------|------------------------------|---------------------------|-----------------------|---------------------------|------------------------|---------------------------|------------------------------|
+| [e.g., Manager create form] | [file/class inspected] | [ui component or CSS class] | [field-group/admin-inline-form/shared dropdown] | [handle + live placeholder/ghost + mobile touch, or N/A] | [URL/query params, localStorage exception, or N/A] | [10-day novelty/tutorial, permanent module tutorial, or N/A] | [mobile + desktop behavior; no tab/card/grid/text overflow] |
 
 ### Key Entities *(include if feature involves data)*
 

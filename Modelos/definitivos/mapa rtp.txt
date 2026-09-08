@@ -4,7 +4,7 @@ MAPA DO MODELO DE TESTE DE PRESSÃO
 {{client}} - cliente do projeto
 {{cnpj}} - CNPJ do projeto
 {{local}} - local do projeto
-{{proposal}} - contrato do projeto
+{{proposal}} - proposta do projeto
 {{rtp}} - número rtp
 {{date}} - data do rdo
 
@@ -33,6 +33,7 @@ COLABORADORES
 
 MANOMETROS
 
+{{manometer_tag}} - TAG do manômetro conforme cadastrado o manometro selecionado
 {{manometerscale}} - escala do manômetro conforme cadastrado o manometro selecionado
 {{manometercert}} - número do certificado do manômetro conforme cadastrado
 {{manometercalibration}} - data de calibração do manometro conforme cadastrado

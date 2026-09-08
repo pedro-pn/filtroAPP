@@ -10,6 +10,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
+import { buildReportCollaboratorRows } from './report-collaborators.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
 import { buildReportFileName } from './report-filename.js';
 import { readStoredImageAsset } from './stored-image.js';
@@ -331,7 +332,7 @@ function getProductForStep(stepName, material) {
   const isInox = /inox/i.test(material || '');
   if (s.includes('desengraxe')) return 'Hidróxido de sódio, Metassilicato de sódio e Tripolifosfato de sódio';
   if (s.includes('fase acida')) return isInox ? 'Ácido nítrico e Ácido fluorídrico' : 'Ácido cítrico';
-  if (s.includes('fase sequestrant') || s.includes('fase neutralizant')) return 'Carbonato de cálcio';
+  if (s.includes('fase sequestrant') || s.includes('fase neutralizant')) return 'Carbonato de sódio';
   if (s.includes('fase passivant')) return isInox ? '' : 'Nitrito de sódio';
   return '';
 }
@@ -368,7 +369,7 @@ function buildRlqBaseData(report) {
     tags: stringify(getField(sd, ['Desenhos / TAGs', 'Desenhos / Tags'])),
     obs: stringify(getField(sd, ['Observações', 'Observacoes'])),
     leadername: safeText(sc.__leaderSnapshot?.name || report.project?.operator?.name),
-    leaderposition: safeText(sc.__leaderSnapshot?.role || report.project?.operator?.role)
+    leaderposition: safeText(sc.__leaderSnapshot?.role || report.project?.operator?.jobRole?.name)
   };
 }
 
@@ -413,10 +414,7 @@ function expandRlqCollaborators(doc, collaborators) {
   }
   const clones = collaborators.map(c => {
     const clone = templateRow.cloneNode(true);
-    replacePlaceholders(clone, {
-      collaboratorname: c.name || '',
-      collaboratorposition: c.role || ''
-    });
+    replacePlaceholders(clone, c);
     return clone;
   });
   cloneBefore(templateRow, clones);
@@ -486,7 +484,7 @@ try {
 export async function buildRlqDocx(report) {
   const sc = report.specialConditions || {};
   const sd = sc.serviceData || {};
-  const collabs = sc.resolvedCollaborators || [];
+  const collabs = buildReportCollaboratorRows(report);
 
   const baseData = buildRlqBaseData(report);
   const signatureAsset = await getUploadAsset(sc.__leaderSnapshot?.signatureImage || report.project?.operator?.signatureImage);

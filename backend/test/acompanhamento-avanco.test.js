@@ -6,8 +6,66 @@ import {
   realizedFromExtraData,
   isServiceFinalized,
   buildProgress,
-  buildProgressHistory
+  buildProgressHistory,
+  buildRequiredWeeklyProgress,
+  realizedReportWhere,
+  isRealizedSourceReport,
+  isPointWorkbookDerivedRdoRoster,
+  isConfirmedReportParticipant,
+  selectRealizedSourceReportData
 } from '../src/lib/acompanhamento/avanco.js';
+
+test('consulta do avanço considera relatórios ativos do projeto', () => {
+  assert.deepEqual(realizedReportWhere(['projeto-1']), {
+    report: {
+      projectId: { in: ['projeto-1'] },
+      deletedAt: null
+    }
+  });
+});
+
+test('fonte do realizado aceita RDO e relatório independente, mas ignora derivado do RDO', () => {
+  assert.equal(isRealizedSourceReport({ reportType: 'RDO' }), true);
+  assert.equal(isRealizedSourceReport({ reportType: 'RLQ', specialConditions: { serviceOnly: true } }), true);
+  assert.equal(isRealizedSourceReport({
+    reportType: 'RLQ',
+    specialConditions: { parentRdoId: 'rdo-1' }
+  }), false);
+});
+
+test('seleção do realizado inclui equipe de serviceOnly independente e exclui equipe de derivado', () => {
+  const reports = [
+    { id: 'rdo-1', reportType: 'RDO', specialConditions: {} },
+    { id: 'service-only-1', reportType: 'RLQ', specialConditions: { serviceOnly: true } },
+    { id: 'derived-1', reportType: 'RLQ', specialConditions: { parentRdoId: 'rdo-1' } }
+  ];
+  const collaborators = [
+    { reportId: 'rdo-1', collaboratorId: 'maria' },
+    { reportId: 'service-only-1', collaboratorId: 'ronaldo' },
+    { reportId: 'derived-1', collaboratorId: 'duplicado' }
+  ];
+
+  const selected = selectRealizedSourceReportData(reports, collaborators);
+
+  assert.deepEqual(selected.reports.map(report => report.id), ['rdo-1', 'service-only-1']);
+  assert.deepEqual(selected.collaborators.map(item => item.collaboratorId), ['maria', 'ronaldo']);
+});
+
+test('equipe inferida da planilha do ponto não confirma participação sem horas apropriadas', () => {
+  const imported = {
+    reportType: 'RDO',
+    specialConditions: {
+      __manualUpload: { importedByScript: 'import-manual-rdo-pdfs' }
+    }
+  };
+  const native = { reportType: 'RDO', specialConditions: {} };
+
+  assert.equal(isPointWorkbookDerivedRdoRoster(imported), true);
+  assert.equal(isConfirmedReportParticipant(imported, false), false);
+  assert.equal(isConfirmedReportParticipant(imported, true), true);
+  assert.equal(isPointWorkbookDerivedRdoRoster(native), false);
+  assert.equal(isConfirmedReportParticipant(native, false), true);
+});
 
 test('isServiceFinalized: coluna booleana e campo textual do extraData', () => {
   assert.equal(isServiceFinalized({ finalized: true }), true);
@@ -90,6 +148,88 @@ test('buildProgress: sem meta cadastrada não entra no avanço (progressPct null
   assert.equal(out.hasScope, false);
 });
 
+test('buildProgress: agrega escopos repetidos do mesmo serviço sem duplicar o realizado', () => {
+  const planned = [
+    { serviceType: 'LIMPEZA_QUIMICA', weight: 1, systems: [{ systemType: 'TUBULACAO', quantity: 400, unit: 'M' }] },
+    { serviceType: 'LIMPEZA_QUIMICA', weight: 2, systems: [{ systemType: 'TUBULACAO', quantity: 600, unit: 'M' }] }
+  ];
+  const realized = new Map([['LIMPEZA_QUIMICA', { tubulacaoM: 250, oleoL: 0 }]]);
+
+  const out = buildProgress(planned, realized);
+
+  assert.equal(out.services.length, 1);
+  assert.equal(out.services[0].weight, 3);
+  assert.deepEqual(out.services[0].systems[0], {
+    systemType: 'TUBULACAO',
+    unit: 'M',
+    plannedQty: 1000,
+    realizedQty: 250,
+    pct: 25
+  });
+  assert.equal(out.progressPct, 25);
+});
+
+test('buildRequiredWeeklyProgress calcula pontos percentuais e quantitativos por semana', () => {
+  const out = buildRequiredWeeklyProgress({
+    progressPct: 58,
+    services: [{
+      serviceType: 'LIMPEZA_QUIMICA',
+      executionPct: 37.5,
+      systems: [{ systemType: 'TUBULACAO', unit: 'M', plannedQty: 1200, realizedQty: 450 }]
+    }]
+  }, {
+    startDate: '2026-07-01',
+    expectedEndDate: '2026-09-11',
+    referenceDate: '2026-08-07'
+  });
+
+  assert.equal(out.status, 'REQUIRED');
+  assert.equal(out.remainingDays, 35);
+  assert.equal(out.remainingPctPoints, 42);
+  assert.equal(out.requiredPctPointsPerWeek, 8.4);
+  assert.deepEqual(out.services[0].systems[0], {
+    systemType: 'TUBULACAO',
+    unit: 'M',
+    plannedQty: 1200,
+    realizedQty: 450,
+    remainingQty: 750,
+    status: 'REQUIRED',
+    requiredQtyPerWeek: 150
+  });
+});
+
+test('buildRequiredWeeklyProgress descreve conclusão, prazo de hoje e atraso', () => {
+  const service = remaining => ({
+    progressPct: 100 - remaining,
+    services: [{
+      serviceType: 'FILTRAGEM',
+      executionPct: 100 - remaining,
+      systems: [{ systemType: 'OLEO', unit: 'L', plannedQty: 100, realizedQty: 100 - remaining }]
+    }]
+  });
+
+  assert.equal(buildRequiredWeeklyProgress(service(0), {
+    expectedEndDate: '2026-08-07', referenceDate: '2026-08-07'
+  }).status, 'COMPLETED');
+  assert.equal(buildRequiredWeeklyProgress(service(20), {
+    expectedEndDate: '2026-08-07', referenceDate: '2026-08-07'
+  }).status, 'DUE_TODAY');
+  assert.equal(buildRequiredWeeklyProgress(service(20), {
+    expectedEndDate: '2026-08-06', referenceDate: '2026-08-07'
+  }).services[0].systems[0].status, 'OVERDUE');
+});
+
+test('buildRequiredWeeklyProgress não consome prazo antes do início', () => {
+  const out = buildRequiredWeeklyProgress({ progressPct: 0, services: [] }, {
+    startDate: '2026-08-14',
+    expectedEndDate: '2026-08-28',
+    referenceDate: '2026-08-07'
+  });
+
+  assert.equal(out.remainingDays, 14);
+  assert.equal(out.requiredPctPointsPerWeek, 50);
+});
+
 test('buildProgressHistory compacta avanço acumulado em pontos semanais', () => {
   const planned = [
     { serviceType: 'LIMPEZA_QUIMICA', weight: 1, systems: [{ systemType: 'TUBULACAO', quantity: 1000, unit: 'M' }] }
@@ -120,6 +260,41 @@ test('buildProgressHistory compacta avanço acumulado em pontos semanais', () =>
     { date: '2026-07-03', progressPct: 30 },
     { date: '2026-07-10', progressPct: 60 }
   ]);
+});
+
+test('buildProgressHistory ignora relatório derivado e contabiliza relatório de serviço independente', () => {
+  const planned = [
+    { serviceType: 'LIMPEZA_QUIMICA', weight: 1, systems: [{ systemType: 'TUBULACAO', quantity: 1000, unit: 'M' }] },
+    { serviceType: 'TESTE_PRESSAO', weight: 1, systems: [{ systemType: 'TUBULACAO', quantity: 1000, unit: 'M' }] }
+  ];
+  const tubeMeasurement = { tubes: [{ c: '500', lengthUnit: 'm' }] };
+  const out = buildProgressHistory(planned, [
+    {
+      finalized: true,
+      serviceType: 'limpeza',
+      reportType: 'RDO',
+      reportDate: '2026-07-01T00:00:00.000Z',
+      extraData: tubeMeasurement
+    },
+    {
+      finalized: true,
+      serviceType: 'limpeza',
+      reportType: 'RLQ',
+      specialConditions: { parentRdoId: 'rdo-1' },
+      reportDate: '2026-07-01T00:00:00.000Z',
+      extraData: tubeMeasurement
+    },
+    {
+      finalized: true,
+      serviceType: 'pressao',
+      reportType: 'RTP',
+      specialConditions: { serviceOnly: true },
+      reportDate: '2026-07-01T00:00:00.000Z',
+      extraData: tubeMeasurement
+    }
+  ]);
+
+  assert.deepEqual(out, [{ date: '2026-07-01', progressPct: 50 }]);
 });
 
 test('buildProgressHistory usa ponto manual atual quando não há escopo medível', () => {

@@ -6,6 +6,7 @@ import AdmZip from 'adm-zip';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import env from '../config/env.js';
+import { effectiveEpiRole } from './epi/collaborators.js';
 import { parseSignatureImageDataUrl } from './signatures/common.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
 
@@ -256,7 +257,7 @@ function buildBaseData(collaborator, createdAt) {
     cpf: collaborator.cpf || '',
     admissiondate: formatDatePt(collaborator.admissionDate),
     number: collaborator.registrationNumber || '',
-    POSITION: collaborator.role || '',
+    POSITION: effectiveEpiRole(collaborator),
     date: formatDatePt(createdAt || new Date())
   };
 }

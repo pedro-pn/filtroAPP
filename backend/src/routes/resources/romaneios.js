@@ -1018,12 +1018,15 @@ router.get('/projects', requireAuth, requireRomaneioAccess, asyncHandler(async (
     select: {
       ...romaneioProjectSelect,
       operator: {
-        select: { id: true, name: true, role: true }
+        select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } } }
       }
     },
     orderBy: [{ code: 'asc' }, { name: 'asc' }]
   });
-  res.json(items);
+  res.json(items.map(item => ({
+    ...item,
+    operator: item.operator ? { ...item.operator, role: item.operator.jobRole?.name || '' } : null
+  })));
 }));
 
 router.get('/drafts', requireAuth, requireRomaneioAccess, asyncHandler(async (req, res) => {

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 
 import { useAuth } from '../../auth/AuthContext';
 import { navigationStateFromLocation } from '../../auth/moduleNavigation';
@@ -153,11 +153,13 @@ function clientReviewAuthor(review: NonNullable<ReportSummary['clientReviews']>[
 export function ReportSummaryCard({
   report,
   actions,
-  leadingControl
+  leadingControl,
+  allowOpenDetail = true
 }: {
   report: ReportSummary;
   actions?: ReactNode;
   leadingControl?: ReactNode;
+  allowOpenDetail?: boolean;
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -189,7 +191,10 @@ export function ReportSummaryCard({
   }
 
   return (
-    <article className="rel-item report-card report-card-clickable" onClick={handleOpenDetail}>
+    <article
+      className={`rel-item report-card${allowOpenDetail ? ' report-card-clickable' : ''}`}
+      onClick={allowOpenDetail ? handleOpenDetail : undefined}
+    >
       <div className="report-card-main">
         {leadingControl ? (
           <div className="report-card-select" onClick={event => event.stopPropagation()}>

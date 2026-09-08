@@ -1,13 +1,15 @@
 /*
  * Aba "Projetos" do módulo Acompanhamento — um card por projeto com indicadores cruzando o previsto
- * (comercial + escopo manual) e o realizado (RDOs). Reaproveita listCommercialDashboard como base
+ * (comercial + escopo manual) e o realizado (RDOs e relatórios de serviço independentes).
+ * Reaproveita listCommercialDashboard como base
  * (mesmos projetos casados com proposta, já com plannedDays/workedDays/startDate/avanço) e enriquece
- * com agregações dos RDOs: dias trabalhados (datas distintas), horas normais/extra, colaboradores
+ * com agregações dos relatórios-fonte: dias trabalhados (datas distintas), horas normais/extra, colaboradores
  * distintos e status do último dia (trabalhado / parado por standby de jornada cheia).
  */
 
 import { listCommercialDashboard } from './access-import.js';
 import { computeAlerts } from './alerts.js';
+import { isConfirmedReportParticipant, selectRealizedSourceReportData } from './avanco.js';
 import { laborCostByProject } from './labor-cost.js';
 import { getEquipmentUsageByProject } from './equipment-usage.js';
 import { reportAllCollaboratorIds, reportPersonTimeMetrics } from './report-time.js';
@@ -86,6 +88,22 @@ export const PROJECT_CARD_CATEGORIES = {
   ARCHIVED: 'ARQUIVADO'
 };
 
+export function deriveProjectTrackingState({
+  archivedInReports = false,
+  archivedAt = null,
+  reviewedAt = null
+} = {}) {
+  const archivedInAcompanhamento = Boolean(archivedAt);
+  const archived = Boolean(archivedInReports) || archivedInAcompanhamento;
+  return {
+    archived,
+    archivedInReports: Boolean(archivedInReports),
+    archivedInAcompanhamento,
+    reviewed: archived && Boolean(reviewedAt),
+    reviewedAt: archived ? reviewedAt : null
+  };
+}
+
 export function deriveProjectCardCategory({ archived = false, workedDays = 0, workedHours = null, progressPct = null } = {}) {
   if (archived) return PROJECT_CARD_CATEGORIES.ARCHIVED;
 
@@ -98,7 +116,7 @@ export function deriveProjectCardCategory({ archived = false, workedDays = 0, wo
     : PROJECT_CARD_CATEGORIES.IN_PROGRESS;
 }
 
-// Status do último RDO: parado quando houve standby cobrindo a jornada cheia; senão trabalhado.
+// Status do último relatório-fonte: parado quando houve standby cobrindo a jornada cheia; senão trabalhado.
 export function lastDayStatus(lastReport, project) {
   if (!lastReport) return { date: null, status: 'SEM_RDO' };
   const sc = lastReport.specialConditions || {};
@@ -112,21 +130,22 @@ export function lastDayStatus(lastReport, project) {
 }
 
 // Cards da aba Projetos (previsto x realizado por projeto).
-export async function listProjectCards() {
-  const rows = await listCommercialDashboard();
+export async function listProjectCards({ includeAdminOnlyCategories = true } = {}) {
+  const rows = await listCommercialDashboard({ includeAdminOnlyCategories });
   const projectIds = rows.map(r => r.projectId);
   if (projectIds.length === 0) return [];
 
-  const [projects, reports, collaborators, labor, plannedNormalHours, plannedOvertime] = await Promise.all([
+  const [projects, queriedReports, queriedCollaborators, labor, plannedNormalHours, plannedOvertime] = await Promise.all([
     prisma.project.findMany({
       where: { id: { in: projectIds } },
       select: { id: true, workdayHours: true, weekendWorkdayHours: true }
     }),
     prisma.report.findMany({
-      where: { projectId: { in: projectIds }, reportType: 'RDO', deletedAt: null },
+      where: { projectId: { in: projectIds }, deletedAt: null },
       select: {
         id: true,
         projectId: true,
+        reportType: true,
         reportDate: true,
         specialConditions: true,
         daytimeCount: true,
@@ -139,7 +158,7 @@ export async function listProjectCards() {
       orderBy: { reportDate: 'asc' }
     }),
     prisma.reportCollaborator.findMany({
-      where: { report: { projectId: { in: projectIds }, reportType: 'RDO', deletedAt: null } },
+      where: { report: { projectId: { in: projectIds }, deletedAt: null } },
       select: { reportId: true, collaboratorId: true }
     }),
     laborCostByProject(), // custo de mão de obra (HH) do ponto vigente — separado do realizado Omie
@@ -152,7 +171,13 @@ export async function listProjectCards() {
       select: { projectId: true, hours: true }
     })
   ]);
+  const { reports, collaborators } = selectRealizedSourceReportData(queriedReports, queriedCollaborators);
   const laborByProject = labor.byProjectId;
+  const hasAllocatedHours = (collaboratorId, projectId) => {
+    const rate = labor.byCollaboratorId?.get(collaboratorId) || null;
+    const allocation = rate?.analyticalByProject?.[projectId] || rate?.byProject?.[projectId] || null;
+    return Math.max(0, toNum(allocation?.hours) ?? 0) > 0;
+  };
   const equipmentByProject = await getEquipmentUsageByProject(projectIds);
   const now = new Date();
 
@@ -163,7 +188,7 @@ export async function listProjectCards() {
     dayCollaboratorIdsByReport.get(c.reportId).push(c.collaboratorId);
   }
 
-  // Agrega por projeto: datas distintas de RDO, colaboradores distintos e o último RDO.
+  // Agrega por projeto: datas distintas de execução, colaboradores distintos e o último relatório-fonte.
   const agg = new Map();
   const ensure = (id) => {
     if (!agg.has(id)) {
@@ -186,7 +211,9 @@ export async function listProjectCards() {
     a.overtimeWorkedMinutes += metrics.overtimeWorkedMinutes;
     a.normalWorkedMinutes += metrics.normalWorkedMinutes;
     for (const collaboratorId of reportAllCollaboratorIds(r, dayCollaboratorIds)) {
-      a.collabs.add(collaboratorId);
+      if (isConfirmedReportParticipant(r, hasAllocatedHours(collaboratorId, r.projectId))) {
+        a.collabs.add(collaboratorId);
+      }
     }
   }
 
@@ -223,7 +250,7 @@ export async function listProjectCards() {
       .map(e => {
         const since = new Date(e.sinceDate);
         const days = Math.max(0, Math.round((equipEndDate.getTime() - since.getTime()) / 86400000));
-        return { name: e.name, days, since: e.sinceDate };
+        return { code: e.code, name: e.name, days, since: e.sinceDate };
       })
       .sort((x, y) => y.days - x.days);
 
@@ -249,7 +276,12 @@ export async function listProjectCards() {
       plannedNormalHours: plannedNormalByProject.get(row.projectId) || 0,
       plannedOvertimeHours: plannedOvertimeByProject.get(row.projectId) || 0
     });
-    const archived = Boolean(row.archived);
+    const trackingState = deriveProjectTrackingState({
+      archivedInReports: row.archived,
+      archivedAt: row.acompanhamentoArchivedAt,
+      reviewedAt: row.acompanhamentoReviewedAt
+    });
+    const { archived } = trackingState;
 
     return {
       projectId: row.projectId,
@@ -257,7 +289,9 @@ export async function listProjectCards() {
       name: row.name,
       clientName: row.clientName,
       clientCnpj: row.clientCnpj ?? null,
-      archived, // arquivado = projeto inativo nos relatórios
+      archived,
+      ...trackingState,
+      reportArchivedAt: trackingState.archivedInReports ? row.acompanhamentoReportArchivedAt ?? null : null,
       category: deriveProjectCardCategory({
         archived,
         workedDays,
@@ -272,6 +306,11 @@ export async function listProjectCards() {
       progressMethod: row.progressMethod ?? null,
       progressWeight: row.progressWeight ?? null,
       plannedCost,
+      originalPlannedCost: toNum(row.originalPlannedTotalCost),
+      additionalPlannedCost: toNum(row.additionalPlannedTotalCost),
+      originalSalePrice: toNum(row.originalSalePrice),
+      additionalSalePrice: toNum(row.additionalSalePrice),
+      budgetBreakdown: row.budgetBreakdown ?? null,
       invoicedRevenue: row.invoicedRevenue ?? null,
       invoiceCount: row.invoiceCount ?? 0,
       presumedProfitTaxes: row.presumedProfitTaxes ?? null,
@@ -286,9 +325,10 @@ export async function listProjectCards() {
       // laborCost = com adicional offshore; laborCostBase = sem offshore (para comparação).
       laborCost,
       laborCostBase: laborByProject.get(row.projectId)?.laborCostBase ?? null,
+      laborHours: laborByProject.get(row.projectId)?.hours ?? null,
       stockCost,
       manualCost: toNum(row.manualCost) ?? 0,
-      equipment, // equipamentos (módulo Equipamentos) em obra: { name, days, since }
+      equipment, // equipamentos (módulo Equipamentos) em obra: { code, name, days, since }
       alerts
     };
   });

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import { PRIVACY_CONTACT, PRIVACY_POLICY_EFFECTIVE_DATE, PRIVACY_POLICY_VERSION } from '../constants/privacy';
 

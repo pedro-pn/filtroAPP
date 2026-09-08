@@ -69,6 +69,54 @@ test('service report docx builders preserve observation line breaks', async () =
   }
 });
 
+test('service report templates with a collaborator table render the saved role', async () => {
+  const buildersWithCollaboratorTable = builders.filter(([type]) => (
+    ['RTP', 'RLQ', 'RCPU', 'RLM'].includes(type)
+  ));
+
+  for (const [type, buildDocx] of buildersWithCollaboratorTable) {
+    const report = reportFor(type);
+    report.collaborators = [{
+      collaboratorId: 'collaborator-1',
+      roleNameSnapshot: 'Inspetor N2',
+      collaborator: {
+        name: 'Ana da Silva',
+        jobRole: { name: 'Supervisor atual' }
+      }
+    }];
+    report.specialConditions.resolvedCollaborators = [{
+      id: 'collaborator-1',
+      name: 'Ana da Silva',
+      role: '',
+      shift: 'Noturno'
+    }];
+
+    const zip = new AdmZip(await buildDocx(report));
+    const xml = zip.readAsText('word/document.xml');
+
+    assert.match(xml, /Ana da Silva/, `${type} should render the collaborator name`);
+    assert.match(xml, /Inspetor N2/, `${type} should render the saved collaborator role`);
+  }
+});
+
+test('RLQ uses sodium carbonate in neutralizing and sequestering phases', async () => {
+  const base = reportFor('RLQ');
+  const zip = new AdmZip(await buildRlqDocx({
+    ...base,
+    specialConditions: {
+      ...base.specialConditions,
+      serviceData: {
+        ...base.specialConditions.serviceData,
+        'Etapas realizadas no dia': ['Fase neutralizante', 'Fase sequestrante']
+      }
+    }
+  }));
+  const xml = zip.readAsText('word/document.xml');
+
+  assert.equal((xml.match(/Carbonato de sódio/g) || []).length, 2);
+  assert.doesNotMatch(xml, /Carbonato de cálcio/i);
+});
+
 test('RTP removes measurements table for Outro without diameter rows', async () => {
   const base = reportFor('RTP');
   const tubingZip = new AdmZip(await buildRtpDocx({
@@ -106,4 +154,25 @@ test('RTP equipment type placeholder value is uppercase', () => {
     }),
     'VASO DE PRESSÃO'
   );
+});
+
+test('RTP fills the selected manometer tag', async () => {
+  const base = reportFor('RTP');
+  const zip = new AdmZip(await buildRtpDocx({
+    ...base,
+    specialConditions: {
+      ...base.specialConditions,
+      resolvedManometers: [{
+        code: 'MAN-042',
+        scale: '0–600 bar',
+        certCode: 'CERT-042',
+        calibratedAt: '2026-01-15',
+        expiresAt: '2027-01-15'
+      }]
+    }
+  }));
+  const xml = zip.readAsText('word/document.xml');
+
+  assert.match(xml, /MAN-042/);
+  assert.doesNotMatch(xml, /\{\{manometer_tag\}\}/);
 });

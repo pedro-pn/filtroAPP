@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { confirmEpiPublicSignature, epiPublicSignaturePdfUrl, getEpiPublicSignature } from '../../api/epi';

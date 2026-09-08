@@ -10,6 +10,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 import env from '../config/env.js';
 import { formatCnpj } from './cnpj.js';
+import { buildReportCollaboratorRows } from './report-collaborators.js';
 import { convertDocxToPdf } from './report-pdf-from-docx.js';
 import { buildReportFileName } from './report-filename.js';
 import { readStoredImageAsset } from './stored-image.js';
@@ -343,7 +344,7 @@ function buildRlmBaseData(report) {
     steps: stringify(getField(sd, ['Etapas realizadas no dia'])),
     obs: stringify(getField(sd, ['Observações', 'Observacoes'])),
     leadername: safeText(sc.__leaderSnapshot?.name || report.project?.operator?.name),
-    leaderposition: safeText(sc.__leaderSnapshot?.role || report.project?.operator?.role)
+    leaderposition: safeText(sc.__leaderSnapshot?.role || report.project?.operator?.jobRole?.name)
   };
 }
 
@@ -356,10 +357,7 @@ function expandRlmCollaborators(doc, collaborators) {
   }
   const clones = collaborators.map(c => {
     const clone = templateRow.cloneNode(true);
-    replacePlaceholders(clone, {
-      collaboratorname: c.name || '',
-      collaboratorposition: c.role || ''
-    });
+    replacePlaceholders(clone, c);
     return clone;
   });
   cloneBefore(templateRow, clones);
@@ -404,7 +402,7 @@ try {
 export async function buildRlmDocx(report) {
   const sc = report.specialConditions || {};
   const sd = sc.serviceData || {};
-  const collabs = sc.resolvedCollaborators || [];
+  const collabs = buildReportCollaboratorRows(report);
 
   const baseData = buildRlmBaseData(report);
   const signatureAsset = await getUploadAsset(sc.__leaderSnapshot?.signatureImage || report.project?.operator?.signatureImage);

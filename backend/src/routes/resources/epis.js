@@ -6,7 +6,14 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { AUDIT_ENTITY_TYPES, AUDIT_MODULES, recordAuditEvent } from '../../lib/audit/events.js';
+import {
+  effectiveEpiRole,
+  effectiveEpiRoleData,
+  epiRoleSnapshotData,
+  roleNameForEpiRequest
+} from '../../lib/epi/collaborators.js';
 import { saveEpiPdf } from '../../lib/epi-docx.js';
+import { sortJobRolesByName } from '../../lib/job-roles/index.js';
 import {
   decodableSignatureImageDataUrl,
   signatureEvidenceFromRequest,
@@ -35,7 +42,8 @@ const PUBLIC_PDF_CACHE_MAX = 100;
 const profileSchema = z.object({
   cpf: z.string().trim().max(40).optional().nullable(),
   registrationNumber: z.string().trim().max(80).optional().nullable(),
-  admissionDate: z.string().trim().optional().nullable()
+  admissionDate: z.string().trim().optional().nullable(),
+  roleOverrideJobRoleId: z.string().trim().min(1).optional().nullable()
 });
 
 const optionalCaSchema = commonSchemas.optionalTrimmedString({ max: 80, emptyAs: '' });
@@ -232,6 +240,8 @@ function contentDisposition(fileName) {
 function selectedCollaboratorFields() {
   return {
     include: {
+      jobRole: true,
+      epiProfile: { include: { roleOverrideJobRole: true } },
       epiRecords: {
         select: {
           id: true,
@@ -257,6 +267,27 @@ function selectedCollaboratorFields() {
       }
     }
   };
+}
+
+function epiCollaboratorDto(collaborator) {
+  const effectiveRole = effectiveEpiRoleData(collaborator);
+  return {
+    ...collaborator,
+    currentJobRole: collaborator.jobRole,
+    roleOverrideJobRole: collaborator.epiProfile?.roleOverrideJobRole || null,
+    effectiveRole,
+    // Alias de leitura durante a migração do cliente; nunca é aceito como escrita canônica.
+    role: collaborator.jobRole?.name || '',
+    epiRoleOverride: collaborator.epiProfile?.roleOverrideJobRole?.name || null
+  };
+}
+
+async function loadEpiRoleSnapshot(tx, collaboratorId) {
+  const collaborator = await tx.collaborator.findUniqueOrThrow({
+    where: { id: collaboratorId },
+    include: { jobRole: true, epiProfile: { include: { roleOverrideJobRole: true } } }
+  });
+  return epiRoleSnapshotData(collaborator);
 }
 
 export function epiCollaboratorAccessWhere(auth) {
@@ -294,6 +325,8 @@ async function collaboratorForDocument(collaboratorId, options = {}, tx = prisma
   return tx.collaborator.findUniqueOrThrow({
     where: { id: collaboratorId },
     include: {
+      jobRole: true,
+      epiProfile: { include: { roleOverrideJobRole: true } },
       epiRecords: {
         where: documentRecordFilter(options),
         orderBy: [{ lendDate: 'asc' }, { createdAt: 'asc' }],
@@ -315,7 +348,7 @@ async function findRequestByToken(rawToken, tx = prisma) {
   return tx.epiSignatureRequest.findUnique({
     where: { tokenHash: tokenHash(rawToken) },
     include: {
-      collaborator: true,
+      collaborator: { include: { jobRole: true, epiProfile: { include: { roleOverrideJobRole: true } } } },
       records: { orderBy: [{ lendDate: 'asc' }, { createdAt: 'asc' }] }
     }
   });
@@ -370,7 +403,7 @@ export function publicEpiSignaturePayload(request, status = requestStatus(reques
     collaborator: {
       id: request.collaborator.id,
       name: request.collaborator.name,
-      role: request.collaborator.role
+      role: roleNameForEpiRequest(request)
     },
     records: (request.records || []).map(record => ({
       id: record.id,
@@ -572,12 +605,14 @@ async function createPendingReturnSignatureRequest(tx, { current, returnedAt, us
         data: { status: 'EXPIRED' }
       });
     }
+    const roleSnapshot = await loadEpiRoleSnapshot(tx, collaboratorId);
     const created = await tx.epiSignatureRequest.create({
       data: {
         collaboratorId,
         requestedByUserId: userId,
         tokenHash: tokenHash(token),
-        expiresAt: signatureTokenExpiresAt(EPI_SIGNATURE_TOKEN_DAYS)
+        expiresAt: signatureTokenExpiresAt(EPI_SIGNATURE_TOKEN_DAYS),
+        ...roleSnapshot
       }
     });
     const record = await tx.epiRecord.update({
@@ -591,12 +626,14 @@ async function createPendingReturnSignatureRequest(tx, { current, returnedAt, us
     return publicSignatureResult(record, token);
   }
 
+  const roleSnapshot = await loadEpiRoleSnapshot(tx, collaboratorId);
   const created = await tx.epiSignatureRequest.create({
     data: {
       collaboratorId,
       requestedByUserId: userId,
       tokenHash: tokenHash(token),
-      expiresAt: signatureTokenExpiresAt(EPI_SIGNATURE_TOKEN_DAYS)
+      expiresAt: signatureTokenExpiresAt(EPI_SIGNATURE_TOKEN_DAYS),
+      ...roleSnapshot
     }
   });
   let record;
@@ -645,11 +682,17 @@ async function sendCollaboratorPdf(res, collaboratorId, options = {}) {
   res.send(await fs.readFile(file.pdfPath));
 }
 
-function publicPdfCacheKey(request) {
+export function publicPdfCacheKey(request) {
   const recordStamp = (request.records || [])
     .map(record => `${record.id}:${new Date(record.updatedAt || record.createdAt || 0).getTime()}`)
     .join('|');
-  return `${request.id}:${new Date(request.updatedAt || request.createdAt || 0).getTime()}:${recordStamp}`;
+  const collaboratorStamp = [
+    request.collaborator?.id || request.collaboratorId || '',
+    request.jobRoleIdSnapshot || '',
+    roleNameForEpiRequest(request),
+    request.roleSourceSnapshot || ''
+  ].join(':');
+  return `${request.id}:${new Date(request.updatedAt || request.createdAt || 0).getTime()}:${collaboratorStamp}:${recordStamp}`;
 }
 
 function signedPdfHash(bytes) {
@@ -664,6 +707,9 @@ function signedPdfSnapshotCollaborator(request, { signerName, signatureImageData
   };
   return {
     ...request.collaborator,
+    epiDocumentJobRoleIdSnapshot: request.jobRoleIdSnapshot || null,
+    epiDocumentRoleSnapshot: request.roleNameSnapshot,
+    epiDocumentRoleSourceSnapshot: request.roleSourceSnapshot,
     epiRecords: (request.records || []).map(record => ({
       ...record,
       signedAt,
@@ -701,7 +747,12 @@ async function cachedPublicPdfFile(request) {
   const collaborator = await collaboratorForDocument(request.collaboratorId, {
     recordIds: request.records.map(record => record.id)
   });
-  const file = await saveEpiPdf(collaborator, {
+  const file = await saveEpiPdf({
+    ...collaborator,
+    epiDocumentJobRoleIdSnapshot: request.jobRoleIdSnapshot || null,
+    epiDocumentRoleSnapshot: request.roleNameSnapshot,
+    epiDocumentRoleSourceSnapshot: request.roleSourceSnapshot
+  }, {
     variantLabel: 'Solicitação de assinatura',
     redactCollaboratorFields: true
   });
@@ -915,27 +966,59 @@ router.post('/public-sign/:token/confirm', publicSignatureLimiter, asyncHandler(
 
 router.use(requireAuth, requireEpiAccess);
 
+router.get('/job-roles', requireEpiTechnician, asyncHandler(async (_req, res) => {
+  const items = await prisma.jobRole.findMany({
+    orderBy: { name: 'asc' }
+  });
+  res.json(sortJobRolesByName(items));
+}));
+
 router.get('/collaborators', asyncHandler(async (_req, res) => {
   const items = await prisma.collaborator.findMany({
     where: { isActive: true, ...epiCollaboratorAccessWhere(_req.auth) },
     ...selectedCollaboratorFields(),
     orderBy: { name: 'asc' }
   });
-  res.json(items);
+  res.json(items.map(epiCollaboratorDto));
 }));
 
 router.put('/collaborators/:id/profile', requireEpiTechnician, asyncHandler(async (req, res) => {
   const data = profileSchema.parse(req.body || {});
-  const item = await prisma.collaborator.update({
-    where: { id: req.params.id },
-    data: {
-      cpf: normalizeCpf(data.cpf),
-      registrationNumber: normalizeNullableText(data.registrationNumber),
-      admissionDate: data.admissionDate ? parseDateOnly(data.admissionDate, 'admissionDate') : null
-    },
-    ...selectedCollaboratorFields()
+  const item = await prisma.$transaction(async tx => {
+    if (data.roleOverrideJobRoleId) {
+      const role = await tx.jobRole.findUnique({ where: { id: data.roleOverrideJobRoleId } });
+      if (!role) {
+        const error = new Error('Cargo histórico do EPI não encontrado.');
+        error.status = 400;
+        error.statusCode = 400;
+        throw error;
+      }
+    }
+    await tx.collaborator.update({
+      where: { id: req.params.id },
+      data: {
+        cpf: data.cpf === undefined ? undefined : normalizeCpf(data.cpf),
+        registrationNumber: data.registrationNumber === undefined ? undefined : normalizeNullableText(data.registrationNumber),
+        admissionDate: data.admissionDate === undefined ? undefined : (data.admissionDate ? parseDateOnly(data.admissionDate, 'admissionDate') : null)
+      }
+    });
+    if (data.roleOverrideJobRoleId !== undefined) {
+      await tx.epiCollaboratorProfile.upsert({
+        where: { collaboratorId: req.params.id },
+        create: {
+          collaboratorId: req.params.id,
+          roleOverrideJobRoleId: data.roleOverrideJobRoleId,
+          updatedByUserId: req.auth.user.id
+        },
+        update: {
+          roleOverrideJobRoleId: data.roleOverrideJobRoleId,
+          updatedByUserId: req.auth.user.id
+        }
+      });
+    }
+    return tx.collaborator.findUniqueOrThrow({ where: { id: req.params.id }, ...selectedCollaboratorFields() });
   });
-  res.json(item);
+  res.json(epiCollaboratorDto(item));
 }));
 
 router.get('/collaborators/:id/pdf', asyncHandler(async (req, res) => {
@@ -1054,7 +1137,7 @@ router.post('/collaborators/:id/records/archive', requireEpiTechnician, asyncHan
     where: { id: req.params.id },
     ...selectedCollaboratorFields()
   });
-  res.json(collaborator);
+  res.json(epiCollaboratorDto(collaborator));
 }));
 
 router.delete('/records/:id', requireEpiTechnician, asyncHandler(async (req, res) => {
@@ -1092,7 +1175,8 @@ router.post('/collaborators/:id/signature-requests', requireEpiTechnician, async
         collaboratorId: req.params.id,
         requestedByUserId: req.auth.user.id,
         tokenHash: tokenHash(token),
-        expiresAt: signatureTokenExpiresAt(EPI_SIGNATURE_TOKEN_DAYS)
+        expiresAt: signatureTokenExpiresAt(EPI_SIGNATURE_TOKEN_DAYS),
+        ...(await loadEpiRoleSnapshot(tx, req.params.id))
       }
     });
     const result = await tx.epiRecord.updateMany({
@@ -1116,7 +1200,7 @@ router.post('/collaborators/:id/signature-requests', requireEpiTechnician, async
     }
     return tx.epiSignatureRequest.findUniqueOrThrow({
       where: { id: created.id },
-      include: { records: true, collaborator: true }
+      include: { records: true, collaborator: { include: { jobRole: true, epiProfile: { include: { roleOverrideJobRole: true } } } } }
     });
   });
 

@@ -30,7 +30,7 @@ const FIELD_LABELS = {
   clientEmailPrimary: 'E-mail principal',
   clientEmailCc: 'E-mails em cópia',
   clientSigners: 'Assinantes',
-  contractCode: 'Contrato',
+  contractCode: 'Proposta',
   location: 'Local',
   workdayHours: 'Jornada diária',
   weekendWorkdayHours: 'Jornada de fim de semana',

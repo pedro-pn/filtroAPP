@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import asyncHandler from '../../lib/async-handler.js';
+import { listCollaboratorsWithCurrentJobRole } from '../../lib/collaborators/job-role-service.js';
 import { UNIT_SYSTEMKEY_PREFIX, legacyUnitCategory } from '../../lib/equipment-categories.js';
 import { listManometersCompat, listParticleCountersCompat, listRdoEquipments, listUnitsCompat } from '../../lib/equipment-compat.js';
 import { resolveRdoSlotMap } from '../../lib/rdo-equipment-slots.js';
@@ -29,6 +30,13 @@ const requireRdoManager = requireModuleRole('rdo:manager');
 
 router.use(requireAuth, requireRdoInternal);
 
+function cachedCollaboratorsWithCurrentJobRole() {
+  return collaboratorsCache.get(() => listCollaboratorsWithCurrentJobRole(
+    prisma,
+    item => ensureCollaboratorSignatureDataUrl(prisma, item)
+  ));
+}
+
 async function newReportBootstrapData(auth) {
   const [
     projects,
@@ -46,14 +54,7 @@ async function newReportBootstrapData(auth) {
       include: projectListInclude,
       orderBy: { name: 'asc' }
     }),
-    collaboratorsCache.get(async () => {
-      const items = await prisma.collaborator.findMany({ orderBy: { name: 'asc' } });
-      const result = [];
-      for (const item of items) {
-        result.push(await ensureCollaboratorSignatureDataUrl(prisma, item));
-      }
-      return result;
-    }),
+    cachedCollaboratorsWithCurrentJobRole(),
     unitsCache.get(() => listUnitsCompat()),
     manometersCache.get(() => listManometersCompat()),
     particleCountersCache.get(() => listParticleCountersCompat()),
@@ -142,14 +143,7 @@ router.get('/gestor', requireRdoManager, asyncHandler(async (req, res) => {
       include: projectListInclude,
       orderBy: { name: 'asc' }
     }),
-    collaboratorsCache.get(async () => {
-      const items = await prisma.collaborator.findMany({ orderBy: { name: 'asc' } });
-      const result = [];
-      for (const item of items) {
-        result.push(await ensureCollaboratorSignatureDataUrl(prisma, item));
-      }
-      return result;
-    }),
+    cachedCollaboratorsWithCurrentJobRole(),
     prisma.satisfactionSurvey.findMany({
       include: { project: true },
       orderBy: { createdAt: 'desc' }

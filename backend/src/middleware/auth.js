@@ -14,6 +14,7 @@ export const RDO_ACCESS_ROLES = publicModuleRolesForModule('rdo');
 export const EQUIPAMENTOS_ACCESS_ROLES = publicModuleRolesForModule('equipamentos');
 export const ESTOQUE_ACCESS_ROLES = publicModuleRolesForModule('estoque');
 export const ACOMPANHAMENTO_ACCESS_ROLES = publicModuleRolesForModule('acompanhamento');
+export const QUALIDADE_ACCESS_ROLES = publicModuleRolesForModule('qualidade');
 export const INTERNAL_ACCOUNT_ROLES = Array.from(new Set([
   ...publicModuleRolesForAccountType(AccountTypes.ADMIN),
   ...publicModuleRolesForAccountType(AccountTypes.INTERNAL)
@@ -36,7 +37,7 @@ async function findSessionWithRetry(tokenHash, options = {}) {
         include: {
           user: {
             include: {
-              collaborator: true,
+              collaborator: { include: { jobRole: true } },
               moduleRoles: true
             }
           }
@@ -163,6 +164,22 @@ export function requireEstoqueAccess(req, res, next) {
 export function requireEstoqueManager(req, res, next) {
   if (!req.auth || !hasModuleRole(req.auth.user, 'estoque:manager')) {
     return res.status(403).json({ error: 'Acesso restrito ao gestor de Estoque.' });
+  }
+
+  next();
+}
+
+export function requireQualidadeAccess(req, res, next) {
+  if (!req.auth || !hasModuleRole(req.auth.user, QUALIDADE_ACCESS_ROLES)) {
+    return res.status(403).json({ error: 'Acesso restrito ao módulo Qualidade.' });
+  }
+
+  next();
+}
+
+export function requireQualidadeManager(req, res, next) {
+  if (!req.auth || !hasModuleRole(req.auth.user, 'qualidade:manager')) {
+    return res.status(403).json({ error: 'Acesso restrito ao gestor de Qualidade.' });
   }
 
   next();

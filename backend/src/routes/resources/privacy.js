@@ -1025,7 +1025,20 @@ export async function buildSelfServiceDataExport(user, {
         id: true,
         code: true,
         name: true,
-        role: true,
+        jobRoleId: true,
+        jobRole: { select: { id: true, name: true } },
+        jobRoleHistory: {
+          select: {
+            id: true,
+            jobRoleId: true,
+            effectiveDate: true,
+            note: true,
+            createdAt: true,
+            updatedAt: true,
+            jobRole: { select: { id: true, name: true } }
+          },
+          orderBy: { effectiveDate: 'asc' }
+        },
         email: true,
         cpf: true,
         registrationNumber: true,
@@ -1084,7 +1097,9 @@ export async function buildSelfServiceDataExport(user, {
     createdReports: user.createdReports,
     sentSurveys: user.sentSurveys,
     surveyResponses: uniqueById([...surveyResponsesByEmail, ...surveyResponsesByProjectEmail]),
-    collaboratorDetails,
+    collaboratorDetails: collaboratorDetails
+      ? { ...collaboratorDetails, role: collaboratorDetails.jobRole?.name || '' }
+      : null,
     dataSubjectRequests: uniqueById([...(user.dataSubjectRequests || []), ...dataSubjectRequestsByEmail])
   };
 }

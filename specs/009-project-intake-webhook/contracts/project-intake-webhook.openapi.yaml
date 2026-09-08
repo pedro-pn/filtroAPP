@@ -1,0 +1,105 @@
+openapi: 3.1.0
+info:
+  title: Project Intake Webhook
+  version: 1.3.0
+paths:
+  /api/webhooks/projects:
+    post:
+      summary: Recebe um projeto criado por sistema externo
+      security:
+        - projectWebhookToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectIntake'
+      responses:
+        '201':
+          description: Projeto criado e aguardando revisão
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectIntakeResult'
+        '200':
+          description: Repetição idempotente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectIntakeResult'
+        '400':
+          description: JSON ou dados inválidos
+        '401':
+          description: Credencial ausente ou inválida
+        '409':
+          description: Número já usado com dados diferentes
+        '429':
+          description: Limite temporário de envios excedido
+        '503':
+          description: Integração não configurada neste ambiente
+components:
+  securitySchemes:
+    projectWebhookToken:
+      type: http
+      scheme: bearer
+  schemas:
+    ProjectIntake:
+      type: object
+      additionalProperties: false
+      required: [code, name, clientName, clientCnpj, proposalCode, revision, location]
+      properties:
+        code: { type: string, minLength: 1, example: '005719' }
+        name: { type: string, minLength: 1, example: Ilha Solteira }
+        clientName: { type: string, minLength: 1, example: Cliente Exemplo S.A. }
+        clientCnpj: { type: string, example: 12.345.678/0001-90 }
+        proposalCode:
+          type: string
+          minLength: 1
+          example: '3088'
+          description: Número da proposta; será exibido como “3088 Rev. 2”, ou somente “3088” quando revision for -1.
+        revision:
+          type: integer
+          minimum: -1
+          maximum: 2147483647
+          example: 2
+          description: Use -1 quando a origem não possuir revisão; nesse caso, a revisão comercial 0 será procurada.
+        location: { type: string, minLength: 1, example: Ilha Solteira - SP }
+    ProjectSummary:
+      type: object
+      required: [id, code, name, clientName, clientCnpj, proposalCode, location, registrationPending]
+      properties:
+        id: { type: string }
+        code: { type: string }
+        name: { type: string }
+        clientName: { type: string }
+        clientCnpj: { type: string }
+        proposalCode: { type: string }
+        location: { type: string }
+        registrationPending: { type: boolean }
+    ProjectIntakeResult:
+      type: object
+      required: [status, project, commercialRevision]
+      properties:
+        status:
+          type: string
+          enum: [created, already_exists]
+        project:
+          $ref: '#/components/schemas/ProjectSummary'
+        commercialRevision:
+          $ref: '#/components/schemas/CommercialRevisionResult'
+    CommercialRevisionResult:
+      type: object
+      required: [status, proposalCode, revision, selectedCodBd]
+      properties:
+        status:
+          type: string
+          enum: [selected, already_selected, existing_selection_preserved, not_found]
+        proposalCode:
+          type: string
+          example: '3088'
+        revision:
+          type: integer
+          example: 2
+        selectedCodBd:
+          type: [integer, 'null']
+          description: Identificador da revisão vigente no banco comercial, quando houver.

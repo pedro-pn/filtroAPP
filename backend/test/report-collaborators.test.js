@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildReportCollaboratorRows } from '../src/lib/report-collaborators.js';
+import {
+  buildReportCollaboratorRows,
+  resolveCollaboratorsByShift
+} from '../src/lib/report-collaborators.js';
 import { enrichNightCollaboratorsInSpecialConditions } from '../src/lib/reports/manual-operational-data.js';
 
 test('night collaborator snapshot carries role when collaborator link is absent', () => {
@@ -9,7 +12,8 @@ test('night collaborator snapshot carries role when collaborator link is absent'
     collaborators: [
       {
         collaboratorId: 'day-1',
-        collaborator: { name: 'Colaborador Diurno', role: 'Tecnico' }
+        roleNameSnapshot: 'Tecnico',
+        collaborator: { name: 'Colaborador Diurno', jobRole: { name: 'Tecnico' } }
       }
     ],
     specialConditions: {
@@ -43,7 +47,8 @@ test('night collaborator role can be resolved from report collaborator link', ()
     collaborators: [
       {
         collaboratorId: 'night-1',
-        collaborator: { name: 'Colaborador Noturno', role: 'Operador' }
+        roleNameSnapshot: 'Operador',
+        collaborator: { name: 'Colaborador Noturno', jobRole: { name: 'Operador' } }
       }
     ],
     specialConditions: {
@@ -78,7 +83,7 @@ test('night collaborator ids are enriched with name and role before report persi
     collaborator: {
       async findMany(query) {
         assert.deepEqual(query.where.id.in, ['night-1']);
-        return [{ id: 'night-1', name: 'Colaborador Noturno', role: 'Operador' }];
+        return [{ id: 'night-1', name: 'Colaborador Noturno', jobRole: { name: 'Operador' } }];
       }
     }
   };
@@ -89,4 +94,53 @@ test('night collaborator ids are enriched with name and role before report persi
     { id: 'night-1', name: 'Colaborador Noturno', role: 'Operador' }
   ]);
   assert.equal(specialConditions.noturnoDetails.colaboradores, undefined);
+});
+
+test('service collaborator resolution prefers the saved role snapshot', () => {
+  const rows = resolveCollaboratorsByShift({
+    collaborators: [{
+      collaboratorId: 'collaborator-1',
+      roleNameSnapshot: 'Inspetor N2',
+      collaborator: { jobRole: { name: 'Supervisor atual' } }
+    }],
+    specialConditions: {
+      noturnoDetails: { collaboratorIds: ['collaborator-1'] }
+    }
+  }, [{
+    id: 'collaborator-1',
+    name: 'Ana',
+    jobRole: { name: 'Outro cargo atual' }
+  }]);
+
+  assert.deepEqual(rows, [{
+    id: 'collaborator-1',
+    name: 'Ana',
+    role: 'Inspetor N2',
+    shift: 'Diurno e Noturno'
+  }]);
+});
+
+test('service report rows recover a missing resolved role from the saved link snapshot', () => {
+  const rows = buildReportCollaboratorRows({
+    collaborators: [{
+      collaboratorId: 'collaborator-1',
+      roleNameSnapshot: 'Inspetor N2',
+      collaborator: { name: 'Ana', jobRole: { name: 'Supervisor atual' } }
+    }],
+    specialConditions: {
+      resolvedCollaborators: [{
+        id: 'collaborator-1',
+        name: 'Ana',
+        role: '',
+        shift: 'Noturno'
+      }]
+    }
+  });
+
+  assert.deepEqual(rows, [{
+    collaboratorname: 'Ana',
+    collaboratorname0: 'Ana',
+    collaboratorposition: 'Inspetor N2',
+    collaboratorshift: 'Noturno'
+  }]);
 });

@@ -9,12 +9,21 @@ export async function getManualCostExcludedCategoryCodes() {
   return categories.map(category => category.codigo);
 }
 
-export async function getExcludedAcompanhamentoCostCategoryCodes() {
-  const [salaryCodes, manualCodes] = await Promise.all([
+export async function getAdminOnlyCategoryCodes() {
+  const categories = await prisma.omieCategory.findMany({
+    where: { adminOnly: true },
+    select: { codigo: true }
+  });
+  return categories.map(category => category.codigo);
+}
+
+export async function getExcludedAcompanhamentoCostCategoryCodes({ includeAdminOnly = true } = {}) {
+  const [salaryCodes, manualCodes, adminOnlyCodes] = await Promise.all([
     getSalaryCategoryCodes(),
-    getManualCostExcludedCategoryCodes()
+    getManualCostExcludedCategoryCodes(),
+    includeAdminOnly ? Promise.resolve([]) : getAdminOnlyCategoryCodes()
   ]);
-  return Array.from(new Set([...salaryCodes, ...manualCodes].filter(Boolean)));
+  return Array.from(new Set([...salaryCodes, ...manualCodes, ...adminOnlyCodes].filter(Boolean)));
 }
 
 export function omitCategoryCodesWhere(codes = []) {
@@ -23,8 +32,8 @@ export function omitCategoryCodesWhere(codes = []) {
     : {};
 }
 
-export async function buildOmieCostCategoryWhere({ categoryCode = null } = {}) {
-  const excludedCodes = await getExcludedAcompanhamentoCostCategoryCodes();
+export async function buildOmieCostCategoryWhere({ categoryCode = null, includeAdminOnly = true } = {}) {
+  const excludedCodes = await getExcludedAcompanhamentoCostCategoryCodes({ includeAdminOnly });
   const filters = [];
   if (categoryCode) filters.push({ categoriaCodigo: categoryCode });
   const omitted = omitCategoryCodesWhere(excludedCodes);

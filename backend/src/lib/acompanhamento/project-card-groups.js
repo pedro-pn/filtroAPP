@@ -135,7 +135,7 @@ export function combineEquipment(cards) {
   const byKey = new Map();
   for (const card of cards) {
     for (const item of card.equipment ?? []) {
-      const key = `${item.name}|${item.since ?? ''}`;
+      const key = `${item.code || item.name}|${item.since ?? ''}`;
       const existing = byKey.get(key);
       if (!existing || (toNumber(item.days) ?? 0) > (toNumber(existing.days) ?? 0)) {
         byKey.set(key, { ...item });
@@ -311,11 +311,18 @@ function buildGroupCard(group, memberCardsByProjectId) {
   return {
     kind: 'GROUP',
     groupId: group.id,
+    laborAllocationMode: group.laborAllocationMode || 'VISUAL_ONLY',
+    primaryLaborProjectId: group.primaryLaborProjectId || null,
     code: groupCode(members),
     name: group.name,
     clientName: groupClientName(members),
     members,
     archived: category === 'ARQUIVADO',
+    archivedInReports: visibleCards.every(card => card.archivedInReports),
+    archivedInAcompanhamento: visibleCards.every(card => card.archivedInAcompanhamento),
+    reviewed: visibleCards.every(card => card.archived && card.reviewed),
+    reviewedAt: minIsoDate(visibleCards.map(card => card.reviewedAt)),
+    reportArchivedAt: maxIsoDate(visibleCards.map(card => card.reportArchivedAt)),
     category,
     workedDays,
     totalDays,
@@ -325,6 +332,22 @@ function buildGroupCard(group, memberCardsByProjectId) {
     progressMethod: progress.progressMethod,
     progressWeight: sumValues(visibleCards, card => card.progressWeight),
     plannedCost,
+    originalPlannedCost: sumValues(visibleCards, card => card.originalPlannedCost),
+    additionalPlannedCost: sumValues(visibleCards, card => card.additionalPlannedCost),
+    originalSalePrice: sumValues(visibleCards, card => card.originalSalePrice),
+    additionalSalePrice: sumValues(visibleCards, card => card.additionalSalePrice),
+    budgetBreakdown: {
+      original: {
+        salePrice: sumValues(visibleCards, card => card.originalSalePrice),
+        plannedTotalCost: sumValues(visibleCards, card => card.originalPlannedCost)
+      },
+      additionals: visibleCards.flatMap(card => card.budgetBreakdown?.additionals ?? []),
+      additionalCount: sumValues(visibleCards, card => card.budgetBreakdown?.additionalCount, { nullWhenEmpty: false }),
+      additionalTotals: {
+        salePrice: sumValues(visibleCards, card => card.additionalSalePrice),
+        plannedTotalCost: sumValues(visibleCards, card => card.additionalPlannedCost)
+      }
+    },
     invoicedRevenue: sumValues(visibleCards, card => card.invoicedRevenue),
     invoiceCount: sumValues(visibleCards, card => card.invoiceCount, { nullWhenEmpty: false }),
     presumedProfitTaxes: combinePresumedProfitTaxes(visibleCards),
@@ -336,6 +359,7 @@ function buildGroupCard(group, memberCardsByProjectId) {
     expectedEndDate: maxIsoDate(visibleCards.map(card => card.expectedEndDate)),
     laborCost: sumValues(visibleCards, card => card.laborCost),
     laborCostBase: sumValues(visibleCards, card => card.laborCostBase),
+    laborHours: sumValues(visibleCards, card => card.laborHours),
     stockCost: sumValues(visibleCards, card => card.stockCost, { nullWhenEmpty: false }),
     manualCost: sumValues(visibleCards, card => card.manualCost, { nullWhenEmpty: false }),
     equipment: combineEquipment(visibleCards),

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 
 import prisma from '../src/lib/prisma.js';
+import { normalizeJobRoleKey } from '../src/lib/collaborators/job-role-service.js';
 
 
 function collaboratorCodeFromId(id) {
@@ -31,10 +32,17 @@ async function importCollaborators(collaborators) {
   for (const item of collaborators || []) {
     const id = item.id;
     const code = collaboratorCodeFromId(id);
+    const roleName = normalizeText(item.role) || 'Colaborador';
+    const jobRole = await prisma.jobRole.findUnique({
+      where: { normalizedKey: normalizeJobRoleKey(roleName) }
+    });
+    if (!jobRole || !jobRole.isActive) {
+      throw new Error(`Cargo canônico ativo não encontrado para "${roleName}".`);
+    }
     const payload = {
       code,
       name: normalizeText(item.name),
-      role: normalizeText(item.role) || 'Colaborador',
+      jobRoleId: jobRole.id,
       email: normalizeEmail(item.email),
       signatureImage: null,
       isActive: true

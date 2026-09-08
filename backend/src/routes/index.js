@@ -17,9 +17,12 @@ import inhibitionOptionsRouter from './resources/inhibition-options.js';
 import jobRolesRouter from './resources/job-roles.js';
 import manometersRouter from './resources/manometers.js';
 import operationsRouter from './resources/operations.js';
+import operationalReportsRouter from './resources/operational-reports.js';
 import projectSegmentsRouter from './resources/project-segments.js';
 import privacyRouter from './resources/privacy.js';
+import projectIntakeWebhookRouter from './resources/project-intake-webhook.js';
 import projectsRouter from './resources/projects.js';
+import qualidadeRouter from './resources/qualidade.js';
 import reportsRouter from './resources/reports.js';
 import romaneiosRouter from './resources/romaneios.js';
 import statisticsRouter from './resources/statistics.js';
@@ -27,6 +30,11 @@ import surveysRouter from './resources/surveys.js';
 import unitsRouter from './resources/units.js';
 import uploadsRouter from './resources/uploads.js';
 import usersRouter from './resources/users.js';
+import efetivoRouter from './resources/efetivo.js';
+import workforceRouter from './workforce.js';
+import assinaturasRouter from './resources/assinaturas.js';
+import apiCredentialsRouter from './resources/api-credentials.js';
+import integrationsV1Router from './integrations/v1/index.js';
 // module:scaffold import
 
 const router = Router();
@@ -39,6 +47,7 @@ function mountRdoRoutes(targetRouter) {
   targetRouter.use('/projects', projectsRouter);
   targetRouter.use('/project-segments', projectSegmentsRouter);
   targetRouter.use('/reports', reportsRouter);
+  targetRouter.use('/operational-reports', operationalReportsRouter);
   targetRouter.use('/statistics', statisticsRouter);
   targetRouter.use('/surveys', surveysRouter);
   targetRouter.use('/equipment', equipmentRouter);
@@ -55,15 +64,22 @@ mountRdoRoutes(rdoRouter);
 
 router.use('/auth', authRouter);
 router.use('/privacy', privacyRouter);
+router.use('/webhooks/projects', projectIntakeWebhookRouter);
 router.use('/rdo', rdoRouter);
 router.use('/romaneio', romaneiosRouter);
 router.use('/epi', episRouter);
 router.use('/equipamentos', equipamentosRouter);
 router.use('/estoque', estoqueRouter);
+router.use('/qualidade', qualidadeRouter);
 router.use('/acompanhamento/comercial', acompanhamentoComercialRouter);
 router.use('/acompanhamento/custo', acompanhamentoCustoRouter);
 router.use('/acompanhamento/ponto', acompanhamentoPontoRouter);
 router.use('/operations', operationsRouter);
+router.use('/efetivo', efetivoRouter);
+router.use('/workforce', workforceRouter);
+router.use('/assinaturas', assinaturasRouter);
+router.use('/admin', apiCredentialsRouter);
+router.use('/integracoes/v1', integrationsV1Router);
 // module:scaffold mount
 router.use('/admin/accounts', usersRouter);
 router.use('/users', usersRouter);

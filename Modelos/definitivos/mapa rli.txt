@@ -4,7 +4,7 @@ MAPA DO MODELO DE INIBIÇÃO (RLI)
 {{client}} - cliente do projeto
 {{cnpj}} - CNPJ do projeto
 {{local}} - local do projeto
-{{proposal}} - contrato do projeto
+{{proposal}} - proposta do projeto
 {{rli}} - número do rli
 {{date}} - data do RLI
 

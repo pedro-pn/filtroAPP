@@ -15,33 +15,24 @@ import { z } from 'zod';
 
 import env from '../../config/env.js';
 import asyncHandler from '../../lib/async-handler.js';
-import {
-  importCommercialAccess,
-  listCommercialDashboard,
-  listCommercialPendencias,
-  listProjectRevisions,
-  setProjectBudgetRevision,
-  setProjectSchedule
-} from '../../lib/acompanhamento/access-import.js';
+import { importCommercialAccess, listCommercialDashboard, listCommercialPendencias, listProjectRevisions, removeProjectAdditionalProposal, setProjectAdditionalProposalRevision, setProjectBudgetRevision, setProjectSchedule } from '../../lib/acompanhamento/access-import.js';
 import { createManualProjectCost, deleteManualProjectCost } from '../../lib/acompanhamento/manual-costs.js';
 import { getPlannedScope, setPlannedScope } from '../../lib/acompanhamento/planned-scope.js';
 import { computeProjectProgress } from '../../lib/acompanhamento/avanco.js';
 import { buildOmieCostCategoryWhere } from '../../lib/acompanhamento/cost-categories.js';
 import { listProjectCards } from '../../lib/acompanhamento/project-cards.js';
+import { getProjectStandbyHistory } from '../../lib/acompanhamento/standby-history.js';
+import { getMissionGroupRomaneios, getProjectRomaneios } from '../../lib/acompanhamento/project-romaneios.js';
 import { groupProjectCards } from '../../lib/acompanhamento/project-card-groups.js';
 import { groupDashboardRows } from '../../lib/acompanhamento/dashboard-groups.js';
 import { getProjectDetail } from '../../lib/acompanhamento/project-detail.js';
+import { createProjectManagementNote, listProjectManagementNotes, PROJECT_MANAGEMENT_NOTE_MAX_LENGTH } from '../../lib/acompanhamento/project-notes.js';
+import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-mission-context.js';
 import { getMissionGroupDetail } from '../../lib/acompanhamento/project-detail-groups.js';
-import {
-  createMissionGroup,
-  dissolveMissionGroup,
-  listMissionGroups,
-  loadActiveMissionGroups,
-  MissionGroupError,
-  renameMissionGroup
-} from '../../lib/acompanhamento/mission-groups.js';
+import { createMissionGroup, dissolveMissionGroup, listMissionGroups, loadActiveMissionGroups, MissionGroupError, updateMissionGroup } from '../../lib/acompanhamento/mission-groups.js';
 import { isSalaryCategory } from '../../lib/acompanhamento/salary.js';
 import { listSedeCosts } from '../../lib/acompanhamento/sede-costs.js';
+import { listSedeOperationalMetrics } from '../../lib/acompanhamento/sede-operational-metrics.js';
 import prisma from '../../lib/prisma.js';
 import { canViewAcompanhamentoLaborCosts, requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth } from '../../middleware/auth.js';
 
@@ -49,24 +40,26 @@ const router = Router();
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB (arquivo real ~1 MB)
 const monthParamSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mês inválido. Use o formato YYYY-MM.');
-const sedeCostRangeQuerySchema = z.object({
-  from: monthParamSchema.optional(),
-  to: monthParamSchema.optional()
-}).superRefine((value, ctx) => {
-  if (Boolean(value.from) !== Boolean(value.to)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Informe mês inicial e final para filtrar a Sede.'
-    });
-  }
-  if (value.from && value.to && value.from > value.to) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['to'],
-      message: 'Período inválido: mês final anterior ao inicial.'
-    });
-  }
-});
+const sedeCostRangeQuerySchema = z
+  .object({
+    from: monthParamSchema.optional(),
+    to: monthParamSchema.optional()
+  })
+  .superRefine((value, ctx) => {
+    if (Boolean(value.from) !== Boolean(value.to)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Informe mês inicial e final para filtrar a Sede.'
+      });
+    }
+    if (value.from && value.to && value.from > value.to) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['to'],
+        message: 'Período inválido: mês final anterior ao inicial.'
+      });
+    }
+  });
 
 export function parseSedeCostRangeQuery(query) {
   const { from, to } = sedeCostRangeQuerySchema.parse(query ?? {});
@@ -77,22 +70,63 @@ const missionGroupStatusQuerySchema = z.object({
   status: z.enum(['ACTIVE', 'DISSOLVED', 'ALL']).optional().default('ACTIVE')
 });
 
-const missionGroupCreateSchema = z.object({
-  name: z.string().trim().min(1).max(120).optional(),
-  projectIds: z.array(z.string().trim().min(1)).min(2).max(50)
-}).superRefine((value, ctx) => {
-  if (new Set(value.projectIds).size !== value.projectIds.length) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['projectIds'],
-      message: 'Selecione missões diferentes para unificar.'
-    });
-  }
+const missionGroupCreateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    projectIds: z.array(z.string().trim().min(1)).min(2).max(50)
+  })
+  .superRefine((value, ctx) => {
+    if (new Set(value.projectIds).size !== value.projectIds.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['projectIds'],
+        message: 'Selecione missões diferentes para unificar.'
+      });
+    }
+  });
+
+const missionGroupUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Informe um nome para o agrupamento.').max(120, 'Nome muito longo.').optional(),
+    laborAllocationMode: z.enum(['VISUAL_ONLY', 'SHARED_EXECUTION', 'CONSOLIDATE_PRIMARY']).optional(),
+    primaryLaborProjectId: z.string().trim().min(1).max(200).nullable().optional()
+  })
+  .strict()
+  .refine(value => value.name !== undefined || value.laborAllocationMode !== undefined, {
+    message: 'Informe o nome ou a política de mão de obra a alterar.'
+  })
+  .superRefine((value, ctx) => {
+    if (value.laborAllocationMode === 'CONSOLIDATE_PRIMARY' && !value.primaryLaborProjectId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['primaryLaborProjectId'],
+        message: 'Selecione a missão principal da consolidação.'
+      });
+    }
+  });
+
+export function parseMissionGroupUpdate(body) {
+  return missionGroupUpdateSchema.parse(body);
+}
+
+const projectTrackingStateSchema = z
+  .object({
+    archived: z.boolean().optional(),
+    reviewed: z.boolean().optional()
+  })
+  .refine(value => Number(value.archived !== undefined) + Number(value.reviewed !== undefined) === 1, {
+    message: 'Informe apenas archived ou reviewed.'
+  });
+
+const projectIdParamSchema = z.object({
+  projectId: z.string().trim().min(1).max(200)
 });
 
-const missionGroupRenameSchema = z.object({
-  name: z.string().trim().min(1, 'Informe um nome para o agrupamento.').max(120, 'Nome muito longo.')
-});
+const projectManagementNoteSchema = z
+  .object({
+    content: z.string().trim().min(1, 'Escreva uma nota antes de adicionar.').max(PROJECT_MANAGEMENT_NOTE_MAX_LENGTH, `A nota deve ter no máximo ${PROJECT_MANAGEMENT_NOTE_MAX_LENGTH} caracteres.`)
+  })
+  .strict();
 
 function missionGroupErrorResponse(error, res) {
   if (error instanceof MissionGroupError) {
@@ -116,7 +150,9 @@ function requireServiceToken(req, res, next) {
   const expected = env.commercialImportToken;
   const provided = bearerToken(req);
   if (!expected) {
-    return res.status(503).json({ error: 'Importação comercial não configurada (COMMERCIAL_IMPORT_TOKEN ausente).' });
+    return res.status(503).json({
+      error: 'Importação comercial não configurada (COMMERCIAL_IMPORT_TOKEN ausente).'
+    });
   }
   if (!provided) {
     return res.status(401).json({ error: 'Token de serviço ausente.' });
@@ -133,16 +169,26 @@ function requireServiceToken(req, res, next) {
 router.post(
   '/import',
   requireServiceToken,
-  express.raw({ type: ['application/octet-stream', 'application/x-msaccess'], limit: MAX_FILE_BYTES }),
+  express.raw({
+    type: ['application/octet-stream', 'application/x-msaccess'],
+    limit: MAX_FILE_BYTES
+  }),
   asyncHandler(async (req, res) => {
     const buffer = req.body;
     if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
-      return res.status(400).json({ error: 'Corpo vazio. Envie o arquivo .accdb como application/octet-stream.' });
+      return res.status(400).json({
+        error: 'Corpo vazio. Envie o arquivo .accdb como application/octet-stream.'
+      });
     }
     const fileName = String(req.headers['x-file-name'] || 'propostas_bd.accdb');
 
     try {
-      const summary = await importCommercialAccess({ buffer, fileName, importedByUserId: null, source: 'SCRIPT' });
+      const summary = await importCommercialAccess({
+        buffer,
+        fileName,
+        importedByUserId: null,
+        source: 'SCRIPT'
+      });
       return res.status(summary.skippedDuplicate ? 200 : 201).json(summary);
     } catch (error) {
       return res.status(422).json({ error: `Falha ao importar o banco Access: ${error.message}` });
@@ -173,10 +219,8 @@ router.get(
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
     const categoryCode = typeof req.query.category === 'string' && req.query.category ? req.query.category : null;
-    const [rows, groups] = await Promise.all([
-      listCommercialDashboard({ categoryCode }),
-      loadActiveMissionGroups()
-    ]);
+    const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
+    const [rows, groups] = await Promise.all([listCommercialDashboard({ categoryCode, includeAdminOnlyCategories }), loadActiveMissionGroups()]);
     res.json(groupDashboardRows(rows, groups));
   })
 );
@@ -186,12 +230,126 @@ router.get(
   '/projetos-cards',
   requireAuth,
   requireAcompanhamentoAccess,
-  asyncHandler(async (_req, res) => {
-    const [cards, groups] = await Promise.all([
-      listProjectCards(),
-      loadActiveMissionGroups()
-    ]);
+  asyncHandler(async (req, res) => {
+    const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
+    const [cards, groups] = await Promise.all([listProjectCards({ includeAdminOnlyCategories }), loadActiveMissionGroups()]);
     res.json(groupProjectCards(cards, groups));
+  })
+);
+
+router.get(
+  '/projetos/:projectId/romaneios',
+  requireAuth,
+  requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    const { projectId } = projectIdParamSchema.parse(req.params);
+    const result = await getProjectRomaneios(projectId);
+    if (!result) return res.status(404).json({ error: 'Projeto não encontrado.' });
+    return res.json(result);
+  })
+);
+
+router.get(
+  '/grupos-missoes/:groupId/romaneios',
+  requireAuth,
+  requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    try {
+      const groupId = z.string().trim().min(1).max(200).parse(req.params.groupId);
+      return res.json(await getMissionGroupRomaneios(groupId));
+    } catch (error) {
+      return missionGroupErrorResponse(error, res);
+    }
+  })
+);
+
+router.get(
+  '/projetos/:projectId/standby-historico',
+  requireAuth,
+  requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    const { projectId } = projectIdParamSchema.parse(req.params);
+    const history = await getProjectStandbyHistory(projectId);
+    if (!history) return res.status(404).json({ error: 'Projeto não encontrado.' });
+    return res.json(history);
+  })
+);
+
+router.get(
+  '/projetos/:projectId/notas-gestao',
+  requireAuth,
+  requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    const { projectId } = projectIdParamSchema.parse(req.params);
+    try {
+      return res.json(await listProjectManagementNotes(projectId));
+    } catch (error) {
+      return res.status(404).json({ error: error.message });
+    }
+  })
+);
+
+router.post(
+  '/projetos/:projectId/notas-gestao',
+  requireAuth,
+  requireAcompanhamentoManager,
+  asyncHandler(async (req, res) => {
+    const { projectId } = projectIdParamSchema.parse(req.params);
+    const { content } = projectManagementNoteSchema.parse(req.body ?? {});
+    try {
+      const note = await createProjectManagementNote(projectId, content, {
+        userId: req.auth.user.id,
+        userName: req.auth.user.name
+      });
+      return res.status(201).json(note);
+    } catch (error) {
+      return res.status(400).json({ error: error.message });
+    }
+  })
+);
+
+router.patch(
+  '/projetos/:projectId/acompanhamento-status',
+  requireAuth,
+  requireAcompanhamentoManager,
+  asyncHandler(async (req, res) => {
+    const data = projectTrackingStateSchema.parse(req.body ?? {});
+    const project = await prisma.project.findFirst({
+      where: { id: req.params.projectId, deletedAt: null },
+      select: { id: true, isActive: true, acompanhamentoArchivedAt: true }
+    });
+    if (!project) return res.status(404).json({ error: 'Projeto não encontrado.' });
+
+    if (data.reviewed !== undefined && project.isActive && !project.acompanhamentoArchivedAt) {
+      return res.status(400).json({
+        error: 'Apenas projetos arquivados podem ser marcados como conferidos.'
+      });
+    }
+
+    const updated = await prisma.project.update({
+      where: { id: project.id },
+      data:
+        data.archived !== undefined
+          ? {
+              acompanhamentoArchivedAt: data.archived ? new Date() : null,
+              acompanhamentoReviewedAt: null
+            }
+          : { acompanhamentoReviewedAt: data.reviewed ? new Date() : null },
+      select: {
+        id: true,
+        isActive: true,
+        acompanhamentoArchivedAt: true,
+        acompanhamentoReviewedAt: true
+      }
+    });
+    res.json({
+      projectId: updated.id,
+      archived: !updated.isActive || Boolean(updated.acompanhamentoArchivedAt),
+      archivedInReports: !updated.isActive,
+      archivedInAcompanhamento: Boolean(updated.acompanhamentoArchivedAt),
+      reviewed: Boolean(updated.acompanhamentoReviewedAt),
+      reviewedAt: updated.acompanhamentoReviewedAt
+    });
   })
 );
 
@@ -229,11 +387,11 @@ router.patch(
   requireAuth,
   requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
-    const data = missionGroupRenameSchema.parse(req.body);
+    const data = parseMissionGroupUpdate(req.body);
     try {
-      const group = await renameMissionGroup({
+      const group = await updateMissionGroup({
         groupId: req.params.groupId,
-        name: data.name
+        ...data
       });
       res.json(group);
     } catch (error) {
@@ -249,7 +407,11 @@ router.get(
   asyncHandler(async (req, res) => {
     try {
       const includeCollaboratorCosts = canViewAcompanhamentoLaborCosts(req.auth?.user);
-      const detail = await getMissionGroupDetail(req.params.groupId, { includeCollaboratorCosts });
+      const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
+      const detail = await getMissionGroupDetail(req.params.groupId, {
+        includeCollaboratorCosts,
+        includeAdminOnlyCategories
+      });
       res.json(detail);
     } catch (error) {
       return missionGroupErrorResponse(error, res);
@@ -281,7 +443,9 @@ router.get(
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
     const projectId = typeof req.query.projectId === 'string' && req.query.projectId ? req.query.projectId : null;
-    const categoryWhere = await buildOmieCostCategoryWhere();
+    const categoryWhere = await buildOmieCostCategoryWhere({
+      includeAdminOnly: req.auth?.user?.accountType === 'ADMIN'
+    });
     const where = {
       ...(projectId ? { projectId } : { projectId: { not: null } }),
       ...categoryWhere
@@ -311,12 +475,19 @@ router.get(
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
-    const data = await listSedeCosts({ range: parseSedeCostRangeQuery(req.query) });
-    res.json(data);
+    const range = parseSedeCostRangeQuery(req.query);
+    const [data, operational] = await Promise.all([
+      listSedeCosts({
+        range,
+        includeAdminOnlyCategories: req.auth?.user?.accountType === 'ADMIN'
+      }),
+      listSedeOperationalMetrics({ range })
+    ]);
+    res.json({ ...data, operational });
   })
 );
 
-// Projetos cujo contrato bate com propostas importadas (sinalização de pendência na aba Projetos).
+// Projetos cuja proposta bate com propostas importadas (sinalização de pendência na aba Projetos).
 router.get(
   '/pendencias',
   requireAuth,
@@ -343,6 +514,7 @@ router.get(
 );
 
 const revisionSchema = z.object({ codBd: z.number().int() });
+const proposalCodeParamSchema = z.coerce.number().int();
 
 router.post(
   '/projetos/:projectId/revisao',
@@ -359,10 +531,43 @@ router.post(
   })
 );
 
+router.post(
+  '/projetos/:projectId/propostas-adicionais/revisao',
+  requireAuth,
+  requireAcompanhamentoManager,
+  asyncHandler(async (req, res) => {
+    const { codBd } = revisionSchema.parse(req.body);
+    try {
+      const selection = await setProjectAdditionalProposalRevision(req.params.projectId, codBd, {
+        selectedByUserId: req.auth?.user?.id ?? null
+      });
+      res.json(selection);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  })
+);
+
+router.delete(
+  '/projetos/:projectId/propostas-adicionais/:codProp',
+  requireAuth,
+  requireAcompanhamentoManager,
+  asyncHandler(async (req, res) => {
+    const codProp = proposalCodeParamSchema.parse(req.params.codProp);
+    try {
+      const result = await removeProjectAdditionalProposal(req.params.projectId, codProp);
+      res.json(result);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  })
+);
+
 const scheduleSchema = z.object({
   approvedAt: z.string().datetime().nullable().optional(),
   startDate: z.string().datetime().nullable().optional(),
   mobilizationDate: z.string().datetime().nullable().optional(),
+  demobilizationDate: z.string().datetime().nullable().optional(),
   manualProgressPct: z.number().min(0).max(100).nullable().optional(),
   offshore: z.boolean().optional(),
   laborSleepModeByCollaborator: z.record(z.enum(['HOME', 'AWAY'])).optional(),
@@ -372,7 +577,11 @@ const scheduleSchema = z.object({
 const manualCostSchema = z.object({
   description: z.string().trim().min(1).max(120),
   amount: z.number().positive().max(999999999.99),
-  costDate: z.string().trim().nullable().optional()
+  costDate: z
+    .string()
+    .trim()
+    .nullable()
+    .optional()
     .refine(value => !value || !Number.isNaN(new Date(value).getTime()), 'Data do custo manual inválida.'),
   note: z.string().trim().max(500).nullable().optional()
 });
@@ -399,7 +608,9 @@ router.post(
   asyncHandler(async (req, res) => {
     const data = manualCostSchema.parse(req.body || {});
     try {
-      const cost = await createManualProjectCost(req.params.projectId, data, { userId: req.auth?.user?.id ?? null });
+      const cost = await createManualProjectCost(req.params.projectId, data, {
+        userId: req.auth?.user?.id ?? null
+      });
       res.status(201).json(cost);
     } catch (error) {
       res.status(400).json({ error: error.message });
@@ -485,13 +696,32 @@ router.put(
 
 // Dashboard detalhado de um projeto (aberto ao clicar no card da aba Projetos).
 router.get(
+  '/projetos/:projectId/planning-context',
+  requireAuth,
+  requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    const date = z.string().date().optional().parse(req.query.date) || new Date().toISOString().slice(0, 10);
+    res.json(
+      await getOfficialMissionContext({
+        projectId: req.params.projectId,
+        date
+      })
+    );
+  })
+);
+
+router.get(
   '/projetos/:projectId/detalhe',
   requireAuth,
   requireAcompanhamentoAccess,
   asyncHandler(async (req, res) => {
     try {
       const includeCollaboratorCosts = canViewAcompanhamentoLaborCosts(req.auth?.user);
-      const detail = await getProjectDetail(req.params.projectId, { includeCollaboratorCosts });
+      const includeAdminOnlyCategories = req.auth?.user?.accountType === 'ADMIN';
+      const detail = await getProjectDetail(req.params.projectId, {
+        includeCollaboratorCosts,
+        includeAdminOnlyCategories
+      });
       res.json(detail);
     } catch (error) {
       res.status(404).json({ error: error.message });

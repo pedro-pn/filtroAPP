@@ -1,24 +1,16 @@
-import { randomBytes } from 'node:crypto';
-
 import env from '../config/env.js';
+import {
+  ACCOUNT_PASSWORD_SETUP_EXPIRES_LABEL,
+  createPendingPasswordHash,
+  issueAccountPasswordSetup
+} from './accounts/password-setup.js';
 import { buildClientProjectLinkedEmailTemplate, buildClientWelcomeEmailTemplate } from './email-templates.js';
 import { clientEmailsEnabled, getMissingMailerConfig, sendClientMail } from './mailer.js';
 import { defaultPublicModuleRolesForLegacyRole, moduleRoleRows } from './module-roles.js';
-import { hashPassword } from './password.js';
 
 const CLIENT_MODULE_ROLES = defaultPublicModuleRolesForLegacyRole('CLIENT');
 
 const CC_WELCOME_SUBJECT_PREFIX = '[Filtrovali] Acesso ao portal do cliente criado';
-
-function generateClientPassword() {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*_-';
-  const bytes = randomBytes(12);
-  let password = '';
-  for (let i = 0; i < bytes.length; i += 1) {
-    password += alphabet[bytes[i] % alphabet.length];
-  }
-  return password;
-}
 
 function queueClientMail(message, meta) {
   const missingMailerConfig = getMissingMailerConfig();
@@ -51,7 +43,7 @@ async function findClientUserForEmail(prisma, email, options = {}) {
 
   const usernameMatch = await prisma.user.findFirst({
     where: { username: { equals: normalizedEmail, mode: 'insensitive' } },
-    include: { collaborator: true, moduleRoles: true }
+    include: { collaborator: { include: { jobRole: true } }, moduleRoles: true }
   });
   if (usernameMatch) {
     if (usernameMatch.role !== 'CLIENT') {
@@ -66,7 +58,7 @@ async function findClientUserForEmail(prisma, email, options = {}) {
       role: 'CLIENT',
       email: { equals: normalizedEmail, mode: 'insensitive' }
     },
-    include: { collaborator: true, moduleRoles: true },
+    include: { collaborator: { include: { jobRole: true } }, moduleRoles: true },
     orderBy: [{ isActive: 'desc' }, { updatedAt: 'desc' }, { createdAt: 'asc' }]
   });
   if (!emailMatch) return null;
@@ -78,7 +70,7 @@ async function findClientUserForEmail(prisma, email, options = {}) {
       email: normalizedEmail,
       emailVerifiedAt: new Date()
     },
-    include: { collaborator: true, moduleRoles: true }
+    include: { collaborator: { include: { jobRole: true } }, moduleRoles: true }
   });
 }
 
@@ -163,7 +155,7 @@ export async function ensureClientAccountForProject(prisma, projectData, options
 
   let user = await findClientUserForEmail(prisma, primaryEmail);
   let created = false;
-  let initialPassword = '';
+  let passwordSetup = null;
 
   if (user) {
     user = await prisma.user.update({
@@ -181,11 +173,10 @@ export async function ensureClientAccountForProject(prisma, projectData, options
           create: moduleRoleRows(user.id, CLIENT_MODULE_ROLES).map(({ module, role }) => ({ module, role }))
         }
       },
-      include: { collaborator: true, moduleRoles: true }
+      include: { collaborator: { include: { jobRole: true } }, moduleRoles: true }
     });
   } else {
-    initialPassword = generateClientPassword();
-    const passwordHash = await hashPassword(initialPassword);
+    const passwordHash = await createPendingPasswordHash();
     user = await prisma.user.create({
       data: {
         username: primaryEmail,
@@ -201,9 +192,14 @@ export async function ensureClientAccountForProject(prisma, projectData, options
           create: moduleRoleRows('', CLIENT_MODULE_ROLES).map(({ module, role }) => ({ module, role }))
         }
       },
-      include: { collaborator: true, moduleRoles: true }
+      include: { collaborator: { include: { jobRole: true } }, moduleRoles: true }
     });
     created = true;
+    passwordSetup = await issueAccountPasswordSetup({
+      userId: user.id,
+      prismaClient: prisma,
+      envConfig: env
+    });
   }
   await deactivateDuplicateClientEmailAccounts(prisma, primaryEmail, user.id);
 
@@ -212,9 +208,9 @@ export async function ensureClientAccountForProject(prisma, projectData, options
   if (created && shouldNotify) {
     const template = buildClientWelcomeEmailTemplate({
       clientName: project.clientName,
-      cnpj: primaryEmail,
-      password: initialPassword,
-      appUrl: env.appUrl,
+      username: primaryEmail,
+      setupUrl: passwordSetup.url,
+      expiresLabel: ACCOUNT_PASSWORD_SETUP_EXPIRES_LABEL,
       projectCode: project.code,
       projectName: project.name
     });
@@ -259,7 +255,7 @@ export async function ensureClientAccountForProject(prisma, projectData, options
     await deactivateClientEmailIfUnlinked(prisma, previousPrimaryEmail, project);
   }
 
-  return { user, created, notified };
+  return { user, created, notified, passwordSetup };
 }
 
 export async function ensureClientCcAccounts(prisma, projectData, options = {}) {
@@ -302,8 +298,7 @@ export async function ensureClientCcAccounts(prisma, projectData, options = {}) 
     });
     if (usernameOwner && usernameOwner.role !== 'CLIENT') continue;
 
-    const initialPassword = generateClientPassword();
-    const passwordHash = await hashPassword(initialPassword);
+    const passwordHash = await createPendingPasswordHash();
     const user = await prisma.user.create({
       data: {
         username: email,
@@ -320,13 +315,18 @@ export async function ensureClientCcAccounts(prisma, projectData, options = {}) 
         }
       }
     });
+    const passwordSetup = await issueAccountPasswordSetup({
+      userId: user.id,
+      prismaClient: prisma,
+      envConfig: env
+    });
 
     if (shouldNotify) {
       const template = buildClientWelcomeEmailTemplate({
         clientName: name,
-        cnpj: email,
-        password: initialPassword,
-        appUrl: env.appUrl,
+        username: email,
+        setupUrl: passwordSetup.url,
+        expiresLabel: ACCOUNT_PASSWORD_SETUP_EXPIRES_LABEL,
         projectCode: projectData.code,
         projectName: projectData.name
       });

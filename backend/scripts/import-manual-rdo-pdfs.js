@@ -21,6 +21,7 @@ import {
   buildManualReportOperationalFields,
   manualReportOperationalDataSchema
 } from '../src/lib/reports/manual-operational-data.js';
+import { reportCollaboratorCreateManyData } from '../src/lib/report-collaborators.js';
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -981,6 +982,7 @@ async function applyReports({ prisma, options, project, user, prepared, reportsD
       const createdReport = await prisma.$transaction(async tx => {
         const operationalData = operationalDataForReport(report);
         const operationalFields = await buildManualReportOperationalFields(tx, project, new Date(`${report.fields.reportDate}T12:00:00.000Z`), operationalData, ReportType.RDO);
+        const reportCollaborators = await reportCollaboratorCreateManyData(tx, operationalFields.collaboratorIds);
         const now = new Date();
         const specialConditions = {
           source: 'MANUAL_UPLOAD',
@@ -989,6 +991,7 @@ async function applyReports({ prisma, options, project, user, prepared, reportsD
             originalFileName: report.fileName,
             uploadedAt: now.toISOString(),
             uploadedByUserId: user.id,
+            collaboratorSource: 'POINT_WORKBOOK',
             signedOnUpload: false,
             requiresSignature: false,
             allowsOptionalSignature: true,
@@ -1011,7 +1014,7 @@ async function applyReports({ prisma, options, project, user, prepared, reportsD
             specialConditions,
             pendingDerivedTypes: [],
             collaborators: {
-              create: operationalFields.collaboratorIds.map(collaboratorId => ({ collaboratorId }))
+              create: reportCollaborators
             }
           },
           select: { id: true }
@@ -1222,7 +1225,7 @@ async function main() {
         }
       }),
       prisma.collaborator.findMany({
-        select: { id: true, code: true, name: true, role: true, isActive: true },
+        select: { id: true, code: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }, isActive: true },
         orderBy: { name: 'asc' }
       }),
       resolveImportUser(prisma, options.userId)

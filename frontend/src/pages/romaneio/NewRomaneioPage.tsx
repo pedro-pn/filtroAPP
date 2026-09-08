@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 
 import {
   createRomaneio,
@@ -36,7 +36,11 @@ import { Shell } from '../../layout/Shell';
 import { TopBar } from '../../layout/TopBar';
 import { autosaveDraftTargetId } from '../../utils/draftAutosave';
 import { defaultRomaneioUnit, romaneioMeasureLabel, romaneioUsesVariableQuantity } from '../../utils/romaneioMeasure';
+import { mergeRomaneioReturnSelection, romaneioReturnKey } from '../../utils/romaneioReturnItems';
 import { RomaneioChecklistModal } from './RomaneioChecklistModal';
+import { romaneioQrRequiresQuantity } from '../../utils/romaneioQr';
+import { RomaneioQrNovelty } from './RomaneioQrNovelty';
+import { RomaneioQrScannerModal } from './RomaneioQrScannerModal';
 
 interface SelectedItem {
   key: string;
@@ -77,23 +81,6 @@ function projectLabel(project: { code: string; name?: string | null }) {
 
 function numericProjectCode(value: string) {
   return value.replace(/\D/g, '');
-}
-
-function returnKeyPart(value: string | null | undefined) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function selectedItemReturnKey(item: Pick<SelectedItem, 'catalogItemId' | 'itemCode' | 'itemName' | 'categoryName' | 'kind' | 'measureType' | 'unitLabel'>) {
-  if (item.catalogItemId) return `catalog:${item.catalogItemId}`;
-  return [
-    'snapshot',
-    returnKeyPart(item.itemCode),
-    returnKeyPart(item.itemName),
-    returnKeyPart(item.categoryName),
-    item.kind || 'EQUIPMENT',
-    item.measureType || 'UNIT',
-    returnKeyPart(item.unitLabel)
-  ].join('|');
 }
 
 function romaneioItemsToSelectedItems(romaneio: Romaneio): SelectedItem[] {
@@ -227,12 +214,16 @@ export function NewRomaneioPage() {
   const [extraCategoryFilter, setExtraCategoryFilter] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set());
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
+  const [draftHydrationSeq, setDraftHydrationSeq] = useState(0);
   const [checklistStatuses, setChecklistStatuses] = useState<ChecklistStatusesByCatalogItem>({});
   const [activeChecklistItem, setActiveChecklistItem] = useState<SelectedItem | null>(null);
   const [checklistSignatureImage, setChecklistSignatureImage] = useState('');
   const [checklistSignatureOpen, setChecklistSignatureOpen] = useState(false);
   const [extraItemModalOpen, setExtraItemModalOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [qrScannerOpen, setQrScannerOpen] = useState(false);
+  const [qrQuantityItem, setQrQuantityItem] = useState<RomaneioCatalogItem | null>(null);
+  const [qrQuantity, setQrQuantity] = useState('');
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [custom, setCustom] = useState({
     itemName: '',
@@ -355,6 +346,9 @@ export function NewRomaneioPage() {
     setActiveChecklistItem(null);
     setExtraItemModalOpen(false);
     setExtraCategoryFilter('');
+    setQrScannerOpen(false);
+    setQrQuantityItem(null);
+    setQrQuantity('');
     hydratedReturnItemsKeyRef.current = '';
   }
 
@@ -375,16 +369,14 @@ export function NewRomaneioPage() {
     }));
   }
 
-  function addCatalogItem(item: RomaneioCatalogItem) {
-    const variableQuantity = romaneioUsesVariableQuantity(item.measureType);
-    const quantity = Number(quantities[item.id] || (variableQuantity ? '' : item.isSerialized ? 1 : ''));
-    if (!quantity || quantity <= 0) {
+  function addCatalogItemWithQuantity(item: RomaneioCatalogItem, quantity: number) {
+    if (!Number.isFinite(quantity) || quantity <= 0) {
       showToast('Informe a quantidade do item.');
-      return;
+      return false;
     }
-    if (!variableQuantity && item.isSerialized && selectedItems.some(selected => selected.catalogItemId === item.id)) {
+    if (!romaneioUsesVariableQuantity(item.measureType) && item.isSerialized && selectedItems.some(selected => selected.catalogItemId === item.id)) {
       showToast('Este item único já foi adicionado.');
-      return;
+      return false;
     }
 
     const next: SelectedItem = {
@@ -411,6 +403,46 @@ export function NewRomaneioPage() {
     if (checklistMapQuery.data?.map[item.id]) {
       setActiveChecklistItem(next);
     }
+    return true;
+  }
+
+  function addCatalogItem(item: RomaneioCatalogItem) {
+    const variableQuantity = romaneioUsesVariableQuantity(item.measureType);
+    const quantity = Number(quantities[item.id] || (variableQuantity ? '' : item.isSerialized ? 1 : ''));
+    addCatalogItemWithQuantity(item, quantity);
+  }
+
+  function handleScannedCatalogItem(catalogItemId: string) {
+    setQrScannerOpen(false);
+    const item = (catalogQuery.data || []).find(candidate => candidate.id === catalogItemId && candidate.isActive);
+    if (!item) {
+      showToast('Equipamento não encontrado ou inativo no catálogo do romaneio.');
+      return;
+    }
+
+    if (romaneioQrRequiresQuantity(item)) {
+      setQrQuantityItem(item);
+      setQrQuantity('');
+      return;
+    }
+
+    if (addCatalogItemWithQuantity(item, 1)) {
+      showToast('Equipamento adicionado pelo QR code.');
+    }
+  }
+
+  function confirmScannedItemQuantity(event: FormEvent) {
+    event.preventDefault();
+    if (!qrQuantityItem) return;
+    const quantity = Number(qrQuantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      showToast('Informe uma quantidade válida.');
+      return;
+    }
+    if (!addCatalogItemWithQuantity(qrQuantityItem, quantity)) return;
+    setQrQuantityItem(null);
+    setQrQuantity('');
+    showToast('Equipamento adicionado pelo QR code.');
   }
 
   function addExtraCatalogItem(item: RomaneioCatalogItem) {
@@ -622,6 +654,7 @@ export function NewRomaneioPage() {
     ));
     const nextProjectKey = nextProjectId || (nextProjectCode.trim() ? `code:${nextProjectCode.trim().toUpperCase()}` : '');
     hydratedDraftKeyRef.current = nextProjectKey && nextDate ? `${nextType}|${nextProjectKey}|${nextDate.slice(0, 10)}` : '';
+    setDraftHydrationSeq(current => current + 1);
   }, []);
 
   useEffect(() => {
@@ -658,6 +691,9 @@ export function NewRomaneioPage() {
       projectId || '',
       typedProjectCode || '',
       editId || '',
+      // O rascunho hidrata a lista inteira; a sequência força a lista de retorno
+      // a ser reaplicada depois dele para nenhum item da saída ficar de fora.
+      String(draftHydrationSeq),
       returnItems.map(item => `${item.key}:${item.maxQuantity}`).join(',')
     ].join('|');
     if (!returnItemsQuery.data || hydratedReturnItemsKeyRef.current === hydrationKey) return;
@@ -667,18 +703,14 @@ export function NewRomaneioPage() {
       const maxByKey = new Map(returnItems.map(item => [item.key, Number(item.maxQuantity)]));
       setSelectedItems(current => current.map(item => {
         if (item.isExtra) return item;
-        const maxQuantity = maxByKey.get(selectedItemReturnKey(item));
+        const maxQuantity = maxByKey.get(romaneioReturnKey(item));
         return maxQuantity == null ? item : { ...item, returnMaxQuantity: maxQuantity };
       }));
       return;
     }
 
-    setSelectedItems(current => [
-      ...returnItemsToSelectedItems(returnItems),
-      ...current.filter(item => item.isExtra)
-    ]);
-    setQuantities({});
-  }, [romaneioType, returnItemsQuery.data, projectId, typedProjectCode, editId, isEditing]);
+    setSelectedItems(current => mergeRomaneioReturnSelection(returnItemsToSelectedItems(returnItems), current));
+  }, [romaneioType, returnItemsQuery.data, projectId, typedProjectCode, editId, isEditing, draftHydrationSeq]);
 
   useEffect(() => {
     if (isEditing || draftParam || draftId) return;
@@ -1066,6 +1098,15 @@ export function NewRomaneioPage() {
         {romaneioType === 'OUTBOUND' && <section className="page-card romaneio-panel">
           <div className="admin-toolbar">
             <div className="sec">Materiais disponíveis</div>
+            <button
+              className="secondary-button romaneio-scan-button"
+              type="button"
+              data-romaneio-qr-scanner-trigger
+              disabled={catalogQuery.isLoading}
+              onClick={() => setQrScannerOpen(true)}
+            >
+              Escanear QR code
+            </button>
           </div>
           <label className="field-group">
             <span>Pesquisar item</span>
@@ -1178,6 +1219,48 @@ export function NewRomaneioPage() {
           </button>
         </section>
       </form>
+      <RomaneioQrNovelty
+        user={user}
+        enabled={romaneioType === 'OUTBOUND' && !catalogQuery.isLoading}
+        variant="form"
+      />
+      <RomaneioQrScannerModal
+        open={qrScannerOpen}
+        onClose={() => setQrScannerOpen(false)}
+        onDetectedCatalogItemId={handleScannedCatalogItem}
+      />
+      <Modal
+        open={Boolean(qrQuantityItem)}
+        onClose={() => { setQrQuantityItem(null); setQrQuantity(''); }}
+        ariaLabelledBy="romaneio-qr-quantity-title"
+        ariaDescribedBy="romaneio-qr-quantity-description"
+        panelClassName="modal-card romaneio-qr-quantity-modal"
+      >
+        <form onSubmit={confirmScannedItemQuantity}>
+          <div className="section-title" id="romaneio-qr-quantity-title">Informar quantidade</div>
+          <p className="placeholder-copy" id="romaneio-qr-quantity-description">
+            {[qrQuantityItem?.code, qrQuantityItem?.name].filter(Boolean).join(' - ')}
+          </p>
+          <label className="field-group">
+            <span>Quantidade ({qrQuantityItem?.defaultUnitLabel || (qrQuantityItem ? defaultRomaneioUnit(qrQuantityItem.measureType) : 'unidade')})</span>
+            <input
+              autoFocus
+              type="number"
+              min="0"
+              step={qrQuantityItem && romaneioUsesVariableQuantity(qrQuantityItem.measureType) ? '0.1' : '1'}
+              value={qrQuantity}
+              onChange={event => setQrQuantity(event.target.value)}
+              required
+            />
+          </label>
+          <div className="admin-form-actions">
+            <button className="secondary-button" type="button" onClick={() => { setQrQuantityItem(null); setQrQuantity(''); }}>
+              Cancelar
+            </button>
+            <button className="primary-button" type="submit">Adicionar ao romaneio</button>
+          </div>
+        </form>
+      </Modal>
       <Modal
         open={extraItemModalOpen}
         onClose={() => setExtraItemModalOpen(false)}

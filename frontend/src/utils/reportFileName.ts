@@ -100,6 +100,45 @@ function serviceSystemStepFilePart(report: ReportSummary) {
   return `${serviceSystemCode(report)}M00${serviceStep(report).trim() || 'STEP'}`;
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function dateFromFileName(fileName: string) {
+  const match = fileName.match(/(?:^|\D)(\d{1,2})[-_.](\d{1,2})[-_.](\d{4})(?!\d)/);
+  if (!match) return '';
+
+  const day = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  const year = Number.parseInt(match[3], 10);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+  ) return '';
+
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+export function manualReportMetadataFromFileName(
+  fileName: string,
+  reportType: ReportSummary['reportType']
+) {
+  const nameWithoutExtension = String(fileName || '').replace(/\.[^.]+$/, '');
+  const typePattern = escapeRegExp(reportType);
+  const sequenceMatch = nameWithoutExtension.match(new RegExp(
+    `(?:^|[^a-z0-9])${typePattern}\\s*(?:n(?:[º°]|o\\.?|ro\\.?)?\\s*)?(?:[-_]+\\s*)?(\\d+)(?![a-z0-9])`,
+    'i'
+  ));
+  const parsedSequence = sequenceMatch ? Number.parseInt(sequenceMatch[1], 10) : 0;
+
+  return {
+    sequenceNumber: parsedSequence > 0 ? String(parsedSequence) : '',
+    reportDate: dateFromFileName(nameWithoutExtension)
+  };
+}
+
 export function reportDownloadFileName(report: ReportSummary, extension: 'pdf' | 'docx') {
   const mission = `Missão ${report.project?.code || '---'} ${report.project?.name || 'Sem projeto'}`;
   let base: string;

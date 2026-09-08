@@ -4,11 +4,11 @@ function zero() {
   return new Prisma.Decimal(0);
 }
 
-function addSignedBalance(balances, key, type, quantity) {
+function addSignedBalance(balances, key, type, quantity, positiveType = 'ENTRADA') {
   if (!key || quantity === null || quantity === undefined) return;
   const current = balances.get(key) || zero();
   const amount = new Prisma.Decimal(quantity);
-  balances.set(key, type === 'ENTRADA' ? current.plus(amount) : current.minus(amount));
+  balances.set(key, type === positiveType ? current.plus(amount) : current.minus(amount));
 }
 
 function itemWhere(itemIds) {
@@ -39,6 +39,22 @@ export async function getBatchBalances(prismaOrTx, itemId) {
   const balances = new Map();
   for (const row of rows) {
     addSignedBalance(balances, row.batchId, row.type, row._sum.quantity);
+  }
+  return balances;
+}
+
+export async function getProjectBatchBalances(prismaOrTx, itemId, projectId) {
+  if (!projectId) return new Map();
+
+  const rows = await prismaOrTx.stockMovement.groupBy({
+    by: ['batchId', 'type'],
+    where: { itemId, projectId },
+    _sum: { quantity: true }
+  });
+
+  const balances = new Map();
+  for (const row of rows) {
+    addSignedBalance(balances, row.batchId, row.type, row._sum.quantity, 'SAIDA');
   }
   return balances;
 }

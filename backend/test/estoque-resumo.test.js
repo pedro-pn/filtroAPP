@@ -32,7 +32,7 @@ function fakeClient({ items, movements }) {
   };
 }
 
-test('stock summary aggregates item and batch balances and alert flags', async () => {
+test('stock summary includes every registered item and aggregates balances and alert flags', async () => {
   const now = new Date('2026-07-09T12:00:00.000Z');
   const client = fakeClient({
     items: [
@@ -43,6 +43,9 @@ test('stock summary aggregates item and batch balances and alert flags', async (
         type: 'PRODUTO_QUIMICO',
         unitLabel: 'kg',
         minQuantity: new Prisma.Decimal(10),
+        category: { id: 'category-1', name: 'Químicos' },
+        manufacturer: 'Fabricante A',
+        location: 'Galpão 1',
         isActive: true,
         batches: [
           {
@@ -103,12 +106,18 @@ test('stock summary aggregates item and batch balances and alert flags', async (
 
   const summary = await buildStockSummary(client, now);
 
-  assert.equal(summary.length, 2);
+  assert.equal(summary.length, 3);
   assert.equal(summary[0].balance, '8.000');
+  assert.equal(summary[0].item.category.name, 'Químicos');
+  assert.equal(summary[0].item.manufacturer, 'Fabricante A');
+  assert.equal(summary[0].item.location, 'Galpão 1');
   assert.equal(summary[0].belowMin, true);
   assert.equal(summary[0].batches.length, 1);
   assert.equal(summary[0].batches[0].expiringSoon, true);
   assert.equal(summary[0].batches[0].expired, false);
   assert.equal(summary[1].item.id, 'inactive-with-balance');
   assert.equal(summary[1].balance, '3.000');
+  assert.equal(summary[2].item.id, 'inactive-zero');
+  assert.equal(summary[2].balance, '0.000');
+  assert.deepEqual(summary[2].batches, []);
 });

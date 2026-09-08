@@ -45,7 +45,7 @@ function stockItem(overrides = {}) {
     filterMicron: null,
     unNumber: null,
     casNumber: null,
-    fispqToken: null,
+    documents: [],
     checklistEnabled: false,
     checklistItems: null,
     isActive: true,

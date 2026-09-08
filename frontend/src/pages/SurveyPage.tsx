@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { getPublicSurvey, submitPublicSurvey, type SurveyQuestion, type SurveyResponsePayload } from '../api/surveys';

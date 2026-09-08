@@ -41,15 +41,15 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
-    ports:
-      - "80:80"
-      - "443:443"
+    # Portas 80/443 agora pertencem ao infra-proxy (deploy/infra-proxy/).
+    # Este nginx so e alcancado pelo Caddy, via proxy-net.
     volumes:
       - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - filtrovali_certs:/etc/letsencrypt
       - filtrovali_certbot_www:/var/www/certbot
     networks:
       - filtrovali-net
+      - proxy-net
 
 volumes:
   filtrovali_pgdata:
@@ -69,3 +69,6 @@ networks:
   filtrovali-net:
     name: filtrovali-net
     driver: bridge
+  proxy-net:
+    name: proxy-net
+    external: true

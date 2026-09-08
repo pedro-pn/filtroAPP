@@ -9,7 +9,8 @@ export const RECURRING_JOB_NAMES = [
   'signature-reminders',
   'calibration-reminders',
   'monthly-allocation-report',
-  'legacy-zapsign-reconciliation'
+  'legacy-zapsign-reconciliation',
+  'pontomais-sync'
 ];
 
 const REPORT_APPROVAL_STATUSES = ['PENDING', 'RUNNING', 'FAILED', 'COMPLETED', 'SKIPPED'];
@@ -21,7 +22,8 @@ const RECURRING_JOB_MAX_AGE_MS = {
   'signature-reminders': 3 * HOUR_MS,
   'calibration-reminders': 36 * HOUR_MS,
   'monthly-allocation-report': 3 * HOUR_MS,
-  'legacy-zapsign-reconciliation': HOUR_MS
+  'legacy-zapsign-reconciliation': HOUR_MS,
+  'pontomais-sync': HOUR_MS
 };
 
 function dateToIso(value) {

@@ -4,7 +4,7 @@ MAPA DO MODELO DE LIMPEZA MECÂNICA
 {{client}} - cliente do projeto
 {{cnpj}} - CNPJ do projeto
 {{local}} - local do projeto
-{{proposal}} - contrato do projeto
+{{proposal}} - proposta do projeto
 {{rlm}} - número rlm
 {{date}} - data do rdo
 

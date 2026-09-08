@@ -1,6 +1,6 @@
 # Filtrovali — Plataforma de Gestão de Campo
 
-Aplicação web modular para a gestão operacional da Filtrovali. Nasceu como sistema de relatórios técnicos de campo e evoluiu para uma plataforma com múltiplos módulos — relatórios e projetos (RDO), acompanhamento financeiro de projetos, romaneio de equipamentos, controle de estoque, cadastro de equipamentos, liberação de EPI e privacidade (LGPD) — todos acessados a partir de um hub central com controle de acesso por módulo.
+Aplicação web modular para a gestão operacional da Filtrovali. Nasceu como sistema de relatórios técnicos de campo e evoluiu para uma plataforma com múltiplos módulos — relatórios e projetos (RDO), acompanhamento financeiro de projetos, romaneio de equipamentos, controle de estoque, cadastro de equipamentos, liberação de EPI, assinaturas avulsas e privacidade (LGPD) — todos acessados a partir de um hub central com controle de acesso por módulo.
 
 ## Índice
 
@@ -52,6 +52,7 @@ Cada módulo tem sua própria área na aplicação, papéis de acesso e prefixo 
 | **Estoque** | `/api/estoque` | Filtros, produtos químicos, lotes e movimentações |
 | **Equipamentos** | `/api/equipamentos` | Cadastro, calibração, documentação técnica e notificações de equipamentos |
 | **Liberação de EPI** | `/api/epi` | Fichas de entrega/devolução e assinatura por colaborador |
+| **Assinaturas** | `/api/assinaturas` | Envio de PDFs, coleta de assinaturas avulsas, evidências e validação pública |
 | **Privacidade (LGPD)** | `/api/privacy` | Solicitações de titulares e protocolos LGPD |
 | **Gestão de Contas** | `/api/admin/accounts` | Administração inicial de usuários e acessos do hub |
 
@@ -140,6 +141,7 @@ O acesso é organizado por **módulo** e **papel dentro do módulo** (`ModuleRol
 | Equipamentos | Gestor, Visualizador |
 | EPI | Técnico, Colaborador |
 | Privacidade | Admin |
+| Assinaturas | Usuário |
 
 ### Perfis do módulo de Relatórios (RDO)
 
@@ -266,8 +268,19 @@ O acesso é organizado por **módulo** e **papel dentro do módulo** (`ModuleRol
 - Autoatendimento: exportação de dados e pedido de exclusão pela própria conta
 - Retenção de dados executada por script/job (dry-run e apply)
 
+### Assinaturas Avulsas
+
+- Envio de PDF com verificação SHA-256, prévia paginada e posicionamento de campos por assinante
+- Convites individuais por e-mail ou cópia manual, com renovação, revogação, expiração e retry durável
+- Link público recebido no fragmento da URL e enviado à API somente no header `X-Signature-Token`
+- Finalização recuperável do PDF, página de evidências, código/QR e validação pública por hash
+- Arquivamento, cancelamento e exclusão lógica com retenção de arquivos por 90 dias
+- Exclusão de conta com quarentena recuperável dos documentos não concluídos e preservação dos concluídos sem proprietário
+- Auditoria append-only e anonimização posterior de IP/User-Agent
+
 ### E-mails Automáticos
 
+- Autenticação do Exchange Online por OAuth2 app-only, sem senha da caixa ou interação de MFA ([configuração](docs/OUTLOOK_OAUTH2.md))
 - Boas-vindas ao criar conta de cliente ou conta interna
 - Novo projeto vinculado
 - Relatório aprovado, reprovado ou revisado
@@ -303,6 +316,7 @@ O acesso é organizado por **módulo** e **papel dentro do módulo** (`ModuleRol
 
 - **Omie**: sincronização periódica de contas a pagar/receber, categorias e projetos para o módulo de Acompanhamento. Habilitada por `OMIE_SYNC_ENABLED` e credenciais `OMIE_APP_KEY` / `OMIE_APP_SECRET`.
 - **Importação comercial**: propostas e projetos importados via endpoint protegido por `COMMERCIAL_IMPORT_TOKEN`.
+- **Webhook de projetos**: recebe número, nome, cliente, CNPJ, `proposalCode`, revisão e local em `POST /api/webhooks/projects`, protegido por `PROJECT_INTAKE_WEBHOOK_TOKEN`. A proposta é exibida como `3088 Rev. 2`; quando a origem envia `revision: -1`, fica somente `3088` e a seleção comercial procura a revisão `0`. Quando a revisão principal existe na base comercial e ainda não há escolha vigente, ela é selecionada automaticamente. O projeto entra destacado e aguarda verificação manual do cadastro, mantendo disponível a troca manual da revisão. Como a integração ainda não entrou em produção, `contractCode` não é aceito pelo webhook.
 - **Ponto**: importação de espelhos de ponto para cálculo de custo de mão de obra.
 - **Monitoramento operacional**: endpoint `/operations/status` e job de alerta configurável (backup/restore, webhooks) para saúde da stack.
 - **Error tracking**: captura de erros de cliente (`/operations/client-errors`) e provider configurável no backend/frontend.
@@ -449,19 +463,30 @@ Nginx :443 (SSL Let's Encrypt)
 | `TRUST_PROXY` | Sim em produção | Configuração Express `trust proxy`. Na stack Docker com Nginx use `uniquelocal` ou CIDRs explícitos |
 | `SURVEY_TOKEN_SECRET` | Sim em produção | Segredo longo e estável para tokens de pesquisa |
 | `SURVEY_TOKEN_SECRET_PREVIOUS` | Não | Segredos antigos aceitos durante rotação de tokens de pesquisa |
-| `SIGNATURE_TOKEN_SECRET` | Sim em produção | Segredo longo e estável para links de assinatura de RDO |
+| `SIGNATURE_TOKEN_SECRET` | Sim em produção | Segredo longo e estável para links de assinatura de RDO, EPI e assinaturas avulsas |
 | `SIGNATURE_TOKEN_SECRET_PREVIOUS` | Não | Segredos antigos aceitos durante rotação de tokens de assinatura |
+| `ASSINATURAS_MAX_PDF_MB` | Não | Limite do PDF avulso em MB (padrão: `20`) |
+| `ASSINATURAS_MAX_PAGES` | Não | Máximo de páginas por PDF avulso (padrão: `50`) |
+| `ASSINATURAS_MAX_SIGNERS` | Não | Máximo de assinantes por documento (padrão: `20`) |
+| `ASSINATURAS_TOKEN_MAX_DAYS` | Não | Validade máxima do convite em dias (padrão: `90`) |
+| `ASSINATURAS_DELETED_RETENTION_DAYS` | Não | Retenção de arquivos excluídos em dias (padrão: `90`) |
+| `ASSINATURAS_PREVIEW_SCALE` | Não | Escala inicial da renderização da prévia (padrão: `1.5`) |
 | `COMMERCIAL_IMPORT_TOKEN` | Não | Token que protege o endpoint de importação comercial do Acompanhamento |
+| `PROJECT_INTAKE_WEBHOOK_TOKEN` | Não | Token Bearer exclusivo do webhook de projetos; vazio mantém o endpoint desabilitado |
 | `OMIE_APP_KEY` / `OMIE_APP_SECRET` | Não | Credenciais da API Omie |
 | `OMIE_SYNC_ENABLED` | Não | Ativa a sincronização automática com o Omie |
 | `OMIE_SYNC_INTERVAL_MINUTES` | Não | Intervalo entre sincronizações Omie |
 | `OMIE_SYNC_SINCE_DAYS` | Não | Janela de dias considerada na sincronização Omie |
-| `SMTP_HOST` | Sim | Servidor SMTP (ex: `smtp.office365.com`) |
+| `SMTP_HOST` | Sim | Servidor SMTP (`smtp.office365.com`) |
 | `SMTP_PORT` | Sim | Porta SMTP (padrão: `587`) |
-| `SMTP_SECURE` | Não | `true` para SSL direto (porta 465) |
-| `SMTP_USER` | Sim | Usuário SMTP |
-| `SMTP_PASS` | Sim | Senha ou App Password |
+| `SMTP_SECURE` | Não | Para Exchange Online na porta 587, use `false` (STARTTLS) |
+| `SMTP_AUTH_MODE` | Não | `oauth2` para aplicação Microsoft Entra; `password` mantém o modo legado. Se omitido, OAuth2 é selecionado quando alguma credencial Microsoft existe |
+| `SMTP_USER` | Sim | Caixa do Exchange usada como remetente e identidade XOAUTH2 |
+| `SMTP_PASS` | Só no modo `password` | Senha SMTP legada; não é usada no modo OAuth2 |
 | `SMTP_FROM` | Sim | Remetente (ex: `Filtrovali <no-reply@…>`) |
+| `MICROSOFT_TENANT_ID` | No modo `oauth2` | ID do diretório (tenant) do Microsoft Entra |
+| `MICROSOFT_CLIENT_ID` | No modo `oauth2` | ID da aplicação (client) registrada no Microsoft Entra |
+| `MICROSOFT_CLIENT_SECRET` | No modo `oauth2` | **Valor** do segredo da aplicação, nunca o “Secret ID” |
 | `SEND_CLIENT_EMAILS` | Não | Use `false` em homologação/testes para bloquear todos os envios operacionais |
 | `SMTP_TEST_DEST` | Não | E-mail destino do script `test-email.js` |
 | `ASSETS_DIR` | Não | Diretório de assets estáticos |
@@ -563,6 +588,8 @@ Relatórios com status `APPROVED` são assinados pelo sistema interno.
 - Relatórios antigos já assinados pela ZapSign continuam disponíveis para download do PDF assinado; tokens ZapSign pendentes são reconciliados em background.
 - A liberação de EPI usa um fluxo de assinatura próprio, por link público com token.
 
+O módulo **Assinaturas** é independente do fluxo interno de RDO: recebe PDFs avulsos, cria convites próprios e gera um PDF final com evidências. O proprietário acessa `/assinaturas`; o assinante usa `/assinaturas/assinar#convite=...`; a autenticidade do concluído é consultada em `/validar-documento/:codigo` sem revelar e-mail, IP ou User-Agent.
+
 ---
 
 ## Scripts Utilitários
@@ -613,6 +640,10 @@ Prefixo base: `/api`. As rotas do módulo de relatórios são servidas tanto sob
 | `GET/POST` | `/rdo/projects` · `GET/PATCH/DELETE /rdo/projects/:id` | Projetos |
 | `GET/POST` | `/rdo/reports` · `GET/PATCH/DELETE /rdo/reports/:id` | Relatórios |
 | `POST` | `/rdo/reports/:id/request-signature` | Solicitar assinatura individual |
+| `GET/POST` | `/assinaturas/documentos` · `GET/PATCH/DELETE /assinaturas/documentos/:id` | Acervo e ciclo de vida de documentos avulsos |
+| `PUT/POST` | `/assinaturas/documentos/:id/assinantes` · `/campos` · `/publicar` | Preparação e publicação para assinatura |
+| `GET/POST` | `/assinaturas/publico` · `/publico/assinar` · `/publico/pdf` | Fluxo público via `X-Signature-Token` (sem segredo na URL da API) |
+| `GET` | `/assinaturas/validar/:code` | Validação pública do PDF concluído |
 | `GET/POST` | `/rdo/dds-themes` | Temas de DDS |
 | `GET` | `/rdo/statistics/projects` · `/rdo/statistics/projects/export` · `/rdo/statistics/overview` | Estatísticas de RDOs |
 | `GET/POST` | `/rdo/statistics/allocation-report` (+ `/pdf`, `/send`, `/recipients`) | Relatório de alocação |
@@ -621,6 +652,7 @@ Prefixo base: `/api`. As rotas do módulo de relatórios são servidas tanto sob
 | `GET/PUT` | `/rdo/surveys/questions` · `PATCH /rdo/surveys/:id/follow-up` | Perguntas e follow-up |
 | `GET/POST` | `/rdo/project-segments` | Segmentos de cliente |
 | `GET/POST` | `/acompanhamento/comercial/import` · `/imports` | Importação comercial |
+| `POST` | `/webhooks/projects` | Recebimento autenticado e idempotente de projeto externo para revisão manual |
 | `GET` | `/acompanhamento/comercial/dashboard` · `/projetos-cards` · `/sede` · `/pendencias` | Dashboards do Acompanhamento |
 | `GET/POST/PATCH/DELETE` | `/acompanhamento/comercial/projetos/:id/...` | Detalhe, avanço, cronograma, escopo, custos manuais e revisões |
 | `GET/PUT/POST` | `/acompanhamento/custo/perfis` · `/cargos` · `/config` · `/simular` · `/categorias-omie` | Parâmetros e simulação de custo |

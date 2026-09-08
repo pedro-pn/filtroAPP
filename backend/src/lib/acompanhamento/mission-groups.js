@@ -2,6 +2,10 @@ import { hasSameClient, sameClientName } from './client-identity.js';
 
 const ACTIVE = 'ACTIVE';
 const DISSOLVED = 'DISSOLVED';
+const VISUAL_ONLY = 'VISUAL_ONLY';
+const SHARED_EXECUTION = 'SHARED_EXECUTION';
+const CONSOLIDATE_PRIMARY = 'CONSOLIDATE_PRIMARY';
+const LABOR_ALLOCATION_MODES = new Set([VISUAL_ONLY, SHARED_EXECUTION, CONSOLIDATE_PRIMARY]);
 let prismaClient = null;
 
 async function getDb(db) {
@@ -28,6 +32,15 @@ const groupInclude = {
     include: { project: { select: projectSelect } }
   }
 };
+
+const visibleGroupInclude = {
+  members: {
+    ...groupInclude.members,
+    where: { project: { managerOnly: false } }
+  }
+};
+
+const visibleGroupWhere = { members: { some: { project: { managerOnly: false } } } };
 
 export class MissionGroupError extends Error {
   constructor(code, message) {
@@ -78,6 +91,10 @@ export function serializeMissionGroup(group, { warning = null } = {}) {
     id: group.id,
     name: group.name,
     status: group.status,
+    laborAllocationMode: LABOR_ALLOCATION_MODES.has(group.laborAllocationMode)
+      ? group.laborAllocationMode
+      : VISUAL_ONLY,
+    primaryLaborProjectId: group.primaryLaborProjectId ?? null,
     createdAt: group.createdAt instanceof Date ? group.createdAt.toISOString() : group.createdAt,
     updatedAt: group.updatedAt instanceof Date ? group.updatedAt.toISOString() : group.updatedAt,
     dissolvedAt: group.dissolvedAt instanceof Date ? group.dissolvedAt.toISOString() : (group.dissolvedAt ?? null),
@@ -90,9 +107,9 @@ export async function listMissionGroups({ status = ACTIVE, db = null } = {}) {
   db = await getDb(db);
   const where = status === 'ALL' ? {} : { status };
   const groups = await db.acompanhamentoMissionGroup.findMany({
-    where,
+    where: { ...where, ...visibleGroupWhere },
     orderBy: { createdAt: 'desc' },
-    include: groupInclude
+    include: visibleGroupInclude
   });
   return groups.map(group => serializeMissionGroup(group));
 }
@@ -100,9 +117,9 @@ export async function listMissionGroups({ status = ACTIVE, db = null } = {}) {
 export async function loadActiveMissionGroups({ db = null } = {}) {
   db = await getDb(db);
   return db.acompanhamentoMissionGroup.findMany({
-    where: { status: ACTIVE },
+    where: { status: ACTIVE, ...visibleGroupWhere },
     orderBy: { createdAt: 'asc' },
-    include: groupInclude
+    include: visibleGroupInclude
   });
 }
 
@@ -110,9 +127,9 @@ export async function getActiveMissionGroup({ groupId, db = null } = {}) {
   db = await getDb(db);
   const group = await db.acompanhamentoMissionGroup.findUnique({
     where: { id: groupId },
-    include: groupInclude
+    include: visibleGroupInclude
   });
-  if (!group) {
+  if (!group || group.members.length === 0) {
     throw new MissionGroupError('GROUP_NOT_FOUND', 'Agrupamento não encontrado.');
   }
   if (group.status !== ACTIVE) {
@@ -152,6 +169,8 @@ export async function createMissionGroup({ name, projectIds, userId = null, db =
       data: {
         name: displayName,
         status: ACTIVE,
+        laborAllocationMode: VISUAL_ONLY,
+        primaryLaborProjectId: null,
         createdByUserId: userId,
         members: {
           create: ids.map((projectId, order) => ({
@@ -169,27 +188,67 @@ export async function createMissionGroup({ name, projectIds, userId = null, db =
   return db.$transaction ? db.$transaction(run) : run(db);
 }
 
-export async function renameMissionGroup({ groupId, name, db = null } = {}) {
+export async function updateMissionGroup({
+  groupId,
+  name,
+  laborAllocationMode,
+  primaryLaborProjectId = null,
+  db = null
+} = {}) {
   db = await getDb(db);
-  const displayName = trimName(name);
-  if (!displayName || displayName.length > 120) {
+  const updatesName = name !== undefined;
+  const displayName = updatesName ? trimName(name) : null;
+  if (updatesName && (!displayName || displayName.length > 120)) {
     throw new MissionGroupError('INVALID_NAME', 'Informe um nome com até 120 caracteres.');
+  }
+  const updatesLaborPolicy = laborAllocationMode !== undefined;
+  if (updatesLaborPolicy && !LABOR_ALLOCATION_MODES.has(laborAllocationMode)) {
+    throw new MissionGroupError('INVALID_LABOR_ALLOCATION_MODE', 'Política de mão de obra inválida.');
+  }
+  if (!updatesName && !updatesLaborPolicy) {
+    throw new MissionGroupError('NO_CHANGES', 'Informe o nome ou a política de mão de obra a alterar.');
   }
 
   const existing = await db.acompanhamentoMissionGroup.findUnique({
     where: { id: groupId },
-    select: { id: true, status: true }
+    include: groupInclude
   });
   if (!existing || existing.status !== ACTIVE) {
     throw new MissionGroupError('GROUP_NOT_ACTIVE', 'Agrupamento não encontrado ou já desmesclado.');
   }
 
+  let normalizedPrimaryProjectId = existing.primaryLaborProjectId ?? null;
+  if (updatesLaborPolicy) {
+    normalizedPrimaryProjectId = laborAllocationMode === CONSOLIDATE_PRIMARY
+      ? String(primaryLaborProjectId || '').trim() || null
+      : null;
+    if (laborAllocationMode === CONSOLIDATE_PRIMARY) {
+      const memberIds = new Set((existing.members || []).map(member => member.projectId));
+      if (!normalizedPrimaryProjectId || !memberIds.has(normalizedPrimaryProjectId)) {
+        throw new MissionGroupError(
+          'PRIMARY_NOT_MEMBER',
+          'Selecione como missão principal um projeto que pertença a este agrupamento.'
+        );
+      }
+    }
+  }
+
   const group = await db.acompanhamentoMissionGroup.update({
     where: { id: groupId },
-    data: { name: displayName },
+    data: {
+      ...(updatesName ? { name: displayName } : {}),
+      ...(updatesLaborPolicy ? {
+        laborAllocationMode,
+        primaryLaborProjectId: normalizedPrimaryProjectId
+      } : {})
+    },
     include: groupInclude
   });
   return serializeMissionGroup(group);
+}
+
+export async function renameMissionGroup({ groupId, name, db = null } = {}) {
+  return updateMissionGroup({ groupId, name, db });
 }
 
 export async function dissolveMissionGroup({ groupId, userId = null, db = null } = {}) {
@@ -228,4 +287,10 @@ export async function dissolveMissionGroup({ groupId, userId = null, db = null }
 export const MISSION_GROUP_STATUS = {
   ACTIVE,
   DISSOLVED
+};
+
+export const MISSION_GROUP_LABOR_ALLOCATION_MODE = {
+  VISUAL_ONLY,
+  SHARED_EXECUTION,
+  CONSOLIDATE_PRIMARY
 };

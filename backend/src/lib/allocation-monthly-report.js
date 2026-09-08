@@ -138,7 +138,7 @@ function reportAllocationEntries(report) {
       date,
       collaboratorId: stringValue(link.collaboratorId || collaborator.id),
       collaboratorName: stringValue(collaborator.name),
-      collaboratorRole: stringValue(collaborator.role),
+      collaboratorRole: stringValue(link.roleNameSnapshot || collaborator.jobRole?.name),
       shift: 'Diurno',
       projectId: report.projectId,
       projectCode: project.code || '',
@@ -235,7 +235,8 @@ export async function buildMonthlyAllocationSummary({ yearMonth, client = prisma
       collaborators: {
         select: {
           collaboratorId: true,
-          collaborator: { select: { id: true, name: true, role: true } }
+          roleNameSnapshot: true,
+          collaborator: { select: { id: true, name: true, jobRole: { select: { name: true } } } }
         }
       }
     },

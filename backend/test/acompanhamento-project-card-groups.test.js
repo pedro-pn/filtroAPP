@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { combineProgressHistory, groupProjectCards } from '../src/lib/acompanhamento/project-card-groups.js';
+import { combineEquipment, combineProgressHistory, groupProjectCards } from '../src/lib/acompanhamento/project-card-groups.js';
 
 function card(overrides = {}) {
   return {
@@ -11,6 +11,11 @@ function card(overrides = {}) {
     clientName: overrides.clientName ?? 'Cliente A',
     clientCnpj: overrides.clientCnpj ?? '11222333000144',
     archived: overrides.archived ?? false,
+    archivedInReports: overrides.archivedInReports ?? false,
+    archivedInAcompanhamento: overrides.archivedInAcompanhamento ?? false,
+    reviewed: overrides.reviewed ?? false,
+    reviewedAt: overrides.reviewedAt ?? null,
+    reportArchivedAt: overrides.reportArchivedAt ?? null,
     category: overrides.category ?? 'ANDAMENTO',
     workedDays: overrides.workedDays ?? 1,
     totalDays: overrides.totalDays ?? 2,
@@ -43,6 +48,7 @@ function card(overrides = {}) {
     expectedEndDate: overrides.expectedEndDate ?? '2026-07-20T00:00:00.000Z',
     laborCost: overrides.laborCost ?? 20,
     laborCostBase: overrides.laborCostBase ?? 18,
+    laborHours: overrides.laborHours ?? 10,
     stockCost: overrides.stockCost ?? 7,
     manualCost: overrides.manualCost ?? 3,
     equipment: overrides.equipment ?? [],
@@ -61,6 +67,22 @@ function group(overrides = {}) {
     ]
   };
 }
+
+test('combineEquipment preserves distinct TAGs with the same name and departure date', () => {
+  const since = '2026-08-22T00:00:00.000Z';
+  const equipment = combineEquipment([
+    { equipment: [
+      { code: 'UFI 008', name: 'Unidade de filtragem', since, days: 3 },
+      { code: 'UFI 009', name: 'Unidade de filtragem', since, days: 3 }
+    ] },
+    { equipment: [{ code: 'UFI 008', name: 'Unidade de filtragem', since, days: 5 }] }
+  ]);
+
+  assert.deepEqual(equipment, [
+    { code: 'UFI 008', name: 'Unidade de filtragem', since, days: 5 },
+    { code: 'UFI 009', name: 'Unidade de filtragem', since, days: 3 }
+  ]);
+});
 
 test('groupProjectCards hides child cards and emits one consolidated group card', () => {
   const result = groupProjectCards([
@@ -83,6 +105,7 @@ test('groupProjectCards sums money, recalculates ratios, deduplicates collaborat
       code: '1001',
       plannedCost: 100,
       realizedCost: 25,
+      laborHours: 8,
       manualCost: 5,
       invoicedRevenue: 80,
       invoiceCount: 1,
@@ -96,6 +119,7 @@ test('groupProjectCards sums money, recalculates ratios, deduplicates collaborat
       code: '1002',
       plannedCost: 300,
       realizedCost: 175,
+      laborHours: 8,
       manualCost: 15,
       invoicedRevenue: 220,
       invoiceCount: 2,
@@ -109,6 +133,7 @@ test('groupProjectCards sums money, recalculates ratios, deduplicates collaborat
   const grouped = result[0];
   assert.equal(grouped.plannedCost, 400);
   assert.equal(grouped.realizedCost, 200);
+  assert.equal(grouped.laborHours, 16);
   assert.equal(grouped.manualCost, 20);
   assert.equal(grouped.costConsumedPct, 50);
   assert.equal(grouped.invoicedRevenue, 300);
@@ -129,6 +154,17 @@ test('groupProjectCards uses category precedence and weighted progress', () => {
   assert.equal(result[0].category, 'ANDAMENTO');
   assert.equal(result[0].progressMethod, 'GROUP_WEIGHTED');
   assert.equal(result[0].progressPct, 70);
+});
+
+test('groupProjectCards only marks the group reviewed when every archived mission was reviewed', () => {
+  const result = groupProjectCards([
+    card({ projectId: 'p1', archived: true, archivedInReports: true, reviewed: true, reviewedAt: '2026-08-06T10:00:00.000Z', reportArchivedAt: '2026-08-06T09:00:00.000Z', category: 'ARQUIVADO' }),
+    card({ projectId: 'p2', archived: true, archivedInAcompanhamento: true, reviewed: false, category: 'ARQUIVADO' })
+  ], [group()]);
+
+  assert.equal(result[0].category, 'ARQUIVADO');
+  assert.equal(result[0].reviewed, false);
+  assert.equal(result[0].reportArchivedAt, '2026-08-06T09:00:00.000Z');
 });
 
 test('groupProjectCards compares clients by CNPJ before client name', () => {

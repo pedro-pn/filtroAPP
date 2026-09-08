@@ -835,7 +835,10 @@ test('PUT /auth/account preserves verified email when normalized email is unchan
   });
   prisma.user.findUniqueOrThrow = async args => {
     if (args.include && Object.keys(args.include).length === 2) {
-      assert.deepEqual(args.include, { collaborator: true, moduleRoles: true });
+      assert.deepEqual(args.include, {
+        collaborator: { include: { jobRole: true } },
+        moduleRoles: true
+      });
     }
     return user;
   };

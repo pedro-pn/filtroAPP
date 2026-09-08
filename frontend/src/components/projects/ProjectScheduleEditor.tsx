@@ -36,6 +36,24 @@ function pct(value?: string | number | null) {
   const n = toNum(value);
   return n === null ? '—' : `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
 }
+function sumRevisionValue(revisions: CommercialRevision[], getter: (revision: CommercialRevision) => string | number | null | undefined, decimals = 2) {
+  let total = 0;
+  let seen = false;
+  for (const revision of revisions) {
+    const n = toNum(getter(revision));
+    if (n === null) continue;
+    total += n;
+    seen = true;
+  }
+  if (!seen) return null;
+  return decimals === 0 ? Math.round(total) : Math.round((total + Number.EPSILON) * 100) / 100;
+}
+function expectedMarginFrom(revisions: CommercialRevision[]) {
+  const sale = sumRevisionValue(revisions, revision => revision.salePrice);
+  const profit = sumRevisionValue(revisions, revision => revision.expectedProfit);
+  if (sale === null || sale <= 0 || profit === null) return revisions[0]?.expectedMargin ?? null;
+  return Math.round(((profit / sale) * 100 + Number.EPSILON) * 100) / 100;
+}
 function toDateInput(iso?: string | null) {
   return iso ? iso.slice(0, 10) : '';
 }
@@ -117,6 +135,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const [approvalEdit, setApprovalEdit] = useState<string | null>(null);
   const [startEdit, setStartEdit] = useState<string | null>(null);
   const [mobEdit, setMobEdit] = useState<string | null>(null);
+  const [demobEdit, setDemobEdit] = useState<string | null>(null);
   const [manualEdit, setManualEdit] = useState<string | null>(null);
   const [offshoreEdit, setOffshoreEdit] = useState<boolean | null>(null);
   const [sleepModeEdit, setSleepModeEdit] = useState<Record<string, LaborSleepMode> | null>(null);
@@ -132,6 +151,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
       setApprovalEdit(null);
       setStartEdit(null);
       setMobEdit(null);
+      setDemobEdit(null);
       setManualEdit(null);
       setOffshoreEdit(null);
       setSleepModeEdit(null);
@@ -143,6 +163,8 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
       queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] });
       queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] });
       queryClient.invalidateQueries({ queryKey: ['ponto-colaboradores'] });
+      queryClient.invalidateQueries({ queryKey: ['efetivo-planning-missions'] });
+      queryClient.invalidateQueries({ queryKey: ['efetivo-planning-missions-pending'] });
     },
     onError: () => showToast('Não foi possível atualizar o cronograma.')
   });
@@ -151,6 +173,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const approvalValue = approvalEdit ?? toDateInput(data?.approvedAt);
   const startValue = startEdit ?? toDateInput(data?.startDate);
   const mobValue = mobEdit ?? toDateInput(data?.mobilizationDate);
+  const demobValue = demobEdit ?? toDateInput(data?.demobilizationDate);
   const baseManual = data?.manualProgressPct == null ? '' : String(data.manualProgressPct);
   const manualValue = manualEdit ?? baseManual;
   const baseOffshore = data?.offshore ?? false;
@@ -162,6 +185,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const scheduleDirty = approvalValue !== toDateInput(data?.approvedAt)
     || startValue !== toDateInput(data?.startDate)
     || mobValue !== toDateInput(data?.mobilizationDate)
+    || demobValue !== toDateInput(data?.demobilizationDate)
     || manualValue !== baseManual
     || offshoreValue !== baseOffshore
     || sleepModeMapKey(sleepModeValue) !== sleepModeMapKey(baseSleepModeMap)
@@ -197,6 +221,7 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
         approvedAt: isoOrNull(approvalValue),
         startDate: isoOrNull(startValue),
         mobilizationDate: isoOrNull(mobValue),
+        demobilizationDate: isoOrNull(demobValue),
         manualProgressPct: manualNum != null && Number.isFinite(manualNum) ? Math.min(100, Math.max(0, manualNum)) : null,
         offshore: offshoreValue,
         laborSleepModeByCollaborator: normalizeSleepModeMap(sleepModeValue),
@@ -215,13 +240,23 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   const currentRevision: CommercialRevision | undefined = revisions.find(r => r.codBd === current) ?? undefined;
 
   if (current == null || !currentRevision) {
-    return <div className="placeholder-copy">Aguardando seleção do contrato fechado pela gestão.</div>;
+    return <div className="placeholder-copy">Aguardando seleção da proposta aprovada pela gestão.</div>;
   }
 
   const leadDays = data?.mobilizationLeadDays ?? null;
   const deadline = approvalValue && leadDays != null ? addDays(approvalValue, leadDays) : '';
   const late = Boolean(startValue && deadline && startValue > deadline);
-  const plannedDays = currentRevision.plannedDays ?? null;
+  const additionalRevisions = (data?.additionalProposals ?? [])
+    .map(group => group.revisions.find(revision => revision.codBd === group.currentCodBd))
+    .filter((revision): revision is CommercialRevision => Boolean(revision));
+  const commercialRevisions = [currentRevision, ...additionalRevisions];
+  const additionalSalePrice = sumRevisionValue(additionalRevisions, revision => revision.salePrice);
+  const additionalPlannedCost = sumRevisionValue(additionalRevisions, revision => revision.plannedCost);
+  const plannedSalePrice = sumRevisionValue(commercialRevisions, revision => revision.salePrice);
+  const plannedCost = sumRevisionValue(commercialRevisions, revision => revision.plannedCost);
+  const expectedMargin = expectedMarginFrom(commercialRevisions);
+  const plannedDays = sumRevisionValue(commercialRevisions, revision => revision.plannedDays, 0);
+  const plannedWorkedDays = sumRevisionValue(commercialRevisions, revision => revision.workedDays, 0);
   const consumed = startValue && plannedDays ? daysBetween(startValue, new Date()) : null;
   const consumedPct = consumed != null && plannedDays ? Math.round((consumed / plannedDays) * 100) : null;
   const activeCollaborators = activeCollaboratorsQuery.data ?? [];
@@ -330,20 +365,35 @@ export const ProjectScheduleEditor = forwardRef<ScheduleEditorHandle, {
   return (
     <div className="det-section">
       <div className="det-row"><span className="det-label">Previsto (comercial)</span>
-        <span className="det-val">Venda {brl(currentRevision.salePrice)} · Custo {brl(currentRevision.plannedCost)} · Margem {pct(currentRevision.expectedMargin)}</span>
+        <span className="det-val acp-budget-value">
+          <span>Venda {brl(plannedSalePrice)} · Custo {brl(plannedCost)} · Margem {pct(expectedMargin)}</span>
+          {additionalRevisions.length > 0 ? (
+            <small className="acp-budget-split">Original {brl(currentRevision.salePrice)} / {brl(currentRevision.plannedCost)} · Adicional {brl(additionalSalePrice)} / {brl(additionalPlannedCost)}</small>
+          ) : null}
+        </span>
       </div>
       <div className="det-row"><span className="det-label">Dias / equipe</span>
-        <span className="det-val">{currentRevision.plannedDays ?? '—'} corridos · {currentRevision.workedDays ?? '—'} trab. · {currentRevision.numOperators ?? '—'} op / {currentRevision.numSupervisors ?? '—'} enc · {currentRevision.numPerDay ?? '—'} d / {currentRevision.numPerNight ?? '—'} n</span>
+        <span className="det-val">{plannedDays ?? '—'} corridos · {plannedWorkedDays ?? '—'} trab. · {currentRevision.numOperators ?? '—'} op / {currentRevision.numSupervisors ?? '—'} enc · {currentRevision.numPerDay ?? '—'} d / {currentRevision.numPerNight ?? '—'} n</span>
       </div>
 
       <div className="admin-inline-grid" style={{ marginTop: 8 }}>
         <div className="field-group">
-          <label htmlFor={`acp-aprov-${projectId}`}>Aprovação do contrato <HelpTip icon help="Data em que o contrato/proposta foi aprovado pelo cliente. Base para o prazo de mobilização." /></label>
+          <label htmlFor={`acp-aprov-${projectId}`}>Aprovação da proposta <HelpTip icon help="Data em que a proposta foi aprovada pelo cliente. Base para o prazo de mobilização." /></label>
           <input id={`acp-aprov-${projectId}`} type="date" value={approvalValue} onChange={e => setApprovalEdit(e.target.value)} />
         </div>
         <div className="field-group">
           <label htmlFor={`acp-mob-${projectId}`}>Mobilização <HelpTip icon help="Data em que a equipe/equipamento foram mobilizados para a obra. Exibida no rodapé do dashboard do projeto." /></label>
           <input id={`acp-mob-${projectId}`} type="date" value={mobValue} onChange={e => setMobEdit(e.target.value)} />
+        </div>
+        <div className="field-group">
+          <label htmlFor={`acp-desmob-${projectId}`}>Desmobilização <HelpTip icon help="Data em que a equipe deixou a obra. Preencha só depois do fato. Com mobilização e desmobilização preenchidas, os dias de ponto da equipe que não têm etiqueta do Ponto Mais nem RDO passam a ser alocados automaticamente nesta missão. Enquanto ficar vazia, esses dias continuam indo para as pendências." /></label>
+          <input
+            id={`acp-desmob-${projectId}`}
+            type="date"
+            value={demobValue}
+            min={mobValue || undefined}
+            onChange={e => setDemobEdit(e.target.value)}
+          />
         </div>
         <div className="field-group">
           <label htmlFor={`acp-inicio-${projectId}`}>Início real <HelpTip icon help="Data em que a execução começou de fato. Ponto de partida dos dias corridos e da previsão de término." /></label>

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 
 import { useAuth } from '../auth/AuthContext';
 
@@ -15,7 +15,7 @@ interface TopBarProps {
   showLogo?: boolean;
 }
 
-export function TopBar({ title, subtitle, actions, step, leading, showLogo = false }: TopBarProps) {
+export function TopBar({ title, subtitle, actions, step, leading, showLogo = true }: TopBarProps) {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();

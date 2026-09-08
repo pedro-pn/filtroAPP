@@ -5,6 +5,14 @@ on:
     branches:
       - main
   pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -34,6 +42,20 @@ jobs:
   backend:
     name: Backend
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: filtrovali
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d filtrovali"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: backend
@@ -72,6 +94,9 @@ jobs:
 
       - name: Generate Prisma client
         run: npm run prisma:generate
+
+      - name: Apply database migrations
+        run: npm run prisma:deploy
 
       - name: Run backend tests
         run: npm test

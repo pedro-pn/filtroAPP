@@ -9,6 +9,7 @@ import {
 test('collaborator schema accepts empty nullable contact fields', () => {
   const parsed = collaboratorSchema.parse({
     name: 'Colaborador',
+    jobRoleId: 'role-1',
     role: 'Operador',
     email: null,
     signatureImage: null
@@ -21,6 +22,7 @@ test('collaborator schema accepts empty nullable contact fields', () => {
 test('collaborator schema normalizes blank contact fields to null', () => {
   const parsed = collaboratorSchema.parse({
     name: 'Colaborador',
+    jobRoleId: 'role-1',
     role: 'Operador',
     email: '',
     signatureImage: ''
@@ -36,6 +38,19 @@ test('collaborator schema rejects invalid email values', () => {
     role: 'Operador',
     email: 'email-invalido'
   }));
+});
+
+test('collaborator schema normalizes termination date for Prisma and accepts clearing it', () => {
+  const parsed = collaboratorSchema.partial().parse({ terminationDate: '2026-08-21' });
+  assert.equal(parsed.terminationDate.toISOString(), '2026-08-21T00:00:00.000Z');
+  assert.equal(collaboratorSchema.partial().parse({ terminationDate: '' }).terminationDate, null);
+  assert.throws(() => collaboratorSchema.partial().parse({ terminationDate: '21/08/2026' }));
+});
+
+test('collaborator schema normalizes job role effective date for Prisma', () => {
+  const parsed = collaboratorSchema.partial().parse({ jobRoleEffectiveDate: '2026-08-21' });
+  assert.equal(parsed.jobRoleEffectiveDate.toISOString(), '2026-08-21T00:00:00.000Z');
+  assert.throws(() => collaboratorSchema.partial().parse({ jobRoleEffectiveDate: '21/08/2026' }));
 });
 
 test('collaborator signature notice is required for new signature images', () => {

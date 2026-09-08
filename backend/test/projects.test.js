@@ -134,7 +134,7 @@ test('GET /projects keeps client listings scoped to non-deleted projects', async
 
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.json, []);
-  const projectListQuery = calls.find(call => call.include?.operator === true);
+  const projectListQuery = calls.find(call => call.include?.operator);
   assert.equal(projectListQuery.where.deletedAt, null);
   assert.equal(projectListQuery.where.managerOnly, false);
 });
@@ -317,7 +317,7 @@ test('PUT /projects/:id clears pending registration after required fields are co
     name: 'CGH Maria Cavaleira',
     clientName: 'Cliente',
     clientCnpj: '11.222.333/0001-44',
-    contractCode: 'Contrato 1',
+    contractCode: 'Proposta 1',
     location: 'Local 1',
     authorizedUserIds: [],
     reportSequences: []

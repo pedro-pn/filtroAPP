@@ -411,21 +411,30 @@ export function buildEmailChangeConfirmationTemplate({ userName, email, confirmU
   };
 }
 
-export function buildClientWelcomeEmailTemplate({ clientName, cnpj, password, appUrl, projectCode, projectName }) {
+export function buildClientWelcomeEmailTemplate({
+  clientName,
+  username,
+  setupUrl,
+  expiresLabel,
+  projectCode,
+  projectName
+}) {
   const title = 'Acesso do cliente liberado';
   const intro = `A conta do cliente ${clientName} foi criada no sistema Filtrovali.`;
   const body = `
     <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
       <div style="font-size:14px;line-height:1.8">
         <div><strong>Projeto inicial:</strong> ${projectCode} - ${projectName}</div>
-        <div><strong>Usuário:</strong> ${cnpj}</div>
-        <div><strong>Senha inicial:</strong> ${password}</div>
+        <div><strong>Usuário:</strong> ${username}</div>
       </div>
     </div>
-    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+    <p style="font-size:14px;line-height:1.7;margin:16px 0">Crie sua senha pessoal para acessar o sistema:</p>
+    <p style="margin:0 0 16px"><a href="${setupUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Criar minha senha</a></p>
+    <p style="font-size:13px;line-height:1.7;margin:0 0 8px">Se preferir, copie e cole este link no navegador:</p>
+    <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0">${setupUrl}</p>
     ${privacyHtmlLine()}
   `;
-  const footer = 'Guarde estas informações com segurança. Depois do primeiro acesso, a senha pode ser alterada na área de conta.';
+  const footer = `Este link é de uso único e expira em ${expiresLabel}.`;
 
   return {
     subject: '[Filtrovali] Seu acesso foi criado',
@@ -433,18 +442,23 @@ export function buildClientWelcomeEmailTemplate({ clientName, cnpj, password, ap
       `A conta do cliente ${clientName} foi criada no sistema Filtrovali.`,
       '',
       `Projeto inicial: ${projectCode} - ${projectName}`,
-      `Usuário: ${cnpj}`,
-      `Senha inicial: ${password}`,
-      appUrl ? `Acesso: ${appUrl}` : '',
+      `Usuário: ${username}`,
       '',
-      'Depois do primeiro acesso, a senha pode ser alterada na área de conta.',
+      `Crie sua senha neste link: ${setupUrl}`,
+      `Este link é de uso único e expira em ${expiresLabel}.`,
       privacyTextLine()
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
   };
 }
 
-export function buildInternalUserWelcomeEmailTemplate({ userName, username, password, roleLabel, appUrl }) {
+export function buildInternalUserWelcomeEmailTemplate({
+  userName,
+  username,
+  setupUrl,
+  expiresLabel,
+  roleLabel
+}) {
   const title = 'Acesso ao sistema liberado';
   const intro = `A conta de ${roleLabel} ${userName} foi criada no sistema Filtrovali.`;
   const body = `
@@ -452,13 +466,15 @@ export function buildInternalUserWelcomeEmailTemplate({ userName, username, pass
       <div style="font-size:14px;line-height:1.8">
         <div><strong>Perfil:</strong> ${roleLabel}</div>
         <div><strong>Usuário:</strong> ${username}</div>
-        <div><strong>Senha inicial:</strong> ${password}</div>
       </div>
     </div>
-    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+    <p style="font-size:14px;line-height:1.7;margin:16px 0">Crie sua senha pessoal para acessar o sistema:</p>
+    <p style="margin:0 0 16px"><a href="${setupUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Criar minha senha</a></p>
+    <p style="font-size:13px;line-height:1.7;margin:0 0 8px">Se preferir, copie e cole este link no navegador:</p>
+    <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0">${setupUrl}</p>
     ${privacyHtmlLine()}
   `;
-  const footer = 'Guarde estas informações com segurança. Depois do primeiro acesso, a senha pode ser alterada na área de conta.';
+  const footer = `Este link é de uso único e expira em ${expiresLabel}.`;
 
   return {
     subject: '[Filtrovali] Seu acesso foi criado',
@@ -467,10 +483,9 @@ export function buildInternalUserWelcomeEmailTemplate({ userName, username, pass
       '',
       `Perfil: ${roleLabel}`,
       `Usuário: ${username}`,
-      `Senha inicial: ${password}`,
-      appUrl ? `Acesso: ${appUrl}` : '',
       '',
-      'Depois do primeiro acesso, a senha pode ser alterada na área de conta.',
+      `Crie sua senha neste link: ${setupUrl}`,
+      `Este link é de uso único e expira em ${expiresLabel}.`,
       privacyTextLine()
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
@@ -484,7 +499,7 @@ export function buildClientProjectLinkedEmailTemplate({ clientName, appUrl, proj
     <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
       <div style="font-size:14px;line-height:1.8">
         <div><strong>Projeto:</strong> ${projectCode} - ${projectName}</div>
-        <div><strong>Contrato:</strong> ${contractCode || '---'}</div>
+        <div><strong>Proposta:</strong> ${contractCode || '---'}</div>
       </div>
     </div>
     ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
@@ -498,7 +513,7 @@ export function buildClientProjectLinkedEmailTemplate({ clientName, appUrl, proj
       `Um novo projeto foi vinculado à conta do cliente ${clientName}.`,
       '',
       `Projeto: ${projectCode} - ${projectName}`,
-      `Contrato: ${contractCode || '---'}`,
+      `Proposta: ${contractCode || '---'}`,
       appUrl ? `Acesso: ${appUrl}` : '',
       privacyTextLine()
     ].filter(Boolean).join('\n'),
@@ -702,6 +717,94 @@ export function buildReportSignatureRequestEmailTemplate({
       privacyTextLine()
     ].join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
+  };
+}
+
+export function buildStandaloneSignatureRequestEmailTemplate({
+  documentTitle,
+  requesterNameSnapshot,
+  signerName,
+  signUrl,
+  expiresLabel
+}) {
+  const safeTitle = escapeHtml(documentTitle || 'Documento');
+  const safeRequester = escapeHtml(requesterNameSnapshot || 'Solicitante');
+  const safeSigner = escapeHtml(signerName || 'Assinante');
+  const safeUrl = escapeHtml(signUrl);
+  const safeExpires = escapeHtml(expiresLabel || 'prazo informado no convite');
+  const title = 'Documento disponível para assinatura';
+  const intro = `${safeRequester} solicitou sua assinatura eletrônica no documento ${safeTitle}.`;
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Assinante:</strong> ${safeSigner}</div>
+        <div><strong>Documento:</strong> ${safeTitle}</div>
+        <div><strong>Solicitante:</strong> ${safeRequester}</div>
+        <div><strong>Prazo:</strong> ${safeExpires}</div>
+      </div>
+    </div>
+    <p style="margin:16px 0"><a href="${safeUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Assinar documento</a></p>
+    <p style="font-size:13px;line-height:1.7;margin:0 0 8px">Este link é individual. Se preferir, copie e cole no navegador:</p>
+    <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0">${safeUrl}</p>
+    ${privacyHtmlLine()}
+  `;
+  return {
+    subject: `[Filtrovali] Assinatura disponível - ${documentTitle || 'Documento'}`,
+    text: [
+      `Olá, ${signerName || 'Assinante'}.`,
+      '',
+      `${requesterNameSnapshot || 'O solicitante'} pediu sua assinatura no documento ${documentTitle || 'Documento'}.`,
+      `Prazo: ${expiresLabel || 'consulte o convite'}`,
+      '',
+      `Assinar documento: ${signUrl}`,
+      '',
+      privacyTextLine()
+    ].join('\n'),
+    html: wrapEmailHtml({
+      title,
+      intro,
+      body,
+      footer: 'Este link é individual e foi gerado automaticamente pelo sistema Filtrovali.'
+    })
+  };
+}
+
+export function buildStandaloneSignatureCompletedEmailTemplate({
+  documentTitle,
+  signerNames,
+  finalDocumentHash,
+  appUrl
+}) {
+  const safeTitle = escapeHtml(documentTitle || 'Documento');
+  const names = Array.isArray(signerNames) ? signerNames.filter(Boolean) : [];
+  const safeNames = names.map(escapeHtml);
+  const safeHash = escapeHtml(finalDocumentHash || '—');
+  const safeAppUrl = escapeHtml(appUrl || '');
+  const body = `
+    <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
+      <div style="font-size:14px;line-height:1.8">
+        <div><strong>Documento:</strong> ${safeTitle}</div>
+        <div><strong>Assinantes:</strong> ${safeNames.join(', ') || '—'}</div>
+        <div style="word-break:break-all"><strong>Hash final:</strong> ${safeHash}</div>
+      </div>
+    </div>
+    ${safeAppUrl ? `<p style="margin:16px 0"><a href="${safeAppUrl}/assinaturas" style="color:#30503a;font-weight:700">Abrir Assinaturas</a></p>` : ''}
+  `;
+  return {
+    subject: `[Filtrovali] Documento concluído - ${documentTitle || 'Documento'}`,
+    text: [
+      `O documento ${documentTitle || 'Documento'} recebeu todas as assinaturas.`,
+      `Assinantes: ${names.join(', ') || '—'}`,
+      `Hash final: ${finalDocumentHash || '—'}`,
+      appUrl ? `Acesso: ${String(appUrl).replace(/\/+$/, '')}/assinaturas` : '',
+      privacyTextLine()
+    ].filter(Boolean).join('\n'),
+    html: wrapEmailHtml({
+      title: 'Documento concluído',
+      intro: `O documento ${safeTitle} recebeu todas as assinaturas.`,
+      body,
+      footer: 'Este aviso foi gerado automaticamente pelo sistema Filtrovali.'
+    })
   };
 }
 

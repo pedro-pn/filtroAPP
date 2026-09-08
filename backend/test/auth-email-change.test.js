@@ -124,7 +124,10 @@ test('PUT /auth/account rejects email already used by another account before cre
     emailChangeTokenCreate: prisma.emailChangeToken.create
   };
   prisma.user.findUniqueOrThrow = async args => {
-    assert.deepEqual(args.include, { collaborator: true, moduleRoles: true });
+    assert.deepEqual(args.include, {
+      collaborator: { include: { jobRole: true } },
+      moduleRoles: true
+    });
     return user;
   };
   prisma.user.findFirst = async args => {
@@ -156,7 +159,10 @@ test('PUT /auth/account updates notification preferences without email change', 
     userUpdate: prisma.user.update
   };
   prisma.user.findUniqueOrThrow = async args => {
-    assert.deepEqual(args.include, { collaborator: true, moduleRoles: true });
+    assert.deepEqual(args.include, {
+      collaborator: { include: { jobRole: true } },
+      moduleRoles: true
+    });
     return user;
   };
   prisma.user.update = async args => {

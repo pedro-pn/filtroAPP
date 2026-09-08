@@ -95,6 +95,28 @@ Campos selecionaveis (`select`, combobox, multiselect e dropdown de filtro) deve
 o estilo compartilhado do app: borda, raio, padding, foco, disabled, erro e mobile
 consistentes. Select nativo com aparencia crua do navegador e bloqueante em review.
 
+Excecao de identidade portada (Principio VI da constitution): modulo que reproduz
+fielmente um aplicativo ja aprovado pode manter a identidade visual de origem, desde que
+declare a excecao na spec, escope todo o CSS sob uma raiz do modulo sem vazamento nos
+dois sentidos, centralize paleta e medidas em custom properties prefixadas sem redefinir
+tokens globais, e preserve os comportamentos obrigatorios (aria-invalid com mensagem,
+estados de select, drag and drop compartilhado, navegacao em URL, tutorial de primeiro
+acesso e ausencia de scroll horizontal no mobile). A excecao vale so para porte fiel;
+modulo novo sem app de origem continua obrigado ao kit e aos tokens.
+
+Formularios devem usar o estado visual compartilhado para obrigatorios vazios ou
+invalidos. Ao tentar salvar, cada campo obrigatorio com erro deve ficar vermelho com
+`.field-group.field-invalid`, mensagem `.field-error` abaixo do controle e
+`aria-invalid` quando aplicavel. A validacao nativa do navegador nao substitui esse
+padrao.
+
+Reordenacao por drag and drop deve seguir o padrao compartilhado do app: handle dedicado
+de arraste, placeholder com espaco e legenda da posicao atual, fantasma visual seguindo
+o cursor/toque, reorganizacao ao vivo durante o arraste, cancelamento restaurando a ordem
+inicial e persistencia apenas da ordem final ao soltar. Em mobile, o gesto deve funcionar
+por Pointer Events ou mecanismo equivalente com `touch-action: none`; drag nativo do
+navegador nao pode ser o unico suporte.
+
 Funcao nova visivel ao usuario deve incluir divulgacao temporaria no padrao do app:
 
 - card centralizado via Driver.js, no mesmo modelo usado para novidades como DDS;
@@ -228,3 +250,19 @@ Um modulo novo so esta pronto quando:
 - esta registrado em `shared/modules/registry.json` e com registry gerado;
 - tem teste automatizado;
 - passa no CI completo.
+
+## Referência: módulo Assinaturas
+
+`Assinaturas` é uma implementação de referência para módulos com documentos e uma superfície pública. A fronteira de domínio está em `backend/src/lib/assinaturas/`; a rota autenticada exige `assinaturas:user`, enquanto convite e validação têm contratos públicos mínimos e independentes.
+
+Decisões reutilizáveis desse módulo:
+
+- segredo público no fragmento do navegador, somente em memória, e enviado à API por header dedicado; nunca em path/query, log, telemetria ou auditoria;
+- escrita de PDF original/final e prévias apenas em armazenamento gerenciado, com hash de integridade;
+- operações pós-commit recuperáveis por claim, retry/backoff e jobs rastreados;
+- exclusão que cruza banco e filesystem usa manifesto durável e quarentena com rollback/reconciliação;
+- navegação interna usa `?doc=`, `?page=`, `?tab=` e `?status=`, limpando combinações incompatíveis;
+- datas de negócio são exibidas com formatador compartilhado em `America/Sao_Paulo`;
+- onboarding permanente via Driver.js é marcado por usuário no `localStorage`.
+
+Na exclusão da conta proprietária (decisão D16 da feature), documentos não concluídos são excluídos e seus bytes passam por quarentena; documentos concluídos são preservados como órfãos, com o nome histórico e a auditoria intactos.

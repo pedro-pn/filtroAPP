@@ -11,7 +11,8 @@ import {
   approvedRdoHistoryWhere,
   canAccessReport,
   canClientSeeReport,
-  derivedReportsForProjectWhere
+  derivedReportsForProjectWhere,
+  restoreReportFromSnapshot
 } from '../src/routes/resources/reports.js';
 
 const bearerToken = 'test-token';
@@ -166,6 +167,8 @@ function reportPayload(overrides = {}) {
     collaboratorIds: [],
     services: [{
       serviceType: 'mecanica',
+      startTime: '08:00',
+      endTime: '12:00',
       finalized: false,
       extraData: {}
     }],
@@ -181,6 +184,8 @@ function serviceOnlyPayload(overrides = {}) {
     collaboratorIds: [],
     services: [{
       serviceType: 'mecanica',
+      startTime: '08:00',
+      endTime: '12:00',
       extraData: {}
     }],
     ...overrides
@@ -855,6 +860,41 @@ test('POST report creation requires an active target project before reserving se
   assert.deepEqual(calls[0][1].where, { id: 'deleted-project', deletedAt: null });
 });
 
+test('POST report creation blocks a project pending manual verification before reserving sequence', async t => {
+  stubAuthenticatedManager(t);
+  const originalTransaction = prisma.$transaction;
+  const calls = [];
+  prisma.$transaction = async callback => callback({
+    project: {
+      findFirstOrThrow: async args => {
+        calls.push(['project.findFirstOrThrow', args]);
+        return { id: 'pending-project', registrationPending: true };
+      }
+    },
+    projectReportSeq: {
+      upsert: async () => {
+        calls.push(['projectReportSeq.upsert']);
+        throw new Error('sequence reservation must not run for a pending project');
+      }
+    },
+    report: {
+      create: async () => {
+        calls.push(['report.create']);
+        throw new Error('report creation must not run for a pending project');
+      }
+    }
+  });
+  t.after(() => {
+    prisma.$transaction = originalTransaction;
+  });
+
+  const response = await dispatchApp('POST', '/api/reports', reportPayload({ projectId: 'pending-project' }));
+
+  assert.equal(response.statusCode, 409);
+  assert.match(response.json.error, /aguarda verificação manual/i);
+  assert.deepEqual(calls.map(([name]) => name), ['project.findFirstOrThrow']);
+});
+
 test('POST report creation rejects duplicate project report date before reserving sequence', async t => {
   stubAuthenticatedManager(t);
   const originals = {
@@ -959,6 +999,35 @@ test('POST service-only report creation requires an active target project', asyn
   assert.deepEqual(calls[0][1].where, { id: 'deleted-project', deletedAt: null });
 });
 
+test('POST service-only report creation blocks a project pending manual verification', async t => {
+  stubAuthenticatedManager(t);
+  const originalTransaction = prisma.$transaction;
+  const calls = [];
+  prisma.$transaction = async callback => callback({
+    project: {
+      findFirstOrThrow: async args => {
+        calls.push(['project.findFirstOrThrow', args]);
+        return { id: 'pending-project', registrationPending: true };
+      }
+    },
+    report: {
+      create: async () => {
+        calls.push(['report.create']);
+        throw new Error('service report creation must not run for a pending project');
+      }
+    }
+  });
+  t.after(() => {
+    prisma.$transaction = originalTransaction;
+  });
+
+  const response = await dispatchApp('POST', '/api/reports/service-only', serviceOnlyPayload({ projectId: 'pending-project' }));
+
+  assert.equal(response.statusCode, 409);
+  assert.match(response.json.error, /aguarda verificação manual/i);
+  assert.deepEqual(calls.map(([name]) => name), ['project.findFirstOrThrow']);
+});
+
 test('PUT report rejects moves to soft-deleted target projects before rewriting report data', async t => {
   stubAuthenticatedManager(t);
   const originals = {
@@ -1012,6 +1081,70 @@ test('PUT report rejects moves to soft-deleted target projects before rewriting 
   assert.equal(response.statusCode, 404);
   assert.deepEqual(calls.map(([name]) => name), ['report.findUniqueOrThrow', 'project.findFirstOrThrow']);
   assert.deepEqual(calls[1][1].where, { id: 'deleted-project', deletedAt: null });
+});
+
+test('PUT report blocks reassociation to a project pending manual verification', async t => {
+  stubAuthenticatedManager(t);
+  const originals = {
+    reportFindUniqueOrThrow: prisma.report.findUniqueOrThrow,
+    transaction: prisma.$transaction
+  };
+  const calls = [];
+  prisma.report.findUniqueOrThrow = async args => {
+    calls.push(['report.findUniqueOrThrow', args]);
+    return activeReport();
+  };
+  prisma.$transaction = async callback => callback({
+    project: {
+      findFirstOrThrow: async args => {
+        calls.push(['project.findFirstOrThrow', args]);
+        return { id: 'pending-project', registrationPending: true };
+      }
+    },
+    reportCollaborator: {
+      deleteMany: async () => {
+        calls.push(['reportCollaborator.deleteMany']);
+        throw new Error('report links must not change for a pending project');
+      }
+    }
+  });
+  t.after(() => {
+    prisma.report.findUniqueOrThrow = originals.reportFindUniqueOrThrow;
+    prisma.$transaction = originals.transaction;
+  });
+
+  const response = await dispatchApp('PUT', '/api/reports/report-1', reportPayload({
+    projectId: 'pending-project',
+    status: undefined
+  }));
+
+  assert.equal(response.statusCode, 409);
+  assert.match(response.json.error, /aguarda verificação manual/i);
+  assert.deepEqual(calls.map(([name]) => name), ['report.findUniqueOrThrow', 'project.findFirstOrThrow']);
+});
+
+test('restoring a report snapshot blocks a project pending manual verification before rewriting links', async () => {
+  const calls = [];
+  const tx = {
+    project: {
+      findFirstOrThrow: async args => {
+        calls.push(['project.findFirstOrThrow', args]);
+        return { id: 'pending-project', registrationPending: true };
+      }
+    },
+    reportCollaborator: {
+      deleteMany: async () => {
+        calls.push(['reportCollaborator.deleteMany']);
+        throw new Error('report links must not change for a pending project');
+      }
+    }
+  };
+
+  await assert.rejects(
+    restoreReportFromSnapshot(tx, 'report-1', { projectId: 'pending-project' }),
+    error => error.statusCode === 409 && /aguarda verificação manual/i.test(error.message)
+  );
+  assert.deepEqual(calls.map(([name]) => name), ['project.findFirstOrThrow']);
 });
 
 test('PUT report persists rejected overtime so downloads omit it', async t => {
@@ -1077,7 +1210,11 @@ test('PUT report persists rejected overtime so downloads omit it', async t => {
     },
     reportService: {
       deleteMany: async () => ({ count: 0 })
-    }
+    },
+    collaborator: { findMany: async () => [] },
+    workforceHoliday: { findMany: async () => [] },
+    workforceCalendarState: { findUnique: async () => ({ id: 'global', revision: 1 }) },
+    efetivoMissionPlan: { findFirst: async () => null }
   });
   t.after(() => {
     prisma.report.findUnique = originals.reportFindUnique;

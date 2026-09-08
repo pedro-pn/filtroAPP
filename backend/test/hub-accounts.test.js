@@ -2,23 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { publicUser } from '../src/lib/auth.js';
-import {
-  accountTypeForLegacyRole,
-  hasModuleRole,
-  moduleForRole,
-  moduleRoleForLegacyRole,
-  moduleRoleRows,
-  prismaModuleRole,
-  publicModuleRole,
-  publicModuleRoleDefinitions,
-  serializeModuleRoles
-} from '../src/lib/module-roles.js';
-import {
-  requireInternalUser,
-  requireHubAdmin,
-  requireManager,
-  requireModuleRole
-} from '../src/middleware/auth.js';
+import { accountTypeForLegacyRole, hasModuleRole, moduleForRole, moduleRoleForLegacyRole, moduleRoleRows, prismaModuleRole, publicModuleRole, publicModuleRoleDefinitions, serializeModuleRoles } from '../src/lib/module-roles.js';
+import { requireInternalUser, requireHubAdmin, requireManager, requireModuleRole } from '../src/middleware/auth.js';
 import { resolveAccountPayload } from '../src/routes/resources/users.js';
 
 test('publicUser exposes hub account fields with legacy fallback', () => {
@@ -43,6 +28,7 @@ test('publicUser exposes hub account fields with legacy fallback', () => {
       role: 'MANAGER',
       accountType: 'ADMIN',
       moduleRoles: ['rdo:manager'],
+      reportEmissionPermissions: ['SITE_RDO'],
       isActive: true,
       clientCnpj: null,
       privacyPolicyAcceptedAt: null,
@@ -87,10 +73,7 @@ test('serializeModuleRoles prefers persisted module roles', () => {
   assert.deepEqual(
     serializeModuleRoles({
       role: 'COLLABORATOR',
-      moduleRoles: [
-        { role: 'RDO_COORDINATOR' },
-        { role: 'ROMANEIO_OPERATOR' }
-      ]
+      moduleRoles: [{ role: 'RDO_COORDINATOR' }, { role: 'ROMANEIO_OPERATOR' }]
     }),
     ['rdo:coordinator', 'romaneio:operator']
   );
@@ -107,14 +90,11 @@ test('serializeModuleRoles preserves an explicitly loaded empty role set', () =>
 });
 
 test('moduleRoleRows converts public role codes for Prisma writes', () => {
-  assert.deepEqual(
-    moduleRoleRows('user-1', ['rdo:client', 'epi:technician', 'privacy:admin']),
-    [
-      { userId: 'user-1', module: 'RDO', role: 'RDO_CLIENT' },
-      { userId: 'user-1', module: 'EPI', role: 'EPI_TECHNICIAN' },
-      { userId: 'user-1', module: 'PRIVACY', role: 'PRIVACY_ADMIN' }
-    ]
-  );
+  assert.deepEqual(moduleRoleRows('user-1', ['rdo:client', 'epi:technician', 'privacy:admin']), [
+    { userId: 'user-1', module: 'RDO', role: 'RDO_CLIENT' },
+    { userId: 'user-1', module: 'EPI', role: 'EPI_TECHNICIAN' },
+    { userId: 'user-1', module: 'PRIVACY', role: 'PRIVACY_ADMIN' }
+  ]);
 });
 
 test('module role conversion helpers are registry-backed', () => {
@@ -128,23 +108,76 @@ test('module role conversion helpers are registry-backed', () => {
 test('module role definitions are loaded from the shared registry', () => {
   const roles = publicModuleRoleDefinitions();
 
-  assert.equal(roles.some(role => role.public === 'rdo:manager' && role.code === 'RDO_MANAGER'), true);
-  assert.equal(roles.some(role => role.public === 'equipamentos:viewer' && role.prismaModule === 'EQUIPAMENTOS'), true);
-  assert.equal(roles.some(role => role.public === 'privacy:admin' && role.assignableAccountTypes.includes('ADMIN')), true);
+  assert.equal(
+    roles.some(role => role.public === 'rdo:manager' && role.code === 'RDO_MANAGER'),
+    true
+  );
+  assert.equal(
+    roles.some(role => role.public === 'equipamentos:viewer' && role.prismaModule === 'EQUIPAMENTOS'),
+    true
+  );
+  assert.equal(
+    roles.some(role => role.public === 'privacy:admin' && role.assignableAccountTypes.includes('ADMIN')),
+    true
+  );
 });
 
 test('hasModuleRole checks persisted module roles for hub admins and regular accounts', () => {
-  assert.equal(hasModuleRole({ role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['epi:technician'] }, 'epi:technician'), true);
+  assert.equal(
+    hasModuleRole(
+      {
+        role: 'MANAGER',
+        accountType: 'ADMIN',
+        moduleRoles: ['epi:technician']
+      },
+      'epi:technician'
+    ),
+    true
+  );
   assert.equal(hasModuleRole({ role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['privacy:admin'] }, 'privacy:admin'), true);
-  assert.equal(hasModuleRole({ role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['epi:technician'] }, 'rdo:manager'), false);
+  assert.equal(
+    hasModuleRole(
+      {
+        role: 'MANAGER',
+        accountType: 'ADMIN',
+        moduleRoles: ['epi:technician']
+      },
+      'rdo:manager'
+    ),
+    false
+  );
   assert.equal(hasModuleRole({ role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['rdo:manager'] }, 'privacy:admin'), false);
   assert.equal(hasModuleRole({ role: 'MANAGER', accountType: 'ADMIN', moduleRoles: [] }, 'rdo:manager'), false);
-  assert.equal(hasModuleRole({ role: 'COLLABORATOR', accountType: 'INTERNAL', moduleRoles: ['rdo:collaborator'] }, 'rdo:collaborator'), true);
-  assert.equal(hasModuleRole({ role: 'COLLABORATOR', accountType: 'INTERNAL', moduleRoles: ['rdo:collaborator'] }, 'rdo:manager'), false);
+  assert.equal(
+    hasModuleRole(
+      {
+        role: 'COLLABORATOR',
+        accountType: 'INTERNAL',
+        moduleRoles: ['rdo:collaborator']
+      },
+      'rdo:collaborator'
+    ),
+    true
+  );
+  assert.equal(
+    hasModuleRole(
+      {
+        role: 'COLLABORATOR',
+        accountType: 'INTERNAL',
+        moduleRoles: ['rdo:collaborator']
+      },
+      'rdo:manager'
+    ),
+    false
+  );
 });
 
 test('module role checks do not fall back to legacy RDO role when explicit non-RDO roles exist', () => {
-  const user = { role: 'COLLABORATOR', accountType: 'INTERNAL', moduleRoles: ['epi:technician'] };
+  const user = {
+    role: 'COLLABORATOR',
+    accountType: 'INTERNAL',
+    moduleRoles: ['epi:technician']
+  };
 
   assert.equal(hasModuleRole(user, 'epi:technician'), true);
   assert.equal(hasModuleRole(user, 'rdo:collaborator'), false);
@@ -156,7 +189,11 @@ test('requireInternalUser rejects internal hub accounts without RDO roles', () =
   let body = null;
   const req = {
     auth: {
-      user: { role: 'COLLABORATOR', accountType: 'INTERNAL', moduleRoles: ['romaneio:operator'] }
+      user: {
+        role: 'COLLABORATOR',
+        accountType: 'INTERNAL',
+        moduleRoles: ['romaneio:operator']
+      }
     }
   };
   const res = {
@@ -185,7 +222,11 @@ test('requireModuleRole rejects RDO access for EPI-only internal accounts', () =
   let statusCode = null;
   const req = {
     auth: {
-      user: { role: 'COLLABORATOR', accountType: 'INTERNAL', moduleRoles: ['epi:technician'] }
+      user: {
+        role: 'COLLABORATOR',
+        accountType: 'INTERNAL',
+        moduleRoles: ['epi:technician']
+      }
     }
   };
   const res = {
@@ -240,7 +281,11 @@ test('requireModuleRole rejects RDO access for EPI-only hub admins', () => {
   let body = null;
   const req = {
     auth: {
-      user: { role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['epi:technician'] }
+      user: {
+        role: 'MANAGER',
+        accountType: 'ADMIN',
+        moduleRoles: ['epi:technician']
+      }
     }
   };
   const res = {
@@ -269,7 +314,11 @@ test('report audit manager guard rejects admins without rdo manager role', () =>
   let statusCode = null;
   const req = {
     auth: {
-      user: { role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['epi:technician'] }
+      user: {
+        role: 'MANAGER',
+        accountType: 'ADMIN',
+        moduleRoles: ['epi:technician']
+      }
     }
   };
   const res = {
@@ -302,7 +351,11 @@ test('requireManager rejects RDO manager mutations for EPI-only hub admins', () 
   let body = null;
   const req = {
     auth: {
-      user: { role: 'MANAGER', accountType: 'ADMIN', moduleRoles: ['epi:technician'] }
+      user: {
+        role: 'MANAGER',
+        accountType: 'ADMIN',
+        moduleRoles: ['epi:technician']
+      }
     }
   };
   const res = {
@@ -328,33 +381,36 @@ test('requireManager rejects RDO manager mutations for EPI-only hub admins', () 
 
 test('resolveAccountPayload rejects rdo:manager on INTERNAL accounts', () => {
   assert.throws(
-    () => resolveAccountPayload({
-      role: 'COLLABORATOR',
-      accountType: 'INTERNAL',
-      moduleRoles: ['rdo:manager']
-    }),
+    () =>
+      resolveAccountPayload({
+        role: 'COLLABORATOR',
+        accountType: 'INTERNAL',
+        moduleRoles: ['rdo:manager']
+      }),
     /Role de módulo rdo:manager incompatível com conta INTERNAL/
   );
 });
 
 test('resolveAccountPayload rejects COORDINATOR accounts with collaborator RDO role', () => {
   assert.throws(
-    () => resolveAccountPayload({
-      role: 'COORDINATOR',
-      accountType: 'INTERNAL',
-      moduleRoles: ['rdo:collaborator']
-    }),
+    () =>
+      resolveAccountPayload({
+        role: 'COORDINATOR',
+        accountType: 'INTERNAL',
+        moduleRoles: ['rdo:collaborator']
+      }),
     /rdo:collaborator exige role legado COLLABORATOR/
   );
 });
 
 test('resolveAccountPayload rejects COLLABORATOR accounts with coordinator RDO role', () => {
   assert.throws(
-    () => resolveAccountPayload({
-      role: 'COLLABORATOR',
-      accountType: 'INTERNAL',
-      moduleRoles: ['rdo:coordinator']
-    }),
+    () =>
+      resolveAccountPayload({
+        role: 'COLLABORATOR',
+        accountType: 'INTERNAL',
+        moduleRoles: ['rdo:coordinator']
+      }),
     /rdo:coordinator exige role legado COORDINATOR/
   );
 });
@@ -440,11 +496,12 @@ test('resolveAccountPayload allows explicit empty module role sets for INTERNAL 
 
 test('resolveAccountPayload rejects explicit empty module role sets for ADMIN accounts', () => {
   assert.throws(
-    () => resolveAccountPayload({
-      role: 'MANAGER',
-      accountType: 'ADMIN',
-      moduleRoles: []
-    }),
+    () =>
+      resolveAccountPayload({
+        role: 'MANAGER',
+        accountType: 'ADMIN',
+        moduleRoles: []
+      }),
     /ao menos uma role de módulo/
   );
 });
@@ -472,22 +529,24 @@ test('resolveAccountPayload allows explicit privacy admin role for ADMIN account
 
 test('resolveAccountPayload rejects ADMIN legacy role mismatch', () => {
   assert.throws(
-    () => resolveAccountPayload({
-      role: 'COLLABORATOR',
-      accountType: 'ADMIN',
-      moduleRoles: ['rdo:manager']
-    }),
+    () =>
+      resolveAccountPayload({
+        role: 'COLLABORATOR',
+        accountType: 'ADMIN',
+        moduleRoles: ['rdo:manager']
+      }),
     /Contas ADMIN devem usar role legado MANAGER/
   );
 });
 
 test('resolveAccountPayload rejects INTERNAL legacy manager mismatch', () => {
   assert.throws(
-    () => resolveAccountPayload({
-      role: 'MANAGER',
-      accountType: 'INTERNAL',
-      moduleRoles: ['rdo:coordinator']
-    }),
+    () =>
+      resolveAccountPayload({
+        role: 'MANAGER',
+        accountType: 'INTERNAL',
+        moduleRoles: ['rdo:coordinator']
+      }),
     /Contas INTERNAL não podem usar role legado MANAGER ou CLIENT/
   );
 });

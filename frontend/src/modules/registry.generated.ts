@@ -144,6 +144,33 @@ export const moduleRegistry = [
     ]
   },
   {
+    "id": "maintenance-production",
+    "badge": "M&P",
+    "title": "Manutenção e produção",
+    "copy": "Relatórios, aprovações e histórico técnico de manutenção e produção.",
+    "hub": {
+      "enabled": true,
+      "roles": [],
+      "path": "/manutencao-producao"
+    },
+    "pathPrefixes": [
+      "/manutencao-producao"
+    ],
+    "routes": {
+      "index": "/manutencao-producao",
+      "newReport": "/manutencao-producao/relatorio/novo"
+    },
+    "routeGroups": {
+      "default": {
+        "allowedAccountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      }
+    },
+    "roles": []
+  },
+  {
     "id": "admin",
     "badge": "ADM",
     "title": "Gestão de Contas",
@@ -157,10 +184,16 @@ export const moduleRegistry = [
       "/admin"
     ],
     "routes": {
-      "accounts": "/admin/accounts"
+      "accounts": "/admin/accounts",
+      "tokens": "/admin/tokens"
     },
     "routeGroups": {
       "accounts": {
+        "allowedAccountTypes": [
+          "ADMIN"
+        ]
+      },
+      "tokens": {
         "allowedAccountTypes": [
           "ADMIN"
         ]
@@ -267,6 +300,59 @@ export const moduleRegistry = [
         "code": "ESTOQUE_VIEWER",
         "public": "estoque:viewer",
         "label": "Estoque - Visualizador",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "qualidade",
+    "prismaModule": "QUALIDADE",
+    "badge": "QLD",
+    "title": "Qualidade",
+    "copy": "Registros de melhorias, desvios, licoes aprendidas e incidentes.",
+    "hub": {
+      "enabled": true,
+      "roles": [
+        "qualidade:manager",
+        "qualidade:viewer"
+      ],
+      "path": "/qualidade"
+    },
+    "pathPrefixes": [
+      "/qualidade"
+    ],
+    "routes": {
+      "index": "/qualidade"
+    },
+    "routeGroups": {
+      "default": {
+        "allowedAccountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ],
+        "allowedModuleRoles": [
+          "qualidade:manager",
+          "qualidade:viewer"
+        ]
+      }
+    },
+    "roles": [
+      {
+        "code": "QUALIDADE_MANAGER",
+        "public": "qualidade:manager",
+        "label": "Qualidade - Gestor",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "QUALIDADE_VIEWER",
+        "public": "qualidade:viewer",
+        "label": "Qualidade - Visualizador",
         "accountTypes": [
           "ADMIN",
           "INTERNAL"
@@ -474,6 +560,104 @@ export const moduleRegistry = [
         ],
         "assignableAccountTypes": [
           "ADMIN"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "efetivo",
+    "prismaModule": "EFETIVO",
+    "badge": "EFET",
+    "title": "Efetivo Operacional",
+    "copy": "Produtividade, improdutividade e férias do efetivo operacional.",
+    "hub": {
+      "enabled": true,
+      "roles": [
+        "efetivo:manager",
+        "efetivo:viewer"
+      ],
+      "path": "/efetivo"
+    },
+    "pathPrefixes": [
+      "/efetivo"
+    ],
+    "routes": {
+      "root": "/efetivo"
+    },
+    "routeGroups": {
+      "default": {
+        "allowedAccountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ],
+        "allowedModuleRoles": [
+          "efetivo:manager",
+          "efetivo:viewer"
+        ]
+      }
+    },
+    "roles": [
+      {
+        "code": "EFETIVO_MANAGER",
+        "public": "efetivo:manager",
+        "label": "Efetivo Operacional - Gestor",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "EFETIVO_VIEWER",
+        "public": "efetivo:viewer",
+        "label": "Efetivo Operacional - Visualizador",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "assinaturas",
+    "prismaModule": "ASSINATURAS",
+    "badge": "ASS",
+    "title": "Assinaturas",
+    "copy": "Envio de PDF avulso, coleta de assinaturas e trilha de auditoria.",
+    "hub": {
+      "enabled": true,
+      "roles": [
+        "assinaturas:user"
+      ],
+      "path": "/assinaturas"
+    },
+    "pathPrefixes": [
+      "/assinaturas"
+    ],
+    "pathExclusions": [
+      "/assinaturas/assinar"
+    ],
+    "routes": {
+      "index": "/assinaturas"
+    },
+    "routeGroups": {
+      "default": {
+        "allowedAccountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ],
+        "allowedModuleRoles": [
+          "assinaturas:user"
+        ]
+      }
+    },
+    "roles": [
+      {
+        "code": "ASSINATURAS_USER",
+        "public": "assinaturas:user",
+        "label": "Assinaturas - Usuário",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
         ]
       }
     ]

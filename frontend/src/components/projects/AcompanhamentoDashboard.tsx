@@ -75,6 +75,32 @@ function fmt(value: number | null, unit: Unit) {
   return value.toLocaleString('pt-BR');
 }
 
+function hasAdditionalValue(value?: string | number | null) {
+  const n = toNum(value);
+  return n !== null && Math.abs(n) > 0.005;
+}
+
+function BudgetValue({
+  total,
+  original,
+  additional
+}: {
+  total?: string | number | null;
+  original?: string | number | null;
+  additional?: string | number | null;
+}) {
+  return (
+    <span className="acp-budget-cell">
+      <strong>{brl(toNum(total))}</strong>
+      {hasAdditionalValue(additional) ? (
+        <small className="acp-table-split">
+          Orig. {brl(toNum(original))} · Adic. {brl(toNum(additional))}
+        </small>
+      ) : null}
+    </span>
+  );
+}
+
 export function AcompanhamentoDashboard({ canManage = false }: { canManage?: boolean }) {
   const [search, setSearch] = useState('');
   const [modality, setModality] = useState<'todas' | 'INLOCO' | 'POP_SEDE'>('todas');
@@ -136,7 +162,7 @@ export function AcompanhamentoDashboard({ canManage = false }: { canManage?: boo
     return (
       <div className="page-card placeholder-copy">
         Nenhum projeto com proposta comercial importada. Importe o banco do comercial e cadastre a
-        missão com o número do contrato.
+        missão com o número da proposta.
       </div>
     );
   }
@@ -146,7 +172,7 @@ export function AcompanhamentoDashboard({ canManage = false }: { canManage?: boo
       {/* Filtros */}
       <div className="page-card acp-filters" data-acp-dashboard-filters>
         <div className="field-group">
-          <label htmlFor="acp-search">Buscar (missão, cliente, contrato)</label>
+          <label htmlFor="acp-search">Buscar (missão, cliente, proposta)</label>
           <input id="acp-search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Ex.: 4069 ou nome do cliente" />
         </div>
         <div className="field-group">
@@ -239,7 +265,7 @@ export function AcompanhamentoDashboard({ canManage = false }: { canManage?: boo
               <tr>
                 <th>Missão</th>
                 <th>Cliente</th>
-                <th><HelpTip help="Número da proposta comercial vinculada à missão (pela 1ª parte do contrato).">Contrato</HelpTip></th>
+                <th><HelpTip help="Número da proposta comercial vinculada à missão.">Proposta</HelpTip></th>
                 <th><HelpTip help="Preço de venda previsto no comercial (revisão vigente).">Venda</HelpTip></th>
                 <th><HelpTip help="Custo total previsto no comercial (inclui mão de obra).">Custo prev.</HelpTip></th>
                 <th><HelpTip help="Total pago no Omie (títulos com status PAGO) vinculados à missão.">Realizado</HelpTip></th>
@@ -266,9 +292,13 @@ export function AcompanhamentoDashboard({ canManage = false }: { canManage?: boo
                     ) : null}
                   </td>
                   <td data-label="Cliente">{row.clientName || '—'}</td>
-                  <td data-label="Contrato">{row.proposalCode}</td>
-                  <td data-label="Venda">{brl(toNum(row.salePrice))}</td>
-                  <td data-label="Custo prev.">{brl(toNum(row.plannedTotalCost))}</td>
+                  <td data-label="Proposta">{row.proposalCode}</td>
+                  <td data-label="Venda">
+                    <BudgetValue total={row.salePrice} original={row.originalSalePrice} additional={row.additionalSalePrice} />
+                  </td>
+                  <td data-label="Custo prev.">
+                    <BudgetValue total={row.plannedTotalCost} original={row.originalPlannedTotalCost} additional={row.additionalPlannedTotalCost} />
+                  </td>
                   <td data-label="Realizado">{brl(toNum(row.realizedPaid))}</td>
                   <td data-label="Margem">{pct(row.expectedMargin)}</td>
                   <td data-label="Dias (prev/trab)">{row.plannedDays ?? '—'} / {row.workedDays ?? '—'}</td>

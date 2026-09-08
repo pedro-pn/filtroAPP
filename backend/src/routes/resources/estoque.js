@@ -4,12 +4,22 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import {
-  createStockFispqAttachment,
-  publicStockAttachmentUrl,
-  removeStockFispqAttachment
+  createStockItemDocument,
+  removeStockItemDocument,
+  removeStockItemDocumentFiles,
+  serializeStockItemDocument
 } from '../../lib/estoque/stock-attachments.js';
-import { createMovement, reverseMovement } from '../../lib/estoque/stock-movements.js';
-import { decimalBalanceString, getBatchBalances, getItemBalances } from '../../lib/estoque/stock-balance.js';
+import {
+  createMovement,
+  createReturnMovements,
+  reverseMovement
+} from '../../lib/estoque/stock-movements.js';
+import {
+  decimalBalanceString,
+  getBatchBalances,
+  getItemBalances
+} from '../../lib/estoque/stock-balance.js';
+import { getAvailableStockBatchRows } from '../../lib/estoque/stock-batches.js';
 import { normalizeChecklistItems } from '../../lib/equipamentos/equipment-checklist.js';
 import prisma from '../../lib/prisma.js';
 import { syncRomaneioCatalog } from '../../lib/romaneio-catalog.js';
@@ -35,6 +45,13 @@ const stockCategoryUpdateSchema = z.object({
   name: z.string().trim().min(1, 'Campo obrigatório.').max(180),
   checklistEnabled: z.boolean().optional(),
   checklistItems: z.array(z.string().trim().min(1).max(300)).max(100).optional()
+});
+
+const stockItemDocumentSchema = z.object({
+  fileName: z.string().trim().min(1, 'Informe o nome do arquivo.').max(255),
+  dataUrl: z.string().trim().startsWith('data:application/pdf;base64,', {
+    message: 'Envie um PDF válido.'
+  })
 });
 
 router.use(requireAuth);
@@ -128,7 +145,7 @@ export function serializeStockItem(item) {
     filterMicron: item.filterMicron,
     unNumber: item.unNumber,
     casNumber: item.casNumber,
-    fispqUrl: item.fispqToken ? publicStockAttachmentUrl(item.fispqToken) : null,
+    documents: Array.isArray(item.documents) ? item.documents.map(serializeStockItemDocument) : [],
     checklistEnabled: Boolean(item.checklistEnabled),
     checklistItems: item.checklistItems == null ? null : normalizeChecklistItems(item.checklistItems),
     isActive: item.isActive,
@@ -178,7 +195,10 @@ export function serializeStockMovement(movement) {
 
 export async function buildStockSummary(client, now = new Date()) {
   const items = await client.stockItem.findMany({
-    include: { batches: true },
+    include: {
+      batches: true,
+      category: { select: { id: true, name: true } }
+    },
     orderBy: [{ code: 'asc' }, { name: 'asc' }]
   });
   const itemIds = items.map(item => item.id);
@@ -187,7 +207,6 @@ export async function buildStockSummary(client, now = new Date()) {
 
   for (const item of items) {
     const balance = itemBalances.get(item.id) || new Prisma.Decimal(0);
-    if (!item.isActive && balance.lte(0)) continue;
 
     const batchBalances = await getBatchBalances(client, item.id);
     const batches = [...(item.batches || [])]
@@ -218,6 +237,15 @@ export async function buildStockSummary(client, now = new Date()) {
         type: item.type,
         unitLabel: item.unitLabel,
         minQuantity: serializedDecimal(item.minQuantity),
+        category: item.category ? { id: item.category.id, name: item.category.name } : null,
+        manufacturer: item.manufacturer || null,
+        description: item.description || null,
+        location: item.location || null,
+        filterModel: item.filterModel || null,
+        filterKind: item.filterKind || null,
+        filterMicron: item.filterMicron || null,
+        unNumber: item.unNumber || null,
+        casNumber: item.casNumber || null,
         isActive: item.isActive
       },
       balance: decimalBalanceString(balance),
@@ -234,6 +262,7 @@ export async function buildStockSummary(client, now = new Date()) {
 export function stockMovementListArgs(query) {
   const page = parsePage(query.page);
   const pageSize = parsePageSize(query.pageSize);
+  const dateOrder = String(query.dateOrder || '').trim().toLowerCase() === 'asc' ? 'asc' : 'desc';
   const from = queryDate(query.from);
   const to = queryDate(query.to, true);
   const where = {
@@ -255,7 +284,7 @@ export function stockMovementListArgs(query) {
     pageSize,
     skip: (page - 1) * pageSize,
     take: pageSize,
-    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }]
+    orderBy: [{ date: dateOrder }, { createdAt: dateOrder }]
   };
 }
 
@@ -288,6 +317,7 @@ export async function listStockMovements(client, query) {
 
 const itemWithMovementCount = {
   category: true,
+  documents: { orderBy: { createdAt: 'asc' } },
   _count: { select: { movements: true } }
 };
 
@@ -323,7 +353,7 @@ async function resolveStockCategoryIdForType(type, categoryId) {
   return { id: category?.id || null };
 }
 
-function itemDataFromPayload(data, fispqToken) {
+function itemDataFromPayload(data) {
   return {
     type: data.type,
     categoryId: data.categoryId,
@@ -340,12 +370,11 @@ function itemDataFromPayload(data, fispqToken) {
     unNumber: data.unNumber,
     casNumber: data.casNumber,
     checklistEnabled: data.checklistEnabled,
-    checklistItems: data.checklistItems,
-    fispqToken
+    checklistItems: data.checklistItems
   };
 }
 
-function itemUpdateDataFromPayload(data, fispqToken) {
+function itemUpdateDataFromPayload(data) {
   return {
     categoryId: data.categoryId,
     code: data.code,
@@ -361,8 +390,7 @@ function itemUpdateDataFromPayload(data, fispqToken) {
     unNumber: data.unNumber,
     casNumber: data.casNumber,
     checklistEnabled: data.checklistEnabled,
-    checklistItems: data.checklistItems,
-    fispqToken
+    checklistItems: data.checklistItems
   };
 }
 
@@ -502,19 +530,15 @@ router.post('/itens', requireEstoqueManager, asyncHandler(async (req, res) => {
   const resolvedCategory = await resolveStockCategoryIdForType(data.type, data.categoryId);
   if (resolvedCategory.error) return res.status(400).json({ error: resolvedCategory.error });
   const payloadData = { ...data, categoryId: resolvedCategory.id };
-  const fispqToken = data.type === 'PRODUTO_QUIMICO' && data.fispq
-    ? await createStockFispqAttachment({ upload: data.fispq })
-    : null;
 
   try {
     const item = await prisma.stockItem.create({
-      data: itemDataFromPayload(payloadData, fispqToken),
+      data: itemDataFromPayload(payloadData),
       include: itemWithMovementCount
     });
     syncRomaneioCatalogAfterStockChange();
     res.status(201).json(serializeStockItem(item));
   } catch (error) {
-    if (fispqToken) await removeStockFispqAttachment(fispqToken);
     if (isUniqueConstraintError(error)) {
       return res.status(409).json({ error: 'Código de estoque já cadastrado.' });
     }
@@ -541,35 +565,41 @@ router.put('/itens/:id', requireEstoqueManager, asyncHandler(async (req, res) =>
     return res.status(409).json({ error: 'Código de estoque já cadastrado.' });
   }
 
-  let fispqToken = current.fispqToken;
-  let tokenToRemove = null;
-  if (current.type === 'FILTRO') {
-    tokenToRemove = current.fispqToken;
-    fispqToken = null;
-  } else if (data.fispq === null) {
-    tokenToRemove = current.fispqToken;
-    fispqToken = null;
-  } else if (data.fispq) {
-    fispqToken = await createStockFispqAttachment({ upload: data.fispq });
-    tokenToRemove = current.fispqToken;
-  }
-
   try {
     const item = await prisma.stockItem.update({
       where: { id: current.id },
-      data: itemUpdateDataFromPayload(payloadData, fispqToken),
+      data: itemUpdateDataFromPayload(payloadData),
       include: itemWithMovementCount
     });
-    if (tokenToRemove) await removeStockFispqAttachment(tokenToRemove);
     syncRomaneioCatalogAfterStockChange();
     res.json(serializeStockItem(item));
   } catch (error) {
-    if (fispqToken && fispqToken !== current.fispqToken) await removeStockFispqAttachment(fispqToken);
     if (isUniqueConstraintError(error)) {
       return res.status(409).json({ error: 'Código de estoque já cadastrado.' });
     }
     throw error;
   }
+}));
+
+router.post('/itens/:id/documentos', requireEstoqueManager, asyncHandler(async (req, res) => {
+  const current = await prisma.stockItem.findUnique({
+    where: { id: req.params.id },
+    select: { id: true }
+  });
+  if (!current) return res.status(404).json({ error: 'Item de estoque não encontrado.' });
+
+  const upload = stockItemDocumentSchema.parse(req.body);
+  const document = await createStockItemDocument(prisma, { itemId: current.id, upload });
+  res.status(201).json(serializeStockItemDocument(document));
+}));
+
+router.delete('/itens/:id/documentos/:documentId', requireEstoqueManager, asyncHandler(async (req, res) => {
+  const document = await removeStockItemDocument(prisma, {
+    itemId: req.params.id,
+    documentId: req.params.documentId
+  });
+  if (!document) return res.status(404).json({ error: 'Documento não encontrado para este item.' });
+  res.status(204).end();
 }));
 
 router.patch('/itens/:id/ativo', requireEstoqueManager, asyncHandler(async (req, res) => {
@@ -594,7 +624,7 @@ router.delete('/itens/:id', requireEstoqueManager, asyncHandler(async (req, res)
   }
 
   await prisma.stockItem.delete({ where: { id: current.id } });
-  if (current.fispqToken) await removeStockFispqAttachment(current.fispqToken);
+  await removeStockItemDocumentFiles(current.documents);
   syncRomaneioCatalogAfterStockChange();
   res.status(204).end();
 }));
@@ -608,6 +638,22 @@ router.get('/movimentacoes', asyncHandler(async (req, res) => {
 }));
 
 router.post('/movimentacoes', requireEstoqueManager, asyncHandler(async (req, res) => {
+  if (req.body?.reason === 'DEVOLUCAO_OBRA' && Array.isArray(req.body?.items)) {
+    const results = await createReturnMovements(prisma, {
+      data: req.body,
+      createdById: req.auth.user.id
+    });
+    return res.status(201).json({
+      movements: results.map(result => ({
+        ...serializeStockMovement(result.movement),
+        balances: {
+          item: decimalBalanceString(result.balances.item),
+          batch: decimalBalanceString(result.balances.batch)
+        }
+      }))
+    });
+  }
+
   let result;
   try {
     result = await createMovement(prisma, {
@@ -643,33 +689,22 @@ router.post('/movimentacoes/:id/estorno', requireEstoqueManager, asyncHandler(as
 
 router.get('/lotes', asyncHandler(async (req, res) => {
   const itemId = String(req.query.itemId || '').trim();
+  const reason = String(req.query.reason || '').trim();
+  const projectId = String(req.query.projectId || '').trim();
   if (!itemId) return res.status(400).json({ error: 'Informe o item.' });
+  if (reason === 'DEVOLUCAO_OBRA' && !projectId) {
+    return res.status(400).json({ error: 'Informe o projeto para listar os lotes disponíveis na obra.' });
+  }
 
-  const [batches, balances] = await Promise.all([
-    prisma.stockBatch.findMany({ where: { itemId } }),
-    getBatchBalances(prisma, itemId)
-  ]);
+  const rows = await getAvailableStockBatchRows(prisma, { itemId, reason, projectId });
   const now = new Date();
-  const rows = batches
-    .map(batch => {
-      const balance = balances.get(batch.id) || new Prisma.Decimal(0);
-      return { batch, balance };
-    })
-    .filter(row => row.balance.gt(0))
-    .sort((a, b) => {
-      const aTime = a.batch.expiryDate ? new Date(a.batch.expiryDate).getTime() : Number.POSITIVE_INFINITY;
-      const bTime = b.batch.expiryDate ? new Date(b.batch.expiryDate).getTime() : Number.POSITIVE_INFINITY;
-      if (aTime !== bTime) return aTime - bTime;
-      return new Date(a.batch.createdAt).getTime() - new Date(b.batch.createdAt).getTime();
-    });
-
   res.json({
     batches: rows.map(({ batch, balance }) => ({
       id: batch.id,
       lotNumber: batch.lotNumber,
       expiryDate: serializeDateOnly(batch.expiryDate),
       balance: decimalBalanceString(balance),
-      expired: batch.expiryDate ? new Date(batch.expiryDate) < now : false
+      expired: isExpired(batch.expiryDate, now)
     }))
   });
 }));

@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 
 import { changePassword, updateAccountEmail, updateAccountNotificationPreferences, type NotificationPreferences } from '../../api/account';
 import { exportMyData, requestMyDataDeletion } from '../../api/privacy';

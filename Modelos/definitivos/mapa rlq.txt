@@ -4,7 +4,7 @@ MAPA DO MODELO DE TESTE DE PRESSÃO
 {{client}} - cliente do projeto
 {{cnpj}} - CNPJ do projeto
 {{local}} - local do projeto
-{{proposal}} - contrato do projeto
+{{proposal}} - proposta do projeto
 {{rlq}} - número rlq
 {{date}} - data do rdo
 
@@ -36,7 +36,7 @@ PRODUTOS UTILIZADOS
 {{steps}} (etapas) e {{products}} (produtos) - Estes dois são adicionados juntos por linha da tabela. Para cada etapa, um produto relacionado é adicionado. Aqui usamos a seguinte tática, os produtos são preenchidos de acordo com as etapas da seguinte forma:
 Desengraxe: hidróxido de sódio, metassilicato de sódio e tripolifosfato de sódio
 Fase ácida: Ácido cítrico (se o material selecionado for aço carbono); ácido nítrico e ácido fluorídrico (se for inox).
-Fase neutralizante/sequestrante: carbonato de cálcio
+Fase neutralizante/sequestrante: carbonato de sódio
 Fase passivante: nitrito de sódio. Se for inox, não adicionar nenhum produto.
 Ou seja, para cada fase, é adicionado uma linha contendo o nome da fase e o(s) produto utilizado.
 As demais etapas o produto fica vazio.

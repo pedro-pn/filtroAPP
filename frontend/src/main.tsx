@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { keepPreviousData, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router';
 
 import App from './App';
 import { AuthProvider } from './auth/AuthProvider';
@@ -10,6 +10,7 @@ import { installClientErrorTracking } from './observability/errorTracking';
 import { MaintenancePage } from './pages/MaintenancePage';
 import './styles/variables.css';
 import './styles/base.css';
+import './styles/operational-reports.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {

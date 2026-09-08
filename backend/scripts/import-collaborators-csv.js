@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import prisma from '../src/lib/prisma.js';
+import { normalizeJobRoleKey } from '../src/lib/collaborators/job-role-service.js';
 
 
 function usage() {
@@ -197,7 +198,8 @@ async function findCollaborator({ name, cpf, registrationNumber }) {
       id: true,
       code: true,
       name: true,
-      role: true,
+      jobRoleId: true,
+      jobRole: { select: { id: true, name: true } },
       email: true,
       cpf: true,
       registrationNumber: true,
@@ -224,6 +226,12 @@ async function main() {
 
   const csvPath = path.resolve(process.cwd(), args.file);
   const rows = parseCsv(await fs.readFile(csvPath, 'utf8'));
+  const defaultJobRole = args.createMissing
+    ? await prisma.jobRole.findUnique({ where: { normalizedKey: normalizeJobRoleKey('Colaborador') } })
+    : null;
+  if (args.createMissing && (!defaultJobRole || !defaultJobRole.isActive)) {
+    throw new Error('Cadastre e ative o cargo canônico "Colaborador" antes de criar pessoas ausentes.');
+  }
   const summary = { rows: rows.length, updated: 0, created: 0, skipped: 0, errors: 0, dryRun: !args.apply };
 
   for (const row of rows) {
@@ -268,7 +276,7 @@ async function main() {
           data: {
             code,
             name,
-            role: 'Colaborador',
+            jobRoleId: defaultJobRole.id,
             email: null,
             signatureImage: null,
             isActive: true,

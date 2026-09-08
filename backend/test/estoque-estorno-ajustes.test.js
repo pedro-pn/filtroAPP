@@ -72,6 +72,7 @@ function fakeClient({ movements = [movement()], project = { id: 'project-1' } } 
     for (const row of state.movements) {
       if (where.itemId?.in && !where.itemId.in.includes(row.itemId)) continue;
       if (where.itemId && typeof where.itemId === 'string' && row.itemId !== where.itemId) continue;
+      if (where.projectId && row.projectId !== where.projectId) continue;
       const key = `${row[keyField]}:${row.type}`;
       const current = grouped.get(key) || {
         [keyField]: row[keyField],
@@ -152,7 +153,12 @@ test('reverseMovement blocks reversal that would leave negative balance', async 
 });
 
 test('createMovement handles return, inventory and loss note requirements', async () => {
-  const client = fakeClient({ movements: [movement({ id: 'entry-1', quantity: 5 })] });
+  const client = fakeClient({
+    movements: [
+      movement({ id: 'entry-1', quantity: 5 }),
+      movement({ id: 'exit-1', type: 'SAIDA', reason: 'USO_EM_PROJETO', quantity: 3, projectId: 'project-1' })
+    ]
+  });
 
   const returned = await createMovement(client, {
     createdById: 'user-1',
@@ -167,6 +173,21 @@ test('createMovement handles return, inventory and loss note requirements', asyn
   });
   assert.equal(returned.movement.type, 'ENTRADA');
   assert.equal(returned.movement.nfNumber, null);
+
+  await assert.rejects(
+    () => createMovement(client, {
+      createdById: 'user-1',
+      data: {
+        reason: 'DEVOLUCAO_OBRA',
+        itemId: 'item-1',
+        batchId: 'batch-1',
+        projectId: 'project-1',
+        quantity: 3,
+        date: '2026-07-09'
+      }
+    }),
+    /Saldo insuficiente na obra.*disponível: 2\.000 kg/
+  );
 
   await assert.rejects(
     () => createMovement(client, {

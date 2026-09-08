@@ -49,6 +49,39 @@ export function isServiceFinalized(service) {
   return typeof stored === 'string' && ['sim', 'true', 'finalizado'].includes(stored.trim().toLowerCase());
 }
 
+// RDOs e relatórios de serviço independentes são fontes do realizado. Relatórios técnicos gerados
+// a partir de um RDO carregam a mesma medição e precisam ser ignorados para não duplicá-la.
+export function isRealizedSourceReport(report) {
+  if (!report?.reportType) return true;
+  if (report.reportType === 'RDO') return true;
+  return !report.specialConditions?.parentRdoId;
+}
+
+// O importador histórico preencheu a equipe dos RDOs a partir da planilha de marcações do ponto,
+// não a partir dos nomes presentes no PDF. Esse vínculo é uma pista circular e não confirma, por
+// si só, que a pessoa participou da missão.
+export function isPointWorkbookDerivedRdoRoster(report) {
+  const manualUpload = report?.specialConditions?.__manualUpload;
+  return report?.reportType === 'RDO'
+    && manualUpload?.importedByScript === 'import-manual-rdo-pdfs'
+    && manualUpload?.collaboratorSource !== 'RDO_DOCUMENT';
+}
+
+export function isConfirmedReportParticipant(report, hasAllocatedHours = false) {
+  return Boolean(hasAllocatedHours || !isPointWorkbookDerivedRdoRoster(report));
+}
+
+// Mantém relatórios-fonte e seus colaboradores alinhados. A filtragem em memória é necessária
+// porque parentRdoId fica dentro de um JSON e relatórios antigos podem não ter essa chave.
+export function selectRealizedSourceReportData(reports = [], collaborators = []) {
+  const sourceReports = reports.filter(isRealizedSourceReport);
+  const sourceReportIds = new Set(sourceReports.map(report => report.id));
+  return {
+    reports: sourceReports,
+    collaborators: collaborators.filter(item => sourceReportIds.has(item.reportId))
+  };
+}
+
 // Extrai o realizado comparável de um ReportService.extraData: tubulação (m) e óleo (L).
 export function realizedFromExtraData(extraData) {
   const data = extraData && typeof extraData === 'object' ? extraData : {};
@@ -133,11 +166,38 @@ export function compactWeeklyProgressHistory(points = [], { startDate = null } =
 // Monta o resultado de avanço de um projeto a partir do previsto e do realizado já agregado.
 // realizedByType: Map<serviceTypeCanônico, {tubulacaoM, oleoL}>.
 export function buildProgress(plannedServices, realizedByType) {
-  const services = plannedServices.map(svc => {
-    const realized = realizedByType.get(normalizeRdoServiceType(svc.serviceType) ?? svc.serviceType)
-      ?? { tubulacaoM: 0, oleoL: 0 };
-    const systems = svc.systems.map(sys => {
+  const groupedServices = new Map();
+  for (const svc of plannedServices) {
+    const serviceType = normalizeRdoServiceType(svc.serviceType) ?? svc.serviceType;
+    if (!groupedServices.has(serviceType)) {
+      groupedServices.set(serviceType, { serviceType, weight: 0, systems: new Map() });
+    }
+    const grouped = groupedServices.get(serviceType);
+    grouped.weight += Number(svc.weight ?? 1);
+    for (const sys of svc.systems ?? []) {
+      const systemKey = `${sys.systemType}:${sys.unit ?? ''}`;
+      if (!grouped.systems.has(systemKey)) {
+        grouped.systems.set(systemKey, {
+          systemType: sys.systemType,
+          unit: sys.unit,
+          plannedQty: 0,
+          hasPlannedQty: false
+        });
+      }
+      const groupedSystem = grouped.systems.get(systemKey);
       const planned = sys.quantity != null ? Number(sys.quantity) : null;
+      if (Number.isFinite(planned)) {
+        groupedSystem.plannedQty += planned;
+        groupedSystem.hasPlannedQty = true;
+      }
+    }
+  }
+
+  const services = Array.from(groupedServices.values()).map(svc => {
+    const realized = realizedByType.get(svc.serviceType)
+      ?? { tubulacaoM: 0, oleoL: 0 };
+    const systems = Array.from(svc.systems.values()).map(sys => {
+      const planned = sys.hasPlannedQty ? sys.plannedQty : null;
       const real = realizedForSystem(sys.systemType, realized);
       const pct = planned && planned > 0 ? Math.min(real / planned, 1) * 100 : null;
       return {
@@ -169,6 +229,79 @@ export function buildProgress(plannedServices, realizedByType) {
   return {
     hasScope: services.some(s => s.systems.some(sys => sys.plannedQty && sys.plannedQty > 0)),
     progressPct,
+    services
+  };
+}
+
+function weeklyTargetStatus(remaining, remainingDays) {
+  if (remaining <= 0) return 'COMPLETED';
+  if (remainingDays < 0) return 'OVERDUE';
+  if (remainingDays === 0) return 'DUE_TODAY';
+  return 'REQUIRED';
+}
+
+// Calcula o ritmo mínimo para concluir o avanço e cada quantitativo medível até a data prevista.
+// Serviços repetidos já chegam agregados por tipo em buildProgress; sistemas iguais somam o previsto.
+export function buildRequiredWeeklyProgress(progress, {
+  startDate = null,
+  expectedEndDate = null,
+  referenceDate = new Date()
+} = {}) {
+  const endKey = toDateKey(expectedEndDate);
+  const referenceKey = toDateKey(referenceDate);
+  const startKey = toDateKey(startDate);
+  if (!endKey || !referenceKey) {
+    return {
+      status: 'UNAVAILABLE',
+      remainingDays: null,
+      remainingPctPoints: null,
+      requiredPctPointsPerWeek: null,
+      services: []
+    };
+  }
+
+  const effectiveReferenceKey = startKey && dateMs(referenceKey) < dateMs(startKey) ? startKey : referenceKey;
+  const remainingDays = Math.round((dateMs(endKey) - dateMs(effectiveReferenceKey)) / 86400000);
+  const progressPct = num(progress?.progressPct);
+  const remainingPctPoints = progressPct === null ? null : round(Math.max(100 - progressPct, 0));
+  const status = remainingPctPoints === null
+    ? 'UNAVAILABLE'
+    : weeklyTargetStatus(remainingPctPoints, remainingDays);
+  const requiredPctPointsPerWeek = status === 'REQUIRED'
+    ? round(remainingPctPoints / (remainingDays / 7), 2)
+    : null;
+
+  const services = (progress?.services ?? []).map(service => ({
+    serviceType: service.serviceType,
+    executionPct: service.executionPct,
+    systems: (service.systems ?? []).map(system => {
+      const plannedQty = num(system.plannedQty);
+      const realizedQty = num(system.realizedQty);
+      const remainingQty = plannedQty === null
+        ? null
+        : round(Math.max(plannedQty - (realizedQty ?? 0), 0), 2);
+      const systemStatus = remainingQty === null
+        ? 'UNAVAILABLE'
+        : weeklyTargetStatus(remainingQty, remainingDays);
+      return {
+        systemType: system.systemType,
+        unit: system.unit,
+        plannedQty,
+        realizedQty,
+        remainingQty,
+        status: systemStatus,
+        requiredQtyPerWeek: systemStatus === 'REQUIRED'
+          ? round(remainingQty / (remainingDays / 7), 2)
+          : null
+      };
+    })
+  }));
+
+  return {
+    status,
+    remainingDays,
+    remainingPctPoints,
+    requiredPctPointsPerWeek,
     services
   };
 }
@@ -205,6 +338,7 @@ export function buildProgressHistory(plannedServices = [], serviceReports = [], 
   const servicesByDate = new Map();
   for (const service of serviceReports) {
     if (!isServiceFinalized(service)) continue;
+    if (!isRealizedSourceReport(service.report ?? service)) continue;
     const canonical = normalizeRdoServiceType(service.serviceType);
     if (!canonical) continue;
     const date = toDateKey(service.reportDate ?? service.report?.reportDate);
@@ -234,17 +368,27 @@ export function buildProgressHistory(plannedServices = [], serviceReports = [], 
 }
 
 // Agrega o realizado dos RDOs (por projeto → por serviço canônico) para um conjunto de projetos.
+export function realizedReportWhere(projectIds) {
+  return { report: { projectId: { in: projectIds }, deletedAt: null } };
+}
+
 async function aggregateRealized(projectIds) {
   const byProject = new Map(); // projectId -> Map<serviceType, {tubulacaoM, oleoL}>
   if (projectIds.length === 0) return byProject;
 
   const services = await prisma.reportService.findMany({
-    where: { report: { projectId: { in: projectIds }, deletedAt: null } },
-    select: { finalized: true, serviceType: true, extraData: true, report: { select: { projectId: true } } }
+    where: realizedReportWhere(projectIds),
+    select: {
+      finalized: true,
+      serviceType: true,
+      extraData: true,
+      report: { select: { projectId: true, reportType: true, specialConditions: true } }
+    }
   });
 
   for (const svc of services) {
     if (!isServiceFinalized(svc)) continue; // só serviços finalizados entram no avanço
+    if (!isRealizedSourceReport(svc.report)) continue;
     const canonical = normalizeRdoServiceType(svc.serviceType);
     if (!canonical) continue;
     const projectId = svc.report?.projectId;
@@ -319,7 +463,6 @@ export async function computeProgressHistoryForProjects(projectIds) {
       where: {
         report: {
           projectId: { in: projectIds },
-          reportType: 'RDO',
           deletedAt: null
         }
       },
@@ -327,7 +470,7 @@ export async function computeProgressHistoryForProjects(projectIds) {
         finalized: true,
         serviceType: true,
         extraData: true,
-        report: { select: { projectId: true, reportDate: true } }
+        report: { select: { projectId: true, reportType: true, reportDate: true, specialConditions: true } }
       }
     }),
     prisma.projectManualProgressHistory.findMany({
@@ -353,7 +496,9 @@ export async function computeProgressHistoryForProjects(projectIds) {
       finalized: service.finalized,
       serviceType: service.serviceType,
       extraData: service.extraData,
-      reportDate: service.report?.reportDate
+      reportDate: service.report?.reportDate,
+      reportType: service.report?.reportType,
+      specialConditions: service.report?.specialConditions
     });
   }
 

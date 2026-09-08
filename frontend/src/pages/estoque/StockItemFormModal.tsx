@@ -2,9 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { z } from 'zod';
 
-import type { PdfUpload, StockCategory, StockItem, StockItemPayload, StockItemType, StockItemUpdatePayload } from '../../api/estoque';
+import type { StockCategory, StockItem, StockItemPayload, StockItemType, StockItemUpdatePayload } from '../../api/estoque';
 import { Modal } from '../../components/ui/Modal';
-import { PdfDropzone } from '../../components/ui/PdfDropzone';
 import { ChecklistItemsEditor } from '../equipamentos/ChecklistItemsEditor';
 import { makeEstoqueSchemas } from '../../../../shared/schemas/estoque.js';
 
@@ -94,22 +93,6 @@ function resolverFor(item: StockItem | null): Resolver<StockItemFormValues> {
   };
 }
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
-async function pdfUpload(file: File | null): Promise<PdfUpload | undefined> {
-  if (!file) return undefined;
-  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-  if (!isPdf) throw new Error('A FISPQ deve ser enviada em PDF.');
-  return { fileName: file.name, dataUrl: await fileToDataUrl(file) };
-}
-
 function checklistModeFor(item: StockItem | null): ChecklistMode {
   if (!item || item.checklistItems == null) return 'INHERIT';
   return item.checklistEnabled ? 'CUSTOM' : 'DISABLED';
@@ -141,9 +124,6 @@ function checklistModeLabel(mode: ChecklistMode, category: StockCategory | null)
 }
 
 export function StockItemFormModal({ open, item, categories, saving, onClose, onSubmit }: Props) {
-  const [fispqFile, setFispqFile] = useState<File | null>(null);
-  const [removeFispq, setRemoveFispq] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
   const [checklistMode, setChecklistMode] = useState<ChecklistMode>(checklistModeFor(item));
   const [checklistItems, setChecklistItems] = useState<string[]>(
     item?.checklistItems != null ? item.checklistItems : item?.category?.checklistItems || []
@@ -188,27 +168,14 @@ export function StockItemFormModal({ open, item, categories, saving, onClose, on
   }, [availableCategories, categoryId, setValue]);
 
   async function submit(values: StockItemFormValues) {
-    setSubmitError(null);
-    try {
-      const payload = formValuesToPayload(values);
-      Object.assign(payload, checklistPayloadFor(checklistMode, checklistItems));
-      if (values.type === 'PRODUTO_QUIMICO') {
-        const fispq = await pdfUpload(fispqFile);
-        if (fispq) {
-          Object.assign(payload, { fispq });
-        } else if (removeFispq) {
-          Object.assign(payload, { fispq: null });
-        }
-      }
-      if (item) {
-        const updatePayload = { ...(payload as StockItemPayload) } as StockItemUpdatePayload & { type?: StockItemType };
-        delete updatePayload.type;
-        onSubmit(updatePayload);
-      } else {
-        onSubmit(payload as StockItemPayload);
-      }
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Não foi possível preparar o anexo.');
+    const payload = formValuesToPayload(values);
+    Object.assign(payload, checklistPayloadFor(checklistMode, checklistItems));
+    if (item) {
+      const updatePayload = { ...(payload as StockItemPayload) } as StockItemUpdatePayload & { type?: StockItemType };
+      delete updatePayload.type;
+      onSubmit(updatePayload);
+    } else {
+      onSubmit(payload as StockItemPayload);
     }
   }
 
@@ -319,17 +286,6 @@ export function StockItemFormModal({ open, item, categories, saving, onClose, on
               <input id="stock-chemical-cas" type="text" disabled={saving} {...register('casNumber')} />
               {errors.casNumber ? <small className="field-error">{errors.casNumber.message}</small> : null}
             </div>
-            <PdfDropzone
-              id="stock-fispq"
-              label="FISPQ (PDF)"
-              file={fispqFile}
-              onFile={setFispqFile}
-              currentName={item?.fispqUrl ? 'FISPQ cadastrada' : undefined}
-              currentUrl={item?.fispqUrl || undefined}
-              currentRemoved={removeFispq}
-              onCurrentRemovedChange={setRemoveFispq}
-              disabled={saving}
-            />
           </>
         )}
 
@@ -371,7 +327,6 @@ export function StockItemFormModal({ open, item, categories, saving, onClose, on
           />
         </div>
 
-        {submitError ? <p className="equip-form-error">{submitError}</p> : null}
         {errors.form ? <p className="equip-form-error">{errors.form.message}</p> : null}
 
         <div className="admin-form-actions equip-form-actions">

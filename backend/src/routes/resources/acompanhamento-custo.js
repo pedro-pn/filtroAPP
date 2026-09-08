@@ -12,9 +12,9 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import { computeMonthlyCost } from '../../lib/acompanhamento/cost-engine.js';
-import { getEpiAnnualCost, setEpiAnnualCost } from '../../lib/acompanhamento/settings.js';
+import { getAnnualCollaboratorCosts, setAnnualCollaboratorCosts } from '../../lib/acompanhamento/settings.js';
 import prisma from '../../lib/prisma.js';
-import { requireAcompanhamentoManager, requireAuth } from '../../middleware/auth.js';
+import { requireAcompanhamentoManager, requireAuth, requireHubAdmin } from '../../middleware/auth.js';
 
 const router = Router();
 
@@ -184,25 +184,31 @@ router.put('/cargos/:jobRoleId/parametros', requireAuth, requireAcompanhamentoMa
   res.status(201).json({ jobRoleId: role.id, profileId: profile.id, effectiveDate: created.effectiveDate, params: created.params });
 }));
 
-// === Configuração global de custo (EPI por colaborador) ===
+// === Configuração global de custos anuais por colaborador ===
 
 router.get('/config', requireAuth, requireAcompanhamentoManager, asyncHandler(async (_req, res) => {
-  res.json({ epiAnnualCost: await getEpiAnnualCost() });
+  res.json(await getAnnualCollaboratorCosts());
 }));
 
-const configSchema = z.object({ epiAnnualCost: z.number().min(0).max(1000000) });
+const configSchema = z.object({
+  epiAnnualCost: z.number().min(0).max(1000000).optional(),
+  examsTrainingAnnualCost: z.number().min(0).max(1000000).optional(),
+  offshoreExamsTrainingAnnualCost: z.number().min(0).max(1000000).optional()
+});
 
 router.put('/config', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
-  const { epiAnnualCost } = configSchema.parse(req.body);
-  const value = await setEpiAnnualCost(epiAnnualCost, req.auth?.user?.id ?? null);
-  res.json({ epiAnnualCost: value });
+  const current = await getAnnualCollaboratorCosts();
+  const values = configSchema.parse(req.body);
+  res.json(await setAnnualCollaboratorCosts({ ...current, ...values }, req.auth?.user?.id ?? null));
 }));
 
 // === Categorias Omie consideradas nos cálculos do acompanhamento ===
 
-router.get('/categorias-omie', requireAuth, requireAcompanhamentoManager, asyncHandler(async (_req, res) => {
+router.get('/categorias-omie', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+  const isAdmin = req.auth?.user?.accountType === 'ADMIN';
   const [categories, purchaseStats] = await Promise.all([
     prisma.omieCategory.findMany({
+      where: isAdmin ? undefined : { adminOnly: false },
       orderBy: [{ descricao: 'asc' }, { codigo: 'asc' }]
     }),
     prisma.omiePurchase.groupBy({
@@ -219,6 +225,7 @@ router.get('/categorias-omie', requireAuth, requireAcompanhamentoManager, asyncH
       codigo: category.codigo,
       descricao: category.descricao,
       includeInAcompanhamentoCosts: category.includeInAcompanhamentoCosts,
+      adminOnly: category.adminOnly,
       syncedAt: category.syncedAt,
       purchasesCount: stats?._count?._all ?? 0,
       purchasesTotal: stats?._sum?.valor ?? 0
@@ -231,7 +238,9 @@ const omieCategorySchema = z.object({ includeInAcompanhamentoCosts: z.boolean() 
 router.put('/categorias-omie/:codigo', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
   const { includeInAcompanhamentoCosts } = omieCategorySchema.parse(req.body);
   const current = await prisma.omieCategory.findUnique({ where: { codigo: req.params.codigo } });
-  if (!current) return res.status(404).json({ error: 'Categoria Omie não encontrada.' });
+  if (!current || (current.adminOnly && req.auth?.user?.accountType !== 'ADMIN')) {
+    return res.status(404).json({ error: 'Categoria Omie não encontrada.' });
+  }
   const category = await prisma.omieCategory.update({
     where: { codigo: req.params.codigo },
     data: { includeInAcompanhamentoCosts }
@@ -241,6 +250,27 @@ router.put('/categorias-omie/:codigo', requireAuth, requireAcompanhamentoManager
     codigo: category.codigo,
     descricao: category.descricao,
     includeInAcompanhamentoCosts: category.includeInAcompanhamentoCosts,
+    adminOnly: category.adminOnly,
+    syncedAt: category.syncedAt
+  });
+}));
+
+const omieCategoryVisibilitySchema = z.object({ adminOnly: z.boolean() });
+
+router.patch('/categorias-omie/:codigo/visibilidade', requireAuth, requireHubAdmin, asyncHandler(async (req, res) => {
+  const { adminOnly } = omieCategoryVisibilitySchema.parse(req.body);
+  const current = await prisma.omieCategory.findUnique({ where: { codigo: req.params.codigo } });
+  if (!current) return res.status(404).json({ error: 'Categoria Omie não encontrada.' });
+  const category = await prisma.omieCategory.update({
+    where: { codigo: req.params.codigo },
+    data: { adminOnly }
+  });
+  res.json({
+    id: category.id,
+    codigo: category.codigo,
+    descricao: category.descricao,
+    includeInAcompanhamentoCosts: category.includeInAcompanhamentoCosts,
+    adminOnly: category.adminOnly,
     syncedAt: category.syncedAt
   });
 }));

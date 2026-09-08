@@ -45,7 +45,10 @@ function fakeClient(rows) {
     stockMovement: {
       findMany: async args => rows
         .filter(row => matchesWhere(row, args.where || {}))
-        .sort((a, b) => b.date - a.date || b.createdAt - a.createdAt)
+        .sort((a, b) => {
+          const direction = args.orderBy[0].date === 'asc' ? 1 : -1;
+          return direction * (a.date - b.date || a.createdAt - b.createdAt);
+        })
         .slice(args.skip, args.skip + args.take),
       count: async args => rows.filter(row => matchesWhere(row, args.where || {})).length
     }
@@ -66,6 +69,14 @@ test('stock movement list builds filters, caps pagination and sorts results', as
 
   assert.equal(args.pageSize, 200);
   assert.deepEqual(args.orderBy, [{ date: 'desc' }, { createdAt: 'desc' }]);
+  assert.deepEqual(
+    stockMovementListArgs({ dateOrder: 'asc' }).orderBy,
+    [{ date: 'asc' }, { createdAt: 'asc' }]
+  );
+  assert.deepEqual(
+    stockMovementListArgs({ dateOrder: 'invalid' }).orderBy,
+    [{ date: 'desc' }, { createdAt: 'desc' }]
+  );
   assert.equal(args.where.itemId, 'item-1');
   assert.equal(args.where.type, 'SAIDA');
   assert.equal(args.where.reason, 'USO_EM_PROJETO');
@@ -95,4 +106,15 @@ test('stock movement list builds filters, caps pagination and sorts results', as
   assert.equal(result.total, 3);
   assert.equal(result.pageSize, 2);
   assert.deepEqual(result.movements.map(row => row.id), ['newer-created', 'newer']);
+
+  const ascending = await listStockMovements(fakeClient(rows), {
+    itemId: 'item-1',
+    type: 'SAIDA',
+    reason: 'USO_EM_PROJETO',
+    projectId: 'project-2',
+    dateOrder: 'asc',
+    page: 1,
+    pageSize: 3
+  });
+  assert.deepEqual(ascending.movements.map(row => row.id), ['old', 'newer', 'newer-created']);
 });

@@ -10,6 +10,11 @@
   --tx: #1a1a1a;
   --mu: #6b7280;
   --br: #d1d5db;
+  --warning-border: #fbbf24;
+  --warning-bg: #fffbeb;
+  --warning-text: #92400e;
+  --warning-shadow: rgba(146, 64, 14, 0.14);
+  --error-bg: #fff5f5;
   --r: 10px;
   --rs: 6px;
   --shadow: 0 12px 32px rgba(20, 20, 20, 0.08);

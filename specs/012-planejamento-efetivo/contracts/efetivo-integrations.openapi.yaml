@@ -1,0 +1,345 @@
+openapi: 3.1.0
+info:
+  title: Efetivo Operacional Integration API
+  version: 1.0.0
+  description: Contratos mínimos entre Efetivo, cadastro canônico, EPI, RDO, Acompanhamento e calendário corporativo.
+servers:
+  - url: /api
+security:
+  - sessionCookie: []
+tags:
+  - name: Workforce
+  - name: EPI
+  - name: Reports
+  - name: Acompanhamento
+paths:
+  /workforce/calendar:
+    get:
+      tags: [Workforce]
+      summary: Resolve feriados e ausências compartilhados no intervalo
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - name: collaboratorId
+          in: query
+          schema: { type: array, items: { type: string } }
+      responses:
+        '200':
+          description: Calendário resolvido e revisão usada por caches/cenários
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkforceCalendar' }
+  /workforce/availability/check:
+    post:
+      tags: [Workforce]
+      summary: Faz preflight de disponibilidade para planejamento ou registro realizado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [collaboratorIds, startDate, endDate, context]
+              properties:
+                collaboratorIds:
+                  type: array
+                  uniqueItems: true
+                  items: { type: string }
+                startDate: { $ref: '#/components/schemas/DateOnly' }
+                endDate: { $ref: '#/components/schemas/DateOnly' }
+                context: { type: string, enum: [PLANNING, ACTUAL_REPORT] }
+      responses:
+        '200':
+          description: Conflitos tipados; o consumidor aplica sua política de bloqueio ou justificativa
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [calendarRevision, conflicts]
+                properties:
+                  calendarRevision: { type: integer }
+                  conflicts:
+                    type: array
+                    items: { $ref: '#/components/schemas/AvailabilityConflict' }
+  /workforce/absences:
+    get:
+      tags: [Workforce]
+      summary: Lista ausências canônicas por pessoa/período
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - name: collaboratorId
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Ausências
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Absence' }
+    post:
+      tags: [Workforce]
+      summary: Registra ausência real e retorna missões que ficaram pendentes
+      x-required-role: efetivo:manager
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AbsenceInput' }
+      responses:
+        '201':
+          description: Ausência persistida, inclusive quando exige replanejamento
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [absence, affectedMissionIds, calendarRevision]
+                properties:
+                  absence: { $ref: '#/components/schemas/Absence' }
+                  affectedMissionIds: { type: array, items: { type: string } }
+                  calendarRevision: { type: integer }
+  /workforce/absences/{absenceId}:
+    patch:
+      tags: [Workforce]
+      summary: Atualiza ausência com concorrência otimista e recalcula missões afetadas
+      x-required-role: efetivo:manager
+      parameters:
+        - $ref: '#/components/parameters/AbsenceId'
+        - $ref: '#/components/parameters/IfMatchVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AbsenceInput' }
+      responses:
+        '200':
+          description: Ausência e revisão atualizadas
+    delete:
+      tags: [Workforce]
+      summary: Exclui logicamente ausência e incrementa a revisão global
+      x-required-role: efetivo:manager
+      parameters:
+        - $ref: '#/components/parameters/AbsenceId'
+        - $ref: '#/components/parameters/IfMatchVersion'
+      responses:
+        '204': { description: Ausência excluída }
+  /epis/collaborators/{collaboratorId}/profile:
+    get:
+      tags: [EPI]
+      summary: Exibe cargo canônico, override local e cargo efetivo do EPI
+      x-required-role: epi:viewer
+      parameters:
+        - $ref: '#/components/parameters/CollaboratorId'
+      responses:
+        '200':
+          description: Perfil EPI
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EpiCollaboratorProfile' }
+    patch:
+      tags: [EPI]
+      summary: Define ou limpa apenas o override de cargo do EPI
+      description: Nunca altera o cargo canônico do colaborador.
+      x-required-role: epi:manager
+      parameters:
+        - $ref: '#/components/parameters/CollaboratorId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [roleOverrideJobRoleId]
+              properties:
+                roleOverrideJobRoleId: { type: [string, 'null'] }
+      responses:
+        '200':
+          description: Override salvo ou limpo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EpiCollaboratorProfile' }
+  /reports/planning-context:
+    get:
+      tags: [Reports]
+      summary: Retorna sugestão sanitizada da missão oficial para o RDO
+      description: Usa as permissões normais de RDO/projeto e nunca expõe cenários, capacidade ou auditoria do Efetivo.
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdQuery'
+        - $ref: '#/components/parameters/Date'
+      responses:
+        '200':
+          description: Missão confirmada que cobre projeto/data, ou contexto nulo
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/OfficialMissionContext'
+                  - type: 'null'
+  /acompanhamento/projects/{projectId}/planning-context:
+    get:
+      tags: [Acompanhamento]
+      summary: Retorna o planejamento oficial para exibição ao lado do realizado
+      description: Não altera datas do Project, rateio do Ponto nem laborCollaboratorIds.
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: date
+          in: query
+          schema: { $ref: '#/components/schemas/DateOnly' }
+      responses:
+        '200':
+          description: Contexto planejado atual
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/OfficialMissionContext'
+                  - type: 'null'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: connect.sid
+  parameters:
+    From:
+      name: from
+      in: query
+      required: true
+      schema: { $ref: '#/components/schemas/DateOnly' }
+    To:
+      name: to
+      in: query
+      required: true
+      schema: { $ref: '#/components/schemas/DateOnly' }
+    Date:
+      name: date
+      in: query
+      required: true
+      schema: { $ref: '#/components/schemas/DateOnly' }
+    CollaboratorId:
+      name: collaboratorId
+      in: path
+      required: true
+      schema: { type: string }
+    AbsenceId:
+      name: absenceId
+      in: path
+      required: true
+      schema: { type: string }
+    IfMatchVersion:
+      name: If-Match-Version
+      in: header
+      required: true
+      schema: { type: integer, minimum: 1 }
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema: { type: string }
+    ProjectIdQuery:
+      name: projectId
+      in: query
+      required: true
+      schema: { type: string }
+  schemas:
+    DateOnly:
+      type: string
+      format: date
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+    JobRoleRef:
+      type: object
+      required: [id, name, isActive]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        isActive: { type: boolean }
+    CollaboratorRef:
+      type: object
+      required: [id, name, jobRole]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        jobRole: { $ref: '#/components/schemas/JobRoleRef' }
+    Holiday:
+      type: object
+      required: [date, name, source, mutable]
+      properties:
+        id: { type: [string, 'null'] }
+        date: { $ref: '#/components/schemas/DateOnly' }
+        name: { type: string }
+        source: { type: string, enum: [NATIONAL, COMPANY] }
+        mutable: { type: boolean }
+    AbsenceInput:
+      type: object
+      required: [collaboratorId, type, startDate, endDate]
+      properties:
+        collaboratorId: { type: string }
+        type: { type: string, enum: [FERIAS, FOLGA, AFASTAMENTO] }
+        startDate: { $ref: '#/components/schemas/DateOnly' }
+        endDate: { $ref: '#/components/schemas/DateOnly' }
+        note: { type: [string, 'null'], maxLength: 1000 }
+    Absence:
+      allOf:
+        - $ref: '#/components/schemas/AbsenceInput'
+        - type: object
+          required: [id, version]
+          properties:
+            id: { type: string }
+            version: { type: integer, minimum: 1 }
+    AvailabilityConflict:
+      type: object
+      required: [code, collaboratorId, sourceId, startDate, endDate, policy]
+      properties:
+        code: { type: string, enum: [ABSENCE, MISSION, WORK_DURING_ABSENCE, WORK_ON_HOLIDAY] }
+        collaboratorId: { type: string }
+        sourceId: { type: string }
+        startDate: { $ref: '#/components/schemas/DateOnly' }
+        endDate: { $ref: '#/components/schemas/DateOnly' }
+        policy: { type: string, enum: [BLOCK, REQUIRE_JUSTIFICATION, WARN] }
+    WorkforceCalendar:
+      type: object
+      required: [revision, holidays, absences]
+      properties:
+        revision: { type: integer, minimum: 1 }
+        holidays: { type: array, items: { $ref: '#/components/schemas/Holiday' } }
+        absences: { type: array, items: { $ref: '#/components/schemas/Absence' } }
+    EffectiveEpiRole:
+      type: object
+      required: [jobRoleId, name, source]
+      properties:
+        jobRoleId: { type: string }
+        name: { type: string }
+        source: { type: string, enum: [CANONICAL, EPI_OVERRIDE] }
+    EpiCollaboratorProfile:
+      type: object
+      required: [collaboratorId, currentJobRole, roleOverrideJobRole, effectiveRole]
+      properties:
+        collaboratorId: { type: string }
+        currentJobRole: { $ref: '#/components/schemas/JobRoleRef' }
+        roleOverrideJobRole:
+          oneOf:
+            - $ref: '#/components/schemas/JobRoleRef'
+            - type: 'null'
+        effectiveRole: { $ref: '#/components/schemas/EffectiveEpiRole' }
+    OfficialMissionContext:
+      type: object
+      required: [missionId, missionVersion, planRevision, calendarRevision, projectId, dates, collaborators]
+      properties:
+        missionId: { type: string }
+        missionVersion: { type: integer }
+        planRevision: { type: integer }
+        calendarRevision: { type: integer }
+        projectId: { type: string }
+        dates:
+          type: object
+          required: [mobilizationDate, executionStartDate, executionEndDate, returnDate]
+          properties:
+            mobilizationDate: { $ref: '#/components/schemas/DateOnly' }
+            executionStartDate: { $ref: '#/components/schemas/DateOnly' }
+            executionEndDate: { $ref: '#/components/schemas/DateOnly' }
+            returnDate: { $ref: '#/components/schemas/DateOnly' }
+        collaborators:
+          type: array
+          items: { $ref: '#/components/schemas/CollaboratorRef' }

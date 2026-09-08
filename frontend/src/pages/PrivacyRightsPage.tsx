@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import { createDataSubjectRequest, type DataSubjectRequestType } from '../api/privacy';
 import { PRIVACY_CONTACT } from '../constants/privacy';

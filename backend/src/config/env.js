@@ -35,6 +35,19 @@ function integerWithDefault(name, defaultValue, { min, max } = {}) {
   }, schema);
 }
 
+function numberWithDefault(name, defaultValue, { min, max } = {}) {
+  let schema = z.number({
+    invalid_type_error: `${name} deve ser numerico.`
+  }).finite(`${name} deve ser finito.`);
+  if (min !== undefined) schema = schema.min(min, `${name} deve ser maior ou igual a ${min}.`);
+  if (max !== undefined) schema = schema.max(max, `${name} deve ser menor ou igual a ${max}.`);
+
+  return z.preprocess(value => {
+    const normalized = emptyToUndefined(value);
+    return normalized === undefined ? defaultValue : Number(normalized);
+  }, schema);
+}
+
 function booleanWithDefault(name, defaultValue) {
   return z.preprocess(value => {
     const normalized = emptyToUndefined(value);
@@ -94,6 +107,13 @@ export function assertProductionSurveyTokenSecretConfigured({ nodeEnv, surveyTok
   }
 }
 
+export function assertProductionApiTokenHashKeyConfigured({ nodeEnv, apiTokenHashKeyV1 }) {
+  if (nodeEnv !== 'production') return;
+  if (!apiTokenHashKeyV1 || apiTokenHashKeyV1.length < 32) {
+    throw new Error('API_TOKEN_HASH_KEY_V1 deve ser configurado em produção com pelo menos 32 caracteres.');
+  }
+}
+
 const rawEnvSchema = z.object({
   NODE_ENV: stringWithDefault('development'),
   PORT: integerWithDefault('PORT', 4000, { min: 1, max: 65535 }),
@@ -110,10 +130,14 @@ const rawEnvSchema = z.object({
   SMTP_HOST: stringWithDefault(''),
   SMTP_PORT: integerWithDefault('SMTP_PORT', 587, { min: 1, max: 65535 }),
   SMTP_SECURE: booleanWithDefault('SMTP_SECURE', false),
+  SMTP_AUTH_MODE: z.preprocess(emptyToUndefined, z.enum(['password', 'oauth2']).optional()),
   SMTP_USER: stringWithDefault(''),
   SMTP_PASS: stringWithDefault(''),
   SMTP_FROM: stringWithDefault(''),
   SMTP_TEST_DEST: stringWithDefault(''),
+  MICROSOFT_TENANT_ID: stringWithDefault(''),
+  MICROSOFT_CLIENT_ID: stringWithDefault(''),
+  MICROSOFT_CLIENT_SECRET: stringWithDefault(''),
   SEND_CLIENT_EMAILS: booleanWithDefault('SEND_CLIENT_EMAILS', true),
   PRIVACY_NOTIFICATION_EMAIL: stringWithDefault(''),
   LGPD_NOTIFICATION_EMAIL: stringWithDefault(''),
@@ -131,6 +155,21 @@ const rawEnvSchema = z.object({
   SURVEY_TOKEN_SECRET_PREVIOUS: stringWithDefault(''),
   SIGNATURE_TOKEN_SECRET: stringWithDefault(''),
   SIGNATURE_TOKEN_SECRET_PREVIOUS: stringWithDefault(''),
+  API_TOKEN_HASH_KEY_V1: stringWithDefault(''),
+  API_TOKEN_ACTIVE_KEY_VERSION: integerWithDefault('API_TOKEN_ACTIVE_KEY_VERSION', 1, { min: 1 }),
+  API_TOKEN_GLOBAL_MAX_PAGE_SIZE: integerWithDefault('API_TOKEN_GLOBAL_MAX_PAGE_SIZE', 500, { min: 1, max: 500 }),
+  API_TOKEN_DEFAULT_REQUESTS_PER_MINUTE: integerWithDefault('API_TOKEN_DEFAULT_REQUESTS_PER_MINUTE', 60, { min: 1 }),
+  API_TOKEN_DEFAULT_REQUESTS_PER_DAY: integerWithDefault('API_TOKEN_DEFAULT_REQUESTS_PER_DAY', 10000, { min: 1 }),
+  API_TOKEN_DEFAULT_ROWS_PER_DAY: integerWithDefault('API_TOKEN_DEFAULT_ROWS_PER_DAY', 500000, { min: 1 }),
+  API_TOKEN_COARSE_IP_REQUESTS_PER_MINUTE: integerWithDefault('API_TOKEN_COARSE_IP_REQUESTS_PER_MINUTE', 300, { min: 1 }),
+  API_TOKEN_LOG_RETENTION_DAYS: integerWithDefault('API_TOKEN_LOG_RETENTION_DAYS', 365, { min: 1 }),
+  API_TOKEN_MAX_OVERLAP_MINUTES: integerWithDefault('API_TOKEN_MAX_OVERLAP_MINUTES', 60, { min: 0, max: 1440 }),
+  ASSINATURAS_MAX_PDF_MB: integerWithDefault('ASSINATURAS_MAX_PDF_MB', 20, { min: 1 }),
+  ASSINATURAS_MAX_PAGES: integerWithDefault('ASSINATURAS_MAX_PAGES', 50, { min: 1 }),
+  ASSINATURAS_MAX_SIGNERS: integerWithDefault('ASSINATURAS_MAX_SIGNERS', 20, { min: 1 }),
+  ASSINATURAS_TOKEN_MAX_DAYS: integerWithDefault('ASSINATURAS_TOKEN_MAX_DAYS', 90, { min: 1 }),
+  ASSINATURAS_DELETED_RETENTION_DAYS: integerWithDefault('ASSINATURAS_DELETED_RETENTION_DAYS', 90, { min: 0 }),
+  ASSINATURAS_PREVIEW_SCALE: numberWithDefault('ASSINATURAS_PREVIEW_SCALE', 1.5, { min: 0.1, max: 4 }),
   DATA_RETENTION_JOB_ENABLED: booleanWithDefault('DATA_RETENTION_JOB_ENABLED', false),
   ZAPSIGN_API_BASE_URL: stringWithDefault('https://api.zapsign.com.br/api/v1'),
   LIBREOFFICE_BINARY: stringWithDefault('soffice'),
@@ -149,6 +188,8 @@ const rawEnvSchema = z.object({
   ERROR_TRACKING_WEBHOOK_URL: stringWithDefault(''),
   ERROR_TRACKING_PROVIDER: stringWithDefault('webhook'),
   COMMERCIAL_IMPORT_TOKEN: stringWithDefault(''),
+  PROJECT_INTAKE_WEBHOOK_TOKEN: stringWithDefault(''),
+  PONTOMAIS_API_TOKEN: stringWithDefault(''),
   OMIE_APP_KEY: stringWithDefault(''),
   OMIE_APP_SECRET: stringWithDefault(''),
   OMIE_SYNC_ENABLED: booleanWithDefault('OMIE_SYNC_ENABLED', false),
@@ -167,6 +208,10 @@ const rawEnvSchema = z.object({
     () => assertProductionSurveyTokenSecretConfigured({
       nodeEnv: value.NODE_ENV,
       surveyTokenSecret: value.SURVEY_TOKEN_SECRET
+    }),
+    () => assertProductionApiTokenHashKeyConfigured({
+      nodeEnv: value.NODE_ENV,
+      apiTokenHashKeyV1: value.API_TOKEN_HASH_KEY_V1
     })
   ]) {
     try {
@@ -217,10 +262,18 @@ export function loadEnv(source = process.env) {
     smtpHost: raw.SMTP_HOST,
     smtpPort: raw.SMTP_PORT,
     smtpSecure: raw.SMTP_SECURE,
+    smtpAuthMode: raw.SMTP_AUTH_MODE || (
+      raw.MICROSOFT_TENANT_ID || raw.MICROSOFT_CLIENT_ID || raw.MICROSOFT_CLIENT_SECRET
+        ? 'oauth2'
+        : 'password'
+    ),
     smtpUser: raw.SMTP_USER,
     smtpPass: raw.SMTP_PASS,
     smtpFrom: raw.SMTP_FROM,
     smtpTestDest: raw.SMTP_TEST_DEST,
+    microsoftTenantId: raw.MICROSOFT_TENANT_ID,
+    microsoftClientId: raw.MICROSOFT_CLIENT_ID,
+    microsoftClientSecret: raw.MICROSOFT_CLIENT_SECRET,
     sendClientEmails: raw.SEND_CLIENT_EMAILS,
     privacyNotificationEmail: raw.PRIVACY_NOTIFICATION_EMAIL || raw.LGPD_NOTIFICATION_EMAIL,
     zapsignApiToken: raw.ZAPSIGN_API_TOKEN,
@@ -232,6 +285,21 @@ export function loadEnv(source = process.env) {
     previousSurveyTokenSecrets: parseList(raw.SURVEY_TOKEN_SECRET_PREVIOUS),
     signatureTokenSecret: raw.SIGNATURE_TOKEN_SECRET,
     previousSignatureTokenSecrets: parseList(raw.SIGNATURE_TOKEN_SECRET_PREVIOUS),
+    apiTokenHashKeys: { [raw.API_TOKEN_ACTIVE_KEY_VERSION]: raw.API_TOKEN_HASH_KEY_V1 },
+    apiTokenActiveKeyVersion: raw.API_TOKEN_ACTIVE_KEY_VERSION,
+    apiTokenGlobalMaxPageSize: raw.API_TOKEN_GLOBAL_MAX_PAGE_SIZE,
+    apiTokenDefaultRequestsPerMinute: raw.API_TOKEN_DEFAULT_REQUESTS_PER_MINUTE,
+    apiTokenDefaultRequestsPerDay: raw.API_TOKEN_DEFAULT_REQUESTS_PER_DAY,
+    apiTokenDefaultRowsPerDay: raw.API_TOKEN_DEFAULT_ROWS_PER_DAY,
+    apiTokenCoarseIpRequestsPerMinute: raw.API_TOKEN_COARSE_IP_REQUESTS_PER_MINUTE,
+    apiTokenLogRetentionDays: raw.API_TOKEN_LOG_RETENTION_DAYS,
+    apiTokenMaxOverlapMinutes: raw.API_TOKEN_MAX_OVERLAP_MINUTES,
+    assinaturasMaxPdfMb: raw.ASSINATURAS_MAX_PDF_MB,
+    assinaturasMaxPages: raw.ASSINATURAS_MAX_PAGES,
+    assinaturasMaxSigners: raw.ASSINATURAS_MAX_SIGNERS,
+    assinaturasTokenMaxDays: raw.ASSINATURAS_TOKEN_MAX_DAYS,
+    assinaturasDeletedRetentionDays: raw.ASSINATURAS_DELETED_RETENTION_DAYS,
+    assinaturasPreviewScale: raw.ASSINATURAS_PREVIEW_SCALE,
     dataRetentionJobEnabled: raw.DATA_RETENTION_JOB_ENABLED,
     zapsignApiBaseUrl: raw.ZAPSIGN_API_BASE_URL,
     libreOfficeBinary: raw.LIBREOFFICE_BINARY,
@@ -250,6 +318,8 @@ export function loadEnv(source = process.env) {
     errorTrackingWebhookUrl: raw.ERROR_TRACKING_WEBHOOK_URL,
     errorTrackingProvider: raw.ERROR_TRACKING_PROVIDER,
     commercialImportToken: raw.COMMERCIAL_IMPORT_TOKEN,
+    projectIntakeWebhookToken: raw.PROJECT_INTAKE_WEBHOOK_TOKEN,
+    pontomaisApiToken: raw.PONTOMAIS_API_TOKEN,
     omieAppKey: raw.OMIE_APP_KEY,
     omieAppSecret: raw.OMIE_APP_SECRET,
     omieSyncEnabled: raw.OMIE_SYNC_ENABLED,

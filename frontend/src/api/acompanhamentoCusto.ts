@@ -89,10 +89,12 @@ export async function saveCargoCostParams(jobRoleId: string, params: CargoCostOv
   return data;
 }
 
-// --- Configuração global de custo (EPI por colaborador) ---
+// --- Configuração global de custos anuais por colaborador ---
 
 export interface CostConfig {
   epiAnnualCost: number;
+  examsTrainingAnnualCost: number;
+  offshoreExamsTrainingAnnualCost: number;
 }
 
 export async function getCostConfig(): Promise<CostConfig> {
@@ -100,8 +102,8 @@ export async function getCostConfig(): Promise<CostConfig> {
   return data;
 }
 
-export async function saveCostConfig(epiAnnualCost: number): Promise<CostConfig> {
-  const { data } = await apiClient.put<CostConfig>('/acompanhamento/custo/config', { epiAnnualCost });
+export async function saveCostConfig(payload: CostConfig): Promise<CostConfig> {
+  const { data } = await apiClient.put<CostConfig>('/acompanhamento/custo/config', payload);
   return data;
 }
 
@@ -112,6 +114,7 @@ export interface OmieCostCategory {
   codigo: string;
   descricao: string | null;
   includeInAcompanhamentoCosts: boolean;
+  adminOnly: boolean;
   syncedAt?: string;
   purchasesCount: number;
   purchasesTotal: string | number | null;
@@ -126,6 +129,14 @@ export async function setOmieCostCategoryIncluded(codigo: string, includeInAcomp
   const { data } = await apiClient.put<OmieCostCategory>(
     `/acompanhamento/custo/categorias-omie/${encodeURIComponent(codigo)}`,
     { includeInAcompanhamentoCosts }
+  );
+  return data;
+}
+
+export async function setOmieCostCategoryAdminOnly(codigo: string, adminOnly: boolean): Promise<OmieCostCategory> {
+  const { data } = await apiClient.patch<OmieCostCategory>(
+    `/acompanhamento/custo/categorias-omie/${encodeURIComponent(codigo)}/visibilidade`,
+    { adminOnly }
   );
   return data;
 }

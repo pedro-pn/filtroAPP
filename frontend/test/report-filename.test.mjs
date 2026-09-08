@@ -52,3 +52,32 @@ test('RLI/RLF download filename uses selected system code and step', async () =>
     'Missão 123 Teste - RLF 7 - 53100 - 53100M0060.docx'
   );
 });
+
+test('manual report metadata is recognized from the uploaded PDF filename', async () => {
+  const { manualReportMetadataFromFileName } = await loadReportFileName();
+
+  assert.deepEqual(
+    manualReportMetadataFromFileName(
+      'Missão 5724 - Thyssenkrupp - RDO 12 - 21-10-2025 - Terça.pdf',
+      'RDO'
+    ),
+    { sequenceNumber: '12', reportDate: '2025-10-21' }
+  );
+  assert.deepEqual(
+    manualReportMetadataFromFileName('Missão 5724 - Cliente - RDO Nº 003 - 2.1.2026.pdf', 'RDO'),
+    { sequenceNumber: '3', reportDate: '2026-01-02' }
+  );
+});
+
+test('manual report metadata ignores the mission number and invalid dates', async () => {
+  const { manualReportMetadataFromFileName } = await loadReportFileName();
+
+  assert.deepEqual(
+    manualReportMetadataFromFileName('Missão 5724 - Cliente - RTP 8 - 31-02-2025.pdf', 'RDO'),
+    { sequenceNumber: '', reportDate: '' }
+  );
+  assert.deepEqual(
+    manualReportMetadataFromFileName('Missão 5724 - Cliente - RDO 8 - sem data.pdf', 'RDO'),
+    { sequenceNumber: '8', reportDate: '' }
+  );
+});

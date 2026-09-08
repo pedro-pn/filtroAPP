@@ -82,6 +82,10 @@ export function resolveUploadAssetUrl(url: string) {
     return apiUrl(`/rdo/uploads/file/${encodePath(protectedPath)}`);
   }
 
+  if (normalizedUrl.startsWith('/api/')) {
+    return apiUrl(normalizedUrl.slice('/api'.length));
+  }
+
   if (/^https?:\/\//i.test(normalizedUrl)) return normalizedUrl;
 
   const normalized = normalizedUrl.startsWith('/') ? normalizedUrl : `/relatorios/${normalizedUrl}`;
@@ -96,13 +100,19 @@ export function isProtectedUploadAssetUrl(url: string) {
   const normalizedUrl = normalizeLocalUploadUrl(url);
   if (!normalizedUrl || normalizedUrl.startsWith('data:')) return false;
   if (protectedUploadPath(normalizedUrl)) return true;
+  if (normalizedUrl.startsWith('/api/')) return true;
   if (/^https?:\/\//i.test(normalizedUrl)) return false;
   return !isPublicAssetUrl(normalizedUrl);
 }
 
 export async function loadUploadAssetUrl(url: string) {
   const resolvedUrl = resolveUploadAssetUrl(url);
-  if (!resolvedUrl || !isProtectedUploadAssetUrl(url)) return resolvedUrl;
+  if (!resolvedUrl) return '';
+  if (resolvedUrl.startsWith('data:')) {
+    const response = await fetch(resolvedUrl);
+    return URL.createObjectURL(await response.blob());
+  }
+  if (!isProtectedUploadAssetUrl(url)) return resolvedUrl;
 
   const token = localStorage.getItem(TOKEN_STORAGE_KEY);
   if (!token) return '';

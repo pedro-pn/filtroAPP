@@ -1,27 +1,44 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
 import { z } from 'zod';
 
 import {
+  createProjectManagementNote,
   createManualProjectCost,
   deleteManualProjectCost,
   getMissionGroupDetail,
   getPlannedScope,
+  getProjectPlanningContext,
   getProjectDetail,
+  listProjectManagementNotes,
+  type BudgetBreakdownSlice,
   type DayStatus,
   type ManualProjectCost,
   type ManualProjectCostPayload,
   type PlannedScope,
-  type ProgressHistoryPoint
+  type ProjectDetailCollaborator,
+  type ProjectManagementNote,
+  type ProgressHistoryPoint,
+  type RequiredWeeklyProgress,
+  type RequiredWeeklyProgressStatus
 } from '../../api/acompanhamentoComercial';
+import { listProjectQualityDeviations, type ProjectDeviation } from '../../api/qualidade';
 import { HelpTip } from '../ui/HelpTip';
 import { Modal } from '../ui/Modal';
 import { PortalTip } from '../ui/PortalTip';
 import { ProjectScheduleEditor, type ScheduleEditorHandle } from './ProjectScheduleEditor';
+import { ProjectAdditionalProposalsNovelty } from './ProjectAdditionalProposalsNovelty';
+import { ProjectCollaboratorHoursDialog } from './ProjectCollaboratorHoursDialog';
 import { ProjectManualCostNovelty } from './ProjectManualCostNovelty';
+import { ProjectQualityDeviationsNovelty } from './ProjectQualityDeviationsNovelty';
 import { ProjectProgressHistoryNovelty } from './ProjectProgressHistoryNovelty';
+import { ProjectReportsDialog } from './ProjectReportsDialog';
+import { ProjectRomaneiosDialog } from './ProjectRomaneiosDialog';
+import { ProjectStandbyHistoryDialog } from './ProjectStandbyHistoryDialog';
+import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
+import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import type { AuthUser } from '../../types/auth';
 
@@ -33,6 +50,20 @@ const SERVICE_LABELS: Record<string, string> = {
 };
 const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo' };
 const UNIT_LABELS: Record<string, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
+const QUALITY_IMPACT_LABELS: Record<string, string> = { ALTO: 'Alto', MEDIO: 'Médio', BAIXO: 'Baixo' };
+const QUALITY_STATUS_LABELS: Record<string, string> = {
+  ABERTO: 'Aberto',
+  EM_TRIAGEM: 'Em triagem',
+  EM_OBSERVACAO: 'Em observação',
+  EM_ACAO: 'Em ação',
+  FECHADO: 'Fechado',
+  DIVULGADO: 'Divulgado'
+};
+const QUALITY_DISPOSITION_LABELS: Record<string, string> = {
+  TRATAR: 'Tratar',
+  MONITORAR: 'Monitorar',
+  ARQUIVAR_DIVULGAR: 'Arquivar / Divulgar'
+};
 const DAY_META: Record<DayStatus, { cls: string; label: string }> = {
   TRABALHADO: { cls: 'green', label: 'Trabalhado' },
   STANDBY: { cls: 'yellow', label: 'Trabalhado com standby' },
@@ -67,6 +98,12 @@ function formatBrlCurrencyInput(value: string) {
     maximumFractionDigits: 2
   });
   return `R$ ${amount}`;
+}
+
+function qualityImpactBadgeClass(impact: string) {
+  if (impact === 'ALTO') return 'badge badge-rej';
+  if (impact === 'MEDIO') return 'badge badge-pen';
+  return 'badge badge-ok';
 }
 
 const manualCostFormSchema = z.object({
@@ -129,6 +166,18 @@ function fmtDate(iso?: string | null) {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
 }
+function fmtDateTime(iso?: string | null) {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
 function fmtShortDate(iso?: string | null) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -153,6 +202,61 @@ function mutationErrorMessage(error: unknown, fallback: string) {
     if (message) return message;
   }
   return error instanceof Error ? error.message : fallback;
+}
+
+function hasMoney(value?: string | number | null) {
+  const n = toNum(value);
+  return n !== null && Math.abs(n) > 0.005;
+}
+
+function proposalContributionLabel(proposal: BudgetBreakdownSlice, fallback: string) {
+  const code = proposal.codProp ? `Proposta ${proposal.codProp}` : fallback;
+  const revision = proposal.nRev !== null && proposal.nRev !== undefined ? ` · Rev ${proposal.nRev}` : '';
+  return `${code}${revision}`;
+}
+
+function ProposalContributionDetails({
+  original,
+  additionals
+}: {
+  original?: BudgetBreakdownSlice | null;
+  additionals?: BudgetBreakdownSlice[];
+}) {
+  const rows = [
+    original ? { ...original, contributionKind: 'ORIGINAL' as const } : null,
+    ...(additionals ?? []).map(item => ({ ...item, contributionKind: 'ADDITIONAL' as const }))
+  ].filter((item): item is BudgetBreakdownSlice & { contributionKind: 'ORIGINAL' | 'ADDITIONAL' } => Boolean(item));
+
+  if (rows.length <= 1 || !(additionals ?? []).some(item => (
+    hasMoney(item.salePrice) || hasMoney(item.plannedTotalCost) || hasMoney(item.expectedProfit) || hasMoney(item.taxes)
+  ))) {
+    return null;
+  }
+
+  return (
+    <details className="acp-proposal-details">
+      <summary className="acp-det-collabs-summary" data-acp-proposal-contributions>
+        Composição das propostas
+        <span className="acp-proposal-count">{rows.length} propostas</span>
+      </summary>
+      <div className="acp-proposal-list">
+        {rows.map((proposal, index) => (
+          <div className="acp-proposal-item" key={`${proposal.contributionKind}-${proposal.codBd ?? proposal.codProp ?? index}`}>
+            <div className="acp-proposal-item-head">
+              <strong>{proposalContributionLabel(proposal, proposal.contributionKind === 'ORIGINAL' ? 'Proposta original' : 'Proposta adicional')}</strong>
+              <span>{proposal.contributionKind === 'ORIGINAL' ? 'Original' : 'Adicional'}</span>
+            </div>
+            <div className="acp-proposal-grid">
+              <div><span>Venda</span><strong>{brl(toNum(proposal.salePrice))}</strong></div>
+              <div><span>Custo</span><strong>{brl(toNum(proposal.plannedTotalCost))}</strong></div>
+              <div><span>Lucro</span><strong>{brl(toNum(proposal.expectedProfit))}</strong></div>
+              <div><span>Impostos</span><strong>{brl(toNum(proposal.taxes))}</strong></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
 }
 
 function Bar({ value, tone }: { value: number | null; tone?: 'cost' }) {
@@ -190,6 +294,31 @@ function normalizeHistory(points?: ProgressHistoryPoint[]) {
 
 function ProgressHistoryChart({ points }: { points?: ProgressHistoryPoint[] }) {
   const history = normalizeHistory(points);
+  const [activePoint, setActivePoint] = useState<(ProgressHistoryPoint & { time: number; x: number; y: number }) | null>(null);
+  const [chartWidth, setChartWidth] = useState(280);
+  const chartRef = useRef<SVGSVGElement>(null);
+  const hasHistory = history.length > 0;
+
+  useEffect(() => {
+    if (!hasHistory) return;
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    const updateWidth = (measuredWidth: number) => {
+      const nextWidth = Math.max(1, Math.round(measuredWidth));
+      setChartWidth(currentWidth => currentWidth === nextWidth ? currentWidth : nextWidth);
+    };
+    updateWidth(chart.getBoundingClientRect().width);
+
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (entry) updateWidth(entry.contentRect.width);
+    });
+    observer.observe(chart);
+    return () => observer.disconnect();
+  }, [hasHistory]);
+
   const latest = history[history.length - 1];
   if (history.length === 0) {
     return (
@@ -202,9 +331,9 @@ function ProgressHistoryChart({ points }: { points?: ProgressHistoryPoint[] }) {
     );
   }
 
-  const width = 280;
-  const height = 82;
-  const pad = { top: 8, right: 8, bottom: 18, left: 28 };
+  const width = chartWidth;
+  const height = 112;
+  const pad = { top: 10, right: 10, bottom: 22, left: 30 };
   const plotWidth = width - pad.left - pad.right;
   const plotHeight = height - pad.top - pad.bottom;
   const minTime = history[0].time;
@@ -221,6 +350,22 @@ function ProgressHistoryChart({ points }: { points?: ProgressHistoryPoint[] }) {
     y: yFor(point.progressPct)
   }));
   const path = plotted.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
+  const tipWidth = 138;
+  const tipHeight = 42;
+  const tooltip = activePoint ? (() => {
+    const above = activePoint.y > tipHeight + 12;
+    const x = Math.max(2, Math.min(width - tipWidth - 2, activePoint.x - tipWidth / 2));
+    const y = above ? activePoint.y - tipHeight - 9 : activePoint.y + 9;
+    return {
+      x,
+      y,
+      above,
+      arrowX: activePoint.x - x,
+      day: fmtDate(activePoint.date),
+      amount: fmtPct(activePoint.progressPct)
+    };
+  })() : null;
+  const pointLabel = (point: ProgressHistoryPoint) => `Dia: ${fmtDate(point.date)} · Quantidade: ${fmtPct(point.progressPct)}`;
 
   return (
     <div className="acp-progress-chart" aria-label="Histórico semanal de avanço" data-acp-progress-history-chart>
@@ -228,7 +373,7 @@ function ProgressHistoryChart({ points }: { points?: ProgressHistoryPoint[] }) {
         <span>Histórico semanal</span>
         <strong>{fmtPct(latest?.progressPct)}</strong>
       </div>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Avanço de ${fmtShortDate(history[0].date)} até ${fmtShortDate(latest?.date)}`}>
+      <svg ref={chartRef} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Avanço de ${fmtShortDate(history[0].date)} até ${fmtShortDate(latest?.date)}`}>
         {[0, 50, 100].map(value => (
           <g key={value}>
             <line
@@ -245,9 +390,19 @@ function ProgressHistoryChart({ points }: { points?: ProgressHistoryPoint[] }) {
         ))}
         <path className="acp-progress-chart-line" d={path} />
         {plotted.map(point => (
-          <circle className="acp-progress-chart-dot" key={`${point.date}-${point.progressPct}`} cx={point.x} cy={point.y} r="3.4">
-            <title>{`${fmtDate(point.date)} · ${fmtPct(point.progressPct)}`}</title>
-          </circle>
+          <g
+            className="acp-progress-chart-point"
+            key={`${point.date}-${point.progressPct}`}
+            tabIndex={0}
+            aria-label={pointLabel(point)}
+            onFocus={() => setActivePoint(point)}
+            onBlur={() => setActivePoint(null)}
+            onMouseEnter={() => setActivePoint(point)}
+            onMouseLeave={() => setActivePoint(null)}
+          >
+            <circle className="acp-progress-chart-dot-hit" cx={point.x} cy={point.y} r="8" />
+            <circle className="acp-progress-chart-dot" cx={point.x} cy={point.y} r="3.4" />
+          </g>
         ))}
         <text className="acp-progress-chart-x" x={pad.left} y={height - 4} textAnchor="start">
           {fmtShortDate(history[0].date)}
@@ -255,7 +410,82 @@ function ProgressHistoryChart({ points }: { points?: ProgressHistoryPoint[] }) {
         <text className="acp-progress-chart-x" x={width - pad.right} y={height - 4} textAnchor="end">
           {fmtShortDate(latest?.date)}
         </text>
+        {tooltip ? (
+          <g className="acp-progress-chart-tip" transform={`translate(${tooltip.x} ${tooltip.y})`}>
+            <rect width={tipWidth} height={tipHeight} rx="6" />
+            <path
+              className="acp-progress-chart-tip-arrow"
+              d={tooltip.above
+                ? `M ${tooltip.arrowX - 5} ${tipHeight - 1} L ${tooltip.arrowX} ${tipHeight + 5} L ${tooltip.arrowX + 5} ${tipHeight - 1} Z`
+                : `M ${tooltip.arrowX - 5} 1 L ${tooltip.arrowX} -5 L ${tooltip.arrowX + 5} 1 Z`}
+            />
+            <text className="acp-progress-chart-tip-date" x="10" y="15">{tooltip.day}</text>
+            <text className="acp-progress-chart-tip-label" x="10" y="32">Quantidade</text>
+            <text className="acp-progress-chart-tip-value" x={tipWidth - 10} y="32" textAnchor="end">{tooltip.amount}</text>
+          </g>
+        ) : null}
       </svg>
+    </div>
+  );
+}
+
+const fmtQuantity = (value?: number | null, unit?: string | null) => (
+  value == null
+    ? '—'
+    : `${value.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}${unit ? ` ${UNIT_LABELS[unit] ?? unit}` : ''}`
+);
+
+function weeklyTargetText(
+  status: RequiredWeeklyProgressStatus,
+  remaining: number | null,
+  required: number | null,
+  suffix: string
+) {
+  if (status === 'COMPLETED') return 'Meta concluída';
+  if (status === 'OVERDUE') return `Prazo vencido${remaining != null ? ` · faltam ${remaining.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}${suffix}` : ''}`;
+  if (status === 'DUE_TODAY') return `Concluir hoje${remaining != null ? ` · faltam ${remaining.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}${suffix}` : ''}`;
+  if (status === 'REQUIRED' && required != null) {
+    return `${required.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}${suffix}/semana`;
+  }
+  return 'Ritmo indisponível';
+}
+
+function RequiredWeeklyProgressCard({ target }: { target?: RequiredWeeklyProgress }) {
+  if (!target) return null;
+  const measurableServices = target.services.filter(service => service.systems.some(system => system.plannedQty != null));
+  return (
+    <div className="acp-weekly-target" data-acp-weekly-progress-target>
+      <div className="acp-weekly-target-head">
+        <div>
+          <strong>Ritmo necessário</strong>
+          <span>para entregar na data prevista</span>
+        </div>
+        <strong>{weeklyTargetText(target.status, target.remainingPctPoints, target.requiredPctPointsPerWeek, ' p.p.')}</strong>
+      </div>
+      {measurableServices.length > 0 ? (
+        <div className="acp-weekly-target-services">
+          {measurableServices.map(service => (
+            <div className="acp-weekly-target-service" key={service.serviceType}>
+              <div className="acp-weekly-target-service-head">
+                <strong>{SERVICE_LABELS[service.serviceType] ?? service.serviceType}</strong>
+                <span>{fmtPct(service.executionPct)}</span>
+              </div>
+              {service.systems.filter(system => system.plannedQty != null).map(system => {
+                const unit = system.unit ? ` ${UNIT_LABELS[system.unit] ?? system.unit}` : '';
+                return (
+                  <div className="acp-weekly-target-system" key={`${system.systemType}:${system.unit ?? ''}`}>
+                    <div>
+                      <span>{SYSTEM_LABELS[system.systemType] ?? system.systemType}</span>
+                      <small>{fmtQuantity(system.realizedQty, system.unit)} / {fmtQuantity(system.plannedQty, system.unit)}</small>
+                    </div>
+                    <strong>{weeklyTargetText(system.status, system.remainingQty, system.requiredQtyPerWeek, unit)}</strong>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -288,7 +518,7 @@ function WorkedHoursMetric({ data }: {
   return (
     <div className="acp-det-metric">
       <div className="acp-det-metric-top">
-        <HelpTip help="Soma das horas-homem dos RDOs, separando horas normais e horas extras. Cada turno é multiplicado pela quantidade de colaboradores daquele turno; as horas previstas já incluem todos os colaboradores.">Horas trabalhadas</HelpTip>
+        <HelpTip help="Soma das horas-homem dos relatórios de execução, separando horas normais e horas extras. Cada turno é multiplicado pela quantidade de colaboradores daquele turno; as horas previstas já incluem todos os colaboradores.">Horas trabalhadas</HelpTip>
         <span className="acp-det-metric-val">
           {fmtHours(data.totalWorkedHours)} / {fmtHours(data.plannedTotalHours)}
           {data.totalPct != null ? ` · ${data.totalPct}%` : ''}
@@ -352,6 +582,7 @@ export function ProjectDetailDashboard({
   groupId,
   canManage = false,
   canManageManualCosts = false,
+  canManageProjectNotes = false,
   progressHistoryNoveltyUser = null,
   onBack
 }: {
@@ -359,6 +590,7 @@ export function ProjectDetailDashboard({
   groupId?: string;
   canManage?: boolean;
   canManageManualCosts?: boolean;
+  canManageProjectNotes?: boolean;
   progressHistoryNoveltyUser?: Pick<AuthUser, 'id'> | null;
   onBack: () => void;
 }) {
@@ -366,10 +598,22 @@ export function ProjectDetailDashboard({
   const [scheduleProject, setScheduleProject] = useState<{ projectId: string; code: string } | null>(null);
   const [scheduleDirty, setScheduleDirty] = useState(false);
   const [progressHistoryNoveltyActive, setProgressHistoryNoveltyActive] = useState(true);
+  const [weeklyTargetNoveltyActive, setWeeklyTargetNoveltyActive] = useState(true);
   const [manualCostNoveltyActive, setManualCostNoveltyActive] = useState(true);
+  const [qualityDeviationsNoveltyActive, setQualityDeviationsNoveltyActive] = useState(true);
+  const [additionalProposalsNoveltyActive, setAdditionalProposalsNoveltyActive] = useState(true);
+  const [standbyHistoryNoveltyActive, setStandbyHistoryNoveltyActive] = useState(true);
+  const [standbyHistoryOpen, setStandbyHistoryOpen] = useState(false);
+  const [hoursDetail, setHoursDetail] = useState<{
+    collaborator: ProjectDetailCollaborator;
+    source: 'POINT' | 'REPORT';
+  } | null>(null);
+  const [expandedQualityDeviationIds, setExpandedQualityDeviationIds] = useState<Set<string>>(() => new Set());
   const [manualCostFormOpen, setManualCostFormOpen] = useState(false);
   const [manualCostError, setManualCostError] = useState<string | null>(null);
   const [deletingManualCostId, setDeletingManualCostId] = useState<string | null>(null);
+  const [projectNoteContent, setProjectNoteContent] = useState('');
+  const [projectNoteError, setProjectNoteError] = useState<string | null>(null);
   const { control, register, handleSubmit, reset, formState: { errors } } = useForm<ManualCostFormValues>({
     defaultValues: manualCostFormDefaultValues,
     resolver: manualCostFormResolver
@@ -382,11 +626,40 @@ export function ProjectDetailDashboard({
     queryFn: () => isGroup ? getMissionGroupDetail(groupId!) : getProjectDetail(projectId!),
     ...acompanhamentoRefreshQueryOptions
   });
+  const projectNotesKey = ['project-management-notes', projectId] as const;
+  const {
+    data: projectNotes = [],
+    isLoading: projectNotesLoading,
+    isError: projectNotesLoadError
+  } = useQuery<ProjectManagementNote[]>({
+    queryKey: projectNotesKey,
+    queryFn: () => listProjectManagementNotes(projectId!),
+    enabled: !isGroup && Boolean(projectId)
+  });
   const { data: scope } = useQuery({
     queryKey: ['planned-scope', projectId],
     queryFn: () => getPlannedScope(projectId!),
     enabled: !isGroup && Boolean(projectId)
   });
+  const planningReferenceDate = data?.header.lastRdoDate?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const { data: planningContext, isLoading: planningContextLoading } = useQuery({
+    queryKey: ['acompanhamento-planning-context', projectId, planningReferenceDate],
+    queryFn: () => getProjectPlanningContext(projectId!, planningReferenceDate),
+    enabled: !isGroup && Boolean(projectId && data)
+  });
+  const { data: qualityDeviations = [], isLoading: qualityDeviationsLoading } = useQuery<ProjectDeviation[]>({
+    queryKey: ['qualidade', 'project-deviations', projectId],
+    queryFn: () => listProjectQualityDeviations(projectId!),
+    enabled: !isGroup && Boolean(projectId)
+  });
+  function toggleQualityDeviation(id: string) {
+    setExpandedQualityDeviationIds(current => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
   const refreshCostViews = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: detailKey }),
@@ -425,11 +698,33 @@ export function ProjectDetailDashboard({
     },
     onSettled: () => setDeletingManualCostId(null)
   });
+  const createProjectNoteMutation = useMutation({
+    mutationFn: (content: string) => {
+      if (!projectId) throw new Error('Abra uma missão individual para adicionar a nota.');
+      return createProjectManagementNote(projectId, content);
+    },
+    onSuccess: (note) => {
+      queryClient.setQueryData<ProjectManagementNote[]>(projectNotesKey, current => [note, ...(current ?? [])]);
+      setProjectNoteContent('');
+      setProjectNoteError(null);
+    },
+    onError: (error: unknown) => {
+      setProjectNoteError(mutationErrorMessage(error, 'Não foi possível adicionar a nota.'));
+    }
+  });
   const submitManualCost = handleSubmit(values => {
     if (!canManageManualCosts || isGroup || createManualCostMutation.isPending) return;
     setManualCostError(null);
     createManualCostMutation.mutate(manualCostFormValuesToPayload(values));
   });
+
+  function submitProjectNote(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const content = projectNoteContent.trim();
+    if (!canManageProjectNotes || isGroup || !content || createProjectNoteMutation.isPending) return;
+    setProjectNoteError(null);
+    createProjectNoteMutation.mutate(content);
+  }
 
   function closeSchedule() {
     setScheduleProject(null);
@@ -478,6 +773,9 @@ export function ProjectDetailDashboard({
       : '';
   const manualCosts = data.manualCosts ?? [];
   const canAddManualCost = canManageManualCosts && !isGroup && Boolean(projectId);
+  const hasAdditionalProposalContribution = (data.budgetBreakdown?.additionals ?? []).some(item => (
+    hasMoney(item.salePrice) || hasMoney(item.plannedTotalCost) || hasMoney(item.expectedProfit) || hasMoney(item.taxes)
+  ));
   const headerBits = [
     isGroup ? `Grupo ${h.code}` : `Missão ${h.code}`,
     h.clientName,
@@ -525,6 +823,32 @@ export function ProjectDetailDashboard({
         ) : null}
       </div>
 
+      {!isGroup ? (
+        <div className="page-card acp-det-planning" data-acp-planning-context>
+          <div>
+            <span className="acp-det-sub">Planejamento do Efetivo</span>
+            {planningContextLoading ? <p className="placeholder-copy">Carregando missão oficial…</p>
+              : planningContext ? (
+                <>
+                  <strong>{planningContext.collaborators.length} colaborador(es) planejado(s)</strong>
+                  <p>
+                    Execução de {fmtDate(planningContext.dates.executionStartDate)} a {fmtDate(planningContext.dates.executionEndDate)}
+                    {' · '}plano rev. {planningContext.planRevision}
+                  </p>
+                </>
+              ) : <p className="placeholder-copy">Sem missão oficial vigente na data de referência.</p>}
+          </div>
+          {planningContext ? (
+            <div className="acp-det-planning-team">
+              {planningContext.collaborators.map(collaborator => (
+                <span key={collaborator.id}>{collaborator.name}<small>{collaborator.jobRole.name}</small></span>
+              ))}
+              {planningContext.needsReplanning ? <em>Replanejamento necessário{planningContext.replanningReason ? `: ${planningContext.replanningReason}` : ''}</em> : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="acp-det-cols">
         {/* Coluna 1 */}
         <div className="acp-det-col">
@@ -550,6 +874,8 @@ export function ProjectDetailDashboard({
               const moCusto = mo?.custo ?? null;
               const totalRealizado = data.consumo.gasto + (moCusto ?? 0);
               const previsto = data.consumo.previsto;
+              const previstoOriginal = data.consumo.previstoOriginal ?? null;
+              const previstoAdicional = data.consumo.previstoAdicional ?? null;
               const totalPct = previsto && previsto > 0 ? Math.round((totalRealizado / previsto) * 100) : null;
               const omieCost = data.consumo.omie ?? Math.max(0, data.consumo.gasto - (data.consumo.estoque ?? 0));
               const paidOmieCost = data.consumo.pago ?? 0;
@@ -577,7 +903,17 @@ export function ProjectDetailDashboard({
                       <strong>{brl(pendingOmieCost)}</strong>
                     </div>
                   </div>
+                  <ProposalContributionDetails
+                    original={data.budgetBreakdown?.original}
+                    additionals={data.budgetBreakdown?.additionals}
+                  />
                   <div style={{ margin: '8px 0' }}>
+                    {previstoAdicional != null && Math.abs(previstoAdicional) > 0.005 ? (
+                      <>
+                        <div style={rowStyle}><span className="placeholder-copy">Previsto original</span><span>{brl(previstoOriginal)}</span></div>
+                        <div style={rowStyle}><span className="placeholder-copy">Previsto adicional</span><span>{brl(previstoAdicional)}</span></div>
+                      </>
+                    ) : null}
                     <div style={rowStyle}><span className="placeholder-copy">Compras (Omie)</span><span>{brl(omieCost)}</span></div>
                     {stockCost > 0 ? (
                       <div style={rowStyle}><span className="placeholder-copy">Estoque (químicos/filtros)</span><span>{brl(stockCost)}</span></div>
@@ -730,6 +1066,8 @@ export function ProjectDetailDashboard({
           {data.presumedProfitTaxes ? (() => {
             const taxes = data.presumedProfitTaxes;
             const expectedRevenue = toNum(data.faturamento.previsto);
+            const expectedOriginalRevenue = toNum(data.faturamento.previstoOriginal);
+            const expectedAdditionalRevenue = toNum(data.faturamento.previstoAdicional);
             const invoicedRevenue = toNum(data.faturamento.realizado);
             const hasOmieInvoice = taxes.basisSource === 'OMIE_INVOICED';
             const rowStyle = { display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 } as const;
@@ -746,6 +1084,12 @@ export function ProjectDetailDashboard({
                       <span>{brl(taxes.basisAmount)}</span>
                     </div>
                     <div style={rowStyle}><span className="placeholder-copy">Venda prevista</span><span>{brl(expectedRevenue)}</span></div>
+                    {expectedAdditionalRevenue != null && Math.abs(expectedAdditionalRevenue) > 0.005 ? (
+                      <>
+                        <div style={rowStyle}><span className="placeholder-copy">Venda original</span><span>{brl(expectedOriginalRevenue)}</span></div>
+                        <div style={rowStyle}><span className="placeholder-copy">Venda adicional</span><span>{brl(expectedAdditionalRevenue)}</span></div>
+                      </>
+                    ) : null}
                     {hasOmieInvoice ? (
                       <>
                         <div style={rowStyle}><span className="placeholder-copy">Faturado Omie ({data.faturamento.notas} NF)</span><span>{brl(invoicedRevenue)}</span></div>
@@ -789,17 +1133,33 @@ export function ProjectDetailDashboard({
               </div>
               <Bar value={data.avancoPct} />
             </div>
+            <RequiredWeeklyProgressCard target={data.requiredWeeklyProgress} />
             <ProgressHistoryChart points={data.progressHistory} />
 
             <div className="acp-det-two">
-              <div><span className="acp-det-kpi-label"><HelpTip help="Número de dias com parada (standby) registrada nos RDOs.">Standby</HelpTip></span><strong>{data.standby.count}</strong><span className="acp-det-kpi-sub">dia(s)</span></div>
-              <div><span className="acp-det-kpi-label"><HelpTip help="Soma das horas-homem de stand-by de todos os RDOs do projeto, multiplicando o tempo pela equipe do turno.">Hora total parada</HelpTip></span><strong>{fmtHM(data.standby.minutes)}</strong></div>
+              <div className="acp-det-standby-kpi">
+                <span className="acp-det-kpi-label"><HelpTip help="Número de dias com parada (standby) registrada nos relatórios de execução.">Standby</HelpTip></span>
+                <strong>{data.standby.count}</strong>
+                <span className="acp-det-kpi-sub">dia(s)</span>
+                {!isGroup ? (
+                  <button
+                    type="button"
+                    className="mini-btn alt acp-standby-history-trigger"
+                    aria-haspopup="dialog"
+                    data-acp-standby-history-trigger
+                    onClick={() => setStandbyHistoryOpen(true)}
+                  >
+                    Ver histórico
+                  </button>
+                ) : null}
+              </div>
+              <div><span className="acp-det-kpi-label"><HelpTip help="Soma das horas-homem de stand-by de todos os relatórios de execução do projeto, multiplicando o tempo pela equipe do turno.">Hora total parada</HelpTip></span><strong>{fmtHM(data.standby.minutes)}</strong></div>
             </div>
 
-            <div className="acp-det-sub"><HelpTip help="Status dos últimos 5 dias com RDO: verde = trabalhado, amarelo = trabalhado com standby, vermelho = totalmente parado (standby cobrindo a jornada). Passe o mouse para ver as horas.">Últimos dias</HelpTip></div>
+            <div className="acp-det-sub"><HelpTip help="Status dos dias mais recentes com relatório de execução: verde = trabalhado, amarelo = trabalhado com standby, vermelho = totalmente parado (standby cobrindo a jornada). Passe o mouse para ver as horas.">Últimos dias</HelpTip></div>
             <div className="acp-det-dots">
               {data.ultimosDias.length === 0 ? (
-                <span className="placeholder-copy">Sem RDOs.</span>
+                <span className="placeholder-copy">Sem relatórios de execução.</span>
               ) : data.ultimosDias.map((d, i) => (
                 <PortalTip
                   key={i}
@@ -822,7 +1182,7 @@ export function ProjectDetailDashboard({
             </div>
 
             <div className="acp-det-two" style={{ marginTop: 10 }}>
-              <div><span className="acp-det-kpi-label"><HelpTip help="Total de horas extras-homem identificadas nos RDOs do projeto, multiplicando a HE pela equipe do turno.">Horas extras</HelpTip></span><strong>{fmtHM(data.overtimeMinutes)}</strong></div>
+              <div><span className="acp-det-kpi-label"><HelpTip help="Total de horas extras-homem identificadas nos relatórios de execução do projeto, multiplicando a HE pela equipe do turno.">Horas extras</HelpTip></span><strong>{fmtHM(data.overtimeMinutes)}</strong></div>
             </div>
           </div>
         </div>
@@ -832,9 +1192,160 @@ export function ProjectDetailDashboard({
           <div className="page-card acp-det-block">
             <div className="acp-det-sub"><HelpTip help="Escopo vendido informado manualmente (aba Cronograma): serviços, sistemas e quantitativos, com o peso de cada serviço no avanço.">Escopo cadastrado</HelpTip></div>
             <PlannedScopeView scope={effectiveScope} />
+            {!isGroup && projectId ? (
+              <div className="acp-mission-reports-action">
+                <ProjectReportsDialog
+                  projectId={projectId}
+                  missionLabel={`Missão ${h.code} · ${h.clientName}`}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
+
+      {!isGroup ? (
+        <div className="page-card acp-det-block quality-deviations" data-quality-project-deviations>
+          <div className="quality-deviations-head">
+            <div className="acp-det-sub">Desvios</div>
+            <a className="equip-link" href="/qualidade?tab=registros">Abrir Qualidade</a>
+          </div>
+          {qualityDeviationsLoading ? (
+            <div className="placeholder-copy">Carregando desvios...</div>
+          ) : qualityDeviations.length === 0 ? (
+            <div className="placeholder-copy">Nenhum desvio registrado.</div>
+          ) : (
+            <ul className="quality-deviation-list">
+              {qualityDeviations.map(deviation => {
+                const expanded = expandedQualityDeviationIds.has(deviation.id);
+                const detailsId = `quality-deviation-${deviation.id}`;
+                return (
+                  <li key={deviation.id} className={expanded ? 'is-expanded' : ''}>
+                    <div className="quality-deviation-row">
+                      <div className="quality-deviation-main">
+                        <strong>{deviation.number}</strong>
+                        <span>{deviation.nature?.name || '—'}</span>
+                        <small>{fmtDate(deviation.eventDate)}</small>
+                      </div>
+                      <div className="quality-deviation-meta">
+                        <span className={qualityImpactBadgeClass(deviation.impact)}>
+                          {QUALITY_IMPACT_LABELS[deviation.impact] || deviation.impact}
+                        </span>
+                        <span className="badge">{QUALITY_STATUS_LABELS[deviation.status] || deviation.status}</span>
+                        <span className={deviation.recurrent ? 'badge badge-pen' : 'badge'}>
+                          {deviation.occurrences12m}x 12m
+                        </span>
+                        <button
+                          type="button"
+                          className="mini-btn alt quality-deviation-toggle"
+                          aria-expanded={expanded}
+                          aria-controls={detailsId}
+                          onClick={() => toggleQualityDeviation(deviation.id)}
+                        >
+                          {expanded ? 'Recolher' : 'Ver mais'}
+                        </button>
+                      </div>
+                    </div>
+                    {expanded ? (
+                      <div id={detailsId} className="quality-deviation-details">
+                        <dl className="quality-deviation-fields">
+                          <div>
+                            <dt>Disposição</dt>
+                            <dd>{QUALITY_DISPOSITION_LABELS[deviation.disposition] || deviation.disposition}</dd>
+                          </div>
+                          <div>
+                            <dt>Origem</dt>
+                            <dd>{deviation.origin || '—'}</dd>
+                          </div>
+                          {deviation.linkedRnc ? (
+                            <div>
+                              <dt>RNC vinculada</dt>
+                              <dd>{deviation.linkedRnc}</dd>
+                            </div>
+                          ) : null}
+                          {deviation.actionDeadline ? (
+                            <div>
+                              <dt>Prazo da ação</dt>
+                              <dd>{fmtDate(deviation.actionDeadline)}</dd>
+                            </div>
+                          ) : null}
+                        </dl>
+                        <div className="quality-deviation-text">
+                          <span>Descrição</span>
+                          <p>{deviation.description}</p>
+                        </div>
+                        {deviation.definedAction || deviation.actionOwner ? (
+                          <div className="quality-deviation-text">
+                            <span>Ação definida</span>
+                            <p>
+                              {deviation.definedAction || '—'}
+                              {deviation.actionOwner ? ` · Responsável: ${deviation.actionOwner}` : ''}
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      ) : null}
+
+      {!isGroup ? (
+        <section className="page-card acp-project-notes" data-acp-project-notes aria-labelledby="acp-project-notes-title">
+          <div className="acp-project-notes-head">
+            <h3 id="acp-project-notes-title">Notas da gestão</h3>
+            <span>{projectNotes.length} {projectNotes.length === 1 ? 'nota' : 'notas'}</span>
+          </div>
+
+          {canManageProjectNotes ? (
+            <form className="acp-project-note-form" onSubmit={submitProjectNote}>
+              <div className="field-group acp-project-note-field">
+                <label className="sr-only" htmlFor="acp-project-note-content">Nova nota</label>
+                <textarea
+                  id="acp-project-note-content"
+                  value={projectNoteContent}
+                  onChange={event => setProjectNoteContent(event.target.value)}
+                  maxLength={2000}
+                  rows={2}
+                  placeholder="Adicionar uma nota…"
+                  disabled={createProjectNoteMutation.isPending}
+                />
+              </div>
+              <button
+                type="submit"
+                className="mini-btn"
+                disabled={!projectNoteContent.trim() || createProjectNoteMutation.isPending}
+              >
+                {createProjectNoteMutation.isPending ? 'Adicionando…' : 'Adicionar'}
+              </button>
+            </form>
+          ) : null}
+
+          {projectNoteError ? <div className="form-error" role="alert">{projectNoteError}</div> : null}
+          {projectNotesLoadError ? (
+            <div className="form-error" role="alert">Não foi possível carregar as notas.</div>
+          ) : projectNotesLoading ? (
+            <div className="placeholder-copy">Carregando notas…</div>
+          ) : projectNotes.length === 0 ? (
+            <div className="placeholder-copy">Nenhuma nota adicionada.</div>
+          ) : (
+            <ol className="acp-project-note-list">
+              {projectNotes.map(note => (
+                <li key={note.id}>
+                  <div className="acp-project-note-meta">
+                    <strong>{note.author.name}</strong>
+                    <time dateTime={note.createdAt}>{fmtDateTime(note.createdAt)}</time>
+                  </div>
+                  <p>{note.content}</p>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      ) : null}
 
       <div className="page-card acp-det-block">
         <details className="acp-det-equips-details" open>
@@ -847,7 +1358,7 @@ export function ProjectDetailDashboard({
             <div className="acp-det-equips-grid" style={{ marginTop: 8 }}>
               {equipamentos.map((e, i) => (
                 <div className="acp-det-equip-item" key={`${e.name}-${i}`}>
-                  <span>{e.name}</span>
+                  <span>{e.code ? `${e.code} — ${e.name}` : e.name}</span>
                   <strong>{e.days} dia{e.days === 1 ? '' : 's'}</strong>
                   <small>desde {fmtDate(e.since)}</small>
                 </div>
@@ -855,42 +1366,134 @@ export function ProjectDetailDashboard({
             </div>
           )}
         </details>
+        <div className="acp-det-romaneios-action">
+          <ProjectRomaneiosDialog
+            key={groupId || projectId}
+            projectId={projectId}
+            groupId={groupId}
+            missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code}`}
+          />
+        </div>
       </div>
 
-      {/* Colaboradores em largura total, tabela retrátil: nome · cargo · horas · valor gasto (custo/hora). */}
+      {/* Colaboradores em largura total: apropriação financeira em destaque e jornada dos RDOs para conferência. */}
       <div className="page-card acp-det-block">
         <details className="acp-det-collabs-details" open>
           <summary className="acp-det-collabs-summary">
             Colaboradores na obra ({data.colaboradores.length})
           </summary>
           {data.colaboradores.length === 0 ? (
-            <div className="placeholder-copy" style={{ marginTop: 8 }}>Nenhum colaborador nos RDOs.</div>
+            <div className="placeholder-copy" style={{ marginTop: 8 }}>Nenhum colaborador nos relatórios de execução.</div>
           ) : (
-            <div className="acp-table-wrap" style={{ marginTop: 8 }}>
-              <table className="acp-table">
-                <thead>
-                  <tr>
-                    <th>Nome</th>
-                    <th>Cargo</th>
-                    <th style={{ textAlign: 'right' }}>Horas</th>
-                    <th style={{ textAlign: 'right' }}>Custo (HH)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.colaboradores.map((c, i) => (
-                    <tr key={i}>
-                      <td>{c.name}</td>
-                      <td>{c.role}</td>
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtHours(c.horas)}</td>
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        {c.custo != null ? (
-                          <>{brl(c.custo)}<span className="acp-det-collab-rate">{c.custoHora != null ? ` (${brl(c.custoHora)}/h)` : ''}</span></>
-                        ) : '—'}
-                      </td>
+            <div className="acp-det-collab-body">
+              <div className="acp-det-collab-context" role="note">
+                <strong>Base da apropriação: ponto de {fmtDate(data.maoDeObra.periodStart)} a {fmtDate(data.maoDeObra.periodEnd)}</strong>
+                <span>O deslocamento já está incluído nas horas e no custo total; aparece separado apenas para detalhamento.</span>
+              </div>
+
+              <div className="acp-table-wrap">
+                <table className="acp-table">
+                  <thead>
+                    <tr>
+                      <th>Nome</th>
+                      <th>Cargo</th>
+                      <th style={{ textAlign: 'right' }}>
+                        <HelpTip help="Horas do ponto atribuídas ao projeto pelo mesmo rateio que calculou o custo. Quando não houver apropriação do Ponto Mais, a jornada dos relatórios aparece em azul como referência e não entra no custo. Em um grupo, soma a apropriação das missões.">Horas apropriadas</HelpTip>
+                      </th>
+                      <th style={{ textAlign: 'right' }}>
+                        <HelpTip help="Parcela do custo total do colaborador atribuída ao projeto no período do ponto.">Custo apropriado</HelpTip>
+                      </th>
+                      <th style={{ textAlign: 'right' }}>
+                        <HelpTip help="Custo apropriado dividido pelas horas apropriadas. Por isso este valor pode variar entre colaboradores com salários-base próximos.">Custo efetivo/h</HelpTip>
+                      </th>
+                      <th style={{ textAlign: 'right' }}>
+                        <HelpTip help="Horas apropriadas em dias marcados como viagem. O valor abaixo é a parcela proporcional do custo apropriado e não representa um custo adicional.">Deslocamento</HelpTip>
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {data.colaboradores.map((c, i) => (
+                      <tr key={i}>
+                        <td>{c.name}</td>
+                        <td data-label="Cargo">{c.role}</td>
+                        <td data-label="Horas apropriadas" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {c.horasApropriadas != null && c.horasApropriadas > 0 ? (
+                            <button
+                              type="button"
+                              className="acp-collaborator-hours-trigger"
+                              onClick={() => setHoursDetail({ collaborator: c, source: 'POINT' })}
+                              title={`Conferir os dias apropriados de ${c.name}`}
+                            >
+                              {fmtHours(c.horasApropriadas)}
+                            </button>
+                          ) : c.horas > 0 ? (
+                            <button
+                              type="button"
+                              className="acp-report-hours-fallback-trigger"
+                              onClick={() => setHoursDetail({ collaborator: c, source: 'REPORT' })}
+                              title={`Conferir os RDOs de origem da jornada de ${c.name}; estas horas não entram no custo apropriado`}
+                              aria-label={`Conferir ${fmtHours(c.horas)} dos relatórios de ${c.name}`}
+                            >
+                              <span className="acp-report-hours-fallback-value">
+                                {fmtHours(c.horas)}
+                                <small>RDO</small>
+                              </span>
+                            </button>
+                          ) : fmtHours(c.horasApropriadas)}
+                        </td>
+                        <td data-label="Custo apropriado" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{brl(c.custo)}</td>
+                        <td data-label="Custo efetivo/h" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {c.custoHora != null ? `${brl(c.custoHora)}/h` : '—'}
+                        </td>
+                        <td data-label="Deslocamento" style={{ textAlign: 'right' }}>
+                          {c.horasDeslocamento > 0 ? (
+                            <span className="acp-det-collab-travel">
+                              <strong>{fmtHours(c.horasDeslocamento)}</strong>
+                              {c.custoDeslocamento != null ? <small>{brl(c.custoDeslocamento)} do custo</small> : null}
+                            </span>
+                          ) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <details className="acp-det-collab-audit">
+                <summary className="acp-det-collabs-summary">Conferir jornada dos relatórios</summary>
+                <p className="acp-det-collab-audit-copy">
+                  {isGroup
+                    ? 'Esta jornada vem dos RDOs e não é usada para calcular o custo. O total sem sobreposição considera, em cada data, a maior jornada lançada entre as missões mescladas.'
+                    : 'Esta jornada vem dos RDOs e não é usada para calcular o custo.'}
+                </p>
+                <div className="acp-table-wrap">
+                  <table className="acp-table acp-det-collab-audit-table">
+                    <thead>
+                      <tr>
+                        <th>Nome</th>
+                        <th style={{ textAlign: 'right' }}>{isGroup ? 'Jornada sem sobreposição' : 'Jornada dos relatórios'}</th>
+                        {isGroup ? <th style={{ textAlign: 'right' }}>Soma por missão</th> : null}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.colaboradores.map((c, i) => (
+                        <tr key={i}>
+                          <td>{c.name}</td>
+                          <td data-label={isGroup ? 'Sem sobreposição' : 'Jornada dos relatórios'} style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtHours(c.horas)}</td>
+                          {isGroup ? (
+                            <td data-label="Soma por missão" style={{ textAlign: 'right' }}>
+                              <span className={c.sobreposicaoHoras > 0 ? 'acp-det-collab-overlap' : undefined}>{fmtHours(c.horasLancadas)}</span>
+                              {c.sobreposicaoHoras > 0 ? (
+                                <small className="acp-det-collab-overlap-note">{fmtHours(c.sobreposicaoHoras)} em sobreposição</small>
+                              ) : null}
+                            </td>
+                          ) : null}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
             </div>
           )}
         </details>
@@ -902,6 +1505,20 @@ export function ProjectDetailDashboard({
         <div><span><HelpTip help="Início + dias corridos previstos no comercial.">Previsão de término</HelpTip></span><strong>{fmtDate(data.footer.expectedEndDate)}</strong></div>
         <div><span><HelpTip help="Estimativa realista: projeta o término pela velocidade de avanço acumulada até a data de referência dos dias corridos.">Previsão pelo ritmo</HelpTip></span><strong>{fmtDate(data.footer.projectedEndByPace)}</strong></div>
       </div>
+
+      <ProjectStandbyHistoryDialog
+        project={standbyHistoryOpen && !isGroup && projectId
+          ? { projectId, code: h.code }
+          : null}
+        onClose={() => setStandbyHistoryOpen(false)}
+      />
+
+      <ProjectCollaboratorHoursDialog
+        collaborator={hoursDetail?.collaborator ?? null}
+        source={hoursDetail?.source}
+        isGroup={isGroup}
+        onClose={() => setHoursDetail(null)}
+      />
 
       <Modal open={scheduleProject !== null} onClose={closeSchedule} ariaLabelledBy="acp-detail-schedule-title" panelClassName="modal-card acp-manage-card">
         <div className="acp-manage">
@@ -931,10 +1548,30 @@ export function ProjectDetailDashboard({
         enabled={progressHistoryNoveltyActive}
         onSeen={() => setProgressHistoryNoveltyActive(false)}
       />
+      <ProjectWeeklyTargetNovelty
+        user={progressHistoryNoveltyUser}
+        enabled={weeklyTargetNoveltyActive && !isGroup && Boolean(data.requiredWeeklyProgress)}
+        onSeen={() => setWeeklyTargetNoveltyActive(false)}
+      />
       <ProjectManualCostNovelty
         user={progressHistoryNoveltyUser}
         enabled={manualCostNoveltyActive && canAddManualCost}
         onSeen={() => setManualCostNoveltyActive(false)}
+      />
+      <ProjectQualityDeviationsNovelty
+        user={progressHistoryNoveltyUser}
+        enabled={qualityDeviationsNoveltyActive && !isGroup}
+        onSeen={() => setQualityDeviationsNoveltyActive(false)}
+      />
+      <ProjectAdditionalProposalsNovelty
+        user={progressHistoryNoveltyUser}
+        enabled={additionalProposalsNoveltyActive && hasAdditionalProposalContribution}
+        onSeen={() => setAdditionalProposalsNoveltyActive(false)}
+      />
+      <ProjectStandbyHistoryNovelty
+        user={progressHistoryNoveltyUser}
+        enabled={standbyHistoryNoveltyActive && !isGroup && Boolean(projectId)}
+        onSeen={() => setStandbyHistoryNoveltyActive(false)}
       />
     </div>
   );

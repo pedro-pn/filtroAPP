@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 
+import { AllocationAuditPanel } from './AllocationAuditPanel';
 import { CargoProfilesPanel } from './CargoProfilesPanel';
 import { CostSimulatorPanel } from './CostSimulatorPanel';
 import { EpiConfigCard } from './EpiConfigCard';
@@ -8,11 +9,12 @@ import { OmieCostCategoriesPanel } from './OmieCostCategoriesPanel';
 import { PontoImportPanel } from './PontoImportPanel';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
 
-type CostTab = 'cargos' | 'ponto' | 'rates' | 'categorias' | 'simulador';
+type CostTab = 'cargos' | 'ponto' | 'auditoria' | 'rates' | 'categorias' | 'simulador';
 
 const TABS: Array<[CostTab, string]> = [
   ['cargos', 'Cargos'],
   ['ponto', 'Ponto'],
+  ['auditoria', 'Auditoria'],
   ['rates', 'Custo/hora'],
   ['categorias', 'Categorias Omie'],
   ['simulador', 'Simulador']
@@ -55,6 +57,7 @@ export function CostEngineManager({ canManageCosts = true }: { canManageCosts?: 
 
       {canManageCosts && activeTab === 'cargos' ? <><EpiConfigCard /><CargoProfilesPanel /></>
         : activeTab === 'ponto' ? <PontoImportPanel />
+        : canManageCosts && activeTab === 'auditoria' ? <AllocationAuditPanel />
         : activeTab === 'rates' ? <LaborRateTable />
         : canManageCosts && activeTab === 'categorias' ? <OmieCostCategoriesPanel />
         : <CostSimulatorPanel />}

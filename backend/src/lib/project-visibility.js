@@ -9,6 +9,18 @@ export function shouldProvisionProjectClientAccounts(project) {
   return !project?.managerOnly && !project?.registrationPending;
 }
 
+export function assertProjectReadyForReports(project) {
+  if (!project?.registrationPending) return;
+  const error = new Error('Projeto aguarda verificação manual antes de ser usado em relatórios.');
+  error.statusCode = 409;
+  error.code = 'PROJECT_REGISTRATION_PENDING';
+  throw error;
+}
+
+export function activeReportProjectWhere(projectWhere = {}) {
+  return { ...projectWhere, deletedAt: null };
+}
+
 export function withoutProjectLegacyExternalSignatureState(specialConditions) {
   const next = { ...(specialConditions || {}) };
   for (const key of LEGACY_EXTERNAL_SIGNATURE_KEYS) delete next[key];

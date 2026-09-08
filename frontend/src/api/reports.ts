@@ -30,6 +30,53 @@ export interface ReportGroupTotal {
   total: number;
 }
 
+export interface OfficialMissionContext {
+  missionId: string;
+  missionVersion: number;
+  planRevision: number;
+  calendarRevision: number;
+  projectId: string;
+  needsReplanning: boolean;
+  replanningReason?: string | null;
+  dates: { mobilizationDate: string; executionStartDate: string; executionEndDate: string; returnDate: string | null };
+  collaborators: Array<{ id: string; name: string; jobRole: { id: string; name: string; isActive: boolean } }>;
+}
+
+export interface WorkforceAvailabilityConflict {
+  code: 'ABSENCE' | 'MISSION' | 'WORK_DURING_ABSENCE' | 'WORK_ON_HOLIDAY';
+  collaboratorId: string;
+  sourceId: string;
+  startDate: string;
+  endDate: string;
+  policy: 'BLOCK' | 'REQUIRE_JUSTIFICATION' | 'WARN';
+}
+
+export async function getReportPlanningContext(projectId: string, date: string) {
+  return (await apiClient.get<OfficialMissionContext | null>(rdoApiPath('/reports/planning-context'), {
+    params: { projectId, date }
+  })).data;
+}
+
+export interface ReportCollaboratorPrefill {
+  collaboratorIds: string[];
+}
+
+export async function getReportCollaboratorPrefill(projectId: string, date: string) {
+  return (await apiClient.get<ReportCollaboratorPrefill | null>(rdoApiPath('/reports/collaborator-prefill'), {
+    params: { projectId, date }
+  })).data;
+}
+
+export async function checkReportWorkforceAvailability(collaboratorIds: string[], date: string) {
+  return (await apiClient.post<{
+    calendarRevision: number;
+    holidays: Array<{ id?: string; date: string; name?: string }>;
+    conflicts: WorkforceAvailabilityConflict[];
+  }>('/workforce/availability/check', {
+    collaboratorIds, startDate: date, endDate: date, context: 'ACTUAL_REPORT'
+  })).data;
+}
+
 export interface PaginatedReports {
   items: ReportSummary[];
   pagination: ReportPagination;

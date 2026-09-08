@@ -49,11 +49,13 @@ POSTGRES_DB="${POSTGRES_DB:-filtrovali}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
 REPORTS_VOLUME="${REPORTS_VOLUME:-filtrovali_relatorios}"
 CERTS_VOLUME="${CERTS_VOLUME:-filtrovali_certs}"
+PROXY_VOLUME="${PROXY_VOLUME:-infra_proxy_data}"
 BACKUP_ROOT="${BACKUP_ROOT:-/root/backups/filtrovali}"
 BACKUP_LOCK_FILE="${BACKUP_LOCK_FILE:-$BACKUP_ROOT/backup-prod.lock}"
 BACKUP_STATUS_FILE="${BACKUP_STATUS_FILE:-$BACKUP_ROOT/status/backup-latest.json}"
 BACKUP_LOCK_TIMEOUT_SECONDS="${BACKUP_LOCK_TIMEOUT_SECONDS:-0}"
 INCLUDE_CERTS="${INCLUDE_CERTS:-true}"
+INCLUDE_PROXY="${INCLUDE_PROXY:-true}"
 INCLUDE_REPORTS="${INCLUDE_REPORTS:-true}"
 B2_URI="${B2_URI:-}"
 B2_BIN="${B2_BIN:-b2}"
@@ -76,6 +78,7 @@ write_backup_status() {
   "runDir": "$RUN_DIR",
   "includeReports": $INCLUDE_REPORTS,
   "includeCerts": $INCLUDE_CERTS,
+  "includeProxy": $INCLUDE_PROXY,
   "b2Configured": $(if [ -n "$B2_URI" ]; then echo true; else echo false; fi),
   "uploadSucceeded": $UPLOAD_SUCCEEDED,
   "exitCode": $exit_code,
@@ -151,6 +154,20 @@ fi
 if [ "$INCLUDE_CERTS" = "true" ]; then
   echo "[backup] archiving cert volume $CERTS_VOLUME"
   docker run --rm -v "${CERTS_VOLUME}:/from:ro" -v "${RUN_DIR}:/backup" alpine sh -c "cd /from && tar -czf /backup/certs.tar.gz ."
+fi
+
+# Volume do infra-proxy (Caddy): guarda a chave da conta ACME e os certificados
+# emitidos. Sem ele, um restore em servidor novo reemitiria tudo do zero e pode
+# esbarrar no rate limit do Let's Encrypt.
+if [ "$INCLUDE_PROXY" = "true" ]; then
+  if docker volume inspect "$PROXY_VOLUME" >/dev/null 2>&1; then
+    echo "[backup] archiving proxy volume $PROXY_VOLUME"
+    docker run --rm -v "${PROXY_VOLUME}:/from:ro" -v "${RUN_DIR}:/backup" alpine sh -c "cd /from && tar -czf /backup/proxy.tar.gz ."
+  else
+    # Nao criar o volume por engano: `docker run -v` criaria um vazio e o backup
+    # ficaria com um arquivo inutil, dando falsa sensacao de cobertura.
+    echo "[backup] proxy volume $PROXY_VOLUME not found, skipping" >&2
+  fi
 fi
 
 (

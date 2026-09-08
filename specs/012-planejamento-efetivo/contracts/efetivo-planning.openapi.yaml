@@ -1,0 +1,1087 @@
+openapi: 3.1.0
+info:
+  title: Efetivo Operacional Planning API
+  version: 1.1.0
+  description: Contrato das áreas de capacidade, calendário compartilhado, missões, execução observada, simulações e administração do Efetivo.
+servers:
+  - url: /api/efetivo
+security:
+  - sessionCookie: []
+tags:
+  - name: Planning reads
+  - name: Collaborators
+  - name: Missions
+  - name: Scenarios
+  - name: Administration
+paths:
+  /planning/projects:
+    get:
+      tags: [Planning reads]
+      summary: Lista projetos mínimos elegíveis para programação
+      parameters:
+        - $ref: '#/components/parameters/Search'
+      responses:
+        '200':
+          description: Projetos sem exposição de campos de RDO/custos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProjectOption' }
+  /planning/job-roles:
+    get:
+      tags: [Planning reads]
+      summary: Lista funções operacionais acessíveis ao Efetivo
+      responses:
+        '200':
+          description: Funções
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/JobRole' }
+  /planning/coordinators:
+    get:
+      tags: [Planning reads]
+      summary: Lista contas ativas de coordenadores e seu colaborador vinculado
+      responses:
+        '200':
+          description: Coordenadores elegíveis para responsável da sede
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CoordinatorOption' }
+  /planning/overview:
+    get:
+      tags: [Planning reads]
+      summary: Capacidade oficial na data e utilização dos próximos 90 dias
+      parameters:
+        - $ref: '#/components/parameters/Date'
+        - $ref: '#/components/parameters/JobRoleId'
+      responses:
+        '200':
+          description: Visão geral reproduzível por pessoa e função
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Overview' }
+  /planning/calendar:
+    get:
+      tags: [Planning reads]
+      summary: Eventos de missões e indisponibilidades no intervalo
+      parameters:
+        - $ref: '#/components/parameters/StartDate'
+        - $ref: '#/components/parameters/EndDate'
+        - $ref: '#/components/parameters/JobRoleId'
+      responses:
+        '200':
+          description: Eventos agregados para dia, semana ou mês
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events, conflicts]
+                properties:
+                  events:
+                    type: array
+                    items: { $ref: '#/components/schemas/CalendarEvent' }
+                  conflicts:
+                    type: array
+                    items: { $ref: '#/components/schemas/Conflict' }
+  /planning/collaborators:
+    get:
+      tags: [Collaborators]
+      summary: Lista situação e projeção dos colaboradores na data
+      parameters:
+        - $ref: '#/components/parameters/Date'
+        - $ref: '#/components/parameters/JobRoleId'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/IncludeInactive'
+      responses:
+        '200':
+          description: Colaboradores
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CollaboratorPlanning' }
+    post:
+      tags: [Collaborators]
+      summary: Cria colaborador pelos campos operacionais permitidos
+      x-required-role: efetivo:manager
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CollaboratorInput' }
+      responses:
+        '201': { $ref: '#/components/responses/CollaboratorResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /planning/collaborators/{collaboratorId}:
+    patch:
+      tags: [Collaborators]
+      summary: Atualiza somente campos operacionais do cadastro canônico
+      x-required-role: efetivo:manager
+      parameters:
+        - $ref: '#/components/parameters/CollaboratorId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CollaboratorInput' }
+      responses:
+        '200': { $ref: '#/components/responses/CollaboratorResponse' }
+        '409': { $ref: '#/components/responses/ConflictResponse' }
+  /planning/missions:
+    get:
+      tags: [Missions]
+      summary: Lista missões do plano oficial ou cenário informado
+      parameters:
+        - $ref: '#/components/parameters/PlanId'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/MissionScheduleStatus' }
+        - name: stage
+          in: query
+          schema: { $ref: '#/components/schemas/MissionStage' }
+      responses:
+        '200':
+          description: Missões
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Mission' }
+    post:
+      tags: [Missions]
+      summary: Cria programação no plano oficial ou em cenário editável
+      x-required-role: efetivo:manager
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MissionInput' }
+      responses:
+        '201':
+          description: Missão criada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Mission' }
+        '409': { $ref: '#/components/responses/ConflictResponse' }
+  /planning/missions/pending:
+    get:
+      tags: [Missions]
+      summary: Lista projetos ativos ainda sem programação operacional no plano
+      description: Origem dos cards pendentes da aba Missões; não existe cadastro manual de missão fora de um projeto.
+      parameters:
+        - $ref: '#/components/parameters/PlanId'
+      responses:
+        '200':
+          description: Projetos aguardando programação
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PendingMissionProject' }
+  /planning/missions/{missionId}:
+    get:
+      tags: [Missions]
+      summary: Detalha missão, demanda, equipe e auditoria
+      parameters:
+        - $ref: '#/components/parameters/MissionId'
+      responses:
+        '200':
+          description: Missão
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Mission' }
+    patch:
+      tags: [Missions]
+      summary: Atualiza e revalida a programação inteira
+      x-required-role: efetivo:manager
+      parameters:
+        - $ref: '#/components/parameters/MissionId'
+        - $ref: '#/components/parameters/IfMatchVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MissionInput' }
+      responses:
+        '200':
+          description: Missão atualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Mission' }
+        '409': { $ref: '#/components/responses/ConflictResponse' }
+    delete:
+      tags: [Missions]
+      summary: Exclui logicamente a programação e preserva histórico
+      x-required-role: efetivo:manager
+      parameters:
+        - $ref: '#/components/parameters/MissionId'
+      responses:
+        '204': { description: Excluída }
+  /planning/missions/{missionId}/eligible-collaborators:
+    get:
+      tags: [Missions]
+      summary: Lista candidatos da função, incluindo inativos quando solicitado e sobreposições que exigem confirmação
+      parameters:
+        - $ref: '#/components/parameters/MissionId'
+        - $ref: '#/components/parameters/JobRoleId'
+        - $ref: '#/components/parameters/IncludeInactive'
+        - name: mobilizationDate
+          in: query
+          description: Início individual pretendido; por padrão, usa a mobilização da missão.
+          schema: { $ref: '#/components/schemas/DateOnly' }
+        - name: demobilizationDate
+          in: query
+          description: Fim individual pretendido; por padrão, usa a desmobilização da missão.
+          schema: { $ref: '#/components/schemas/DateOnly' }
+      responses:
+        '200':
+          description: Candidatos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EligibleCollaboratorOption' }
+  /planning/missions/{missionId}/allocations:
+    post:
+      tags: [Missions]
+      summary: Aloca uma pessoa após lock e revalidação
+      x-required-role: efetivo:manager
+      parameters:
+        - $ref: '#/components/parameters/MissionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [collaboratorId, jobRoleId]
+              properties:
+                collaboratorId: { type: string }
+                jobRoleId: { type: string }
+                mobilizationDate:
+                  description: Mobilização individual; por padrão, herda a data da missão.
+                  oneOf:
+                    - { $ref: '#/components/schemas/DateOnly' }
+                    - { type: 'null' }
+                demobilizationDate:
+                  description: Desmobilização individual; por padrão, herda a data da missão.
+                  oneOf:
+                    - { $ref: '#/components/schemas/DateOnly' }
+                    - { type: 'null' }
+                allowInactiveCollaborator:
+                  $ref: '#/components/schemas/InactiveCollaboratorConfirmation'
+                allowMissionOverlap:
+                  type: boolean
+                  default: false
+                  description: Confirmação explícita de que a pessoa pode permanecer em missões simultâneas.
+      responses:
+        '201': { description: Alocação criada }
+        '409': { $ref: '#/components/responses/ConflictResponse' }
+  /planning/missions/{missionId}/allocations/{allocationId}:
+    patch:
+      tags: [Missions]
+      summary: Atualiza mobilização e desmobilização individuais
+      x-required-role: efetivo:manager
+      parameters:
+        - $ref: '#/components/parameters/MissionId'
+        - name: allocationId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mobilizationDate, demobilizationDate]
+              properties:
+                mobilizationDate: { $ref: '#/components/schemas/DateOnly' }
+                demobilizationDate: { $ref: '#/components/schemas/DateOnly' }
+                allowInactiveCollaborator:
+                  $ref: '#/components/schemas/InactiveCollaboratorConfirmation'
+                allowMissionOverlap:
+                  type: boolean
+                  default: false
+                  description: Confirmação explícita de sobreposição com outra missão.
+      responses:
+        '200': { description: Período individual atualizado }
+        '409': { $ref: '#/components/responses/ConflictResponse' }
+    delete:
+      tags: [Missions]
+      summary: Remove logicamente uma alocação
+      x-required-role: efetivo:manager
+      parameters:
+        - $ref: '#/components/parameters/MissionId'
+        - name: allocationId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Removida }
+  /planning/missions/{missionId}/auto-allocate:
+    post:
+      tags: [Missions]
+      summary: Preenche vagas de forma determinística sem exceder demanda
+      x-required-role: efetivo:manager
+      parameters:
+        - $ref: '#/components/parameters/MissionId'
+      responses:
+        '200':
+          description: Resultado parcial permitido, com déficits restantes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [created, remainingDeficits]
+                properties:
+                  created:
+                    type: array
+                    items: { type: string }
+                  remainingDeficits:
+                    type: array
+                    items: { $ref: '#/components/schemas/RoleCapacity' }
+  /planning/missions/{missionId}/stage:
+    patch:
+      tags: [Missions]
+      summary: Move e reordena cartão de Kanban atomicamente
+      x-required-role: efetivo:manager
+      parameters:
+        - $ref: '#/components/parameters/MissionId'
+        - $ref: '#/components/parameters/IfMatchVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stage, order]
+              properties:
+                stage: { $ref: '#/components/schemas/MissionStage' }
+                order: { type: integer, minimum: 0 }
+                returnDate:
+                  description: Desmobilização real opcional, solicitada ao concluir a missão.
+                  oneOf:
+                    - { $ref: '#/components/schemas/DateOnly' }
+                    - { type: 'null' }
+      responses:
+        '200': { description: Etapa e ordem persistidas }
+        '409': { $ref: '#/components/responses/ConflictResponse' }
+  /planning/missions/{missionId}/execution:
+    get:
+      tags: [Missions]
+      summary: Compara a missão planejada com fatos observados de Project, RDO, Acompanhamento e Ponto
+      description: Retorna uma projeção de leitura; nunca atualiza automaticamente datas, etapa ou equipe planejadas.
+      parameters:
+        - $ref: '#/components/parameters/MissionId'
+      responses:
+        '200':
+          description: Planejado, observado, divergências e origem/freshness dos dados
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MissionExecutionComparison' }
+  /planning/scenarios:
+    get:
+      tags: [Scenarios]
+      summary: Lista cenários e seus estados terminais
+      responses:
+        '200':
+          description: Cenários
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PlanSummary' }
+    post:
+      tags: [Scenarios]
+      summary: Cria cópia materializada do oficial
+      x-required-role: efetivo:manager
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 120 }
+                objective: { type: string, maxLength: 1000 }
+                initialHire:
+                  description: Contratação hipotética informada já na criação; quantidade 0 é ignorada.
+                  type: [object, 'null']
+                  required: [jobRoleId, quantity, availableFrom]
+                  properties:
+                    jobRoleId: { type: string }
+                    quantity: { type: integer, minimum: 0, maximum: 1000 }
+                    availableFrom: { type: string, format: date }
+      responses:
+        '201':
+          description: Cenário em rascunho
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanSummary' }
+  /planning/scenarios/{scenarioId}/compare:
+    get:
+      tags: [Scenarios]
+      summary: Compara capacidade e déficit do cenário com o oficial vigente
+      parameters:
+        - $ref: '#/components/parameters/ScenarioId'
+        - $ref: '#/components/parameters/Date'
+      responses:
+        '200':
+          description: Comparação total e por função
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [official, scenario, isStale]
+                properties:
+                  official: { $ref: '#/components/schemas/Overview' }
+                  scenario: { $ref: '#/components/schemas/Overview' }
+                  isStale: { type: boolean }
+  /planning/scenarios/{scenarioId}/hires:
+    post:
+      tags: [Scenarios]
+      summary: Adiciona contratação hipotética ao cenário
+      x-required-role: efetivo:manager
+      parameters:
+        - $ref: '#/components/parameters/ScenarioId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlannedHireInput' }
+      responses:
+        '201': { description: Contratação hipotética criada }
+  /planning/scenarios/{scenarioId}/apply:
+    post:
+      tags: [Scenarios]
+      summary: Revalida e aplica o cenário em uma única transação
+      x-required-role: efetivo:manager
+      parameters:
+        - $ref: '#/components/parameters/ScenarioId'
+      responses:
+        '200':
+          description: Cenário aplicado ou retry idempotente
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [scenarioId, officialPlanId, revision]
+                properties:
+                  scenarioId: { type: string }
+                  officialPlanId: { type: string }
+                  revision: { type: integer }
+                  idempotentRetry: { type: boolean }
+        '409': { $ref: '#/components/responses/ConflictResponse' }
+  /planning/scenarios/{scenarioId}/discard:
+    post:
+      tags: [Scenarios]
+      summary: Descarta cenário sem alterar o oficial
+      x-required-role: efetivo:manager
+      parameters:
+        - $ref: '#/components/parameters/ScenarioId'
+      responses:
+        '200': { description: Cenário descartado }
+  /planning/admin/job-roles/{jobRoleId}:
+    patch:
+      tags: [Administration]
+      summary: Atualiza somente classificação, cor e prazo operacional
+      x-required-role: efetivo:manager
+      parameters:
+        - $ref: '#/components/parameters/JobRoleIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                isOperational: { type: boolean }
+                calendarColor: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
+                continuousWorkLimitDays: { type: [integer, 'null'], minimum: 1, maximum: 365 }
+      responses:
+        '200':
+          description: Configuração atualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobRole' }
+  /planning/admin/holidays:
+    get:
+      tags: [Administration]
+      summary: Lista feriados globais
+      parameters:
+        - $ref: '#/components/parameters/StartDate'
+        - $ref: '#/components/parameters/EndDate'
+      responses:
+        '200':
+          description: Feriados
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Holiday' }
+    post:
+      tags: [Administration]
+      summary: Cria ou restaura feriado global
+      x-required-role: efetivo:manager
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HolidayInput' }
+      responses:
+        '201':
+          description: Feriado salvo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Holiday' }
+  /planning/admin/holidays/{holidayId}:
+    patch:
+      tags: [Administration]
+      summary: Atualiza feriado global
+      x-required-role: efetivo:manager
+      parameters:
+        - name: holidayId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HolidayInput' }
+      responses:
+        '200': { description: Feriado atualizado }
+    delete:
+      tags: [Administration]
+      summary: Exclui logicamente feriado global
+      x-required-role: efetivo:manager
+      parameters:
+        - name: holidayId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Excluído }
+  /planning/admin/settings:
+    patch:
+      tags: [Administration]
+      summary: Atualiza parâmetros de capacidade do módulo
+      x-required-role: efetivo:manager
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plannedUtilizationTarget]
+              properties:
+                plannedUtilizationTarget: { type: number, minimum: 0, maximum: 100 }
+      responses:
+        '200': { description: Parâmetros atualizados }
+  /planning/admin/activity:
+    get:
+      tags: [Administration]
+      summary: Lista atividade recente sanitizada
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 30 }
+      responses:
+        '200':
+          description: Eventos e cursor seguinte
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditEvent' }
+                  nextCursor: { type: [string, 'null'] }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: connect.sid
+  parameters:
+    Date:
+      name: date
+      in: query
+      required: true
+      schema: { $ref: '#/components/schemas/DateOnly' }
+    StartDate:
+      name: startDate
+      in: query
+      required: true
+      schema: { $ref: '#/components/schemas/DateOnly' }
+    EndDate:
+      name: endDate
+      in: query
+      required: true
+      schema: { $ref: '#/components/schemas/DateOnly' }
+    IncludeInactive:
+      name: includeInactive
+      in: query
+      description: Inclui colaboradores inativos para seleção e registro de histórico; não altera a capacidade projetada.
+      schema: { type: boolean, default: false }
+    Search:
+      name: search
+      in: query
+      schema: { type: string, maxLength: 120 }
+    JobRoleId:
+      name: jobRoleId
+      in: query
+      schema: { type: string }
+    JobRoleIdPath:
+      name: jobRoleId
+      in: path
+      required: true
+      schema: { type: string }
+    PlanId:
+      name: planId
+      in: query
+      schema: { type: string }
+    MissionId:
+      name: missionId
+      in: path
+      required: true
+      schema: { type: string }
+    ScenarioId:
+      name: scenarioId
+      in: path
+      required: true
+      schema: { type: string }
+    CollaboratorId:
+      name: collaboratorId
+      in: path
+      required: true
+      schema: { type: string }
+    IfMatchVersion:
+      name: If-Match-Version
+      in: header
+      required: true
+      schema: { type: integer, minimum: 1 }
+  responses:
+    ValidationError:
+      description: Entrada inválida
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    ConflictResponse:
+      description: Conflito temporal, de revisão, vínculo, função ou demanda
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    CollaboratorResponse:
+      description: Colaborador canônico salvo
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/CollaboratorPlanning' }
+  schemas:
+    DateOnly:
+      type: string
+      format: date
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+    MissionScheduleStatus:
+      type: string
+      enum: [DRAFT, CONFIRMED, CANCELLED]
+    EditableMissionScheduleStatus:
+      type: string
+      description: Situações disponíveis no preenchimento da programação; DRAFT permanece apenas para leitura de registros legados.
+      enum: [CONFIRMED, CANCELLED]
+    MissionStage:
+      type: string
+      enum: [STANDBY, MOBILIZATION, EXECUTION, FINAL_MEASUREMENT, FINISHED]
+    PlanStatus:
+      type: string
+      enum: [ACTIVE, DRAFT, APPLIED, DISCARDED, SUPERSEDED]
+    ProjectOption:
+      type: object
+      required: [id, code, name]
+      properties:
+        id: { type: string }
+        code: { type: string }
+        name: { type: string }
+        clientName: { type: [string, 'null'] }
+        location: { type: [string, 'null'] }
+        mobilizationDate: { type: [string, 'null'], format: date-time }
+        demobilizationDate: { type: [string, 'null'], format: date-time }
+    PendingMissionProject:
+      type: object
+      required: [id, code, name]
+      properties:
+        id: { type: string }
+        code: { type: string }
+        name: { type: string }
+        clientName: { type: [string, 'null'] }
+        location: { type: [string, 'null'] }
+        mobilizationDate: { type: [string, 'null'], format: date-time }
+        demobilizationDate: { type: [string, 'null'], format: date-time }
+        startDate: { type: [string, 'null'], format: date-time }
+        registrationPending: { type: boolean }
+    JobRole:
+      type: object
+      required: [id, name, isActive, isOperational, calendarColor]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        isActive: { type: boolean }
+        isOperational: { type: boolean }
+        calendarColor: { type: string }
+        continuousWorkLimitDays: { type: [integer, 'null'] }
+    CoordinatorOption:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        collaborator:
+          type: [object, 'null']
+          properties:
+            id: { type: string }
+            name: { type: string }
+            jobRoleId: { type: string }
+            jobRoleName: { type: string }
+            isActive: { type: boolean }
+    CollaboratorOption:
+      type: object
+      required: [id, name, jobRoleId, jobRoleName]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        jobRoleId: { type: string }
+        jobRoleName: { type: string }
+    EligibleCollaboratorOption:
+      allOf:
+        - $ref: '#/components/schemas/CollaboratorOption'
+        - type: object
+          required: [isActive, requiresInactiveConfirmation, missionConflicts, requiresMissionOverlapConfirmation]
+          properties:
+            admissionDate: { $ref: '#/components/schemas/DateOnly' }
+            missionConflicts:
+              type: array
+              items: { $ref: '#/components/schemas/Conflict' }
+            requiresMissionOverlapConfirmation: { type: boolean }
+            isActive: { type: boolean }
+            requiresInactiveConfirmation: { type: boolean }
+    CollaboratorInput:
+      type: object
+      required: [name, jobRoleId, admissionDate]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        jobRoleId: { type: string }
+        admissionDate: { $ref: '#/components/schemas/DateOnly' }
+        terminationDate:
+          oneOf:
+            - { $ref: '#/components/schemas/DateOnly' }
+            - { type: 'null' }
+        note: { type: [string, 'null'], maxLength: 1000 }
+    CollaboratorPlanning:
+      allOf:
+        - $ref: '#/components/schemas/CollaboratorOption'
+        - type: object
+          required: [admissionDate, status, plannedUtilization90d]
+          properties:
+            admissionDate: { $ref: '#/components/schemas/DateOnly' }
+            terminationDate:
+              oneOf:
+                - { $ref: '#/components/schemas/DateOnly' }
+                - { type: 'null' }
+            status: { type: string, enum: [ALLOCATED, UNAVAILABLE, FREE, OUTSIDE_EMPLOYMENT] }
+            plannedUtilization90d: { type: [number, 'null'], minimum: 0, maximum: 100 }
+            vacationAlert: { type: [object, 'null'] }
+    InactiveCollaboratorConfirmation:
+      type: boolean
+      default: false
+      description: Confirma o registro histórico com colaborador inativo, preservando as demais validações e registrando a decisão na auditoria.
+    MobilizationCycleInput:
+      type: object
+      required: [mobilizationDate]
+      properties:
+        mobilizationDate: { $ref: '#/components/schemas/DateOnly' }
+        demobilizationDate:
+          oneOf:
+            - { $ref: '#/components/schemas/DateOnly' }
+            - { type: 'null' }
+        allowInactiveCollaborator: { $ref: '#/components/schemas/InactiveCollaboratorConfirmation' }
+    MissionDemand:
+      type: object
+      required: [jobRoleId, requiredCount]
+      properties:
+        jobRoleId: { type: string }
+        requiredCount: { type: integer, minimum: 0 }
+    MissionInput:
+      type: object
+      description: A etapa nasce automaticamente como STANDBY; nome, cargo e colaborador do líder são derivados da conta vinculada.
+      required: [projectId, scheduleStatus, headquartersResponsibleUserId, mobilizationDate, executionStartDate, executionEndDate, collaboratorIds]
+      properties:
+        planId: { type: string }
+        projectId: { type: string }
+        scheduleStatus: { $ref: '#/components/schemas/EditableMissionScheduleStatus' }
+        headquartersResponsibleUserId: { type: string }
+        mobilizationDate: { $ref: '#/components/schemas/DateOnly' }
+        executionStartDate: { $ref: '#/components/schemas/DateOnly' }
+        executionEndDate: { $ref: '#/components/schemas/DateOnly' }
+        returnDate:
+          description: Desmobilização real; opcional e sincronizada com o cronograma do projeto.
+          oneOf:
+            - { $ref: '#/components/schemas/DateOnly' }
+            - { type: 'null' }
+        collaboratorIds:
+          type: array
+          maxItems: 500
+          uniqueItems: true
+          description: Colaboradores selecionados diretamente; a demanda por função é derivada dos cargos canônicos no servidor.
+          items: { type: string }
+        allocationPeriods:
+          type: array
+          maxItems: 500
+          uniqueItems: true
+          description: Mobilização e desmobilização por colaborador; datas iguais aos limites gerais continuam herdando a programação da missão.
+          items:
+            type: object
+            required: [collaboratorId, mobilizationDate, demobilizationDate]
+            properties:
+              collaboratorId: { type: string }
+              mobilizationDate: { $ref: '#/components/schemas/DateOnly' }
+              demobilizationDate: { $ref: '#/components/schemas/DateOnly' }
+        confirmedInactiveCollaboratorIds:
+          type: array
+          maxItems: 500
+          default: []
+          description: IDs dos colaboradores inativos cujo registro histórico foi explicitamente confirmado nesta operação.
+          items: { type: string }
+        confirmedMissionOverlapCollaboratorIds:
+          type: array
+          maxItems: 500
+          uniqueItems: true
+          description: Colaboradores cuja alocação simultânea em outra missão foi confirmada pelo usuário.
+          items: { type: string }
+    Mission:
+      type: object
+      required: [id, planId, projectId, scheduleStatus, stage, headquartersResponsibleUserId, headquartersResponsibleName, headquartersResponsibleRole, mobilizationDate, executionStartDate, executionEndDate, returnDate, version, kanbanOrder, project, demands, allocations]
+      properties:
+        id: { type: string }
+        planId: { type: string }
+        projectId: { type: string }
+        scheduleStatus: { $ref: '#/components/schemas/MissionScheduleStatus' }
+        stage: { $ref: '#/components/schemas/MissionStage' }
+        headquartersResponsibleUserId: { type: string }
+        headquartersResponsibleName: { type: string }
+        headquartersResponsibleRole: { type: string }
+        headquartersResponsibleCollaboratorId: { type: [string, 'null'] }
+        mobilizationDate: { $ref: '#/components/schemas/DateOnly' }
+        executionStartDate: { $ref: '#/components/schemas/DateOnly' }
+        executionEndDate: { $ref: '#/components/schemas/DateOnly' }
+        returnDate:
+          oneOf:
+            - { $ref: '#/components/schemas/DateOnly' }
+            - { type: 'null' }
+        version: { type: integer }
+        kanbanOrder: { type: integer }
+        project: { $ref: '#/components/schemas/ProjectOption' }
+        demands:
+          type: array
+          description: Contagens derivadas da equipe selecionada, agrupadas por função canônica.
+          items: { $ref: '#/components/schemas/MissionDemand' }
+        allocations:
+          type: array
+          items:
+            type: object
+            required: [id, collaboratorId, jobRoleId]
+            properties:
+              id: { type: string }
+              collaboratorId: { type: string }
+              jobRoleId: { type: string }
+              mobilizationDate:
+                description: Data individual; nula significa herdar a mobilização da missão.
+                oneOf:
+                  - { $ref: '#/components/schemas/DateOnly' }
+                  - { type: 'null' }
+              demobilizationDate:
+                description: Data individual; nula significa herdar a desmobilização da missão.
+                oneOf:
+                  - { $ref: '#/components/schemas/DateOnly' }
+                  - { type: 'null' }
+              allowMissionOverlap: { type: boolean }
+              collaborator:
+                type: object
+                properties:
+                  id: { type: string }
+                  name: { type: string }
+                  jobRoleId: { type: string }
+                  jobRoleName: { type: string }
+                  isActive: { type: boolean }
+    RoleCapacity:
+      type: object
+      required: [jobRoleId, jobRoleName, active, allocated, unavailable, free, demand, deficit]
+      properties:
+        jobRoleId: { type: string }
+        jobRoleName: { type: string }
+        active: { type: integer }
+        allocated: { type: integer }
+        unavailable: { type: integer }
+        free: { type: integer }
+        demand: { type: integer }
+        deficit: { type: integer }
+        plannedUtilization90d: { type: [number, 'null'] }
+    Overview:
+      type: object
+      required: [date, totals, byRole, upcomingMobilizations, plannedUtilization90d]
+      properties:
+        date: { $ref: '#/components/schemas/DateOnly' }
+        totals: { $ref: '#/components/schemas/RoleCapacity' }
+        byRole:
+          type: array
+          items: { $ref: '#/components/schemas/RoleCapacity' }
+        upcomingMobilizations:
+          type: array
+          items: { $ref: '#/components/schemas/Mission' }
+        plannedUtilization90d: { type: [number, 'null'] }
+        target: { type: number }
+        continuousStayAlerts: { type: array, items: { type: object } }
+    CalendarEvent:
+      type: object
+      required: [id, type, title, startDate, endDate]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [MISSION, FERIAS, FOLGA, AFASTAMENTO] }
+        title: { type: string }
+        startDate: { $ref: '#/components/schemas/DateOnly' }
+        endDate: { $ref: '#/components/schemas/DateOnly' }
+        jobRoleIds: { type: array, items: { type: string } }
+        entityPath: { type: string }
+    Conflict:
+      type: object
+      required: [code, collaboratorId, collaboratorName, startDate, endDate, sourceType, sourceId]
+      properties:
+        code: { type: string }
+        collaboratorId: { type: string }
+        collaboratorName: { type: string }
+        startDate: { $ref: '#/components/schemas/DateOnly' }
+        endDate: { $ref: '#/components/schemas/DateOnly' }
+        sourceType: { type: string, enum: [ABSENCE, MISSION, EMPLOYMENT, JOB_ROLE, DEMAND, REVISION] }
+        sourceId: { type: string }
+        entityPath: { type: string }
+    PlannedHireInput:
+      type: object
+      required: [jobRoleId, quantity, availableFrom]
+      properties:
+        jobRoleId: { type: string }
+        quantity: { type: integer, minimum: 1 }
+        availableFrom: { $ref: '#/components/schemas/DateOnly' }
+    PlanSummary:
+      type: object
+      required: [id, kind, status, name, revision]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [OFFICIAL, SCENARIO] }
+        status: { $ref: '#/components/schemas/PlanStatus' }
+        name: { type: string }
+        objective: { type: [string, 'null'] }
+        revision: { type: integer }
+        baseOfficialRevision: { type: [integer, 'null'] }
+        appliedPlanId: { type: [string, 'null'] }
+    HolidayInput:
+      type: object
+      required: [holidayDate, name]
+      properties:
+        holidayDate: { $ref: '#/components/schemas/DateOnly' }
+        name: { type: string, minLength: 1, maxLength: 160 }
+    Holiday:
+      allOf:
+        - $ref: '#/components/schemas/HolidayInput'
+        - type: object
+          required: [id, source, mutable]
+          properties:
+            id: { type: string }
+            source: { type: string, enum: [NATIONAL, COMPANY] }
+            mutable: { type: boolean }
+    MissionExecutionComparison:
+      type: object
+      required: [missionId, planned, actual, variances, freshness]
+      properties:
+        missionId: { type: string }
+        planned:
+          type: object
+          required: [planRevision, calendarRevision, stage, dates, collaborators]
+          properties:
+            planRevision: { type: integer }
+            calendarRevision: { type: integer }
+            stage: { $ref: '#/components/schemas/MissionStage' }
+            dates:
+              type: object
+              required: [mobilizationDate, executionStartDate, executionEndDate, returnDate]
+              properties:
+                mobilizationDate: { $ref: '#/components/schemas/DateOnly' }
+                executionStartDate: { $ref: '#/components/schemas/DateOnly' }
+                executionEndDate: { $ref: '#/components/schemas/DateOnly' }
+                returnDate:
+                  oneOf:
+                    - { $ref: '#/components/schemas/DateOnly' }
+                    - { type: 'null' }
+            collaborators:
+              type: array
+              items: { $ref: '#/components/schemas/CollaboratorOption' }
+        actual:
+          type: object
+          properties:
+            projectDates: { type: object, additionalProperties: true }
+            firstRdoDate: { type: [string, 'null'], format: date }
+            lastRdoDate: { type: [string, 'null'], format: date }
+            rdoDays: { type: integer, minimum: 0 }
+            collaboratorsObserved:
+              type: array
+              items: { $ref: '#/components/schemas/CollaboratorOption' }
+            pontoHours: { type: number, minimum: 0 }
+            manualProgressPct: { type: [number, 'null'], minimum: 0, maximum: 100 }
+        variances:
+          type: object
+          required: [plannedNotObserved, unplannedObserved, workedOutsidePlannedWindow, workDuringAbsence]
+          properties:
+            dateDeltas: { type: object, additionalProperties: true }
+            plannedNotObserved: { type: array, items: { type: string } }
+            unplannedObserved: { type: array, items: { type: string } }
+            workedOutsidePlannedWindow: { type: array, items: { $ref: '#/components/schemas/DateOnly' } }
+            workDuringAbsence: { type: array, items: { type: object, additionalProperties: true } }
+            unresolvedPontoDays: { type: array, items: { $ref: '#/components/schemas/DateOnly' } }
+            observedStageSuggestion: { oneOf: [{ $ref: '#/components/schemas/MissionStage' }, { type: 'null' }] }
+        freshness:
+          type: object
+          required: [generatedAt]
+          properties:
+            generatedAt: { type: string, format: date-time }
+            pontoImportIds: { type: array, items: { type: string } }
+    AuditEvent:
+      type: object
+      required: [id, action, entityType, entityId, summary, createdAt]
+      properties:
+        id: { type: string }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: string }
+        summary: { type: string }
+        actorName: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+    ApiError:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+        issues: { type: array, items: { type: object } }
+        conflicts:
+          type: array
+          items: { $ref: '#/components/schemas/Conflict' }

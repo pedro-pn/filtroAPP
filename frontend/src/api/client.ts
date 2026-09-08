@@ -5,11 +5,21 @@ const UNAUTHORIZED_EVENT = 'filtrovali:unauthorized';
 
 export class ApiClientError extends Error {
   status?: number;
+  code?: string;
+  conflicts?: unknown[];
+  issues?: string[];
+  requestId?: string;
+  fields?: Array<{ path: string; message: string }>;
 
-  constructor(message: string, status?: number) {
+  constructor(message: string, status?: number, details?: { code?: string; conflicts?: unknown[]; issues?: string[]; requestId?: string; fields?: Array<{ path: string; message: string }> }) {
     super(message);
     this.name = 'ApiClientError';
     this.status = status;
+    this.code = details?.code;
+    this.conflicts = details?.conflicts;
+    this.issues = details?.issues;
+    this.requestId = details?.requestId;
+    this.fields = details?.fields;
   }
 }
 
@@ -39,6 +49,10 @@ export function equipamentosApiPath(path: string) {
 
 export function estoqueApiPath(path: string) {
   return `/estoque${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+export function qualidadeApiPath(path: string) {
+  return `/qualidade${path.startsWith('/') ? path : `/${path}`}`;
 }
 
 function tokenFromAuthorizationHeader(header: unknown) {
@@ -119,7 +133,10 @@ apiClient.interceptors.response.use(
     }
 
     const message = extractApiErrorMessage(error);
-    return Promise.reject(new ApiClientError(message || 'Falha na comunicação com a API.', status));
+    const payload = axios.isAxiosError(error) && error.response?.data && typeof error.response.data === 'object'
+      ? error.response.data as { code?: string; conflicts?: unknown[]; issues?: string[] }
+      : undefined;
+    return Promise.reject(new ApiClientError(message || 'Falha na comunicação com a API.', status, payload));
   }
 );
 

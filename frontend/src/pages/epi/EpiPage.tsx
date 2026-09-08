@@ -1,14 +1,16 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 
 import {
   archiveEpiRecords,
   createEpiCatalogItem,
   createEpiRecord,
   downloadEpiCollaboratorPdf,
+  effectiveEpiRole,
   listEpiCatalog,
   listEpiCollaborators,
+  listEpiJobRoles,
   removeEpiCatalogItem,
   removeEpiRecord,
   requestEpiSignature,
@@ -139,7 +141,7 @@ export function EpiPage() {
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
-  const [profileForm, setProfileForm] = useState({ cpf: '', registrationNumber: '', admissionDate: '' });
+  const [profileForm, setProfileForm] = useState({ cpf: '', registrationNumber: '', admissionDate: '', roleOverrideJobRoleId: '' });
   const [recordForm, setRecordForm] = useState<EpiRecordPayload>(emptyRecord);
   const [recordTab, setRecordTab] = useState<RecordTab>('active');
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(() => new Set());
@@ -152,6 +154,11 @@ export function EpiPage() {
 
   const collaboratorsQuery = useQuery({ queryKey: ['epi-collaborators'], queryFn: listEpiCollaborators });
   const catalogQuery = useQuery({ queryKey: ['epi-catalog'], queryFn: listEpiCatalog });
+  const jobRolesQuery = useQuery({
+    queryKey: ['epi-job-roles'],
+    queryFn: listEpiJobRoles,
+    enabled: isTechnician
+  });
 
   const expandedCollaborator = useMemo(
     () => (collaboratorsQuery.data || []).find(item => item.id === expandedId) || null,
@@ -162,7 +169,7 @@ export function EpiPage() {
     const query = search.trim().toLowerCase();
     return (collaboratorsQuery.data || []).filter(item => {
       if (!query) return true;
-      return [item.name, item.code, item.role, item.cpf, item.registrationNumber]
+      return [item.name, item.code, effectiveEpiRole(item), item.cpf, item.registrationNumber]
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(query));
     });
@@ -176,7 +183,8 @@ export function EpiPage() {
   const saveProfileMutation = useMutation({
     mutationFn: (collaboratorId: string) => updateEpiCollaboratorProfile(collaboratorId, {
       ...profileForm,
-      admissionDate: inputDateToPtBr(profileForm.admissionDate)
+      admissionDate: inputDateToPtBr(profileForm.admissionDate),
+      roleOverrideJobRoleId: profileForm.roleOverrideJobRoleId || null
     }),
     onSuccess: () => {
       invalidate();
@@ -284,7 +292,8 @@ export function EpiPage() {
       setProfileForm({
         cpf: formatCpfInput(collaborator.cpf || ''),
         registrationNumber: collaborator.registrationNumber || '',
-        admissionDate: dateInput(collaborator.admissionDate)
+        admissionDate: dateInput(collaborator.admissionDate),
+        roleOverrideJobRoleId: collaborator.roleOverrideJobRole?.id || ''
       });
       setRecordForm(emptyRecord);
     }
@@ -312,7 +321,8 @@ export function EpiPage() {
     setProfileForm({
       cpf: formatCpfInput(collaborator.cpf || ''),
       registrationNumber: collaborator.registrationNumber || '',
-      admissionDate: dateInput(collaborator.admissionDate)
+      admissionDate: dateInput(collaborator.admissionDate),
+      roleOverrideJobRoleId: collaborator.roleOverrideJobRole?.id || ''
     });
     setEditingProfileId(collaborator.id);
   }
@@ -464,7 +474,7 @@ export function EpiPage() {
                   id="epi-search"
                   value={search}
                   onChange={setSearch}
-                  placeholder="Nome, código ou função"
+                  placeholder="Nome, código ou cargo"
                   count={{ shown: visibleCollaborators.length, total: (collaboratorsQuery.data || []).length }}
                 />
               </div>
@@ -472,6 +482,8 @@ export function EpiPage() {
 
             {visibleCollaborators.map(collaborator => {
               const isOpen = expandedId === collaborator.id;
+              const epiRoleOverrideIsInactive = Boolean(collaborator.roleOverrideJobRole)
+                && !(jobRolesQuery.data || []).some(role => role.id === collaborator.roleOverrideJobRole?.id);
               const activeRecords = collaborator.epiRecords.filter(record => !record.archivedAt && !record.pendingReturn);
               const archivedRecords = collaborator.epiRecords.filter(record => record.archivedAt);
               const visibleRecords = recordTab === 'archived' ? archivedRecords : activeRecords;
@@ -485,7 +497,7 @@ export function EpiPage() {
                   <button className="epi-card-head" type="button" onClick={() => openCollaborator(collaborator)}>
                     <span>
                       <strong>{collaborator.name}</strong>
-                      <small>{collaborator.code} · {collaborator.role}</small>
+                      <small>{collaborator.code} · {effectiveEpiRole(collaborator)}</small>
                     </span>
                     <span className="epi-card-count">{activeRecords.length} ativo(s) · {archivedRecords.length} arquivado(s) · {unsigned} pendente(s)</span>
                   </button>
@@ -494,6 +506,24 @@ export function EpiPage() {
                     <div className="epi-card-body">
                       {editingProfileId === collaborator.id ? (
                         <div className="epi-profile-grid">
+                          <div className="field-group epi-profile-role">
+                            <label htmlFor={`epi-profile-role-${collaborator.id}`}>Cargo no EPI</label>
+                            <select
+                              id={`epi-profile-role-${collaborator.id}`}
+                              value={profileForm.roleOverrideJobRoleId}
+                              onChange={event => setProfileForm(current => ({ ...current, roleOverrideJobRoleId: event.target.value }))}
+                              disabled={!isTechnician || jobRolesQuery.isLoading}
+                            >
+                              <option value="">Usar cargo atual do APP — {collaborator.currentJobRole.name}</option>
+                              {epiRoleOverrideIsInactive ? (
+                                <option value={collaborator.roleOverrideJobRole?.id || ''}>{collaborator.roleOverrideJobRole?.name} (inativo)</option>
+                              ) : null}
+                              {(jobRolesQuery.data || []).map(role => (
+                                <option key={role.id} value={role.id}>{role.name}{role.isActive ? '' : ' (inativo)'}</option>
+                              ))}
+                            </select>
+                            <small>Selecione um cargo cadastrado ou use o cargo atual do RDO.</small>
+                          </div>
                           <div className="field-group epi-profile-cpf">
                             <label htmlFor={`epi-profile-cpf-${collaborator.id}`}>CPF</label>
                             <input
@@ -527,6 +557,11 @@ export function EpiPage() {
                         </div>
                       ) : (
                         <div className="epi-profile-summary">
+                          <div>
+                            <span>Cargo no EPI</span>
+                            <strong>{effectiveEpiRole(collaborator)}</strong>
+                            <small>{collaborator.roleOverrideJobRole ? `Cargo atual no APP: ${collaborator.currentJobRole.name}` : 'Sincronizado com o cargo atual do APP'}</small>
+                          </div>
                           <div>
                             <span>CPF</span>
                             <strong>{collaborator.cpf || 'Não informado'}</strong>

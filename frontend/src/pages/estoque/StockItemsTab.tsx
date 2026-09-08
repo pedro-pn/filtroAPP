@@ -16,6 +16,7 @@ import {
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { SearchBar } from '../../components/ui/SearchBar';
 import { useToast } from '../../components/ui/ToastContext';
+import { StockItemDocumentsModal } from './StockItemDocumentsModal';
 import { StockItemFormModal } from './StockItemFormModal';
 
 interface Props {
@@ -42,8 +43,7 @@ function itemSubtitle(item: StockItem) {
   }
   return [
     item.unNumber ? `ONU ${item.unNumber}` : '',
-    item.casNumber ? `CAS ${item.casNumber}` : '',
-    item.fispqUrl ? 'FISPQ cadastrada' : 'Sem FISPQ'
+    item.casNumber ? `CAS ${item.casNumber}` : ''
   ]
     .filter(Boolean)
     .join(' · ');
@@ -56,6 +56,7 @@ export function StockItemsTab({ isManager }: Props) {
   const [type, setType] = useState<StockItemType | ''>('');
   const [includeInactive, setIncludeInactive] = useState(false);
   const [formItem, setFormItem] = useState<StockItem | null | undefined>(undefined);
+  const [documentsItemId, setDocumentsItemId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
   const itemsQuery = useQuery({
@@ -110,6 +111,7 @@ export function StockItemsTab({ isManager }: Props) {
 
   const items = useMemo(() => itemsQuery.data || [], [itemsQuery.data]);
   const categories = useMemo(() => categoriesQuery.data || [], [categoriesQuery.data]);
+  const documentsItem = items.find(item => item.id === documentsItemId) || null;
   const saving = createMutation.isPending || updateMutation.isPending;
 
   function handleSubmit(payload: StockItemPayload | StockItemUpdatePayload) {
@@ -193,11 +195,22 @@ export function StockItemsTab({ isManager }: Props) {
               {item.location ? <> · Local: <strong>{item.location}</strong></> : null}
             </p>
             {!item.isActive ? <span className="badge danger">Inativo</span> : null}
-            {item.fispqUrl ? (
-              <p><a className="equip-link" href={item.fispqUrl} target="_blank" rel="noreferrer">Abrir FISPQ</a></p>
-            ) : null}
+            {item.documents.length ? (
+              <div className="upload-list stock-item-document-list" aria-label={`Documentos de ${item.name}`}>
+                {item.documents.map(document => (
+                  <div className="upload-list-item" key={document.id}>
+                    <a className="upload-list-name" href={document.publicUrl} target="_blank" rel="noreferrer">
+                      {document.fileName}
+                    </a>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="rel-meta">Nenhum documento anexado.</p>}
             {isManager ? (
               <div className="admin-form-actions">
+                <button className="mini-btn alt" type="button" onClick={() => setDocumentsItemId(item.id)}>
+                  Documentos ({item.documents.length})
+                </button>
                 <button className="mini-btn alt" type="button" onClick={() => setFormItem(item)}>Editar</button>
                 <button className="mini-btn alt" type="button" onClick={() => confirmActive(item, !item.isActive)}>
                   {item.isActive ? 'Inativar' : 'Reativar'}
@@ -217,6 +230,15 @@ export function StockItemsTab({ isManager }: Props) {
           saving={saving}
           onClose={() => setFormItem(undefined)}
           onSubmit={handleSubmit}
+        />
+      ) : null}
+
+      {documentsItem ? (
+        <StockItemDocumentsModal
+          open
+          item={documentsItem}
+          onClose={() => setDocumentsItemId(null)}
+          onChanged={invalidate}
         />
       ) : null}
 

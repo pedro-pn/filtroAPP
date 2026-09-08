@@ -1,13 +1,23 @@
-﻿import { useEffect, useMemo, useRef, useState, type Dispatch, type DragEvent, type FormEvent, type KeyboardEvent, type SetStateAction } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+﻿import { useEffect, useMemo, useRef, useState, type Dispatch, type DragEvent, type FormEvent, type KeyboardEvent, type PointerEvent, type SetStateAction } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
 import { compareReportTypes, sortProjects, sortReportsInGroup } from '../../utils/projectSort';
 import { ProjectSortButton } from '../../utils/ProjectSortButton';
-import { reportDownloadFileName } from '../../utils/reportFileName';
+import { manualReportMetadataFromFileName, reportDownloadFileName } from '../../utils/reportFileName';
+import { SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
+import {
+  createPointerDragGhost,
+  movePointerDragGhost,
+  reorderIdFromPoint,
+  reorderRowsById,
+  scrollReorderContainerEdge,
+  setReorderDragImage,
+  type PointerDragState
+} from '../../utils/reorderDrag';
 
 import type { UserRole } from '../../types/auth';
 import { downloadReportDocx, downloadReportPdf, downloadReportsBatch } from '../../api/reports';
@@ -17,7 +27,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
 import { rdoPath } from '../../auth/rolePath';
 import { GroupedReportList } from '../../components/reports/GroupedReportList';
-import { ManualReportOperationalFields, type ManualReportOperationalFieldsValue } from '../../components/reports/ManualReportOperationalFields';
+import type { ManualReportOperationalFieldsValue } from '../../components/reports/ManualReportOperationalFields';
 import {
   buildManualReportOperationalData,
   emptyManualReportOperationalFields,
@@ -35,8 +45,21 @@ import { useToast } from '../../components/ui/ToastContext';
 import { PrivacyNotice } from '../../components/privacy/PrivacyNotice';
 import { ProjectRevisionPicker } from '../../components/projects/ProjectRevisionPicker';
 import { JobRoleManager } from '../../components/projects/JobRoleManager';
+import { CollaboratorListToolbarActions, CollaboratorStatusPill } from '../../components/projects/CollaboratorListControls';
 import { DdsThemeManager } from '../../components/reports/DdsThemeManager';
-import { getCommercialPendencias } from '../../api/acompanhamentoComercial';
+import {
+  replicateManualReportCollaborators,
+  type ManualReportCollaboratorReplicationPrompt
+} from './manualReportCollaboratorReplication';
+import { ManualReportUploadFileCard } from './ManualReportUploadFileCard';
+import { CollaboratorForm, type CollaboratorFormState } from './CollaboratorForm';
+import { CollaboratorJobRoleHistoryEditor } from './CollaboratorJobRoleHistoryEditor';
+import {
+  manualReportFileId,
+  manualReportUploadListLabel,
+  type ManualReportUploadFileState
+} from './manualReportUploadFile';
+import { getCommercialPendencias, type CommercialPendencia } from '../../api/acompanhamentoComercial';
 import { listJobRoles } from '../../api/jobRoles';
 import { useGestorBootstrap } from '../../hooks/useBootstrap';
 import { useCollaboratorMutations } from '../../hooks/useCollaborators';
@@ -85,6 +108,14 @@ import {
   scalePreviewValues,
   type SurveyQuestionDraft
 } from './gestorSurveyHelpers';
+import { commercialPendenciaAlertText, commercialPendenciaMapByProject, pendingCommercialProposalCountForProjects } from './commercialPendencias';
+import { PendingProjectReviewForm } from './PendingProjectReviewForm';
+import { ProjectIntakeWebhookNovelty } from './ProjectIntakeWebhookNovelty';
+import { ProjectTabPendingBadges } from './ProjectTabPendingBadges';
+import {
+  automaticProjectReviewMessage, formatProjectSequences, partitionProjectsByRegistration, pendingProjectRegistrationMessage,
+  projectRegistrationPending, projectSearchParts, projectTitle, projectVisibilityLabel
+} from './projectPendingReview';
 
 type GestorTab =
   | 'pendentes'
@@ -195,16 +226,6 @@ interface ProjectReportSequenceFormState {
   nextNumber: string;
 }
 
-interface ManualReportUploadFileState extends ManualReportOperationalFieldsValue {
-  id: string;
-  fileName: string;
-  pdfDataUrl: string;
-  sequenceNumber: string;
-  reportDate: string;
-  serviceEquipment: string;
-  serviceSystem: string;
-}
-
 interface ManualReportFormState extends ManualReportOperationalFieldsValue {
   projectId: string;
   reportType: ReportType;
@@ -218,15 +239,6 @@ interface ManualReportFormState extends ManualReportOperationalFieldsValue {
   files: ManualReportUploadFileState[];
 }
 
-interface CollaboratorFormState {
-  name: string;
-  role: string;
-  email: string;
-  signatureImage: string;
-  signatureNoticeAccepted: boolean;
-  isActive: boolean;
-}
-
 interface UserFormState {
   username: string;
   name: string;
@@ -235,6 +247,11 @@ interface UserFormState {
   role: Exclude<UserRole, 'CLIENT'>;
   collaboratorId: string;
   isActive: boolean;
+}
+
+interface ManualPasswordSetup {
+  username: string;
+  url: string;
 }
 
 const internalRoles: Array<Exclude<UserRole, 'CLIENT'>> = ['COLLABORATOR', 'COORDINATOR', 'MANAGER'];
@@ -303,8 +320,10 @@ const emptyManualReportForm: ManualReportFormState = {
 
 const emptyCollaboratorForm: CollaboratorFormState = {
   name: '',
-  role: '',
+  jobRoleId: '',
+  jobRoleEffectiveDate: new Date().toISOString().slice(0, 10),
   email: '',
+  terminationDate: '',
   signatureImage: '',
   signatureNoticeAccepted: false,
   isActive: true
@@ -332,6 +351,10 @@ function asString(value: unknown, fallback = '') {
 
 function asBoolean(value: unknown) {
   return typeof value === 'boolean' ? value : false;
+}
+
+function absolutePasswordSetupUrl(url: string) {
+  return new URL(url, window.location.origin).href;
 }
 
 function hasActiveClientRejection(report: ReportSummary) {
@@ -430,17 +453,6 @@ function fileToDataUrl(file: File) {
   });
 }
 
-function manualReportFileId() {
-  const random = Math.random().toString(36).slice(2, 8);
-  return `manual-report-${Date.now()}-${random}`;
-}
-
-function manualReportUploadListLabel(files: ManualReportUploadFileState[]) {
-  if (!files.length) return '';
-  if (files.length === 1) return files[0].fileName;
-  return `${files.length} PDFs selecionados`;
-}
-
 function normalizeSignatureImage(value?: string | null) {
   const signature = String(value || '').trim();
   return signature && signature !== 'null' && signature !== 'undefined' ? signature : '';
@@ -494,26 +506,6 @@ function initials(name: string) {
     .toUpperCase() || 'CL';
 }
 
-function projectSearchParts(project: Project) {
-  return [
-    project.code,
-    project.name,
-    project.registrationPending ? 'cadastro pendente' : '',
-    project.clientName,
-    project.clientCnpj,
-    project.clientEmailPrimary,
-    project.clientSignerFirstName,
-    project.clientSignerLastName,
-    ...(project.clientEmailCc || []),
-    ...(project.clientSigners || []).flatMap(signer => [signer.name, signer.firstName, signer.lastName, signer.email]),
-    project.contractCode,
-    project.location,
-    project.operator?.name,
-    projectVisibilityLabel(project),
-    formatProjectSequences(project)
-  ];
-}
-
 function collaboratorSearchParts(collaborator: Collaborator) {
   return [collaborator.code, collaborator.name, collaborator.role, collaborator.email];
 }
@@ -551,32 +543,9 @@ function formatPrimaryProjectSigner(project: Project) {
   return name || 'Não informado';
 }
 
-function formatProjectSequences(project: Project) {
-  const sequences = project.reportSequences || [];
-  if (!sequences.length) return 'Sem sequenciais cadastrados';
-  return sequences
-    .map(sequence => `${sequence.reportType}: próximo ${sequence.nextNumber}`)
-    .join(', ');
-}
-
 function projectVisibilityMode(form: Pick<ProjectFormState, 'managerOnly' | 'visibleToCollaborators'>): ProjectVisibilityMode {
   if (form.managerOnly) return 'manager-only';
   return form.visibleToCollaborators ? 'all-authorized' : 'manager-coordinator';
-}
-
-function projectVisibilityLabel(project: Pick<Project, 'managerOnly' | 'visibleToCollaborators'>) {
-  if (project.managerOnly) return 'Somente gestor';
-  if (project.visibleToCollaborators) return 'Gestor, coordenador e colaboradores responsáveis';
-  return 'Gestor e coordenador';
-}
-
-function projectRegistrationPending(project: Project) {
-  return Boolean(project.registrationPending);
-}
-
-function projectTitle(project: Project) {
-  const name = String(project.name || '').trim();
-  return name ? `${project.code} - ${name}` : `Missão ${project.code}`;
 }
 
 function applyProjectVisibilityMode(mode: ProjectVisibilityMode): Pick<ProjectFormState, 'managerOnly' | 'visibleToCollaborators'> {
@@ -958,8 +927,10 @@ function ProjectReportSequenceFields({
 function collaboratorToForm(collaborator: Collaborator): CollaboratorFormState {
   return {
     name: collaborator.name,
-    role: collaborator.role,
+    jobRoleId: collaborator.jobRoleId,
+    jobRoleEffectiveDate: new Date().toISOString().slice(0, 10),
     email: collaborator.email || '',
+    terminationDate: collaborator.terminationDate?.slice(0, 10) || '',
     signatureImage: normalizeSignatureImage(collaborator.signatureImage),
     signatureNoticeAccepted: Boolean(collaborator.signatureNoticeAcceptedAt || collaborator.signatureNoticeVersion),
     isActive: collaborator.isActive
@@ -994,7 +965,7 @@ function renderProjectCard(
     surveyPending?: boolean;
     children?: ReactNode;
     segments?: ClientSegment[];
-    commercialPendencia?: { proposalCode: string; revisionCount: number; resolved: boolean } | null;
+    commercialPendencia?: CommercialPendencia | null;
   }
 ) {
   const survey = latestSurvey(project);
@@ -1003,8 +974,9 @@ function renderProjectCard(
   const canResendSurvey = !project.isActive && !!survey && !survey.respondedAt;
   const pendingRegistration = projectRegistrationPending(project);
   const title = projectTitle(project);
+  const commercialPendenciaText = options.commercialPendencia ? commercialPendenciaAlertText(options.commercialPendencia) : null;
   return (
-    <article className="card admin-card project-admin-card" key={project.id}>
+    <article className={`card admin-card project-admin-card ${pendingRegistration ? 'project-admin-card-pending' : ''}`} key={project.id}>
       <div className="project-admin-head">
         {options.onToggleReports ? (
           <button className="project-admin-toggle" type="button" onClick={() => options.onToggleReports?.(project)}>
@@ -1023,12 +995,12 @@ function renderProjectCard(
       </div>
       {pendingRegistration ? (
         <div className="project-registration-alert">
-          Projeto criado automaticamente pelo romaneio. Complete o cadastro antes de usar em relatórios, ou exclua se o código não deve permanecer.
+          {automaticProjectReviewMessage(project)}
         </div>
       ) : null}
-      {options.commercialPendencia && !options.commercialPendencia.resolved ? (
+      {commercialPendenciaText ? (
         <div className="project-registration-alert">
-          Há {options.commercialPendencia.revisionCount} proposta(s) importada(s) do comercial para o contrato {options.commercialPendencia.proposalCode}. Abra os detalhes e escolha a revisão que vale para esta missão.
+          {commercialPendenciaText}
         </div>
       ) : null}
       {options.children}
@@ -1059,8 +1031,12 @@ function renderProjectCard(
             <span className="det-val">{formatProjectSigners(project.clientSigners)}</span>
           </div>
           <div className="det-row">
-            <span className="det-label">Contrato</span>
+            <span className="det-label">Proposta</span>
             <span className="det-val">{project.contractCode || '-'}</span>
+          </div>
+          <div className="det-row">
+            <span className="det-label">Local</span>
+            <span className="det-val">{project.location || '-'}</span>
           </div>
           {options.commercialPendencia ? <ProjectRevisionPicker projectId={project.id} /> : null}
           <div className="det-row">
@@ -1090,8 +1066,13 @@ function renderProjectCard(
         <button className="mini-btn alt" type="button" onClick={() => options.onToggleArchive(project)}>
           {project.isActive ? 'Arquivar' : 'Desarquivar'}
         </button>
-        <button className="mini-btn alt" type="button" onClick={() => options.onEdit(project)}>
-          Editar
+        <button
+          className="mini-btn alt"
+          type="button"
+          aria-label={`${pendingRegistration ? 'Revisar cadastro' : 'Editar'}: ${title}`}
+          onClick={() => options.onEdit(project)}
+        >
+          {pendingRegistration ? 'Revisar cadastro' : 'Editar'}
         </button>
         {options.onRemove ? (
           <button className="mini-btn danger" type="button" onClick={() => options.onRemove?.(project)}>
@@ -1153,16 +1134,23 @@ export function GestorPage() {
   const [draggedSurveyQuestionId, setDraggedSurveyQuestionId] = useState<string | null>(null);
   const [dragOverSurveyQuestionId, setDragOverSurveyQuestionId] = useState<string | null>(null);
   const [surveyOptionInputs, setSurveyOptionInputs] = useState<Record<string, string>>({});
+  const surveyQuestionDragId = useRef<string | null>(null);
+  const surveyQuestionDropHandled = useRef(false);
+  const surveyQuestionStartDrafts = useRef<SurveyQuestionDraft[]>([]);
+  const surveyQuestionDraftsRef = useRef<SurveyQuestionDraft[]>([]);
+  const surveyQuestionTouchDrag = useRef<PointerDragState | null>(null);
   const surveyQuestionEditorListRef = useRef<HTMLDivElement | null>(null);
 
   const [collaboratorForm, setCollaboratorForm] = useState<CollaboratorFormState>(emptyCollaboratorForm);
   const [collaboratorEditingId, setCollaboratorEditingId] = useState<string | null>(null);
   const [showCollaboratorForm, setShowCollaboratorForm] = useState(false);
+  const [showInactiveCollaborators, setShowInactiveCollaborators] = useState(false);
 
   const [userForm, setUserForm] = useState<UserFormState>(emptyUserForm);
   const [userEditingId, setUserEditingId] = useState<string | null>(null);
   const [showUserForm, setShowUserForm] = useState(false);
   const [userAdminGroup, setUserAdminGroup] = useState<'internal' | 'client'>('internal');
+  const [manualPasswordSetup, setManualPasswordSetup] = useState<ManualPasswordSetup | null>(null);
 
   const [returnReport, setReturnReport] = useState<ReportSummary | null>(null);
   const [sequenceEditReport, setSequenceEditReport] = useState<ReportSummary | null>(null);
@@ -1171,6 +1159,7 @@ export function GestorPage() {
   const [manualReportTarget, setManualReportTarget] = useState<ReportSummary | null>(null);
   const [manualReportModalOpen, setManualReportModalOpen] = useState(false);
   const [manualReportSubmitting, setManualReportSubmitting] = useState(false);
+  const [manualReportCollaboratorPrompts, setManualReportCollaboratorPrompts] = useState<ManualReportCollaboratorReplicationPrompt[]>([]);
   const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
   const [projectSortDir, setProjectSortDir] = useState<'asc' | 'desc'>(initialUiPrefs.projectSortDir);
   const [closedArchivedProjectIds, setClosedArchivedProjectIds] = useState<string[]>(initialUiPrefs.closedArchivedProjectIds);
@@ -1223,22 +1212,17 @@ export function GestorPage() {
   const gestorBootstrapQuery = useGestorBootstrap();
   const activeProjectsQuery = { data: gestorBootstrapQuery.data?.activeProjects, isLoading: gestorBootstrapQuery.isLoading };
   const commercialPendenciasQuery = useQuery({ queryKey: ['commercial-pendencias'], queryFn: getCommercialPendencias });
-  const commercialPendenciaByProject = useMemo(() => {
-    const map = new Map<string, { proposalCode: string; revisionCount: number; resolved: boolean }>();
-    for (const pendencia of commercialPendenciasQuery.data || []) {
-      map.set(pendencia.projectId, { proposalCode: pendencia.proposalCode, revisionCount: pendencia.revisionCount, resolved: pendencia.resolved });
-    }
-    return map;
-  }, [commercialPendenciasQuery.data]);
+  const commercialPendenciaByProject = useMemo(() => commercialPendenciaMapByProject(commercialPendenciasQuery.data || []), [commercialPendenciasQuery.data]);
   const jobRolesQuery = useQuery({ queryKey: ['job-roles'], queryFn: () => listJobRoles() });
-  const jobRoleNames = useMemo(() => (jobRolesQuery.data || []).map(role => role.name), [jobRolesQuery.data]);
+  const jobRoleIds = useMemo(() => new Set((jobRolesQuery.data || []).map(role => role.id)), [jobRolesQuery.data]);
   const renderRoleOptions = (value: string) => {
-    const showCurrent = Boolean(value) && !jobRoleNames.includes(value);
+    const current = collaboratorsQuery.data?.find(item => item.jobRoleId === value)?.jobRole;
+    const showCurrent = Boolean(current) && !jobRoleIds.has(value);
     return (
       <>
         <option value="" disabled>Selecione o cargo</option>
-        {showCurrent ? <option value={value}>{value} (atual)</option> : null}
-        {jobRoleNames.map(name => <option key={name} value={name}>{name}</option>)}
+        {showCurrent ? <option value={value}>{current?.name} (inativo)</option> : null}
+        {(jobRolesQuery.data || []).map(role => <option key={role.id} value={role.id}>{role.name}</option>)}
       </>
     );
   };
@@ -1311,6 +1295,12 @@ export function GestorPage() {
     .filter(project => project.isActive !== false)
     .filter(projectRegistrationPending)
     .length;
+  const activeProjectIdsForCommercialPendencias = new Set(
+    (activeProjectsQuery.data || [])
+      .filter(project => project.isActive !== false)
+      .map(project => project.id)
+  );
+  const pendingCommercialProposalCount = pendingCommercialProposalCountForProjects(commercialPendenciasQuery.data || [], activeProjectIdsForCommercialPendencias);
 
   useEffect(() => {
     if (tab !== 'arquivados') return;
@@ -1515,7 +1505,7 @@ export function GestorPage() {
       services: asServices(payload.services)
     });
 
-    navigate(rdoPath('/relatorio/novo'));
+    navigate(rdoPath(SITE_RDO_DRAFT_FORM_PATH));
   }
 
   function resetProjectForm() {
@@ -1556,6 +1546,7 @@ export function GestorPage() {
     setUserForm(emptyUserForm);
     setUserEditingId(null);
     setShowUserForm(true);
+    setManualPasswordSetup(null);
   }
 
   function handleCollaboratorSignatureFile(file: File | null) {
@@ -1727,20 +1718,43 @@ export function GestorPage() {
     setShowSurveyQuestionEditor(true);
   }
 
+  useEffect(() => {
+    if (!surveyQuestionDragId.current) surveyQuestionDraftsRef.current = surveyQuestionDrafts;
+  }, [surveyQuestionDrafts]);
+
   function updateSurveyQuestionDraft(index: number, patch: Partial<SurveyQuestionDraft>) {
     setSurveyQuestionDrafts(current => current.map((question, itemIndex) => (
       itemIndex === index ? { ...question, ...patch } : question
     )));
   }
 
-  function moveSurveyQuestion(fromIndex: number, toIndex: number) {
-    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
-    setSurveyQuestionDrafts(current => {
-      const next = [...current];
-      const [item] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, item);
-      return next;
-    });
+  function applySurveyQuestionDrafts(next: SurveyQuestionDraft[]) {
+    surveyQuestionDraftsRef.current = next;
+    setSurveyQuestionDrafts(next);
+  }
+
+  function clearSurveyQuestionDrag() {
+    surveyQuestionDragId.current = null;
+    setDraggedSurveyQuestionId(null);
+    setDragOverSurveyQuestionId(null);
+  }
+
+  function startSurveyQuestionDrag(questionId: string) {
+    surveyQuestionDropHandled.current = false;
+    surveyQuestionDraftsRef.current = surveyQuestionDrafts;
+    surveyQuestionStartDrafts.current = surveyQuestionDrafts;
+    surveyQuestionDragId.current = questionId;
+    setDraggedSurveyQuestionId(questionId);
+    setDragOverSurveyQuestionId(questionId);
+  }
+
+  function applySurveyQuestionReorder(targetId: string) {
+    const fromId = surveyQuestionDragId.current;
+    if (!fromId) return;
+    const next = reorderRowsById(surveyQuestionDraftsRef.current, fromId, targetId, question => question.id);
+    if (next === surveyQuestionDraftsRef.current) return;
+    setDragOverSurveyQuestionId(targetId);
+    applySurveyQuestionDrafts(next);
   }
 
   function addSurveyQuestionOption(index: number) {
@@ -1763,27 +1777,64 @@ export function GestorPage() {
 
   function handleSurveyQuestionDragOver(event: DragEvent<HTMLElement>, questionId?: string) {
     event.preventDefault();
-    if (questionId) setDragOverSurveyQuestionId(questionId);
-    const container = surveyQuestionEditorListRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const edgeSize = 88;
-    const scrollStep = 18;
-    if (event.clientY < rect.top + edgeSize) {
-      container.scrollTop -= scrollStep;
-    } else if (event.clientY > rect.bottom - edgeSize) {
-      container.scrollTop += scrollStep;
-    }
+    if (questionId) applySurveyQuestionReorder(questionId);
+    scrollReorderContainerEdge(surveyQuestionEditorListRef.current, event.clientY);
   }
 
   function handleSurveyQuestionDragStart(event: DragEvent<HTMLButtonElement>, questionId: string) {
-    setDraggedSurveyQuestionId(questionId);
-    setDragOverSurveyQuestionId(questionId);
-    const card = event.currentTarget.closest('.survey-question-card');
-    if (card instanceof HTMLElement) {
-      event.dataTransfer.setDragImage(card, Math.min(80, card.clientWidth / 2), 28);
-    }
+    startSurveyQuestionDrag(questionId);
     event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', questionId);
+    setReorderDragImage(event, '.survey-question-card', 'app-reorder-drag-ghost');
+  }
+
+  function handleSurveyQuestionDrop(event: DragEvent<HTMLElement>, questionId: string) {
+    event.preventDefault();
+    surveyQuestionDropHandled.current = true;
+    applySurveyQuestionReorder(questionId);
+    clearSurveyQuestionDrag();
+  }
+
+  function handleSurveyQuestionDragEnd() {
+    if (!surveyQuestionDropHandled.current) applySurveyQuestionDrafts(surveyQuestionStartDrafts.current);
+    surveyQuestionDropHandled.current = false;
+    clearSurveyQuestionDrag();
+  }
+
+  function handleSurveyQuestionPointerDown(event: PointerEvent<HTMLButtonElement>, questionId: string) {
+    if (event.pointerType === 'mouse') return;
+    const card = event.currentTarget.closest('.survey-question-card');
+    if (!(card instanceof HTMLElement)) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    startSurveyQuestionDrag(questionId);
+    document.body.classList.add('app-reorder-touching');
+    const state = createPointerDragGhost(card, event.clientX, event.clientY, 'app-reorder-touch-ghost');
+    state.pointerId = event.pointerId;
+    surveyQuestionTouchDrag.current = state;
+  }
+
+  function handleSurveyQuestionPointerMove(event: PointerEvent<HTMLButtonElement>) {
+    const state = surveyQuestionTouchDrag.current;
+    if (!state || state.pointerId !== event.pointerId || !surveyQuestionDragId.current) return;
+    event.preventDefault();
+    movePointerDragGhost(state, event.clientX, event.clientY);
+    scrollReorderContainerEdge(surveyQuestionEditorListRef.current, event.clientY);
+    const targetId = reorderIdFromPoint(event.clientX, event.clientY, '.survey-question-card');
+    if (targetId) applySurveyQuestionReorder(targetId);
+  }
+
+  function finishSurveyQuestionPointerDrag(event: PointerEvent<HTMLButtonElement>, persist: boolean) {
+    const state = surveyQuestionTouchDrag.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    state.ghost.remove();
+    surveyQuestionTouchDrag.current = null;
+    document.body.classList.remove('app-reorder-touching');
+    if (!persist) applySurveyQuestionDrafts(surveyQuestionStartDrafts.current);
+    clearSurveyQuestionDrag();
   }
 
   function addSurveyQuestionDraft() {
@@ -1856,8 +1907,10 @@ export function GestorPage() {
 
     const payload = {
       name: collaboratorForm.name.trim(),
-      role: collaboratorForm.role.trim(),
+      jobRoleId: collaboratorForm.jobRoleId,
+      jobRoleEffectiveDate: collaboratorForm.jobRoleEffectiveDate,
       email: collaboratorForm.email.trim() || null,
+      terminationDate: collaboratorForm.terminationDate || null,
       signatureImage,
       isActive: collaboratorForm.isActive,
       ...(signatureImage ? {
@@ -1913,15 +1966,31 @@ export function GestorPage() {
         });
         showToast('Usuário atualizado.', 'success');
       } else {
-        await userMutations.createUser.mutateAsync({
-          ...basePayload,
-          password: userForm.password.trim()
-        });
-        showToast('Usuário criado.', 'success');
+        const createdUser = await userMutations.createUser.mutateAsync(basePayload);
+        if (createdUser.passwordSetup.delivery === 'email') {
+          setManualPasswordSetup(null);
+          showToast(`Usuário criado. Enviamos para ${createdUser.email} o link para criar a senha.`, 'success');
+        } else {
+          setManualPasswordSetup({
+            username: createdUser.username,
+            url: absolutePasswordSetupUrl(createdUser.passwordSetup.url)
+          });
+          showToast('Usuário criado. Compartilhe o link para criação da senha.', 'success');
+        }
       }
       resetUserForm();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível salvar o usuário.', 'error');
+    }
+  }
+
+  async function copyManualPasswordSetup() {
+    if (!manualPasswordSetup) return;
+    try {
+      await navigator.clipboard.writeText(manualPasswordSetup.url);
+      showToast('Link copiado.', 'success');
+    } catch {
+      showToast('Não foi possível copiar automaticamente. Selecione o link e copie manualmente.', 'error');
     }
   }
 
@@ -2023,6 +2092,7 @@ export function GestorPage() {
     setManualReportModalOpen(false);
     setManualReportTarget(null);
     setManualReportForm(emptyManualReportForm);
+    setManualReportCollaboratorPrompts([]);
   }
 
   function closeManualReportModal() {
@@ -2032,6 +2102,7 @@ export function GestorPage() {
 
   function openManualReportUpload(projectId = '') {
     setManualReportTarget(null);
+    setManualReportCollaboratorPrompts([]);
     setManualReportForm({
       ...emptyManualReportForm,
       projectId: projectId || manualReportProjectOptions[0]?.id || '',
@@ -2042,6 +2113,7 @@ export function GestorPage() {
 
   function openManualReportReplace(report: ReportSummary) {
     setManualReportTarget(report);
+    setManualReportCollaboratorPrompts([]);
     setManualReportForm({
       projectId: report.projectId,
       reportType: report.reportType,
@@ -2083,6 +2155,7 @@ export function GestorPage() {
   async function handleManualReportFiles(files: File[]) {
     if (!files.length) {
       setManualReportForm(current => ({ ...current, files: [] }));
+      setManualReportCollaboratorPrompts([]);
       return;
     }
 
@@ -2103,16 +2176,19 @@ export function GestorPage() {
     const serviceSystem = manualReportForm.serviceSystem.trim();
 
     try {
-      const uploadFiles = await Promise.all(files.map(async file => ({
-        id: manualReportFileId(),
-        fileName: file.name,
-        pdfDataUrl: await fileToDataUrl(file),
-        sequenceNumber: '',
-        reportDate: baseDate,
-        serviceEquipment,
-        serviceSystem,
-        ...emptyManualReportOperationalFields()
-      })));
+      const uploadFiles = await Promise.all(files.map(async file => {
+        const metadata = manualReportMetadataFromFileName(file.name, manualReportForm.reportType);
+        return {
+          id: manualReportFileId(),
+          fileName: file.name,
+          pdfDataUrl: await fileToDataUrl(file),
+          sequenceNumber: metadata.sequenceNumber,
+          reportDate: metadata.reportDate || baseDate,
+          serviceEquipment,
+          serviceSystem,
+          ...emptyManualReportOperationalFields()
+        };
+      }));
       setManualReportForm(current => ({
         ...current,
         files: [...current.files, ...uploadFiles]
@@ -2129,11 +2205,60 @@ export function GestorPage() {
     }));
   }
 
+  function updateManualReportOperationalFields(
+    file: ManualReportUploadFileState,
+    patch: Partial<ManualReportOperationalFieldsValue>
+  ) {
+    updateManualReportUploadFile(file.id, patch);
+
+    const field = (['collaboratorIds', 'noturnoCollaboratorIds'] as const)
+      .find(candidate => patch[candidate] !== undefined);
+    if (!field) return;
+
+    const nextIds = patch[field] || [];
+    const addedIds = nextIds.filter(id => !file[field].includes(id));
+    const hasOtherReportToUpdate = manualReportForm.files.some(candidate => (
+      candidate.id !== file.id && addedIds.some(id => !candidate[field].includes(id))
+    ));
+
+    setManualReportCollaboratorPrompts(current => {
+      const existing = current.find(prompt => prompt.sourceFileId === file.id && prompt.field === field);
+      const pendingIds = Array.from(new Set([
+        ...(existing?.collaboratorIds || []),
+        ...addedIds
+      ])).filter(id => nextIds.includes(id));
+      const remaining = current.filter(prompt => !(prompt.sourceFileId === file.id && prompt.field === field));
+
+      if (!pendingIds.length || (!existing && !hasOtherReportToUpdate)) return remaining;
+      return [...remaining, { sourceFileId: file.id, field, collaboratorIds: pendingIds }];
+    });
+  }
+
+  function applyManualReportCollaboratorsToOthers(prompt: ManualReportCollaboratorReplicationPrompt) {
+    setManualReportForm(current => ({
+      ...current,
+      files: replicateManualReportCollaborators(
+        current.files,
+        prompt.sourceFileId,
+        prompt.field,
+        prompt.collaboratorIds
+      )
+    }));
+    dismissManualReportCollaboratorPrompt(prompt);
+  }
+
+  function dismissManualReportCollaboratorPrompt(prompt: ManualReportCollaboratorReplicationPrompt) {
+    setManualReportCollaboratorPrompts(current => current.filter(candidate => !(
+      candidate.sourceFileId === prompt.sourceFileId && candidate.field === prompt.field
+    )));
+  }
+
   function removeManualReportUploadFile(id: string) {
     setManualReportForm(current => ({
       ...current,
       files: current.files.filter(file => file.id !== id)
     }));
+    setManualReportCollaboratorPrompts(current => current.filter(prompt => prompt.sourceFileId !== id));
   }
 
   async function handleManualReportSubmit(event: FormEvent<HTMLFormElement>) {
@@ -2680,80 +2805,24 @@ export function GestorPage() {
           {!replacing && manualReportForm.files.length ? (
             <div className="manual-report-file-list">
               {manualReportForm.files.map((file, index) => {
-                const dateId = `manual-report-file-date-${file.id}`;
-                const sequenceId = `manual-report-file-sequence-${file.id}`;
-                const equipmentId = `manual-report-file-equipment-${file.id}`;
-                const systemId = `manual-report-file-system-${file.id}`;
+                const collaboratorPrompts = manualReportCollaboratorPrompts
+                  .filter(prompt => prompt.sourceFileId === file.id);
                 return (
-                  <div className="manual-report-file-card" key={file.id}>
-                    <div className="manual-report-file-header">
-                      <span className="manual-report-file-name">{index + 1}. {file.fileName}</span>
-                      <button
-                        className="mini-btn alt"
-                        type="button"
-                        disabled={submitting}
-                        onClick={() => removeManualReportUploadFile(file.id)}
-                      >
-                        Remover
-                      </button>
-                    </div>
-                    <div className={`manual-report-file-fields ${serviceReportSelected ? 'with-service' : ''}`}>
-                      <div className="field-group">
-                        <label htmlFor={dateId}>Data</label>
-                        <input
-                          id={dateId}
-                          type="date"
-                          value={file.reportDate}
-                          onChange={event => updateManualReportUploadFile(file.id, { reportDate: event.target.value })}
-                          required
-                        />
-                      </div>
-                      <div className="field-group">
-                        <label htmlFor={sequenceId}>Número</label>
-                        <input
-                          id={sequenceId}
-                          type="number"
-                          min={1}
-                          step={1}
-                          inputMode="numeric"
-                          value={file.sequenceNumber}
-                          onChange={event => updateManualReportUploadFile(file.id, { sequenceNumber: event.target.value.replace(/\D/g, '') })}
-                          placeholder="Automático"
-                        />
-                      </div>
-                      {serviceReportSelected ? (
-                        <>
-                          <div className="field-group">
-                            <label htmlFor={equipmentId}>Equipamento</label>
-                            <input
-                              id={equipmentId}
-                              value={file.serviceEquipment}
-                              onChange={event => updateManualReportUploadFile(file.id, { serviceEquipment: event.target.value })}
-                              placeholder="Equipamento do serviço"
-                            />
-                          </div>
-                          <div className="field-group">
-                            <label htmlFor={systemId}>Sistema</label>
-                            <input
-                              id={systemId}
-                              value={file.serviceSystem}
-                              onChange={event => updateManualReportUploadFile(file.id, { serviceSystem: event.target.value })}
-                              placeholder="Sistema do serviço"
-                            />
-                          </div>
-                        </>
-                      ) : null}
-                    </div>
-                    <ManualReportOperationalFields
-                      value={file}
-                      collaborators={collaboratorsQuery.data || []}
-                      disabled={submitting}
-                      includeInactiveCollaborators
-                      showNightShift
-                      showStandby={manualReportForm.reportType === 'RDO'}
-                      onChange={patch => updateManualReportUploadFile(file.id, patch)}
-                    />
-                  </div>
+                  <ManualReportUploadFileCard
+                    key={file.id}
+                    file={file}
+                    index={index}
+                    serviceReportSelected={serviceReportSelected}
+                    showStandby={manualReportForm.reportType === 'RDO'}
+                    collaborators={collaboratorsQuery.data || []}
+                    disabled={submitting}
+                    collaboratorPrompts={collaboratorPrompts}
+                    onRemove={removeManualReportUploadFile}
+                    onUpdate={updateManualReportUploadFile}
+                    onOperationalChange={updateManualReportOperationalFields}
+                    onApplyPrompt={applyManualReportCollaboratorsToOthers}
+                    onDismissPrompt={dismissManualReportCollaboratorPrompt}
+                  />
                 );
               })}
             </div>
@@ -2849,7 +2918,6 @@ export function GestorPage() {
         </div>
       </section>
     ) : null;
-
     if (!visibleReports.length) {
       return (
         <>
@@ -2939,9 +3007,9 @@ export function GestorPage() {
   function renderProjectsTab() {
     const allActiveProjects = (activeProjectsQuery.data || [])
       .filter(project => project.isActive !== false);
-    const pendingRegistrationProjects = allActiveProjects.filter(projectRegistrationPending);
-    const activeProjects = allActiveProjects
-      .filter(project => !projectRegistrationPending(project))
+    const projectRegistrationGroups = partitionProjectsByRegistration(allActiveProjects);
+    const pendingRegistrationProjects = projectRegistrationGroups.pending;
+    const activeProjects = projectRegistrationGroups.ready
       .filter(project => matchesSearch(projectSearchParts(project), gestorSearch));
 
     if (activeProjectsQuery.isLoading) {
@@ -2951,6 +3019,22 @@ export function GestorPage() {
     const renderEditableProjectCard = (project: Project) => renderProjectCard(project, {
       commercialPendencia: commercialPendenciaByProject.get(project.id) ?? null,
       children: projectEditingId === project.id ? (
+        projectRegistrationPending(project) ? (
+          <PendingProjectReviewForm
+            project={project}
+            saving={projectMutations.updateProject.isPending}
+            onCancel={resetProjectForm}
+            onSubmit={async payload => {
+              try {
+                await projectMutations.updateProject.mutateAsync({ id: project.id, payload });
+                showToast('Projeto verificado e liberado.', 'success');
+                resetProjectForm();
+              } catch (error) {
+                showToast(error instanceof Error ? error.message : 'Não foi possível confirmar o projeto.', 'error');
+              }
+            }}
+          />
+        ) : (
         <form className="admin-inline-form admin-inline-grid" onSubmit={handleProjectSubmit}>
             <div className="field-group">
               <label htmlFor={`project-code-${project.id}`}>Número da missão</label>
@@ -2970,7 +3054,7 @@ export function GestorPage() {
             </div>
             <ProjectClientFields form={projectForm} idPrefix={`project-${project.id}`} setForm={setProjectForm} />
             <div className="field-group">
-              <label htmlFor={`project-contract-${project.id}`}>Contrato</label>
+              <label htmlFor={`project-contract-${project.id}`}>Proposta</label>
               <input id={`project-contract-${project.id}`} value={projectForm.contractCode} onChange={event => setProjectForm(current => ({ ...current, contractCode: event.target.value }))} />
             </div>
             <div className="field-group">
@@ -3070,6 +3154,7 @@ export function GestorPage() {
               <button className="mini-btn alt" type="button" onClick={resetProjectForm}>Cancelar edição</button>
             </div>
         </form>
+        )
       ) : null,
       onEdit: item => {
         setProjectEditingId(item.id);
@@ -3132,7 +3217,7 @@ export function GestorPage() {
                 </div>
                 <ProjectClientFields form={projectForm} idPrefix="project" setForm={setProjectForm} />
                 <div className="field-group">
-                  <label htmlFor="project-contract">Contrato</label>
+                  <label htmlFor="project-contract">Proposta</label>
                   <input id="project-contract" value={projectForm.contractCode} onChange={event => setProjectForm(current => ({ ...current, contractCode: event.target.value }))} />
                 </div>
                 <div className="field-group">
@@ -3236,16 +3321,19 @@ export function GestorPage() {
         </section>
 
         {pendingRegistrationProjects.length ? (
-          <div className="project-registration-fixed-block">
-            <div className="project-registration-alert project-registration-alert-panel">
-              {pendingRegistrationProjects.length === 1
-                ? 'Há 1 projeto criado pelo romaneio aguardando conclusão do cadastro.'
-                : `Há ${pendingRegistrationProjects.length} projetos criados pelo romaneio aguardando conclusão do cadastro.`}
+          <section
+            className="project-registration-fixed-block"
+            aria-labelledby="pending-project-registration-title"
+            data-project-intake-pending
+          >
+            <h2 className="section-title" id="pending-project-registration-title">Projetos aguardando revisão</h2>
+            <div className="project-registration-alert project-registration-alert-panel" role="status" aria-live="polite">
+              {pendingProjectRegistrationMessage(pendingRegistrationProjects)}
             </div>
             <div className="admin-stack">
               {sortProjects(pendingRegistrationProjects, projectSortDir).map(renderEditableProjectCard)}
             </div>
-          </div>
+          </section>
         ) : null}
 
         {activeProjects.length ? (
@@ -3365,89 +3453,37 @@ export function GestorPage() {
       return <div className="page-card placeholder-copy">Carregando colaboradores...</div>;
     }
 
-    const collaborators = (collaboratorsQuery.data || [])
-      .filter(collaborator => collaborator.isActive !== false)
+    const allCollaborators = collaboratorsQuery.data || [];
+    const inactiveCollaboratorsCount = allCollaborators.filter(collaborator => collaborator.isActive === false).length;
+    const collaborators = allCollaborators
+      .filter(collaborator => showInactiveCollaborators ? collaborator.isActive === false : collaborator.isActive !== false)
       .filter(collaborator => matchesSearch(collaboratorSearchParts(collaborator), gestorSearch));
+    const emptyCollaboratorsMessage = showInactiveCollaborators
+      ? 'Nenhum colaborador inativo.'
+      : 'Nenhum colaborador ativo.';
 
     return (
       <>
           <div className="admin-toolbar">
             <div className="sec">Equipe</div>
             {!showCollaboratorForm && !collaboratorEditingId ? (
-	              <button
-	                className="mini-btn"
-	                type="button"
-	                onClick={openNewCollaboratorForm}
-	              >
-	                + Novo colaborador
-	              </button>
+              <CollaboratorListToolbarActions showInactive={showInactiveCollaborators} inactiveCount={inactiveCollaboratorsCount} onNew={openNewCollaboratorForm} onToggleInactive={() => {
+                resetCollaboratorForm();
+                setShowInactiveCollaborators(current => !current);
+              }} />
             ) : null}
           </div>
           {showCollaboratorForm && !collaboratorEditingId ? (
-	          <form className="admin-inline-form" onSubmit={handleCollaboratorSubmit} autoComplete="off">
-	            <div className="admin-toolbar full">
-	              <div className="sec">Novo colaborador</div>
-	              <button className="mini-btn alt" type="button" onClick={resetCollaboratorForm}>Cancelar</button>
-	            </div>
-	            <div className="admin-inline-grid">
-	              <div className="field-group">
-	                <label htmlFor="collaborator-name">Nome</label>
-	                <input
-	                  id="collaborator-name"
-	                  value={collaboratorForm.name}
-	                  autoComplete="off"
-	                  onChange={event => setCollaboratorForm(current => ({ ...current, name: event.target.value }))}
-	                  required
-	                />
-	              </div>
-	              <div className="field-group">
-	                <label htmlFor="collaborator-role">Cargo</label>
-	                <select
-	                  id="collaborator-role"
-	                  value={collaboratorForm.role}
-	                  onChange={event => setCollaboratorForm(current => ({ ...current, role: event.target.value }))}
-	                  required
-	                >
-	                  {renderRoleOptions(collaboratorForm.role)}
-	                </select>
-	              </div>
-	              <div className="field-group">
-	                <label htmlFor="collaborator-email">E-mail</label>
-	                <input
-	                  id="collaborator-email"
-	                  type="email"
-	                  value={collaboratorForm.email}
-	                  autoComplete="off"
-	                  placeholder="email@empresa.com"
-	                  onChange={event => setCollaboratorForm(current => ({ ...current, email: event.target.value }))}
-	                />
-	              </div>
-	              <div className="field-group">
-	                <label htmlFor="collaborator-active">Status</label>
-	                <select
-	                  id="collaborator-active"
-	                  value={String(collaboratorForm.isActive)}
-	                  onChange={event => setCollaboratorForm(current => ({ ...current, isActive: event.target.value === 'true' }))}
-	                >
-	                  <option value="true">Ativo</option>
-	                  <option value="false">Inativo</option>
-	                </select>
-	              </div>
-	              {renderCollaboratorSignatureField()}
-	              <div className="admin-form-actions">
-	                <button
-	                  className="mini-btn"
-	                  type="submit"
-	                  disabled={
-	                    collaboratorMutations.createCollaborator.isPending ||
-	                    collaboratorMutations.updateCollaborator.isPending
-	                  }
-	                >
-	                  Salvar
-	                </button>
-	              </div>
-	            </div>
-	          </form>
+            <CollaboratorForm
+              title="Novo colaborador"
+              value={collaboratorForm}
+              roleOptions={renderRoleOptions(collaboratorForm.jobRoleId)}
+              signatureField={renderCollaboratorSignatureField()}
+              isPending={collaboratorMutations.createCollaborator.isPending || collaboratorMutations.updateCollaborator.isPending}
+              onChange={setCollaboratorForm}
+              onCancel={resetCollaboratorForm}
+              onSubmit={handleCollaboratorSubmit}
+            />
           ) : null}
 
           {collaborators.length ? (
@@ -3462,6 +3498,7 @@ export function GestorPage() {
                         {collaborator.role || '-'}{collaborator.email ? ` - ${collaborator.email}` : ''}
                       </div>
                     </div>
+                    <CollaboratorStatusPill isActive={collaborator.isActive} />
                     <div className="admin-actions collaborator-card-actions">
                       <button
                         className="mini-btn alt"
@@ -3474,78 +3511,37 @@ export function GestorPage() {
                       >
                         Editar
                       </button>
-                      <button
-                        className="mini-btn danger"
-                        type="button"
-                        onClick={() => void handleCollaboratorToggle(collaborator)}
-                      >
-                        Remover
-                      </button>
+                      {collaborator.isActive !== false ? <button className="mini-btn danger" type="button" onClick={() => void handleCollaboratorToggle(collaborator)}>Remover</button> : null}
                     </div>
                   </div>
-	                  {collaboratorEditingId === collaborator.id ? (
-	                    <form className="admin-inline-form" onSubmit={handleCollaboratorSubmit} autoComplete="off">
-	                      <div className="admin-toolbar full">
-	                        <div className="sec">Editar colaborador</div>
-	                        <button className="mini-btn alt" type="button" onClick={resetCollaboratorForm}>Cancelar</button>
-	                      </div>
-	                      <div className="admin-inline-grid">
-	                        <div className="field-group">
-	                          <label htmlFor={`collaborator-name-${collaborator.id}`}>Nome</label>
-	                          <input
-	                            id={`collaborator-name-${collaborator.id}`}
-	                            value={collaboratorForm.name}
-	                            autoComplete="off"
-	                            onChange={event => setCollaboratorForm(current => ({ ...current, name: event.target.value }))}
-	                            required
-	                          />
-	                        </div>
-	                        <div className="field-group">
-	                          <label htmlFor={`collaborator-role-${collaborator.id}`}>Cargo</label>
-	                          <select
-	                            id={`collaborator-role-${collaborator.id}`}
-	                            value={collaboratorForm.role}
-	                            onChange={event => setCollaboratorForm(current => ({ ...current, role: event.target.value }))}
-	                            required
-	                          >
-	                            {renderRoleOptions(collaboratorForm.role)}
-	                          </select>
-	                        </div>
-	                        <div className="field-group">
-	                          <label htmlFor={`collaborator-email-${collaborator.id}`}>E-mail</label>
-	                          <input
-	                            id={`collaborator-email-${collaborator.id}`}
-	                            type="email"
-	                            value={collaboratorForm.email}
-	                            autoComplete="off"
-	                            placeholder="email@empresa.com"
-	                            onChange={event => setCollaboratorForm(current => ({ ...current, email: event.target.value }))}
-	                          />
-	                        </div>
-	                        <div className="field-group">
-	                          <label htmlFor={`collaborator-active-${collaborator.id}`}>Status</label>
-	                          <select
-	                            id={`collaborator-active-${collaborator.id}`}
-	                            value={String(collaboratorForm.isActive)}
-	                            onChange={event => setCollaboratorForm(current => ({ ...current, isActive: event.target.value === 'true' }))}
-	                          >
-	                            <option value="true">Ativo</option>
-	                            <option value="false">Inativo</option>
-	                          </select>
-	                        </div>
-	                        {renderCollaboratorSignatureField()}
-	                        <div className="admin-form-actions">
-	                          <button className="mini-btn" type="submit" disabled={collaboratorMutations.updateCollaborator.isPending}>Salvar</button>
-	                        </div>
-	                      </div>
-	                    </form>
+                  {collaboratorEditingId === collaborator.id ? (
+                    <>
+                    <CollaboratorForm
+                      idSuffix={collaborator.id}
+                      title="Editar colaborador"
+                      value={collaboratorForm}
+                      roleOptions={renderRoleOptions(collaboratorForm.jobRoleId)}
+                      signatureField={renderCollaboratorSignatureField()}
+                      isPending={collaboratorMutations.updateCollaborator.isPending}
+                      onChange={setCollaboratorForm}
+                      onCancel={resetCollaboratorForm}
+                      onSubmit={handleCollaboratorSubmit}
+                    />
+	                  <CollaboratorJobRoleHistoryEditor
+	                    collaborator={collaborator}
+	                    jobRoles={jobRolesQuery.data || []}
+	                    isPending={collaboratorMutations.updateJobRoleHistory.isPending || collaboratorMutations.removeJobRoleHistory.isPending}
+	                    onUpdate={(historyId, payload) => collaboratorMutations.updateJobRoleHistory.mutateAsync({ id: collaborator.id, historyId, payload })}
+	                    onRemove={historyId => collaboratorMutations.removeJobRoleHistory.mutateAsync({ id: collaborator.id, historyId })}
+	                  />
+	                  </>
 	                  ) : null}
                 </article>
               ))}
             </div>
           ) : (
             <div className="card admin-card">
-              <div className="placeholder-copy">Nenhum colaborador ativo.</div>
+              <div className="placeholder-copy">{emptyCollaboratorsMessage}</div>
             </div>
           )}
       </>
@@ -3607,6 +3603,23 @@ export function GestorPage() {
               </button>
           ) : null}
           </div>
+          {manualPasswordSetup ? (
+            <section className="page-card">
+              <div className="section-title">Link para criar a senha</div>
+              <p className="placeholder-copy">
+                Usuário: <strong>{manualPasswordSetup.username}</strong>. O link é de uso único e expira em 7 dias.
+              </p>
+              <div className="field-group">
+                <label htmlFor="gestor-password-setup-link">Link para compartilhar</label>
+                <input id="gestor-password-setup-link" value={manualPasswordSetup.url} readOnly onFocus={event => event.currentTarget.select()} />
+              </div>
+              <div className="admin-actions">
+                <button className="mini-btn" type="button" onClick={() => void copyManualPasswordSetup()}>
+                  Copiar link
+                </button>
+              </div>
+            </section>
+          ) : null}
           {showUserForm && !userEditingId ? (
 	          <form className="admin-inline-form" onSubmit={handleUserSubmit} autoComplete="off">
 	            <div className="admin-toolbar full">
@@ -3690,15 +3703,9 @@ export function GestorPage() {
 	                </select>
 	              </div>
 	              <div className="field-group field-group-wide">
-	                <label htmlFor="user-password">Senha</label>
-	                <input
-	                  id="user-password"
-	                  type="password"
-	                  value={userForm.password}
-	                  autoComplete="new-password"
-	                  onChange={event => setUserForm(current => ({ ...current, password: event.target.value }))}
-	                  required
-	                />
+	                <div className="form-hint">
+	                  A senha será criada pelo próprio usuário por um link único. Com e-mail, o link será enviado automaticamente.
+	                </div>
 	              </div>
 	              <div className="admin-form-actions">
 	                <button
@@ -4218,9 +4225,7 @@ export function GestorPage() {
           </button>
           <button className={`nav-tab ${tab === 'projetos' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'projetos'} onClick={() => setTab('projetos')}>
             Projetos
-            {pendingProjectRegistrationCount ? (
-              <span className="nav-tab-count">{pendingProjectRegistrationCount}</span>
-            ) : null}
+            <ProjectTabPendingBadges pendingProjectRegistrationCount={pendingProjectRegistrationCount} pendingCommercialProposalCount={pendingCommercialProposalCount} />
           </button>
           <button className={`nav-tab ${tab === 'arquivados' ? 'active' : ''}`} type="button" role="tab" aria-selected={tab === 'arquivados'} onClick={() => setTab('arquivados')}>
             Arquivados
@@ -4245,6 +4250,11 @@ export function GestorPage() {
         {renderGestorSearch()}
         {renderTabContent()}
       </main>
+
+      <ProjectIntakeWebhookNovelty
+        user={user}
+        enabled={tab === 'projetos' && pendingProjectRegistrationCount > 0}
+      />
 
       {renderManualReportModal()}
 
@@ -4346,16 +4356,12 @@ export function GestorPage() {
           >
             {surveyQuestionDrafts.map((question, index) => (
               <div
-                className={`card admin-card survey-question-card ${draggedSurveyQuestionId === question.id ? 'dragging' : ''} ${dragOverSurveyQuestionId === question.id && draggedSurveyQuestionId !== question.id ? 'drag-over' : ''}`}
+                className={`card admin-card survey-question-card ${draggedSurveyQuestionId === question.id ? 'drag-placeholder' : ''} ${dragOverSurveyQuestionId === question.id && draggedSurveyQuestionId !== question.id ? 'drag-over' : ''}`}
                 key={question.id}
+                data-reorder-id={question.id}
                 onDragEnter={() => setDragOverSurveyQuestionId(question.id)}
                 onDragOver={event => handleSurveyQuestionDragOver(event, question.id)}
-                onDrop={() => {
-                  const fromIndex = surveyQuestionDrafts.findIndex(item => item.id === draggedSurveyQuestionId);
-                  moveSurveyQuestion(fromIndex, index);
-                  setDraggedSurveyQuestionId(null);
-                  setDragOverSurveyQuestionId(null);
-                }}
+                onDrop={event => handleSurveyQuestionDrop(event, question.id)}
               >
                 <div className="admin-inline-grid">
                   <div className="survey-question-drag-cell">
@@ -4364,10 +4370,11 @@ export function GestorPage() {
                       type="button"
                       draggable
                       onDragStart={event => handleSurveyQuestionDragStart(event, question.id)}
-                      onDragEnd={() => {
-                        setDraggedSurveyQuestionId(null);
-                        setDragOverSurveyQuestionId(null);
-                      }}
+                      onDragEnd={handleSurveyQuestionDragEnd}
+                      onPointerDown={event => handleSurveyQuestionPointerDown(event, question.id)}
+                      onPointerMove={handleSurveyQuestionPointerMove}
+                      onPointerUp={event => finishSurveyQuestionPointerDrag(event, true)}
+                      onPointerCancel={event => finishSurveyQuestionPointerDrag(event, false)}
                       title="Arrastar para reordenar"
                       aria-label="Arrastar pergunta para reordenar"
                     >

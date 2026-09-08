@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import { getOperationalStatus, type OperationalFileStatus, type OperationalStatus } from '../api/operations';
 import { useAuth } from '../auth/AuthContext';

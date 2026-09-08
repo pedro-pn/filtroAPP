@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import { forgotPassword } from '../api/auth';
 

@@ -39,6 +39,7 @@ interface ManualReportOperationalFieldsProps {
   disabled?: boolean;
   defaultOpen?: boolean;
   embedded?: boolean;
+  showTimes?: boolean;
   showNightShift?: boolean;
   showStandby?: boolean;
   showDds?: boolean;
@@ -46,6 +47,7 @@ interface ManualReportOperationalFieldsProps {
   // Aviso exibido logo abaixo do bloco de DDS diurno (ex.: temas fora da lista aguardando validação).
   ddsAlert?: ReactNode;
   summaryLabel?: string;
+  teamLabel?: string;
   onChange: (patch: Partial<ManualReportOperationalFieldsValue>) => void;
 }
 
@@ -70,12 +72,14 @@ export function ManualReportOperationalFields({
   ddsThemes = [],
   disabled = false,
   embedded = false,
+  showTimes = true,
   showNightShift = false,
   showStandby = false,
   showDds = false,
   includeInactiveCollaborators = false,
   ddsAlert = null,
   summaryLabel = 'Dados operacionais (opcional)',
+  teamLabel = 'Equipe diurna',
   onChange
 }: ManualReportOperationalFieldsProps) {
   const [customThemeInputs, setCustomThemeInputs] = useState<Record<string, string>>({});
@@ -267,42 +271,44 @@ export function ManualReportOperationalFields({
 
   const body = (
     <>
-      <section className="manual-operational-section">
-        <div className="section-title">Horários</div>
-        <div className="fg-r2">
-          <div className="field-group">
-            <label>Chegada</label>
+      {showTimes ? (
+        <section className="manual-operational-section">
+          <div className="section-title">Horários</div>
+          <div className="fg-r2">
+            <div className="field-group">
+              <label>Chegada</label>
+              <input
+                type="time"
+                value={value.arrivalTime}
+                disabled={disabled}
+                onChange={event => onChange({ arrivalTime: event.target.value })}
+              />
+            </div>
+            <div className="field-group">
+              <label>Saída</label>
+              <input
+                type="time"
+                value={value.departureTime}
+                disabled={disabled}
+                onChange={event => onChange({ departureTime: event.target.value })}
+              />
+            </div>
+          </div>
+          <div className="field-group manual-operational-lunch">
+            <label>Intervalo de almoço</label>
             <input
               type="time"
-              value={value.arrivalTime}
+              step={1}
+              value={value.lunchBreak}
               disabled={disabled}
-              onChange={event => onChange({ arrivalTime: event.target.value })}
+              onChange={event => onChange({ lunchBreak: event.target.value })}
             />
           </div>
-          <div className="field-group">
-            <label>Saída</label>
-            <input
-              type="time"
-              value={value.departureTime}
-              disabled={disabled}
-              onChange={event => onChange({ departureTime: event.target.value })}
-            />
-          </div>
-        </div>
-        <div className="field-group manual-operational-lunch">
-          <label>Intervalo de almoço</label>
-          <input
-            type="time"
-            step={1}
-            value={value.lunchBreak}
-            disabled={disabled}
-            onChange={event => onChange({ lunchBreak: event.target.value })}
-          />
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       <section className="manual-operational-section">
-        <div className="section-title">Equipe diurna</div>
+        <div className="section-title">{teamLabel}</div>
         {renderPicker(value.collaboratorIds, 'collaboratorIds')}
       </section>
 

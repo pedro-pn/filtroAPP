@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
 
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath, markAcompanhamentoNoveltySeen } from '../../auth/moduleNavigation';
@@ -9,6 +10,7 @@ import { AcompanhamentoDashboard } from '../../components/projects/Acompanhament
 import { ProjectCardsBoard } from '../../components/projects/ProjectCardsBoard';
 import { SedeCostsBoard } from '../../components/projects/SedeCostsBoard';
 import { CostEngineManager } from '../../components/projects/CostEngineManager';
+import { getPontoPendencyCounts } from '../../api/acompanhamentoPonto';
 import { AcompanhamentoTutorial } from '../../components/AcompanhamentoTutorial';
 
 type Section = 'dashboard' | 'projetos' | 'sede' | 'custo';
@@ -34,6 +36,14 @@ export function AcompanhamentoPage() {
   const hasAcompanhamentoAccess = user?.accountType === 'ADMIN'
     || Boolean(user?.moduleRoles?.some(role => role === 'acompanhamento:manager' || role === 'acompanhamento:viewer'));
   const userKey = tutorialUserKey(user, isManager);
+  // Aviso de pendências do ponto na navegação. Não conta o balde de projeto não cadastrado:
+  // aquilo é fila de cadastro de missão, não pendência a resolver.
+  const { data: pendencyCounts } = useQuery({
+    queryKey: ['ponto-pendencias-contagem'],
+    queryFn: getPontoPendencyCounts,
+    enabled: isManager
+  });
+  const pendencyTotal = pendencyCounts?.total ?? 0;
   const projectDetailFromUrl = searchParams.has('project') || searchParams.has('group');
   const section = parseSection(searchParams.get('section'), projectDetailFromUrl ? 'projetos' : 'dashboard');
   const setSection = useCallback((nextSection: Section) => {
@@ -95,6 +105,18 @@ export function AcompanhamentoPage() {
               <button className={`equip-nav-item ${section === 'custo' ? 'active' : ''}`} type="button" aria-current={section === 'custo'} onClick={() => setSection('custo')}>
                 <span className="equip-nav-ico" aria-hidden="true">$</span>
                 <span className="equip-nav-label">Custo</span>
+                {pendencyTotal > 0 ? (
+                  <span
+                    className="equip-nav-badge"
+                    title={[
+                      `${pendencyCounts?.unallocatedDays ?? 0} dia(s) de ponto sem alocação`,
+                      `${pendencyCounts?.ambiguousDays ?? 0} conflito(s) de projeto`,
+                      `${pendencyCounts?.unlinkedEmployees ?? 0} colaborador(es) do Ponto Mais sem vínculo`
+                    ].join(' · ')}
+                  >
+                    {pendencyTotal > 99 ? '99+' : pendencyTotal}
+                  </span>
+                ) : null}
               </button>
             ) : null}
           </nav>
@@ -110,12 +132,14 @@ export function AcompanhamentoPage() {
               <option value="dashboard">Dashboard</option>
               <option value="projetos">Projetos</option>
               <option value="sede">Sede</option>
-              {isManager ? <option value="custo">Custo</option> : null}
+              {isManager ? (
+                <option value="custo">{pendencyTotal > 0 ? `Custo (${pendencyTotal})` : 'Custo'}</option>
+              ) : null}
             </select>
           </div>
 
           <section className="equip-content">
-            {section === 'projetos' ? <ProjectCardsBoard canManage={hasAcompanhamentoAccess} canManageGroups={isManager} canManageManualCosts={isManager} progressHistoryNoveltyUser={user} />
+            {section === 'projetos' ? <ProjectCardsBoard canManage={hasAcompanhamentoAccess} canManageGroups={isManager} canManageManualCosts={isManager} canManageProjectNotes={isManager} progressHistoryNoveltyUser={user} />
               : section === 'sede' ? <SedeCostsBoard />
               : section === 'custo' && isManager ? <CostEngineManager canManageCosts={isManager} />
               : <AcompanhamentoDashboard canManage={hasAcompanhamentoAccess} />}
