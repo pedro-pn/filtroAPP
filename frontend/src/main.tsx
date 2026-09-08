@@ -10,6 +10,7 @@ import { installClientErrorTracking } from './observability/errorTracking';
 import { MaintenancePage } from './pages/MaintenancePage';
 import './styles/variables.css';
 import './styles/base.css';
+import './styles/operational-reports.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {

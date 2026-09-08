@@ -37,12 +37,21 @@ export function SearchCombobox({
   const inputId = id || `combobox-${generatedId}`;
   const listId = `${inputId}-listbox`;
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const clearedByTyping = useRef(false);
   const selected = options.find(option => option.value === value);
   const [query, setQuery] = useState(selected?.label || '');
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  useEffect(() => setQuery(selected?.label || ''), [selected?.label]);
+  useEffect(() => {
+    // Clearing a selected value while typing must not erase the new search.
+    if (clearedByTyping.current && !value) {
+      clearedByTyping.current = false;
+      return;
+    }
+    clearedByTyping.current = false;
+    setQuery(selected?.label || '');
+  }, [value, selected?.label]);
   useEffect(() => {
     const close = (event: MouseEvent) => {
       if (!wrapperRef.current?.contains(event.target as Node)) setOpen(false);
@@ -82,7 +91,10 @@ export function SearchCombobox({
           onFocus={() => setOpen(true)}
           onChange={event => {
             setQuery(event.target.value);
-            if (value) onChange('');
+            if (value) {
+              clearedByTyping.current = true;
+              onChange('');
+            }
             setActiveIndex(0);
             setOpen(true);
           }}

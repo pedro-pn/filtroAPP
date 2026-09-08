@@ -135,7 +135,7 @@ export function combineEquipment(cards) {
   const byKey = new Map();
   for (const card of cards) {
     for (const item of card.equipment ?? []) {
-      const key = `${item.name}|${item.since ?? ''}`;
+      const key = `${item.code || item.name}|${item.since ?? ''}`;
       const existing = byKey.get(key);
       if (!existing || (toNumber(item.days) ?? 0) > (toNumber(existing.days) ?? 0)) {
         byKey.set(key, { ...item });

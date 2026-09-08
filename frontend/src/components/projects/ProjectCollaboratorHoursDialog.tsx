@@ -19,12 +19,19 @@ function rdoLabel(rdo: ProjectDetailCollaborator['diasApropriados'][number]['rdo
 
 export function ProjectCollaboratorHoursDialog({
   collaborator,
+  source = 'POINT',
+  isGroup = false,
   onClose
 }: {
   collaborator: ProjectDetailCollaborator | null;
+  source?: 'POINT' | 'REPORT';
+  isGroup?: boolean;
   onClose: () => void;
 }) {
   const days = collaborator?.diasApropriados ?? [];
+  const reportDays = collaborator?.horasRelatoriosPorData ?? [];
+  const fromReports = source === 'REPORT';
+  const dayCount = fromReports ? reportDays.length : days.length;
 
   return (
     <Modal
@@ -36,7 +43,9 @@ export function ProjectCollaboratorHoursDialog({
       <div className="acp-manage">
         <div className="acp-manage-head">
           <div>
-            <div className="sec" id="acp-collaborator-hours-title">Horas apropriadas</div>
+            <div className="sec" id="acp-collaborator-hours-title">
+              {fromReports ? 'Jornada dos relatórios' : 'Horas apropriadas'}
+            </div>
             <p>{collaborator?.name} · {collaborator?.role}</p>
           </div>
           <button className="mini-btn alt" type="button" onClick={onClose} aria-label="Fechar">✕</button>
@@ -44,11 +53,54 @@ export function ProjectCollaboratorHoursDialog({
 
         <div className="acp-manage-body">
           <div className="acp-collaborator-hours-summary" role="note">
-            <span>{days.length} dia{days.length === 1 ? '' : 's'} considerado{days.length === 1 ? '' : 's'}</span>
-            <strong>{fmtHours(collaborator?.horasApropriadas)}</strong>
+            <span>{dayCount} dia{dayCount === 1 ? '' : 's'} considerado{dayCount === 1 ? '' : 's'}</span>
+            <strong>{fmtHours(fromReports ? collaborator?.horas : collaborator?.horasApropriadas)}</strong>
           </div>
 
-          {days.length ? (
+          {fromReports ? (
+            <>
+              <p className="acp-det-collab-audit-copy">
+                Estas horas vêm dos relatórios de execução e não entram no custo apropriado.
+                {isGroup && ' Em cada data, a jornada considerada é a maior soma diária entre as missões mescladas. Todos os relatórios de origem aparecem abaixo.'}
+              </p>
+              {reportDays.length ? (
+                <div className="acp-table-wrap">
+                  <table className="acp-table acp-collaborator-hours-table">
+                    <thead>
+                      <tr>
+                        <th>Data</th>
+                        <th>Relatórios de origem</th>
+                        <th style={{ textAlign: 'right' }}>Jornada considerada</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportDays.map(day => (
+                        <tr key={day.data}>
+                          <td data-label="Data">{fmtDate(day.data)}</td>
+                          <td data-label="Relatórios de origem">
+                            {day.relatorios?.length ? (
+                              <ul className="acp-collaborator-report-sources">
+                                {day.relatorios.map(report => (
+                                  <li key={report.id}>
+                                    {report.projetoCodigo && `Missão ${report.projetoCodigo} · `}
+                                    {report.tipo} {report.numero ?? 'sem número'}
+                                    {' · '}{fmtHours(report.horas)}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : <span className="placeholder-copy">Origem não disponível. Atualize a página para consultar.</span>}
+                          </td>
+                          <td data-label="Jornada considerada" style={{ textAlign: 'right' }}>
+                            <strong>{fmtHours(day.horas)}</strong>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <p className="placeholder-copy">Nenhuma jornada de relatório foi encontrada para este colaborador.</p>}
+            </>
+          ) : days.length ? (
             <div className="acp-table-wrap">
               <table className="acp-table acp-collaborator-hours-table">
                 <thead>

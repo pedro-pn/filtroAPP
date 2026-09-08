@@ -12,7 +12,7 @@ interface UploadFieldProps {
   onChange: (files: UploadedFile[]) => void;
 }
 
-type UploadValue = UploadedFile & {
+export type UploadPreviewFile = UploadedFile & {
   path?: string;
   storagePath?: string;
   dataUrl?: string;
@@ -24,11 +24,12 @@ type UploadValue = UploadedFile & {
   __previouslyAdded?: boolean;
 };
 
-interface UploadListItemProps {
+interface UploadPreviewListItemProps {
   disabled: boolean;
-  file: UploadValue;
+  file: UploadPreviewFile;
   index: number;
   onRemove: (index: number) => void;
+  removed?: boolean;
 }
 
 function fileToDataUrl(file: File) {
@@ -40,7 +41,7 @@ function fileToDataUrl(file: File) {
   });
 }
 
-function rawFileUrl(file: UploadValue) {
+function rawFileUrl(file: UploadPreviewFile) {
   return file.url
     || file.path
     || file.storagePath
@@ -53,21 +54,27 @@ function rawFileUrl(file: UploadValue) {
     || '';
 }
 
-function isImageFile(file: UploadValue) {
+function isImageFile(file: UploadPreviewFile) {
   if ((file.mimeType || '').startsWith('image')) return true;
   const ext = (file.fileName || rawFileUrl(file)).split('.').pop()?.toLowerCase() || '';
   return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
 }
 
-function wasPreviouslyAdded(file: UploadValue) {
+function wasPreviouslyAdded(file: UploadPreviewFile) {
   return Boolean(file.previouslyAdded || file.__previouslyAdded);
 }
 
-function uploadFileKey(file: UploadValue) {
+function uploadFileKey(file: UploadPreviewFile) {
   return rawFileUrl(file) || `${file.fileName}-${file.mimeType || ''}`;
 }
 
-function UploadListItem({ disabled, file, index, onRemove }: UploadListItemProps) {
+export function UploadPreviewListItem({
+  disabled,
+  file,
+  index,
+  onRemove,
+  removed = false
+}: UploadPreviewListItemProps) {
   const [href, setHref] = useState('');
   const source = rawFileUrl(file);
 
@@ -95,7 +102,7 @@ function UploadListItem({ disabled, file, index, onRemove }: UploadListItemProps
   }, [source]);
 
   return (
-    <div className="upload-list-item">
+    <div className={`upload-list-item ${removed ? 'removed' : ''}`}>
       {href && isImageFile(file) ? (
         <a href={href} target="_blank" rel="noreferrer" aria-label={`Abrir ${file.fileName}`}>
           <img className="upload-list-thumb" src={href} alt={file.fileName} />
@@ -114,10 +121,10 @@ function UploadListItem({ disabled, file, index, onRemove }: UploadListItemProps
           className="upload-remove-button"
           type="button"
           onClick={() => onRemove(index)}
-          aria-label={`Remover ${file.fileName}`}
-          title="Remover"
+          aria-label={`${removed ? 'Restaurar' : 'Remover'} ${file.fileName}`}
+          title={removed ? 'Restaurar' : 'Remover'}
         >
-          X
+          {removed ? '↶' : 'X'}
         </button>
       ) : null}
     </div>
@@ -159,13 +166,13 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
     }
   }
 
-  function serverReference(file: UploadValue) {
+  function serverReference(file: UploadPreviewFile) {
     const raw = file.url || file.storagePath || file.path || file.publicUrl || file.source || file.src || file.href || '';
     return raw && !raw.startsWith('data:') ? raw : '';
   }
 
   function removeFile(index: number) {
-    const file = value[index] as UploadValue | undefined;
+    const file = value[index] as UploadPreviewFile | undefined;
     if (!file) return;
     const ref = serverReference(file);
     // A exclusão é global, mas só é efetivada ao SALVAR o relatório. Aqui apenas
@@ -180,7 +187,7 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
     onChange(value.filter((_, itemIndex) => itemIndex !== index));
   }
 
-  const hasPreviouslyAddedFiles = value.some(file => wasPreviouslyAdded(file as UploadValue));
+  const hasPreviouslyAddedFiles = value.some(file => wasPreviouslyAdded(file as UploadPreviewFile));
 
   function openPicker() {
     if (!disabled && !isUploading) inputRef.current?.click();
@@ -222,7 +229,7 @@ export function UploadField({ label, value, projectId, disabled = false, onChang
       {value.length ? (
         <div className="upload-list">
           {value.map((file, index) => (
-            <UploadListItem
+            <UploadPreviewListItem
               key={uploadFileKey(file)}
               disabled={disabled}
               file={file}

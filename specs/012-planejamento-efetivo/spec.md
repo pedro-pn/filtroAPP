@@ -48,9 +48,10 @@ Como planejador, quero cadastrar a programação de uma missão e selecionar dir
 1. **Given** um projeto ativo recém-cadastrado, **When** o gestor abre a aba Missões, **Then** encontra a missão criada automaticamente em amarelo, com a lista do que falta preencher e sem qualquer opção de cadastro manual de missão.
 2. **Given** um cartão de missão pendente, **When** o gestor clica nele, **Then** informa responsável, etapa, situação e datas e encontra uma lista pesquisável dos colaboradores do APP com nome e cargo, com as datas do projeto já sugeridas.
 3. **Given** colaboradores selecionados de funções diferentes, **When** o gestor salva a programação, **Then** o sistema deriva a demanda por função pela contagem dos cargos canônicos e grava demanda e alocações na mesma transação.
-4. **Given** um colaborador inativo, fora do vínculo, sem função operacional canônica, ausente ou já comprometido no período, **When** o gestor tenta salvar a equipe, **Then** o sistema recusa, identifica a pessoa e a origem do conflito e não persiste alterações parciais.
+4. **Given** um colaborador inativo sem confirmação, fora das datas do vínculo, sem função operacional canônica, ausente ou já comprometido no período sem confirmação de sobreposição, **When** o gestor tenta salvar a equipe, **Then** o sistema recusa, identifica a pessoa e a origem do conflito e não persiste alterações parciais.
 5. **Given** uma missão já programada, **When** o gestor a edita, **Then** os colaboradores alocados aparecem pré-selecionados e inclusões ou remoções sincronizam a equipe e a demanda derivada.
 6. **Given** uma missão alterada, **When** datas ou equipe mudam, **Then** todos os colaboradores selecionados são revalidados antes da confirmação.
+7. **Given** colaboradores desligados de missões passadas, **When** o gestor escolhe Inativos ou Todos na seleção da equipe, **Then** consegue selecioná-los e registrar ou editar mobilizações e desmobilizações após confirmar um aviso; cancelar o aviso não grava a operação e a confirmação não reativa o cadastro.
 
 ---
 
@@ -256,7 +257,7 @@ Como gestor, quero que ausências e feriados tenham a mesma origem entre os mód
 - **FR-017**: A ordem cronológica das datas da missão DEVE ser validada antes de confirmar.
 - **FR-018**: O diálogo de programação da missão DEVE substituir a entrada numérica por função por uma lista pesquisável de colaboradores do APP, exibindo nome e cargo e permitindo seleção múltipla direta.
 - **FR-019**: A demanda por função DEVE ser derivada no servidor pela quantidade de colaboradores selecionados em cada `jobRoleId` canônico; o cliente NÃO DEVE informar quantidades editáveis nesse diálogo.
-- **FR-020**: Um colaborador selecionado só DEVE ser elegível quando estiver ativo durante todo o intervalo, possuir função canônica ativa e operacional e não tiver missão confirmada ou ausência sobreposta.
+- **FR-020**: A seleção de equipe DEVE oferecer os filtros Ativos (padrão), Inativos e Todos. Colaboradores inativos PODEM ser selecionados e ter mobilizações e desmobilizações criadas ou editadas para registro histórico após confirmação explícita de um aviso, registrada na auditoria. A confirmação NÃO DEVE reativar o cadastro nem dispensar limites conhecidos de admissão/desligamento, função canônica ativa e operacional, capacidade da demanda, limites dos ciclos ou ausências; sobreposições de missões continuam exigindo sua própria confirmação. A autoalocação DEVE continuar restrita a ativos.
 - **FR-021**: Salvar a programação DEVE sincronizar demanda e alocações atomicamente, pré-selecionar a equipe atual na edição, excluir logicamente as alocações removidas e impedir qualquer persistência parcial em caso de conflito.
 - **FR-022**: Missões em rascunho NÃO DEVEM consumir capacidade oficial; missões confirmadas DEVEM consumir da mobilização ao retorno.
 - **FR-023**: O ciclo de vida da missão DEVE conter Stand by, Mobilização, Execução, Medição final e Finalizada.

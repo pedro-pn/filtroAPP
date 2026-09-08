@@ -1027,6 +1027,18 @@ export async function buildSelfServiceDataExport(user, {
         name: true,
         jobRoleId: true,
         jobRole: { select: { id: true, name: true } },
+        jobRoleHistory: {
+          select: {
+            id: true,
+            jobRoleId: true,
+            effectiveDate: true,
+            note: true,
+            createdAt: true,
+            updatedAt: true,
+            jobRole: { select: { id: true, name: true } }
+          },
+          orderBy: { effectiveDate: 'asc' }
+        },
         email: true,
         cpf: true,
         registrationNumber: true,

@@ -1,0 +1,964 @@
+.operational-type-modal,
+.operational-detail-modal,
+.operational-profile-modal,
+.operational-history-modal {
+  width: min(760px, calc(100vw - 24px));
+  max-height: min(88vh, 900px);
+  overflow: auto;
+}
+
+.operational-type-modal .modal-head,
+.operational-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.operational-type-modal h2,
+.operational-detail-modal h2,
+.operational-profile-modal h2,
+.operational-history-modal h2 {
+  margin: 0;
+  color: var(--tx);
+  font-size: 20px;
+}
+
+.operational-type-grid,
+.operational-report-grid,
+.sede-operational-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.operational-type-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  min-height: 112px;
+  padding: 16px;
+  text-align: left;
+  white-space: normal;
+}
+
+.operational-type-option span,
+.operational-report-card .form-hint {
+  color: var(--mu);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.operational-empty-state,
+.operational-form-page,
+.operational-list-page,
+.operational-module-page {
+  min-width: 0;
+}
+
+.app-shell:has(.operational-module-page) {
+  max-width: none;
+}
+
+.operational-module-page {
+  width: min(100%, 1320px);
+  margin-inline: auto;
+}
+
+.operational-module-tabs {
+  top: 0;
+  z-index: 90;
+}
+
+.operational-module-tabs-1 .nav-tabs {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.operational-module-tabs-2 .nav-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.operational-module-tabs-3 .nav-tabs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.operational-module-tabs-4 .nav-tabs {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.operational-module-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+  align-items: end;
+  gap: 16px;
+  min-width: 0;
+}
+
+.operational-module-toolbar .placeholder-copy {
+  margin: 4px 0 0;
+}
+
+.operational-module-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.operational-module-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.35fr);
+  align-items: end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.operational-schedule-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.35fr) minmax(180px, 0.35fr);
+  align-items: end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.operational-schedule-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.operational-schedule-summary > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--br);
+  border-radius: var(--r);
+  background: var(--wh);
+  box-shadow: var(--shadow);
+}
+
+.operational-schedule-summary > div.is-overdue {
+  border-color: var(--rd);
+  background: var(--error-bg);
+}
+
+.operational-schedule-summary > div.is-due-today {
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
+}
+
+.operational-schedule-summary strong {
+  color: var(--g);
+  font-size: 24px;
+}
+
+.operational-schedule-summary .is-overdue strong {
+  color: var(--rd);
+}
+
+.operational-schedule-summary .is-due-today strong {
+  color: var(--warning-text);
+}
+
+.operational-schedule-summary span {
+  min-width: 0;
+  color: var(--mu);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.operational-maintenance-schedule-group {
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.operational-schedule-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border-bottom: 1px solid var(--br);
+}
+
+.operational-schedule-group-head > div {
+  min-width: 0;
+}
+
+.operational-schedule-group-count {
+  flex: 0 0 auto;
+  color: var(--mu);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.operational-schedule-table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.operational-schedule-table table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--tx);
+  font-size: 13px;
+}
+
+.operational-schedule-table th,
+.operational-schedule-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--br);
+  text-align: left;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.operational-schedule-table th {
+  color: var(--mu);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.operational-schedule-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.operational-schedule-table tr.is-overdue td {
+  border-bottom-color: var(--rd);
+  background: var(--error-bg);
+}
+
+.operational-schedule-table tr.is-due-today td {
+  border-bottom-color: var(--warning-border);
+  background: var(--warning-bg);
+}
+
+.operational-schedule-status {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border: 1px solid transparent;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.operational-schedule-table .operational-schedule-status + .form-hint {
+  margin-top: 6px;
+}
+
+.operational-schedule-status.status-overdue {
+  border-color: var(--rd);
+  background: var(--error-bg);
+  color: var(--rd);
+}
+
+.operational-schedule-status.status-due-today {
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.operational-schedule-status.status-upcoming {
+  border-color: var(--br);
+  background: var(--bg);
+  color: var(--g);
+}
+
+.operational-schedule-status.status-no-history,
+.operational-schedule-status.status-unconfigured {
+  border-color: var(--br);
+  background: var(--bg);
+  color: var(--mu);
+}
+
+.operational-schedule-cards {
+  display: none;
+}
+
+.operational-module-report-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.operational-maintenance-history-table {
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.operational-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.operational-maintenance-history-table table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--tx);
+  font-size: 13px;
+}
+
+.operational-maintenance-history-table th,
+.operational-maintenance-history-table td {
+  max-width: 300px;
+  padding: 12px;
+  border-bottom: 1px solid var(--br);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.operational-maintenance-history-table th {
+  color: var(--mu);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.operational-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.operational-sort-button:hover,
+.operational-sort-button:focus-visible {
+  color: var(--g);
+}
+
+.operational-sort-indicator {
+  flex: 0 0 auto;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.operational-maintenance-history-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.operational-maintenance-history-cards {
+  display: none;
+}
+
+.operational-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--mu);
+  font-size: 13px;
+}
+
+.operational-review-fieldset {
+  display: contents;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.operational-filter-grid {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.operational-filter-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
+}
+
+.operational-checklist {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: var(--bg);
+}
+
+.operational-checklist label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  color: var(--tx);
+  cursor: pointer;
+}
+
+.operational-checklist input {
+  flex: 0 0 auto;
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0;
+  margin-top: 2px;
+}
+
+.operational-equipment-data {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--br);
+  border-radius: var(--r);
+  background: #fafafa;
+}
+
+.operational-equipment-data > strong {
+  color: var(--tx);
+  font-size: 13px;
+}
+
+.operational-equipment-data dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.operational-equipment-data dl > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.operational-equipment-data dt {
+  color: var(--mu);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.operational-equipment-data dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--tx);
+  overflow-wrap: anywhere;
+}
+
+.operational-repeat-card,
+.operational-detail-section,
+.operational-history-card,
+.operational-profile-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--br);
+  border-radius: var(--r);
+  background: var(--wh);
+}
+
+.operational-repeat-card > *,
+.operational-repeat-card .field-group,
+.operational-maintenance-photos,
+.operational-maintenance-photo-list {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.operational-maintenance-photo-list {
+  width: 100%;
+}
+
+.operational-maintenance-photo-list .upload-list-item > a:first-child {
+  flex: 0 0 44px;
+  min-width: 44px;
+}
+
+.operational-subsection {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--br);
+}
+
+.operational-third-party {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 10px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  background: var(--bg);
+}
+
+.operational-third-party > .field-group {
+  min-width: 0;
+}
+
+.operational-third-party > .field-group:nth-child(3),
+.operational-third-party > button {
+  grid-column: 1 / -1;
+}
+
+.operational-third-party > button {
+  justify-self: end;
+}
+
+.operational-maintenance-photo-list .upload-list-item.removed {
+  opacity: 0.55;
+}
+
+.pdf-dropzone > input.visually-hidden,
+.upload-dropzone > input.visually-hidden {
+  width: 1px;
+  height: 1px;
+}
+
+.operational-maintenance-photo-list
+  .upload-list-item.removed
+  .upload-list-name {
+  text-decoration: line-through;
+}
+
+.operational-actions,
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.inline-warning {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--warning-border);
+  border-radius: var(--rs);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.operational-review-card dl,
+.operational-detail-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.operational-review-card dl > div,
+.operational-detail-list > div {
+  display: grid;
+  grid-template-columns: minmax(100px, 0.3fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.operational-review-card dt,
+.operational-detail-list dt {
+  color: var(--mu);
+  font-weight: 700;
+}
+
+.operational-review-card dd,
+.operational-detail-list dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.operational-report-card {
+  width: 100%;
+  min-width: 0;
+  color: var(--tx);
+  cursor: pointer;
+  text-align: left;
+}
+
+.operational-report-card:hover {
+  border-color: var(--g);
+}
+
+.operational-pending-queue {
+  display: grid;
+  gap: 12px;
+}
+
+.operational-pending-queue .operational-report-card {
+  padding: 14px;
+}
+
+.operational-internal-total {
+  align-self: end;
+  padding: 11px 0;
+  color: var(--mu);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.operational-internal-group {
+  gap: 12px;
+}
+
+.operational-internal-group-title {
+  cursor: default;
+}
+
+.operational-detail-section ol,
+.operational-history-card ol {
+  margin: 0;
+  padding-left: 24px;
+}
+
+.operational-photo-count {
+  color: var(--mu);
+  font-size: 12px;
+}
+
+.operational-config-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.operational-profile-grid,
+.operational-equipment-profile-list,
+.operational-category-maintenance-list {
+  display: grid;
+  gap: 8px;
+}
+
+.operational-profile-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  margin-top: 0;
+}
+
+.operational-equipment-profile-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.7fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--br);
+}
+
+.operational-category-maintenance-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.35fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--br);
+}
+
+.operational-category-maintenance-row:last-child {
+  border-bottom: 0;
+}
+
+.operational-category-maintenance-summary,
+.operational-category-maintenance-controls,
+.operational-category-interval-form {
+  min-width: 0;
+}
+
+.operational-category-maintenance-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px;
+}
+
+.operational-category-maintenance-controls > .field-group,
+.operational-category-interval-form > .field-group {
+  margin: 0;
+}
+
+.operational-category-interval-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.operational-category-interval-form > button {
+  min-height: 40px;
+}
+
+.operational-profile-items {
+  display: grid;
+  gap: 10px;
+}
+
+.operational-profile-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+}
+
+.operational-profile-item > .field-group {
+  min-width: 0;
+  margin: 0;
+}
+
+.operational-profile-item-active {
+  min-height: 42px;
+}
+
+.skeleton-stack {
+  display: grid;
+  gap: 9px;
+}
+
+.skeleton-stack .skeleton-line {
+  display: block;
+  height: 16px;
+  border-radius: var(--rs);
+  background: var(--br);
+  animation: operational-skeleton-pulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes operational-skeleton-pulse {
+  to {
+    opacity: 0.45;
+  }
+}
+
+.sede-operational-section {
+  display: grid;
+  gap: 10px;
+}
+
+.sede-operational-card {
+  min-width: 0;
+}
+
+.sede-operational-primary {
+  color: var(--g);
+  font-size: 20px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.sede-operational-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sede-operational-kpis > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 8px;
+  border-radius: var(--rs);
+  background: var(--bg);
+}
+
+.sede-operational-kpis span,
+.sede-operational-breakdown span {
+  color: var(--mu);
+  font-size: 11px;
+}
+
+.sede-operational-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sede-operational-breakdown > div > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--br);
+}
+
+@media (max-width: 720px) {
+  .operational-module-tabs-3 .nav-tabs,
+  .operational-module-tabs-4 .nav-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .operational-type-grid,
+  .operational-report-grid,
+  .sede-operational-grid,
+  .operational-checklist,
+  .operational-equipment-data dl,
+  .sede-operational-breakdown {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .operational-filter-grid,
+  .operational-third-party,
+  .operational-equipment-profile-list > div,
+  .operational-profile-card,
+  .operational-module-toolbar,
+  .operational-module-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .operational-schedule-filters,
+  .operational-category-maintenance-row,
+  .operational-category-maintenance-controls,
+  .operational-category-interval-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .operational-category-interval-form > button {
+    width: 100%;
+  }
+
+  .operational-schedule-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .operational-module-create-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .operational-module-create-actions button {
+    width: 100%;
+  }
+
+  .operational-maintenance-history-table {
+    display: none;
+  }
+
+  .operational-maintenance-history-cards {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .operational-schedule-table {
+    display: none;
+  }
+
+  .operational-schedule-cards {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    padding: 12px;
+  }
+
+  .operational-schedule-cards > article {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--br);
+    border-radius: var(--r);
+    background: var(--wh);
+  }
+
+  .operational-schedule-cards > article.is-overdue {
+    border-color: var(--rd);
+    background: var(--error-bg);
+  }
+
+  .operational-schedule-cards > article.is-due-today {
+    border-color: var(--warning-border);
+    background: var(--warning-bg);
+  }
+
+  .operational-schedule-cards .operational-card-head > div {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .operational-schedule-cards .operational-schedule-status {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .operational-maintenance-history-cards > article {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .operational-maintenance-history-cards .operational-detail-list > div {
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: 14px;
+  }
+
+  .operational-profile-card .admin-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .operational-profile-item {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .operational-profile-item .admin-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .operational-checklist {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .operational-actions,
+  .modal-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .operational-actions button,
+  .modal-actions button {
+    width: 100%;
+  }
+
+  .sede-operational-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 360px) {
+  .operational-form-page .operational-section-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .operational-form-page .operational-section-head > button {
+    width: 100%;
+  }
+
+  .operational-form-page .pdf-dropzone {
+    gap: 8px;
+    padding-inline: 12px;
+  }
+}

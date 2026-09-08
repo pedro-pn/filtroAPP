@@ -10,6 +10,7 @@ import type { HubModuleEntry } from '../pages/hubModules';
 
 const MODULE_TUTORIAL_COPY: Partial<Record<HubModuleEntry['id'], string>> = {
   rdo: 'Use este módulo para criar, acompanhar e aprovar relatórios, acessar projetos, clientes e estatísticas.',
+  'maintenance-production': 'Use este módulo para criar e consultar relatórios de manutenção e produção e acessar o histórico técnico dos equipamentos.',
   admin: 'Use este módulo para administrar contas, tipos de acesso e permissões dos usuários do sistema.',
   equipamentos: 'Use este módulo para consultar e manter equipamentos, calibrações, certificados e dados técnicos.',
   romaneio: 'Use este módulo para registrar entradas, saídas e movimentações de equipamentos em romaneios.',

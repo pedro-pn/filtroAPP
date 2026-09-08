@@ -28,6 +28,7 @@ import { computeMonthlyCost } from './cost-engine.js';
 import { getAnnualCollaboratorCosts } from './settings.js';
 import { buildProjectTagResolver, isPontoTravelTag } from '../pontomais/normalize.js';
 import { checkWorkforceAvailability } from '../collaborators/availability-service.js';
+import { collaboratorRoleAtDate, collaboratorRoleSegments } from '../collaborators/job-role-history.js';
 import { annotateActualRowsWithWorkforceConflicts, classifyActualWorkforceDays } from '../workforce/actual-conflicts.js';
 import { allocationPeriods } from '../efetivo/planning/allocation-period.js';
 
@@ -524,6 +525,18 @@ export function buildRoleParamsResolver({ roles = [], models = [] } = {}) {
   }
 
   return { paramsFor, segmentsFor, hasProfile };
+}
+
+export function buildCollaboratorRoleCostSegments({ collaborator, roleParams, startKey, endKey }) {
+  return collaboratorRoleSegments(collaborator, startKey, endKey).flatMap(roleSegment => (
+    roleParams.segmentsFor(roleSegment.roleName, roleSegment.startKey, roleSegment.endKey)
+      .map(parameterSegment => ({
+        ...parameterSegment,
+        jobRoleId: roleSegment.jobRoleId,
+        roleName: roleSegment.roleName,
+        roleEffectiveDate: roleSegment.effectiveDate
+      }))
+  ));
 }
 
 async function getRoleParamsResolver() {
@@ -1757,7 +1770,18 @@ export async function computeCollaboratorRates(importId = null) {
     prisma.pontoPeriodSummary.findMany({
       where: { importId: { in: importIds }, collaboratorId: { not: null } },
       include: {
-        collaborator: { select: { id: true, name: true, jobRole: { select: { name: true } } } },
+        collaborator: {
+          select: {
+            id: true,
+            name: true,
+            jobRoleId: true,
+            jobRole: { select: { id: true, name: true } },
+            jobRoleHistory: {
+              select: { jobRoleId: true, effectiveDate: true, jobRole: { select: { id: true, name: true } } },
+              orderBy: { effectiveDate: 'asc' }
+            }
+          }
+        },
         import: { select: { createdAt: true } }
       }
     }),
@@ -1797,7 +1821,9 @@ export async function computeCollaboratorRates(importId = null) {
   const rates = [];
   const byCollaboratorId = new Map();
   for (const period of periods) {
-    const role = period.collaborator?.jobRole?.name || null;
+    const role = collaboratorRoleAtDate(period.collaborator, fileEnd)?.roleName
+      || period.collaborator?.jobRole?.name
+      || null;
     const rdo = rdoData.get(period.collaboratorId) || {
       byProject: new Map(),
       dayProjects: new Map(),
@@ -1849,7 +1875,10 @@ export async function computeCollaboratorRates(importId = null) {
     // aparecer na auditoria e nas pendências.
     const trailDays = monthsOf(period).flatMap(mrec => splitOvertimeDays(
       mrec.days || [],
-      Number(roleParams.paramsFor(role, `${mrec.monthKey}-01`)?.he70LimiteHoras) || 30
+      Number(roleParams.paramsFor(
+        collaboratorRoleAtDate(period.collaborator, `${mrec.monthKey}-01`)?.roleName || role,
+        `${mrec.monthKey}-01`
+      )?.he70LimiteHoras) || 30
     ));
     trailDays.sort((left, right) => left.date.localeCompare(right.date));
     const trail = classifyProjectHours(
@@ -1866,7 +1895,8 @@ export async function computeCollaboratorRates(importId = null) {
     entry.unresolvedDays = trail.unresolvedDays;
     const hasMinimumPaidProjectDay = trail.dayTrail.some(day => day.minimumNormalHoursApplied);
 
-    if (role && roleParams.hasProfile(role) && (totalWorkedDays > 0 || hasMinimumPaidProjectDay)) {
+    const costRoleSegments = collaboratorRoleSegments(period.collaborator, dateKeyUTC(fileStart), dateKeyUTC(fileEnd));
+    if (costRoleSegments.some(segment => roleParams.hasProfile(segment.roleName)) && (totalWorkedDays > 0 || hasMinimumPaidProjectDay)) {
       const months = monthsOf(period);
 
       const agg = { folha: 0, folhaBase: 0, fixo: 0, variavel: 0, totalHours: 0, folga: 0, normal: 0, he70: 0, he100: 0 };
@@ -1879,10 +1909,16 @@ export async function computeCollaboratorRates(importId = null) {
         const mk = mrec.monthKey;
         const monthCov = monthCoverage(mk, fileStart, fileEnd);
         if (monthCov.days <= 0) continue;
-        const capParams = roleParams.paramsFor(role, monthCov.startKey) || roleParams.paramsFor(role, `${mk}-01`);
+        const monthRole = collaboratorRoleAtDate(period.collaborator, monthCov.startKey)?.roleName || role;
+        const capParams = roleParams.paramsFor(monthRole, monthCov.startKey) || roleParams.paramsFor(monthRole, `${mk}-01`);
         const cap = Number(capParams?.he70LimiteHoras) || 30; // teto de HE70 por mês (excesso vira 100%)
         const daysWithOvertime = splitOvertimeDays(mrec.days || [], cap);
-        const segments = roleParams.segmentsFor(role, monthCov.startKey, monthCov.endKey);
+        const segments = buildCollaboratorRoleCostSegments({
+          collaborator: period.collaborator,
+          roleParams,
+          startKey: monthCov.startKey,
+          endKey: monthCov.endKey
+        });
 
         const monthAgg = { folha: 0, folhaBase: 0, fixo: 0, variavel: 0, totalHours: 0, folga: 0, normal: 0, he70: 0, he100: 0 };
         const monthIdle = { sede: { cost: 0, costBase: 0, hours: 0 }, folga: { cost: 0, costBase: 0, hours: 0 } };
@@ -2070,7 +2106,18 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
     prisma.pontoPeriodSummary.findMany({
       where: { importId: { in: importIds }, collaboratorId: { not: null } },
       include: {
-        collaborator: { select: { id: true, name: true, jobRole: { select: { name: true } } } },
+        collaborator: {
+          select: {
+            id: true,
+            name: true,
+            jobRoleId: true,
+            jobRole: { select: { id: true, name: true } },
+            jobRoleHistory: {
+              select: { jobRoleId: true, effectiveDate: true, jobRole: { select: { id: true, name: true } } },
+              orderBy: { effectiveDate: 'asc' }
+            }
+          }
+        },
         import: { select: { createdAt: true } }
       }
     }),
@@ -2097,8 +2144,9 @@ export async function debugCollaboratorMonth(nameQuery, monthKey, importId = nul
   ));
   if (!period) throw new Error(`Colaborador "${nameQuery}" não encontrado no ponto vigente.`);
 
-  const role = period.collaborator.jobRole?.name;
   const cov = monthCoverage(monthKey, pontoScope.periodStart, pontoScope.periodEnd);
+  const role = collaboratorRoleAtDate(period.collaborator, cov.startKey)?.roleName
+    || period.collaborator.jobRole?.name;
   const params = roleParams.paramsFor(role, cov.startKey);
   if (!params) throw new Error(`Cargo "${role}" sem custo configurado.`);
   const rdo = rdoData.get(period.collaboratorId) || { byProject: new Map(), dayProjects: new Map() };

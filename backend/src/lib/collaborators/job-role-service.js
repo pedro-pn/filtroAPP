@@ -1,5 +1,6 @@
 import { allocationPeriod } from '../efetivo/planning/allocation-period.js';
 import { missionEndsOnOrAfter } from '../efetivo/planning/mission-period.js';
+import { collaboratorJobRoleHistoryInclude } from './job-role-history.js';
 
 export function normalizeJobRoleKey(value) {
   return String(value || '')
@@ -74,7 +75,13 @@ export function withCurrentJobRole(collaborator) {
 
 export async function listCollaboratorsWithCurrentJobRole(database, prepareCollaborator = async item => item) {
   const items = await database.collaborator.findMany({
-    include: { jobRole: true },
+    include: {
+      jobRole: true,
+      jobRoleHistory: {
+        include: collaboratorJobRoleHistoryInclude,
+        orderBy: { effectiveDate: 'desc' }
+      }
+    },
     orderBy: { name: 'asc' }
   });
   const result = [];
