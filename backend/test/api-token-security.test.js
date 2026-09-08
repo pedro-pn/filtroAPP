@@ -30,16 +30,23 @@ test('token parser rejects ambiguous or malformed authorization values', () => {
 });
 
 test('versioned HMAC verification accepts the right key and follows the dummy path for unknown selectors', () => {
-  const issued = createApiToken({ key, keyVersion: 7 });
-  const credential = {
-    selector: issued.selector,
-    secretVerifier: issued.verifier,
-    hashKeyVersion: 7
-  };
+  for (const fill of [0, 255]) {
+    const issued = createApiToken({ key, keyVersion: 7, randomBytesFn: size => Buffer.alloc(size, fill) });
+    const credential = {
+      selector: issued.selector,
+      secretVerifier: issued.verifier,
+      hashKeyVersion: 7
+    };
+    // Replacing the final character with A leaves tokens already ending in A unchanged.
+    const replacement = issued.token.endsWith('A') ? 'Q' : 'A';
+    const tamperedToken = `${issued.token.slice(0, -1)}${replacement}`;
 
-  assert.equal(verifyApiToken({ rawToken: issued.token, credential, keyResolver: version => version === 7 ? key : '' }), true);
-  assert.equal(verifyApiToken({ rawToken: `${issued.token.slice(0, -1)}A`, credential, keyResolver: () => key }), false);
-  assert.equal(verifyApiToken({ rawToken: issued.token, credential: null, keyResolver: () => key }), false);
+    assert.notEqual(tamperedToken, issued.token);
+    assert.ok(parseApiToken(tamperedToken));
+    assert.equal(verifyApiToken({ rawToken: issued.token, credential, keyResolver: version => version === 7 ? key : '' }), true);
+    assert.equal(verifyApiToken({ rawToken: tamperedToken, credential, keyResolver: () => key }), false);
+    assert.equal(verifyApiToken({ rawToken: issued.token, credential: null, keyResolver: () => key }), false);
+  }
 });
 
 test('public serialization never exposes token, secret or verifier', () => {
