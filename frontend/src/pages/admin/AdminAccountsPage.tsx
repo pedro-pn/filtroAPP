@@ -494,6 +494,9 @@ export function AdminAccountsPage() {
         showLogo
         actions={
           <>
+            <button className="topbar-chip" type="button" onClick={() => navigate('/admin/tokens')}>
+              Tokens de API
+            </button>
             <button
               className="topbar-chip"
               type="button"
