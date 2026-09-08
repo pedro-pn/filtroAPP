@@ -609,7 +609,7 @@ export interface ProjectCard {
   laborHours: number | null; // jornada analítica do Ponto Mais apropriada ao projeto
   stockCost: number; // consumo líquido de produtos químicos/filtros via romaneio
   manualCost: number; // custos lançados manualmente no acompanhamento
-  equipment: Array<{ name: string; days: number; since: string }>; // equipamentos (módulo Equipamentos) em obra
+  equipment: Array<{ code: string | null; name: string; days: number; since: string }>; // equipamentos (módulo Equipamentos) em obra
   alerts: ProjectAlert[];
 }
 
@@ -811,7 +811,7 @@ export interface ProjectDetail {
   }>;
   overtimeMinutes: number;
   colaboradores: ProjectDetailCollaborator[];
-  equipamentos: Array<{ name: string; days: number; since: string }>;
+  equipamentos: Array<{ code: string | null; name: string; days: number; since: string }>;
   plannedScope?: PlannedScope;
   footer: {
     mobilizationDate: string | null;
