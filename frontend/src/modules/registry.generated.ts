@@ -144,6 +144,33 @@ export const moduleRegistry = [
     ]
   },
   {
+    "id": "maintenance-production",
+    "badge": "M&P",
+    "title": "Manutenção e produção",
+    "copy": "Relatórios, aprovações e histórico técnico de manutenção e produção.",
+    "hub": {
+      "enabled": true,
+      "roles": [],
+      "path": "/manutencao-producao"
+    },
+    "pathPrefixes": [
+      "/manutencao-producao"
+    ],
+    "routes": {
+      "index": "/manutencao-producao",
+      "newReport": "/manutencao-producao/relatorio/novo"
+    },
+    "routeGroups": {
+      "default": {
+        "allowedAccountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      }
+    },
+    "roles": []
+  },
+  {
     "id": "admin",
     "badge": "ADM",
     "title": "Gestão de Contas",
@@ -157,10 +184,16 @@ export const moduleRegistry = [
       "/admin"
     ],
     "routes": {
-      "accounts": "/admin/accounts"
+      "accounts": "/admin/accounts",
+      "tokens": "/admin/tokens"
     },
     "routeGroups": {
       "accounts": {
+        "allowedAccountTypes": [
+          "ADMIN"
+        ]
+      },
+      "tokens": {
         "allowedAccountTypes": [
           "ADMIN"
         ]

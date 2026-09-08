@@ -115,6 +115,7 @@ export async function allocateCollaboratorInTransaction(tx, mission, payload, co
       period: requestedPeriod,
       ignoredMissionId: mission.id,
       allowMissionOverlap: Boolean(payload.allowMissionOverlap),
+      allowInactiveCollaborator: payload.allowInactiveCollaborator === true,
       requireCandidateMissionOverlapConfirmation: true
     }));
   }
@@ -172,7 +173,7 @@ export async function listEligibleCollaborators(missionId, jobRoleId, filters = 
     endDate: periods.reduce((latest, item) => item.endDate > latest ? item.endDate : latest, periods[0].endDate)
   };
   const [collaborators, absences, overlapping] = await Promise.all([
-    database.collaborator.findMany({ where: { jobRoleId, isActive: true }, orderBy: [{ admissionDate: 'asc' }, { name: 'asc' }] }),
+    database.collaborator.findMany({ where: { jobRoleId, ...(filters.includeInactive ? {} : { isActive: true }) }, orderBy: [{ admissionDate: 'asc' }, { name: 'asc' }] }),
     database.collaboratorAbsence.findMany({
       where: { deletedAt: null, startDate: { lte: new Date(`${period.endDate}T00:00:00.000Z`) }, endDate: { gte: new Date(`${period.startDate}T00:00:00.000Z`) } }
     }),
@@ -196,6 +197,7 @@ export async function listEligibleCollaborators(missionId, jobRoleId, filters = 
       absences: absences.filter(item => item.collaboratorId === collaborator.id),
       allocations: overlapping.filter(item => item.collaboratorId === collaborator.id),
       ignoredMissionId: mission.id,
+      allowInactiveCollaborator: filters.includeInactive === true,
       requireCandidateMissionOverlapConfirmation: true
     }));
     const hardConflicts = conflicts.filter(conflict => conflict.sourceType !== 'MISSION');
@@ -206,6 +208,8 @@ export async function listEligibleCollaborators(missionId, jobRoleId, filters = 
       name: collaborator.name,
       jobRoleId: collaborator.jobRoleId,
       admissionDate: collaborator.admissionDate,
+      isActive: collaborator.isActive,
+      requiresInactiveConfirmation: collaborator.isActive === false,
       missionConflicts,
       requiresMissionOverlapConfirmation: missionConflicts.length > 0
     }];
@@ -221,7 +225,8 @@ export async function addMissionAllocation(missionId, payload, context = {}, dep
     await bumpPlanRevision(tx, plan);
     await recordEfetivoAudit(tx, {
       planId: plan.id, actorUserId: context.actorUserId, action: 'ALLOCATION_ADD', entityType: 'ALLOCATION', entityId: allocation.id,
-      summary: 'Colaborador alocado na missão.', afterData: allocation, evidence: context.evidence
+      summary: 'Colaborador alocado na missão.',
+      afterData: { ...allocation, inactiveCollaboratorConfirmed: payload.allowInactiveCollaborator === true }, evidence: context.evidence
     });
     return allocation;
   });
@@ -268,7 +273,8 @@ export async function updateMissionAllocationPeriod(missionId, allocationId, pay
       jobRoleId: existing.jobRoleId,
       period,
       ignoredMissionId: mission.id,
-      allowMissionOverlap
+      allowMissionOverlap,
+      allowInactiveCollaborator: payload.allowInactiveCollaborator === true
     }));
     const updated = await tx.efetivoMissionAllocation.update({
       where: { id: allocationId },
@@ -295,7 +301,7 @@ export async function updateMissionAllocationPeriod(missionId, allocationId, pay
       entityId: allocationId,
       summary: 'Período individual do colaborador atualizado.',
       beforeData: existing,
-      afterData: updated,
+      afterData: { ...updated, inactiveCollaboratorConfirmed: payload.allowInactiveCollaborator === true },
       evidence: context.evidence
     });
     return updated;

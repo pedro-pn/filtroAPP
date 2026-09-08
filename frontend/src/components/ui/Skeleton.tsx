@@ -1,15 +1,23 @@
+interface SkeletonProps {
+  lines?: number;
+  className?: string;
+}
+
+export function Skeleton({ lines = 3, className = '' }: SkeletonProps) {
+  return (
+    <div className={`skeleton-stack ${className}`.trim()} aria-label="Carregando">
+      {Array.from({ length: lines }, (_, index) => (
+        <span className="skeleton-line" key={index} />
+      ))}
+    </div>
+  );
+}
+
 interface ReportListSkeletonProps {
-  /** Quantos "cards" de projeto exibir. */
   groups?: number;
-  /** Quantas linhas de relatório por card. */
   rowsPerGroup?: number;
 }
 
-/**
- * Placeholder animado para listas de relatórios agrupadas por projeto.
- * Mantém a altura aproximada do conteúdo real para evitar salto de layout
- * (e a sensação de "piscar") enquanto a primeira página carrega.
- */
 export function ReportListSkeleton({ groups = 2, rowsPerGroup = 3 }: ReportListSkeletonProps) {
   return (
     <div aria-busy="true" aria-live="polite">

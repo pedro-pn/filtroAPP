@@ -4,7 +4,10 @@ import {
   createCollaborator,
   listCollaborators,
   removeCollaborator,
+  removeCollaboratorJobRoleHistory,
   type CollaboratorPayload,
+  type CollaboratorJobRoleHistoryPayload,
+  updateCollaboratorJobRoleHistory,
   updateCollaborator
 } from '../api/collaborators';
 import { queryKeys } from './queryKeys';
@@ -42,9 +45,23 @@ export function useCollaboratorMutations() {
     onSuccess: invalidateCollaborators
   });
 
+  const updateJobRoleHistoryMutation = useMutation({
+    mutationFn: ({ id, historyId, payload }: { id: string; historyId: string; payload: CollaboratorJobRoleHistoryPayload }) =>
+      updateCollaboratorJobRoleHistory(id, historyId, payload),
+    onSuccess: invalidateCollaborators
+  });
+
+  const removeJobRoleHistoryMutation = useMutation({
+    mutationFn: ({ id, historyId }: { id: string; historyId: string }) =>
+      removeCollaboratorJobRoleHistory(id, historyId),
+    onSuccess: invalidateCollaborators
+  });
+
   return {
     createCollaborator: createMutation,
     updateCollaborator: updateMutation,
-    removeCollaborator: removeMutation
+    removeCollaborator: removeMutation,
+    updateJobRoleHistory: updateJobRoleHistoryMutation,
+    removeJobRoleHistory: removeJobRoleHistoryMutation
   };
 }

@@ -158,17 +158,12 @@ export interface PresumedProfitTaxEstimate {
 }
 
 export async function getProjectRevisions(projectId: string): Promise<ProjectRevisions> {
-  const { data } = await apiClient.get<ProjectRevisions>(
-    `/acompanhamento/comercial/projetos/${projectId}/revisoes`
-  );
+  const { data } = await apiClient.get<ProjectRevisions>(`/acompanhamento/comercial/projetos/${projectId}/revisoes`);
   return data;
 }
 
 export async function getProjectPlanningContext(projectId: string, date: string): Promise<OfficialMissionContext | null> {
-  const { data } = await apiClient.get<OfficialMissionContext | null>(
-    `/acompanhamento/comercial/projetos/${projectId}/planning-context`,
-    { params: { date } }
-  );
+  const { data } = await apiClient.get<OfficialMissionContext | null>(`/acompanhamento/comercial/projetos/${projectId}/planning-context`, { params: { date } });
   return data;
 }
 
@@ -301,10 +296,7 @@ export async function createMissionGroup(payload: CreateMissionGroupRequest): Pr
 }
 
 export async function renameMissionGroup(groupId: string, name: string): Promise<MissionGroupResponse> {
-  const { data } = await apiClient.patch<MissionGroupResponse>(
-    `/acompanhamento/comercial/grupos-missoes/${groupId}`,
-    { name }
-  );
+  const { data } = await apiClient.patch<MissionGroupResponse>(`/acompanhamento/comercial/grupos-missoes/${groupId}`, { name });
   return data;
 }
 
@@ -315,17 +307,16 @@ export async function updateMissionGroupLaborPolicy(
     primaryLaborProjectId?: string | null;
   }
 ): Promise<MissionGroupResponse> {
-  const { data } = await apiClient.patch<MissionGroupResponse>(
-    `/acompanhamento/comercial/grupos-missoes/${groupId}`,
-    payload
-  );
+  const { data } = await apiClient.patch<MissionGroupResponse>(`/acompanhamento/comercial/grupos-missoes/${groupId}`, payload);
   return data;
 }
 
 export async function dissolveMissionGroup(groupId: string): Promise<{ ok: true; groupId: string; dissolvedAt: string }> {
-  const { data } = await apiClient.post<{ ok: true; groupId: string; dissolvedAt: string }>(
-    `/acompanhamento/comercial/grupos-missoes/${groupId}/desmesclar`
-  );
+  const { data } = await apiClient.post<{
+    ok: true;
+    groupId: string;
+    dissolvedAt: string;
+  }>(`/acompanhamento/comercial/grupos-missoes/${groupId}/desmesclar`);
   return data;
 }
 
@@ -385,6 +376,41 @@ export interface SedeCostsResponse {
     count: number;
   };
   cards: SedeCostCard[];
+  operational: SedeOperationalMetrics;
+}
+
+export interface SedeOperationalMetrics {
+  range: { fromMonth: string; toMonth: string } | null;
+  maintenance: {
+    summary: {
+      reportCount: number;
+      maintenanceCount: number;
+      workedMinutes: number;
+      overtimeMinutes: number;
+      collaboratorCount: number;
+    };
+    byProfile: Array<{ profileName: string; maintenanceCount: number }>;
+    byEquipment: Array<{
+      equipmentId: string;
+      equipmentCode: string;
+      equipmentName: string;
+      maintenanceCount: number;
+    }>;
+  };
+  production: {
+    summary: {
+      reportCount: number;
+      totalKg: number;
+      workedMinutes: number;
+      overtimeMinutes: number;
+      collaboratorCount: number;
+    };
+    byMaterial: Array<{
+      material: 'CARBON_STEEL' | 'STAINLESS_STEEL' | 'CUNIFE' | 'OTHER';
+      totalKg: number;
+      cleaningCount: number;
+    }>;
+  };
 }
 
 export async function getSedeCosts(params?: { from: string; to: string }): Promise<SedeCostsResponse> {
@@ -395,33 +421,22 @@ export async function getSedeCosts(params?: { from: string; to: string }): Promi
 }
 
 export async function setProjectRevision(projectId: string, codBd: number) {
-  const { data } = await apiClient.post(
-    `/acompanhamento/comercial/projetos/${projectId}/revisao`,
-    { codBd }
-  );
+  const { data } = await apiClient.post(`/acompanhamento/comercial/projetos/${projectId}/revisao`, { codBd });
   return data;
 }
 
 export async function setProjectAdditionalRevision(projectId: string, codBd: number) {
-  const { data } = await apiClient.post(
-    `/acompanhamento/comercial/projetos/${projectId}/propostas-adicionais/revisao`,
-    { codBd }
-  );
+  const { data } = await apiClient.post(`/acompanhamento/comercial/projetos/${projectId}/propostas-adicionais/revisao`, { codBd });
   return data;
 }
 
 export async function removeProjectAdditionalRevision(projectId: string, codProp: number) {
-  const { data } = await apiClient.delete(
-    `/acompanhamento/comercial/projetos/${projectId}/propostas-adicionais/${codProp}`
-  );
+  const { data } = await apiClient.delete(`/acompanhamento/comercial/projetos/${projectId}/propostas-adicionais/${codProp}`);
   return data;
 }
 
 export async function setProjectSchedule(projectId: string, payload: ProjectSchedulePayload) {
-  const { data } = await apiClient.patch(
-    `/acompanhamento/comercial/projetos/${projectId}/cronograma`,
-    payload
-  );
+  const { data } = await apiClient.patch(`/acompanhamento/comercial/projetos/${projectId}/cronograma`, payload);
   return data;
 }
 
@@ -463,17 +478,12 @@ export interface PlannedScope {
 }
 
 export async function getPlannedScope(projectId: string): Promise<PlannedScope> {
-  const { data } = await apiClient.get<PlannedScope>(
-    `/acompanhamento/comercial/projetos/${projectId}/escopo-previsto`
-  );
+  const { data } = await apiClient.get<PlannedScope>(`/acompanhamento/comercial/projetos/${projectId}/escopo-previsto`);
   return data;
 }
 
 export async function setPlannedScope(projectId: string, payload: PlannedScope): Promise<PlannedScope> {
-  const { data } = await apiClient.put<PlannedScope>(
-    `/acompanhamento/comercial/projetos/${projectId}/escopo-previsto`,
-    payload
-  );
+  const { data } = await apiClient.put<PlannedScope>(`/acompanhamento/comercial/projetos/${projectId}/escopo-previsto`, payload);
   return data;
 }
 
@@ -525,9 +535,7 @@ export interface RequiredWeeklyProgress {
 }
 
 export async function getProjectProgress(projectId: string): Promise<ProjectProgress> {
-  const { data } = await apiClient.get<ProjectProgress>(
-    `/acompanhamento/comercial/projetos/${projectId}/avanco`
-  );
+  const { data } = await apiClient.get<ProjectProgress>(`/acompanhamento/comercial/projetos/${projectId}/avanco`);
   return data;
 }
 
@@ -546,7 +554,12 @@ export interface WorkedHoursProgress {
   normalPct: number | null;
   overtimePct: number | null;
   totalPct: number | null;
-  roleCounts?: Array<{ roleName: string; collaboratorCount: number; usedHours: number; pctOfPlannedTotal: number | null }>;
+  roleCounts?: Array<{
+    roleName: string;
+    collaboratorCount: number;
+    usedHours: number;
+    pctOfPlannedTotal: number | null;
+  }>;
 }
 
 export interface ProgressHistoryPoint {
@@ -596,7 +609,7 @@ export interface ProjectCard {
   laborHours: number | null; // jornada analítica do Ponto Mais apropriada ao projeto
   stockCost: number; // consumo líquido de produtos químicos/filtros via romaneio
   manualCost: number; // custos lançados manualmente no acompanhamento
-  equipment: Array<{ name: string; days: number; since: string }>; // equipamentos (módulo Equipamentos) em obra
+  equipment: Array<{ code: string | null; name: string; days: number; since: string }>; // equipamentos (módulo Equipamentos) em obra
   alerts: ProjectAlert[];
 }
 
@@ -641,34 +654,21 @@ export async function getProjectCards(): Promise<ProjectCardItem[]> {
 }
 
 export async function getProjectStandbyHistory(projectId: string): Promise<ProjectStandbyHistory> {
-  const { data } = await apiClient.get<ProjectStandbyHistory>(
-    `/acompanhamento/comercial/projetos/${encodeURIComponent(projectId)}/standby-historico`
-  );
+  const { data } = await apiClient.get<ProjectStandbyHistory>(`/acompanhamento/comercial/projetos/${encodeURIComponent(projectId)}/standby-historico`);
   return data;
 }
 
 export async function listProjectManagementNotes(projectId: string): Promise<ProjectManagementNote[]> {
-  const { data } = await apiClient.get<ProjectManagementNote[]>(
-    `/acompanhamento/comercial/projetos/${encodeURIComponent(projectId)}/notas-gestao`
-  );
+  const { data } = await apiClient.get<ProjectManagementNote[]>(`/acompanhamento/comercial/projetos/${encodeURIComponent(projectId)}/notas-gestao`);
   return data;
 }
 
-export async function createProjectManagementNote(
-  projectId: string,
-  content: string
-): Promise<ProjectManagementNote> {
-  const { data } = await apiClient.post<ProjectManagementNote>(
-    `/acompanhamento/comercial/projetos/${encodeURIComponent(projectId)}/notas-gestao`,
-    { content }
-  );
+export async function createProjectManagementNote(projectId: string, content: string): Promise<ProjectManagementNote> {
+  const { data } = await apiClient.post<ProjectManagementNote>(`/acompanhamento/comercial/projetos/${encodeURIComponent(projectId)}/notas-gestao`, { content });
   return data;
 }
 
-export async function setProjectTrackingState(
-  projectId: string,
-  payload: { archived: boolean } | { reviewed: boolean }
-) {
+export async function setProjectTrackingState(projectId: string, payload: { archived: boolean } | { reviewed: boolean }) {
   const { data } = await apiClient.patch(`/acompanhamento/comercial/projetos/${projectId}/acompanhamento-status`, payload);
   return data;
 }
@@ -721,7 +721,19 @@ export interface ProjectDetailCollaborator {
     }>;
   }>;
   sobreposicaoHoras: number;
-  horasRelatoriosPorData: Array<{ data: string; horas: number }>;
+  horasRelatoriosPorData: Array<{
+    data: string;
+    horas: number;
+    /** Relatórios-fonte, preservados mesmo quando o grupo deduplica a jornada por data. */
+    relatorios?: Array<{
+      id: string;
+      tipo: string;
+      numero: number | null;
+      projetoId: string;
+      projetoCodigo: string | null;
+      horas: number;
+    }>;
+  }>;
   custo: number | null;
   custoHora: number | null;
   /** Parcela proporcional do custo apropriado correspondente às horas de deslocamento. */
@@ -746,8 +758,16 @@ export interface ProjectDetail {
   };
   alerts: ProjectAlert[];
   avancoMethod?: ProgressMethod | GroupProgressMethod | null;
-  diasCorridos: { elapsed: number | null; planned: number | null; pct: number | null };
-  diasTrabalhados: { worked: number; planned: number | null; pct: number | null };
+  diasCorridos: {
+    elapsed: number | null;
+    planned: number | null;
+    pct: number | null;
+  };
+  diasTrabalhados: {
+    worked: number;
+    planned: number | null;
+    pct: number | null;
+  };
   consumo: {
     gasto: number;
     omie: number;
@@ -768,7 +788,13 @@ export interface ProjectDetail {
     notas: number;
   };
   budgetBreakdown?: BudgetBreakdown | null;
-  maoDeObra: { custo: number | null; custoBase: number | null; horas: number | null; periodStart: string | null; periodEnd: string | null };
+  maoDeObra: {
+    custo: number | null;
+    custoBase: number | null;
+    horas: number | null;
+    periodStart: string | null;
+    periodEnd: string | null;
+  };
   presumedProfitTaxes: PresumedProfitTaxEstimate | null;
   workedHours: WorkedHoursProgress;
   maioresGastos: Array<{ categoria: string; total: number }>;
@@ -777,10 +803,15 @@ export interface ProjectDetail {
   progressHistory?: ProgressHistoryPoint[];
   requiredWeeklyProgress?: RequiredWeeklyProgress;
   standby: { count: number; minutes: number };
-  ultimosDias: Array<{ date: string; status: DayStatus; workedMinutes: number; standbyMinutes: number }>;
+  ultimosDias: Array<{
+    date: string;
+    status: DayStatus;
+    workedMinutes: number;
+    standbyMinutes: number;
+  }>;
   overtimeMinutes: number;
   colaboradores: ProjectDetailCollaborator[];
-  equipamentos: Array<{ name: string; days: number; since: string }>;
+  equipamentos: Array<{ code: string | null; name: string; days: number; since: string }>;
   plannedScope?: PlannedScope;
   footer: {
     mobilizationDate: string | null;
@@ -791,30 +822,53 @@ export interface ProjectDetail {
 }
 
 export async function getProjectDetail(projectId: string): Promise<ProjectDetail> {
-  const { data } = await apiClient.get<ProjectDetail>(
-    `/acompanhamento/comercial/projetos/${projectId}/detalhe`
-  );
+  const { data } = await apiClient.get<ProjectDetail>(`/acompanhamento/comercial/projetos/${projectId}/detalhe`);
   return data;
 }
 
 export async function getMissionGroupDetail(groupId: string): Promise<ProjectDetail> {
-  const { data } = await apiClient.get<ProjectDetail>(
-    `/acompanhamento/comercial/grupos-missoes/${groupId}/detalhe`
-  );
+  const { data } = await apiClient.get<ProjectDetail>(`/acompanhamento/comercial/grupos-missoes/${groupId}/detalhe`);
+  return data;
+}
+
+export interface ProjectRomaneio {
+  id: string;
+  type: 'OUTBOUND' | 'INBOUND';
+  romaneioDate: string;
+  vehiclePlate: string;
+  project: { id: string; code: string; name: string | null };
+  items: Array<{
+    id: string;
+    itemCode: string | null;
+    itemName: string;
+    categoryName: string;
+    quantity: string | number;
+    unitLabel: string;
+    isCustom: boolean;
+    isExtra: boolean;
+  }>;
+}
+
+export interface ProjectRomaneiosResponse {
+  romaneios: ProjectRomaneio[];
+}
+
+export async function getProjectRomaneios(projectId: string): Promise<ProjectRomaneiosResponse> {
+  const { data } = await apiClient.get<ProjectRomaneiosResponse>(`/acompanhamento/comercial/projetos/${projectId}/romaneios`);
+  return data;
+}
+
+export async function getMissionGroupRomaneios(groupId: string): Promise<ProjectRomaneiosResponse> {
+  const { data } = await apiClient.get<ProjectRomaneiosResponse>(`/acompanhamento/comercial/grupos-missoes/${groupId}/romaneios`);
   return data;
 }
 
 export async function createManualProjectCost(projectId: string, payload: ManualProjectCostPayload): Promise<ManualProjectCost> {
-  const { data } = await apiClient.post<ManualProjectCost>(
-    `/acompanhamento/comercial/projetos/${projectId}/custos-manuais`,
-    payload
-  );
+  const { data } = await apiClient.post<ManualProjectCost>(`/acompanhamento/comercial/projetos/${projectId}/custos-manuais`, payload);
   return data;
 }
 
 export async function deleteManualProjectCost(projectId: string, costId: string): Promise<{ ok: true; id: string }> {
-  const { data } = await apiClient.delete<{ ok: true; id: string }>(
-    `/acompanhamento/comercial/projetos/${projectId}/custos-manuais/${costId}`
-  );
+  const { data } = await apiClient.delete<{ ok: true; id: string }>(`/acompanhamento/comercial/projetos/${projectId}/custos-manuais/${costId}`);
   return data;
 }

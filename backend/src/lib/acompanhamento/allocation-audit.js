@@ -12,7 +12,7 @@ import { computeCollaboratorRates } from './labor-cost.js';
 import { extractMissionCode, normalizeProjectTag } from '../pontomais/normalize.js';
 
 // O cálculo completo é caro (mescla todos os imports + relatórios do período). O painel usa
-// polling, então memorizamos por impressão digital dos dados de entrada: 5 agregações baratas
+// polling, então memorizamos por impressão digital dos dados de entrada: agregações baratas
 // evitam o recálculo enquanto nada mudou, e qualquer escrita relevante invalida sozinha.
 let cache = { fingerprint: null, value: null };
 
@@ -27,7 +27,8 @@ async function currentFingerprint() {
     ignoredTags,
     effectivePlans,
     effectiveMissions,
-    effectiveAllocations
+    effectiveAllocations,
+    collaboratorRoleHistory
   ] = await Promise.all([
     prisma.pontoImport.aggregate({ _count: { _all: true }, _max: { createdAt: true } }),
     prisma.report.aggregate({ _count: { _all: true }, _max: { updatedAt: true } }),
@@ -38,7 +39,8 @@ async function currentFingerprint() {
     prisma.pontoIgnoredProjectTag.aggregate({ _count: { _all: true }, _max: { updatedAt: true } }),
     prisma.efetivoPlan.aggregate({ _count: { _all: true }, _max: { updatedAt: true } }),
     prisma.efetivoMissionPlan.aggregate({ _count: { _all: true }, _max: { updatedAt: true } }),
-    prisma.efetivoMissionAllocation.aggregate({ _count: { _all: true }, _max: { updatedAt: true } })
+    prisma.efetivoMissionAllocation.aggregate({ _count: { _all: true }, _max: { updatedAt: true } }),
+    prisma.collaboratorJobRoleHistory.aggregate({ _count: { _all: true }, _max: { updatedAt: true } })
   ]);
   return JSON.stringify([
     imports._count._all, imports._max.createdAt,
@@ -50,7 +52,8 @@ async function currentFingerprint() {
     ignoredTags._count._all, ignoredTags._max.updatedAt,
     effectivePlans._count._all, effectivePlans._max.updatedAt,
     effectiveMissions._count._all, effectiveMissions._max.updatedAt,
-    effectiveAllocations._count._all, effectiveAllocations._max.updatedAt
+    effectiveAllocations._count._all, effectiveAllocations._max.updatedAt,
+    collaboratorRoleHistory._count._all, collaboratorRoleHistory._max.updatedAt
   ]);
 }
 

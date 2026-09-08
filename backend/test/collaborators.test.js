@@ -47,6 +47,12 @@ test('collaborator schema normalizes termination date for Prisma and accepts cle
   assert.throws(() => collaboratorSchema.partial().parse({ terminationDate: '21/08/2026' }));
 });
 
+test('collaborator schema normalizes job role effective date for Prisma', () => {
+  const parsed = collaboratorSchema.partial().parse({ jobRoleEffectiveDate: '2026-08-21' });
+  assert.equal(parsed.jobRoleEffectiveDate.toISOString(), '2026-08-21T00:00:00.000Z');
+  assert.throws(() => collaboratorSchema.partial().parse({ jobRoleEffectiveDate: '21/08/2026' }));
+});
+
 test('collaborator signature notice is required for new signature images', () => {
   assert.throws(
     () => buildCollaboratorSignatureNoticeData({ signatureImage: 'data:image/png;base64,abc' }),

@@ -4,34 +4,27 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
+import { ACCOUNT_PASSWORD_SETUP_EXPIRES_LABEL, createPendingPasswordHash, issueAccountPasswordSetup } from '../../lib/accounts/password-setup.js';
 import { createPasswordResetToken, publicUser } from '../../lib/auth.js';
 import { missingClientAccessResetConfig, sendClientAccessResetEmail } from '../../lib/client-access-reset.js';
 import { projectHasClientSignerEmail } from '../../lib/client-project-access.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
 import { buildInternalUserWelcomeEmailTemplate, buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
 import { clientEmailsEnabled, getMissingMailerConfig, sendClientMail, sendMail } from '../../lib/mailer.js';
-import {
-  accountTypeForLegacyRole,
-  defaultPublicModuleRolesForLegacyRole,
-  moduleRoleRows,
-  normalizePublicModuleRoles,
-  prismaModuleRole,
-  publicModuleRolesForAccountType,
-  requiredLegacyRoleForPublicModuleRole,
-  serializeModuleRoles
-} from '../../lib/module-roles.js';
+import { accountTypeForLegacyRole, defaultPublicModuleRolesForLegacyRole, moduleRoleRows, normalizePublicModuleRoles, prismaModuleRole, publicModuleRolesForAccountType, requiredLegacyRoleForPublicModuleRole, serializeModuleRoles } from '../../lib/module-roles.js';
 import { hashPassword } from '../../lib/password.js';
 import prisma from '../../lib/prisma.js';
 import { deleteUserWithSignatureDocuments } from '../../lib/assinaturas/file-quarantine.js';
 import { userDeletionImpact } from '../../lib/assinaturas/service.js';
 import { requireAuth, requireHubAdmin } from '../../middleware/auth.js';
+import { normalizeReportEmissionPermissions } from '../../lib/operational-reports/permissions.js';
 
 const router = Router();
-const INTERNAL_ACCOUNT_ROLES = new Set([UserRole.MANAGER, UserRole.COLLABORATOR, UserRole.COORDINATOR]);
-const INTERNAL_ROLE_LABELS = {
+const ACCOUNT_ROLE_LABELS = {
   [UserRole.MANAGER]: 'gestor',
   [UserRole.COLLABORATOR]: 'colaborador',
-  [UserRole.COORDINATOR]: 'coordenador'
+  [UserRole.COORDINATOR]: 'coordenador',
+  [UserRole.CLIENT]: 'cliente'
 };
 
 const schema = z.object({
@@ -42,6 +35,7 @@ const schema = z.object({
   role: z.nativeEnum(UserRole),
   accountType: z.nativeEnum(AccountType).optional(),
   moduleRoles: z.array(z.string()).optional(),
+  reportEmissionPermissions: z.array(z.enum(['SITE_RDO', 'MAINTENANCE', 'PRODUCTION'])).optional(),
   isActive: z.boolean().optional(),
   collaboratorId: z.string().nullable().optional()
 });
@@ -95,12 +89,13 @@ function defaultModuleRolesForAccount(accountType, role) {
 
 function accountShapeChanged(data, existingUser) {
   if (!existingUser) return false;
-  return (data.role !== undefined && data.role !== existingUser.role)
-    || (data.accountType !== undefined && data.accountType !== existingUser.accountType);
+  return (data.role !== undefined && data.role !== existingUser.role) || (data.accountType !== undefined && data.accountType !== existingUser.accountType);
 }
 
 function normalizeAccountEmail(value) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .trim()
+    .toLowerCase();
 }
 
 function emailIdentifier(value) {
@@ -115,10 +110,7 @@ async function assertAccountEmailAvailable(email, currentUserId = null) {
   const conflict = await prisma.user.findFirst({
     where: {
       ...(currentUserId ? { id: { not: currentUserId } } : {}),
-      OR: [
-        { username: { equals: normalizedEmail, mode: 'insensitive' } },
-        { email: { equals: normalizedEmail, mode: 'insensitive' } }
-      ]
+      OR: [{ username: { equals: normalizedEmail, mode: 'insensitive' } }, { email: { equals: normalizedEmail, mode: 'insensitive' } }]
     },
     select: { id: true }
   });
@@ -146,9 +138,7 @@ export function resolveAccountPayload(data, existingUser = null) {
     throw error;
   }
 
-  const targetAccountType = data.accountType
-    || (data.role ? accountTypeForLegacyRole(data.role) : existingUser?.accountType)
-    || accountTypeForLegacyRole(existingUser?.role);
+  const targetAccountType = data.accountType || (data.role ? accountTypeForLegacyRole(data.role) : existingUser?.accountType) || accountTypeForLegacyRole(existingUser?.role);
   let role = data.role || existingUser?.role || UserRole.COLLABORATOR;
   let collaboratorId = data.collaboratorId !== undefined ? data.collaboratorId : existingUser?.collaboratorId || null;
 
@@ -171,10 +161,7 @@ export function resolveAccountPayload(data, existingUser = null) {
     }
     requestedModuleRoles = normalizePublicModuleRoles(data.moduleRoles);
   }
-  const moduleRoles = requestedModuleRoles
-    || (existingUser && !accountShapeChanged(data, existingUser) && Object.prototype.hasOwnProperty.call(existingUser, 'moduleRoles')
-      ? serializeModuleRoles(existingUser)
-      : defaultModuleRolesForAccount(targetAccountType, role));
+  const moduleRoles = requestedModuleRoles || (existingUser && !accountShapeChanged(data, existingUser) && Object.prototype.hasOwnProperty.call(existingUser, 'moduleRoles') ? serializeModuleRoles(existingUser) : defaultModuleRolesForAccount(targetAccountType, role));
 
   if (!moduleRoles.length && targetAccountType !== AccountType.INTERNAL) {
     const error = new Error('A conta deve possuir ao menos uma role de módulo.');
@@ -195,269 +182,345 @@ export function resolveAccountPayload(data, existingUser = null) {
   }
 
   assertRoleAccountCompatibility(targetAccountType, role, moduleRoles);
+  const reportEmissionPermissions = data.reportEmissionPermissions !== undefined ? normalizeReportEmissionPermissions(data.reportEmissionPermissions, targetAccountType) : normalizeReportEmissionPermissions(existingUser?.reportEmissionPermissions || [], targetAccountType);
 
   return {
     accountType: targetAccountType,
     role,
     collaboratorId,
-    moduleRoles
+    moduleRoles,
+    reportEmissionPermissions
   };
 }
 
-function queueInternalAccountMail(message, meta) {
+function queueAccountSetupMail(user, message, meta) {
+  if (!clientEmailsEnabled()) return false;
+
   const missingMailerConfig = getMissingMailerConfig();
-  if (missingMailerConfig.length) {
-    console.warn('Notificação de conta interna não enviada por falta de configuração SMTP.', {
+  const missingConfig = [...missingMailerConfig.map(item => `SMTP ${item}`), ...(!env.appUrl ? ['APP_URL'] : [])];
+  if (missingConfig.length) {
+    console.warn('Convite para definição de senha não enviado por falta de configuração.', {
+      missingConfig,
       missingMailerConfig,
       meta
     });
-    return;
+    return false;
   }
 
   setImmediate(() => {
-    sendMail(message).catch(error => {
-      console.error('Falha ao enviar notificação da conta interna.', {
+    const mailer = user.role === UserRole.CLIENT ? sendClientMail : sendMail;
+    mailer(message).catch(error => {
+      console.error('Falha ao enviar convite para definição de senha.', {
         meta,
         error: error?.message || error
       });
     });
   });
+  return true;
 }
 
 router.use(requireAuth, requireHubAdmin);
 
-router.get('/', asyncHandler(async (req, res) => {
-  const group = String(req.query.group || '').trim().toLowerCase();
-  const where = {};
-  if (group === 'internal') {
-    where.role = { in: [UserRole.MANAGER, UserRole.COLLABORATOR, UserRole.COORDINATOR] };
-  } else if (group === 'client') {
-    where.role = UserRole.CLIENT;
-  }
+router.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    const group = String(req.query.group || '')
+      .trim()
+      .toLowerCase();
+    const where = {};
+    if (group === 'internal') {
+      where.role = {
+        in: [UserRole.MANAGER, UserRole.COLLABORATOR, UserRole.COORDINATOR]
+      };
+    } else if (group === 'client') {
+      where.role = UserRole.CLIENT;
+    }
 
-  const users = await prisma.user.findMany({
-    where,
-    include: { collaborator: { include: { jobRole: true } }, moduleRoles: true },
-    orderBy: [{ role: 'asc' }, { name: 'asc' }]
-  });
-
-  const clientUsers = users.filter(user => user.role === UserRole.CLIENT);
-
-  const cnpjUsernames = clientUsers
-    .flatMap(u => [u.username, u.clientCnpj])
-    .filter(Boolean)
-    .map(value => String(value).replace(/\D/g, ''))
-    .filter(value => /^\d{14}$/.test(value));
-  const accountEmails = Array.from(new Set(clientUsers
-    .flatMap(u => [u.username, u.email])
-    .filter(Boolean)
-    .map(e => String(e).trim().toLowerCase())
-    .filter(e => e.includes('@'))));
-
-  const linkedProjectSelect = {
-    id: true,
-    clientCnpj: true,
-    clientEmailPrimary: true,
-    clientEmailCc: true,
-    clientSigners: true,
-    code: true,
-    name: true,
-    contractCode: true,
-    isActive: true
-  };
-  const directLinkedProjects = clientUsers.length
-    ? await prisma.project.findMany({
-        where: {
-          managerOnly: false,
-          deletedAt: null,
-          OR: [
-            ...(cnpjUsernames.length ? [{ clientCnpj: { in: cnpjUsernames } }] : []),
-            ...(accountEmails.length ? [
-              ...accountEmails.map(email => ({ clientEmailPrimary: { equals: email, mode: 'insensitive' } })),
-              { clientEmailCc: { hasSome: accountEmails } }
-            ] : [])
-          ]
-        },
-        orderBy: [{ name: 'asc' }],
-        select: linkedProjectSelect
-      })
-    : [];
-  const signerLinkedProjects = clientUsers.length && accountEmails.length
-    ? (await prisma.project.findMany({
-        where: {
-          managerOnly: false,
-          deletedAt: null
-        },
-        orderBy: [{ name: 'asc' }],
-        select: linkedProjectSelect
-      })).filter(project => projectHasClientSignerEmail(project, accountEmails))
-    : [];
-  const linkedProjects = Array.from(new Map([
-    ...directLinkedProjects,
-    ...signerLinkedProjects
-  ].map(project => [project.id, project])).values());
-
-  res.json(users.map(user => {
-    const isCnpj = /^\d{14}$/.test(user.username);
-    const storedClientCnpj = String(user.clientCnpj || '').replace(/\D/g, '') || null;
-    const userEmail = String(user.email || '').toLowerCase();
-    const projects = linkedProjects.filter(p => {
-      if ((isCnpj && p.clientCnpj === user.username) || (storedClientCnpj && p.clientCnpj === storedClientCnpj)) return true;
-      if (!isCnpj && userEmail && String(p.clientEmailPrimary || '').toLowerCase() === userEmail) return true;
-      if (!isCnpj && userEmail && Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail)) return true;
-      if (!isCnpj && userEmail && projectHasClientSignerEmail(p, [userEmail])) return true;
-      return false;
+    const users = await prisma.user.findMany({
+      where,
+      include: {
+        collaborator: { include: { jobRole: true } },
+        moduleRoles: true
+      },
+      orderBy: [{ role: 'asc' }, { name: 'asc' }]
     });
-    return {
-      ...publicUser(user),
-      linkedProjects: projects,
-      clientCnpj: storedClientCnpj || (isCnpj ? user.username : (linkedProjects.find(p =>
-        String(p.clientEmailPrimary || '').toLowerCase() === userEmail
-        || (Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail))
-        || projectHasClientSignerEmail(p, [userEmail])
-      )?.clientCnpj || null))
+
+    const clientUsers = users.filter(user => user.role === UserRole.CLIENT);
+
+    const cnpjUsernames = clientUsers
+      .flatMap(u => [u.username, u.clientCnpj])
+      .filter(Boolean)
+      .map(value => String(value).replace(/\D/g, ''))
+      .filter(value => /^\d{14}$/.test(value));
+    const accountEmails = Array.from(
+      new Set(
+        clientUsers
+          .flatMap(u => [u.username, u.email])
+          .filter(Boolean)
+          .map(e => String(e).trim().toLowerCase())
+          .filter(e => e.includes('@'))
+      )
+    );
+
+    const linkedProjectSelect = {
+      id: true,
+      clientCnpj: true,
+      clientEmailPrimary: true,
+      clientEmailCc: true,
+      clientSigners: true,
+      code: true,
+      name: true,
+      contractCode: true,
+      isActive: true
     };
-  }));
-}));
+    const directLinkedProjects = clientUsers.length
+      ? await prisma.project.findMany({
+          where: {
+            managerOnly: false,
+            deletedAt: null,
+            OR: [
+              ...(cnpjUsernames.length ? [{ clientCnpj: { in: cnpjUsernames } }] : []),
+              ...(accountEmails.length
+                ? [
+                    ...accountEmails.map(email => ({
+                      clientEmailPrimary: {
+                        equals: email,
+                        mode: 'insensitive'
+                      }
+                    })),
+                    { clientEmailCc: { hasSome: accountEmails } }
+                  ]
+                : [])
+            ]
+          },
+          orderBy: [{ name: 'asc' }],
+          select: linkedProjectSelect
+        })
+      : [];
+    const signerLinkedProjects =
+      clientUsers.length && accountEmails.length
+        ? (
+            await prisma.project.findMany({
+              where: {
+                managerOnly: false,
+                deletedAt: null
+              },
+              orderBy: [{ name: 'asc' }],
+              select: linkedProjectSelect
+            })
+          ).filter(project => projectHasClientSignerEmail(project, accountEmails))
+        : [];
+    const linkedProjects = Array.from(new Map([...directLinkedProjects, ...signerLinkedProjects].map(project => [project.id, project])).values());
 
-router.post('/', asyncHandler(async (req, res) => {
-  const data = schema.parse(req.body);
-  if (!data.password) {
-    return res.status(400).json({ error: 'Senha obrigatória para novo usuário.' });
-  }
+    res.json(
+      users.map(user => {
+        const isCnpj = /^\d{14}$/.test(user.username);
+        const storedClientCnpj = String(user.clientCnpj || '').replace(/\D/g, '') || null;
+        const userEmail = String(user.email || '').toLowerCase();
+        const projects = linkedProjects.filter(p => {
+          if ((isCnpj && p.clientCnpj === user.username) || (storedClientCnpj && p.clientCnpj === storedClientCnpj)) return true;
+          if (!isCnpj && userEmail && String(p.clientEmailPrimary || '').toLowerCase() === userEmail) return true;
+          if (!isCnpj && userEmail && Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail)) return true;
+          if (!isCnpj && userEmail && projectHasClientSignerEmail(p, [userEmail])) return true;
+          return false;
+        });
+        return {
+          ...publicUser(user),
+          linkedProjects: projects,
+          clientCnpj: storedClientCnpj || (isCnpj ? user.username : linkedProjects.find(p => String(p.clientEmailPrimary || '').toLowerCase() === userEmail || (Array.isArray(p.clientEmailCc) && p.clientEmailCc.some(cc => cc.toLowerCase() === userEmail)) || projectHasClientSignerEmail(p, [userEmail]))?.clientCnpj || null)
+        };
+      })
+    );
+  })
+);
 
-  const accountPayload = resolveAccountPayload(data);
-  await assertAccountEmailAvailable(data.email);
-  await assertAccountEmailAvailable(data.username);
-  const passwordHash = await hashPassword(data.password);
-  const user = await prisma.user.create({
-    data: {
-      username: data.username,
-      name: data.name,
-      email: data.email || null,
-      emailVerifiedAt: data.email ? new Date() : null,
-      passwordHash,
+router.post(
+  '/',
+  asyncHandler(async (req, res) => {
+    const data = schema.parse(req.body);
+
+    const accountPayload = resolveAccountPayload(data);
+    await assertAccountEmailAvailable(data.email);
+    await assertAccountEmailAvailable(data.username);
+    const passwordHash = await createPendingPasswordHash();
+    const { user, passwordSetup } = await prisma.$transaction(async tx => {
+      const createdUser = await tx.user.create({
+        data: {
+          username: data.username,
+          name: data.name,
+          email: data.email || null,
+          emailVerifiedAt: data.email ? new Date() : null,
+          passwordHash,
+          role: accountPayload.role,
+          accountType: accountPayload.accountType,
+          clientCnpj: clientCnpjForAccount(data.username, accountPayload.accountType),
+          isActive: data.isActive ?? true,
+          collaboratorId: accountPayload.collaboratorId || null,
+          reportEmissionPermissions: accountPayload.reportEmissionPermissions,
+          moduleRoles: {
+            create: moduleRoleRows('', accountPayload.moduleRoles).map(({ module, role }) => ({ module, role }))
+          }
+        },
+        include: {
+          collaborator: { include: { jobRole: true } },
+          moduleRoles: true
+        }
+      });
+      const setup = await issueAccountPasswordSetup({
+        userId: createdUser.id,
+        prismaClient: tx,
+        envConfig: env,
+        createToken: createPasswordResetToken
+      });
+      return { user: createdUser, passwordSetup: setup };
+    });
+
+    let delivery = 'manual';
+    if (user.email) {
+      const template = buildInternalUserWelcomeEmailTemplate({
+        userName: user.name,
+        username: user.username,
+        setupUrl: passwordSetup.url,
+        expiresLabel: ACCOUNT_PASSWORD_SETUP_EXPIRES_LABEL,
+        roleLabel: ACCOUNT_ROLE_LABELS[user.role] || 'usuário'
+      });
+      const scheduled = queueAccountSetupMail(
+        user,
+        {
+          to: user.email,
+          ...template
+        },
+        {
+          type: 'account-password-setup',
+          userId: user.id,
+          role: user.role
+        }
+      );
+      if (scheduled) delivery = 'email';
+    }
+
+    res.status(201).json({
+      ...publicUser(user),
+      passwordSetup: {
+        url: delivery === 'manual' ? passwordSetup.url : null,
+        expiresAt: passwordSetup.expiresAt,
+        delivery
+      }
+    });
+  })
+);
+
+router.put(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const data = schema.partial().parse(req.body);
+    const currentUser = await prisma.user.findUniqueOrThrow({
+      where: { id: req.params.id },
+      include: { moduleRoles: true }
+    });
+    const accountPayload = resolveAccountPayload(data, currentUser);
+    if (data.email !== undefined) {
+      await assertAccountEmailAvailable(data.email, req.params.id);
+    }
+    if (data.username !== undefined) {
+      await assertAccountEmailAvailable(data.username, req.params.id);
+    }
+    const payload = {
+      ...(data.username !== undefined ? { username: data.username } : {}),
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.email !== undefined
+        ? {
+            email: data.email || null,
+            emailVerifiedAt: data.email ? new Date() : null
+          }
+        : {}),
       role: accountPayload.role,
       accountType: accountPayload.accountType,
-      clientCnpj: clientCnpjForAccount(data.username, accountPayload.accountType),
-      isActive: data.isActive ?? true,
+      clientCnpj: clientCnpjForAccount(data.username !== undefined ? data.username : currentUser.username, accountPayload.accountType),
+      ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
       collaboratorId: accountPayload.collaboratorId || null,
-      moduleRoles: {
-        create: moduleRoleRows('', accountPayload.moduleRoles).map(({ module, role }) => ({ module, role }))
-      }
-    },
-    include: { collaborator: { include: { jobRole: true } }, moduleRoles: true }
-  });
-
-  if (user.email && INTERNAL_ACCOUNT_ROLES.has(user.role)) {
-    const template = buildInternalUserWelcomeEmailTemplate({
-      userName: user.name,
-      username: user.username,
-      password: data.password,
-      roleLabel: INTERNAL_ROLE_LABELS[user.role],
-      appUrl: env.appUrl
-    });
-    queueInternalAccountMail({
-      to: user.email,
-      ...template
-    }, {
-      type: 'internal-account-welcome',
-      userId: user.id,
-      role: user.role
-    });
-  }
-
-  res.status(201).json(publicUser(user));
-}));
-
-router.put('/:id', asyncHandler(async (req, res) => {
-  const data = schema.partial().parse(req.body);
-  const currentUser = await prisma.user.findUniqueOrThrow({
-    where: { id: req.params.id },
-    include: { moduleRoles: true }
-  });
-  const accountPayload = resolveAccountPayload(data, currentUser);
-  if (data.email !== undefined) {
-    await assertAccountEmailAvailable(data.email, req.params.id);
-  }
-  if (data.username !== undefined) {
-    await assertAccountEmailAvailable(data.username, req.params.id);
-  }
-  const payload = {
-    ...(data.username !== undefined ? { username: data.username } : {}),
-    ...(data.name !== undefined ? { name: data.name } : {}),
-    ...(data.email !== undefined ? {
-      email: data.email || null,
-      emailVerifiedAt: data.email ? new Date() : null
-    } : {}),
-    role: accountPayload.role,
-    accountType: accountPayload.accountType,
-    clientCnpj: clientCnpjForAccount(data.username !== undefined ? data.username : currentUser.username, accountPayload.accountType),
-    ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
-    collaboratorId: accountPayload.collaboratorId || null,
-    ...(data.password ? { passwordHash: await hashPassword(data.password) } : {}),
-    ...(data.moduleRoles !== undefined || accountShapeChanged(data, currentUser)
-      ? {
-          moduleRoles: {
-            deleteMany: {},
-            create: moduleRoleRows(req.params.id, accountPayload.moduleRoles).map(({ module, role }) => ({ module, role }))
+      reportEmissionPermissions: accountPayload.reportEmissionPermissions,
+      ...(data.password ? { passwordHash: await hashPassword(data.password) } : {}),
+      ...(data.moduleRoles !== undefined || accountShapeChanged(data, currentUser)
+        ? {
+            moduleRoles: {
+              deleteMany: {},
+              create: moduleRoleRows(req.params.id, accountPayload.moduleRoles).map(({ module, role }) => ({ module, role }))
+            }
           }
-        }
-      : {})
-  };
+        : {})
+    };
 
-  const user = await prisma.user.update({
-    where: { id: req.params.id },
-    data: payload,
-    include: { collaborator: { include: { jobRole: true } }, moduleRoles: true }
-  });
-
-  res.json(publicUser(user));
-}));
-
-router.get('/:id/impacto', asyncHandler(async (req, res) => {
-  await prisma.user.findUniqueOrThrow({ where: { id: req.params.id }, select: { id: true } });
-  const assinaturas = await userDeletionImpact(prisma, req.params.id);
-  res.json({ assinaturas });
-}));
-
-router.delete('/:id', asyncHandler(async (req, res) => {
-  await deleteUserWithSignatureDocuments(prisma, req.params.id, {
-    actorUserId: req.user?.id || null
-  });
-  res.status(204).end();
-}));
-
-router.post('/:id/resend-client-access', asyncHandler(async (req, res) => {
-  const user = await prisma.user.findUniqueOrThrow({
-    where: { id: req.params.id }
-  });
-
-  if (user.role !== UserRole.CLIENT) {
-    return res.status(400).json({ error: 'Esta ação é exclusiva para contas CLIENT.' });
-  }
-
-  if (!user.email) {
-    return res.status(400).json({ error: 'A conta CLIENT não possui e-mail principal cadastrado.' });
-  }
-
-  const missingConfig = missingClientAccessResetConfig(env, getMissingMailerConfig());
-  if (clientEmailsEnabled() && missingConfig.length) {
-    return res.status(400).json({
-      error: `Configuração ausente: ${missingConfig.join(', ')}`
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data: payload,
+      include: {
+        collaborator: { include: { jobRole: true } },
+        moduleRoles: true
+      }
     });
-  }
 
-  await sendClientAccessResetEmail({
-    user,
-    prismaClient: prisma,
-    envConfig: env,
-    createToken: createPasswordResetToken,
-    mailer: sendClientMail,
-    templateBuilder: buildPasswordResetEmailTemplate
-  });
+    res.json(publicUser(user));
+  })
+);
 
-  res.json({ ok: true });
-}));
+router.get(
+  '/:id/impacto',
+  asyncHandler(async (req, res) => {
+    await prisma.user.findUniqueOrThrow({
+      where: { id: req.params.id },
+      select: { id: true }
+    });
+    const assinaturas = await userDeletionImpact(prisma, req.params.id);
+    res.json({ assinaturas });
+  })
+);
+
+router.delete(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    await deleteUserWithSignatureDocuments(prisma, req.params.id, {
+      actorUserId: req.user?.id || null
+    });
+    res.status(204).end();
+  })
+);
+
+router.post(
+  '/:id/resend-client-access',
+  asyncHandler(async (req, res) => {
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: req.params.id }
+    });
+
+    if (user.role !== UserRole.CLIENT) {
+      return res.status(400).json({ error: 'Esta ação é exclusiva para contas CLIENT.' });
+    }
+
+    if (!user.email) {
+      return res.status(400).json({
+        error: 'A conta CLIENT não possui e-mail principal cadastrado.'
+      });
+    }
+
+    const missingConfig = missingClientAccessResetConfig(env, getMissingMailerConfig());
+    if (clientEmailsEnabled() && missingConfig.length) {
+      return res.status(400).json({
+        error: `Configuração ausente: ${missingConfig.join(', ')}`
+      });
+    }
+
+    await sendClientAccessResetEmail({
+      user,
+      prismaClient: prisma,
+      envConfig: env,
+      createToken: createPasswordResetToken,
+      mailer: sendClientMail,
+      templateBuilder: buildPasswordResetEmailTemplate
+    });
+
+    res.json({ ok: true });
+  })
+);
 
 export default router;

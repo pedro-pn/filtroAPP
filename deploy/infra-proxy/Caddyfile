@@ -21,3 +21,8 @@ relatorios.filtrovali.com.br {
 filtroboard.filtrovali.com.br {
 	reverse_proxy host.docker.internal:8081
 }
+
+# --- Prisma (app publica em 172.17.0.1:8082) -------------------------------
+whatsapp.prismacrm.filtrovali.com.br {
+	reverse_proxy host.docker.internal:8082
+}

@@ -29,7 +29,10 @@
     "audit:report-files": "node scripts/audit-report-files.js",
     "benchmark:assinaturas": "node scripts/benchmark-assinaturas.js",
     "repair:report-file-paths": "node scripts/repair-report-file-paths.js",
-    "import:rdo-manual-pdfs": "node scripts/import-manual-rdo-pdfs.js"
+    "import:rdo-manual-pdfs": "node scripts/import-manual-rdo-pdfs.js",
+    "extract:legacy-maintenance": "node scripts/extract-legacy-maintenance-history.js",
+    "download:legacy-maintenance-assets": "node scripts/download-legacy-maintenance-assets.js",
+    "import:legacy-maintenance": "node scripts/import-legacy-maintenance-history.js"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.8",
@@ -43,22 +46,24 @@
     "express": "^5.2.1",
     "heic-convert": "^2.1.0",
     "helmet": "^8.3.0",
+    "ipaddr.js": "^2.5.0",
     "mdb-reader": "^3.2.0",
     "morgan": "^1.11.0",
     "nodemailer": "^9.0.5",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^6.1.200",
+    "pdfjs-dist": "^6.3.289",
     "pg": "^8.23.0",
-    "sharp": "^0.35.3",
+    "sharp": "^0.35.4",
     "tesseract.js": "^7.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "prisma": "^7.9.0"
+    "prisma": "^7.9.0",
+    "yaml": "^2.9.0"
   },
   "overrides": {
     "deepmerge-ts": "8.0.1",
-    "fast-uri": "3.1.5",
+    "fast-uri": "3.1.7",
     "fast-xml-parser": "5.10.1",
     "find-my-way": "9.7.0",
     "mysql2": "3.24.2"

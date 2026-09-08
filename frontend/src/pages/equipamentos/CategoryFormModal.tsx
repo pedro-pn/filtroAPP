@@ -44,6 +44,7 @@ export function CategoryFormModal({ open, category, saving, unitsCatalog, onClos
   const [name, setName] = useState(category?.name || '');
   const [supportsCalibration, setSupportsCalibration] = useState(Boolean(category?.supportsCalibration));
   const [supportsTechnicalDoc, setSupportsTechnicalDoc] = useState(category?.supportsTechnicalDoc ?? true);
+  const [showInMaintenance, setShowInMaintenance] = useState(category?.showInMaintenance ?? true);
   const [syncToRomaneio, setSyncToRomaneio] = useState(Boolean(category?.syncToRomaneio));
   const [checklistEnabled, setChecklistEnabled] = useState(Boolean(category?.checklistEnabled));
   const [checklistDisplayMode, setChecklistDisplayMode] = useState<ChecklistDisplayMode>(category?.checklistDisplayMode || 'AUTO');
@@ -62,6 +63,7 @@ export function CategoryFormModal({ open, category, saving, unitsCatalog, onClos
       name: name.trim(),
       supportsCalibration,
       supportsTechnicalDoc,
+      showInMaintenance,
       syncToRomaneio,
       checklistEnabled,
       checklistDisplayMode,
@@ -126,6 +128,10 @@ export function CategoryFormModal({ open, category, saving, unitsCatalog, onClos
             <span>Dados Técnicos (datasheet preenchível)</span>
           </label>
           <label className="equip-toggle">
+            <input type="checkbox" checked={showInMaintenance} onChange={e => setShowInMaintenance(e.target.checked)} />
+            <span>Exibir no módulo de manutenção</span>
+          </label>
+          <label className="equip-toggle">
             <input type="checkbox" checked={syncToRomaneio} onChange={e => setSyncToRomaneio(e.target.checked)} />
             <span>Sincronizar com o Romaneio</span>
           </label>
@@ -165,16 +171,18 @@ export function CategoryFormModal({ open, category, saving, unitsCatalog, onClos
             <div className="equip-field-row" key={index}>
               <input
                 type="text"
+                aria-label={`Rótulo do campo ${index + 1}`}
                 placeholder="Rótulo"
                 value={field.label}
                 onChange={e => updateField(index, { label: e.target.value })}
               />
-              <select value={field.type} onChange={e => updateField(index, { type: e.target.value as EquipmentFieldType })}>
+              <select aria-label={`Tipo do campo ${index + 1}`} value={field.type} onChange={e => updateField(index, { type: e.target.value as EquipmentFieldType })}>
                 {fieldTypes.map(ft => <option key={ft.value} value={ft.value}>{ft.label}</option>)}
               </select>
               {field.type === 'select' && (
                 <input
                   type="text"
+                  aria-label={`Opções do campo ${index + 1}`}
                   placeholder="Opções (vírgula)"
                   value={(field.options || []).join(', ')}
                   onChange={e => updateField(index, { options: e.target.value.split(',').map(o => o.trim()) })}

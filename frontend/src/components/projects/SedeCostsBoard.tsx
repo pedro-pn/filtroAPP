@@ -1,26 +1,10 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useSearchParams } from 'react-router';
 
 import { getSedeCosts, type SedeCostCard, type SedeMonthlyCost } from '../../api/acompanhamentoComercial';
-import {
-  SEDE_MONTH_OPTIONS,
-  currentSedeDate,
-  currentSedeMonth,
-  formatSedeCustomRangeLabel,
-  formatSedeMonthLabel,
-  formatSedeQuarterLabel,
-  formatSedeSemesterLabel,
-  quarterFromMonth,
-  sedeCustomDateRange,
-  sedeMonthRangeFromParts,
-  sedeQuarterRange,
-  sedeSemesterRange,
-  sedeYearRange,
-  semesterFromMonth,
-  type SedePeriodRange,
-  type SedePeriodType,
-  yearFromMonth
-} from '../../utils/sedePeriods';
+import { SEDE_MONTH_OPTIONS, currentSedeDate, currentSedeMonth, formatSedeCustomRangeLabel, formatSedeMonthLabel, formatSedeQuarterLabel, formatSedeSemesterLabel, quarterFromMonth, sedeCustomDateRange, sedeMonthRangeFromParts, sedeQuarterRange, sedeSemesterRange, sedeYearRange, semesterFromMonth, type SedePeriodRange, type SedePeriodType, yearFromMonth } from '../../utils/sedePeriods';
+import { SedeOperationalCards } from './SedeOperationalCards';
 
 const ALL_PERIOD_MONTHS_LIMIT = 6;
 
@@ -34,13 +18,14 @@ const PERIOD_TYPES: Array<{ key: SedePeriodType; label: string }> = [
 ];
 
 function brl(value?: number | null) {
-  return value === null || value === undefined ? '—'
+  return value === null || value === undefined
+    ? '—'
     : value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
 }
 
 function formatDate(iso?: string | null) {
@@ -66,15 +51,7 @@ function MonthRow({ month, maxValue }: { month: SedeMonthlyCost; maxValue: numbe
   );
 }
 
-function SedeCard({
-  card,
-  monthTitle,
-  monthlyLimit
-}: {
-  card: SedeCostCard;
-  monthTitle: string;
-  monthlyLimit?: number;
-}) {
+function SedeCard({ card, monthTitle, monthlyLimit }: { card: SedeCostCard; monthTitle: string; monthlyLimit?: number }) {
   const visibleMonthly = monthlyLimit ? card.monthly.slice(0, monthlyLimit) : card.monthly;
   const maxValue = maxMonthlyValue(visibleMonthly);
   return (
@@ -83,7 +60,9 @@ function SedeCard({
         <strong>{card.code}</strong>
         <span className="acp-pcard-name">{card.label}</span>
       </div>
-      <div className="acp-pcard-client">{card.count} lançamento{card.count === 1 ? '' : 's'} no Omie</div>
+      <div className="acp-pcard-client">
+        {card.count} lançamento{card.count === 1 ? '' : 's'} no Omie
+      </div>
 
       <div className="acp-sede-total">{brl(card.total)}</div>
 
@@ -104,9 +83,13 @@ function SedeCard({
         <div className="acp-sede-block-title">{monthTitle}</div>
         {visibleMonthly.length ? (
           <div className="acp-sede-months">
-            {visibleMonthly.map(month => <MonthRow key={month.month} month={month} maxValue={maxValue} />)}
+            {visibleMonthly.map(month => (
+              <MonthRow key={month.month} month={month} maxValue={maxValue} />
+            ))}
           </div>
-        ) : <div className="placeholder-copy">Sem custos lançados.</div>}
+        ) : (
+          <div className="placeholder-copy">Sem custos lançados.</div>
+        )}
       </div>
 
       <div className="acp-sede-block">
@@ -120,29 +103,36 @@ function SedeCard({
               </div>
             ))}
           </div>
-        ) : <div className="placeholder-copy">Sem categorias.</div>}
+        ) : (
+          <div className="placeholder-copy">Sem categorias.</div>
+        )}
       </div>
     </article>
   );
 }
 
 export function SedeCostsBoard() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const defaultDate = currentSedeDate();
   const defaultMonth = currentSedeMonth();
   const defaultYear = yearFromMonth(defaultMonth);
   const defaultMonthNumber = defaultMonth.slice(5, 7);
-  const [periodType, setPeriodType] = useState<SedePeriodType>('all');
-  const [monthNumberValue, setMonthNumberValue] = useState(defaultMonthNumber);
-  const [monthYear, setMonthYear] = useState(defaultYear);
+  const initialPeriod = PERIOD_TYPES.some(item => item.key === searchParams.get('periodo')) ? (searchParams.get('periodo') as SedePeriodType) : 'all';
+  const initialFrom = searchParams.get('de');
+  const initialTo = searchParams.get('ate');
+  const initialRange = initialFrom && initialTo && /^\d{4}-\d{2}$/.test(initialFrom) && /^\d{4}-\d{2}$/.test(initialTo) && initialFrom <= initialTo ? { from: initialFrom, to: initialTo } : null;
+  const [periodType, setPeriodType] = useState<SedePeriodType>(initialPeriod);
+  const [monthNumberValue, setMonthNumberValue] = useState(initialRange?.from.slice(5, 7) || defaultMonthNumber);
+  const [monthYear, setMonthYear] = useState(initialRange?.from.slice(0, 4) || defaultYear);
   const [quarterValue, setQuarterValue] = useState(quarterFromMonth(defaultMonth));
   const [quarterYear, setQuarterYear] = useState(defaultYear);
   const [semesterValue, setSemesterValue] = useState(semesterFromMonth(defaultMonth));
   const [semesterYear, setSemesterYear] = useState(defaultYear);
   const [yearValue, setYearValue] = useState(defaultYear);
-  const [customFrom, setCustomFrom] = useState(defaultDate);
-  const [customTo, setCustomTo] = useState(defaultDate);
-  const [activeRange, setActiveRange] = useState<SedePeriodRange | null>(null);
-  const [activePeriodLabel, setActivePeriodLabel] = useState('Todo o período');
+  const [customFrom, setCustomFrom] = useState(initialRange ? `${initialRange.from}-01` : defaultDate);
+  const [customTo, setCustomTo] = useState(initialRange ? `${initialRange.to}-28` : defaultDate);
+  const [activeRange, setActiveRange] = useState<SedePeriodRange | null>(initialRange);
+  const [activePeriodLabel, setActivePeriodLabel] = useState(initialRange ? formatSedeCustomRangeLabel(initialRange.from, initialRange.to) : 'Todo o período');
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['sede-costs', activeRange?.from ?? null, activeRange?.to ?? null],
@@ -161,6 +151,15 @@ export function SedeCostsBoard() {
   function applyRange(range: SedePeriodRange | null, label: string) {
     setActiveRange(range);
     setActivePeriodLabel(label);
+    const next = new URLSearchParams(searchParams);
+    if (range) {
+      next.set('de', range.from);
+      next.set('ate', range.to);
+    } else {
+      next.delete('de');
+      next.delete('ate');
+    }
+    setSearchParams(next, { replace: true });
   }
 
   function applyMonth(nextMonth: string, nextYear: string) {
@@ -197,6 +196,9 @@ export function SedeCostsBoard() {
 
   function handlePeriodTypeChange(nextType: SedePeriodType) {
     setPeriodType(nextType);
+    const next = new URLSearchParams(searchParams);
+    next.set('periodo', nextType);
+    setSearchParams(next, { replace: true });
 
     if (nextType === 'all') {
       applyRange(null, 'Todo o período');
@@ -239,12 +241,7 @@ export function SedeCostsBoard() {
           <label>Período</label>
           <div className="acp-seg" role="group" aria-label="Período dos custos da Sede">
             {PERIOD_TYPES.map(type => (
-              <button
-                key={type.key}
-                type="button"
-                className={periodType === type.key ? 'acp-seg-btn active' : 'acp-seg-btn'}
-                onClick={() => handlePeriodTypeChange(type.key)}
-              >
+              <button key={type.key} type="button" className={periodType === type.key ? 'acp-seg-btn active' : 'acp-seg-btn'} onClick={() => handlePeriodTypeChange(type.key)}>
                 {type.label}
               </button>
             ))}
@@ -256,7 +253,11 @@ export function SedeCostsBoard() {
             <div className="field-group">
               <label htmlFor="sede-month-select">Mês</label>
               <select id="sede-month-select" value={monthNumberValue} onChange={e => applyMonth(e.target.value, monthYear || defaultYear)}>
-                {SEDE_MONTH_OPTIONS.map(month => <option key={month.value} value={month.value}>{month.label}</option>)}
+                {SEDE_MONTH_OPTIONS.map(month => (
+                  <option key={month.value} value={month.value}>
+                    {month.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="field-group">
@@ -335,7 +336,9 @@ export function SedeCostsBoard() {
             </div>
             {customInvalid && (
               <div className="field-group">
-                <span className="placeholder-copy" role="alert">Mês final não pode ser anterior ao inicial.</span>
+                <span className="placeholder-copy" role="alert">
+                  Mês final não pode ser anterior ao inicial.
+                </span>
               </div>
             )}
           </>
@@ -345,7 +348,9 @@ export function SedeCostsBoard() {
       <div className="acp-kpis">
         <div className="acp-kpi">
           <span className="acp-kpi-label">Centros</span>
-          <span className="acp-kpi-value">{activeCards}/{cards.length}</span>
+          <span className="acp-kpi-value">
+            {activeCards}/{cards.length}
+          </span>
         </div>
         <div className="acp-kpi">
           <span className="acp-kpi-label">{activePeriodLabel}</span>
@@ -358,12 +363,18 @@ export function SedeCostsBoard() {
         <div className="acp-kpi acp-kpi-accent">
           <span className="acp-kpi-label">Em aberto</span>
           <span className="acp-kpi-value">{brl(data.summary.openTotal)}</span>
-          <span className="acp-kpi-foot">{data.summary.count} lançamento{data.summary.count === 1 ? '' : 's'}</span>
+          <span className="acp-kpi-foot">
+            {data.summary.count} lançamento{data.summary.count === 1 ? '' : 's'}
+          </span>
         </div>
       </div>
 
+      <SedeOperationalCards data={data.operational} />
+
       <div className="acp-pcards-grid acp-sede-grid">
-        {cards.map(card => <SedeCard key={card.code} card={card} monthTitle={monthTitle} monthlyLimit={monthlyLimit} />)}
+        {cards.map(card => (
+          <SedeCard key={card.code} card={card} monthTitle={monthTitle} monthlyLimit={monthlyLimit} />
+        ))}
       </div>
     </div>
   );
