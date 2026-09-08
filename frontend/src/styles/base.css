@@ -300,11 +300,12 @@
   padding: .25rem .5rem;
 }
 
-.api-token-reveal-modal {
+.modal-card.api-token-reveal-modal {
   display: flex;
   flex-direction: column;
-  max-height: min(90vh, 46rem);
-  max-width: min(92vw, 48rem);
+  width: min(100%, 60rem);
+  max-height: calc(100dvh - 36px);
+  padding: 0;
   overflow: hidden;
 }
 
@@ -362,22 +363,51 @@
   padding: .9rem 1.25rem;
 }
 
-.api-token-secret {
-  display: block;
-  font-family: ui-monospace, monospace;
-  min-height: 6rem;
-  overflow-wrap: anywhere;
-  resize: none;
-  width: 100%;
+.api-token-reveal-modal .api-modal-body {
+  display: grid;
+  gap: 1.5rem;
+  padding: clamp(1rem, 3vw, 2rem);
 }
+
+.api-token-reveal-header h2 { margin: 0 0 .5rem; }
+.api-token-reveal-header p,
+.api-token-reveal-section p { color: var(--mu); line-height: 1.6; margin: 0; }
+.api-token-reveal-section { display: grid; gap: .65rem; min-width: 0; }
+.api-token-reveal-section h3 { font-size: .9rem; margin: 0; }
+.api-token-reveal-section p { font-size: .82rem; }
+.api-token-secret-row { display: flex; align-items: center; gap: .75rem; min-width: 0; }
+.api-token-secret-row button { flex-shrink: 0; }
+
+.api-token-reveal-modal .api-token-secret {
+  background: #f1f3f5;
+  border: 1px solid var(--br);
+  border-radius: .6rem;
+  color: var(--tx);
+  flex: 1;
+  font: .85rem/1.7 ui-monospace, monospace;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: .9rem 1rem;
+  user-select: all;
+}
+
+.api-token-secret code { font: inherit; }
+.api-token-base-url { font-size: .85rem; overflow-wrap: anywhere; }
+.api-token-example-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.api-token-example-heading button { flex-shrink: 0; }
+.api-token-reveal-modal .api-confirm-copy { font-size: .85rem; line-height: 1.5; }
+.api-token-reveal-modal .api-modal-footer { flex-shrink: 0; padding: 1rem clamp(1rem, 3vw, 2rem); }
 
 .api-token-reveal-modal pre {
   background: #1c2420;
   border-radius: .7rem;
   color: #f3f5f3;
+  font: .8rem/1.8 ui-monospace, monospace;
+  margin: 0;
   max-width: 100%;
-  overflow: auto;
-  padding: .9rem;
+  overflow-wrap: anywhere;
+  padding: 1rem;
+  white-space: pre-wrap;
 }
 
 .api-playground {
