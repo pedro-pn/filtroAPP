@@ -10,6 +10,7 @@ import {
 } from './allocation-period.js';
 import { resolveSelectedMissionTeam, syncSelectedMissionTeam } from './mission-team.js';
 import { missionEndDate } from './mission-period.js';
+import { efetivoProjectWhere } from '../project-visibility.js';
 import {
   bumpPlanRevision,
   requireEditablePlan,
@@ -24,7 +25,7 @@ export const missionInclude = {
   allocations: {
     where: { deletedAt: null },
     include: {
-      collaborator: { select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } } } },
+      collaborator: { select: { id: true, name: true, isActive: true, jobRoleId: true, jobRole: { select: { id: true, name: true } } } },
       jobRole: { select: { id: true, name: true } },
       cycles: { orderBy: { mobilizationDate: 'asc' } }
     },
@@ -234,7 +235,8 @@ async function validateExistingAllocations(tx, mission, payload, demands) {
         jobRoleId: allocation.jobRoleId,
         period,
         ignoredMissionId: mission.id,
-        allowMissionOverlap: allocation.allowMissionOverlap
+        allowMissionOverlap: allocation.allowMissionOverlap,
+        allowInactiveCollaborator: (payload.confirmedInactiveCollaboratorIds || []).includes(allocation.collaboratorId)
       }));
     }
   }
@@ -250,6 +252,7 @@ export async function listMissions(filters = {}, dependencies = {}) {
     where: {
       planId: plan.id,
       deletedAt: null,
+      project: efetivoProjectWhere(),
       ...(filters.status ? { scheduleStatus: filters.status } : {}),
       ...(filters.stage ? { stage: filters.stage } : {})
     },
@@ -261,7 +264,10 @@ export async function listMissions(filters = {}, dependencies = {}) {
 
 export async function getMission(missionId, dependencies = {}) {
   const database = await resolvePlanningDatabase(dependencies.database);
-  const mission = await database.efetivoMissionPlan.findUnique({ where: { id: missionId }, include: missionInclude });
+  const mission = await database.efetivoMissionPlan.findUnique({
+    where: { id: missionId, project: efetivoProjectWhere() },
+    include: missionInclude
+  });
   if (!mission || mission.deletedAt) throw notFound('Missão operacional não encontrada.');
   return missionWithCurrentRoles(mission);
 }
@@ -271,7 +277,9 @@ export async function createMission(payload, context = {}, dependencies = {}) {
   validateMissionChronology(payload);
   return runPlanningTransaction(database, async tx => {
     const plan = await requireEditablePlan(tx, payload.planId, { actorUserId: context.actorUserId });
-    const project = await tx.project.findFirst({ where: { id: payload.projectId, isActive: true, deletedAt: null } });
+    const project = await tx.project.findFirst({
+      where: { id: payload.projectId, isActive: true, deletedAt: null, ...efetivoProjectWhere() }
+    });
     if (!project) throw notFound('Projeto não encontrado ou inativo.');
     if (plan.kind === 'OFFICIAL') await syncMissionDemobilization(tx, project, payload.returnDate);
     const responsible = await resolveMissionResponsible(tx, payload);
@@ -348,7 +356,7 @@ export async function createMission(payload, context = {}, dependencies = {}) {
         ? `Programação restaurada para ${project.name}.`
         : `Programação criada para ${project.name}.`,
       beforeData: existing,
-      afterData: mission,
+      afterData: { ...mission, confirmedInactiveCollaboratorIds: payload.confirmedInactiveCollaboratorIds || [] },
       evidence: context.evidence
     });
     return missionWithCurrentRoles(mission);
@@ -365,12 +373,6 @@ export async function updateMission(missionId, payload, context = {}, dependenci
     if (context.version && existing.version !== context.version) throw conflictError('A missão foi alterada por outra pessoa.', [], 'MISSION_VERSION_CONFLICT');
     if (payload.projectId !== existing.projectId) throw conflictError('O projeto da programação não pode ser substituído.', [], 'MISSION_PROJECT_IMMUTABLE');
     if (plan.kind === 'OFFICIAL') await syncMissionDemobilization(tx, existing.project, payload.returnDate);
-    const responsible = await resolveMissionResponsible(tx, payload);
-    const team = Array.isArray(payload.collaboratorIds)
-      ? await resolveSelectedMissionTeam(tx, payload, existing.planId, existing.id)
-      : null;
-    const demands = team?.demands || normalizeMissionDemands(payload.demands, payload.scheduleStatus);
-    await validateDemandRoles(tx, demands);
     const existingBounds = {
       startDate: parseDateKey(existing.mobilizationDate),
       endDate: missionEndDate(existing)
@@ -383,10 +385,16 @@ export async function updateMission(missionId, payload, context = {}, dependenci
       const proposedMission = { ...existing, ...payload };
       for (const cycle of missionCycles(proposedMission)) {
         if (!allocationPeriodWithinMission(cycle, proposedMission)) {
-          throw conflictError('A nova programação deixa um ciclo do projeto fora das datas gerais da missão.', [], 'MISSION_CYCLE_OUTSIDE_MISSION_PERIOD');
+          throw conflictError('As datas gerais precisam abranger todos os ciclos já registrados. Para ajustar uma remobilização, use “Gerenciar equipe”.', [], 'MISSION_CYCLE_OUTSIDE_MISSION_PERIOD');
         }
       }
     }
+    const responsible = await resolveMissionResponsible(tx, payload);
+    const team = Array.isArray(payload.collaboratorIds)
+      ? await resolveSelectedMissionTeam(tx, payload, existing.planId, existing.id, { mission: missionForValidation })
+      : null;
+    const demands = team?.demands || normalizeMissionDemands(payload.demands, payload.scheduleStatus);
+    await validateDemandRoles(tx, demands);
     if (!team) await validateExistingAllocations(tx, missionForValidation, payload, demands);
     await tx.efetivoMissionDemand.deleteMany({ where: { missionId } });
     let updated = await tx.efetivoMissionPlan.update({
@@ -416,7 +424,7 @@ export async function updateMission(missionId, payload, context = {}, dependenci
       actorUserId: context.actorUserId,
       action: 'MISSION_UPDATE', entityType: 'MISSION', entityId: missionId,
       summary: `Programação de ${updated.project.name} atualizada.`,
-      beforeData: existing, afterData: updated, evidence: context.evidence
+      beforeData: existing, afterData: { ...updated, confirmedInactiveCollaboratorIds: payload.confirmedInactiveCollaboratorIds || [] }, evidence: context.evidence
     });
     return missionWithCurrentRoles(updated);
   });

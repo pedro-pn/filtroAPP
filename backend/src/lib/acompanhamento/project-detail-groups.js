@@ -199,10 +199,12 @@ function combineCollaborators(details) {
       for (const day of item.horasRelatoriosPorData ?? []) {
         if (!day?.data) continue;
         const horas = toNumber(day.horas) ?? 0;
-        existing.horasRelatoriosPorData.set(
-          day.data,
-          Math.max(existing.horasRelatoriosPorData.get(day.data) ?? 0, horas)
-        );
+        const currentDay = existing.horasRelatoriosPorData.get(day.data) ?? { horas: 0, relatorios: new Map() };
+        currentDay.horas = Math.max(currentDay.horas, horas);
+        for (const report of day.relatorios ?? []) {
+          currentDay.relatorios.set(report.id, report);
+        }
+        existing.horasRelatoriosPorData.set(day.data, currentDay);
       }
       const cost = toNumber(item.custo);
       if (cost !== null) existing.custo = round2((existing.custo ?? 0) + cost);
@@ -217,7 +219,16 @@ function combineCollaborators(details) {
     .map(item => {
       const horasRelatoriosPorData = [...item.horasRelatoriosPorData.entries()]
         .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
-        .map(([data, horas]) => ({ data, horas }));
+        .map(([data, day]) => ({
+          data,
+          horas: day.horas,
+          relatorios: [...day.relatorios.values()].sort((a, b) => (
+            String(a.projetoCodigo || '').localeCompare(String(b.projetoCodigo || ''), 'pt-BR', { numeric: true })
+            || String(a.tipo).localeCompare(String(b.tipo))
+            || (a.numero ?? 0) - (b.numero ?? 0)
+            || a.id.localeCompare(b.id)
+          ))
+        }));
       const diasApropriados = [...item.diasApropriados.values()]
         .sort((left, right) => left.data.localeCompare(right.data))
         .map(day => ({

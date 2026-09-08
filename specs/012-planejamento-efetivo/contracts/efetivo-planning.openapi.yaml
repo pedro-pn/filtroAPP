@@ -96,6 +96,7 @@ paths:
         - $ref: '#/components/parameters/Date'
         - $ref: '#/components/parameters/JobRoleId'
         - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/IncludeInactive'
       responses:
         '200':
           description: Colaboradores
@@ -224,10 +225,11 @@ paths:
   /planning/missions/{missionId}/eligible-collaborators:
     get:
       tags: [Missions]
-      summary: Lista candidatos ativos da função, incluindo sobreposições que exigem confirmação
+      summary: Lista candidatos da função, incluindo inativos quando solicitado e sobreposições que exigem confirmação
       parameters:
         - $ref: '#/components/parameters/MissionId'
         - $ref: '#/components/parameters/JobRoleId'
+        - $ref: '#/components/parameters/IncludeInactive'
         - name: mobilizationDate
           in: query
           description: Início individual pretendido; por padrão, usa a mobilização da missão.
@@ -271,6 +273,8 @@ paths:
                   oneOf:
                     - { $ref: '#/components/schemas/DateOnly' }
                     - { type: 'null' }
+                allowInactiveCollaborator:
+                  $ref: '#/components/schemas/InactiveCollaboratorConfirmation'
                 allowMissionOverlap:
                   type: boolean
                   default: false
@@ -299,6 +303,8 @@ paths:
               properties:
                 mobilizationDate: { $ref: '#/components/schemas/DateOnly' }
                 demobilizationDate: { $ref: '#/components/schemas/DateOnly' }
+                allowInactiveCollaborator:
+                  $ref: '#/components/schemas/InactiveCollaboratorConfirmation'
                 allowMissionOverlap:
                   type: boolean
                   default: false
@@ -625,6 +631,11 @@ components:
       in: query
       required: true
       schema: { $ref: '#/components/schemas/DateOnly' }
+    IncludeInactive:
+      name: includeInactive
+      in: query
+      description: Inclui colaboradores inativos para seleção e registro de histórico; não altera a capacidade projetada.
+      schema: { type: boolean, default: false }
     Search:
       name: search
       in: query
@@ -756,13 +767,15 @@ components:
       allOf:
         - $ref: '#/components/schemas/CollaboratorOption'
         - type: object
-          required: [missionConflicts, requiresMissionOverlapConfirmation]
+          required: [isActive, requiresInactiveConfirmation, missionConflicts, requiresMissionOverlapConfirmation]
           properties:
             admissionDate: { $ref: '#/components/schemas/DateOnly' }
             missionConflicts:
               type: array
               items: { $ref: '#/components/schemas/Conflict' }
             requiresMissionOverlapConfirmation: { type: boolean }
+            isActive: { type: boolean }
+            requiresInactiveConfirmation: { type: boolean }
     CollaboratorInput:
       type: object
       required: [name, jobRoleId, admissionDate]
@@ -789,6 +802,20 @@ components:
             status: { type: string, enum: [ALLOCATED, UNAVAILABLE, FREE, OUTSIDE_EMPLOYMENT] }
             plannedUtilization90d: { type: [number, 'null'], minimum: 0, maximum: 100 }
             vacationAlert: { type: [object, 'null'] }
+    InactiveCollaboratorConfirmation:
+      type: boolean
+      default: false
+      description: Confirma o registro histórico com colaborador inativo, preservando as demais validações e registrando a decisão na auditoria.
+    MobilizationCycleInput:
+      type: object
+      required: [mobilizationDate]
+      properties:
+        mobilizationDate: { $ref: '#/components/schemas/DateOnly' }
+        demobilizationDate:
+          oneOf:
+            - { $ref: '#/components/schemas/DateOnly' }
+            - { type: 'null' }
+        allowInactiveCollaborator: { $ref: '#/components/schemas/InactiveCollaboratorConfirmation' }
     MissionDemand:
       type: object
       required: [jobRoleId, requiredCount]
@@ -830,6 +857,12 @@ components:
               collaboratorId: { type: string }
               mobilizationDate: { $ref: '#/components/schemas/DateOnly' }
               demobilizationDate: { $ref: '#/components/schemas/DateOnly' }
+        confirmedInactiveCollaboratorIds:
+          type: array
+          maxItems: 500
+          default: []
+          description: IDs dos colaboradores inativos cujo registro histórico foi explicitamente confirmado nesta operação.
+          items: { type: string }
         confirmedMissionOverlapCollaboratorIds:
           type: array
           maxItems: 500
@@ -890,6 +923,7 @@ components:
                   name: { type: string }
                   jobRoleId: { type: string }
                   jobRoleName: { type: string }
+                  isActive: { type: boolean }
     RoleCapacity:
       type: object
       required: [jobRoleId, jobRoleName, active, allocated, unavailable, free, demand, deficit]

@@ -182,6 +182,35 @@ export function buildOmieCostPaymentSummary(groups = []) {
   };
 }
 
+export function buildProjectReportHours(reports, collaboratorIdsByReport, projectCode) {
+  const byCollaborator = new Map();
+  for (const report of reports) {
+    const data = dateKey(report.reportDate);
+    const ids = collaboratorIdsByReport.get(report.id) || [];
+    for (const [collaboratorId, minutes] of reportWorkedMinutesByCollaborator(report, ids)) {
+      const entry = byCollaborator.get(collaboratorId) || {
+        workedMinutes: 0,
+        workedMinutesByDate: new Map(),
+        reportSourcesByDate: new Map()
+      };
+      entry.workedMinutes += minutes;
+      entry.workedMinutesByDate.set(data, (entry.workedMinutesByDate.get(data) || 0) + minutes);
+      const sources = entry.reportSourcesByDate.get(data) || [];
+      sources.push({
+        id: report.id,
+        tipo: report.reportType,
+        numero: report.sequenceNumber ?? null,
+        projetoId: report.projectId,
+        projetoCodigo: projectCode ? String(projectCode) : null,
+        horas: minutes / 60
+      });
+      entry.reportSourcesByDate.set(data, sources);
+      byCollaborator.set(collaboratorId, entry);
+    }
+  }
+  return byCollaborator;
+}
+
 export function buildProjectDetailCollaborator({
   name = '',
   role = '',
@@ -190,6 +219,7 @@ export function buildProjectDetailCollaborator({
   projectId = null,
   workedMinutes = 0,
   workedMinutesByDate = new Map(),
+  reportSourcesByDate = new Map(),
   includeCollaboratorCosts = false
 } = {}) {
   const custo = allocation?.cost ?? null;
@@ -205,7 +235,11 @@ export function buildProjectDetailCollaborator({
   const horasRelatorios = minutesToHours(workedMinutes);
   const horasRelatoriosPorData = [...workedMinutesByDate.entries()]
     .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
-    .map(([data, minutes]) => ({ data, horas: minutes / 60 }));
+    .map(([data, minutes]) => ({
+      data,
+      horas: minutes / 60,
+      relatorios: reportSourcesByDate.get(data) || []
+    }));
   const diasApropriados = projectId && rate
     ? buildProjectAppropriationDays(rate, projectId)
     : [];
@@ -318,7 +352,9 @@ export async function getProjectDetail(projectId, {
       where: { projectId, deletedAt: null },
       select: {
         id: true,
+        projectId: true,
         reportType: true,
+        sequenceNumber: true,
         reportDate: true, specialConditions: true, totalOvertimeMinutes: true,
         daytimeCount: true,
         daytimeWorkedMinutes: true, nighttimeWorkedMinutes: true,
@@ -407,8 +443,7 @@ export async function getProjectDetail(projectId, {
   let normalWorkedMinutesTotal = 0;
   let overtimeWorkedMinutesTotal = 0;
   let lastRdoDate = null;
-  const workedMinutesByCollaborator = new Map();
-  const workedMinutesByCollaboratorAndDate = new Map();
+  const reportHoursByCollaborator = buildProjectReportHours(reports, dayCollaboratorIdsByReport, row.code);
 
   for (const r of reports) {
     const key = dateKey(r.reportDate);
@@ -422,15 +457,6 @@ export async function getProjectDetail(projectId, {
     overtimeMinutesTotal += metrics.overtimeWorkedMinutes;
     normalWorkedMinutesTotal += metrics.normalWorkedMinutes;
     overtimeWorkedMinutesTotal += metrics.overtimeWorkedMinutes;
-    for (const [collaboratorId, minutes] of reportWorkedMinutesByCollaborator(r, dayCollaboratorIds)) {
-      workedMinutesByCollaborator.set(collaboratorId, (workedMinutesByCollaborator.get(collaboratorId) || 0) + minutes);
-      if (!workedMinutesByCollaboratorAndDate.has(collaboratorId)) {
-        workedMinutesByCollaboratorAndDate.set(collaboratorId, new Map());
-      }
-      const minutesByDate = workedMinutesByCollaboratorAndDate.get(collaboratorId);
-      minutesByDate.set(key, (minutesByDate.get(key) || 0) + minutes);
-    }
-
     const acc = byDay.get(key) || { standbyMin: 0, statusStandbyMin: 0, workedMin: 0, overtimeMin: 0, reportDate: r.reportDate };
     acc.standbyMin += metrics.standbyPersonMinutes;
     acc.statusStandbyMin += standbyMin;
@@ -478,8 +504,7 @@ export async function getProjectDetail(projectId, {
       rate,
       allocation: alloc,
       projectId,
-      workedMinutes: workedMinutesByCollaborator.get(collaboratorId) || 0,
-      workedMinutesByDate: workedMinutesByCollaboratorAndDate.get(collaboratorId) || new Map(),
+      ...reportHoursByCollaborator.get(collaboratorId),
       includeCollaboratorCosts
     }));
   };
@@ -497,7 +522,7 @@ export async function getProjectDetail(projectId, {
       ensureCollaborator(collaboratorId);
     }
   }
-  for (const collaboratorId of workedMinutesByCollaborator.keys()) {
+  for (const collaboratorId of reportHoursByCollaborator.keys()) {
     ensureCollaborator(collaboratorId);
   }
   // A exceção de viagem pode apropriar ponto pela janela do cronograma mesmo quando o colaborador
@@ -527,7 +552,7 @@ export async function getProjectDetail(projectId, {
     .map(e => {
       const since = new Date(e.sinceDate);
       const days = Math.max(0, Math.round((equipmentEndDate.getTime() - since.getTime()) / 86400000));
-      return { name: e.name, days, since: e.sinceDate };
+      return { code: e.code, name: e.name, days, since: e.sinceDate };
     })
     .sort((a, b) => b.days - a.days);
 

@@ -85,7 +85,7 @@ export interface MissionAllocation {
   demobilizationDate: DateOnly | null;
   allowMissionOverlap: boolean;
   cycles?: MobilizationCycle[];
-  collaborator?: { id: string; name: string; role: string; jobRoleId: string | null };
+  collaborator?: { id: string; name: string; isActive?: boolean; role: string; jobRoleId: string | null };
   jobRole?: { id: string; name: string };
 }
 
@@ -96,6 +96,8 @@ export interface EligibleMissionCollaborator {
   admissionDate: DateOnly | null;
   missionConflicts: PlanningConflict[];
   requiresMissionOverlapConfirmation: boolean;
+  isActive: boolean;
+  requiresInactiveConfirmation: boolean;
 }
 
 export interface PlanningMission {
@@ -162,6 +164,7 @@ export interface MissionInput {
     demobilizationDate: DateOnly;
   }>;
   confirmedMissionOverlapCollaboratorIds?: string[];
+  confirmedInactiveCollaboratorIds?: string[];
 }
 
 export interface ContinuousStayAlert {
@@ -292,7 +295,7 @@ export async function getPlanningOverview(date: DateOnly, jobRoleId?: string) {
 export async function getPlanningCalendar(startDate: DateOnly, endDate: DateOnly, jobRoleId?: string) {
   return (await apiClient.get<{ events: CalendarEvent[]; conflicts: PlanningConflict[] }>(`${base}/calendar`, { params: { startDate, endDate, jobRoleId } })).data;
 }
-export async function listPlanningCollaborators(params: { date: DateOnly; jobRoleId?: string; search?: string }) {
+export async function listPlanningCollaborators(params: { date: DateOnly; jobRoleId?: string; search?: string; includeInactive?: boolean }) {
   return (await apiClient.get<PlanningCollaborator[]>(`${base}/collaborators`, { params })).data;
 }
 export async function createPlanningCollaborator(payload: CollaboratorInput) {
@@ -333,31 +336,31 @@ export async function updatePlanningMission(id: string, version: number, payload
 export async function deletePlanningMission(id: string) {
   await apiClient.delete(`${base}/missions/${encodeURIComponent(id)}`);
 }
-export async function listEligibleCollaborators(missionId: string, jobRoleId: string, period: { mobilizationDate?: DateOnly; demobilizationDate?: DateOnly } = {}) {
+export async function listEligibleCollaborators(missionId: string, jobRoleId: string, period: { mobilizationDate?: DateOnly; demobilizationDate?: DateOnly; includeInactive?: boolean } = {}) {
   return (await apiClient.get<EligibleMissionCollaborator[]>(`${base}/missions/${encodeURIComponent(missionId)}/eligible-collaborators`, { params: { jobRoleId, ...period } })).data;
 }
-export async function addMissionAllocation(missionId: string, payload: { collaboratorId: string; jobRoleId: string; mobilizationDate?: DateOnly; demobilizationDate?: DateOnly; allowMissionOverlap?: boolean }) {
+export async function addMissionAllocation(missionId: string, payload: { collaboratorId: string; jobRoleId: string; mobilizationDate?: DateOnly; demobilizationDate?: DateOnly; allowMissionOverlap?: boolean; allowInactiveCollaborator?: boolean }) {
   return (await apiClient.post<MissionAllocation>(`${base}/missions/${encodeURIComponent(missionId)}/allocations`, payload)).data;
 }
-export async function updateMissionAllocationPeriod(missionId: string, allocationId: string, payload: { mobilizationDate: DateOnly; demobilizationDate: DateOnly; allowMissionOverlap?: boolean }) {
+export async function updateMissionAllocationPeriod(missionId: string, allocationId: string, payload: { mobilizationDate: DateOnly; demobilizationDate: DateOnly; allowMissionOverlap?: boolean; allowInactiveCollaborator?: boolean }) {
   return (await apiClient.patch<MissionAllocation>(`${base}/missions/${encodeURIComponent(missionId)}/allocations/${encodeURIComponent(allocationId)}`, payload)).data;
 }
 export async function removeMissionAllocation(missionId: string, allocationId: string) {
   await apiClient.delete(`${base}/missions/${encodeURIComponent(missionId)}/allocations/${encodeURIComponent(allocationId)}`);
 }
-export async function createMissionCycle(missionId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null }) {
+export async function createMissionCycle(missionId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null; allowInactiveCollaborator?: boolean }) {
   return (await apiClient.post<MobilizationCycle>(`${base}/missions/${encodeURIComponent(missionId)}/cycles`, payload)).data;
 }
-export async function updateMissionCycle(missionId: string, cycleId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null }) {
+export async function updateMissionCycle(missionId: string, cycleId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null; allowInactiveCollaborator?: boolean }) {
   return (await apiClient.patch<MobilizationCycle>(`${base}/missions/${encodeURIComponent(missionId)}/cycles/${encodeURIComponent(cycleId)}`, payload)).data;
 }
 export async function initializeMissionAllocationCycles(missionId: string, allocationId: string) {
   return (await apiClient.post<MobilizationCycle[]>(`${base}/missions/${encodeURIComponent(missionId)}/allocations/${encodeURIComponent(allocationId)}/cycles/inherit`)).data;
 }
-export async function createMissionAllocationCycle(missionId: string, allocationId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null }) {
+export async function createMissionAllocationCycle(missionId: string, allocationId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null; allowInactiveCollaborator?: boolean }) {
   return (await apiClient.post<MobilizationCycle>(`${base}/missions/${encodeURIComponent(missionId)}/allocations/${encodeURIComponent(allocationId)}/cycles`, payload)).data;
 }
-export async function updateMissionAllocationCycle(missionId: string, allocationId: string, cycleId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null }) {
+export async function updateMissionAllocationCycle(missionId: string, allocationId: string, cycleId: string, payload: { mobilizationDate: DateOnly; demobilizationDate?: DateOnly | null; allowInactiveCollaborator?: boolean }) {
   return (await apiClient.patch<MobilizationCycle>(`${base}/missions/${encodeURIComponent(missionId)}/allocations/${encodeURIComponent(allocationId)}/cycles/${encodeURIComponent(cycleId)}`, payload)).data;
 }
 export async function deleteMissionAllocationCycle(missionId: string, allocationId: string, cycleId: string) {
