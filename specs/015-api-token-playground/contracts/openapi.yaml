@@ -1,0 +1,2400 @@
+openapi: 3.1.0
+info:
+  title: FiltroApp - Administração e API de Integrações
+  version: 1.3.1
+  description: >-
+    Contrato da gestão administrativa de credenciais e da primeira versão externa,
+    somente leitura, de Qualidade e dos cadastros/coleções operacionais publicados. Tokens de integração e sessões humanas
+    compartilham o esquema HTTP Bearer, mas têm formatos, middlewares e árvores de
+    rota separados; um nunca substitui o outro.
+servers:
+  - url: /api
+tags:
+  - name: AdminApiScopes
+  - name: AdminApiCredentials
+  - name: AdminApiPlayground
+  - name: IntegrationQuality
+  - name: IntegrationOperational
+
+paths:
+  /admin/api-scopes:
+    get:
+      tags: [AdminApiScopes]
+      operationId: listApiScopes
+      summary: Lista o catálogo e a disponibilidade dos escopos
+      security:
+        - AdminSession: []
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: domain
+          in: query
+          schema: { type: string, maxLength: 80 }
+        - name: availability
+          in: query
+          schema:
+            type: string
+            enum: [AVAILABLE, PLANNED, SENSITIVE, RESERVED, PROHIBITED]
+      responses:
+        '200':
+          description: Catálogo completo, inclusive entradas não concedíveis
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, domains, operations, version]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ScopeDefinition' }
+                  domains:
+                    type: array
+                    items: { $ref: '#/components/schemas/DataCatalogDomain' }
+                  version: { type: string, example: '1.0' }
+                  operations:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [operationId, label, method, path, requiredScopes, optionalScopes, queryParams, pathParams, domain, responseKind, parameters]
+                      properties:
+                        operationId: { type: string }
+                        label: { type: string }
+                        method: { const: GET }
+                        path: { type: string }
+                        requiredScopes: { type: array, items: { type: string } }
+                        optionalScopes: { type: array, items: { type: string } }
+                        domain: { type: string }
+                        responseKind: { type: string, enum: [JSON, DOWNLOAD_CHECK] }
+                        parameters: { type: array, items: { $ref: '#/components/schemas/PlaygroundParameter' } }
+                        queryParams: { type: array, items: { type: string } }
+                        pathParams: { type: array, items: { type: string } }
+        '401': { $ref: '#/components/responses/AdminUnauthorized' }
+        '403': { $ref: '#/components/responses/AdminForbidden' }
+
+  /admin/api-credentials:
+    get:
+      tags: [AdminApiCredentials]
+      operationId: listApiCredentials
+      summary: Lista credenciais sem segredos
+      security:
+        - AdminSession: []
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/CredentialEffectiveStatus' }
+        - name: scope
+          in: query
+          schema: { type: string, maxLength: 120 }
+        - name: expiresBefore
+          in: query
+          schema: { type: string, format: date-time }
+        - $ref: '#/components/parameters/AdminCursor'
+        - $ref: '#/components/parameters/AdminLimit'
+      responses:
+        '200':
+          description: Página de credenciais
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialPage'
+        '401': { $ref: '#/components/responses/AdminUnauthorized' }
+        '403': { $ref: '#/components/responses/AdminForbidden' }
+    post:
+      tags: [AdminApiCredentials]
+      operationId: createApiCredential
+      summary: Emite uma credencial e revela o segredo uma única vez
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCredentialInput' }
+      responses:
+        '201':
+          description: Credencial emitida; `token` não volta a ser retornado
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            Pragma: { $ref: '#/components/headers/NoCache' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IssuedCredential' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/AdminUnauthorized' }
+        '403': { $ref: '#/components/responses/AdminForbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/api-credentials/{credentialId}:
+    parameters:
+      - $ref: '#/components/parameters/CredentialId'
+    get:
+      tags: [AdminApiCredentials]
+      operationId: getApiCredential
+      summary: Obtém detalhe, sem segredo/verificador
+      security:
+        - AdminSession: []
+      responses:
+        '200':
+          description: Detalhe da credencial
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiCredential' }
+        '401': { $ref: '#/components/responses/AdminUnauthorized' }
+        '403': { $ref: '#/components/responses/AdminForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [AdminApiCredentials]
+      operationId: reduceApiCredential
+      summary: Altera metadados ou reduz privilégios; nunca amplia
+      security:
+        - AdminSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReduceCredentialInput' }
+      responses:
+        '200':
+          description: Credencial atualizada
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiCredential' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/AdminUnauthorized' }
+        '403': { $ref: '#/components/responses/AdminForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/api-credentials/{credentialId}/rotate:
+    parameters:
+      - $ref: '#/components/parameters/CredentialId'
+    post:
+      tags: [AdminApiCredentials]
+      operationId: rotateApiCredential
+      summary: Cria credencial substituta e revela o novo segredo uma vez
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RotateCredentialInput' }
+      responses:
+        '201':
+          description: Substituta criada
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            Pragma: { $ref: '#/components/headers/NoCache' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IssuedCredential' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/AdminUnauthorized' }
+        '403': { $ref: '#/components/responses/AdminForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/api-credentials/{credentialId}/revoke:
+    parameters:
+      - $ref: '#/components/parameters/CredentialId'
+    post:
+      tags: [AdminApiCredentials]
+      operationId: revokeApiCredential
+      summary: Revoga imediatamente uma credencial
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [reason, expectedVersion]
+              properties:
+                reason: { type: string, minLength: 10, maxLength: 500 }
+                expectedVersion: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Credencial revogada
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiCredential' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/AdminUnauthorized' }
+        '403': { $ref: '#/components/responses/AdminForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/api-credentials/{credentialId}/events:
+    parameters:
+      - $ref: '#/components/parameters/CredentialId'
+      - $ref: '#/components/parameters/AdminCursor'
+      - $ref: '#/components/parameters/AdminLimit'
+    get:
+      tags: [AdminApiCredentials]
+      operationId: listApiCredentialEvents
+      summary: Lista eventos administrativos redigidos
+      security:
+        - AdminSession: []
+      responses:
+        '200':
+          description: Página de eventos
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CredentialEventPage' }
+        '401': { $ref: '#/components/responses/AdminUnauthorized' }
+        '403': { $ref: '#/components/responses/AdminForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/api-credentials/{credentialId}/usage:
+    parameters:
+      - $ref: '#/components/parameters/CredentialId'
+    get:
+      tags: [AdminApiCredentials]
+      operationId: getApiCredentialUsage
+      summary: Resume uso e falhas, sem conteúdo de respostas
+      security:
+        - AdminSession: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Resumo de uso
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CredentialUsage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/AdminUnauthorized' }
+        '403': { $ref: '#/components/responses/AdminForbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/api-credentials/{credentialId}/test:
+    parameters:
+      - $ref: '#/components/parameters/CredentialId'
+    post:
+      tags: [AdminApiPlayground]
+      operationId: testApiCredentialOperation
+      summary: Simula uma operação allowlisted com a política da credencial
+      description: >-
+        Não aceita URL, método, headers ou corpo livres. Aplica o mesmo catálogo,
+        escopos, projetos, filtros e limites da API externa e registra evento TESTED.
+        Não simula um IP arbitrário; a allowlist de rede só é comprovada por chamada
+        real do consumidor.
+        Downloads retornam verificação JSON de acesso/disponibilidade (DOWNLOAD_CHECK),
+        sem transmitir o arquivo, seu caminho, URL pública ou conteúdo.
+      security:
+        - AdminSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [operationId, query]
+              properties:
+                operationId:
+                  type: string
+                  enum:
+                    - quality.records.list
+                    - quality.records.get
+                    - quality.natures.list
+                    - quality.evidence.download
+                    - operational.ReportAttachment.download
+                    - operational.StockItemDocument.download
+                    - operational.MaintenanceAttachment.download
+                    - operational.Collaborator.list
+                    - operational.JobRole.list
+                    - operational.Project.list
+                    - operational.ClientSegment.list
+                    - operational.Report.list
+                    - operational.DdsTheme.list
+                    - operational.MaintenanceRecord.list
+                    - operational.MaintenanceProfile.list
+                    - operational.MaintenanceProfileItem.list
+                    - operational.ChemicalCleaning.list
+                    - operational.CompanyEquipment.list
+                    - operational.Equipment.list
+                    - operational.EquipmentCategory.list
+                    - operational.StockItem.list
+                    - operational.StockCategory.list
+                    - operational.ReportVersion.list
+                    - operational.ReportCollaborator.list
+                    - operational.ReportService.list
+                    - operational.ReportAttachment.list
+                    - operational.ReportSignature.list
+                    - operational.ReportAuditLog.list
+                    - operational.StockBatch.list
+                    - operational.StockMovement.list
+                    - operational.StockItemDocument.list
+                    - operational.StockMovementCosts.list
+                    - operational.MaintenanceThirdPartyService.list
+                    - operational.MaintenanceAttachment.list
+                    - operational.OperationalReviewAudit.list
+                pathParams:
+                  type: object
+                  additionalProperties: { type: string, maxLength: 100 }
+                  default: {}
+                query:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Requisição redigida e resposta limitada para visualização
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlaygroundResult' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/AdminUnauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/qualidade/registros:
+    get:
+      tags: [IntegrationQuality]
+      operationId: qualityRecordsList
+      summary: Lista registros de Qualidade para carga ou sincronização
+      security:
+        - IntegrationToken: []
+      x-required-scopes: [qualidade.registros.read]
+      x-conditional-scopes:
+        qualidade.evidencias.metadata.read: inclui o array `evidences`
+        qualidade.excluidos.read: obrigatório quando `includeDeleted=true`
+      parameters:
+        - $ref: '#/components/parameters/IntegrationCursor'
+        - $ref: '#/components/parameters/IntegrationLimit'
+        - name: updatedSince
+          in: query
+          schema: { type: string, format: date-time }
+        - name: updatedUntil
+          in: query
+          schema: { type: string, format: date-time }
+        - name: snapshotAt
+          in: query
+          schema: { type: string, format: date-time }
+        - name: projectId
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - name: type
+          in: query
+          schema: { type: string, maxLength: 40 }
+        - name: status
+          in: query
+          schema: { type: string, maxLength: 40 }
+        - name: natureId
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - name: eventDateFrom
+          in: query
+          schema: { type: string, format: date }
+        - name: eventDateTo
+          in: query
+          schema: { type: string, format: date }
+        - name: includeDeleted
+          in: query
+          schema: { type: boolean, default: false }
+          description: Exige também `qualidade.excluidos.read` quando true
+      responses:
+        '200':
+          description: Página ordenada por `updatedAt`, `id`
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QualityRecordPage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/qualidade/registros/{recordId}:
+    get:
+      tags: [IntegrationQuality]
+      operationId: qualityRecordGet
+      summary: Obtém um registro permitido
+      security:
+        - IntegrationToken: []
+      x-required-scopes: [qualidade.registros.read]
+      x-conditional-scopes:
+        qualidade.evidencias.metadata.read: inclui o array `evidences`
+        qualidade.excluidos.read: obrigatório quando `includeDeleted=true`
+      parameters:
+        - name: recordId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - name: includeDeleted
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Registro público
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QualityRecord' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/qualidade/naturezas:
+    get:
+      tags: [IntegrationQuality]
+      operationId: qualityNaturesList
+      summary: Lista naturezas de Qualidade
+      security:
+        - IntegrationToken: []
+      x-required-scopes: [qualidade.naturezas.read]
+      parameters:
+        - name: active
+          in: query
+          schema: { type: boolean }
+        - name: updatedSince
+          in: query
+          schema: { type: string, format: date-time }
+        - name: snapshotAt
+          in: query
+          schema: { type: string, format: date-time }
+        - $ref: '#/components/parameters/IntegrationCursor'
+        - $ref: '#/components/parameters/IntegrationLimit'
+      responses:
+        '200':
+          description: Página de naturezas
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QualityNaturePage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/qualidade/evidencias/{evidenceId}/download:
+    get:
+      tags: [IntegrationQuality]
+      operationId: qualityEvidenceDownload
+      summary: Baixa evidência de um registro permitido
+      security:
+        - IntegrationToken: []
+      x-required-scopes:
+        - qualidade.registros.read
+        - qualidade.evidencias.metadata.read
+        - qualidade.evidencias.download
+      parameters:
+        - name: evidenceId
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '200':
+          description: Arquivo, sem revelar caminho ou token público
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+            Content-Disposition:
+              schema: { type: string }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/colaboradores:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationCollaborator
+      summary: "Colaboradores — identificação operacional"
+      description: "Com projetos selecionados, inclui somente colaboradores de equipes de relatórios aprovados desses projetos; não representa alocação atual."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [colaboradores.operacional.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","code","name","jobRoleId","isActive"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"code":{"type":"string"},"name":{"type":"string"},"jobRoleId":{"type":"string"},"isActive":{"type":"boolean"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/cargos:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationJobRole
+      summary: "Cargos"
+      description: "Cadastro global compartilhado; não é limitado por projeto."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [cargos.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","name","isActive","isOperational"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"name":{"type":"string"},"isActive":{"type":"boolean"},"isOperational":{"type":"boolean"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/projetos:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationProject
+      summary: "Projetos — dados operacionais"
+      description: "Somente projetos autorizados e não excluídos."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [projetos.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","code","name","isActive","location","clientSegment","mobilizationDate","demobilizationDate","startDate"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"code":{"type":"string"},"name":{"type":"string"},"isActive":{"type":"boolean"},"location":{"type":"string"},"clientSegment":{"type":["string","null"]},"mobilizationDate":{"type":["string","null"],"format":"date-time"},"demobilizationDate":{"type":["string","null"],"format":"date-time"},"startDate":{"type":["string","null"],"format":"date-time"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/clientes/segmentos:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationClientSegment
+      summary: "Segmentos de clientes"
+      description: "Cadastro global compartilhado; não é limitado por projeto."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [clientes.segmentos.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","label","slug","isActive"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"label":{"type":"string"},"slug":{"type":"string"},"isActive":{"type":"boolean"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/rdo/relatorios:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationReport
+      summary: "Relatórios aprovados — datas e horas"
+      description: "Somente relatórios aprovados, não excluídos e de projetos autorizados não excluídos."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [rdo.relatorios.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","projectId","reportType","status","reportDate","arrivalTime","departureTime","lunchBreak","daytimeCount","daytimeWorkedMinutes","nighttimeWorkedMinutes","daytimeOvertimeMinutes","nighttimeOvertimeMinutes","totalOvertimeMinutes","approvedAt"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"projectId":{"type":"string"},"reportType":{"type":"string"},"status":{"type":"string"},"reportDate":{"type":"string","format":"date-time"},"arrivalTime":{"type":"string"},"departureTime":{"type":"string"},"lunchBreak":{"type":"string"},"daytimeCount":{"type":"integer"},"daytimeWorkedMinutes":{"type":"integer"},"nighttimeWorkedMinutes":{"type":"integer"},"daytimeOvertimeMinutes":{"type":"integer"},"nighttimeOvertimeMinutes":{"type":"integer"},"totalOvertimeMinutes":{"type":"integer"},"approvedAt":{"type":["string","null"],"format":"date-time"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/rdo/dds:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationDdsTheme
+      summary: "Temas de DDS"
+      description: "Cadastro global compartilhado; não é limitado por projeto."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [rdo.dds.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","name","isActive"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"name":{"type":"string"},"isActive":{"type":"boolean"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/manutencao/registros:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationMaintenanceRecord
+      summary: "Manutenções aprovadas — identificação e datas"
+      description: "Respeita o projeto do relatório aprovado. Manutenções avulsas aprovadas somente com acesso a todos os projetos."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [manutencao.registros.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","reportId","equipmentId","profileId","maintenanceDate","status","approvedAt"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"reportId":{"type":["string","null"]},"equipmentId":{"type":"string"},"profileId":{"type":["string","null"]},"maintenanceDate":{"type":"string","format":"date-time"},"status":{"type":"string"},"approvedAt":{"type":["string","null"],"format":"date-time"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/manutencao/perfis:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationMaintenanceProfile
+      summary: "Perfis e itens de manutenção"
+      description: "Cadastro global compartilhado; não é limitado por projeto."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [manutencao.perfis.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","name","isActive"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"name":{"type":"string"},"isActive":{"type":"boolean"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/manutencao/perfis/itens:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationMaintenanceProfileItem
+      summary: "Itens dos perfis de manutenção"
+      description: "Cadastro global compartilhado; não é limitado por projeto."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [manutencao.perfis.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","profileId","label","isActive"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"profileId":{"type":"string"},"label":{"type":"string"},"isActive":{"type":"boolean"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/producao/limpezas:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationChemicalCleaning
+      summary: "Limpezas químicas — material e quantidade"
+      description: "Somente limpezas de relatórios aprovados e projetos autorizados não excluídos."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [producao.limpezas.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","reportId","material","quantityKg"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"reportId":{"type":"string"},"material":{"type":"string"},"quantityKg":{"type":"string","description":"Decimal exato representado como texto."}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/equipamentos:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationCompanyEquipment
+      summary: "Equipamentos — cadastro operacional"
+      description: "Cadastro global compartilhado; não é limitado por projeto."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [equipamentos.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","code","name","categoryId","maintenanceProfileId","isActive"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"code":{"type":"string"},"name":{"type":"string"},"categoryId":{"type":"string"},"maintenanceProfileId":{"type":["string","null"]},"isActive":{"type":"boolean"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/equipamentos/rdo:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationEquipment
+      summary: "Equipamentos de serviço do RDO"
+      description: "Cadastro global compartilhado; não é limitado por projeto."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [equipamentos.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","code","name","isActive"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"code":{"type":"string"},"name":{"type":"string"},"isActive":{"type":"boolean"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/equipamentos/categorias:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationEquipmentCategory
+      summary: "Categorias de equipamentos"
+      description: "Cadastro global compartilhado; não é limitado por projeto."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [equipamentos.categorias.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","name","isActive"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"name":{"type":"string"},"isActive":{"type":"boolean"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/estoque/itens:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationStockItem
+      summary: "Itens e categorias de estoque"
+      description: "Cadastro global compartilhado; não é limitado por projeto."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [estoque.itens.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","type","categoryId","code","name","manufacturer","unitLabel","isActive"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"type":{"type":"string"},"categoryId":{"type":["string","null"]},"code":{"type":"string"},"name":{"type":"string"},"manufacturer":{"type":["string","null"]},"unitLabel":{"type":"string"},"isActive":{"type":"boolean"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/estoque/categorias:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationStockCategory
+      summary: "Categorias de estoque"
+      description: "Cadastro global compartilhado; não é limitado por projeto."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: [estoque.itens.read]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      responses:
+        '200':
+          description: Página operacional por updatedAt e id, sem campos não contratados.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","type","name","isActive"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"type":{"type":"string"},"name":{"type":"string"},"isActive":{"type":"boolean"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/rdo/versoes:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationReportVersion
+      summary: "Versões dos relatórios — metadados"
+      description: "Somente relatórios aprovados e projetos autorizados não excluídos. createdSince detecta somente criações; reconciliar alterações por leitura completa."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["rdo.relatorios.read","rdo.versoes.read"]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","reportId","versionNumber","status"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"reportId":{"type":"string"},"versionNumber":{"type":"integer"},"status":{"type":"string"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/rdo/equipe:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationReportCollaborator
+      summary: "Equipes dos relatórios — IDs e cargos"
+      description: "Somente relatórios aprovados e projetos autorizados não excluídos. Sem filtro incremental: reconciliar a equipe por leitura completa."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["rdo.relatorios.read","rdo.equipe.read"]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página por reportId, collaboratorId. Snapshot é teto temporal, não uma transação entre páginas.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["reportId","collaboratorId","jobRoleIdSnapshot","roleNameSnapshot"]
+                      properties: {"reportId":{"type":"string"},"collaboratorId":{"type":"string"},"jobRoleIdSnapshot":{"type":["string","null"]},"roleNameSnapshot":{"type":["string","null"]}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/rdo/servicos:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationReportService
+      summary: "Serviços dos relatórios"
+      description: "Somente relatórios aprovados e projetos autorizados não excluídos."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["rdo.relatorios.read","rdo.servicos.read"]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página por updatedAt, id. Snapshot é teto temporal, não uma transação entre páginas.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","reportId","serviceType","equipmentId","system","material","startTime","endTime","finalized"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"reportId":{"type":"string"},"serviceType":{"type":"string"},"equipmentId":{"type":["string","null"]},"system":{"type":["string","null"]},"material":{"type":["string","null"]},"startTime":{"type":["string","null"]},"endTime":{"type":["string","null"]},"finalized":{"type":["boolean","null"]}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/rdo/anexos:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationReportAttachment
+      summary: "Anexos dos relatórios — metadados"
+      description: "Somente relatórios aprovados e projetos autorizados não excluídos. createdSince detecta somente criações; reconciliar alterações por leitura completa."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["rdo.relatorios.read","rdo.anexos.metadata.read"]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","reportId","reportServiceId","label","fileName","mimeType"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"reportId":{"type":["string","null"]},"reportServiceId":{"type":["string","null"]},"label":{"type":"string"},"fileName":{"type":"string"},"mimeType":{"type":"string"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/rdo/assinaturas:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationReportSignature
+      summary: "Assinaturas — situação e datas, sem identidade ou provas"
+      description: "Somente relatórios aprovados e projetos autorizados não excluídos."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["rdo.relatorios.read","rdo.assinaturas.read"]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página por updatedAt, id. Snapshot é teto temporal, não uma transação entre páginas.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","reportId","versionId","signerRole","signatureType","status","isRequired","signedAt","rejectedAt","invalidatedAt"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"reportId":{"type":"string"},"versionId":{"type":"string"},"signerRole":{"type":"string"},"signatureType":{"type":"string"},"status":{"type":"string"},"isRequired":{"type":"boolean"},"signedAt":{"type":["string","null"],"format":"date-time"},"rejectedAt":{"type":["string","null"],"format":"date-time"},"invalidatedAt":{"type":["string","null"],"format":"date-time"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/rdo/auditoria:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationReportAuditLog
+      summary: "Auditoria de relatórios — ações, sem identificação do ator"
+      description: "Somente relatórios aprovados e projetos autorizados não excluídos. createdSince detecta somente criações; reconciliar alterações por leitura completa."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["rdo.relatorios.read","rdo.auditoria.read"]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","reportId","versionId","action"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"reportId":{"type":"string"},"versionId":{"type":["string","null"]},"action":{"type":"string"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/estoque/lotes:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationStockBatch
+      summary: "Lotes de estoque — validade"
+      description: "Com projetos selecionados, somente lotes com movimento nesses projetos. Não representa saldo por projeto. createdSince detecta somente criações; reconciliar alterações por leitura completa."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["estoque.itens.read","estoque.lotes.read"]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"itemId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","itemId","lotNumber","expiryDate"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"itemId":{"type":"string"},"lotNumber":{"type":"string"},"expiryDate":{"type":["string","null"],"format":"date-time"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/estoque/movimentos:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationStockMovement
+      summary: "Movimentações de estoque — sem custos"
+      description: "Somente movimentos de projetos autorizados não excluídos; sem projeto exige todos os projetos. createdSince detecta somente criações; reconciliar alterações por leitura completa."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["estoque.itens.read","estoque.movimentos.read"]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"itemId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","itemId","batchId","projectId","type","reason","quantity","date","reversalOfId"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"itemId":{"type":"string"},"batchId":{"type":"string"},"projectId":{"type":["string","null"]},"type":{"type":"string"},"reason":{"type":"string"},"quantity":{"type":"string","pattern":"^-?[0-9]+(\\.[0-9]+)?$"},"date":{"type":"string","format":"date-time"},"reversalOfId":{"type":["string","null"]}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/estoque/documentos:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationStockItemDocument
+      summary: "Documentos técnicos de estoque — metadados globais"
+      description: "Cadastro global compartilhado; não é limitado por projeto. createdSince detecta somente criações; reconciliar alterações por leitura completa."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["estoque.itens.read","estoque.documentos.metadata.read"]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"itemId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","itemId","fileName","mimeType"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"itemId":{"type":"string"},"fileName":{"type":"string"},"mimeType":{"type":"string"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/estoque/custos:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationStockMovementCosts
+      summary: "Custos do estoque — dados financeiros"
+      description: "Somente movimentos de projetos autorizados não excluídos; sem projeto exige todos os projetos. Inclui valores financeiros; permissão independente da leitura operacional. createdSince detecta somente criações; reconciliar alterações por leitura completa."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["estoque.itens.read","estoque.movimentos.read","estoque.custos.read"]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"itemId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","itemId","batchId","projectId","type","reason","quantity","date","reversalOfId","unitCost","excludeFromProjectCost"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"itemId":{"type":"string"},"batchId":{"type":"string"},"projectId":{"type":["string","null"]},"type":{"type":"string"},"reason":{"type":"string"},"quantity":{"type":"string","pattern":"^-?[0-9]+(\\.[0-9]+)?$"},"date":{"type":"string","format":"date-time"},"reversalOfId":{"type":["string","null"]},"unitCost":{"type":["string","null"],"pattern":"^-?[0-9]+(\\.[0-9]+)?$"},"excludeFromProjectCost":{"type":"boolean"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/manutencao/terceiros:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationMaintenanceThirdPartyService
+      summary: "Serviços de terceiros em manutenção"
+      description: "Somente manutenções aprovadas; avulsas exigem todos os projetos."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["manutencao.registros.read","manutencao.terceiros.read"]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"maintenanceId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página por updatedAt, id. Snapshot é teto temporal, não uma transação entre páginas.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","updatedAt","maintenanceId","serviceDate","location","description","order"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"},"maintenanceId":{"type":"string"},"serviceDate":{"type":"string","format":"date-time"},"location":{"type":"string"},"description":{"type":"string"},"order":{"type":"integer"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/manutencao/anexos:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationMaintenanceAttachment
+      summary: "Anexos de manutenção — metadados"
+      description: "Somente manutenções aprovadas; avulsas exigem todos os projetos. createdSince detecta somente criações; reconciliar alterações por leitura completa."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["manutencao.registros.read","manutencao.anexos.metadata.read"]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"maintenanceId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","maintenanceId","kind","fileName","mimeType"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"maintenanceId":{"type":"string"},"kind":{"type":"string"},"fileName":{"type":"string"},"mimeType":{"type":"string"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/manutencao/auditoria:
+    get:
+      tags: [IntegrationOperational]
+      operationId: listIntegrationOperationalReviewAudit
+      summary: "Auditoria de manutenção — transições, sem ator"
+      description: "Somente manutenções aprovadas; avulsas exigem todos os projetos. createdSince detecta somente criações; reconciliar alterações por leitura completa."
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["manutencao.registros.read","manutencao.auditoria.read"]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"maintenanceId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, page, generatedAt, schemaVersion, requestId]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: ["id","createdAt","maintenanceId","previousStatus","nextStatus"]
+                      properties: {"id":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"maintenanceId":{"type":["string","null"]},"previousStatus":{"type":"string"},"nextStatus":{"type":"string"}}
+                  page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+                  generatedAt: { type: string, format: date-time }
+                  schemaVersion: { type: string, const: '1.0' }
+                  requestId: { type: string }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/rdo/anexos/{id}/download:
+    get:
+      tags: [IntegrationOperational]
+      operationId: downloadIntegrationReportAttachment
+      summary: "Baixar anexos dos relatórios"
+      description: Arquivo original autenticado, até 50 MiB. Pode conter dados pessoais ou financeiros. No console administrativo, somente disponibilidade e metadados são verificados, sem transferir o conteúdo.
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["rdo.relatorios.read","rdo.anexos.metadata.read","rdo.anexos.download"]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Arquivo local autorizado, sem revelar caminho ou token de armazenamento.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+            Content-Disposition: { schema: { type: string } }
+            X-Content-Type-Options: { schema: { const: nosniff } }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+            application/pdf:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/png:
+              schema: { type: string, format: binary }
+            image/webp:
+              schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413':
+          description: Arquivo excede 50 MiB.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/estoque/documentos/{id}/download:
+    get:
+      tags: [IntegrationOperational]
+      operationId: downloadIntegrationStockItemDocument
+      summary: "Baixar documentos de estoque"
+      description: Arquivo original autenticado, até 50 MiB. Pode conter dados pessoais ou financeiros. No console administrativo, somente disponibilidade e metadados são verificados, sem transferir o conteúdo.
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["estoque.itens.read","estoque.documentos.metadata.read","estoque.documentos.download"]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Arquivo local autorizado, sem revelar caminho ou token de armazenamento.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+            Content-Disposition: { schema: { type: string } }
+            X-Content-Type-Options: { schema: { const: nosniff } }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+            application/pdf:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/png:
+              schema: { type: string, format: binary }
+            image/webp:
+              schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413':
+          description: Arquivo excede 50 MiB.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /integracoes/v1/manutencao/anexos/{id}/download:
+    get:
+      tags: [IntegrationOperational]
+      operationId: downloadIntegrationMaintenanceAttachment
+      summary: "Baixar anexos de manutenção"
+      description: Arquivo original autenticado, até 50 MiB. Pode conter dados pessoais ou financeiros. No console administrativo, somente disponibilidade e metadados são verificados, sem transferir o conteúdo.
+      security: [{ IntegrationToken: [] }]
+      x-required-scopes: ["manutencao.registros.read","manutencao.anexos.metadata.read","manutencao.anexos.download"]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string","minLength":1,"maxLength":100}}]
+      responses:
+        '200':
+          description: Arquivo local autorizado, sem revelar caminho ou token de armazenamento.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/NoStore' }
+            X-Request-Id: { $ref: '#/components/headers/RequestId' }
+            Content-Disposition: { schema: { type: string } }
+            X-Content-Type-Options: { schema: { const: nosniff } }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+            application/pdf:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/png:
+              schema: { type: string, format: binary }
+            image/webp:
+              schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413':
+          description: Arquivo excede 50 MiB.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/InvalidIntegrationToken' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+components:
+  securitySchemes:
+    AdminSession:
+      type: http
+      scheme: bearer
+      bearerFormat: FiltroApp human session
+      description: Sessão existente de usuário; o servidor também exige `accountType=ADMIN`.
+    IntegrationToken:
+      type: http
+      scheme: bearer
+      bearerFormat: fva_selector_secret
+      description: Credencial opaca externa, aceita somente sob `/integracoes/v1`.
+
+  headers:
+    NoStore:
+      description: Resposta não deve ser armazenada
+      schema: { type: string, const: no-store }
+    NoCache:
+      description: Compatibilidade adicional na revelação do segredo
+      schema: { type: string, const: no-cache }
+    RequestId:
+      description: Identificador de correlação seguro
+      schema: { type: string }
+
+  parameters:
+    CredentialId:
+      name: credentialId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 100 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: UUID por tentativa lógica; repetição nunca emite um segundo segredo.
+      schema: { type: string, format: uuid }
+    AdminCursor:
+      name: cursor
+      in: query
+      schema: { type: string, maxLength: 1000 }
+    AdminLimit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    IntegrationCursor:
+      name: cursor
+      in: query
+      schema: { type: string, maxLength: 2000 }
+      description: Cursor opaco vinculado à operação, versão e filtros.
+    IntegrationLimit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+      description: Também limitado pelo `maxPageSize` da credencial.
+
+  responses:
+    AdminUnauthorized:
+      description: Sessão humana ausente ou inválida
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+        X-Request-Id: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    AdminForbidden:
+      description: Conta autenticada não é ADMIN
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+        X-Request-Id: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    InvalidIntegrationToken:
+      description: Token ausente, malformado, desconhecido, agendado, expirado ou revogado
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+        X-Request-Id: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Error'
+              - type: object
+                properties:
+                  code: { const: INVALID_TOKEN }
+    Forbidden:
+      description: Escopo, projeto, IP ou recurso não permitido
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+        X-Request-Id: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: Parâmetro ou corpo inválido
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+        X-Request-Id: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ValidationError' }
+    NotFound:
+      description: Recurso inexistente ou invisível para a credencial
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+        X-Request-Id: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Versão concorrente, idempotência repetida ou transição inválida
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+        X-Request-Id: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    RateLimited:
+      description: Limite de requisições, linhas ou volume excedido
+      headers:
+        Cache-Control: { $ref: '#/components/headers/NoStore' }
+        X-Request-Id: { $ref: '#/components/headers/RequestId' }
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Error'
+              - type: object
+                properties:
+                  code: { const: RATE_LIMITED }
+
+  schemas:
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message, requestId]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        requestId: { type: string }
+        error: { type: string, description: Alias de message incluído nos erros administrativos para compatibilidade. }
+        fields:
+          type: array
+          description: Campos inválidos, quando aplicável.
+          items:
+            type: object
+            additionalProperties: false
+            required: [path, message]
+            properties:
+              path: { type: string }
+              message: { type: string }
+    ValidationError:
+      type: object
+      additionalProperties: false
+      required: [code, message, requestId, fields]
+      properties:
+        code: { const: VALIDATION_ERROR }
+        message: { type: string }
+        requestId: { type: string }
+        error: { type: string, description: Alias de message incluído nos erros administrativos para compatibilidade. }
+        fields:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [path, message]
+            properties:
+              path: { type: string }
+              message: { type: string }
+
+    CredentialEffectiveStatus:
+      type: string
+      enum: [SCHEDULED, ACTIVE, NEAR_EXPIRY, EXPIRED, REVOKED]
+    ProjectAccess:
+      type: object
+      additionalProperties: false
+      required: [mode, projectIds]
+      properties:
+        mode: { type: string, enum: [ALL, SELECTED] }
+        projectIds:
+          type: array
+          uniqueItems: true
+          maxItems: 500
+          items: { type: string, minLength: 1, maxLength: 100 }
+    CredentialLimits:
+      type: object
+      additionalProperties: false
+      required: [requestsPerMinute, requestsPerDay, rowsPerDay, maxPageSize]
+      properties:
+        requestsPerMinute: { type: integer, minimum: 1, maximum: 600, default: 60 }
+        requestsPerDay: { type: integer, minimum: 1, maximum: 100000, default: 10000 }
+        rowsPerDay: { type: integer, minimum: 1, maximum: 10000000, default: 500000 }
+        maxPageSize: { type: integer, minimum: 1, maximum: 500, default: 100 }
+    CreateCredentialInput:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - purpose
+        - recipientName
+        - startsAt
+        - expiresAt
+        - scopeCodes
+        - projectAccess
+        - allowedIpCidrs
+        - allowedFormats
+        - limits
+      properties:
+        name: { type: string, minLength: 3, maxLength: 100 }
+        purpose: { type: string, minLength: 10, maxLength: 500 }
+        recipientName: { type: string, minLength: 2, maxLength: 120 }
+        recipientContact: { type: [string, 'null'], maxLength: 200 }
+        description: { type: [string, 'null'], maxLength: 1000 }
+        startsAt: { type: string, format: date-time }
+        expiresAt:
+          type: [string, 'null']
+          format: date-time
+          description: Nulo somente com confirmação exata de não expiração.
+        neverExpiresConfirmation:
+          type: string
+          const: SEM EXPIRAÇÃO
+        scopeCodes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, minLength: 3, maxLength: 120 }
+        projectAccess: { $ref: '#/components/schemas/ProjectAccess' }
+        allowedIpCidrs:
+          type: array
+          uniqueItems: true
+          maxItems: 100
+          items: { type: string, minLength: 3, maxLength: 64 }
+        allowedFormats:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, enum: [JSON] }
+        limits: { $ref: '#/components/schemas/CredentialLimits' }
+    ReduceCredentialInput:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, reason]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 10, maxLength: 500 }
+        name: { type: string, minLength: 3, maxLength: 100 }
+        purpose: { type: string, minLength: 10, maxLength: 500 }
+        recipientName: { type: string, minLength: 2, maxLength: 120 }
+        recipientContact: { type: [string, 'null'], maxLength: 200 }
+        description: { type: [string, 'null'], maxLength: 1000 }
+        scopeCodes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, minLength: 3, maxLength: 120 }
+        projectAccess: { $ref: '#/components/schemas/ProjectAccess' }
+        allowedIpCidrs:
+          type: array
+          uniqueItems: true
+          maxItems: 100
+          items: { type: string, minLength: 3, maxLength: 64 }
+        limits: { $ref: '#/components/schemas/CredentialLimits' }
+        expiresAt:
+          type: string
+          format: date-time
+          description: Pode apenas antecipar a expiração vigente.
+    RotateCredentialInput:
+      type: object
+      additionalProperties: false
+      required: [replacement, reason, expectedVersion, revokePreviousAt]
+      properties:
+        replacement: { $ref: '#/components/schemas/CreateCredentialInput' }
+        reason: { type: string, minLength: 10, maxLength: 500 }
+        expectedVersion: { type: integer, minimum: 1 }
+        revokePreviousAt:
+          type: string
+          format: date-time
+          description: Agora ou dentro da sobreposição máxima definida pelo servidor.
+    ApiCredential:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - purpose
+        - recipientName
+        - displayToken
+        - effectiveStatus
+        - startsAt
+        - expiresAt
+        - scopeCodes
+        - projectAccess
+        - allowedIpCidrs
+        - allowedFormats
+        - limits
+        - version
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string }
+        name: { type: string }
+        purpose: { type: string }
+        recipientName: { type: string }
+        recipientContact: { type: [string, 'null'] }
+        description: { type: [string, 'null'] }
+        displayToken:
+          type: string
+          description: Prefixo e quatro últimos caracteres, nunca o segredo.
+          example: fva_7k3m_••••a9Qx
+        effectiveStatus: { $ref: '#/components/schemas/CredentialEffectiveStatus' }
+        startsAt: { type: string, format: date-time }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        revokedAt: { type: [string, 'null'], format: date-time }
+        revocationReason: { type: [string, 'null'] }
+        scopeCodes:
+          type: array
+          items: { type: string }
+        projectAccess: { $ref: '#/components/schemas/ProjectAccess' }
+        allowedIpCidrs:
+          type: array
+          items: { type: string }
+        allowedFormats:
+          type: array
+          items: { type: string }
+        limits: { $ref: '#/components/schemas/CredentialLimits' }
+        lastUsedAt: { type: [string, 'null'], format: date-time }
+        rotatedFromId: { type: [string, 'null'] }
+        replacementId: { type: [string, 'null'] }
+        overlapEndsAt: { type: [string, 'null'], format: date-time }
+        version: { type: integer, minimum: 1 }
+        createdBy:
+          type: object
+          additionalProperties: false
+          required: [id, name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    IssuedCredential:
+      type: object
+      additionalProperties: false
+      required: [credential, token, tokenShownOnce]
+      properties:
+        credential: { $ref: '#/components/schemas/ApiCredential' }
+        token:
+          type: string
+          minLength: 40
+          writeOnly: true
+          description: Presente somente nesta resposta e mantido apenas em memória pelo cliente.
+        tokenShownOnce: { type: boolean, const: true }
+    CredentialPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ApiCredential' }
+        page: { $ref: '#/components/schemas/PageMeta' }
+    ScopeDefinition:
+      type: object
+      additionalProperties: false
+      required: [code, label, domain, description, sensitivity, availability, requiredScopes, operations, models, exposedFields, excludedFields, endpointFamilies]
+      properties:
+        code: { type: string }
+        label: { type: string }
+        domain: { type: string }
+        description: { type: string }
+        sensitivity: { type: string, enum: [NORMAL, PERSONAL, FINANCIAL, SIGNATURE, LGPD, INTERNAL] }
+        availability: { type: string, enum: [AVAILABLE, PLANNED, SENSITIVE, RESERVED, PROHIBITED] }
+        requiredScopes:
+          type: array
+          items: { type: string }
+        operations:
+          type: array
+          items: { type: string }
+        models:
+          type: array
+          items: { type: string }
+        exposedFields:
+          type: array
+          items: { type: string }
+        excludedFields:
+          type: array
+          items: { type: string }
+        endpointFamilies:
+          type: array
+          items: { type: string }
+    DataCatalogDomain:
+      type: object
+      additionalProperties: false
+      required: [code, label, models, candidateScopes, candidateAvailability, endpointFamilies, includedFields, excludedFields]
+      properties:
+        code: { type: string }
+        label: { type: string }
+        models:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [model, availability]
+            properties:
+              model: { type: string }
+              availability: { type: string, enum: [AVAILABLE, PLANNED, SENSITIVE, RESERVED, PROHIBITED] }
+        candidateScopes:
+          type: array
+          items: { type: string }
+        candidateAvailability: { type: string, enum: [AVAILABLE, PLANNED, SENSITIVE, RESERVED, PROHIBITED] }
+        endpointFamilies:
+          type: array
+          items: { type: string }
+        includedFields:
+          type: array
+          items: { type: string }
+        excludedFields:
+          type: array
+          items: { type: string }
+    CredentialEventPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, type, summary, createdAt]
+            properties:
+              id: { type: string }
+              type: { type: string }
+              reason: { type: [string, 'null'] }
+              summary: { type: object, additionalProperties: true }
+              actor:
+                type: [object, 'null']
+                properties:
+                  id: { type: string }
+                  name: { type: string }
+              requestId: { type: [string, 'null'] }
+              createdAt: { type: string, format: date-time }
+        page: { $ref: '#/components/schemas/PageMeta' }
+    CredentialUsage:
+      type: object
+      additionalProperties: false
+      required: [from, to, requests, rows, bytes, byStatus, byOperation]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        requests: { type: integer, minimum: 0 }
+        rows: { type: integer, minimum: 0 }
+        bytes: { type: integer, minimum: 0 }
+        byStatus: { type: object, additionalProperties: { type: integer, minimum: 0 } }
+        byOperation: { type: object, additionalProperties: { type: integer, minimum: 0 } }
+    PlaygroundParameter:
+      type: object
+      additionalProperties: false
+      required: [name, in, label, type, required]
+      properties:
+        name: { type: string }
+        in: { type: string, enum: [query, path] }
+        label: { type: string }
+        type: { type: string, enum: [text, integer, datetime, date, boolean, enum-list] }
+        required: { type: boolean }
+        help: { type: string }
+        min: { type: integer }
+        max: { type: integer }
+        maxLength: { type: integer }
+        options: { type: array, items: { type: string } }
+        advanced: { type: boolean }
+        requiredScope: { type: string }
+    PlaygroundDownloadCheck:
+      type: object
+      additionalProperties: false
+      required: [kind, available, file, message]
+      properties:
+        kind: { const: DOWNLOAD_CHECK }
+        available: { const: true }
+        message: { type: string }
+        file:
+          type: object
+          additionalProperties: false
+          required: [id, mimeType, sizeBytes]
+          properties:
+            id: { type: string }
+            mimeType: { type: string }
+            sizeBytes: { type: integer, minimum: 0, maximum: 52428800 }
+    PlaygroundResult:
+      type: object
+      additionalProperties: false
+      required: [request, response]
+      properties:
+        request:
+          type: object
+          additionalProperties: false
+          required: [method, path, authorization, curl]
+          properties:
+            method: { const: GET }
+            path: { type: string }
+            authorization: { type: string, example: 'Bearer ••••a9Qx' }
+            curl: { type: string, description: Usa `$FILTRO_API_TOKEN`, nunca o valor real. }
+        response:
+          type: object
+          additionalProperties: false
+          required: [status, durationMs, requestId, truncated, body]
+          properties:
+            status: { type: integer }
+            durationMs: { type: integer, minimum: 0 }
+            requestId: { type: string }
+            truncated: { type: boolean }
+            body:
+              description: Resposta JSON pública da consulta ou verificação de download, nunca arquivo binário/base64.
+              anyOf:
+                - $ref: '#/components/schemas/PlaygroundDownloadCheck'
+                - type: object
+                  not:
+                    required: [kind]
+                    properties:
+                      kind: { const: DOWNLOAD_CHECK }
+
+    PageMeta:
+      type: object
+      additionalProperties: false
+      required: [nextCursor, limit, hasMore]
+      properties:
+        nextCursor: { type: [string, 'null'] }
+        limit: { type: integer, minimum: 1 }
+        hasMore: { type: boolean }
+    IntegrationPageMeta:
+      type: object
+      additionalProperties: false
+      required: [nextCursor, limit, hasMore, snapshotAt]
+      properties:
+        nextCursor: { type: [string, 'null'] }
+        limit: { type: integer, minimum: 1 }
+        hasMore: { type: boolean }
+        snapshotAt:
+          type: string
+          format: date-time
+          description: Teto fixado na primeira página e preservado pelo cursor.
+    ProjectRef:
+      type: object
+      additionalProperties: false
+      required: [id, code, name]
+      properties:
+        id: { type: string }
+        code: { type: string }
+        name: { type: string }
+    NatureRef:
+      type: object
+      additionalProperties: false
+      required: [id, name, isActive]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        isActive: { type: boolean }
+    QualityEvidence:
+      type: object
+      additionalProperties: false
+      required: [id, kind, label, fileName, mimeType, position, createdAt, downloadAvailable]
+      properties:
+        id: { type: string }
+        kind: { type: string }
+        label: { type: [string, 'null'] }
+        fileName: { type: [string, 'null'] }
+        mimeType: { type: [string, 'null'] }
+        position: { type: integer }
+        createdAt: { type: string, format: date-time }
+        downloadAvailable: { type: boolean }
+    QualityRecord:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - number
+        - type
+        - registeredAt
+        - origin
+        - project
+        - eventDate
+        - nature
+        - description
+        - impact
+        - recurrence
+        - linkedRnc
+        - disposition
+        - definedAction
+        - actionOwner
+        - actionDeadline
+        - evidenceSummary
+        - resultVerification
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string }
+        number: { type: string }
+        type: { type: string }
+        registeredAt: { type: string, format: date-time }
+        origin: { type: [string, 'null'] }
+        project:
+          anyOf:
+            - $ref: '#/components/schemas/ProjectRef'
+            - type: 'null'
+        eventDate: { type: string, format: date }
+        nature:
+          anyOf:
+            - $ref: '#/components/schemas/NatureRef'
+            - type: 'null'
+        description: { type: [string, 'null'] }
+        impact: { type: [string, 'null'] }
+        recurrence:
+          type: object
+          additionalProperties: false
+          required: [occurrences12m, recurrent]
+          properties:
+            occurrences12m: { type: integer, minimum: 0 }
+            recurrent: { type: boolean }
+        linkedRnc: { type: [string, 'null'] }
+        disposition: { type: [string, 'null'] }
+        definedAction: { type: [string, 'null'] }
+        actionOwner: { type: [string, 'null'] }
+        actionDeadline: { type: [string, 'null'], format: date }
+        evidenceSummary: { type: [string, 'null'] }
+        resultVerification: { type: [string, 'null'] }
+        status: { type: [string, 'null'] }
+        evidences:
+          type: array
+          description: Omitido sem `qualidade.evidencias.metadata.read`.
+          items: { $ref: '#/components/schemas/QualityEvidence' }
+        deletedAt:
+          type: [string, 'null']
+          format: date-time
+          description: Omitido sem `qualidade.excluidos.read`.
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    QualityRecordPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, generatedAt, schemaVersion, requestId]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/QualityRecord' }
+        page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+        generatedAt: { type: string, format: date-time }
+        schemaVersion: { type: string, const: '1.0' }
+        requestId: { type: string }
+    QualityNature:
+      type: object
+      additionalProperties: false
+      required: [id, name, isActive, position, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        isActive: { type: boolean }
+        position: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    QualityNaturePage:
+      type: object
+      additionalProperties: false
+      required: [items, page, generatedAt, schemaVersion, requestId]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/QualityNature' }
+        page: { $ref: '#/components/schemas/IntegrationPageMeta' }
+        generatedAt: { type: string, format: date-time }
+        schemaVersion: { type: string, const: '1.0' }
+        requestId: { type: string }

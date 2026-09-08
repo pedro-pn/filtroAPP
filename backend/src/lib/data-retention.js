@@ -7,12 +7,13 @@ const DATA_RETENTION_ADVISORY_LOCK_ID = 2026052217;
 const DEFAULT_RETENTION_BATCH_SIZE = 500;
 const DEFAULT_RETENTION_MAX_BATCHES_PER_TARGET = 20;
 
-export function retentionCutoffs(now = new Date()) {
+export function retentionCutoffs(now = new Date(), apiTokenLogRetentionDays = 365) {
   return {
     now,
     auditLogAnonymizeBefore: new Date(now.getTime() - 730 * DAY_MS),
     surveyEvidenceAnonymizeBefore: new Date(now.getTime() - 365 * DAY_MS),
-    abandonedDraftDeleteBefore: new Date(now.getTime() - 183 * DAY_MS)
+    abandonedDraftDeleteBefore: new Date(now.getTime() - 183 * DAY_MS),
+    apiTokenUsageDeleteBefore: new Date(now.getTime() - apiTokenLogRetentionDays * DAY_MS)
   };
 }
 
@@ -36,7 +37,9 @@ export function retentionTargets(cutoffs) {
       respondedAt: { lt: cutoffs.surveyEvidenceAnonymizeBefore },
       OR: [{ submittedIp: { not: null } }, { submittedUserAgent: { not: null } }]
     },
-    abandonedDrafts: { updatedAt: { lt: cutoffs.abandonedDraftDeleteBefore } }
+    abandonedDrafts: { updatedAt: { lt: cutoffs.abandonedDraftDeleteBefore } },
+    apiRequestLogs: { createdAt: { lt: cutoffs.apiTokenUsageDeleteBefore } },
+    apiUsageBuckets: { updatedAt: { lt: cutoffs.apiTokenUsageDeleteBefore } }
   };
 }
 
@@ -56,8 +59,8 @@ export function abandonedDraftExplicitDeleteWhere(targets, draftIds) {
   };
 }
 
-export async function previewDataRetention({ prismaClient = prisma, now = new Date(), abandonedDraftPreviewLimit = 100 } = {}) {
-  const cutoffs = retentionCutoffs(now);
+export async function previewDataRetention({ prismaClient = prisma, now = new Date(), abandonedDraftPreviewLimit = 100, apiTokenLogRetentionDays = 365 } = {}) {
+  const cutoffs = retentionCutoffs(now, apiTokenLogRetentionDays);
   const targets = retentionTargets(cutoffs);
 
   const [
@@ -93,6 +96,9 @@ export async function previewDataRetention({ prismaClient = prisma, now = new Da
     })
   ]);
 
+  const apiRequestLogs = prismaClient.apiRequestLog?.count ? await prismaClient.apiRequestLog.count({ where: targets.apiRequestLogs }) : null;
+  const apiUsageBuckets = prismaClient.apiUsageBucket?.count ? await prismaClient.apiUsageBucket.count({ where: targets.apiUsageBuckets }) : null;
+
   return {
     now: cutoffs.now.toISOString(),
     auditLogAnonymizeBefore: cutoffs.auditLogAnonymizeBefore.toISOString(),
@@ -107,7 +113,9 @@ export async function previewDataRetention({ prismaClient = prisma, now = new Da
     abandonedDraftsToReview: abandonedDrafts,
     abandonedDraftPreviewLimit,
     abandonedDraftIdsToReview: abandonedDraftsToReview.map(draft => draft.id),
-    abandonedDraftsToReviewSample: abandonedDraftsToReview
+    abandonedDraftsToReviewSample: abandonedDraftsToReview,
+    ...(apiRequestLogs === null ? {} : { apiRequestLogsToDelete: apiRequestLogs }),
+    ...(apiUsageBuckets === null ? {} : { apiUsageBucketsToDelete: apiUsageBuckets })
   };
 }
 
@@ -116,7 +124,8 @@ function retentionRunCutoffSnapshot(cutoffs) {
     now: cutoffs.now.toISOString(),
     auditLogAnonymizeBefore: cutoffs.auditLogAnonymizeBefore.toISOString(),
     surveyEvidenceAnonymizeBefore: cutoffs.surveyEvidenceAnonymizeBefore.toISOString(),
-    abandonedDraftDeleteBefore: cutoffs.abandonedDraftDeleteBefore.toISOString()
+    abandonedDraftDeleteBefore: cutoffs.abandonedDraftDeleteBefore.toISOString(),
+    apiTokenUsageDeleteBefore: cutoffs.apiTokenUsageDeleteBefore.toISOString()
   };
 }
 
@@ -256,6 +265,28 @@ async function executeRetentionMutations(prismaClient, targets, {
     batchSize,
     maxBatchesPerTarget
   });
+  const apiRequestLogs = prismaClient.apiRequestLog?.findMany
+    ? await processRetentionBatches({
+      prismaClient,
+      modelName: 'apiRequestLog',
+      where: targets.apiRequestLogs,
+      orderBy: { createdAt: 'asc' },
+      action: 'delete',
+      batchSize,
+      maxBatchesPerTarget
+    })
+    : null;
+  const apiUsageBuckets = prismaClient.apiUsageBucket?.findMany
+    ? await processRetentionBatches({
+      prismaClient,
+      modelName: 'apiUsageBucket',
+      where: targets.apiUsageBuckets,
+      orderBy: { updatedAt: 'asc' },
+      action: 'delete',
+      batchSize,
+      maxBatchesPerTarget
+    })
+    : null;
   const explicitDraftDeleteWhere = deleteAbandonedDrafts
     ? abandonedDraftExplicitDeleteWhere(targets, abandonedDraftIds)
     : null;
@@ -282,6 +313,8 @@ async function executeRetentionMutations(prismaClient, targets, {
     epiAuditLogsAnonymized: epiAuditLogs.count,
     signatureDocumentAuditLogsAnonymized: signatureDocumentAuditLogs.count,
     satisfactionSurveysAnonymized: satisfactionSurveys.count,
+    ...(apiRequestLogs ? { apiRequestLogsDeleted: apiRequestLogs.count } : {}),
+    ...(apiUsageBuckets ? { apiUsageBucketsDeleted: apiUsageBuckets.count } : {}),
     abandonedDraftsDeleted: abandonedDrafts.count,
     abandonedDraftIdsDeleted,
     abandonedDraftDeletionRequiresExplicitIds: deleteAbandonedDrafts && !explicitDraftDeleteWhere,
@@ -292,6 +325,8 @@ async function executeRetentionMutations(prismaClient, targets, {
       epiAuditLogs: epiAuditLogs.batches,
       signatureDocumentAuditLogs: signatureDocumentAuditLogs.batches,
       satisfactionSurveys: satisfactionSurveys.batches,
+      ...(apiRequestLogs ? { apiRequestLogs: apiRequestLogs.batches } : {}),
+      ...(apiUsageBuckets ? { apiUsageBuckets: apiUsageBuckets.batches } : {}),
       abandonedDrafts: abandonedDraftIdsDeleted.length ? 1 : 0
     },
     batchSize,
@@ -308,13 +343,14 @@ export async function runDataRetention({
   deleteAbandonedDrafts = false,
   abandonedDraftIds = [],
   batchSize = DEFAULT_RETENTION_BATCH_SIZE,
-  maxBatchesPerTarget = DEFAULT_RETENTION_MAX_BATCHES_PER_TARGET
+  maxBatchesPerTarget = DEFAULT_RETENTION_MAX_BATCHES_PER_TARGET,
+  apiTokenLogRetentionDays = 365
 } = {}) {
   if (typeof prismaClient.$transaction !== 'function') {
     throw new Error('Retenção de dados requer transação para evitar mutação parcial.');
   }
 
-  const cutoffs = retentionCutoffs(now);
+  const cutoffs = retentionCutoffs(now, apiTokenLogRetentionDays);
   const targets = retentionTargets(cutoffs);
   const run = await prismaClient.dataRetentionRun.create({
     data: {

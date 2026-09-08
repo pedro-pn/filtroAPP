@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 
 import { markFutureAllocationsForReplanning, withCurrentJobRole } from '../../collaborators/job-role-service.js';
+import { synchronizeCurrentCollaboratorJobRole, validateCollaboratorRoleEffectiveDate } from '../../collaborators/job-role-history.js';
 import { recordEfetivoAudit } from './audit.js';
 import {
   collectAllocationConflicts,
@@ -53,7 +54,16 @@ export async function createPlanningCollaborator(payload, context = {}, dependen
     const collaborator = await tx.collaborator.create({
       data: {
         code: `EF-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
-        ...collaboratorData(payload, role)
+        ...collaboratorData(payload, role),
+        jobRoleHistory: {
+          create: {
+            jobRoleId: role.id,
+            effectiveDate: validateCollaboratorRoleEffectiveDate(
+              { admissionDate: utcDate(payload.admissionDate) },
+              payload.jobRoleEffectiveDate || payload.admissionDate
+            )
+          }
+        }
       },
       include: { jobRole: true }
     });
@@ -75,10 +85,23 @@ export async function updatePlanningCollaborator(collaboratorId, payload, contex
     if (!existing) throw notFound('Colaborador não encontrado.');
     const role = await requireOperationalRole(tx, payload.jobRoleId);
     const nextData = collaboratorData(payload, role);
-    const updated = await tx.collaborator.update({ where: { id: collaboratorId }, data: nextData, include: { jobRole: true } });
-    if (existing.jobRoleId !== nextData.jobRoleId) {
-      await markFutureAllocationsForReplanning(tx, collaboratorId, nextData.jobRoleId);
+    const roleChanged = existing.jobRoleId !== nextData.jobRoleId;
+    const { jobRoleId: nextJobRoleId, ...nonRoleData } = nextData;
+    await tx.collaborator.update({ where: { id: collaboratorId }, data: nonRoleData });
+    if (roleChanged) {
+      const effectiveDate = validateCollaboratorRoleEffectiveDate(
+        { ...existing, admissionDate: nonRoleData.admissionDate },
+        payload.jobRoleEffectiveDate || new Date()
+      );
+      await tx.collaboratorJobRoleHistory.upsert({
+        where: { collaboratorId_effectiveDate: { collaboratorId, effectiveDate } },
+        create: { collaboratorId, jobRoleId: nextJobRoleId, effectiveDate },
+        update: { jobRoleId: nextJobRoleId }
+      });
+      const synced = await synchronizeCurrentCollaboratorJobRole(tx, collaboratorId);
+      if (synced.changed) await markFutureAllocationsForReplanning(tx, collaboratorId, synced.collaborator.jobRoleId);
     }
+    const updated = await tx.collaborator.findUniqueOrThrow({ where: { id: collaboratorId }, include: { jobRole: true } });
     await bumpPlanRevision(tx, plan);
     await recordEfetivoAudit(tx, {
       planId: plan.id, actorUserId: context.actorUserId, action: 'COLLABORATOR_UPDATE', entityType: 'COLLABORATOR', entityId: collaboratorId,

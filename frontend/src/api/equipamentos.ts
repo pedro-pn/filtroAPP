@@ -1,6 +1,11 @@
 import { apiClient, equipamentosApiPath } from './client';
+import type {
+  MaintenanceAttachment,
+  MaintenanceProfileSummary
+} from './operationalReports';
 
-export type EquipmentFieldType = 'text' | 'number' | 'date' | 'select' | 'textarea';
+export type EquipmentFieldType =
+  'text' | 'number' | 'date' | 'select' | 'textarea';
 export type ChecklistDisplayMode = 'AUTO' | 'TAG' | 'NAME';
 
 export interface EquipmentFieldDefinition {
@@ -16,8 +21,15 @@ export interface EquipmentFieldDefinition {
 // === Dados Técnicos (datasheet configurável) ===
 
 export type TechnicalFieldType =
-  | 'text' | 'textarea' | 'number' | 'measure'
-  | 'select' | 'multiselect' | 'boolean' | 'date' | 'group';
+  | 'text'
+  | 'textarea'
+  | 'number'
+  | 'measure'
+  | 'select'
+  | 'multiselect'
+  | 'boolean'
+  | 'date'
+  | 'group';
 
 export interface TechnicalFieldDefinition {
   key: string;
@@ -49,6 +61,9 @@ export interface EquipmentCategory {
   id: string;
   systemKey: string;
   name: string;
+  maintenanceProfileId?: string | null;
+  maintenanceIntervalDays?: number | null;
+  showInMaintenance: boolean;
   order: number;
   fieldSchema: EquipmentFieldDefinition[];
   technicalSchema: TechnicalFieldDefinition[];
@@ -67,7 +82,12 @@ export interface EquipmentCategory {
 
 export interface EquipmentAttachment {
   id: string;
-  kind: 'CALIBRATION_CERTIFICATE' | 'TECHNICAL_DOC' | 'TECHNICAL_TEMPLATE' | 'TECHNICAL_DOC_GENERATED' | 'TECHNICAL_PHOTO';
+  kind:
+    | 'CALIBRATION_CERTIFICATE'
+    | 'TECHNICAL_DOC'
+    | 'TECHNICAL_TEMPLATE'
+    | 'TECHNICAL_DOC_GENERATED'
+    | 'TECHNICAL_PHOTO';
   fileName: string;
   mimeType: string;
   publicToken: string;
@@ -91,6 +111,9 @@ export interface CompanyEquipment {
   expiresAt: string | null;
   hasTechnicalDoc: boolean;
   isActive: boolean;
+  maintenanceProfileId?: string | null;
+  maintenanceProfileOverride?: boolean;
+  maintenanceProfile?: MaintenanceProfileSummary | null;
   calibrationCertificate?: EquipmentAttachment | null;
   calibrationCertificateArchive?: EquipmentAttachment[];
   technicalDoc?: EquipmentAttachment | null;
@@ -114,6 +137,9 @@ export interface ImageUpload {
 
 export interface EquipmentCategoryPayload {
   name: string;
+  maintenanceProfileId?: string | null;
+  maintenanceIntervalDays?: number | null;
+  showInMaintenance?: boolean;
   order?: number;
   fieldSchema?: EquipmentFieldDefinition[];
   technicalSchema?: TechnicalFieldDefinition[];
@@ -130,6 +156,8 @@ export interface EquipmentPayload {
   code: string;
   name: string;
   categoryId: string;
+  maintenanceProfileId?: string | null;
+  maintenanceProfileOverride?: boolean;
   attributes?: Record<string, unknown>;
   technicalData?: Record<string, unknown>;
   technicalFieldOverrides?: Record<string, boolean>;
@@ -150,17 +178,30 @@ export interface EquipmentPayload {
 // === Categorias ===
 
 export async function listEquipmentCategories() {
-  const response = await apiClient.get<EquipmentCategory[]>(equipamentosApiPath('/categories'));
+  const response = await apiClient.get<EquipmentCategory[]>(
+    equipamentosApiPath('/categories')
+  );
   return response.data;
 }
 
-export async function createEquipmentCategory(payload: EquipmentCategoryPayload) {
-  const response = await apiClient.post<EquipmentCategory>(equipamentosApiPath('/categories'), payload);
+export async function createEquipmentCategory(
+  payload: EquipmentCategoryPayload
+) {
+  const response = await apiClient.post<EquipmentCategory>(
+    equipamentosApiPath('/categories'),
+    payload
+  );
   return response.data;
 }
 
-export async function updateEquipmentCategory(id: string, payload: Partial<EquipmentCategoryPayload>) {
-  const response = await apiClient.put<EquipmentCategory>(equipamentosApiPath(`/categories/${id}`), payload);
+export async function updateEquipmentCategory(
+  id: string,
+  payload: Partial<EquipmentCategoryPayload>
+) {
+  const response = await apiClient.put<EquipmentCategory>(
+    equipamentosApiPath(`/categories/${id}`),
+    payload
+  );
   return response.data;
 }
 
@@ -169,32 +210,48 @@ export async function removeEquipmentCategory(id: string) {
 }
 
 export async function listUnitsCatalog() {
-  const response = await apiClient.get<MeasurementDimension[]>(equipamentosApiPath('/units-catalog'));
+  const response = await apiClient.get<MeasurementDimension[]>(
+    equipamentosApiPath('/units-catalog')
+  );
   return response.data;
 }
 
 // === Equipamentos ===
 
 export async function listEquipamentos(categoryId?: string) {
-  const response = await apiClient.get<CompanyEquipment[]>(equipamentosApiPath('/'), {
-    params: categoryId ? { categoryId } : undefined
-  });
+  const response = await apiClient.get<CompanyEquipment[]>(
+    equipamentosApiPath('/'),
+    {
+      params: categoryId ? { categoryId } : undefined
+    }
+  );
   return response.data;
 }
 
 export async function createEquipamento(payload: EquipmentPayload) {
-  const response = await apiClient.post<CompanyEquipment>(equipamentosApiPath('/'), payload);
+  const response = await apiClient.post<CompanyEquipment>(
+    equipamentosApiPath('/'),
+    payload
+  );
   return response.data;
 }
 
-export async function updateEquipamento(id: string, payload: Partial<EquipmentPayload>) {
-  const response = await apiClient.put<CompanyEquipment>(equipamentosApiPath(`/${id}`), payload);
+export async function updateEquipamento(
+  id: string,
+  payload: Partial<EquipmentPayload>
+) {
+  const response = await apiClient.put<CompanyEquipment>(
+    equipamentosApiPath(`/${id}`),
+    payload
+  );
   return response.data;
 }
 
 // Gera (ou regenera) o datasheet em PDF a partir dos Dados Técnicos preenchidos.
 export async function generateTechnicalDoc(id: string) {
-  const response = await apiClient.post<EquipmentAttachment>(equipamentosApiPath(`/${id}/technical-doc`));
+  const response = await apiClient.post<EquipmentAttachment>(
+    equipamentosApiPath(`/${id}/technical-doc`)
+  );
   return response.data;
 }
 
@@ -202,9 +259,116 @@ export async function removeEquipamento(id: string) {
   await apiClient.delete(equipamentosApiPath(`/${id}`));
 }
 
+// === Manutenção dos equipamentos ===
+
+export interface MaintenanceSupervisorCandidate {
+  id: string;
+  code: string;
+  name: string;
+  user: { id: string; email: string | null };
+}
+
+export interface EquipmentMaintenanceConfig {
+  supervisor: {
+    id: string | null;
+    name: string | null;
+    userId: string | null;
+    valid: boolean;
+    reason: string | null;
+  };
+  candidates: MaintenanceSupervisorCandidate[];
+  profiles: MaintenanceProfileSummary[];
+  canManage: boolean;
+}
+
+export interface MaintenanceProfilePayload {
+  name: string;
+  order?: number;
+  isActive?: boolean;
+  items: Array<{
+    id?: string;
+    label: string;
+    order: number;
+    isActive: boolean;
+  }>;
+}
+
+export interface EquipmentMaintenanceHistory {
+  equipment: { id: string; code: string; name: string };
+  items: Array<{
+    id: string;
+    maintenanceDate: string;
+    responsibleName: string;
+    profileName: string;
+    selectedServices: Array<{ label: string; order: number }>;
+    observations?: string | null;
+    thirdPartyServices: Array<{
+      id: string;
+      serviceDate: string;
+      location: string;
+      description: string;
+    }>;
+    approvedAt: string;
+    supervisorName: string;
+    document?: MaintenanceAttachment | null;
+  }>;
+}
+
+export async function getEquipmentMaintenanceConfig() {
+  const response = await apiClient.get<EquipmentMaintenanceConfig>(
+    equipamentosApiPath('/maintenance/config')
+  );
+  return response.data;
+}
+
+export async function updateEquipmentMaintenanceSupervisor(
+  supervisorCollaboratorId: string | null
+) {
+  const response = await apiClient.put<
+    Pick<EquipmentMaintenanceConfig, 'supervisor'>
+  >(equipamentosApiPath('/maintenance/config'), { supervisorCollaboratorId });
+  return response.data;
+}
+
+export async function createMaintenanceProfile(
+  payload: MaintenanceProfilePayload
+) {
+  const response = await apiClient.post<MaintenanceProfileSummary>(
+    equipamentosApiPath('/maintenance/profiles'),
+    payload
+  );
+  return response.data;
+}
+
+export async function updateMaintenanceProfile(
+  id: string,
+  payload: MaintenanceProfilePayload
+) {
+  const response = await apiClient.put<MaintenanceProfileSummary>(
+    equipamentosApiPath(`/maintenance/profiles/${id}`),
+    payload
+  );
+  return response.data;
+}
+
+export async function removeMaintenanceProfile(id: string) {
+  const response = await apiClient.delete<MaintenanceProfileSummary | void>(
+    equipamentosApiPath(`/maintenance/profiles/${id}`)
+  );
+  return response.data;
+}
+
+export async function getEquipmentMaintenanceHistory(id: string) {
+  const response = await apiClient.get<EquipmentMaintenanceHistory>(
+    equipamentosApiPath(`/${id}/maintenance-history`)
+  );
+  return response.data;
+}
+
 // === Slots de equipamento do RDO ===
 
-export type RdoSlotKind = 'UNITS_MULTI' | 'UNIT_SINGLE' | 'MANOMETER_MULTI' | 'COUNTER_SINGLE';
+export type RdoSlotKind =
+  'UNITS_MULTI' | 'UNIT_SINGLE' | 'MANOMETER_MULTI' | 'COUNTER_SINGLE';
 
 export interface RdoEquipmentSlot {
   key: string;
@@ -217,12 +381,17 @@ export interface RdoEquipmentSlot {
 }
 
 export async function listRdoSlots() {
-  const response = await apiClient.get<RdoEquipmentSlot[]>(equipamentosApiPath('/rdo-slots'));
+  const response = await apiClient.get<RdoEquipmentSlot[]>(
+    equipamentosApiPath('/rdo-slots')
+  );
   return response.data;
 }
 
 export async function updateRdoSlot(slotKey: string, categoryIds: string[]) {
-  const response = await apiClient.put<RdoEquipmentSlot>(equipamentosApiPath(`/rdo-slots/${slotKey}`), { categoryIds });
+  const response = await apiClient.put<RdoEquipmentSlot>(
+    equipamentosApiPath(`/rdo-slots/${slotKey}`),
+    { categoryIds }
+  );
   return response.data;
 }
 
@@ -250,35 +419,60 @@ export interface NotificationAccount {
 }
 
 export async function getNotificationConfig() {
-  const response = await apiClient.get<NotificationConfig>(equipamentosApiPath('/notifications/config'));
+  const response = await apiClient.get<NotificationConfig>(
+    equipamentosApiPath('/notifications/config')
+  );
   return response.data;
 }
 
-export async function updateNotificationConfig(payload: Partial<NotificationConfig>) {
-  const response = await apiClient.put<NotificationConfig>(equipamentosApiPath('/notifications/config'), payload);
+export async function updateNotificationConfig(
+  payload: Partial<NotificationConfig>
+) {
+  const response = await apiClient.put<NotificationConfig>(
+    equipamentosApiPath('/notifications/config'),
+    payload
+  );
   return response.data;
 }
 
 export async function listNotificationAccounts() {
-  const response = await apiClient.get<NotificationAccount[]>(equipamentosApiPath('/notifications/accounts'));
+  const response = await apiClient.get<NotificationAccount[]>(
+    equipamentosApiPath('/notifications/accounts')
+  );
   return response.data;
 }
 
 export async function listNotificationRecipients() {
-  const response = await apiClient.get<NotificationRecipient[]>(equipamentosApiPath('/notifications/recipients'));
+  const response = await apiClient.get<NotificationRecipient[]>(
+    equipamentosApiPath('/notifications/recipients')
+  );
   return response.data;
 }
 
-export async function addNotificationRecipient(payload: { userId?: string; email?: string }) {
-  const response = await apiClient.post<NotificationRecipient>(equipamentosApiPath('/notifications/recipients'), payload);
+export async function addNotificationRecipient(payload: {
+  userId?: string;
+  email?: string;
+}) {
+  const response = await apiClient.post<NotificationRecipient>(
+    equipamentosApiPath('/notifications/recipients'),
+    payload
+  );
   return response.data;
 }
 
-export async function setNotificationRecipientActive(id: string, isActive: boolean) {
-  const response = await apiClient.put<NotificationRecipient>(equipamentosApiPath(`/notifications/recipients/${id}`), { isActive });
+export async function setNotificationRecipientActive(
+  id: string,
+  isActive: boolean
+) {
+  const response = await apiClient.put<NotificationRecipient>(
+    equipamentosApiPath(`/notifications/recipients/${id}`),
+    { isActive }
+  );
   return response.data;
 }
 
 export async function removeNotificationRecipient(id: string) {
-  await apiClient.delete(equipamentosApiPath(`/notifications/recipients/${id}`));
+  await apiClient.delete(
+    equipamentosApiPath(`/notifications/recipients/${id}`)
+  );
 }

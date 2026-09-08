@@ -1,5 +1,4 @@
-﻿import { useLocation, useNavigate } from 'react-router';
-
+import { useLocation, useNavigate } from 'react-router';
 
 import { useAuth } from '../../auth/AuthContext';
 import { accountPageStateFromPath } from '../../auth/moduleNavigation';
@@ -11,6 +10,7 @@ import { TopBar } from '../../layout/TopBar';
 import { useRdoStore } from '../../store/rdoStore';
 import type { ReportDraft } from '../../types/domain';
 import { collectOngoingServices } from '../../utils/ongoingServices';
+import { SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
 
 const TEXT = {
   archived: 'Arquivados',
@@ -24,7 +24,7 @@ const TEXT = {
   newReport: 'Novo relatório',
   noDate: 'Sem data definida',
   remove: 'Remover',
-  resume: 'Retomar preenchimento',
+  resume: 'Retomar preenchimento'
 };
 
 function getGreeting(name: string) {
@@ -66,7 +66,11 @@ function asDdsThemes(value: unknown): { id: string; name: string; custom?: boole
   if (!Array.isArray(value)) return [];
   return value
     .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
-    .map(item => ({ id: asString(item.id), name: asString(item.name), ...(item.custom === true ? { custom: true } : {}) }))
+    .map(item => ({
+      id: asString(item.id),
+      name: asString(item.name),
+      ...(item.custom === true ? { custom: true } : {})
+    }))
     .filter(item => item.id && item.name);
 }
 
@@ -78,7 +82,7 @@ function asServices(value: unknown): RdoServiceDraft[] {
     .map(item => ({
       id: asString(item.id, `svc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
       type: asString(item.type, 'LIMPEZA'),
-      data: item.data && typeof item.data === 'object' && !Array.isArray(item.data) ? item.data as Record<string, unknown> : {}
+      data: item.data && typeof item.data === 'object' && !Array.isArray(item.data) ? (item.data as Record<string, unknown>) : {}
     }));
 }
 
@@ -96,6 +100,8 @@ export function HomePage() {
   const draftMutations = useDraftMutations();
   const { hydrate, reset } = useRdoStore();
   const ongoingServices = collectOngoingServices(reportsQuery.data || []);
+  const emissionPermissions = user?.reportEmissionPermissions || [];
+  const canEmitSite = emissionPermissions.includes('SITE_RDO');
 
   function handleNewReport() {
     reset();
@@ -136,7 +142,7 @@ export function HomePage() {
       services: asServices(payload.services)
     });
 
-    navigate(rdoPath('/relatorio/novo'));
+    navigate(rdoPath(SITE_RDO_DRAFT_FORM_PATH));
   }
 
   return (
@@ -147,13 +153,24 @@ export function HomePage() {
         showLogo
         actions={
           <>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location) })}>
+            <button
+              className="topbar-chip"
+              type="button"
+              onClick={() =>
+                navigate('/conta', {
+                  state: accountPageStateFromPath(location)
+                })
+              }
+            >
               Conta
             </button>
             <button
               className="topbar-chip"
               type="button"
-              onClick={async () => { await logout(); navigate('/', { replace: true }); }}
+              onClick={async () => {
+                await logout();
+                navigate('/', { replace: true });
+              }}
             >
               Sair
             </button>
@@ -167,32 +184,40 @@ export function HomePage() {
         </div>
 
         <section className="home-actions-grid">
-          <button className="home-action-card home-action-primary" type="button" onClick={handleNewReport}>
-            <span className="home-action-icon">📋</span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <span className="home-action-title">{TEXT.newReport}</span>
-              <span className="home-action-subtitle">{TEXT.createRdo}</span>
-            </div>
-          </button>
-          <button className="home-action-card" type="button" onClick={() => navigate(rdoPath('/meus-relatorios'))}>
-            <div className="home-action-icon">📁</div>
-            <div className="home-action-title">{TEXT.myReports}</div>
-            <div className="home-action-subtitle">{TEXT.historyByProject}</div>
-          </button>
-          <button className="home-action-card" type="button" onClick={() => navigate(rdoPath('/andamento'))} disabled={!ongoingServices.length}>
-            <div className="home-action-icon">⏳</div>
-            <div className="home-action-title">{TEXT.inProgress}</div>
-            <div className="home-action-subtitle">{ongoingServices.length} serviço(s) ativos</div>
-          </button>
+          {canEmitSite ? (
+            <button className="home-action-card home-action-primary" type="button" onClick={handleNewReport} data-operational-new-report>
+              <span className="home-action-icon">📋</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span className="home-action-title">{TEXT.newReport}</span>
+                <span className="home-action-subtitle">{TEXT.createRdo}</span>
+              </div>
+            </button>
+          ) : null}
+          {canEmitSite ? (
+            <button className="home-action-card" type="button" onClick={() => navigate(rdoPath('/meus-relatorios'))}>
+              <div className="home-action-icon">📁</div>
+              <div className="home-action-title">{TEXT.myReports}</div>
+              <div className="home-action-subtitle">{TEXT.historyByProject}</div>
+            </button>
+          ) : null}
+          {canEmitSite ? (
+            <button className="home-action-card" type="button" onClick={() => navigate(rdoPath('/andamento'))} disabled={!ongoingServices.length}>
+              <div className="home-action-icon">⏳</div>
+              <div className="home-action-title">{TEXT.inProgress}</div>
+              <div className="home-action-subtitle">{ongoingServices.length} serviço(s) ativos</div>
+            </button>
+          ) : null}
         </section>
 
-        <section className="page-card compact-link-card">
-          <button className="secondary-button" type="button" onClick={() => navigate(rdoPath('/meus-relatorios/arquivados'))}>
-            {TEXT.archived} — {TEXT.archivedSubtitle}
-          </button>
-        </section>
+        {canEmitSite ? (
+          <section className="page-card compact-link-card">
+            <button className="secondary-button" type="button" onClick={() => navigate(rdoPath('/meus-relatorios/arquivados'))}>
+              {TEXT.archived} — {TEXT.archivedSubtitle}
+            </button>
+          </section>
+        ) : null}
 
-        {draftsQuery.data?.length ? (
+        {canEmitSite && draftsQuery.data?.length ? (
           <section className="page-card">
             <div className="section-title">{TEXT.drafts}</div>
             <div className="admin-stack">
@@ -210,11 +235,7 @@ export function HomePage() {
                       <button className="secondary-button" type="button" onClick={() => handleResumeDraft(draft)}>
                         {TEXT.continue}
                       </button>
-                      <button
-                        className="danger-button"
-                        type="button"
-                        onClick={() => draftMutations.removeDraft.mutate(draft.id)}
-                      >
+                      <button className="danger-button" type="button" onClick={() => draftMutations.removeDraft.mutate(draft.id)}>
                         {TEXT.remove}
                       </button>
                     </div>

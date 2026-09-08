@@ -31,7 +31,16 @@ test('lista compartilhada entrega cargo canônico e alias visual ao bootstrap do
     signatureImage: 'data:image/png;base64,AA=='
   }));
 
-  assert.deepEqual(query, { include: { jobRole: true }, orderBy: { name: 'asc' } });
+  assert.deepEqual(query, {
+    include: {
+      jobRole: true,
+      jobRoleHistory: {
+        include: { jobRole: { select: { id: true, name: true, isActive: true, isOperational: true } } },
+        orderBy: { effectiveDate: 'desc' }
+      }
+    },
+    orderBy: { name: 'asc' }
+  });
   assert.equal(result[0].jobRole.name, 'Química');
   assert.equal(result[0].role, 'Química');
   assert.equal(result[0].currentRoleName, 'Química');
@@ -58,6 +67,12 @@ test('normalização canônica ignora acento, caixa e espaços sem casar ambigui
 test('cargo inativo não pode ser atribuído como cargo canônico', async () => {
   const database = { jobRole: { findUnique: async () => ({ id: 'r1', isActive: false, isOperational: true }) } };
   await assert.rejects(() => requireCanonicalJobRole(database, 'r1'), error => error.code === 'JOB_ROLE_INACTIVE');
+});
+
+test('cargo inativo continua disponível para correção de histórico', async () => {
+  const role = { id: 'r1', name: 'Cargo histórico', isActive: false, isOperational: true };
+  const database = { jobRole: { findUnique: async () => role } };
+  assert.equal(await requireCanonicalJobRole(database, 'r1', { requireActive: false }), role);
 });
 
 test('troca canônica marca alocações futuras incompatíveis e incrementa revisões', async () => {

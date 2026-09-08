@@ -41,6 +41,7 @@ import {
   updateWorkforceAbsence
 } from '../lib/collaborators/availability-service.js';
 import prisma from '../lib/prisma.js';
+import { collaboratorsCache } from '../lib/resource-list-cache.js';
 import {
   createMission,
   deleteMission,
@@ -98,7 +99,11 @@ const missionListQuerySchema = z.object({
   stage: missionStageSchema.optional()
 });
 const missionPendingQuerySchema = z.object({ planId: idSchema.optional() });
-const collaboratorListQuerySchema = datePositionQuerySchema.extend({ search: z.string().trim().max(120).optional() });
+const includeInactiveQuerySchema = z.enum(['true', 'false']).optional().transform(value => value === 'true');
+const collaboratorListQuerySchema = datePositionQuerySchema.extend({
+  search: z.string().trim().max(120).optional(),
+  includeInactive: includeInactiveQuerySchema
+});
 const absenceListQuerySchema = z.object({
   collaboratorId: idSchema.optional(),
   startDate: dateOnlySchema.optional(),
@@ -109,6 +114,7 @@ const holidayListSchema = z.object({ startDate: dateOnlySchema.optional(), endDa
 const activitySchema = z.object({ cursor: z.string().datetime().optional(), limit: z.coerce.number().int().min(1).max(100).optional() });
 const eligibleCollaboratorsQuerySchema = z.object({
   jobRoleId: idSchema,
+  includeInactive: includeInactiveQuerySchema,
   mobilizationDate: dateOnlySchema.optional(),
   demobilizationDate: dateOnlySchema.optional()
 }).refine(value => !value.mobilizationDate || !value.demobilizationDate || value.demobilizationDate >= value.mobilizationDate, {
@@ -145,11 +151,15 @@ router.get('/collaborators', requireEfetivoViewer, asyncHandler(async (req, res)
 }));
 
 router.post('/collaborators', requireEfetivoManager, asyncHandler(async (req, res) => {
-  res.status(201).json(await createPlanningCollaborator(collaboratorInputSchema.parse(req.body), context(req)));
+  const collaborator = await createPlanningCollaborator(collaboratorInputSchema.parse(req.body), context(req));
+  collaboratorsCache.clear();
+  res.status(201).json(collaborator);
 }));
 
 router.patch('/collaborators/:collaboratorId', requireEfetivoManager, asyncHandler(async (req, res) => {
-  res.json(await updatePlanningCollaborator(idSchema.parse(req.params.collaboratorId), collaboratorInputSchema.parse(req.body), context(req)));
+  const collaborator = await updatePlanningCollaborator(idSchema.parse(req.params.collaboratorId), collaboratorInputSchema.parse(req.body), context(req));
+  collaboratorsCache.clear();
+  res.json(collaborator);
 }));
 
 router.get('/absences', requireEfetivoViewer, asyncHandler(async (req, res) => {

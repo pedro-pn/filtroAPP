@@ -12,6 +12,7 @@ frontend/vite.config.d.ts
 
 # Artefatos do Playwright podem conter imagens e dados sensíveis da interface
 output/playwright/
+frontend/output/playwright/
 **/.playwright-cli/
 playwright-report/
 test-results/

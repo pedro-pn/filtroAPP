@@ -33,7 +33,7 @@ import { downloadBlob } from '../../utils/download';
 import { compareReportTypes, sortProjects, sortReportsInGroup, type ProjectSortDirection } from '../../utils/projectSort';
 import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { reportDownloadFileName } from '../../utils/reportFileName';
-import { reportDraftDateLabel, reportDraftServiceCount, reportDraftToRdoState } from '../../utils/reportDraft';
+import { reportDraftDateLabel, reportDraftServiceCount, reportDraftToRdoState, SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
 import { matchesSearch, projectSearchParts, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 
@@ -244,7 +244,7 @@ export function CoordinatorPage() {
 
   function handleResumeDraft(draft: ReportDraft) {
     hydrate(reportDraftToRdoState(draft));
-    navigate(rdoPath('/relatorio/novo'));
+    navigate(rdoPath(SITE_RDO_DRAFT_FORM_PATH));
   }
 
   async function handleDownloadPdf(report: ReportSummary) {

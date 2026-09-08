@@ -35,6 +35,7 @@ import { ProjectManualCostNovelty } from './ProjectManualCostNovelty';
 import { ProjectQualityDeviationsNovelty } from './ProjectQualityDeviationsNovelty';
 import { ProjectProgressHistoryNovelty } from './ProjectProgressHistoryNovelty';
 import { ProjectReportsDialog } from './ProjectReportsDialog';
+import { ProjectRomaneiosDialog } from './ProjectRomaneiosDialog';
 import { ProjectStandbyHistoryDialog } from './ProjectStandbyHistoryDialog';
 import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
 import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
@@ -603,7 +604,10 @@ export function ProjectDetailDashboard({
   const [additionalProposalsNoveltyActive, setAdditionalProposalsNoveltyActive] = useState(true);
   const [standbyHistoryNoveltyActive, setStandbyHistoryNoveltyActive] = useState(true);
   const [standbyHistoryOpen, setStandbyHistoryOpen] = useState(false);
-  const [appropriationCollaborator, setAppropriationCollaborator] = useState<ProjectDetailCollaborator | null>(null);
+  const [hoursDetail, setHoursDetail] = useState<{
+    collaborator: ProjectDetailCollaborator;
+    source: 'POINT' | 'REPORT';
+  } | null>(null);
   const [expandedQualityDeviationIds, setExpandedQualityDeviationIds] = useState<Set<string>>(() => new Set());
   const [manualCostFormOpen, setManualCostFormOpen] = useState(false);
   const [manualCostError, setManualCostError] = useState<string | null>(null);
@@ -1354,7 +1358,7 @@ export function ProjectDetailDashboard({
             <div className="acp-det-equips-grid" style={{ marginTop: 8 }}>
               {equipamentos.map((e, i) => (
                 <div className="acp-det-equip-item" key={`${e.name}-${i}`}>
-                  <span>{e.name}</span>
+                  <span>{e.code ? `${e.code} — ${e.name}` : e.name}</span>
                   <strong>{e.days} dia{e.days === 1 ? '' : 's'}</strong>
                   <small>desde {fmtDate(e.since)}</small>
                 </div>
@@ -1362,6 +1366,14 @@ export function ProjectDetailDashboard({
             </div>
           )}
         </details>
+        <div className="acp-det-romaneios-action">
+          <ProjectRomaneiosDialog
+            key={groupId || projectId}
+            projectId={projectId}
+            groupId={groupId}
+            missionLabel={`${isGroup ? 'Missões' : 'Missão'} ${h.code}`}
+          />
+        </div>
       </div>
 
       {/* Colaboradores em largura total: apropriação financeira em destaque e jornada dos RDOs para conferência. */}
@@ -1386,7 +1398,7 @@ export function ProjectDetailDashboard({
                       <th>Nome</th>
                       <th>Cargo</th>
                       <th style={{ textAlign: 'right' }}>
-                        <HelpTip help="Horas do ponto atribuídas ao projeto pelo mesmo rateio que calculou o custo. Em um grupo, soma a apropriação das missões. Clique no valor para conferir os dias e RDOs.">Horas apropriadas</HelpTip>
+                        <HelpTip help="Horas do ponto atribuídas ao projeto pelo mesmo rateio que calculou o custo. Quando não houver apropriação do Ponto Mais, a jornada dos relatórios aparece em azul como referência e não entra no custo. Em um grupo, soma a apropriação das missões.">Horas apropriadas</HelpTip>
                       </th>
                       <th style={{ textAlign: 'right' }}>
                         <HelpTip help="Parcela do custo total do colaborador atribuída ao projeto no período do ponto.">Custo apropriado</HelpTip>
@@ -1409,10 +1421,23 @@ export function ProjectDetailDashboard({
                             <button
                               type="button"
                               className="acp-collaborator-hours-trigger"
-                              onClick={() => setAppropriationCollaborator(c)}
+                              onClick={() => setHoursDetail({ collaborator: c, source: 'POINT' })}
                               title={`Conferir os dias apropriados de ${c.name}`}
                             >
                               {fmtHours(c.horasApropriadas)}
+                            </button>
+                          ) : c.horas > 0 ? (
+                            <button
+                              type="button"
+                              className="acp-report-hours-fallback-trigger"
+                              onClick={() => setHoursDetail({ collaborator: c, source: 'REPORT' })}
+                              title={`Conferir os RDOs de origem da jornada de ${c.name}; estas horas não entram no custo apropriado`}
+                              aria-label={`Conferir ${fmtHours(c.horas)} dos relatórios de ${c.name}`}
+                            >
+                              <span className="acp-report-hours-fallback-value">
+                                {fmtHours(c.horas)}
+                                <small>RDO</small>
+                              </span>
                             </button>
                           ) : fmtHours(c.horasApropriadas)}
                         </td>
@@ -1489,8 +1514,10 @@ export function ProjectDetailDashboard({
       />
 
       <ProjectCollaboratorHoursDialog
-        collaborator={appropriationCollaborator}
-        onClose={() => setAppropriationCollaborator(null)}
+        collaborator={hoursDetail?.collaborator ?? null}
+        source={hoursDetail?.source}
+        isGroup={isGroup}
+        onClose={() => setHoursDetail(null)}
       />
 
       <Modal open={scheduleProject !== null} onClose={closeSchedule} ariaLabelledBy="acp-detail-schedule-title" panelClassName="modal-card acp-manage-card">

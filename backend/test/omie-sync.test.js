@@ -203,6 +203,82 @@ test('syncOmiePurchases não repete a carga histórica depois de concluída', as
   assert.equal(result.historicalBackfillProjects, 0);
 });
 
+test('syncOmiePurchases ignora backfill direcionado de projeto inativo e mantém o ciclo incremental', async () => {
+  configureOmieCredentials();
+  const runUpdates = [];
+  stubSyncRuns(runUpdates);
+  prisma.omieCategory.findMany = async () => [];
+  prisma.omieProject.findMany = async () => [{
+    codigo: '123456',
+    osNumber: '5694',
+    projectId: 'project-5694',
+    inativo: true,
+    purchasesBackfilledAt: null
+  }];
+  let markerWrites = 0;
+  prisma.omieProject.updateMany = async () => {
+    markerWrites += 1;
+    return { count: 1 };
+  };
+  const calls = [];
+  globalThis.fetch = async (_url, options) => {
+    const params = JSON.parse(options.body).param[0];
+    calls.push(params);
+    return omieResponse({ pagina: 1, total_de_paginas: 1, conta_pagar_cadastro: [] });
+  };
+
+  const result = await syncOmiePurchases({ triggeredBy: 'TEST', sinceDays: 7 });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].filtrar_apenas_alteracao, 'S');
+  assert.equal(Object.hasOwn(calls[0], 'filtrar_por_projeto'), false);
+  assert.equal(markerWrites, 0);
+  assert.equal(result.historicalBackfillProjects, 0);
+  assert.equal(result.historicalBackfillSkippedInactiveProjects, 1);
+  assert.equal(runUpdates.at(-1).data.status, 'SUCCESS');
+});
+
+test('syncOmiePurchases isola resposta de projeto inativo sem abortar os demais títulos', async () => {
+  configureOmieCredentials();
+  const runUpdates = [];
+  stubSyncRuns(runUpdates);
+  prisma.omieCategory.findMany = async () => [];
+  prisma.omieProject.findMany = async () => [{
+    codigo: '123456',
+    osNumber: '5694',
+    projectId: 'project-5694',
+    inativo: false,
+    purchasesBackfilledAt: null
+  }];
+  let markerWrites = 0;
+  prisma.omieProject.updateMany = async () => {
+    markerWrites += 1;
+    return { count: 1 };
+  };
+  const calls = [];
+  globalThis.fetch = async (_url, options) => {
+    const params = JSON.parse(options.body).param[0];
+    calls.push(params);
+    if (params.filtrar_por_projeto === 123456) {
+      return omieResponse(
+        { faultstring: 'ERROR: O projeto está inativo ! - tag: [filtrar_por_projeto]' },
+        { ok: false, status: 500 }
+      );
+    }
+    return omieResponse({ pagina: 1, total_de_paginas: 1, conta_pagar_cadastro: [] });
+  };
+
+  const result = await syncOmiePurchases({ triggeredBy: 'TEST', sinceDays: 7 });
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].filtrar_por_projeto, 123456);
+  assert.equal(calls[1].filtrar_apenas_alteracao, 'S');
+  assert.equal(markerWrites, 0);
+  assert.equal(result.historicalBackfillProjects, 0);
+  assert.equal(result.historicalBackfillSkippedInactiveProjects, 1);
+  assert.equal(runUpdates.at(-1).data.status, 'SUCCESS');
+});
+
 test('syncOmiePurchases não conclui o marcador quando o backfill direcionado falha', async () => {
   configureOmieCredentials();
   const runUpdates = [];

@@ -96,6 +96,33 @@ function detail(overrides = {}) {
   };
 }
 
+test('grupo mantém RDOs das duas missões e considera somente a maior jornada por data', () => {
+  const first = { id: 'r1', tipo: 'RDO', numero: 7, projetoId: 'p1', projetoCodigo: '1001', horas: 8 };
+  const second = { id: 'r2', tipo: 'RDO', numero: 7, projetoId: 'p2', projetoCodigo: '1002', horas: 5 };
+  const third = { id: 'r3', tipo: 'RDO', numero: 8, projetoId: 'p2', projetoCodigo: '1002', horas: 2 };
+  const result = groupProjectDetails(group(), group().members.map((member, index) => ({
+    projectId: member.projectId,
+    member,
+    detail: detail({ colaboradores: [{
+      name: 'Aldo', role: 'Assistente', horas: index ? 7 : 8, horasLancadas: index ? 7 : 8,
+      horasApropriadas: null, custo: null,
+      horasRelatoriosPorData: index ? [
+        { data: '2026-02-18', horas: 5, relatorios: [second] },
+        { data: '2026-02-19', horas: 2, relatorios: [third] }
+      ] : [{ data: '2026-02-18', horas: 8, relatorios: [first] }]
+    }] })
+  })));
+  const collaborator = result.colaboradores[0];
+  assert.equal(collaborator.horas, 10);
+  assert.equal(collaborator.horasLancadas, 15);
+  assert.equal(collaborator.sobreposicaoHoras, 5);
+  assert.equal(collaborator.horasApropriadas, null);
+  assert.deepEqual(collaborator.horasRelatoriosPorData, [
+    { data: '2026-02-18', horas: 8, relatorios: [first, second] },
+    { data: '2026-02-19', horas: 2, relatorios: [third] }
+  ]);
+});
+
 test('combineRecentDays mantém até 10 dias distintos nos grupos', () => {
   const recentDays = Array.from({ length: 12 }, (_, index) => {
     const day = String(index + 1).padStart(2, '0');

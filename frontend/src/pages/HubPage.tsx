@@ -21,6 +21,12 @@ import { roleHomePath } from '../auth/rolePath';
 import { Shell } from '../layout/Shell';
 import { TopBar } from '../layout/TopBar';
 import { hubModulesForUser, type HubModuleEntry } from './hubModules';
+import { canAccessOperationalModule } from '../auth/reportPermissions';
+import {
+  canStartOperationalReportsNovelty,
+  OPERATIONAL_REPORTS_NOVELTY_STORAGE_PREFIX
+} from '../utils/operationalReportsNovelty';
+import { markApiTokenPlaygroundNoveltySeen, shouldShowApiTokenPlaygroundNovelty } from './admin/apiTokenPlaygroundNovelty';
 
 const DEFAULT_MODULE_ICON = <circle cx="12" cy="12" r="9" />;
 
@@ -31,6 +37,13 @@ const MODULE_ICONS: Partial<Record<HubModuleEntry['id'], ReactNode>> = {
       <path d="M9 5a3 3 0 0 1 6 0v1H9z" />
       <path d="M9 11h6" />
       <path d="M9 15h5" />
+    </>
+  ),
+  'maintenance-production': (
+    <>
+      <path d="M14.7 6.3a4 4 0 0 0-5 5l-6.4 6.4a2.1 2.1 0 0 0 3 3l6.4-6.4a4 4 0 0 0 5-5l-2.4 2.4-3-3z" />
+      <path d="M17 3v4" />
+      <path d="M15 5h4" />
     </>
   ),
   admin: (
@@ -96,6 +109,7 @@ const MODULE_ICONS: Partial<Record<HubModuleEntry['id'], ReactNode>> = {
 
 const MODULE_ACCENTS: Partial<Record<HubModuleEntry['id'], string>> = {
   rdo: '#30503a',
+  'maintenance-production': '#526f3d',
   admin: '#4a7c5e',
   privacy: '#3a6a5c',
   romaneio: '#5c7a4a',
@@ -107,6 +121,27 @@ const MODULE_ACCENTS: Partial<Record<HubModuleEntry['id'], string>> = {
 };
 
 const WIDE_MODULES = new Set<HubModuleEntry['id']>(['epi', 'none']);
+
+function operationalNoveltySeen(userId: string) {
+  try {
+    return window.localStorage.getItem(
+      `${OPERATIONAL_REPORTS_NOVELTY_STORAGE_PREFIX}${userId}`
+    ) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markOperationalNoveltySeen(userId: string) {
+  try {
+    window.localStorage.setItem(
+      `${OPERATIONAL_REPORTS_NOVELTY_STORAGE_PREFIX}${userId}`,
+      '1'
+    );
+  } catch {
+    /* navegador sem armazenamento */
+  }
+}
 
 function ModuleIcon({ id }: { id: HubModuleEntry['id'] }) {
   return (
@@ -167,12 +202,24 @@ export function HubPage() {
   const [efetivoNoveltyActive, setEfetivoNoveltyActive] = useState(
     () => shouldShowEfetivoHubNovelty(user)
   );
-  const shouldRedirect = baseShouldRedirect && !acompNoveltyActive && !qualityNoveltyActive && !efetivoNoveltyActive;
+  const [operationalNoveltyActive, setOperationalNoveltyActive] = useState(() => {
+    const eligible = canAccessOperationalModule(user?.reportEmissionPermissions || []);
+    const seen = user ? operationalNoveltySeen(user.id) : false;
+    return canStartOperationalReportsNovelty({ user, eligible, seen });
+  });
+  const [apiTokenNoveltyActive, setApiTokenNoveltyActive] = useState(() => shouldShowApiTokenPlaygroundNovelty(user));
+  const shouldRedirect = baseShouldRedirect && !acompNoveltyActive && !qualityNoveltyActive && !efetivoNoveltyActive && !operationalNoveltyActive && !apiTokenNoveltyActive;
 
   useEffect(() => {
     setAcompNoveltyActive(userHasAcompanhamentoModule(user) && !hasSeenAcompanhamentoNovelty(user));
     setQualityNoveltyActive(shouldShowQualidadeNovelty(user));
     setEfetivoNoveltyActive(shouldShowEfetivoHubNovelty(user));
+    setApiTokenNoveltyActive(shouldShowApiTokenPlaygroundNovelty(user));
+    const eligible = canAccessOperationalModule(user?.reportEmissionPermissions || []);
+    const seen = user ? operationalNoveltySeen(user.id) : false;
+    setOperationalNoveltyActive(
+      canStartOperationalReportsNovelty({ user, eligible, seen })
+    );
   }, [user]);
 
   const firstName = user?.name?.split(' ')[0] || 'Usuário';
@@ -269,6 +316,12 @@ export function HubPage() {
                     } else if (module.id === 'efetivo') {
                       markEfetivoHubNoveltySeen(user);
                       setEfetivoNoveltyActive(false);
+                    } else if (module.id === 'maintenance-production' && user) {
+                      markOperationalNoveltySeen(user.id);
+                      setOperationalNoveltyActive(false);
+                    } else if (module.id === 'admin') {
+                      markApiTokenPlaygroundNoveltySeen(user);
+                      setApiTokenNoveltyActive(false);
                     }
                     navigate(path);
                   } : undefined}
@@ -281,6 +334,12 @@ export function HubPage() {
                   )}
                   {module.id === 'efetivo' && efetivoNoveltyActive && (
                     <span className="hub-card-new" aria-label="Novo módulo">Novo</span>
+                  )}
+                  {module.id === 'maintenance-production' && operationalNoveltyActive && (
+                    <span className="hub-card-new" aria-label="Novo módulo">Novo</span>
+                  )}
+                  {module.id === 'admin' && apiTokenNoveltyActive && (
+                    <span className="hub-card-new" aria-label="Novo recurso de tokens de API">Novo</span>
                   )}
                   <div className="hub-card-accent" style={{ background: accent }} />
                   <div className="hub-card-icon">

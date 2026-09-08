@@ -17,6 +17,7 @@ import inhibitionOptionsRouter from './resources/inhibition-options.js';
 import jobRolesRouter from './resources/job-roles.js';
 import manometersRouter from './resources/manometers.js';
 import operationsRouter from './resources/operations.js';
+import operationalReportsRouter from './resources/operational-reports.js';
 import projectSegmentsRouter from './resources/project-segments.js';
 import privacyRouter from './resources/privacy.js';
 import projectIntakeWebhookRouter from './resources/project-intake-webhook.js';
@@ -32,6 +33,8 @@ import usersRouter from './resources/users.js';
 import efetivoRouter from './resources/efetivo.js';
 import workforceRouter from './workforce.js';
 import assinaturasRouter from './resources/assinaturas.js';
+import apiCredentialsRouter from './resources/api-credentials.js';
+import integrationsV1Router from './integrations/v1/index.js';
 // module:scaffold import
 
 const router = Router();
@@ -44,6 +47,7 @@ function mountRdoRoutes(targetRouter) {
   targetRouter.use('/projects', projectsRouter);
   targetRouter.use('/project-segments', projectSegmentsRouter);
   targetRouter.use('/reports', reportsRouter);
+  targetRouter.use('/operational-reports', operationalReportsRouter);
   targetRouter.use('/statistics', statisticsRouter);
   targetRouter.use('/surveys', surveysRouter);
   targetRouter.use('/equipment', equipmentRouter);
@@ -74,6 +78,8 @@ router.use('/operations', operationsRouter);
 router.use('/efetivo', efetivoRouter);
 router.use('/workforce', workforceRouter);
 router.use('/assinaturas', assinaturasRouter);
+router.use('/admin', apiCredentialsRouter);
+router.use('/integracoes/v1', integrationsV1Router);
 // module:scaffold mount
 router.use('/admin/accounts', usersRouter);
 router.use('/users', usersRouter);

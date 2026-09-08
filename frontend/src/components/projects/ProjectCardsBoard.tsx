@@ -419,7 +419,7 @@ function Card({
           </div>
           {card.equipment.slice(0, 6).map((e, i) => (
             <div className="acp-pcard-row acp-pcard-equip-item" key={i}>
-              <span>{e.name}</span>
+              <span>{e.code ? `${e.code} — ${e.name}` : e.name}</span>
               <span>{e.days} dia{e.days === 1 ? '' : 's'}</span>
             </div>
           ))}

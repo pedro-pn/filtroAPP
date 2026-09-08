@@ -5,6 +5,7 @@ import {
   buildDataSubjectRequestCreatedEmailTemplate,
   buildDataSubjectRequestResponseEmailTemplate,
   buildClientProjectLinkedEmailTemplate,
+  buildClientWelcomeEmailTemplate,
   buildInternalUserWelcomeEmailTemplate,
   buildReportRejectedByClientEmailTemplate,
   buildReportSignatureCompletedEmailTemplate,
@@ -60,23 +61,40 @@ test('buildDataSubjectRequestResponseEmailTemplate includes status and response'
   assert.match(template.html, /<strong>Status:<\/strong> concluída/);
 });
 
-test('buildInternalUserWelcomeEmailTemplate includes account credentials', () => {
+test('buildInternalUserWelcomeEmailTemplate includes the one-time password setup link', () => {
   const template = buildInternalUserWelcomeEmailTemplate({
     userName: 'Maria Silva',
     username: 'maria.silva',
-    password: 'senha123',
+    setupUrl: 'https://app.example.com/reset-password?token=setup-token&setup=1',
+    expiresLabel: '7 dias',
     roleLabel: 'coordenador',
-    appUrl: 'https://app.example.com'
   });
 
   assert.equal(template.subject, '[Filtrovali] Seu acesso foi criado');
   assert.match(template.text, /A conta de coordenador Maria Silva foi criada/);
   assert.match(template.text, /Perfil: coordenador/);
   assert.match(template.text, /Usuário: maria\.silva/);
-  assert.match(template.text, /Senha inicial: senha123/);
-  assert.match(template.text, /Acesso: https:\/\/app\.example\.com/);
+  assert.match(template.text, /Crie sua senha neste link: https:\/\/app\.example\.com\/reset-password\?token=setup-token&setup=1/);
+  assert.match(template.text, /uso único e expira em 7 dias/);
+  assert.doesNotMatch(template.text, /Senha inicial/);
   assert.match(template.html, /<strong>Usuário:<\/strong> maria\.silva/);
-  assert.match(template.html, /<strong>Senha inicial:<\/strong> senha123/);
+  assert.match(template.html, /Criar minha senha/);
+});
+
+test('buildClientWelcomeEmailTemplate sends a setup link instead of an initial password', () => {
+  const template = buildClientWelcomeEmailTemplate({
+    clientName: 'Cliente Exemplo',
+    username: 'cliente@example.com',
+    setupUrl: 'https://app.example.com/reset-password?token=client-token&setup=1',
+    expiresLabel: '7 dias',
+    projectCode: 'P-001',
+    projectName: 'Projeto Inicial'
+  });
+
+  assert.match(template.text, /Usuário: cliente@example\.com/);
+  assert.match(template.text, /token=client-token&setup=1/);
+  assert.match(template.text, /uso único e expira em 7 dias/);
+  assert.doesNotMatch(template.text, /Senha inicial/);
 });
 
 test('buildReportRejectedByClientEmailTemplate identifies the rejecting client', () => {

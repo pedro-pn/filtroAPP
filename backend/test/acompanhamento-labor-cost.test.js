@@ -12,6 +12,7 @@ import {
   buildScheduleWindows,
   scheduleWindowsForDay,
   buildRoleParamsResolver,
+  buildCollaboratorRoleCostSegments,
   classifyProjectHours,
   computeAnalyticalProjectCosts,
   computeCollaboratorCost,
@@ -98,6 +99,38 @@ test('parâmetros de custo respeitam data de vigência do salário', () => {
   assert.equal(resolver.paramsFor('Operador', '2026-07-10').salarioBase, 4000);
   assert.equal(resolver.paramsFor('Operador', '2026-07-14').transferenciaPct, 0.3);
   assert.equal(resolver.paramsFor('Operador', '2026-07-15').transferenciaPct, 0.4);
+});
+
+test('mudança de cargo divide os parâmetros de custo na data efetiva', () => {
+  const resolver = buildRoleParamsResolver({
+    models: [{
+      key: 'operador',
+      parameterSets: [{ version: 1, effectiveDate: new Date('1970-01-01T00:00:00.000Z'), params: { salarioBase: 1000 } }]
+    }],
+    roles: [
+      { name: 'Operador', costProfile: { parameterSets: [{ version: 1, effectiveDate: new Date('1970-01-01T00:00:00.000Z'), params: { baseModel: 'operador', salarioBase: 3000 } }] } },
+      { name: 'Supervisor', costProfile: { parameterSets: [{ version: 1, effectiveDate: new Date('1970-01-01T00:00:00.000Z'), params: { baseModel: 'operador', salarioBase: 5000 } }] } }
+    ]
+  });
+  const collaborator = {
+    jobRoleId: 'role-2',
+    jobRole: { id: 'role-2', name: 'Supervisor' },
+    jobRoleHistory: [
+      { jobRoleId: 'role-1', effectiveDate: new Date('2026-01-01T00:00:00.000Z'), jobRole: { id: 'role-1', name: 'Operador' } },
+      { jobRoleId: 'role-2', effectiveDate: new Date('2026-01-15T00:00:00.000Z'), jobRole: { id: 'role-2', name: 'Supervisor' } }
+    ]
+  };
+
+  const segments = buildCollaboratorRoleCostSegments({ collaborator, roleParams: resolver, startKey: '2026-01-01', endKey: '2026-01-31' });
+  assert.deepEqual(segments.map(segment => ({
+    roleName: segment.roleName,
+    startKey: segment.startKey,
+    endKey: segment.endKey,
+    salarioBase: segment.params.salarioBase
+  })), [
+    { roleName: 'Operador', startKey: '2026-01-01', endKey: '2026-01-14', salarioBase: 3000 },
+    { roleName: 'Supervisor', startKey: '2026-01-15', endKey: '2026-01-31', salarioBase: 5000 }
+  ]);
 });
 
 test('prova real: Σ projetos + sede + folga = folha', () => {

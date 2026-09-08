@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 
 import { useAuth } from '../../auth/AuthContext';
@@ -8,6 +8,7 @@ import { listDdsThemes } from '../../api/ddsThemes';
 import { listReports } from '../../api/reports';
 import { DraftSaveStatus, type DraftSaveStatusValue } from '../../components/reports/DraftSaveStatus';
 import { NewReportSpecialConditions } from '../../components/reports/NewReportSpecialConditions';
+import { ReportActivitiesCard, ReportCollaboratorsCard, ReportDateField, ReportFormActions, ReportFormStepper, ReportOvertimeCard, ReportScheduleCard, ReportSummaryCard } from '../../components/reports/ReportCoreFields';
 import { RdoDdsNovelty } from '../../components/reports/RdoDdsNovelty';
 import { ReportWorkforceNotices } from '../../components/reports/ReportWorkforceNotices';
 import { ServiceCollaboratorsBlock, ServiceFields } from '../../components/reports/ServiceFields';
@@ -29,8 +30,10 @@ import { roleHomePath } from '../../auth/rolePath';
 import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
 import { sortProjects } from '../../utils/projectSort';
 import { autosaveDraftTargetId } from '../../utils/draftAutosave';
-import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import { rdoWorkforceJustificationSchema } from '../../utils/rdoPlanningPrefill';
+import { calculateReportOvertimeSummary } from '../../utils/reportOvertime';
+import { canAccessReportSelection, normalizeReportSelection, resolveSiteReportSelection } from '../../auth/reportPermissions';
+import { OperationalReportFormPage } from './OperationalReportFormPage';
 
 const TEXT = {
   addService: 'Adicionar serviço',
@@ -62,16 +65,16 @@ const TEXT = {
   identification: 'Identificação',
   schedules: 'Horários',
   serviceOnly: 'Somente serviço',
-  serviceOnlyHint: 'Cria apenas relatórios de serviço, liberados diretamente para o cliente.',
+  serviceOnlyHint: 'Cria apenas relatórios de serviço, liberados diretamente para o cliente.'
 };
 
 const serviceTypeModalOptions = [
-  { type: 'limpeza',  icon: '🧪', name: 'Limpeza química' },
-  { type: 'pressao',  icon: '🔴', name: 'Teste de pressão' },
+  { type: 'limpeza', icon: '🧪', name: 'Limpeza química' },
+  { type: 'pressao', icon: '🔴', name: 'Teste de pressão' },
   { type: 'filtragem', icon: '🔵', name: 'Filtragem' },
   { type: 'flushing', icon: '💧', name: 'Flushing' },
   { type: 'mecanica', icon: '⚙️', name: 'Limpeza mecânica' },
-  { type: 'inibicao', icon: '🛡️', name: 'Inibição' },
+  { type: 'inibicao', icon: '🛡️', name: 'Inibição' }
 ] as const;
 
 const rdoSteps = [TEXT.header, TEXT.services, TEXT.finalization];
@@ -86,7 +89,7 @@ function stringArray(value: unknown) {
 function sameStringSet(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
   const bSet = new Set(b);
-  return a.every(item => bSet.has(item));
+  return a.every((item) => bSet.has(item));
 }
 
 function stringifyServiceKeyValue(value: unknown): string {
@@ -125,11 +128,7 @@ function firstServiceKeyPart(extra: Record<string, unknown>, names: string[]): s
 function serviceDisambiguatorParts(service: ReportServiceSummary) {
   const extra = service.extraData || {};
   const type = normalizeServiceType(service.serviceType || '');
-  const material = serviceKeyPart(service.material) || firstServiceKeyPart(extra, [
-    'Material da tubulação',
-    'Material da tubulacao',
-    'Material do equipamento'
-  ]);
+  const material = serviceKeyPart(service.material) || firstServiceKeyPart(extra, ['Material da tubulação', 'Material da tubulacao', 'Material do equipamento']);
   const parts = material ? [`material:${material}`] : [];
 
   if (type === 'filtragem' || type === 'flushing') {
@@ -174,27 +173,7 @@ function serviceDisambiguatorParts(service: ReportServiceSummary) {
   return parts;
 }
 
-function parseDurationToMinutes(value: string) {
-  const parts = String(value || '').split(':').map(part => Number(part));
-  if (parts.some(part => Number.isNaN(part))) return 0;
-  return (parts[0] || 0) * 60 + (parts[1] || 0);
-}
-
-function workedMinutes(start: string, end: string, breakValue: string) {
-  const startMinutes = parseDurationToMinutes(start);
-  const endMinutes = parseDurationToMinutes(end);
-  if (!start || !end) return 0;
-  const total = endMinutes >= startMinutes ? endMinutes - startMinutes : endMinutes + 24 * 60 - startMinutes;
-  return Math.max(0, total - parseDurationToMinutes(breakValue));
-}
-
-function formatMinutes(total: number) {
-  const hours = Math.floor(total / 60);
-  const minutes = total % 60;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-}
-
-export function NewReportPage() {
+function SiteRdoFormPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -265,42 +244,38 @@ export function NewReportPage() {
   const steps = effectiveServiceOnly ? serviceOnlySteps : rdoSteps;
 
   const projects = useMemo(() => sortProjects(bootstrapQuery.data?.projects || [], 'asc'), [bootstrapQuery.data?.projects]);
-  const collaborators = (bootstrapQuery.data?.collaborators || []).filter(item => item.isActive);
-  const ddsThemesQuery = useQuery({ queryKey: ['dds-themes'], queryFn: () => listDdsThemes(), staleTime: 60_000 });
+  const collaborators = (bootstrapQuery.data?.collaborators || []).filter((item) => item.isActive);
+  const ddsThemesQuery = useQuery({
+    queryKey: ['dds-themes'],
+    queryFn: () => listDdsThemes(),
+    staleTime: 60_000
+  });
   const ddsThemes = ddsThemesQuery.data || [];
   const units = bootstrapQuery.data?.units || [];
   const manometers = bootstrapQuery.data?.manometers || [];
   const serviceCollaboratorOptions = useMemo(() => {
     const ids = Array.from(new Set([...collaboratorIds, ...nightCollaboratorIds]));
     return ids
-      .map(id => {
-        const collaborator = collaborators.find(item => item.id === id);
+      .map((id) => {
+        const collaborator = collaborators.find((item) => item.id === id);
         return collaborator ? { id: collaborator.id, name: collaborator.name } : null;
       })
       .filter((item): item is { id: string; name: string } => Boolean(item));
   }, [collaboratorIds, nightCollaboratorIds, collaborators]);
-  const serviceCollaboratorOptionIds = useMemo(
-    () => serviceCollaboratorOptions.map(item => item.id),
-    [serviceCollaboratorOptions]
-  );
+  const serviceCollaboratorOptionIds = useMemo(() => serviceCollaboratorOptions.map((item) => item.id), [serviceCollaboratorOptions]);
   const previousServiceCollaboratorOptionIdsRef = useRef<string[]>([]);
 
-  const selectedProject = useMemo(
-    () => (bootstrapQuery.data?.projects || []).find(project => project.id === projectId) || null,
-    [projectId, bootstrapQuery.data?.projects]
-  );
+  const selectedProject = useMemo(() => (bootstrapQuery.data?.projects || []).find((project) => project.id === projectId) || null, [projectId, bootstrapQuery.data?.projects]);
   const selectedProjectHasLeader = Boolean(selectedProject?.operatorId || selectedProject?.operator);
   const showProjectWithoutLeaderWarning = canCreateReportWithoutLeader && Boolean(selectedProject) && !selectedProjectHasLeader;
   const serviceOptions = useMemo(() => {
-    const allowed = effectiveServiceOnly
-      ? serviceTypeModalOptions.filter(option => serviceOnlySupportedTypes.has(option.type))
-      : serviceTypeModalOptions;
-    return allowed.filter(option => option.type !== 'inibicao' || selectedProject?.inhibitionServiceEnabled === true);
+    const allowed = effectiveServiceOnly ? serviceTypeModalOptions.filter((option) => serviceOnlySupportedTypes.has(option.type)) : serviceTypeModalOptions;
+    return allowed.filter((option) => option.type !== 'inibicao' || selectedProject?.inhibitionServiceEnabled === true);
   }, [effectiveServiceOnly, selectedProject?.inhibitionServiceEnabled]);
   const backPath = roleHomePath(user?.role);
 
   function handleProjectChange(nextProjectId: string) {
-    const nextProject = projects.find(project => project.id === nextProjectId) || null;
+    const nextProject = projects.find((project) => project.id === nextProjectId) || null;
     if ((projectId || '') !== nextProjectId) {
       setCollaborators([]);
       setNightCollaborators([]);
@@ -341,27 +316,10 @@ export function NewReportPage() {
     const reports = lastProjectReportQuery.data || [];
     const cutoff = reportDate ? new Date(`${reportDate}T23:59:59`) : new Date();
     const cutoffTime = Number.isNaN(cutoff.getTime()) ? Number.POSITIVE_INFINITY : cutoff.getTime();
-    return reports.filter(report => (
-      report.reportType === 'RDO'
-      && report.projectId === projectId
-      && !report.deletedAt
-      && new Date(report.reportDate || report.createdAt || 0).getTime() <= cutoffTime
-    )).sort(
-      (a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime()
-    );
+    return reports.filter((report) => report.reportType === 'RDO' && report.projectId === projectId && !report.deletedAt && new Date(report.reportDate || report.createdAt || 0).getTime() <= cutoffTime).sort((a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime());
   }, [lastProjectReportQuery.data, projectId, reportDate]);
   const lastReport = projectReports[0] || null;
-  const {
-    planningContext,
-    absenceConflicts,
-    serverHoliday,
-    collaboratorPrefillSource,
-    missionSuggestionCollaboratorIds,
-    canApplyMissionSuggestion,
-    markCollaboratorsTouched,
-    applyMissionSuggestion,
-    dismissMissionSuggestion
-  } = useReportWorkforcePrefill({
+  const { planningContext, absenceConflicts, serverHoliday, collaboratorPrefillSource, missionSuggestionCollaboratorIds, canApplyMissionSuggestion, markCollaboratorsTouched, applyMissionSuggestion, dismissMissionSuggestion } = useReportWorkforcePrefill({
     projectId,
     reportDate,
     collaboratorIds,
@@ -374,17 +332,9 @@ export function NewReportPage() {
   const duplicateReportForDate = useMemo(() => {
     if (effectiveServiceOnly || !projectId || !reportDate) return null;
     const selectedDate = reportDate.slice(0, 10);
-    return (lastProjectReportQuery.data || []).find(report => (
-      report.reportType === 'RDO'
-      && report.projectId === projectId
-      && !report.deletedAt
-      && String(report.reportDate || '').slice(0, 10) === selectedDate
-    )) || null;
+    return (lastProjectReportQuery.data || []).find((report) => report.reportType === 'RDO' && report.projectId === projectId && !report.deletedAt && String(report.reportDate || '').slice(0, 10) === selectedDate) || null;
   }, [effectiveServiceOnly, lastProjectReportQuery.data, projectId, reportDate]);
-  const isCheckingDuplicateReportDate = !effectiveServiceOnly
-    && !!projectId
-    && !!reportDate
-    && lastProjectReportQuery.isLoading;
+  const isCheckingDuplicateReportDate = !effectiveServiceOnly && !!projectId && !!reportDate && lastProjectReportQuery.isLoading;
 
   const serviceFinalized = useCallback((service: ReportServiceSummary) => {
     if (typeof service.finalized === 'boolean') return service.finalized;
@@ -414,38 +364,41 @@ export function NewReportPage() {
     return String(value || '');
   }, []);
 
-  const serviceSemanticKey = useCallback((report: ReportSummary, service: ReportServiceSummary) => {
-    const extra = service.extraData || {};
-    const base = [
-      report.projectId || '',
-      service.serviceType || '',
-      serviceEquipmentName(service).trim().toLowerCase(),
-      String(service.system || extra.Sistema || '').trim().toLowerCase()
-    ];
-    const step = serviceStepName(service).trim().toLowerCase();
-    return normalizeServiceType(service.serviceType || '') === 'inibicao'
-      ? [...base, step].join('||')
-      : [...base, ...serviceDisambiguatorParts(service)].join('||');
-  }, [serviceEquipmentName, serviceStepName]);
+  const serviceSemanticKey = useCallback(
+    (report: ReportSummary, service: ReportServiceSummary) => {
+      const extra = service.extraData || {};
+      const base = [
+        report.projectId || '',
+        service.serviceType || '',
+        serviceEquipmentName(service).trim().toLowerCase(),
+        String(service.system || extra.Sistema || '')
+          .trim()
+          .toLowerCase()
+      ];
+      const step = serviceStepName(service).trim().toLowerCase();
+      return normalizeServiceType(service.serviceType || '') === 'inibicao' ? [...base, step].join('||') : [...base, ...serviceDisambiguatorParts(service)].join('||');
+    },
+    [serviceEquipmentName, serviceStepName]
+  );
 
-  const serviceOngoingKeys = useCallback((report: ReportSummary, service: ReportServiceSummary) => {
-    const extra = service.extraData || {};
-    const semanticKey = serviceSemanticKey(report, service);
-    const explicitKeys = [
-      String(extra.__ongoingKey || '').trim(),
-      String(extra.__serviceLinkKey || '').trim(),
-      String(extra.__sourceServiceId || '').trim()
-    ].filter(Boolean);
-    const hasSemanticExplicitKey = explicitKeys.some(key => key.includes('||'));
+  const serviceOngoingKeys = useCallback(
+    (report: ReportSummary, service: ReportServiceSummary) => {
+      const extra = service.extraData || {};
+      const semanticKey = serviceSemanticKey(report, service);
+      const explicitKeys = [String(extra.__ongoingKey || '').trim(), String(extra.__serviceLinkKey || '').trim(), String(extra.__sourceServiceId || '').trim()].filter(Boolean);
+      const hasSemanticExplicitKey = explicitKeys.some((key) => key.includes('||'));
 
-    return Array.from(new Set([
-      ...(hasSemanticExplicitKey ? [semanticKey, ...explicitKeys] : [...explicitKeys, semanticKey])
-    ].filter(Boolean)));
-  }, [serviceSemanticKey]);
+      return Array.from(new Set([...(hasSemanticExplicitKey ? [semanticKey, ...explicitKeys] : [...explicitKeys, semanticKey])].filter(Boolean)));
+    },
+    [serviceSemanticKey]
+  );
 
-  const serviceOngoingKey = useCallback((report: ReportSummary, service: ReportServiceSummary) => {
-    return serviceOngoingKeys(report, service)[0] || service.id;
-  }, [serviceOngoingKeys]);
+  const serviceOngoingKey = useCallback(
+    (report: ReportSummary, service: ReportServiceSummary) => {
+      return serviceOngoingKeys(report, service)[0] || service.id;
+    },
+    [serviceOngoingKeys]
+  );
 
   function markPreviouslyAddedUploads(extra: Record<string, unknown>) {
     const groups = Array.isArray(extra.__uploads__) ? extra.__uploads__ : [];
@@ -453,50 +406,54 @@ export function NewReportPage() {
 
     return {
       ...extra,
-      __uploads__: groups.map(group => {
+      __uploads__: groups.map((group) => {
         if (!group || typeof group !== 'object' || Array.isArray(group)) return group;
         const record = group as { label?: unknown; files?: unknown };
-        const files = Array.isArray(record.files)
-          ? record.files.map(file => (
-            file && typeof file === 'object' && !Array.isArray(file)
-              ? { ...(file as UploadedFile), __previouslyAdded: true }
-              : file
-          ))
-          : record.files;
+        const files = Array.isArray(record.files) ? record.files.map((file) => (file && typeof file === 'object' && !Array.isArray(file) ? { ...(file as UploadedFile), __previouslyAdded: true } : file)) : record.files;
         return { ...record, files };
       })
     };
   }
 
   const pendingProjectServices = useMemo(() => {
-    const items = new Map<string, { key: string; keys: string[]; report: ReportSummary; service: ReportServiceSummary }>();
-    [...projectReports].reverse().forEach(report => {
-      (report.services || []).forEach(service => {
+    const items = new Map<
+      string,
+      {
+        key: string;
+        keys: string[];
+        report: ReportSummary;
+        service: ReportServiceSummary;
+      }
+    >();
+    [...projectReports].reverse().forEach((report) => {
+      (report.services || []).forEach((service) => {
         const keys = serviceOngoingKeys(report, service);
         if (serviceFinalized(service)) {
           for (const [itemKey, item] of items.entries()) {
-            if (item.keys.some(key => keys.includes(key))) items.delete(itemKey);
+            if (item.keys.some((key) => keys.includes(key))) items.delete(itemKey);
           }
           return;
         }
         for (const [itemKey, item] of items.entries()) {
-          if (item.keys.some(key => keys.includes(key))) items.delete(itemKey);
+          if (item.keys.some((key) => keys.includes(key))) items.delete(itemKey);
         }
         const key = serviceOngoingKey(report, service);
         items.set(key, { key, keys, report, service });
       });
     });
-    return Array.from(items.values()).sort(
-      (a, b) => new Date(b.report.reportDate).getTime() - new Date(a.report.reportDate).getTime()
-    );
+    return Array.from(items.values()).sort((a, b) => new Date(b.report.reportDate).getTime() - new Date(a.report.reportDate).getTime());
   }, [projectReports, serviceFinalized, serviceOngoingKey, serviceOngoingKeys]);
 
   const visiblePendingProjectServices = useMemo(() => {
-    const activeKeys = new Set(services.map(service => {
-      const data = service.data || {};
-      return String(data.__ongoingKey || data.__serviceLinkKey || data.__sourceServiceId || '').trim();
-    }).filter(Boolean));
-    return pendingProjectServices.filter(item => !activeKeys.has(item.key));
+    const activeKeys = new Set(
+      services
+        .map((service) => {
+          const data = service.data || {};
+          return String(data.__ongoingKey || data.__serviceLinkKey || data.__sourceServiceId || '').trim();
+        })
+        .filter(Boolean)
+    );
+    return pendingProjectServices.filter((item) => !activeKeys.has(item.key));
   }, [pendingProjectServices, services]);
 
   useEffect(() => {
@@ -507,9 +464,7 @@ export function NewReportPage() {
     if (!projectId || !noturno || nightCollaboratorIds.length > 0) return;
     const noturnoDetails = lastReport?.specialConditions?.noturnoDetails;
     if (!noturnoDetails || typeof noturnoDetails !== 'object' || Array.isArray(noturnoDetails)) return;
-    const ids = Array.isArray((noturnoDetails as Record<string, unknown>).collaboratorIds)
-      ? ((noturnoDetails as Record<string, unknown>).collaboratorIds as unknown[]).filter((id): id is string => typeof id === 'string')
-      : [];
+    const ids = Array.isArray((noturnoDetails as Record<string, unknown>).collaboratorIds) ? ((noturnoDetails as Record<string, unknown>).collaboratorIds as unknown[]).filter((id): id is string => typeof id === 'string') : [];
     if (ids.length) setNightCollaborators(ids);
   }, [projectId, noturno, nightCollaboratorIds.length, lastReport, setNightCollaborators]);
 
@@ -522,13 +477,9 @@ export function NewReportPage() {
     for (const service of services) {
       if (normalizeServiceType(service.type) === 'inibicao') continue;
       const selected = stringArray(service.data.serviceCollaboratorIds);
-      const selectedHadRemovedCollaborator = selected.some(id => !available.has(id));
+      const selectedHadRemovedCollaborator = selected.some((id) => !available.has(id));
       const selectedFollowedPreviousShift = previousIds.length > 0 && sameStringSet(selected, previousIds);
-      const nextSelected = !selected.length || selectedFollowedPreviousShift
-        ? serviceCollaboratorOptionIds
-        : selectedHadRemovedCollaborator
-          ? selected.filter(id => available.has(id))
-          : selected;
+      const nextSelected = !selected.length || selectedFollowedPreviousShift ? serviceCollaboratorOptionIds : selectedHadRemovedCollaborator ? selected.filter((id) => available.has(id)) : selected;
       const fallbackSelected = nextSelected.length ? nextSelected : serviceCollaboratorOptionIds;
       if (!sameStringSet(selected, fallbackSelected)) {
         updateService(service.id, { serviceCollaboratorIds: fallbackSelected });
@@ -537,47 +488,40 @@ export function NewReportPage() {
   }, [serviceCollaboratorOptionIds, services, updateService]);
 
   function continueService(service: ReportServiceSummary, ongoingKey: string) {
-      const extra = markPreviouslyAddedUploads(service.extraData || {});
-      const type = normalizeServiceType(service.serviceType);
-      const contadorUtilizado = firstIdFromField(extra['Contador utilizado'] || extra.contadorUtilizado);
-      const previousDesidratacaoUnit = firstIdFromField(
-        extra.desidratacaoUnit
-        || extra['Equipamento de desidratação']
-        || extra['Equipamento de desidratacao']
-        || extra['Equipamento de desidrataÃ§Ã£o']
-      );
-      const previousPressureTestedEquipment = type === 'pressao' ? pressureTestedEquipmentValue(extra) : '';
-      addService(type, {
-        ...extra,
-        __ongoingKey: ongoingKey,
-        __serviceLinkKey: String(extra.__serviceLinkKey || ongoingKey),
-        etapas: [],
-        customEtapa: '',
-        aprovadoCliente: type === 'inibicao' ? String(extra.aprovadoCliente || extra['Aprovado pelo cliente?'] || 'Sim') : 'Sim',
-        houveParticulas: contadorUtilizado ? 'Sim' : String(extra['Houve contagem de partículas?'] || extra.houveParticulas || 'Não'),
-        contadorUtilizado,
-        contagemInicialNas: type === 'inibicao' ? String(extra.contagemInicialNas || extra['Contagem inicial NAS'] || '') : '',
-        contagemFinalNas: type === 'inibicao' ? String(extra.contagemFinalNas || extra['Contagem final NAS'] || '') : '',
-        contagemInicialIso: type === 'inibicao' ? String(extra.contagemInicialIso || extra['Contagem inicial ISO'] || '') : '',
-        contagemFinalIso: type === 'inibicao' ? String(extra.contagemFinalIso || extra['Contagem final ISO'] || '') : '',
-        houveDesidratacao: type === 'inibicao' ? String(extra.houveDesidratacao || extra['Houve desidratação?'] || 'Não') : 'Não',
-        desidratacaoUnit: previousDesidratacaoUnit,
-        houveUmidade: String(extra['Houve análise de umidade?'] || extra.houveUmidade || 'Não'),
-        umidadeInicial: type === 'inibicao' ? String(extra.umidadeInicial || extra['Umidade inicial (ppm)'] || '') : '',
-        umidadeFinal: type === 'inibicao' ? String(extra.umidadeFinal || extra['Umidade final (ppm)'] || '') : '',
-        equipmentId: service.equipmentId || serviceEquipmentName(service),
-        system: service.system || String(extra.Sistema || ''),
-        equipamentoTestado: previousPressureTestedEquipment || extra.equipamentoTestado,
-        equipamentoTestadoOutro: String(extra.equipamentoTestadoOutro || extra['Outro equipamento testado'] || ''),
-        material: previousPressureTestedEquipment && previousPressureTestedEquipment !== 'tubulacao'
-          ? ''
-          : service.material || String(extra['Material da tubulação'] || extra['Material do equipamento'] || ''),
-        startTime: '',
-        endTime: '',
-        notes: '',
-        finalized: undefined,
-        _prefilled: true
-      });
+    const extra = markPreviouslyAddedUploads(service.extraData || {});
+    const type = normalizeServiceType(service.serviceType);
+    const contadorUtilizado = firstIdFromField(extra['Contador utilizado'] || extra.contadorUtilizado);
+    const previousDesidratacaoUnit = firstIdFromField(extra.desidratacaoUnit || extra['Equipamento de desidratação'] || extra['Equipamento de desidratacao'] || extra['Equipamento de desidrataÃ§Ã£o']);
+    const previousPressureTestedEquipment = type === 'pressao' ? pressureTestedEquipmentValue(extra) : '';
+    addService(type, {
+      ...extra,
+      __ongoingKey: ongoingKey,
+      __serviceLinkKey: String(extra.__serviceLinkKey || ongoingKey),
+      etapas: [],
+      customEtapa: '',
+      aprovadoCliente: type === 'inibicao' ? String(extra.aprovadoCliente || extra['Aprovado pelo cliente?'] || 'Sim') : 'Sim',
+      houveParticulas: contadorUtilizado ? 'Sim' : String(extra['Houve contagem de partículas?'] || extra.houveParticulas || 'Não'),
+      contadorUtilizado,
+      contagemInicialNas: type === 'inibicao' ? String(extra.contagemInicialNas || extra['Contagem inicial NAS'] || '') : '',
+      contagemFinalNas: type === 'inibicao' ? String(extra.contagemFinalNas || extra['Contagem final NAS'] || '') : '',
+      contagemInicialIso: type === 'inibicao' ? String(extra.contagemInicialIso || extra['Contagem inicial ISO'] || '') : '',
+      contagemFinalIso: type === 'inibicao' ? String(extra.contagemFinalIso || extra['Contagem final ISO'] || '') : '',
+      houveDesidratacao: type === 'inibicao' ? String(extra.houveDesidratacao || extra['Houve desidratação?'] || 'Não') : 'Não',
+      desidratacaoUnit: previousDesidratacaoUnit,
+      houveUmidade: String(extra['Houve análise de umidade?'] || extra.houveUmidade || 'Não'),
+      umidadeInicial: type === 'inibicao' ? String(extra.umidadeInicial || extra['Umidade inicial (ppm)'] || '') : '',
+      umidadeFinal: type === 'inibicao' ? String(extra.umidadeFinal || extra['Umidade final (ppm)'] || '') : '',
+      equipmentId: service.equipmentId || serviceEquipmentName(service),
+      system: service.system || String(extra.Sistema || ''),
+      equipamentoTestado: previousPressureTestedEquipment || extra.equipamentoTestado,
+      equipamentoTestadoOutro: String(extra.equipamentoTestadoOutro || extra['Outro equipamento testado'] || ''),
+      material: previousPressureTestedEquipment && previousPressureTestedEquipment !== 'tubulacao' ? '' : service.material || String(extra['Material da tubulação'] || extra['Material do equipamento'] || ''),
+      startTime: '',
+      endTime: '',
+      notes: '',
+      finalized: undefined,
+      _prefilled: true
+    });
   }
 
   function handleContinueServices() {
@@ -585,92 +529,22 @@ export function NewReportPage() {
     visiblePendingProjectServices.forEach(({ service, key }) => continueService(service, key));
   }
 
-  const expectedMinutes = useCallback(() => {
-    if (!selectedProject) return 0;
-    const date = new Date(`${reportDate}T00:00:00Z`);
-    if (Number.isNaN(date.getTime())) return parseDurationToMinutes(selectedProject.workdayHours || '09:00');
-    if (serverHoliday) return 0;
-    const dow = date.getUTCDay();
-    const weekdayBase = parseDurationToMinutes(selectedProject.workdayHours || '09:00');
-    const weekendBase = parseDurationToMinutes(selectedProject.weekendWorkdayHours || '08:00');
-    if (dow === 5) return weekendBase;
-    if (dow === 6) return selectedProject.includesSaturday ? weekendBase : 0;
-    if (dow === 0) return selectedProject.includesSunday ? weekendBase : 0;
-    return weekdayBase;
-  }, [reportDate, selectedProject, serverHoliday]);
-
-  const overtimeSummary = useMemo(() => {
-    const expected = expectedMinutes();
-    const daytimeWorkedMinutes = workedMinutes(arrivalTime, departureTime, lunchBreak);
-    const nighttimeWorkedMinutes = noturno ? workedMinutes(noturnoStart, noturnoEnd, noturnoInterval) : 0;
-    const daytimeOvertimeMinutes = expected === 0
-      ? daytimeWorkedMinutes
-      : Math.max(0, daytimeWorkedMinutes - expected > 30 ? daytimeWorkedMinutes - expected : 0);
-    const nighttimeOvertimeMinutes = expected === 0
-      ? nighttimeWorkedMinutes
-      : Math.max(0, nighttimeWorkedMinutes - expected > 30 ? nighttimeWorkedMinutes - expected : 0);
-
-    return {
-      expectedMinutes: expected,
-      daytimeWorkedMinutes,
-      nighttimeWorkedMinutes,
-      daytimeOvertimeMinutes,
-      nighttimeOvertimeMinutes,
-      totalOvertimeMinutes: daytimeOvertimeMinutes + nighttimeOvertimeMinutes,
-      isHoliday: serverHoliday
-    };
-  }, [arrivalTime, departureTime, expectedMinutes, lunchBreak, noturno, noturnoEnd, noturnoInterval, noturnoStart, serverHoliday]);
-
-  const overtimeLines = [
-    `Turno diurno: trabalhado ${formatMinutes(overtimeSummary.daytimeWorkedMinutes)} | extra ${formatMinutes(overtimeSummary.daytimeOvertimeMinutes)}`,
-    ...(noturno || overtimeSummary.nighttimeWorkedMinutes
-      ? [`Turno noturno: trabalhado ${formatMinutes(overtimeSummary.nighttimeWorkedMinutes)} | extra ${formatMinutes(overtimeSummary.nighttimeOvertimeMinutes)}`]
-      : []),
-    overtimeSummary.expectedMinutes
-      ? `Jornada de referência: ${formatMinutes(overtimeSummary.expectedMinutes)}${overtimeSummary.isHoliday ? ' | feriado detectado' : ''}`
-      : overtimeSummary.isHoliday
-        ? 'Feriado detectado: todo o período trabalhado será considerado hora extra.'
-        : 'Data com regime integral de hora extra conforme configuração do projeto.'
-  ];
-
-  function addCollaboratorById(id: string, night = false) {
-    if (!id) return;
-    if (night) {
-      setNightCollaborators(Array.from(new Set([...nightCollaboratorIds, id])));
-      return;
-    }
-    markCollaboratorsTouched();
-    setCollaborators(Array.from(new Set([...collaboratorIds, id])));
-  }
-
-  function removeCollaboratorFromList(id: string, night = false) {
-    if (night) {
-      setNightCollaborators(nightCollaboratorIds.filter(item => item !== id));
-      return;
-    }
-    markCollaboratorsTouched();
-    setCollaborators(collaboratorIds.filter(item => item !== id));
-  }
-
-  function renderCollaboratorList(ids: string[], night = false) {
-    if (!ids.length) {
-      return <div className="colab-empty">Nenhum colaborador adicionado.</div>;
-    }
-
-    return ids.map(id => {
-      const item = collaborators.find(candidate => candidate.id === id);
-      const roleName = item?.jobRole?.name || item?.role || 'Cargo não informado';
-      return (
-        <span className="colab-tag" key={`${night ? 'night' : 'day'}-${id}`}>
-          <span className="colab-tag-copy">
-            <span>{item?.name || id}</span>
-            <small className="colab-tag-role">{roleName}</small>
-          </span>
-          <button type="button" aria-label={`Remover ${item?.name || id}`} onClick={() => removeCollaboratorFromList(id, night)}>×</button>
-        </span>
-      );
-    });
-  }
+  const overtimeSummary = useMemo(
+    () =>
+      calculateReportOvertimeSummary({
+        policy: selectedProject,
+        reportDate,
+        arrivalTime,
+        departureTime,
+        lunchBreak,
+        nightEnabled: noturno,
+        nightArrivalTime: noturnoStart,
+        nightDepartureTime: noturnoEnd,
+        nightBreak: noturnoInterval,
+        isHoliday: serverHoliday
+      }),
+    [arrivalTime, departureTime, lunchBreak, noturno, noturnoEnd, noturnoInterval, noturnoStart, reportDate, selectedProject, serverHoliday]
+  );
 
   function fieldState(target: string) {
     return invalidTarget === target ? 'field-group field-invalid' : 'field-group';
@@ -695,17 +569,8 @@ export function NewReportPage() {
     showToast(message, 'error');
     window.setTimeout(() => {
       const [serviceId] = target.split(':');
-      const selectors = target.includes(':')
-        ? [
-            `[data-invalid-target="${target}"]`,
-            `[data-service-id="${serviceId}"] .field-invalid input`,
-            `[data-service-id="${serviceId}"] .field-invalid select`,
-            `[data-service-id="${serviceId}"] .field-invalid textarea`,
-            `[data-service-id="${serviceId}"] .field-invalid`,
-            `[data-service-id="${serviceId}"]`
-          ]
-        : [`[data-invalid-target="${target}"]`];
-      const element = selectors.map(selector => document.querySelector(selector)).find(Boolean) as HTMLElement | null;
+      const selectors = target.includes(':') ? [`[data-invalid-target="${target}"]`, `[data-service-id="${serviceId}"] .field-invalid input`, `[data-service-id="${serviceId}"] .field-invalid select`, `[data-service-id="${serviceId}"] .field-invalid textarea`, `[data-service-id="${serviceId}"] .field-invalid`, `[data-service-id="${serviceId}"]`] : [`[data-invalid-target="${target}"]`];
+      const element = selectors.map((selector) => document.querySelector(selector)).find(Boolean) as HTMLElement | null;
       element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       if (element && typeof element.focus === 'function') element.focus({ preventScroll: true });
     }, 120);
@@ -717,7 +582,7 @@ export function NewReportPage() {
   }
 
   function hasStringItem(value: unknown) {
-    return Array.isArray(value) && value.some(item => typeof item === 'string' && item.trim());
+    return Array.isArray(value) && value.some((item) => typeof item === 'string' && item.trim());
   }
 
   function hasTextOrStringItem(value: unknown) {
@@ -725,20 +590,26 @@ export function NewReportPage() {
   }
 
   function hasValidTubes(value: unknown) {
-    return Array.isArray(value) && value.length > 0 && value.every(item => {
-      if (!item || typeof item !== 'object') return false;
-      const row = item as Record<string, unknown>;
-      return hasText(row.d) && hasText(row.c);
-    });
+    return (
+      Array.isArray(value) &&
+      value.length > 0 &&
+      value.every((item) => {
+        if (!item || typeof item !== 'object') return false;
+        const row = item as Record<string, unknown>;
+        return hasText(row.d) && hasText(row.c);
+      })
+    );
   }
 
   function isNoValue(value: unknown) {
     if (Array.isArray(value)) value = value[0];
-    return String(value || '')
-      .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '') === 'nao';
+    return (
+      String(value || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '') === 'nao'
+    );
   }
 
   function serviceRequiresTubes(type: string, data: Record<string, unknown>) {
@@ -781,10 +652,12 @@ export function NewReportPage() {
     if (!departureTime) return failRequired('Saída', 'header:departureTime', 0);
     if (!lunchBreak) return failRequired('Intervalo de almoço', 'header:lunchBreak', 0);
     if (!collaboratorIds.length) return failRequired('Colaboradores', 'header:collaborators', 0);
-    if (!rdoWorkforceJustificationSchema.safeParse({
-      requiresJustification: absenceConflicts.length > 0,
-      workforceJustification
-    }).success) {
+    if (
+      !rdoWorkforceJustificationSchema.safeParse({
+        requiresJustification: absenceConflicts.length > 0,
+        workforceJustification
+      }).success
+    ) {
       return failRequired('Justificativa de trabalho durante afastamento', 'header:workforceJustification', 0);
     }
     if (standby && !standbyDuration) return failRequired('Tempo total (standby)', 'header:standbyDuration', 0);
@@ -830,8 +703,7 @@ export function NewReportPage() {
       if (type === 'pressao' && pressureTestedEquipment === 'outro' && !hasText(data.equipamentoTestadoOutro)) {
         return failRequired('Outro equipamento testado', target('equipamentoTestadoOutro'), 1);
       }
-      const requiresMaterial = ['limpeza', 'mecanica', 'inibicao'].includes(type)
-        || (type === 'pressao' && pressureTestedEquipment === 'tubulacao');
+      const requiresMaterial = ['limpeza', 'mecanica', 'inibicao'].includes(type) || (type === 'pressao' && pressureTestedEquipment === 'tubulacao');
       if (requiresMaterial && !hasText(data.material)) {
         return failRequired(type === 'mecanica' ? 'Material do equipamento' : 'Material da tubulação', target('material'), 1);
       }
@@ -886,7 +758,7 @@ export function NewReportPage() {
     }
 
     setInvalidTarget(null);
-    setStep(current => Math.min(current + 1, steps.length - 1));
+    setStep((current) => Math.min(current + 1, steps.length - 1));
   }
 
   function buildResumoText() {
@@ -894,7 +766,11 @@ export function NewReportPage() {
     if (selectedProject) parts.push(`${selectedProject.code} — ${selectedProject.name}`);
     if (reportDate) {
       const d = new Date(`${reportDate}T00:00:00`);
-      const label = d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+      const label = d.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+      });
       parts.push(label.charAt(0).toUpperCase() + label.slice(1));
     }
     if (arrivalTime && departureTime) parts.push(`${arrivalTime} às ${departureTime}`);
@@ -902,7 +778,7 @@ export function NewReportPage() {
       parts.push(`${collaboratorIds.length} colaborador${collaboratorIds.length !== 1 ? 'es' : ''}`);
     }
     if (services.length) {
-      const types = services.map(s => serviceTypeLabels[normalizeServiceType(s.type)] || s.type);
+      const types = services.map((s) => serviceTypeLabels[normalizeServiceType(s.type)] || s.type);
       parts.push(types.join(', '));
     }
     return parts.join(' · ') || '—';
@@ -938,35 +814,7 @@ export function NewReportPage() {
       generalUploads,
       services
     };
-  }, [
-    projectId,
-    effectiveServiceOnly,
-    reportDate,
-    arrivalTime,
-    departureTime,
-    lunchBreak,
-    collaboratorIds,
-    nightCollaboratorIds,
-    standby,
-    noturno,
-    standbyDuration,
-    standbyMotivo,
-    noturnoStart,
-    noturnoEnd,
-    noturnoInterval,
-    ddsDay,
-    ddsDayStart,
-    ddsDayEnd,
-    ddsDayThemes,
-    ddsNight,
-    ddsNightStart,
-    ddsNightEnd,
-    ddsNightThemes,
-    overtimeReason,
-    dailyDescription,
-    generalUploads,
-    services
-  ]);
+  }, [projectId, effectiveServiceOnly, reportDate, arrivalTime, departureTime, lunchBreak, collaboratorIds, nightCollaboratorIds, standby, noturno, standbyDuration, standbyMotivo, noturnoStart, noturnoEnd, noturnoInterval, ddsDay, ddsDayStart, ddsDayEnd, ddsDayThemes, ddsNight, ddsNightStart, ddsNightEnd, ddsNightThemes, overtimeReason, dailyDescription, generalUploads, services]);
 
   const draftProjectDateKey = useCallback((draft: { projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) => {
     const payload = draft.payload || {};
@@ -979,65 +827,50 @@ export function NewReportPage() {
   const matchingDraftIds = useCallback(() => {
     const key = projectId && reportDate ? `${projectId}|${reportDate.slice(0, 10)}|${effectiveServiceOnly ? 'service' : 'rdo'}` : '';
     if (!key) return [];
-    return (draftsQuery.data || []).filter(draft => draftProjectDateKey(draft) === key).map(draft => draft.id);
+    return (draftsQuery.data || []).filter((draft) => draftProjectDateKey(draft) === key).map((draft) => draft.id);
   }, [draftProjectDateKey, draftsQuery.data, effectiveServiceOnly, projectId, reportDate]);
 
-  const saveDraftNow = useCallback(async ({ notifyOnError = false } = {}) => {
-    if (!projectId || !reportDate) {
-      return true;
-    }
-
-    const payload = {
-      projectId,
-      reportDate,
-      title: selectedProject ? `${selectedProject.code} - ${selectedProject.name}` : 'Relatório em andamento',
-      payload: buildDraftPayload()
-    };
-    const sameProjectDateIds = matchingDraftIds();
-    const targetId = autosaveDraftTargetId(draftId, sameProjectDateIds);
-    const signature = JSON.stringify({ targetId: targetId || '', payload });
-    if (signature === lastAutoSaveSignatureRef.current) {
-      setDraftSaveStatus('saved');
-      return true;
-    }
-    lastAutoSaveSignatureRef.current = signature;
-    setDraftSaveStatus('saving');
-
-    try {
-      const saved = targetId
-        ? await updateDraftAsync({ id: targetId, payload })
-        : await createDraftAsync(payload);
-      if (draftId !== saved.id) setDraftId(saved.id);
-
-      await Promise.all(
-        sameProjectDateIds
-          .filter(id => id !== saved.id)
-          .map(id => removeDraftAsync(id).catch(() => undefined))
-      );
-      setDraftSaveStatus('saved');
-      return true;
-    } catch (error) {
-      lastAutoSaveSignatureRef.current = '';
-      setDraftSaveStatus('error');
-      console.error('Falha ao salvar rascunho de relatório.', error);
-      if (notifyOnError) {
-        showToast(error instanceof Error ? error.message : 'Não foi possível salvar o rascunho.', 'error');
+  const saveDraftNow = useCallback(
+    async ({ notifyOnError = false } = {}) => {
+      if (!projectId || !reportDate) {
+        return true;
       }
-      return false;
-    }
-  }, [
-    projectId,
-    reportDate,
-    draftId,
-    selectedProject,
-    buildDraftPayload,
-    matchingDraftIds,
-    updateDraftAsync,
-    createDraftAsync,
-    setDraftId,
-    removeDraftAsync,
-    showToast
-  ]);
+
+      const payload = {
+        projectId,
+        reportDate,
+        title: selectedProject ? `${selectedProject.code} - ${selectedProject.name}` : 'Relatório em andamento',
+        payload: buildDraftPayload()
+      };
+      const sameProjectDateIds = matchingDraftIds();
+      const targetId = autosaveDraftTargetId(draftId, sameProjectDateIds);
+      const signature = JSON.stringify({ targetId: targetId || '', payload });
+      if (signature === lastAutoSaveSignatureRef.current) {
+        setDraftSaveStatus('saved');
+        return true;
+      }
+      lastAutoSaveSignatureRef.current = signature;
+      setDraftSaveStatus('saving');
+
+      try {
+        const saved = targetId ? await updateDraftAsync({ id: targetId, payload }) : await createDraftAsync(payload);
+        if (draftId !== saved.id) setDraftId(saved.id);
+
+        await Promise.all(sameProjectDateIds.filter((id) => id !== saved.id).map((id) => removeDraftAsync(id).catch(() => undefined)));
+        setDraftSaveStatus('saved');
+        return true;
+      } catch (error) {
+        lastAutoSaveSignatureRef.current = '';
+        setDraftSaveStatus('error');
+        console.error('Falha ao salvar rascunho de relatório.', error);
+        if (notifyOnError) {
+          showToast(error instanceof Error ? error.message : 'Não foi possível salvar o rascunho.', 'error');
+        }
+        return false;
+      }
+    },
+    [projectId, reportDate, draftId, selectedProject, buildDraftPayload, matchingDraftIds, updateDraftAsync, createDraftAsync, setDraftId, removeDraftAsync, showToast]
+  );
 
   useEffect(() => {
     if (isSubmittingRef.current) return;
@@ -1066,11 +899,7 @@ export function NewReportPage() {
     }
     const saved = await saveDraftNow({ notifyOnError: true });
     if (saved) navigate(backPath);
-  }, [
-    backPath,
-    navigate,
-    saveDraftNow
-  ]);
+  }, [backPath, navigate, saveDraftNow]);
 
   const handleLogout = useCallback(async () => {
     await logout();
@@ -1101,18 +930,25 @@ export function NewReportPage() {
     try {
       const draftIdsToRemove = matchingDraftIds();
       if (draftId && !draftIdsToRemove.includes(draftId)) draftIdsToRemove.push(draftId);
-      const servicePayloads = services.map(service => buildReportServicePayload(
-        effectiveServiceOnly
-          ? { ...service, data: { ...service.data, finalized: true, aprovadoCliente: 'Sim' } }
-          : service,
-        {
-          collaboratorIds: Array.isArray(service.data.serviceCollaboratorIds)
-            ? service.data.serviceCollaboratorIds.filter((id): id is string => typeof id === 'string')
-            : [],
-          collaborators,
-          units
-        }
-      ));
+      const servicePayloads = services.map((service) =>
+        buildReportServicePayload(
+          effectiveServiceOnly
+            ? {
+                ...service,
+                data: {
+                  ...service.data,
+                  finalized: true,
+                  aprovadoCliente: 'Sim'
+                }
+              }
+            : service,
+          {
+            collaboratorIds: Array.isArray(service.data.serviceCollaboratorIds) ? service.data.serviceCollaboratorIds.filter((id): id is string => typeof id === 'string') : [],
+            collaborators,
+            units
+          }
+        )
+      );
 
       if (effectiveServiceOnly) {
         await reportMutations.createServiceOnlyReports.mutateAsync({
@@ -1165,12 +1001,14 @@ export function NewReportPage() {
             },
             overtimeSummary,
             workforceJustification: workforceJustification.trim() || null,
-            efetivoPlanningContext: planningContext ? {
-              missionId: planningContext.missionId,
-              missionVersion: planningContext.missionVersion,
-              planRevision: planningContext.planRevision,
-              calendarRevision: planningContext.calendarRevision
-            } : null
+            efetivoPlanningContext: planningContext
+              ? {
+                  missionId: planningContext.missionId,
+                  missionVersion: planningContext.missionVersion,
+                  planRevision: planningContext.planRevision,
+                  calendarRevision: planningContext.calendarRevision
+                }
+              : null
           },
           collaboratorIds,
           services: servicePayloads
@@ -1179,7 +1017,7 @@ export function NewReportPage() {
 
       // Relatório criado: efetiva a exclusão global das fotos removidas no editor.
       await flushStagedUploadDeletions();
-      await Promise.all(draftIdsToRemove.map(id => removeDraftAsync(id).catch(() => undefined)));
+      await Promise.all(draftIdsToRemove.map((id) => removeDraftAsync(id).catch(() => undefined)));
       setDraftId(null);
       lastAutoSaveSignatureRef.current = '';
 
@@ -1203,7 +1041,15 @@ export function NewReportPage() {
             <button className="topbar-chip" type="button" onClick={handleBack}>
               {TEXT.back}
             </button>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location) })}>
+            <button
+              className="topbar-chip"
+              type="button"
+              onClick={() =>
+                navigate('/conta', {
+                  state: accountPageStateFromPath(location)
+                })
+              }
+            >
               Conta
             </button>
             <button className="topbar-chip" type="button" onClick={handleLogout}>
@@ -1213,489 +1059,412 @@ export function NewReportPage() {
         }
       />
       <main className="page-scroll">
-        <section className="page-card rdo-step-panel">
-          <div className="rdo-progress-track" aria-hidden="true">
-            <div className="rdo-progress-fill" style={{ width: `${((step + 1) / steps.length) * 100}%` }} />
-          </div>
-          <div className="filter-tabs" role="tablist" aria-label="Etapas do relatório" onKeyDown={handleHorizontalTabListKeyDown}>
-            {steps.map((label, index) => (
-              <button
-                className={`filter-tab ${step === index ? 'active' : ''}`}
-                key={label}
-                type="button"
-                role="tab"
-                aria-selected={step === index}
-                onClick={() => {
-                  if (index <= step) {
-                    setStep(index);
-                    return;
-                  }
-                  if (index === step + 1) {
-                    handleNextStep();
-                  }
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+        <ReportFormStepper
+          steps={steps}
+          currentStep={step}
+          onSelect={(index) => {
+            if (index <= step) {
+              setStep(index);
+              return;
+            }
+            if (index === step + 1) handleNextStep();
+          }}
+        >
           <DraftSaveStatus status={draftSaveStatus} visible={Boolean(projectId && reportDate)} />
-        </section>
+        </ReportFormStepper>
 
         {step === 0 ? (
-        <>
-        {/* Card 1: Identificação */}
-        <section className="page-card">
-          <div className="section-title">{TEXT.identification}</div>
-          {canCreateServiceOnly ? (
-            <div className="tog-row" style={{ marginBottom: 12 }}>
-              <span className="tog-lbl">
-                {TEXT.serviceOnly}
-                <span className="placeholder-copy" style={{ display: 'block', marginTop: 2 }}>{TEXT.serviceOnlyHint}</span>
-              </span>
-              <label className="tog">
-                <input
-                  type="checkbox"
-                  checked={effectiveServiceOnly}
-                  onChange={event => {
-                    setHeaderField('serviceOnly', event.target.checked);
-                    setStep(0);
-                  }}
+          <>
+            {/* Card 1: Identificação */}
+            <section className="page-card">
+              <div className="section-title">{TEXT.identification}</div>
+              {canCreateServiceOnly ? (
+                <div className="tog-row" style={{ marginBottom: 12 }}>
+                  <span className="tog-lbl">
+                    {TEXT.serviceOnly}
+                    <span className="placeholder-copy" style={{ display: 'block', marginTop: 2 }}>
+                      {TEXT.serviceOnlyHint}
+                    </span>
+                  </span>
+                  <label className="tog">
+                    <input
+                      type="checkbox"
+                      checked={effectiveServiceOnly}
+                      onChange={(event) => {
+                        setHeaderField('serviceOnly', event.target.checked);
+                        setStep(0);
+                      }}
+                    />
+                    <span className="tog-sl" />
+                  </label>
+                </div>
+              ) : null}
+              <div className="admin-form-grid">
+                <div className={fieldState('header:projectId')} data-invalid-target="header:projectId">
+                  <label htmlFor="rdo-project">
+                    Projeto <span style={{ color: 'var(--rd)' }}>*</span>
+                  </label>
+                  <select id="rdo-project" value={projectId || ''} onChange={(event) => handleProjectChange(event.target.value)} required>
+                    <option value="">Selecionar projeto...</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.code} - {project.name}
+                      </option>
+                    ))}
+                  </select>
+                  {showProjectWithoutLeaderWarning ? (
+                    <div className="form-hint" role="status">
+                      {TEXT.projectWithoutLeader}
+                    </div>
+                  ) : null}
+                </div>
+                <ReportDateField id="rdo-date" value={reportDate} onChange={(value) => setHeaderField('reportDate', value)} invalid={invalidTarget === 'header:reportDate'} invalidTarget="header:reportDate">
+                  {isCheckingDuplicateReportDate ? (
+                    <div className="form-hint" role="status">
+                      {TEXT.duplicateReportDateChecking}
+                    </div>
+                  ) : duplicateReportForDate ? (
+                    <div className="form-hint" role="alert">
+                      {TEXT.duplicateReportDate}
+                    </div>
+                  ) : null}
+                </ReportDateField>
+              </div>
+            </section>
+
+            {!effectiveServiceOnly ? (
+              <>
+                <ReportScheduleCard
+                  idPrefix="rdo"
+                  arrivalTime={arrivalTime}
+                  departureTime={departureTime}
+                  lunchBreak={lunchBreak}
+                  onArrivalTimeChange={(value) => setHeaderField('arrivalTime', value)}
+                  onDepartureTimeChange={(value) => setHeaderField('departureTime', value)}
+                  onLunchBreakChange={(value) => setHeaderField('lunchBreak', value)}
+                  arrivalError={invalidTarget === 'header:arrivalTime' ? 'Informe o horário.' : undefined}
+                  departureError={invalidTarget === 'header:departureTime' ? 'Informe o horário.' : undefined}
+                  lunchBreakError={invalidTarget === 'header:lunchBreak' ? 'Informe o intervalo.' : undefined}
+                  arrivalInvalidTarget="header:arrivalTime"
+                  departureInvalidTarget="header:departureTime"
+                  lunchBreakInvalidTarget="header:lunchBreak"
                 />
-                <span className="tog-sl" />
-              </label>
-            </div>
-          ) : null}
-          <div className="admin-form-grid">
-            <div className={fieldState('header:projectId')} data-invalid-target="header:projectId">
-              <label htmlFor="rdo-project">Projeto <span style={{ color: 'var(--rd)' }}>*</span></label>
-              <select
-                id="rdo-project"
-                value={projectId || ''}
-                onChange={event => handleProjectChange(event.target.value)}
-                required
-              >
-                <option value="">Selecionar projeto...</option>
-                {projects.map(project => (
-                  <option key={project.id} value={project.id}>
-                    {project.code} - {project.name}
-                  </option>
-                ))}
-              </select>
-              {showProjectWithoutLeaderWarning ? (
-                <div className="form-hint" role="status">
-                  {TEXT.projectWithoutLeader}
-                </div>
-              ) : null}
-            </div>
-            <div className={fieldState('header:reportDate')} data-invalid-target="header:reportDate">
-              <label htmlFor="rdo-date">Data do relatório <span style={{ color: 'var(--rd)' }}>*</span></label>
-              <input
-                id="rdo-date"
-                type="date"
-                value={reportDate}
-                onChange={event => setHeaderField('reportDate', event.target.value)}
-                required
+              </>
+            ) : null}
+
+            {/* Card 3: Equipe diurna */}
+            <ReportCollaboratorsCard
+              collaborators={collaborators}
+              selectedIds={collaboratorIds}
+              onChange={(ids) => {
+                markCollaboratorsTouched();
+                setCollaborators(ids);
+              }}
+              invalid={invalidTarget === 'header:collaborators'}
+              error={invalidTarget === 'header:collaborators' ? TEXT.atLeastOneCollaborator : undefined}
+              invalidTarget="header:collaborators"
+              showTitle={false}
+            >
+              <ReportWorkforceNotices
+                planningContext={planningContext}
+                prefilledFromLastReport={collaboratorsPrefilled}
+                missionSuggestionCollaboratorIds={missionSuggestionCollaboratorIds}
+                canApplyMissionSuggestion={canApplyMissionSuggestion}
+                absenceConflictCount={absenceConflicts.length}
+                workforceJustification={workforceJustification}
+                invalid={invalidTarget === 'header:workforceJustification'}
+                onApplyMissionSuggestion={applyMissionSuggestion}
+                onDismissMissionSuggestion={dismissMissionSuggestion}
+                onJustificationChange={setWorkforceJustification}
               />
-              {isCheckingDuplicateReportDate ? (
-                <div className="form-hint" role="status">
-                  {TEXT.duplicateReportDateChecking}
-                </div>
-              ) : duplicateReportForDate ? (
-                <div className="form-hint" role="alert">
-                  {TEXT.duplicateReportDate}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </section>
+            </ReportCollaboratorsCard>
 
-        {!effectiveServiceOnly ? (
-        <>
-        {/* Card 2: Horários */}
-        <section className="page-card">
-          <div className="section-title">{TEXT.schedules}</div>
-          <div className="fg-r2">
-            <div className={fieldState('header:arrivalTime')} data-invalid-target="header:arrivalTime">
-              <label htmlFor="rdo-arrival">Chegada <span style={{ color: 'var(--rd)' }}>*</span></label>
-              <input
-                id="rdo-arrival"
-                type="time"
-                value={arrivalTime}
-                onChange={event => setHeaderField('arrivalTime', event.target.value)}
-                required
-              />
-            </div>
-            <div className={fieldState('header:departureTime')} data-invalid-target="header:departureTime">
-              <label htmlFor="rdo-departure">{TEXT.departure} <span style={{ color: 'var(--rd)' }}>*</span></label>
-              <input
-                id="rdo-departure"
-                type="time"
-                value={departureTime}
-                onChange={event => setHeaderField('departureTime', event.target.value)}
-                required
-              />
-            </div>
-          </div>
-          <div className={fieldState('header:lunchBreak')} style={{ marginTop: 10 }} data-invalid-target="header:lunchBreak">
-            <label htmlFor="rdo-lunch">Intervalo de almoço <span style={{ color: 'var(--rd)' }}>*</span></label>
-            <input
-              id="rdo-lunch"
-              type="time"
-              step={1}
-              value={lunchBreak}
-              onChange={event => setHeaderField('lunchBreak', event.target.value)}
-              required
-            />
-          </div>
-        </section>
-        </>
-        ) : null}
-
-        {/* Card 3: Equipe diurna */}
-        <section className="page-card">
-          <ReportWorkforceNotices
-            planningContext={planningContext}
-            prefilledFromLastReport={collaboratorsPrefilled}
-            missionSuggestionCollaboratorIds={missionSuggestionCollaboratorIds}
-            canApplyMissionSuggestion={canApplyMissionSuggestion}
-            absenceConflictCount={absenceConflicts.length}
-            workforceJustification={workforceJustification}
-            invalid={invalidTarget === 'header:workforceJustification'}
-            onApplyMissionSuggestion={applyMissionSuggestion}
-            onDismissMissionSuggestion={dismissMissionSuggestion}
-            onJustificationChange={setWorkforceJustification}
-          />
-          <div
-            className={`colab-list ${invalidTarget === 'header:collaborators' ? 'field-invalid-panel' : ''}`}
-            data-invalid-target="header:collaborators"
-          >
-            {renderCollaboratorList(collaboratorIds)}
-          </div>
-          <div className="cadd">
-            <select value="" onChange={event => addCollaboratorById(event.target.value)}>
-              <option value="">Adicionar...</option>
-              {collaborators
-                .filter(item => !collaboratorIds.includes(item.id))
-                .map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-          </div>
-        </section>
-
-        {!effectiveServiceOnly ? (
-        <>
-        {/* Card 4: Condições especiais */}
-        <NewReportSpecialConditions
-          collaborators={collaborators}
-          ddsThemes={ddsThemes}
-          invalidTarget={invalidTarget}
-          standby={standby}
-          standbyDuration={standbyDuration}
-          standbyMotivo={standbyMotivo}
-          noturno={noturno}
-          noturnoStart={noturnoStart}
-          noturnoEnd={noturnoEnd}
-          noturnoInterval={noturnoInterval}
-          nightCollaboratorIds={nightCollaboratorIds}
-          ddsDay={ddsDay}
-          ddsDayStart={ddsDayStart}
-          ddsDayEnd={ddsDayEnd}
-          ddsDayThemes={ddsDayThemes}
-          ddsNight={ddsNight}
-          ddsNightStart={ddsNightStart}
-          ddsNightEnd={ddsNightEnd}
-          ddsNightThemes={ddsNightThemes}
-          setHeaderField={setHeaderField}
-          setNightCollaborators={setNightCollaborators}
-          addDdsTheme={addDdsTheme}
-          removeDdsTheme={removeDdsTheme}
-          fieldState={fieldState}
-        />
-        </>
-        ) : null}
-
-        </>
+            {!effectiveServiceOnly ? (
+              <>
+                {/* Card 4: Condições especiais */}
+                <NewReportSpecialConditions
+                  collaborators={collaborators}
+                  ddsThemes={ddsThemes}
+                  invalidTarget={invalidTarget}
+                  standby={standby}
+                  standbyDuration={standbyDuration}
+                  standbyMotivo={standbyMotivo}
+                  noturno={noturno}
+                  noturnoStart={noturnoStart}
+                  noturnoEnd={noturnoEnd}
+                  noturnoInterval={noturnoInterval}
+                  nightCollaboratorIds={nightCollaboratorIds}
+                  ddsDay={ddsDay}
+                  ddsDayStart={ddsDayStart}
+                  ddsDayEnd={ddsDayEnd}
+                  ddsDayThemes={ddsDayThemes}
+                  ddsNight={ddsNight}
+                  ddsNightStart={ddsNightStart}
+                  ddsNightEnd={ddsNightEnd}
+                  ddsNightThemes={ddsNightThemes}
+                  setHeaderField={setHeaderField}
+                  setNightCollaborators={setNightCollaborators}
+                  addDdsTheme={addDdsTheme}
+                  removeDdsTheme={removeDdsTheme}
+                  fieldState={fieldState}
+                />
+              </>
+            ) : null}
+          </>
         ) : null}
 
         {step === 1 ? (
-        <>
-        {projectId && !effectiveServiceOnly && visiblePendingProjectServices.length > 0 ? (
-          <section className="page-card continuity-card">
-            <div className="section-title">Serviços em andamento</div>
-            <p className="placeholder-copy">
-              Selecione individualmente quais serviços deseja continuar neste RDO.
-            </p>
-            <div className="admin-list" style={{ marginTop: 10 }}>
-              {visiblePendingProjectServices.map(({ key, report, service }) => {
-                const type = normalizeServiceType(service.serviceType);
-                const equipment = serviceEquipmentName(service) || 'Equipamento não informado';
-                const system = service.system || String((service.extraData || {}).Sistema || '');
-                return (
-                  <article className="ongoing-item-react" key={`${report.id}-${service.id}`}>
-                    <div className="admin-item-row">
-                      <div className="admin-item-main">
-                        <div className="admin-item-title">{serviceTypeLabels[type] || type}</div>
-                        <div className="admin-item-sub">
-                          {equipment}{system ? ` · ${system}` : ''} · RDO {report.sequenceNumber || '---'}
+          <>
+            {projectId && !effectiveServiceOnly && visiblePendingProjectServices.length > 0 ? (
+              <section className="page-card continuity-card">
+                <div className="section-title">Serviços em andamento</div>
+                <p className="placeholder-copy">Selecione individualmente quais serviços deseja continuar neste RDO.</p>
+                <div className="admin-list" style={{ marginTop: 10 }}>
+                  {visiblePendingProjectServices.map(({ key, report, service }) => {
+                    const type = normalizeServiceType(service.serviceType);
+                    const equipment = serviceEquipmentName(service) || 'Equipamento não informado';
+                    const system = service.system || String((service.extraData || {}).Sistema || '');
+                    return (
+                      <article className="ongoing-item-react" key={`${report.id}-${service.id}`}>
+                        <div className="admin-item-row">
+                          <div className="admin-item-main">
+                            <div className="admin-item-title">{serviceTypeLabels[type] || type}</div>
+                            <div className="admin-item-sub">
+                              {equipment}
+                              {system ? ` · ${system}` : ''} · RDO {report.sequenceNumber || '---'}
+                            </div>
+                          </div>
+                          <button className="ongoing-badge-react" type="button" onClick={() => continueService(service, key)}>
+                            Continuar
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+                {visiblePendingProjectServices.length > 1 ? (
+                  <div className="admin-form-actions" style={{ marginTop: 10 }}>
+                    <button className="secondary-button" type="button" onClick={handleContinueServices}>
+                      Continuar todos
+                    </button>
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
+            <section className="page-card report-services-step" data-invalid-target="services:empty">
+              <div className="section-title">{TEXT.services}</div>
+              {services.length ? (
+                <div className="admin-stack" style={{ marginTop: 12 }}>
+                  {services.map((service, index) => (
+                    <article className="admin-card-react" key={service.id} data-service-id={service.id}>
+                      <div className="svc-card-header">
+                        <div className="svc-card-title">
+                          <span>{serviceTypeLabels[normalizeServiceType(service.type)] || service.type}</span>
+                          <span className="svc-card-badge">
+                            {TEXT.service} {index + 1}
+                          </span>
+                        </div>
+                        <div className="admin-card-actions">
+                          <button className="svc-remove" type="button" onClick={() => removeService(service.id)}>
+                            {TEXT.remove}
+                          </button>
                         </div>
                       </div>
-                      <button className="ongoing-badge-react" type="button" onClick={() => continueService(service, key)}>
-                        Continuar
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-            {visiblePendingProjectServices.length > 1 ? (
-              <div className="admin-form-actions" style={{ marginTop: 10 }}>
-                <button className="secondary-button" type="button" onClick={handleContinueServices}>
-                  Continuar todos
+                      <div className="admin-form-grid">
+                        {normalizeServiceType(service.type) !== 'inibicao' ? (
+                          <div className={serviceFieldState(service.id, 'equipmentId')}>
+                            <label>
+                              Equipamento(s) <span style={{ color: 'var(--rd)' }}>*</span>
+                              {service.data._prefilled && service.data.equipmentId ? <span className="pre-badge">pré-preenchido</span> : null}
+                            </label>
+                            <input
+                              className={service.data._prefilled && service.data.equipmentId ? 'pre' : ''}
+                              value={typeof service.data.equipmentId === 'string' ? service.data.equipmentId : ''}
+                              placeholder="Informar equipamento do cliente..."
+                              onChange={(event) =>
+                                updateService(service.id, {
+                                  equipmentId: event.target.value
+                                })
+                              }
+                            />
+                          </div>
+                        ) : null}
+                        {normalizeServiceType(service.type) !== 'inibicao' ? (
+                          <div className={serviceFieldState(service.id, 'system')}>
+                            <label>
+                              Sistema <span style={{ color: 'var(--rd)' }}>*</span>
+                              {service.data._prefilled && service.data.system ? <span className="pre-badge">pré-preenchido</span> : null}
+                            </label>
+                            <input
+                              className={service.data._prefilled && service.data.system ? 'pre' : ''}
+                              value={typeof service.data.system === 'string' ? service.data.system : ''}
+                              onChange={(event) =>
+                                updateService(service.id, {
+                                  system: event.target.value
+                                })
+                              }
+                            />
+                          </div>
+                        ) : null}
+                        {normalizeServiceType(service.type) !== 'inibicao' ? <ServiceCollaboratorsBlock data={service.data} onChange={(update) => updateService(service.id, update)} invalidKey={invalidTarget === `${service.id}:serviceCollaboratorIds` ? 'serviceCollaboratorIds' : null} collaboratorOptions={serviceCollaboratorOptions} /> : null}
+                        {normalizeServiceType(service.type) !== 'inibicao' ? (
+                          <div className="fg-r2 service-time-grid">
+                            <div className={serviceFieldState(service.id, 'startTime')}>
+                              <label>
+                                Hora de início <span style={{ color: 'var(--rd)' }}>*</span>
+                              </label>
+                              <input
+                                type="time"
+                                required
+                                value={typeof service.data.startTime === 'string' ? service.data.startTime : ''}
+                                onChange={(event) =>
+                                  updateService(service.id, {
+                                    startTime: event.target.value
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className={serviceFieldState(service.id, 'endTime')}>
+                              <label>
+                                Hora de término/pausa <span style={{ color: 'var(--rd)' }}>*</span>
+                              </label>
+                              <input
+                                type="time"
+                                required
+                                value={typeof service.data.endTime === 'string' ? service.data.endTime : ''}
+                                onChange={(event) =>
+                                  updateService(service.id, {
+                                    endTime: event.target.value
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+                        ) : null}
+                        <ServiceFields
+                          serviceType={service.type}
+                          data={service.data}
+                          onChange={(update) => updateService(service.id, update)}
+                          units={units}
+                          manometers={manometers}
+                          counters={bootstrapQuery.data?.counters || []}
+                          equipments={bootstrapQuery.data?.equipments || []}
+                          rdoSlotMap={bootstrapQuery.data?.rdoSlotMap}
+                          inhibitionOptions={bootstrapQuery.data?.inhibitionOptions}
+                          collaboratorOptions={serviceCollaboratorOptions}
+                          groupKey={service.id}
+                          projectId={projectId}
+                          invalidKey={serviceInvalidKey(service.id)}
+                          hideFinalization={effectiveServiceOnly}
+                        />
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="placeholder-copy">{TEXT.noService}</p>
+              )}
+              <div className="admin-form-actions" style={{ marginTop: 12 }}>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  style={{
+                    width: '100%',
+                    borderStyle: 'dashed',
+                    color: 'var(--g)',
+                    fontWeight: 700
+                  }}
+                  onClick={() => setShowServiceModal(true)}
+                >
+                  ＋ {TEXT.addService}
                 </button>
               </div>
-            ) : null}
-          </section>
-        ) : null}
-        <section className="page-card report-services-step" data-invalid-target="services:empty">
-          <div className="section-title">{TEXT.services}</div>
-          {services.length ? (
-            <div className="admin-stack" style={{ marginTop: 12 }}>
-              {services.map((service, index) => (
-                <article className="admin-card-react" key={service.id} data-service-id={service.id}>
-                  <div className="svc-card-header">
-                    <div className="svc-card-title">
-                      <span>{serviceTypeLabels[normalizeServiceType(service.type)] || service.type}</span>
-                      <span className="svc-card-badge">{TEXT.service} {index + 1}</span>
-                    </div>
-                    <div className="admin-card-actions">
-                      <button className="svc-remove" type="button" onClick={() => removeService(service.id)}>
-                        {TEXT.remove}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="admin-form-grid">
-                    {normalizeServiceType(service.type) !== 'inibicao' ? (
-                    <div className={serviceFieldState(service.id, 'equipmentId')}>
-                      <label>
-                        Equipamento(s) <span style={{ color: 'var(--rd)' }}>*</span>
-                        {service.data._prefilled && service.data.equipmentId ? <span className="pre-badge">pré-preenchido</span> : null}
-                      </label>
-                      <input
-                        className={service.data._prefilled && service.data.equipmentId ? 'pre' : ''}
-                        value={typeof service.data.equipmentId === 'string' ? service.data.equipmentId : ''}
-                        placeholder="Informar equipamento do cliente..."
-                        onChange={event => updateService(service.id, { equipmentId: event.target.value })}
-                      />
-                    </div>
-                    ) : null}
-                    {normalizeServiceType(service.type) !== 'inibicao' ? (
-                      <div className={serviceFieldState(service.id, 'system')}>
-                        <label>
-                          Sistema <span style={{ color: 'var(--rd)' }}>*</span>
-                          {service.data._prefilled && service.data.system ? <span className="pre-badge">pré-preenchido</span> : null}
-                        </label>
-                        <input
-                          className={service.data._prefilled && service.data.system ? 'pre' : ''}
-                          value={typeof service.data.system === 'string' ? service.data.system : ''}
-                          onChange={event => updateService(service.id, { system: event.target.value })}
-                        />
-                      </div>
-                    ) : null}
-                    {normalizeServiceType(service.type) !== 'inibicao' ? (
-                      <ServiceCollaboratorsBlock
-                        data={service.data}
-                        onChange={update => updateService(service.id, update)}
-                        invalidKey={invalidTarget === `${service.id}:serviceCollaboratorIds` ? 'serviceCollaboratorIds' : null}
-                        collaboratorOptions={serviceCollaboratorOptions}
-                      />
-                    ) : null}
-                    {normalizeServiceType(service.type) !== 'inibicao' ? (
-                    <div className="fg-r2 service-time-grid">
-                      <div className={serviceFieldState(service.id, 'startTime')}>
-                        <label>Hora de início <span style={{ color: 'var(--rd)' }}>*</span></label>
-                        <input
-                          type="time"
-                          required
-                          value={typeof service.data.startTime === 'string' ? service.data.startTime : ''}
-                          onChange={event => updateService(service.id, { startTime: event.target.value })}
-                        />
-                      </div>
-                      <div className={serviceFieldState(service.id, 'endTime')}>
-                        <label>Hora de término/pausa <span style={{ color: 'var(--rd)' }}>*</span></label>
-                        <input
-                          type="time"
-                          required
-                          value={typeof service.data.endTime === 'string' ? service.data.endTime : ''}
-                          onChange={event => updateService(service.id, { endTime: event.target.value })}
-                        />
-                      </div>
-                    </div>
-                    ) : null}
-                    <ServiceFields
-                      serviceType={service.type}
-                      data={service.data}
-                      onChange={update => updateService(service.id, update)}
-                      units={units}
-                      manometers={manometers}
-                      counters={bootstrapQuery.data?.counters || []}
-                      equipments={bootstrapQuery.data?.equipments || []}
-                      rdoSlotMap={bootstrapQuery.data?.rdoSlotMap}
-                      inhibitionOptions={bootstrapQuery.data?.inhibitionOptions}
-                      collaboratorOptions={serviceCollaboratorOptions}
-                      groupKey={service.id}
-                      projectId={projectId}
-                      invalidKey={serviceInvalidKey(service.id)}
-                      hideFinalization={effectiveServiceOnly}
-                    />
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className="placeholder-copy">{TEXT.noService}</p>
-          )}
-          <div className="admin-form-actions" style={{ marginTop: 12 }}>
-            <button
-              className="secondary-button"
-              type="button"
-              style={{ width: '100%', borderStyle: 'dashed', color: 'var(--g)', fontWeight: 700 }}
-              onClick={() => setShowServiceModal(true)}
-            >
-              ＋ {TEXT.addService}
-            </button>
-          </div>
-        </section>
-        </>
+            </section>
+          </>
         ) : null}
 
         {step === 2 ? (
-        <>
-        {/* Card Horas extras */}
-        <section className="page-card">
-          <div className="section-title">Horas extras</div>
-          <div
-            style={{
-              fontSize: 12,
-              color: overtimeSummary.totalOvertimeMinutes > 0 ? 'var(--rd)' : 'var(--mu)',
-              lineHeight: 1.7,
-              marginBottom: 10
-            }}
-          >
-            {overtimeSummary.totalOvertimeMinutes > 0 ? (
-              <>
-                <strong>Hora extra identificada: {formatMinutes(overtimeSummary.totalOvertimeMinutes)}</strong>
-                {overtimeLines.map(line => <div key={line}>{line}</div>)}
-              </>
-            ) : (
-              <>
-                Nenhuma hora extra identificada.
-                {overtimeLines.map(line => <div key={line}>{line}</div>)}
-              </>
-            )}
-          </div>
-          {overtimeSummary.totalOvertimeMinutes > 0 ? (
-            <div className="field-group">
-              <label htmlFor="rdo-overtime">Justificativa</label>
-              <textarea
-                id="rdo-overtime"
-                placeholder="Descreva o motivo das horas extras..."
-                rows={3}
-                value={overtimeReason}
-                onChange={event => setHeaderField('overtimeReason', event.target.value)}
-              />
-            </div>
-          ) : null}
-        </section>
+          <>
+            <ReportOvertimeCard summary={overtimeSummary} nightEnabled={noturno} reason={overtimeReason} onReasonChange={(value) => setHeaderField('overtimeReason', value)} />
 
-        {/* Card Atividades do dia */}
-        <section className="page-card">
-          <div className="section-title">Atividades do dia</div>
-          <div className="field-group">
-            <label htmlFor="rdo-description">{TEXT.dailyDescription}</label>
-            <textarea
-              id="rdo-description"
-              style={{ minHeight: 100 }}
-              placeholder="Descreva as atividades realizadas..."
-              rows={5}
-              value={dailyDescription}
-              onChange={event => setHeaderField('dailyDescription', event.target.value)}
-            />
-          </div>
-        </section>
+            {/* Card Atividades do dia */}
+            <ReportActivitiesCard value={dailyDescription} onChange={(value) => setHeaderField('dailyDescription', value)} />
 
-        {/* Card Fotos */}
-        <section className="page-card">
-          <div className="section-title">{TEXT.photos}</div>
-          <UploadField
-            label=""
-            value={generalUploads as UploadedFile[]}
-            projectId={projectId}
-            onChange={setGeneralUploads}
-          />
-        </section>
+            {/* Card Fotos */}
+            <section className="page-card">
+              <div className="section-title">{TEXT.photos}</div>
+              <UploadField label="" value={generalUploads as UploadedFile[]} projectId={projectId} onChange={setGeneralUploads} />
+            </section>
 
-        {/* Card Resumo */}
-        <section className="page-card resumo-card">
-          <div className="resumo-card-title">Resumo</div>
-          <div className="resumo-txt">{buildResumoText()}</div>
-        </section>
-        </>
+            {/* Card Resumo */}
+            <ReportSummaryCard>{buildResumoText()}</ReportSummaryCard>
+          </>
         ) : null}
 
-        <section className="page-card rdo-bottom-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={step === 0 ? handleBack : () => setStep(current => Math.max(current - 1, 0))}
-          >
-            {step === 0 ? 'Cancelar' : `← ${TEXT.back}`}
-          </button>
-          {step < steps.length - 1 ? (
-            <button className="primary-button" type="button" onClick={handleNextStep}>
-              {TEXT.next}
-            </button>
-          ) : (
-            <button className="primary-button" type="button" disabled={isSubmitting} onClick={handleSubmit}>
-              {isSubmitting ? 'Enviando...' : TEXT.submit}
-            </button>
-          )}
-        </section>
+        <ReportFormActions currentStep={step} totalSteps={steps.length} onBack={step === 0 ? handleBack : () => setStep((current) => Math.max(current - 1, 0))} onNext={handleNextStep} onSubmit={handleSubmit} submitting={isSubmitting} submitLabel={TEXT.submit} />
       </main>
 
-      <Modal
-        open={showServiceModal}
-        onClose={() => setShowServiceModal(false)}
-        backdropClassName="stype-modal-ov"
-        panelClassName="stype-modal-sh"
-        ariaLabelledBy="new-report-service-type-title"
-      >
-            <div className="stype-modal-handle" />
-            <div className="stype-modal-title" id="new-report-service-type-title">Tipo de serviço</div>
-            <div className="stype-grid">
-              {serviceOptions.map(({ type, icon, name }) => (
-                <button
-                  key={type}
-                  className="stype-btn"
-                  type="button"
-                  onClick={() => {
-                    addService(type);
-                    setShowServiceModal(false);
-                  }}
-                >
-                  <div className="stype-icon">{icon}</div>
-                  <div className="stype-name">{name}</div>
-                </button>
-              ))}
-            </div>
+      <Modal open={showServiceModal} onClose={() => setShowServiceModal(false)} backdropClassName="stype-modal-ov" panelClassName="stype-modal-sh" ariaLabelledBy="new-report-service-type-title">
+        <div className="stype-modal-handle" />
+        <div className="stype-modal-title" id="new-report-service-type-title">
+          Tipo de serviço
+        </div>
+        <div className="stype-grid">
+          {serviceOptions.map(({ type, icon, name }) => (
+            <button
+              key={type}
+              className="stype-btn"
+              type="button"
+              onClick={() => {
+                addService(type);
+                setShowServiceModal(false);
+              }}
+            >
+              <div className="stype-icon">{icon}</div>
+              <div className="stype-name">{name}</div>
+            </button>
+          ))}
+        </div>
       </Modal>
 
-      {user ? (
-        <RdoDdsNovelty
-          user={user}
-          enabled={ddsNoveltyActive && step === 0 && !effectiveServiceOnly}
-          onSeen={() => setDdsNoveltyActive(false)}
-        />
-      ) : null}
+      {user ? <RdoDdsNovelty user={user} enabled={ddsNoveltyActive && step === 0 && !effectiveServiceOnly} onSeen={() => setDdsNoveltyActive(false)} /> : null}
+    </Shell>
+  );
+}
+
+export function NewReportPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const permissions = user?.reportEmissionPermissions || [];
+  const requested = searchParams.get('tipo');
+  const requestedSelection = normalizeReportSelection(requested);
+  const operationalSelection = requestedSelection && requestedSelection !== 'obra'
+    && canAccessReportSelection(permissions, requestedSelection)
+      ? requestedSelection
+      : null;
+  const selection = resolveSiteReportSelection(permissions);
+
+  if (!user) return null;
+  if (operationalSelection) {
+    return <OperationalReportFormPage mode={operationalSelection} />;
+  }
+  if (selection === 'obra') return <SiteRdoFormPage />;
+
+  return (
+    <Shell>
+      <TopBar title="Novo relatório" subtitle={user.name} showLogo />
+      <main className="page-scroll operational-empty-state">
+        <section className="page-card">
+          <div className="section-title">Emissão não autorizada</div>
+          <p className="placeholder-copy">
+            Sua conta não possui a permissão necessária para este relatório.
+          </p>
+          <button className="secondary-button" type="button" onClick={() => navigate('/modulos')}>
+            Voltar aos módulos
+          </button>
+        </section>
+      </main>
     </Shell>
   );
 }
