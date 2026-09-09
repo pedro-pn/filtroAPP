@@ -56,7 +56,8 @@ function fakeTx({
   item = stockItem(),
   batches = [batch()],
   movements = [movement()],
-  project = { id: 'project-1' }
+  project = { id: 'project-1' },
+  workflow = null
 } = {}) {
   const state = {
     item,
@@ -120,6 +121,7 @@ function fakeTx({
     project: {
       findFirst: async () => state.project
     },
+    projectWorkflow: { findUnique: async () => workflow },
     stockMovement: {
       findUnique: async args => movementWithRelations(state.movements.find(row => row.id === args.where.id)),
       create: async args => {
@@ -308,6 +310,38 @@ test('automatic inbound romaneio stock movement creates return batch when none e
   assert.equal(created[0].reason, 'DEVOLUCAO_OBRA');
   assert.equal(created[0].excludeFromProjectCost, true);
   assert.equal(created[0].romaneioId, 'romaneio-2');
+});
+
+test('integração do romaneio bloqueia saída e mantém entrada em projeto gerenciado', async () => {
+  const workflow = {
+    projectId: 'project-1', stage: 'PREPARATION', version: 1,
+    mobilizationAuthorizedAt: null, mobilizationAuthorizationVersion: null,
+    checklists: [], commercialFacts: [], issues: []
+  };
+  const tx = fakeTx({ workflow });
+  await assert.rejects(
+    createAutomaticRomaneioStockMovementsInTransaction(tx, {
+      romaneioType: 'OUTBOUND', itemId: 'stock-item-1', quantity: 1, date: '2026-07-09',
+      projectId: 'project-1', createdById: 'user-1', romaneioId: 'romaneio-1'
+    }),
+    error => error.code === 'PROJECT_MOBILIZATION_NOT_AUTHORIZED'
+  );
+  assert.equal(tx.state.movements.length, 1);
+  await assert.rejects(
+    createAutomaticRomaneioStockMovementsInTransaction(tx, {
+      romaneioType: 'OUTBOUND', itemId: 'stock-item-1', quantity: 1, date: '2026-07-09',
+      projectId: 'project-1', createdById: 'user-1', romaneioId: 'romaneio-1',
+      mobilizationDecision: { allowed: true, projectId: 'project-2' }
+    }),
+    error => error.code === 'PROJECT_MOBILIZATION_NOT_AUTHORIZED'
+  );
+  assert.equal(tx.state.movements.length, 1);
+
+  const returned = await createAutomaticRomaneioStockMovementsInTransaction(tx, {
+    romaneioType: 'INBOUND', itemId: 'stock-item-1', quantity: 1, date: '2026-07-09',
+    projectId: 'project-1', createdById: 'user-1', romaneioId: 'romaneio-2'
+  });
+  assert.equal(returned[0].type, 'ENTRADA');
 });
 
 test('romaneio-linked stock reversal preserves romaneioId and project cost exclusion', async () => {

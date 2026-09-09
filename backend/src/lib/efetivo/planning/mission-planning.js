@@ -11,6 +11,7 @@ import {
 import { resolveSelectedMissionTeam, syncSelectedMissionTeam } from './mission-team.js';
 import { missionEndDate } from './mission-period.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
+import { assertProjectMobilizationAuthorized } from '../project-workflow/operational-gate.js';
 import {
   bumpPlanRevision,
   requireEditablePlan,
@@ -183,6 +184,12 @@ export function missionMovePendencies(mission) {
   else if (covered < required) pendencies.push('completar a equipe');
   if (mission.scheduleStatus !== 'CONFIRMED') pendencies.push('confirmar a programação');
   return pendencies;
+}
+
+export function missionMoveRequiresMobilizationAuthorization(planKind, currentStage, targetStage) {
+  return planKind === 'OFFICIAL'
+    && currentStage !== targetStage
+    && ['MOBILIZATION', 'EXECUTION'].includes(targetStage);
 }
 
 async function validateDemandRoles(tx, demands) {
@@ -459,6 +466,14 @@ export async function moveMissionStage(missionId, payload, context = {}, depende
         code: 'MISSION_INCOMPLETE_FOR_KANBAN',
         issues: pendencies.map(message => ({ message }))
       });
+    }
+    const entersOperationalMobilization = missionMoveRequiresMobilizationAuthorization(
+      plan.kind,
+      existing.stage,
+      payload.stage
+    );
+    if (entersOperationalMobilization) {
+      await assertProjectMobilizationAuthorized(tx, existing.projectId);
     }
     const updatesDemobilization = payload.stage === 'FINISHED' && payload.returnDate !== undefined;
     if (updatesDemobilization) {

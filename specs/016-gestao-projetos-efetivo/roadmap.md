@@ -16,7 +16,8 @@ A futura integração com CRM será a fonte dos fatos comerciais, enquanto o Fil
 - Entrega 017 concluída: liberação comercial manual preparada para CRM e papel Comercial restrito à sua frente.
 - Entrega 018 concluída: documentação antecipada, planejamento D-30 por área, papéis operacionais e marcos derivados D-90/D-30/D-15/D-7/D-1.
 - Entrega 019 concluída: Preparação D-15 por área, gate consolidado em nove frentes, autorização versionada, suspensão por alteração e alertas D-7/D-1.
-- Próximo incremento: ativação controlada dos bloqueios operacionais e início do acompanhamento da execução, preservando a classificação dos projetos existentes.
+- Entrega 020 concluída: gate aplicado às mobilizações oficiais do Efetivo, romaneios de saída e retiradas do Estoque; projetos sem gestão iniciada permanecem no modo legado até classificação explícita.
+- Próximo incremento: etapa Em Execução e dashboard de avanço, RDOs, relatórios técnicos e desvios do projeto.
 
 ## Entrega 1 — Fundamentos e entrada em planejamento
 

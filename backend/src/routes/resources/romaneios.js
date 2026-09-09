@@ -25,6 +25,7 @@ import {
   resolveEffectiveChecklist
 } from '../../lib/equipamentos/equipment-checklist.js';
 import { normalizeSignatureValue } from '../../lib/signature-image.js';
+import { assertProjectMobilizationAuthorized } from '../../lib/efetivo/project-workflow/operational-gate.js';
 import { ensureRomaneioCatalogSynced } from '../../lib/romaneio-catalog.js';
 import { buildRomaneioCatalogPdf } from '../../lib/romaneio-catalog-pdf.js';
 import {
@@ -942,7 +943,7 @@ function stockMovementNoteForRomaneio(romaneio) {
   return `Movimentação automática do romaneio ${romaneioTypeLabel(romaneio.type).toLowerCase()} ${romaneio.id}.`;
 }
 
-async function createRomaneioStockMovements(tx, romaneio, authUser) {
+async function createRomaneioStockMovements(tx, romaneio, authUser, mobilizationDecision = null) {
   const stockItems = (romaneio.items || []).filter(item => item.catalogItem?.sourceType === 'STOCK');
   if (!stockItems.length) return [];
 
@@ -958,11 +959,17 @@ async function createRomaneioStockMovements(tx, romaneio, authUser) {
       notes: stockMovementNoteForRomaneio(romaneio),
       excludeFromProjectCost: romaneio.type === 'INBOUND' && item.isExtra,
       createdById: authUser.id,
-      romaneioId: romaneio.id
+      romaneioId: romaneio.id,
+      mobilizationDecision
     });
     movements.push(...created);
   }
   return movements;
+}
+
+export async function assertRomaneioMobilizationAuthorized(type, projectId, client = prisma) {
+  if (type !== 'OUTBOUND') return null;
+  return assertProjectMobilizationAuthorized(client, projectId);
 }
 
 async function reverseRomaneioStockMovements(tx, romaneioId, createdById) {
@@ -1392,6 +1399,7 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
   });
   if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
   const resolvedProjectId = project.id;
+  await assertRomaneioMobilizationAuthorized(payload.type, resolvedProjectId);
 
   const availableReturnItems = payload.type === 'INBOUND'
     ? await getReturnableRomaneioItemsForProject(resolvedProjectId, req.auth.user)
@@ -1442,6 +1450,7 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
     files = await saveRomaneioPdf(preview);
     files.checklist = await saveRomaneioChecklistPdfFile(preview, checklistSnapshots);
     created = await prisma.$transaction(async tx => {
+      const mobilizationDecision = await assertRomaneioMobilizationAuthorized(payload.type, resolvedProjectId, tx);
       const romaneio = await tx.romaneio.create({
         data: {
           projectId: resolvedProjectId,
@@ -1478,7 +1487,7 @@ router.post('/', requireAuth, requireRomaneioAccess, asyncHandler(async (req, re
         },
         ...selectedFields()
       });
-      await createRomaneioStockMovements(tx, romaneio, req.auth.user);
+      await createRomaneioStockMovements(tx, romaneio, req.auth.user, mobilizationDecision);
       return romaneio;
     });
     filesPersisted = true;
@@ -1527,6 +1536,7 @@ router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, as
   });
   if (!project) return res.status(400).json({ error: 'Projeto inválido.' });
   const resolvedProjectId = project.id;
+  await assertRomaneioMobilizationAuthorized(payload.type, resolvedProjectId);
 
   const availableReturnItems = payload.type === 'INBOUND'
     ? await getReturnableRomaneioItemsForProject(resolvedProjectId, req.auth.user, {
@@ -1583,6 +1593,7 @@ router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, as
     files = await saveRomaneioPdf(preview);
     files.checklist = await saveRomaneioChecklistPdfFile(preview, checklistSnapshots);
     const updated = await prisma.$transaction(async tx => {
+      const mobilizationDecision = await assertRomaneioMobilizationAuthorized(payload.type, resolvedProjectId, tx);
       await reverseRomaneioStockMovements(tx, existing.id, req.auth.user.id);
       await tx.romaneioItem.deleteMany({ where: { romaneioId: existing.id } });
       await tx.romaneioChecklist.deleteMany({ where: { romaneioId: existing.id } });
@@ -1620,7 +1631,7 @@ router.put('/:id', requireAuth, requireRomaneioAccess, requireRomaneioEditor, as
         },
         ...selectedFields()
       });
-      await createRomaneioStockMovements(tx, romaneio, req.auth.user);
+      await createRomaneioStockMovements(tx, romaneio, req.auth.user, mobilizationDecision);
       return romaneio;
     });
 

@@ -80,3 +80,13 @@ test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe'
   assert.match(styles, /project-workflow-gate-table/);
   assert.match(registry, /efetivo:qsms/);
 });
+
+test('gate informa as três operações protegidas pela autorização', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const novelty = fs.readFileSync(new URL('../src/pages/efetivo/ProjectWorkflowNovelty.tsx', import.meta.url), 'utf8');
+  for (const source of [modal, novelty]) {
+    assert.match(source, /equipe no Efetivo/);
+    assert.match(source, /romaneios de saída/);
+    assert.match(source, /retiradas do Estoque/);
+  }
+});

@@ -188,7 +188,7 @@ function MobilizationGate({ workflow }: { workflow: ProjectWorkflow }) {
       : workflow.mobilizationGate.ready ? '🟢 Pronto para autorizar' : '🔴 Bloqueado';
   return (
     <section className={`project-workflow-gate-panel is-${authorization.status.toLowerCase()}`} data-project-workflow-gate>
-      <header><div><h4>Gate de mobilização</h4><p>As nove frentes e o pré-job precisam permanecer liberados na mesma versão.</p></div><strong>{statusLabel}</strong></header>
+      <header><div><h4>Gate de mobilização</h4><p>As nove frentes e o pré-job precisam permanecer liberados na mesma versão.</p><p>Em projetos com gestão iniciada, a autorização libera equipe no Efetivo, romaneios de saída e retiradas do Estoque.</p></div><strong>{statusLabel}</strong></header>
       <div className="project-workflow-gate-table" role="table" aria-label="Prontidão para mobilização">
         <div className="project-workflow-gate-table-head" role="row"><span role="columnheader">Frente</span><span role="columnheader">Situação</span><span role="columnheader">Progresso</span></div>
         {workflow.mobilizationGate.fronts.map(front => <div className="project-workflow-gate-row" role="row" key={front.key}><strong role="cell">{front.label}</strong><span role="cell" className={front.status === 'READY' ? 'is-ready' : 'is-blocked'}>{front.status === 'READY' ? '🟢 Liberada' : '🔴 Pendente'}</span><span role="cell">{front.completed}/{front.total}</span></div>)}
