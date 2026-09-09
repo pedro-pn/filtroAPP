@@ -2071,6 +2071,7 @@ model User {
   ledProjectWorkflows                  ProjectWorkflow[]                    @relation("ProjectWorkflowLeader")
   updatedProjectWorkflowChecklists     ProjectWorkflowChecklist[]           @relation("ProjectWorkflowChecklistUpdater")
   updatedProjectWorkflowCriticalAnswers ProjectWorkflowCriticalAnswer[]      @relation("ProjectWorkflowCriticalAnswerUpdater")
+  updatedProjectWorkflowCommercialFacts ProjectWorkflowCommercialFact[]     @relation("ProjectWorkflowCommercialFactUpdater")
   projectWorkflowEvents                ProjectWorkflowEvent[]               @relation("ProjectWorkflowEventActor")
   createdAcompanhamentoMissionGroups   AcompanhamentoMissionGroup[]        @relation("AcompanhamentoMissionGroupCreatedBy")
   dissolvedAcompanhamentoMissionGroups AcompanhamentoMissionGroup[]        @relation("AcompanhamentoMissionGroupDissolvedBy")

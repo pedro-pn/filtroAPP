@@ -4,12 +4,15 @@ export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PL
 export type ProjectWorkflowChecklistStatus = 'PENDING' | 'DONE' | 'NOT_APPLICABLE';
 export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
+export type ProjectWorkflowCommercialFactStatus = 'PENDING' | 'CONFIRMED' | 'NOT_APPLICABLE';
+export type ProjectWorkflowCommercialFactSource = 'MANUAL' | 'CRM';
 
 export interface ProjectWorkflowPermissions {
   canInitialize: boolean;
   canEdit: boolean;
   canAccept: boolean;
   canChangeLeader: boolean;
+  canEditCommercial: boolean;
 }
 
 export interface ProjectWorkflowProject {
@@ -70,6 +73,42 @@ export interface ProjectWorkflowEvent {
   actor: { id: string; name: string } | null;
 }
 
+export interface ProjectWorkflowCommercialFact {
+  id: string | null;
+  key: string;
+  label: string;
+  allowNotApplicable: boolean;
+  evidence: 'reference' | 'note';
+  handoverChecklistKey?: string;
+  status: ProjectWorkflowCommercialFactStatus;
+  source: ProjectWorkflowCommercialFactSource;
+  reference: string | null;
+  note: string | null;
+  occurredOn: string | null;
+  externalId: string | null;
+  externalUrl: string | null;
+  sourceVersion: string | null;
+  sourceUpdatedAt: string | null;
+  lastSyncedAt: string | null;
+  updatedAt: string | null;
+  updatedBy: { id: string; name: string } | null;
+  readOnly: boolean;
+}
+
+export interface ProjectWorkflowCommercialReadiness {
+  status: 'RELEASED' | 'NOT_RELEASED';
+  resolvedCount: number;
+  totalCount: number;
+  blockers?: Array<{ key: string; label: string; reasons: string[] }>;
+  blockedOperations: Array<'PURCHASE' | 'HIRING' | 'MOBILIZATION'>;
+}
+
+export interface ProjectWorkflowTransitionOption {
+  stage: ProjectWorkflowStage;
+  allowed: boolean;
+  issues: string[];
+}
+
 export interface ProjectWorkflow {
   projectId: string;
   stage: ProjectWorkflowStage;
@@ -80,10 +119,14 @@ export interface ProjectWorkflow {
   version: number;
   checklists: ProjectWorkflowChecklist[];
   criticalAnswers: ProjectWorkflowCriticalAnswer[];
+  commercialFacts: ProjectWorkflowCommercialFact[];
+  commercialReadiness: ProjectWorkflowCommercialReadiness;
   issues: ProjectWorkflowIssue[];
   events: ProjectWorkflowEvent[];
   milestones: ProjectWorkflowMilestones;
   permissions: ProjectWorkflowPermissions;
+  handoverGate: { ready: boolean; issues: string[] };
+  transitionOptions: ProjectWorkflowTransitionOption[];
 }
 
 export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
@@ -97,6 +140,7 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
     milestones: ProjectWorkflowMilestones;
     issueCount: number;
     overdueIssueCount: number;
+    commercialReadiness: ProjectWorkflowCommercialReadiness;
   };
   permissions: ProjectWorkflowPermissions;
 }
@@ -113,7 +157,8 @@ export type ProjectWorkflowPatch =
   | { action: 'critical'; version: number; key: string; answer: boolean }
   | { action: 'issue'; version: number; issueId: string; description: string; area: string; ownerName: string | null; requiredLeadTimeDays: number | null; dueDate: string | null; criticality: ProjectWorkflowCriticality; status: ProjectWorkflowIssueStatus }
   | { action: 'accept'; version: number }
-  | { action: 'stage'; version: number; stage: ProjectWorkflowStage };
+  | { action: 'stage'; version: number; stage: ProjectWorkflowStage }
+  | { action: 'commercial_fact'; version: number; key: string; status: ProjectWorkflowCommercialFactStatus; reference?: string | null; note?: string | null; occurredOn?: string | null };
 
 const base = '/efetivo/project-workflow';
 

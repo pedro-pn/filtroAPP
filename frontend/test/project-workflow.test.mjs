@@ -28,3 +28,15 @@ test('integração mantém Kanban operacional como visão separada e persiste pr
   assert.match(navigation, /projeto/);
   assert.match(navigation, /visao/);
 });
+
+test('detalhe mostra prontidão comercial e mantém ações de avanço no rodapé', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
+  const registry = fs.readFileSync(new URL('../../shared/modules/registry.json', import.meta.url), 'utf8');
+  assert.match(modal, /data-project-workflow-commercial/);
+  assert.match(modal, /project-workflow-modal-footer/);
+  assert.match(modal, /Assumir e iniciar análise/);
+  assert.match(modal, /Sincronizado pelo CRM/);
+  assert.match(board, /Comercial:/);
+  assert.match(registry, /efetivo:commercial/);
+});

@@ -5,6 +5,24 @@ export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS: ReadonlyArray<{ key: string; l
 export const PROJECT_WORKFLOW_CHECKLIST_STATUSES: readonly ['PENDING', 'DONE', 'NOT_APPLICABLE'];
 export const PROJECT_WORKFLOW_ISSUE_STATUSES: readonly ['OPEN', 'IN_PROGRESS', 'RESOLVED'];
 export const PROJECT_WORKFLOW_CRITICALITIES: readonly ['HIGH', 'MEDIUM', 'LOW'];
+export const PROJECT_WORKFLOW_COMMERCIAL_FACT_STATUSES: readonly ['PENDING', 'CONFIRMED', 'NOT_APPLICABLE'];
+export const PROJECT_WORKFLOW_COMMERCIAL_FACT_SOURCES: readonly ['MANUAL', 'CRM'];
+export const PROJECT_WORKFLOW_COMMERCIAL_FACTS: ReadonlyArray<{
+  key: string;
+  label: string;
+  allowNotApplicable: boolean;
+  evidence: 'reference' | 'note';
+  handoverChecklistKey?: string;
+}>;
+export function makeProjectWorkflowCommercialFactSchema(z: typeof import('zod').z): import('zod').ZodType<{
+  action: 'commercial_fact';
+  version: number;
+  key: string;
+  status: (typeof PROJECT_WORKFLOW_COMMERCIAL_FACT_STATUSES)[number];
+  reference?: string | null;
+  note?: string | null;
+  occurredOn?: string | null;
+}>;
 export function makeProjectWorkflowSchemas(z: typeof import('zod').z): {
   start: import('zod').ZodType<{ leaderUserId: string; plannedMobilizationDate: string }>;
   patch: import('zod').ZodType<Record<string, unknown>>;

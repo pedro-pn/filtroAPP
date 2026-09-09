@@ -71,11 +71,47 @@ export const PROJECT_WORKFLOW_CHECKLIST_STATUSES = ['PENDING', 'DONE', 'NOT_APPL
 export const PROJECT_WORKFLOW_ISSUE_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED'];
 export const PROJECT_WORKFLOW_CRITICALITIES = ['HIGH', 'MEDIUM', 'LOW'];
 
+export const PROJECT_WORKFLOW_COMMERCIAL_FACT_STATUSES = ['PENDING', 'CONFIRMED', 'NOT_APPLICABLE'];
+export const PROJECT_WORKFLOW_COMMERCIAL_FACT_SOURCES = ['MANUAL', 'CRM'];
+export const PROJECT_WORKFLOW_COMMERCIAL_FACTS = [
+  { key: 'COMMERCIAL_PROPOSAL_CREATED', label: 'Proposta comercial criada', allowNotApplicable: false, evidence: 'reference', handoverChecklistKey: 'HANDOVER_COMMERCIAL_PROPOSAL' },
+  { key: 'TECHNICAL_PROPOSAL_CREATED', label: 'Proposta técnica criada', allowNotApplicable: false, evidence: 'reference', handoverChecklistKey: 'HANDOVER_TECHNICAL_PROPOSAL' },
+  { key: 'PROPOSAL_ACCEPTED', label: 'Proposta aceita', allowNotApplicable: true, evidence: 'reference' },
+  { key: 'PURCHASE_ORDER_RECEIVED', label: 'Pedido de compra recebido', allowNotApplicable: true, evidence: 'reference' },
+  { key: 'CONTRACT_SIGNED', label: 'Contrato assinado', allowNotApplicable: true, evidence: 'reference' },
+  { key: 'COMMERCIAL_REGISTRATION_READY', label: 'Cadastro e condições comerciais atendidos', allowNotApplicable: false, evidence: 'note' },
+  { key: 'MEASUREMENT_TERMS_DEFINED', label: 'Condição de medição definida', allowNotApplicable: false, evidence: 'note' },
+  { key: 'BILLING_TERMS_DEFINED', label: 'Condição de faturamento definida', allowNotApplicable: false, evidence: 'note' }
+];
+
 function dateOnlySchema(z) {
   return z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use o formato AAAA-MM-DD.').refine(value => {
     const date = new Date(`${value}T00:00:00.000Z`);
     return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
   }, 'Informe uma data válida.');
+}
+
+export function makeProjectWorkflowCommercialFactSchema(z) {
+  const dateOnly = dateOnlySchema(z);
+  return z.object({
+    action: z.literal('commercial_fact'),
+    version: z.coerce.number().int().min(1, 'A versão deve ser positiva.'),
+    key: z.enum(PROJECT_WORKFLOW_COMMERCIAL_FACTS.map(item => item.key)),
+    status: z.enum(PROJECT_WORKFLOW_COMMERCIAL_FACT_STATUSES),
+    reference: z.string().trim().max(500, 'A referência deve ter no máximo 500 caracteres.').nullable().optional(),
+    note: z.string().trim().max(1000, 'A observação deve ter no máximo 1000 caracteres.').nullable().optional(),
+    occurredOn: dateOnly.nullable().optional()
+  }).strict().superRefine((value, ctx) => {
+    const definition = PROJECT_WORKFLOW_COMMERCIAL_FACTS.find(item => item.key === value.key);
+    if (value.status === 'NOT_APPLICABLE') {
+      if (!definition?.allowNotApplicable) ctx.addIssue({ code: 'custom', path: ['status'], message: 'Este fato comercial não aceita “não aplicável”.' });
+      if (!value.note?.trim()) ctx.addIssue({ code: 'custom', path: ['note'], message: 'Justifique por que este fato não se aplica.' });
+    }
+    if (value.status !== 'CONFIRMED') return;
+    if (!value.occurredOn) ctx.addIssue({ code: 'custom', path: ['occurredOn'], message: 'Informe a data da confirmação.' });
+    if (definition?.evidence === 'reference' && !value.reference?.trim()) ctx.addIssue({ code: 'custom', path: ['reference'], message: 'Informe a referência ou número do documento.' });
+    if (definition?.evidence === 'note' && !value.note?.trim()) ctx.addIssue({ code: 'custom', path: ['note'], message: 'Descreva a condição comercial definida.' });
+  });
 }
 
 export function makeProjectWorkflowSchemas(z) {
@@ -127,9 +163,10 @@ export function makeProjectWorkflowSchemas(z) {
     version,
     stage: z.enum(PROJECT_WORKFLOW_STAGES)
   }).strict();
+  const commercialFact = makeProjectWorkflowCommercialFactSchema(z);
   return {
     start,
-    patch: z.discriminatedUnion('action', [settings, checklist, critical, issue, accept, stage]),
+    patch: z.discriminatedUnion('action', [settings, checklist, critical, issue, accept, stage, commercialFact]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

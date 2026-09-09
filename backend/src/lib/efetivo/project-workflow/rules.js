@@ -1,13 +1,78 @@
 import {
   PROJECT_WORKFLOW_CHECKLISTS,
+  PROJECT_WORKFLOW_COMMERCIAL_FACTS,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS
 } from '../../../../../shared/schemas/project-workflow.js';
 
 function answeredChecklistKeys(workflow, stage) {
-  return new Set((workflow.checklists || [])
+  const answered = new Set((workflow.checklists || [])
     .filter(item => item.status === 'DONE' || item.status === 'NOT_APPLICABLE')
     .filter(item => PROJECT_WORKFLOW_CHECKLISTS.some(definition => definition.key === item.key && definition.stage === stage))
     .map(item => item.key));
+  if (stage === 'HANDOVER') {
+    const factByKey = new Map((workflow.commercialFacts || []).map(item => [item.key, item]));
+    for (const definition of PROJECT_WORKFLOW_COMMERCIAL_FACTS) {
+      if (!definition.handoverChecklistKey) continue;
+      if (commercialFactIssues(definition, factByKey.get(definition.key)).length === 0) answered.add(definition.handoverChecklistKey);
+    }
+  }
+  return answered;
+}
+
+export function commercialFactIssues(definition, fact) {
+  if (!fact || fact.status === 'PENDING') return ['Situação pendente'];
+  if (fact.status === 'NOT_APPLICABLE') {
+    const issues = [];
+    if (!definition.allowNotApplicable) issues.push('Este fato não aceita “não aplicável”');
+    if (!fact.note?.trim()) issues.push('Justificativa não informada');
+    return issues;
+  }
+  if (fact.status !== 'CONFIRMED') return ['Situação inválida'];
+  const issues = [];
+  if (!fact.occurredOn) issues.push('Data da confirmação não informada');
+  if (definition.evidence === 'reference' && !fact.reference?.trim()) issues.push('Referência não informada');
+  if (definition.evidence === 'note' && !fact.note?.trim()) issues.push('Condição comercial não descrita');
+  return issues;
+}
+
+export function normalizeProjectWorkflowCommercialFacts(workflow) {
+  const factByKey = new Map((workflow?.commercialFacts || []).map(item => [item.key, item]));
+  return PROJECT_WORKFLOW_COMMERCIAL_FACTS.map(definition => {
+    const fact = factByKey.get(definition.key);
+    const normalized = {
+      ...definition,
+      id: null,
+      status: 'PENDING',
+      source: 'MANUAL',
+      reference: null,
+      note: null,
+      occurredOn: null,
+      externalId: null,
+      externalUrl: null,
+      sourceVersion: null,
+      sourceUpdatedAt: null,
+      lastSyncedAt: null,
+      updatedAt: null,
+      updatedBy: null,
+      ...fact
+    };
+    return { ...normalized, readOnly: normalized.source === 'CRM' };
+  });
+}
+
+export function projectWorkflowCommercialReadiness(workflow) {
+  const facts = normalizeProjectWorkflowCommercialFacts(workflow);
+  const blockers = facts.map(fact => {
+    const reasons = commercialFactIssues(fact, fact);
+    return reasons.length ? { key: fact.key, label: fact.label, reasons } : null;
+  }).filter(Boolean);
+  return {
+    status: blockers.length ? 'NOT_RELEASED' : 'RELEASED',
+    resolvedCount: facts.length - blockers.length,
+    totalCount: facts.length,
+    blockers,
+    blockedOperations: blockers.length ? ['PURCHASE', 'HIRING', 'MOBILIZATION'] : []
+  };
 }
 
 export function incompleteChecklistLabels(workflow, stage) {

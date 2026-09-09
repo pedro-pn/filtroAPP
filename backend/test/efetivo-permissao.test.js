@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  canEditEfetivoCommercial,
   requireJobRolePatchAccess,
   requireEfetivoManager,
   requireEfetivoViewer
@@ -29,10 +30,20 @@ const viewer = { accountType: 'INTERNAL', moduleRoles: ['efetivo:viewer'] };
 const manager = { accountType: 'INTERNAL', moduleRoles: ['efetivo:manager'] };
 const unrelated = { accountType: 'INTERNAL', moduleRoles: ['acompanhamento:manager'] };
 const admin = { accountType: 'ADMIN', moduleRoles: [] };
+const commercial = { accountType: 'INTERNAL', moduleRoles: ['efetivo:commercial'] };
 
 test('viewer lê o indicador, mas não passa pelos guards das rotas de escrita', () => {
   assert.equal(runGuard(requireEfetivoViewer, viewer).nextCalled, true);
   assert.equal(runGuard(requireEfetivoManager, viewer).statusCode, 403);
+});
+
+test('comercial lê o Efetivo e edita somente a frente comercial', () => {
+  assert.equal(runGuard(requireEfetivoViewer, commercial).nextCalled, true);
+  assert.equal(runGuard(requireEfetivoManager, commercial).statusCode, 403);
+  assert.equal(canEditEfetivoCommercial(commercial), true);
+  assert.equal(canEditEfetivoCommercial(viewer), false);
+  assert.equal(canEditEfetivoCommercial(manager), true);
+  assert.equal(canEditEfetivoCommercial(admin), true);
 });
 
 test('somente manager do Efetivo ou admin altera referência e função operacional', () => {

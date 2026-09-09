@@ -1,14 +1,19 @@
 import {
   PROJECT_WORKFLOW_CHECKLISTS,
+  PROJECT_WORKFLOW_STAGES,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
   projectWorkflowMilestones
 } from '../../../../../shared/schemas/project-workflow.js';
+import { canEditEfetivoCommercial } from '../access.js';
 import { hasModuleRole } from '../../module-roles.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { conflictError, notFound, planningError } from '../planning/errors.js';
 import { resolvePlanningDatabase, runPlanningTransaction } from '../planning/plan-context.js';
 import {
+  allowedProjectWorkflowTransition,
   handoverGateIssues,
+  normalizeProjectWorkflowCommercialFacts,
+  projectWorkflowCommercialReadiness,
   projectWorkflowTransitionIssues
 } from './rules.js';
 
@@ -30,6 +35,7 @@ const WORKFLOW_INCLUDE = {
   leader: { select: { id: true, name: true, isActive: true } },
   checklists: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
   criticalAnswers: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
+  commercialFacts: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
   issues: { orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'asc' }] },
   events: {
     include: { actor: { select: { id: true, name: true } } },
@@ -58,18 +64,32 @@ function contextIsManager(context) {
   return context.isManager === true || context.user?.accountType === 'ADMIN' || hasModuleRole(context.user, 'efetivo:manager');
 }
 
+function contextIsOperational(context) {
+  return contextIsManager(context)
+    || hasModuleRole(context.user, ['efetivo:manager', 'efetivo:viewer']);
+}
+
 function canEditWorkflow(workflow, context) {
-  return contextIsManager(context) || Boolean(context.actorUserId && workflow?.leaderUserId === context.actorUserId);
+  return contextIsManager(context) || Boolean(
+    contextIsOperational(context)
+    && context.actorUserId
+    && workflow?.leaderUserId === context.actorUserId
+  );
+}
+
+function canEditCommercial(workflow, context) {
+  return Boolean(workflow && (contextIsManager(context) || canEditEfetivoCommercial(context.user)));
 }
 
 function publicPermissions(workflow, context) {
   const manager = contextIsManager(context);
-  const isLeader = Boolean(context.actorUserId && workflow?.leaderUserId === context.actorUserId);
+  const isLeader = Boolean(contextIsOperational(context) && context.actorUserId && workflow?.leaderUserId === context.actorUserId);
   return {
     canInitialize: manager && !workflow,
     canEdit: Boolean(workflow && (manager || isLeader)),
     canAccept: Boolean(workflow && isLeader && !workflow.acceptedAt && workflow.stage === 'HANDOVER'),
-    canChangeLeader: Boolean(workflow && manager)
+    canChangeLeader: Boolean(workflow && manager),
+    canEditCommercial: canEditCommercial(workflow, context)
   };
 }
 
@@ -92,19 +112,38 @@ function decorateWorkflow(workflow, context, now) {
     updatedBy: null,
     ...answerByKey.get(definition.key)
   }));
+  const commercialFacts = normalizeProjectWorkflowCommercialFacts(workflow).map(fact => ({
+    ...fact,
+    occurredOn: dateKey(fact.occurredOn)
+  }));
+  const commercialReadiness = projectWorkflowCommercialReadiness({ commercialFacts });
   const issues = (workflow.issues || []).map(issue => ({
     ...issue,
     dueDate: dateKey(issue.dueDate),
     overdue: issue.status !== 'RESOLVED' && Boolean(issue.dueDate) && dateKey(issue.dueDate) < todayKey(now)
   }));
+  const permissions = publicPermissions(workflow, context);
+  const transitionOptions = PROJECT_WORKFLOW_STAGES
+    .filter(stage => allowedProjectWorkflowTransition(workflow.stage, stage))
+    .map(stage => {
+      const gateIssues = projectWorkflowTransitionIssues(workflow, stage);
+      const permissionIssues = permissions.canEdit ? [] : ['Somente o gestor ou o Líder de Projetos pode alterar a etapa'];
+      const transitionIssues = [...permissionIssues, ...gateIssues];
+      return { stage, allowed: transitionIssues.length === 0, issues: transitionIssues };
+    });
+  const handoverIssues = handoverGateIssues(workflow);
   return {
     ...workflow,
     plannedMobilizationDate: dateKey(workflow.plannedMobilizationDate),
     checklists,
     criticalAnswers,
+    commercialFacts,
+    commercialReadiness,
     issues,
     milestones: projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), todayKey(now)),
-    permissions: publicPermissions(workflow, context)
+    permissions,
+    handoverGate: { ready: handoverIssues.length === 0, issues: handoverIssues },
+    transitionOptions
   };
 }
 
@@ -125,7 +164,7 @@ async function requireEligibleLeader(database, leaderUserId) {
       isActive: true,
       OR: [
         { accountType: 'ADMIN' },
-        { moduleRoles: { some: { module: 'EFETIVO' } } }
+        { moduleRoles: { some: { module: 'EFETIVO', role: { in: ['EFETIVO_MANAGER', 'EFETIVO_VIEWER'] } } } }
       ]
     },
     select: { id: true, name: true, isActive: true }
@@ -162,7 +201,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
         workflow: {
           include: {
             leader: { select: { id: true, name: true, isActive: true } },
-            issues: { select: { status: true, dueDate: true } }
+            issues: { select: { status: true, dueDate: true } },
+            commercialFacts: { select: { key: true, status: true, source: true, reference: true, note: true, occurredOn: true } }
           }
         }
       },
@@ -176,6 +216,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
     items: projects.map(project => {
       const workflow = project.workflow;
       const issues = workflow?.issues || [];
+      const commercialReadiness = workflow ? projectWorkflowCommercialReadiness(workflow) : null;
       return {
         ...project,
         workflow: workflow ? {
@@ -187,7 +228,13 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
           version: workflow.version,
           milestones: projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), todayKey(now)),
           issueCount: issues.filter(item => item.status !== 'RESOLVED').length,
-          overdueIssueCount: issues.filter(item => item.status !== 'RESOLVED' && item.dueDate && dateKey(item.dueDate) < todayKey(now)).length
+          overdueIssueCount: issues.filter(item => item.status !== 'RESOLVED' && item.dueDate && dateKey(item.dueDate) < todayKey(now)).length,
+          commercialReadiness: commercialReadiness ? {
+            status: commercialReadiness.status,
+            resolvedCount: commercialReadiness.resolvedCount,
+            totalCount: commercialReadiness.totalCount,
+            blockedOperations: commercialReadiness.blockedOperations
+          } : null
         } : null,
         permissions: publicPermissions(workflow, context)
       };
@@ -203,7 +250,7 @@ export async function listProjectWorkflowLeaders(dependencies = {}) {
   return database.user.findMany({
     where: {
       isActive: true,
-      OR: [{ accountType: 'ADMIN' }, { moduleRoles: { some: { module: 'EFETIVO' } } }]
+      OR: [{ accountType: 'ADMIN' }, { moduleRoles: { some: { module: 'EFETIVO', role: { in: ['EFETIVO_MANAGER', 'EFETIVO_VIEWER'] } } } }]
     },
     select: { id: true, name: true },
     orderBy: { name: 'asc' }
@@ -271,6 +318,15 @@ function assertEditable(workflow, context) {
     throw planningError('A alteração é restrita ao gestor do Efetivo ou ao Líder de Projetos designado.', {
       statusCode: 403,
       code: 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
+    });
+  }
+}
+
+function assertCommercialEditable(workflow, context) {
+  if (!canEditCommercial(workflow, context)) {
+    throw planningError('A alteração da frente comercial é restrita ao Comercial ou ao gestor do Efetivo.', {
+      statusCode: 403,
+      code: 'PROJECT_WORKFLOW_COMMERCIAL_EDIT_FORBIDDEN'
     });
   }
 }
@@ -357,6 +413,36 @@ async function applyIssue(tx, workflow, payload) {
   });
 }
 
+async function applyCommercialFact(tx, workflow, payload, context) {
+  const existing = await tx.projectWorkflowCommercialFact.findUnique({
+    where: { projectId_key: { projectId: workflow.projectId, key: payload.key } }
+  });
+  if (existing?.source === 'CRM') {
+    throw conflictError('Este fato é sincronizado pelo CRM e deve ser corrigido na origem.', [], 'PROJECT_WORKFLOW_CRM_FACT_READ_ONLY');
+  }
+  const data = payload.status === 'PENDING'
+    ? { status: payload.status, reference: null, note: null, occurredOn: null }
+    : payload.status === 'NOT_APPLICABLE'
+      ? { status: payload.status, reference: null, note: payload.note || null, occurredOn: null }
+      : {
+          status: payload.status,
+          reference: payload.reference || null,
+          note: payload.note || null,
+          occurredOn: utcDate(payload.occurredOn)
+        };
+  await tx.projectWorkflowCommercialFact.upsert({
+    where: { projectId_key: { projectId: workflow.projectId, key: payload.key } },
+    create: {
+      projectId: workflow.projectId,
+      key: payload.key,
+      source: 'MANUAL',
+      updatedByUserId: context.actorUserId || null,
+      ...data
+    },
+    update: { ...data, updatedByUserId: context.actorUserId || null }
+  });
+}
+
 async function applyAccept(tx, workflow, context, now) {
   if (workflow.leaderUserId !== context.actorUserId) {
     throw planningError('Somente o Líder de Projetos designado pode confirmar o recebimento.', { statusCode: 403, code: 'PROJECT_WORKFLOW_LEADER_REQUIRED' });
@@ -390,7 +476,8 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
   const now = dependencies.now || new Date();
   await runPlanningTransaction(database, async tx => {
     const workflow = await loadWorkflowForMutation(tx, projectId);
-    assertEditable(workflow, context);
+    if (payload.action === 'commercial_fact') assertCommercialEditable(workflow, context);
+    else assertEditable(workflow, context);
     if (workflow.version !== payload.version) {
       throw conflictError('A gestão foi atualizada por outra pessoa. Recarregue os dados.', [], 'PROJECT_WORKFLOW_VERSION_CONFLICT');
     }
@@ -401,6 +488,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'issue') await applyIssue(tx, workflow, payload);
     else if (payload.action === 'accept') await applyAccept(tx, workflow, context, now);
     else if (payload.action === 'stage') await applyStage(tx, workflow, payload);
+    else if (payload.action === 'commercial_fact') await applyCommercialFact(tx, workflow, payload, context);
     const eventData = { ...payload };
     delete eventData.version;
     await recordEvent(tx, projectId, context.actorUserId, `WORKFLOW_${payload.action.toUpperCase()}`, eventData);

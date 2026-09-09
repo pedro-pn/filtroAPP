@@ -1,7 +1,7 @@
 import { hasModuleRole } from '../module-roles.js';
 import { requireManager } from '../../middleware/auth.js';
 
-export const EFETIVO_ACCESS_ROLES = ['efetivo:manager', 'efetivo:viewer'];
+export const EFETIVO_ACCESS_ROLES = ['efetivo:manager', 'efetivo:viewer', 'efetivo:commercial'];
 
 export function isEfetivoManager(user) {
   return Boolean(user) && (
@@ -14,6 +14,13 @@ export function canViewEfetivo(user) {
   return Boolean(user) && (
     user.accountType === 'ADMIN'
     || hasModuleRole(user, EFETIVO_ACCESS_ROLES)
+  );
+}
+
+export function canEditEfetivoCommercial(user) {
+  return Boolean(user) && (
+    user.accountType === 'ADMIN'
+    || hasModuleRole(user, ['efetivo:manager', 'efetivo:commercial'])
   );
 }
 

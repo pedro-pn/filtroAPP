@@ -27,9 +27,9 @@ export function ProjectWorkflowNovelty({ userId, enabled }: { userId: string; en
         overlayOpacity: 0.6,
         onDestroyed: () => releaseEfetivoGuide(),
         steps: [
-          { popover: { title: '✨ Gestão de projetos no Efetivo', description: 'O projeto agora pode ser recebido, analisado e encaminhado ao planejamento antes da definição da equipe.' } },
+          { popover: { title: '✨ Gestão de projetos no Efetivo', description: 'O projeto agora reúne handover, análise, prontidão comercial e entrada no planejamento antes da definição da equipe.' } },
           { element: '[data-project-workflow-switch]', popover: { title: 'Duas visões complementares', description: 'Alterne entre o ciclo de gestão do projeto e o Kanban operacional das missões.', side: 'bottom', align: 'start' } },
-          { element: '[data-project-workflow-board]', popover: { title: 'Prazos como marcos', description: 'D-30 aparece dentro do projeto. Clique em um card para preencher checklists, riscos e gates.', side: 'top', align: 'center' } }
+          { element: '[data-project-workflow-board]', popover: { title: 'Prazos e gates visíveis', description: 'D-30 aparece dentro do projeto. Abra um card para conferir checklists, liberação comercial e a ação de avanço no rodapé.', side: 'top', align: 'center' } }
         ]
       });
       guide.drive();

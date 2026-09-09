@@ -574,7 +574,8 @@ export const moduleRegistry = [
       "enabled": true,
       "roles": [
         "efetivo:manager",
-        "efetivo:viewer"
+        "efetivo:viewer",
+        "efetivo:commercial"
       ],
       "path": "/efetivo"
     },
@@ -592,7 +593,8 @@ export const moduleRegistry = [
         ],
         "allowedModuleRoles": [
           "efetivo:manager",
-          "efetivo:viewer"
+          "efetivo:viewer",
+          "efetivo:commercial"
         ]
       }
     },
@@ -610,6 +612,15 @@ export const moduleRegistry = [
         "code": "EFETIVO_VIEWER",
         "public": "efetivo:viewer",
         "label": "Efetivo Operacional - Visualizador",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "EFETIVO_COMMERCIAL",
+        "public": "efetivo:commercial",
+        "label": "Efetivo Operacional - Comercial",
         "accountTypes": [
           "ADMIN",
           "INTERNAL"

@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   PROJECT_WORKFLOW_CHECKLISTS,
+  PROJECT_WORKFLOW_COMMERCIAL_FACTS,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
   makeProjectWorkflowSchemas,
   projectWorkflowMilestones
@@ -11,7 +12,9 @@ import { z } from 'zod';
 import {
   analysisGateIssues,
   allowedProjectWorkflowTransition,
+  commercialFactIssues,
   handoverGateIssues,
+  projectWorkflowCommercialReadiness,
   projectWorkflowTransitionIssues
 } from '../src/lib/efetivo/project-workflow/rules.js';
 
@@ -24,6 +27,29 @@ test('contrato exige justificativa para não aplicável e versão nas alteraçõ
   assert.equal(patch.safeParse({ action: 'checklist', version: 1, key: 'HANDOVER_PROJECT_CREATED', status: 'NOT_APPLICABLE' }).success, false);
   assert.equal(patch.safeParse({ action: 'checklist', version: 1, key: 'HANDOVER_PROJECT_CREATED', status: 'NOT_APPLICABLE', note: 'Documento incorporado à proposta.' }).success, true);
   assert.equal(patch.safeParse({ action: 'accept' }).success, false);
+  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'CONTRACT_SIGNED', status: 'NOT_APPLICABLE' }).success, false);
+  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'CONTRACT_SIGNED', status: 'NOT_APPLICABLE', note: 'Contrato dispensado' }).success, true);
+  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'COMMERCIAL_PROPOSAL_CREATED', status: 'NOT_APPLICABLE', note: 'Sem proposta' }).success, false);
+  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'PURCHASE_ORDER_RECEIVED', status: 'CONFIRMED', reference: 'PO-1' }).success, false);
+  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'PURCHASE_ORDER_RECEIVED', status: 'CONFIRMED', reference: 'PO-1', occurredOn: '2026-09-09' }).success, true);
+  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'PURCHASE_ORDER_RECEIVED', status: 'PENDING', source: 'CRM' }).success, false);
+});
+
+test('prontidão comercial exige os oito fatos completos conforme o catálogo', () => {
+  const facts = PROJECT_WORKFLOW_COMMERCIAL_FACTS.map(item => ({
+    ...item,
+    status: 'CONFIRMED',
+    occurredOn: new Date('2026-09-09T00:00:00Z'),
+    reference: item.evidence === 'reference' ? 'REF-1' : null,
+    note: item.evidence === 'note' ? 'Condição definida' : null
+  }));
+  assert.equal(projectWorkflowCommercialReadiness({ commercialFacts: facts }).status, 'RELEASED');
+  facts[0] = { ...facts[0], reference: null };
+  const readiness = projectWorkflowCommercialReadiness({ commercialFacts: facts });
+  assert.equal(readiness.status, 'NOT_RELEASED');
+  assert.equal(readiness.resolvedCount, 7);
+  assert.deepEqual(readiness.blockedOperations, ['PURCHASE', 'HIRING', 'MOBILIZATION']);
+  assert.deepEqual(commercialFactIssues(facts[0], facts[0]), ['Referência não informada']);
 });
 
 test('handover identifica somente itens ainda não concluídos', () => {
@@ -32,6 +58,17 @@ test('handover identifica somente itens ainda não concluídos', () => {
   const issues = handoverGateIssues({ leaderUserId: 'leader-1', checklists });
   assert.equal(issues.length, 1);
   assert.match(issues[0], /Condições e premissas/);
+});
+
+test('propostas comerciais válidas satisfazem os itens equivalentes do handover', () => {
+  const proposalKeys = new Set(['HANDOVER_COMMERCIAL_PROPOSAL', 'HANDOVER_TECHNICAL_PROPOSAL']);
+  const checklists = completed('HANDOVER').filter(item => !proposalKeys.has(item.key));
+  const commercialFacts = PROJECT_WORKFLOW_COMMERCIAL_FACTS
+    .filter(item => item.handoverChecklistKey)
+    .map(item => ({ ...item, status: 'CONFIRMED', reference: 'PROP-1', occurredOn: new Date('2026-09-09T00:00:00Z') }));
+  assert.deepEqual(handoverGateIssues({ leaderUserId: 'leader-1', checklists, commercialFacts }), []);
+  commercialFacts[0].reference = null;
+  assert.match(handoverGateIssues({ leaderUserId: 'leader-1', checklists, commercialFacts })[0], /Proposta comercial/);
 });
 
 test('análise exige todas as respostas e encaminhamento para cada resposta positiva', () => {

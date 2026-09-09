@@ -2,11 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  PROJECT_WORKFLOW_COMMERCIAL_FACTS,
   PROJECT_WORKFLOW_CHECKLISTS,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS
 } from '../../shared/schemas/project-workflow.js';
 import {
+  getProjectWorkflow,
   listProjectWorkflows,
+  listProjectWorkflowLeaders,
   startProjectWorkflow,
   updateProjectWorkflow
 } from '../src/lib/efetivo/project-workflow/service.js';
@@ -18,20 +21,24 @@ function fakeDatabase() {
     checklists: [],
     answers: [],
     issues: [],
+    commercialFacts: [],
     events: [],
-    lastProjectFindManyInput: null
+    lastProjectFindManyInput: null,
+    lastUserFindManyInput: null
   };
   const users = {
     'manager-1': { id: 'manager-1', name: 'Gestora', isActive: true, accountType: 'ADMIN' },
     'leader-1': { id: 'leader-1', name: 'Líder A', isActive: true, accountType: 'INTERNAL' },
     'leader-2': { id: 'leader-2', name: 'Líder B', isActive: true, accountType: 'INTERNAL' },
-    'viewer-1': { id: 'viewer-1', name: 'Leitor', isActive: true, accountType: 'INTERNAL' }
+    'viewer-1': { id: 'viewer-1', name: 'Leitor', isActive: true, accountType: 'INTERNAL' },
+    'commercial-1': { id: 'commercial-1', name: 'Comercial', isActive: true, accountType: 'INTERNAL' }
   };
   const withRelations = () => state.workflow ? {
     ...state.workflow,
     leader: users[state.workflow.leaderUserId],
     checklists: state.checklists.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     criticalAnswers: state.answers.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
+    commercialFacts: state.commercialFacts.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     issues: state.issues.map(item => ({ ...item })),
     events: state.events.map(item => ({ ...item, actor: users[item.actorUserId] || null })).reverse()
   } : null;
@@ -54,8 +61,11 @@ function fakeDatabase() {
       }
     },
     user: {
-      findFirst: async input => users[input.where.id] && input.where.id !== 'viewer-1' ? users[input.where.id] : null,
-      findMany: async () => Object.values(users).filter(item => item.id !== 'viewer-1').map(({ id, name }) => ({ id, name }))
+      findFirst: async input => users[input.where.id] && !['viewer-1', 'commercial-1'].includes(input.where.id) ? users[input.where.id] : null,
+      findMany: async input => {
+        state.lastUserFindManyInput = input;
+        return Object.values(users).filter(item => !['viewer-1', 'commercial-1'].includes(item.id)).map(({ id, name }) => ({ id, name }));
+      }
     },
     projectWorkflow: {
       create: async input => {
@@ -100,6 +110,15 @@ function fakeDatabase() {
         else state.answers.push({ id: `answer-${state.answers.length}`, ...input.create });
       }
     },
+    projectWorkflowCommercialFact: {
+      findUnique: async input => state.commercialFacts.find(item => item.projectId === input.where.projectId_key.projectId && item.key === input.where.projectId_key.key) || null,
+      upsert: async input => {
+        const key = input.where.projectId_key.key;
+        const existing = state.commercialFacts.find(item => item.key === key);
+        if (existing) Object.assign(existing, input.update, { updatedAt: new Date() });
+        else state.commercialFacts.push({ id: `commercial-${state.commercialFacts.length + 1}`, createdAt: new Date(), updatedAt: new Date(), externalId: null, externalUrl: null, sourceVersion: null, sourceUpdatedAt: null, lastSyncedAt: null, ...input.create });
+      }
+    },
     projectWorkflowIssue: {
       upsert: async input => {
         const sourceQuestion = input.where.projectId_sourceQuestion.sourceQuestion;
@@ -128,6 +147,7 @@ function fakeDatabase() {
 const manager = { actorUserId: 'manager-1', isManager: true, user: { id: 'manager-1', accountType: 'ADMIN' } };
 const leader = { actorUserId: 'leader-1', user: { id: 'leader-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:viewer'] } };
 const viewer = { actorUserId: 'viewer-1', user: { id: 'viewer-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:viewer'] } };
+const commercial = { actorUserId: 'commercial-1', user: { id: 'commercial-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:commercial'] } };
 
 test('gestor inicia handover sem programação de equipe e sem presumir aceite', async () => {
   const { database, state } = fakeDatabase();
@@ -137,6 +157,8 @@ test('gestor inicia handover sem programação de equipe e sem presumir aceite',
   }, manager, { database, now: new Date('2026-09-09T12:00:00Z') });
   assert.equal(result.workflow.stage, 'HANDOVER');
   assert.equal(result.workflow.acceptedAt, null);
+  assert.equal(result.workflow.handoverGate.ready, false);
+  assert.ok(result.workflow.handoverGate.issues.length > 0);
   assert.equal(result.workflow.checklists.filter(item => item.status === 'DONE').length, 2);
   assert.equal(state.events[0].action, 'WORKFLOW_STARTED');
 });
@@ -181,6 +203,7 @@ test('análise bloqueia pendência sem responsável/prazo e libera após encamin
     action: 'issue', version: 1, issueId: 'issue-1', description: 'Providenciar equipamento', area: 'Ativos',
     ownerName: 'Leandro', requiredLeadTimeDays: 45, dueDate: '2026-09-20', criticality: 'HIGH', status: 'IN_PROGRESS'
   }, leader, { database });
+  assert.equal(updated.workflow.transitionOptions.find(item => item.stage === 'WAITING_PLANNING').allowed, true);
   const result = await updateProjectWorkflow('project-1', { action: 'stage', version: updated.workflow.version, stage: 'WAITING_PLANNING' }, leader, { database });
   assert.equal(result.workflow.stage, 'WAITING_PLANNING');
 });
@@ -213,4 +236,90 @@ test('listagem usa ordenação aceita pelo Prisma, o dia civil de São Paulo e m
   result = await listProjectWorkflows({}, leader, { database, now: new Date('2026-09-10T01:00:00.000Z') });
   assert.equal(result.items[0].workflow.milestones.daysUntilMobilization, 1);
   assert.equal(result.items[0].permissions.canEdit, true);
+  assert.equal(result.items[0].workflow.commercialReadiness.status, 'NOT_RELEASED');
+});
+
+test('Comercial altera fatos manuais sem receber permissão operacional', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  const result = await updateProjectWorkflow('project-1', {
+    action: 'commercial_fact', version: 1, key: 'PURCHASE_ORDER_RECEIVED', status: 'CONFIRMED', reference: 'PO-123', occurredOn: '2026-09-09'
+  }, commercial, { database });
+  assert.equal(result.workflow.permissions.canEditCommercial, true);
+  assert.equal(result.workflow.permissions.canEdit, false);
+  assert.equal(result.workflow.commercialFacts.find(item => item.key === 'PURCHASE_ORDER_RECEIVED').reference, 'PO-123');
+  assert.equal(state.events.at(-1).action, 'WORKFLOW_COMMERCIAL_FACT');
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'HANDOVER_WHATSAPP_GROUP', status: 'DONE' }, commercial, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
+  );
+  await assert.rejects(
+    startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, commercial, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_MANAGER_REQUIRED'
+  );
+});
+
+test('Líder sem papel Comercial não altera a frente comercial e antigo líder comercial perde poderes operacionais', async () => {
+  const { database } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'commercial_fact', version: 1, key: 'CONTRACT_SIGNED', status: 'NOT_APPLICABLE', note: 'Dispensado' }, leader, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_COMMERCIAL_EDIT_FORBIDDEN'
+  );
+  const formerLeader = { actorUserId: 'leader-1', user: { id: 'leader-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:commercial'] } };
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'HANDOVER_WHATSAPP_GROUP', status: 'DONE' }, formerLeader, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
+  );
+});
+
+test('fato CRM é somente leitura e conflito reverte versão e histórico', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  state.commercialFacts.push({
+    id: 'crm-fact', projectId: 'project-1', key: 'CONTRACT_SIGNED', status: 'CONFIRMED', source: 'CRM',
+    reference: 'CTR-1', note: null, occurredOn: new Date('2026-09-01T00:00:00Z'), sourceVersion: 'v2', updatedAt: new Date()
+  });
+  const detail = await getProjectWorkflow('project-1', commercial, { database });
+  const crmFact = detail.workflow.commercialFacts.find(item => item.key === 'CONTRACT_SIGNED');
+  assert.equal(crmFact.readOnly, true);
+  assert.equal(crmFact.sourceVersion, 'v2');
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'commercial_fact', version: 1, key: 'CONTRACT_SIGNED', status: 'PENDING' }, commercial, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_CRM_FACT_READ_ONLY' && error.statusCode === 409
+  );
+  assert.equal(state.workflow.version, 1);
+  assert.equal(state.commercialFacts[0].status, 'CONFIRMED');
+  assert.equal(state.events.length, 1);
+});
+
+test('papel Comercial não pode ser designado Líder nem aparece nos candidatos', async () => {
+  const { database, state } = fakeDatabase();
+  await assert.rejects(
+    startProjectWorkflow('project-1', { leaderUserId: 'commercial-1', plannedMobilizationDate: '2027-02-15' }, manager, { database }),
+    error => error.code === 'INVALID_PROJECT_WORKFLOW_LEADER'
+  );
+  const leaders = await listProjectWorkflowLeaders({ database });
+  assert.equal(leaders.some(item => item.id === 'commercial-1'), false);
+  assert.deepEqual(state.lastUserFindManyInput.where.OR[1].moduleRoles.some.role.in, ['EFETIVO_MANAGER', 'EFETIVO_VIEWER']);
+});
+
+test('oito fatos válidos liberam comercial sem mover a etapa', async () => {
+  const { database } = fakeDatabase();
+  let result = await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  for (const definition of PROJECT_WORKFLOW_COMMERCIAL_FACTS) {
+    result = await updateProjectWorkflow('project-1', {
+      action: 'commercial_fact',
+      version: result.workflow.version,
+      key: definition.key,
+      status: 'CONFIRMED',
+      occurredOn: '2026-09-09',
+      reference: definition.evidence === 'reference' ? 'REF-1' : null,
+      note: definition.evidence === 'note' ? 'Condição definida' : null
+    }, manager, { database });
+  }
+  assert.equal(result.workflow.commercialReadiness.status, 'RELEASED');
+  assert.equal(result.workflow.stage, 'HANDOVER');
+  const list = await listProjectWorkflows({}, manager, { database });
+  assert.equal(list.items[0].workflow.commercialReadiness.status, result.workflow.commercialReadiness.status);
 });

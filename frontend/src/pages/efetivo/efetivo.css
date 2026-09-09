@@ -1856,6 +1856,8 @@
 .project-workflow-card > em { color: var(--g); font-size: 12px; font-style: normal; font-weight: 700; }
 .project-workflow-card > em.is-overdue,
 .project-workflow-overdue { color: var(--rd); }
+.project-workflow-card .project-workflow-commercial-badge { color: var(--rd); font-weight: 700; }
+.project-workflow-card .project-workflow-commercial-badge.is-released { color: var(--g); }
 .project-workflow-pagination { align-items: center; display: flex; gap: 12px; justify-content: center; }
 
 .modal-card.efetivo-modal.project-workflow-modal {
@@ -1876,6 +1878,26 @@
 .project-workflow-section > header { align-items: center; display: flex; justify-content: space-between; }
 .project-workflow-section h4 { margin: 0; }
 .project-workflow-section > header span { color: var(--mu); }
+.project-workflow-section > header > div { min-width: 0; }
+.project-workflow-section > header p { color: var(--mu); margin: 3px 0 0; overflow-wrap: anywhere; }
+.project-workflow-commercial { border-left: 4px solid var(--rd); }
+.project-workflow-commercial.is-released { border-left-color: var(--g); }
+.project-workflow-commercial-list { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.project-workflow-commercial-fact { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 10px; }
+.project-workflow-commercial-fact.is-crm { box-shadow: inset 3px 0 0 var(--g); }
+.project-workflow-commercial-fact > header { align-items: start; display: flex; gap: 8px; justify-content: space-between; }
+.project-workflow-commercial-fact > header > div { display: flex; flex-direction: column; min-width: 0; }
+.project-workflow-commercial-fact > header strong,
+.project-workflow-commercial-fact > header span,
+.project-workflow-source-detail { overflow-wrap: anywhere; }
+.project-workflow-commercial-fact > header > div span,
+.project-workflow-source-detail { color: var(--mu); font-size: 12px; }
+.project-workflow-fact-status { border: 1px solid currentColor; border-radius: 999px; color: var(--rd); flex: 0 0 auto; font-size: 11px; font-weight: 700; padding: 3px 7px; }
+.project-workflow-fact-status.is-confirmed { color: var(--g); }
+.project-workflow-fact-status.is-not_applicable { color: var(--mu); }
+.project-workflow-commercial-fields { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.project-workflow-commercial-fields .field-group { margin: 0; min-width: 0; }
+.project-workflow-source-detail { margin: 0; }
 .project-workflow-check-item { align-items: start; border-top: 1px solid var(--br); display: grid; gap: 10px; grid-template-columns: minmax(180px, .9fr) minmax(0, 1.6fr); padding-top: 8px; }
 .project-workflow-check-controls { align-items: start; display: grid; gap: 6px; grid-template-columns: minmax(130px, .6fr) minmax(160px, 1fr) auto; min-width: 0; }
 .project-workflow-check-controls .field-group { margin: 0; }
@@ -1888,6 +1910,10 @@
 .project-workflow-gate p { color: var(--mu); margin: 4px 0 0; }
 .project-workflow-stage-actions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
 .project-workflow-planning-link { align-self: flex-start; text-decoration: none; }
+.project-workflow-modal-footer { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
+.project-workflow-footer-status { display: flex; flex: 1 1 360px; flex-direction: column; min-width: 0; }
+.project-workflow-footer-status span { color: var(--mu); font-size: 12px; overflow-wrap: anywhere; }
+.project-workflow-footer-actions { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
 
 @media (max-width: 760px) {
   .project-workflow-view-switch { grid-template-columns: minmax(0, 1fr); }
@@ -1899,6 +1925,8 @@
   .project-workflow-status-block,
   .project-workflow-form-grid,
   .project-workflow-form-grid.compact,
+  .project-workflow-commercial-list,
+  .project-workflow-commercial-fields,
   .project-workflow-check-item,
   .project-workflow-check-controls { grid-template-columns: minmax(0, 1fr); }
   .project-workflow-critical,
@@ -1907,4 +1935,8 @@
   .project-workflow-stage-actions { justify-content: stretch; }
   .project-workflow-critical button,
   .project-workflow-stage-actions button { flex: 1 1 auto; }
+  .project-workflow-modal-footer { align-items: stretch; flex-direction: column; }
+  .project-workflow-footer-status { flex-basis: auto; }
+  .project-workflow-footer-actions { justify-content: stretch; }
+  .project-workflow-footer-actions button { flex: 1 1 auto; }
 }
