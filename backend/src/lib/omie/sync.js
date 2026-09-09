@@ -10,6 +10,7 @@
 import env from '../../config/env.js';
 import { isSedeCostCenterCode, SEDE_OMIE_CODES } from '../acompanhamento/sede-cost-centers.js';
 import { omieCall, omieConfigured } from './client.js';
+import { syncOmieInvoices } from './invoices.js';
 import prisma from '../prisma.js';
 
 const PAGE_SIZE = 500;
@@ -534,7 +535,8 @@ export async function syncOmieAll({ triggeredBy = 'SCRIPT', sinceDays = null } =
   const categories = await syncOmieCategories({ triggeredBy });
   const purchases = await syncOmiePurchases({ triggeredBy, sinceDays });
   const receivables = await syncOmieReceivables({ triggeredBy, sinceDays });
-  return { projects, categories, purchases, receivables };
+  const invoices = await syncOmieInvoices({ triggeredBy });
+  return { projects, categories, purchases, receivables, invoices };
 }
 
 // === Job agendado (in-process, padrão do app) ===

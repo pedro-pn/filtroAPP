@@ -2993,10 +2993,29 @@ model OmieReceivable {
   @@index([dataEmissao])
 }
 
+// Histórico fiscal validado, separado dos títulos/parcelas de contas a receber.
+// O vínculo usa o código Omie atual para acompanhar remapeamentos de projetos.
+model OmieInvoice {
+  id               String   @id
+  source           String // NFSE | NFE
+  codigoProjeto    String
+  numero           String
+  serie            String?
+  dataEmissao      DateTime
+  valor            Decimal  @db.Decimal(14, 2)
+  clienteNome      String?
+  clienteCnpj      String?
+  receiptStatus    String // RECEIVED | PARTIAL | OVERDUE | OPEN | UNKNOWN
+  installmentCount Int      @default(0)
+  syncedAt         DateTime @default(now())
+
+  @@index([codigoProjeto, dataEmissao])
+}
+
 model IntegrationSyncRun {
   id             String    @id @default(cuid())
   integration    String // 'OMIE'
-  scope          String? // projects | categories | purchases
+  scope          String? // projects | categories | purchases | receivables | invoices
   status         String    @default("RUNNING") // RUNNING | SUCCESS | ERROR
   recordsRead    Int       @default(0)
   recordsWritten Int       @default(0)

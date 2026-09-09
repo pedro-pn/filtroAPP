@@ -3,10 +3,11 @@
  *
  * Uso (com credenciais no ambiente):
  *   OMIE_APP_KEY=... OMIE_APP_SECRET=... npm run omie:sync
- *   ... node scripts/omie-sync.js projetos | categorias | compras | receitas
+ *   ... node scripts/omie-sync.js projetos | categorias | compras | receitas | faturamentos
  */
 
 import { omieConfigured } from '../src/lib/omie/client.js';
+import { syncOmieInvoices } from '../src/lib/omie/invoices.js';
 import { syncOmieAll, syncOmieCategories, syncOmiePurchases, syncOmieProjects, syncOmieReceivables } from '../src/lib/omie/sync.js';
 import prisma from '../src/lib/prisma.js';
 
@@ -21,6 +22,7 @@ async function main() {
   else if (only === 'categorias') console.log('categorias:', await syncOmieCategories());
   else if (only === 'compras') console.log('compras:', await syncOmiePurchases({ sinceDays }));
   else if (only === 'receitas') console.log('receitas:', await syncOmieReceivables({ sinceDays }));
+  else if (only === 'faturamentos') console.log('faturamentos:', await syncOmieInvoices());
   else console.log('tudo:', JSON.stringify(await syncOmieAll(), null, 2));
 }
 

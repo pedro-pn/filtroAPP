@@ -1,7 +1,7 @@
 import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 
-export const DATA_CATALOG_VERSION = '2026-09-08';
+export const DATA_CATALOG_VERSION = '2026-09-09';
 const publishedModels = new Set(OPERATIONAL_RESOURCES.map(item => item.model));
 const publishedScopes = new Set([...OPERATIONAL_RESOURCES, ...OPERATIONAL_DOWNLOADS].map(item => item.scope));
 
@@ -140,7 +140,7 @@ export const API_DATA_DOMAINS = Object.freeze([
   }),
   domain({
     code: 'omie', label: 'Integração Omie',
-    models: [...modelEntries(['OmieProject', 'OmieCategory'], 'PLANNED'), ...modelEntries(['OmiePurchase', 'OmieReceivable'], 'SENSITIVE')],
+    models: [...modelEntries(['OmieProject', 'OmieCategory'], 'PLANNED'), ...modelEntries(['OmiePurchase', 'OmieReceivable', 'OmieInvoice'], 'SENSITIVE')],
     candidateScopes: ['omie.projetos.read', 'omie.categorias.read', 'omie.compras.read', 'omie.recebiveis.read'], candidateAvailability: 'SENSITIVE', endpointFamilies: ['/omie/projetos', '/omie/categorias', '/omie/compras', '/omie/recebiveis'],
     excludedFields: ['credencial Omie', 'payload bruto', 'logs técnicos', 'dados bancários/fiscais excessivos', 'contatos']
   }),
