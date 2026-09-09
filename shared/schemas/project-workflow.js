@@ -12,26 +12,89 @@ export const PROJECT_WORKFLOW_STAGE_LABELS = {
   MOBILIZATION_PLANNING: 'Planejamento da mobilização'
 };
 
+export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
+  'HANDOVER',
+  'INITIAL_ANALYSIS',
+  'ADVANCE_DOCUMENTATION',
+  'D30_TEAM',
+  'D30_EQUIPMENT',
+  'D30_MATERIALS',
+  'D30_LOGISTICS'
+];
+
+export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
+  HANDOVER: 'Checklist do handover',
+  INITIAL_ANALYSIS: 'Checklist da análise inicial',
+  ADVANCE_DOCUMENTATION: 'Documentação antecipada',
+  D30_TEAM: 'Equipe',
+  D30_EQUIPMENT: 'Equipamentos',
+  D30_MATERIALS: 'Materiais e insumos',
+  D30_LOGISTICS: 'Logística preliminar'
+};
+
+const checklist = (key, stage, section, label, areaRoles = []) => ({ key, stage, section, label, areaRoles });
+
 export const PROJECT_WORKFLOW_CHECKLISTS = [
-  { key: 'HANDOVER_PROJECT_CREATED', stage: 'HANDOVER', label: 'Projeto criado no sistema' },
-  { key: 'HANDOVER_LEADER_DEFINED', stage: 'HANDOVER', label: 'Líder de Projetos definido' },
-  { key: 'HANDOVER_WHATSAPP_GROUP', stage: 'HANDOVER', label: 'Grupo de WhatsApp criado pelo Comercial' },
-  { key: 'HANDOVER_PROJECT_PARTICIPANTS', stage: 'HANDOVER', label: 'Áreas e demais envolvidos incluídos no grupo' },
-  { key: 'HANDOVER_COMMERCIAL_PROPOSAL', stage: 'HANDOVER', label: 'Proposta comercial anexada' },
-  { key: 'HANDOVER_TECHNICAL_PROPOSAL', stage: 'HANDOVER', label: 'Proposta técnica anexada' },
-  { key: 'HANDOVER_SOURCE_DOCUMENTS', stage: 'HANDOVER', label: 'Documentos, desenhos e especificações da proposta anexados' },
-  { key: 'HANDOVER_CLIENT_CONTACT', stage: 'HANDOVER', label: 'Contato responsável do cliente informado' },
-  { key: 'HANDOVER_EXPECTED_START', stage: 'HANDOVER', label: 'Data prevista de início informada' },
-  { key: 'HANDOVER_EXPECTED_DURATION', stage: 'HANDOVER', label: 'Prazo previsto informado' },
-  { key: 'HANDOVER_RELEVANT_ASSUMPTIONS', stage: 'HANDOVER', label: 'Condições e premissas relevantes repassadas' },
-  { key: 'ANALYSIS_TECHNICAL_PROPOSAL', stage: 'INITIAL_ANALYSIS', label: 'Proposta técnica revisada' },
-  { key: 'ANALYSIS_COMMERCIAL_PROPOSAL', stage: 'INITIAL_ANALYSIS', label: 'Proposta comercial revisada' },
-  { key: 'ANALYSIS_SCOPE', stage: 'INITIAL_ANALYSIS', label: 'Escopo e quantitativos compreendidos' },
-  { key: 'ANALYSIS_ASSUMPTIONS', stage: 'INITIAL_ANALYSIS', label: 'Premissas e exclusões identificadas' },
-  { key: 'ANALYSIS_RESPONSIBILITIES', stage: 'INITIAL_ANALYSIS', label: 'Responsabilidades Filtrovali e cliente identificadas' },
-  { key: 'ANALYSIS_DATES', stage: 'INITIAL_ANALYSIS', label: 'Mobilização e início estimados' },
-  { key: 'ANALYSIS_COMMERCIAL_QUESTIONS', stage: 'INITIAL_ANALYSIS', label: 'Dúvidas comerciais levantadas e esclarecidas' },
-  { key: 'ANALYSIS_CLIENT_CONTACT', stage: 'INITIAL_ANALYSIS', label: 'Contato inicial com cliente realizado, quando necessário' }
+  checklist('HANDOVER_PROJECT_CREATED', 'HANDOVER', 'HANDOVER', 'Projeto criado no sistema'),
+  checklist('HANDOVER_LEADER_DEFINED', 'HANDOVER', 'HANDOVER', 'Líder de Projetos definido'),
+  checklist('HANDOVER_WHATSAPP_GROUP', 'HANDOVER', 'HANDOVER', 'Grupo de WhatsApp criado pelo Comercial'),
+  checklist('HANDOVER_PROJECT_PARTICIPANTS', 'HANDOVER', 'HANDOVER', 'Áreas e demais envolvidos incluídos no grupo'),
+  checklist('HANDOVER_COMMERCIAL_PROPOSAL', 'HANDOVER', 'HANDOVER', 'Proposta comercial anexada'),
+  checklist('HANDOVER_TECHNICAL_PROPOSAL', 'HANDOVER', 'HANDOVER', 'Proposta técnica anexada'),
+  checklist('HANDOVER_SOURCE_DOCUMENTS', 'HANDOVER', 'HANDOVER', 'Documentos, desenhos e especificações da proposta anexados'),
+  checklist('HANDOVER_CLIENT_CONTACT', 'HANDOVER', 'HANDOVER', 'Contato responsável do cliente informado'),
+  checklist('HANDOVER_EXPECTED_START', 'HANDOVER', 'HANDOVER', 'Data prevista de início informada'),
+  checklist('HANDOVER_EXPECTED_DURATION', 'HANDOVER', 'HANDOVER', 'Prazo previsto informado'),
+  checklist('HANDOVER_RELEVANT_ASSUMPTIONS', 'HANDOVER', 'HANDOVER', 'Condições e premissas relevantes repassadas'),
+  checklist('ANALYSIS_TECHNICAL_PROPOSAL', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Proposta técnica revisada'),
+  checklist('ANALYSIS_COMMERCIAL_PROPOSAL', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Proposta comercial revisada'),
+  checklist('ANALYSIS_SCOPE', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Escopo e quantitativos compreendidos'),
+  checklist('ANALYSIS_ASSUMPTIONS', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Premissas e exclusões identificadas'),
+  checklist('ANALYSIS_RESPONSIBILITIES', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Responsabilidades Filtrovali e cliente identificadas'),
+  checklist('ANALYSIS_DATES', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Mobilização e início estimados'),
+  checklist('ANALYSIS_COMMERCIAL_QUESTIONS', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Dúvidas comerciais levantadas e esclarecidas'),
+  checklist('ANALYSIS_CLIENT_CONTACT', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Contato inicial com cliente realizado, quando necessário'),
+
+  checklist('DOCUMENT_CLIENT_REQUIREMENTS', null, 'ADVANCE_DOCUMENTATION', 'Requisitos documentais do cliente levantados', ['efetivo:administrative']),
+  checklist('DOCUMENT_STANDARD_VERIFIED', null, 'ADVANCE_DOCUMENTATION', 'Documentação padrão verificada', ['efetivo:administrative']),
+  checklist('DOCUMENT_EXAMS_IDENTIFIED', null, 'ADVANCE_DOCUMENTATION', 'Exames específicos identificados', ['efetivo:administrative']),
+  checklist('DOCUMENT_TRAININGS_IDENTIFIED', null, 'ADVANCE_DOCUMENTATION', 'Treinamentos específicos identificados', ['efetivo:administrative']),
+  checklist('DOCUMENT_CERTIFICATIONS_IDENTIFIED', null, 'ADVANCE_DOCUMENTATION', 'Certificações específicas identificadas', ['efetivo:administrative']),
+  checklist('DOCUMENT_LEAD_TIME_IDENTIFIED', null, 'ADVANCE_DOCUMENTATION', 'Prazo necessário para regularização identificado', ['efetivo:administrative']),
+  checklist('DOCUMENT_PEOPLE_QUANTITY_DEFINED', null, 'ADVANCE_DOCUMENTATION', 'Quantidade de pessoas necessária definida', ['efetivo:administrative']),
+  checklist('DOCUMENT_POTENTIAL_TEAM_DEFINED', null, 'ADVANCE_DOCUMENTATION', 'Grupo potencial de colaboradores definido com Operações', ['efetivo:administrative']),
+  checklist('DOCUMENT_EXAMS_REQUESTED', null, 'ADVANCE_DOCUMENTATION', 'Exames solicitados', ['efetivo:administrative']),
+  checklist('DOCUMENT_TRAININGS_REQUESTED', null, 'ADVANCE_DOCUMENTATION', 'Treinamentos solicitados', ['efetivo:administrative']),
+  checklist('DOCUMENT_REGULARIZED', null, 'ADVANCE_DOCUMENTATION', 'Documentações regularizadas', ['efetivo:administrative']),
+
+  checklist('D30_TEAM_QUANTITY_CONFIRMED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Quantidade de pessoas confirmada', ['efetivo:operations']),
+  checklist('D30_TEAM_ROLES_DEFINED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Funções definidas', ['efetivo:operations']),
+  checklist('D30_TEAM_PRELIMINARY_DEFINED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Equipe preliminar definida', ['efetivo:operations']),
+  checklist('D30_TEAM_AVAILABILITY_CHECKED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Disponibilidade verificada', ['efetivo:operations']),
+  checklist('D30_TEAM_HIRING_IDENTIFIED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Necessidade de contratação identificada', ['efetivo:operations']),
+  checklist('D30_TEAM_DOCUMENTS_CHECKED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Documentação da equipe conferida', ['efetivo:operations']),
+
+  checklist('D30_EQUIPMENT_LIST_DEFINED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Lista de equipamentos definida', ['efetivo:assets']),
+  checklist('D30_EQUIPMENT_LOCATION_CHECKED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Localização atual dos equipamentos verificada', ['efetivo:assets']),
+  checklist('D30_EQUIPMENT_AVAILABILITY_CONFIRMED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Disponibilidade para a data confirmada', ['efetivo:assets']),
+  checklist('D30_EQUIPMENT_OTHER_PROJECTS_IDENTIFIED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Equipamentos que estão em outras obras identificados', ['efetivo:assets']),
+  checklist('D30_EQUIPMENT_RETURN_CONFIRMED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Data prevista de retorno confirmada', ['efetivo:assets']),
+  checklist('D30_EQUIPMENT_MAINTENANCE_IDENTIFIED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Manutenções necessárias identificadas', ['efetivo:assets']),
+  checklist('D30_EQUIPMENT_CERTIFICATES_CHECKED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Calibrações e certificações verificadas', ['efetivo:assets']),
+  checklist('D30_EQUIPMENT_ACCESSORIES_DEFINED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Acessórios necessários definidos', ['efetivo:assets']),
+
+  checklist('D30_MATERIALS_LIST_DEFINED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Lista de insumos definida', ['efetivo:supplies']),
+  checklist('D30_MATERIALS_QUANTITIES_DEFINED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Quantidades definidas', ['efetivo:supplies']),
+  checklist('D30_MATERIALS_INVENTORY_CHECKED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Estoque consultado', ['efetivo:supplies']),
+  checklist('D30_MATERIALS_PURCHASES_IDENTIFIED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Necessidades de compra identificadas', ['efetivo:supplies']),
+  checklist('D30_MATERIALS_QUOTES_REQUESTED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Orçamentos solicitados', ['efetivo:supplies']),
+  checklist('D30_MATERIALS_PURCHASES_REQUESTED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Compras solicitadas', ['efetivo:supplies']),
+
+  checklist('D30_LOGISTICS_VEHICLE_DEFINED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Necessidade de veículo definida', ['efetivo:operations']),
+  checklist('D30_LOGISTICS_FREIGHT_IDENTIFIED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Necessidade de frete identificada', ['efetivo:operations']),
+  checklist('D30_LOGISTICS_LODGING_DEFINED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Necessidade de hospedagem definida', ['efetivo:operations']),
+  checklist('D30_LOGISTICS_PEOPLE_DAYS_ESTIMATED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Quantidade de pessoas e dias estimada', ['efetivo:operations']),
+  checklist('D30_LOGISTICS_DEPARTURE_DEFINED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Data prevista de saída definida', ['efetivo:operations'])
 ];
 
 export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS = [
@@ -175,12 +238,19 @@ export function makeProjectWorkflowSchemas(z) {
 }
 
 export function projectWorkflowMilestones(plannedMobilizationDate, today) {
-  if (!plannedMobilizationDate) return { daysUntilMobilization: null, d30Date: null, d30Due: false };
+  const empty = { daysUntilMobilization: null, items: [], dueMilestones: [], nextMilestone: null, d30Date: null, d30Due: false };
+  if (!plannedMobilizationDate) return empty;
   const start = Date.parse(`${today}T00:00:00.000Z`);
   const mobilization = Date.parse(`${plannedMobilizationDate}T00:00:00.000Z`);
-  if (!Number.isFinite(start) || !Number.isFinite(mobilization)) return { daysUntilMobilization: null, d30Date: null, d30Due: false };
+  if (!Number.isFinite(start) || !Number.isFinite(mobilization)) return empty;
   const dayMs = 86_400_000;
   const daysUntilMobilization = Math.round((mobilization - start) / dayMs);
-  const d30Date = new Date(mobilization - 30 * dayMs).toISOString().slice(0, 10);
-  return { daysUntilMobilization, d30Date, d30Due: today >= d30Date };
+  const items = [90, 30, 15, 7, 1].map(days => {
+    const date = new Date(mobilization - days * dayMs).toISOString().slice(0, 10);
+    return { key: `D${days}`, label: `D-${days}`, days, date, due: today >= date };
+  });
+  const dueMilestones = items.filter(item => item.due).map(item => item.key);
+  const nextMilestone = items.find(item => !item.due) || null;
+  const d30 = items.find(item => item.key === 'D30');
+  return { daysUntilMobilization, items, dueMilestones, nextMilestone, d30Date: d30.date, d30Due: d30.due };
 }

@@ -575,7 +575,11 @@ export const moduleRegistry = [
       "roles": [
         "efetivo:manager",
         "efetivo:viewer",
-        "efetivo:commercial"
+        "efetivo:commercial",
+        "efetivo:operations",
+        "efetivo:assets",
+        "efetivo:supplies",
+        "efetivo:administrative"
       ],
       "path": "/efetivo"
     },
@@ -594,7 +598,11 @@ export const moduleRegistry = [
         "allowedModuleRoles": [
           "efetivo:manager",
           "efetivo:viewer",
-          "efetivo:commercial"
+          "efetivo:commercial",
+          "efetivo:operations",
+          "efetivo:assets",
+          "efetivo:supplies",
+          "efetivo:administrative"
         ]
       }
     },
@@ -621,6 +629,42 @@ export const moduleRegistry = [
         "code": "EFETIVO_COMMERCIAL",
         "public": "efetivo:commercial",
         "label": "Efetivo Operacional - Comercial",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "EFETIVO_OPERATIONS",
+        "public": "efetivo:operations",
+        "label": "Efetivo Operacional - Operações",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "EFETIVO_ASSETS",
+        "public": "efetivo:assets",
+        "label": "Efetivo Operacional - Ativos",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "EFETIVO_SUPPLIES",
+        "public": "efetivo:supplies",
+        "label": "Efetivo Operacional - Suprimentos",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "EFETIVO_ADMINISTRATIVE",
+        "public": "efetivo:administrative",
+        "label": "Efetivo Operacional - Administrativo/RH",
         "accountTypes": [
           "ADMIN",
           "INTERNAL"

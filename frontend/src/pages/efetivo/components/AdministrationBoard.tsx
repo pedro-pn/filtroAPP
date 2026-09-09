@@ -7,6 +7,16 @@ import { useToast } from '../../../components/ui/ToastContext';
 import { EfetivoActivityList } from './EfetivoActivityList';
 import { HolidayManager } from './HolidayManager';
 
+const EFETIVO_ROLE_LABELS: Record<string, string> = {
+  EFETIVO_MANAGER: 'Gestor',
+  EFETIVO_VIEWER: 'Visualizador',
+  EFETIVO_COMMERCIAL: 'Comercial',
+  EFETIVO_OPERATIONS: 'Operações',
+  EFETIVO_ASSETS: 'Ativos',
+  EFETIVO_SUPPLIES: 'Suprimentos',
+  EFETIVO_ADMINISTRATIVE: 'Administrativo/RH'
+};
+
 function JobRoleRow({ role, canManage, onSaved }: { role: PlanningJobRole; canManage: boolean; onSaved: () => void }) {
   const toast = useToast();
   const [color, setColor] = useState(role.calendarColor || '#64748B');
@@ -43,7 +53,7 @@ export function AdministrationBoard({ canManage, tab, onTabChange }: {
     {tab === 'regras' ? <>
       <section className="page-card"><div className="efetivo-section-heading"><div><h2>Funções operacionais</h2><p>Cor do calendário e limite de permanência. Nome/ordem continuam sob o cadastro RDO.</p></div></div>{roles.isLoading ? <p className="placeholder-copy">Carregando funções…</p> : roles.isError ? <p className="placeholder-copy">Não foi possível carregar as funções.</p> : <div className="efetivo-admin-role-list">{roles.data?.map(role => <JobRoleRow role={role} canManage={canManage} onSaved={() => queryClient.invalidateQueries({ queryKey: ['efetivo-planning-job-roles'] })} key={role.id} />)}</div>}</section>
       <section className="page-card efetivo-setting-row"><div><h2>Meta de utilização planejada</h2><p>Indicador futuro; não altera a Improdutividade Real.</p></div><div className={`field-group ${targetInvalid ? 'field-invalid' : ''}`}><label htmlFor="planned-target">Meta (%)</label><input id="planned-target" type="number" min="0" max="100" value={target} disabled={!canManage} aria-invalid={targetInvalid} onChange={event => setTarget(event.target.value)} />{targetInvalid ? <span className="field-error">Use um valor de 0 a 100.</span> : null}</div>{canManage ? <Button disabled={saveTarget.isPending || targetInvalid} onClick={() => saveTarget.mutate()}>Salvar meta</Button> : null}</section>
-      <section className="page-card"><div className="efetivo-section-heading"><div><h2>Acessos do módulo</h2><p>Usuários com papel visualizador, gestor ou comercial do Efetivo.</p></div></div>{users.isLoading ? <p className="placeholder-copy">Carregando acessos…</p> : users.isError ? <p className="placeholder-copy">Não foi possível carregar os acessos.</p> : <div className="efetivo-user-grid">{users.data?.map(user => <article key={user.id}><strong>{user.name}</strong><span>{user.accountType === 'ADMIN' ? 'Administrador' : user.moduleRoles.map(role => role.role === 'EFETIVO_MANAGER' ? 'Gestor' : role.role === 'EFETIVO_COMMERCIAL' ? 'Comercial' : 'Visualizador').join(', ')}</span></article>)}</div>}</section>
+      <section className="page-card"><div className="efetivo-section-heading"><div><h2>Acessos do módulo</h2><p>Usuários com papéis de gestão, consulta e responsabilidade por área no Efetivo.</p></div></div>{users.isLoading ? <p className="placeholder-copy">Carregando acessos…</p> : users.isError ? <p className="placeholder-copy">Não foi possível carregar os acessos.</p> : <div className="efetivo-user-grid">{users.data?.map(user => <article key={user.id}><strong>{user.name}</strong><span>{user.accountType === 'ADMIN' ? 'Administrador' : user.moduleRoles.map(role => EFETIVO_ROLE_LABELS[role.role] || role.role).join(', ')}</span></article>)}</div>}</section>
     </> : null}
     {tab === 'feriados' ? <HolidayManager canManage={canManage} /> : null}
     {tab === 'atividade' ? <EfetivoActivityList /> : null}

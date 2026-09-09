@@ -75,6 +75,63 @@ export function projectWorkflowCommercialReadiness(workflow) {
   };
 }
 
+function resolvedChecklist(item) {
+  return item?.status === 'DONE' || item?.status === 'NOT_APPLICABLE';
+}
+
+function checklistProgress(workflow, definitions) {
+  const byKey = new Map((workflow?.checklists || []).map(item => [item.key, item]));
+  const completed = definitions.filter(definition => resolvedChecklist(byKey.get(definition.key))).length;
+  return {
+    completed,
+    total: definitions.length,
+    percentage: definitions.length ? Math.round((completed / definitions.length) * 100) : 0
+  };
+}
+
+export function projectWorkflowDocumentationReadiness(workflow, milestones, today) {
+  const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === 'ADVANCE_DOCUMENTATION');
+  const byKey = new Map((workflow?.checklists || []).map(item => [item.key, item]));
+  const pending = definitions.filter(definition => !resolvedChecklist(byKey.get(definition.key)));
+  const criticalIssues = (workflow?.issues || []).filter(issue => {
+    if (issue.status === 'RESOLVED' || issue.criticality !== 'HIGH') return false;
+    const documentationArea = /administr|document|\brh\b/i.test(String(issue.area || ''));
+    const dueDate = issue.dueDate instanceof Date ? issue.dueDate.toISOString().slice(0, 10) : String(issue.dueDate || '').slice(0, 10);
+    return documentationArea && (issue.overdue === true || Boolean(dueDate && today && dueDate < today));
+  });
+  const urgentByDate = pending.length > 0
+    && milestones?.daysUntilMobilization != null
+    && milestones.daysUntilMobilization <= 15;
+  const status = pending.length === 0 && criticalIssues.length === 0
+    ? 'OK'
+    : urgentByDate || criticalIssues.length > 0 ? 'CRITICAL' : 'IN_PROGRESS';
+  return {
+    status,
+    completed: definitions.length - pending.length,
+    total: definitions.length,
+    blockers: [
+      ...pending.map(item => ({ key: item.key, label: item.label, reason: urgentByDate ? 'Pendente a até 15 dias da mobilização' : 'Pendente' })),
+      ...criticalIssues.map(issue => ({ key: issue.id, label: issue.description, reason: 'Pendência documental crítica vencida' }))
+    ]
+  };
+}
+
+export function projectWorkflowPlanningReadiness(workflow) {
+  const sectionKeys = ['D30_TEAM', 'D30_EQUIPMENT', 'D30_MATERIALS', 'D30_LOGISTICS'];
+  const sections = sectionKeys.map(key => {
+    const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
+    return { key, ...checklistProgress(workflow, definitions) };
+  });
+  const completed = sections.reduce((sum, section) => sum + section.completed, 0);
+  const total = sections.reduce((sum, section) => sum + section.total, 0);
+  return {
+    completed,
+    total,
+    percentage: total ? Math.round((completed / total) * 100) : 0,
+    sections
+  };
+}
+
 export function incompleteChecklistLabels(workflow, stage) {
   const answered = answeredChecklistKeys(workflow, stage);
   return PROJECT_WORKFLOW_CHECKLISTS

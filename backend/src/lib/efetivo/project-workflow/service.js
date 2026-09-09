@@ -4,7 +4,7 @@ import {
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
   projectWorkflowMilestones
 } from '../../../../../shared/schemas/project-workflow.js';
-import { canEditEfetivoCommercial } from '../access.js';
+import { canEditEfetivoChecklistArea, canEditEfetivoCommercial } from '../access.js';
 import { hasModuleRole } from '../../module-roles.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { conflictError, notFound, planningError } from '../planning/errors.js';
@@ -14,6 +14,8 @@ import {
   handoverGateIssues,
   normalizeProjectWorkflowCommercialFacts,
   projectWorkflowCommercialReadiness,
+  projectWorkflowDocumentationReadiness,
+  projectWorkflowPlanningReadiness,
   projectWorkflowTransitionIssues
 } from './rules.js';
 
@@ -81,6 +83,16 @@ function canEditCommercial(workflow, context) {
   return Boolean(workflow && (contextIsManager(context) || canEditEfetivoCommercial(context.user)));
 }
 
+function checklistIsAvailable(workflow, definition) {
+  return definition?.stage == null || definition.stage === workflow?.stage;
+}
+
+function canEditChecklist(workflow, definition, context) {
+  if (!workflow || !definition || !checklistIsAvailable(workflow, definition)) return false;
+  return canEditWorkflow(workflow, context)
+    || canEditEfetivoChecklistArea(context.user, definition.areaRoles);
+}
+
 function publicPermissions(workflow, context) {
   const manager = contextIsManager(context);
   const isLeader = Boolean(contextIsOperational(context) && context.actorUserId && workflow?.leaderUserId === context.actorUserId);
@@ -95,6 +107,8 @@ function publicPermissions(workflow, context) {
 
 function decorateWorkflow(workflow, context, now) {
   if (!workflow) return null;
+  const today = todayKey(now);
+  const milestones = projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), today);
   const checklistByKey = new Map((workflow.checklists || []).map(item => [item.key, item]));
   const answerByKey = new Map((workflow.criticalAnswers || []).map(item => [item.key, item]));
   const checklists = PROJECT_WORKFLOW_CHECKLISTS.map(definition => ({
@@ -103,7 +117,8 @@ function decorateWorkflow(workflow, context, now) {
     note: null,
     updatedAt: null,
     updatedBy: null,
-    ...checklistByKey.get(definition.key)
+    ...checklistByKey.get(definition.key),
+    canEdit: canEditChecklist(workflow, definition, context)
   }));
   const criticalAnswers = PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(definition => ({
     ...definition,
@@ -120,8 +135,10 @@ function decorateWorkflow(workflow, context, now) {
   const issues = (workflow.issues || []).map(issue => ({
     ...issue,
     dueDate: dateKey(issue.dueDate),
-    overdue: issue.status !== 'RESOLVED' && Boolean(issue.dueDate) && dateKey(issue.dueDate) < todayKey(now)
+    overdue: issue.status !== 'RESOLVED' && Boolean(issue.dueDate) && dateKey(issue.dueDate) < today
   }));
+  const documentationReadiness = projectWorkflowDocumentationReadiness({ checklists, issues }, milestones, today);
+  const planningReadiness = projectWorkflowPlanningReadiness({ checklists });
   const permissions = publicPermissions(workflow, context);
   const transitionOptions = PROJECT_WORKFLOW_STAGES
     .filter(stage => allowedProjectWorkflowTransition(workflow.stage, stage))
@@ -139,8 +156,10 @@ function decorateWorkflow(workflow, context, now) {
     criticalAnswers,
     commercialFacts,
     commercialReadiness,
+    documentationReadiness,
+    planningReadiness,
     issues,
-    milestones: projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), todayKey(now)),
+    milestones,
     permissions,
     handoverGate: { ready: handoverIssues.length === 0, issues: handoverIssues },
     transitionOptions
@@ -201,7 +220,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
         workflow: {
           include: {
             leader: { select: { id: true, name: true, isActive: true } },
-            issues: { select: { status: true, dueDate: true } },
+            checklists: { select: { key: true, status: true } },
+            issues: { select: { id: true, status: true, dueDate: true, criticality: true, area: true, description: true } },
             commercialFacts: { select: { key: true, status: true, source: true, reference: true, note: true, occurredOn: true } }
           }
         }
@@ -217,6 +237,9 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
       const workflow = project.workflow;
       const issues = workflow?.issues || [];
       const commercialReadiness = workflow ? projectWorkflowCommercialReadiness(workflow) : null;
+      const milestones = workflow ? projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), todayKey(now)) : null;
+      const documentationReadiness = workflow ? projectWorkflowDocumentationReadiness(workflow, milestones, todayKey(now)) : null;
+      const planningReadiness = workflow ? projectWorkflowPlanningReadiness(workflow) : null;
       return {
         ...project,
         workflow: workflow ? {
@@ -226,7 +249,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
           acceptedAt: workflow.acceptedAt,
           plannedMobilizationDate: dateKey(workflow.plannedMobilizationDate),
           version: workflow.version,
-          milestones: projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), todayKey(now)),
+          milestones,
           issueCount: issues.filter(item => item.status !== 'RESOLVED').length,
           overdueIssueCount: issues.filter(item => item.status !== 'RESOLVED' && item.dueDate && dateKey(item.dueDate) < todayKey(now)).length,
           commercialReadiness: commercialReadiness ? {
@@ -234,7 +257,9 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
             resolvedCount: commercialReadiness.resolvedCount,
             totalCount: commercialReadiness.totalCount,
             blockedOperations: commercialReadiness.blockedOperations
-          } : null
+          } : null,
+          documentationReadiness,
+          planningReadiness
         } : null,
         permissions: publicPermissions(workflow, context)
       };
@@ -327,6 +352,29 @@ function assertCommercialEditable(workflow, context) {
     throw planningError('A alteração da frente comercial é restrita ao Comercial ou ao gestor do Efetivo.', {
       statusCode: 403,
       code: 'PROJECT_WORKFLOW_COMMERCIAL_EDIT_FORBIDDEN'
+    });
+  }
+}
+
+function assertChecklistEditable(workflow, key, context) {
+  const definition = PROJECT_WORKFLOW_CHECKLISTS.find(item => item.key === key);
+  if (!definition) {
+    throw planningError('Item de checklist inválido.', { statusCode: 400, code: 'PROJECT_WORKFLOW_CHECKLIST_INVALID' });
+  }
+  if (!checklistIsAvailable(workflow, definition)) {
+    throw planningError('Este item não pertence à etapa atual do projeto.', {
+      statusCode: 409,
+      code: 'PROJECT_WORKFLOW_CHECKLIST_STAGE_FORBIDDEN'
+    });
+  }
+  if (definition.areaRoles.length === 0) {
+    assertEditable(workflow, context);
+    return;
+  }
+  if (!canEditChecklist(workflow, definition, context)) {
+    throw planningError('A alteração deste item é restrita ao Líder, gestor ou área responsável.', {
+      statusCode: 403,
+      code: 'PROJECT_WORKFLOW_CHECKLIST_EDIT_FORBIDDEN'
     });
   }
 }
@@ -477,6 +525,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
   await runPlanningTransaction(database, async tx => {
     const workflow = await loadWorkflowForMutation(tx, projectId);
     if (payload.action === 'commercial_fact') assertCommercialEditable(workflow, context);
+    else if (payload.action === 'checklist') assertChecklistEditable(workflow, payload.key, context);
     else assertEditable(workflow, context);
     if (workflow.version !== payload.version) {
       throw conflictError('A gestão foi atualizada por outra pessoa. Recarregue os dados.', [], 'PROJECT_WORKFLOW_VERSION_CONFLICT');

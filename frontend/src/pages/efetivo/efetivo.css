@@ -1858,6 +1858,11 @@
 .project-workflow-overdue { color: var(--rd); }
 .project-workflow-card .project-workflow-commercial-badge { color: var(--rd); font-weight: 700; }
 .project-workflow-card .project-workflow-commercial-badge.is-released { color: var(--g); }
+.project-workflow-card .project-workflow-documentation-badge,
+.project-workflow-card .project-workflow-deadline-alert { color: var(--rd); font-weight: 700; }
+.project-workflow-card .project-workflow-documentation-badge.is-ok,
+.project-workflow-card .project-workflow-planning-badge { color: var(--g); font-weight: 700; }
+.project-workflow-card .project-workflow-documentation-badge.is-in_progress { color: var(--warning-text); }
 .project-workflow-pagination { align-items: center; display: flex; gap: 12px; justify-content: center; }
 
 .modal-card.efetivo-modal.project-workflow-modal {
@@ -1869,6 +1874,8 @@
 .project-workflow-status-block > div { background: var(--bg); border-radius: var(--rs); display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 10px; }
 .project-workflow-status-block span { color: var(--mu); font-size: 11px; text-transform: uppercase; }
 .project-workflow-status-block strong { overflow-wrap: anywhere; }
+.project-workflow-milestones { align-items: center; background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: var(--rs); display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 10px 12px; }
+.project-workflow-milestones span { color: var(--mu); min-width: 0; overflow-wrap: anywhere; }
 .project-workflow-form { border: 1px solid var(--br); border-radius: var(--r); display: flex; flex-direction: column; gap: 12px; padding: 12px; }
 .project-workflow-form > p { color: var(--mu); margin: 0; }
 .project-workflow-form-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1882,6 +1889,18 @@
 .project-workflow-section > header p { color: var(--mu); margin: 3px 0 0; overflow-wrap: anywhere; }
 .project-workflow-commercial { border-left: 4px solid var(--rd); }
 .project-workflow-commercial.is-released { border-left-color: var(--g); }
+.project-workflow-documentation { border-left: 4px solid var(--warning-border); }
+.project-workflow-documentation.is-ok { border-left-color: var(--g); }
+.project-workflow-documentation.is-critical { border-left-color: var(--rd); }
+.project-workflow-readiness-caption { align-items: center; display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: space-between; margin-top: -10px; padding: 0 12px; }
+.project-workflow-readiness-caption span { color: var(--mu); }
+.project-workflow-planning { border: 1px solid var(--br); border-radius: var(--r); display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.project-workflow-planning > header { align-items: start; display: flex; gap: 12px; justify-content: space-between; }
+.project-workflow-planning > header h4,
+.project-workflow-planning > header p { margin: 0; }
+.project-workflow-planning > header p { color: var(--mu); margin-top: 3px; }
+.project-workflow-planning-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.project-workflow-waiting { background: var(--bg); }
 .project-workflow-commercial-list { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .project-workflow-commercial-fact { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 10px; }
 .project-workflow-commercial-fact.is-crm { box-shadow: inset 3px 0 0 var(--g); }
@@ -1927,6 +1946,7 @@
   .project-workflow-form-grid.compact,
   .project-workflow-commercial-list,
   .project-workflow-commercial-fields,
+  .project-workflow-planning-grid,
   .project-workflow-check-item,
   .project-workflow-check-controls { grid-template-columns: minmax(0, 1fr); }
   .project-workflow-critical,

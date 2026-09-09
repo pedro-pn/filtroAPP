@@ -15,6 +15,8 @@ import {
   commercialFactIssues,
   handoverGateIssues,
   projectWorkflowCommercialReadiness,
+  projectWorkflowDocumentationReadiness,
+  projectWorkflowPlanningReadiness,
   projectWorkflowTransitionIssues
 } from '../src/lib/efetivo/project-workflow/rules.js';
 
@@ -91,11 +93,44 @@ test('transições não confundem marcos de prazo com colunas', () => {
 });
 
 test('marco D-30 usa datas civis e projetos curtos ficam imediatamente vencidos', () => {
-  assert.deepEqual(projectWorkflowMilestones('2026-10-09', '2026-09-09'), {
-    daysUntilMobilization: 30,
-    d30Date: '2026-09-09',
-    d30Due: true
+  const d30 = projectWorkflowMilestones('2026-10-09', '2026-09-09');
+  assert.equal(d30.daysUntilMobilization, 30);
+  assert.equal(d30.d30Date, '2026-09-09');
+  assert.equal(d30.d30Due, true);
+  assert.deepEqual(d30.dueMilestones, ['D90', 'D30']);
+  assert.equal(d30.nextMilestone.key, 'D15');
+  const short = projectWorkflowMilestones('2026-09-29', '2026-09-09');
+  assert.deepEqual(short.dueMilestones, ['D90', 'D30']);
+  assert.equal(short.nextMilestone.date, '2026-09-14');
+  const distant = projectWorkflowMilestones('2027-02-15', '2026-09-08');
+  assert.deepEqual(distant.dueMilestones, []);
+  assert.equal(distant.nextMilestone.key, 'D90');
+  assert.deepEqual(projectWorkflowMilestones(null, '2026-09-09').items, []);
+});
+
+test('documentação fica crítica perto da mobilização e OK quando resolvida', () => {
+  const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === 'ADVANCE_DOCUMENTATION');
+  const milestones = projectWorkflowMilestones('2026-09-20', '2026-09-09');
+  let readiness = projectWorkflowDocumentationReadiness({ checklists: [], issues: [] }, milestones, '2026-09-09');
+  assert.equal(readiness.status, 'CRITICAL');
+  assert.equal(readiness.total, 11);
+  const checklists = definitions.map(item => ({ key: item.key, status: 'DONE' }));
+  readiness = projectWorkflowDocumentationReadiness({ checklists, issues: [] }, milestones, '2026-09-09');
+  assert.equal(readiness.status, 'OK');
+  readiness = projectWorkflowDocumentationReadiness({
+    checklists,
+    issues: [{ id: 'issue-1', status: 'OPEN', criticality: 'HIGH', area: 'Administrativo/RH', dueDate: '2026-09-08', description: 'ASO vencido' }]
+  }, projectWorkflowMilestones('2027-02-15', '2026-09-09'), '2026-09-09');
+  assert.equal(readiness.status, 'CRITICAL');
+});
+
+test('progresso D-30 é calculado no total e por frente', () => {
+  const planning = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section.startsWith('D30_'));
+  const result = projectWorkflowPlanningReadiness({
+    checklists: planning.slice(0, 5).map(item => ({ key: item.key, status: 'DONE' }))
   });
-  assert.equal(projectWorkflowMilestones('2026-09-29', '2026-09-09').d30Due, true);
-  assert.equal(projectWorkflowMilestones('2027-02-15', '2026-09-08').d30Due, false);
+  assert.equal(result.total, 25);
+  assert.equal(result.completed, 5);
+  assert.equal(result.percentage, 20);
+  assert.deepEqual(result.sections.map(item => item.key), ['D30_TEAM', 'D30_EQUIPMENT', 'D30_MATERIALS', 'D30_LOGISTICS']);
 });

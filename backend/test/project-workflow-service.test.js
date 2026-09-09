@@ -148,6 +148,9 @@ const manager = { actorUserId: 'manager-1', isManager: true, user: { id: 'manage
 const leader = { actorUserId: 'leader-1', user: { id: 'leader-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:viewer'] } };
 const viewer = { actorUserId: 'viewer-1', user: { id: 'viewer-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:viewer'] } };
 const commercial = { actorUserId: 'commercial-1', user: { id: 'commercial-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:commercial'] } };
+const operations = { actorUserId: 'operations-1', user: { id: 'operations-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:operations'] } };
+const assets = { actorUserId: 'assets-1', user: { id: 'assets-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:assets'] } };
+const administrative = { actorUserId: 'administrative-1', user: { id: 'administrative-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:administrative'] } };
 
 test('gestor inicia handover sem programação de equipe e sem presumir aceite', async () => {
   const { database, state } = fakeDatabase();
@@ -322,4 +325,38 @@ test('oito fatos válidos liberam comercial sem mover a etapa', async () => {
   assert.equal(result.workflow.stage, 'HANDOVER');
   const list = await listProjectWorkflows({}, manager, { database });
   assert.equal(list.items[0].workflow.commercialReadiness.status, result.workflow.commercialReadiness.status);
+});
+
+test('áreas editam somente seus checklists e não obtêm poderes do Líder', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  let detail = await getProjectWorkflow('project-1', administrative, { database, now: new Date('2026-09-09T12:00:00Z') });
+  const documentItem = detail.workflow.checklists.find(item => item.key === 'DOCUMENT_CLIENT_REQUIREMENTS');
+  const handoverItem = detail.workflow.checklists.find(item => item.key === 'HANDOVER_WHATSAPP_GROUP');
+  assert.equal(documentItem.canEdit, true);
+  assert.equal(handoverItem.canEdit, false);
+  detail = await updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: documentItem.key, status: 'DONE' }, administrative, { database });
+  assert.equal(detail.workflow.documentationReadiness.completed, 1);
+  state.workflow.stage = 'MOBILIZATION_PLANNING';
+  detail = await updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'D30_TEAM_QUANTITY_CONFIRMED', status: 'DONE' }, operations, { database });
+  assert.equal(detail.workflow.planningReadiness.completed, 1);
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'checklist', version: 3, key: 'D30_EQUIPMENT_LIST_DEFINED', status: 'DONE' }, operations, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_CHECKLIST_EDIT_FORBIDDEN'
+  );
+  const assetsDetail = await updateProjectWorkflow('project-1', { action: 'checklist', version: 3, key: 'D30_EQUIPMENT_LIST_DEFINED', status: 'DONE' }, assets, { database });
+  assert.equal(assetsDetail.workflow.planningReadiness.completed, 2);
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'stage', version: 4, stage: 'WAITING_PLANNING' }, operations, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
+  );
+});
+
+test('checklist de outra etapa não pode ser antecipado por chamada direta', async () => {
+  const { database } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D30_TEAM_QUANTITY_CONFIRMED', status: 'DONE' }, manager, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_CHECKLIST_STAGE_FORBIDDEN'
+  );
 });

@@ -6,6 +6,7 @@ export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
 export type ProjectWorkflowCommercialFactStatus = 'PENDING' | 'CONFIRMED' | 'NOT_APPLICABLE';
 export type ProjectWorkflowCommercialFactSource = 'MANUAL' | 'CRM';
+export type ProjectWorkflowChecklistSection = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'ADVANCE_DOCUMENTATION' | 'D30_TEAM' | 'D30_EQUIPMENT' | 'D30_MATERIALS' | 'D30_LOGISTICS';
 
 export interface ProjectWorkflowPermissions {
   canInitialize: boolean;
@@ -25,6 +26,9 @@ export interface ProjectWorkflowProject {
 
 export interface ProjectWorkflowMilestones {
   daysUntilMobilization: number | null;
+  items: Array<{ key: string; label: string; days: number; date: string; due: boolean }>;
+  dueMilestones: string[];
+  nextMilestone: { key: string; label: string; days: number; date: string; due: boolean } | null;
   d30Date: string | null;
   d30Due: boolean;
 }
@@ -32,12 +36,29 @@ export interface ProjectWorkflowMilestones {
 export interface ProjectWorkflowChecklist {
   id?: string;
   key: string;
-  stage: ProjectWorkflowStage;
+  stage: ProjectWorkflowStage | null;
+  section: ProjectWorkflowChecklistSection;
+  areaRoles: string[];
   label: string;
   status: ProjectWorkflowChecklistStatus;
   note: string | null;
   updatedAt: string | null;
   updatedBy: { id: string; name: string } | null;
+  canEdit: boolean;
+}
+
+export interface ProjectWorkflowDocumentationReadiness {
+  status: 'OK' | 'IN_PROGRESS' | 'CRITICAL';
+  completed: number;
+  total: number;
+  blockers: Array<{ key: string; label: string; reason: string }>;
+}
+
+export interface ProjectWorkflowPlanningReadiness {
+  completed: number;
+  total: number;
+  percentage: number;
+  sections: Array<{ key: ProjectWorkflowChecklistSection; completed: number; total: number; percentage: number }>;
 }
 
 export interface ProjectWorkflowCriticalAnswer {
@@ -121,6 +142,8 @@ export interface ProjectWorkflow {
   criticalAnswers: ProjectWorkflowCriticalAnswer[];
   commercialFacts: ProjectWorkflowCommercialFact[];
   commercialReadiness: ProjectWorkflowCommercialReadiness;
+  documentationReadiness: ProjectWorkflowDocumentationReadiness;
+  planningReadiness: ProjectWorkflowPlanningReadiness;
   issues: ProjectWorkflowIssue[];
   events: ProjectWorkflowEvent[];
   milestones: ProjectWorkflowMilestones;
@@ -141,6 +164,8 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
     issueCount: number;
     overdueIssueCount: number;
     commercialReadiness: ProjectWorkflowCommercialReadiness;
+    documentationReadiness: ProjectWorkflowDocumentationReadiness;
+    planningReadiness: ProjectWorkflowPlanningReadiness;
   };
   permissions: ProjectWorkflowPermissions;
 }

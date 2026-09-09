@@ -40,3 +40,23 @@ test('detalhe mostra prontidão comercial e mantém ações de avanço no rodap�
   assert.match(board, /Comercial:/);
   assert.match(registry, /efetivo:commercial/);
 });
+
+test('documentação antecipada, D-30 e papéis de área aparecem nas superfícies da gestão', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
+  const administration = fs.readFileSync(new URL('../src/pages/efetivo/components/AdministrationBoard.tsx', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  const registry = fs.readFileSync(new URL('../../shared/modules/registry.json', import.meta.url), 'utf8');
+  assert.match(modal, /Documentação antecipada/);
+  assert.match(modal, /data-project-workflow-d30/);
+  assert.match(modal, /Aguardando D-30/);
+  assert.doesNotMatch(modal, /item\.stage === \(workflow\.stage === 'HANDOVER'/);
+  assert.match(board, /Documentação:/);
+  assert.match(board, /Prazos atingidos:/);
+  assert.match(administration, /EFETIVO_ADMINISTRATIVE/);
+  assert.match(styles, /project-workflow-planning-grid/);
+  assert.match(registry, /efetivo:operations/);
+  assert.match(registry, /efetivo:assets/);
+  assert.match(registry, /efetivo:supplies/);
+  assert.match(registry, /efetivo:administrative/);
+});

@@ -161,6 +161,24 @@ function ChecklistEditor({ item, version, saving, canEdit, onPatch }: {
   );
 }
 
+function WorkflowChecklistSection({ title, description, items, version, saving, onPatch, className = '' }: {
+  title: string;
+  description?: string;
+  items: ProjectWorkflowChecklist[];
+  version: number;
+  saving: boolean;
+  onPatch: (payload: ProjectWorkflowPatch) => void;
+  className?: string;
+}) {
+  const completed = items.filter(item => item.status !== 'PENDING').length;
+  return (
+    <section className={`project-workflow-section ${className}`.trim()}>
+      <header><div><h4>{title}</h4>{description ? <p>{description}</p> : null}</div><span>{completed}/{items.length}</span></header>
+      {items.map(item => <ChecklistEditor item={item} version={version} saving={saving} canEdit={item.canEdit} onPatch={onPatch} key={item.key} />)}
+    </section>
+  );
+}
+
 function CommercialFactEditor({ item, version, saving, canEdit, onPatch }: {
   item: ProjectWorkflowCommercialFact;
   version: number;
@@ -236,8 +254,23 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
 }) {
   if (typeof document === 'undefined' || (!detail && !loading && !error)) return null;
   const workflow = detail?.workflow || null;
-  const currentChecklists = workflow?.checklists.filter(item => item.stage === (workflow.stage === 'HANDOVER' ? 'HANDOVER' : 'INITIAL_ANALYSIS')) || [];
+  const stageChecklists = workflow?.checklists.filter(item => item.section === workflow.stage) || [];
+  const documentationChecklists = workflow?.checklists.filter(item => item.section === 'ADVANCE_DOCUMENTATION') || [];
+  const planningSections = [
+    ['D30_TEAM', 'Equipe'],
+    ['D30_EQUIPMENT', 'Equipamentos'],
+    ['D30_MATERIALS', 'Materiais e insumos'],
+    ['D30_LOGISTICS', 'Logística preliminar']
+  ] as const;
   const transitionOptions = workflow?.transitionOptions || [];
+  const nextMilestoneText = !workflow
+    ? '—'
+    : workflow.milestones.nextMilestone
+      ? `${workflow.milestones.nextMilestone.label} · ${displayDateOnly(workflow.milestones.nextMilestone.date)}`
+      : workflow.milestones.daysUntilMobilization == null ? 'Data não definida' : 'Marcos preventivos atingidos';
+  const documentationStatus = workflow?.documentationReadiness.status === 'OK'
+    ? '🟢 OK'
+    : workflow?.documentationReadiness.status === 'CRITICAL' ? '🔴 Crítica' : '🟡 Em andamento';
   const footerIssues = workflow?.stage === 'HANDOVER'
     ? (workflow.permissions.canAccept ? workflow.handoverGate.issues : [`Aguardando ${workflow.leader.name} assumir formalmente o projeto`])
     : (workflow?.permissions.canEdit
@@ -254,10 +287,16 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
               : <section className="placeholder-copy"><h4>Gestão ainda não iniciada</h4><p>O gestor do Efetivo precisa iniciar o handover e designar o Líder de Projetos.</p></section>
           ) : (
             <>
-              <section className="project-workflow-status-block"><div><span>Etapa atual</span><strong>{WORKFLOW_STAGE_LABELS[workflow.stage]}</strong></div><div><span>Líder</span><strong>{workflow.leader.name}</strong></div><div><span>Mobilização prevista</span><strong>{displayDateOnly(workflow.plannedMobilizationDate)}</strong></div><div><span>Próximo marco</span><strong>D-30 · {workflow.milestones.d30Date ? displayDateOnly(workflow.milestones.d30Date) : '—'}</strong></div></section>
+              <section className="project-workflow-status-block"><div><span>Etapa atual</span><strong>{WORKFLOW_STAGE_LABELS[workflow.stage]}</strong></div><div><span>Líder</span><strong>{workflow.leader.name}</strong></div><div><span>Mobilização prevista</span><strong>{displayDateOnly(workflow.plannedMobilizationDate)}</strong></div><div><span>Próximo marco</span><strong>{nextMilestoneText}</strong></div></section>
+              {workflow.milestones.dueMilestones.length ? <section className="project-workflow-milestones" aria-label="Marcos de mobilização atingidos"><strong>Atenção aos prazos</strong><span>{workflow.milestones.dueMilestones.map(key => key.replace('D', 'D-')).join(' · ')} já atingido(s); execute agora as verificações pendentes.</span></section> : null}
               <WorkflowSettingsForm detail={detail} leaders={leaders} saving={saving} onPatch={onPatch} />
               <section className={`project-workflow-section project-workflow-commercial is-${workflow.commercialReadiness.status.toLowerCase()}`} data-project-workflow-commercial><header><div><h4>Liberação comercial e contratual</h4><p>A análise e o planejamento podem continuar; pendências bloqueiam compra, contratação e mobilização.</p></div><span>{workflow.commercialReadiness.status === 'RELEASED' ? '🟢 Liberado' : `🔴 Não liberado · ${workflow.commercialReadiness.resolvedCount}/${workflow.commercialReadiness.totalCount}`}</span></header><div className="project-workflow-commercial-list">{workflow.commercialFacts.map(item => <CommercialFactEditor item={item} version={workflow.version} saving={saving} canEdit={workflow.permissions.canEditCommercial} onPatch={onPatch} key={item.key} />)}</div></section>
-              <section className="project-workflow-section"><header><h4>{workflow.stage === 'HANDOVER' ? 'Checklist do handover' : 'Checklist da análise inicial'}</h4><span>{currentChecklists.filter(item => item.status !== 'PENDING').length}/{currentChecklists.length}</span></header>{currentChecklists.map(item => <ChecklistEditor item={item} version={workflow.version} saving={saving} canEdit={workflow.permissions.canEdit} onPatch={onPatch} key={item.key} />)}</section>
+              {workflow.stage === 'HANDOVER' ? <WorkflowChecklistSection title="Checklist do handover" items={stageChecklists} version={workflow.version} saving={saving} onPatch={onPatch} /> : null}
+              {workflow.stage === 'INITIAL_ANALYSIS' ? <WorkflowChecklistSection title="Checklist da análise inicial" items={stageChecklists} version={workflow.version} saving={saving} onPatch={onPatch} /> : null}
+              {workflow.stage === 'WAITING_PLANNING' ? <section className="project-workflow-section project-workflow-waiting"><header><div><h4>🕐 Aguardando D-30</h4><p>A análise foi concluída. O sistema continua acompanhando itens críticos e documentação até o início do planejamento.</p></div><span>{workflow.milestones.d30Date ? displayDateOnly(workflow.milestones.d30Date) : 'Data não definida'}</span></header></section> : null}
+              <WorkflowChecklistSection title="Documentação antecipada" description="Requisitos do cliente, exames, treinamentos, certificações e regularização da equipe." items={documentationChecklists} version={workflow.version} saving={saving} onPatch={onPatch} className={`project-workflow-documentation is-${workflow.documentationReadiness.status.toLowerCase()}`} />
+              <div className="project-workflow-readiness-caption"><strong>Documentação para mobilização: {documentationStatus}</strong><span>{workflow.documentationReadiness.completed}/{workflow.documentationReadiness.total} itens resolvidos</span></div>
+              {workflow.stage === 'MOBILIZATION_PLANNING' ? <section className="project-workflow-planning" data-project-workflow-d30><header><div><h4>Planejamento da mobilização · D-30</h4><p>Previsões organizadas por área responsável.</p></div><strong>{workflow.planningReadiness.completed}/{workflow.planningReadiness.total} · {workflow.planningReadiness.percentage}%</strong></header><div className="project-workflow-planning-grid">{planningSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></section> : null}
               {workflow.stage !== 'HANDOVER' ? <section className="project-workflow-section"><header><h4>Itens críticos</h4><span>{workflow.criticalAnswers.filter(item => item.answer !== null).length}/{workflow.criticalAnswers.length}</span></header>{workflow.criticalAnswers.map(item => <article className="project-workflow-critical" key={item.key}><span>{item.label}</span><div><Button variant={item.answer === true ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => onPatch({ action: 'critical', version: workflow.version, key: item.key, answer: true })}>Sim</Button><Button variant={item.answer === false ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => onPatch({ action: 'critical', version: workflow.version, key: item.key, answer: false })}>Não</Button></div></article>)}</section> : null}
               {workflow.issues.length ? <section className="project-workflow-section"><header><h4>Pendências</h4><span>{workflow.issues.filter(item => item.status !== 'RESOLVED').length} abertas</span></header>{workflow.issues.map(issue => <IssueEditor issue={issue} version={workflow.version} saving={saving} canEdit={workflow.permissions.canEdit} onPatch={onPatch} key={issue.id} />)}</section> : null}
               {workflow.stage === 'MOBILIZATION_PLANNING' ? <a className="mini-btn project-workflow-planning-link" href={`/efetivo?section=missoes&search=${encodeURIComponent(detail.project.code)}`}>Abrir programação da equipe</a> : null}

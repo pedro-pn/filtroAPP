@@ -10,6 +10,13 @@ Liberação comercial/contratual e documentação antecipada são frentes parale
 
 A futura integração com CRM será a fonte dos fatos comerciais, enquanto o FiltroAPP continuará responsável pelas confirmações e decisões operacionais. A matriz detalhada de propriedade, contingência manual e impacto por entrega está em [crm-integration-dependencies.md](crm-integration-dependencies.md).
 
+## Estado de implementação em 09/09/2026
+
+- Entrega 016 concluída: registro mestre, quatro etapas iniciais, líder, aceite, checklists, itens críticos, pendências, auditoria e avanço explícito.
+- Entrega 017 concluída: liberação comercial manual preparada para CRM e papel Comercial restrito à sua frente.
+- Entrega 018 concluída: documentação antecipada, planejamento D-30 por área, papéis operacionais e marcos derivados D-90/D-30/D-15/D-7/D-1.
+- Próximo incremento: Preparação D-15, confirmações definitivas e gate “Pronto para mobilizar”, incluindo a autorização efetiva das saídas.
+
 ## Entrega 1 — Fundamentos e entrada em planejamento
 
 Implementar agora o recorte verificável em spec.md/tasks.md: gestão oficial vinculada ao Project, quatro etapas iniciais, líder/aceite, checklist do handover e análise, perguntas críticas e pendências com área, responsável, criticidade, prazo e status. Visão adicional em Evolução mantém programação operacional atual. D-30 calculado na tela; notificações automáticas ficam na entrega 2.

@@ -1,6 +1,8 @@
 export const PROJECT_WORKFLOW_STAGES: readonly ['HANDOVER', 'INITIAL_ANALYSIS', 'WAITING_PLANNING', 'MOBILIZATION_PLANNING'];
 export const PROJECT_WORKFLOW_STAGE_LABELS: Readonly<Record<(typeof PROJECT_WORKFLOW_STAGES)[number], string>>;
-export const PROJECT_WORKFLOW_CHECKLISTS: ReadonlyArray<{ key: string; stage: (typeof PROJECT_WORKFLOW_STAGES)[number]; label: string }>;
+export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS: readonly ['HANDOVER', 'INITIAL_ANALYSIS', 'ADVANCE_DOCUMENTATION', 'D30_TEAM', 'D30_EQUIPMENT', 'D30_MATERIALS', 'D30_LOGISTICS'];
+export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS: Readonly<Record<(typeof PROJECT_WORKFLOW_CHECKLIST_SECTIONS)[number], string>>;
+export const PROJECT_WORKFLOW_CHECKLISTS: ReadonlyArray<{ key: string; stage: (typeof PROJECT_WORKFLOW_STAGES)[number] | null; section: (typeof PROJECT_WORKFLOW_CHECKLIST_SECTIONS)[number]; label: string; areaRoles: string[] }>;
 export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS: ReadonlyArray<{ key: string; label: string; area: string; issueDescription: string }>;
 export const PROJECT_WORKFLOW_CHECKLIST_STATUSES: readonly ['PENDING', 'DONE', 'NOT_APPLICABLE'];
 export const PROJECT_WORKFLOW_ISSUE_STATUSES: readonly ['OPEN', 'IN_PROGRESS', 'RESOLVED'];
@@ -30,6 +32,9 @@ export function makeProjectWorkflowSchemas(z: typeof import('zod').z): {
 };
 export function projectWorkflowMilestones(plannedMobilizationDate: string | null, today: string): {
   daysUntilMobilization: number | null;
+  items: Array<{ key: string; label: string; days: number; date: string; due: boolean }>;
+  dueMilestones: string[];
+  nextMilestone: { key: string; label: string; days: number; date: string; due: boolean } | null;
   d30Date: string | null;
   d30Due: boolean;
 };
