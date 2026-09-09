@@ -2,7 +2,7 @@
 
 ## Finalidade e regra de publicação
 
-Este catálogo cobre os **126 modelos Prisma** existentes em `backend/prisma/schema.prisma` em 2026-09-04. Ele responde quais dados podem ser avaliados para endpoint, quais exigem revisão reforçada e quais nunca devem ser expostos por tokens desta funcionalidade.
+Este catálogo cobre os **127 modelos Prisma de negócio** existentes em `backend/prisma/schema.prisma` em 2026-09-09, excluindo os seis modelos da própria infraestrutura de credenciais de API. Ele responde quais dados podem ser avaliados para endpoint, quais exigem revisão reforçada e quais nunca devem ser expostos por tokens desta funcionalidade.
 
 Mapeamento não concede acesso. Um escopo só aparece habilitado no painel quando estiver `DISPONÍVEL` e possuir contrato versionado, projeção por allowlist, autorização, limites, auditoria e testes de concessão/negação.
 
@@ -17,6 +17,8 @@ Mapeamento não concede acesso. Um escopo só aparece habilitado no painel quand
 Quando um modelo mistura campos, a coluna descreve a classificação por subconjunto. Toda futura projeção deve listar os campos, nunca retornar o modelo integral.
 
 ## Matriz completa por domínio
+
+**Atualização 2026-09-09:** o histórico de faturamentos foi incluído no domínio Omie como SENSÍVEL, sem habilitar escopos ou endpoints de integração.
 
 **Atualização 2026-09-08:** a matriz abaixo preserva a classificação inicial de 2026-09-04. O primeiro subconjunto operacional (15 coleções, 12 escopos) está em [operational-read.md](operational-read.md); a expansão autorizada de relatórios, estoque e manutenção (13 coleções, 3 downloads e 16 escopos) está em [operational-expanded-read.md](operational-expanded-read.md). São 33 escopos disponíveis no total e 49 candidatos bloqueados. O catálogo executável marca somente os modelos/projeções contratados como disponíveis; disponibilidade não concede todos os campos de um modelo.
 
@@ -40,10 +42,10 @@ Quando um modelo mistura campos, a coluna descreve a classificação por subconj
 | 16 | **Autenticação e tokens internos** — `NotificationPreferenceToken`, `PasswordResetToken`, `EmailChangeToken`, `UserSession` | PROIBIDO | nenhum | nenhuma | todos os campos; nem hash, seletor, validade, sessão, e-mail pendente ou metadados viram endpoint de integração |
 | 17 | **Privacidade/LGPD** — `DataSubjectRequest`, `DataSubjectRequestResponseAttempt` | RESERVADO e SENSÍVEL; fora da API geral | eventual `privacidade.solicitacoes.read` somente após especificação jurídica própria | nenhuma na v1 | identidade/contato do titular, documento, prova, anexos, resposta, tentativas de entrega, IP/user-agent, justificativas e trilha completa |
 | 18 | **Comercial, orçamento e planejamento** — `CommercialProposal`, `AccessImport`, `ProjectBudget`, `ProjectAdditionalProposal`, `ProjectPlannedService`, `ProjectPlannedServiceSystem`, `ProjectPlannedNormalHours`, `ProjectPlannedOvertime` | Proposta/orçamento/horas/custos: SENSÍVEL; importação bruta: RESERVADO | `comercial.propostas.read`, `comercial.orcamentos.read`, `comercial.servicos-planejados.read`, `comercial.horas.read`, `comercial.contatos.read` | projeto, versão, estado, composição e valores somente conforme finalidade financeira | `rawRow`, arquivo/hash de importação, contato/e-mail/CNPJ sem escopo, observação livre, custo/margem sem escopo e identidade interna desnecessária |
-| 19 | **Integração Omie** — `OmieProject`, `OmieCategory`, `OmiePurchase`, `OmieReceivable` | Projetos/categorias: PLANEJADO; compras/recebíveis: SENSÍVEL | `omie.projetos.read`, `omie.categorias.read`, `omie.compras.read`, `omie.recebiveis.read` | IDs externos necessários, projeto/categoria, documento, datas, situação e valores com escopo financeiro | credencial Omie, payload bruto, logs técnicos, dados bancários/fiscais excessivos e contato sem finalidade |
+| 19 | **Integração Omie** — `OmieProject`, `OmieCategory`, `OmiePurchase`, `OmieReceivable`, `OmieInvoice` | Projetos/categorias: PLANEJADO; compras/recebíveis/faturamentos: SENSÍVEL | `omie.projetos.read`, `omie.categorias.read`, `omie.compras.read`, `omie.recebiveis.read` | IDs externos necessários, projeto/categoria, documento, datas, situação e valores com escopo financeiro | credencial Omie, payload bruto, logs técnicos, dados bancários/fiscais excessivos e contato sem finalidade |
 | 20 | **Assinaturas avulsas** — `SignatureDocument`, `SignatureDocumentSigner`, `SignatureDocumentField`, `SignatureDocumentAuditLog`, `SignatureDocumentFilePurge`, `SignatureDocumentCompletionNotification` | Documento/status/campos: SENSÍVEL; auditoria, purge e notificação: RESERVADO | `assinaturas.documentos.read`, `assinaturas.signatarios.read`, `assinaturas.campos.read`, `assinaturas.arquivos.download`, `assinaturas.auditoria.read` | título, estado, datas, signatários minimizados e definição de campos quando justificado | token/hash/cifra/IV/auth tag, assinatura desenhada, CPF/documento, IP/user-agent, caminho do arquivo, prova integral, erro e configuração de notificação |
 
-**Cobertura**: 7 + 4 + 11 + 10 + 7 + 12 + 8 + 14 + 5 + 4 + 5 + 6 + 3 + 4 + 2 + 4 + 2 + 8 + 4 + 6 = **126 modelos**.
+**Cobertura**: 7 + 4 + 11 + 10 + 7 + 12 + 8 + 14 + 5 + 4 + 5 + 6 + 3 + 4 + 2 + 4 + 2 + 8 + 5 + 6 = **127 modelos**.
 
 ## Famílias de endpoints candidatas
 
