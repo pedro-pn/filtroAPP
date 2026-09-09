@@ -243,6 +243,31 @@ enum EfetivoMissionStage {
   FINISHED
 }
 
+enum ProjectWorkflowStage {
+  HANDOVER
+  INITIAL_ANALYSIS
+  WAITING_PLANNING
+  MOBILIZATION_PLANNING
+}
+
+enum ProjectWorkflowChecklistStatus {
+  PENDING
+  DONE
+  NOT_APPLICABLE
+}
+
+enum ProjectWorkflowIssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum ProjectWorkflowCriticality {
+  HIGH
+  MEDIUM
+  LOW
+}
+
 enum EfetivoAllocationSource {
   MANUAL
   AUTOMATIC
@@ -871,6 +896,7 @@ model Project {
   pontoProjectTagAliases     PontoProjectTagAlias[]
   pontoDayProjectOverrides   PontoDayProjectOverride[]
   efetivoMissionPlans        EfetivoMissionPlan[]
+  workflow                   ProjectWorkflow?
 
   @@index([deletedAt])
   @@index([registrationPending])
@@ -908,6 +934,90 @@ model EfetivoPlan {
   @@index([kind, status])
   @@index([basePlanId])
   @@index([createdAt])
+}
+
+model ProjectWorkflow {
+  projectId               String               @id
+  stage                   ProjectWorkflowStage @default(HANDOVER)
+  leaderUserId            String
+  acceptedAt              DateTime?
+  plannedMobilizationDate DateTime             @db.Date
+  version                 Int                  @default(1)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  project                 Project              @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  leader                  User                 @relation("ProjectWorkflowLeader", fields: [leaderUserId], references: [id], onDelete: Restrict)
+  checklists              ProjectWorkflowChecklist[]
+  criticalAnswers         ProjectWorkflowCriticalAnswer[]
+  issues                  ProjectWorkflowIssue[]
+  events                  ProjectWorkflowEvent[]
+
+  @@index([stage, plannedMobilizationDate])
+  @@index([leaderUserId])
+}
+
+model ProjectWorkflowChecklist {
+  id              String                         @id @default(cuid())
+  projectId       String
+  key             String
+  status          ProjectWorkflowChecklistStatus @default(PENDING)
+  note            String?
+  updatedByUserId String?
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+  workflow        ProjectWorkflow                @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  updatedBy       User?                          @relation("ProjectWorkflowChecklistUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, key])
+  @@index([updatedByUserId])
+}
+
+model ProjectWorkflowCriticalAnswer {
+  id              String          @id @default(cuid())
+  projectId       String
+  key             String
+  answer          Boolean
+  updatedByUserId String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  workflow        ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  updatedBy       User?           @relation("ProjectWorkflowCriticalAnswerUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, key])
+  @@index([updatedByUserId])
+}
+
+model ProjectWorkflowIssue {
+  id             String                     @id @default(cuid())
+  projectId      String
+  sourceQuestion String?
+  description    String
+  area           String
+  ownerName      String?
+  requiredLeadTimeDays Int?
+  dueDate        DateTime?                  @db.Date
+  criticality    ProjectWorkflowCriticality @default(HIGH)
+  status         ProjectWorkflowIssueStatus @default(OPEN)
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  workflow       ProjectWorkflow            @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+
+  @@unique([projectId, sourceQuestion])
+  @@index([projectId, status, dueDate])
+}
+
+model ProjectWorkflowEvent {
+  id          String          @id @default(cuid())
+  projectId   String
+  actorUserId String?
+  action      String
+  data        Json?
+  createdAt   DateTime        @default(now())
+  workflow    ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  actor       User?           @relation("ProjectWorkflowEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([actorUserId])
 }
 
 model EfetivoMissionPlan {
@@ -1958,6 +2068,10 @@ model User {
   stockMovements                       StockMovement[]                     @relation("StockMovementCreator")
   projectManualCosts                   ProjectManualCost[]                 @relation("ProjectManualCostCreator")
   projectManagementNotes               ProjectManagementNote[]             @relation("ProjectManagementNoteCreator")
+  ledProjectWorkflows                  ProjectWorkflow[]                    @relation("ProjectWorkflowLeader")
+  updatedProjectWorkflowChecklists     ProjectWorkflowChecklist[]           @relation("ProjectWorkflowChecklistUpdater")
+  updatedProjectWorkflowCriticalAnswers ProjectWorkflowCriticalAnswer[]      @relation("ProjectWorkflowCriticalAnswerUpdater")
+  projectWorkflowEvents                ProjectWorkflowEvent[]               @relation("ProjectWorkflowEventActor")
   createdAcompanhamentoMissionGroups   AcompanhamentoMissionGroup[]        @relation("AcompanhamentoMissionGroupCreatedBy")
   dissolvedAcompanhamentoMissionGroups AcompanhamentoMissionGroup[]        @relation("AcompanhamentoMissionGroupDissolvedBy")
   createdQualityRecords                QualityRecord[]                     @relation("QualityRecordCreator")

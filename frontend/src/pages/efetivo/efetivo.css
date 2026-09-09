@@ -1781,3 +1781,130 @@
 
 .efetivo-panel-link:hover { text-decoration: underline; }
 .efetivo-utilization-card .efetivo-panel-link { align-self: flex-start; }
+
+/* Gestão do ciclo do projeto, preservando o Kanban operacional como visão complementar. */
+.project-workflow-view-switch {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 12px;
+  padding: 6px;
+}
+
+.project-workflow-view-switch button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--rs);
+  color: var(--mu);
+  cursor: pointer;
+  font-weight: 700;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.project-workflow-view-switch button.active { background: var(--g); color: var(--wh); }
+.project-workflow-toolbar { align-items: end; display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr) minmax(min(100%, 330px), .55fr); }
+.project-workflow-toolbar h2,
+.project-workflow-toolbar p { margin: 0; }
+.project-workflow-toolbar p { color: var(--mu); margin-top: 4px; }
+.project-workflow-toolbar .project-workflow-mobile-stage { display: none; }
+
+.project-workflow-columns {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(min(100%, 250px), 1fr));
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.project-workflow-column {
+  background: var(--bg);
+  border: 1px solid var(--br);
+  border-radius: var(--r);
+  display: flex;
+  flex-direction: column;
+  min-height: 280px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.project-workflow-column > header { align-items: center; display: flex; gap: 8px; justify-content: space-between; padding: 2px 2px 10px; }
+.project-workflow-column > header span { background: var(--wh); border: 1px solid var(--br); border-radius: 999px; font-size: 11px; padding: 2px 7px; }
+.project-workflow-card-list { display: flex; flex: 1; flex-direction: column; gap: 9px; max-height: 620px; min-width: 0; overflow-y: auto; }
+.project-workflow-card {
+  background: var(--wh);
+  border: 1px solid var(--br);
+  border-radius: var(--rs);
+  color: var(--tx);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 11px;
+  text-align: left;
+}
+.project-workflow-card:hover,
+.project-workflow-card.selected { border-color: var(--gl); box-shadow: inset 3px 0 0 var(--gl); }
+.project-workflow-card > strong,
+.project-workflow-card > span,
+.project-workflow-card > small,
+.project-workflow-card > em { max-width: 100%; overflow-wrap: anywhere; }
+.project-workflow-card > span:not(.efetivo-eyebrow),
+.project-workflow-card > small { color: var(--mu); }
+.project-workflow-card > em { color: var(--g); font-size: 12px; font-style: normal; font-weight: 700; }
+.project-workflow-card > em.is-overdue,
+.project-workflow-overdue { color: var(--rd); }
+.project-workflow-pagination { align-items: center; display: flex; gap: 12px; justify-content: center; }
+
+.modal-card.efetivo-modal.project-workflow-modal {
+  max-width: 1280px;
+  width: min(96vw, 1280px);
+}
+.project-workflow-modal-body { display: flex; flex-direction: column; gap: 16px; }
+.project-workflow-status-block { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.project-workflow-status-block > div { background: var(--bg); border-radius: var(--rs); display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 10px; }
+.project-workflow-status-block span { color: var(--mu); font-size: 11px; text-transform: uppercase; }
+.project-workflow-status-block strong { overflow-wrap: anywhere; }
+.project-workflow-form { border: 1px solid var(--br); border-radius: var(--r); display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+.project-workflow-form > p { color: var(--mu); margin: 0; }
+.project-workflow-form-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.project-workflow-form-grid.compact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.project-workflow-inline-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.project-workflow-section { border: 1px solid var(--br); border-radius: var(--r); display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+.project-workflow-section > header { align-items: center; display: flex; justify-content: space-between; }
+.project-workflow-section h4 { margin: 0; }
+.project-workflow-section > header span { color: var(--mu); }
+.project-workflow-check-item { align-items: start; border-top: 1px solid var(--br); display: grid; gap: 10px; grid-template-columns: minmax(180px, .9fr) minmax(0, 1.6fr); padding-top: 8px; }
+.project-workflow-check-controls { align-items: start; display: grid; gap: 6px; grid-template-columns: minmax(130px, .6fr) minmax(160px, 1fr) auto; min-width: 0; }
+.project-workflow-check-controls .field-group { margin: 0; }
+.project-workflow-critical { align-items: center; border-top: 1px solid var(--br); display: flex; gap: 10px; justify-content: space-between; padding-top: 9px; }
+.project-workflow-critical > span { min-width: 0; overflow-wrap: anywhere; }
+.project-workflow-critical > div { display: flex; flex: 0 0 auto; gap: 6px; }
+.project-workflow-issue { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+.project-workflow-issue.is-overdue { border-color: var(--rd); }
+.project-workflow-gate { align-items: center; background: var(--bg); border: 1px solid var(--br); border-radius: var(--r); display: flex; gap: 12px; justify-content: space-between; padding: 12px; }
+.project-workflow-gate p { color: var(--mu); margin: 4px 0 0; }
+.project-workflow-stage-actions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
+.project-workflow-planning-link { align-self: flex-start; text-decoration: none; }
+
+@media (max-width: 760px) {
+  .project-workflow-view-switch { grid-template-columns: minmax(0, 1fr); }
+  .project-workflow-toolbar { align-items: stretch; grid-template-columns: minmax(0, 1fr); }
+  .project-workflow-toolbar .project-workflow-mobile-stage { display: flex; }
+  .project-workflow-columns { display: block; overflow: visible; }
+  .project-workflow-column { display: none; min-height: 220px; }
+  .project-workflow-column.mobile-active { display: flex; }
+  .project-workflow-status-block,
+  .project-workflow-form-grid,
+  .project-workflow-form-grid.compact,
+  .project-workflow-check-item,
+  .project-workflow-check-controls { grid-template-columns: minmax(0, 1fr); }
+  .project-workflow-critical,
+  .project-workflow-gate { align-items: stretch; flex-direction: column; }
+  .project-workflow-critical > div,
+  .project-workflow-stage-actions { justify-content: stretch; }
+  .project-workflow-critical button,
+  .project-workflow-stage-actions button { flex: 1 1 auto; }
+}

@@ -23,6 +23,7 @@ import {
 } from '../../lib/efetivo/settings.js';
 import { requireAuth } from '../../middleware/auth.js';
 import efetivoPlanningRouter from '../efetivo-planning.js';
+import efetivoProjectWorkflowRouter from '../efetivo-project-workflow.js';
 
 const router = Router();
 
@@ -65,6 +66,7 @@ const absenceUpdateSchema = z.object({
 
 router.use(requireAuth);
 router.use('/planning', efetivoPlanningRouter);
+router.use('/project-workflow', efetivoProjectWorkflowRouter);
 
 router.get('/status', requireEfetivoViewer, (_req, res) => {
   res.json(efetivoStatus());
