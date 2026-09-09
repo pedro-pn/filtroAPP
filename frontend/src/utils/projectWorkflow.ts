@@ -25,6 +25,8 @@ export function projectWorkflowMilestoneText(item: ProjectWorkflowSummary) {
 export function projectWorkflowStageOptions(stage: ProjectWorkflowStage) {
   if (stage === 'INITIAL_ANALYSIS') return ['WAITING_PLANNING', 'MOBILIZATION_PLANNING'] as ProjectWorkflowStage[];
   if (stage === 'WAITING_PLANNING') return ['INITIAL_ANALYSIS', 'MOBILIZATION_PLANNING'] as ProjectWorkflowStage[];
-  if (stage === 'MOBILIZATION_PLANNING') return ['INITIAL_ANALYSIS', 'WAITING_PLANNING'] as ProjectWorkflowStage[];
+  if (stage === 'MOBILIZATION_PLANNING') return ['INITIAL_ANALYSIS', 'WAITING_PLANNING', 'PREPARATION'] as ProjectWorkflowStage[];
+  if (stage === 'PREPARATION') return ['MOBILIZATION_PLANNING', 'READY_TO_MOBILIZE'] as ProjectWorkflowStage[];
+  if (stage === 'READY_TO_MOBILIZE') return ['PREPARATION'] as ProjectWorkflowStage[];
   return [];
 }

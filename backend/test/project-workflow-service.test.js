@@ -151,6 +151,7 @@ const commercial = { actorUserId: 'commercial-1', user: { id: 'commercial-1', ac
 const operations = { actorUserId: 'operations-1', user: { id: 'operations-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:operations'] } };
 const assets = { actorUserId: 'assets-1', user: { id: 'assets-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:assets'] } };
 const administrative = { actorUserId: 'administrative-1', user: { id: 'administrative-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:administrative'] } };
+const qsms = { actorUserId: 'qsms-1', user: { id: 'qsms-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:qsms'] } };
 
 test('gestor inicia handover sem programação de equipe e sem presumir aceite', async () => {
   const { database, state } = fakeDatabase();
@@ -358,5 +359,98 @@ test('checklist de outra etapa não pode ser antecipado por chamada direta', asy
   await assert.rejects(
     updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D30_TEAM_QUANTITY_CONFIRMED', status: 'DONE' }, manager, { database }),
     error => error.code === 'PROJECT_WORKFLOW_CHECKLIST_STAGE_FORBIDDEN'
+  );
+});
+
+function makeStateReadyForMobilization(state) {
+  state.workflow.stage = 'PREPARATION';
+  state.workflow.acceptedAt = new Date('2026-09-01T12:00:00Z');
+  state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS
+    .filter(item => item.section === 'ADVANCE_DOCUMENTATION' || item.section.startsWith('D15_'))
+    .filter(item => !state.checklists.some(existing => existing.key === item.key))
+    .map(item => ({ id: `check-${item.key}`, projectId: 'project-1', key: item.key, status: 'DONE' })));
+  state.commercialFacts.push(...PROJECT_WORKFLOW_COMMERCIAL_FACTS.map(item => ({
+    id: `fact-${item.key}`,
+    projectId: 'project-1',
+    key: item.key,
+    status: 'CONFIRMED',
+    source: 'MANUAL',
+    occurredOn: new Date('2026-09-09T00:00:00Z'),
+    reference: item.evidence === 'reference' ? 'REF-1' : null,
+    note: item.evidence === 'note' ? 'Condição definida' : null
+  })));
+}
+
+test('D-30 completo permite entrar em Preparação', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  state.workflow.stage = 'MOBILIZATION_PLANNING';
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'PREPARATION' }, leader, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_STAGE_BLOCKED'
+  );
+  state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS
+    .filter(item => item.section.startsWith('D30_'))
+    .map(item => ({ id: `check-${item.key}`, projectId: 'project-1', key: item.key, status: 'DONE' })));
+  const result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'PREPARATION' }, leader, { database });
+  assert.equal(result.workflow.stage, 'PREPARATION');
+  assert.equal(result.workflow.preparationReadiness.total, 39);
+});
+
+test('QSMS edita sua frente sem avançar a etapa', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  state.workflow.stage = 'PREPARATION';
+  const result = await updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D15_QSMS_REQUIREMENTS_CHECKED', status: 'DONE' }, qsms, { database });
+  assert.equal(result.workflow.preparationReadiness.completed, 1);
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'D15_EQUIPMENT_TESTED', status: 'DONE' }, qsms, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_CHECKLIST_EDIT_FORBIDDEN'
+  );
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'MOBILIZATION_PLANNING' }, qsms, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
+  );
+});
+
+test('gate verde emite autorização versionada e alteração posterior a suspende', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  makeStateReadyForMobilization(state);
+  let result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'READY_TO_MOBILIZE' }, leader, {
+    database,
+    now: new Date('2026-09-09T18:00:00Z')
+  });
+  assert.equal(result.workflow.stage, 'READY_TO_MOBILIZE');
+  assert.equal(result.workflow.mobilizationAuthorization.status, 'AUTHORIZED');
+  assert.equal(result.workflow.mobilizationAuthorization.authorizedVersion, 2);
+  result = await updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'D15_EQUIPMENT_TESTED', status: 'PENDING' }, assets, { database });
+  assert.equal(result.workflow.mobilizationAuthorization.status, 'SUSPENDED');
+  assert.equal(result.workflow.mobilizationGate.ready, false);
+  result = await updateProjectWorkflow('project-1', { action: 'checklist', version: 3, key: 'D15_EQUIPMENT_TESTED', status: 'DONE' }, assets, { database });
+  assert.equal(result.workflow.mobilizationGate.ready, true);
+  assert.equal(result.workflow.mobilizationAuthorization.status, 'SUSPENDED');
+  result = await updateProjectWorkflow('project-1', { action: 'authorize_mobilization', version: 4 }, leader, {
+    database,
+    now: new Date('2026-09-10T09:00:00Z')
+  });
+  assert.equal(result.workflow.mobilizationAuthorization.status, 'AUTHORIZED');
+  assert.equal(result.workflow.mobilizationAuthorization.authorizedVersion, 5);
+  assert.equal(state.events.at(-1).action, 'WORKFLOW_AUTHORIZE_MOBILIZATION');
+});
+
+test('gate bloqueado impede autorização e papel de área não pode revalidar', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-10' }, manager, { database });
+  makeStateReadyForMobilization(state);
+  state.checklists = state.checklists.filter(item => item.key !== 'D15_MATERIALS_FILTERS_SEPARATED');
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'READY_TO_MOBILIZE' }, leader, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_STAGE_BLOCKED'
+  );
+  state.workflow.stage = 'READY_TO_MOBILIZE';
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'authorize_mobilization', version: 1 }, operations, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
   );
 });

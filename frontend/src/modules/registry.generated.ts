@@ -579,7 +579,8 @@ export const moduleRegistry = [
         "efetivo:operations",
         "efetivo:assets",
         "efetivo:supplies",
-        "efetivo:administrative"
+        "efetivo:administrative",
+        "efetivo:qsms"
       ],
       "path": "/efetivo"
     },
@@ -602,7 +603,8 @@ export const moduleRegistry = [
           "efetivo:operations",
           "efetivo:assets",
           "efetivo:supplies",
-          "efetivo:administrative"
+          "efetivo:administrative",
+          "efetivo:qsms"
         ]
       }
     },
@@ -665,6 +667,15 @@ export const moduleRegistry = [
         "code": "EFETIVO_ADMINISTRATIVE",
         "public": "efetivo:administrative",
         "label": "Efetivo Operacional - Administrativo/RH",
+        "accountTypes": [
+          "ADMIN",
+          "INTERNAL"
+        ]
+      },
+      {
+        "code": "EFETIVO_QSMS",
+        "public": "efetivo:qsms",
+        "label": "Efetivo Operacional - QSMS",
         "accountTypes": [
           "ADMIN",
           "INTERNAL"

@@ -34,6 +34,7 @@ const admin = { accountType: 'ADMIN', moduleRoles: [] };
 const commercial = { accountType: 'INTERNAL', moduleRoles: ['efetivo:commercial'] };
 const operations = { accountType: 'INTERNAL', moduleRoles: ['efetivo:operations'] };
 const administrative = { accountType: 'INTERNAL', moduleRoles: ['efetivo:administrative'] };
+const qsms = { accountType: 'INTERNAL', moduleRoles: ['efetivo:qsms'] };
 
 test('viewer lê o indicador, mas não passa pelos guards das rotas de escrita', () => {
   assert.equal(runGuard(requireEfetivoViewer, viewer).nextCalled, true);
@@ -56,6 +57,8 @@ test('papéis de área acessam o módulo e editam somente as seções correspond
   assert.equal(canEditEfetivoChecklistArea(operations, ['efetivo:operations']), true);
   assert.equal(canEditEfetivoChecklistArea(operations, ['efetivo:assets']), false);
   assert.equal(canEditEfetivoChecklistArea(administrative, ['efetivo:administrative']), true);
+  assert.equal(runGuard(requireEfetivoViewer, qsms).nextCalled, true);
+  assert.equal(canEditEfetivoChecklistArea(qsms, ['efetivo:qsms']), true);
 });
 
 test('somente manager do Efetivo ou admin altera referência e função operacional', () => {

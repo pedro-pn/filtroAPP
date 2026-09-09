@@ -1812,8 +1812,9 @@
 .project-workflow-columns {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(4, minmax(min(100%, 250px), 1fr));
+  grid-template-columns: repeat(6, minmax(230px, 1fr));
   min-width: 0;
+  width: 100%;
   overflow-x: auto;
   padding-bottom: 8px;
 }
@@ -1861,8 +1862,13 @@
 .project-workflow-card .project-workflow-documentation-badge,
 .project-workflow-card .project-workflow-deadline-alert { color: var(--rd); font-weight: 700; }
 .project-workflow-card .project-workflow-documentation-badge.is-ok,
-.project-workflow-card .project-workflow-planning-badge { color: var(--g); font-weight: 700; }
+.project-workflow-card .project-workflow-planning-badge,
+.project-workflow-card .project-workflow-preparation-badge,
+.project-workflow-card .project-workflow-authorization-badge.is-authorized { color: var(--g); font-weight: 700; }
 .project-workflow-card .project-workflow-documentation-badge.is-in_progress { color: var(--warning-text); }
+.project-workflow-card .project-workflow-mobilization-risk,
+.project-workflow-card .project-workflow-authorization-badge.is-suspended { color: var(--rd); font-weight: 700; }
+.project-workflow-card .project-workflow-mobilization-risk.is-attention { color: var(--warning-text); }
 .project-workflow-pagination { align-items: center; display: flex; gap: 12px; justify-content: center; }
 
 .modal-card.efetivo-modal.project-workflow-modal {
@@ -1876,6 +1882,10 @@
 .project-workflow-status-block strong { overflow-wrap: anywhere; }
 .project-workflow-milestones { align-items: center; background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: var(--rs); display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 10px 12px; }
 .project-workflow-milestones span { color: var(--mu); min-width: 0; overflow-wrap: anywhere; }
+.project-workflow-deadline-risk { align-items: center; border: 1px solid; border-radius: var(--rs); display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 10px 12px; }
+.project-workflow-deadline-risk span { color: var(--mu); }
+.project-workflow-deadline-risk.is-attention { background: var(--warning-bg); border-color: var(--warning-border); }
+.project-workflow-deadline-risk.is-risk { background: var(--danger-bg, #fff2f2); border-color: var(--rd); }
 .project-workflow-form { border: 1px solid var(--br); border-radius: var(--r); display: flex; flex-direction: column; gap: 12px; padding: 12px; }
 .project-workflow-form > p { color: var(--mu); margin: 0; }
 .project-workflow-form-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1927,6 +1937,27 @@
 .project-workflow-issue.is-overdue { border-color: var(--rd); }
 .project-workflow-gate { align-items: center; background: var(--bg); border: 1px solid var(--br); border-radius: var(--r); display: flex; gap: 12px; justify-content: space-between; padding: 12px; }
 .project-workflow-gate p { color: var(--mu); margin: 4px 0 0; }
+.project-workflow-gate-panel { border: 2px solid var(--rd); border-radius: var(--r); display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.project-workflow-gate-panel.is-authorized { border-color: var(--g); }
+.project-workflow-gate-panel > header { align-items: start; display: flex; gap: 12px; justify-content: space-between; }
+.project-workflow-gate-panel > header h4,
+.project-workflow-gate-panel > header p { margin: 0; }
+.project-workflow-gate-panel > header p { color: var(--mu); margin-top: 3px; }
+.project-workflow-gate-panel > header > strong { flex: 0 0 auto; text-align: right; }
+.project-workflow-gate-table { border: 1px solid var(--br); border-radius: var(--rs); overflow: hidden; }
+.project-workflow-gate-table-head,
+.project-workflow-gate-row { align-items: center; display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) minmax(120px, .35fr) minmax(80px, .2fr); padding: 8px 10px; }
+.project-workflow-gate-table-head { background: var(--bg); color: var(--mu); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.project-workflow-gate-row + .project-workflow-gate-row { border-top: 1px solid var(--br); }
+.project-workflow-gate-row .is-ready { color: var(--g); font-weight: 700; }
+.project-workflow-gate-row .is-blocked { color: var(--rd); font-weight: 700; }
+.project-workflow-pre-job-status { align-items: center; background: var(--bg); border-radius: var(--rs); display: flex; justify-content: space-between; padding: 9px 10px; }
+.project-workflow-pre-job-status.is-ready { color: var(--g); }
+.project-workflow-pre-job-status.is-blocked { color: var(--rd); }
+.project-workflow-gate-panel details { border-top: 1px solid var(--br); padding-top: 10px; }
+.project-workflow-gate-panel summary { cursor: pointer; font-weight: 700; }
+.project-workflow-gate-panel details ul { margin-bottom: 0; padding-left: 20px; }
+.project-workflow-gate-panel > small { color: var(--mu); }
 .project-workflow-stage-actions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
 .project-workflow-planning-link { align-self: flex-start; text-decoration: none; }
 .project-workflow-modal-footer { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
@@ -1950,7 +1981,12 @@
   .project-workflow-check-item,
   .project-workflow-check-controls { grid-template-columns: minmax(0, 1fr); }
   .project-workflow-critical,
-  .project-workflow-gate { align-items: stretch; flex-direction: column; }
+  .project-workflow-gate,
+  .project-workflow-gate-panel > header { align-items: stretch; flex-direction: column; }
+  .project-workflow-gate-panel > header > strong { text-align: left; }
+  .project-workflow-gate-table-head { display: none; }
+  .project-workflow-gate-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .project-workflow-gate-row span:last-child { grid-column: 1 / -1; }
   .project-workflow-critical > div,
   .project-workflow-stage-actions { justify-content: stretch; }
   .project-workflow-critical button,

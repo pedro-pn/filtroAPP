@@ -603,7 +603,8 @@
           "efetivo:operations",
           "efetivo:assets",
           "efetivo:supplies",
-          "efetivo:administrative"
+          "efetivo:administrative",
+          "efetivo:qsms"
         ],
         "path": "/efetivo"
       },
@@ -626,7 +627,8 @@
             "efetivo:operations",
             "efetivo:assets",
             "efetivo:supplies",
-            "efetivo:administrative"
+            "efetivo:administrative",
+            "efetivo:qsms"
           ]
         }
       },
@@ -689,6 +691,15 @@
           "code": "EFETIVO_ADMINISTRATIVE",
           "public": "efetivo:administrative",
           "label": "Efetivo Operacional - Administrativo/RH",
+          "accountTypes": [
+            "ADMIN",
+            "INTERNAL"
+          ]
+        },
+        {
+          "code": "EFETIVO_QSMS",
+          "public": "efetivo:qsms",
+          "label": "Efetivo Operacional - QSMS",
           "accountTypes": [
             "ADMIN",
             "INTERNAL"

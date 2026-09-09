@@ -1,12 +1,12 @@
 import { apiClient, type ApiClientError } from './client';
 
-export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING';
+export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE';
 export type ProjectWorkflowChecklistStatus = 'PENDING' | 'DONE' | 'NOT_APPLICABLE';
 export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
 export type ProjectWorkflowCommercialFactStatus = 'PENDING' | 'CONFIRMED' | 'NOT_APPLICABLE';
 export type ProjectWorkflowCommercialFactSource = 'MANUAL' | 'CRM';
-export type ProjectWorkflowChecklistSection = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'ADVANCE_DOCUMENTATION' | 'D30_TEAM' | 'D30_EQUIPMENT' | 'D30_MATERIALS' | 'D30_LOGISTICS';
+export type ProjectWorkflowChecklistSection = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'ADVANCE_DOCUMENTATION' | 'D30_TEAM' | 'D30_EQUIPMENT' | 'D30_MATERIALS' | 'D30_LOGISTICS' | 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS';
 
 export interface ProjectWorkflowPermissions {
   canInitialize: boolean;
@@ -14,6 +14,7 @@ export interface ProjectWorkflowPermissions {
   canAccept: boolean;
   canChangeLeader: boolean;
   canEditCommercial: boolean;
+  canAuthorizeMobilization: boolean;
 }
 
 export interface ProjectWorkflowProject {
@@ -59,6 +60,40 @@ export interface ProjectWorkflowPlanningReadiness {
   total: number;
   percentage: number;
   sections: Array<{ key: ProjectWorkflowChecklistSection; completed: number; total: number; percentage: number }>;
+}
+
+export type ProjectWorkflowPreparationReadiness = ProjectWorkflowPlanningReadiness;
+
+export interface ProjectWorkflowMobilizationGateBlocker {
+  key: string;
+  label: string;
+  reason: string;
+  front: string;
+}
+
+export interface ProjectWorkflowMobilizationGateFront {
+  key: string;
+  label: string;
+  status: 'READY' | 'BLOCKED';
+  completed: number;
+  total: number;
+  blockers: Array<Omit<ProjectWorkflowMobilizationGateBlocker, 'front'>>;
+}
+
+export interface ProjectWorkflowMobilizationGate {
+  ready: boolean;
+  fronts: ProjectWorkflowMobilizationGateFront[];
+  preJob: ProjectWorkflowMobilizationGateFront;
+  blockers: ProjectWorkflowMobilizationGateBlocker[];
+  deadlineStatus: 'READY' | 'RISK' | 'ATTENTION' | 'PENDING';
+}
+
+export interface ProjectWorkflowMobilizationAuthorization {
+  status: 'NOT_AUTHORIZED' | 'AUTHORIZED' | 'SUSPENDED';
+  authorized: boolean;
+  authorizedAt: string | null;
+  authorizedVersion: number | null;
+  currentVersion: number;
 }
 
 export interface ProjectWorkflowCriticalAnswer {
@@ -144,6 +179,9 @@ export interface ProjectWorkflow {
   commercialReadiness: ProjectWorkflowCommercialReadiness;
   documentationReadiness: ProjectWorkflowDocumentationReadiness;
   planningReadiness: ProjectWorkflowPlanningReadiness;
+  preparationReadiness: ProjectWorkflowPreparationReadiness;
+  mobilizationGate: ProjectWorkflowMobilizationGate;
+  mobilizationAuthorization: ProjectWorkflowMobilizationAuthorization;
   issues: ProjectWorkflowIssue[];
   events: ProjectWorkflowEvent[];
   milestones: ProjectWorkflowMilestones;
@@ -166,6 +204,9 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
     commercialReadiness: ProjectWorkflowCommercialReadiness;
     documentationReadiness: ProjectWorkflowDocumentationReadiness;
     planningReadiness: ProjectWorkflowPlanningReadiness;
+    preparationReadiness: ProjectWorkflowPreparationReadiness;
+    mobilizationGate: ProjectWorkflowMobilizationGate;
+    mobilizationAuthorization: ProjectWorkflowMobilizationAuthorization;
   };
   permissions: ProjectWorkflowPermissions;
 }
@@ -183,6 +224,7 @@ export type ProjectWorkflowPatch =
   | { action: 'issue'; version: number; issueId: string; description: string; area: string; ownerName: string | null; requiredLeadTimeDays: number | null; dueDate: string | null; criticality: ProjectWorkflowCriticality; status: ProjectWorkflowIssueStatus }
   | { action: 'accept'; version: number }
   | { action: 'stage'; version: number; stage: ProjectWorkflowStage }
+  | { action: 'authorize_mobilization'; version: number }
   | { action: 'commercial_fact'; version: number; key: string; status: ProjectWorkflowCommercialFactStatus; reference?: string | null; note?: string | null; occurredOn?: string | null };
 
 const base = '/efetivo/project-workflow';

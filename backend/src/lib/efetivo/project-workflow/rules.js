@@ -132,6 +132,117 @@ export function projectWorkflowPlanningReadiness(workflow) {
   };
 }
 
+export function projectWorkflowPreparationReadiness(workflow) {
+  const sectionKeys = ['D15_TEAM', 'D15_CLIENT', 'D15_EQUIPMENT', 'D15_MATERIALS', 'D15_PRE_JOB', 'D15_TRAVEL', 'D15_QSMS'];
+  const sections = sectionKeys.map(key => {
+    const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
+    return { key, ...checklistProgress(workflow, definitions) };
+  });
+  const completed = sections.reduce((sum, section) => sum + section.completed, 0);
+  const total = sections.reduce((sum, section) => sum + section.total, 0);
+  return {
+    completed,
+    total,
+    percentage: total ? Math.round((completed / total) * 100) : 0,
+    sections
+  };
+}
+
+function readinessFromDefinitions(workflow, key, label, definitions, extraBlockers = []) {
+  const byKey = new Map((workflow?.checklists || []).map(item => [item.key, item]));
+  const pending = definitions.filter(definition => !resolvedChecklist(byKey.get(definition.key)));
+  const blockers = [
+    ...pending.map(item => ({ key: item.key, label: item.label, reason: 'Pendente' })),
+    ...extraBlockers
+  ];
+  return {
+    key,
+    label,
+    status: blockers.length ? 'BLOCKED' : 'READY',
+    completed: definitions.length - pending.length,
+    total: definitions.length,
+    blockers
+  };
+}
+
+function checklistDefinitions({ sections = [], keys = [] }) {
+  const keySet = new Set(keys);
+  return PROJECT_WORKFLOW_CHECKLISTS.filter(item => sections.includes(item.section) || keySet.has(item.key));
+}
+
+export function projectWorkflowMobilizationGate(workflow, milestones = null, today = null) {
+  const commercial = projectWorkflowCommercialReadiness(workflow);
+  const documentation = projectWorkflowDocumentationReadiness(workflow, milestones, today);
+  const commercialFront = {
+    key: 'COMMERCIAL',
+    label: 'Comercial',
+    status: commercial.status === 'RELEASED' ? 'READY' : 'BLOCKED',
+    completed: commercial.resolvedCount,
+    total: commercial.totalCount,
+    blockers: (commercial.blockers || []).map(item => ({ key: item.key, label: item.label, reason: item.reasons.join(' · ') }))
+  };
+  const teamDefinitions = checklistDefinitions({
+    sections: ['D15_TEAM'],
+    keys: ['D15_CLIENT_TEAM_RELEASED']
+  });
+  const documentDefinitions = checklistDefinitions({
+    sections: ['ADVANCE_DOCUMENTATION'],
+    keys: [
+      'D15_TEAM_INDIVIDUAL_DOCUMENTS_CHECKED',
+      'D15_TEAM_EXAMS_RELEASED',
+      'D15_TEAM_TRAININGS_RELEASED',
+      'D15_CLIENT_REGISTRATION_REQUESTED',
+      'D15_CLIENT_DOCUMENTS_SENT',
+      'D15_CLIENT_INTEGRATION_SCHEDULED'
+    ]
+  });
+  const fronts = [
+    commercialFront,
+    readinessFromDefinitions(workflow, 'TEAM', 'Equipe', teamDefinitions),
+    readinessFromDefinitions(workflow, 'DOCUMENTATION', 'Documentação', documentDefinitions,
+      documentation.blockers.filter(item => !documentDefinitions.some(definition => definition.key === item.key))),
+    readinessFromDefinitions(workflow, 'EQUIPMENT', 'Equipamentos', checklistDefinitions({ sections: ['D15_EQUIPMENT'] })),
+    readinessFromDefinitions(workflow, 'MATERIALS', 'Materiais', checklistDefinitions({ sections: ['D15_MATERIALS'] })),
+    readinessFromDefinitions(workflow, 'QSMS', 'QSMS', checklistDefinitions({ sections: ['D15_QSMS'] })),
+    readinessFromDefinitions(workflow, 'LODGING', 'Hospedagem', checklistDefinitions({ keys: ['D15_TRAVEL_LODGING_REQUESTED', 'D15_TRAVEL_LODGING_CONFIRMED'] })),
+    readinessFromDefinitions(workflow, 'LOGISTICS', 'Logística', checklistDefinitions({ keys: ['D15_TRAVEL_TEAM_TRANSPORT_DEFINED', 'D15_TRAVEL_FREIGHT_REQUESTED', 'D15_TRAVEL_COMPANY_TRUCK_RESERVED', 'D15_TRAVEL_DEPARTURE_CONFIRMED'] })),
+    readinessFromDefinitions(workflow, 'CLIENT', 'Cliente', checklistDefinitions({ sections: ['D15_CLIENT'] }))
+  ];
+  const preJob = readinessFromDefinitions(workflow, 'PRE_JOB', 'Pré-job', checklistDefinitions({ sections: ['D15_PRE_JOB'] }));
+  const criticalIssues = (workflow?.issues || []).filter(issue => issue.status !== 'RESOLVED' && issue.criticality === 'HIGH');
+  const rawBlockers = [
+    ...fronts.flatMap(front => front.blockers.map(blocker => ({ ...blocker, front: front.key }))),
+    ...preJob.blockers.map(blocker => ({ ...blocker, front: preJob.key })),
+    ...criticalIssues.map(issue => ({ key: issue.id, label: issue.description, reason: 'Pendência crítica aberta', front: 'CRITICAL_ISSUES' }))
+  ];
+  const blockers = [...new Map(rawBlockers.map(blocker => [blocker.key, blocker])).values()];
+  const ready = fronts.every(front => front.status === 'READY') && preJob.status === 'READY' && criticalIssues.length === 0;
+  const deadlineStatus = ready
+    ? 'READY'
+    : milestones?.dueMilestones?.includes('D1') ? 'RISK'
+      : milestones?.dueMilestones?.includes('D7') ? 'ATTENTION' : 'PENDING';
+  return { ready, fronts, preJob, blockers, deadlineStatus };
+}
+
+export function projectWorkflowMobilizationAuthorization(workflow, gate) {
+  const authorizedAt = workflow?.mobilizationAuthorizedAt || null;
+  const authorizedVersion = workflow?.mobilizationAuthorizationVersion ?? null;
+  const currentVersion = workflow?.version ?? null;
+  const authorized = Boolean(
+    authorizedAt
+    && workflow?.stage === 'READY_TO_MOBILIZE'
+    && gate?.ready
+    && authorizedVersion === currentVersion
+  );
+  return {
+    status: authorized ? 'AUTHORIZED' : authorizedAt ? 'SUSPENDED' : 'NOT_AUTHORIZED',
+    authorized,
+    authorizedAt,
+    authorizedVersion,
+    currentVersion
+  };
+}
+
 export function incompleteChecklistLabels(workflow, stage) {
   const answered = answeredChecklistKeys(workflow, stage);
   return PROJECT_WORKFLOW_CHECKLISTS
@@ -163,13 +274,21 @@ export function analysisGateIssues(workflow) {
   return issues;
 }
 
+export function planningGateIssues(workflow) {
+  const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section.startsWith('D30_'));
+  const byKey = new Map((workflow?.checklists || []).map(item => [item.key, item]));
+  return definitions.filter(item => !resolvedChecklist(byKey.get(item.key))).map(item => item.label);
+}
+
 export function allowedProjectWorkflowTransition(current, target) {
   if (current === target) return false;
   const transitions = {
     HANDOVER: [],
     INITIAL_ANALYSIS: ['WAITING_PLANNING', 'MOBILIZATION_PLANNING'],
     WAITING_PLANNING: ['INITIAL_ANALYSIS', 'MOBILIZATION_PLANNING'],
-    MOBILIZATION_PLANNING: ['INITIAL_ANALYSIS', 'WAITING_PLANNING']
+    MOBILIZATION_PLANNING: ['INITIAL_ANALYSIS', 'WAITING_PLANNING', 'PREPARATION'],
+    PREPARATION: ['MOBILIZATION_PLANNING', 'READY_TO_MOBILIZE'],
+    READY_TO_MOBILIZE: ['PREPARATION']
   };
   return transitions[current]?.includes(target) || false;
 }
@@ -179,6 +298,10 @@ export function projectWorkflowTransitionIssues(workflow, target) {
   if (target === 'WAITING_PLANNING' || target === 'MOBILIZATION_PLANNING') {
     if (!workflow.acceptedAt) return ['O Líder de Projetos ainda não aceitou o handover'];
     return analysisGateIssues(workflow);
+  }
+  if (target === 'PREPARATION' && workflow.stage === 'MOBILIZATION_PLANNING') return planningGateIssues(workflow);
+  if (target === 'READY_TO_MOBILIZE') {
+    return projectWorkflowMobilizationGate(workflow).blockers.map(item => `${item.label}: ${item.reason}`);
   }
   return [];
 }

@@ -2,14 +2,18 @@ export const PROJECT_WORKFLOW_STAGES = [
   'HANDOVER',
   'INITIAL_ANALYSIS',
   'WAITING_PLANNING',
-  'MOBILIZATION_PLANNING'
+  'MOBILIZATION_PLANNING',
+  'PREPARATION',
+  'READY_TO_MOBILIZE'
 ];
 
 export const PROJECT_WORKFLOW_STAGE_LABELS = {
   HANDOVER: 'Handover comercial',
   INITIAL_ANALYSIS: 'Análise inicial',
   WAITING_PLANNING: 'Aguardando planejamento',
-  MOBILIZATION_PLANNING: 'Planejamento da mobilização'
+  MOBILIZATION_PLANNING: 'Planejamento da mobilização',
+  PREPARATION: 'Preparação',
+  READY_TO_MOBILIZE: 'Pronto para mobilizar'
 };
 
 export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
@@ -19,7 +23,14 @@ export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
   'D30_TEAM',
   'D30_EQUIPMENT',
   'D30_MATERIALS',
-  'D30_LOGISTICS'
+  'D30_LOGISTICS',
+  'D15_TEAM',
+  'D15_CLIENT',
+  'D15_EQUIPMENT',
+  'D15_MATERIALS',
+  'D15_PRE_JOB',
+  'D15_TRAVEL',
+  'D15_QSMS'
 ];
 
 export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
@@ -29,7 +40,14 @@ export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
   D30_TEAM: 'Equipe',
   D30_EQUIPMENT: 'Equipamentos',
   D30_MATERIALS: 'Materiais e insumos',
-  D30_LOGISTICS: 'Logística preliminar'
+  D30_LOGISTICS: 'Logística preliminar',
+  D15_TEAM: 'Equipe definitiva',
+  D15_CLIENT: 'Cliente e liberações',
+  D15_EQUIPMENT: 'Equipamentos',
+  D15_MATERIALS: 'Materiais',
+  D15_PRE_JOB: 'Pré-job',
+  D15_TRAVEL: 'Viagem e logística',
+  D15_QSMS: 'QSMS'
 };
 
 const checklist = (key, stage, section, label, areaRoles = []) => ({ key, stage, section, label, areaRoles });
@@ -94,7 +112,53 @@ export const PROJECT_WORKFLOW_CHECKLISTS = [
   checklist('D30_LOGISTICS_FREIGHT_IDENTIFIED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Necessidade de frete identificada', ['efetivo:operations']),
   checklist('D30_LOGISTICS_LODGING_DEFINED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Necessidade de hospedagem definida', ['efetivo:operations']),
   checklist('D30_LOGISTICS_PEOPLE_DAYS_ESTIMATED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Quantidade de pessoas e dias estimada', ['efetivo:operations']),
-  checklist('D30_LOGISTICS_DEPARTURE_DEFINED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Data prevista de saída definida', ['efetivo:operations'])
+  checklist('D30_LOGISTICS_DEPARTURE_DEFINED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Data prevista de saída definida', ['efetivo:operations']),
+
+  checklist('D15_TEAM_DEFINITIVE_CONFIRMED', 'PREPARATION', 'D15_TEAM', 'Equipe definitiva confirmada com o Gerente de Operações', ['efetivo:operations']),
+  checklist('D15_TEAM_COLLABORATORS_NOTIFIED', 'PREPARATION', 'D15_TEAM', 'Colaboradores comunicados', ['efetivo:operations']),
+  checklist('D15_TEAM_INDIVIDUAL_DOCUMENTS_CHECKED', 'PREPARATION', 'D15_TEAM', 'Documentação individual conferida', ['efetivo:administrative']),
+  checklist('D15_TEAM_EXAMS_RELEASED', 'PREPARATION', 'D15_TEAM', 'Exames liberados', ['efetivo:administrative']),
+  checklist('D15_TEAM_TRAININGS_RELEASED', 'PREPARATION', 'D15_TEAM', 'Treinamentos liberados', ['efetivo:administrative']),
+
+  checklist('D15_CLIENT_ATTENDANCE_CONFIRMED', 'PREPARATION', 'D15_CLIENT', 'Cliente confirmou o atendimento', ['efetivo:operations']),
+  checklist('D15_CLIENT_REGISTRATION_REQUESTED', 'PREPARATION', 'D15_CLIENT', 'Cadastro no cliente solicitado', ['efetivo:administrative']),
+  checklist('D15_CLIENT_DOCUMENTS_SENT', 'PREPARATION', 'D15_CLIENT', 'Documentação enviada ao cliente', ['efetivo:administrative']),
+  checklist('D15_CLIENT_INTEGRATION_SCHEDULED', 'PREPARATION', 'D15_CLIENT', 'Integração solicitada ou agendada', ['efetivo:administrative']),
+  checklist('D15_CLIENT_TEAM_RELEASED', 'PREPARATION', 'D15_CLIENT', 'Equipe liberada pelo cliente', ['efetivo:administrative', 'efetivo:operations']),
+
+  checklist('D15_EQUIPMENT_RESERVED', 'PREPARATION', 'D15_EQUIPMENT', 'Equipamentos definitivamente reservados', ['efetivo:assets']),
+  checklist('D15_EQUIPMENT_AVAILABLE_AT_BASE', 'PREPARATION', 'D15_EQUIPMENT', 'Equipamentos disponíveis na sede na data necessária', ['efetivo:assets']),
+  checklist('D15_EQUIPMENT_MAINTENANCE_DONE', 'PREPARATION', 'D15_EQUIPMENT', 'Manutenção realizada', ['efetivo:assets']),
+  checklist('D15_EQUIPMENT_TESTED', 'PREPARATION', 'D15_EQUIPMENT', 'Equipamentos testados', ['efetivo:assets']),
+  checklist('D15_EQUIPMENT_CERTIFICATES_VALID', 'PREPARATION', 'D15_EQUIPMENT', 'Certificados e calibrações válidos', ['efetivo:assets']),
+  checklist('D15_EQUIPMENT_ACCESSORIES_SEPARATED', 'PREPARATION', 'D15_EQUIPMENT', 'Acessórios separados', ['efetivo:assets']),
+  checklist('D15_EQUIPMENT_PRE_MOBILIZATION_CHECKED', 'PREPARATION', 'D15_EQUIPMENT', 'Checklist pré-mobilização realizado', ['efetivo:assets']),
+
+  checklist('D15_MATERIALS_SUPPLIES_RECEIVED', 'PREPARATION', 'D15_MATERIALS', 'Insumos recebidos', ['efetivo:supplies']),
+  checklist('D15_MATERIALS_QUANTITIES_CHECKED', 'PREPARATION', 'D15_MATERIALS', 'Quantidades conferidas', ['efetivo:supplies']),
+  checklist('D15_MATERIALS_SEPARATED', 'PREPARATION', 'D15_MATERIALS', 'Materiais separados', ['efetivo:supplies']),
+  checklist('D15_MATERIALS_CHEMICALS_SEPARATED', 'PREPARATION', 'D15_MATERIALS', 'Produtos químicos separados', ['efetivo:supplies']),
+  checklist('D15_MATERIALS_FILTERS_SEPARATED', 'PREPARATION', 'D15_MATERIALS', 'Filtros separados', ['efetivo:supplies']),
+  checklist('D15_MATERIALS_CONSUMABLES_SEPARATED', 'PREPARATION', 'D15_MATERIALS', 'Consumíveis separados', ['efetivo:supplies']),
+
+  checklist('D15_PRE_JOB_SCHEDULED', 'PREPARATION', 'D15_PRE_JOB', 'Pré-job agendado', ['efetivo:operations']),
+  checklist('D15_PRE_JOB_SCOPE_PRESENTED', 'PREPARATION', 'D15_PRE_JOB', 'Escopo apresentado à equipe', ['efetivo:operations']),
+  checklist('D15_PRE_JOB_PROPOSAL_REVIEWED', 'PREPARATION', 'D15_PRE_JOB', 'Proposta técnica e escopo revisados com a equipe', ['efetivo:operations']),
+  checklist('D15_PRE_JOB_RESPONSIBILITIES_EXPLAINED', 'PREPARATION', 'D15_PRE_JOB', 'Responsabilidades explicadas', ['efetivo:operations']),
+  checklist('D15_PRE_JOB_CRITICAL_POINTS_EXPLAINED', 'PREPARATION', 'D15_PRE_JOB', 'Pontos críticos explicados', ['efetivo:operations']),
+  checklist('D15_PRE_JOB_SCHEDULE_PRESENTED', 'PREPARATION', 'D15_PRE_JOB', 'Cronograma apresentado', ['efetivo:operations']),
+  checklist('D15_PRE_JOB_RISKS_PRESENTED', 'PREPARATION', 'D15_PRE_JOB', 'Riscos e particularidades apresentados', ['efetivo:operations', 'efetivo:qsms']),
+  checklist('D15_PRE_JOB_FIELD_LEAD_DEFINED', 'PREPARATION', 'D15_PRE_JOB', 'Responsável de campo definido', ['efetivo:operations']),
+
+  checklist('D15_TRAVEL_LODGING_REQUESTED', 'PREPARATION', 'D15_TRAVEL', 'Hospedagem solicitada ao Administrativo', ['efetivo:administrative']),
+  checklist('D15_TRAVEL_LODGING_CONFIRMED', 'PREPARATION', 'D15_TRAVEL', 'Hospedagem confirmada', ['efetivo:administrative']),
+  checklist('D15_TRAVEL_TEAM_TRANSPORT_DEFINED', 'PREPARATION', 'D15_TRAVEL', 'Transporte da equipe definido', ['efetivo:operations']),
+  checklist('D15_TRAVEL_FREIGHT_REQUESTED', 'PREPARATION', 'D15_TRAVEL', 'Frete solicitado', ['efetivo:operations']),
+  checklist('D15_TRAVEL_COMPANY_TRUCK_RESERVED', 'PREPARATION', 'D15_TRAVEL', 'Caminhão próprio reservado, quando aplicável', ['efetivo:operations']),
+  checklist('D15_TRAVEL_DEPARTURE_CONFIRMED', 'PREPARATION', 'D15_TRAVEL', 'Data e hora da saída confirmadas', ['efetivo:operations']),
+
+  checklist('D15_QSMS_REQUIREMENTS_CHECKED', 'PREPARATION', 'D15_QSMS', 'Requisitos de QSMS verificados', ['efetivo:qsms']),
+  checklist('D15_QSMS_RELEASE_CONFIRMED', 'PREPARATION', 'D15_QSMS', 'Liberação de QSMS confirmada, quando aplicável', ['efetivo:qsms'])
 ];
 
 export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS = [
@@ -226,10 +290,11 @@ export function makeProjectWorkflowSchemas(z) {
     version,
     stage: z.enum(PROJECT_WORKFLOW_STAGES)
   }).strict();
+  const authorizeMobilization = z.object({ action: z.literal('authorize_mobilization'), version }).strict();
   const commercialFact = makeProjectWorkflowCommercialFactSchema(z);
   return {
     start,
-    patch: z.discriminatedUnion('action', [settings, checklist, critical, issue, accept, stage, commercialFact]),
+    patch: z.discriminatedUnion('action', [settings, checklist, critical, issue, accept, stage, authorizeMobilization, commercialFact]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

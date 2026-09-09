@@ -15,7 +15,10 @@ import {
   normalizeProjectWorkflowCommercialFacts,
   projectWorkflowCommercialReadiness,
   projectWorkflowDocumentationReadiness,
+  projectWorkflowMobilizationAuthorization,
+  projectWorkflowMobilizationGate,
   projectWorkflowPlanningReadiness,
+  projectWorkflowPreparationReadiness,
   projectWorkflowTransitionIssues
 } from './rules.js';
 
@@ -84,7 +87,8 @@ function canEditCommercial(workflow, context) {
 }
 
 function checklistIsAvailable(workflow, definition) {
-  return definition?.stage == null || definition.stage === workflow?.stage;
+  if (definition?.stage == null || definition.stage === workflow?.stage) return true;
+  return definition?.stage === 'PREPARATION' && workflow?.stage === 'READY_TO_MOBILIZE';
 }
 
 function canEditChecklist(workflow, definition, context) {
@@ -101,7 +105,8 @@ function publicPermissions(workflow, context) {
     canEdit: Boolean(workflow && (manager || isLeader)),
     canAccept: Boolean(workflow && isLeader && !workflow.acceptedAt && workflow.stage === 'HANDOVER'),
     canChangeLeader: Boolean(workflow && manager),
-    canEditCommercial: canEditCommercial(workflow, context)
+    canEditCommercial: canEditCommercial(workflow, context),
+    canAuthorizeMobilization: Boolean(workflow && (manager || isLeader) && workflow.stage === 'READY_TO_MOBILIZE')
   };
 }
 
@@ -139,6 +144,9 @@ function decorateWorkflow(workflow, context, now) {
   }));
   const documentationReadiness = projectWorkflowDocumentationReadiness({ checklists, issues }, milestones, today);
   const planningReadiness = projectWorkflowPlanningReadiness({ checklists });
+  const preparationReadiness = projectWorkflowPreparationReadiness({ checklists });
+  const mobilizationGate = projectWorkflowMobilizationGate({ ...workflow, checklists, commercialFacts, issues }, milestones, today);
+  const mobilizationAuthorization = projectWorkflowMobilizationAuthorization(workflow, mobilizationGate);
   const permissions = publicPermissions(workflow, context);
   const transitionOptions = PROJECT_WORKFLOW_STAGES
     .filter(stage => allowedProjectWorkflowTransition(workflow.stage, stage))
@@ -158,6 +166,9 @@ function decorateWorkflow(workflow, context, now) {
     commercialReadiness,
     documentationReadiness,
     planningReadiness,
+    preparationReadiness,
+    mobilizationGate,
+    mobilizationAuthorization,
     issues,
     milestones,
     permissions,
@@ -240,6 +251,9 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
       const milestones = workflow ? projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), todayKey(now)) : null;
       const documentationReadiness = workflow ? projectWorkflowDocumentationReadiness(workflow, milestones, todayKey(now)) : null;
       const planningReadiness = workflow ? projectWorkflowPlanningReadiness(workflow) : null;
+      const preparationReadiness = workflow ? projectWorkflowPreparationReadiness(workflow) : null;
+      const mobilizationGate = workflow ? projectWorkflowMobilizationGate(workflow, milestones, todayKey(now)) : null;
+      const mobilizationAuthorization = workflow ? projectWorkflowMobilizationAuthorization(workflow, mobilizationGate) : null;
       return {
         ...project,
         workflow: workflow ? {
@@ -259,7 +273,10 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
             blockedOperations: commercialReadiness.blockedOperations
           } : null,
           documentationReadiness,
-          planningReadiness
+          planningReadiness,
+          preparationReadiness,
+          mobilizationGate,
+          mobilizationAuthorization
         } : null,
         permissions: publicPermissions(workflow, context)
       };
@@ -508,7 +525,7 @@ async function applyAccept(tx, workflow, context, now) {
   });
 }
 
-async function applyStage(tx, workflow, payload) {
+async function applyStage(tx, workflow, payload, now) {
   const issues = projectWorkflowTransitionIssues(workflow, payload.stage);
   if (issues.length) {
     throw planningError('Não é possível avançar para esta etapa.', {
@@ -516,7 +533,37 @@ async function applyStage(tx, workflow, payload) {
       issues: issues.map(message => ({ message }))
     });
   }
-  await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data: { stage: payload.stage } });
+  const data = { stage: payload.stage };
+  if (payload.stage === 'READY_TO_MOBILIZE') {
+    data.mobilizationAuthorizedAt = now;
+    data.mobilizationAuthorizationVersion = workflow.version + 1;
+  } else if (workflow.stage === 'READY_TO_MOBILIZE') {
+    data.mobilizationAuthorizedAt = null;
+    data.mobilizationAuthorizationVersion = null;
+  }
+  await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data });
+}
+
+async function applyMobilizationAuthorization(tx, workflow, now) {
+  if (workflow.stage !== 'READY_TO_MOBILIZE') {
+    throw planningError('A mobilização só pode ser autorizada na etapa Pronto para mobilizar.', {
+      code: 'PROJECT_WORKFLOW_READY_STAGE_REQUIRED'
+    });
+  }
+  const gate = projectWorkflowMobilizationGate(workflow);
+  if (!gate.ready) {
+    throw planningError('Existem bloqueios no gate de mobilização.', {
+      code: 'PROJECT_WORKFLOW_MOBILIZATION_BLOCKED',
+      issues: gate.blockers.map(item => ({ message: `${item.label}: ${item.reason}` }))
+    });
+  }
+  await tx.projectWorkflow.update({
+    where: { projectId: workflow.projectId },
+    data: {
+      mobilizationAuthorizedAt: now,
+      mobilizationAuthorizationVersion: workflow.version + 1
+    }
+  });
 }
 
 export async function updateProjectWorkflow(projectId, payload, context = {}, dependencies = {}) {
@@ -536,7 +583,8 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'critical') await applyCriticalAnswer(tx, workflow, payload, context);
     else if (payload.action === 'issue') await applyIssue(tx, workflow, payload);
     else if (payload.action === 'accept') await applyAccept(tx, workflow, context, now);
-    else if (payload.action === 'stage') await applyStage(tx, workflow, payload);
+    else if (payload.action === 'stage') await applyStage(tx, workflow, payload, now);
+    else if (payload.action === 'authorize_mobilization') await applyMobilizationAuthorization(tx, workflow, now);
     else if (payload.action === 'commercial_fact') await applyCommercialFact(tx, workflow, payload, context);
     const eventData = { ...payload };
     delete eventData.version;

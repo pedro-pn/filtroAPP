@@ -15,7 +15,8 @@ A futura integração com CRM será a fonte dos fatos comerciais, enquanto o Fil
 - Entrega 016 concluída: registro mestre, quatro etapas iniciais, líder, aceite, checklists, itens críticos, pendências, auditoria e avanço explícito.
 - Entrega 017 concluída: liberação comercial manual preparada para CRM e papel Comercial restrito à sua frente.
 - Entrega 018 concluída: documentação antecipada, planejamento D-30 por área, papéis operacionais e marcos derivados D-90/D-30/D-15/D-7/D-1.
-- Próximo incremento: Preparação D-15, confirmações definitivas e gate “Pronto para mobilizar”, incluindo a autorização efetiva das saídas.
+- Entrega 019 concluída: Preparação D-15 por área, gate consolidado em nove frentes, autorização versionada, suspensão por alteração e alertas D-7/D-1.
+- Próximo incremento: ativação controlada dos bloqueios operacionais e início do acompanhamento da execução, preservando a classificação dos projetos existentes.
 
 ## Entrega 1 — Fundamentos e entrada em planejamento
 

@@ -14,7 +14,8 @@ const EFETIVO_ROLE_LABELS: Record<string, string> = {
   EFETIVO_OPERATIONS: 'Operações',
   EFETIVO_ASSETS: 'Ativos',
   EFETIVO_SUPPLIES: 'Suprimentos',
-  EFETIVO_ADMINISTRATIVE: 'Administrativo/RH'
+  EFETIVO_ADMINISTRATIVE: 'Administrativo/RH',
+  EFETIVO_QSMS: 'QSMS'
 };
 
 function JobRoleRow({ role, canManage, onSaved }: { role: PlanningJobRole; canManage: boolean; onSaved: () => void }) {

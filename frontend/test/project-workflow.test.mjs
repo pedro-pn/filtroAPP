@@ -17,6 +17,8 @@ test('projetos sem gestão entram visualmente no Handover', () => {
 
 test('ações de etapa não transformam D-30 em coluna', () => {
   assert.deepEqual(projectWorkflowStageOptions('INITIAL_ANALYSIS'), ['WAITING_PLANNING', 'MOBILIZATION_PLANNING']);
+  assert.deepEqual(projectWorkflowStageOptions('MOBILIZATION_PLANNING'), ['INITIAL_ANALYSIS', 'WAITING_PLANNING', 'PREPARATION']);
+  assert.deepEqual(projectWorkflowStageOptions('PREPARATION'), ['MOBILIZATION_PLANNING', 'READY_TO_MOBILIZE']);
   assert.equal(projectWorkflowMilestoneText({ workflow: { milestones: { daysUntilMobilization: 20 } } }), 'Faltam 20 dia(s)');
 });
 
@@ -59,4 +61,22 @@ test('documentação antecipada, D-30 e papéis de área aparecem nas superfíci
   assert.match(registry, /efetivo:assets/);
   assert.match(registry, /efetivo:supplies/);
   assert.match(registry, /efetivo:administrative/);
+});
+
+test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
+  const administration = fs.readFileSync(new URL('../src/pages/efetivo/components/AdministrationBoard.tsx', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  const registry = fs.readFileSync(new URL('../../shared/modules/registry.json', import.meta.url), 'utf8');
+  assert.match(modal, /data-project-workflow-d15/);
+  assert.match(modal, /data-project-workflow-gate/);
+  assert.match(modal, /Autorizar mobilização/);
+  assert.match(modal, /Revalidar autorização/);
+  assert.match(board, /Risco de mobilização/);
+  assert.match(board, /Mobilização autorizada/);
+  assert.match(administration, /EFETIVO_QSMS/);
+  assert.match(styles, /repeat\(6, minmax\(230px, 1fr\)\)/);
+  assert.match(styles, /project-workflow-gate-table/);
+  assert.match(registry, /efetivo:qsms/);
 });

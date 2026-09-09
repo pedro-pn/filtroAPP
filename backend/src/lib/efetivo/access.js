@@ -8,7 +8,8 @@ export const EFETIVO_ACCESS_ROLES = [
   'efetivo:operations',
   'efetivo:assets',
   'efetivo:supplies',
-  'efetivo:administrative'
+  'efetivo:administrative',
+  'efetivo:qsms'
 ];
 
 export function isEfetivoManager(user) {
