@@ -146,13 +146,6 @@ export const operationalReportInputSchema = z
           message: "Descreva as atividades do dia.",
         });
       }
-      if (!data.maintenanceRecords.length) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["maintenanceRecords"],
-          message: "Adicione ao menos uma manutenção.",
-        });
-      }
       if (data.chemicalCleanings.length) {
         ctx.addIssue({
           code: "custom",

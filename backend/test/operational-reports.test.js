@@ -38,7 +38,7 @@ const baseReport = {
   chemicalCleanings: [],
 };
 
-test("maintenance report requires cards and production requires chemical cleanings", () => {
+test("maintenance report allows no cards and production requires chemical cleanings", () => {
   assert.equal(
     operationalReportInputSchema.safeParse(baseReport).success,
     true,
@@ -48,7 +48,14 @@ test("maintenance report requires cards and production requires chemical cleanin
       ...baseReport,
       maintenanceRecords: [],
     }).success,
-    false,
+    true,
+  );
+  assert.deepEqual(
+    operationalReportInputSchema.parse({
+      ...baseReport,
+      maintenanceRecords: undefined,
+    }).maintenanceRecords,
+    [],
   );
 
   const production = {
@@ -78,6 +85,7 @@ test("maintenance report requires cards and production requires chemical cleanin
     operationalReportInputSchema.safeParse({
       ...baseReport,
       dailyDescription: "",
+      maintenanceRecords: [],
     }).success,
     false,
   );
@@ -90,6 +98,28 @@ test("maintenance report requires cards and production requires chemical cleanin
     }).success,
     false,
   );
+});
+
+test("added maintenance cards and standalone maintenance still require equipment and services", () => {
+  for (const card of [
+    { ...maintenanceCard, equipmentId: "" },
+    { ...maintenanceCard, selectedServiceIds: [] },
+  ]) {
+    assert.equal(
+      operationalReportInputSchema.safeParse({
+        ...baseReport,
+        maintenanceRecords: [card],
+      }).success,
+      false,
+    );
+    assert.equal(
+      maintenanceInputSchema.safeParse({
+        ...card,
+        maintenanceDate: baseReport.reportDate,
+      }).success,
+      false,
+    );
+  }
 });
 
 test("other material and third-party rows validate conditional required fields", () => {
