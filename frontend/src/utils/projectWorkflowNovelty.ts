@@ -1,6 +1,6 @@
 export const PROJECT_WORKFLOW_NOVELTY_IMPLEMENTED_AT = '2026-09-09';
 const EXPIRES_AT = new Date('2026-09-19T23:59:59-03:00').getTime();
-const PREFIX = 'filtrovali:project-workflow-novelty:v1:';
+const PREFIX = 'filtrovali:project-workflow-novelty:v2:';
 
 export function shouldShowProjectWorkflowNovelty(userId: string, now = Date.now()) {
   if (!userId || now > EXPIRES_AT) return false;

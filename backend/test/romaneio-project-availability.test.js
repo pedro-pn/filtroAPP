@@ -44,6 +44,9 @@ test('Saída lista gerenciado autorizado e legado ativo', () => {
   }, 'OUTBOUND'), false);
   assert.equal(romaneioProjectAvailableForType({ id: 'legacy-active', isActive: true, workflow: null }, 'OUTBOUND'), true);
   assert.equal(romaneioProjectAvailableForType({ id: 'legacy-finished', isActive: false, workflow: null }, 'OUTBOUND'), false);
+  assert.equal(romaneioProjectAvailableForType({
+    id: 'managed-executing', isActive: true, workflow: authorizedWorkflow({ projectId: 'managed-executing', stage: 'EXECUTION' })
+  }, 'OUTBOUND'), true);
 });
 
 test('Entrada aceita gerenciado bloqueado e legado concluído', () => {

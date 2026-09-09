@@ -200,6 +200,19 @@ test('autorização exige gate verde, etapa pronta e a mesma versão', () => {
   assert.equal(projectWorkflowMobilizationAuthorization(workflow, gate).status, 'NOT_AUTHORIZED');
 });
 
+test('autorização vigente continua válida durante a execução', () => {
+  const workflow = readyMobilizationWorkflow({
+    stage: 'EXECUTION',
+    version: 12,
+    mobilizationAuthorizedAt: new Date('2026-09-09T18:00:00Z'),
+    mobilizationAuthorizationVersion: 12
+  });
+  const gate = projectWorkflowMobilizationGate(workflow);
+  assert.equal(projectWorkflowMobilizationAuthorization(workflow, gate).status, 'AUTHORIZED');
+  assert.equal(allowedProjectWorkflowTransition('READY_TO_MOBILIZE', 'EXECUTION'), true);
+  assert.equal(allowedProjectWorkflowTransition('EXECUTION', 'READY_TO_MOBILIZE'), true);
+});
+
 test('transições incluem Preparação e Pronto para mobilizar', () => {
   assert.equal(allowedProjectWorkflowTransition('MOBILIZATION_PLANNING', 'PREPARATION'), true);
   assert.equal(allowedProjectWorkflowTransition('PREPARATION', 'READY_TO_MOBILIZE'), true);
@@ -207,4 +220,16 @@ test('transições incluem Preparação e Pronto para mobilizar', () => {
   assert.equal(allowedProjectWorkflowTransition('PREPARATION', 'INITIAL_ANALYSIS'), false);
   const workflow = readyMobilizationWorkflow();
   assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'READY_TO_MOBILIZE'), []);
+});
+
+test('entrada em execução exige autorização vigente', () => {
+  const workflow = readyMobilizationWorkflow({
+    stage: 'READY_TO_MOBILIZE',
+    version: 11,
+    mobilizationAuthorizedAt: new Date('2026-09-09T18:00:00Z'),
+    mobilizationAuthorizationVersion: 11
+  });
+  assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'EXECUTION'), []);
+  workflow.mobilizationAuthorizationVersion = 10;
+  assert.match(projectWorkflowTransitionIssues(workflow, 'EXECUTION')[0], /autorização de mobilização vigente/i);
 });

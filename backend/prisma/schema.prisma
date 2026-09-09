@@ -256,6 +256,7 @@ enum ProjectWorkflowStage {
   MOBILIZATION_PLANNING
   PREPARATION
   READY_TO_MOBILIZE
+  EXECUTION
 }
 
 enum ProjectWorkflowChecklistStatus {
@@ -952,6 +953,7 @@ model ProjectWorkflow {
   plannedMobilizationDate DateTime                        @db.Date
   mobilizationAuthorizedAt DateTime?
   mobilizationAuthorizationVersion Int?
+  executionReportTargets  Json                            @default("{}")
   version                 Int                             @default(1)
   createdAt               DateTime                        @default(now())
   updatedAt               DateTime                        @updatedAt

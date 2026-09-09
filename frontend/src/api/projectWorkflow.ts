@@ -1,11 +1,15 @@
 import { apiClient, type ApiClientError } from './client';
 
-export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE';
+export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'EXECUTION';
 export type ProjectWorkflowChecklistStatus = 'PENDING' | 'DONE' | 'NOT_APPLICABLE';
 export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
 export type ProjectWorkflowCommercialFactStatus = 'PENDING' | 'CONFIRMED' | 'NOT_APPLICABLE';
 export type ProjectWorkflowCommercialFactSource = 'MANUAL' | 'CRM';
+export type ProjectExecutionReportType = 'RTP' | 'RLQ' | 'RLR' | 'RCPU' | 'RLM' | 'RLF' | 'RLI';
+export type ProjectExecutionDeviationCategory = 'PRAZO' | 'ESCOPO' | 'CLIENTE' | 'EQUIPAMENTO' | 'PESSOAL' | 'MATERIAL' | 'SEGURANCA' | 'QUALIDADE' | 'COMERCIAL';
+export type ProjectExecutionImpact = 'ALTO' | 'MEDIO' | 'BAIXO';
+export type ProjectExecutionDeviationStatus = 'ABERTO' | 'EM_TRIAGEM' | 'EM_OBSERVACAO' | 'EM_ACAO' | 'FECHADO' | 'DIVULGADO';
 export type ProjectWorkflowChecklistSection = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'ADVANCE_DOCUMENTATION' | 'D30_TEAM' | 'D30_EQUIPMENT' | 'D30_MATERIALS' | 'D30_LOGISTICS' | 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS';
 
 export interface ProjectWorkflowPermissions {
@@ -217,6 +221,75 @@ export interface ProjectWorkflowDetail {
   permissions: ProjectWorkflowPermissions;
 }
 
+export interface ProjectExecutionDeviation {
+  id: string;
+  number: string;
+  registeredAt: string;
+  eventDate: string;
+  origin: string | null;
+  nature: { id?: string; name: string; isActive?: boolean } | null;
+  description: string | null;
+  impact: ProjectExecutionImpact | null;
+  definedAction: string | null;
+  actionOwner: string | null;
+  actionDeadline: string | null;
+  status: ProjectExecutionDeviationStatus | null;
+  recurrent?: boolean;
+  occurrences12m?: number;
+}
+
+export interface ProjectExecutionDashboard {
+  schedule: {
+    plannedProgressPct: number | null;
+    actualProgressPct: number | null;
+    progressMethod: string | null;
+    elapsedDays: number | null;
+    plannedDays: number | null;
+    startDate: string | null;
+    expectedEndDate: string | null;
+    projectedEndDate: string | null;
+  };
+  rdo: {
+    receivedCount: number;
+    pendingOrReturnedCount: number;
+    releasedToClientCount: number;
+    signedCount: number;
+    withQuantitiesCount: number;
+    withEvidenceCount: number;
+    evidenceCount: number;
+    lastReportDate: string | null;
+  };
+  technicalReports: Array<{
+    reportType: ProjectExecutionReportType;
+    label: string;
+    source: 'SYSTEM' | 'MANUAL';
+    issuedCount: number;
+    expectedCount: number;
+    approvedCount: number;
+    signedCount: number;
+    returnedCount: number;
+    missingCount: number;
+  }>;
+  deviations: ProjectExecutionDeviation[];
+  permissions: { canEdit: boolean };
+}
+
+export interface ProjectExecutionReportTargetInput {
+  reportType: ProjectExecutionReportType;
+  expectedCount: number;
+  completedCount?: number;
+}
+
+export interface ProjectExecutionDeviationInput {
+  category: ProjectExecutionDeviationCategory;
+  description: string;
+  ownerName: string;
+  dueDate: string;
+  impact: ProjectExecutionImpact;
+  action: string;
+  status: ProjectExecutionDeviationStatus;
+}
+
 export type ProjectWorkflowPatch =
   | { action: 'settings'; version: number; leaderUserId?: string; plannedMobilizationDate?: string }
   | { action: 'checklist'; version: number; key: string; status: ProjectWorkflowChecklistStatus; note?: string | null }
@@ -249,6 +322,22 @@ export async function startProjectWorkflow(projectId: string, input: { leaderUse
 
 export async function updateProjectWorkflow(projectId: string, input: ProjectWorkflowPatch) {
   return (await apiClient.patch<ProjectWorkflowDetail>(`${base}/${encodeURIComponent(projectId)}`, input)).data;
+}
+
+export async function getProjectExecutionDashboard(projectId: string) {
+  return (await apiClient.get<ProjectExecutionDashboard>(`${base}/${encodeURIComponent(projectId)}/execution`)).data;
+}
+
+export async function updateProjectExecutionReportTargets(projectId: string, targets: ProjectExecutionReportTargetInput[]) {
+  return (await apiClient.put<ProjectExecutionDashboard>(`${base}/${encodeURIComponent(projectId)}/execution/report-targets`, { targets })).data;
+}
+
+export async function createProjectExecutionDeviation(projectId: string, input: ProjectExecutionDeviationInput) {
+  return (await apiClient.post<ProjectExecutionDeviation>(`${base}/${encodeURIComponent(projectId)}/execution/deviations`, input)).data;
+}
+
+export async function updateProjectExecutionDeviationStatus(projectId: string, deviationId: string, status: ProjectExecutionDeviationStatus) {
+  return (await apiClient.patch<ProjectExecutionDeviation>(`${base}/${encodeURIComponent(projectId)}/execution/deviations/${encodeURIComponent(deviationId)}`, { status })).data;
 }
 
 export function projectWorkflowErrorIssues(error: unknown) {

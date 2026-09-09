@@ -230,7 +230,7 @@ export function projectWorkflowMobilizationAuthorization(workflow, gate) {
   const currentVersion = workflow?.version ?? null;
   const authorized = Boolean(
     authorizedAt
-    && workflow?.stage === 'READY_TO_MOBILIZE'
+    && ['READY_TO_MOBILIZE', 'EXECUTION'].includes(workflow?.stage)
     && gate?.ready
     && authorizedVersion === currentVersion
   );
@@ -288,7 +288,8 @@ export function allowedProjectWorkflowTransition(current, target) {
     WAITING_PLANNING: ['INITIAL_ANALYSIS', 'MOBILIZATION_PLANNING'],
     MOBILIZATION_PLANNING: ['INITIAL_ANALYSIS', 'WAITING_PLANNING', 'PREPARATION'],
     PREPARATION: ['MOBILIZATION_PLANNING', 'READY_TO_MOBILIZE'],
-    READY_TO_MOBILIZE: ['PREPARATION']
+    READY_TO_MOBILIZE: ['PREPARATION', 'EXECUTION'],
+    EXECUTION: ['READY_TO_MOBILIZE']
   };
   return transitions[current]?.includes(target) || false;
 }
@@ -302,6 +303,12 @@ export function projectWorkflowTransitionIssues(workflow, target) {
   if (target === 'PREPARATION' && workflow.stage === 'MOBILIZATION_PLANNING') return planningGateIssues(workflow);
   if (target === 'READY_TO_MOBILIZE') {
     return projectWorkflowMobilizationGate(workflow).blockers.map(item => `${item.label}: ${item.reason}`);
+  }
+  if (target === 'EXECUTION') {
+    const gate = projectWorkflowMobilizationGate(workflow);
+    if (!projectWorkflowMobilizationAuthorization(workflow, gate).authorized) {
+      return ['O projeto precisa de uma autorização de mobilização vigente'];
+    }
   }
   return [];
 }

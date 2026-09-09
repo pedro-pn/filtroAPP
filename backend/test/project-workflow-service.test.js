@@ -439,6 +439,24 @@ test('gate verde emite autorização versionada e alteração posterior a suspen
   assert.equal(state.events.at(-1).action, 'WORKFLOW_AUTHORIZE_MOBILIZATION');
 });
 
+test('avanço para execução transporta a autorização para a nova versão', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  makeStateReadyForMobilization(state);
+  let result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'READY_TO_MOBILIZE' }, leader, {
+    database,
+    now: new Date('2026-09-09T18:00:00Z')
+  });
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'EXECUTION' }, leader, {
+    database,
+    now: new Date('2026-09-10T09:00:00Z')
+  });
+  assert.equal(result.workflow.stage, 'EXECUTION');
+  assert.equal(result.workflow.version, 3);
+  assert.equal(result.workflow.mobilizationAuthorization.status, 'AUTHORIZED');
+  assert.equal(result.workflow.mobilizationAuthorization.authorizedVersion, 3);
+});
+
 test('gate bloqueado impede autorização e papel de área não pode revalidar', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-10' }, manager, { database });

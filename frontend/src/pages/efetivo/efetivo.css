@@ -1812,7 +1812,7 @@
 .project-workflow-columns {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(6, minmax(230px, 1fr));
+  grid-template-columns: repeat(7, minmax(230px, 1fr));
   min-width: 0;
   width: 100%;
   overflow-x: auto;
@@ -1864,6 +1864,7 @@
 .project-workflow-card .project-workflow-documentation-badge.is-ok,
 .project-workflow-card .project-workflow-planning-badge,
 .project-workflow-card .project-workflow-preparation-badge,
+.project-workflow-card .project-workflow-execution-badge,
 .project-workflow-card .project-workflow-authorization-badge.is-authorized { color: var(--g); font-weight: 700; }
 .project-workflow-card .project-workflow-documentation-badge.is-in_progress { color: var(--warning-text); }
 .project-workflow-card .project-workflow-mobilization-risk,
@@ -1965,6 +1966,69 @@
 .project-workflow-footer-status span { color: var(--mu); font-size: 12px; overflow-wrap: anywhere; }
 .project-workflow-footer-actions { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
 
+.project-execution-dashboard { border: 2px solid var(--g); border-radius: var(--r); display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px; }
+.project-execution-dashboard > header,
+.project-execution-rdo > header,
+.project-execution-reports > header,
+.project-execution-deviations > header { align-items: start; display: flex; gap: 12px; justify-content: space-between; min-width: 0; }
+.project-execution-dashboard h4,
+.project-execution-dashboard h5,
+.project-execution-dashboard header p { margin: 0; }
+.project-execution-dashboard header p { color: var(--mu); margin-top: 3px; overflow-wrap: anywhere; }
+.project-execution-metrics { display: grid; gap: 9px; grid-template-columns: repeat(4, minmax(0, 1fr)); min-width: 0; }
+.project-execution-metrics article { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 11px; }
+.project-execution-metrics span,
+.project-execution-metrics small { color: var(--mu); overflow-wrap: anywhere; }
+.project-execution-metrics strong { font-size: 20px; overflow-wrap: anywhere; }
+.project-execution-metrics strong.is-warning { color: var(--warning-text); }
+.project-execution-progress-bars { display: grid; gap: 8px; }
+.project-execution-progress-bars > div { align-items: center; display: grid; gap: 9px; grid-template-columns: 72px minmax(0, 1fr); }
+.project-execution-progress-bars span { color: var(--mu); font-size: 12px; font-weight: 700; }
+.project-execution-progress-bars > div > div { background: var(--bg); border-radius: 999px; height: 8px; overflow: hidden; }
+.project-execution-progress-bars i { background: var(--g); display: block; height: 100%; }
+.project-execution-progress-bars > div:first-child i { background: var(--warning-border); }
+.project-execution-rdo,
+.project-execution-reports,
+.project-execution-deviations { border-top: 1px solid var(--br); display: flex; flex-direction: column; gap: 10px; min-width: 0; padding-top: 12px; }
+.project-execution-rdo > header > span { color: var(--mu); font-size: 12px; }
+.project-execution-rdo > div { display: grid; gap: 8px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.project-execution-rdo article { background: var(--bg); border-radius: var(--rs); display: flex; flex-direction: column; min-width: 0; padding: 10px; }
+.project-execution-rdo article strong { font-size: 18px; }
+.project-execution-rdo article span { color: var(--mu); font-size: 12px; overflow-wrap: anywhere; }
+.project-execution-report-grid { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); min-width: 0; }
+.project-execution-report-grid article { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); min-width: 0; padding: 10px; }
+.project-execution-report-grid article.is-missing { border-color: var(--warning-border); }
+.project-execution-report-grid article header { align-items: center; display: flex; gap: 8px; justify-content: space-between; }
+.project-execution-report-grid article header span { font-size: 18px; font-weight: 800; }
+.project-execution-report-grid article p,
+.project-execution-report-grid article small { color: var(--mu); display: block; margin: 5px 0 0; overflow-wrap: anywhere; }
+.project-execution-target-form { background: var(--bg); border-radius: var(--rs); display: flex; flex-direction: column; gap: 10px; padding: 10px; }
+.project-execution-target-grid { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.project-execution-target-row { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.project-execution-target-row:has(> .field-group + .field-group) { grid-column: span 2; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.project-execution-target-row .field-group { margin: 0; min-width: 0; }
+.project-execution-deviation-form { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); min-width: 0; padding: 12px; }
+.project-execution-deviation-form .field-group { margin: 0; min-width: 0; }
+.project-execution-wide-field { grid-column: span 2; }
+.project-execution-form-actions { align-items: end; display: flex; gap: 8px; justify-content: flex-end; }
+.project-execution-deviation-list { display: grid; gap: 9px; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; }
+.project-execution-deviation-list > article { border: 1px solid var(--br); border-left: 4px solid var(--warning-border); border-radius: var(--rs); display: flex; flex-direction: column; gap: 9px; min-width: 0; padding: 11px; }
+.project-execution-deviation-list > article.is-closed { border-left-color: var(--g); }
+.project-execution-deviation-list article > header { align-items: start; display: flex; gap: 8px; justify-content: space-between; min-width: 0; }
+.project-execution-deviation-list article > header > div { display: flex; flex-direction: column; min-width: 0; }
+.project-execution-deviation-list article > header span { color: var(--mu); font-size: 12px; }
+.project-execution-deviation-list article > header strong { overflow-wrap: anywhere; }
+.project-execution-deviation-list article > header > span { border: 1px solid currentColor; border-radius: 999px; flex: 0 0 auto; font-weight: 700; padding: 3px 7px; }
+.project-execution-deviation-list article > header > span.is-alto { color: var(--rd); }
+.project-execution-deviation-list article > header > span.is-medio { color: var(--warning-text); }
+.project-execution-deviation-list article > header > span.is-baixo { color: var(--g); }
+.project-execution-deviation-list dl { display: grid; gap: 7px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; }
+.project-execution-deviation-list dl > div:last-child { grid-column: 1 / -1; }
+.project-execution-deviation-list dt { color: var(--mu); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.project-execution-deviation-list dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.project-execution-deviation-status { align-items: center; display: grid; gap: 8px; grid-template-columns: auto minmax(0, 1fr); }
+.project-execution-deviation-status label { color: var(--mu); font-size: 12px; font-weight: 700; }
+
 @media (max-width: 760px) {
   .project-workflow-view-switch { grid-template-columns: minmax(0, 1fr); }
   .project-workflow-toolbar { align-items: stretch; grid-template-columns: minmax(0, 1fr); }
@@ -1979,7 +2043,21 @@
   .project-workflow-commercial-fields,
   .project-workflow-planning-grid,
   .project-workflow-check-item,
-  .project-workflow-check-controls { grid-template-columns: minmax(0, 1fr); }
+  .project-workflow-check-controls,
+  .project-execution-metrics,
+  .project-execution-rdo > div,
+  .project-execution-report-grid,
+  .project-execution-target-grid,
+  .project-execution-deviation-form,
+  .project-execution-deviation-list { grid-template-columns: minmax(0, 1fr); }
+  .project-execution-target-row:has(> .field-group + .field-group) { grid-column: auto; grid-template-columns: minmax(0, 1fr); }
+  .project-execution-wide-field { grid-column: auto; }
+  .project-execution-form-actions { align-items: stretch; grid-column: auto; justify-content: stretch; }
+  .project-execution-form-actions button { flex: 1 1 auto; }
+  .project-execution-dashboard > header,
+  .project-execution-rdo > header,
+  .project-execution-reports > header,
+  .project-execution-deviations > header { align-items: stretch; flex-direction: column; }
   .project-workflow-critical,
   .project-workflow-gate,
   .project-workflow-gate-panel > header { align-items: stretch; flex-direction: column; }

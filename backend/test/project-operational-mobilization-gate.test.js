@@ -51,6 +51,12 @@ test('autorização vigente libera a operação do projeto gerenciado', async ()
   assert.equal(decision.authorizationStatus, 'AUTHORIZED');
 });
 
+test('autorização vigente também libera operações durante a execução', async () => {
+  const decision = await assertProjectMobilizationAuthorized(database(managedWorkflow({ stage: 'EXECUTION' })), 'project-1');
+  assert.equal(decision.status, 'AUTHORIZED');
+  assert.equal(decision.allowed, true);
+});
+
 test('autorização suspensa bloqueia com contrato uniforme e explicável', async () => {
   await assert.rejects(
     assertProjectMobilizationAuthorized(database(managedWorkflow({ version: 8 })), 'project-1'),

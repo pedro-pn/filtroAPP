@@ -10,6 +10,7 @@ import { TopBar } from '../../layout/TopBar';
 import { parseDateOnly, todayDateOnly } from '../../utils/calendarGrid';
 import { countMissionPendencies } from '../../utils/missionPendencies';
 import { parsePlanningSection, setPlanningSectionParams, type EfetivoPlanningSection } from '../../utils/planningNavigation';
+import { WORKFLOW_STAGES } from '../../utils/projectWorkflow';
 import { AbsencesBoard } from './components/AbsencesBoard';
 import { AdministrationBoard } from './components/AdministrationBoard';
 import { AvailabilityBoard } from './components/AvailabilityBoard';
@@ -59,7 +60,7 @@ export function EfetivoPage() {
   const selectedCollaboratorId = searchParams.get('colaborador') || undefined;
   const selectedAbsenceId = searchParams.get('ausencia') || undefined;
   const missionStage = (['STANDBY', 'MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT', 'FINISHED'].includes(searchParams.get('etapa') || '') ? searchParams.get('etapa') : 'STANDBY') as MissionStage;
-  const workflowStage = (['HANDOVER', 'INITIAL_ANALYSIS', 'WAITING_PLANNING', 'MOBILIZATION_PLANNING'].includes(searchParams.get('faseProjeto') || '') ? searchParams.get('faseProjeto') : 'HANDOVER') as ProjectWorkflowStage;
+  const workflowStage = (WORKFLOW_STAGES.includes(searchParams.get('faseProjeto') as ProjectWorkflowStage) ? searchParams.get('faseProjeto') : 'HANDOVER') as ProjectWorkflowStage;
   const evolutionView = (searchParams.get('visao') === 'missoes' || (!searchParams.get('visao') && selectedMissionId)) ? 'missoes' : 'projetos';
   const workflowSearch = searchParams.get('busca') || '';
   const parsedWorkflowPage = Number(searchParams.get('pagina') || 1);

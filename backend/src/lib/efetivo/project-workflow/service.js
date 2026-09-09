@@ -74,7 +74,7 @@ function contextIsOperational(context) {
     || hasModuleRole(context.user, ['efetivo:manager', 'efetivo:viewer']);
 }
 
-function canEditWorkflow(workflow, context) {
+export function canEditWorkflow(workflow, context) {
   return contextIsManager(context) || Boolean(
     contextIsOperational(context)
     && context.actorUserId
@@ -106,7 +106,7 @@ function publicPermissions(workflow, context) {
     canAccept: Boolean(workflow && isLeader && !workflow.acceptedAt && workflow.stage === 'HANDOVER'),
     canChangeLeader: Boolean(workflow && manager),
     canEditCommercial: canEditCommercial(workflow, context),
-    canAuthorizeMobilization: Boolean(workflow && (manager || isLeader) && workflow.stage === 'READY_TO_MOBILIZE')
+    canAuthorizeMobilization: Boolean(workflow && (manager || isLeader) && ['READY_TO_MOBILIZE', 'EXECUTION'].includes(workflow.stage))
   };
 }
 
@@ -537,7 +537,10 @@ async function applyStage(tx, workflow, payload, now) {
   if (payload.stage === 'READY_TO_MOBILIZE') {
     data.mobilizationAuthorizedAt = now;
     data.mobilizationAuthorizationVersion = workflow.version + 1;
-  } else if (workflow.stage === 'READY_TO_MOBILIZE') {
+  } else if (payload.stage === 'EXECUTION') {
+    data.mobilizationAuthorizedAt = workflow.mobilizationAuthorizedAt;
+    data.mobilizationAuthorizationVersion = workflow.version + 1;
+  } else if (['READY_TO_MOBILIZE', 'EXECUTION'].includes(workflow.stage)) {
     data.mobilizationAuthorizedAt = null;
     data.mobilizationAuthorizationVersion = null;
   }
@@ -545,8 +548,8 @@ async function applyStage(tx, workflow, payload, now) {
 }
 
 async function applyMobilizationAuthorization(tx, workflow, now) {
-  if (workflow.stage !== 'READY_TO_MOBILIZE') {
-    throw planningError('A mobilização só pode ser autorizada na etapa Pronto para mobilizar.', {
+  if (!['READY_TO_MOBILIZE', 'EXECUTION'].includes(workflow.stage)) {
+    throw planningError('A mobilização só pode ser autorizada nas etapas Pronto para mobilizar ou Em execução.', {
       code: 'PROJECT_WORKFLOW_READY_STAGE_REQUIRED'
     });
   }

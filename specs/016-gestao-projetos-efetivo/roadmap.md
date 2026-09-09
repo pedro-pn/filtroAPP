@@ -18,7 +18,8 @@ A futura integração com CRM será a fonte dos fatos comerciais, enquanto o Fil
 - Entrega 019 concluída: Preparação D-15 por área, gate consolidado em nove frentes, autorização versionada, suspensão por alteração e alertas D-7/D-1.
 - Entrega 020 concluída: gate aplicado às mobilizações oficiais do Efetivo, romaneios de saída e retiradas do Estoque; projetos sem gestão iniciada permanecem no modo legado até classificação explícita.
 - Entrega 021 concluída: seleção do Romaneio filtrada pelo tipo; Saída mostra gerenciados autorizados e legados ativos, enquanto Entrada mantém todas as obras acessíveis disponíveis.
-- Próximo incremento: etapa Em Execução e dashboard de avanço, RDOs, relatórios técnicos e desvios do projeto.
+- Entrega 022 concluída: etapa Em Execução preserva a autorização; dashboard reúne avanço, prazo, RDOs, metas de relatórios técnicos e desvios integrados com Qualidade.
+- Próximo incremento: Desmobilização, com conclusão de campo, conferências, retorno de equipe e ativos, avarias e múltiplos ciclos.
 
 ## Entrega 1 — Fundamentos e entrada em planejamento
 

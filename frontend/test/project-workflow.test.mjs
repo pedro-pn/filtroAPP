@@ -19,6 +19,8 @@ test('ações de etapa não transformam D-30 em coluna', () => {
   assert.deepEqual(projectWorkflowStageOptions('INITIAL_ANALYSIS'), ['WAITING_PLANNING', 'MOBILIZATION_PLANNING']);
   assert.deepEqual(projectWorkflowStageOptions('MOBILIZATION_PLANNING'), ['INITIAL_ANALYSIS', 'WAITING_PLANNING', 'PREPARATION']);
   assert.deepEqual(projectWorkflowStageOptions('PREPARATION'), ['MOBILIZATION_PLANNING', 'READY_TO_MOBILIZE']);
+  assert.deepEqual(projectWorkflowStageOptions('READY_TO_MOBILIZE'), ['PREPARATION', 'EXECUTION']);
+  assert.deepEqual(projectWorkflowStageOptions('EXECUTION'), ['READY_TO_MOBILIZE']);
   assert.equal(projectWorkflowMilestoneText({ workflow: { milestones: { daysUntilMobilization: 20 } } }), 'Faltam 20 dia(s)');
 });
 
@@ -76,7 +78,7 @@ test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe'
   assert.match(board, /Risco de mobilização/);
   assert.match(board, /Mobilização autorizada/);
   assert.match(administration, /EFETIVO_QSMS/);
-  assert.match(styles, /repeat\(6, minmax\(230px, 1fr\)\)/);
+  assert.match(styles, /repeat\(7, minmax\(230px, 1fr\)\)/);
   assert.match(styles, /project-workflow-gate-table/);
   assert.match(registry, /efetivo:qsms/);
 });
@@ -89,4 +91,21 @@ test('gate informa as três operações protegidas pela autorização', () => {
     assert.match(source, /romaneios de saída/);
     assert.match(source, /retiradas do Estoque/);
   }
+});
+
+test('etapa Em execução mostra painel operacional e desvios integrados', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const dashboard = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectExecutionDashboard.tsx', import.meta.url), 'utf8');
+  const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  assert.match(modal, /ProjectExecutionDashboard/);
+  assert.match(modal, /Iniciar execução/);
+  assert.match(modal, /Voltar para pronto para mobilizar/);
+  assert.match(dashboard, /Dashboard de execução/);
+  assert.match(dashboard, /Registrar desvio/);
+  assert.match(dashboard, /Relatórios técnicos/);
+  assert.match(dashboard, /RLR permanece manual/);
+  assert.match(board, /data-project-workflow-execution/);
+  assert.match(styles, /project-execution-deviation-form/);
+  assert.match(styles, /project-execution-report-grid/);
 });

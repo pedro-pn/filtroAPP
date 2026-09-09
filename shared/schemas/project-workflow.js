@@ -4,7 +4,8 @@ export const PROJECT_WORKFLOW_STAGES = [
   'WAITING_PLANNING',
   'MOBILIZATION_PLANNING',
   'PREPARATION',
-  'READY_TO_MOBILIZE'
+  'READY_TO_MOBILIZE',
+  'EXECUTION'
 ];
 
 export const PROJECT_WORKFLOW_STAGE_LABELS = {
@@ -13,7 +14,8 @@ export const PROJECT_WORKFLOW_STAGE_LABELS = {
   WAITING_PLANNING: 'Aguardando planejamento',
   MOBILIZATION_PLANNING: 'Planejamento da mobilização',
   PREPARATION: 'Preparação',
-  READY_TO_MOBILIZE: 'Pronto para mobilizar'
+  READY_TO_MOBILIZE: 'Pronto para mobilizar',
+  EXECUTION: 'Em execução'
 };
 
 export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
