@@ -6,7 +6,7 @@ import {
 
 export const PROJECT_MOBILIZATION_NOT_AUTHORIZED = 'PROJECT_MOBILIZATION_NOT_AUTHORIZED';
 
-const OPERATIONAL_GATE_INCLUDE = {
+export const PROJECT_OPERATIONAL_GATE_INCLUDE = {
   checklists: { select: { key: true, status: true } },
   issues: { select: { id: true, status: true, dueDate: true, criticality: true, area: true, description: true } },
   commercialFacts: { select: { key: true, status: true, source: true, reference: true, note: true, occurredOn: true } }
@@ -17,11 +17,7 @@ function authorizationInstruction(status) {
   return 'Autorização não emitida: autorizar a mobilização na Gestão de Projetos';
 }
 
-export async function projectOperationalMobilizationDecision(database, projectId) {
-  const workflow = await database.projectWorkflow.findUnique({
-    where: { projectId },
-    include: OPERATIONAL_GATE_INCLUDE
-  });
+export function projectOperationalMobilizationDecisionFromWorkflow(workflow, projectId = workflow?.projectId) {
   if (!workflow) {
     return {
       projectId,
@@ -46,6 +42,14 @@ export async function projectOperationalMobilizationDecision(database, projectId
     currentVersion: authorization.currentVersion,
     blockers: gate.blockers
   };
+}
+
+export async function projectOperationalMobilizationDecision(database, projectId) {
+  const workflow = await database.projectWorkflow.findUnique({
+    where: { projectId },
+    include: PROJECT_OPERATIONAL_GATE_INCLUDE
+  });
+  return projectOperationalMobilizationDecisionFromWorkflow(workflow, projectId);
 }
 
 export async function assertProjectMobilizationAuthorized(database, projectId) {

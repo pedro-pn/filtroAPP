@@ -27,6 +27,7 @@ const PROJECT_INTAKE_NOVELTY_KEY_PREFIX = 'filtrovali:project-intake-novelty:v1:
 const PONTOMAIS_SYNC_NOVELTY_KEY_PREFIX = 'filtrovali:pontomais-sync-novelty:v1:';
 const ACOMPANHAMENTO_LABOR_POLICY_NOVELTY_KEY_PREFIX = 'filtrovali:acompanhamento-labor-policy-novelty:v1:';
 const ROMANEIO_QR_NOVELTY_KEY_PREFIX = 'filtrovali:romaneio-qr-novelty:v1:';
+const ROMANEIO_PROJECT_AVAILABILITY_NOVELTY_KEY_PREFIX = 'filtrovali:romaneio-project-availability-novelty:v1:';
 
 function storageKey(user: Pick<AuthUser, 'id'>) {
   return `${LAST_MODULE_KEY_PREFIX}${user.id}`;
@@ -83,6 +84,19 @@ export function shouldShowRomaneioQrNovelty(user: Pick<AuthUser, 'id'> | null | 
 
 export function markRomaneioQrNoveltySeen(user: Pick<AuthUser, 'id'> | null | undefined) {
   if (user) safeLocalStorageSet(`${ROMANEIO_QR_NOVELTY_KEY_PREFIX}${user.id}`, '1');
+}
+
+// Campanha do filtro de obras no romaneio implantada em 09/09/2026 e válida por 10 dias corridos.
+export const ROMANEIO_PROJECT_AVAILABILITY_IMPLEMENTED_AT = '2026-09-09';
+const ROMANEIO_PROJECT_AVAILABILITY_EXPIRES_AT = new Date('2026-09-19T23:59:59-03:00');
+
+export function shouldShowRomaneioProjectAvailabilityNovelty(user: Pick<AuthUser, 'id'> | null | undefined) {
+  if (!user || Date.now() > ROMANEIO_PROJECT_AVAILABILITY_EXPIRES_AT.getTime()) return false;
+  return safeLocalStorageGet(`${ROMANEIO_PROJECT_AVAILABILITY_NOVELTY_KEY_PREFIX}${user.id}`) !== '1';
+}
+
+export function markRomaneioProjectAvailabilityNoveltySeen(user: Pick<AuthUser, 'id'> | null | undefined) {
+  if (user) safeLocalStorageSet(`${ROMANEIO_PROJECT_AVAILABILITY_NOVELTY_KEY_PREFIX}${user.id}`, '1');
 }
 
 function safeLocalStorageGet(key: string) {
