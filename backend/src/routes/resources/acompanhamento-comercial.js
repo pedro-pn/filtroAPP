@@ -26,6 +26,7 @@ import { getMissionGroupRomaneios, getProjectRomaneios } from '../../lib/acompan
 import { groupProjectCards } from '../../lib/acompanhamento/project-card-groups.js';
 import { groupDashboardRows } from '../../lib/acompanhamento/dashboard-groups.js';
 import { getProjectDetail } from '../../lib/acompanhamento/project-detail.js';
+import { getProjectInvoices, getMissionGroupInvoices } from '../../lib/acompanhamento/project-invoices.js';
 import { createProjectManagementNote, listProjectManagementNotes, PROJECT_MANAGEMENT_NOTE_MAX_LENGTH } from '../../lib/acompanhamento/project-notes.js';
 import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-mission-context.js';
 import { getMissionGroupDetail } from '../../lib/acompanhamento/project-detail-groups.js';
@@ -707,6 +708,30 @@ router.get(
         date
       })
     );
+  })
+);
+
+router.get(
+  '/projetos/:projectId/faturamentos',
+  requireAuth,
+  requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    const result = await getProjectInvoices(req.params.projectId);
+    if (!result) return res.status(404).json({ error: 'Projeto não encontrado.' });
+    res.json(result);
+  })
+);
+
+router.get(
+  '/grupos-missoes/:groupId/faturamentos',
+  requireAuth,
+  requireAcompanhamentoAccess,
+  asyncHandler(async (req, res) => {
+    try {
+      res.json(await getMissionGroupInvoices(req.params.groupId));
+    } catch (error) {
+      return missionGroupErrorResponse(error, res);
+    }
   })
 );
 

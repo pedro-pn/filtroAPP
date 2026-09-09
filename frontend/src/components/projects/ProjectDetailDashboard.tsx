@@ -36,6 +36,7 @@ import { ProjectQualityDeviationsNovelty } from './ProjectQualityDeviationsNovel
 import { ProjectProgressHistoryNovelty } from './ProjectProgressHistoryNovelty';
 import { ProjectReportsDialog } from './ProjectReportsDialog';
 import { ProjectRomaneiosDialog } from './ProjectRomaneiosDialog';
+import { ProjectInvoicesSection } from './ProjectInvoicesSection';
 import { ProjectStandbyHistoryDialog } from './ProjectStandbyHistoryDialog';
 import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
 import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
@@ -1203,6 +1204,8 @@ export function ProjectDetailDashboard({
           </div>
         </div>
       </div>
+
+      <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} />
 
       {!isGroup ? (
         <div className="page-card acp-det-block quality-deviations" data-quality-project-deviations>

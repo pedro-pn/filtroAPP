@@ -740,6 +740,41 @@ export interface ProjectDetailCollaborator {
   custoDeslocamento: number | null;
 }
 
+export interface ProjectInvoice {
+  id: string;
+  type: 'NFSE' | 'NFE';
+  number: string;
+  series: string | null;
+  issuedAt: string;
+  amount: number;
+  customerName: string | null;
+  customerCnpj: string | null;
+  customerDiffers: boolean;
+  receiptStatus: 'RECEIVED' | 'PARTIAL' | 'OVERDUE' | 'OPEN' | 'UNKNOWN';
+  installmentCount: number;
+  project: { id: string; code: string; name: string };
+}
+
+export interface ProjectInvoices {
+  invoices: ProjectInvoice[];
+  total: number;
+  count: number;
+  linkedProjectCount: number;
+  projectCount: number;
+  lastSyncedAt: string | null;
+  syncStatus: 'READY' | 'WAITING' | 'UPDATING' | 'STALE' | 'ERROR';
+}
+
+export async function getProjectInvoices(projectId: string) {
+  const { data } = await apiClient.get<ProjectInvoices>(`/acompanhamento/comercial/projetos/${projectId}/faturamentos`);
+  return data;
+}
+
+export async function getMissionGroupInvoices(groupId: string) {
+  const { data } = await apiClient.get<ProjectInvoices>(`/acompanhamento/comercial/grupos-missoes/${groupId}/faturamentos`);
+  return data;
+}
+
 export interface ProjectDetail {
   group?: {
     id: string;
