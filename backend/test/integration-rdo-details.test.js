@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getOperationalResource, serializeOperationalResource } from '../src/lib/api-credentials/operational-resources.js';
+import { getOperationalResource } from '../src/lib/api-credentials/operational-resources.js';
+import { serializeOperationalResource } from '../src/lib/api-credentials/operational-serialization.js';
 import { listOperationalResources } from '../src/lib/api-credentials/operational-service.js';
-import { RDO_SERVICE_DATA_SCHEMA } from '../src/lib/api-credentials/rdo-projection.js';
+import { RDO_SERVICE_DATA_SCHEMA } from '../src/lib/api-credentials/rdo-resource-definition.js';
 import { API_SCOPES, publicApiOperations } from '../src/lib/api-credentials/catalog.js';
 import { executePlaygroundOperation } from '../src/lib/api-credentials/playground.js';
 import { createOperationalRouter } from '../src/routes/integrations/v1/operational.js';

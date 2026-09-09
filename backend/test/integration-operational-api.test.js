@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { Prisma } from '@prisma/client';
 import { API_SCOPES, API_OPERATIONS, futureScopeDefinitions, publicApiOperations } from '../src/lib/api-credentials/catalog.js';
-import { OPERATIONAL_RESOURCES, BASE_OPERATIONAL_RESOURCES, serializeOperationalResource } from '../src/lib/api-credentials/operational-resources.js';
+import { OPERATIONAL_RESOURCES, BASE_OPERATIONAL_RESOURCES } from '../src/lib/api-credentials/operational-resources.js';
+import { serializeOperationalResource } from '../src/lib/api-credentials/operational-serialization.js';
 import { listOperationalResources } from '../src/lib/api-credentials/operational-service.js';
 import { createOperationalRouter } from '../src/routes/integrations/v1/operational.js';
 import { executePlaygroundOperation } from '../src/lib/api-credentials/playground.js';
@@ -38,7 +39,7 @@ function database(resource, rows) {
   } } };
 }
 
-test('stored fields and explicit relation selects match Prisma; derived fields have a dedicated projection', async () => {
+test('stored fields and explicit relation selects match Prisma; derived fields are recomputed by their projection', async () => {
   const source = await readFile(new URL('../prisma/schema.prisma', import.meta.url), 'utf8');
   for (const resource of OPERATIONAL_RESOURCES) {
     const model = Prisma.dmmf.datamodel.models.find(item => item.name === resource.model);
@@ -57,7 +58,7 @@ test('stored fields and explicit relation selects match Prisma; derived fields h
     checkSelect(resource.model, resource.select);
     for (const [name, type] of Object.entries(resource.fields)) {
       if (Object.hasOwn(resource.derivedFields || {}, name)) {
-        assert.equal(typeof resource.serialize, 'function');
+        assert.notEqual(serializeOperationalResource(resource, { [name]: 'UNPROJECTED' })[name], 'UNPROJECTED', `${resource.model}.${name} must be projected`);
         if (type === 'object') assert.equal(resource.fieldSchemas[name].additionalProperties, false);
         continue;
       }
