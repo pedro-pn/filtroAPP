@@ -9,7 +9,7 @@ export function resource(model, path, scope, label, domainCode, fields, options 
   const definition = {
     model, delegate: model[0].toLowerCase() + model.slice(1), path, scope, label, domainCode,
     operationId: `operational.${model}.list`, openApiOperationId: `listIntegration${model}`,
-    fields: Object.freeze({ ...common, ...fields }),
+    fields: Object.freeze({ ...common, ...fields, ...options.derivedFields }),
     projectPolicy: 'GLOBAL', projectNotice: 'Cadastro global compartilhado; não é limitado por projeto.',
     where: {}, dependencies: [], filterFields: [], keyFields: ['id'], ...options, timestampField
   };
@@ -17,6 +17,9 @@ export function resource(model, path, scope, label, domainCode, fields, options 
   definition.queryParams = ['limit', 'cursor', ...(timestampField ? [timestampField === 'updatedAt' ? 'updatedSince' : 'createdSince'] : []), 'snapshotAt',
     ...(definition.projectPolicy !== 'GLOBAL' ? ['projectId'] : []), ...definition.filterFields,
     ...(definition.fields.isActive ? ['active'] : [])];
-  definition.select = Object.freeze(Object.fromEntries(Object.keys(definition.fields).map(field => [field, true])));
+  definition.select = Object.freeze({
+    ...Object.fromEntries(Object.keys({ ...common, ...fields }).map(field => [field, true])),
+    ...options.select
+  });
   return Object.freeze(definition);
 }

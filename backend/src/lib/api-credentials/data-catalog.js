@@ -63,7 +63,7 @@ export const API_DATA_DOMAINS = Object.freeze([
       ...modelEntries(['ReportApprovalPostProcessingJob', 'ReportDraft'], 'RESERVED'), ...modelEntries(['ProjectReportSeq'], 'PROHIBITED')
     ],
     candidateScopes: ['rdo.relatorios.read', 'rdo.versoes.read', 'rdo.equipe.read', 'rdo.servicos.read', 'rdo.dds.read', 'rdo.anexos.metadata.read', 'rdo.anexos.download', 'rdo.assinaturas.read', 'rdo.auditoria.read'], endpointFamilies: ['/rdo/relatorios', '/rdo/versoes', '/rdo/servicos'],
-    excludedFields: ['sequências', 'jobs/payloads', 'rascunhos', 'caminho/token de arquivo', 'imagem de assinatura', 'IP', 'user-agent']
+    excludedFields: ['controle interno de sequências', 'jobs/payloads', 'rascunhos', 'caminho/token de arquivo', 'imagem de assinatura', 'IP', 'user-agent']
   }),
   domain({
     code: 'maintenance-production', label: 'Manutenção e produção',

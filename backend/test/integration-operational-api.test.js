@@ -38,12 +38,29 @@ function database(resource, rows) {
   } } };
 }
 
-test('every public field is a real non-JSON scalar with correct type/nullability in Prisma and source schema', async () => {
+test('stored fields and explicit relation selects match Prisma; derived fields have a dedicated projection', async () => {
   const source = await readFile(new URL('../prisma/schema.prisma', import.meta.url), 'utf8');
   for (const resource of OPERATIONAL_RESOURCES) {
     const model = Prisma.dmmf.datamodel.models.find(item => item.name === resource.model);
     const block = source.match(new RegExp(`model ${resource.model} \\{([\\s\\S]*?)\\n\\}`))[1];
+    function checkSelect(modelName, select) {
+      const selectedModel = Prisma.dmmf.datamodel.models.find(item => item.name === modelName);
+      for (const [name, selection] of Object.entries(select)) {
+        const selectedField = selectedModel.fields.find(item => item.name === name);
+        assert.ok(selectedField, `${modelName}.${name} select`);
+        if (selectedField.kind === 'object') {
+          assert.ok(selection.select, `${modelName}.${name} must select relation fields explicitly`);
+          checkSelect(selectedField.type, selection.select);
+        } else assert.equal(selection, true);
+      }
+    }
+    checkSelect(resource.model, resource.select);
     for (const [name, type] of Object.entries(resource.fields)) {
+      if (Object.hasOwn(resource.derivedFields || {}, name)) {
+        assert.equal(typeof resource.serialize, 'function');
+        if (type === 'object') assert.equal(resource.fieldSchemas[name].additionalProperties, false);
+        continue;
+      }
       const field = model.fields.find(item => item.name === name);
       assert.ok(field, `${resource.model}.${name}`);
       const sourceType = block.match(new RegExp(`\\n\\s+${name}\\s+(\\S+)`))?.[1];

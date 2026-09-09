@@ -101,6 +101,7 @@ export async function listOperationalResources(client, operationId, input, conte
     version: 1, operationId, filters, snapshotAt: snapshotAt.toISOString(),
     position: Object.fromEntries(orderFields.map(field => [field, field === timestamp ? new Date(last[field]).toISOString() : last[field]]))
   } }) : null;
-  return { items: pageRows.map(row => serializeOperationalResource(resource, row)),
+  const outputRows = resource.enrichRows ? await resource.enrichRows(client, pageRows, context) : pageRows;
+  return { items: outputRows.map(row => serializeOperationalResource(resource, row, context)),
     page: { limit: query.limit, hasMore, nextCursor, snapshotAt: snapshotAt.toISOString() } };
 }
