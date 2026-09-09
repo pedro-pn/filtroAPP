@@ -1,4 +1,5 @@
 import { resource, publishedReport, publishedMaintenance } from './operational-resource-definition.js';
+import { RDO_SERVICE_DATA_SCHEMA, RDO_SERVICE_DERIVED_FIELDS, RDO_SERVICE_SELECT } from './rdo-resource-definition.js';
 
 const report = { dependencies: ['rdo.relatorios.read'], filterFields: ['reportId'], projectPolicy: 'REPORT', where: { report: publishedReport }, projectNotice: 'Somente relatórios aprovados e projetos autorizados não excluídos.' };
 const maintenance = { dependencies: ['manutencao.registros.read'], filterFields: ['maintenanceId'], projectPolicy: 'MAINTENANCE', where: { maintenance: publishedMaintenance }, projectNotice: 'Somente manutenções aprovadas; avulsas exigem todos os projetos.' };
@@ -21,7 +22,12 @@ export const EXTENDED_OPERATIONAL_RESOURCES = Object.freeze([
   resource('ReportCollaborator', '/rdo/equipe', 'rdo.equipe.read', 'Equipes dos relatórios — IDs e cargos', 'rdo',
     { reportId: 'string', collaboratorId: 'string', jobRoleIdSnapshot: 'string?', roleNameSnapshot: 'string?' }, { ...report, timestampField: null, keyFields: ['reportId', 'collaboratorId'], projectNotice: `${report.projectNotice} Sem filtro incremental: reconciliar a equipe por leitura completa.` }),
   resource('ReportService', '/rdo/servicos', 'rdo.servicos.read', 'Serviços dos relatórios', 'rdo',
-    { reportId: 'string', serviceType: 'string', equipmentId: 'string?', system: 'string?', material: 'string?', startTime: 'string?', endTime: 'string?', finalized: 'boolean?' }, report),
+    { reportId: 'string', serviceType: 'string', equipmentId: 'string?', system: 'string?', material: 'string?', startTime: 'string?', endTime: 'string?', finalized: 'boolean?' }, {
+      ...report, derivedFields: RDO_SERVICE_DERIVED_FIELDS, select: RDO_SERVICE_SELECT,
+      fieldSchemas: { serviceData: RDO_SERVICE_DATA_SCHEMA },
+      includesOperationalNotes: true, optionalScopes: ['rdo.equipe.read'],
+      projectNotice: `${report.projectNotice} Inclui número do relatório, projeto, equipamento, metragem e campos técnicos preenchidos no serviço. Equipe do serviço exige também rdo.equipe.read.`
+    }),
   resource('ReportAttachment', '/rdo/anexos', 'rdo.anexos.metadata.read', 'Anexos dos relatórios — metadados', 'rdo',
     { reportId: 'string?', reportServiceId: 'string?', label: 'string', fileName: 'string', mimeType: 'string' }, { ...report, timestampField: 'createdAt', projectPolicy: 'REPORT_ATTACHMENT', where: reportAttachmentWhere(publishedReport) }),
   resource('ReportSignature', '/rdo/assinaturas', 'rdo.assinaturas.read', 'Assinaturas — situação e datas, sem identidade ou provas', 'rdo',

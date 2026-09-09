@@ -53,7 +53,7 @@ Os caminhos abaixo usam a mesma base `/api/integracoes/v1`, autenticação Beare
 | Categorias de equipamentos | `/equipamentos/categorias` | `equipamentos.categorias.read` |
 | Itens e categorias de estoque | `/estoque/itens`, `/estoque/categorias` | `estoque.itens.read` |
 
-Essas permissões-base são minimizadas: relatórios trazem identificação, tipo, datas e horas; colaboradores trazem código/nome/cargo/ativo; equipamentos e estoque trazem cadastros. Arquivos e custos exigem permissões adicionais descritas abaixo. Consulte os campos exatos em [Contrato operacional](../specs/015-api-token-playground/contracts/operational-read.md).
+As permissões-base de relatórios incluem número, código/nome do projeto, tipo, datas, horas, descrição diária e motivo de horas extras; colaboradores trazem código/nome/cargo/ativo; equipamentos e estoque trazem cadastros. Arquivos e custos exigem permissões adicionais descritas abaixo. Consulte os campos exatos em [Contrato operacional](../specs/015-api-token-playground/contracts/operational-read.md).
 
 Exemplo com uma credencial que contenha `rdo.relatorios.read`:
 
@@ -104,6 +104,55 @@ curl --fail \
 ```
 
 Arquivos sem armazenamento local válido, com pasta de outro projeto, com links simbólicos ou fora das pastas gerenciadas retornam 404. Anexos legados de RDO fora da pasta atual do projeto não são liberados por fallback. Documentos legados de estoque em `Estoque/FISPQ` são suportados sem expor seu token.
+
+### Identificação e dados técnicos de RDO e serviços
+
+`GET /rdo/relatorios` retorna `sequenceNumber` (número salvo no relatório), `reportNumber` (por exemplo, `RDO 27` ou `RLQ 3`), `projectCode` (número/código do projeto, preservado como texto), `projectName`, `dailyDescription` e `overtimeReason`, além dos campos já existentes. Um relatório ainda sem sequência tem os dois campos de numeração nulos. O número é contextualizado pelo projeto e pelo tipo de relatório.
+
+`GET /rdo/servicos` inclui `reportId`, `reportNumber`, `reportSequenceNumber`, `reportType`, `reportDate`, `projectId`, `projectCode`, `projectName`, `equipmentName` e `equipmentCode`, além do tipo de serviço, sistema, material, horários e conclusão. O relatório associado pode ser um RDO ou um relatório técnico derivado (RLQ, RTP, RCPU, RLM, RLF ou RLI); use `reportType` para distinguir registros diários de consolidações e evitar somar os dois como serviços independentes.
+
+O objeto `serviceData` contém os campos técnicos preenchidos no formulário:
+
+| Dados | Campos |
+|---|---|
+| Medidas | `tubes[]`: `diameter`, `diameterUnit`, `length`, `lengthUnit` |
+| Aprovação e descrição | `clientApproved`, `stages`, `drawingsTags`, `notes` |
+| Limpeza | `cleaningPiping`, `cleaningMethods`, `cleaningLocations`, `inspectionTypes`, `cleaningUnits` |
+| Teste de pressão | `testedEquipment`, `testedEquipmentOther`, `workingPressure`, `testPressure`, `testFluid`, `testOil`, `hydrostaticUnits`, `manometers` |
+| Flushing e filtragem | `flushingPiping`, `flushingType`, `oilType`, `oilVolume`, `flushingUnits`, `filtrationUnits` |
+| Partículas e umidade | `particleCounting`, `particleCounters`, `initialNas`, `finalNas`, `initialIso`, `finalIso`, `dehydration`, `dehydrationUnits`, `moistureAnalysis`, `initialMoisturePpm`, `finalMoisturePpm` |
+| Inibição | `vessel`, `lines`, `steps`, `reportTypes` |
+| Equipe do serviço | `collaborators[]`: `id`, `name`; requer também `rdo.equipe.read`, caso contrário retorna `null` |
+
+Pressões e volume são objetos `{ value, unit }`. Unidades, manômetros e contadores retornam listas de `{ id, code, name }`; códigos/nomes registrados no relatório são preservados e os dados faltantes são resolvidos no cadastro. Referências antigas sem cadastro correspondente mantêm o identificador e os rótulos salvos, deixando os demais campos nulos. O equipamento atendido usa o nome informado no relatório; `equipmentCode` é nulo quando não existe vínculo com o cadastro de equipamentos de serviço.
+
+`totalLengthMeters`, na raiz do serviço, soma os comprimentos em metros com precisão decimal e retorna texto. As medidas originais em `serviceData.tubes` mantêm os valores e unidades preenchidos, inclusive vírgulas e diâmetros fracionários. Sem medidas ou com algum comprimento/unidade inválido, o total é `null`, em vez de um total parcial. Campos não preenchidos são `null` ou listas vazias.
+
+Exemplo parcial de um item de `/rdo/servicos`:
+
+```json
+{
+  "reportNumber": "RDO 27",
+  "reportSequenceNumber": 27,
+  "reportType": "RDO",
+  "projectCode": "05776",
+  "projectName": "Projeto demonstrativo",
+  "equipmentName": "Bomba principal",
+  "system": "Hidráulico",
+  "material": "Aço inox",
+  "totalLengthMeters": "1.5",
+  "serviceData": {
+    "tubes": [{ "diameter": "1 1/2", "diameterUnit": "pol", "length": "150", "lengthUnit": "cm" }],
+    "testPressure": { "value": "15", "unit": "bar" },
+    "stages": ["Execução do teste"],
+    "notes": "Sem vazamentos."
+  }
+}
+```
+
+A ampliação usa as permissões existentes `rdo.relatorios.read` e `rdo.servicos.read`, incluindo dados de relatórios já salvos. O catálogo e o Playground mostram os novos campos. Os textos operacionais preenchidos passam a fazer parte dessas projeções; metadados/arquivos de fotos e anexos continuam nos endpoints e permissões próprios. O JSON interno, chaves de continuação, caminhos, tokens e assinaturas não são devolvidos.
+
+A paginação continua usando `updatedAt` do registro consultado. Renumeração do relatório, alteração do nome do projeto ou de um equipamento relacionado não necessariamente atualiza o serviço; para refletir essas mudanças de contexto, faça reconciliação completa periódica.
 
 ### Como percorrer páginas
 

@@ -10,7 +10,7 @@ Base `/api/integracoes/v1`. Cada permissão abaixo requer também a permissão-b
 |---|---|---|
 | `/rdo/versoes` | `rdo.versoes.read` | versão, situação, relatório e criação; sem PDFs, hashes ou códigos de validação |
 | `/rdo/equipe` | `rdo.equipe.read` | IDs de relatório/colaborador e cargo registrado; sem contatos |
-| `/rdo/servicos` | `rdo.servicos.read` | serviço, equipamento, material, horários e conclusão; sem JSON livre |
+| `/rdo/servicos` | `rdo.servicos.read` | relatório/projeto identificados por número, equipamento, sistema, material, horários, conclusão, metragem total e `serviceData` com campos técnicos explícitos; sem JSON livre |
 | `/rdo/anexos` | `rdo.anexos.metadata.read` | identificação, nome, MIME e criação; sem caminhos/URLs |
 | `/rdo/assinaturas` | `rdo.assinaturas.read` | papel, tipo, situação e datas; sem identidade, imagem ou prova criptográfica |
 | `/rdo/auditoria` | `rdo.auditoria.read` | ação, data, relatório/versão; sem ator, texto livre, IP ou user-agent |
@@ -37,3 +37,9 @@ Na auditoria de download, bytes representam o tamanho autorizado/preparado do ar
 Envelope e cursor assinado compatíveis com as coleções existentes. `limit`, `cursor`, `snapshotAt` em todas; `projectId` onde há vínculo; `reportId`, `maintenanceId` ou `itemId` somente nas coleções correspondentes. `updatedSince` apenas onde existe `updatedAt`; registros com apenas `createdAt` aceitam `createdSince` e ordenam `(createdAt,id)`. Equipe ordena `(reportId,collaboratorId)`, sem data inventada e sem filtro incremental. O teto de equipe aplica-se à criação do relatório pai.
 
 Snapshot é um teto temporal de consulta, não isolamento transacional entre páginas. Criações, edições, exclusões e mudanças de visibilidade podem exigir reconciliação completa. `createdSince` detecta somente criações; equipe requer leitura completa. Cursor vinculado a operação, filtros e política de projetos. Parâmetros desconhecidos são rejeitados antes de consulta/reserva de linhas.
+
+## Dados completos dos serviços — 2026-09-09
+
+Os campos do formulário são publicados em `serviceData`, conforme o schema fechado no OpenAPI e a [documentação dos campos e exemplos](../../../docs/API_INTEGRACOES.md#identificação-e-dados-técnicos-de-rdo-e-serviços). Nomes e códigos dos equipamentos auxiliares são resolvidos em uma consulta adicional por página autorizada. A equipe registrada no serviço requer a permissão opcional `rdo.equipe.read`; sem ela, `serviceData.collaborators` é nulo. Arquivos continuam exigindo os escopos próprios. Relatórios diários e técnicos derivados são identificados por `reportType`, `reportSequenceNumber` e `reportNumber`.
+
+A numeração e o contexto do projeto vêm das relações atuais. Alterações nessas relações podem exigir reconciliação completa, pois o cursor incremental continua vinculado ao `updatedAt` do serviço.

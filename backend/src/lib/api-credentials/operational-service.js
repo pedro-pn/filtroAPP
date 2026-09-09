@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { makeOperationalReadQuerySchema } from '../../../../shared/schemas/integration-api.js';
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
 import { createSignedCursor, readSignedCursor, stableJson } from './cursor.js';
-import { getOperationalResource, serializeOperationalResource } from './operational-resources.js';
+import { getOperationalResource } from './operational-resources.js';
+import { enrichOperationalRows, serializeOperationalResource } from './operational-serialization.js';
 import { reportAttachmentWhere } from './extended-operational-resources.js';
 
 const querySchema = makeOperationalReadQuerySchema(z);
@@ -101,6 +102,7 @@ export async function listOperationalResources(client, operationId, input, conte
     version: 1, operationId, filters, snapshotAt: snapshotAt.toISOString(),
     position: Object.fromEntries(orderFields.map(field => [field, field === timestamp ? new Date(last[field]).toISOString() : last[field]]))
   } }) : null;
-  return { items: pageRows.map(row => serializeOperationalResource(resource, row)),
+  const outputRows = await enrichOperationalRows(client, resource, pageRows, context);
+  return { items: outputRows.map(row => serializeOperationalResource(resource, row, context)),
     page: { limit: query.limit, hasMore, nextCursor, snapshotAt: snapshotAt.toISOString() } };
 }

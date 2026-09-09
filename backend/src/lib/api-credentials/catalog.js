@@ -3,7 +3,7 @@ import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 import { describePlaygroundParameters } from './playground-parameters.js';
 
-export const API_CATALOG_VERSION = '2026-09-08';
+export const API_CATALOG_VERSION = '2026-09-09';
 export { API_DATA_DOMAINS, DATA_CATALOG_VERSION, flattenDataCatalogModels, futureScopeDefinitions } from './data-catalog.js';
 
 const QUALITY_RECORD_FIELDS = ['id', 'number', 'type', 'registeredAt', 'origin', 'project', 'eventDate', 'nature', 'description', 'impact', 'recurrence', 'linkedRnc', 'disposition', 'definedAction', 'actionOwner', 'actionDeadline', 'evidenceSummary', 'resultVerification', 'status', 'createdAt', 'updatedAt'];
@@ -27,8 +27,10 @@ export const API_SCOPES = Object.freeze([
     return {
       code, label: resources[0].label, domain: domain.label, sensitivity: resources[0].sensitivity || 'INTERNAL',
       status: 'AVAILABLE', dependencies: resources[0].dependencies, description: resources[0].projectNotice,
-      models: resources.map(item => item.model), exposedFields: [...new Set(resources.flatMap(item => Object.keys(item.fields)))],
-      excludedFields: [...domain.excludedFields, 'campos JSON livres', 'observações livres', 'campos não listados no contrato']
+      models: resources.map(item => item.model), exposedFields: [...new Set(resources.flatMap(item => [
+        ...Object.keys(item.fields), ...Object.entries(item.fieldSchemas || {}).flatMap(([field, schema]) => Object.keys(schema.properties).map(name => `${field}.${name}`))
+      ]))],
+      excludedFields: [...domain.excludedFields, 'campos JSON livres', ...(resources.some(item => item.includesOperationalNotes) ? [] : ['observações livres']), 'campos não listados no contrato']
     };
   }),
   ...OPERATIONAL_DOWNLOADS.map(item => ({ code: item.scope, domain: API_DATA_DOMAINS.find(domain => domain.code === item.domainCode).label,
@@ -63,7 +65,7 @@ export const API_OPERATIONS = Object.freeze([
   ...OPERATIONAL_RESOURCES.map(resource => ({
     operationId: resource.operationId, openApiOperationId: resource.openApiOperationId,
     label: resource.label, method: 'GET', path: resource.path,
-    requiredScopes: resource.requiredScopes, optionalScopes: [], queryParams: resource.queryParams,
+    requiredScopes: resource.requiredScopes, optionalScopes: resource.optionalScopes || [], queryParams: resource.queryParams,
     pathParams: [], supportsPlayground: true
   })),
   ...OPERATIONAL_DOWNLOADS.map(item => ({ operationId: item.operationId, openApiOperationId: item.openApiOperationId,

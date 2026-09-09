@@ -1,5 +1,6 @@
 import { resource, publishedReport } from './operational-resource-definition.js';
 import { EXTENDED_OPERATIONAL_RESOURCES } from './extended-operational-resources.js';
+import { RDO_PROJECT_SELECT, RDO_REPORT_DERIVED_FIELDS } from './rdo-resource-definition.js';
 
 export const BASE_OPERATIONAL_RESOURCES = Object.freeze([
   resource('Collaborator', '/colaboradores', 'colaboradores.operacional.read', 'Colaboradores — identificação operacional', 'people-access',
@@ -12,9 +13,10 @@ export const BASE_OPERATIONAL_RESOURCES = Object.freeze([
     { code: 'string', name: 'string', isActive: 'boolean', location: 'string', clientSegment: 'string?', mobilizationDate: 'datetime?', demobilizationDate: 'datetime?', startDate: 'datetime?' },
     { projectPolicy: 'SELF', projectNotice: 'Somente projetos autorizados e não excluídos.', where: { deletedAt: null } }),
   resource('ClientSegment', '/clientes/segmentos', 'clientes.segmentos.read', 'Segmentos de clientes', 'projects-clients', { label: 'string', slug: 'string', isActive: 'boolean' }),
-  resource('Report', '/rdo/relatorios', 'rdo.relatorios.read', 'Relatórios aprovados — datas e horas', 'rdo',
-    { projectId: 'string', reportType: 'string', status: 'string', reportDate: 'datetime', arrivalTime: 'string', departureTime: 'string', lunchBreak: 'string', daytimeCount: 'integer', daytimeWorkedMinutes: 'integer', nighttimeWorkedMinutes: 'integer', daytimeOvertimeMinutes: 'integer', nighttimeOvertimeMinutes: 'integer', totalOvertimeMinutes: 'integer', approvedAt: 'datetime?' },
-    { projectPolicy: 'DIRECT', projectNotice: 'Somente relatórios aprovados, não excluídos e de projetos autorizados não excluídos.', where: publishedReport }),
+  resource('Report', '/rdo/relatorios', 'rdo.relatorios.read', 'Relatórios aprovados — identificação, descrição e horas', 'rdo',
+    { projectId: 'string', reportType: 'string', sequenceNumber: 'integer?', status: 'string', reportDate: 'datetime', arrivalTime: 'string', departureTime: 'string', lunchBreak: 'string', daytimeCount: 'integer', daytimeWorkedMinutes: 'integer', nighttimeWorkedMinutes: 'integer', daytimeOvertimeMinutes: 'integer', nighttimeOvertimeMinutes: 'integer', totalOvertimeMinutes: 'integer', approvedAt: 'datetime?', dailyDescription: 'string?', overtimeReason: 'string?' },
+    { projectPolicy: 'DIRECT', projectNotice: 'Número do relatório e código/nome do projeto, descrição diária e motivo de horas extras. Somente relatórios aprovados, não excluídos e de projetos autorizados não excluídos.', where: publishedReport,
+      derivedFields: RDO_REPORT_DERIVED_FIELDS, select: { project: RDO_PROJECT_SELECT }, includesOperationalNotes: true }),
   resource('DdsTheme', '/rdo/dds', 'rdo.dds.read', 'Temas de DDS', 'rdo', { name: 'string', isActive: 'boolean' }),
   resource('MaintenanceRecord', '/manutencao/registros', 'manutencao.registros.read', 'Manutenções aprovadas — identificação e datas', 'maintenance-production',
     { reportId: 'string?', equipmentId: 'string', profileId: 'string?', maintenanceDate: 'datetime', status: 'string', approvedAt: 'datetime?' }, {
@@ -39,13 +41,4 @@ export const OPERATIONAL_RESOURCES = Object.freeze([...BASE_OPERATIONAL_RESOURCE
 
 export function getOperationalResource(operationId) {
   return OPERATIONAL_RESOURCES.find(item => item.operationId === operationId) || null;
-}
-
-// Uma segunda allowlist na saída impede vazamento mesmo se o adapter retornar campos extras.
-export function serializeOperationalResource(resource, row) {
-  return Object.fromEntries(Object.entries(resource.fields).map(([field, type]) => {
-    const value = row[field];
-    return [field, value == null ? null : type.startsWith('datetime') ? new Date(value).toISOString()
-      : type.startsWith('decimal') ? String(value) : value];
-  }));
 }
