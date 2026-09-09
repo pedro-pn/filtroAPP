@@ -37,7 +37,7 @@
   "dependencies": {
     "@napi-rs/canvas": "^1.0.8",
     "@prisma/adapter-pg": "^7.9.1",
-    "@prisma/client": "^7.9.1",
+    "@prisma/client": "^7.10.0",
     "@tesseract.js-data/por": "^1.0.0",
     "@xmldom/xmldom": "^0.9.12",
     "adm-zip": "^0.6.0",
