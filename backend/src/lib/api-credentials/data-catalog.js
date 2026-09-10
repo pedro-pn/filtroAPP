@@ -45,7 +45,7 @@ export const API_DATA_DOMAINS = Object.freeze([
       ...modelEntries(['EfetivoPlan', 'EfetivoMissionPlan', 'EfetivoMissionCycle', 'EfetivoMissionDemand', 'WorkforceHoliday'], 'PLANNED'),
       ...modelEntries(['EfetivoMissionAllocation', 'EfetivoAllocationCycle', 'EfetivoPlannedHire'], 'SENSITIVE'),
       ...modelEntries(['WorkforceCalendarState'], 'PROHIBITED'),
-      ...modelEntries(['EfetivoAuditEvent', 'ProjectWorkflow', 'ProjectWorkflowChecklist', 'ProjectWorkflowCriticalAnswer', 'ProjectWorkflowIssue', 'ProjectWorkflowCommercialFact', 'ProjectWorkflowEvent'], 'RESERVED')
+      ...modelEntries(['EfetivoAuditEvent', 'ProjectWorkflow', 'ProjectWorkflowChecklist', 'ProjectWorkflowCriticalAnswer', 'ProjectWorkflowIssue', 'ProjectWorkflowCommercialFact', 'ProjectWorkflowEvent', 'ProjectWorkflowPostJob'], 'RESERVED')
     ],
     candidateScopes: ['efetivo.planos.read', 'efetivo.demandas.read', 'efetivo.alocacoes.read', 'efetivo.contratacoes.read', 'efetivo.feriados.read'], endpointFamilies: ['/efetivo/planos', '/efetivo/demandas', '/efetivo/alocacoes', '/efetivo/feriados'],
     excludedFields: ['salários', 'custos pessoais', 'observações livres', 'estado técnico', 'fatos comerciais', 'evento bruto', 'ator']

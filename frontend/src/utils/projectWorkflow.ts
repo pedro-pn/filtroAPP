@@ -50,6 +50,11 @@ export function moveProjectInColumns(columns: ProjectKanbanColumns, projectId: s
 }
 
 export function projectWorkflowMilestoneText(item: ProjectWorkflowSummary) {
+  if (item.workflow?.stage === 'POST_JOB') {
+    return item.workflow.postJob.meetingDate
+      ? `Pós-job realizado em ${new Date(`${item.workflow.postJob.meetingDate}T00:00:00`).toLocaleDateString('pt-BR')}`
+      : 'Fechamento técnico em andamento';
+  }
   if (item.workflow?.stage === 'DEMOBILIZATION') {
     if (item.workflow.demobilizationDate) return `Desmobilizada em ${new Date(`${item.workflow.demobilizationDate}T00:00:00`).toLocaleDateString('pt-BR')}`;
     if (item.workflow.fieldCompletionDate) return `Campo concluído em ${new Date(`${item.workflow.fieldCompletionDate}T00:00:00`).toLocaleDateString('pt-BR')}`;
@@ -70,6 +75,7 @@ export function projectWorkflowStageOptions(stage: ProjectWorkflowStage) {
   if (stage === 'READY_TO_MOBILIZE') return ['PREPARATION', 'MOBILIZATION'] as ProjectWorkflowStage[];
   if (stage === 'MOBILIZATION') return ['READY_TO_MOBILIZE', 'EXECUTION'] as ProjectWorkflowStage[];
   if (stage === 'EXECUTION') return ['MOBILIZATION', 'DEMOBILIZATION'] as ProjectWorkflowStage[];
-  if (stage === 'DEMOBILIZATION') return ['EXECUTION'] as ProjectWorkflowStage[];
+  if (stage === 'DEMOBILIZATION') return ['EXECUTION', 'POST_JOB'] as ProjectWorkflowStage[];
+  if (stage === 'POST_JOB') return ['DEMOBILIZATION'] as ProjectWorkflowStage[];
   return [];
 }

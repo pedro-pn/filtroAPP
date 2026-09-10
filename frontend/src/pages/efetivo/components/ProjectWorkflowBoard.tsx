@@ -241,7 +241,7 @@ function ProjectCard({
       {workflow ? <>
         <small>
           {projectWorkflowMilestoneText(item)}
-          {workflow.stage !== 'DEMOBILIZATION' && nextMilestone ? ' · próximo ' + nextMilestone.label + ' em ' + displayDateOnly(nextMilestone.date) : ''}
+          {!['DEMOBILIZATION', 'POST_JOB'].includes(workflow.stage) && nextMilestone ? ' · próximo ' + nextMilestone.label + ' em ' + displayDateOnly(nextMilestone.date) : ''}
         </small>
         {workflow.milestones.dueMilestones.length ? (
           <small className="project-workflow-deadline-alert">
@@ -269,14 +269,15 @@ function ProjectCard({
         {workflow.stage === 'EXECUTION' ? <small className="project-workflow-execution-badge">Acompanhamento operacional ativo</small> : null}
         {workflow.stage === 'MOBILIZATION' ? <small className="project-workflow-execution-badge">Mobilização operacional em andamento</small> : null}
         {workflow.stage === 'DEMOBILIZATION' ? <small className="project-workflow-execution-badge">Desmobilização: {workflow.demobilizationReadiness.completed}/{workflow.demobilizationReadiness.total} · {workflow.demobilizationReadiness.percentage}%</small> : null}
+        {workflow.stage === 'POST_JOB' ? <small className="project-workflow-execution-badge">Pós-job: {workflow.postJobReadiness.completed}/{workflow.postJobReadiness.total} · {workflow.postJobReadiness.percentage}%</small> : null}
         {workflow.mobilizationGate.deadlineStatus === 'ATTENTION' ? (
           <small className="project-workflow-mobilization-risk is-attention">D-7 · {workflow.mobilizationGate.blockers.length} bloqueio(s)</small>
         ) : null}
         {workflow.mobilizationGate.deadlineStatus === 'RISK' ? (
           <small className="project-workflow-mobilization-risk is-risk">Risco de mobilização · {workflow.mobilizationGate.blockers.length} bloqueio(s)</small>
         ) : null}
-        {workflow.stage !== 'DEMOBILIZATION' && mobilizationStatus === 'AUTHORIZED' ? <small className="project-workflow-authorization-badge is-authorized">🔒 Mobilização autorizada</small> : null}
-        {workflow.stage !== 'DEMOBILIZATION' && mobilizationStatus === 'SUSPENDED' ? <small className="project-workflow-authorization-badge is-suspended">Autorização suspensa</small> : null}
+        {!['DEMOBILIZATION', 'POST_JOB'].includes(workflow.stage) && mobilizationStatus === 'AUTHORIZED' ? <small className="project-workflow-authorization-badge is-authorized">🔒 Mobilização autorizada</small> : null}
+        {!['DEMOBILIZATION', 'POST_JOB'].includes(workflow.stage) && mobilizationStatus === 'SUSPENDED' ? <small className="project-workflow-authorization-badge is-suspended">Autorização suspensa</small> : null}
         {workflow.issueCount ? (
           <em className={workflow.overdueIssueCount ? 'is-overdue' : ''}>
             {workflow.issueCount} pendência(s){workflow.overdueIssueCount ? ' · ' + workflow.overdueIssueCount + ' vencida(s)' : ''}
@@ -525,6 +526,7 @@ export function ProjectWorkflowBoard({
     },
     onError: async (error: Error, variables) => {
       setColumns(variables.snapshot);
+      onProjectSelect(variables.project.id);
       const issues = projectWorkflowErrorIssues(error);
       toast([...new Set([error.message, ...issues])].join(' · '), 'error');
       await queryClient.invalidateQueries({ queryKey: ['project-workflows'] });
@@ -599,10 +601,12 @@ export function ProjectWorkflowBoard({
     if (project.workflow) {
       if (project.workflow.stage === 'HANDOVER') {
         if (target !== 'INITIAL_ANALYSIS') {
+          onProjectSelect(project.id);
           toast('Movimentação bloqueada: assuma o handover e conclua o gate antes de seguir para outra etapa.', 'error');
           return;
         }
         if (!project.permissions.canAccept) {
+          onProjectSelect(project.id);
           toast('Movimentação bloqueada: somente o Líder de Projetos definido pode assumir o handover.', 'error');
           return;
         }
@@ -616,15 +620,18 @@ export function ProjectWorkflowBoard({
         return;
       }
       if (!project.permissions.canEdit) {
+        onProjectSelect(project.id);
         toast('Movimentação bloqueada: somente o gestor ou o Líder de Projetos pode alterar esta etapa.', 'error');
         return;
       }
       if (target === 'FINAL_MEASUREMENT' || target === 'FINISHED') {
+        onProjectSelect(project.id);
         toast('Movimentação bloqueada: o fechamento técnico e a medição ainda serão ligados ao fluxo gerenciado em uma próxima entrega.', 'error');
         return;
       }
       const allowedTargets = projectWorkflowStageOptions(project.workflow.stage);
       if (!allowedTargets.includes(target)) {
+        onProjectSelect(project.id);
         const labels = allowedTargets.map(stageOption => PROJECT_KANBAN_STAGE_LABELS[stageOption]).join(' ou ');
         toast(
           'Movimentação bloqueada: a partir de ' + PROJECT_KANBAN_STAGE_LABELS[project.workflow.stage]
@@ -645,6 +652,7 @@ export function ProjectWorkflowBoard({
 
     const mission = project.operationalMission;
     if (!canManage || !mission) {
+      onProjectSelect(project.id);
       toast(
         'Movimentação bloqueada: '
           + (mission ? 'você não possui permissão para alterar este projeto' : 'crie a programação operacional ou inicie o handover')
@@ -655,6 +663,7 @@ export function ProjectWorkflowBoard({
     }
     const targetMissionStage = LEGACY_PROJECT_STAGE_TO_MISSION[target];
     if (!targetMissionStage) {
+      onProjectSelect(project.id);
       toast('Movimentação bloqueada: esta é uma etapa do novo fluxo de gestão. Inicie o handover para utilizá-la.', 'error');
       return;
     }
@@ -663,6 +672,7 @@ export function ProjectWorkflowBoard({
       ? missionPendencies(detailedMission)
       : mission.scheduleStatus === 'CONFIRMED' ? [] : ['Confirmar a programação'];
     if (blockers.length) {
+      onProjectSelect(project.id);
       toast('Movimentação bloqueada: ' + blockers.join(' · ') + '.', 'error');
       return;
     }
@@ -694,7 +704,6 @@ export function ProjectWorkflowBoard({
     const project = projectId ? projectById(projectId) : null;
     const sourceStage = projectId && snapshot ? projectStageInColumns(snapshot, projectId) : null;
     if (project && snapshot && sourceStage !== stage) {
-      onProjectSelect(project.id);
       requestMove(project, stage, snapshot);
     }
     endDrag();

@@ -48,7 +48,8 @@ test('ações de etapa não transformam D-30 em coluna', () => {
   assert.deepEqual(projectWorkflowStageOptions('READY_TO_MOBILIZE'), ['PREPARATION', 'MOBILIZATION']);
   assert.deepEqual(projectWorkflowStageOptions('MOBILIZATION'), ['READY_TO_MOBILIZE', 'EXECUTION']);
   assert.deepEqual(projectWorkflowStageOptions('EXECUTION'), ['MOBILIZATION', 'DEMOBILIZATION']);
-  assert.deepEqual(projectWorkflowStageOptions('DEMOBILIZATION'), ['EXECUTION']);
+  assert.deepEqual(projectWorkflowStageOptions('DEMOBILIZATION'), ['EXECUTION', 'POST_JOB']);
+  assert.deepEqual(projectWorkflowStageOptions('POST_JOB'), ['DEMOBILIZATION']);
   assert.equal(projectWorkflowMilestoneText({ workflow: { milestones: { daysUntilMobilization: 20 } } }), 'Faltam 20 dia(s)');
   assert.equal(projectWorkflowMilestoneText({ workflow: { stage: 'DEMOBILIZATION', demobilizationDate: '2026-09-22', milestones: {} } }), 'Desmobilizada em 22/09/2026');
 });
@@ -92,7 +93,8 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.doesNotMatch(dragStart, /onProjectSelect/);
   assert.doesNotMatch(touchStart, /onProjectSelect/);
   assert.match(drop, /sourceStage !== stage/);
-  assert.match(drop, /onProjectSelect\(project\.id\)/);
+  assert.doesNotMatch(drop, /onProjectSelect\(project\.id\)/);
+  assert.match(board, /onError: async \(error: Error, variables\) => \{\s+setColumns\(variables\.snapshot\);\s+onProjectSelect\(variables\.project\.id\)/);
   assert.match(board, /suppressCardClickUntilRef/);
   assert.match(modal, /Compatibilidade do projeto antigo/);
   assert.match(modal, /Atualizar etapa antiga/);
@@ -147,7 +149,7 @@ test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe'
   assert.match(board, /Risco de mobilização/);
   assert.match(board, /Mobilização autorizada/);
   assert.match(administration, /EFETIVO_QSMS/);
-  assert.match(styles, /repeat\(11, minmax\(230px, 1fr\)\)/);
+  assert.match(styles, /repeat\(12, minmax\(230px, 1fr\)\)/);
   assert.match(styles, /project-workflow-gate-table/);
   assert.match(registry, /efetivo:qsms/);
 });
@@ -178,4 +180,22 @@ test('etapa Em execução mostra painel operacional e desvios integrados', () =>
   assert.match(board, /data-project-workflow-execution/);
   assert.match(styles, /project-execution-deviation-form/);
   assert.match(styles, /project-execution-report-grid/);
+});
+
+test('Pós-job e categorias recolhíveis reduzem o volume do detalhe', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const category = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowCategory.tsx', import.meta.url), 'utf8');
+  const panel = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectPostJobPanel.tsx', import.meta.url), 'utf8');
+  const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  assert.match(category, /<details/);
+  assert.match(category, /useState\(!complete\)/);
+  assert.match(modal, /Liberação comercial e contratual/);
+  assert.match(modal, /Documentação antecipada/);
+  assert.match(modal, /data-project-workflow-post-job/);
+  assert.match(panel, /Lições aprendidas/);
+  assert.match(panel, /Histórico relacionado/);
+  assert.match(panel, /Registro em Qualidade/);
+  assert.match(board, /Pós-job:/);
+  assert.match(styles, /project-workflow-category/);
 });

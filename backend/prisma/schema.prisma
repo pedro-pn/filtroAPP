@@ -259,6 +259,8 @@ enum ProjectWorkflowStage {
   READY_TO_MOBILIZE
   MOBILIZATION
   EXECUTION
+  DEMOBILIZATION
+  POST_JOB
 }
 
 enum ProjectWorkflowChecklistStatus {
@@ -277,6 +279,17 @@ enum ProjectWorkflowCriticality {
   HIGH
   MEDIUM
   LOW
+}
+
+enum ProjectWorkflowCommercialFactStatus {
+  PENDING
+  CONFIRMED
+  NOT_APPLICABLE
+}
+
+enum ProjectWorkflowCommercialFactSource {
+  MANUAL
+  CRM
 }
 
 enum EfetivoAllocationSource {
@@ -948,27 +961,55 @@ model EfetivoPlan {
 }
 
 model ProjectWorkflow {
-  projectId               String               @id
-  stage                   ProjectWorkflowStage @default(HANDOVER)
-  leaderUserId            String
-  acceptedAt              DateTime?
-  plannedMobilizationDate DateTime                        @db.Date
-  mobilizationAuthorizedAt DateTime?
+  projectId                        String                          @id
+  stage                            ProjectWorkflowStage            @default(HANDOVER)
+  leaderUserId                     String
+  acceptedAt                       DateTime?
+  plannedMobilizationDate          DateTime                        @db.Date
+  mobilizationAuthorizedAt         DateTime?
   mobilizationAuthorizationVersion Int?
-  fieldCompletionDate     DateTime?                       @db.Date
-  executionReportTargets  Json                            @default("{}")
-  version                 Int                             @default(1)
-  createdAt               DateTime                        @default(now())
-  updatedAt               DateTime                        @updatedAt
-  project                 Project                         @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  leader                  User                            @relation("ProjectWorkflowLeader", fields: [leaderUserId], references: [id], onDelete: Restrict)
-  checklists              ProjectWorkflowChecklist[]
-  criticalAnswers         ProjectWorkflowCriticalAnswer[]
-  issues                  ProjectWorkflowIssue[]
-  events                  ProjectWorkflowEvent[]
+  fieldCompletionDate              DateTime?                       @db.Date
+  executionReportTargets           Json                            @default("{}")
+  version                          Int                             @default(1)
+  createdAt                        DateTime                        @default(now())
+  updatedAt                        DateTime                        @updatedAt
+  project                          Project                         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  leader                           User                            @relation("ProjectWorkflowLeader", fields: [leaderUserId], references: [id], onDelete: Restrict)
+  checklists                       ProjectWorkflowChecklist[]
+  criticalAnswers                  ProjectWorkflowCriticalAnswer[]
+  issues                           ProjectWorkflowIssue[]
+  commercialFacts                  ProjectWorkflowCommercialFact[]
+  events                           ProjectWorkflowEvent[]
+  postJob                          ProjectWorkflowPostJob?
 
   @@index([stage, plannedMobilizationDate])
   @@index([leaderUserId])
+}
+
+model ProjectWorkflowCommercialFact {
+  id              String                              @id @default(cuid())
+  projectId       String
+  key             String
+  status          ProjectWorkflowCommercialFactStatus @default(PENDING)
+  source          ProjectWorkflowCommercialFactSource @default(MANUAL)
+  reference       String?
+  note            String?
+  occurredOn      DateTime?                           @db.Date
+  externalId      String?
+  externalUrl     String?
+  sourceVersion   String?
+  sourceUpdatedAt DateTime?
+  lastSyncedAt    DateTime?
+  updatedByUserId String?
+  createdAt       DateTime                            @default(now())
+  updatedAt       DateTime                            @updatedAt
+  workflow        ProjectWorkflow                     @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  updatedBy       User?                               @relation("ProjectWorkflowCommercialFactUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, key])
+  @@index([projectId, status])
+  @@index([source])
+  @@index([updatedByUserId])
 }
 
 model ProjectWorkflowChecklist {
@@ -1033,6 +1074,33 @@ model ProjectWorkflowEvent {
 
   @@index([projectId, createdAt])
   @@index([actorUserId])
+}
+
+model ProjectWorkflowPostJob {
+  projectId                String          @id
+  meetingDate              DateTime?       @db.Date
+  fieldLeaderFeedback      String?
+  teamFeedback             String?
+  problemsFound            String?
+  solutionsAdopted         String?
+  improvementOpportunities String?
+  lessonsLearned           String?
+  equipmentFeedback        String?
+  planningFeedback         String?
+  serviceTypes             String[]        @default([])
+  qualityRecordId          String?         @unique
+  createdByUserId          String?
+  updatedByUserId          String?
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+  workflow                 ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  qualityRecord            QualityRecord?  @relation(fields: [qualityRecordId], references: [id], onDelete: SetNull)
+  createdBy                User?           @relation("ProjectWorkflowPostJobCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy                User?           @relation("ProjectWorkflowPostJobUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([meetingDate])
+  @@index([createdByUserId])
+  @@index([updatedByUserId])
 }
 
 model EfetivoMissionPlan {
@@ -2088,6 +2156,8 @@ model User {
   updatedProjectWorkflowCriticalAnswers ProjectWorkflowCriticalAnswer[]      @relation("ProjectWorkflowCriticalAnswerUpdater")
   updatedProjectWorkflowCommercialFacts ProjectWorkflowCommercialFact[]     @relation("ProjectWorkflowCommercialFactUpdater")
   projectWorkflowEvents                ProjectWorkflowEvent[]               @relation("ProjectWorkflowEventActor")
+  createdProjectWorkflowPostJobs       ProjectWorkflowPostJob[]             @relation("ProjectWorkflowPostJobCreator")
+  updatedProjectWorkflowPostJobs       ProjectWorkflowPostJob[]             @relation("ProjectWorkflowPostJobUpdater")
   createdAcompanhamentoMissionGroups   AcompanhamentoMissionGroup[]        @relation("AcompanhamentoMissionGroupCreatedBy")
   dissolvedAcompanhamentoMissionGroups AcompanhamentoMissionGroup[]        @relation("AcompanhamentoMissionGroupDissolvedBy")
   createdQualityRecords                QualityRecord[]                     @relation("QualityRecordCreator")
@@ -2127,8 +2197,8 @@ model QualityNature {
 }
 
 model QualityRecord {
-  id                 String              @id @default(cuid())
-  number             String              @unique
+  id                 String                  @id @default(cuid())
+  number             String                  @unique
   type               QualityRecordType
   seq                Int
   year               Int
@@ -2151,14 +2221,15 @@ model QualityRecord {
   updatedById        String?
   deletedById        String?
   deletedAt          DateTime?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  project            Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  nature             QualityNature?      @relation(fields: [natureId], references: [id], onDelete: Restrict)
-  createdBy          User?               @relation("QualityRecordCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy          User?               @relation("QualityRecordUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
-  deletedBy          User?               @relation("QualityRecordDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  project            Project?                @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  nature             QualityNature?          @relation(fields: [natureId], references: [id], onDelete: Restrict)
+  createdBy          User?                   @relation("QualityRecordCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy          User?                   @relation("QualityRecordUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  deletedBy          User?                   @relation("QualityRecordDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
   evidences          QualityEvidence[]
+  projectPostJob     ProjectWorkflowPostJob?
 
   @@unique([type, year, seq])
   @@index([projectId, type])

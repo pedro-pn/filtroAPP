@@ -23,6 +23,8 @@ function fakeDatabase() {
     issues: [],
     commercialFacts: [],
     events: [],
+    postJob: null,
+    relatedPostJobs: [],
     operationalMission: null,
     lastProjectFindManyInput: null,
     lastUserFindManyInput: null
@@ -41,7 +43,13 @@ function fakeDatabase() {
     criticalAnswers: state.answers.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     commercialFacts: state.commercialFacts.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     issues: state.issues.map(item => ({ ...item })),
-    events: state.events.map(item => ({ ...item, actor: users[item.actorUserId] || null })).reverse()
+    events: state.events.map(item => ({ ...item, actor: users[item.actorUserId] || null })).reverse(),
+    postJob: state.postJob ? {
+      ...state.postJob,
+      qualityRecord: state.postJob.qualityRecordId ? { id: state.postJob.qualityRecordId, number: 'L-001/26', deletedAt: null } : null,
+      createdBy: users[state.postJob.createdByUserId] || null,
+      updatedBy: users[state.postJob.updatedByUserId] || null
+    } : null
   } : null;
   const database = {
     $transaction: async callback => {
@@ -54,8 +62,8 @@ function fakeDatabase() {
       }
     },
     project: {
-      findFirst: async input => input.where.id === state.project.id ? { ...state.project, efetivoMissionPlans: state.operationalMission ? [state.operationalMission] : [], ...(input.select?.workflow ? { workflow: withRelations() } : {}) } : null,
-      findUnique: async input => input.where.id === state.project.id ? { ...state.project } : null,
+      findFirst: async input => input.where.id === state.project.id ? { ...state.project, plannedServices: [{ serviceType: 'FLUSHING' }], efetivoMissionPlans: state.operationalMission ? [state.operationalMission] : [], ...(input.select?.workflow ? { workflow: withRelations() } : {}) } : null,
+      findUnique: async input => input.where.id === state.project.id ? { ...state.project, plannedServices: [{ serviceType: 'FLUSHING' }] } : null,
       update: async input => {
         state.project = { ...state.project, ...input.data };
         return state.project;
@@ -147,6 +155,15 @@ function fakeDatabase() {
         state.events.push(event);
         return event;
       }
+    },
+    projectWorkflowPostJob: {
+      upsert: async input => {
+        const now = new Date();
+        if (state.postJob) Object.assign(state.postJob, input.update, { updatedAt: now });
+        else state.postJob = { createdAt: now, updatedAt: now, ...input.create };
+        return state.postJob;
+      },
+      findMany: async () => state.relatedPostJobs
     }
   };
   return { database, state, users };
@@ -563,6 +580,70 @@ test('datas efetivas não podem ser antecipadas fora da desmobilização', async
   );
   assert.equal(state.workflow.version, 1);
   assert.equal(state.workflow.fieldCompletionDate, null);
+});
+
+test('Pós-job persiste fechamento, sincroniza Qualidade e expõe histórico relacionado', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  state.workflow.stage = 'DEMOBILIZATION';
+  state.workflow.fieldCompletionDate = new Date('2026-09-20T00:00:00Z');
+  state.project.demobilizationDate = new Date('2026-09-22T00:00:00Z');
+  state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS
+    .filter(item => item.stage === 'DEMOBILIZATION')
+    .map(item => ({ id: `check-${item.key}`, projectId: 'project-1', key: item.key, status: 'DONE' })));
+  const synchronizedStages = [];
+  let detail = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'POST_JOB' }, leader, {
+    database,
+    synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
+  });
+  assert.equal(detail.workflow.stage, 'POST_JOB');
+  assert.deepEqual(synchronizedStages, ['POST_JOB']);
+  assert.equal(detail.workflow.postJobReadiness.total, 9);
+
+  let synchronizedInput = null;
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'post_job',
+    version: 2,
+    meetingDate: '2026-09-25',
+    fieldLeaderFeedback: 'Execução segura.',
+    lessonsLearned: 'Identificar kits por sistema.'
+  }, leader, {
+    database,
+    synchronizePostJobQualityRecord: async (_tx, input) => {
+      synchronizedInput = input;
+      return 'quality-1';
+    }
+  });
+  assert.equal(detail.workflow.postJob.meetingDate, '2026-09-25');
+  assert.equal(detail.workflow.postJob.qualityRecord.number, 'L-001/26');
+  assert.deepEqual(detail.workflow.postJob.serviceTypes, ['FLUSHING']);
+  assert.equal(Object.hasOwn(detail.workflow.postJob, 'qualityRecordId'), false);
+  assert.equal(Object.hasOwn(detail.workflow.postJob, 'createdByUserId'), false);
+  assert.equal(synchronizedInput.postJob.lessonsLearned, 'Identificar kits por sistema.');
+  assert.equal(state.events.at(-1).action, 'WORKFLOW_POST_JOB');
+
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'checklist', version: 3, key: 'POST_JOB_MEETING_COMPLETED', status: 'DONE'
+  }, leader, { database });
+  assert.equal(detail.workflow.postJobReadiness.completed, 1);
+
+  state.relatedPostJobs.push({
+    projectId: 'project-2',
+    meetingDate: new Date('2026-08-10T00:00:00Z'),
+    serviceTypes: ['FLUSHING'],
+    problemsFound: 'Kit sem etiqueta.',
+    solutionsAdopted: 'Etiquetagem em campo.',
+    improvementOpportunities: 'Etiquetar na sede.',
+    lessonsLearned: 'Separar antes da viagem.',
+    equipmentFeedback: null,
+    planningFeedback: null,
+    qualityRecord: { id: 'quality-2', number: 'L-002/26', deletedAt: null },
+    workflow: { project: { code: 'P-002', name: 'Flushing anterior', clientName: 'Cliente' } }
+  });
+  detail = await getProjectWorkflow('project-1', leader, { database });
+  assert.equal(detail.workflow.relatedPostJobs.length, 1);
+  assert.equal(detail.workflow.relatedPostJobs[0].matches.sameClient, true);
+  assert.deepEqual(detail.workflow.relatedPostJobs[0].matches.services, ['FLUSHING']);
 });
 
 test('gate bloqueado impede autorização e papel de área não pode revalidar', async () => {

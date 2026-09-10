@@ -7,7 +7,8 @@ export const PROJECT_WORKFLOW_STAGES = [
   'READY_TO_MOBILIZE',
   'MOBILIZATION',
   'EXECUTION',
-  'DEMOBILIZATION'
+  'DEMOBILIZATION',
+  'POST_JOB'
 ];
 
 export const PROJECT_WORKFLOW_STAGE_LABELS = {
@@ -19,7 +20,8 @@ export const PROJECT_WORKFLOW_STAGE_LABELS = {
   READY_TO_MOBILIZE: 'Pronto para mobilizar',
   MOBILIZATION: 'Mobilização',
   EXECUTION: 'Em execução',
-  DEMOBILIZATION: 'Desmobilização'
+  DEMOBILIZATION: 'Desmobilização',
+  POST_JOB: 'Pós-job / fechamento técnico'
 };
 
 export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
@@ -39,7 +41,9 @@ export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
   'D15_QSMS',
   'DEMOBILIZATION_FIELD',
   'DEMOBILIZATION_LOGISTICS',
-  'DEMOBILIZATION_ASSETS'
+  'DEMOBILIZATION_ASSETS',
+  'POST_JOB_FEEDBACK',
+  'POST_JOB_LEARNING'
 ];
 
 export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
@@ -59,7 +63,9 @@ export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
   D15_QSMS: 'QSMS',
   DEMOBILIZATION_FIELD: 'Conclusão de campo',
   DEMOBILIZATION_LOGISTICS: 'Logística de retorno',
-  DEMOBILIZATION_ASSETS: 'Retorno de ativos'
+  DEMOBILIZATION_ASSETS: 'Retorno de ativos',
+  POST_JOB_FEEDBACK: 'Reunião e feedbacks',
+  POST_JOB_LEARNING: 'Aprendizados e melhorias'
 };
 
 const checklist = (key, stage, section, label, areaRoles = []) => ({ key, stage, section, label, areaRoles });
@@ -188,7 +194,18 @@ export const PROJECT_WORKFLOW_CHECKLISTS = [
 
   checklist('DEMOB_ASSETS_RETURNED_TO_BASE', 'DEMOBILIZATION', 'DEMOBILIZATION_ASSETS', 'Equipamentos retornaram para a sede', ['efetivo:assets']),
   checklist('DEMOB_ASSETS_DELIVERED', 'DEMOBILIZATION', 'DEMOBILIZATION_ASSETS', 'Equipamentos entregues para Ativos', ['efetivo:assets']),
-  checklist('DEMOB_ASSETS_DAMAGE_RECORDED', 'DEMOBILIZATION', 'DEMOBILIZATION_ASSETS', 'Avarias e problemas registrados', ['efetivo:assets', 'efetivo:operations'])
+  checklist('DEMOB_ASSETS_DAMAGE_RECORDED', 'DEMOBILIZATION', 'DEMOBILIZATION_ASSETS', 'Avarias e problemas registrados', ['efetivo:assets', 'efetivo:operations']),
+
+  checklist('POST_JOB_MEETING_COMPLETED', 'POST_JOB', 'POST_JOB_FEEDBACK', 'Pós-job realizado'),
+  checklist('POST_JOB_FIELD_LEADER_FEEDBACK', 'POST_JOB', 'POST_JOB_FEEDBACK', 'Feedback do responsável de campo coletado'),
+  checklist('POST_JOB_TEAM_FEEDBACK', 'POST_JOB', 'POST_JOB_FEEDBACK', 'Feedback dos colaboradores coletado'),
+  checklist('POST_JOB_EQUIPMENT_FEEDBACK', 'POST_JOB', 'POST_JOB_FEEDBACK', 'Feedback sobre equipamentos registrado'),
+  checklist('POST_JOB_PLANNING_FEEDBACK', 'POST_JOB', 'POST_JOB_FEEDBACK', 'Feedback sobre planejamento registrado'),
+
+  checklist('POST_JOB_PROBLEMS_RECORDED', 'POST_JOB', 'POST_JOB_LEARNING', 'Problemas encontrados registrados'),
+  checklist('POST_JOB_SOLUTIONS_RECORDED', 'POST_JOB', 'POST_JOB_LEARNING', 'Soluções adotadas registradas'),
+  checklist('POST_JOB_IMPROVEMENTS_RECORDED', 'POST_JOB', 'POST_JOB_LEARNING', 'Oportunidades de melhoria registradas'),
+  checklist('POST_JOB_LESSONS_RECORDED', 'POST_JOB', 'POST_JOB_LEARNING', 'Lições aprendidas registradas')
 ];
 
 export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS = [
@@ -331,11 +348,38 @@ export function makeProjectWorkflowSchemas(z) {
     path: ['returnDate'],
     message: 'A desmobilização não pode ser anterior à conclusão de campo.'
   });
+  const postJobText = z.string().trim().max(4000, 'O texto deve ter no máximo 4000 caracteres.').nullable().optional();
+  const postJob = z.object({
+    action: z.literal('post_job'),
+    version,
+    meetingDate: dateOnly.nullable().optional(),
+    fieldLeaderFeedback: postJobText,
+    teamFeedback: postJobText,
+    problemsFound: postJobText,
+    solutionsAdopted: postJobText,
+    improvementOpportunities: postJobText,
+    lessonsLearned: postJobText,
+    equipmentFeedback: postJobText,
+    planningFeedback: postJobText
+  }).strict().refine(value => [
+    'meetingDate',
+    'fieldLeaderFeedback',
+    'teamFeedback',
+    'problemsFound',
+    'solutionsAdopted',
+    'improvementOpportunities',
+    'lessonsLearned',
+    'equipmentFeedback',
+    'planningFeedback'
+  ].some(key => Object.hasOwn(value, key)), {
+    message: 'Informe ao menos um dado do pós-job para alterar.'
+  });
   const authorizeMobilization = z.object({ action: z.literal('authorize_mobilization'), version }).strict();
   const commercialFact = makeProjectWorkflowCommercialFactSchema(z);
   return {
     start,
-    patch: z.discriminatedUnion('action', [settings, checklist, critical, issue, accept, stage, demobilization, authorizeMobilization, commercialFact]),
+    postJob,
+    patch: z.discriminatedUnion('action', [settings, checklist, critical, issue, accept, stage, demobilization, postJob, authorizeMobilization, commercialFact]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

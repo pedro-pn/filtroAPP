@@ -23,9 +23,11 @@ import {
   projectWorkflowMobilizationAuthorization,
   projectWorkflowMobilizationGate,
   projectWorkflowPlanningReadiness,
+  projectWorkflowPostJobReadiness,
   projectWorkflowPreparationReadiness,
   projectWorkflowTransitionIssues
 } from './rules.js';
+import { synchronizePostJobQualityRecord } from './post-job-quality.js';
 
 const PAGE_SIZE = 100;
 const SAO_PAULO_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
@@ -41,6 +43,11 @@ const PROJECT_FIELDS = {
   clientName: true,
   location: true,
   demobilizationDate: true
+};
+const POST_JOB_INCLUDE = {
+  qualityRecord: { select: { id: true, number: true, deletedAt: true } },
+  createdBy: { select: { id: true, name: true } },
+  updatedBy: { select: { id: true, name: true } }
 };
 const OPERATIONAL_MISSION_QUERY = {
   where: { deletedAt: null, scheduleStatus: { not: 'CANCELLED' }, plan: { kind: 'OFFICIAL', status: 'ACTIVE' } },
@@ -88,8 +95,20 @@ const WORKFLOW_INCLUDE = {
     include: { actor: { select: { id: true, name: true } } },
     orderBy: { createdAt: 'desc' },
     take: 50
-  }
+  },
+  postJob: { include: POST_JOB_INCLUDE }
 };
+
+const POST_JOB_FIELDS = [
+  'fieldLeaderFeedback',
+  'teamFeedback',
+  'problemsFound',
+  'solutionsAdopted',
+  'improvementOpportunities',
+  'lessonsLearned',
+  'equipmentFeedback',
+  'planningFeedback'
+];
 
 function utcDate(value) {
   return new Date(`${value}T00:00:00.000Z`);
@@ -101,6 +120,34 @@ function dateKey(value) {
 
 function todayKey(now = new Date()) {
   return SAO_PAULO_DATE_FORMATTER.format(now);
+}
+
+function projectServiceTypes(project) {
+  const values = (project?.plannedServices || []).map(item => String(item.serviceType || '').trim()).filter(Boolean);
+  if (!values.length && project?.name) values.push(String(project.name).trim());
+  return [...new Set(values)];
+}
+
+function publicPostJob(postJob, serviceTypes = []) {
+  return {
+    meetingDate: dateKey(postJob?.meetingDate),
+    fieldLeaderFeedback: postJob?.fieldLeaderFeedback || null,
+    teamFeedback: postJob?.teamFeedback || null,
+    problemsFound: postJob?.problemsFound || null,
+    solutionsAdopted: postJob?.solutionsAdopted || null,
+    improvementOpportunities: postJob?.improvementOpportunities || null,
+    lessonsLearned: postJob?.lessonsLearned || null,
+    equipmentFeedback: postJob?.equipmentFeedback || null,
+    planningFeedback: postJob?.planningFeedback || null,
+    serviceTypes: postJob?.serviceTypes?.length ? postJob.serviceTypes : serviceTypes,
+    qualityRecord: postJob?.qualityRecord && !postJob.qualityRecord.deletedAt
+      ? { id: postJob.qualityRecord.id, number: postJob.qualityRecord.number }
+      : null,
+    createdAt: postJob?.createdAt || null,
+    updatedAt: postJob?.updatedAt || null,
+    createdBy: postJob?.createdBy || null,
+    updatedBy: postJob?.updatedBy || null
+  };
 }
 
 function operationalMissionSummary(project) {
@@ -184,7 +231,7 @@ function publicPermissions(workflow, context) {
   };
 }
 
-function decorateWorkflow(workflow, context, now, demobilizationDate = null) {
+function decorateWorkflow(workflow, context, now, demobilizationDate = null, serviceTypes = [], relatedPostJobs = []) {
   if (!workflow) return null;
   const today = todayKey(now);
   const milestones = projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), today);
@@ -220,13 +267,14 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null) {
   const planningReadiness = projectWorkflowPlanningReadiness({ checklists });
   const preparationReadiness = projectWorkflowPreparationReadiness({ checklists });
   const demobilizationReadiness = projectWorkflowDemobilizationReadiness({ checklists });
+  const postJobReadiness = projectWorkflowPostJobReadiness({ checklists });
   const mobilizationGate = projectWorkflowMobilizationGate({ ...workflow, checklists, commercialFacts, issues }, milestones, today);
   const mobilizationAuthorization = projectWorkflowMobilizationAuthorization(workflow, mobilizationGate);
   const permissions = publicPermissions(workflow, context);
   const transitionOptions = PROJECT_WORKFLOW_STAGES
     .filter(stage => allowedProjectWorkflowTransition(workflow.stage, stage))
     .map(stage => {
-      const gateIssues = projectWorkflowTransitionIssues(workflow, stage);
+      const gateIssues = projectWorkflowTransitionIssues({ ...workflow, demobilizationDate }, stage);
       const permissionIssues = permissions.canEdit ? [] : ['Somente o gestor ou o Líder de Projetos pode alterar a etapa'];
       const transitionIssues = [...permissionIssues, ...gateIssues];
       return { stage, allowed: transitionIssues.length === 0, issues: transitionIssues };
@@ -245,6 +293,9 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null) {
     planningReadiness,
     preparationReadiness,
     demobilizationReadiness,
+    postJobReadiness,
+    postJob: publicPostJob(workflow.postJob, serviceTypes),
+    relatedPostJobs,
     mobilizationGate,
     mobilizationAuthorization,
     issues,
@@ -260,9 +311,67 @@ async function findEligibleProject(database, projectId, { workflow = false } = {
     where: eligibleProjectWhere({ id: projectId }),
     select: {
       ...PROJECT_FIELDS,
+      plannedServices: { select: { serviceType: true }, orderBy: { order: 'asc' } },
       efetivoMissionPlans: OPERATIONAL_MISSION_QUERY,
       ...(workflow ? { workflow: { include: WORKFLOW_INCLUDE } } : {})
     }
+  });
+}
+
+async function relatedPostJobs(database, project) {
+  if (!database.projectWorkflowPostJob?.findMany) return [];
+  const services = projectServiceTypes(project);
+  const clientName = String(project.clientName || '').trim();
+  const matches = [
+    ...(clientName ? [{ workflow: { project: { clientName: { equals: clientName, mode: 'insensitive' } } } }] : []),
+    ...(services.length ? [{ serviceTypes: { hasSome: services } }] : [])
+  ];
+  if (!matches.length) return [];
+  const rows = await database.projectWorkflowPostJob.findMany({
+    where: {
+      projectId: { not: project.id },
+      OR: matches
+    },
+    select: {
+      projectId: true,
+      meetingDate: true,
+      serviceTypes: true,
+      problemsFound: true,
+      solutionsAdopted: true,
+      improvementOpportunities: true,
+      lessonsLearned: true,
+      equipmentFeedback: true,
+      planningFeedback: true,
+      qualityRecord: { select: { id: true, number: true, deletedAt: true } },
+      workflow: { select: { project: { select: { code: true, name: true, clientName: true } } } }
+    },
+    orderBy: [{ meetingDate: 'desc' }, { updatedAt: 'desc' }],
+    take: 10
+  });
+  const clientKey = clientName.toLocaleLowerCase('pt-BR');
+  const serviceSet = new Set(services);
+  return rows.map(row => {
+    const relatedProject = row.workflow.project;
+    const matchedServices = row.serviceTypes.filter(service => serviceSet.has(service));
+    return {
+      projectId: row.projectId,
+      project: relatedProject,
+      meetingDate: dateKey(row.meetingDate),
+      serviceTypes: row.serviceTypes,
+      matches: {
+        sameClient: Boolean(clientKey && String(relatedProject.clientName || '').trim().toLocaleLowerCase('pt-BR') === clientKey),
+        services: matchedServices
+      },
+      problemsFound: row.problemsFound,
+      solutionsAdopted: row.solutionsAdopted,
+      improvementOpportunities: row.improvementOpportunities,
+      lessonsLearned: row.lessonsLearned,
+      equipmentFeedback: row.equipmentFeedback,
+      planningFeedback: row.planningFeedback,
+      qualityRecord: row.qualityRecord && !row.qualityRecord.deletedAt
+        ? { id: row.qualityRecord.id, number: row.qualityRecord.number }
+        : null
+    };
   });
 }
 
@@ -313,7 +422,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
             leader: { select: { id: true, name: true, isActive: true } },
             checklists: { select: { key: true, status: true } },
             issues: { select: { id: true, status: true, dueDate: true, criticality: true, area: true, description: true } },
-            commercialFacts: { select: { key: true, status: true, source: true, reference: true, note: true, occurredOn: true } }
+            commercialFacts: { select: { key: true, status: true, source: true, reference: true, note: true, occurredOn: true } },
+            postJob: { select: { meetingDate: true, serviceTypes: true, qualityRecord: { select: { id: true, number: true, deletedAt: true } } } }
           }
         }
       },
@@ -333,6 +443,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
       const planningReadiness = workflow ? projectWorkflowPlanningReadiness(workflow) : null;
       const preparationReadiness = workflow ? projectWorkflowPreparationReadiness(workflow) : null;
       const demobilizationReadiness = workflow ? projectWorkflowDemobilizationReadiness(workflow) : null;
+      const postJobReadiness = workflow ? projectWorkflowPostJobReadiness(workflow) : null;
       const mobilizationGate = workflow ? projectWorkflowMobilizationGate(workflow, milestones, todayKey(now)) : null;
       const mobilizationAuthorization = workflow ? projectWorkflowMobilizationAuthorization(workflow, mobilizationGate) : null;
       return {
@@ -364,6 +475,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
           planningReadiness,
           preparationReadiness,
           demobilizationReadiness,
+          postJobReadiness,
+          postJob: publicPostJob(workflow.postJob),
           mobilizationGate,
           mobilizationAuthorization
         } : null,
@@ -392,6 +505,8 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
   const database = await resolvePlanningDatabase(dependencies.database);
   const project = await findEligibleProject(database, projectId, { workflow: true });
   if (!project) throw notFound('Projeto não encontrado ou indisponível no Efetivo.');
+  const services = projectServiceTypes(project);
+  const history = project.workflow ? await relatedPostJobs(database, project) : [];
   return {
     project: {
       id: project.id,
@@ -402,7 +517,7 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
       demobilizationDate: dateKey(project.demobilizationDate),
       operationalMission: operationalMissionSummary(project)
     },
-    workflow: decorateWorkflow(project.workflow, context, dependencies.now || new Date(), project.demobilizationDate),
+    workflow: decorateWorkflow(project.workflow, context, dependencies.now || new Date(), project.demobilizationDate, services, history),
     permissions: publicPermissions(project.workflow, context)
   };
 }
@@ -623,14 +738,20 @@ async function applyAccept(tx, workflow, context, now) {
 }
 
 async function applyStage(tx, workflow, payload, now, context, dependencies) {
-  const issues = projectWorkflowTransitionIssues(workflow, payload.stage);
+  const projectDates = payload.stage === 'POST_JOB'
+    ? await tx.project.findUnique({ where: { id: workflow.projectId }, select: { demobilizationDate: true } })
+    : null;
+  const issues = projectWorkflowTransitionIssues({
+    ...workflow,
+    demobilizationDate: projectDates?.demobilizationDate || null
+  }, payload.stage);
   if (issues.length) {
     throw planningError('Não é possível avançar para esta etapa.', {
       code: 'PROJECT_WORKFLOW_STAGE_BLOCKED',
       issues: issues.map(message => ({ message }))
     });
   }
-  const synchronizesOperationalStage = ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(payload.stage)
+  const synchronizesOperationalStage = ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION', 'POST_JOB'].includes(payload.stage)
     || (payload.stage === 'READY_TO_MOBILIZE' && ['MOBILIZATION', 'EXECUTION'].includes(workflow.stage));
   if (synchronizesOperationalStage) {
     await (dependencies.synchronizeOfficialMissionStage || synchronizeOfficialMissionStage)(
@@ -647,11 +768,66 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
   } else if (['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(payload.stage)) {
     data.mobilizationAuthorizedAt = workflow.mobilizationAuthorizedAt;
     data.mobilizationAuthorizationVersion = workflow.version + 1;
-  } else if (['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage)) {
+  } else if (payload.stage === 'POST_JOB' || ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage)) {
     data.mobilizationAuthorizedAt = null;
     data.mobilizationAuthorizationVersion = null;
   }
   await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data });
+}
+
+async function applyPostJob(tx, workflow, payload, context, dependencies, now) {
+  if (workflow.stage !== 'POST_JOB') {
+    throw planningError('O fechamento técnico só pode ser registrado durante o Pós-job.', {
+      statusCode: 409,
+      code: 'PROJECT_WORKFLOW_POST_JOB_STAGE_REQUIRED'
+    });
+  }
+  const project = await tx.project.findUnique({
+    where: { id: workflow.projectId },
+    select: {
+      id: true,
+      name: true,
+      plannedServices: { select: { serviceType: true }, orderBy: { order: 'asc' } }
+    }
+  });
+  if (!project) throw notFound('Projeto não encontrado.');
+  const current = workflow.postJob || null;
+  const data = {};
+  if (Object.hasOwn(payload, 'meetingDate')) data.meetingDate = payload.meetingDate ? utcDate(payload.meetingDate) : null;
+  for (const field of POST_JOB_FIELDS) {
+    if (Object.hasOwn(payload, field)) data[field] = payload[field] || null;
+  }
+  const serviceTypes = projectServiceTypes(project);
+  const merged = {
+    ...current,
+    ...data,
+    meetingDate: Object.hasOwn(data, 'meetingDate') ? data.meetingDate : current?.meetingDate || null
+  };
+  const qualityRecordId = await (dependencies.synchronizePostJobQualityRecord || synchronizePostJobQualityRecord)(tx, {
+    projectId: workflow.projectId,
+    qualityRecordId: current?.qualityRecordId || null,
+    postJob: merged,
+    serviceTypes,
+    actorUserId: context.actorUserId || null,
+    now
+  });
+  await tx.projectWorkflowPostJob.upsert({
+    where: { projectId: workflow.projectId },
+    create: {
+      projectId: workflow.projectId,
+      ...data,
+      serviceTypes,
+      qualityRecordId,
+      createdByUserId: context.actorUserId || null,
+      updatedByUserId: context.actorUserId || null
+    },
+    update: {
+      ...data,
+      serviceTypes,
+      qualityRecordId,
+      updatedByUserId: context.actorUserId || null
+    }
+  });
 }
 
 async function applyMobilizationAuthorization(tx, workflow, now) {
@@ -734,6 +910,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'accept') await applyAccept(tx, workflow, context, now);
     else if (payload.action === 'stage') await applyStage(tx, workflow, payload, now, context, dependencies);
     else if (payload.action === 'demobilization') await applyDemobilization(tx, workflow, payload, context, dependencies);
+    else if (payload.action === 'post_job') await applyPostJob(tx, workflow, payload, context, dependencies, now);
     else if (payload.action === 'authorize_mobilization') await applyMobilizationAuthorization(tx, workflow, now);
     else if (payload.action === 'commercial_fact') await applyCommercialFact(tx, workflow, payload, context);
     const eventData = { ...payload };

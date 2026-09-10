@@ -1,6 +1,6 @@
 import { apiClient, type ApiClientError } from './client';
 
-export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION';
+export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB';
 export type ProjectWorkflowChecklistStatus = 'PENDING' | 'DONE' | 'NOT_APPLICABLE';
 export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
@@ -10,7 +10,7 @@ export type ProjectExecutionReportType = 'RTP' | 'RLQ' | 'RLR' | 'RCPU' | 'RLM' 
 export type ProjectExecutionDeviationCategory = 'PRAZO' | 'ESCOPO' | 'CLIENTE' | 'EQUIPAMENTO' | 'PESSOAL' | 'MATERIAL' | 'SEGURANCA' | 'QUALIDADE' | 'COMERCIAL';
 export type ProjectExecutionImpact = 'ALTO' | 'MEDIO' | 'BAIXO';
 export type ProjectExecutionDeviationStatus = 'ABERTO' | 'EM_TRIAGEM' | 'EM_OBSERVACAO' | 'EM_ACAO' | 'FECHADO' | 'DIVULGADO';
-export type ProjectWorkflowChecklistSection = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'ADVANCE_DOCUMENTATION' | 'D30_TEAM' | 'D30_EQUIPMENT' | 'D30_MATERIALS' | 'D30_LOGISTICS' | 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS' | 'DEMOBILIZATION_FIELD' | 'DEMOBILIZATION_LOGISTICS' | 'DEMOBILIZATION_ASSETS';
+export type ProjectWorkflowChecklistSection = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'ADVANCE_DOCUMENTATION' | 'D30_TEAM' | 'D30_EQUIPMENT' | 'D30_MATERIALS' | 'D30_LOGISTICS' | 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS' | 'DEMOBILIZATION_FIELD' | 'DEMOBILIZATION_LOGISTICS' | 'DEMOBILIZATION_ASSETS' | 'POST_JOB_FEEDBACK' | 'POST_JOB_LEARNING';
 
 export interface ProjectWorkflowPermissions {
   canInitialize: boolean;
@@ -93,6 +93,40 @@ export interface ProjectWorkflowPlanningReadiness {
 
 export type ProjectWorkflowPreparationReadiness = ProjectWorkflowPlanningReadiness;
 export type ProjectWorkflowDemobilizationReadiness = ProjectWorkflowPlanningReadiness;
+export type ProjectWorkflowPostJobReadiness = ProjectWorkflowPlanningReadiness;
+
+export interface ProjectWorkflowPostJob {
+  meetingDate: string | null;
+  fieldLeaderFeedback: string | null;
+  teamFeedback: string | null;
+  problemsFound: string | null;
+  solutionsAdopted: string | null;
+  improvementOpportunities: string | null;
+  lessonsLearned: string | null;
+  equipmentFeedback: string | null;
+  planningFeedback: string | null;
+  serviceTypes: string[];
+  qualityRecord: { id: string; number: string } | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  createdBy: { id: string; name: string } | null;
+  updatedBy: { id: string; name: string } | null;
+}
+
+export interface RelatedProjectPostJob {
+  projectId: string;
+  project: { code: string; name: string; clientName: string };
+  meetingDate: string | null;
+  serviceTypes: string[];
+  matches: { sameClient: boolean; services: string[] };
+  problemsFound: string | null;
+  solutionsAdopted: string | null;
+  improvementOpportunities: string | null;
+  lessonsLearned: string | null;
+  equipmentFeedback: string | null;
+  planningFeedback: string | null;
+  qualityRecord: { id: string; number: string } | null;
+}
 
 export interface ProjectWorkflowMobilizationGateBlocker {
   key: string;
@@ -213,6 +247,9 @@ export interface ProjectWorkflow {
   planningReadiness: ProjectWorkflowPlanningReadiness;
   preparationReadiness: ProjectWorkflowPreparationReadiness;
   demobilizationReadiness: ProjectWorkflowDemobilizationReadiness;
+  postJobReadiness: ProjectWorkflowPostJobReadiness;
+  postJob: ProjectWorkflowPostJob;
+  relatedPostJobs: RelatedProjectPostJob[];
   mobilizationGate: ProjectWorkflowMobilizationGate;
   mobilizationAuthorization: ProjectWorkflowMobilizationAuthorization;
   issues: ProjectWorkflowIssue[];
@@ -241,6 +278,8 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
     planningReadiness: ProjectWorkflowPlanningReadiness;
     preparationReadiness: ProjectWorkflowPreparationReadiness;
     demobilizationReadiness: ProjectWorkflowDemobilizationReadiness;
+    postJobReadiness: ProjectWorkflowPostJobReadiness;
+    postJob: ProjectWorkflowPostJob;
     mobilizationGate: ProjectWorkflowMobilizationGate;
     mobilizationAuthorization: ProjectWorkflowMobilizationAuthorization;
   };
@@ -330,6 +369,7 @@ export type ProjectWorkflowPatch =
   | { action: 'accept'; version: number }
   | { action: 'stage'; version: number; stage: ProjectWorkflowStage }
   | { action: 'demobilization'; version: number; fieldCompletionDate?: string | null; returnDate?: string | null }
+  | { action: 'post_job'; version: number; meetingDate?: string | null; fieldLeaderFeedback?: string | null; teamFeedback?: string | null; problemsFound?: string | null; solutionsAdopted?: string | null; improvementOpportunities?: string | null; lessonsLearned?: string | null; equipmentFeedback?: string | null; planningFeedback?: string | null }
   | { action: 'authorize_mobilization'; version: number }
   | { action: 'commercial_fact'; version: number; key: string; status: ProjectWorkflowCommercialFactStatus; reference?: string | null; note?: string | null; occurredOn?: string | null };
 

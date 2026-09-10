@@ -164,6 +164,22 @@ export function projectWorkflowDemobilizationReadiness(workflow) {
   };
 }
 
+export function projectWorkflowPostJobReadiness(workflow) {
+  const sectionKeys = ['POST_JOB_FEEDBACK', 'POST_JOB_LEARNING'];
+  const sections = sectionKeys.map(key => {
+    const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
+    return { key, ...checklistProgress(workflow, definitions) };
+  });
+  const completed = sections.reduce((sum, section) => sum + section.completed, 0);
+  const total = sections.reduce((sum, section) => sum + section.total, 0);
+  return {
+    completed,
+    total,
+    percentage: total ? Math.round((completed / total) * 100) : 0,
+    sections
+  };
+}
+
 function readinessFromDefinitions(workflow, key, label, definitions, extraBlockers = []) {
   const byKey = new Map((workflow?.checklists || []).map(item => [item.key, item]));
   const pending = definitions.filter(definition => !resolvedChecklist(byKey.get(definition.key)));
@@ -272,6 +288,13 @@ export function handoverGateIssues(workflow) {
   return issues;
 }
 
+export function demobilizationGateIssues(workflow) {
+  const issues = incompleteChecklistLabels(workflow, 'DEMOBILIZATION');
+  if (!workflow.fieldCompletionDate) issues.push('Informar a data de conclusão de campo');
+  if (!workflow.demobilizationDate) issues.push('Informar a data efetiva de desmobilização');
+  return issues;
+}
+
 export function analysisGateIssues(workflow) {
   const issues = incompleteChecklistLabels(workflow, 'INITIAL_ANALYSIS');
   const answerByKey = new Map((workflow.criticalAnswers || []).map(item => [item.key, item.answer]));
@@ -307,7 +330,8 @@ export function allowedProjectWorkflowTransition(current, target) {
     READY_TO_MOBILIZE: ['PREPARATION', 'MOBILIZATION'],
     MOBILIZATION: ['READY_TO_MOBILIZE', 'EXECUTION'],
     EXECUTION: ['MOBILIZATION', 'DEMOBILIZATION'],
-    DEMOBILIZATION: ['EXECUTION']
+    DEMOBILIZATION: ['EXECUTION', 'POST_JOB'],
+    POST_JOB: ['DEMOBILIZATION']
   };
   return transitions[current]?.includes(target) || false;
 }
@@ -319,6 +343,7 @@ export function projectWorkflowTransitionIssues(workflow, target) {
     return analysisGateIssues(workflow);
   }
   if (target === 'PREPARATION' && workflow.stage === 'MOBILIZATION_PLANNING') return planningGateIssues(workflow);
+  if (target === 'POST_JOB' && workflow.stage === 'DEMOBILIZATION') return demobilizationGateIssues(workflow);
   if (target === 'READY_TO_MOBILIZE') {
     return projectWorkflowMobilizationGate(workflow).blockers.map(item => `${item.label}: ${item.reason}`);
   }

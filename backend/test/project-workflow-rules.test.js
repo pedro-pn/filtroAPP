@@ -13,6 +13,7 @@ import {
   analysisGateIssues,
   allowedProjectWorkflowTransition,
   commercialFactIssues,
+  demobilizationGateIssues,
   handoverGateIssues,
   planningGateIssues,
   projectWorkflowCommercialReadiness,
@@ -21,6 +22,7 @@ import {
   projectWorkflowMobilizationAuthorization,
   projectWorkflowMobilizationGate,
   projectWorkflowPlanningReadiness,
+  projectWorkflowPostJobReadiness,
   projectWorkflowPreparationReadiness,
   projectWorkflowTransitionIssues
 } from '../src/lib/efetivo/project-workflow/rules.js';
@@ -45,6 +47,9 @@ test('contrato exige justificativa para não aplicável e versão nas alteraçõ
   assert.equal(patch.safeParse({ action: 'demobilization', version: 7 }).success, false);
   assert.equal(patch.safeParse({ action: 'demobilization', version: 7, fieldCompletionDate: '2026-09-20', returnDate: '2026-09-19' }).success, false);
   assert.equal(patch.safeParse({ action: 'demobilization', version: 7, fieldCompletionDate: '2026-09-20', returnDate: '2026-09-21' }).success, true);
+  assert.equal(patch.safeParse({ action: 'post_job', version: 8 }).success, false);
+  assert.equal(patch.safeParse({ action: 'post_job', version: 8, meetingDate: '2026-09-25', lessonsLearned: 'Separar os kits por sistema.' }).success, true);
+  assert.equal(patch.safeParse({ action: 'post_job', version: 8, lessonsLearned: 'x'.repeat(4001) }).success, false);
 });
 
 test('prontidão comercial exige os oito fatos completos conforme o catálogo', () => {
@@ -267,4 +272,29 @@ test('desmobilização possui 15 controles e permite retorno revalidado à execu
   assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'EXECUTION'), []);
   workflow.mobilizationAuthorizationVersion = 12;
   assert.match(projectWorkflowTransitionIssues(workflow, 'EXECUTION')[0], /autorização de mobilização vigente/i);
+});
+
+test('Pós-job exige desmobilização concluída e consolida nove controles', () => {
+  const workflow = {
+    stage: 'DEMOBILIZATION',
+    checklists: completed('DEMOBILIZATION'),
+    fieldCompletionDate: new Date('2026-09-20T00:00:00Z'),
+    demobilizationDate: new Date('2026-09-22T00:00:00Z')
+  };
+  assert.deepEqual(demobilizationGateIssues(workflow), []);
+  assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'POST_JOB'), []);
+  workflow.checklists.pop();
+  assert.match(projectWorkflowTransitionIssues(workflow, 'POST_JOB')[0], /Avarias/);
+  workflow.checklists = completed('DEMOBILIZATION');
+  workflow.demobilizationDate = null;
+  assert.match(projectWorkflowTransitionIssues(workflow, 'POST_JOB').at(-1), /data efetiva/i);
+
+  const postJobChecklists = completed('POST_JOB').slice(0, 5);
+  const readiness = projectWorkflowPostJobReadiness({ checklists: postJobChecklists });
+  assert.equal(readiness.total, 9);
+  assert.equal(readiness.completed, 5);
+  assert.equal(readiness.percentage, 56);
+  assert.deepEqual(readiness.sections.map(item => item.key), ['POST_JOB_FEEDBACK', 'POST_JOB_LEARNING']);
+  assert.equal(allowedProjectWorkflowTransition('DEMOBILIZATION', 'POST_JOB'), true);
+  assert.equal(allowedProjectWorkflowTransition('POST_JOB', 'DEMOBILIZATION'), true);
 });

@@ -27,10 +27,11 @@ export function ProjectWorkflowNovelty({ userId, enabled }: { userId: string; en
         overlayOpacity: 0.6,
         onDestroyed: () => releaseEfetivoGuide(),
         steps: [
-          { popover: { title: '✨ Um único fluxo do projeto', description: 'O mesmo card percorre handover, planejamento, mobilização, execução e desmobilização. Equipe, ciclos e datas continuam integrados com Missões.' } },
-          { element: '[data-project-workflow-board]', popover: { title: 'Kanban unificado', description: 'Prazos, checklists, gates e situação operacional agora aparecem na mesma evolução. A autorização libera a equipe no Efetivo, romaneios de saída e retiradas do Estoque.', side: 'top', align: 'center' } },
+          { popover: { title: '✨ Um único fluxo do projeto', description: 'O mesmo card percorre handover, planejamento, mobilização, execução, desmobilização e pós-job. Equipe, ciclos e datas continuam integrados com Missões.' } },
+          { element: '[data-project-workflow-board]', popover: { title: 'Kanban unificado', description: 'Arraste o card para a etapa permitida. Se houver bloqueio, o detalhe abre com o motivo. Categorias concluídas ficam recolhidas. A autorização libera a equipe no Efetivo, romaneios de saída e retiradas do Estoque.', side: 'top', align: 'center' } },
           { element: '[data-project-workflow-execution]', popover: { title: 'Em execução', description: 'Depois de autorizar a mobilização, avance o card para esta coluna. Abra o projeto para acompanhar avanço, documentos e registrar desvios compartilhados com a Qualidade.', side: 'left', align: 'start' } },
-          { element: '[data-project-kanban-stage="DEMOBILIZATION"]', popover: { title: 'Desmobilização', description: 'Ao concluir o campo, mova o mesmo card para controlar conferências, retorno da equipe e equipamentos, avarias e as datas efetivas.', side: 'left', align: 'start' } }
+          { element: '[data-project-kanban-stage="DEMOBILIZATION"]', popover: { title: 'Desmobilização', description: 'Ao concluir o campo, mova o mesmo card para controlar conferências, retorno da equipe e equipamentos, avarias e as datas efetivas.', side: 'left', align: 'start' } },
+          { element: '[data-project-kanban-stage="POST_JOB"]', popover: { title: 'Pós-job', description: 'Registre feedbacks, problemas, soluções e lições aprendidas. O histórico fica disponível para projetos futuros do mesmo cliente ou serviço.', side: 'left', align: 'start' } }
         ]
       });
       guide.drive();

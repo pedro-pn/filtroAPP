@@ -1792,7 +1792,7 @@
 .project-workflow-columns {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(11, minmax(230px, 1fr));
+  grid-template-columns: repeat(12, minmax(230px, 1fr));
   min-width: 0;
   width: 100%;
   overflow-x: auto;
@@ -1870,6 +1870,18 @@
   width: min(96vw, 1280px);
 }
 .project-workflow-modal-body { display: flex; flex-direction: column; gap: 16px; }
+.project-workflow-category { border: 1px solid var(--br); border-radius: var(--r); display: block; min-width: 0; padding: 0; }
+.project-workflow-category > summary { align-items: center; cursor: pointer; display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) auto auto; list-style: none; padding: 12px; }
+.project-workflow-category > summary::-webkit-details-marker { display: none; }
+.project-workflow-category > summary h4,
+.project-workflow-category > summary p { margin: 0; }
+.project-workflow-category > summary p { color: var(--mu); margin-top: 3px; overflow-wrap: anywhere; }
+.project-workflow-category-status { color: var(--mu); font-weight: 700; max-width: 300px; overflow-wrap: anywhere; text-align: right; }
+.project-workflow-category.is-complete .project-workflow-category-status { color: var(--g); }
+.project-workflow-category-toggle { color: var(--mu); font-size: 20px; line-height: 1; transform: rotate(-90deg); transition: transform .16s ease; }
+.project-workflow-category[open] > summary .project-workflow-category-toggle { transform: rotate(0deg); }
+.project-workflow-category-content { border-top: 1px solid var(--br); display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; }
+.project-workflow-category-note { color: var(--mu); margin: 0; }
 .project-workflow-status-block { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .project-workflow-status-block > div { background: var(--bg); border-radius: var(--rs); display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 10px; }
 .project-workflow-status-block span { color: var(--mu); font-size: 11px; text-transform: uppercase; }
@@ -1954,6 +1966,37 @@
 .project-workflow-gate-panel > small { color: var(--mu); }
 .project-workflow-stage-actions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
 .project-workflow-planning-link { align-self: flex-start; text-decoration: none; }
+.project-workflow-category.project-workflow-planning,
+.project-workflow-category.project-workflow-gate-panel { display: block; padding: 0; }
+.project-post-job-panel,
+.project-post-job-form,
+.project-post-job-history { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.project-post-job-form { background: var(--bg); border-radius: var(--rs); padding: 12px; }
+.project-post-job-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.project-post-job-grid .field-group { margin: 0; min-width: 0; }
+.project-post-job-grid textarea { min-height: 92px; resize: vertical; }
+.project-post-job-wide { grid-column: span 1; }
+.project-post-job-service-scope { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.project-post-job-service-scope > span,
+.project-post-job-quality-link > span { color: var(--mu); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.project-post-job-service-scope > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.project-post-job-service-scope strong { background: var(--wh); border: 1px solid var(--br); border-radius: 999px; font-size: 11px; padding: 4px 8px; }
+.project-post-job-quality-link { align-items: flex-start; display: flex; flex-direction: column; gap: 5px; justify-content: center; }
+.project-post-job-quality-link small { color: var(--mu); }
+.project-post-job-history { border-top: 1px solid var(--br); padding-top: 12px; }
+.project-post-job-history > header { align-items: start; display: flex; gap: 10px; justify-content: space-between; }
+.project-post-job-history h5,
+.project-post-job-history header p { margin: 0; }
+.project-post-job-history header p { color: var(--mu); margin-top: 3px; }
+.project-post-job-history > header > span { background: var(--bg); border-radius: 999px; padding: 3px 8px; }
+.project-post-job-history-list { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.project-post-job-history-list > details { border: 1px solid var(--br); border-radius: var(--rs); min-width: 0; padding: 10px; }
+.project-post-job-history-list > details > summary { cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
+.project-post-job-history-list > details > summary span { display: flex; flex-direction: column; min-width: 0; }
+.project-post-job-history-list > details > summary small { color: var(--mu); margin-top: 3px; }
+.project-post-job-history-list > details > summary em { color: var(--g); font-size: 11px; font-style: normal; font-weight: 700; }
+.project-post-job-history-content { border-top: 1px solid var(--br); display: flex; flex-direction: column; gap: 9px; margin-top: 9px; padding-top: 9px; }
+.project-post-job-history-content p { color: var(--mu); margin: 3px 0 0; white-space: pre-wrap; }
 .project-workflow-modal-footer { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
 .project-workflow-footer-status { display: flex; flex: 1 1 360px; flex-direction: column; min-width: 0; }
 .project-workflow-footer-status span { color: var(--mu); font-size: 12px; overflow-wrap: anywhere; }
@@ -2035,6 +2078,8 @@
   .project-workflow-commercial-list,
   .project-workflow-commercial-fields,
   .project-workflow-planning-grid,
+  .project-post-job-grid,
+  .project-post-job-history-list,
   .project-workflow-check-item,
   .project-workflow-check-controls,
   .project-execution-metrics,
@@ -2063,6 +2108,9 @@
   .project-workflow-critical button,
   .project-workflow-stage-actions button { flex: 1 1 auto; }
   .project-workflow-modal-footer { align-items: stretch; flex-direction: column; }
+  .project-workflow-category > summary { align-items: start; grid-template-columns: minmax(0, 1fr) auto; }
+  .project-workflow-category-toggle { grid-column: 2; grid-row: 1; }
+  .project-workflow-category-status { grid-column: 1 / -1; text-align: left; }
   .project-workflow-footer-status { flex-basis: auto; }
   .project-workflow-footer-actions { justify-content: stretch; }
   .project-workflow-footer-actions button { flex: 1 1 auto; }

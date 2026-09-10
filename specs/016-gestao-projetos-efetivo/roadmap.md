@@ -21,7 +21,8 @@ A futura integração com CRM será a fonte dos fatos comerciais, enquanto o Fil
 - Entrega 022 concluída: etapa Em Execução preserva a autorização; dashboard reúne avanço, prazo, RDOs, metas de relatórios técnicos e desvios integrados com Qualidade.
 - Entrega 023 concluída: Evolução apresenta um único Kanban do projeto; Mobilização integra o fluxo e sincroniza a etapa da missão oficial, enquanto Missões mantém equipe, ciclos e datas.
 - Entrega 024 concluída: Desmobilização integra o Kanban único com conclusão de campo, conferências, retorno de equipe e ativos, avarias, datas efetivas e projeção da missão em Medição final sem alterar seus ciclos.
-- Próximo incremento: Pós-job / fechamento técnico, com feedbacks, problemas e soluções, oportunidades de melhoria e lições aprendidas consultáveis.
+- Entrega 025 concluída: Pós-job / fechamento técnico integra o Kanban com nove controles, registro estruturado, histórico por cliente ou serviço e lições aprendidas sincronizadas com Qualidade. O detalhe ganhou categorias recolhíveis e o arraste só abre bloqueios depois da soltura.
+- Próximo incremento: Documentação / medição, com aceite dos RDOs e relatórios, quantitativos finais, extras, evidências e valores executado, medido, aprovado e pendente.
 
 ## Entrega 1 — Fundamentos e entrada em planejamento
 
