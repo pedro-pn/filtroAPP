@@ -15,7 +15,7 @@ export function resource(model, path, scope, label, domainCode, fields, options 
   };
   definition.requiredScopes = [...new Set([...definition.dependencies, scope])];
   definition.queryParams = ['limit', 'cursor', ...(timestampField ? [timestampField === 'updatedAt' ? 'updatedSince' : 'createdSince'] : []), 'snapshotAt',
-    ...(definition.projectPolicy !== 'GLOBAL' ? ['projectId'] : []), ...definition.filterFields,
+    ...(definition.projectPolicy !== 'GLOBAL' ? ['projectCode', 'projectId'] : []), ...definition.filterFields,
     ...(definition.fields.isActive ? ['active'] : [])];
   definition.select = Object.freeze({
     ...Object.fromEntries(Object.keys({ ...common, ...fields }).map(field => [field, true])),

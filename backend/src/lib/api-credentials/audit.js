@@ -17,7 +17,7 @@ const EVENT_SUMMARY_FIELDS = new Set([
   'rotatedFromId', 'operationId', 'rows'
 ]);
 const FILTER_SUMMARY_FIELDS = new Set([
-  'projectId', 'natureId', 'updatedSince', 'updatedUntil', 'eventDateFrom', 'eventDateTo',
+  'projectCode', 'projectId', 'reportType', 'natureId', 'updatedSince', 'updatedUntil', 'eventDateFrom', 'eventDateTo',
   'status', 'type', 'includeDeleted', 'active'
 ]);
 

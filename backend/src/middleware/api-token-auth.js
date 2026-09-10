@@ -54,7 +54,7 @@ export function createApiTokenAuthenticator({ prismaClient = prisma, envConfig =
         where: { selector: parsed.selector },
         include: {
           scopes: { where: { revokedAt: null }, select: { scopeCode: true } },
-          projects: { where: { revokedAt: null }, select: { projectId: true } }
+          projects: { where: { revokedAt: null }, select: { projectId: true, project: { select: { code: true } } } }
         }
       })
       : null;
@@ -73,7 +73,8 @@ export function createApiTokenAuthenticator({ prismaClient = prisma, envConfig =
       credentialId: credential.id,
       clientIp,
       scopeCodes: new Set(credential.scopes.map(item => item.scopeCode)),
-      projectIds: new Set(credential.projects.map(item => item.projectId))
+      projectIds: new Set(credential.projects.map(item => item.projectId)),
+      projectCodes: new Set(credential.projects.map(item => item.project?.code).filter(Boolean))
     };
     next();
   });

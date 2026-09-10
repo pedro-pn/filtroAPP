@@ -41,9 +41,18 @@ export function assertProjectAllowed(projectId, { projectAccessMode, projectIds 
   return true;
 }
 
+export function assertProjectFilterAllowed(query, context) {
+  if (query.projectId) assertProjectAllowed(query.projectId, context);
+  if (query.projectCode && context.projectAccessMode !== 'ALL' && !context.projectCodes?.has(query.projectCode)) {
+    throw new IntegrationApiError(403, 'PROJECT_NOT_ALLOWED', 'O projeto solicitado não está autorizado.');
+  }
+  return true;
+}
+
 function normalizedFilters(query) {
   return {
     ...(query.updatedSince ? { updatedSince: new Date(query.updatedSince).toISOString() } : {}),
+    ...(query.projectCode ? { projectCode: query.projectCode } : {}),
     ...(query.projectId ? { projectId: query.projectId } : {}),
     ...(query.natureId ? { natureId: query.natureId } : {}),
     ...(query.eventDateFrom ? { eventDateFrom: query.eventDateFrom } : {}),
@@ -82,7 +91,7 @@ export async function listIntegrationQualityRecords(client, query, context) {
   if (query.includeDeleted && !context.scopes.has('qualidade.excluidos.read')) {
     throw new IntegrationApiError(403, 'INSUFFICIENT_SCOPE', 'O escopo de excluídos é obrigatório.');
   }
-  if (query.projectId) assertProjectAllowed(query.projectId, context);
+  assertProjectFilterAllowed(query, context);
 
   const filters = normalizedFilters(query);
   let snapshotAt = query.snapshotAt || query.updatedUntil ? new Date(query.snapshotAt || query.updatedUntil) : new Date(context.snapshotAt || new Date());
@@ -105,6 +114,7 @@ export async function listIntegrationQualityRecords(client, query, context) {
       lte: snapshotAt,
       ...(query.updatedSince ? { gte: new Date(query.updatedSince) } : {})
     },
+    ...(query.projectCode ? { project: { code: query.projectCode } } : {}),
     ...(query.projectId ? { projectId: query.projectId } : {}),
     ...(query.natureId ? { natureId: query.natureId } : {}),
     ...((query.eventDateFrom || query.eventDateTo) ? { eventDate: {

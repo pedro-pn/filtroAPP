@@ -1,5 +1,9 @@
 import { QUALITY_RECORD_TYPES, QUALITY_STATUSES } from './qualidade.js';
 
+export const INTEGRATION_REPORT_TYPES = Object.freeze([
+  'RDO', 'RDO_MAINTENANCE', 'RDO_PRODUCTION', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLF', 'RLI'
+]);
+
 function optionalText(z, max = 500) {
   return z.preprocess(value => value === undefined || value === null || value === '' ? undefined : String(value), z.string().trim().max(max).optional());
 }
@@ -29,10 +33,14 @@ export function makeOperationalReadQuerySchema(z, { maxPageSize = 500 } = {}) {
     reportId: z.string().trim().min(1).max(100).optional(),
     maintenanceId: z.string().trim().min(1).max(100).optional(),
     itemId: z.string().trim().min(1).max(100).optional(),
+    reportType: optionalCsvEnum(z, INTEGRATION_REPORT_TYPES),
     snapshotAt: z.string().datetime({ offset: true }).optional(),
     projectId: z.string().trim().min(1).max(100).optional(),
+    projectCode: z.string().trim().min(1).max(100).optional(),
     active: z.preprocess(value => value === 'true' ? true : value === 'false' ? false : value, z.boolean().optional())
-  }).strict();
+  }).strict().refine(value => !(value.projectId && value.projectCode), {
+    path: ['projectCode'], message: 'Informe projectCode ou projectId, não ambos.'
+  });
 }
 
 export function makeIntegrationApiSchemas(z, { globalMaxPageSize = 500 } = {}) {
@@ -47,13 +55,16 @@ export function makeIntegrationApiSchemas(z, { globalMaxPageSize = 500 } = {}) {
     ...pagination,
     updatedUntil: isoDate.optional(),
     projectId: optionalText(z, 100),
+    projectCode: optionalText(z, 100),
     natureId: optionalText(z, 100),
     eventDateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     eventDateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     status: optionalCsvEnum(z, QUALITY_STATUSES),
     type: optionalCsvEnum(z, QUALITY_RECORD_TYPES),
     includeDeleted: optionalBoolean(z).default(false)
-  }).strict();
+  }).strict().refine(value => !(value.projectId && value.projectCode), {
+    path: ['projectCode'], message: 'Informe projectCode ou projectId, não ambos.'
+  });
   const qualityRecordDetailQuery = z.object({ includeDeleted: optionalBoolean(z).default(false) }).strict();
   const qualityNaturesQuery = z.object({ ...pagination, active: optionalBoolean(z) }).strict();
   const idParams = z.object({ id: z.string().trim().min(1).max(100) }).strict();

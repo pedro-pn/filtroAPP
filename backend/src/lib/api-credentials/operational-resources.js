@@ -16,7 +16,7 @@ export const BASE_OPERATIONAL_RESOURCES = Object.freeze([
   resource('Report', '/rdo/relatorios', 'rdo.relatorios.read', 'Relatórios aprovados — identificação, descrição e horas', 'rdo',
     { projectId: 'string', reportType: 'string', sequenceNumber: 'integer?', status: 'string', reportDate: 'datetime', arrivalTime: 'string', departureTime: 'string', lunchBreak: 'string', daytimeCount: 'integer', daytimeWorkedMinutes: 'integer', nighttimeWorkedMinutes: 'integer', daytimeOvertimeMinutes: 'integer', nighttimeOvertimeMinutes: 'integer', totalOvertimeMinutes: 'integer', approvedAt: 'datetime?', dailyDescription: 'string?', overtimeReason: 'string?' },
     { projectPolicy: 'DIRECT', projectNotice: 'Número do relatório e código/nome do projeto, descrição diária e motivo de horas extras. Somente relatórios aprovados, não excluídos e de projetos autorizados não excluídos.', where: publishedReport,
-      derivedFields: RDO_REPORT_DERIVED_FIELDS, select: { project: RDO_PROJECT_SELECT }, includesOperationalNotes: true }),
+      derivedFields: RDO_REPORT_DERIVED_FIELDS, select: { project: RDO_PROJECT_SELECT }, filterFields: ['reportType'], includesOperationalNotes: true }),
   resource('DdsTheme', '/rdo/dds', 'rdo.dds.read', 'Temas de DDS', 'rdo', { name: 'string', isActive: 'boolean' }),
   resource('MaintenanceRecord', '/manutencao/registros', 'manutencao.registros.read', 'Manutenções aprovadas — identificação e datas', 'maintenance-production',
     { reportId: 'string?', equipmentId: 'string', profileId: 'string?', maintenanceDate: 'datetime', status: 'string', approvedAt: 'datetime?' }, {

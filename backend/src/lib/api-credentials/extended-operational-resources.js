@@ -1,7 +1,7 @@
 import { resource, publishedReport, publishedMaintenance } from './operational-resource-definition.js';
 import { RDO_SERVICE_DATA_SCHEMA, RDO_SERVICE_DERIVED_FIELDS, RDO_SERVICE_SELECT } from './rdo-resource-definition.js';
 
-const report = { dependencies: ['rdo.relatorios.read'], filterFields: ['reportId'], projectPolicy: 'REPORT', where: { report: publishedReport }, projectNotice: 'Somente relatórios aprovados e projetos autorizados não excluídos.' };
+const report = { dependencies: ['rdo.relatorios.read'], filterFields: ['reportId', 'reportType'], projectPolicy: 'REPORT', where: { report: publishedReport }, projectNotice: 'Somente relatórios aprovados e projetos autorizados não excluídos.' };
 const maintenance = { dependencies: ['manutencao.registros.read'], filterFields: ['maintenanceId'], projectPolicy: 'MAINTENANCE', where: { maintenance: publishedMaintenance }, projectNotice: 'Somente manutenções aprovadas; avulsas exigem todos os projetos.' };
 const stock = { dependencies: ['estoque.itens.read'], filterFields: ['itemId'], timestampField: 'createdAt' };
 const movement = { ...stock, projectPolicy: 'DIRECT', where: { OR: [{ projectId: null }, { project: { deletedAt: null } }] }, projectNotice: 'Somente movimentos de projetos autorizados não excluídos; sem projeto exige todos os projetos.' };
