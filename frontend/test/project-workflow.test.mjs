@@ -130,6 +130,8 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.doesNotMatch(drop, /onProjectSelect\(project\.id\)/);
   assert.match(board, /onError: async \(error: Error, variables\) => \{\s+setColumns\(variables\.snapshot\);\s+onProjectSelect\(variables\.project\.id\)/);
   assert.match(board, /suppressCardClickUntilRef/);
+  assert.match(board, /managedMove\.isPending \? managedMove\.variables\?\.project\.id : undefined/);
+  assert.match(dragStart, /const startedFromInteractiveControl = interactiveMouseRef\.current;\s+interactiveMouseRef\.current = false;/);
   assert.match(modal, /Compatibilidade do projeto antigo/);
   assert.match(modal, /Atualizar etapa antiga/);
   assert.match(modal, /onOpenTeamProgramming/);

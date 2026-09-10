@@ -454,6 +454,7 @@ export function ProjectWorkflowBoard({
       pointerRef.current = null;
     }
     dragRef.current = null;
+    interactiveMouseRef.current = false;
     setDraggingId(null);
     setDropTarget(null);
     suppressCardClickUntilRef.current = Date.now() + 350;
@@ -797,9 +798,11 @@ export function ProjectWorkflowBoard({
   }
 
   function onCardDragStart(event: DragEvent<HTMLElement>, project: ProjectWorkflowSummary) {
+    const startedFromInteractiveControl = interactiveMouseRef.current;
+    interactiveMouseRef.current = false;
     if (
       !canMoveProject(project)
-      || interactiveMouseRef.current
+      || startedFromInteractiveControl
       || (event.target as HTMLElement).closest(INTERACTIVE_SELECTOR)
     ) {
       event.preventDefault();
@@ -841,7 +844,8 @@ export function ProjectWorkflowBoard({
 
   const managedCount = list.data.items.filter(item => item.workflow).length;
   const overdueCount = list.data.items.reduce((sum, item) => sum + (item.workflow?.overdueIssueCount || 0), 0);
-  const movingProjectId = managedMove.variables?.project.id || moveLegacyMission.variables?.project.id;
+  const movingProjectId = (managedMove.isPending ? managedMove.variables?.project.id : undefined)
+    || (moveLegacyMission.isPending ? moveLegacyMission.variables?.project.id : undefined);
 
   return (
     <div className="efetivo-board project-workflow-board" data-project-workflow-board>
