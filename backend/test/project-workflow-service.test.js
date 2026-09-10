@@ -40,6 +40,7 @@ function fakeDatabase() {
   const withRelations = () => state.workflow ? {
     ...state.workflow,
     leader: users[state.workflow.leaderUserId],
+    closedBy: users[state.workflow.closedByUserId] || null,
     checklists: state.checklists.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     criticalAnswers: state.answers.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     commercialFacts: state.commercialFacts.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
@@ -98,6 +99,8 @@ function fakeDatabase() {
           acceptedAt: null,
           plannedMobilizationDate: input.data.plannedMobilizationDate,
           fieldCompletionDate: null,
+          closedAt: null,
+          closedByUserId: null,
           version: 1,
           createdAt: new Date(),
           updatedAt: new Date()
@@ -696,6 +699,55 @@ test('Documentação e medição avança pelo gate e persiste valores auditávei
     error => error.code === 'PROJECT_WORKFLOW_MEASUREMENT_INVALID'
   );
   assert.equal(state.workflow.version, 3);
+});
+
+test('Encerramento registra autoria e reabertura exige justificativa auditável', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  state.workflow.stage = 'FINAL_MEASUREMENT';
+  state.postJob = {
+    projectId: 'project-1', meetingDate: new Date('2026-09-25T00:00:00Z'), serviceTypes: ['FLUSHING'], createdAt: new Date(), updatedAt: new Date()
+  };
+  state.measurement = {
+    projectId: 'project-1', approvedAt: new Date('2026-09-30T00:00:00Z'), approvedAmount: 0, createdAt: new Date(), updatedAt: new Date()
+  };
+  state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS
+    .filter(item => item.stage === 'FINAL_MEASUREMENT')
+    .map(item => ({ id: `check-${item.key}`, projectId: 'project-1', key: item.key, status: 'DONE' })));
+  const synchronizedStages = [];
+  let detail = await updateProjectWorkflow('project-1', {
+    action: 'stage', version: 1, stage: 'FINISHED'
+  }, leader, {
+    database,
+    now: new Date('2026-10-01T12:00:00Z'),
+    synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
+  });
+  assert.equal(detail.workflow.stage, 'FINISHED');
+  assert.equal(detail.workflow.closedAt.toISOString(), '2026-10-01T12:00:00.000Z');
+  assert.equal(detail.workflow.closedBy.name, 'Líder A');
+  assert.equal(detail.workflow.permissions.canEdit, false);
+  assert.equal(detail.workflow.permissions.canReopen, true);
+  assert.deepEqual(synchronizedStages, ['FINISHED']);
+
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'FINAL_SCOPE_CLOSED', status: 'PENDING' }, leader, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_FINISHED_READ_ONLY'
+  );
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'FINAL_MEASUREMENT' }, leader, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_REOPEN_REASON_REQUIRED'
+  );
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'stage', version: 2, stage: 'FINAL_MEASUREMENT', reason: 'Cliente solicitou ajuste no valor final.'
+  }, leader, {
+    database,
+    synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
+  });
+  assert.equal(detail.workflow.stage, 'FINAL_MEASUREMENT');
+  assert.equal(detail.workflow.closedAt, null);
+  assert.equal(detail.workflow.closedBy, null);
+  assert.deepEqual(synchronizedStages, ['FINISHED', 'FINAL_MEASUREMENT']);
+  assert.equal(state.events.at(-1).data.reason, 'Cliente solicitou ajuste no valor final.');
 });
 
 test('gate bloqueado impede autorização e papel de área não pode revalidar', async () => {

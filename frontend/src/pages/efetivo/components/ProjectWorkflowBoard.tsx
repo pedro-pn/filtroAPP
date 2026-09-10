@@ -241,9 +241,9 @@ function ProjectCard({
       {workflow ? <>
         <small>
           {projectWorkflowMilestoneText(item)}
-          {!['DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT'].includes(workflow.stage) && nextMilestone ? ' · próximo ' + nextMilestone.label + ' em ' + displayDateOnly(nextMilestone.date) : ''}
+          {!['DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT', 'FINISHED'].includes(workflow.stage) && nextMilestone ? ' · próximo ' + nextMilestone.label + ' em ' + displayDateOnly(nextMilestone.date) : ''}
         </small>
-        {workflow.milestones.dueMilestones.length ? (
+        {workflow.stage !== 'FINISHED' && workflow.milestones.dueMilestones.length ? (
           <small className="project-workflow-deadline-alert">
             Prazos atingidos: {workflow.milestones.dueMilestones.map(key => key.replace('D', 'D-')).join(', ')}
           </small>
@@ -271,10 +271,11 @@ function ProjectCard({
         {workflow.stage === 'DEMOBILIZATION' ? <small className="project-workflow-execution-badge">Desmobilização: {workflow.demobilizationReadiness.completed}/{workflow.demobilizationReadiness.total} · {workflow.demobilizationReadiness.percentage}%</small> : null}
         {workflow.stage === 'POST_JOB' ? <small className="project-workflow-execution-badge">Pós-job: {workflow.postJobReadiness.completed}/{workflow.postJobReadiness.total} · {workflow.postJobReadiness.percentage}%</small> : null}
         {workflow.stage === 'FINAL_MEASUREMENT' ? <small className="project-workflow-execution-badge">Fechamento: {workflow.closeoutReadiness.completed}/{workflow.closeoutReadiness.total} · {workflow.closeoutReadiness.percentage}%</small> : null}
-        {workflow.mobilizationGate.deadlineStatus === 'ATTENTION' ? (
+        {workflow.stage === 'FINISHED' ? <small className="project-workflow-execution-badge">🏁 Encerrado{workflow.closedBy ? ` por ${workflow.closedBy.name}` : ''}</small> : null}
+        {workflow.stage !== 'FINISHED' && workflow.mobilizationGate.deadlineStatus === 'ATTENTION' ? (
           <small className="project-workflow-mobilization-risk is-attention">D-7 · {workflow.mobilizationGate.blockers.length} bloqueio(s)</small>
         ) : null}
-        {workflow.mobilizationGate.deadlineStatus === 'RISK' ? (
+        {workflow.stage !== 'FINISHED' && workflow.mobilizationGate.deadlineStatus === 'RISK' ? (
           <small className="project-workflow-mobilization-risk is-risk">Risco de mobilização · {workflow.mobilizationGate.blockers.length} bloqueio(s)</small>
         ) : null}
         {!['DEMOBILIZATION', 'POST_JOB'].includes(workflow.stage) && mobilizationStatus === 'AUTHORIZED' ? <small className="project-workflow-authorization-badge is-authorized">🔒 Mobilização autorizada</small> : null}
@@ -580,7 +581,9 @@ export function ProjectWorkflowBoard({
   function canMoveProject(project: ProjectWorkflowSummary) {
     if (managedMove.isPending || moveLegacyMission.isPending) return false;
     if (!project.workflow) return Boolean(canManage && project.operationalMission);
-    return project.workflow.stage === 'HANDOVER' ? project.permissions.canAccept : project.permissions.canEdit;
+    if (project.workflow.stage === 'HANDOVER') return project.permissions.canAccept;
+    if (project.workflow.stage === 'FINISHED') return project.permissions.canReopen;
+    return project.permissions.canEdit;
   }
 
   function legacyOrder(stage: MissionStage) {
@@ -623,15 +626,29 @@ export function ProjectWorkflowBoard({
         });
         return;
       }
+      if (project.workflow.stage === 'FINISHED') {
+        onProjectSelect(project.id);
+        if (!project.permissions.canReopen) {
+          toast('Movimentação bloqueada: somente o gestor ou o Líder de Projetos pode reabrir este projeto.', 'error');
+        } else if (target !== 'FINAL_MEASUREMENT') {
+          toast('Movimentação bloqueada: um projeto encerrado volta primeiro para Documentação / medição.', 'error');
+        } else {
+          toast('Informe a justificativa no detalhe para reabrir o projeto.', 'info');
+        }
+        return;
+      }
       if (!project.permissions.canEdit) {
         onProjectSelect(project.id);
         toast('Movimentação bloqueada: somente o gestor ou o Líder de Projetos pode alterar esta etapa.', 'error');
         return;
       }
       if (target === 'FINISHED') {
-        onProjectSelect(project.id);
-        toast('Movimentação bloqueada: o gate de encerramento será habilitado na próxima entrega.', 'error');
-        return;
+        if (!project.workflow.closureGate.ready) {
+          onProjectSelect(project.id);
+          const reasons = project.workflow.closureGate.blockers.slice(0, 3).map(item => `${item.label}: ${item.reason}`);
+          toast(`Movimentação bloqueada: ${reasons.join(' · ')}${project.workflow.closureGate.blockers.length > 3 ? ` · e mais ${project.workflow.closureGate.blockers.length - 3}` : ''}.`, 'error');
+          return;
+        }
       }
       const allowedTargets = projectWorkflowStageOptions(project.workflow.stage);
       if (!allowedTargets.includes(target)) {

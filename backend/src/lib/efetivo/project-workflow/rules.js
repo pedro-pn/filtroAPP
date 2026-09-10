@@ -191,6 +191,53 @@ export function projectWorkflowCloseoutReadiness(workflow) {
   return { completed, total, percentage: total ? Math.round((completed / total) * 100) : 0, sections };
 }
 
+export function projectWorkflowClosureReadiness(workflow) {
+  const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === 'FINAL_CLOSEOUT');
+  return checklistProgress(workflow, definitions);
+}
+
+export function projectWorkflowClosureGate(workflow) {
+  const closeoutDefinitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item =>
+    ['CLOSEOUT_DOCUMENTATION', 'CLOSEOUT_MEASUREMENT'].includes(item.section)
+  );
+  const finalDefinitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === 'FINAL_CLOSEOUT');
+  const closeout = readinessFromDefinitions(workflow, 'CLOSEOUT', 'Documentação e medição', closeoutDefinitions);
+  const finalChecklist = readinessFromDefinitions(workflow, 'FINAL_CLOSEOUT', 'Checklist final', finalDefinitions);
+  const structuredBlockers = [];
+  if (!workflow?.postJob?.meetingDate) {
+    structuredBlockers.push({ key: 'POST_JOB_MEETING_DATE', label: 'Pós-job', reason: 'Informar a data da reunião de pós-job' });
+  }
+  if (!workflow?.measurement?.approvedAt) {
+    structuredBlockers.push({ key: 'MEASUREMENT_APPROVED_AT', label: 'Medição', reason: 'Informar a data de aprovação da medição' });
+  }
+  if (workflow?.measurement?.approvedAmount == null) {
+    structuredBlockers.push({ key: 'MEASUREMENT_APPROVED_AMOUNT', label: 'Medição', reason: 'Informar o valor aprovado' });
+  }
+  const openIssues = (workflow?.issues || []).filter(issue => issue.status !== 'RESOLVED');
+  const issueBlockers = openIssues.map(issue => ({
+    key: `ISSUE_${issue.id}`,
+    label: issue.description,
+    reason: 'Pendência interna ainda aberta'
+  }));
+  const blockers = [
+    ...closeout.blockers,
+    ...finalChecklist.blockers,
+    ...structuredBlockers,
+    ...issueBlockers
+  ];
+  const completed = closeout.completed + finalChecklist.completed;
+  const total = closeout.total + finalChecklist.total;
+  return {
+    ready: blockers.length === 0,
+    completed,
+    total,
+    percentage: total ? Math.round((completed / total) * 100) : 0,
+    closeout,
+    finalChecklist,
+    blockers
+  };
+}
+
 function readinessFromDefinitions(workflow, key, label, definitions, extraBlockers = []) {
   const byKey = new Map((workflow?.checklists || []).map(item => [item.key, item]));
   const pending = definitions.filter(definition => !resolvedChecklist(byKey.get(definition.key)));
@@ -349,7 +396,8 @@ export function allowedProjectWorkflowTransition(current, target) {
     EXECUTION: ['MOBILIZATION', 'DEMOBILIZATION'],
     DEMOBILIZATION: ['EXECUTION', 'POST_JOB'],
     POST_JOB: ['DEMOBILIZATION', 'FINAL_MEASUREMENT'],
-    FINAL_MEASUREMENT: ['POST_JOB']
+    FINAL_MEASUREMENT: ['POST_JOB', 'FINISHED'],
+    FINISHED: ['FINAL_MEASUREMENT']
   };
   return transitions[current]?.includes(target) || false;
 }
@@ -363,6 +411,9 @@ export function projectWorkflowTransitionIssues(workflow, target) {
   if (target === 'PREPARATION' && workflow.stage === 'MOBILIZATION_PLANNING') return planningGateIssues(workflow);
   if (target === 'POST_JOB' && workflow.stage === 'DEMOBILIZATION') return demobilizationGateIssues(workflow);
   if (target === 'FINAL_MEASUREMENT' && workflow.stage === 'POST_JOB') return postJobGateIssues(workflow);
+  if (target === 'FINISHED') {
+    return projectWorkflowClosureGate(workflow).blockers.map(item => `${item.label}: ${item.reason}`);
+  }
   if (target === 'READY_TO_MOBILIZE') {
     return projectWorkflowMobilizationGate(workflow).blockers.map(item => `${item.label}: ${item.reason}`);
   }

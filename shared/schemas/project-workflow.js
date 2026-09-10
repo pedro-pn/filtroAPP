@@ -9,7 +9,8 @@ export const PROJECT_WORKFLOW_STAGES = [
   'EXECUTION',
   'DEMOBILIZATION',
   'POST_JOB',
-  'FINAL_MEASUREMENT'
+  'FINAL_MEASUREMENT',
+  'FINISHED'
 ];
 
 export const PROJECT_WORKFLOW_STAGE_LABELS = {
@@ -23,7 +24,8 @@ export const PROJECT_WORKFLOW_STAGE_LABELS = {
   EXECUTION: 'Em execução',
   DEMOBILIZATION: 'Desmobilização',
   POST_JOB: 'Pós-job / fechamento técnico',
-  FINAL_MEASUREMENT: 'Documentação / medição'
+  FINAL_MEASUREMENT: 'Documentação / medição',
+  FINISHED: 'Encerrado'
 };
 
 export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
@@ -47,7 +49,8 @@ export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
   'POST_JOB_FEEDBACK',
   'POST_JOB_LEARNING',
   'CLOSEOUT_DOCUMENTATION',
-  'CLOSEOUT_MEASUREMENT'
+  'CLOSEOUT_MEASUREMENT',
+  'FINAL_CLOSEOUT'
 ];
 
 export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
@@ -71,7 +74,8 @@ export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
   POST_JOB_FEEDBACK: 'Reunião e feedbacks',
   POST_JOB_LEARNING: 'Aprendizados e melhorias',
   CLOSEOUT_DOCUMENTATION: 'Documentação',
-  CLOSEOUT_MEASUREMENT: 'Medição'
+  CLOSEOUT_MEASUREMENT: 'Medição',
+  FINAL_CLOSEOUT: 'Checklist final de encerramento'
 };
 
 const checklist = (key, stage, section, label, areaRoles = []) => ({ key, stage, section, label, areaRoles });
@@ -227,7 +231,18 @@ export const PROJECT_WORKFLOW_CHECKLISTS = [
   checklist('CLOSEOUT_MEASUREMENT_PREPARED', 'FINAL_MEASUREMENT', 'CLOSEOUT_MEASUREMENT', 'Medição preparada'),
   checklist('CLOSEOUT_MEASUREMENT_SENT', 'FINAL_MEASUREMENT', 'CLOSEOUT_MEASUREMENT', 'Medição enviada'),
   checklist('CLOSEOUT_MEASUREMENT_APPROVED', 'FINAL_MEASUREMENT', 'CLOSEOUT_MEASUREMENT', 'Medição aprovada'),
-  checklist('CLOSEOUT_FINAL_VALUE_APPROVED', 'FINAL_MEASUREMENT', 'CLOSEOUT_MEASUREMENT', 'Valor final aprovado')
+  checklist('CLOSEOUT_FINAL_VALUE_APPROVED', 'FINAL_MEASUREMENT', 'CLOSEOUT_MEASUREMENT', 'Valor final aprovado'),
+
+  checklist('FINAL_SCOPE_CLOSED', 'FINAL_MEASUREMENT', 'FINAL_CLOSEOUT', 'Escopo encerrado'),
+  checklist('FINAL_RDOS_COMPLETE', 'FINAL_MEASUREMENT', 'FINAL_CLOSEOUT', 'RDOs 100%'),
+  checklist('FINAL_REPORTS_COMPLETE', 'FINAL_MEASUREMENT', 'FINAL_CLOSEOUT', 'Relatórios 100%'),
+  checklist('FINAL_MEASUREMENT_APPROVED', 'FINAL_MEASUREMENT', 'FINAL_CLOSEOUT', 'Medição aprovada'),
+  checklist('FINAL_CLIENT_PENDING_ZERO', 'FINAL_MEASUREMENT', 'FINAL_CLOSEOUT', 'Pendências com o cliente zeradas'),
+  checklist('FINAL_POST_JOB_COMPLETED', 'FINAL_MEASUREMENT', 'FINAL_CLOSEOUT', 'Pós-job realizado'),
+  checklist('FINAL_FEEDBACKS_RECORDED', 'FINAL_MEASUREMENT', 'FINAL_CLOSEOUT', 'Feedbacks registrados'),
+  checklist('FINAL_LESSONS_RECORDED', 'FINAL_MEASUREMENT', 'FINAL_CLOSEOUT', 'Lições aprendidas registradas'),
+  checklist('FINAL_EQUIPMENT_RETURNED', 'FINAL_MEASUREMENT', 'FINAL_CLOSEOUT', 'Equipamentos devolvidos'),
+  checklist('FINAL_INTERNAL_PENDING_ZERO', 'FINAL_MEASUREMENT', 'FINAL_CLOSEOUT', 'Pendências internas zeradas')
 ];
 
 export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS = [
@@ -357,7 +372,8 @@ export function makeProjectWorkflowSchemas(z) {
   const stage = z.object({
     action: z.literal('stage'),
     version,
-    stage: z.enum(PROJECT_WORKFLOW_STAGES)
+    stage: z.enum(PROJECT_WORKFLOW_STAGES),
+    reason: z.string().trim().min(3, 'Informe uma justificativa com ao menos 3 caracteres.').max(1000, 'A justificativa deve ter no máximo 1000 caracteres.').optional()
   }).strict();
   const demobilization = z.object({
     action: z.literal('demobilization'),

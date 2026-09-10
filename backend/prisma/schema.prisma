@@ -262,6 +262,7 @@ enum ProjectWorkflowStage {
   DEMOBILIZATION
   POST_JOB
   FINAL_MEASUREMENT
+  FINISHED
 }
 
 enum ProjectWorkflowChecklistStatus {
@@ -971,11 +972,14 @@ model ProjectWorkflow {
   mobilizationAuthorizationVersion Int?
   fieldCompletionDate              DateTime?                       @db.Date
   executionReportTargets           Json                            @default("{}")
+  closedAt                         DateTime?
+  closedByUserId                   String?
   version                          Int                             @default(1)
   createdAt                        DateTime                        @default(now())
   updatedAt                        DateTime                        @updatedAt
   project                          Project                         @relation(fields: [projectId], references: [id], onDelete: Restrict)
   leader                           User                            @relation("ProjectWorkflowLeader", fields: [leaderUserId], references: [id], onDelete: Restrict)
+  closedBy                         User?                           @relation("ProjectWorkflowCloser", fields: [closedByUserId], references: [id], onDelete: SetNull)
   checklists                       ProjectWorkflowChecklist[]
   criticalAnswers                  ProjectWorkflowCriticalAnswer[]
   issues                           ProjectWorkflowIssue[]
@@ -986,6 +990,7 @@ model ProjectWorkflow {
 
   @@index([stage, plannedMobilizationDate])
   @@index([leaderUserId])
+  @@index([closedByUserId])
 }
 
 model ProjectWorkflowCommercialFact {
@@ -2177,6 +2182,7 @@ model User {
   projectManualCosts                   ProjectManualCost[]                 @relation("ProjectManualCostCreator")
   projectManagementNotes               ProjectManagementNote[]             @relation("ProjectManagementNoteCreator")
   ledProjectWorkflows                  ProjectWorkflow[]                    @relation("ProjectWorkflowLeader")
+  closedProjectWorkflows               ProjectWorkflow[]                   @relation("ProjectWorkflowCloser")
   updatedProjectWorkflowChecklists     ProjectWorkflowChecklist[]           @relation("ProjectWorkflowChecklistUpdater")
   updatedProjectWorkflowCriticalAnswers ProjectWorkflowCriticalAnswer[]      @relation("ProjectWorkflowCriticalAnswerUpdater")
   updatedProjectWorkflowCommercialFacts ProjectWorkflowCommercialFact[]     @relation("ProjectWorkflowCommercialFactUpdater")

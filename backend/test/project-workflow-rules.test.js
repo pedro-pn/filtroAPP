@@ -18,6 +18,8 @@ import {
   planningGateIssues,
   projectWorkflowCommercialReadiness,
   projectWorkflowCloseoutReadiness,
+  projectWorkflowClosureGate,
+  projectWorkflowClosureReadiness,
   projectWorkflowDemobilizationReadiness,
   projectWorkflowDocumentationReadiness,
   projectWorkflowMobilizationAuthorization,
@@ -55,6 +57,8 @@ test('contrato exige justificativa para não aplicável e versão nas alteraçõ
   assert.equal(patch.safeParse({ action: 'measurement', version: 9, executedAmount: 800, measuredAmount: 900 }).success, false);
   assert.equal(patch.safeParse({ action: 'measurement', version: 9, executedAmount: 900, measuredAmount: 850, approvedAmount: 820 }).success, true);
   assert.equal(patch.safeParse({ action: 'measurement', version: 9, preparedAt: '2026-09-08', sentAt: '2026-09-07' }).success, false);
+  assert.equal(patch.safeParse({ action: 'stage', version: 10, stage: 'FINAL_MEASUREMENT', reason: '  ' }).success, false);
+  assert.equal(patch.safeParse({ action: 'stage', version: 10, stage: 'FINAL_MEASUREMENT', reason: 'Correção solicitada pelo cliente.' }).success, true);
 });
 
 test('prontidão comercial exige os oito fatos completos conforme o catálogo', () => {
@@ -324,4 +328,28 @@ test('Documentação e medição exige pós-job concluído e consolida 14 contro
   assert.deepEqual(readiness.sections.map(item => item.key), ['CLOSEOUT_DOCUMENTATION', 'CLOSEOUT_MEASUREMENT']);
   assert.equal(allowedProjectWorkflowTransition('POST_JOB', 'FINAL_MEASUREMENT'), true);
   assert.equal(allowedProjectWorkflowTransition('FINAL_MEASUREMENT', 'POST_JOB'), true);
+});
+
+test('Encerramento consolida os dez controles finais e dependências estruturadas', () => {
+  const workflow = {
+    stage: 'FINAL_MEASUREMENT',
+    checklists: completed('FINAL_MEASUREMENT'),
+    postJob: { meetingDate: new Date('2026-09-25T00:00:00Z') },
+    measurement: { approvedAt: new Date('2026-09-30T00:00:00Z'), approvedAmount: 0 },
+    issues: []
+  };
+  const readiness = projectWorkflowClosureReadiness(workflow);
+  assert.equal(readiness.total, 10);
+  assert.equal(readiness.completed, 10);
+  const gate = projectWorkflowClosureGate(workflow);
+  assert.equal(gate.total, 24);
+  assert.equal(gate.ready, true);
+  assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'FINISHED'), []);
+  workflow.issues.push({ id: 'issue-1', description: 'Aceite final', status: 'IN_PROGRESS' });
+  assert.match(projectWorkflowTransitionIssues(workflow, 'FINISHED').at(-1), /pendência interna/i);
+  workflow.issues = [];
+  workflow.measurement.approvedAt = null;
+  assert.match(projectWorkflowTransitionIssues(workflow, 'FINISHED').join(' '), /data de aprovação/i);
+  assert.equal(allowedProjectWorkflowTransition('FINAL_MEASUREMENT', 'FINISHED'), true);
+  assert.equal(allowedProjectWorkflowTransition('FINISHED', 'FINAL_MEASUREMENT'), true);
 });

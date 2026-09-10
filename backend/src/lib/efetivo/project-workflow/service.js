@@ -19,6 +19,8 @@ import {
   normalizeProjectWorkflowCommercialFacts,
   projectWorkflowCommercialReadiness,
   projectWorkflowCloseoutReadiness,
+  projectWorkflowClosureGate,
+  projectWorkflowClosureReadiness,
   projectWorkflowDemobilizationReadiness,
   projectWorkflowDocumentationReadiness,
   projectWorkflowMobilizationAuthorization,
@@ -92,6 +94,7 @@ const OPERATIONAL_MISSION_QUERY = {
 };
 const WORKFLOW_INCLUDE = {
   leader: { select: { id: true, name: true, isActive: true } },
+  closedBy: { select: { id: true, name: true } },
   checklists: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
   criticalAnswers: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
   commercialFacts: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
@@ -254,12 +257,15 @@ function canEditChecklist(workflow, definition, context) {
 function publicPermissions(workflow, context) {
   const manager = contextIsManager(context);
   const isLeader = Boolean(contextIsOperational(context) && context.actorUserId && workflow?.leaderUserId === context.actorUserId);
+  const canManage = Boolean(workflow && (manager || isLeader));
+  const finished = workflow?.stage === 'FINISHED';
   return {
     canInitialize: manager && !workflow,
-    canEdit: Boolean(workflow && (manager || isLeader)),
+    canEdit: canManage && !finished,
+    canReopen: canManage && finished,
     canAccept: Boolean(workflow && isLeader && !workflow.acceptedAt && workflow.stage === 'HANDOVER'),
-    canChangeLeader: Boolean(workflow && manager),
-    canEditCommercial: canEditCommercial(workflow, context),
+    canChangeLeader: Boolean(workflow && manager && !finished),
+    canEditCommercial: !finished && canEditCommercial(workflow, context),
     canAuthorizeMobilization: Boolean(workflow && (manager || isLeader) && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(workflow.stage))
   };
 }
@@ -302,6 +308,8 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
   const demobilizationReadiness = projectWorkflowDemobilizationReadiness({ checklists });
   const postJobReadiness = projectWorkflowPostJobReadiness({ checklists });
   const closeoutReadiness = projectWorkflowCloseoutReadiness({ checklists });
+  const closureReadiness = projectWorkflowClosureReadiness({ checklists });
+  const closureGate = projectWorkflowClosureGate({ ...workflow, checklists, issues });
   const mobilizationGate = projectWorkflowMobilizationGate({ ...workflow, checklists, commercialFacts, issues }, milestones, today);
   const mobilizationAuthorization = projectWorkflowMobilizationAuthorization(workflow, mobilizationGate);
   const permissions = publicPermissions(workflow, context);
@@ -309,7 +317,10 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     .filter(stage => allowedProjectWorkflowTransition(workflow.stage, stage))
     .map(stage => {
       const gateIssues = projectWorkflowTransitionIssues({ ...workflow, demobilizationDate }, stage);
-      const permissionIssues = permissions.canEdit ? [] : ['Somente o gestor ou o Líder de Projetos pode alterar a etapa'];
+      const hasPermission = workflow.stage === 'FINISHED' && stage === 'FINAL_MEASUREMENT'
+        ? permissions.canReopen
+        : permissions.canEdit;
+      const permissionIssues = hasPermission ? [] : ['Somente o gestor ou o Líder de Projetos pode alterar a etapa'];
       const transitionIssues = [...permissionIssues, ...gateIssues];
       return { stage, allowed: transitionIssues.length === 0, issues: transitionIssues };
     });
@@ -330,6 +341,8 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     postJobReadiness,
     postJob: publicPostJob(workflow.postJob, serviceTypes),
     closeoutReadiness,
+    closureReadiness,
+    closureGate,
     measurement: publicMeasurement(workflow.measurement),
     relatedPostJobs,
     mobilizationGate,
@@ -456,6 +469,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
         workflow: {
           include: {
             leader: { select: { id: true, name: true, isActive: true } },
+            closedBy: { select: { id: true, name: true } },
             checklists: { select: { key: true, status: true } },
             issues: { select: { id: true, status: true, dueDate: true, criticality: true, area: true, description: true } },
             commercialFacts: { select: { key: true, status: true, source: true, reference: true, note: true, occurredOn: true } },
@@ -482,6 +496,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
       const demobilizationReadiness = workflow ? projectWorkflowDemobilizationReadiness(workflow) : null;
       const postJobReadiness = workflow ? projectWorkflowPostJobReadiness(workflow) : null;
       const closeoutReadiness = workflow ? projectWorkflowCloseoutReadiness(workflow) : null;
+      const closureReadiness = workflow ? projectWorkflowClosureReadiness(workflow) : null;
+      const closureGate = workflow ? projectWorkflowClosureGate(workflow) : null;
       const mobilizationGate = workflow ? projectWorkflowMobilizationGate(workflow, milestones, todayKey(now)) : null;
       const mobilizationAuthorization = workflow ? projectWorkflowMobilizationAuthorization(workflow, mobilizationGate) : null;
       return {
@@ -496,6 +512,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
           stage: workflow.stage,
           leader: workflow.leader,
           acceptedAt: workflow.acceptedAt,
+          closedAt: workflow.closedAt,
+          closedBy: workflow.closedBy,
           plannedMobilizationDate: dateKey(workflow.plannedMobilizationDate),
           fieldCompletionDate: dateKey(workflow.fieldCompletionDate),
           demobilizationDate: dateKey(project.demobilizationDate),
@@ -516,6 +534,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
           postJobReadiness,
           postJob: publicPostJob(workflow.postJob),
           closeoutReadiness,
+          closureReadiness,
+          closureGate,
           measurement: publicMeasurement(workflow.measurement),
           mobilizationGate,
           mobilizationAuthorization
@@ -778,6 +798,11 @@ async function applyAccept(tx, workflow, context, now) {
 }
 
 async function applyStage(tx, workflow, payload, now, context, dependencies) {
+  if (workflow.stage === 'FINISHED' && payload.stage === 'FINAL_MEASUREMENT' && !payload.reason?.trim()) {
+    throw planningError('Informe uma justificativa para reabrir o projeto.', {
+      code: 'PROJECT_WORKFLOW_REOPEN_REASON_REQUIRED'
+    });
+  }
   const projectDates = payload.stage === 'POST_JOB'
     ? await tx.project.findUnique({ where: { id: workflow.projectId }, select: { demobilizationDate: true } })
     : null;
@@ -791,7 +816,7 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
       issues: issues.map(message => ({ message }))
     });
   }
-  const synchronizesOperationalStage = ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT'].includes(payload.stage)
+  const synchronizesOperationalStage = ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT', 'FINISHED'].includes(payload.stage)
     || (payload.stage === 'READY_TO_MOBILIZE' && ['MOBILIZATION', 'EXECUTION'].includes(workflow.stage));
   if (synchronizesOperationalStage) {
     await (dependencies.synchronizeOfficialMissionStage || synchronizeOfficialMissionStage)(
@@ -802,6 +827,13 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
     );
   }
   const data = { stage: payload.stage };
+  if (payload.stage === 'FINISHED') {
+    data.closedAt = now;
+    data.closedByUserId = context.actorUserId || null;
+  } else if (workflow.stage === 'FINISHED') {
+    data.closedAt = null;
+    data.closedByUserId = null;
+  }
   if (payload.stage === 'READY_TO_MOBILIZE') {
     data.mobilizationAuthorizedAt = now;
     data.mobilizationAuthorizationVersion = workflow.version + 1;
@@ -987,6 +1019,13 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
   const now = dependencies.now || new Date();
   await runPlanningTransaction(database, async tx => {
     const workflow = await loadWorkflowForMutation(tx, projectId);
+    const reopening = workflow.stage === 'FINISHED' && payload.action === 'stage' && payload.stage === 'FINAL_MEASUREMENT';
+    if (workflow.stage === 'FINISHED' && !reopening) {
+      throw planningError('O projeto está encerrado. Reabra-o para alterar os dados.', {
+        statusCode: 409,
+        code: 'PROJECT_WORKFLOW_FINISHED_READ_ONLY'
+      });
+    }
     if (payload.action === 'commercial_fact') assertCommercialEditable(workflow, context);
     else if (payload.action === 'checklist') assertChecklistEditable(workflow, payload.key, context);
     else assertEditable(workflow, context);

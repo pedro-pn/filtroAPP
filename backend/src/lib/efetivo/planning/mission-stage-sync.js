@@ -14,7 +14,8 @@ const WORKFLOW_TO_MISSION_STAGE = {
   EXECUTION: 'EXECUTION',
   DEMOBILIZATION: 'FINAL_MEASUREMENT',
   POST_JOB: 'FINAL_MEASUREMENT',
-  FINAL_MEASUREMENT: 'FINAL_MEASUREMENT'
+  FINAL_MEASUREMENT: 'FINAL_MEASUREMENT',
+  FINISHED: 'FINISHED'
 };
 
 export function missionStageForProjectWorkflow(stage) {
@@ -33,7 +34,7 @@ export async function synchronizeOfficialMissionStage(tx, projectId, workflowSta
     },
     include: { ...missionInclude, plan: true }
   });
-  const missionRequired = ['MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT'].includes(targetStage);
+  const missionRequired = ['MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT', 'FINISHED'].includes(targetStage);
   if (!mission) {
     if (!missionRequired) return null;
     throw planningError('Crie ou reative a programação oficial da equipe antes de avançar o projeto.', {

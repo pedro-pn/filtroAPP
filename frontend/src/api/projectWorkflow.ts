@@ -1,6 +1,6 @@
 import { apiClient, type ApiClientError } from './client';
 
-export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB' | 'FINAL_MEASUREMENT';
+export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB' | 'FINAL_MEASUREMENT' | 'FINISHED';
 export type ProjectWorkflowChecklistStatus = 'PENDING' | 'DONE' | 'NOT_APPLICABLE';
 export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
@@ -10,11 +10,12 @@ export type ProjectExecutionReportType = 'RTP' | 'RLQ' | 'RLR' | 'RCPU' | 'RLM' 
 export type ProjectExecutionDeviationCategory = 'PRAZO' | 'ESCOPO' | 'CLIENTE' | 'EQUIPAMENTO' | 'PESSOAL' | 'MATERIAL' | 'SEGURANCA' | 'QUALIDADE' | 'COMERCIAL';
 export type ProjectExecutionImpact = 'ALTO' | 'MEDIO' | 'BAIXO';
 export type ProjectExecutionDeviationStatus = 'ABERTO' | 'EM_TRIAGEM' | 'EM_OBSERVACAO' | 'EM_ACAO' | 'FECHADO' | 'DIVULGADO';
-export type ProjectWorkflowChecklistSection = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'ADVANCE_DOCUMENTATION' | 'D30_TEAM' | 'D30_EQUIPMENT' | 'D30_MATERIALS' | 'D30_LOGISTICS' | 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS' | 'DEMOBILIZATION_FIELD' | 'DEMOBILIZATION_LOGISTICS' | 'DEMOBILIZATION_ASSETS' | 'POST_JOB_FEEDBACK' | 'POST_JOB_LEARNING' | 'CLOSEOUT_DOCUMENTATION' | 'CLOSEOUT_MEASUREMENT';
+export type ProjectWorkflowChecklistSection = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'ADVANCE_DOCUMENTATION' | 'D30_TEAM' | 'D30_EQUIPMENT' | 'D30_MATERIALS' | 'D30_LOGISTICS' | 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS' | 'DEMOBILIZATION_FIELD' | 'DEMOBILIZATION_LOGISTICS' | 'DEMOBILIZATION_ASSETS' | 'POST_JOB_FEEDBACK' | 'POST_JOB_LEARNING' | 'CLOSEOUT_DOCUMENTATION' | 'CLOSEOUT_MEASUREMENT' | 'FINAL_CLOSEOUT';
 
 export interface ProjectWorkflowPermissions {
   canInitialize: boolean;
   canEdit: boolean;
+  canReopen: boolean;
   canAccept: boolean;
   canChangeLeader: boolean;
   canEditCommercial: boolean;
@@ -95,6 +96,19 @@ export type ProjectWorkflowPreparationReadiness = ProjectWorkflowPlanningReadine
 export type ProjectWorkflowDemobilizationReadiness = ProjectWorkflowPlanningReadiness;
 export type ProjectWorkflowPostJobReadiness = ProjectWorkflowPlanningReadiness;
 export type ProjectWorkflowCloseoutReadiness = ProjectWorkflowPlanningReadiness;
+export interface ProjectWorkflowClosureReadiness {
+  completed: number;
+  total: number;
+  percentage: number;
+}
+
+export interface ProjectWorkflowClosureGate {
+  ready: boolean;
+  completed: number;
+  total: number;
+  percentage: number;
+  blockers: Array<{ key: string; label: string; reason: string }>;
+}
 
 export interface ProjectWorkflowPostJob {
   meetingDate: string | null;
@@ -252,6 +266,8 @@ export interface ProjectWorkflow {
   leaderUserId: string;
   leader: { id: string; name: string; isActive: boolean };
   acceptedAt: string | null;
+  closedAt: string | null;
+  closedBy: { id: string; name: string } | null;
   plannedMobilizationDate: string;
   fieldCompletionDate: string | null;
   demobilizationDate: string | null;
@@ -267,6 +283,8 @@ export interface ProjectWorkflow {
   postJobReadiness: ProjectWorkflowPostJobReadiness;
   postJob: ProjectWorkflowPostJob;
   closeoutReadiness: ProjectWorkflowCloseoutReadiness;
+  closureReadiness: ProjectWorkflowClosureReadiness;
+  closureGate: ProjectWorkflowClosureGate;
   measurement: ProjectWorkflowMeasurement;
   relatedPostJobs: RelatedProjectPostJob[];
   mobilizationGate: ProjectWorkflowMobilizationGate;
@@ -285,6 +303,8 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
     stage: ProjectWorkflowStage;
     leader: { id: string; name: string; isActive: boolean };
     acceptedAt: string | null;
+    closedAt: string | null;
+    closedBy: { id: string; name: string } | null;
     plannedMobilizationDate: string;
     fieldCompletionDate: string | null;
     demobilizationDate: string | null;
@@ -300,6 +320,8 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
     postJobReadiness: ProjectWorkflowPostJobReadiness;
     postJob: ProjectWorkflowPostJob;
     closeoutReadiness: ProjectWorkflowCloseoutReadiness;
+    closureReadiness: ProjectWorkflowClosureReadiness;
+    closureGate: ProjectWorkflowClosureGate;
     measurement: ProjectWorkflowMeasurement;
     mobilizationGate: ProjectWorkflowMobilizationGate;
     mobilizationAuthorization: ProjectWorkflowMobilizationAuthorization;
@@ -410,7 +432,7 @@ export type ProjectWorkflowPatch =
   | { action: 'critical'; version: number; key: string; answer: boolean }
   | { action: 'issue'; version: number; issueId: string; description: string; area: string; ownerName: string | null; requiredLeadTimeDays: number | null; dueDate: string | null; criticality: ProjectWorkflowCriticality; status: ProjectWorkflowIssueStatus }
   | { action: 'accept'; version: number }
-  | { action: 'stage'; version: number; stage: ProjectWorkflowStage }
+  | { action: 'stage'; version: number; stage: ProjectWorkflowStage; reason?: string }
   | { action: 'demobilization'; version: number; fieldCompletionDate?: string | null; returnDate?: string | null }
   | { action: 'post_job'; version: number; meetingDate?: string | null; fieldLeaderFeedback?: string | null; teamFeedback?: string | null; problemsFound?: string | null; solutionsAdopted?: string | null; improvementOpportunities?: string | null; lessonsLearned?: string | null; equipmentFeedback?: string | null; planningFeedback?: string | null }
   | { action: 'measurement'; version: number; quantitiesSummary?: string | null; additionalServicesNote?: string | null; evidenceNote?: string | null; executedAmount?: number | null; measuredAmount?: number | null; approvedAmount?: number | null; preparedAt?: string | null; sentAt?: string | null; approvedAt?: string | null }

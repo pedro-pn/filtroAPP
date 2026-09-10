@@ -23,7 +23,8 @@ A futura integração com CRM será a fonte dos fatos comerciais, enquanto o Fil
 - Entrega 024 concluída: Desmobilização integra o Kanban único com conclusão de campo, conferências, retorno de equipe e ativos, avarias, datas efetivas e projeção da missão em Medição final sem alterar seus ciclos.
 - Entrega 025 concluída: Pós-job / fechamento técnico integra o Kanban com nove controles, registro estruturado, histórico por cliente ou serviço e lições aprendidas sincronizadas com Qualidade. O detalhe ganhou categorias recolhíveis e o arraste só abre bloqueios depois da soltura.
 - Entrega 026 concluída: Documentação / medição integra o Kanban com 14 controles, evidências dos RDOs e relatórios, quantitativos, extras, datas e valores de execução, medição e aprovação. Contrato e faturamento permanecem separados e usam as fontes atuais de orçamento/Omie, preparados para a futura origem comercial no CRM.
-- Próximo incremento: Encerramento, com gate final de escopo, documentos, medição, pós-job, ativos e pendências zeradas.
+- Entrega 027 concluída: Encerramento finaliza o Kanban único com dez confirmações finais, gate consolidado de 24 controles, aprovação estruturada da medição, pós-job e pendências zeradas. O encerramento registra autor/data, sincroniza a missão oficial, mantém a obra em modo de consulta e exige justificativa auditável para reabrir.
+- O fluxo funcional planejado de Handover a Encerrado está concluído. Os próximos incrementos passam a ser integrações progressivas com documentos, equipamentos, estoque/Omie e o futuro CRM, além das automações de alertas descritas na Entrega 2.
 
 ## Entrega 1 — Fundamentos e entrada em planejamento
 

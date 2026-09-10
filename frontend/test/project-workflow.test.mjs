@@ -50,9 +50,25 @@ test('ações de etapa não transformam D-30 em coluna', () => {
   assert.deepEqual(projectWorkflowStageOptions('EXECUTION'), ['MOBILIZATION', 'DEMOBILIZATION']);
   assert.deepEqual(projectWorkflowStageOptions('DEMOBILIZATION'), ['EXECUTION', 'POST_JOB']);
   assert.deepEqual(projectWorkflowStageOptions('POST_JOB'), ['DEMOBILIZATION', 'FINAL_MEASUREMENT']);
-  assert.deepEqual(projectWorkflowStageOptions('FINAL_MEASUREMENT'), ['POST_JOB']);
+  assert.deepEqual(projectWorkflowStageOptions('FINAL_MEASUREMENT'), ['POST_JOB', 'FINISHED']);
+  assert.deepEqual(projectWorkflowStageOptions('FINISHED'), ['FINAL_MEASUREMENT']);
   assert.equal(projectWorkflowMilestoneText({ workflow: { milestones: { daysUntilMobilization: 20 } } }), 'Faltam 20 dia(s)');
   assert.equal(projectWorkflowMilestoneText({ workflow: { stage: 'DEMOBILIZATION', demobilizationDate: '2026-09-22', milestones: {} } }), 'Desmobilizada em 22/09/2026');
+  assert.equal(projectWorkflowMilestoneText({ workflow: { stage: 'FINISHED', closedAt: '2026-10-01T12:00:00Z', milestones: {} } }), 'Encerrado em 01/10/2026');
+});
+
+test('Encerramento integra gate final, auditoria e reabertura justificada', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
+  const novelty = fs.readFileSync(new URL('../src/pages/efetivo/ProjectWorkflowNovelty.tsx', import.meta.url), 'utf8');
+  assert.match(modal, /data-project-workflow-closure-gate/);
+  assert.match(modal, /Missão encerrada/);
+  assert.match(modal, /Motivo da reabertura/);
+  assert.match(modal, /Encerrar projeto/);
+  assert.match(board, /closureGate\.blockers/);
+  assert.match(board, /Informe a justificativa no detalhe/);
+  assert.match(board, /Equipe e ciclos/);
+  assert.match(novelty, /data-project-kanban-stage="FINISHED"/);
 });
 
 test('Documentação e medição integra evidências, valores e 14 controles', () => {

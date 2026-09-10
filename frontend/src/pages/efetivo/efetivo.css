@@ -1888,6 +1888,13 @@
 .project-workflow-status-block strong { overflow-wrap: anywhere; }
 .project-workflow-milestones { align-items: center; background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: var(--rs); display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 10px 12px; }
 .project-workflow-milestones span { color: var(--mu); min-width: 0; overflow-wrap: anywhere; }
+.project-workflow-closed-banner { align-items: center; background: color-mix(in srgb, var(--g) 10%, var(--sf)); border: 1px solid color-mix(in srgb, var(--g) 42%, var(--br)); border-radius: var(--rs); display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 12px; }
+.project-workflow-closed-banner strong { color: var(--g); }
+.project-workflow-closed-banner span { color: var(--mu); }
+.project-workflow-closure-gate.is-ready { border-left: 4px solid var(--g); }
+.project-workflow-closure-gate.is-blocked { border-left: 4px solid var(--rd); }
+.project-workflow-closure-gate details ul { display: grid; gap: 5px; margin: 8px 0 0; padding-left: 20px; }
+.project-workflow-reopen textarea { resize: vertical; width: 100%; }
 .project-workflow-deadline-risk { align-items: center; border: 1px solid; border-radius: var(--rs); display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 10px 12px; }
 .project-workflow-deadline-risk span { color: var(--mu); }
 .project-workflow-deadline-risk.is-attention { background: var(--warning-bg); border-color: var(--warning-border); }

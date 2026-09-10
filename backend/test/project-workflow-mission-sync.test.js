@@ -72,6 +72,7 @@ test('etapa do workflow possui projeção operacional única', () => {
   assert.equal(missionStageForProjectWorkflow('DEMOBILIZATION'), 'FINAL_MEASUREMENT');
   assert.equal(missionStageForProjectWorkflow('POST_JOB'), 'FINAL_MEASUREMENT');
   assert.equal(missionStageForProjectWorkflow('FINAL_MEASUREMENT'), 'FINAL_MEASUREMENT');
+  assert.equal(missionStageForProjectWorkflow('FINISHED'), 'FINISHED');
   assert.equal(missionStageForProjectWorkflow('PREPARATION'), null);
 });
 
@@ -103,6 +104,13 @@ test('avanço do projeto sincroniza missão oficial completa e registra auditori
   assert.equal(state.planBumps, 1);
   assert.equal(state.audits[0].action, 'MISSION_STAGE_CHANGE');
   assert.match(state.audits[0].summary, /sincronizada pelo fluxo do projeto/i);
+});
+
+test('encerramento move a missão oficial para Finalizada', async () => {
+  const { database, state } = fakeDatabase(completeMission({ stage: 'FINAL_MEASUREMENT' }));
+  const result = await synchronizeOfficialMissionStage(database, 'project-1', 'FINISHED', { actorUserId: 'leader-1' });
+  assert.equal(result.stage, 'FINISHED');
+  assert.equal(state.audits.at(-1).afterData.stage, 'FINISHED');
 });
 
 test('mobilização exige missão oficial confirmada e completa', async () => {
