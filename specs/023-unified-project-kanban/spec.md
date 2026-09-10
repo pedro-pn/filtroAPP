@@ -47,8 +47,10 @@ O Kanban único mantém no card as informações e ações operacionais que já 
 
 1. O card mostra líder do projeto, líder vinculado à programação, mobilização e quantidade de participantes.
 2. O usuário expande a equipe no próprio card e abre o modal de equipe e ciclos pelo mesmo quadro.
-3. O gestor move o projeto por arraste no desktop, toque prolongado ou seletor no celular.
-4. Uma tentativa recusada informa os checklists, gates, permissões ou dados operacionais que bloqueiam a mudança.
+3. Um projeto sem programação abre o formulário de programação sobre o Kanban, sem navegar para outra aba.
+4. O gestor move o projeto por arraste no desktop, toque prolongado ou seletor no celular.
+5. O detalhe não abre ao iniciar o arraste; ele abre somente quando o card é solto em outra coluna.
+6. Uma tentativa recusada informa os checklists, gates, permissões ou dados operacionais que bloqueiam a mudança.
 
 ## Requirements
 
@@ -65,9 +67,10 @@ O Kanban único mantém no card as informações e ações operacionais que já 
 - **FR-010**: A seção Missões MUST continuar responsável por equipe, ciclos, datas e confirmação da programação.
 - **FR-011**: A correção MUST atualizar a campanha guiada temporária por exatamente 10 dias.
 - **FR-012**: O resumo da missão no projeto MUST incluir líder vinculado, função e participantes necessários para compor o card.
-- **FR-013**: O Kanban único MUST preservar as ações de expandir equipe e editar equipe e ciclos.
+- **FR-013**: O Kanban único MUST preservar as ações de expandir equipe, criar a programação e editar equipe e ciclos dentro da mesma página.
 - **FR-014**: A movimentação por arraste no desktop e por toque prolongado MUST chamar a mesma regra de transição usada pelo detalhe.
 - **FR-015**: Uma movimentação recusada MUST restaurar a posição anterior e apresentar o motivo retornado pela regra de negócio.
+- **FR-016**: Iniciar o arraste MUST NOT abrir o detalhe; o detalhe MUST abrir somente após soltar o card em uma coluna diferente.
 
 ## Success Criteria
 

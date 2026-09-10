@@ -9,9 +9,15 @@ import {
 } from 'react';
 
 import {
+  createPlanningMission,
+  listPendingMissionProjects,
+  listPlanningCoordinators,
+  listPlanningJobRoles,
   listPlanningMissions,
   movePlanningMission,
+  type MissionInput,
   type MissionStage,
+  type PendingMissionProject,
   type PlanningMission
 } from '../../../api/efetivoPlanning';
 import {
@@ -30,6 +36,7 @@ import { Button } from '../../../components/ui/Button';
 import { SearchBar } from '../../../components/ui/SearchBar';
 import { useToast } from '../../../components/ui/ToastContext';
 import { displayDateOnly } from '../../../utils/calendarGrid';
+import { refreshMissionPlanningQueries } from '../../../utils/efetivoPlanningQueries';
 import { missionPendencies } from '../../../utils/missionPendencies';
 import {
   cloneProjectKanbanColumns,
@@ -51,6 +58,7 @@ import {
   type PointerDragState
 } from '../../../utils/reorderDrag';
 import { MissionAllocationModal } from './MissionAllocationModal';
+import { MissionFormModal } from './MissionFormModal';
 import { ProjectLegacyCompletionModal } from './ProjectLegacyCompletionModal';
 import { ProjectWorkflowModal } from './ProjectWorkflowModal';
 
@@ -121,9 +129,12 @@ function ProjectCard({
   moveAllowed,
   moving,
   teamLoading,
+  canProgramTeam,
+  programmingLoading,
   onSelect,
   onToggleTeam,
   onManageTeam,
+  onProgramTeam,
   onMove,
   onMouseDown,
   onDragStart,
@@ -141,9 +152,12 @@ function ProjectCard({
   moveAllowed: boolean;
   moving: boolean;
   teamLoading: boolean;
+  canProgramTeam: boolean;
+  programmingLoading: boolean;
   onSelect: () => void;
   onToggleTeam: () => void;
   onManageTeam: () => void;
+  onProgramTeam: () => void;
   onMove: (stage: ProjectKanbanStage) => void;
   onMouseDown: (event: ReactMouseEvent<HTMLElement>) => void;
   onDragStart: (event: DragEvent<HTMLElement>) => void;
@@ -310,13 +324,15 @@ function ProjectCard({
             {teamLoading ? 'Carregando equipe…' : 'Equipe e ciclos'}
           </button>
         ) : (
-          <a
-            className="efetivo-kanban-team-manage project-workflow-team-link"
-            href={'/efetivo?section=missoes&search=' + encodeURIComponent(item.code)}
-            onClick={event => event.stopPropagation()}
+          <button
+            className="efetivo-kanban-team-manage"
+            type="button"
+            disabled={!canProgramTeam || programmingLoading}
+            title={canProgramTeam ? undefined : 'Somente o gestor do Efetivo pode criar a programação.'}
+            onClick={event => { event.stopPropagation(); onProgramTeam(); }}
           >
-            Programar equipe
-          </a>
+            {programmingLoading ? 'Carregando programação…' : 'Programar equipe'}
+          </button>
         )}
       </div>
       {moveAllowed ? (
@@ -367,6 +383,18 @@ export function ProjectWorkflowBoard({
     queryKey: ['efetivo-planning-missions', 'kanban'],
     queryFn: () => listPlanningMissions()
   });
+  const pendingMissionProjects = useQuery({
+    queryKey: ['efetivo-planning-missions-pending', 'official'],
+    queryFn: () => listPendingMissionProjects()
+  });
+  const planningRoles = useQuery({
+    queryKey: ['efetivo-planning-job-roles'],
+    queryFn: listPlanningJobRoles
+  });
+  const planningCoordinators = useQuery({
+    queryKey: ['efetivo-planning-coordinators'],
+    queryFn: listPlanningCoordinators
+  });
   const leaders = useQuery({
     queryKey: ['project-workflow-leaders'],
     queryFn: listProjectWorkflowLeaders
@@ -382,23 +410,33 @@ export function ProjectWorkflowBoard({
   const [dropTarget, setDropTarget] = useState<ProjectKanbanStage | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [teamMissionId, setTeamMissionId] = useState<string | null>(null);
+  const [missionFormProjectId, setMissionFormProjectId] = useState<string | null>(null);
   const [completionTarget, setCompletionTarget] = useState<CompletionTarget | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const pointerRef = useRef<(PointerDragState & { drag: DragState; card: HTMLElement }) | null>(null);
   const pendingTouchRef = useRef<PendingTouch | null>(null);
   const interactiveMouseRef = useRef(false);
+  const suppressCardClickUntilRef = useRef(0);
 
   useEffect(() => {
     if (list.data) setColumns(projectWorkflowsToColumns(list.data.items));
   }, [list.data]);
 
   const teamMission = (planningMissions.data || []).find(mission => mission.id === teamMissionId) || null;
+  const missionFormProject = (pendingMissionProjects.data || [])
+    .find(project => project.id === missionFormProjectId) || null;
 
   useEffect(() => {
     if (!teamMissionId || planningMissions.isFetching || teamMission) return;
     toast('Não foi possível carregar a equipe e os ciclos desta programação.', 'error');
     setTeamMissionId(null);
   }, [planningMissions.isFetching, teamMission, teamMissionId, toast]);
+
+  useEffect(() => {
+    if (!missionFormProjectId || pendingMissionProjects.isFetching || missionFormProject) return;
+    toast('Não foi possível carregar os dados necessários para programar esta equipe.', 'error');
+    setMissionFormProjectId(null);
+  }, [missionFormProject, missionFormProjectId, pendingMissionProjects.isFetching, toast]);
 
   function clearPendingTouch() {
     if (pendingTouchRef.current) window.clearTimeout(pendingTouchRef.current.timer);
@@ -414,6 +452,7 @@ export function ProjectWorkflowBoard({
     dragRef.current = null;
     setDraggingId(null);
     setDropTarget(null);
+    suppressCardClickUntilRef.current = Date.now() + 350;
   }
 
   useEffect(() => {
@@ -457,6 +496,19 @@ export function ProjectWorkflowBoard({
       toast([...new Set([error.message, ...issues])].join(' · '), 'error');
       if ((error as { code?: string }).code === 'PROJECT_WORKFLOW_VERSION_CONFLICT') void detail.refetch();
     }
+  });
+
+  const createMission = useMutation({
+    mutationFn: (payload: MissionInput) => createPlanningMission(payload),
+    onSuccess: async (_, payload) => {
+      await refreshMissionPlanningQueries(queryClient, () => (
+        queryClient.invalidateQueries({ queryKey: ['project-workflows'] })
+      ));
+      await queryClient.invalidateQueries({ queryKey: ['commercial-revisions', payload.projectId] });
+      setMissionFormProjectId(null);
+      toast('Programação da equipe salva.', 'success');
+    },
+    onError: (error: Error) => toast(error.message, 'error')
   });
 
   const managedMove = useMutation({
@@ -624,6 +676,7 @@ export function ProjectWorkflowBoard({
 
   function beginDrag(projectId: string) {
     const drag = { projectId, snapshot: cloneProjectKanbanColumns(columns) };
+    suppressCardClickUntilRef.current = Number.POSITIVE_INFINITY;
     dragRef.current = drag;
     setDraggingId(projectId);
     return drag;
@@ -638,7 +691,11 @@ export function ProjectWorkflowBoard({
     const projectId = dragRef.current?.projectId;
     const snapshot = dragRef.current?.snapshot;
     const project = projectId ? projectById(projectId) : null;
-    if (project && snapshot) requestMove(project, stage, snapshot);
+    const sourceStage = projectId && snapshot ? projectStageInColumns(snapshot, projectId) : null;
+    if (project && snapshot && sourceStage !== stage) {
+      onProjectSelect(project.id);
+      requestMove(project, stage, snapshot);
+    }
     endDrag();
   }
 
@@ -653,7 +710,6 @@ export function ProjectWorkflowBoard({
     } catch {
       // O ponteiro pode ter sido encerrado antes do início do arraste.
     }
-    onProjectSelect(pending.projectId);
     pendingTouchRef.current = null;
   }
 
@@ -718,7 +774,6 @@ export function ProjectWorkflowBoard({
       event.preventDefault();
       return;
     }
-    onProjectSelect(project.id);
     beginDrag(project.id);
     event.dataTransfer.effectAllowed = 'move';
     setReorderDragImage(event, '[data-project-kanban-card]', 'efetivo-kanban-ghost');
@@ -832,12 +887,21 @@ export function ProjectWorkflowBoard({
                   moveAllowed={canMoveProject(item)}
                   moving={movingProjectId === item.id}
                   teamLoading={teamMissionId === item.operationalMission?.id && planningMissions.isFetching}
-                  onSelect={() => onProjectSelect(item.id)}
+                  canProgramTeam={canManage}
+                  programmingLoading={missionFormProjectId === item.id && pendingMissionProjects.isFetching}
+                  onSelect={() => {
+                    if (Date.now() >= suppressCardClickUntilRef.current) onProjectSelect(item.id);
+                  }}
                   onToggleTeam={() => setExpandedId(expandedId === item.id ? null : item.id)}
                   onManageTeam={() => {
                     if (!item.operationalMission) return;
                     setTeamMissionId(item.operationalMission.id);
                     if (planningMissions.isError) void planningMissions.refetch();
+                  }}
+                  onProgramTeam={() => {
+                    if (!canManage) return;
+                    setMissionFormProjectId(item.id);
+                    if (pendingMissionProjects.isError) void pendingMissionProjects.refetch();
                   }}
                   onMove={target => requestMove(item, target)}
                   onMouseDown={event => {
@@ -880,6 +944,20 @@ export function ProjectWorkflowBoard({
         onClose={() => setTeamMissionId(null)}
         onPlanningMutated={() => queryClient.invalidateQueries({ queryKey: ['project-workflows'] })}
       />
+      {canManage ? (
+        <MissionFormModal
+          open={Boolean(missionFormProjectId && missionFormProject)}
+          mission={null}
+          project={missionFormProject as PendingMissionProject | null}
+          roles={planningRoles.data || []}
+          rolesLoading={planningRoles.isLoading}
+          coordinators={planningCoordinators.data || []}
+          coordinatorsLoading={planningCoordinators.isLoading}
+          saving={createMission.isPending}
+          onClose={() => setMissionFormProjectId(null)}
+          onSubmit={payload => createMission.mutate(payload)}
+        />
+      ) : null}
       <ProjectLegacyCompletionModal
         project={completionTarget?.project || null}
         mission={completionTarget?.mission || null}
@@ -900,7 +978,7 @@ export function ProjectWorkflowBoard({
         leaders={leaders.data || []}
         loading={Boolean(selectedProjectId && detail.isLoading)}
         error={Boolean(selectedProjectId && detail.isError)}
-        saving={start.isPending || update.isPending || managedMove.isPending || moveLegacyMission.isPending}
+        saving={start.isPending || update.isPending || createMission.isPending || managedMove.isPending || moveLegacyMission.isPending}
         onRetry={() => void detail.refetch()}
         onClose={() => onProjectSelect(undefined)}
         onStart={values => start.mutate(values)}

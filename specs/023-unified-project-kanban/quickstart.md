@@ -17,3 +17,5 @@
 - O card mostra líder, datas e participantes, permite expandir a equipe e abre o modal de equipe e ciclos.
 - Arrastar no desktop, manter pressionado no toque e usar o seletor móvel produzem a mesma mudança de etapa.
 - Uma mudança bloqueada mantém o card na origem e informa os motivos do bloqueio.
+- Pressionar ou começar a arrastar não abre o detalhe; soltá-lo em outra coluna abre o diálogo.
+- `Programar equipe` abre o formulário sobre o Kanban e mantém o usuário em Evolução.

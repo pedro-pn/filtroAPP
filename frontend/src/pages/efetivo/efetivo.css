@@ -1840,7 +1840,6 @@
 .project-workflow-card-summary dd { font-size: 12px; font-weight: 700; margin: 2px 0 0; overflow-wrap: anywhere; }
 .project-workflow-card .efetivo-mission-owner { margin-top: 2px; }
 .project-workflow-card .efetivo-kanban-details { margin-top: 3px; }
-.project-workflow-team-link { display: inline-flex; text-decoration: none; }
 .project-workflow-card-move-select { display: none; margin: 3px 0 0; }
 .project-workflow-card > strong,
 .project-workflow-card > span,

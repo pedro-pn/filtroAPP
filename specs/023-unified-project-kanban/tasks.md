@@ -14,3 +14,5 @@
 - [x] T012 Restaurar o acesso direto ao modal de equipe e ciclos.
 - [x] T013 Restaurar arraste no desktop, toque prolongado e seletor móvel com rollback otimista.
 - [x] T014 Exibir os motivos de bloqueio retornados pelas regras de transição.
+- [x] T015 Adiar a abertura do detalhe até o drop em outra coluna e suprimir o clique residual do toque.
+- [x] T016 Abrir a criação da programação pelo botão do card sem navegar para Missões.
