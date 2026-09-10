@@ -1828,6 +1828,20 @@
 }
 .project-workflow-card:hover,
 .project-workflow-card.selected { border-color: var(--gl); box-shadow: inset 3px 0 0 var(--gl); }
+.project-workflow-card.draggable { cursor: grab; }
+.project-workflow-card.draggable:active { cursor: grabbing; }
+.project-workflow-card.drag-source { opacity: .38; }
+.project-workflow-columns.is-dragging .project-workflow-card { user-select: none; }
+.project-workflow-column.drop-target { background: var(--warning-bg); border-color: var(--gl); box-shadow: inset 0 0 0 1px var(--gl); }
+.project-workflow-card-head { align-items: center; display: flex; gap: 7px; min-width: 0; }
+.project-workflow-card-summary { display: grid; gap: 7px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 3px 0; }
+.project-workflow-card-summary > div { min-width: 0; }
+.project-workflow-card-summary dt { color: var(--mu); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.project-workflow-card-summary dd { font-size: 12px; font-weight: 700; margin: 2px 0 0; overflow-wrap: anywhere; }
+.project-workflow-card .efetivo-mission-owner { margin-top: 2px; }
+.project-workflow-card .efetivo-kanban-details { margin-top: 3px; }
+.project-workflow-team-link { display: inline-flex; text-decoration: none; }
+.project-workflow-card-move-select { display: none; margin: 3px 0 0; }
 .project-workflow-card > strong,
 .project-workflow-card > span,
 .project-workflow-card > small,
@@ -2015,6 +2029,7 @@
   .project-workflow-columns { display: block; overflow: visible; }
   .project-workflow-column { display: none; min-height: 220px; }
   .project-workflow-column.mobile-active { display: flex; }
+  .project-workflow-card-move-select { display: flex; }
   .project-workflow-status-block,
   .project-workflow-form-grid,
   .project-workflow-form-grid.compact,

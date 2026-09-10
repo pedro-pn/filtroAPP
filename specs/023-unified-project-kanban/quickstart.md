@@ -14,3 +14,6 @@
 - Projeto pronto e autorizado avança para Mobilização e Execução.
 - Programação ausente ou incompleta bloqueia a entrada operacional com mensagem clara.
 - O atalho do projeto abre Missões para editar equipe, ciclos e datas.
+- O card mostra líder, datas e participantes, permite expandir a equipe e abre o modal de equipe e ciclos.
+- Arrastar no desktop, manter pressionado no toque e usar o seletor móvel produzem a mesma mudança de etapa.
+- Uma mudança bloqueada mantém o card na origem e informa os motivos do bloqueio.

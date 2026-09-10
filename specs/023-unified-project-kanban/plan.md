@@ -14,6 +14,7 @@ Projetos sem workflow não serão migrados ou autorizados automaticamente. A lis
 4. Projetar a etapa de projetos legados a partir da missão oficial.
 5. Sincronizar workflow e missão oficial dentro da transação de mudança de etapa.
 6. Atualizar gate, Romaneio, testes, documentação e tutorial temporário.
+7. Reincorporar no card mestre as informações de líder/equipe, os controles de equipe e ciclos e a movimentação por arraste com rollback e motivo de bloqueio.
 
 ## Riscos e mitigação
 
@@ -21,3 +22,4 @@ Projetos sem workflow não serão migrados ou autorizados automaticamente. A lis
 - Programação incompleta: bloqueio explícito antes de entrar em Mobilização/Execução.
 - Divergência transacional: atualização da missão acontece na mesma transação do workflow.
 - Funcionalidades de equipe: permanecem disponíveis na seção Missões e no atalho do modal.
+- Regressão do Kanban anterior: líder, equipe, datas, arraste e seletor móvel permanecem acessíveis dentro do quadro unificado.

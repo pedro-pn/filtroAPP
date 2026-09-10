@@ -245,6 +245,44 @@ test('listagem usa ordenação aceita pelo Prisma, o dia civil de São Paulo e m
   assert.equal(result.items[0].workflow.commercialReadiness.status, 'NOT_RELEASED');
 });
 
+test('listagem preserva líder e equipe da programação operacional no card do projeto', async () => {
+  const { database, state } = fakeDatabase();
+  state.operationalMission = {
+    id: 'mission-1',
+    stage: 'MOBILIZATION',
+    scheduleStatus: 'CONFIRMED',
+    version: 3,
+    kanbanOrder: 2,
+    mobilizationDate: new Date('2026-09-15T00:00:00Z'),
+    executionStartDate: new Date('2026-09-16T00:00:00Z'),
+    executionEndDate: new Date('2026-09-20T00:00:00Z'),
+    returnDate: null,
+    headquartersResponsibleName: 'Líder de Campo',
+    headquartersResponsibleRole: 'Supervisor',
+    headquartersResponsibleCollaboratorId: 'collaborator-1',
+    allocations: [{
+      id: 'allocation-1',
+      collaboratorId: 'collaborator-1',
+      jobRoleId: 'role-1',
+      collaborator: {
+        id: 'collaborator-1',
+        name: 'Líder de Campo',
+        isActive: true,
+        jobRole: { id: 'role-1', name: 'Supervisor' }
+      },
+      jobRole: { id: 'role-1', name: 'Supervisor' }
+    }]
+  };
+  const result = await listProjectWorkflows({}, manager, { database });
+  const mission = result.items[0].operationalMission;
+  assert.equal(mission.headquartersResponsibleName, 'Líder de Campo');
+  assert.equal(mission.headquartersResponsibleRole, 'Supervisor');
+  assert.equal(mission.participantCount, 1);
+  assert.equal(mission.allocations[0].collaborator.name, 'Líder de Campo');
+  assert.equal(mission.allocations[0].collaborator.role, 'Supervisor');
+  assert.equal(state.lastProjectFindManyInput.select.efetivoMissionPlans.select.allocations.select.collaborator.select.jobRole.select.name, true);
+});
+
 test('Comercial altera fatos manuais sem receber permissão operacional', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });

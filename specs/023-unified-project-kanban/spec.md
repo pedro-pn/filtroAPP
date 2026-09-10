@@ -39,6 +39,17 @@ Equipe, ciclos e datas continuam sendo configurados em Missões. A evolução te
 2. O card mostra a situação da programação oficial e quantidade de participantes.
 3. O gate continua protegendo Efetivo, Estoque e Romaneios durante Mobilização e Execução.
 
+### User Story 4 — Preservar as interações do Kanban anterior (Priority: P1)
+
+O Kanban único mantém no card as informações e ações operacionais que já eram usadas no quadro anterior.
+
+**Acceptance Scenarios**:
+
+1. O card mostra líder do projeto, líder vinculado à programação, mobilização e quantidade de participantes.
+2. O usuário expande a equipe no próprio card e abre o modal de equipe e ciclos pelo mesmo quadro.
+3. O gestor move o projeto por arraste no desktop, toque prolongado ou seletor no celular.
+4. Uma tentativa recusada informa os checklists, gates, permissões ou dados operacionais que bloqueiam a mudança.
+
 ## Requirements
 
 - **FR-001**: Evolução MUST renderizar somente o Kanban mestre de projetos.
@@ -53,6 +64,10 @@ Equipe, ciclos e datas continuam sendo configurados em Missões. A evolução te
 - **FR-009**: A autorização MUST permanecer vigente em Pronto para mobilizar, Mobilização e Execução quando a versão e o gate coincidirem.
 - **FR-010**: A seção Missões MUST continuar responsável por equipe, ciclos, datas e confirmação da programação.
 - **FR-011**: A correção MUST atualizar a campanha guiada temporária por exatamente 10 dias.
+- **FR-012**: O resumo da missão no projeto MUST incluir líder vinculado, função e participantes necessários para compor o card.
+- **FR-013**: O Kanban único MUST preservar as ações de expandir equipe e editar equipe e ciclos.
+- **FR-014**: A movimentação por arraste no desktop e por toque prolongado MUST chamar a mesma regra de transição usada pelo detalhe.
+- **FR-015**: Uma movimentação recusada MUST restaurar a posição anterior e apresentar o motivo retornado pela regra de negócio.
 
 ## Success Criteria
 

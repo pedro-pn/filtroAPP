@@ -32,7 +32,16 @@ export interface ProjectOperationalMissionSummary {
   executionEndDate: string;
   returnDate: string | null;
   headquartersResponsibleName: string;
+  headquartersResponsibleRole: string;
+  headquartersResponsibleCollaboratorId: string | null;
   participantCount: number;
+  allocations: Array<{
+    id: string;
+    collaboratorId: string;
+    jobRoleId: string;
+    collaborator: { id: string; name: string; isActive: boolean; role: string } | null;
+    jobRole: { id: string; name: string } | null;
+  }>;
 }
 
 export interface ProjectWorkflowProject {

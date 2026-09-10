@@ -4,6 +4,8 @@
 
 As respostas de listagem e detalhe do workflow incluem `project.operationalMission`, quando existe missão oficial ativa, com identificador, etapa, situação, datas, responsável e total de participantes.
 
+O resumo também inclui a função do líder, o vínculo do colaborador líder e os participantes ativos com suas funções. Esses dados alimentam a visualização expandida do card; a edição continua usando a missão completa.
+
 Projetos sem workflow permanecem na resposta e recebem posição visual derivada da missão:
 
 | Etapa da missão | Coluna exibida |
@@ -25,3 +27,7 @@ Erros relevantes:
 - `PROJECT_WORKFLOW_STAGE_BLOCKED`: checklist, gate ou autorização pendente.
 - `MISSION_INCOMPLETE_FOR_KANBAN`: programação oficial ausente ou incompleta.
 - `MISSION_STAGE_MANAGED_BY_PROJECT`: tentativa de alterar diretamente a etapa de uma missão controlada pelo Kanban único.
+
+## Interação do quadro
+
+Desktop e dispositivos de ponteiro movem o card por arraste. Dispositivos de toque iniciam o arraste por pressão prolongada, e telas compactas também exibem o seletor `Mover para`. Todas as formas usam a mesma operação de mudança de etapa e restauram a coluna anterior quando a API recusa a transição.

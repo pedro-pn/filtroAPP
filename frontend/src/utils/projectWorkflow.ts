@@ -13,6 +13,7 @@ export const PROJECT_KANBAN_STAGE_LABELS: Record<ProjectKanbanStage, string> = {
   FINAL_MEASUREMENT: 'Documentação / medição',
   FINISHED: 'Encerrado'
 };
+export type ProjectKanbanColumns = Record<ProjectKanbanStage, ProjectWorkflowSummary[]>;
 
 export function projectKanbanStage(item: ProjectWorkflowSummary): ProjectKanbanStage {
   if (item.workflow) return item.workflow.stage;
@@ -21,11 +22,31 @@ export function projectKanbanStage(item: ProjectWorkflowSummary): ProjectKanbanS
   return 'HANDOVER';
 }
 
-export function projectWorkflowsToColumns(items: ProjectWorkflowSummary[]) {
+export function projectWorkflowsToColumns(items: ProjectWorkflowSummary[]): ProjectKanbanColumns {
   return Object.fromEntries(PROJECT_KANBAN_STAGES.map(stage => [
     stage,
     items.filter(item => projectKanbanStage(item) === stage)
-  ])) as Record<ProjectKanbanStage, ProjectWorkflowSummary[]>;
+  ])) as ProjectKanbanColumns;
+}
+
+export function cloneProjectKanbanColumns(columns: ProjectKanbanColumns): ProjectKanbanColumns {
+  return Object.fromEntries(PROJECT_KANBAN_STAGES.map(stage => [stage, [...columns[stage]]])) as ProjectKanbanColumns;
+}
+
+export function projectStageInColumns(columns: ProjectKanbanColumns, projectId: string): ProjectKanbanStage | null {
+  return PROJECT_KANBAN_STAGES.find(stage => columns[stage].some(item => item.id === projectId)) || null;
+}
+
+export function moveProjectInColumns(columns: ProjectKanbanColumns, projectId: string, targetStage: ProjectKanbanStage): ProjectKanbanColumns {
+  const sourceStage = projectStageInColumns(columns, projectId);
+  if (!sourceStage || sourceStage === targetStage) return columns;
+  const project = columns[sourceStage].find(item => item.id === projectId);
+  if (!project) return columns;
+  return {
+    ...columns,
+    [sourceStage]: columns[sourceStage].filter(item => item.id !== projectId),
+    [targetStage]: [...columns[targetStage], project]
+  };
 }
 
 export function projectWorkflowMilestoneText(item: ProjectWorkflowSummary) {

@@ -3,7 +3,10 @@ import fs from 'node:fs';
 import test from 'node:test';
 
 import {
+  cloneProjectKanbanColumns,
+  moveProjectInColumns,
   projectKanbanStage,
+  projectStageInColumns,
   projectWorkflowMilestoneText,
   projectWorkflowStageOptions,
   projectWorkflowsToColumns
@@ -25,6 +28,19 @@ test('projeto legado preserva a etapa da missão dentro do Kanban único', () =>
   assert.deepEqual(projectWorkflowsToColumns([project]).MOBILIZATION.map(item => item.id), ['p2']);
 });
 
+test('movimentação otimista mantém snapshot para restaurar um card bloqueado', () => {
+  const project = {
+    id: 'p3', code: 'P3', name: 'Gerenciado', clientName: 'Cliente', location: '',
+    workflow: { stage: 'MOBILIZATION' }, permissions: { canEdit: true }
+  };
+  const columns = projectWorkflowsToColumns([project]);
+  const snapshot = cloneProjectKanbanColumns(columns);
+  const moved = moveProjectInColumns(columns, project.id, 'EXECUTION');
+  assert.equal(projectStageInColumns(moved, project.id), 'EXECUTION');
+  assert.equal(projectStageInColumns(snapshot, project.id), 'MOBILIZATION');
+  assert.notEqual(moved, snapshot);
+});
+
 test('ações de etapa não transformam D-30 em coluna', () => {
   assert.deepEqual(projectWorkflowStageOptions('INITIAL_ANALYSIS'), ['WAITING_PLANNING', 'MOBILIZATION_PLANNING']);
   assert.deepEqual(projectWorkflowStageOptions('MOBILIZATION_PLANNING'), ['INITIAL_ANALYSIS', 'WAITING_PLANNING', 'PREPARATION']);
@@ -44,6 +60,14 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.doesNotMatch(page, /MissionKanban/);
   assert.doesNotMatch(page, /project-workflow-view-switch/);
   assert.match(board, /movePlanningMission/);
+  assert.match(board, /data-project-kanban-card/);
+  assert.match(board, /onDragStart/);
+  assert.match(board, /createPointerDragGhost/);
+  assert.match(board, /Movimentação bloqueada:/);
+  assert.match(board, /Ver líder e equipe/);
+  assert.match(board, /Equipe e ciclos/);
+  assert.match(board, /MissionAllocationModal/);
+  assert.match(board, /projectWorkflowErrorIssues/);
   assert.match(modal, /Compatibilidade do projeto antigo/);
   assert.match(modal, /Atualizar etapa antiga/);
   assert.match(navigation, /projeto/);

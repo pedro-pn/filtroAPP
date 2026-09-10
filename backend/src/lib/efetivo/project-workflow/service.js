@@ -52,7 +52,25 @@ const OPERATIONAL_MISSION_QUERY = {
     executionEndDate: true,
     returnDate: true,
     headquartersResponsibleName: true,
-    allocations: { where: { deletedAt: null }, select: { id: true } }
+    headquartersResponsibleRole: true,
+    headquartersResponsibleCollaboratorId: true,
+    allocations: {
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        collaboratorId: true,
+        jobRoleId: true,
+        collaborator: {
+          select: {
+            id: true,
+            name: true,
+            isActive: true,
+            jobRole: { select: { id: true, name: true } }
+          }
+        },
+        jobRole: { select: { id: true, name: true } }
+      }
+    }
   }
 };
 const WORKFLOW_INCLUDE = {
@@ -94,7 +112,21 @@ function operationalMissionSummary(project) {
     executionEndDate: dateKey(mission.executionEndDate),
     returnDate: dateKey(mission.returnDate),
     headquartersResponsibleName: mission.headquartersResponsibleName,
-    participantCount: mission.allocations?.length || 0
+    headquartersResponsibleRole: mission.headquartersResponsibleRole,
+    headquartersResponsibleCollaboratorId: mission.headquartersResponsibleCollaboratorId,
+    participantCount: mission.allocations?.length || 0,
+    allocations: (mission.allocations || []).map(allocation => ({
+      id: allocation.id,
+      collaboratorId: allocation.collaboratorId,
+      jobRoleId: allocation.jobRoleId,
+      collaborator: allocation.collaborator ? {
+        id: allocation.collaborator.id,
+        name: allocation.collaborator.name,
+        isActive: allocation.collaborator.isActive,
+        role: allocation.collaborator.jobRole?.name || allocation.jobRole?.name || ''
+      } : null,
+      jobRole: allocation.jobRole
+    }))
   };
 }
 

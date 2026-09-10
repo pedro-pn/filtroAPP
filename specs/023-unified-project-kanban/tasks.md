@@ -10,3 +10,7 @@
 - [x] T008 Atualizar campanha guiada e documentação do roadmap.
 - [x] T009 Cobrir unificação, legado e sincronização com testes.
 - [x] T010 Executar Prisma, testes, lint, build, arquitetura e revisão pelo grafo.
+- [x] T011 Restaurar no card único líder, mobilização, participantes e expansão da equipe.
+- [x] T012 Restaurar o acesso direto ao modal de equipe e ciclos.
+- [x] T013 Restaurar arraste no desktop, toque prolongado e seletor móvel com rollback otimista.
+- [x] T014 Exibir os motivos de bloqueio retornados pelas regras de transição.
