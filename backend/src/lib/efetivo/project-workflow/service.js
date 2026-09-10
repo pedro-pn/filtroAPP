@@ -9,12 +9,16 @@ import { hasModuleRole } from '../../module-roles.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { conflictError, notFound, planningError } from '../planning/errors.js';
 import { resolvePlanningDatabase, runPlanningTransaction } from '../planning/plan-context.js';
-import { synchronizeOfficialMissionStage } from '../planning/mission-stage-sync.js';
+import {
+  synchronizeOfficialMissionDemobilization,
+  synchronizeOfficialMissionStage
+} from '../planning/mission-stage-sync.js';
 import {
   allowedProjectWorkflowTransition,
   handoverGateIssues,
   normalizeProjectWorkflowCommercialFacts,
   projectWorkflowCommercialReadiness,
+  projectWorkflowDemobilizationReadiness,
   projectWorkflowDocumentationReadiness,
   projectWorkflowMobilizationAuthorization,
   projectWorkflowMobilizationGate,
@@ -35,7 +39,8 @@ const PROJECT_FIELDS = {
   code: true,
   name: true,
   clientName: true,
-  location: true
+  location: true,
+  demobilizationDate: true
 };
 const OPERATIONAL_MISSION_QUERY = {
   where: { deletedAt: null, scheduleStatus: { not: 'CANCELLED' }, plan: { kind: 'OFFICIAL', status: 'ACTIVE' } },
@@ -175,11 +180,11 @@ function publicPermissions(workflow, context) {
     canAccept: Boolean(workflow && isLeader && !workflow.acceptedAt && workflow.stage === 'HANDOVER'),
     canChangeLeader: Boolean(workflow && manager),
     canEditCommercial: canEditCommercial(workflow, context),
-    canAuthorizeMobilization: Boolean(workflow && (manager || isLeader) && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage))
+    canAuthorizeMobilization: Boolean(workflow && (manager || isLeader) && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(workflow.stage))
   };
 }
 
-function decorateWorkflow(workflow, context, now) {
+function decorateWorkflow(workflow, context, now, demobilizationDate = null) {
   if (!workflow) return null;
   const today = todayKey(now);
   const milestones = projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), today);
@@ -214,6 +219,7 @@ function decorateWorkflow(workflow, context, now) {
   const documentationReadiness = projectWorkflowDocumentationReadiness({ checklists, issues }, milestones, today);
   const planningReadiness = projectWorkflowPlanningReadiness({ checklists });
   const preparationReadiness = projectWorkflowPreparationReadiness({ checklists });
+  const demobilizationReadiness = projectWorkflowDemobilizationReadiness({ checklists });
   const mobilizationGate = projectWorkflowMobilizationGate({ ...workflow, checklists, commercialFacts, issues }, milestones, today);
   const mobilizationAuthorization = projectWorkflowMobilizationAuthorization(workflow, mobilizationGate);
   const permissions = publicPermissions(workflow, context);
@@ -229,6 +235,8 @@ function decorateWorkflow(workflow, context, now) {
   return {
     ...workflow,
     plannedMobilizationDate: dateKey(workflow.plannedMobilizationDate),
+    fieldCompletionDate: dateKey(workflow.fieldCompletionDate),
+    demobilizationDate: dateKey(demobilizationDate),
     checklists,
     criticalAnswers,
     commercialFacts,
@@ -236,6 +244,7 @@ function decorateWorkflow(workflow, context, now) {
     documentationReadiness,
     planningReadiness,
     preparationReadiness,
+    demobilizationReadiness,
     mobilizationGate,
     mobilizationAuthorization,
     issues,
@@ -323,6 +332,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
       const documentationReadiness = workflow ? projectWorkflowDocumentationReadiness(workflow, milestones, todayKey(now)) : null;
       const planningReadiness = workflow ? projectWorkflowPlanningReadiness(workflow) : null;
       const preparationReadiness = workflow ? projectWorkflowPreparationReadiness(workflow) : null;
+      const demobilizationReadiness = workflow ? projectWorkflowDemobilizationReadiness(workflow) : null;
       const mobilizationGate = workflow ? projectWorkflowMobilizationGate(workflow, milestones, todayKey(now)) : null;
       const mobilizationAuthorization = workflow ? projectWorkflowMobilizationAuthorization(workflow, mobilizationGate) : null;
       return {
@@ -338,6 +348,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
           leader: workflow.leader,
           acceptedAt: workflow.acceptedAt,
           plannedMobilizationDate: dateKey(workflow.plannedMobilizationDate),
+          fieldCompletionDate: dateKey(workflow.fieldCompletionDate),
+          demobilizationDate: dateKey(project.demobilizationDate),
           version: workflow.version,
           milestones,
           issueCount: issues.filter(item => item.status !== 'RESOLVED').length,
@@ -351,6 +363,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
           documentationReadiness,
           planningReadiness,
           preparationReadiness,
+          demobilizationReadiness,
           mobilizationGate,
           mobilizationAuthorization
         } : null,
@@ -386,9 +399,10 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
       name: project.name,
       clientName: project.clientName,
       location: project.location,
+      demobilizationDate: dateKey(project.demobilizationDate),
       operationalMission: operationalMissionSummary(project)
     },
-    workflow: decorateWorkflow(project.workflow, context, dependencies.now || new Date()),
+    workflow: decorateWorkflow(project.workflow, context, dependencies.now || new Date(), project.demobilizationDate),
     permissions: publicPermissions(project.workflow, context)
   };
 }
@@ -616,7 +630,7 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
       issues: issues.map(message => ({ message }))
     });
   }
-  const synchronizesOperationalStage = ['MOBILIZATION', 'EXECUTION'].includes(payload.stage)
+  const synchronizesOperationalStage = ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(payload.stage)
     || (payload.stage === 'READY_TO_MOBILIZE' && ['MOBILIZATION', 'EXECUTION'].includes(workflow.stage));
   if (synchronizesOperationalStage) {
     await (dependencies.synchronizeOfficialMissionStage || synchronizeOfficialMissionStage)(
@@ -630,7 +644,7 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
   if (payload.stage === 'READY_TO_MOBILIZE') {
     data.mobilizationAuthorizedAt = now;
     data.mobilizationAuthorizationVersion = workflow.version + 1;
-  } else if (['MOBILIZATION', 'EXECUTION'].includes(payload.stage)) {
+  } else if (['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(payload.stage)) {
     data.mobilizationAuthorizedAt = workflow.mobilizationAuthorizedAt;
     data.mobilizationAuthorizationVersion = workflow.version + 1;
   } else if (['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage)) {
@@ -641,8 +655,8 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
 }
 
 async function applyMobilizationAuthorization(tx, workflow, now) {
-  if (!['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage)) {
-    throw planningError('A mobilização só pode ser autorizada nas etapas Pronto para mobilizar, Mobilização ou Em execução.', {
+  if (!['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(workflow.stage)) {
+    throw planningError('A mobilização só pode ser autorizada nas etapas Pronto para mobilizar, Mobilização, Em execução ou Desmobilização.', {
       code: 'PROJECT_WORKFLOW_READY_STAGE_REQUIRED'
     });
   }
@@ -660,6 +674,45 @@ async function applyMobilizationAuthorization(tx, workflow, now) {
       mobilizationAuthorizationVersion: workflow.version + 1
     }
   });
+}
+
+async function applyDemobilization(tx, workflow, payload, context, dependencies) {
+  if (workflow.stage !== 'DEMOBILIZATION') {
+    throw planningError('As datas efetivas só podem ser registradas durante a desmobilização.', {
+      statusCode: 409,
+      code: 'PROJECT_WORKFLOW_DEMOBILIZATION_STAGE_REQUIRED'
+    });
+  }
+  const project = await tx.project.findUnique({
+    where: { id: workflow.projectId },
+    select: { id: true, demobilizationDate: true }
+  });
+  if (!project) throw notFound('Projeto não encontrado.');
+  const fieldCompletionDate = Object.hasOwn(payload, 'fieldCompletionDate')
+    ? payload.fieldCompletionDate
+    : dateKey(workflow.fieldCompletionDate);
+  const returnDate = Object.hasOwn(payload, 'returnDate')
+    ? payload.returnDate
+    : dateKey(project.demobilizationDate);
+  if (fieldCompletionDate && returnDate && returnDate < fieldCompletionDate) {
+    throw planningError('A desmobilização não pode ser anterior à conclusão de campo.', {
+      code: 'INVALID_PROJECT_WORKFLOW_DEMOBILIZATION'
+    });
+  }
+  if (Object.hasOwn(payload, 'returnDate')) {
+    await (dependencies.synchronizeOfficialMissionDemobilization || synchronizeOfficialMissionDemobilization)(
+      tx,
+      workflow.projectId,
+      payload.returnDate,
+      context
+    );
+  }
+  if (Object.hasOwn(payload, 'fieldCompletionDate')) {
+    await tx.projectWorkflow.update({
+      where: { projectId: workflow.projectId },
+      data: { fieldCompletionDate: payload.fieldCompletionDate ? utcDate(payload.fieldCompletionDate) : null }
+    });
+  }
 }
 
 export async function updateProjectWorkflow(projectId, payload, context = {}, dependencies = {}) {
@@ -680,6 +733,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'issue') await applyIssue(tx, workflow, payload);
     else if (payload.action === 'accept') await applyAccept(tx, workflow, context, now);
     else if (payload.action === 'stage') await applyStage(tx, workflow, payload, now, context, dependencies);
+    else if (payload.action === 'demobilization') await applyDemobilization(tx, workflow, payload, context, dependencies);
     else if (payload.action === 'authorize_mobilization') await applyMobilizationAuthorization(tx, workflow, now);
     else if (payload.action === 'commercial_fact') await applyCommercialFact(tx, workflow, payload, context);
     const eventData = { ...payload };

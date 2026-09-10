@@ -173,6 +173,61 @@ function WorkflowSettingsForm({ detail, leaders, saving, onPatch }: {
   );
 }
 
+function DemobilizationDatesForm({ workflow, mission, saving, onPatch }: {
+  workflow: ProjectWorkflow;
+  mission: ProjectOperationalMissionSummary | null | undefined;
+  saving: boolean;
+  onPatch: (payload: ProjectWorkflowPatch) => void;
+}) {
+  const schema = z.object({
+    fieldCompletionDate: z.string(),
+    returnDate: z.string()
+  }).refine(value => !value.fieldCompletionDate || !value.returnDate || value.fieldCompletionDate <= value.returnDate, {
+    path: ['returnDate'],
+    message: 'A desmobilização não pode ser anterior à conclusão de campo.'
+  }).refine(value => !value.returnDate || !mission?.executionEndDate || value.returnDate >= mission.executionEndDate.slice(0, 10), {
+    path: ['returnDate'],
+    message: 'A desmobilização não pode ser anterior ao fim previsto da execução.'
+  });
+  type Values = z.infer<typeof schema>;
+  const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<Values>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      fieldCompletionDate: workflow.fieldCompletionDate || '',
+      returnDate: workflow.demobilizationDate || mission?.returnDate || ''
+    }
+  });
+  useEffect(() => reset({
+    fieldCompletionDate: workflow.fieldCompletionDate || '',
+    returnDate: workflow.demobilizationDate || mission?.returnDate || ''
+  }), [mission?.returnDate, reset, workflow.demobilizationDate, workflow.fieldCompletionDate]);
+  return (
+    <form className="project-workflow-form" data-project-workflow-demobilization-dates noValidate onSubmit={handleSubmit(values => onPatch({
+      action: 'demobilization',
+      version: workflow.version,
+      fieldCompletionDate: values.fieldCompletionDate || null,
+      returnDate: values.returnDate || null
+    }))}>
+      <h4>Datas efetivas</h4>
+      <div className="project-workflow-form-grid">
+        <div className={fieldClass(errors.fieldCompletionDate)}>
+          <label htmlFor="workflow-field-completion-date">Conclusão do campo</label>
+          <input id="workflow-field-completion-date" type="date" disabled={saving || !workflow.permissions.canEdit} aria-invalid={Boolean(errors.fieldCompletionDate)} {...register('fieldCompletionDate')} />
+          <span className="field-hint">Quando o escopo de campo foi concluído.</span>
+          {errors.fieldCompletionDate ? <span className="field-error">{errors.fieldCompletionDate.message}</span> : null}
+        </div>
+        <div className={fieldClass(errors.returnDate)}>
+          <label htmlFor="workflow-return-date">Desmobilização efetiva</label>
+          <input id="workflow-return-date" type="date" min={mission?.executionEndDate?.slice(0, 10)} disabled={saving || !workflow.permissions.canEdit} aria-invalid={Boolean(errors.returnDate)} {...register('returnDate')} />
+          <span className="field-hint">Atualiza o retorno da missão e o cronograma do projeto.</span>
+          {errors.returnDate ? <span className="field-error">{errors.returnDate.message}</span> : null}
+        </div>
+      </div>
+      {workflow.permissions.canEdit ? <div className="project-workflow-inline-actions"><Button type="submit" variant="secondary" disabled={saving || !isDirty}>Salvar datas efetivas</Button></div> : null}
+    </form>
+  );
+}
+
 function ChecklistEditor({ item, version, saving, canEdit, onPatch }: {
   item: ProjectWorkflowChecklist;
   version: number;
@@ -240,6 +295,8 @@ function MobilizationGate({ workflow }: { workflow: ProjectWorkflow }) {
 function transitionLabel(current: ProjectWorkflow['stage'], target: ProjectWorkflow['stage']) {
   if (current === 'MOBILIZATION' && target === 'READY_TO_MOBILIZE') return 'Voltar para pronto para mobilizar';
   if (current === 'EXECUTION' && target === 'MOBILIZATION') return 'Voltar para mobilização';
+  if (current === 'DEMOBILIZATION' && target === 'EXECUTION') return 'Voltar para execução';
+  if (target === 'DEMOBILIZATION') return 'Iniciar desmobilização';
   if (target === 'MOBILIZATION') return 'Iniciar mobilização';
   if (target === 'EXECUTION') return 'Iniciar execução';
   if (target === 'READY_TO_MOBILIZE') return 'Autorizar mobilização';
@@ -342,6 +399,11 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
     ['D15_TRAVEL', 'Viagem e logística'],
     ['D15_QSMS', 'QSMS']
   ] as const;
+  const demobilizationSections = [
+    ['DEMOBILIZATION_FIELD', 'Conclusão de campo'],
+    ['DEMOBILIZATION_LOGISTICS', 'Logística de retorno'],
+    ['DEMOBILIZATION_ASSETS', 'Retorno de ativos']
+  ] as const;
   const transitionOptions = workflow?.transitionOptions || [];
   const nextMilestoneText = !workflow
     ? '—'
@@ -353,6 +415,10 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
     : workflow?.documentationReadiness.status === 'CRITICAL' ? '🔴 Crítica' : '🟡 Em andamento';
   const footerIssues = workflow?.stage === 'HANDOVER'
     ? (workflow.permissions.canAccept ? workflow.handoverGate.issues : [`Aguardando ${workflow.leader.name} assumir formalmente o projeto`])
+    : workflow?.stage === 'DEMOBILIZATION'
+      ? (workflow.permissions.canEdit
+          ? [...new Set(transitionOptions.filter(item => !item.allowed).flatMap(item => item.issues))]
+          : [`Aguardando ${workflow.leader.name} ou o gestor atualizar a desmobilização`])
     : workflow && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage)
       ? workflow.mobilizationGate.ready
         ? workflow.mobilizationAuthorization.status === 'SUSPENDED' ? ['O projeto mudou após a última autorização e precisa ser revalidado'] : []
@@ -389,13 +455,14 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
               {workflow.stage === 'PREPARATION' || workflow.stage === 'READY_TO_MOBILIZE' ? <section className="project-workflow-planning" data-project-workflow-d15><header><div><h4>Preparação para mobilização · D-15</h4><p>Confirmações definitivas por frente responsável.</p></div><strong>{workflow.preparationReadiness.completed}/{workflow.preparationReadiness.total} · {workflow.preparationReadiness.percentage}%</strong></header><div className="project-workflow-planning-grid">{preparationSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></section> : null}
               {['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage) ? <MobilizationGate workflow={workflow} /> : null}
               {workflow.stage === 'EXECUTION' ? <ProjectExecutionDashboard projectId={workflow.projectId} /> : null}
+              {workflow.stage === 'DEMOBILIZATION' ? <section className="project-workflow-planning" data-project-workflow-demobilization><header><div><h4>Desmobilização</h4><p>Conclusão do campo, retorno da equipe e entrega dos ativos.</p></div><strong>{workflow.demobilizationReadiness.completed}/{workflow.demobilizationReadiness.total} · {workflow.demobilizationReadiness.percentage}%</strong></header><DemobilizationDatesForm workflow={workflow} mission={detail.project.operationalMission} saving={saving} onPatch={onPatch} /><div className="project-workflow-planning-grid">{demobilizationSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></section> : null}
               {workflow.stage !== 'HANDOVER' ? <section className="project-workflow-section"><header><h4>Itens críticos</h4><span>{workflow.criticalAnswers.filter(item => item.answer !== null).length}/{workflow.criticalAnswers.length}</span></header>{workflow.criticalAnswers.map(item => <article className="project-workflow-critical" key={item.key}><span>{item.label}</span><div><Button variant={item.answer === true ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => onPatch({ action: 'critical', version: workflow.version, key: item.key, answer: true })}>Sim</Button><Button variant={item.answer === false ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => onPatch({ action: 'critical', version: workflow.version, key: item.key, answer: false })}>Não</Button></div></article>)}</section> : null}
               {workflow.issues.length ? <section className="project-workflow-section"><header><h4>Pendências</h4><span>{workflow.issues.filter(item => item.status !== 'RESOLVED').length} abertas</span></header>{workflow.issues.map(issue => <IssueEditor issue={issue} version={workflow.version} saving={saving} canEdit={workflow.permissions.canEdit} onPatch={onPatch} key={issue.id} />)}</section> : null}
-              {['MOBILIZATION_PLANNING', 'PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage) ? <a className="mini-btn project-workflow-planning-link" href={`/efetivo?section=missoes&search=${encodeURIComponent(detail.project.code)}`}>Abrir programação da equipe</a> : null}
+              {['MOBILIZATION_PLANNING', 'PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(workflow.stage) ? <a className="mini-btn project-workflow-planning-link" href={`/efetivo?section=missoes&search=${encodeURIComponent(detail.project.code)}`}>Abrir programação da equipe</a> : null}
             </>
           )}
         </div>
-        <footer className="efetivo-modal-footer project-workflow-modal-footer"><div className="project-workflow-footer-status" aria-live="polite">{workflow ? <><strong>{workflow.stage === 'HANDOVER' ? 'Gate do handover' : ['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage) ? 'Gate de mobilização' : 'Avanço do projeto'}</strong>{workflow.mobilizationAuthorization.status === 'AUTHORIZED' ? <span>Autorização vigente na versão {workflow.mobilizationAuthorization.authorizedVersion}.</span> : footerIssues.length ? <span>{footerIssues.length} bloqueio(s): {footerIssues.slice(0, 3).join(' · ')}{footerIssues.length > 3 ? ` · e mais ${footerIssues.length - 3}` : ''}</span> : <span>Requisitos concluídos. Confirme a próxima etapa.</span>}</> : null}</div><div className="project-workflow-footer-actions"><Button variant="secondary" disabled={saving} onClick={onClose}>Fechar</Button>{workflow?.stage === 'HANDOVER' && workflow.permissions.canAccept ? <Button disabled={saving || !workflow.handoverGate.ready} onClick={() => onPatch({ action: 'accept', version: workflow.version })}>Assumir e iniciar análise</Button> : null}{workflow?.stage !== 'HANDOVER' && workflow?.permissions.canEdit ? transitionOptions.map(option => <Button variant={['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(option.stage) ? 'primary' : 'secondary'} disabled={saving || !option.allowed} title={option.issues.join(' · ') || undefined} onClick={() => onPatch({ action: 'stage', version: workflow.version, stage: option.stage })} key={option.stage}>{transitionLabel(workflow.stage, option.stage)}</Button>) : null}{workflow && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage) && workflow.permissions.canAuthorizeMobilization && workflow.mobilizationAuthorization.status !== 'AUTHORIZED' ? <Button disabled={saving || !workflow.mobilizationGate.ready} onClick={() => onPatch({ action: 'authorize_mobilization', version: workflow.version })}>Revalidar autorização</Button> : null}</div></footer>
+        <footer className="efetivo-modal-footer project-workflow-modal-footer"><div className="project-workflow-footer-status" aria-live="polite">{workflow ? <><strong>{workflow.stage === 'HANDOVER' ? 'Gate do handover' : workflow.stage === 'DEMOBILIZATION' ? 'Desmobilização' : ['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage) ? 'Gate de mobilização' : 'Avanço do projeto'}</strong>{workflow.stage !== 'DEMOBILIZATION' && workflow.mobilizationAuthorization.status === 'AUTHORIZED' ? <span>Autorização vigente na versão {workflow.mobilizationAuthorization.authorizedVersion}.</span> : footerIssues.length ? <span>{footerIssues.length} bloqueio(s): {footerIssues.slice(0, 3).join(' · ')}{footerIssues.length > 3 ? ` · e mais ${footerIssues.length - 3}` : ''}</span> : workflow.stage === 'DEMOBILIZATION' ? <span>{workflow.demobilizationReadiness.completed}/{workflow.demobilizationReadiness.total} controles resolvidos. O Pós-job será habilitado na próxima entrega.</span> : <span>Requisitos concluídos. Confirme a próxima etapa.</span>}</> : null}</div><div className="project-workflow-footer-actions"><Button variant="secondary" disabled={saving} onClick={onClose}>Fechar</Button>{workflow?.stage === 'HANDOVER' && workflow.permissions.canAccept ? <Button disabled={saving || !workflow.handoverGate.ready} onClick={() => onPatch({ action: 'accept', version: workflow.version })}>Assumir e iniciar análise</Button> : null}{workflow?.stage !== 'HANDOVER' && workflow?.permissions.canEdit ? transitionOptions.map(option => <Button variant={['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(option.stage) ? 'primary' : 'secondary'} disabled={saving || !option.allowed} title={option.issues.join(' · ') || undefined} onClick={() => onPatch({ action: 'stage', version: workflow.version, stage: option.stage })} key={option.stage}>{transitionLabel(workflow.stage, option.stage)}</Button>) : null}{workflow && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(workflow.stage) && workflow.permissions.canAuthorizeMobilization && (workflow.stage === 'DEMOBILIZATION' ? workflow.mobilizationAuthorization.authorizedVersion !== workflow.version : workflow.mobilizationAuthorization.status !== 'AUTHORIZED') ? <Button disabled={saving || !workflow.mobilizationGate.ready} onClick={() => onPatch({ action: 'authorize_mobilization', version: workflow.version })}>{workflow.stage === 'DEMOBILIZATION' ? 'Revalidar retorno à execução' : 'Revalidar autorização'}</Button> : null}</div></footer>
       </div>
     </Modal>
   );

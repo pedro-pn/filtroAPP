@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   missionStageForProjectWorkflow,
+  synchronizeOfficialMissionDemobilization,
   synchronizeOfficialMissionStage
 } from '../src/lib/efetivo/planning/mission-stage-sync.js';
 
@@ -23,7 +24,7 @@ function completeMission(overrides = {}) {
     executionEndDate: new Date('2026-09-20T00:00:00Z'),
     returnDate: null,
     plan: { id: 'plan-1', revision: 4 },
-    project: { id: 'project-1', code: 'P-1', name: 'Projeto' },
+    project: { id: 'project-1', code: 'P-1', name: 'Projeto', mobilizationDate: new Date('2026-09-10T00:00:00Z'), demobilizationDate: null },
     cycles: [],
     demands: [{ jobRoleId: 'role-1', requiredCount: 1 }],
     allocations: [{ id: 'allocation-1', jobRoleId: 'role-1', deletedAt: null, cycles: [] }],
@@ -32,7 +33,7 @@ function completeMission(overrides = {}) {
 }
 
 function fakeDatabase(mission = completeMission()) {
-  const state = { mission, updates: [], audits: [], planBumps: 0 };
+  const state = { mission, updates: [], audits: [], planBumps: 0, projectUpdates: [] };
   const database = {
     efetivoMissionPlan: {
       findFirst: async () => state.mission,
@@ -40,9 +41,22 @@ function fakeDatabase(mission = completeMission()) {
       update: async input => {
         state.updates.push(input);
         if (input.where.id === state.mission.id) {
-          state.mission = { ...state.mission, stage: input.data.stage, kanbanOrder: input.data.kanbanOrder, version: state.mission.version + 1 };
+          state.mission = {
+            ...state.mission,
+            ...(input.data.stage !== undefined ? { stage: input.data.stage } : {}),
+            ...(input.data.kanbanOrder !== undefined ? { kanbanOrder: input.data.kanbanOrder } : {}),
+            ...(input.data.returnDate !== undefined ? { returnDate: input.data.returnDate } : {}),
+            version: state.mission.version + (input.data.version ? 1 : 0)
+          };
         }
         return state.mission;
+      }
+    },
+    project: {
+      update: async input => {
+        state.projectUpdates.push(input);
+        state.mission.project = { ...state.mission.project, ...input.data };
+        return state.mission.project;
       }
     },
     efetivoPlan: { update: async () => { state.planBumps += 1; return state.mission.plan; } },
@@ -55,7 +69,28 @@ test('etapa do workflow possui projeção operacional única', () => {
   assert.equal(missionStageForProjectWorkflow('READY_TO_MOBILIZE'), 'STANDBY');
   assert.equal(missionStageForProjectWorkflow('MOBILIZATION'), 'MOBILIZATION');
   assert.equal(missionStageForProjectWorkflow('EXECUTION'), 'EXECUTION');
+  assert.equal(missionStageForProjectWorkflow('DEMOBILIZATION'), 'FINAL_MEASUREMENT');
   assert.equal(missionStageForProjectWorkflow('PREPARATION'), null);
+});
+
+test('desmobilização atualiza retorno sem alterar equipe ou ciclos', async () => {
+  const cycles = [{ id: 'cycle-1', mobilizationDate: new Date('2026-09-10T00:00:00Z') }];
+  const allocations = [{ id: 'allocation-1', jobRoleId: 'role-1', deletedAt: null, cycles: [{ id: 'allocation-cycle-1' }] }];
+  const { database, state } = fakeDatabase(completeMission({ stage: 'FINAL_MEASUREMENT', cycles, allocations }));
+  const result = await synchronizeOfficialMissionDemobilization(database, 'project-1', '2026-09-22', { actorUserId: 'leader-1' });
+  assert.equal(result.returnDate.toISOString().slice(0, 10), '2026-09-22');
+  assert.deepEqual(state.mission.cycles, cycles);
+  assert.deepEqual(state.mission.allocations, allocations);
+  assert.equal(state.projectUpdates[0].data.demobilizationDate.toISOString().slice(0, 10), '2026-09-22');
+  assert.equal(state.audits.at(-1).action, 'MISSION_DEMOBILIZATION_UPDATE');
+});
+
+test('desmobilização rejeita retorno anterior ao fim da execução', async () => {
+  const { database } = fakeDatabase(completeMission({ stage: 'FINAL_MEASUREMENT' }));
+  await assert.rejects(
+    synchronizeOfficialMissionDemobilization(database, 'project-1', '2026-09-19'),
+    error => error.code === 'INVALID_MISSION_CHRONOLOGY'
+  );
 });
 
 test('avanço do projeto sincroniza missão oficial completa e registra auditoria', async () => {

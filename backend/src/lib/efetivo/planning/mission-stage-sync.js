@@ -1,12 +1,18 @@
 import { recordEfetivoAudit } from './audit.js';
 import { planningError } from './errors.js';
-import { missionInclude, missionMovePendencies } from './mission-planning.js';
+import {
+  missionInclude,
+  missionMovePendencies,
+  syncMissionDemobilization,
+  validateMissionChronology
+} from './mission-planning.js';
 import { bumpPlanRevision } from './plan-context.js';
 
 const WORKFLOW_TO_MISSION_STAGE = {
   READY_TO_MOBILIZE: 'STANDBY',
   MOBILIZATION: 'MOBILIZATION',
-  EXECUTION: 'EXECUTION'
+  EXECUTION: 'EXECUTION',
+  DEMOBILIZATION: 'FINAL_MEASUREMENT'
 };
 
 export function missionStageForProjectWorkflow(stage) {
@@ -25,7 +31,7 @@ export async function synchronizeOfficialMissionStage(tx, projectId, workflowSta
     },
     include: { ...missionInclude, plan: true }
   });
-  const missionRequired = ['MOBILIZATION', 'EXECUTION'].includes(targetStage);
+  const missionRequired = ['MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT'].includes(targetStage);
   if (!mission) {
     if (!missionRequired) return null;
     throw planningError('Crie ou reative a programação oficial da equipe antes de avançar o projeto.', {
@@ -82,4 +88,54 @@ export async function synchronizeOfficialMissionStage(tx, projectId, workflowSta
     evidence: context.evidence
   });
   return moved;
+}
+
+function dateKey(value) {
+  return value instanceof Date ? value.toISOString().slice(0, 10) : String(value || '').slice(0, 10) || null;
+}
+
+function dateValue(value) {
+  return value ? new Date(`${value}T00:00:00.000Z`) : null;
+}
+
+export async function synchronizeOfficialMissionDemobilization(tx, projectId, returnDate, context = {}) {
+  const mission = await tx.efetivoMissionPlan.findFirst({
+    where: {
+      projectId,
+      deletedAt: null,
+      scheduleStatus: { not: 'CANCELLED' },
+      plan: { kind: 'OFFICIAL', status: 'ACTIVE' }
+    },
+    include: { ...missionInclude, plan: true }
+  });
+  if (!mission) {
+    throw planningError('A programação oficial é necessária para registrar a desmobilização.', {
+      code: 'PROJECT_WORKFLOW_OFFICIAL_MISSION_REQUIRED'
+    });
+  }
+  validateMissionChronology({ ...mission, returnDate });
+  await syncMissionDemobilization(tx, mission.project, returnDate);
+  if (dateKey(mission.returnDate) === returnDate) return mission;
+  const updated = await tx.efetivoMissionPlan.update({
+    where: { id: mission.id },
+    data: {
+      returnDate: dateValue(returnDate),
+      version: { increment: 1 },
+      updatedByUserId: context.actorUserId || null
+    },
+    include: missionInclude
+  });
+  await bumpPlanRevision(tx, mission.plan);
+  await recordEfetivoAudit(tx, {
+    planId: mission.planId,
+    actorUserId: context.actorUserId,
+    action: 'MISSION_DEMOBILIZATION_UPDATE',
+    entityType: 'MISSION',
+    entityId: mission.id,
+    summary: 'Data de desmobilização sincronizada pelo fluxo do projeto.',
+    beforeData: { returnDate: dateKey(mission.returnDate) },
+    afterData: { returnDate },
+    evidence: context.evidence
+  });
+  return updated;
 }

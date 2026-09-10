@@ -4,7 +4,7 @@ Origem: estudo discutido em 08/09/2026 e implementação iniciada em 09/09/2026.
 
 ## Fluxo alvo
 
-Handover comercial → Análise inicial → Aguardando planejamento → Planejamento da mobilização → Preparação → Pronto para mobilizar → Em execução → Desmobilização → Pós-job / fechamento técnico → Documentação / medição → Encerrado.
+Handover comercial → Análise inicial → Aguardando planejamento → Planejamento da mobilização → Preparação → Pronto para mobilizar → Mobilização → Em execução → Desmobilização → Pós-job / fechamento técnico → Documentação / medição → Encerrado.
 
 Liberação comercial/contratual e documentação antecipada são frentes paralelas dentro do projeto. D-90/D-30/D-15/D-7/D-1 são marcos configuráveis, não colunas.
 
@@ -20,7 +20,8 @@ A futura integração com CRM será a fonte dos fatos comerciais, enquanto o Fil
 - Entrega 021 concluída: seleção do Romaneio filtrada pelo tipo; Saída mostra gerenciados autorizados e legados ativos, enquanto Entrada mantém todas as obras acessíveis disponíveis.
 - Entrega 022 concluída: etapa Em Execução preserva a autorização; dashboard reúne avanço, prazo, RDOs, metas de relatórios técnicos e desvios integrados com Qualidade.
 - Entrega 023 concluída: Evolução apresenta um único Kanban do projeto; Mobilização integra o fluxo e sincroniza a etapa da missão oficial, enquanto Missões mantém equipe, ciclos e datas.
-- Próximo incremento: Desmobilização, com conclusão de campo, conferências, retorno de equipe e ativos, avarias e múltiplos ciclos.
+- Entrega 024 concluída: Desmobilização integra o Kanban único com conclusão de campo, conferências, retorno de equipe e ativos, avarias, datas efetivas e projeção da missão em Medição final sem alterar seus ciclos.
+- Próximo incremento: Pós-job / fechamento técnico, com feedbacks, problemas e soluções, oportunidades de melhoria e lições aprendidas consultáveis.
 
 ## Entrega 1 — Fundamentos e entrada em planejamento
 

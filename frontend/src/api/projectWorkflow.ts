@@ -1,6 +1,6 @@
 import { apiClient, type ApiClientError } from './client';
 
-export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'MOBILIZATION' | 'EXECUTION';
+export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION';
 export type ProjectWorkflowChecklistStatus = 'PENDING' | 'DONE' | 'NOT_APPLICABLE';
 export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
@@ -10,7 +10,7 @@ export type ProjectExecutionReportType = 'RTP' | 'RLQ' | 'RLR' | 'RCPU' | 'RLM' 
 export type ProjectExecutionDeviationCategory = 'PRAZO' | 'ESCOPO' | 'CLIENTE' | 'EQUIPAMENTO' | 'PESSOAL' | 'MATERIAL' | 'SEGURANCA' | 'QUALIDADE' | 'COMERCIAL';
 export type ProjectExecutionImpact = 'ALTO' | 'MEDIO' | 'BAIXO';
 export type ProjectExecutionDeviationStatus = 'ABERTO' | 'EM_TRIAGEM' | 'EM_OBSERVACAO' | 'EM_ACAO' | 'FECHADO' | 'DIVULGADO';
-export type ProjectWorkflowChecklistSection = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'ADVANCE_DOCUMENTATION' | 'D30_TEAM' | 'D30_EQUIPMENT' | 'D30_MATERIALS' | 'D30_LOGISTICS' | 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS';
+export type ProjectWorkflowChecklistSection = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'ADVANCE_DOCUMENTATION' | 'D30_TEAM' | 'D30_EQUIPMENT' | 'D30_MATERIALS' | 'D30_LOGISTICS' | 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS' | 'DEMOBILIZATION_FIELD' | 'DEMOBILIZATION_LOGISTICS' | 'DEMOBILIZATION_ASSETS';
 
 export interface ProjectWorkflowPermissions {
   canInitialize: boolean;
@@ -50,6 +50,7 @@ export interface ProjectWorkflowProject {
   name: string;
   clientName: string;
   location: string;
+  demobilizationDate?: string | null;
   operationalMission?: ProjectOperationalMissionSummary | null;
 }
 
@@ -91,6 +92,7 @@ export interface ProjectWorkflowPlanningReadiness {
 }
 
 export type ProjectWorkflowPreparationReadiness = ProjectWorkflowPlanningReadiness;
+export type ProjectWorkflowDemobilizationReadiness = ProjectWorkflowPlanningReadiness;
 
 export interface ProjectWorkflowMobilizationGateBlocker {
   key: string;
@@ -200,6 +202,8 @@ export interface ProjectWorkflow {
   leader: { id: string; name: string; isActive: boolean };
   acceptedAt: string | null;
   plannedMobilizationDate: string;
+  fieldCompletionDate: string | null;
+  demobilizationDate: string | null;
   version: number;
   checklists: ProjectWorkflowChecklist[];
   criticalAnswers: ProjectWorkflowCriticalAnswer[];
@@ -208,6 +212,7 @@ export interface ProjectWorkflow {
   documentationReadiness: ProjectWorkflowDocumentationReadiness;
   planningReadiness: ProjectWorkflowPlanningReadiness;
   preparationReadiness: ProjectWorkflowPreparationReadiness;
+  demobilizationReadiness: ProjectWorkflowDemobilizationReadiness;
   mobilizationGate: ProjectWorkflowMobilizationGate;
   mobilizationAuthorization: ProjectWorkflowMobilizationAuthorization;
   issues: ProjectWorkflowIssue[];
@@ -225,6 +230,8 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
     leader: { id: string; name: string; isActive: boolean };
     acceptedAt: string | null;
     plannedMobilizationDate: string;
+    fieldCompletionDate: string | null;
+    demobilizationDate: string | null;
     version: number;
     milestones: ProjectWorkflowMilestones;
     issueCount: number;
@@ -233,6 +240,7 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
     documentationReadiness: ProjectWorkflowDocumentationReadiness;
     planningReadiness: ProjectWorkflowPlanningReadiness;
     preparationReadiness: ProjectWorkflowPreparationReadiness;
+    demobilizationReadiness: ProjectWorkflowDemobilizationReadiness;
     mobilizationGate: ProjectWorkflowMobilizationGate;
     mobilizationAuthorization: ProjectWorkflowMobilizationAuthorization;
   };
@@ -321,6 +329,7 @@ export type ProjectWorkflowPatch =
   | { action: 'issue'; version: number; issueId: string; description: string; area: string; ownerName: string | null; requiredLeadTimeDays: number | null; dueDate: string | null; criticality: ProjectWorkflowCriticality; status: ProjectWorkflowIssueStatus }
   | { action: 'accept'; version: number }
   | { action: 'stage'; version: number; stage: ProjectWorkflowStage }
+  | { action: 'demobilization'; version: number; fieldCompletionDate?: string | null; returnDate?: string | null }
   | { action: 'authorize_mobilization'; version: number }
   | { action: 'commercial_fact'; version: number; key: string; status: ProjectWorkflowCommercialFactStatus; reference?: string | null; note?: string | null; occurredOn?: string | null };
 

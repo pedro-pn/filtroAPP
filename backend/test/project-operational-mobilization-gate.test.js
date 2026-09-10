@@ -59,6 +59,13 @@ test('autorização vigente também libera operações durante a execução', as
   assert.equal(decision.allowed, true);
 });
 
+test('desmobilização encerra a autorização para novas saídas operacionais', async () => {
+  const decision = await projectOperationalMobilizationDecision(database(managedWorkflow({ stage: 'DEMOBILIZATION' })), 'project-1');
+  assert.equal(decision.status, 'BLOCKED');
+  assert.equal(decision.allowed, false);
+  assert.equal(decision.authorizationStatus, 'SUSPENDED');
+});
+
 test('autorização suspensa bloqueia com contrato uniforme e explicável', async () => {
   await assert.rejects(
     assertProjectMobilizationAuthorized(database(managedWorkflow({ version: 8 })), 'project-1'),

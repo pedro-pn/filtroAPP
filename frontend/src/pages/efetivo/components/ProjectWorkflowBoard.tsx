@@ -241,7 +241,7 @@ function ProjectCard({
       {workflow ? <>
         <small>
           {projectWorkflowMilestoneText(item)}
-          {nextMilestone ? ' · próximo ' + nextMilestone.label + ' em ' + displayDateOnly(nextMilestone.date) : ''}
+          {workflow.stage !== 'DEMOBILIZATION' && nextMilestone ? ' · próximo ' + nextMilestone.label + ' em ' + displayDateOnly(nextMilestone.date) : ''}
         </small>
         {workflow.milestones.dueMilestones.length ? (
           <small className="project-workflow-deadline-alert">
@@ -268,14 +268,15 @@ function ProjectCard({
         ) : null}
         {workflow.stage === 'EXECUTION' ? <small className="project-workflow-execution-badge">Acompanhamento operacional ativo</small> : null}
         {workflow.stage === 'MOBILIZATION' ? <small className="project-workflow-execution-badge">Mobilização operacional em andamento</small> : null}
+        {workflow.stage === 'DEMOBILIZATION' ? <small className="project-workflow-execution-badge">Desmobilização: {workflow.demobilizationReadiness.completed}/{workflow.demobilizationReadiness.total} · {workflow.demobilizationReadiness.percentage}%</small> : null}
         {workflow.mobilizationGate.deadlineStatus === 'ATTENTION' ? (
           <small className="project-workflow-mobilization-risk is-attention">D-7 · {workflow.mobilizationGate.blockers.length} bloqueio(s)</small>
         ) : null}
         {workflow.mobilizationGate.deadlineStatus === 'RISK' ? (
           <small className="project-workflow-mobilization-risk is-risk">Risco de mobilização · {workflow.mobilizationGate.blockers.length} bloqueio(s)</small>
         ) : null}
-        {mobilizationStatus === 'AUTHORIZED' ? <small className="project-workflow-authorization-badge is-authorized">🔒 Mobilização autorizada</small> : null}
-        {mobilizationStatus === 'SUSPENDED' ? <small className="project-workflow-authorization-badge is-suspended">Autorização suspensa</small> : null}
+        {workflow.stage !== 'DEMOBILIZATION' && mobilizationStatus === 'AUTHORIZED' ? <small className="project-workflow-authorization-badge is-authorized">🔒 Mobilização autorizada</small> : null}
+        {workflow.stage !== 'DEMOBILIZATION' && mobilizationStatus === 'SUSPENDED' ? <small className="project-workflow-authorization-badge is-suspended">Autorização suspensa</small> : null}
         {workflow.issueCount ? (
           <em className={workflow.overdueIssueCount ? 'is-overdue' : ''}>
             {workflow.issueCount} pendência(s){workflow.overdueIssueCount ? ' · ' + workflow.overdueIssueCount + ' vencida(s)' : ''}

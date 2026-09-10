@@ -245,6 +245,7 @@ enum EfetivoMissionStage {
   STANDBY
   MOBILIZATION
   EXECUTION
+  DEMOBILIZATION
   FINAL_MEASUREMENT
   FINISHED
 }
@@ -954,6 +955,7 @@ model ProjectWorkflow {
   plannedMobilizationDate DateTime                        @db.Date
   mobilizationAuthorizedAt DateTime?
   mobilizationAuthorizationVersion Int?
+  fieldCompletionDate     DateTime?                       @db.Date
   executionReportTargets  Json                            @default("{}")
   version                 Int                             @default(1)
   createdAt               DateTime                        @default(now())

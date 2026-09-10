@@ -16,6 +16,7 @@ import {
   handoverGateIssues,
   planningGateIssues,
   projectWorkflowCommercialReadiness,
+  projectWorkflowDemobilizationReadiness,
   projectWorkflowDocumentationReadiness,
   projectWorkflowMobilizationAuthorization,
   projectWorkflowMobilizationGate,
@@ -41,6 +42,9 @@ test('contrato exige justificativa para não aplicável e versão nas alteraçõ
   assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'PURCHASE_ORDER_RECEIVED', status: 'PENDING', source: 'CRM' }).success, false);
   assert.equal(patch.safeParse({ action: 'authorize_mobilization', version: 7 }).success, true);
   assert.equal(patch.safeParse({ action: 'authorize_mobilization' }).success, false);
+  assert.equal(patch.safeParse({ action: 'demobilization', version: 7 }).success, false);
+  assert.equal(patch.safeParse({ action: 'demobilization', version: 7, fieldCompletionDate: '2026-09-20', returnDate: '2026-09-19' }).success, false);
+  assert.equal(patch.safeParse({ action: 'demobilization', version: 7, fieldCompletionDate: '2026-09-20', returnDate: '2026-09-21' }).success, true);
 });
 
 test('prontidão comercial exige os oito fatos completos conforme o catálogo', () => {
@@ -238,5 +242,29 @@ test('entrada em mobilização ou execução exige autorização vigente', () =>
   workflow.stage = 'MOBILIZATION';
   assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'EXECUTION'), []);
   workflow.mobilizationAuthorizationVersion = 10;
+  assert.match(projectWorkflowTransitionIssues(workflow, 'EXECUTION')[0], /autorização de mobilização vigente/i);
+});
+
+test('desmobilização possui 15 controles e permite retorno revalidado à execução', () => {
+  const checklists = PROJECT_WORKFLOW_CHECKLISTS
+    .filter(item => item.stage === 'DEMOBILIZATION')
+    .slice(0, 6)
+    .map(item => ({ key: item.key, status: 'DONE' }));
+  const readiness = projectWorkflowDemobilizationReadiness({ checklists });
+  assert.equal(readiness.total, 15);
+  assert.equal(readiness.completed, 6);
+  assert.equal(readiness.percentage, 40);
+  assert.deepEqual(readiness.sections.map(item => item.key), ['DEMOBILIZATION_FIELD', 'DEMOBILIZATION_LOGISTICS', 'DEMOBILIZATION_ASSETS']);
+  assert.equal(allowedProjectWorkflowTransition('EXECUTION', 'DEMOBILIZATION'), true);
+  assert.equal(allowedProjectWorkflowTransition('DEMOBILIZATION', 'EXECUTION'), true);
+
+  const workflow = readyMobilizationWorkflow({
+    stage: 'DEMOBILIZATION',
+    version: 13,
+    mobilizationAuthorizedAt: new Date('2026-09-09T18:00:00Z'),
+    mobilizationAuthorizationVersion: 13
+  });
+  assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'EXECUTION'), []);
+  workflow.mobilizationAuthorizationVersion = 12;
   assert.match(projectWorkflowTransitionIssues(workflow, 'EXECUTION')[0], /autorização de mobilização vigente/i);
 });

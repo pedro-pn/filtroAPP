@@ -16,7 +16,7 @@ import {
 
 function fakeDatabase() {
   const state = {
-    project: { id: 'project-1', code: 'P-001', name: 'Flushing', clientName: 'Cliente', location: 'Santos' },
+    project: { id: 'project-1', code: 'P-001', name: 'Flushing', clientName: 'Cliente', location: 'Santos', demobilizationDate: null },
     workflow: null,
     checklists: [],
     answers: [],
@@ -55,6 +55,11 @@ function fakeDatabase() {
     },
     project: {
       findFirst: async input => input.where.id === state.project.id ? { ...state.project, efetivoMissionPlans: state.operationalMission ? [state.operationalMission] : [], ...(input.select?.workflow ? { workflow: withRelations() } : {}) } : null,
+      findUnique: async input => input.where.id === state.project.id ? { ...state.project } : null,
+      update: async input => {
+        state.project = { ...state.project, ...input.data };
+        return state.project;
+      },
       count: async () => 1,
       findMany: async input => {
         state.lastProjectFindManyInput = input;
@@ -78,6 +83,7 @@ function fakeDatabase() {
           leaderUserId: input.data.leaderUserId,
           acceptedAt: null,
           plannedMobilizationDate: input.data.plannedMobilizationDate,
+          fieldCompletionDate: null,
           version: 1,
           createdAt: new Date(),
           updatedAt: new Date()
@@ -504,6 +510,59 @@ test('avanço para execução transporta a autorização para a nova versão', a
   assert.equal(result.workflow.mobilizationAuthorization.status, 'AUTHORIZED');
   assert.equal(result.workflow.mobilizationAuthorization.authorizedVersion, 4);
   assert.deepEqual(synchronizedStages, ['MOBILIZATION', 'EXECUTION']);
+});
+
+test('desmobilização sincroniza etapa e datas sem perder os dados operacionais', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  makeStateReadyForMobilization(state);
+  const synchronizedStages = [];
+  const stageDependencies = {
+    database,
+    synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
+  };
+  let result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'READY_TO_MOBILIZE' }, leader, stageDependencies);
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'MOBILIZATION' }, leader, stageDependencies);
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION' }, leader, stageDependencies);
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 4, stage: 'DEMOBILIZATION' }, leader, stageDependencies);
+  assert.equal(result.workflow.stage, 'DEMOBILIZATION');
+  assert.equal(result.workflow.demobilizationReadiness.total, 15);
+  assert.deepEqual(synchronizedStages, ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION']);
+  assert.equal(result.workflow.mobilizationAuthorization.authorized, false);
+
+  result = await updateProjectWorkflow('project-1', {
+    action: 'demobilization', version: 5, fieldCompletionDate: '2026-09-20', returnDate: '2026-09-22'
+  }, leader, {
+    database,
+    synchronizeOfficialMissionDemobilization: async (_tx, _projectId, returnDate) => {
+      state.project.demobilizationDate = new Date(`${returnDate}T00:00:00Z`);
+    }
+  });
+  assert.equal(result.workflow.fieldCompletionDate, '2026-09-20');
+  assert.equal(result.workflow.demobilizationDate, '2026-09-22');
+  assert.equal(state.events.at(-1).action, 'WORKFLOW_DEMOBILIZATION');
+
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'demobilization', version: 6, returnDate: '2026-09-19' }, leader, { database }),
+    error => error.code === 'INVALID_PROJECT_WORKFLOW_DEMOBILIZATION'
+  );
+  assert.equal(state.workflow.version, 6);
+
+  result = await updateProjectWorkflow('project-1', {
+    action: 'checklist', version: 6, key: 'DEMOB_FIELD_SCOPE_COMPLETED', status: 'DONE'
+  }, operations, { database });
+  assert.equal(result.workflow.demobilizationReadiness.completed, 1);
+});
+
+test('datas efetivas não podem ser antecipadas fora da desmobilização', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'demobilization', version: 1, fieldCompletionDate: '2026-09-20' }, leader, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_DEMOBILIZATION_STAGE_REQUIRED'
+  );
+  assert.equal(state.workflow.version, 1);
+  assert.equal(state.workflow.fieldCompletionDate, null);
 });
 
 test('gate bloqueado impede autorização e papel de área não pode revalidar', async () => {

@@ -148,6 +148,22 @@ export function projectWorkflowPreparationReadiness(workflow) {
   };
 }
 
+export function projectWorkflowDemobilizationReadiness(workflow) {
+  const sectionKeys = ['DEMOBILIZATION_FIELD', 'DEMOBILIZATION_LOGISTICS', 'DEMOBILIZATION_ASSETS'];
+  const sections = sectionKeys.map(key => {
+    const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
+    return { key, ...checklistProgress(workflow, definitions) };
+  });
+  const completed = sections.reduce((sum, section) => sum + section.completed, 0);
+  const total = sections.reduce((sum, section) => sum + section.total, 0);
+  return {
+    completed,
+    total,
+    percentage: total ? Math.round((completed / total) * 100) : 0,
+    sections
+  };
+}
+
 function readinessFromDefinitions(workflow, key, label, definitions, extraBlockers = []) {
   const byKey = new Map((workflow?.checklists || []).map(item => [item.key, item]));
   const pending = definitions.filter(definition => !resolvedChecklist(byKey.get(definition.key)));
@@ -290,7 +306,8 @@ export function allowedProjectWorkflowTransition(current, target) {
     PREPARATION: ['MOBILIZATION_PLANNING', 'READY_TO_MOBILIZE'],
     READY_TO_MOBILIZE: ['PREPARATION', 'MOBILIZATION'],
     MOBILIZATION: ['READY_TO_MOBILIZE', 'EXECUTION'],
-    EXECUTION: ['MOBILIZATION']
+    EXECUTION: ['MOBILIZATION', 'DEMOBILIZATION'],
+    DEMOBILIZATION: ['EXECUTION']
   };
   return transitions[current]?.includes(target) || false;
 }
@@ -307,7 +324,14 @@ export function projectWorkflowTransitionIssues(workflow, target) {
   }
   if (target === 'MOBILIZATION' || target === 'EXECUTION') {
     const gate = projectWorkflowMobilizationGate(workflow);
-    if (!projectWorkflowMobilizationAuthorization(workflow, gate).authorized) {
+    const authorization = projectWorkflowMobilizationAuthorization(workflow, gate);
+    const returningToExecution = workflow.stage === 'DEMOBILIZATION' && target === 'EXECUTION';
+    const returnIsRevalidated = Boolean(
+      workflow.mobilizationAuthorizedAt
+      && workflow.mobilizationAuthorizationVersion === workflow.version
+      && gate.ready
+    );
+    if (!authorization.authorized && !(returningToExecution && returnIsRevalidated)) {
       return ['O projeto precisa de uma autorização de mobilização vigente'];
     }
   }

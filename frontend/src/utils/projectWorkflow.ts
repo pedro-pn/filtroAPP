@@ -50,6 +50,11 @@ export function moveProjectInColumns(columns: ProjectKanbanColumns, projectId: s
 }
 
 export function projectWorkflowMilestoneText(item: ProjectWorkflowSummary) {
+  if (item.workflow?.stage === 'DEMOBILIZATION') {
+    if (item.workflow.demobilizationDate) return `Desmobilizada em ${new Date(`${item.workflow.demobilizationDate}T00:00:00`).toLocaleDateString('pt-BR')}`;
+    if (item.workflow.fieldCompletionDate) return `Campo concluído em ${new Date(`${item.workflow.fieldCompletionDate}T00:00:00`).toLocaleDateString('pt-BR')}`;
+    return 'Desmobilização em andamento';
+  }
   const milestones = item.workflow?.milestones;
   if (!milestones || milestones.daysUntilMobilization == null) return 'Mobilização ainda não informada';
   if (milestones.daysUntilMobilization < 0) return `Mobilização atrasada há ${Math.abs(milestones.daysUntilMobilization)} dia(s)`;
@@ -64,6 +69,7 @@ export function projectWorkflowStageOptions(stage: ProjectWorkflowStage) {
   if (stage === 'PREPARATION') return ['MOBILIZATION_PLANNING', 'READY_TO_MOBILIZE'] as ProjectWorkflowStage[];
   if (stage === 'READY_TO_MOBILIZE') return ['PREPARATION', 'MOBILIZATION'] as ProjectWorkflowStage[];
   if (stage === 'MOBILIZATION') return ['READY_TO_MOBILIZE', 'EXECUTION'] as ProjectWorkflowStage[];
-  if (stage === 'EXECUTION') return ['MOBILIZATION'] as ProjectWorkflowStage[];
+  if (stage === 'EXECUTION') return ['MOBILIZATION', 'DEMOBILIZATION'] as ProjectWorkflowStage[];
+  if (stage === 'DEMOBILIZATION') return ['EXECUTION'] as ProjectWorkflowStage[];
   return [];
 }

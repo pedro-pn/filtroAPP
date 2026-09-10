@@ -47,8 +47,22 @@ test('ações de etapa não transformam D-30 em coluna', () => {
   assert.deepEqual(projectWorkflowStageOptions('PREPARATION'), ['MOBILIZATION_PLANNING', 'READY_TO_MOBILIZE']);
   assert.deepEqual(projectWorkflowStageOptions('READY_TO_MOBILIZE'), ['PREPARATION', 'MOBILIZATION']);
   assert.deepEqual(projectWorkflowStageOptions('MOBILIZATION'), ['READY_TO_MOBILIZE', 'EXECUTION']);
-  assert.deepEqual(projectWorkflowStageOptions('EXECUTION'), ['MOBILIZATION']);
+  assert.deepEqual(projectWorkflowStageOptions('EXECUTION'), ['MOBILIZATION', 'DEMOBILIZATION']);
+  assert.deepEqual(projectWorkflowStageOptions('DEMOBILIZATION'), ['EXECUTION']);
   assert.equal(projectWorkflowMilestoneText({ workflow: { milestones: { daysUntilMobilization: 20 } } }), 'Faltam 20 dia(s)');
+  assert.equal(projectWorkflowMilestoneText({ workflow: { stage: 'DEMOBILIZATION', demobilizationDate: '2026-09-22', milestones: {} } }), 'Desmobilizada em 22/09/2026');
+});
+
+test('desmobilização integra coluna, datas e 15 controles ao Kanban único', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
+  assert.match(modal, /data-project-workflow-demobilization/);
+  assert.match(modal, /Conclusão de campo/);
+  assert.match(modal, /Logística de retorno/);
+  assert.match(modal, /Retorno de ativos/);
+  assert.match(modal, /Salvar datas efetivas/);
+  assert.match(modal, /Iniciar desmobilização/);
+  assert.match(board, /Desmobilização:/);
 });
 
 test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => {
@@ -131,7 +145,7 @@ test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe'
   assert.match(board, /Risco de mobilização/);
   assert.match(board, /Mobilização autorizada/);
   assert.match(administration, /EFETIVO_QSMS/);
-  assert.match(styles, /repeat\(10, minmax\(230px, 1fr\)\)/);
+  assert.match(styles, /repeat\(11, minmax\(230px, 1fr\)\)/);
   assert.match(styles, /project-workflow-gate-table/);
   assert.match(registry, /efetivo:qsms/);
 });

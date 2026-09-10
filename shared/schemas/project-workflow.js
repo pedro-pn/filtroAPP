@@ -6,7 +6,8 @@ export const PROJECT_WORKFLOW_STAGES = [
   'PREPARATION',
   'READY_TO_MOBILIZE',
   'MOBILIZATION',
-  'EXECUTION'
+  'EXECUTION',
+  'DEMOBILIZATION'
 ];
 
 export const PROJECT_WORKFLOW_STAGE_LABELS = {
@@ -17,7 +18,8 @@ export const PROJECT_WORKFLOW_STAGE_LABELS = {
   PREPARATION: 'Preparação',
   READY_TO_MOBILIZE: 'Pronto para mobilizar',
   MOBILIZATION: 'Mobilização',
-  EXECUTION: 'Em execução'
+  EXECUTION: 'Em execução',
+  DEMOBILIZATION: 'Desmobilização'
 };
 
 export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
@@ -34,7 +36,10 @@ export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
   'D15_MATERIALS',
   'D15_PRE_JOB',
   'D15_TRAVEL',
-  'D15_QSMS'
+  'D15_QSMS',
+  'DEMOBILIZATION_FIELD',
+  'DEMOBILIZATION_LOGISTICS',
+  'DEMOBILIZATION_ASSETS'
 ];
 
 export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
@@ -51,7 +56,10 @@ export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
   D15_MATERIALS: 'Materiais',
   D15_PRE_JOB: 'Pré-job',
   D15_TRAVEL: 'Viagem e logística',
-  D15_QSMS: 'QSMS'
+  D15_QSMS: 'QSMS',
+  DEMOBILIZATION_FIELD: 'Conclusão de campo',
+  DEMOBILIZATION_LOGISTICS: 'Logística de retorno',
+  DEMOBILIZATION_ASSETS: 'Retorno de ativos'
 };
 
 const checklist = (key, stage, section, label, areaRoles = []) => ({ key, stage, section, label, areaRoles });
@@ -162,7 +170,25 @@ export const PROJECT_WORKFLOW_CHECKLISTS = [
   checklist('D15_TRAVEL_DEPARTURE_CONFIRMED', 'PREPARATION', 'D15_TRAVEL', 'Data e hora da saída confirmadas', ['efetivo:operations']),
 
   checklist('D15_QSMS_REQUIREMENTS_CHECKED', 'PREPARATION', 'D15_QSMS', 'Requisitos de QSMS verificados', ['efetivo:qsms']),
-  checklist('D15_QSMS_RELEASE_CONFIRMED', 'PREPARATION', 'D15_QSMS', 'Liberação de QSMS confirmada, quando aplicável', ['efetivo:qsms'])
+  checklist('D15_QSMS_RELEASE_CONFIRMED', 'PREPARATION', 'D15_QSMS', 'Liberação de QSMS confirmada, quando aplicável', ['efetivo:qsms']),
+
+  checklist('DEMOB_FIELD_SCOPE_COMPLETED', 'DEMOBILIZATION', 'DEMOBILIZATION_FIELD', 'Escopo de campo concluído', ['efetivo:operations']),
+  checklist('DEMOB_FIELD_CLIENT_CONFIRMED', 'DEMOBILIZATION', 'DEMOBILIZATION_FIELD', 'Cliente confirmou a conclusão', ['efetivo:operations']),
+  checklist('DEMOB_FIELD_QUANTITIES_CHECKED', 'DEMOBILIZATION', 'DEMOBILIZATION_FIELD', 'Quantitativos conferidos', ['efetivo:operations']),
+  checklist('DEMOB_FIELD_EXTRA_SERVICES_IDENTIFIED', 'DEMOBILIZATION', 'DEMOBILIZATION_FIELD', 'Serviços extras identificados', ['efetivo:operations']),
+  checklist('DEMOB_FIELD_PENDING_ITEMS_RECORDED', 'DEMOBILIZATION', 'DEMOBILIZATION_FIELD', 'Pendências de campo registradas', ['efetivo:operations']),
+  checklist('DEMOB_FIELD_EQUIPMENT_CHECKED', 'DEMOBILIZATION', 'DEMOBILIZATION_FIELD', 'Equipamentos conferidos', ['efetivo:operations', 'efetivo:assets']),
+  checklist('DEMOB_FIELD_MATERIALS_CHECKED', 'DEMOBILIZATION', 'DEMOBILIZATION_FIELD', 'Materiais conferidos', ['efetivo:operations', 'efetivo:supplies']),
+  checklist('DEMOB_FIELD_TOOLS_CHECKED', 'DEMOBILIZATION', 'DEMOBILIZATION_FIELD', 'Ferramentas conferidas', ['efetivo:operations', 'efetivo:assets']),
+
+  checklist('DEMOB_LOGISTICS_TEAM_RETURN_ORGANIZED', 'DEMOBILIZATION', 'DEMOBILIZATION_LOGISTICS', 'Retorno da equipe organizado', ['efetivo:operations']),
+  checklist('DEMOB_LOGISTICS_EQUIPMENT_RETURN_ORGANIZED', 'DEMOBILIZATION', 'DEMOBILIZATION_LOGISTICS', 'Retorno dos equipamentos organizado', ['efetivo:operations', 'efetivo:assets']),
+  checklist('DEMOB_LOGISTICS_LODGING_CLOSED', 'DEMOBILIZATION', 'DEMOBILIZATION_LOGISTICS', 'Hospedagem encerrada', ['efetivo:administrative']),
+  checklist('DEMOB_LOGISTICS_RETURN_TRANSPORT_DEFINED', 'DEMOBILIZATION', 'DEMOBILIZATION_LOGISTICS', 'Frete ou veículo de retorno definido', ['efetivo:operations']),
+
+  checklist('DEMOB_ASSETS_RETURNED_TO_BASE', 'DEMOBILIZATION', 'DEMOBILIZATION_ASSETS', 'Equipamentos retornaram para a sede', ['efetivo:assets']),
+  checklist('DEMOB_ASSETS_DELIVERED', 'DEMOBILIZATION', 'DEMOBILIZATION_ASSETS', 'Equipamentos entregues para Ativos', ['efetivo:assets']),
+  checklist('DEMOB_ASSETS_DAMAGE_RECORDED', 'DEMOBILIZATION', 'DEMOBILIZATION_ASSETS', 'Avarias e problemas registrados', ['efetivo:assets', 'efetivo:operations'])
 ];
 
 export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS = [
@@ -294,11 +320,22 @@ export function makeProjectWorkflowSchemas(z) {
     version,
     stage: z.enum(PROJECT_WORKFLOW_STAGES)
   }).strict();
+  const demobilization = z.object({
+    action: z.literal('demobilization'),
+    version,
+    fieldCompletionDate: dateOnly.nullable().optional(),
+    returnDate: dateOnly.nullable().optional()
+  }).strict().refine(value => Object.hasOwn(value, 'fieldCompletionDate') || Object.hasOwn(value, 'returnDate'), {
+    message: 'Informe ao menos uma data para alterar.'
+  }).refine(value => !value.fieldCompletionDate || !value.returnDate || value.fieldCompletionDate <= value.returnDate, {
+    path: ['returnDate'],
+    message: 'A desmobilização não pode ser anterior à conclusão de campo.'
+  });
   const authorizeMobilization = z.object({ action: z.literal('authorize_mobilization'), version }).strict();
   const commercialFact = makeProjectWorkflowCommercialFactSchema(z);
   return {
     start,
-    patch: z.discriminatedUnion('action', [settings, checklist, critical, issue, accept, stage, authorizeMobilization, commercialFact]),
+    patch: z.discriminatedUnion('action', [settings, checklist, critical, issue, accept, stage, demobilization, authorizeMobilization, commercialFact]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)
