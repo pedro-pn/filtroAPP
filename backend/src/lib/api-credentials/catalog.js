@@ -3,7 +3,7 @@ import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 import { describePlaygroundParameters } from './playground-parameters.js';
 
-export const API_CATALOG_VERSION = '2026-09-09';
+export const API_CATALOG_VERSION = '2026-09-10';
 export { API_DATA_DOMAINS, DATA_CATALOG_VERSION, flattenDataCatalogModels, futureScopeDefinitions } from './data-catalog.js';
 
 const QUALITY_RECORD_FIELDS = ['id', 'number', 'type', 'registeredAt', 'origin', 'project', 'eventDate', 'nature', 'description', 'impact', 'recurrence', 'linkedRnc', 'disposition', 'definedAction', 'actionOwner', 'actionDeadline', 'evidenceSummary', 'resultVerification', 'status', 'createdAt', 'updatedAt'];
@@ -44,7 +44,7 @@ export const API_OPERATIONS = Object.freeze([
     operationId: 'quality.records.list', openApiOperationId: 'qualityRecordsList', method: 'GET', path: '/qualidade/registros',
     requiredScopes: ['qualidade.registros.read'],
     optionalScopes: ['qualidade.evidencias.metadata.read', 'qualidade.excluidos.read'],
-    queryParams: ['limit', 'cursor', 'updatedSince', 'updatedUntil', 'snapshotAt', 'projectId', 'natureId', 'eventDateFrom', 'eventDateTo', 'status', 'type', 'includeDeleted'],
+    queryParams: ['limit', 'cursor', 'updatedSince', 'updatedUntil', 'snapshotAt', 'projectCode', 'projectId', 'natureId', 'eventDateFrom', 'eventDateTo', 'status', 'type', 'includeDeleted'],
     supportsPlayground: true
   },
   {

@@ -48,10 +48,14 @@ test('missing, malformed, unknown, scheduled, expired, revoked and human session
 });
 
 test('valid token exposes only server-side credential context and enforces CIDR', async () => {
-  const ok = await invoke(null, `Bearer ${issued.token}`, credential({ allowedIpCidrs: ['203.0.113.0/24'] }));
+  const ok = await invoke(null, `Bearer ${issued.token}`, credential({
+    allowedIpCidrs: ['203.0.113.0/24'], projectAccessMode: 'SELECTED',
+    projects: [{ projectId: 'project-1', project: { code: '05776' } }]
+  }));
   assert.equal(ok.next, true);
   assert.equal(ok.req.apiAuth.credentialId, 'cred_1');
   assert.equal(ok.req.apiAuth.scopeCodes.has('qualidade.registros.read'), true);
+  assert.equal(ok.req.apiAuth.projectCodes.has('05776'), true);
   assert.equal('token' in ok.req.apiAuth, false);
   const denied = await invoke(null, `Bearer ${issued.token}`, credential({ allowedIpCidrs: ['10.0.0.0/8'] }));
   assert.equal(denied.statusCode, 403);

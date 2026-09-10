@@ -5,13 +5,13 @@ import { Prisma } from '@prisma/client';
 import { API_SCOPES, API_OPERATIONS, futureScopeDefinitions, publicApiOperations } from '../src/lib/api-credentials/catalog.js';
 import { OPERATIONAL_RESOURCES, BASE_OPERATIONAL_RESOURCES } from '../src/lib/api-credentials/operational-resources.js';
 import { serializeOperationalResource } from '../src/lib/api-credentials/operational-serialization.js';
-import { listOperationalResources } from '../src/lib/api-credentials/operational-service.js';
+import { listOperationalResources, operationalVisibilityWhere } from '../src/lib/api-credentials/operational-service.js';
 import { createOperationalRouter } from '../src/routes/integrations/v1/operational.js';
 import { executePlaygroundOperation } from '../src/lib/api-credentials/playground.js';
 
 const key = 'synthetic-operational-cursor-key-at-least-32-chars';
 const stamp = new Date('2026-09-07T10:00:00.000Z');
-const context = (overrides = {}) => ({ scopes: new Set(API_SCOPES.map(item => item.code)), projectAccessMode: 'SELECTED', projectIds: new Set(['p1']), maxPageSize: 100, cursorKey: key, snapshotAt: new Date('2026-09-08T10:00:00Z'), ...overrides });
+const context = (overrides = {}) => ({ scopes: new Set(API_SCOPES.map(item => item.code)), projectAccessMode: 'SELECTED', projectIds: new Set(['p1']), projectCodes: new Set(['05776']), maxPageSize: 100, cursorKey: key, snapshotAt: new Date('2026-09-08T10:00:00Z'), ...overrides });
 const definition = model => OPERATIONAL_RESOURCES.find(item => item.model === model);
 const approved = projectId => ({ projectId, status: 'APPROVED', deletedAt: null, project: { deletedAt: null } });
 const sample = (resource, extra = {}) => ({ ...Object.fromEntries(Object.entries(resource.fields).map(([field, type]) => [field,
@@ -131,6 +131,66 @@ test('project isolation covers self, direct, report and collaborator links; reje
   const standalone = database(maintenance, [sample(maintenance, { id: 'a', status: 'APPROVED', reportId: null, report: null })]);
   assert.equal((await listOperationalResources(standalone, maintenance.operationId, {}, context())).items.length, 0);
   assert.equal((await listOperationalResources(standalone, maintenance.operationId, {}, context({ projectAccessMode: 'ALL' }))).items.length, 1);
+});
+
+test('projectCode is available on every project-bound collection and covers every project policy', async () => {
+  for (const resource of OPERATIONAL_RESOURCES) {
+    assert.equal(resource.queryParams.includes('projectCode'), resource.projectPolicy !== 'GLOBAL', resource.operationId);
+    assert.equal(resource.queryParams.includes('projectId'), resource.projectPolicy !== 'GLOBAL', resource.operationId);
+  }
+
+  const parent = (projectId, code) => ({
+    id: `r-${projectId}`, projectId, status: 'APPROVED', deletedAt: null, createdAt: stamp,
+    project: { id: projectId, code, deletedAt: null }
+  });
+  const rows = (projectId, code) => ({
+    SELF: { id: projectId, code, deletedAt: null },
+    DIRECT: { projectId, status: 'APPROVED', deletedAt: null, project: parent(projectId, code).project },
+    REPORT: { status: 'APPROVED', reportId: `r-${projectId}`, report: parent(projectId, code) },
+    MAINTENANCE: { maintenance: { status: 'APPROVED', reportId: `r-${projectId}`, report: parent(projectId, code) } },
+    STOCK_BATCH: { movements: [{ projectId, project: { code, deletedAt: null } }] },
+    REPORT_ATTACHMENT: { reportId: `r-${projectId}`, report: parent(projectId, code), reportServiceId: null, reportService: null },
+    COLLABORATOR_REPORT: { reportLinks: [{ report: parent(projectId, code) }] }
+  });
+  const representatives = {
+    SELF: 'Project', DIRECT: 'Report', REPORT: 'MaintenanceRecord', MAINTENANCE: 'MaintenanceThirdPartyService',
+    STOCK_BATCH: 'StockBatch', REPORT_ATTACHMENT: 'ReportAttachment', COLLABORATOR_REPORT: 'Collaborator'
+  };
+  for (const [policy, model] of Object.entries(representatives)) {
+    const resource = definition(model);
+    const where = operationalVisibilityWhere(resource, { projectCode: '05776' }, context({ projectAccessMode: 'ALL' }));
+    assert.equal(matches(rows('p1', '05776')[policy], where), true, policy);
+    assert.equal(matches(rows('p2', '9999')[policy], where), false, policy);
+  }
+  await assert.rejects(() => listOperationalResources({}, definition('Report').operationId, { projectCode: '9999' }, context()), error => error.code === 'PROJECT_NOT_ALLOWED');
+});
+
+test('reportType filters reports and their related RDO collections', async () => {
+  const report = definition('Report');
+  const reportWhere = operationalVisibilityWhere(report, { reportType: ['RCPU'] }, context({ projectAccessMode: 'ALL' }));
+  assert.equal(matches({ reportType: 'RCPU' }, reportWhere.AND.at(-1)), true);
+  assert.equal(matches({ reportType: 'RDO' }, reportWhere.AND.at(-1)), false);
+
+  for (const resource of OPERATIONAL_RESOURCES.filter(item => item.filterFields.includes('reportType') && item !== report)) {
+    const where = operationalVisibilityWhere(resource, { reportType: ['RCPU'] }, context({ projectAccessMode: 'ALL' }));
+    const matching = resource.projectPolicy === 'REPORT_ATTACHMENT'
+      ? { report: { reportType: 'RCPU' }, reportService: null }
+      : { report: { reportType: 'RCPU' } };
+    const different = resource.projectPolicy === 'REPORT_ATTACHMENT'
+      ? { report: { reportType: 'RDO' }, reportService: null }
+      : { report: { reportType: 'RDO' } };
+    assert.equal(matches(matching, where.AND.at(-1)), true, resource.model);
+    assert.equal(matches(different, where.AND.at(-1)), false, resource.model);
+  }
+
+  const rows = [
+    sample(report, { id: 'rcpu', ...approved('p1'), project: { code: '05776', deletedAt: null }, reportType: 'RCPU' }),
+    sample(report, { id: 'rdo', ...approved('p1'), project: { code: '05776', deletedAt: null }, reportType: 'RDO' })
+  ];
+  const result = await listOperationalResources(database(report, rows), report.operationId,
+    { projectCode: '05776', reportType: 'RCPU' }, context());
+  assert.deepEqual(result.items.map(item => item.id), ['rcpu']);
+  await assert.rejects(() => listOperationalResources({}, report.operationId, { reportType: 'INVALID' }, context()), error => error.name === 'ZodError');
 });
 
 test('stable pagination handles tied timestamps, fixes snapshot and binds cursor to operation, filters and project policy', async () => {

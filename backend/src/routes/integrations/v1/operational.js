@@ -30,6 +30,7 @@ export function createOperationalRouter({
           scopes: req.apiAuth.scopeCodes,
           projectAccessMode: req.apiAuth.credential.projectAccessMode,
           projectIds: req.apiAuth.projectIds,
+          projectCodes: req.apiAuth.projectCodes,
           maxPageSize: Math.min(
             req.apiAuth.credential.maxPageSize,
             envConfig.apiTokenGlobalMaxPageSize
@@ -48,7 +49,9 @@ export function createOperationalRouter({
           operationId: resource.operationId,
           requestedRows: query.limit,
           filterSummary: {
+            ...(query.projectCode ? { projectCode: query.projectCode } : {}),
             ...(query.projectId ? { projectId: query.projectId } : {}),
+            ...(query.reportType ? { reportType: query.reportType.join(',') } : {}),
             ...(query.updatedSince ? { updatedSince: query.updatedSince } : {})
           },
           execute: async () => {

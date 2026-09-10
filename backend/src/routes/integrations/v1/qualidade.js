@@ -19,6 +19,7 @@ function context(req) {
     scopes: req.apiAuth.scopeCodes,
     projectAccessMode: req.apiAuth.credential.projectAccessMode,
     projectIds: req.apiAuth.projectIds,
+    projectCodes: req.apiAuth.projectCodes,
     maxPageSize: req.apiAuth.credential.maxPageSize,
     cursorKey: env.apiTokenHashKeys[env.apiTokenActiveKeyVersion],
     snapshotAt: new Date()
@@ -35,6 +36,7 @@ router.get('/registros', requireApiOperation('quality.records.list'), asyncHandl
     operationId: 'quality.records.list',
     requestedRows: query.limit,
     filterSummary: {
+      ...(query.projectCode ? { projectCode: query.projectCode } : {}),
       ...(query.projectId ? { projectId: query.projectId } : {}),
       ...(query.updatedSince ? { updatedSince: query.updatedSince } : {}),
       includeDeleted: query.includeDeleted

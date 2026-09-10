@@ -117,7 +117,7 @@ Nunca incluir `seq`, `year` como mecanismo interno, `createdById`, `updatedById`
 ### Filtros públicos de registros
 
 - `updatedSince` e `updatedUntil` em ISO-8601 UTC.
-- `projectId` somente dentro da allowlist da credencial.
+- `projectCode` (preferencial) ou `projectId` (compatibilidade) somente dentro da allowlist da credencial; nunca os dois juntos.
 - `type`, `status`, `natureId`, `eventDateFrom`, `eventDateTo` e `includeDeleted`.
 - `limit` entre 1 e o menor de 500 ou `maxPageSize` da credencial.
 - `cursor` opaco vinculado à versão, operação e hash dos demais filtros.

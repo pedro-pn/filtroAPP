@@ -411,6 +411,11 @@ paths:
         - name: projectId
           in: query
           schema: { type: string, minLength: 1, maxLength: 100 }
+          description: Identificador interno mantido para compatibilidade; não combine com projectCode.
+        - name: projectCode
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 100 }
+          description: Código cadastrado do projeto, tratado como texto e com zeros à esquerda preservados; não combine com projectId.
         - name: type
           in: query
           schema: { type: string, maxLength: 40 }
@@ -552,7 +557,7 @@ paths:
       description: "Com projetos selecionados, inclui somente colaboradores de equipes de relatórios aprovados desses projetos; não representa alocação atual."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: [colaboradores.operacional.read]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"active","in":"query","schema":{"type":"boolean"}}]
       responses:
         '200':
           description: Página operacional por updatedAt e id, sem campos não contratados.
@@ -628,7 +633,7 @@ paths:
       description: "Somente projetos autorizados e não excluídos."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: [projetos.read]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"active","in":"query","schema":{"type":"boolean"}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"active","in":"query","schema":{"type":"boolean"}}]
       responses:
         '200':
           description: Página operacional por updatedAt e id, sem campos não contratados.
@@ -704,7 +709,7 @@ paths:
       description: "Número do relatório e código/nome do projeto, descrição diária e motivo de horas extras. Somente relatórios aprovados, não excluídos e de projetos autorizados não excluídos."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: [rdo.relatorios.read]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"$ref":"#/components/parameters/IntegrationReportType"}]
       responses:
         '200':
           description: Página operacional por updatedAt e id, sem campos não contratados.
@@ -780,7 +785,7 @@ paths:
       description: "Respeita o projeto do relatório aprovado. Manutenções avulsas aprovadas somente com acesso a todos os projetos."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: [manutencao.registros.read]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."}]
       responses:
         '200':
           description: Página operacional por updatedAt e id, sem campos não contratados.
@@ -894,7 +899,7 @@ paths:
       description: "Somente limpezas de relatórios aprovados e projetos autorizados não excluídos."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: [producao.limpezas.read]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."}]
       responses:
         '200':
           description: Página operacional por updatedAt e id, sem campos não contratados.
@@ -1122,7 +1127,7 @@ paths:
       description: "Somente relatórios aprovados e projetos autorizados não excluídos. createdSince detecta somente criações; reconciliar alterações por leitura completa."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: ["rdo.relatorios.read","rdo.versoes.read"]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"$ref":"#/components/parameters/IntegrationReportType"}]
       responses:
         '200':
           description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
@@ -1160,7 +1165,7 @@ paths:
       description: "Somente relatórios aprovados e projetos autorizados não excluídos. Sem filtro incremental: reconciliar a equipe por leitura completa."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: ["rdo.relatorios.read","rdo.equipe.read"]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"$ref":"#/components/parameters/IntegrationReportType"}]
       responses:
         '200':
           description: Página por reportId, collaboratorId. Snapshot é teto temporal, não uma transação entre páginas.
@@ -1199,7 +1204,7 @@ paths:
       security: [{ IntegrationToken: [] }]
       x-required-scopes: ["rdo.relatorios.read","rdo.servicos.read"]
       x-optional-scopes: ["rdo.equipe.read"]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"$ref":"#/components/parameters/IntegrationReportType"}]
       responses:
         '200':
           description: Página por updatedAt, id. Snapshot é teto temporal, não uma transação entre páginas.
@@ -1237,7 +1242,7 @@ paths:
       description: "Somente relatórios aprovados e projetos autorizados não excluídos. createdSince detecta somente criações; reconciliar alterações por leitura completa."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: ["rdo.relatorios.read","rdo.anexos.metadata.read"]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"$ref":"#/components/parameters/IntegrationReportType"}]
       responses:
         '200':
           description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
@@ -1275,7 +1280,7 @@ paths:
       description: "Somente relatórios aprovados e projetos autorizados não excluídos."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: ["rdo.relatorios.read","rdo.assinaturas.read"]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"$ref":"#/components/parameters/IntegrationReportType"}]
       responses:
         '200':
           description: Página por updatedAt, id. Snapshot é teto temporal, não uma transação entre páginas.
@@ -1313,7 +1318,7 @@ paths:
       description: "Somente relatórios aprovados e projetos autorizados não excluídos. createdSince detecta somente criações; reconciliar alterações por leitura completa."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: ["rdo.relatorios.read","rdo.auditoria.read"]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"reportId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"$ref":"#/components/parameters/IntegrationReportType"}]
       responses:
         '200':
           description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
@@ -1351,7 +1356,7 @@ paths:
       description: "Com projetos selecionados, somente lotes com movimento nesses projetos. Não representa saldo por projeto. createdSince detecta somente criações; reconciliar alterações por leitura completa."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: ["estoque.itens.read","estoque.lotes.read"]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"itemId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"itemId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
       responses:
         '200':
           description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
@@ -1389,7 +1394,7 @@ paths:
       description: "Somente movimentos de projetos autorizados não excluídos; sem projeto exige todos os projetos. createdSince detecta somente criações; reconciliar alterações por leitura completa."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: ["estoque.itens.read","estoque.movimentos.read"]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"itemId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"itemId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
       responses:
         '200':
           description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
@@ -1465,7 +1470,7 @@ paths:
       description: "Somente movimentos de projetos autorizados não excluídos; sem projeto exige todos os projetos. Inclui valores financeiros; permissão independente da leitura operacional. createdSince detecta somente criações; reconciliar alterações por leitura completa."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: ["estoque.itens.read","estoque.movimentos.read","estoque.custos.read"]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"itemId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"itemId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
       responses:
         '200':
           description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
@@ -1503,7 +1508,7 @@ paths:
       description: "Somente manutenções aprovadas; avulsas exigem todos os projetos."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: ["manutencao.registros.read","manutencao.terceiros.read"]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"maintenanceId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"updatedSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"maintenanceId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
       responses:
         '200':
           description: Página por updatedAt, id. Snapshot é teto temporal, não uma transação entre páginas.
@@ -1541,7 +1546,7 @@ paths:
       description: "Somente manutenções aprovadas; avulsas exigem todos os projetos. createdSince detecta somente criações; reconciliar alterações por leitura completa."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: ["manutencao.registros.read","manutencao.anexos.metadata.read"]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"maintenanceId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"maintenanceId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
       responses:
         '200':
           description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
@@ -1579,7 +1584,7 @@ paths:
       description: "Somente manutenções aprovadas; avulsas exigem todos os projetos. createdSince detecta somente criações; reconciliar alterações por leitura completa."
       security: [{ IntegrationToken: [] }]
       x-required-scopes: ["manutencao.registros.read","manutencao.auditoria.read"]
-      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}},{"name":"maintenanceId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
+      parameters: [{"$ref":"#/components/parameters/IntegrationLimit"},{"$ref":"#/components/parameters/IntegrationCursor"},{"name":"createdSince","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"snapshotAt","in":"query","schema":{"type":"string","format":"date-time"}},{"name":"projectId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Identificador interno mantido para compatibilidade; nao combine com projectCode."},{"name":"projectCode","in":"query","schema":{"type":"string","minLength":1,"maxLength":100},"description":"Codigo cadastrado do projeto, tratado como texto e com zeros a esquerda preservados; nao combine com projectId."},{"name":"maintenanceId","in":"query","schema":{"type":"string","minLength":1,"maxLength":100}}]
       responses:
         '200':
           description: Página por createdAt, id. Snapshot é teto temporal, não uma transação entre páginas.
@@ -1780,6 +1785,17 @@ components:
       in: query
       schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
       description: Também limitado pelo `maxPageSize` da credencial.
+    IntegrationReportType:
+      name: reportType
+      in: query
+      style: form
+      explode: false
+      description: "Um ou mais tipos de relatório separados por vírgula. Exemplo para RCPUs: reportType=RCPU."
+      schema:
+        type: array
+        items:
+          type: string
+          enum: [RDO, RDO_MAINTENANCE, RDO_PRODUCTION, RTP, RLQ, RCPU, RLM, RLF, RLI]
 
   responses:
     AdminUnauthorized:

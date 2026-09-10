@@ -64,7 +64,44 @@ curl --fail-with-body \
   "https://seu-dominio/api/integracoes/v1/rdo/relatorios?limit=20"
 ```
 
-No modo de projetos selecionados, relatórios/produção respeitam o projeto; colaboradores são limitados à equipe de relatórios aprovados desses projetos. Manutenções avulsas só aparecem em `ALL`. Cargos, segmentos, DDS, perfis, equipamentos e itens/categorias de estoque são cadastros globais compartilhados e não aceitam `projectId`.
+No modo de projetos selecionados, relatórios/produção respeitam o projeto; colaboradores são limitados à equipe de relatórios aprovados desses projetos. Manutenções avulsas só aparecem em `ALL`. Cargos, segmentos, DDS, perfis, equipamentos e itens/categorias de estoque são cadastros globais compartilhados e não aceitam filtros de projeto.
+
+Toda coleção vinculada a projeto aceita `projectCode`, que é o filtro recomendado para integrações, e `projectId`, mantido para compatibilidade. O código é texto e preserva zeros à esquerda. Não envie os dois filtros juntos. Em tokens com projetos selecionados, ambos continuam sujeitos ao recorte da credencial.
+
+```bash
+curl --fail-with-body --get \
+  -H "Authorization: Bearer $FILTRO_API_TOKEN" \
+  -H "Accept: application/json" \
+  --data-urlencode "projectCode=05776" \
+  --data-urlencode "limit=100" \
+  "https://seu-dominio/api/integracoes/v1/rdo/servicos"
+```
+
+### Receita: consultar os RCPUs de um projeto
+
+Para listar somente os relatórios RCPU aprovados do projeto de código `5800`, a operação é `operational.Report.list`, exige `rdo.relatorios.read` e usa esta URI:
+
+```http
+GET /api/integracoes/v1/rdo/relatorios?projectCode=5800&reportType=RCPU&limit=100
+```
+
+```bash
+curl --fail-with-body --get \
+  -H "Authorization: Bearer $FILTRO_API_TOKEN" \
+  -H "Accept: application/json" \
+  --data-urlencode "projectCode=5800" \
+  --data-urlencode "reportType=RCPU" \
+  --data-urlencode "limit=100" \
+  "https://seu-dominio/api/integracoes/v1/rdo/relatorios"
+```
+
+Se o objetivo for consultar os **serviços registrados dentro desses RCPUs**, use `operational.ReportService.list`. Essa operação exige `rdo.relatorios.read` e `rdo.servicos.read`:
+
+```http
+GET /api/integracoes/v1/rdo/servicos?projectCode=5800&reportType=RCPU&limit=100
+```
+
+`reportType` aceita `RDO`, `RDO_MAINTENANCE`, `RDO_PRODUCTION`, `RTP`, `RLQ`, `RCPU`, `RLM`, `RLF` e `RLI`. Para consultar mais de um tipo, separe os códigos por vírgula, por exemplo `reportType=RCPU,RTP`.
 
 Tokens existentes não ganham permissões: gere um novo token com os escopos necessários no catálogo unificado. Os demais candidatos continuam desabilitados.
 
@@ -80,7 +117,7 @@ Foram acrescentadas 16 permissões específicas (13 consultas e 3 downloads). Ca
 
 O [contrato da expansão](../specs/015-api-token-playground/contracts/operational-expanded-read.md) lista as permissões e os dados de cada operação. Assinaturas expõem situação/papel/datas, não nomes, imagens ou provas. Auditoria expõe ação/transição e data, não atores ou observações. `estoque.custos.read` requer também `estoque.movimentos.read` e `estoque.itens.read`; custos/quantidades decimais são strings, sem perda de precisão. Documentos de estoque são globais; lotes com projeto selecionado exigem movimento no projeto, mas não representam saldo por projeto.
 
-Filtros por `reportId`, `maintenanceId` e `itemId` estão disponíveis apenas onde indicados no catálogo. As coleções sem `updatedAt` aceitam `createdSince`, que detecta somente criações. Equipe não possui timestamp: ordena por `(reportId,collaboratorId)` e exige leitura completa para reconciliação. Não envie `updatedSince` nessas operações.
+Filtros por `projectCode`/`projectId`, `reportType`, `reportId`, `maintenanceId` e `itemId` estão disponíveis apenas onde indicados no catálogo. As coleções sem `updatedAt` aceitam `createdSince`, que detecta somente criações. Equipe não possui timestamp: ordena por `(reportId,collaboratorId)` e exige leitura completa para reconciliação. Não envie `updatedSince` nessas operações.
 
 ```bash
 # Escopos: estoque.itens.read + estoque.movimentos.read
@@ -109,7 +146,7 @@ Arquivos sem armazenamento local válido, com pasta de outro projeto, com links 
 
 `GET /rdo/relatorios` retorna `sequenceNumber` (número salvo no relatório), `reportNumber` (por exemplo, `RDO 27` ou `RLQ 3`), `projectCode` (número/código do projeto, preservado como texto), `projectName`, `dailyDescription` e `overtimeReason`, além dos campos já existentes. Um relatório ainda sem sequência tem os dois campos de numeração nulos. O número é contextualizado pelo projeto e pelo tipo de relatório.
 
-`GET /rdo/servicos` inclui `reportId`, `reportNumber`, `reportSequenceNumber`, `reportType`, `reportDate`, `projectId`, `projectCode`, `projectName`, `equipmentName` e `equipmentCode`, além do tipo de serviço, sistema, material, horários e conclusão. O relatório associado pode ser um RDO ou um relatório técnico derivado (RLQ, RTP, RCPU, RLM, RLF ou RLI); use `reportType` para distinguir registros diários de consolidações e evitar somar os dois como serviços independentes.
+`GET /rdo/servicos` inclui `reportId`, `reportNumber`, `reportSequenceNumber`, `reportType`, `reportDate`, `projectId`, `projectCode`, `projectName`, `equipmentName` e `equipmentCode`, além do tipo de serviço, sistema, material, horários e conclusão. O relatório associado pode ser um RDO ou um relatório técnico derivado (RLQ, RTP, RCPU, RLM, RLF ou RLI); filtre com `reportType=RCPU`, por exemplo, para evitar misturar registros diários e consolidações.
 
 O objeto `serviceData` contém os campos técnicos preenchidos no formulário:
 

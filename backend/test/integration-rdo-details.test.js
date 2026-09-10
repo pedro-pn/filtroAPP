@@ -183,11 +183,15 @@ function meteredDb() {
 
 test('real HTTP route handler and administrative playground return the same enriched service data', async () => {
   const { db, credential } = meteredDb();
-  const result = await executePlaygroundOperation(db, 'credential', { operationId: serviceResource.operationId, query: {}, pathParams: {} }, { cursorKey: ctx().cursorKey });
+  const result = await executePlaygroundOperation(db, 'credential', { operationId: serviceResource.operationId, query: { projectCode: '05776', reportType: 'RDO' }, pathParams: {} }, { cursorKey: ctx().cursorKey });
   assert.equal(result.response.body.items[0].equipmentName, 'Tanque A');
+  const requestUrl = new URL(result.request.path, 'https://example.invalid');
+  assert.equal(requestUrl.pathname, '/api/integracoes/v1/rdo/servicos');
+  assert.equal(requestUrl.searchParams.get('projectCode'), '05776');
+  assert.equal(requestUrl.searchParams.get('reportType'), 'RDO');
   const router = createOperationalRouter({ prismaClient: db, envConfig: { apiTokenGlobalMaxPageSize: 500, apiTokenHashKeys: { 1: ctx().cursorKey }, apiTokenActiveKeyVersion: 1 } });
   const route = router.stack.find(layer => layer.route?.path === '/rdo/servicos').route;
-  const req = { query: {}, requestId: 'rdo-details-request', headers: {}, apiAuth: { credential, scopeCodes: ctx().scopes, projectIds: new Set() } };
+  const req = { query: { projectCode: '05776', reportType: 'RDO' }, requestId: 'rdo-details-request', headers: {}, apiAuth: { credential, scopeCodes: ctx().scopes, projectIds: new Set(), projectCodes: new Set() } };
   const response = await new Promise((resolve, reject) => route.stack[0].handle(req, {}, () => route.stack[1].handle(req, { json: resolve }, reject)));
   assert.deepEqual(response.items, result.response.body.items);
   assert.equal(response.items[0].totalLengthMeters, '10');

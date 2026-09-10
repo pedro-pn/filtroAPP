@@ -64,7 +64,7 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
   const operation = getApiOperation(parsed.operationId);
   const credential = await prisma.apiCredential.findUnique({
     where: { id: credentialId },
-    include: { scopes: { where: { revokedAt: null }, select: { scopeCode: true } }, projects: { where: { revokedAt: null }, select: { projectId: true } } }
+    include: { scopes: { where: { revokedAt: null }, select: { scopeCode: true } }, projects: { where: { revokedAt: null }, select: { projectId: true, project: { select: { code: true } } } } }
   });
   if (!credential) throw new ApiCredentialServiceError(404, 'NOT_FOUND', 'Credencial não encontrada.');
   if (!['ACTIVE', 'NEAR_EXPIRY'].includes(effectiveCredentialStatus(credential, options.now || new Date()))) {
@@ -93,6 +93,7 @@ export async function executePlaygroundOperation(prisma, credentialId, input, op
     scopes,
     projectAccessMode: credential.projectAccessMode,
     projectIds: new Set(credential.projects.map(item => item.projectId)),
+    projectCodes: new Set(credential.projects.map(item => item.project?.code).filter(Boolean)),
     maxPageSize: Math.min(credential.maxPageSize, PLAYGROUND_MAX_ITEMS),
     cursorKey: options.cursorKey,
     snapshotAt: options.now || new Date()

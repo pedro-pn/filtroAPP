@@ -1,6 +1,6 @@
 # Filtrovali — Plataforma de Gestão de Campo
 
-Aplicação web modular para a gestão operacional da Filtrovali. Nasceu como sistema de relatórios técnicos de campo e evoluiu para uma plataforma com múltiplos módulos — relatórios e projetos (RDO), acompanhamento financeiro de projetos, romaneio de equipamentos, controle de estoque, cadastro de equipamentos, liberação de EPI, assinaturas avulsas e privacidade (LGPD) — todos acessados a partir de um hub central com controle de acesso por módulo.
+Aplicação web modular para a gestão operacional da Filtrovali. Nasceu como sistema de relatórios técnicos de campo e evoluiu para uma plataforma que reúne relatórios e projetos (RDO), manutenção e produção, acompanhamento financeiro, qualidade, planejamento de efetivo, logística de equipamentos, estoque, EPI, assinaturas e privacidade (LGPD). Os módulos são acessados por um hub central com controle de acesso por papel; integrações externas consultam dados autorizados por uma API somente leitura com tokens de menor privilégio.
 
 ## Índice
 
@@ -12,9 +12,11 @@ Aplicação web modular para a gestão operacional da Filtrovali. Nasceu como si
 - [Funcionalidades por Módulo](#funcionalidades-por-módulo)
 - [Tipos de Relatório](#tipos-de-relatório)
 - [Integrações](#integrações)
+- [API de Integrações e Playground](#api-de-integrações-e-playground)
 - [Configuração do Ambiente](#configuração-do-ambiente)
   - [Desenvolvimento local (Node direto)](#desenvolvimento-local-node-direto)
   - [Desenvolvimento local (Docker)](#desenvolvimento-local-docker)
+- [Validação e Testes](#validação-e-testes)
 - [Deploy em Produção](#deploy-em-produção)
 - [Variáveis de Ambiente](#variáveis-de-ambiente)
 - [Banco de Dados](#banco-de-dados)
@@ -36,7 +38,7 @@ A plataforma centraliza o ciclo operacional da Filtrovali em módulos independen
 5. Relatório assinado fica disponível para download em PDF.
 6. Ao arquivar o projeto, o cliente recebe uma pesquisa de satisfação NPS por e-mail.
 
-Em torno desse núcleo, os demais módulos cobrem custos e previsto x realizado de projetos, logística de equipamentos, estoque, cadastro técnico de equipamentos, entrega de EPI e atendimento a solicitações LGPD.
+Em torno desse núcleo, os demais módulos cobrem custos e previsto x realizado, RDOs de manutenção e produção, registros de qualidade, capacidade e alocação de efetivo, logística de equipamentos, estoque, entrega de EPI, assinaturas avulsas e atendimento a solicitações LGPD.
 
 ---
 
@@ -47,7 +49,10 @@ Cada módulo tem sua própria área na aplicação, papéis de acesso e prefixo 
 | Módulo | Prefixo API | Descrição |
 |---|---|---|
 | **Relatórios e Projetos (RDO)** | `/api/rdo` | Relatórios técnicos, aprovações, portal do cliente, projetos e estatísticas |
+| **Manutenção e Produção** | `/api/rdo/operational-reports` | RDOs operacionais de manutenção e produção, aprovações, anexos e histórico |
 | **Acompanhamento de Projetos** | `/api/acompanhamento` | Previsto x realizado, custos (mão de obra, EPI, estoque, Omie), cronograma |
+| **Qualidade** | `/api/qualidade` | Melhorias, desvios, lições aprendidas, incidentes, evidências e naturezas |
+| **Efetivo Operacional** | `/api/efetivo` e `/api/workforce` | Capacidade, missões, ciclos, alocações, calendários e produtividade |
 | **Romaneio de Equipamentos** | `/api/romaneio` | Romaneios de saída/retorno, catálogo, checklist e notificações |
 | **Estoque** | `/api/estoque` | Filtros, produtos químicos, lotes e movimentações |
 | **Equipamentos** | `/api/equipamentos` | Cadastro, calibração, documentação técnica e notificações de equipamentos |
@@ -55,6 +60,7 @@ Cada módulo tem sua própria área na aplicação, papéis de acesso e prefixo 
 | **Assinaturas** | `/api/assinaturas` | Envio de PDFs, coleta de assinaturas avulsas, evidências e validação pública |
 | **Privacidade (LGPD)** | `/api/privacy` | Solicitações de titulares e protocolos LGPD |
 | **Gestão de Contas** | `/api/admin/accounts` | Administração inicial de usuários e acessos do hub |
+| **Tokens de API** | `/api/admin/api-credentials` | Credenciais, escopos, restrições, consumo, auditoria e playground da API |
 
 ---
 
@@ -65,7 +71,7 @@ Cada módulo tem sua própria área na aplicação, papéis de acesso e prefixo 
 | Frontend | React 19 + TypeScript + Vite 6 |
 | Estado / Fetching | TanStack Query v5 + Zustand |
 | Formulários | React Hook Form + Zod |
-| Roteamento | React Router v7 |
+| Roteamento | React Router v8 |
 | Onboarding / tours | Driver.js |
 | Backend | Node.js 22 + Express 5 |
 | ORM | Prisma 7 (adapter `pg`) |
@@ -74,7 +80,7 @@ Cada módulo tem sua própria área na aplicação, papéis de acesso e prefixo 
 | PDF | LibreOffice headless (Linux) |
 | Assinatura digital | Sistema interno |
 | Integração financeira | Omie (contas a pagar/receber, categorias, projetos) |
-| Proxy / SSL | Nginx + Let's Encrypt |
+| Proxy / SSL | Caddy (TLS e proxy externo) + Nginx (SPA e proxy interno) |
 | Containers | Docker + Docker Compose |
 
 ---
@@ -100,25 +106,30 @@ Cada módulo tem sua própria área na aplicação, papéis de acesso e prefixo 
 │   ├── .env.example
 │   └── Dockerfile
 ├── frontend/
-│   ├── src/
-│   │   ├── api/              # Clientes HTTP por recurso
-│   │   ├── auth/             # AuthContext, navegação e acesso por módulo
-│   │   ├── modules/          # Registry de módulos e roteamento
-│   │   ├── components/       # Componentes compartilhados e por módulo
-│   │   ├── hooks/            # React Query hooks
-│   │   ├── pages/            # Páginas por módulo e perfil (inclui hub)
-│   │   ├── store/            # Zustand stores
-│   │   └── utils/
-│   └── .env.example
+│   └── src/
+│       ├── api/              # Clientes HTTP por recurso
+│       ├── auth/             # AuthContext, navegação e acesso por módulo
+│       ├── modules/          # Registry de módulos e roteamento
+│       ├── components/       # Componentes compartilhados e por módulo
+│       ├── hooks/            # React Query hooks
+│       ├── pages/            # Páginas por módulo e perfil (inclui hub)
+│       ├── store/            # Zustand stores
+│       └── utils/
+├── shared/                   # Schemas e contratos compartilhados entre backend e frontend
 ├── deploy/
-│   ├── nginx/                # Dockerfile do Nginx + default.conf
+│   ├── nginx/                # Nginx interno: SPA + proxy para o backend
+│   ├── infra-proxy/          # Caddy compartilhado, TLS e portas públicas 80/443
 │   ├── PRODUCTION.md         # Guia detalhado de produção
+│   ├── STAGING.md            # Guia de homologação
+│   ├── BACKUP.md             # Backup e restore
 │   ├── backup-prod.sh
 │   └── restore-prod.sh
+├── docs/                     # Documentação operacional e de integrações
 ├── specs/                    # Especificações spec-kit das features
 ├── Modelos/                  # Templates DOCX para geração de relatórios
 ├── docker-compose.yml        # Apenas PostgreSQL (dev Node direto)
 ├── docker-compose.local.yml  # PostgreSQL + backend em container (dev)
+├── docker-compose.staging.yml # Homologação: PostgreSQL + backend + Nginx em :8080
 └── docker-compose.prod.yml   # Produção: PostgreSQL + backend + Nginx
 ```
 
@@ -135,6 +146,8 @@ O acesso é organizado por **módulo** e **papel dentro do módulo** (`ModuleRol
 | Módulo | Papéis |
 |---|---|
 | RDO | Gestor, Coordenador, Colaborador, Cliente |
+| Qualidade | Gestor, Visualizador |
+| Efetivo | Gestor, Visualizador |
 | Acompanhamento | Gestor, Visualizador |
 | Romaneio | Gestor, Operador |
 | Estoque | Gestor, Visualizador |
@@ -142,6 +155,8 @@ O acesso é organizado por **módulo** e **papel dentro do módulo** (`ModuleRol
 | EPI | Técnico, Colaborador |
 | Privacidade | Admin |
 | Assinaturas | Usuário |
+
+Manutenção e Produção usa permissões individuais de emissão (`SITE_RDO`, `MAINTENANCE` e `PRODUCTION`) em vez de papéis próprios do registry. A gestão de contas e tokens de API é restrita a administradores do hub.
 
 ### Perfis do módulo de Relatórios (RDO)
 
@@ -228,6 +243,30 @@ O acesso é organizado por **módulo** e **papel dentro do módulo** (`ModuleRol
 - Histórico de vigências dos modelos de custo por cargo
 - Custos restritos ao papel de Gestor do módulo
 
+### Manutenção e Produção
+
+- Emissão de RDOs operacionais de manutenção (`RDO_MAINTENANCE`) e produção (`RDO_PRODUCTION`)
+- Controle de missão, equipe, atividades, itens de perfil, serviços de terceiros e períodos de parada
+- Fluxo de revisão e aprovação, histórico de eventos e auditoria
+- Anexos, evidências e geração dos documentos operacionais
+- Permissões de emissão separadas por modalidade
+
+### Qualidade
+
+- Registros de melhoria, desvio, lição aprendida e incidente
+- Cadastro de naturezas e classificação dos registros
+- Fluxo de acompanhamento com responsáveis, prazos e status
+- Evidências e anexos associados ao registro
+- Consulta externa somente leitura, sujeita aos projetos e escopos autorizados no token
+
+### Efetivo Operacional
+
+- Planejamento de capacidade por missão e ciclo
+- Demandas, alocações, contratações planejadas e cenários de efetivo
+- Calendários de trabalho, feriados, ausências, disponibilidade e conflitos
+- Indicadores de pessoas, missões e produtividade
+- Integração com dados de ponto para acompanhamento operacional
+
 ### Romaneio de Equipamentos
 
 - Romaneios de saída e retorno de equipamentos, com rascunhos
@@ -309,6 +348,8 @@ O acesso é organizado por **módulo** e **papel dentro do módulo** (`ModuleRol
 | RLM | Relatório de Limpeza Mecânica |
 | RLF | Relatório de Limpeza por Flushing |
 | RLI | Relatório de Limpeza Industrial |
+| RDO_MAINTENANCE | Relatório Diário Operacional de Manutenção |
+| RDO_PRODUCTION | Relatório Diário Operacional de Produção |
 
 ---
 
@@ -325,6 +366,67 @@ O acesso é organizado por **módulo** e **papel dentro do módulo** (`ModuleRol
 
 ---
 
+## API de Integrações e Playground
+
+A API de integrações é uma interface **somente leitura** para consumo servidor a servidor. O prefixo público é `/api/integracoes/v1`, e cada chamada precisa de uma credencial Bearer com os escopos e projetos necessários. Administradores do hub gerenciam essas credenciais em **Administração → Tokens de API** (`/admin/tokens`), onde também podem restringir projetos, CIDRs, validade, tamanho de página e cotas de uso.
+
+O segredo do token é exibido somente na criação ou rotação. Guarde-o em um cofre de segredos e envie-o no header:
+
+```http
+Authorization: Bearer <token>
+```
+
+### Exemplo: RCPUs do projeto 5800
+
+Para listar os relatórios RCPU aprovados do projeto cujo código cadastrado é `5800`, use a operação `operational.Report.list` com o escopo `rdo.relatorios.read`:
+
+```http
+GET /api/integracoes/v1/rdo/relatorios?projectCode=5800&reportType=RCPU&limit=100
+```
+
+Para obter os serviços registrados nesses RCPUs, a operação é `operational.ReportService.list` e o token também precisa do escopo `rdo.servicos.read`:
+
+```http
+GET /api/integracoes/v1/rdo/servicos?projectCode=5800&reportType=RCPU&limit=100
+```
+
+Exemplo completo:
+
+```bash
+curl --get \
+  --header "Authorization: Bearer $FILTROVALI_API_TOKEN" \
+  --data-urlencode "projectCode=5800" \
+  --data-urlencode "reportType=RCPU" \
+  --data-urlencode "limit=100" \
+  "https://app.filtrovali.com.br/api/integracoes/v1/rdo/servicos"
+```
+
+Use `projectCode` nas integrações: ele corresponde ao código de negócio cadastrado no projeto e preserva zeros à esquerda. `projectId` permanece disponível por compatibilidade, mas é o identificador interno; os dois filtros são mutuamente exclusivos. O filtro `reportType` aceita um ou mais códigos separados por vírgula: `RDO`, `RDO_MAINTENANCE`, `RDO_PRODUCTION`, `RTP`, `RLQ`, `RCPU`, `RLM`, `RLF` e `RLI`.
+
+### Filtros e paginação
+
+O playground mostra apenas os parâmetros aceitos pela operação selecionada, explica cada campo e gera a URI/cURL resultante. Os filtros possíveis no catálogo incluem:
+
+- `projectCode` ou `projectId`: projeto vinculado ao recurso; o projeto também precisa estar no recorte do token.
+- `reportType` e `reportId`: tipo ou relatório específico nas coleções relacionadas a relatórios.
+- `maintenanceId` e `itemId`: filtros de relacionamento nas coleções correspondentes.
+- `natureId`, `type`, `status`, `eventDateFrom` e `eventDateTo`: classificação, situação e período dos registros de Qualidade.
+- `active`: situação dos cadastros que possuem `isActive`.
+- `includeDeleted`: inclui registros de Qualidade excluídos e exige o escopo `qualidade.excluidos.read`.
+- `updatedSince`, `updatedUntil` ou `createdSince`: janela de leitura incremental, conforme os timestamps existentes no recurso.
+- `limit`, `cursor` e `snapshotAt`: paginação estável. Reutilize `page.nextCursor` sem alterá-lo e mantenha os mesmos filtros nas páginas seguintes.
+
+Operações de detalhe e download também mostram o parâmetro de caminho `id`, obtido na listagem do recurso correspondente.
+
+Nem toda operação aceita todos os filtros. No painel, abra **Administração → Tokens de API → Testar API**, selecione a credencial e a operação; a seção **Parâmetros da URI** apresenta os campos válidos e exemplos específicos. Para a referência completa e os contratos versionados, consulte:
+
+- [Guia da API de Integrações](docs/API_INTEGRACOES.md)
+- [Contrato OpenAPI](specs/015-api-token-playground/contracts/openapi.yaml)
+- [Catálogo operacional básico](specs/015-api-token-playground/contracts/operational-read.md)
+- [Catálogo operacional expandido](specs/015-api-token-playground/contracts/operational-expanded-read.md)
+
+---
+
 ## Configuração do Ambiente
 
 ### Desenvolvimento local (Node direto)
@@ -334,7 +436,7 @@ O acesso é organizado por **módulo** e **papel dentro do módulo** (`ModuleRol
 #### 1. Subir o banco
 
 ```bash
-docker compose up -d
+POSTGRES_PASSWORD=postgres docker compose up -d
 ```
 
 #### 2. Configurar o backend
@@ -361,19 +463,18 @@ npm run dev
 # API disponível em http://localhost:4000
 ```
 
-#### 5. Configurar e subir o frontend
+#### 5. Subir o frontend
 
 Em outro terminal:
 
 ```bash
-cp frontend/.env.example frontend/.env
-# VITE_API_BASE_URL=/api já está correto para desenvolvimento
-
 cd frontend
 npm install
 npm run dev
 # SPA disponível em http://localhost:5173
 ```
+
+O Vite já encaminha `/api`, assets, uploads e relatórios para `http://localhost:4000`. Crie `frontend/.env` apenas quando precisar sobrescrever alguma variável `VITE_*`.
 
 ---
 
@@ -394,31 +495,57 @@ O volume `./backend/src` é montado, então alterações no código são refleti
 
 ---
 
+## Validação e Testes
+
+Antes de enviar uma alteração, execute as verificações correspondentes:
+
+```bash
+# Contratos de arquitetura e registry dos módulos
+npm run architecture:check
+
+# Backend (requer PostgreSQL e DATABASE_URL configurado)
+cd backend
+npm test
+
+# Frontend
+cd ../frontend
+npm test
+npm run lint
+npm run build
+```
+
+O CI repete os testes e auditorias de dependências de backend e frontend, valida lint/build, aplica as migrations em PostgreSQL 16 e constrói as imagens Docker de homologação.
+
+---
+
 ## Deploy em Produção
 
-A stack de produção usa `docker-compose.prod.yml`: PostgreSQL + backend + Nginx com SSL.
+A aplicação usa `docker-compose.prod.yml` para PostgreSQL, backend e Nginx interno. Um stack separado em `deploy/infra-proxy/` executa o Caddy, que ocupa as portas públicas 80/443, termina o TLS e encaminha o domínio da aplicação para o Nginx pela rede externa `proxy-net`.
 
-> Consulte `deploy/PRODUCTION.md` para o guia completo e `Checklist-Producao.txt` para o roteiro pré-go-live.
+> Consulte [deploy/PRODUCTION.md](deploy/PRODUCTION.md), [deploy/infra-proxy/RUNBOOK.md](deploy/infra-proxy/RUNBOOK.md), [deploy/BACKUP.md](deploy/BACKUP.md) e `Checklist-Producao.txt` antes de operar a produção. Os comandos abaixo são apenas um resumo e pressupõem que volumes, rede e arquivos de ambiente já foram preparados conforme esses guias.
 
 ### Subida inicial
 
 ```bash
 # No servidor, com backend/.env.production preenchido
+POSTGRES_PASSWORD=<senha> docker compose -f docker-compose.prod.yml config -q
 POSTGRES_PASSWORD=<senha> docker compose -f docker-compose.prod.yml up -d --build
 
-# Migrations
+# O backend também aplica migrations ao iniciar; este comando permite conferência explícita
 docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
 
 # Seed (somente em banco vazio)
 docker compose -f docker-compose.prod.yml exec backend npx prisma db seed
+
+# Proxy compartilhado, se ainda não estiver em execução
+docker compose -f deploy/infra-proxy/docker-compose.yml up -d
 ```
 
 ### Atualização de versão
 
 ```bash
-# 1. Fazer backup do banco antes de qualquer deploy
-docker compose -f docker-compose.prod.yml exec postgres \
-  pg_dump -U $POSTGRES_USER $POSTGRES_DB > backup-pre-deploy-$(date +%Y%m%d%H%M).sql
+# 1. Fazer backup validado antes de qualquer deploy
+./deploy/backup-prod.sh
 
 # 2. Rebuild e restart
 POSTGRES_PASSWORD=<senha> docker compose -f docker-compose.prod.yml up -d --build
@@ -433,15 +560,19 @@ docker compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
 Internet
    │
    ▼
-Nginx :443 (SSL Let's Encrypt)
+Caddy :80/:443 (TLS e proxy reverso compartilhado)
    │
-   ├── /                → SPA React (static files)
-   └── /api/*           → Backend Express :4000 (rede interna Docker)
+   ▼
+Nginx HTTP interno
+   ├── /                → SPA React (arquivos estáticos)
+   └── /api/*           → Backend Express :4000
                                │
-                               └── PostgreSQL :5432 (rede interna Docker)
+                               ▼
+                         PostgreSQL :5432
 ```
 
-- Portas `4000` e `5432` **não** são expostas ao host em produção.
+- Nginx, backend (`4000`) e PostgreSQL (`5432`) **não** publicam portas no host em produção.
+- O Caddy emite e renova os certificados TLS; não há Certbot ativo nessa topologia.
 - Upload máximo configurado: **30 MB**.
 - Domínio principal: `app.filtrovali.com.br`
 - Domínio legado: `relatorios.filtrovali.com.br` redireciona para o app; a raiz antiga aponta para o módulo de relatórios.
@@ -478,6 +609,15 @@ Nginx :443 (SSL Let's Encrypt)
 | `OMIE_SYNC_ENABLED` | Não | Ativa a sincronização automática com o Omie |
 | `OMIE_SYNC_INTERVAL_MINUTES` | Não | Intervalo entre sincronizações Omie |
 | `OMIE_SYNC_SINCE_DAYS` | Não | Janela de dias considerada na sincronização Omie |
+| `PONTOMAIS_API_TOKEN` | Não | Token usado pela integração de dados de ponto e produtividade |
+| `API_TOKEN_HASH_KEY_V1` | Sim em produção | Chave de pelo menos 32 caracteres usada para derivar hashes dos tokens da API de integrações |
+| `API_TOKEN_ACTIVE_KEY_VERSION` | Não | Versão ativa da chave de hash dos tokens (padrão: `1`) |
+| `API_TOKEN_GLOBAL_MAX_PAGE_SIZE` | Não | Teto global de itens por página da API (padrão: `500`) |
+| `API_TOKEN_DEFAULT_REQUESTS_PER_MINUTE` / `API_TOKEN_DEFAULT_REQUESTS_PER_DAY` | Não | Cotas padrão de requisições por credencial |
+| `API_TOKEN_DEFAULT_ROWS_PER_DAY` | Não | Cota padrão diária de linhas retornadas (padrão: `500000`) |
+| `API_TOKEN_COARSE_IP_REQUESTS_PER_MINUTE` | Não | Limite preventivo por IP antes da identificação da credencial |
+| `API_TOKEN_LOG_RETENTION_DAYS` | Não | Retenção dos logs de requisição da API (padrão: `365`) |
+| `API_TOKEN_MAX_OVERLAP_MINUTES` | Não | Sobreposição máxima entre tokens durante rotação (padrão: `60`) |
 | `SMTP_HOST` | Sim | Servidor SMTP (`smtp.office365.com`) |
 | `SMTP_PORT` | Sim | Porta SMTP (padrão: `587`) |
 | `SMTP_SECURE` | Não | Para Exchange Online na porta 587, use `false` (STARTTLS) |
@@ -517,6 +657,7 @@ Nginx :443 (SSL Let's Encrypt)
 O schema Prisma (`backend/prisma/schema.prisma`) cobre todos os módulos. Modelos principais por domínio:
 
 **Relatórios e Projetos**
+
 | Modelo | Descrição |
 |---|---|
 | `Project` / `ProjectAuthorizedUser` / `ProjectReportSeq` | Projeto de campo, acesso autorizado e numeração sequencial |
@@ -530,6 +671,7 @@ O schema Prisma (`backend/prisma/schema.prisma`) cobre todos os módulos. Modelo
 | `ClientSegment` | Segmentos de cliente configuráveis |
 
 **Acompanhamento**
+
 | Modelo | Descrição |
 |---|---|
 | `CommercialProposal` / `AccessImport` | Propostas comerciais e importações |
@@ -540,7 +682,19 @@ O schema Prisma (`backend/prisma/schema.prisma`) cobre todos os módulos. Modelo
 | `ProjectPlanned*` | Escopo, serviços, sistemas e horas previstas |
 | `Omie*` / `IntegrationSyncRun` | Espelho de dados do Omie e execuções de sincronização |
 
+**Manutenção, Qualidade e Efetivo**
+
+| Modelo | Descrição |
+|---|---|
+| `MaintenanceRecord` / `MaintenanceThirdPartyService` / `MaintenanceAttachment` | Manutenções, serviços de terceiros e evidências |
+| `OperationalReviewAudit` | Histórico de revisão dos relatórios operacionais e manutenções |
+| `QualityRecord` / `QualityNature` / `QualityEvidence` | Registros, classificações e evidências de qualidade |
+| `EfetivoPlan` / `EfetivoMissionPlan` / `EfetivoMissionCycle` | Plano oficial ou cenário, missões e ciclos operacionais |
+| `EfetivoMissionDemand` / `EfetivoMissionAllocation` / `EfetivoPlannedHire` | Demandas, alocações e contratações planejadas |
+| `WorkforceHoliday` / `WorkforceCalendarState` / `EfetivoAuditEvent` | Calendário e trilha de auditoria do planejamento |
+
 **Romaneio / Estoque / Equipamentos / EPI**
+
 | Modelo | Descrição |
 |---|---|
 | `Romaneio` / `RomaneioItem` / `RomaneioChecklist` / `RomaneioCatalog*` | Romaneios, itens, checklist e catálogo |
@@ -551,11 +705,14 @@ O schema Prisma (`backend/prisma/schema.prisma`) cobre todos os módulos. Modelo
 | `Unit` / `Manometer` / `ParticleCounter` / `InhibitionSystem` / `InhibitionVessel` | Cadastros de apoio aos relatórios |
 
 **Contas, Privacidade e Infraestrutura**
+
 | Modelo | Descrição |
 |---|---|
 | `User` / `UserSession` / `ModuleRole` | Usuário, sessões JWT e papéis por módulo |
 | `Collaborator` / `PasswordResetToken` / `EmailChangeToken` | Colaborador e tokens de conta |
 | `DataSubjectRequest*` / `DataRetentionRun` | Solicitações LGPD e retenção de dados |
+| `ApiCredential` / `ApiCredentialScope` / `ApiCredentialProject` | Credenciais da API, escopos e projetos autorizados |
+| `ApiCredentialEvent` / `ApiRequestLog` / `ApiUsageBucket` | Auditoria, requisições e cotas da API de integrações |
 | `JobRun` / `JobLock` | Execução e trava de jobs em background |
 
 ### Comandos Prisma
@@ -640,6 +797,7 @@ Prefixo base: `/api`. As rotas do módulo de relatórios são servidas tanto sob
 | `POST` | `/auth/login` · `/auth/logout` | Autenticação |
 | `GET/POST` | `/rdo/projects` · `GET/PATCH/DELETE /rdo/projects/:id` | Projetos |
 | `GET/POST` | `/rdo/reports` · `GET/PATCH/DELETE /rdo/reports/:id` | Relatórios |
+| `GET/POST/PATCH` | `/rdo/operational-reports` · `/rdo/operational-reports/:id/...` | RDOs de manutenção e produção, revisão, anexos e documentos |
 | `POST` | `/rdo/reports/:id/request-signature` | Solicitar assinatura individual |
 | `GET/POST` | `/assinaturas/documentos` · `GET/PATCH/DELETE /assinaturas/documentos/:id` | Acervo e ciclo de vida de documentos avulsos |
 | `PUT/POST` | `/assinaturas/documentos/:id/assinantes` · `/campos` · `/publicar` | Preparação e publicação para assinatura |
@@ -658,6 +816,8 @@ Prefixo base: `/api`. As rotas do módulo de relatórios são servidas tanto sob
 | `GET/POST/PATCH/DELETE` | `/acompanhamento/comercial/projetos/:id/...` | Detalhe, avanço, cronograma, escopo, custos manuais e revisões |
 | `GET/PUT/POST` | `/acompanhamento/custo/perfis` · `/cargos` · `/config` · `/simular` · `/categorias-omie` | Parâmetros e simulação de custo |
 | `POST/GET` | `/acompanhamento/ponto/import` · `/imports` · `/colaboradores` · `/vincular` | Importação do ponto |
+| `GET/POST/PUT/DELETE` | `/qualidade/registros` · `/qualidade/naturezas` · `/qualidade/registros/export` | Registros, naturezas e exportação de qualidade |
+| `GET/POST/PATCH/DELETE` | `/efetivo/...` · `/workforce/...` | Planejamento, missões, alocações, calendários e produtividade do efetivo |
 | `GET/POST/PUT/DELETE` | `/romaneio` (+ `/drafts`, `/catalog`, `/notifications`, `/:id/pdf`, `/:id/checklist/pdf`) | Romaneios |
 | `GET/POST/PUT/PATCH/DELETE` | `/estoque/categorias` · `/itens` · `/movimentacoes` · `/lotes` · `/resumo` | Estoque |
 | `GET/POST/PUT/DELETE` | `/equipamentos` (+ `/categories`, `/rdo-slots`, `/notifications`, `/:id/technical-doc`) | Equipamentos |
@@ -665,3 +825,5 @@ Prefixo base: `/api`. As rotas do módulo de relatórios são servidas tanto sob
 | `GET/POST/PATCH` | `/privacy/requests` (+ `/me/data-export`, `/me/delete-request`) | Solicitações LGPD |
 | `GET/POST` | `/operations/status` · `/operations/client-errors` | Monitoramento operacional |
 | `GET/POST` | `/admin/accounts` · `/users` · `/rdo/collaborators` | Contas, usuários e colaboradores |
+| `GET/POST/PATCH` | `/admin/api-credentials` · `/admin/api-credentials/:id/...` | Tokens, rotação, revogação, auditoria, consumo e playground |
+| `GET` | `/integracoes/v1/...` | API externa somente leitura; catálogo e filtros em [docs/API_INTEGRACOES.md](docs/API_INTEGRACOES.md) |

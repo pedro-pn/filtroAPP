@@ -34,9 +34,14 @@ test('unified catalog renders one selectable row per available scope and operati
     const { ApiOperationParameters } = await server.ssrLoadModule('/src/components/admin/api-tokens/ApiOperationParameters.tsx');
     const render = id => renderToStaticMarkup(createElement(ApiOperationParameters, { operation: publicApiOperations().find(operation => operation.operationId === id), value: {}, onChange() {} }));
     assert.match(render('operational.Report.list'), /playground-project/);
+    assert.match(render('operational.Report.list'), /playground-project-code/);
+    assert.match(render('operational.Report.list'), /projectCode=5800.*reportType=RCPU/);
+    assert.match(render('operational.Report.list'), /playground-reportType/);
+    assert.match(render('operational.Report.list'), /reportType=RCPU/);
     assert.doesNotMatch(render('operational.Report.list'), /playground-active|Incluir excluídos/);
     assert.match(render('operational.CompanyEquipment.list'), /playground-active/);
     assert.doesNotMatch(render('operational.CompanyEquipment.list'), /playground-project|Incluir excluídos/);
+    assert.match(render('operational.CompanyEquipment.list'), /\?limit=20/);
     assert.match(render('quality.records.get'), /playground-record-id/);
     assert.doesNotMatch(render('quality.records.get'), /playground-limit|playground-updated/);
     assert.match(render('operational.StockMovement.list'), /playground-created/);

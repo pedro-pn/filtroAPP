@@ -60,12 +60,13 @@ test('dynamic forms cover all fields and only resource operations require an ind
 
 test('generic query builder converts types and dates, keeps filters out of path and omits unrelated values', () => {
   const op = operation('quality.records.list');
-  const values = { limit: '3', updatedSince: '2026-09-08T09:30:00-03:00', status: 'ABERTO, FECHADO', type: 'DESVIO', includeDeleted: 'false', projectId: ' p1 ', cursor: 'cursor-demo', snapshotAt: '2026-09-08T18:00:00Z' };
+  const values = { limit: '3', updatedSince: '2026-09-08T09:30:00-03:00', status: 'ABERTO, FECHADO', type: 'DESVIO', includeDeleted: 'false', projectCode: ' 05776 ', cursor: 'cursor-demo', snapshotAt: '2026-09-08T18:00:00Z' };
   const parsed = schema(op, ['qualidade.registros.read']).parse(values);
-  assert.deepEqual(buildPlaygroundInput(op, { ...parsed, id: 'ignored' }), { operationId: op.operationId, pathParams: {}, query: { limit: 3, updatedSince: '2026-09-08T12:30:00.000Z', status: ['ABERTO', 'FECHADO'], type: ['DESVIO'], includeDeleted: false, projectId: 'p1', cursor: 'cursor-demo', snapshotAt: '2026-09-08T18:00:00.000Z' } });
+  assert.deepEqual(buildPlaygroundInput(op, { ...parsed, id: 'ignored' }), { operationId: op.operationId, pathParams: {}, query: { limit: 3, updatedSince: '2026-09-08T12:30:00.000Z', status: ['ABERTO', 'FECHADO'], type: ['DESVIO'], includeDeleted: false, projectCode: '05776', cursor: 'cursor-demo', snapshotAt: '2026-09-08T18:00:00.000Z' } });
   for (const patch of [{ limit: 4 }, { limit: 1.5 }, { updatedSince: 'invalid' }, { status: 'unknown' }, { eventDateFrom: '2026-02-31' }, { includeDeleted: 'true' }]) {
     assert.equal(schema(op, ['qualidade.registros.read']).safeParse({ ...values, ...patch }).success, false);
   }
+  assert.equal(schema(op).safeParse({ projectCode: '05776', projectId: 'p1' }).success, false);
 });
 
 test('defaults do not leak prior IDs/filters and optional scopes are enabled only when granted', () => {

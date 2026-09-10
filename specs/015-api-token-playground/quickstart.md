@@ -69,7 +69,7 @@ Ao gerar:
 ## 5. Testar no playground
 
 1. Selecionar `quality.records.list`.
-2. Informar `limit=10` e um `projectId` permitido.
+2. Informar `limit=10` e um `projectCode` permitido (ou `projectId` para compatibilidade).
 3. Conferir que método/caminho não são editáveis e não existe campo de URL externa, header livre ou corpo.
 4. Executar e verificar status, duração, requestId, itens e cursor.
 5. Conferir que a requisição visível mostra `Bearer ••••<last4>`.
@@ -160,7 +160,7 @@ Em incidente, o operador deve poder desabilitar a montagem da árvore externa ou
 1. No catálogo unificado, pesquisar relatórios e marcar `rdo.relatorios.read`; pesquisar colaboradores, equipamentos e manutenção e marcar somente os dados necessários. Confirmar que dados pessoais completos e futuros arquivos continuam desabilitados.
 2. Emitir nova credencial de teste com projetos selecionados. Confirmar que tokens anteriores de Qualidade não ganharam escopos e recebem `403` nas novas operações.
 3. Consultar as 15 coleções listadas no contrato operacional. `Report`/`MaintenanceRecord` publicam o estado atual `APPROVED`; relatórios excluídos, pendentes ou de projetos não autorizados não aparecem. Conferir minimização dos campos, incluindo ausência de CPF, e-mail, custo, JSON livre, assinaturas e arquivos.
-4. Conferir que colaboradores em `SELECTED` são somente participantes de relatórios aprovados nos projetos permitidos. Cadastros globais (cargos, segmentos, DDS, perfis, equipamentos e estoque) não devem aceitar `projectId`. Manutenções avulsas não aparecem em `SELECTED`.
+4. Conferir que colaboradores em `SELECTED` são somente participantes de relatórios aprovados nos projetos permitidos. Cadastros globais (cargos, segmentos, DDS, perfis, equipamentos e estoque) não devem aceitar `projectCode` nem `projectId`. Manutenções avulsas não aparecem em `SELECTED`.
 5. Percorrer páginas com empates de `updatedAt`, testar alteração de filtros/projetos/cursor, limitar paginação à cota do token e comprovar `429` quando a página excede toda a cota diária.
 6. No console, escolher uma nova operação, confirmar que somente parâmetros compatíveis aparecem e que trocar operação limpa filtros anteriores. Validar cota, evento `TESTED`, uso externo e request ID sem guardar respostas/segredos como evidência.
 7. Avaliar latência no volume real antes da publicação. Validar reconciliação completa periódica para exclusões e mudanças de visibilidade, pois as coleções novas não geram tombstones. Não interpretar `snapshotAt` como snapshot transacional de múltiplas páginas.
