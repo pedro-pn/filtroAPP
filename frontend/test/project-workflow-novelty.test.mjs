@@ -11,9 +11,9 @@ const novelty = await import('../src/utils/projectWorkflowNovelty.ts');
 
 test('novidade dura exatamente a janela global e uma vez por usuário', () => {
   values.clear();
-  assert.equal(novelty.PROJECT_WORKFLOW_NOVELTY_IMPLEMENTED_AT, '2026-09-09');
-  assert.equal(novelty.shouldShowProjectWorkflowNovelty('u1', new Date('2026-09-19T20:00:00-03:00').getTime()), true);
+  assert.equal(novelty.PROJECT_WORKFLOW_NOVELTY_IMPLEMENTED_AT, '2026-09-10');
+  assert.equal(novelty.shouldShowProjectWorkflowNovelty('u1', new Date('2026-09-20T20:00:00-03:00').getTime()), true);
   novelty.markProjectWorkflowNoveltySeen('u1');
-  assert.equal(novelty.shouldShowProjectWorkflowNovelty('u1', new Date('2026-09-19T20:00:00-03:00').getTime()), false);
-  assert.equal(novelty.shouldShowProjectWorkflowNovelty('u2', new Date('2026-09-20T00:00:00-03:00').getTime()), false);
+  assert.equal(novelty.shouldShowProjectWorkflowNovelty('u1', new Date('2026-09-20T20:00:00-03:00').getTime()), false);
+  assert.equal(novelty.shouldShowProjectWorkflowNovelty('u2', new Date('2026-09-21T00:00:00-03:00').getTime()), false);
 });

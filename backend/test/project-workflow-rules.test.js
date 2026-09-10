@@ -200,7 +200,7 @@ test('autorização exige gate verde, etapa pronta e a mesma versão', () => {
   assert.equal(projectWorkflowMobilizationAuthorization(workflow, gate).status, 'NOT_AUTHORIZED');
 });
 
-test('autorização vigente continua válida durante a execução', () => {
+test('autorização vigente continua válida durante mobilização e execução', () => {
   const workflow = readyMobilizationWorkflow({
     stage: 'EXECUTION',
     version: 12,
@@ -209,8 +209,12 @@ test('autorização vigente continua válida durante a execução', () => {
   });
   const gate = projectWorkflowMobilizationGate(workflow);
   assert.equal(projectWorkflowMobilizationAuthorization(workflow, gate).status, 'AUTHORIZED');
-  assert.equal(allowedProjectWorkflowTransition('READY_TO_MOBILIZE', 'EXECUTION'), true);
-  assert.equal(allowedProjectWorkflowTransition('EXECUTION', 'READY_TO_MOBILIZE'), true);
+  workflow.stage = 'MOBILIZATION';
+  assert.equal(projectWorkflowMobilizationAuthorization(workflow, gate).status, 'AUTHORIZED');
+  assert.equal(allowedProjectWorkflowTransition('READY_TO_MOBILIZE', 'MOBILIZATION'), true);
+  assert.equal(allowedProjectWorkflowTransition('MOBILIZATION', 'EXECUTION'), true);
+  assert.equal(allowedProjectWorkflowTransition('READY_TO_MOBILIZE', 'EXECUTION'), false);
+  assert.equal(allowedProjectWorkflowTransition('EXECUTION', 'MOBILIZATION'), true);
 });
 
 test('transições incluem Preparação e Pronto para mobilizar', () => {
@@ -222,13 +226,16 @@ test('transições incluem Preparação e Pronto para mobilizar', () => {
   assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'READY_TO_MOBILIZE'), []);
 });
 
-test('entrada em execução exige autorização vigente', () => {
+test('entrada em mobilização ou execução exige autorização vigente', () => {
   const workflow = readyMobilizationWorkflow({
     stage: 'READY_TO_MOBILIZE',
     version: 11,
     mobilizationAuthorizedAt: new Date('2026-09-09T18:00:00Z'),
     mobilizationAuthorizationVersion: 11
   });
+  assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'MOBILIZATION'), []);
+  assert.match(projectWorkflowTransitionIssues(workflow, 'EXECUTION')[0], /transição de etapa não permitida/i);
+  workflow.stage = 'MOBILIZATION';
   assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'EXECUTION'), []);
   workflow.mobilizationAuthorizationVersion = 10;
   assert.match(projectWorkflowTransitionIssues(workflow, 'EXECUTION')[0], /autorização de mobilização vigente/i);

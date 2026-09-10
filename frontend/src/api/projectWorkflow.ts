@@ -1,6 +1,6 @@
 import { apiClient, type ApiClientError } from './client';
 
-export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'EXECUTION';
+export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'MOBILIZATION' | 'EXECUTION';
 export type ProjectWorkflowChecklistStatus = 'PENDING' | 'DONE' | 'NOT_APPLICABLE';
 export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
@@ -21,12 +21,27 @@ export interface ProjectWorkflowPermissions {
   canAuthorizeMobilization: boolean;
 }
 
+export interface ProjectOperationalMissionSummary {
+  id: string;
+  stage: 'STANDBY' | 'MOBILIZATION' | 'EXECUTION' | 'FINAL_MEASUREMENT' | 'FINISHED';
+  scheduleStatus: 'DRAFT' | 'CONFIRMED' | 'CANCELLED';
+  version: number;
+  kanbanOrder: number;
+  mobilizationDate: string;
+  executionStartDate: string;
+  executionEndDate: string;
+  returnDate: string | null;
+  headquartersResponsibleName: string;
+  participantCount: number;
+}
+
 export interface ProjectWorkflowProject {
   id: string;
   code: string;
   name: string;
   clientName: string;
   location: string;
+  operationalMission?: ProjectOperationalMissionSummary | null;
 }
 
 export interface ProjectWorkflowMilestones {

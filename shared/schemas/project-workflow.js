@@ -5,6 +5,7 @@ export const PROJECT_WORKFLOW_STAGES = [
   'MOBILIZATION_PLANNING',
   'PREPARATION',
   'READY_TO_MOBILIZE',
+  'MOBILIZATION',
   'EXECUTION'
 ];
 
@@ -15,6 +16,7 @@ export const PROJECT_WORKFLOW_STAGE_LABELS = {
   MOBILIZATION_PLANNING: 'Planejamento da mobilização',
   PREPARATION: 'Preparação',
   READY_TO_MOBILIZE: 'Pronto para mobilizar',
+  MOBILIZATION: 'Mobilização',
   EXECUTION: 'Em execução'
 };
 

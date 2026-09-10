@@ -7,7 +7,7 @@ import {
   moveMissionStage
 } from '../src/lib/efetivo/planning/mission-planning.js';
 
-test('kanban aceita exatamente cinco etapas e ordem não negativa', () => {
+test('missão operacional aceita exatamente cinco etapas e ordem não negativa', () => {
   for (const stage of ['STANDBY', 'MOBILIZATION', 'EXECUTION', 'FINAL_MEASUREMENT', 'FINISHED']) assert.equal(missionStageSchema.parse(stage), stage);
   assert.equal(stageInputSchema.safeParse({ stage: 'EXECUTION', order: -1 }).success, false);
 });
@@ -24,6 +24,7 @@ test('API bloqueia movimentação enquanto a programação estiver incompleta', 
   const plan = { id: 'plan-1', kind: 'OFFICIAL', status: 'ACTIVE' };
   const database = {
     efetivoPlan: { findUnique: async () => plan },
+    projectWorkflow: { findUnique: async () => null },
     efetivoMissionPlan: {
       findUnique: async () => ({
         id: 'mission-1', planId: plan.id, project: { name: 'Missão incompleta' }, version: 1,
@@ -38,7 +39,7 @@ test('API bloqueia movimentação enquanto a programação estiver incompleta', 
   );
 });
 
-test('missão oficial não entra em Mobilização sem autorização do projeto', async () => {
+test('missão gerenciada muda de etapa somente pelo Kanban único do projeto', async () => {
   const plan = { id: 'plan-1', kind: 'OFFICIAL', status: 'ACTIVE' };
   const mission = {
     id: 'mission-1', projectId: 'project-1', planId: plan.id, version: 1, stage: 'STANDBY', kanbanOrder: 0,
@@ -62,7 +63,7 @@ test('missão oficial não entra em Mobilização sem autorização do projeto',
   };
   await assert.rejects(
     moveMissionStage('mission-1', { stage: 'MOBILIZATION', order: 0 }, { version: 1 }, { database }),
-    error => error.code === 'PROJECT_MOBILIZATION_NOT_AUTHORIZED'
+    error => error.code === 'MISSION_STAGE_MANAGED_BY_PROJECT'
   );
 });
 
@@ -90,6 +91,7 @@ test('concluir missão aceita desmobilização opcional e sincroniza o projeto',
         return { ...mission, stage: input.data.stage || 'FINISHED', returnDate: input.data.returnDate ?? mission.returnDate };
       }
     },
+    projectWorkflow: { findUnique: async () => null },
     project: { update: async input => { projectUpdate = input; } },
     efetivoAuditEvent: { create: async () => ({ id: 'audit-1' }) }
   };

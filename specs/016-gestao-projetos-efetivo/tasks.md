@@ -42,7 +42,7 @@
 
 - [X] T013 [US3] Criar regras de apresentação e marcos em `frontend/src/utils/projectWorkflow.ts` e testes em `frontend/test/project-workflow.test.mjs`
 - [X] T014 [US3] Criar quadro e detalhe com SearchBar, Modal, Button, RHF/Zod e estados acessíveis em `frontend/src/pages/efetivo/components/ProjectWorkflowBoard.tsx` e `ProjectWorkflowModal.tsx`
-- [X] T015 [US3] Integrar a visão sem remover o Kanban de missões em `frontend/src/pages/efetivo/EfetivoPage.tsx`, `MissionKanban.tsx` e `frontend/src/utils/planningNavigation.ts`
+- [X] T015 [US3] Refinar Evolução como Kanban único de projetos, mantendo equipe, ciclos e datas na seção Missões sem uma segunda visão concorrente
 - [X] T016 [US3] Adicionar CSS responsivo baseado em tokens em `frontend/src/pages/efetivo/efetivo.css`
 - [X] T017 [US3] Adicionar campanha Driver.js de 10 dias coordenada em `frontend/src/pages/efetivo/ProjectWorkflowNovelty.tsx` e `frontend/src/utils/projectWorkflowNovelty.ts`
 

@@ -11,7 +11,7 @@ const PARAMS_BY_SECTION: Record<EfetivoPlanningSection, string[]> = {
   colaboradores: ['date', 'funcao', 'search', 'colaborador', 'ausencia', 'ano'],
   disponibilidade: ['date', 'funcao'],
   missoes: ['status', 'etapa', 'missao'],
-  evolucao: ['visao', 'etapa', 'missao', 'projeto', 'busca', 'pagina', 'faseProjeto'],
+  evolucao: ['projeto', 'busca', 'pagina', 'faseProjeto'],
   simulacoes: ['date', 'funcao', 'cenario', 'missao'],
   produtividade: ['ano', 'ateMes', 'colaborador'],
   administracao: ['adminTab']

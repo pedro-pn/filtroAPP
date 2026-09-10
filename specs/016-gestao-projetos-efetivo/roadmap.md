@@ -10,7 +10,7 @@ Liberação comercial/contratual e documentação antecipada são frentes parale
 
 A futura integração com CRM será a fonte dos fatos comerciais, enquanto o FiltroAPP continuará responsável pelas confirmações e decisões operacionais. A matriz detalhada de propriedade, contingência manual e impacto por entrega está em [crm-integration-dependencies.md](crm-integration-dependencies.md).
 
-## Estado de implementação em 09/09/2026
+## Estado de implementação em 10/09/2026
 
 - Entrega 016 concluída: registro mestre, quatro etapas iniciais, líder, aceite, checklists, itens críticos, pendências, auditoria e avanço explícito.
 - Entrega 017 concluída: liberação comercial manual preparada para CRM e papel Comercial restrito à sua frente.
@@ -19,11 +19,12 @@ A futura integração com CRM será a fonte dos fatos comerciais, enquanto o Fil
 - Entrega 020 concluída: gate aplicado às mobilizações oficiais do Efetivo, romaneios de saída e retiradas do Estoque; projetos sem gestão iniciada permanecem no modo legado até classificação explícita.
 - Entrega 021 concluída: seleção do Romaneio filtrada pelo tipo; Saída mostra gerenciados autorizados e legados ativos, enquanto Entrada mantém todas as obras acessíveis disponíveis.
 - Entrega 022 concluída: etapa Em Execução preserva a autorização; dashboard reúne avanço, prazo, RDOs, metas de relatórios técnicos e desvios integrados com Qualidade.
+- Entrega 023 concluída: Evolução apresenta um único Kanban do projeto; Mobilização integra o fluxo e sincroniza a etapa da missão oficial, enquanto Missões mantém equipe, ciclos e datas.
 - Próximo incremento: Desmobilização, com conclusão de campo, conferências, retorno de equipe e ativos, avarias e múltiplos ciclos.
 
 ## Entrega 1 — Fundamentos e entrada em planejamento
 
-Implementar agora o recorte verificável em spec.md/tasks.md: gestão oficial vinculada ao Project, quatro etapas iniciais, líder/aceite, checklist do handover e análise, perguntas críticas e pendências com área, responsável, criticidade, prazo e status. Visão adicional em Evolução mantém programação operacional atual. D-30 calculado na tela; notificações automáticas ficam na entrega 2.
+Implementar agora o recorte verificável em spec.md/tasks.md: gestão oficial vinculada ao Project, quatro etapas iniciais, líder/aceite, checklist do handover e análise, perguntas críticas e pendências com área, responsável, criticidade, prazo e status. O Kanban de Evolução é refinado progressivamente; Missões preserva a configuração operacional de equipe, ciclos e datas. D-30 calculado na tela; notificações automáticas ficam na entrega 2.
 
 A gestão inicia explicitamente: nenhum projeto histórico recebe aceite ou liberação presumidos. Troca de líder invalida aceite. A gestão não é alterada pela aplicação de cenários do Efetivo.
 

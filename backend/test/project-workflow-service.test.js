@@ -23,6 +23,7 @@ function fakeDatabase() {
     issues: [],
     commercialFacts: [],
     events: [],
+    operationalMission: null,
     lastProjectFindManyInput: null,
     lastUserFindManyInput: null
   };
@@ -53,13 +54,14 @@ function fakeDatabase() {
       }
     },
     project: {
-      findFirst: async input => input.where.id === state.project.id ? { ...state.project, ...(input.select?.workflow ? { workflow: withRelations() } : {}) } : null,
+      findFirst: async input => input.where.id === state.project.id ? { ...state.project, efetivoMissionPlans: state.operationalMission ? [state.operationalMission] : [], ...(input.select?.workflow ? { workflow: withRelations() } : {}) } : null,
       count: async () => 1,
       findMany: async input => {
         state.lastProjectFindManyInput = input;
-        return [{ ...state.project, workflow: withRelations() }];
+        return [{ ...state.project, efetivoMissionPlans: state.operationalMission ? [state.operationalMission] : [], workflow: withRelations() }];
       }
     },
+    efetivoMissionPlan: { findFirst: async () => state.operationalMission },
     user: {
       findFirst: async input => users[input.where.id] && !['viewer-1', 'commercial-1'].includes(input.where.id) ? users[input.where.id] : null,
       findMany: async input => {
@@ -443,18 +445,27 @@ test('avanço para execução transporta a autorização para a nova versão', a
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
   makeStateReadyForMobilization(state);
+  const synchronizedStages = [];
   let result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'READY_TO_MOBILIZE' }, leader, {
     database,
-    now: new Date('2026-09-09T18:00:00Z')
+    now: new Date('2026-09-09T18:00:00Z'),
+    synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
   });
-  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'EXECUTION' }, leader, {
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'MOBILIZATION' }, leader, {
     database,
-    now: new Date('2026-09-10T09:00:00Z')
+    now: new Date('2026-09-10T09:00:00Z'),
+    synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
+  });
+  result = await updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'EXECUTION' }, leader, {
+    database,
+    now: new Date('2026-09-10T10:00:00Z'),
+    synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
   });
   assert.equal(result.workflow.stage, 'EXECUTION');
-  assert.equal(result.workflow.version, 3);
+  assert.equal(result.workflow.version, 4);
   assert.equal(result.workflow.mobilizationAuthorization.status, 'AUTHORIZED');
-  assert.equal(result.workflow.mobilizationAuthorization.authorizedVersion, 3);
+  assert.equal(result.workflow.mobilizationAuthorization.authorizedVersion, 4);
+  assert.deepEqual(synchronizedStages, ['MOBILIZATION', 'EXECUTION']);
 });
 
 test('gate bloqueado impede autorização e papel de área não pode revalidar', async () => {

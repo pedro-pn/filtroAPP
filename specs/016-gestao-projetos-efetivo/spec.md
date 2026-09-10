@@ -64,7 +64,7 @@ Após a análise, o projeto pode aguardar ou entrar diretamente em planejamento.
 - **FR-006**: Pendência registra descrição, área, responsável nominal, prazo necessário em dias, data limite, criticidade e status; positivas devem ser encaminhadas antes de sair da análise.
 - **FR-007**: Exibir pendências em qualquer etapa, inclusive durante espera, com atraso e criticidade.
 - **FR-008**: Guardar previsão de mobilização e calcular dias restantes e D-30 por data civil, sem depender de horário do navegador.
-- **FR-009**: Preservar o Kanban operacional, suas regras, equipe, ciclos e cenários. Oferecer a gestão como visão adicional em Evolução das missões.
+- **FR-009**: Refinar o Kanban de Evolução existente em um único fluxo do projeto. Preservar equipe, ciclos, datas e cenários em Missões, sem manter um segundo Kanban concorrente.
 - **FR-010**: Registrar histórico de alterações e proteger gravações por versão.
 - **FR-011**: Consulta paginada e busca por código, nome e cliente; detalhe e visão restaurados após atualização de página.
 - **FR-012**: Não emitir mensagens externas nem conceder autorizações operacionais nesta entrega.
@@ -73,7 +73,7 @@ Após a análise, o projeto pode aguardar ou entrar diretamente em planejamento.
 
 | Surface | Existing reference inspected | Components/classes to use | Form/dropdown pattern | Reorder drag/drop pattern | Navigation persistence | Novelty/tutorial contract | Responsive/overflow contract |
 |---|---|---|---|---|---|---|---|
-| Visão Gestão de projetos | EfetivoPage, MissionsBoard | Button, SearchBar, page-card, tokens globais | select e campos globais com rótulo | Sem reordenação nesta entrega; avanço explícito validado | section=evolucao, visao=projetos, projeto=id, busca | Card driver.js e guia de controles reais, 09/09 a 19/09/2026 | Colunas com rolagem interna desktop; lista por etapa selecionável mobile |
+| Kanban único de projetos | EfetivoPage, MissionsBoard | Button, SearchBar, page-card, tokens globais | select e campos globais com rótulo | Sem reordenação nesta entrega; avanço explícito validado | section=evolucao, projeto=id, busca | Card driver.js e guia de controles reais, atualizado em 10/09 por 10 dias | Colunas com rolagem interna desktop; lista por etapa selecionável mobile |
 | Detalhe de gestão | Modal compartilhado e MissionCompletionModal | Modal, Button, efetivo-modal-layout/body/footer, field-group | Erros field-invalid/field-error e aria-invalid, sem validação nativa substitutiva | Não aplicável | projeto=id na URL | Guia temporário da visão | Rodapé fixo, corpo rolável, ações quebram linha |
 
 ### Key Entities
@@ -100,10 +100,14 @@ Após a análise, o projeto pode aguardar ou entrar diretamente em planejamento.
 - Líder é uma conta ativa com acesso ao Efetivo; sua identidade é independente da seleção de colaboradores para campo.
 - Permissões por área, notificações D-90/D-15/D-7/D-1, reservas, documentos anexados, gates comerciais/operacionais e medição ficam nas entregas seguintes.
 - A opção não aplicável não vale para o aceite do líder nem para as perguntas críticas.
-- A mobilização prevista da gestão é estimativa própria; não sobrescreve datas reais ou programação oficial automaticamente.
+- A mobilização prevista da gestão é estimativa própria. Mobilização e Execução sincronizam somente a etapa da programação oficial; datas, equipe e ciclos continuam sendo mantidos em Missões.
 
 ## Clarifications
 
 ### Session 2026-09-09
 
 Revisão de escopo, entidades, interação, concorrência, permissões e dependências concluída sem perguntas adicionais: decisões de implementação usam o estudo aprovado e as premissas explícitas acima. O escopo das integrações futuras está delimitado no roadmap.
+
+### Session 2026-09-10
+
+Corrigida a interpretação da interface: o acompanhamento de gestão refina o Kanban existente e forma um único fluxo por projeto. Missões permanece como área de configuração operacional, sem controlar uma evolução paralela para projetos gerenciados.

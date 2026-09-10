@@ -13,7 +13,8 @@ import type {
   ProjectWorkflowDetail,
   ProjectWorkflowIssue,
   ProjectWorkflowPatch,
-  ProjectWorkflow
+  ProjectWorkflow,
+  ProjectOperationalMissionSummary
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
 import { Modal } from '../../../components/ui/Modal';
@@ -41,6 +42,41 @@ const issueSchema = z.object({
   status: z.enum(['OPEN', 'IN_PROGRESS', 'RESOLVED'])
 });
 type IssueValues = z.infer<typeof issueSchema>;
+type LegacyMissionValues = { stage: ProjectOperationalMissionSummary['stage']; returnDate: string };
+
+const LEGACY_MISSION_STAGE_LABELS: Record<ProjectOperationalMissionSummary['stage'], string> = {
+  STANDBY: 'Stand by',
+  MOBILIZATION: 'Mobilização',
+  EXECUTION: 'Execução',
+  FINAL_MEASUREMENT: 'Medição final',
+  FINISHED: 'Finalizada'
+};
+
+function LegacyMissionStageForm({ mission, saving, canManage, onMove }: {
+  mission: ProjectOperationalMissionSummary;
+  saving: boolean;
+  canManage: boolean;
+  onMove: (stage: ProjectOperationalMissionSummary['stage'], returnDate?: string | null) => void;
+}) {
+  const { register, handleSubmit, reset, watch, formState: { isDirty } } = useForm<LegacyMissionValues>({
+    defaultValues: { stage: mission.stage, returnDate: mission.returnDate || '' }
+  });
+  useEffect(() => reset({ stage: mission.stage, returnDate: mission.returnDate || '' }), [mission, reset]);
+  const stage = watch('stage');
+  return (
+    <form className="project-workflow-section" onSubmit={handleSubmit(values => onMove(
+      values.stage,
+      values.stage === 'FINISHED' ? values.returnDate || undefined : undefined
+    ))}>
+      <header><div><h4>Compatibilidade do projeto antigo</h4><p>A etapa operacional continua disponível aqui até o handover desta obra ser iniciado.</p></div><span>{mission.participantCount} participante(s)</span></header>
+      <div className="project-workflow-form-grid compact">
+        <div className="field-group"><label htmlFor="legacy-mission-stage">Etapa atual</label><select id="legacy-mission-stage" disabled={saving || !canManage} {...register('stage')}>{Object.entries(LEGACY_MISSION_STAGE_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></div>
+        {stage === 'FINISHED' ? <div className="field-group"><label htmlFor="legacy-mission-return-date">Data de desmobilização</label><input id="legacy-mission-return-date" type="date" disabled={saving || !canManage} {...register('returnDate')} /><small>Opcional; quando informada, atualiza o cronograma do projeto.</small></div> : null}
+      </div>
+      {canManage ? <div className="project-workflow-inline-actions"><Button type="submit" variant="secondary" disabled={saving || !isDirty}>Atualizar etapa antiga</Button></div> : null}
+    </form>
+  );
+}
 
 function commercialFactSchema(item: ProjectWorkflowCommercialFact) {
   return z.object({
@@ -202,7 +238,9 @@ function MobilizationGate({ workflow }: { workflow: ProjectWorkflow }) {
 }
 
 function transitionLabel(current: ProjectWorkflow['stage'], target: ProjectWorkflow['stage']) {
-  if (current === 'EXECUTION' && target === 'READY_TO_MOBILIZE') return 'Voltar para pronto para mobilizar';
+  if (current === 'MOBILIZATION' && target === 'READY_TO_MOBILIZE') return 'Voltar para pronto para mobilizar';
+  if (current === 'EXECUTION' && target === 'MOBILIZATION') return 'Voltar para mobilização';
+  if (target === 'MOBILIZATION') return 'Iniciar mobilização';
   if (target === 'EXECUTION') return 'Iniciar execução';
   if (target === 'READY_TO_MOBILIZE') return 'Autorizar mobilização';
   if (target === 'PREPARATION') return current === 'READY_TO_MOBILIZE' ? 'Voltar para preparação' : 'Iniciar preparação D-15';
@@ -273,7 +311,7 @@ function IssueEditor({ issue, version, saving, canEdit, onPatch }: {
   );
 }
 
-export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch }: {
+export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onMoveLegacyMission }: {
   detail: ProjectWorkflowDetail | null;
   leaders: Array<{ id: string; name: string }>;
   loading: boolean;
@@ -283,6 +321,7 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
   onClose: () => void;
   onStart: (values: StartValues) => void;
   onPatch: (payload: ProjectWorkflowPatch) => void;
+  onMoveLegacyMission: (stage: ProjectOperationalMissionSummary['stage'], returnDate?: string | null) => void;
 }) {
   if (typeof document === 'undefined' || (!detail && !loading && !error)) return null;
   const workflow = detail?.workflow || null;
@@ -314,7 +353,7 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
     : workflow?.documentationReadiness.status === 'CRITICAL' ? '🔴 Crítica' : '🟡 Em andamento';
   const footerIssues = workflow?.stage === 'HANDOVER'
     ? (workflow.permissions.canAccept ? workflow.handoverGate.issues : [`Aguardando ${workflow.leader.name} assumir formalmente o projeto`])
-    : workflow && ['READY_TO_MOBILIZE', 'EXECUTION'].includes(workflow.stage)
+    : workflow && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage)
       ? workflow.mobilizationGate.ready
         ? workflow.mobilizationAuthorization.status === 'SUSPENDED' ? ['O projeto mudou após a última autorização e precisa ser revalidado'] : []
         : workflow.mobilizationGate.blockers.map(item => `${item.label}: ${item.reason}`)
@@ -327,9 +366,12 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
         <header className="efetivo-modal-header"><div><h3 id="project-workflow-title">{detail ? `${detail.project.code} · ${detail.project.name}` : 'Gestão do projeto'}</h3><p>{detail ? `${detail.project.clientName} · ${detail.project.location || 'Local não informado'}` : 'Carregando dados do projeto…'}</p></div><button className="icon-button" type="button" disabled={saving} aria-label="Fechar" onClick={onClose}>×</button></header>
         <div className="efetivo-modal-body project-workflow-modal-body">
           {error ? <section className="placeholder-copy"><p>Não foi possível carregar os dados deste projeto.</p><Button variant="secondary" onClick={onRetry}>Tentar novamente</Button></section> : loading || !detail ? <p className="placeholder-copy">Carregando gestão do projeto…</p> : !workflow ? (
-            detail.permissions.canInitialize
-              ? <StartWorkflowForm detail={detail} leaders={leaders} saving={saving} onStart={onStart} />
-              : <section className="placeholder-copy"><h4>Gestão ainda não iniciada</h4><p>O gestor do Efetivo precisa iniciar o handover e designar o Líder de Projetos.</p></section>
+            <>
+              {detail.project.operationalMission ? <LegacyMissionStageForm mission={detail.project.operationalMission} saving={saving} canManage={detail.permissions.canInitialize} onMove={onMoveLegacyMission} /> : null}
+              {detail.permissions.canInitialize
+                ? <StartWorkflowForm detail={detail} leaders={leaders} saving={saving} onStart={onStart} />
+                : <section className="placeholder-copy"><h4>Gestão ainda não iniciada</h4><p>O gestor do Efetivo precisa iniciar o handover e designar o Líder de Projetos.</p></section>}
+            </>
           ) : (
             <>
               <section className="project-workflow-status-block"><div><span>Etapa atual</span><strong>{WORKFLOW_STAGE_LABELS[workflow.stage]}</strong></div><div><span>Líder</span><strong>{workflow.leader.name}</strong></div><div><span>Mobilização prevista</span><strong>{displayDateOnly(workflow.plannedMobilizationDate)}</strong></div><div><span>Próximo marco</span><strong>{nextMilestoneText}</strong></div></section>
@@ -345,15 +387,15 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
               <div className="project-workflow-readiness-caption"><strong>Documentação para mobilização: {documentationStatus}</strong><span>{workflow.documentationReadiness.completed}/{workflow.documentationReadiness.total} itens resolvidos</span></div>
               {workflow.stage === 'MOBILIZATION_PLANNING' ? <section className="project-workflow-planning" data-project-workflow-d30><header><div><h4>Planejamento da mobilização · D-30</h4><p>Previsões organizadas por área responsável.</p></div><strong>{workflow.planningReadiness.completed}/{workflow.planningReadiness.total} · {workflow.planningReadiness.percentage}%</strong></header><div className="project-workflow-planning-grid">{planningSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></section> : null}
               {workflow.stage === 'PREPARATION' || workflow.stage === 'READY_TO_MOBILIZE' ? <section className="project-workflow-planning" data-project-workflow-d15><header><div><h4>Preparação para mobilização · D-15</h4><p>Confirmações definitivas por frente responsável.</p></div><strong>{workflow.preparationReadiness.completed}/{workflow.preparationReadiness.total} · {workflow.preparationReadiness.percentage}%</strong></header><div className="project-workflow-planning-grid">{preparationSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></section> : null}
-              {['PREPARATION', 'READY_TO_MOBILIZE', 'EXECUTION'].includes(workflow.stage) ? <MobilizationGate workflow={workflow} /> : null}
+              {['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage) ? <MobilizationGate workflow={workflow} /> : null}
               {workflow.stage === 'EXECUTION' ? <ProjectExecutionDashboard projectId={workflow.projectId} /> : null}
               {workflow.stage !== 'HANDOVER' ? <section className="project-workflow-section"><header><h4>Itens críticos</h4><span>{workflow.criticalAnswers.filter(item => item.answer !== null).length}/{workflow.criticalAnswers.length}</span></header>{workflow.criticalAnswers.map(item => <article className="project-workflow-critical" key={item.key}><span>{item.label}</span><div><Button variant={item.answer === true ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => onPatch({ action: 'critical', version: workflow.version, key: item.key, answer: true })}>Sim</Button><Button variant={item.answer === false ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => onPatch({ action: 'critical', version: workflow.version, key: item.key, answer: false })}>Não</Button></div></article>)}</section> : null}
               {workflow.issues.length ? <section className="project-workflow-section"><header><h4>Pendências</h4><span>{workflow.issues.filter(item => item.status !== 'RESOLVED').length} abertas</span></header>{workflow.issues.map(issue => <IssueEditor issue={issue} version={workflow.version} saving={saving} canEdit={workflow.permissions.canEdit} onPatch={onPatch} key={issue.id} />)}</section> : null}
-              {['MOBILIZATION_PLANNING', 'PREPARATION', 'READY_TO_MOBILIZE', 'EXECUTION'].includes(workflow.stage) ? <a className="mini-btn project-workflow-planning-link" href={`/efetivo?section=missoes&search=${encodeURIComponent(detail.project.code)}`}>Abrir programação da equipe</a> : null}
+              {['MOBILIZATION_PLANNING', 'PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage) ? <a className="mini-btn project-workflow-planning-link" href={`/efetivo?section=missoes&search=${encodeURIComponent(detail.project.code)}`}>Abrir programação da equipe</a> : null}
             </>
           )}
         </div>
-        <footer className="efetivo-modal-footer project-workflow-modal-footer"><div className="project-workflow-footer-status" aria-live="polite">{workflow ? <><strong>{workflow.stage === 'HANDOVER' ? 'Gate do handover' : ['PREPARATION', 'READY_TO_MOBILIZE', 'EXECUTION'].includes(workflow.stage) ? 'Gate de mobilização' : 'Avanço do projeto'}</strong>{workflow.mobilizationAuthorization.status === 'AUTHORIZED' ? <span>Autorização vigente na versão {workflow.mobilizationAuthorization.authorizedVersion}.</span> : footerIssues.length ? <span>{footerIssues.length} bloqueio(s): {footerIssues.slice(0, 3).join(' · ')}{footerIssues.length > 3 ? ` · e mais ${footerIssues.length - 3}` : ''}</span> : <span>Requisitos concluídos. Confirme a próxima etapa.</span>}</> : null}</div><div className="project-workflow-footer-actions"><Button variant="secondary" disabled={saving} onClick={onClose}>Fechar</Button>{workflow?.stage === 'HANDOVER' && workflow.permissions.canAccept ? <Button disabled={saving || !workflow.handoverGate.ready} onClick={() => onPatch({ action: 'accept', version: workflow.version })}>Assumir e iniciar análise</Button> : null}{workflow?.stage !== 'HANDOVER' && workflow?.permissions.canEdit ? transitionOptions.map(option => <Button variant={['PREPARATION', 'READY_TO_MOBILIZE', 'EXECUTION'].includes(option.stage) ? 'primary' : 'secondary'} disabled={saving || !option.allowed} title={option.issues.join(' · ') || undefined} onClick={() => onPatch({ action: 'stage', version: workflow.version, stage: option.stage })} key={option.stage}>{transitionLabel(workflow.stage, option.stage)}</Button>) : null}{workflow && ['READY_TO_MOBILIZE', 'EXECUTION'].includes(workflow.stage) && workflow.permissions.canAuthorizeMobilization && workflow.mobilizationAuthorization.status !== 'AUTHORIZED' ? <Button disabled={saving || !workflow.mobilizationGate.ready} onClick={() => onPatch({ action: 'authorize_mobilization', version: workflow.version })}>Revalidar autorização</Button> : null}</div></footer>
+        <footer className="efetivo-modal-footer project-workflow-modal-footer"><div className="project-workflow-footer-status" aria-live="polite">{workflow ? <><strong>{workflow.stage === 'HANDOVER' ? 'Gate do handover' : ['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage) ? 'Gate de mobilização' : 'Avanço do projeto'}</strong>{workflow.mobilizationAuthorization.status === 'AUTHORIZED' ? <span>Autorização vigente na versão {workflow.mobilizationAuthorization.authorizedVersion}.</span> : footerIssues.length ? <span>{footerIssues.length} bloqueio(s): {footerIssues.slice(0, 3).join(' · ')}{footerIssues.length > 3 ? ` · e mais ${footerIssues.length - 3}` : ''}</span> : <span>Requisitos concluídos. Confirme a próxima etapa.</span>}</> : null}</div><div className="project-workflow-footer-actions"><Button variant="secondary" disabled={saving} onClick={onClose}>Fechar</Button>{workflow?.stage === 'HANDOVER' && workflow.permissions.canAccept ? <Button disabled={saving || !workflow.handoverGate.ready} onClick={() => onPatch({ action: 'accept', version: workflow.version })}>Assumir e iniciar análise</Button> : null}{workflow?.stage !== 'HANDOVER' && workflow?.permissions.canEdit ? transitionOptions.map(option => <Button variant={['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(option.stage) ? 'primary' : 'secondary'} disabled={saving || !option.allowed} title={option.issues.join(' · ') || undefined} onClick={() => onPatch({ action: 'stage', version: workflow.version, stage: option.stage })} key={option.stage}>{transitionLabel(workflow.stage, option.stage)}</Button>) : null}{workflow && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage) && workflow.permissions.canAuthorizeMobilization && workflow.mobilizationAuthorization.status !== 'AUTHORIZED' ? <Button disabled={saving || !workflow.mobilizationGate.ready} onClick={() => onPatch({ action: 'authorize_mobilization', version: workflow.version })}>Revalidar autorização</Button> : null}</div></footer>
       </div>
     </Modal>
   );

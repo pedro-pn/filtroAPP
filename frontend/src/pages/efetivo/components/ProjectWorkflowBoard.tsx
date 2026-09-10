@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { movePlanningMission, type MissionStage } from '../../../api/efetivoPlanning';
 import {
   getProjectWorkflow,
   listProjectWorkflowLeaders,
@@ -8,15 +9,28 @@ import {
   startProjectWorkflow,
   updateProjectWorkflow,
   type ProjectWorkflowPatch,
-  type ProjectWorkflowSummary,
-  type ProjectWorkflowStage
+  type ProjectWorkflowSummary
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
 import { SearchBar } from '../../../components/ui/SearchBar';
 import { useToast } from '../../../components/ui/ToastContext';
 import { displayDateOnly } from '../../../utils/calendarGrid';
-import { projectWorkflowMilestoneText, projectWorkflowsToColumns, WORKFLOW_STAGE_LABELS, WORKFLOW_STAGES } from '../../../utils/projectWorkflow';
+import {
+  PROJECT_KANBAN_STAGE_LABELS,
+  PROJECT_KANBAN_STAGES,
+  projectWorkflowMilestoneText,
+  projectWorkflowsToColumns,
+  type ProjectKanbanStage
+} from '../../../utils/projectWorkflow';
 import { ProjectWorkflowModal } from './ProjectWorkflowModal';
+
+const OPERATIONAL_STAGE_LABELS = {
+  STANDBY: 'Stand by',
+  MOBILIZATION: 'Mobilização',
+  EXECUTION: 'Execução',
+  FINAL_MEASUREMENT: 'Medição final',
+  FINISHED: 'Finalizada'
+} as const;
 
 function ProjectCard({ item, selected, canManage, onSelect }: {
   item: ProjectWorkflowSummary;
@@ -25,6 +39,7 @@ function ProjectCard({ item, selected, canManage, onSelect }: {
   onSelect: () => void;
 }) {
   const workflow = item.workflow;
+  const mission = item.operationalMission;
   const documentationLabel = workflow?.documentationReadiness.status === 'OK'
     ? 'OK'
     : workflow?.documentationReadiness.status === 'CRITICAL' ? 'crítica' : 'em andamento';
@@ -44,12 +59,14 @@ function ProjectCard({ item, selected, canManage, onSelect }: {
         {workflow.stage === 'MOBILIZATION_PLANNING' ? <small className="project-workflow-planning-badge">D-30: {workflow.planningReadiness.completed}/{workflow.planningReadiness.total} · {workflow.planningReadiness.percentage}%</small> : null}
         {['PREPARATION', 'READY_TO_MOBILIZE'].includes(workflow.stage) ? <small className="project-workflow-preparation-badge">D-15: {workflow.preparationReadiness.completed}/{workflow.preparationReadiness.total} · {workflow.preparationReadiness.percentage}%</small> : null}
         {workflow.stage === 'EXECUTION' ? <small className="project-workflow-execution-badge">Acompanhamento operacional ativo</small> : null}
+        {workflow.stage === 'MOBILIZATION' ? <small className="project-workflow-execution-badge">Mobilização operacional em andamento</small> : null}
         {workflow.mobilizationGate.deadlineStatus === 'ATTENTION' ? <small className="project-workflow-mobilization-risk is-attention">D-7 · {workflow.mobilizationGate.blockers.length} bloqueio(s)</small> : null}
         {workflow.mobilizationGate.deadlineStatus === 'RISK' ? <small className="project-workflow-mobilization-risk is-risk">Risco de mobilização · {workflow.mobilizationGate.blockers.length} bloqueio(s)</small> : null}
         {mobilizationStatus === 'AUTHORIZED' ? <small className="project-workflow-authorization-badge is-authorized">🔒 Mobilização autorizada</small> : null}
         {mobilizationStatus === 'SUSPENDED' ? <small className="project-workflow-authorization-badge is-suspended">Autorização suspensa</small> : null}
         {workflow.issueCount ? <em className={workflow.overdueIssueCount ? 'is-overdue' : ''}>{workflow.issueCount} pendência(s){workflow.overdueIssueCount ? ` · ${workflow.overdueIssueCount} vencida(s)` : ''}</em> : null}
-      </> : <em>{canManage ? 'Iniciar handover' : 'Gestão ainda não iniciada'}</em>}
+        {mission ? <small>Programação: {OPERATIONAL_STAGE_LABELS[mission.stage]} · {mission.participantCount} participante(s)</small> : <small>Programação operacional pendente</small>}
+      </> : <><em>{mission ? `Fluxo legado · ${OPERATIONAL_STAGE_LABELS[mission.stage]}` : canManage ? 'Iniciar handover' : 'Gestão ainda não iniciada'}</em>{mission ? <small>{mission.participantCount} participante(s) · gestão ainda não iniciada</small> : null}</>}
     </button>
   );
 }
@@ -58,11 +75,11 @@ export function ProjectWorkflowBoard({ canManage, search, page, mobileStage, sel
   canManage: boolean;
   search: string;
   page: number;
-  mobileStage: ProjectWorkflowStage;
+  mobileStage: ProjectKanbanStage;
   selectedProjectId?: string;
   onSearchChange: (value: string) => void;
   onPageChange: (page: number) => void;
-  onMobileStageChange: (stage: ProjectWorkflowStage) => void;
+  onMobileStageChange: (stage: ProjectKanbanStage) => void;
   onProjectSelect: (projectId?: string) => void;
 }) {
   const queryClient = useQueryClient();
@@ -93,6 +110,19 @@ export function ProjectWorkflowBoard({ canManage, search, page, mobileStage, sel
       if ((error as { code?: string }).code === 'PROJECT_WORKFLOW_VERSION_CONFLICT') void detail.refetch();
     }
   });
+  const moveLegacyMission = useMutation({
+    mutationFn: ({ missionId, version, stage, order, returnDate }: { missionId: string; version: number; stage: MissionStage; order: number; returnDate?: string | null }) => (
+      movePlanningMission(missionId, version, stage, order, returnDate)
+    ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['project-workflows'] }),
+        queryClient.invalidateQueries({ queryKey: ['project-workflow', selectedProjectId] })
+      ]);
+      toast('Etapa do projeto antigo atualizada.', 'success');
+    },
+    onError: (error: Error) => toast(error.message, 'error')
+  });
   if (list.isLoading) return <section className="page-card placeholder-copy">Carregando gestão de projetos…</section>;
   if (list.isError || !list.data) return <section className="page-card placeholder-copy"><p>Não foi possível carregar a gestão de projetos.</p><Button variant="secondary" onClick={() => void list.refetch()}>Tentar novamente</Button></section>;
   const columns = projectWorkflowsToColumns(list.data.items);
@@ -102,15 +132,19 @@ export function ProjectWorkflowBoard({ canManage, search, page, mobileStage, sel
     <div className="efetivo-board project-workflow-board" data-project-workflow-board>
       <section className="page-card efetivo-summary-strip"><span><strong>{list.data.total}</strong> projetos elegíveis</span><span><strong>{managedCount}</strong> com gestão iniciada nesta página</span><span><strong>{overdueCount}</strong> pendências vencidas</span></section>
       <section className="page-card project-workflow-toolbar">
-        <div><h2>Gestão de projetos</h2><p>Do handover à execução, com planejamento D-30, confirmação D-15, gates e acompanhamento operacional.</p></div>
+        <div><h2>Evolução dos projetos</h2><p>Fluxo único do handover ao encerramento. Equipe, ciclos e datas são configurados em Missões.</p></div>
         <SearchBar id="project-workflow-search" value={search} onChange={onSearchChange} placeholder="Buscar projeto, cliente ou código" count={{ shown: list.data.items.length, total: list.data.total }} />
-        <div className="field-group project-workflow-mobile-stage"><label htmlFor="project-workflow-stage">Etapa exibida</label><select id="project-workflow-stage" value={mobileStage} onChange={event => onMobileStageChange(event.target.value as ProjectWorkflowStage)}>{WORKFLOW_STAGES.map(stage => <option value={stage} key={stage}>{WORKFLOW_STAGE_LABELS[stage]}</option>)}</select></div>
+        <div className="field-group project-workflow-mobile-stage"><label htmlFor="project-workflow-stage">Etapa exibida</label><select id="project-workflow-stage" value={mobileStage} onChange={event => onMobileStageChange(event.target.value as ProjectKanbanStage)}>{PROJECT_KANBAN_STAGES.map(stage => <option value={stage} key={stage}>{PROJECT_KANBAN_STAGE_LABELS[stage]}</option>)}</select></div>
       </section>
-      <section className="project-workflow-columns" aria-label="Fluxo de preparação dos projetos">
-        {WORKFLOW_STAGES.map(stage => <div className={`project-workflow-column ${mobileStage === stage ? 'mobile-active' : ''}`} data-project-workflow-execution={stage === 'EXECUTION' ? true : undefined} key={stage}><header><strong>{WORKFLOW_STAGE_LABELS[stage]}</strong><span>{columns[stage].length}</span></header><div className="project-workflow-card-list">{columns[stage].map(item => <ProjectCard item={item} selected={selectedProjectId === item.id} canManage={canManage} onSelect={() => onProjectSelect(item.id)} key={item.id} />)}{columns[stage].length ? null : <p className="efetivo-kanban-empty">Nenhum projeto nesta etapa</p>}</div></div>)}
+      <section className="project-workflow-columns" aria-label="Evolução única dos projetos">
+        {PROJECT_KANBAN_STAGES.map(stage => <div className={`project-workflow-column ${mobileStage === stage ? 'mobile-active' : ''}`} data-project-workflow-execution={stage === 'EXECUTION' ? true : undefined} key={stage}><header><strong>{PROJECT_KANBAN_STAGE_LABELS[stage]}</strong><span>{columns[stage].length}</span></header><div className="project-workflow-card-list">{columns[stage].map(item => <ProjectCard item={item} selected={selectedProjectId === item.id} canManage={canManage} onSelect={() => onProjectSelect(item.id)} key={item.id} />)}{columns[stage].length ? null : <p className="efetivo-kanban-empty">Nenhum projeto nesta etapa</p>}</div></div>)}
       </section>
       {list.data.total > list.data.pageSize ? <nav className="project-workflow-pagination" aria-label="Paginação dos projetos"><Button variant="secondary" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Anterior</Button><span>Página {page} de {Math.ceil(list.data.total / list.data.pageSize)}</span><Button variant="secondary" disabled={page * list.data.pageSize >= list.data.total} onClick={() => onPageChange(page + 1)}>Próxima</Button></nav> : null}
-      <ProjectWorkflowModal detail={selectedProjectId ? detail.data || null : null} leaders={leaders.data || []} loading={Boolean(selectedProjectId && detail.isLoading)} error={Boolean(selectedProjectId && detail.isError)} saving={start.isPending || update.isPending} onRetry={() => void detail.refetch()} onClose={() => onProjectSelect(undefined)} onStart={values => start.mutate(values)} onPatch={payload => update.mutate(payload)} />
+      <ProjectWorkflowModal detail={selectedProjectId ? detail.data || null : null} leaders={leaders.data || []} loading={Boolean(selectedProjectId && detail.isLoading)} error={Boolean(selectedProjectId && detail.isError)} saving={start.isPending || update.isPending || moveLegacyMission.isPending} onRetry={() => void detail.refetch()} onClose={() => onProjectSelect(undefined)} onStart={values => start.mutate(values)} onPatch={payload => update.mutate(payload)} onMoveLegacyMission={(stage, returnDate) => {
+        const mission = detail.data?.project.operationalMission;
+        if (!mission) return;
+        moveLegacyMission.mutate({ missionId: mission.id, version: mission.version, stage, order: mission.kanbanOrder, returnDate });
+      }} />
     </div>
   );
 }

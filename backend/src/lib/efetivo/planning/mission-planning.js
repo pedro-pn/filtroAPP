@@ -460,6 +460,18 @@ export async function moveMissionStage(missionId, payload, context = {}, depende
     if (!existing || existing.deletedAt) throw notFound('Missão operacional não encontrada.');
     const plan = await requireEditablePlan(tx, existing.planId, { actorUserId: context.actorUserId });
     if (context.version && existing.version !== context.version) throw conflictError('A posição da missão ficou desatualizada.', [], 'MISSION_VERSION_CONFLICT');
+    if (plan.kind === 'OFFICIAL' && existing.stage !== payload.stage) {
+      const managedWorkflow = await tx.projectWorkflow.findUnique({
+        where: { projectId: existing.projectId },
+        select: { projectId: true }
+      });
+      if (managedWorkflow) {
+        throw planningError('A etapa desta obra é controlada pelo Kanban único de projetos.', {
+          statusCode: 409,
+          code: 'MISSION_STAGE_MANAGED_BY_PROJECT'
+        });
+      }
+    }
     const pendencies = missionMovePendencies(existing);
     if (pendencies.length) {
       throw planningError(`Complete os dados obrigatórios antes de mover a missão: ${pendencies.join(', ')}.`, {

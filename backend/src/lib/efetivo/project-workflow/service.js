@@ -9,6 +9,7 @@ import { hasModuleRole } from '../../module-roles.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { conflictError, notFound, planningError } from '../planning/errors.js';
 import { resolvePlanningDatabase, runPlanningTransaction } from '../planning/plan-context.js';
+import { synchronizeOfficialMissionStage } from '../planning/mission-stage-sync.js';
 import {
   allowedProjectWorkflowTransition,
   handoverGateIssues,
@@ -36,6 +37,24 @@ const PROJECT_FIELDS = {
   clientName: true,
   location: true
 };
+const OPERATIONAL_MISSION_QUERY = {
+  where: { deletedAt: null, scheduleStatus: { not: 'CANCELLED' }, plan: { kind: 'OFFICIAL', status: 'ACTIVE' } },
+  orderBy: { updatedAt: 'desc' },
+  take: 1,
+  select: {
+    id: true,
+    stage: true,
+    scheduleStatus: true,
+    version: true,
+    kanbanOrder: true,
+    mobilizationDate: true,
+    executionStartDate: true,
+    executionEndDate: true,
+    returnDate: true,
+    headquartersResponsibleName: true,
+    allocations: { where: { deletedAt: null }, select: { id: true } }
+  }
+};
 const WORKFLOW_INCLUDE = {
   leader: { select: { id: true, name: true, isActive: true } },
   checklists: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
@@ -59,6 +78,24 @@ function dateKey(value) {
 
 function todayKey(now = new Date()) {
   return SAO_PAULO_DATE_FORMATTER.format(now);
+}
+
+function operationalMissionSummary(project) {
+  const mission = project?.efetivoMissionPlans?.[0];
+  if (!mission) return null;
+  return {
+    id: mission.id,
+    stage: mission.stage,
+    scheduleStatus: mission.scheduleStatus,
+    version: mission.version,
+    kanbanOrder: mission.kanbanOrder,
+    mobilizationDate: dateKey(mission.mobilizationDate),
+    executionStartDate: dateKey(mission.executionStartDate),
+    executionEndDate: dateKey(mission.executionEndDate),
+    returnDate: dateKey(mission.returnDate),
+    headquartersResponsibleName: mission.headquartersResponsibleName,
+    participantCount: mission.allocations?.length || 0
+  };
 }
 
 function eligibleProjectWhere(extra = {}) {
@@ -106,7 +143,7 @@ function publicPermissions(workflow, context) {
     canAccept: Boolean(workflow && isLeader && !workflow.acceptedAt && workflow.stage === 'HANDOVER'),
     canChangeLeader: Boolean(workflow && manager),
     canEditCommercial: canEditCommercial(workflow, context),
-    canAuthorizeMobilization: Boolean(workflow && (manager || isLeader) && ['READY_TO_MOBILIZE', 'EXECUTION'].includes(workflow.stage))
+    canAuthorizeMobilization: Boolean(workflow && (manager || isLeader) && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage))
   };
 }
 
@@ -182,6 +219,7 @@ async function findEligibleProject(database, projectId, { workflow = false } = {
     where: eligibleProjectWhere({ id: projectId }),
     select: {
       ...PROJECT_FIELDS,
+      efetivoMissionPlans: OPERATIONAL_MISSION_QUERY,
       ...(workflow ? { workflow: { include: WORKFLOW_INCLUDE } } : {})
     }
   });
@@ -228,6 +266,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
       where,
       select: {
         ...PROJECT_FIELDS,
+        efetivoMissionPlans: OPERATIONAL_MISSION_QUERY,
         workflow: {
           include: {
             leader: { select: { id: true, name: true, isActive: true } },
@@ -255,7 +294,12 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
       const mobilizationGate = workflow ? projectWorkflowMobilizationGate(workflow, milestones, todayKey(now)) : null;
       const mobilizationAuthorization = workflow ? projectWorkflowMobilizationAuthorization(workflow, mobilizationGate) : null;
       return {
-        ...project,
+        id: project.id,
+        code: project.code,
+        name: project.name,
+        clientName: project.clientName,
+        location: project.location,
+        operationalMission: operationalMissionSummary(project),
         workflow: workflow ? {
           projectId: workflow.projectId,
           stage: workflow.stage,
@@ -304,7 +348,14 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
   const project = await findEligibleProject(database, projectId, { workflow: true });
   if (!project) throw notFound('Projeto não encontrado ou indisponível no Efetivo.');
   return {
-    project: { id: project.id, code: project.code, name: project.name, clientName: project.clientName, location: project.location },
+    project: {
+      id: project.id,
+      code: project.code,
+      name: project.name,
+      clientName: project.clientName,
+      location: project.location,
+      operationalMission: operationalMissionSummary(project)
+    },
     workflow: decorateWorkflow(project.workflow, context, dependencies.now || new Date()),
     permissions: publicPermissions(project.workflow, context)
   };
@@ -525,7 +576,7 @@ async function applyAccept(tx, workflow, context, now) {
   });
 }
 
-async function applyStage(tx, workflow, payload, now) {
+async function applyStage(tx, workflow, payload, now, context, dependencies) {
   const issues = projectWorkflowTransitionIssues(workflow, payload.stage);
   if (issues.length) {
     throw planningError('Não é possível avançar para esta etapa.', {
@@ -533,14 +584,24 @@ async function applyStage(tx, workflow, payload, now) {
       issues: issues.map(message => ({ message }))
     });
   }
+  const synchronizesOperationalStage = ['MOBILIZATION', 'EXECUTION'].includes(payload.stage)
+    || (payload.stage === 'READY_TO_MOBILIZE' && ['MOBILIZATION', 'EXECUTION'].includes(workflow.stage));
+  if (synchronizesOperationalStage) {
+    await (dependencies.synchronizeOfficialMissionStage || synchronizeOfficialMissionStage)(
+      tx,
+      workflow.projectId,
+      payload.stage,
+      context
+    );
+  }
   const data = { stage: payload.stage };
   if (payload.stage === 'READY_TO_MOBILIZE') {
     data.mobilizationAuthorizedAt = now;
     data.mobilizationAuthorizationVersion = workflow.version + 1;
-  } else if (payload.stage === 'EXECUTION') {
+  } else if (['MOBILIZATION', 'EXECUTION'].includes(payload.stage)) {
     data.mobilizationAuthorizedAt = workflow.mobilizationAuthorizedAt;
     data.mobilizationAuthorizationVersion = workflow.version + 1;
-  } else if (['READY_TO_MOBILIZE', 'EXECUTION'].includes(workflow.stage)) {
+  } else if (['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage)) {
     data.mobilizationAuthorizedAt = null;
     data.mobilizationAuthorizationVersion = null;
   }
@@ -548,8 +609,8 @@ async function applyStage(tx, workflow, payload, now) {
 }
 
 async function applyMobilizationAuthorization(tx, workflow, now) {
-  if (!['READY_TO_MOBILIZE', 'EXECUTION'].includes(workflow.stage)) {
-    throw planningError('A mobilização só pode ser autorizada nas etapas Pronto para mobilizar ou Em execução.', {
+  if (!['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage)) {
+    throw planningError('A mobilização só pode ser autorizada nas etapas Pronto para mobilizar, Mobilização ou Em execução.', {
       code: 'PROJECT_WORKFLOW_READY_STAGE_REQUIRED'
     });
   }
@@ -586,7 +647,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'critical') await applyCriticalAnswer(tx, workflow, payload, context);
     else if (payload.action === 'issue') await applyIssue(tx, workflow, payload);
     else if (payload.action === 'accept') await applyAccept(tx, workflow, context, now);
-    else if (payload.action === 'stage') await applyStage(tx, workflow, payload, now);
+    else if (payload.action === 'stage') await applyStage(tx, workflow, payload, now, context, dependencies);
     else if (payload.action === 'authorize_mobilization') await applyMobilizationAuthorization(tx, workflow, now);
     else if (payload.action === 'commercial_fact') await applyCommercialFact(tx, workflow, payload, context);
     const eventData = { ...payload };

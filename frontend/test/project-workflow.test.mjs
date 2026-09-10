@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import test from 'node:test';
 
 import {
+  projectKanbanStage,
   projectWorkflowMilestoneText,
   projectWorkflowStageOptions,
   projectWorkflowsToColumns
@@ -15,22 +16,38 @@ test('projetos sem gestão entram visualmente no Handover', () => {
   assert.equal(columns.INITIAL_ANALYSIS.length, 0);
 });
 
+test('projeto legado preserva a etapa da missão dentro do Kanban único', () => {
+  const project = {
+    id: 'p2', code: 'P2', name: 'Legado', clientName: 'Cliente', location: '', workflow: null,
+    operationalMission: { stage: 'MOBILIZATION' }, permissions: { canInitialize: true }
+  };
+  assert.equal(projectKanbanStage(project), 'MOBILIZATION');
+  assert.deepEqual(projectWorkflowsToColumns([project]).MOBILIZATION.map(item => item.id), ['p2']);
+});
+
 test('ações de etapa não transformam D-30 em coluna', () => {
   assert.deepEqual(projectWorkflowStageOptions('INITIAL_ANALYSIS'), ['WAITING_PLANNING', 'MOBILIZATION_PLANNING']);
   assert.deepEqual(projectWorkflowStageOptions('MOBILIZATION_PLANNING'), ['INITIAL_ANALYSIS', 'WAITING_PLANNING', 'PREPARATION']);
   assert.deepEqual(projectWorkflowStageOptions('PREPARATION'), ['MOBILIZATION_PLANNING', 'READY_TO_MOBILIZE']);
-  assert.deepEqual(projectWorkflowStageOptions('READY_TO_MOBILIZE'), ['PREPARATION', 'EXECUTION']);
-  assert.deepEqual(projectWorkflowStageOptions('EXECUTION'), ['READY_TO_MOBILIZE']);
+  assert.deepEqual(projectWorkflowStageOptions('READY_TO_MOBILIZE'), ['PREPARATION', 'MOBILIZATION']);
+  assert.deepEqual(projectWorkflowStageOptions('MOBILIZATION'), ['READY_TO_MOBILIZE', 'EXECUTION']);
+  assert.deepEqual(projectWorkflowStageOptions('EXECUTION'), ['MOBILIZATION']);
   assert.equal(projectWorkflowMilestoneText({ workflow: { milestones: { daysUntilMobilization: 20 } } }), 'Faltam 20 dia(s)');
 });
 
-test('integração mantém Kanban operacional como visão separada e persiste projeto na URL', () => {
+test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => {
   const page = fs.readFileSync(new URL('../src/pages/efetivo/EfetivoPage.tsx', import.meta.url), 'utf8');
+  const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
   const navigation = fs.readFileSync(new URL('../src/utils/planningNavigation.ts', import.meta.url), 'utf8');
   assert.match(page, /ProjectWorkflowBoard/);
-  assert.match(page, /MissionKanban/);
+  assert.doesNotMatch(page, /MissionKanban/);
+  assert.doesNotMatch(page, /project-workflow-view-switch/);
+  assert.match(board, /movePlanningMission/);
+  assert.match(modal, /Compatibilidade do projeto antigo/);
+  assert.match(modal, /Atualizar etapa antiga/);
   assert.match(navigation, /projeto/);
-  assert.match(navigation, /visao/);
+  assert.match(navigation, /evolucao: \['projeto', 'busca', 'pagina', 'faseProjeto'\]/);
 });
 
 test('detalhe mostra prontidão comercial e mantém ações de avanço no rodapé', () => {
@@ -78,7 +95,7 @@ test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe'
   assert.match(board, /Risco de mobilização/);
   assert.match(board, /Mobilização autorizada/);
   assert.match(administration, /EFETIVO_QSMS/);
-  assert.match(styles, /repeat\(7, minmax\(230px, 1fr\)\)/);
+  assert.match(styles, /repeat\(10, minmax\(230px, 1fr\)\)/);
   assert.match(styles, /project-workflow-gate-table/);
   assert.match(registry, /efetivo:qsms/);
 });
@@ -100,7 +117,8 @@ test('etapa Em execução mostra painel operacional e desvios integrados', () =>
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
   assert.match(modal, /ProjectExecutionDashboard/);
   assert.match(modal, /Iniciar execução/);
-  assert.match(modal, /Voltar para pronto para mobilizar/);
+  assert.match(modal, /Iniciar mobilização/);
+  assert.match(modal, /Voltar para mobilização/);
   assert.match(dashboard, /Dashboard de execução/);
   assert.match(dashboard, /Registrar desvio/);
   assert.match(dashboard, /Relatórios técnicos/);

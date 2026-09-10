@@ -1782,27 +1782,7 @@
 .efetivo-panel-link:hover { text-decoration: underline; }
 .efetivo-utilization-card .efetivo-panel-link { align-self: flex-start; }
 
-/* Gestão do ciclo do projeto, preservando o Kanban operacional como visão complementar. */
-.project-workflow-view-switch {
-  display: grid;
-  gap: 6px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-bottom: 12px;
-  padding: 6px;
-}
-
-.project-workflow-view-switch button {
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--rs);
-  color: var(--mu);
-  cursor: pointer;
-  font-weight: 700;
-  min-width: 0;
-  padding: 10px 12px;
-}
-
-.project-workflow-view-switch button.active { background: var(--g); color: var(--wh); }
+/* Evolução única do projeto; Missões permanece como cadastro operacional de equipe e ciclos. */
 .project-workflow-toolbar { align-items: end; display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr) minmax(min(100%, 330px), .55fr); }
 .project-workflow-toolbar h2,
 .project-workflow-toolbar p { margin: 0; }
@@ -1812,7 +1792,7 @@
 .project-workflow-columns {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(7, minmax(230px, 1fr));
+  grid-template-columns: repeat(10, minmax(230px, 1fr));
   min-width: 0;
   width: 100%;
   overflow-x: auto;
@@ -2030,7 +2010,6 @@
 .project-execution-deviation-status label { color: var(--mu); font-size: 12px; font-weight: 700; }
 
 @media (max-width: 760px) {
-  .project-workflow-view-switch { grid-template-columns: minmax(0, 1fr); }
   .project-workflow-toolbar { align-items: stretch; grid-template-columns: minmax(0, 1fr); }
   .project-workflow-toolbar .project-workflow-mobile-stage { display: flex; }
   .project-workflow-columns { display: block; overflow: visible; }
