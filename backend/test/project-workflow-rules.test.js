@@ -97,6 +97,21 @@ test('propostas comerciais válidas satisfazem os itens equivalentes do handover
   assert.match(handoverGateIssues({ leaderUserId: 'leader-1', checklists, commercialFacts })[0], /Proposta comercial/);
 });
 
+test('documento de proposta serve como evidência do handover sem confirmar fatos comerciais', () => {
+  const proposalKeys = new Set(['HANDOVER_COMMERCIAL_PROPOSAL', 'HANDOVER_TECHNICAL_PROPOSAL']);
+  const checklists = completed('HANDOVER').filter(item => !proposalKeys.has(item.key));
+  const workflow = {
+    leaderUserId: 'leader-1',
+    checklists,
+    commercialFacts: [],
+    documentEvidenceKeys: [...proposalKeys]
+  };
+  assert.deepEqual(handoverGateIssues(workflow), []);
+  assert.equal(projectWorkflowCommercialReadiness(workflow).status, 'NOT_RELEASED');
+  const { patch } = makeProjectWorkflowSchemas(z);
+  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'COMMERCIAL_PROPOSAL_CREATED', status: 'CONFIRMED', evidenceDocumentId: 'doc_1', occurredOn: '2026-09-10' }).success, true);
+});
+
 test('análise exige todas as respostas e encaminhamento para cada resposta positiva', () => {
   const workflow = {
     checklists: completed('INITIAL_ANALYSIS'),
@@ -201,6 +216,21 @@ test('gate consolida nove frentes, pré-job e pendências críticas', () => {
   gate = projectWorkflowMobilizationGate(workflow);
   assert.equal(gate.ready, false);
   assert.equal(gate.blockers.some(item => item.front === 'CRITICAL_ISSUES'), true);
+});
+
+test('somente requisitos documentais explícitos participam dos gates', () => {
+  const workflow = readyMobilizationWorkflow({
+    documentRequirements: {
+      MOBILIZATION: { ready: false, blockers: [{ documentId: 'doc_1', title: 'Contrato', reason: 'Contrato aguarda aceite do cliente.' }] }
+    }
+  });
+  const blocked = projectWorkflowMobilizationGate(workflow);
+  assert.equal(blocked.ready, false);
+  assert.equal(blocked.blockers.some(item => item.key === 'DOCUMENT_doc_1' && item.front === 'DOCUMENTATION'), true);
+  assert.equal(projectWorkflowMobilizationGate(readyMobilizationWorkflow()).ready, true);
+
+  const handover = { leaderUserId: 'leader-1', checklists: completed('HANDOVER'), documentRequirements: { HANDOVER: { ready: false, blockers: [{ documentId: 'doc_2', title: 'Especificação', reason: 'Especificação não possui uma versão vigente.' }] } } };
+  assert.match(handoverGateIssues(handover)[0], /Especificação não possui/);
 });
 
 test('autorização exige gate verde, etapa pronta e a mesma versão', () => {

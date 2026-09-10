@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 
 const values = new Map();
@@ -16,4 +17,12 @@ test('novidade dura exatamente a janela global e uma vez por usuário', () => {
   novelty.markProjectWorkflowNoveltySeen('u1');
   assert.equal(novelty.shouldShowProjectWorkflowNovelty('u1', new Date('2026-09-20T20:00:00-03:00').getTime()), false);
   assert.equal(novelty.shouldShowProjectWorkflowNovelty('u2', new Date('2026-09-21T00:00:00-03:00').getTime()), false);
+});
+
+test('guia apresenta documentos, versões e aceite no fluxo existente', () => {
+  const source = fs.readFileSync(new URL('../src/pages/efetivo/ProjectWorkflowNovelty.tsx', import.meta.url), 'utf8');
+  assert.match(source, /Documentos dentro do projeto/);
+  assert.match(source, /data-project-document-add/);
+  assert.match(source, /data-project-document-version/);
+  assert.match(source, /data-project-document-acceptance/);
 });

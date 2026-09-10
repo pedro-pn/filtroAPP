@@ -10,6 +10,7 @@ function answeredChecklistKeys(workflow, stage) {
     .filter(item => PROJECT_WORKFLOW_CHECKLISTS.some(definition => definition.key === item.key && definition.stage === stage))
     .map(item => item.key));
   if (stage === 'HANDOVER') {
+    for (const key of workflow.documentEvidenceKeys || []) answered.add(key);
     const factByKey = new Map((workflow.commercialFacts || []).map(item => [item.key, item]));
     for (const definition of PROJECT_WORKFLOW_COMMERCIAL_FACTS) {
       if (!definition.handoverChecklistKey) continue;
@@ -30,7 +31,7 @@ export function commercialFactIssues(definition, fact) {
   if (fact.status !== 'CONFIRMED') return ['Situação inválida'];
   const issues = [];
   if (!fact.occurredOn) issues.push('Data da confirmação não informada');
-  if (definition.evidence === 'reference' && !fact.reference?.trim()) issues.push('Referência não informada');
+  if (definition.evidence === 'reference' && !fact.reference?.trim() && !fact.evidenceDocumentId) issues.push('Referência não informada');
   if (definition.evidence === 'note' && !fact.note?.trim()) issues.push('Condição comercial não descrita');
   return issues;
 }
@@ -44,6 +45,7 @@ export function normalizeProjectWorkflowCommercialFacts(workflow) {
       id: null,
       status: 'PENDING',
       source: 'MANUAL',
+      evidenceDocumentId: null,
       reference: null,
       note: null,
       occurredOn: null,
@@ -219,14 +221,21 @@ export function projectWorkflowClosureGate(workflow) {
     label: issue.description,
     reason: 'Pendência interna ainda aberta'
   }));
+  const documentBlockers = (workflow?.documentRequirements?.CLOSEOUT?.blockers || []).map(item => ({
+    key: `DOCUMENT_${item.documentId}`,
+    label: item.title,
+    reason: item.reason
+  }));
   const blockers = [
     ...closeout.blockers,
     ...finalChecklist.blockers,
     ...structuredBlockers,
-    ...issueBlockers
+    ...issueBlockers,
+    ...documentBlockers
   ];
-  const completed = closeout.completed + finalChecklist.completed;
-  const total = closeout.total + finalChecklist.total;
+  const documentRequirements = workflow?.documentRequirements?.CLOSEOUT || { ready: true, readyCount: 0, totalCount: 0, blockers: [] };
+  const completed = closeout.completed + finalChecklist.completed + documentRequirements.readyCount;
+  const total = closeout.total + finalChecklist.total + documentRequirements.totalCount;
   return {
     ready: blockers.length === 0,
     completed,
@@ -234,6 +243,7 @@ export function projectWorkflowClosureGate(workflow) {
     percentage: total ? Math.round((completed / total) * 100) : 0,
     closeout,
     finalChecklist,
+    documents: documentRequirements,
     blockers
   };
 }
@@ -286,11 +296,19 @@ export function projectWorkflowMobilizationGate(workflow, milestones = null, tod
       'D15_CLIENT_INTEGRATION_SCHEDULED'
     ]
   });
+  const requiredDocumentBlockers = (workflow?.documentRequirements?.MOBILIZATION?.blockers || []).map(item => ({
+    key: `DOCUMENT_${item.documentId}`,
+    label: item.title,
+    reason: item.reason
+  }));
   const fronts = [
     commercialFront,
     readinessFromDefinitions(workflow, 'TEAM', 'Equipe', teamDefinitions),
     readinessFromDefinitions(workflow, 'DOCUMENTATION', 'Documentação', documentDefinitions,
-      documentation.blockers.filter(item => !documentDefinitions.some(definition => definition.key === item.key))),
+      [
+        ...documentation.blockers.filter(item => !documentDefinitions.some(definition => definition.key === item.key)),
+        ...requiredDocumentBlockers
+      ]),
     readinessFromDefinitions(workflow, 'EQUIPMENT', 'Equipamentos', checklistDefinitions({ sections: ['D15_EQUIPMENT'] })),
     readinessFromDefinitions(workflow, 'MATERIALS', 'Materiais', checklistDefinitions({ sections: ['D15_MATERIALS'] })),
     readinessFromDefinitions(workflow, 'QSMS', 'QSMS', checklistDefinitions({ sections: ['D15_QSMS'] })),
@@ -343,6 +361,9 @@ export function incompleteChecklistLabels(workflow, stage) {
 export function handoverGateIssues(workflow) {
   const issues = incompleteChecklistLabels(workflow, 'HANDOVER');
   if (!workflow.leaderUserId) issues.push('Definir o Líder de Projetos');
+  for (const blocker of workflow?.documentRequirements?.HANDOVER?.blockers || []) {
+    issues.push(`${blocker.title}: ${blocker.reason}`);
+  }
   return issues;
 }
 

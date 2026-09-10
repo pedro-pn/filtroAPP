@@ -29,6 +29,7 @@ test('loadEnv parses defaults from a minimal valid environment', () => {
   assert.equal(env.projectIntakeWebhookToken, '');
   assert.equal(env.pontomaisApiToken, '');
   assert.equal(env.assinaturasMaxPdfMb, 20);
+  assert.equal(env.projectDocumentMaxMb, 20);
   assert.equal(env.assinaturasMaxPages, 50);
   assert.equal(env.assinaturasMaxSigners, 20);
   assert.equal(env.assinaturasTokenMaxDays, 90);
@@ -109,7 +110,8 @@ test('loadEnv rejects invalid numeric and boolean values', () => {
     ['ASSINATURAS_MAX_SIGNERS', '0'],
     ['ASSINATURAS_TOKEN_MAX_DAYS', '0'],
     ['ASSINATURAS_DELETED_RETENTION_DAYS', '-1'],
-    ['ASSINATURAS_PREVIEW_SCALE', '0']
+    ['ASSINATURAS_PREVIEW_SCALE', '0'],
+    ['PROJECT_DOCUMENT_MAX_MB', '0']
   ]) {
     assert.throws(
       () => loadEnv({ DATABASE_URL: databaseUrl, [name]: value }),

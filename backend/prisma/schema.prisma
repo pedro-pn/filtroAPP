@@ -294,6 +294,50 @@ enum ProjectWorkflowCommercialFactSource {
   CRM
 }
 
+enum ProjectDocumentType {
+  COMMERCIAL_PROPOSAL
+  TECHNICAL_PROPOSAL
+  PURCHASE_ORDER
+  CONTRACT
+  DRAWING
+  SPECIFICATION
+  CERTIFICATE
+  CLIENT_REQUIREMENT
+  TECHNICAL_EVIDENCE
+  OTHER
+}
+
+enum ProjectDocumentRequirementStage {
+  HANDOVER
+  MOBILIZATION
+  CLOSEOUT
+}
+
+enum ProjectDocumentAcceptanceMode {
+  NONE
+  INTERNAL
+  CLIENT
+  SIGNATURE
+}
+
+enum ProjectDocumentSource {
+  MANUAL
+  CRM
+  SYSTEM
+}
+
+enum ProjectDocumentContentKind {
+  MANAGED_FILE
+  EXTERNAL_REFERENCE
+}
+
+enum ProjectDocumentAcceptanceStatus {
+  NOT_REQUIRED
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 enum EfetivoAllocationSource {
   MANUAL
   AUTOMATIC
@@ -923,6 +967,7 @@ model Project {
   pontoDayProjectOverrides   PontoDayProjectOverride[]
   efetivoMissionPlans        EfetivoMissionPlan[]
   workflow                   ProjectWorkflow?
+  documents                  ProjectDocument[]
 
   @@index([deletedAt])
   @@index([registrationPending])
@@ -994,29 +1039,102 @@ model ProjectWorkflow {
 }
 
 model ProjectWorkflowCommercialFact {
-  id              String                              @id @default(cuid())
-  projectId       String
-  key             String
-  status          ProjectWorkflowCommercialFactStatus @default(PENDING)
-  source          ProjectWorkflowCommercialFactSource @default(MANUAL)
-  reference       String?
-  note            String?
-  occurredOn      DateTime?                           @db.Date
-  externalId      String?
-  externalUrl     String?
-  sourceVersion   String?
-  sourceUpdatedAt DateTime?
-  lastSyncedAt    DateTime?
-  updatedByUserId String?
-  createdAt       DateTime                            @default(now())
-  updatedAt       DateTime                            @updatedAt
-  workflow        ProjectWorkflow                     @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
-  updatedBy       User?                               @relation("ProjectWorkflowCommercialFactUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  id                 String                              @id @default(cuid())
+  projectId          String
+  key                String
+  status             ProjectWorkflowCommercialFactStatus @default(PENDING)
+  source             ProjectWorkflowCommercialFactSource @default(MANUAL)
+  reference          String?
+  note               String?
+  occurredOn         DateTime?                           @db.Date
+  externalId         String?
+  externalUrl        String?
+  sourceVersion      String?
+  sourceUpdatedAt    DateTime?
+  lastSyncedAt       DateTime?
+  updatedByUserId    String?
+  evidenceDocumentId String?
+  createdAt          DateTime                            @default(now())
+  updatedAt          DateTime                            @updatedAt
+  workflow           ProjectWorkflow                     @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  updatedBy          User?                               @relation("ProjectWorkflowCommercialFactUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  evidenceDocument   ProjectDocument?                    @relation("ProjectWorkflowCommercialFactEvidence", fields: [evidenceDocumentId], references: [id], onDelete: SetNull)
 
   @@unique([projectId, key])
   @@index([projectId, status])
   @@index([source])
   @@index([updatedByUserId])
+  @@index([evidenceDocumentId])
+}
+
+model ProjectDocument {
+  id                       String                           @id @default(cuid())
+  projectId                String
+  type                     ProjectDocumentType
+  title                    String
+  description              String?
+  responsibleUserId        String?
+  requirementStage         ProjectDocumentRequirementStage?
+  acceptanceMode           ProjectDocumentAcceptanceMode    @default(NONE)
+  currentVersionId         String?                          @unique
+  version                  Int                              @default(1)
+  archivedAt               DateTime?
+  archivedByUserId         String?
+  createdByUserId          String?
+  updatedByUserId          String?
+  createdAt                DateTime                         @default(now())
+  updatedAt                DateTime                         @updatedAt
+  project                  Project                          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  currentVersion           ProjectDocumentVersion?          @relation("ProjectDocumentCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions                 ProjectDocumentVersion[]         @relation("ProjectDocumentVersions")
+  responsible              User?                            @relation("ProjectDocumentResponsible", fields: [responsibleUserId], references: [id], onDelete: SetNull)
+  archivedBy               User?                            @relation("ProjectDocumentArchiver", fields: [archivedByUserId], references: [id], onDelete: SetNull)
+  createdBy                User?                            @relation("ProjectDocumentCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy                User?                            @relation("ProjectDocumentUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  evidencedCommercialFacts ProjectWorkflowCommercialFact[]  @relation("ProjectWorkflowCommercialFactEvidence")
+
+  @@index([projectId, archivedAt, type])
+  @@index([responsibleUserId])
+}
+
+model ProjectDocumentVersion {
+  id                         String                          @id @default(cuid())
+  documentId                 String
+  sequence                   Int
+  versionLabel               String?
+  source                     ProjectDocumentSource
+  contentKind                ProjectDocumentContentKind
+  originalFileName           String?
+  mimeType                   String?
+  fileSizeBytes              Int?
+  storagePath                String?
+  sha256                     String?
+  externalId                 String?
+  externalUrl                String?
+  sourceVersion              String?
+  sourceUpdatedAt            DateTime?
+  lastSyncedAt               DateTime?
+  signatureDocumentId        String?                         @unique
+  acceptanceStatus           ProjectDocumentAcceptanceStatus @default(NOT_REQUIRED)
+  acceptanceOccurredOn       DateTime?                       @db.Date
+  acceptanceReference        String?
+  acceptanceNote             String?
+  acceptanceRecordedAt       DateTime?
+  acceptanceRecordedByUserId String?
+  createdByUserId            String?
+  createdAt                  DateTime                        @default(now())
+  document                   ProjectDocument                 @relation("ProjectDocumentVersions", fields: [documentId], references: [id], onDelete: Cascade)
+  currentFor                 ProjectDocument?                @relation("ProjectDocumentCurrentVersion")
+  signatureDocument          SignatureDocument?              @relation("ProjectDocumentSignature", fields: [signatureDocumentId], references: [id], onDelete: SetNull)
+  acceptanceRecordedBy       User?                           @relation("ProjectDocumentAcceptanceRecorder", fields: [acceptanceRecordedByUserId], references: [id], onDelete: SetNull)
+  createdBy                  User?                           @relation("ProjectDocumentVersionCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, sequence])
+  @@unique([documentId, source, sourceVersion])
+  @@index([documentId, createdAt])
+  @@index([source, externalId, sourceUpdatedAt])
+  @@index([acceptanceRecordedByUserId])
+  @@index([createdByUserId])
 }
 
 model ProjectWorkflowChecklist {
@@ -2191,6 +2309,12 @@ model User {
   updatedProjectWorkflowPostJobs       ProjectWorkflowPostJob[]             @relation("ProjectWorkflowPostJobUpdater")
   createdProjectWorkflowMeasurements  ProjectWorkflowMeasurement[]        @relation("ProjectWorkflowMeasurementCreator")
   updatedProjectWorkflowMeasurements  ProjectWorkflowMeasurement[]        @relation("ProjectWorkflowMeasurementUpdater")
+  responsibleProjectDocuments         ProjectDocument[]                   @relation("ProjectDocumentResponsible")
+  archivedProjectDocuments            ProjectDocument[]                   @relation("ProjectDocumentArchiver")
+  createdProjectDocuments             ProjectDocument[]                   @relation("ProjectDocumentCreator")
+  updatedProjectDocuments             ProjectDocument[]                   @relation("ProjectDocumentUpdater")
+  createdProjectDocumentVersions      ProjectDocumentVersion[]            @relation("ProjectDocumentVersionCreator")
+  recordedProjectDocumentAcceptances ProjectDocumentVersion[]            @relation("ProjectDocumentAcceptanceRecorder")
   createdAcompanhamentoMissionGroups   AcompanhamentoMissionGroup[]        @relation("AcompanhamentoMissionGroupCreatedBy")
   dissolvedAcompanhamentoMissionGroups AcompanhamentoMissionGroup[]        @relation("AcompanhamentoMissionGroupDissolvedBy")
   createdQualityRecords                QualityRecord[]                     @relation("QualityRecordCreator")
@@ -3369,6 +3493,7 @@ model SignatureDocument {
   fields                    SignatureDocumentField[]
   auditLogs                 SignatureDocumentAuditLog[]
   completionNotification    SignatureDocumentCompletionNotification?
+  projectDocumentVersion    ProjectDocumentVersion?                  @relation("ProjectDocumentSignature")
 
   @@index([ownerUserId, deletedAt, archivedAt, createdAt])
   @@index([ownerUserId])

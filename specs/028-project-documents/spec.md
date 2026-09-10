@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-10
 
-**Status**: Planejado
+**Status**: Implementado em 2026-09-10
 
 **Input**: Preparar a próxima entrega do planejamento de Gestão de Projetos: organizar propostas, pedido de compra, contrato, desenhos, especificações, certificados e evidências dentro do projeto, com versões, responsabilidades, aceite, assinatura e preparação para o futuro CRM.
 
@@ -173,3 +173,12 @@ A categoria faz parte do diálogo e do Kanban únicos já existentes. O projeto 
 - Interpretar automaticamente cláusulas de contratos, propostas ou pedidos.
 - Migrar automaticamente todos os arquivos legados.
 - Executar expurgo físico ou definir a política corporativa de retenção documental.
+
+## Implemented Decisions
+
+- O catálogo foi incluído como categoria recolhível no diálogo já existente da Evolução; o Kanban, a URL do projeto, o arraste e os botões de equipe não foram substituídos.
+- Requisitos documentais são opcionais e explícitos por etapa. Projetos sem requisitos continuam com os gates anteriores.
+- Versões manuais usam armazenamento protegido, validação de conteúdo, SHA-256, histórico imutável e download autenticado. O caminho físico não integra a resposta pública.
+- Aceite e assinatura pertencem à versão vigente. Uma nova versão reinicia sua própria decisão, preserva o histórico e suspende a autorização vigente quando o documento participa da mobilização.
+- Propostas podem comprovar os itens correspondentes do handover e podem ser vinculadas ao fato comercial, mas não confirmam aceite, pedido, contrato ou condição comercial automaticamente.
+- RDOs e relatórios são projetados a partir do módulo de origem. O adaptador CRM permanece interno, idempotente e sem webhook público nesta entrega.

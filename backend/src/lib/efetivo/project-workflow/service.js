@@ -31,6 +31,7 @@ import {
   projectWorkflowTransitionIssues
 } from './rules.js';
 import { synchronizePostJobQualityRecord } from './post-job-quality.js';
+import { projectDocumentReadiness, projectDocumentRequirements } from './documents.js';
 
 const PAGE_SIZE = 100;
 const SAO_PAULO_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
@@ -56,6 +57,35 @@ const POST_JOB_INCLUDE = {
 const MEASUREMENT_INCLUDE = {
   createdBy: { select: { id: true, name: true } },
   updatedBy: { select: { id: true, name: true } }
+};
+const PROJECT_GATE_DOCUMENT_SELECT = {
+  id: true,
+  projectId: true,
+  type: true,
+  title: true,
+  requirementStage: true,
+  acceptanceMode: true,
+  archivedAt: true,
+  currentVersion: {
+    select: {
+      id: true,
+      documentId: true,
+      contentKind: true,
+      storagePath: true,
+      externalUrl: true,
+      acceptanceStatus: true,
+      signatureDocument: {
+        select: { status: true, finalStoragePath: true, deletedAt: true }
+      }
+    }
+  }
+};
+const COMMERCIAL_DOCUMENT_TYPES = {
+  COMMERCIAL_PROPOSAL_CREATED: ['COMMERCIAL_PROPOSAL'],
+  TECHNICAL_PROPOSAL_CREATED: ['TECHNICAL_PROPOSAL'],
+  PROPOSAL_ACCEPTED: ['COMMERCIAL_PROPOSAL', 'TECHNICAL_PROPOSAL'],
+  PURCHASE_ORDER_RECEIVED: ['PURCHASE_ORDER'],
+  CONTRACT_SIGNED: ['CONTRACT']
 };
 const OPERATIONAL_MISSION_QUERY = {
   where: { deletedAt: null, scheduleStatus: { not: 'CANCELLED' }, plan: { kind: 'OFFICIAL', status: 'ACTIVE' } },
@@ -271,8 +301,33 @@ function publicPermissions(workflow, context) {
   };
 }
 
-function decorateWorkflow(workflow, context, now, demobilizationDate = null, serviceTypes = [], relatedPostJobs = []) {
+function projectDocumentGateState(documents = []) {
+  const activeDocuments = documents.filter(document => !document.archivedAt);
+  const evidenceKeys = new Set();
+  for (const document of activeDocuments) {
+    if (!projectDocumentReadiness(document).ready) continue;
+    if (document.type === 'COMMERCIAL_PROPOSAL') evidenceKeys.add('HANDOVER_COMMERCIAL_PROPOSAL');
+    if (document.type === 'TECHNICAL_PROPOSAL') evidenceKeys.add('HANDOVER_TECHNICAL_PROPOSAL');
+  }
+  return {
+    documentRequirements: projectDocumentRequirements(activeDocuments),
+    documentEvidenceKeys: [...evidenceKeys]
+  };
+}
+
+async function loadProjectDocumentGateState(database, projectId) {
+  if (!database.projectDocument?.findMany) return projectDocumentGateState();
+  const documents = await database.projectDocument.findMany({
+    where: { projectId, archivedAt: null },
+    select: PROJECT_GATE_DOCUMENT_SELECT
+  });
+  return projectDocumentGateState(documents);
+}
+
+function decorateWorkflow(workflow, context, now, demobilizationDate = null, serviceTypes = [], relatedPostJobs = [], documents = []) {
   if (!workflow) return null;
+  const documentState = projectDocumentGateState(documents);
+  const workflowWithDocuments = { ...workflow, ...documentState };
   const today = todayKey(now);
   const milestones = projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), today);
   const checklistByKey = new Map((workflow.checklists || []).map(item => [item.key, item]));
@@ -310,14 +365,14 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
   const postJobReadiness = projectWorkflowPostJobReadiness({ checklists });
   const closeoutReadiness = projectWorkflowCloseoutReadiness({ checklists });
   const closureReadiness = projectWorkflowClosureReadiness({ checklists });
-  const closureGate = projectWorkflowClosureGate({ ...workflow, checklists, issues });
-  const mobilizationGate = projectWorkflowMobilizationGate({ ...workflow, checklists, commercialFacts, issues }, milestones, today);
+  const closureGate = projectWorkflowClosureGate({ ...workflowWithDocuments, checklists, issues });
+  const mobilizationGate = projectWorkflowMobilizationGate({ ...workflowWithDocuments, checklists, commercialFacts, issues }, milestones, today);
   const mobilizationAuthorization = projectWorkflowMobilizationAuthorization(workflow, mobilizationGate);
   const permissions = publicPermissions(workflow, context);
   const transitionOptions = PROJECT_WORKFLOW_STAGES
     .filter(stage => allowedProjectWorkflowTransition(workflow.stage, stage))
     .map(stage => {
-      const gateIssues = projectWorkflowTransitionIssues({ ...workflow, demobilizationDate }, stage);
+      const gateIssues = projectWorkflowTransitionIssues({ ...workflowWithDocuments, checklists, commercialFacts, issues, demobilizationDate }, stage);
       const hasPermission = workflow.stage === 'FINISHED' && stage === 'FINAL_MEASUREMENT'
         ? permissions.canReopen
         : permissions.canEdit;
@@ -325,7 +380,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
       const transitionIssues = [...permissionIssues, ...gateIssues];
       return { stage, allowed: transitionIssues.length === 0, issues: transitionIssues };
     });
-  const handoverIssues = handoverGateIssues(workflow);
+  const handoverIssues = handoverGateIssues({ ...workflowWithDocuments, checklists, commercialFacts });
   return {
     ...workflow,
     plannedMobilizationDate: dateKey(workflow.plannedMobilizationDate),
@@ -335,6 +390,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     criticalAnswers,
     commercialFacts,
     commercialReadiness,
+    documentRequirements: documentState.documentRequirements,
     documentationReadiness,
     planningReadiness,
     preparationReadiness,
@@ -363,7 +419,10 @@ async function findEligibleProject(database, projectId, { workflow = false } = {
       ...PROJECT_FIELDS,
       plannedServices: { select: { serviceType: true }, orderBy: { order: 'asc' } },
       efetivoMissionPlans: OPERATIONAL_MISSION_QUERY,
-      ...(workflow ? { workflow: { include: WORKFLOW_INCLUDE } } : {})
+      ...(workflow ? {
+        workflow: { include: WORKFLOW_INCLUDE },
+        documents: { where: { archivedAt: null }, select: PROJECT_GATE_DOCUMENT_SELECT }
+      } : {})
     }
   });
 }
@@ -473,11 +532,12 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
             closedBy: { select: { id: true, name: true } },
             checklists: { select: { key: true, status: true } },
             issues: { select: { id: true, status: true, dueDate: true, criticality: true, area: true, description: true } },
-            commercialFacts: { select: { key: true, status: true, source: true, reference: true, note: true, occurredOn: true } },
+            commercialFacts: { select: { key: true, status: true, source: true, evidenceDocumentId: true, reference: true, note: true, occurredOn: true } },
             postJob: { select: { meetingDate: true, serviceTypes: true, qualityRecord: { select: { id: true, number: true, deletedAt: true } } } },
             measurement: { select: { executedAmount: true, measuredAmount: true, approvedAmount: true, preparedAt: true, sentAt: true, approvedAt: true } }
           }
-        }
+        },
+        documents: { where: { archivedAt: null }, select: PROJECT_GATE_DOCUMENT_SELECT }
       },
       orderBy: [{ workflow: { plannedMobilizationDate: 'asc' } }, { code: 'asc' }],
       skip: (page - 1) * PAGE_SIZE,
@@ -488,8 +548,10 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
   return {
     items: projects.map(project => {
       const workflow = project.workflow;
+      const documentState = projectDocumentGateState(project.documents || []);
+      const workflowWithDocuments = workflow ? { ...workflow, ...documentState } : null;
       const issues = workflow?.issues || [];
-      const commercialReadiness = workflow ? projectWorkflowCommercialReadiness(workflow) : null;
+      const commercialReadiness = workflow ? projectWorkflowCommercialReadiness(workflowWithDocuments) : null;
       const milestones = workflow ? projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), todayKey(now)) : null;
       const documentationReadiness = workflow ? projectWorkflowDocumentationReadiness(workflow, milestones, todayKey(now)) : null;
       const planningReadiness = workflow ? projectWorkflowPlanningReadiness(workflow) : null;
@@ -498,8 +560,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
       const postJobReadiness = workflow ? projectWorkflowPostJobReadiness(workflow) : null;
       const closeoutReadiness = workflow ? projectWorkflowCloseoutReadiness(workflow) : null;
       const closureReadiness = workflow ? projectWorkflowClosureReadiness(workflow) : null;
-      const closureGate = workflow ? projectWorkflowClosureGate(workflow) : null;
-      const mobilizationGate = workflow ? projectWorkflowMobilizationGate(workflow, milestones, todayKey(now)) : null;
+      const closureGate = workflow ? projectWorkflowClosureGate(workflowWithDocuments) : null;
+      const mobilizationGate = workflow ? projectWorkflowMobilizationGate(workflowWithDocuments, milestones, todayKey(now)) : null;
       const mobilizationAuthorization = workflow ? projectWorkflowMobilizationAuthorization(workflow, mobilizationGate) : null;
       return {
         id: project.id,
@@ -528,6 +590,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
             totalCount: commercialReadiness.totalCount,
             blockedOperations: commercialReadiness.blockedOperations
           } : null,
+          documentRequirements: documentState.documentRequirements,
           documentationReadiness,
           planningReadiness,
           preparationReadiness,
@@ -579,7 +642,15 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
       demobilizationDate: dateKey(project.demobilizationDate),
       operationalMission: operationalMissionSummary(project)
     },
-    workflow: decorateWorkflow(project.workflow, context, dependencies.now || new Date(), project.demobilizationDate, services, history),
+    workflow: decorateWorkflow(
+      project.workflow,
+      context,
+      dependencies.now || new Date(),
+      project.demobilizationDate,
+      services,
+      history,
+      project.documents || []
+    ),
     permissions: publicPermissions(project.workflow, context)
   };
 }
@@ -626,6 +697,7 @@ async function loadWorkflowForMutation(tx, projectId) {
     include: WORKFLOW_INCLUDE
   });
   if (!workflow) throw notFound('A gestão deste projeto ainda não foi iniciada.');
+  Object.assign(workflow, await loadProjectDocumentGateState(tx, projectId));
   return workflow;
 }
 
@@ -759,12 +831,33 @@ async function applyCommercialFact(tx, workflow, payload, context) {
   if (existing?.source === 'CRM') {
     throw conflictError('Este fato é sincronizado pelo CRM e deve ser corrigido na origem.', [], 'PROJECT_WORKFLOW_CRM_FACT_READ_ONLY');
   }
+  let evidenceDocumentId = null;
+  if (payload.status === 'CONFIRMED' && payload.evidenceDocumentId) {
+    const eligibleTypes = COMMERCIAL_DOCUMENT_TYPES[payload.key] || [];
+    const evidence = await tx.projectDocument.findFirst({
+      where: {
+        id: payload.evidenceDocumentId,
+        projectId: workflow.projectId,
+        archivedAt: null,
+        type: { in: eligibleTypes },
+        currentVersionId: { not: null }
+      },
+      select: PROJECT_GATE_DOCUMENT_SELECT
+    });
+    if (!evidence || !projectDocumentReadiness(evidence).ready) {
+      throw planningError('Selecione um documento vigente e compatível com este controle comercial.', {
+        code: 'PROJECT_WORKFLOW_COMMERCIAL_EVIDENCE_INVALID'
+      });
+    }
+    evidenceDocumentId = evidence.id;
+  }
   const data = payload.status === 'PENDING'
-    ? { status: payload.status, reference: null, note: null, occurredOn: null }
+    ? { status: payload.status, evidenceDocumentId: null, reference: null, note: null, occurredOn: null }
     : payload.status === 'NOT_APPLICABLE'
-      ? { status: payload.status, reference: null, note: payload.note || null, occurredOn: null }
+      ? { status: payload.status, evidenceDocumentId: null, reference: null, note: payload.note || null, occurredOn: null }
       : {
           status: payload.status,
+          evidenceDocumentId,
           reference: payload.reference || null,
           note: payload.note || null,
           occurredOn: utcDate(payload.occurredOn)

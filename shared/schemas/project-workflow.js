@@ -304,11 +304,13 @@ function dateOnlySchema(z) {
 
 export function makeProjectWorkflowCommercialFactSchema(z) {
   const dateOnly = dateOnlySchema(z);
+  const id = z.string().trim().min(1).max(100);
   return z.object({
     action: z.literal('commercial_fact'),
     version: z.coerce.number().int().min(1, 'A versão deve ser positiva.'),
     key: z.enum(PROJECT_WORKFLOW_COMMERCIAL_FACTS.map(item => item.key)),
     status: z.enum(PROJECT_WORKFLOW_COMMERCIAL_FACT_STATUSES),
+    evidenceDocumentId: id.nullable().optional(),
     reference: z.string().trim().max(500, 'A referência deve ter no máximo 500 caracteres.').nullable().optional(),
     note: z.string().trim().max(1000, 'A observação deve ter no máximo 1000 caracteres.').nullable().optional(),
     occurredOn: dateOnly.nullable().optional()
@@ -320,7 +322,9 @@ export function makeProjectWorkflowCommercialFactSchema(z) {
     }
     if (value.status !== 'CONFIRMED') return;
     if (!value.occurredOn) ctx.addIssue({ code: 'custom', path: ['occurredOn'], message: 'Informe a data da confirmação.' });
-    if (definition?.evidence === 'reference' && !value.reference?.trim()) ctx.addIssue({ code: 'custom', path: ['reference'], message: 'Informe a referência ou número do documento.' });
+    if (definition?.evidence === 'reference' && !value.reference?.trim() && !value.evidenceDocumentId) {
+      ctx.addIssue({ code: 'custom', path: ['reference'], message: 'Informe a referência ou selecione um documento.' });
+    }
     if (definition?.evidence === 'note' && !value.note?.trim()) ctx.addIssue({ code: 'custom', path: ['note'], message: 'Descreva a condição comercial definida.' });
   });
 }

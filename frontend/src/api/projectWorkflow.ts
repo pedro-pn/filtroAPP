@@ -1,4 +1,5 @@
 import { apiClient, type ApiClientError } from './client';
+import type { ProjectDocumentRequirementSummary } from './projectDocuments';
 
 export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB' | 'FINAL_MEASUREMENT' | 'FINISHED';
 export type ProjectWorkflowChecklistStatus = 'PENDING' | 'DONE' | 'NOT_APPLICABLE';
@@ -109,6 +110,7 @@ export interface ProjectWorkflowClosureGate {
   total: number;
   percentage: number;
   blockers: Array<{ key: string; label: string; reason: string }>;
+  documents?: ProjectDocumentRequirementSummary;
 }
 
 export interface ProjectWorkflowPostJob {
@@ -234,6 +236,7 @@ export interface ProjectWorkflowCommercialFact {
   handoverChecklistKey?: string;
   status: ProjectWorkflowCommercialFactStatus;
   source: ProjectWorkflowCommercialFactSource;
+  evidenceDocumentId: string | null;
   reference: string | null;
   note: string | null;
   occurredOn: string | null;
@@ -277,6 +280,7 @@ export interface ProjectWorkflow {
   criticalAnswers: ProjectWorkflowCriticalAnswer[];
   commercialFacts: ProjectWorkflowCommercialFact[];
   commercialReadiness: ProjectWorkflowCommercialReadiness;
+  documentRequirements: Record<'HANDOVER' | 'MOBILIZATION' | 'CLOSEOUT', ProjectDocumentRequirementSummary>;
   documentationReadiness: ProjectWorkflowDocumentationReadiness;
   planningReadiness: ProjectWorkflowPlanningReadiness;
   preparationReadiness: ProjectWorkflowPreparationReadiness;
@@ -314,6 +318,7 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
     issueCount: number;
     overdueIssueCount: number;
     commercialReadiness: ProjectWorkflowCommercialReadiness;
+    documentRequirements: Record<'HANDOVER' | 'MOBILIZATION' | 'CLOSEOUT', ProjectDocumentRequirementSummary>;
     documentationReadiness: ProjectWorkflowDocumentationReadiness;
     planningReadiness: ProjectWorkflowPlanningReadiness;
     preparationReadiness: ProjectWorkflowPreparationReadiness;
@@ -438,7 +443,7 @@ export type ProjectWorkflowPatch =
   | { action: 'post_job'; version: number; meetingDate?: string | null; fieldLeaderFeedback?: string | null; teamFeedback?: string | null; problemsFound?: string | null; solutionsAdopted?: string | null; improvementOpportunities?: string | null; lessonsLearned?: string | null; equipmentFeedback?: string | null; planningFeedback?: string | null }
   | { action: 'measurement'; version: number; quantitiesSummary?: string | null; additionalServicesNote?: string | null; evidenceNote?: string | null; executedAmount?: number | null; measuredAmount?: number | null; approvedAmount?: number | null; preparedAt?: string | null; sentAt?: string | null; approvedAt?: string | null }
   | { action: 'authorize_mobilization'; version: number }
-  | { action: 'commercial_fact'; version: number; key: string; status: ProjectWorkflowCommercialFactStatus; reference?: string | null; note?: string | null; occurredOn?: string | null };
+  | { action: 'commercial_fact'; version: number; key: string; status: ProjectWorkflowCommercialFactStatus; evidenceDocumentId?: string | null; reference?: string | null; note?: string | null; occurredOn?: string | null };
 
 const base = '/efetivo/project-workflow';
 

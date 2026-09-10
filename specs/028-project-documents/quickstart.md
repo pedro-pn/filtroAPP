@@ -1,6 +1,6 @@
 # Quickstart: validar Documentos do projeto
 
-Este guia será executado depois da implementação. Ele não contém comandos de servidor, Docker ou deploy.
+Este guia registra a validação da implementação. Ele não contém comandos de servidor, Docker ou deploy.
 
 ## Prerequisites
 
@@ -21,6 +21,17 @@ Na raiz do repositório, executar os comandos locais definidos pelos `package.js
 5. executar `git diff --check`.
 
 Os nomes exatos dos comandos devem seguir os scripts existentes no momento da implementação e serão registrados na validação da entrega.
+
+### Evidência automatizada em 2026-09-10
+
+- `npm exec prisma format`, `DATABASE_URL=... npm exec prisma validate` e `npm run prisma:generate` em `backend`: concluídos.
+- `DATABASE_URL=... npm test` em `backend`: 1510 testes passaram e 1 permaneceu ignorado; nenhuma falha.
+- `npm test` em `frontend`: 249 testes passaram; nenhuma falha. A infraestrutura atual emite avisos de porta do Vite durante alguns testes concorrentes, sem alterar o resultado.
+- `npm run lint` e `npm run build` em `frontend`: concluídos; o lint mantém somente um aviso preexistente em `useRdoPlanningPrefill.ts` e o build mantém o aviso preexistente de tamanho dos bundles.
+- `npm run architecture:check` e `git diff --check`: concluídos.
+- A revisão do grafo de código foi executada sobre rotas, regras, serviço, diálogo e dependências afetadas.
+
+Os cenários interativos abaixo permanecem como roteiro de homologação do ambiente de teste, especialmente para arquivo físico, assinatura concluída e viewport de telefone.
 
 ## Scenario 1 - MVP manual and versioning
 

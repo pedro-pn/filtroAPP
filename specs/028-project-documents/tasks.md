@@ -17,8 +17,8 @@
 
 **Purpose**: Establish names, validation and upload configuration shared by all stories.
 
-- [ ] T001 Create document enums, request schemas, response constants and TypeScript declarations in `shared/schemas/project-documents.js` and `shared/schemas/project-documents.d.ts`
-- [ ] T002 Configure the 20 MB project-document limit and the matching JSON route body limit in `backend/src/config/env.js`, `backend/src/app.js`, and `backend/test/env.test.js`
+- [X] T001 Create document enums, request schemas, response constants and TypeScript declarations in `shared/schemas/project-documents.js` and `shared/schemas/project-documents.d.ts`
+- [X] T002 Configure the 20 MB project-document limit and the matching JSON route body limit in `backend/src/config/env.js`, `backend/src/app.js`, and `backend/test/env.test.js`
 
 ---
 
@@ -28,12 +28,12 @@
 
 **⚠️ CRITICAL**: No user story work starts until this phase is complete.
 
-- [ ] T003 Add project document enums, `ProjectDocument`, `ProjectDocumentVersion`, user/project/signature relations, and commercial evidence relation in `backend/prisma/schema.prisma`
-- [ ] T004 Create the additive Prisma migration in `backend/prisma/migrations/<timestamp>_project_documents/migration.sql`
-- [ ] T005 [P] Add allowlisted data-URL parsing, binary signature checks, SHA-256 calculation, safe project folder construction and orphan rollback helpers in `backend/src/lib/efetivo/project-workflow/documents.js`
-- [ ] T006 [P] Add project visibility, area/type permission and finished-project mutation guards in `backend/src/lib/efetivo/project-workflow/documents.js`
-- [ ] T007 Add shared document includes, serializers, optimistic conflict errors and workflow event recording in `backend/src/lib/efetivo/project-workflow/documents.js`
-- [ ] T008 Mount validated document route schemas without exposing storage paths in `backend/src/routes/efetivo-project-workflow.js`
+- [X] T003 Add project document enums, `ProjectDocument`, `ProjectDocumentVersion`, user/project/signature relations, and commercial evidence relation in `backend/prisma/schema.prisma`
+- [X] T004 Create the additive Prisma migration in `backend/prisma/migrations/<timestamp>_project_documents/migration.sql`
+- [X] T005 [P] Add allowlisted data-URL parsing, binary signature checks, SHA-256 calculation, safe project folder construction and orphan rollback helpers in `backend/src/lib/efetivo/project-workflow/documents.js`
+- [X] T006 [P] Add project visibility, area/type permission and finished-project mutation guards in `backend/src/lib/efetivo/project-workflow/documents.js`
+- [X] T007 Add shared document includes, serializers, optimistic conflict errors and workflow event recording in `backend/src/lib/efetivo/project-workflow/documents.js`
+- [X] T008 Mount validated document route schemas without exposing storage paths in `backend/src/routes/efetivo-project-workflow.js`
 
 **Checkpoint**: Prisma, validation, file safety, permissions and route boundary are ready.
 
@@ -47,19 +47,19 @@
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] Add failing service tests for create, list, immutable version history, optimistic conflict, archive/restore and closed-project read-only behavior in `backend/test/project-documents.test.js`
-- [ ] T010 [P] [US1] Add failing file tests for allowlist, MIME/content mismatch, size limit, traversal, authenticated resolution and database-failure cleanup in `backend/test/project-documents-files.test.js`
-- [ ] T011 [P] [US1] Add failing API contract tests for validation, permissions, response redaction and download ownership in `backend/test/project-documents-routes.test.js`
-- [ ] T012 [P] [US1] Add failing frontend contract tests for the category, forms, version history, loading/error/empty/read-only states and URL continuity in `frontend/test/project-documents.test.mjs`
+- [X] T009 [P] [US1] Add failing service tests for create, list, immutable version history, optimistic conflict, archive/restore and closed-project read-only behavior in `backend/test/project-documents.test.js`
+- [X] T010 [P] [US1] Add failing file tests for allowlist, MIME/content mismatch, size limit, traversal, authenticated resolution and database-failure cleanup in `backend/test/project-documents-files.test.js`
+- [X] T011 [P] [US1] Add failing API contract tests for validation, permissions, response redaction and download ownership in `backend/test/project-documents-routes.test.js`
+- [X] T012 [P] [US1] Add failing frontend contract tests for the category, forms, version history, loading/error/empty/read-only states and URL continuity in `frontend/test/project-documents.test.mjs`
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Implement manual create/list/update/version/archive/restore transactions and file rollback in `backend/src/lib/efetivo/project-workflow/documents.js`
-- [ ] T014 [US1] Implement authenticated catalog, version history, mutation and file streaming endpoints in `backend/src/routes/efetivo-project-workflow.js`
-- [ ] T015 [P] [US1] Implement typed TanStack Query functions, keys and invalidation for document endpoints in `frontend/src/api/projectDocuments.ts`
-- [ ] T016 [P] [US1] Build react-hook-form/Zod document and version forms using `field-group`, `field-invalid`, `field-error`, shared Modal and Button components in `frontend/src/pages/efetivo/components/ProjectDocumentForm.tsx`
-- [ ] T017 [US1] Build responsive document cards, current-version actions, history, archive/restore and all loading/error/empty/read-only states in `frontend/src/pages/efetivo/components/ProjectDocumentsCategory.tsx`
-- [ ] T018 [US1] Insert the collapsible “Documentos do projeto” category into the existing wide dialog without changing Kanban drag behavior or the project URL parameter in `frontend/src/pages/efetivo/components/ProjectWorkflowModal.tsx`
+- [X] T013 [US1] Implement manual create/list/update/version/archive/restore transactions and file rollback in `backend/src/lib/efetivo/project-workflow/documents.js`
+- [X] T014 [US1] Implement authenticated catalog, version history, mutation and file streaming endpoints in `backend/src/routes/efetivo-project-workflow.js`
+- [X] T015 [P] [US1] Implement typed TanStack Query functions, keys and invalidation for document endpoints in `frontend/src/api/projectDocuments.ts`
+- [X] T016 [P] [US1] Build react-hook-form/Zod document and version forms using `field-group`, `field-invalid`, `field-error`, shared Modal and Button components in `frontend/src/pages/efetivo/components/ProjectDocumentForm.tsx`
+- [X] T017 [US1] Build responsive document cards, current-version actions, history, archive/restore and all loading/error/empty/read-only states in `frontend/src/pages/efetivo/components/ProjectDocumentsCategory.tsx`
+- [X] T018 [US1] Insert the collapsible “Documentos do projeto” category into the existing wide dialog without changing Kanban drag behavior or the project URL parameter in `frontend/src/pages/efetivo/components/ProjectWorkflowModal.tsx`
 
 **Checkpoint**: The manual catalog is independently usable as the MVP.
 
@@ -73,19 +73,19 @@
 
 ### Tests for User Story 2
 
-- [ ] T019 [P] [US2] Add failing readiness tests for missing/inaccessible/current/archived versions, acceptance modes and zero implicit requirements in `backend/test/project-documents-readiness.test.js`
-- [ ] T020 [P] [US2] Add failing workflow regression tests for handover evidence, explicit commercial facts and versioned mobilization authorization invalidation in `backend/test/project-workflow-rules.test.js`
-- [ ] T021 [P] [US2] Add failing service tests for acceptance authorship/date, stale-version rejection, new-version reset and event history in `backend/test/project-documents.test.js`
-- [ ] T022 [P] [US2] Add failing frontend tests for requirement/acceptance fields, blocker messages, invalid fields and completed-category collapse behavior in `frontend/test/project-documents.test.mjs`
+- [X] T019 [P] [US2] Add failing readiness tests for missing/inaccessible/current/archived versions, acceptance modes and zero implicit requirements in `backend/test/project-documents-readiness.test.js`
+- [X] T020 [P] [US2] Add failing workflow regression tests for handover evidence, explicit commercial facts and versioned mobilization authorization invalidation in `backend/test/project-workflow-rules.test.js`
+- [X] T021 [P] [US2] Add failing service tests for acceptance authorship/date, stale-version rejection, new-version reset and event history in `backend/test/project-documents.test.js`
+- [X] T022 [P] [US2] Add failing frontend tests for requirement/acceptance fields, blocker messages, invalid fields and completed-category collapse behavior in `frontend/test/project-documents.test.mjs`
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Implement readiness calculation and localized blocker reasons by requirement stage in `backend/src/lib/efetivo/project-workflow/documents.js`
-- [ ] T024 [US2] Integrate explicit document requirements and proposal evidence into checklist/gate calculation without inferring commercial confirmation in `backend/src/lib/efetivo/project-workflow/rules.js`
-- [ ] T025 [US2] Implement version-specific acceptance decisions and workflow-version/authorization invalidation side effects in `backend/src/lib/efetivo/project-workflow/documents.js` and `backend/src/lib/efetivo/project-workflow/service.js`
-- [ ] T026 [US2] Expose acceptance mutation and readiness summaries through validated routes in `backend/src/routes/efetivo-project-workflow.js`
-- [ ] T027 [US2] Add requirement stage, acceptance mode, acceptance action, status badges and blocker explanations to `frontend/src/pages/efetivo/components/ProjectDocumentForm.tsx` and `frontend/src/pages/efetivo/components/ProjectDocumentsCategory.tsx`
-- [ ] T028 [US2] Link eligible proposal documents as evidence from the commercial controls without replacing fact status/date in `frontend/src/pages/efetivo/components/ProjectWorkflowModal.tsx`
+- [X] T023 [US2] Implement readiness calculation and localized blocker reasons by requirement stage in `backend/src/lib/efetivo/project-workflow/documents.js`
+- [X] T024 [US2] Integrate explicit document requirements and proposal evidence into checklist/gate calculation without inferring commercial confirmation in `backend/src/lib/efetivo/project-workflow/rules.js`
+- [X] T025 [US2] Implement version-specific acceptance decisions and workflow-version/authorization invalidation side effects in `backend/src/lib/efetivo/project-workflow/documents.js` and `backend/src/lib/efetivo/project-workflow/service.js`
+- [X] T026 [US2] Expose acceptance mutation and readiness summaries through validated routes in `backend/src/routes/efetivo-project-workflow.js`
+- [X] T027 [US2] Add requirement stage, acceptance mode, acceptance action, status badges and blocker explanations to `frontend/src/pages/efetivo/components/ProjectDocumentForm.tsx` and `frontend/src/pages/efetivo/components/ProjectDocumentsCategory.tsx`
+- [X] T028 [US2] Link eligible proposal documents as evidence from the commercial controls without replacing fact status/date in `frontend/src/pages/efetivo/components/ProjectWorkflowModal.tsx`
 
 **Checkpoint**: Document readiness is explicit, auditable and backward compatible.
 
@@ -99,16 +99,16 @@
 
 ### Tests for User Story 3
 
-- [ ] T029 [P] [US3] Add failing signature-link tests for PDF eligibility, idempotent draft creation, derived completion and superseded-version history in `backend/test/project-documents-integration.test.js`
-- [ ] T030 [P] [US3] Add failing aggregation tests for project-scoped RDO/report status, permissions and absence of duplicated document rows in `backend/test/project-documents-integration.test.js`
-- [ ] T031 [P] [US3] Add failing frontend tests for signature deep link, derived status/final file and responsive operational document cards in `frontend/test/project-documents.test.mjs`
+- [X] T029 [P] [US3] Add failing signature-link tests for PDF eligibility, idempotent draft creation, derived completion and superseded-version history in `backend/test/project-documents-integration.test.js`
+- [X] T030 [P] [US3] Add failing aggregation tests for project-scoped RDO/report status, permissions and absence of duplicated document rows in `backend/test/project-documents-integration.test.js`
+- [X] T031 [P] [US3] Add failing frontend tests for signature deep link, derived status/final file and responsive operational document cards in `frontend/test/project-documents.test.mjs`
 
 ### Implementation for User Story 3
 
-- [ ] T032 [US3] Reuse Assinaturas document creation/storage logic and persist the one-to-one version link in `backend/src/lib/efetivo/project-workflow/documents.js`
-- [ ] T033 [US3] Aggregate project RDOs and technical reports as read-only `ProjectOperationalDocument` projections in `backend/src/lib/efetivo/project-workflow/documents.js`
-- [ ] T034 [US3] Expose idempotent signature preparation and operational projections in `backend/src/routes/efetivo-project-workflow.js`
-- [ ] T035 [US3] Add “Preparar assinatura”, `/assinaturas?doc=` navigation, signature status/final file and operational document cards in `frontend/src/pages/efetivo/components/ProjectDocumentsCategory.tsx`
+- [X] T032 [US3] Reuse Assinaturas document creation/storage logic and persist the one-to-one version link in `backend/src/lib/efetivo/project-workflow/documents.js`
+- [X] T033 [US3] Aggregate project RDOs and technical reports as read-only `ProjectOperationalDocument` projections in `backend/src/lib/efetivo/project-workflow/documents.js`
+- [X] T034 [US3] Expose idempotent signature preparation and operational projections in `backend/src/routes/efetivo-project-workflow.js`
+- [X] T035 [US3] Add “Preparar assinatura”, `/assinaturas?doc=` navigation, signature status/final file and operational document cards in `frontend/src/pages/efetivo/components/ProjectDocumentsCategory.tsx`
 
 **Checkpoint**: Projects show the existing document ecosystems through stable links and one source of truth.
 
@@ -122,15 +122,15 @@
 
 ### Tests for User Story 4
 
-- [ ] T036 [P] [US4] Add failing adapter tests for create, replay, older event, deterministic tie-break, newer current version and missing external accessibility in `backend/test/project-documents-crm.test.js`
-- [ ] T037 [P] [US4] Add failing permission/regression tests proving CRM content is read-only and commercial facts are not confirmed by document events in `backend/test/project-documents-crm.test.js`
-- [ ] T038 [P] [US4] Add failing frontend tests for source badges, “Abrir na origem”, inaccessible reference and hidden mutation actions in `frontend/test/project-documents.test.mjs`
+- [X] T036 [P] [US4] Add failing adapter tests for create, replay, older event, deterministic tie-break, newer current version and missing external accessibility in `backend/test/project-documents-crm.test.js`
+- [X] T037 [P] [US4] Add failing permission/regression tests proving CRM content is read-only and commercial facts are not confirmed by document events in `backend/test/project-documents-crm.test.js`
+- [X] T038 [P] [US4] Add failing frontend tests for source badges, “Abrir na origem”, inaccessible reference and hidden mutation actions in `frontend/test/project-documents.test.mjs`
 
 ### Implementation for User Story 4
 
-- [ ] T039 [US4] Implement validated `upsertCrmProjectDocument` outcomes and source ordering in `backend/src/lib/efetivo/project-workflow/documents.js`
-- [ ] T040 [US4] Enforce CRM immutability in all user mutations and serialize safe source metadata in `backend/src/lib/efetivo/project-workflow/documents.js`
-- [ ] T041 [US4] Render CRM/manual/system source badges, external access and unavailable-reference states in `frontend/src/pages/efetivo/components/ProjectDocumentsCategory.tsx`
+- [X] T039 [US4] Implement validated `upsertCrmProjectDocument` outcomes and source ordering in `backend/src/lib/efetivo/project-workflow/documents.js`
+- [X] T040 [US4] Enforce CRM immutability in all user mutations and serialize safe source metadata in `backend/src/lib/efetivo/project-workflow/documents.js`
+- [X] T041 [US4] Render CRM/manual/system source badges, external access and unavailable-reference states in `frontend/src/pages/efetivo/components/ProjectDocumentsCategory.tsx`
 
 **Checkpoint**: The model and service are integration-ready while manual operation remains available.
 
@@ -140,11 +140,11 @@
 
 **Purpose**: Complete discovery, visual quality, documentation and full validation.
 
-- [ ] T042 Add the centered 10-day novelty card and guided steps for attach/version/acceptance controls, with per-user/browser seen keys and a fixed global expiration date, in `frontend/src/pages/efetivo/ProjectWorkflowNovelty.tsx` and `frontend/test/project-workflow-novelty.test.mjs`
-- [ ] T043 Audit all new forms for react-hook-form/Zod required-field errors using `.field-group.field-invalid`, `aria-invalid` and `.field-error` in `frontend/src/pages/efetivo/components/ProjectDocumentForm.tsx`
-- [ ] T044 Audit desktop and narrow-phone layout for fixed dialog footer, scrollable body, shrink-safe cards/actions/labels, collapsible completion state and no page-level horizontal scroll in `frontend/src/pages/efetivo/components/ProjectDocumentsCategory.tsx` and `frontend/src/pages/efetivo/components/ProjectWorkflowModal.tsx`
-- [ ] T045 [P] Update delivery state, implemented decisions and validation evidence after completion in `specs/028-project-documents/spec.md`, `specs/028-project-documents/quickstart.md`, and `specs/016-gestao-projetos-efetivo/roadmap.md`
-- [ ] T046 Run Prisma format/validate/generate, targeted and regression backend/frontend tests, lint, build, `git diff --check`, architecture validation and code-review-graph change/flow review from `specs/028-project-documents/quickstart.md`
+- [X] T042 Add the centered 10-day novelty card and guided steps for attach/version/acceptance controls, with per-user/browser seen keys and a fixed global expiration date, in `frontend/src/pages/efetivo/ProjectWorkflowNovelty.tsx` and `frontend/test/project-workflow-novelty.test.mjs`
+- [X] T043 Audit all new forms for react-hook-form/Zod required-field errors using `.field-group.field-invalid`, `aria-invalid` and `.field-error` in `frontend/src/pages/efetivo/components/ProjectDocumentForm.tsx`
+- [X] T044 Audit desktop and narrow-phone layout for fixed dialog footer, scrollable body, shrink-safe cards/actions/labels, collapsible completion state and no page-level horizontal scroll in `frontend/src/pages/efetivo/components/ProjectDocumentsCategory.tsx` and `frontend/src/pages/efetivo/components/ProjectWorkflowModal.tsx`
+- [X] T045 [P] Update delivery state, implemented decisions and validation evidence after completion in `specs/028-project-documents/spec.md`, `specs/028-project-documents/quickstart.md`, and `specs/016-gestao-projetos-efetivo/roadmap.md`
+- [X] T046 Run Prisma format/validate/generate, targeted and regression backend/frontend tests, lint, build, `git diff --check`, architecture validation and code-review-graph change/flow review from `specs/028-project-documents/quickstart.md`
 
 ---
 
