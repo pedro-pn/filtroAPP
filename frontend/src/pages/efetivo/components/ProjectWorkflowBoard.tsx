@@ -985,6 +985,22 @@ export function ProjectWorkflowBoard({
         onStart={values => start.mutate(values)}
         onPatch={payload => update.mutate(payload)}
         onMoveLegacyMission={moveLegacyFromDetail}
+        onOpenTeamProgramming={() => {
+          if (!detail.data) return;
+          const mission = detail.data.project.operationalMission;
+          onProjectSelect(undefined);
+          if (mission) {
+            setTeamMissionId(mission.id);
+            if (planningMissions.isError) void planningMissions.refetch();
+            return;
+          }
+          if (!canManage) {
+            toast('Somente o gestor do Efetivo pode criar a programação.', 'error');
+            return;
+          }
+          setMissionFormProjectId(detail.data.project.id);
+          if (pendingMissionProjects.isError) void pendingMissionProjects.refetch();
+        }}
       />
     </div>
   );

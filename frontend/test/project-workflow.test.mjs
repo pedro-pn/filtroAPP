@@ -96,6 +96,8 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.match(board, /suppressCardClickUntilRef/);
   assert.match(modal, /Compatibilidade do projeto antigo/);
   assert.match(modal, /Atualizar etapa antiga/);
+  assert.match(modal, /onOpenTeamProgramming/);
+  assert.doesNotMatch(modal, /section=missoes/);
   assert.match(navigation, /projeto/);
   assert.match(navigation, /evolucao: \['projeto', 'busca', 'pagina', 'faseProjeto'\]/);
 });

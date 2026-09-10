@@ -368,7 +368,7 @@ function IssueEditor({ issue, version, saving, canEdit, onPatch }: {
   );
 }
 
-export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onMoveLegacyMission }: {
+export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, onRetry, onClose, onStart, onPatch, onMoveLegacyMission, onOpenTeamProgramming }: {
   detail: ProjectWorkflowDetail | null;
   leaders: Array<{ id: string; name: string }>;
   loading: boolean;
@@ -379,6 +379,7 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
   onStart: (values: StartValues) => void;
   onPatch: (payload: ProjectWorkflowPatch) => void;
   onMoveLegacyMission: (stage: ProjectOperationalMissionSummary['stage'], returnDate?: string | null) => void;
+  onOpenTeamProgramming: () => void;
 }) {
   if (typeof document === 'undefined' || (!detail && !loading && !error)) return null;
   const workflow = detail?.workflow || null;
@@ -458,7 +459,7 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
               {workflow.stage === 'DEMOBILIZATION' ? <section className="project-workflow-planning" data-project-workflow-demobilization><header><div><h4>Desmobilização</h4><p>Conclusão do campo, retorno da equipe e entrega dos ativos.</p></div><strong>{workflow.demobilizationReadiness.completed}/{workflow.demobilizationReadiness.total} · {workflow.demobilizationReadiness.percentage}%</strong></header><DemobilizationDatesForm workflow={workflow} mission={detail.project.operationalMission} saving={saving} onPatch={onPatch} /><div className="project-workflow-planning-grid">{demobilizationSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></section> : null}
               {workflow.stage !== 'HANDOVER' ? <section className="project-workflow-section"><header><h4>Itens críticos</h4><span>{workflow.criticalAnswers.filter(item => item.answer !== null).length}/{workflow.criticalAnswers.length}</span></header>{workflow.criticalAnswers.map(item => <article className="project-workflow-critical" key={item.key}><span>{item.label}</span><div><Button variant={item.answer === true ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => onPatch({ action: 'critical', version: workflow.version, key: item.key, answer: true })}>Sim</Button><Button variant={item.answer === false ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => onPatch({ action: 'critical', version: workflow.version, key: item.key, answer: false })}>Não</Button></div></article>)}</section> : null}
               {workflow.issues.length ? <section className="project-workflow-section"><header><h4>Pendências</h4><span>{workflow.issues.filter(item => item.status !== 'RESOLVED').length} abertas</span></header>{workflow.issues.map(issue => <IssueEditor issue={issue} version={workflow.version} saving={saving} canEdit={workflow.permissions.canEdit} onPatch={onPatch} key={issue.id} />)}</section> : null}
-              {['MOBILIZATION_PLANNING', 'PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(workflow.stage) ? <a className="mini-btn project-workflow-planning-link" href={`/efetivo?section=missoes&search=${encodeURIComponent(detail.project.code)}`}>Abrir programação da equipe</a> : null}
+              {['MOBILIZATION_PLANNING', 'PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(workflow.stage) ? <Button type="button" variant="mini" className="project-workflow-planning-link" onClick={onOpenTeamProgramming}>Abrir programação da equipe</Button> : null}
             </>
           )}
         </div>
