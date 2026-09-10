@@ -1997,6 +1997,42 @@
 .project-post-job-history-list > details > summary em { color: var(--g); font-size: 11px; font-style: normal; font-weight: 700; }
 .project-post-job-history-content { border-top: 1px solid var(--br); display: flex; flex-direction: column; gap: 9px; margin-top: 9px; padding-top: 9px; }
 .project-post-job-history-content p { color: var(--mu); margin: 3px 0 0; white-space: pre-wrap; }
+
+.project-closeout-panel,
+.project-closeout-form,
+.project-closeout-documents { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.project-closeout-financial { display: grid; gap: 8px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.project-closeout-financial article { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 11px; }
+.project-closeout-financial article > span { color: var(--mu); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.project-closeout-financial article > strong { font-size: 17px; overflow-wrap: anywhere; }
+.project-closeout-financial article > small { color: var(--mu); line-height: 1.35; }
+.project-closeout-documents,
+.project-closeout-form { background: var(--bg); border-radius: var(--rs); padding: 12px; }
+.project-closeout-documents > header,
+.project-closeout-form > header { align-items: flex-start; display: flex; gap: 12px; justify-content: space-between; }
+.project-closeout-documents h5,
+.project-closeout-documents p,
+.project-closeout-form h5,
+.project-closeout-form p { margin: 0; }
+.project-closeout-documents header p,
+.project-closeout-form header p,
+.project-closeout-form header small { color: var(--mu); margin-top: 3px; }
+.project-closeout-documents header > span { background: var(--wh); border-radius: 999px; flex: 0 0 auto; padding: 4px 8px; }
+.project-closeout-rdo-grid { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.project-closeout-rdo-grid article { background: var(--wh); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 3px; padding: 9px; }
+.project-closeout-rdo-grid strong { font-size: 18px; }
+.project-closeout-rdo-grid span { color: var(--mu); font-size: 12px; }
+.project-closeout-report-list { display: grid; gap: 7px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.project-closeout-report-list article { background: var(--wh); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 9px; }
+.project-closeout-report-list article.is-warning { border-color: #f59e0b; }
+.project-closeout-report-list span,
+.project-closeout-report-list small { color: var(--mu); }
+.project-closeout-notes { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.project-closeout-notes .field-group,
+.project-closeout-fields .field-group { margin: 0; min-width: 0; }
+.project-closeout-notes textarea { min-height: 84px; resize: vertical; }
+.project-closeout-fields { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.project-closeout-load-error { align-items: center; background: var(--bg); border-radius: var(--rs); display: flex; gap: 10px; justify-content: space-between; padding: 12px; }
 .project-workflow-modal-footer { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
 .project-workflow-footer-status { display: flex; flex: 1 1 360px; flex-direction: column; min-width: 0; }
 .project-workflow-footer-status span { color: var(--mu); font-size: 12px; overflow-wrap: anywhere; }
@@ -2080,6 +2116,11 @@
   .project-workflow-planning-grid,
   .project-post-job-grid,
   .project-post-job-history-list,
+  .project-closeout-financial,
+  .project-closeout-rdo-grid,
+  .project-closeout-report-list,
+  .project-closeout-notes,
+  .project-closeout-fields,
   .project-workflow-check-item,
   .project-workflow-check-controls,
   .project-execution-metrics,

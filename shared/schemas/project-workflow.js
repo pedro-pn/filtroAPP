@@ -8,7 +8,8 @@ export const PROJECT_WORKFLOW_STAGES = [
   'MOBILIZATION',
   'EXECUTION',
   'DEMOBILIZATION',
-  'POST_JOB'
+  'POST_JOB',
+  'FINAL_MEASUREMENT'
 ];
 
 export const PROJECT_WORKFLOW_STAGE_LABELS = {
@@ -21,7 +22,8 @@ export const PROJECT_WORKFLOW_STAGE_LABELS = {
   MOBILIZATION: 'Mobilização',
   EXECUTION: 'Em execução',
   DEMOBILIZATION: 'Desmobilização',
-  POST_JOB: 'Pós-job / fechamento técnico'
+  POST_JOB: 'Pós-job / fechamento técnico',
+  FINAL_MEASUREMENT: 'Documentação / medição'
 };
 
 export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
@@ -43,7 +45,9 @@ export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
   'DEMOBILIZATION_LOGISTICS',
   'DEMOBILIZATION_ASSETS',
   'POST_JOB_FEEDBACK',
-  'POST_JOB_LEARNING'
+  'POST_JOB_LEARNING',
+  'CLOSEOUT_DOCUMENTATION',
+  'CLOSEOUT_MEASUREMENT'
 ];
 
 export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
@@ -65,7 +69,9 @@ export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
   DEMOBILIZATION_LOGISTICS: 'Logística de retorno',
   DEMOBILIZATION_ASSETS: 'Retorno de ativos',
   POST_JOB_FEEDBACK: 'Reunião e feedbacks',
-  POST_JOB_LEARNING: 'Aprendizados e melhorias'
+  POST_JOB_LEARNING: 'Aprendizados e melhorias',
+  CLOSEOUT_DOCUMENTATION: 'Documentação',
+  CLOSEOUT_MEASUREMENT: 'Medição'
 };
 
 const checklist = (key, stage, section, label, areaRoles = []) => ({ key, stage, section, label, areaRoles });
@@ -205,7 +211,23 @@ export const PROJECT_WORKFLOW_CHECKLISTS = [
   checklist('POST_JOB_PROBLEMS_RECORDED', 'POST_JOB', 'POST_JOB_LEARNING', 'Problemas encontrados registrados'),
   checklist('POST_JOB_SOLUTIONS_RECORDED', 'POST_JOB', 'POST_JOB_LEARNING', 'Soluções adotadas registradas'),
   checklist('POST_JOB_IMPROVEMENTS_RECORDED', 'POST_JOB', 'POST_JOB_LEARNING', 'Oportunidades de melhoria registradas'),
-  checklist('POST_JOB_LESSONS_RECORDED', 'POST_JOB', 'POST_JOB_LEARNING', 'Lições aprendidas registradas')
+  checklist('POST_JOB_LESSONS_RECORDED', 'POST_JOB', 'POST_JOB_LEARNING', 'Lições aprendidas registradas'),
+
+  checklist('CLOSEOUT_RDO_ISSUED', 'FINAL_MEASUREMENT', 'CLOSEOUT_DOCUMENTATION', 'Todos os RDOs emitidos'),
+  checklist('CLOSEOUT_RDO_ACCEPTED', 'FINAL_MEASUREMENT', 'CLOSEOUT_DOCUMENTATION', 'Todos os RDOs assinados ou aprovados'),
+  checklist('CLOSEOUT_REPORTS_PREPARED', 'FINAL_MEASUREMENT', 'CLOSEOUT_DOCUMENTATION', 'Todos os relatórios técnicos elaborados'),
+  checklist('CLOSEOUT_REPORTS_REVIEWED', 'FINAL_MEASUREMENT', 'CLOSEOUT_DOCUMENTATION', 'Todos os relatórios revisados'),
+  checklist('CLOSEOUT_REPORTS_SENT', 'FINAL_MEASUREMENT', 'CLOSEOUT_DOCUMENTATION', 'Todos os relatórios enviados'),
+  checklist('CLOSEOUT_DOCUMENT_PENDING_RESOLVED', 'FINAL_MEASUREMENT', 'CLOSEOUT_DOCUMENTATION', 'Pendências documentais resolvidas'),
+  checklist('CLOSEOUT_CLIENT_ACCEPTED', 'FINAL_MEASUREMENT', 'CLOSEOUT_DOCUMENTATION', 'Documentação técnica aceita pelo cliente'),
+
+  checklist('CLOSEOUT_QUANTITIES_CONSOLIDATED', 'FINAL_MEASUREMENT', 'CLOSEOUT_MEASUREMENT', 'Quantitativos finais consolidados'),
+  checklist('CLOSEOUT_ADDITIONAL_SERVICES_INCLUDED', 'FINAL_MEASUREMENT', 'CLOSEOUT_MEASUREMENT', 'Serviços adicionais incluídos'),
+  checklist('CLOSEOUT_EVIDENCE_AVAILABLE', 'FINAL_MEASUREMENT', 'CLOSEOUT_MEASUREMENT', 'Evidências disponíveis'),
+  checklist('CLOSEOUT_MEASUREMENT_PREPARED', 'FINAL_MEASUREMENT', 'CLOSEOUT_MEASUREMENT', 'Medição preparada'),
+  checklist('CLOSEOUT_MEASUREMENT_SENT', 'FINAL_MEASUREMENT', 'CLOSEOUT_MEASUREMENT', 'Medição enviada'),
+  checklist('CLOSEOUT_MEASUREMENT_APPROVED', 'FINAL_MEASUREMENT', 'CLOSEOUT_MEASUREMENT', 'Medição aprovada'),
+  checklist('CLOSEOUT_FINAL_VALUE_APPROVED', 'FINAL_MEASUREMENT', 'CLOSEOUT_MEASUREMENT', 'Valor final aprovado')
 ];
 
 export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS = [
@@ -374,12 +396,46 @@ export function makeProjectWorkflowSchemas(z) {
   ].some(key => Object.hasOwn(value, key)), {
     message: 'Informe ao menos um dado do pós-job para alterar.'
   });
+  const measurementText = z.string().trim().max(4000, 'O texto deve ter no máximo 4000 caracteres.').nullable().optional();
+  const measurementAmount = z.coerce.number().finite().min(0, 'O valor não pode ser negativo.').max(999999999999.99, 'O valor excede o limite permitido.').nullable().optional();
+  const measurement = z.object({
+    action: z.literal('measurement'),
+    version,
+    quantitiesSummary: measurementText,
+    additionalServicesNote: measurementText,
+    evidenceNote: measurementText,
+    executedAmount: measurementAmount,
+    measuredAmount: measurementAmount,
+    approvedAmount: measurementAmount,
+    preparedAt: dateOnly.nullable().optional(),
+    sentAt: dateOnly.nullable().optional(),
+    approvedAt: dateOnly.nullable().optional()
+  }).strict().superRefine((value, ctx) => {
+    const fields = ['quantitiesSummary', 'additionalServicesNote', 'evidenceNote', 'executedAmount', 'measuredAmount', 'approvedAmount', 'preparedAt', 'sentAt', 'approvedAt'];
+    if (!fields.some(key => Object.hasOwn(value, key))) ctx.addIssue({ code: 'custom', message: 'Informe ao menos um dado da medição para alterar.' });
+    if (value.executedAmount != null && value.measuredAmount != null && value.measuredAmount > value.executedAmount) {
+      ctx.addIssue({ code: 'custom', path: ['measuredAmount'], message: 'O valor medido não pode ser maior que o executado.' });
+    }
+    if (value.measuredAmount != null && value.approvedAmount != null && value.approvedAmount > value.measuredAmount) {
+      ctx.addIssue({ code: 'custom', path: ['approvedAmount'], message: 'O valor aprovado não pode ser maior que o medido.' });
+    }
+    if (value.preparedAt && value.sentAt && value.preparedAt > value.sentAt) {
+      ctx.addIssue({ code: 'custom', path: ['sentAt'], message: 'O envio não pode ser anterior à preparação.' });
+    }
+    if (value.sentAt && value.approvedAt && value.sentAt > value.approvedAt) {
+      ctx.addIssue({ code: 'custom', path: ['approvedAt'], message: 'A aprovação não pode ser anterior ao envio.' });
+    }
+    if (value.preparedAt && value.approvedAt && value.preparedAt > value.approvedAt) {
+      ctx.addIssue({ code: 'custom', path: ['approvedAt'], message: 'A aprovação não pode ser anterior à preparação.' });
+    }
+  });
   const authorizeMobilization = z.object({ action: z.literal('authorize_mobilization'), version }).strict();
   const commercialFact = makeProjectWorkflowCommercialFactSchema(z);
   return {
     start,
     postJob,
-    patch: z.discriminatedUnion('action', [settings, checklist, critical, issue, accept, stage, demobilization, postJob, authorizeMobilization, commercialFact]),
+    measurement,
+    patch: z.discriminatedUnion('action', [settings, checklist, critical, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization, commercialFact]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

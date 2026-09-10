@@ -71,6 +71,7 @@ test('etapa do workflow possui projeção operacional única', () => {
   assert.equal(missionStageForProjectWorkflow('EXECUTION'), 'EXECUTION');
   assert.equal(missionStageForProjectWorkflow('DEMOBILIZATION'), 'FINAL_MEASUREMENT');
   assert.equal(missionStageForProjectWorkflow('POST_JOB'), 'FINAL_MEASUREMENT');
+  assert.equal(missionStageForProjectWorkflow('FINAL_MEASUREMENT'), 'FINAL_MEASUREMENT');
   assert.equal(missionStageForProjectWorkflow('PREPARATION'), null);
 });
 

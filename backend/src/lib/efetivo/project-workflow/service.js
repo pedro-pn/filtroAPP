@@ -18,6 +18,7 @@ import {
   handoverGateIssues,
   normalizeProjectWorkflowCommercialFacts,
   projectWorkflowCommercialReadiness,
+  projectWorkflowCloseoutReadiness,
   projectWorkflowDemobilizationReadiness,
   projectWorkflowDocumentationReadiness,
   projectWorkflowMobilizationAuthorization,
@@ -46,6 +47,10 @@ const PROJECT_FIELDS = {
 };
 const POST_JOB_INCLUDE = {
   qualityRecord: { select: { id: true, number: true, deletedAt: true } },
+  createdBy: { select: { id: true, name: true } },
+  updatedBy: { select: { id: true, name: true } }
+};
+const MEASUREMENT_INCLUDE = {
   createdBy: { select: { id: true, name: true } },
   updatedBy: { select: { id: true, name: true } }
 };
@@ -96,7 +101,8 @@ const WORKFLOW_INCLUDE = {
     orderBy: { createdAt: 'desc' },
     take: 50
   },
-  postJob: { include: POST_JOB_INCLUDE }
+  postJob: { include: POST_JOB_INCLUDE },
+  measurement: { include: MEASUREMENT_INCLUDE }
 };
 
 const POST_JOB_FIELDS = [
@@ -109,6 +115,9 @@ const POST_JOB_FIELDS = [
   'equipmentFeedback',
   'planningFeedback'
 ];
+const MEASUREMENT_TEXT_FIELDS = ['quantitiesSummary', 'additionalServicesNote', 'evidenceNote'];
+const MEASUREMENT_AMOUNT_FIELDS = ['executedAmount', 'measuredAmount', 'approvedAmount'];
+const MEASUREMENT_DATE_FIELDS = ['preparedAt', 'sentAt', 'approvedAt'];
 
 function utcDate(value) {
   return new Date(`${value}T00:00:00.000Z`);
@@ -147,6 +156,30 @@ function publicPostJob(postJob, serviceTypes = []) {
     updatedAt: postJob?.updatedAt || null,
     createdBy: postJob?.createdBy || null,
     updatedBy: postJob?.updatedBy || null
+  };
+}
+
+function decimalNumber(value) {
+  if (value == null) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function publicMeasurement(measurement) {
+  return {
+    quantitiesSummary: measurement?.quantitiesSummary || null,
+    additionalServicesNote: measurement?.additionalServicesNote || null,
+    evidenceNote: measurement?.evidenceNote || null,
+    executedAmount: decimalNumber(measurement?.executedAmount),
+    measuredAmount: decimalNumber(measurement?.measuredAmount),
+    approvedAmount: decimalNumber(measurement?.approvedAmount),
+    preparedAt: dateKey(measurement?.preparedAt),
+    sentAt: dateKey(measurement?.sentAt),
+    approvedAt: dateKey(measurement?.approvedAt),
+    createdAt: measurement?.createdAt || null,
+    updatedAt: measurement?.updatedAt || null,
+    createdBy: measurement?.createdBy || null,
+    updatedBy: measurement?.updatedBy || null
   };
 }
 
@@ -268,6 +301,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
   const preparationReadiness = projectWorkflowPreparationReadiness({ checklists });
   const demobilizationReadiness = projectWorkflowDemobilizationReadiness({ checklists });
   const postJobReadiness = projectWorkflowPostJobReadiness({ checklists });
+  const closeoutReadiness = projectWorkflowCloseoutReadiness({ checklists });
   const mobilizationGate = projectWorkflowMobilizationGate({ ...workflow, checklists, commercialFacts, issues }, milestones, today);
   const mobilizationAuthorization = projectWorkflowMobilizationAuthorization(workflow, mobilizationGate);
   const permissions = publicPermissions(workflow, context);
@@ -295,6 +329,8 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     demobilizationReadiness,
     postJobReadiness,
     postJob: publicPostJob(workflow.postJob, serviceTypes),
+    closeoutReadiness,
+    measurement: publicMeasurement(workflow.measurement),
     relatedPostJobs,
     mobilizationGate,
     mobilizationAuthorization,
@@ -423,7 +459,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
             checklists: { select: { key: true, status: true } },
             issues: { select: { id: true, status: true, dueDate: true, criticality: true, area: true, description: true } },
             commercialFacts: { select: { key: true, status: true, source: true, reference: true, note: true, occurredOn: true } },
-            postJob: { select: { meetingDate: true, serviceTypes: true, qualityRecord: { select: { id: true, number: true, deletedAt: true } } } }
+            postJob: { select: { meetingDate: true, serviceTypes: true, qualityRecord: { select: { id: true, number: true, deletedAt: true } } } },
+            measurement: { select: { executedAmount: true, measuredAmount: true, approvedAmount: true, preparedAt: true, sentAt: true, approvedAt: true } }
           }
         }
       },
@@ -444,6 +481,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
       const preparationReadiness = workflow ? projectWorkflowPreparationReadiness(workflow) : null;
       const demobilizationReadiness = workflow ? projectWorkflowDemobilizationReadiness(workflow) : null;
       const postJobReadiness = workflow ? projectWorkflowPostJobReadiness(workflow) : null;
+      const closeoutReadiness = workflow ? projectWorkflowCloseoutReadiness(workflow) : null;
       const mobilizationGate = workflow ? projectWorkflowMobilizationGate(workflow, milestones, todayKey(now)) : null;
       const mobilizationAuthorization = workflow ? projectWorkflowMobilizationAuthorization(workflow, mobilizationGate) : null;
       return {
@@ -477,6 +515,8 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
           demobilizationReadiness,
           postJobReadiness,
           postJob: publicPostJob(workflow.postJob),
+          closeoutReadiness,
+          measurement: publicMeasurement(workflow.measurement),
           mobilizationGate,
           mobilizationAuthorization
         } : null,
@@ -751,7 +791,7 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
       issues: issues.map(message => ({ message }))
     });
   }
-  const synchronizesOperationalStage = ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION', 'POST_JOB'].includes(payload.stage)
+  const synchronizesOperationalStage = ['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT'].includes(payload.stage)
     || (payload.stage === 'READY_TO_MOBILIZE' && ['MOBILIZATION', 'EXECUTION'].includes(workflow.stage));
   if (synchronizesOperationalStage) {
     await (dependencies.synchronizeOfficialMissionStage || synchronizeOfficialMissionStage)(
@@ -768,7 +808,7 @@ async function applyStage(tx, workflow, payload, now, context, dependencies) {
   } else if (['MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(payload.stage)) {
     data.mobilizationAuthorizedAt = workflow.mobilizationAuthorizedAt;
     data.mobilizationAuthorizationVersion = workflow.version + 1;
-  } else if (payload.stage === 'POST_JOB' || ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage)) {
+  } else if (['POST_JOB', 'FINAL_MEASUREMENT'].includes(payload.stage) || ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage)) {
     data.mobilizationAuthorizedAt = null;
     data.mobilizationAuthorizationVersion = null;
   }
@@ -827,6 +867,57 @@ async function applyPostJob(tx, workflow, payload, context, dependencies, now) {
       qualityRecordId,
       updatedByUserId: context.actorUserId || null
     }
+  });
+}
+
+function validateMergedMeasurement(measurement) {
+  const executed = decimalNumber(measurement.executedAmount);
+  const measured = decimalNumber(measurement.measuredAmount);
+  const approved = decimalNumber(measurement.approvedAmount);
+  const issues = [];
+  if (executed != null && measured != null && measured > executed) issues.push('O valor medido não pode ser maior que o executado');
+  if (measured != null && approved != null && approved > measured) issues.push('O valor aprovado não pode ser maior que o medido');
+  const preparedAt = dateKey(measurement.preparedAt);
+  const sentAt = dateKey(measurement.sentAt);
+  const approvedAt = dateKey(measurement.approvedAt);
+  if (preparedAt && sentAt && preparedAt > sentAt) issues.push('A data de envio não pode ser anterior à preparação');
+  if (sentAt && approvedAt && sentAt > approvedAt) issues.push('A data de aprovação não pode ser anterior ao envio');
+  if (preparedAt && approvedAt && preparedAt > approvedAt) issues.push('A data de aprovação não pode ser anterior à preparação');
+  if (issues.length) {
+    throw planningError('Revise os dados da medição.', {
+      code: 'PROJECT_WORKFLOW_MEASUREMENT_INVALID',
+      issues: issues.map(message => ({ message }))
+    });
+  }
+}
+
+async function applyMeasurement(tx, workflow, payload, context) {
+  if (workflow.stage !== 'FINAL_MEASUREMENT') {
+    throw planningError('A medição só pode ser registrada durante Documentação / medição.', {
+      statusCode: 409,
+      code: 'PROJECT_WORKFLOW_MEASUREMENT_STAGE_REQUIRED'
+    });
+  }
+  const data = {};
+  for (const field of MEASUREMENT_TEXT_FIELDS) {
+    if (Object.hasOwn(payload, field)) data[field] = payload[field] || null;
+  }
+  for (const field of MEASUREMENT_AMOUNT_FIELDS) {
+    if (Object.hasOwn(payload, field)) data[field] = payload[field];
+  }
+  for (const field of MEASUREMENT_DATE_FIELDS) {
+    if (Object.hasOwn(payload, field)) data[field] = payload[field] ? utcDate(payload[field]) : null;
+  }
+  validateMergedMeasurement({ ...(workflow.measurement || {}), ...data });
+  await tx.projectWorkflowMeasurement.upsert({
+    where: { projectId: workflow.projectId },
+    create: {
+      projectId: workflow.projectId,
+      ...data,
+      createdByUserId: context.actorUserId || null,
+      updatedByUserId: context.actorUserId || null
+    },
+    update: { ...data, updatedByUserId: context.actorUserId || null }
   });
 }
 
@@ -911,6 +1002,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'stage') await applyStage(tx, workflow, payload, now, context, dependencies);
     else if (payload.action === 'demobilization') await applyDemobilization(tx, workflow, payload, context, dependencies);
     else if (payload.action === 'post_job') await applyPostJob(tx, workflow, payload, context, dependencies, now);
+    else if (payload.action === 'measurement') await applyMeasurement(tx, workflow, payload, context);
     else if (payload.action === 'authorize_mobilization') await applyMobilizationAuthorization(tx, workflow, now);
     else if (payload.action === 'commercial_fact') await applyCommercialFact(tx, workflow, payload, context);
     const eventData = { ...payload };

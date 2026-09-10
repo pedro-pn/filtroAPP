@@ -241,7 +241,7 @@ function ProjectCard({
       {workflow ? <>
         <small>
           {projectWorkflowMilestoneText(item)}
-          {!['DEMOBILIZATION', 'POST_JOB'].includes(workflow.stage) && nextMilestone ? ' · próximo ' + nextMilestone.label + ' em ' + displayDateOnly(nextMilestone.date) : ''}
+          {!['DEMOBILIZATION', 'POST_JOB', 'FINAL_MEASUREMENT'].includes(workflow.stage) && nextMilestone ? ' · próximo ' + nextMilestone.label + ' em ' + displayDateOnly(nextMilestone.date) : ''}
         </small>
         {workflow.milestones.dueMilestones.length ? (
           <small className="project-workflow-deadline-alert">
@@ -270,6 +270,7 @@ function ProjectCard({
         {workflow.stage === 'MOBILIZATION' ? <small className="project-workflow-execution-badge">Mobilização operacional em andamento</small> : null}
         {workflow.stage === 'DEMOBILIZATION' ? <small className="project-workflow-execution-badge">Desmobilização: {workflow.demobilizationReadiness.completed}/{workflow.demobilizationReadiness.total} · {workflow.demobilizationReadiness.percentage}%</small> : null}
         {workflow.stage === 'POST_JOB' ? <small className="project-workflow-execution-badge">Pós-job: {workflow.postJobReadiness.completed}/{workflow.postJobReadiness.total} · {workflow.postJobReadiness.percentage}%</small> : null}
+        {workflow.stage === 'FINAL_MEASUREMENT' ? <small className="project-workflow-execution-badge">Fechamento: {workflow.closeoutReadiness.completed}/{workflow.closeoutReadiness.total} · {workflow.closeoutReadiness.percentage}%</small> : null}
         {workflow.mobilizationGate.deadlineStatus === 'ATTENTION' ? (
           <small className="project-workflow-mobilization-risk is-attention">D-7 · {workflow.mobilizationGate.blockers.length} bloqueio(s)</small>
         ) : null}
@@ -475,7 +476,10 @@ export function ProjectWorkflowBoard({
 
   const refresh = async (data: Awaited<ReturnType<typeof getProjectWorkflow>>) => {
     queryClient.setQueryData(['project-workflow', data.project.id], data);
-    await queryClient.invalidateQueries({ queryKey: ['project-workflows'] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['project-workflows'] }),
+      queryClient.invalidateQueries({ queryKey: ['project-closeout', data.project.id] })
+    ]);
   };
 
   const start = useMutation({
@@ -624,9 +628,9 @@ export function ProjectWorkflowBoard({
         toast('Movimentação bloqueada: somente o gestor ou o Líder de Projetos pode alterar esta etapa.', 'error');
         return;
       }
-      if (target === 'FINAL_MEASUREMENT' || target === 'FINISHED') {
+      if (target === 'FINISHED') {
         onProjectSelect(project.id);
-        toast('Movimentação bloqueada: o fechamento técnico e a medição ainda serão ligados ao fluxo gerenciado em uma próxima entrega.', 'error');
+        toast('Movimentação bloqueada: o gate de encerramento será habilitado na próxima entrega.', 'error');
         return;
       }
       const allowedTargets = projectWorkflowStageOptions(project.workflow.stage);

@@ -17,6 +17,7 @@ import {
   handoverGateIssues,
   planningGateIssues,
   projectWorkflowCommercialReadiness,
+  projectWorkflowCloseoutReadiness,
   projectWorkflowDemobilizationReadiness,
   projectWorkflowDocumentationReadiness,
   projectWorkflowMobilizationAuthorization,
@@ -50,6 +51,10 @@ test('contrato exige justificativa para não aplicável e versão nas alteraçõ
   assert.equal(patch.safeParse({ action: 'post_job', version: 8 }).success, false);
   assert.equal(patch.safeParse({ action: 'post_job', version: 8, meetingDate: '2026-09-25', lessonsLearned: 'Separar os kits por sistema.' }).success, true);
   assert.equal(patch.safeParse({ action: 'post_job', version: 8, lessonsLearned: 'x'.repeat(4001) }).success, false);
+  assert.equal(patch.safeParse({ action: 'measurement', version: 9 }).success, false);
+  assert.equal(patch.safeParse({ action: 'measurement', version: 9, executedAmount: 800, measuredAmount: 900 }).success, false);
+  assert.equal(patch.safeParse({ action: 'measurement', version: 9, executedAmount: 900, measuredAmount: 850, approvedAmount: 820 }).success, true);
+  assert.equal(patch.safeParse({ action: 'measurement', version: 9, preparedAt: '2026-09-08', sentAt: '2026-09-07' }).success, false);
 });
 
 test('prontidão comercial exige os oito fatos completos conforme o catálogo', () => {
@@ -297,4 +302,26 @@ test('Pós-job exige desmobilização concluída e consolida nove controles', ()
   assert.deepEqual(readiness.sections.map(item => item.key), ['POST_JOB_FEEDBACK', 'POST_JOB_LEARNING']);
   assert.equal(allowedProjectWorkflowTransition('DEMOBILIZATION', 'POST_JOB'), true);
   assert.equal(allowedProjectWorkflowTransition('POST_JOB', 'DEMOBILIZATION'), true);
+});
+
+test('Documentação e medição exige pós-job concluído e consolida 14 controles', () => {
+  const workflow = {
+    stage: 'POST_JOB',
+    checklists: completed('POST_JOB'),
+    postJob: { meetingDate: new Date('2026-09-25T00:00:00Z') }
+  };
+  assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'FINAL_MEASUREMENT'), []);
+  workflow.postJob.meetingDate = null;
+  assert.match(projectWorkflowTransitionIssues(workflow, 'FINAL_MEASUREMENT').at(-1), /data da reunião/i);
+  workflow.postJob.meetingDate = new Date('2026-09-25T00:00:00Z');
+  workflow.checklists.pop();
+  assert.match(projectWorkflowTransitionIssues(workflow, 'FINAL_MEASUREMENT')[0], /Lições aprendidas/i);
+
+  const readiness = projectWorkflowCloseoutReadiness({ checklists: completed('FINAL_MEASUREMENT').slice(0, 8) });
+  assert.equal(readiness.total, 14);
+  assert.equal(readiness.completed, 8);
+  assert.equal(readiness.percentage, 57);
+  assert.deepEqual(readiness.sections.map(item => item.key), ['CLOSEOUT_DOCUMENTATION', 'CLOSEOUT_MEASUREMENT']);
+  assert.equal(allowedProjectWorkflowTransition('POST_JOB', 'FINAL_MEASUREMENT'), true);
+  assert.equal(allowedProjectWorkflowTransition('FINAL_MEASUREMENT', 'POST_JOB'), true);
 });

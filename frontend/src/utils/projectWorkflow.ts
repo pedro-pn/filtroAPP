@@ -6,8 +6,8 @@ import type { ProjectWorkflowStage, ProjectWorkflowSummary } from '../api/projec
 
 export const WORKFLOW_STAGES: readonly ProjectWorkflowStage[] = PROJECT_WORKFLOW_STAGES;
 export const WORKFLOW_STAGE_LABELS = PROJECT_WORKFLOW_STAGE_LABELS as Record<ProjectWorkflowStage, string>;
-export type ProjectKanbanStage = ProjectWorkflowStage | 'FINAL_MEASUREMENT' | 'FINISHED';
-export const PROJECT_KANBAN_STAGES: readonly ProjectKanbanStage[] = [...WORKFLOW_STAGES, 'FINAL_MEASUREMENT', 'FINISHED'];
+export type ProjectKanbanStage = ProjectWorkflowStage | 'FINISHED';
+export const PROJECT_KANBAN_STAGES: readonly ProjectKanbanStage[] = [...WORKFLOW_STAGES, 'FINISHED'];
 export const PROJECT_KANBAN_STAGE_LABELS: Record<ProjectKanbanStage, string> = {
   ...WORKFLOW_STAGE_LABELS,
   FINAL_MEASUREMENT: 'Documentação / medição',
@@ -50,6 +50,11 @@ export function moveProjectInColumns(columns: ProjectKanbanColumns, projectId: s
 }
 
 export function projectWorkflowMilestoneText(item: ProjectWorkflowSummary) {
+  if (item.workflow?.stage === 'FINAL_MEASUREMENT') {
+    return item.workflow.measurement.approvedAt
+      ? `Medição aprovada em ${new Date(`${item.workflow.measurement.approvedAt}T00:00:00`).toLocaleDateString('pt-BR')}`
+      : 'Documentação e medição em andamento';
+  }
   if (item.workflow?.stage === 'POST_JOB') {
     return item.workflow.postJob.meetingDate
       ? `Pós-job realizado em ${new Date(`${item.workflow.postJob.meetingDate}T00:00:00`).toLocaleDateString('pt-BR')}`
@@ -76,6 +81,7 @@ export function projectWorkflowStageOptions(stage: ProjectWorkflowStage) {
   if (stage === 'MOBILIZATION') return ['READY_TO_MOBILIZE', 'EXECUTION'] as ProjectWorkflowStage[];
   if (stage === 'EXECUTION') return ['MOBILIZATION', 'DEMOBILIZATION'] as ProjectWorkflowStage[];
   if (stage === 'DEMOBILIZATION') return ['EXECUTION', 'POST_JOB'] as ProjectWorkflowStage[];
-  if (stage === 'POST_JOB') return ['DEMOBILIZATION'] as ProjectWorkflowStage[];
+  if (stage === 'POST_JOB') return ['DEMOBILIZATION', 'FINAL_MEASUREMENT'] as ProjectWorkflowStage[];
+  if (stage === 'FINAL_MEASUREMENT') return ['POST_JOB'] as ProjectWorkflowStage[];
   return [];
 }

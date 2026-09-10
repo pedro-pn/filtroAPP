@@ -76,6 +76,7 @@ test('painel consolida prazo, RDO, relatórios integrados e RLR manual', () => {
     reports: [
       { id: 'rdo-1', reportType: 'RDO', status: 'SIGNED', reportDate: new Date('2026-09-08T00:00:00Z'), services: [{ id: 's1' }], attachments: [{ id: 'a1' }] },
       { id: 'rdo-2', reportType: 'RDO', status: 'RETURNED', reportDate: new Date('2026-09-09T00:00:00Z'), services: [], attachments: [] },
+      { id: 'rdo-3', reportType: 'RDO_PRODUCTION', status: 'APPROVED', reportDate: new Date('2026-09-10T00:00:00Z'), services: [], attachments: [] },
       { id: 'rtp-1', reportType: 'RTP', status: 'APPROVED', reportDate: new Date('2026-09-09T00:00:00Z'), services: [], attachments: [] },
       { id: 'rtp-2', reportType: 'RTP', status: 'RETURNED', reportDate: new Date('2026-09-09T00:00:00Z'), services: [], attachments: [] }
     ],
@@ -93,8 +94,8 @@ test('painel consolida prazo, RDO, relatórios integrados e RLR manual', () => {
     expectedEndDate: '2026-10-01',
     projectedEndDate: '2026-10-03'
   });
-  assert.equal(dashboard.rdo.receivedCount, 2);
-  assert.equal(dashboard.rdo.releasedToClientCount, 1);
+  assert.equal(dashboard.rdo.receivedCount, 3);
+  assert.equal(dashboard.rdo.releasedToClientCount, 2);
   assert.equal(dashboard.rdo.signedCount, 1);
   assert.equal(dashboard.rdo.withQuantitiesCount, 1);
   assert.equal(dashboard.rdo.evidenceCount, 1);

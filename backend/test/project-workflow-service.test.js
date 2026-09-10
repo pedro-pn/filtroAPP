@@ -24,6 +24,7 @@ function fakeDatabase() {
     commercialFacts: [],
     events: [],
     postJob: null,
+    measurement: null,
     relatedPostJobs: [],
     operationalMission: null,
     lastProjectFindManyInput: null,
@@ -49,6 +50,11 @@ function fakeDatabase() {
       qualityRecord: state.postJob.qualityRecordId ? { id: state.postJob.qualityRecordId, number: 'L-001/26', deletedAt: null } : null,
       createdBy: users[state.postJob.createdByUserId] || null,
       updatedBy: users[state.postJob.updatedByUserId] || null
+    } : null,
+    measurement: state.measurement ? {
+      ...state.measurement,
+      createdBy: users[state.measurement.createdByUserId] || null,
+      updatedBy: users[state.measurement.updatedByUserId] || null
     } : null
   } : null;
   const database = {
@@ -164,6 +170,14 @@ function fakeDatabase() {
         return state.postJob;
       },
       findMany: async () => state.relatedPostJobs
+    },
+    projectWorkflowMeasurement: {
+      upsert: async input => {
+        const now = new Date();
+        if (state.measurement) Object.assign(state.measurement, input.update, { updatedAt: now });
+        else state.measurement = { createdAt: now, updatedAt: now, ...input.create };
+        return state.measurement;
+      }
     }
   };
   return { database, state, users };
@@ -644,6 +658,44 @@ test('Pós-job persiste fechamento, sincroniza Qualidade e expõe histórico rel
   assert.equal(detail.workflow.relatedPostJobs.length, 1);
   assert.equal(detail.workflow.relatedPostJobs[0].matches.sameClient, true);
   assert.deepEqual(detail.workflow.relatedPostJobs[0].matches.services, ['FLUSHING']);
+});
+
+test('Documentação e medição avança pelo gate e persiste valores auditáveis', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  state.workflow.stage = 'POST_JOB';
+  state.postJob = { projectId: 'project-1', meetingDate: new Date('2026-09-25T00:00:00Z'), serviceTypes: ['FLUSHING'], createdAt: new Date(), updatedAt: new Date() };
+  state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.stage === 'POST_JOB').map(item => ({ id: `check-${item.key}`, projectId: 'project-1', key: item.key, status: 'DONE' })));
+  const synchronizedStages = [];
+  let detail = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'FINAL_MEASUREMENT' }, leader, {
+    database,
+    synchronizeOfficialMissionStage: async (_tx, _projectId, stage) => synchronizedStages.push(stage)
+  });
+  assert.equal(detail.workflow.stage, 'FINAL_MEASUREMENT');
+  assert.deepEqual(synchronizedStages, ['FINAL_MEASUREMENT']);
+  assert.equal(detail.workflow.closeoutReadiness.total, 14);
+
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'measurement',
+    version: 2,
+    quantitiesSummary: 'Quantitativos consolidados.',
+    executedAmount: 835000,
+    measuredAmount: 835000,
+    approvedAmount: 820000,
+    preparedAt: '2026-09-26',
+    sentAt: '2026-09-27',
+    approvedAt: '2026-09-30'
+  }, leader, { database });
+  assert.equal(detail.workflow.measurement.approvedAmount, 820000);
+  assert.equal(detail.workflow.measurement.approvedAt, '2026-09-30');
+  assert.equal(detail.workflow.measurement.updatedBy.name, 'Líder A');
+  assert.equal(state.events.at(-1).action, 'WORKFLOW_MEASUREMENT');
+
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'measurement', version: 3, measuredAmount: 840000 }, leader, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_MEASUREMENT_INVALID'
+  );
+  assert.equal(state.workflow.version, 3);
 });
 
 test('gate bloqueado impede autorização e papel de área não pode revalidar', async () => {

@@ -180,6 +180,17 @@ export function projectWorkflowPostJobReadiness(workflow) {
   };
 }
 
+export function projectWorkflowCloseoutReadiness(workflow) {
+  const sectionKeys = ['CLOSEOUT_DOCUMENTATION', 'CLOSEOUT_MEASUREMENT'];
+  const sections = sectionKeys.map(key => {
+    const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
+    return { key, ...checklistProgress(workflow, definitions) };
+  });
+  const completed = sections.reduce((sum, section) => sum + section.completed, 0);
+  const total = sections.reduce((sum, section) => sum + section.total, 0);
+  return { completed, total, percentage: total ? Math.round((completed / total) * 100) : 0, sections };
+}
+
 function readinessFromDefinitions(workflow, key, label, definitions, extraBlockers = []) {
   const byKey = new Map((workflow?.checklists || []).map(item => [item.key, item]));
   const pending = definitions.filter(definition => !resolvedChecklist(byKey.get(definition.key)));
@@ -295,6 +306,12 @@ export function demobilizationGateIssues(workflow) {
   return issues;
 }
 
+export function postJobGateIssues(workflow) {
+  const issues = incompleteChecklistLabels(workflow, 'POST_JOB');
+  if (!workflow.postJob?.meetingDate) issues.push('Informar a data da reunião de pós-job');
+  return issues;
+}
+
 export function analysisGateIssues(workflow) {
   const issues = incompleteChecklistLabels(workflow, 'INITIAL_ANALYSIS');
   const answerByKey = new Map((workflow.criticalAnswers || []).map(item => [item.key, item.answer]));
@@ -331,7 +348,8 @@ export function allowedProjectWorkflowTransition(current, target) {
     MOBILIZATION: ['READY_TO_MOBILIZE', 'EXECUTION'],
     EXECUTION: ['MOBILIZATION', 'DEMOBILIZATION'],
     DEMOBILIZATION: ['EXECUTION', 'POST_JOB'],
-    POST_JOB: ['DEMOBILIZATION']
+    POST_JOB: ['DEMOBILIZATION', 'FINAL_MEASUREMENT'],
+    FINAL_MEASUREMENT: ['POST_JOB']
   };
   return transitions[current]?.includes(target) || false;
 }
@@ -344,6 +362,7 @@ export function projectWorkflowTransitionIssues(workflow, target) {
   }
   if (target === 'PREPARATION' && workflow.stage === 'MOBILIZATION_PLANNING') return planningGateIssues(workflow);
   if (target === 'POST_JOB' && workflow.stage === 'DEMOBILIZATION') return demobilizationGateIssues(workflow);
+  if (target === 'FINAL_MEASUREMENT' && workflow.stage === 'POST_JOB') return postJobGateIssues(workflow);
   if (target === 'READY_TO_MOBILIZE') {
     return projectWorkflowMobilizationGate(workflow).blockers.map(item => `${item.label}: ${item.reason}`);
   }

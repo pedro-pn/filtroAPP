@@ -49,9 +49,25 @@ test('ações de etapa não transformam D-30 em coluna', () => {
   assert.deepEqual(projectWorkflowStageOptions('MOBILIZATION'), ['READY_TO_MOBILIZE', 'EXECUTION']);
   assert.deepEqual(projectWorkflowStageOptions('EXECUTION'), ['MOBILIZATION', 'DEMOBILIZATION']);
   assert.deepEqual(projectWorkflowStageOptions('DEMOBILIZATION'), ['EXECUTION', 'POST_JOB']);
-  assert.deepEqual(projectWorkflowStageOptions('POST_JOB'), ['DEMOBILIZATION']);
+  assert.deepEqual(projectWorkflowStageOptions('POST_JOB'), ['DEMOBILIZATION', 'FINAL_MEASUREMENT']);
+  assert.deepEqual(projectWorkflowStageOptions('FINAL_MEASUREMENT'), ['POST_JOB']);
   assert.equal(projectWorkflowMilestoneText({ workflow: { milestones: { daysUntilMobilization: 20 } } }), 'Faltam 20 dia(s)');
   assert.equal(projectWorkflowMilestoneText({ workflow: { stage: 'DEMOBILIZATION', demobilizationDate: '2026-09-22', milestones: {} } }), 'Desmobilizada em 22/09/2026');
+});
+
+test('Documentação e medição integra evidências, valores e 14 controles', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const panel = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectCloseoutPanel.tsx', import.meta.url), 'utf8');
+  const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  assert.match(modal, /data-project-workflow-closeout/);
+  assert.match(modal, /Iniciar documentação e medição/);
+  assert.match(panel, /Evidências documentais/);
+  assert.match(panel, /Consolidação da medição/);
+  assert.match(panel, /Pendente de aprovação/);
+  assert.match(panel, /título\(s\) no Omie/);
+  assert.match(board, /Fechamento:/);
+  assert.match(styles, /project-closeout-financial/);
 });
 
 test('desmobilização integra coluna, datas e 15 controles ao Kanban único', () => {

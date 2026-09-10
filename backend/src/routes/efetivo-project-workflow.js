@@ -18,6 +18,7 @@ import {
   updateProjectExecutionDeviation,
   updateProjectExecutionReportTargets
 } from '../lib/efetivo/project-workflow/execution-dashboard.js';
+import { getProjectCloseoutDashboard } from '../lib/efetivo/project-workflow/closeout-dashboard.js';
 
 const router = Router();
 const schemas = makeProjectWorkflowSchemas(z);
@@ -44,6 +45,11 @@ router.get('/leaders', requireEfetivoViewer, asyncHandler(async (_req, res) => {
 router.get('/:projectId/execution', requireEfetivoViewer, asyncHandler(async (req, res) => {
   const projectId = projectIdSchema.parse(req.params.projectId);
   res.json(await getProjectExecutionDashboard(projectId, context(req)));
+}));
+
+router.get('/:projectId/closeout', requireEfetivoViewer, asyncHandler(async (req, res) => {
+  const projectId = projectIdSchema.parse(req.params.projectId);
+  res.json(await getProjectCloseoutDashboard(projectId, context(req)));
 }));
 
 router.put('/:projectId/execution/report-targets', requireEfetivoViewer, asyncHandler(async (req, res) => {

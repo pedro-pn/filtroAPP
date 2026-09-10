@@ -12,6 +12,7 @@ test('router de gestão fica sob autenticação do Efetivo e valida todas as ent
   assert.match(router, /executionSchemas\.reportTargets\.parse\(req\.body\)/);
   assert.match(router, /executionSchemas\.deviationCreate\.parse\(req\.body\)/);
   assert.match(router, /executionSchemas\.deviationStatus\.parse\(req\.body\)/);
+  assert.match(router, /getProjectCloseoutDashboard/);
   assert.match(router, /requireEfetivoManager/);
   assert.match(router, /requireEfetivoViewer/);
 });

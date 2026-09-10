@@ -10,6 +10,7 @@ import { resolvePlanningDatabase, runPlanningTransaction } from '../planning/pla
 import { canEditWorkflow } from './service.js';
 
 const INTEGRATED_REPORT_TYPES = new Set(PROJECT_EXECUTION_REPORT_TYPES.filter(item => item.source === 'SYSTEM').map(item => item.key));
+const RDO_REPORT_TYPES = ['RDO', 'RDO_MAINTENANCE', 'RDO_PRODUCTION'];
 const SAO_PAULO_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit'
 });
@@ -35,7 +36,7 @@ function targetValue(targetData, reportType, field) {
   return Number.isInteger(number) && number >= 0 ? number : 0;
 }
 
-function buildTechnicalReports(reports, targetData) {
+export function buildTechnicalReports(reports, targetData) {
   return PROJECT_EXECUTION_REPORT_TYPES.map(definition => {
     const matching = definition.source === 'SYSTEM'
       ? reports.filter(report => report.reportType === definition.key)
@@ -60,7 +61,7 @@ function buildTechnicalReports(reports, targetData) {
 
 export function buildProjectExecutionDashboard({ tracking = null, reports = [], targetData = {}, deviations = [], canEdit = false } = {}) {
   const validReports = Array.isArray(reports) ? reports : [];
-  const rdos = validReports.filter(report => report.reportType === 'RDO');
+  const rdos = validReports.filter(report => RDO_REPORT_TYPES.includes(report.reportType));
   const lastReportDate = rdos.map(report => dateKey(report.reportDate)).filter(Boolean).sort().at(-1) || null;
   return {
     schedule: {
@@ -134,7 +135,7 @@ export async function getProjectExecutionDashboard(projectId, context = {}, depe
       where: {
         projectId,
         deletedAt: null,
-        reportType: { in: ['RDO', ...INTEGRATED_REPORT_TYPES] }
+        reportType: { in: [...RDO_REPORT_TYPES, ...INTEGRATED_REPORT_TYPES] }
       },
       select: {
         id: true,

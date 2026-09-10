@@ -261,6 +261,7 @@ enum ProjectWorkflowStage {
   EXECUTION
   DEMOBILIZATION
   POST_JOB
+  FINAL_MEASUREMENT
 }
 
 enum ProjectWorkflowChecklistStatus {
@@ -981,6 +982,7 @@ model ProjectWorkflow {
   commercialFacts                  ProjectWorkflowCommercialFact[]
   events                           ProjectWorkflowEvent[]
   postJob                          ProjectWorkflowPostJob?
+  measurement                      ProjectWorkflowMeasurement?
 
   @@index([stage, plannedMobilizationDate])
   @@index([leaderUserId])
@@ -1099,6 +1101,29 @@ model ProjectWorkflowPostJob {
   updatedBy                User?           @relation("ProjectWorkflowPostJobUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
   @@index([meetingDate])
+  @@index([createdByUserId])
+  @@index([updatedByUserId])
+}
+
+model ProjectWorkflowMeasurement {
+  projectId              String          @id
+  quantitiesSummary      String?
+  additionalServicesNote String?
+  evidenceNote           String?
+  executedAmount         Decimal?        @db.Decimal(14, 2)
+  measuredAmount         Decimal?        @db.Decimal(14, 2)
+  approvedAmount         Decimal?        @db.Decimal(14, 2)
+  preparedAt             DateTime?       @db.Date
+  sentAt                 DateTime?       @db.Date
+  approvedAt             DateTime?       @db.Date
+  createdByUserId        String?
+  updatedByUserId        String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  workflow               ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  createdBy              User?           @relation("ProjectWorkflowMeasurementCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy              User?           @relation("ProjectWorkflowMeasurementUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
   @@index([createdByUserId])
   @@index([updatedByUserId])
 }
@@ -2158,6 +2183,8 @@ model User {
   projectWorkflowEvents                ProjectWorkflowEvent[]               @relation("ProjectWorkflowEventActor")
   createdProjectWorkflowPostJobs       ProjectWorkflowPostJob[]             @relation("ProjectWorkflowPostJobCreator")
   updatedProjectWorkflowPostJobs       ProjectWorkflowPostJob[]             @relation("ProjectWorkflowPostJobUpdater")
+  createdProjectWorkflowMeasurements  ProjectWorkflowMeasurement[]        @relation("ProjectWorkflowMeasurementCreator")
+  updatedProjectWorkflowMeasurements  ProjectWorkflowMeasurement[]        @relation("ProjectWorkflowMeasurementUpdater")
   createdAcompanhamentoMissionGroups   AcompanhamentoMissionGroup[]        @relation("AcompanhamentoMissionGroupCreatedBy")
   dissolvedAcompanhamentoMissionGroups AcompanhamentoMissionGroup[]        @relation("AcompanhamentoMissionGroupDissolvedBy")
   createdQualityRecords                QualityRecord[]                     @relation("QualityRecordCreator")

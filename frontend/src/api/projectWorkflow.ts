@@ -1,6 +1,6 @@
 import { apiClient, type ApiClientError } from './client';
 
-export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB';
+export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB' | 'FINAL_MEASUREMENT';
 export type ProjectWorkflowChecklistStatus = 'PENDING' | 'DONE' | 'NOT_APPLICABLE';
 export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
@@ -10,7 +10,7 @@ export type ProjectExecutionReportType = 'RTP' | 'RLQ' | 'RLR' | 'RCPU' | 'RLM' 
 export type ProjectExecutionDeviationCategory = 'PRAZO' | 'ESCOPO' | 'CLIENTE' | 'EQUIPAMENTO' | 'PESSOAL' | 'MATERIAL' | 'SEGURANCA' | 'QUALIDADE' | 'COMERCIAL';
 export type ProjectExecutionImpact = 'ALTO' | 'MEDIO' | 'BAIXO';
 export type ProjectExecutionDeviationStatus = 'ABERTO' | 'EM_TRIAGEM' | 'EM_OBSERVACAO' | 'EM_ACAO' | 'FECHADO' | 'DIVULGADO';
-export type ProjectWorkflowChecklistSection = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'ADVANCE_DOCUMENTATION' | 'D30_TEAM' | 'D30_EQUIPMENT' | 'D30_MATERIALS' | 'D30_LOGISTICS' | 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS' | 'DEMOBILIZATION_FIELD' | 'DEMOBILIZATION_LOGISTICS' | 'DEMOBILIZATION_ASSETS' | 'POST_JOB_FEEDBACK' | 'POST_JOB_LEARNING';
+export type ProjectWorkflowChecklistSection = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'ADVANCE_DOCUMENTATION' | 'D30_TEAM' | 'D30_EQUIPMENT' | 'D30_MATERIALS' | 'D30_LOGISTICS' | 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS' | 'DEMOBILIZATION_FIELD' | 'DEMOBILIZATION_LOGISTICS' | 'DEMOBILIZATION_ASSETS' | 'POST_JOB_FEEDBACK' | 'POST_JOB_LEARNING' | 'CLOSEOUT_DOCUMENTATION' | 'CLOSEOUT_MEASUREMENT';
 
 export interface ProjectWorkflowPermissions {
   canInitialize: boolean;
@@ -94,6 +94,7 @@ export interface ProjectWorkflowPlanningReadiness {
 export type ProjectWorkflowPreparationReadiness = ProjectWorkflowPlanningReadiness;
 export type ProjectWorkflowDemobilizationReadiness = ProjectWorkflowPlanningReadiness;
 export type ProjectWorkflowPostJobReadiness = ProjectWorkflowPlanningReadiness;
+export type ProjectWorkflowCloseoutReadiness = ProjectWorkflowPlanningReadiness;
 
 export interface ProjectWorkflowPostJob {
   meetingDate: string | null;
@@ -126,6 +127,22 @@ export interface RelatedProjectPostJob {
   equipmentFeedback: string | null;
   planningFeedback: string | null;
   qualityRecord: { id: string; number: string } | null;
+}
+
+export interface ProjectWorkflowMeasurement {
+  quantitiesSummary: string | null;
+  additionalServicesNote: string | null;
+  evidenceNote: string | null;
+  executedAmount: number | null;
+  measuredAmount: number | null;
+  approvedAmount: number | null;
+  preparedAt: string | null;
+  sentAt: string | null;
+  approvedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  createdBy: { id: string; name: string } | null;
+  updatedBy: { id: string; name: string } | null;
 }
 
 export interface ProjectWorkflowMobilizationGateBlocker {
@@ -249,6 +266,8 @@ export interface ProjectWorkflow {
   demobilizationReadiness: ProjectWorkflowDemobilizationReadiness;
   postJobReadiness: ProjectWorkflowPostJobReadiness;
   postJob: ProjectWorkflowPostJob;
+  closeoutReadiness: ProjectWorkflowCloseoutReadiness;
+  measurement: ProjectWorkflowMeasurement;
   relatedPostJobs: RelatedProjectPostJob[];
   mobilizationGate: ProjectWorkflowMobilizationGate;
   mobilizationAuthorization: ProjectWorkflowMobilizationAuthorization;
@@ -280,6 +299,8 @@ export interface ProjectWorkflowSummary extends ProjectWorkflowProject {
     demobilizationReadiness: ProjectWorkflowDemobilizationReadiness;
     postJobReadiness: ProjectWorkflowPostJobReadiness;
     postJob: ProjectWorkflowPostJob;
+    closeoutReadiness: ProjectWorkflowCloseoutReadiness;
+    measurement: ProjectWorkflowMeasurement;
     mobilizationGate: ProjectWorkflowMobilizationGate;
     mobilizationAuthorization: ProjectWorkflowMobilizationAuthorization;
   };
@@ -345,6 +366,28 @@ export interface ProjectExecutionDashboard {
   permissions: { canEdit: boolean };
 }
 
+export interface ProjectCloseoutDashboard {
+  documentation: {
+    rdo: ProjectExecutionDashboard['rdo'] & { clientAcceptedCount: number };
+    technicalReports: Array<ProjectExecutionDashboard['technicalReports'][number] & { clientAcceptedCount: number }>;
+    totalTechnicalIssued: number;
+    totalTechnicalExpected: number;
+    totalClientAccepted: number;
+  };
+  financial: {
+    originalContractAmount: number | null;
+    additionalContractAmount: number | null;
+    contractAmount: number | null;
+    invoicedAmount: number | null;
+    invoiceCount: number;
+  };
+  measurement: Pick<ProjectWorkflowMeasurement, 'quantitiesSummary' | 'additionalServicesNote' | 'evidenceNote' | 'executedAmount' | 'measuredAmount' | 'approvedAmount' | 'preparedAt' | 'sentAt' | 'approvedAt' | 'updatedAt' | 'updatedBy'> & {
+    unmeasuredAmount: number | null;
+    pendingApprovalAmount: number | null;
+  };
+  permissions: { canEdit: boolean };
+}
+
 export interface ProjectExecutionReportTargetInput {
   reportType: ProjectExecutionReportType;
   expectedCount: number;
@@ -370,6 +413,7 @@ export type ProjectWorkflowPatch =
   | { action: 'stage'; version: number; stage: ProjectWorkflowStage }
   | { action: 'demobilization'; version: number; fieldCompletionDate?: string | null; returnDate?: string | null }
   | { action: 'post_job'; version: number; meetingDate?: string | null; fieldLeaderFeedback?: string | null; teamFeedback?: string | null; problemsFound?: string | null; solutionsAdopted?: string | null; improvementOpportunities?: string | null; lessonsLearned?: string | null; equipmentFeedback?: string | null; planningFeedback?: string | null }
+  | { action: 'measurement'; version: number; quantitiesSummary?: string | null; additionalServicesNote?: string | null; evidenceNote?: string | null; executedAmount?: number | null; measuredAmount?: number | null; approvedAmount?: number | null; preparedAt?: string | null; sentAt?: string | null; approvedAt?: string | null }
   | { action: 'authorize_mobilization'; version: number }
   | { action: 'commercial_fact'; version: number; key: string; status: ProjectWorkflowCommercialFactStatus; reference?: string | null; note?: string | null; occurredOn?: string | null };
 
@@ -399,6 +443,10 @@ export async function updateProjectWorkflow(projectId: string, input: ProjectWor
 
 export async function getProjectExecutionDashboard(projectId: string) {
   return (await apiClient.get<ProjectExecutionDashboard>(`${base}/${encodeURIComponent(projectId)}/execution`)).data;
+}
+
+export async function getProjectCloseoutDashboard(projectId: string) {
+  return (await apiClient.get<ProjectCloseoutDashboard>(`${base}/${encodeURIComponent(projectId)}/closeout`)).data;
 }
 
 export async function updateProjectExecutionReportTargets(projectId: string, targets: ProjectExecutionReportTargetInput[]) {
