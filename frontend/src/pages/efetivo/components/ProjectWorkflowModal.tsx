@@ -180,15 +180,20 @@ function WorkflowSettingsForm({ detail, leaders, saving, onPatch }: {
   );
 }
 
-function DemobilizationDatesForm({ workflow, mission, saving, onPatch }: {
+function DemobilizationDatesForm({ workflow, project, mission, saving, onPatch }: {
   workflow: ProjectWorkflow;
+  project: ProjectWorkflowDetail['project'];
   mission: ProjectOperationalMissionSummary | null | undefined;
   saving: boolean;
   onPatch: (payload: ProjectWorkflowPatch) => void;
 }) {
   const schema = z.object({
+    mobilizationDate: z.string().min(1, 'Informe a mobilização no cronograma.'),
     fieldCompletionDate: z.string(),
     returnDate: z.string()
+  }).refine(value => !value.returnDate || value.mobilizationDate <= value.returnDate, {
+    path: ['returnDate'],
+    message: 'A desmobilização não pode ser anterior à mobilização.'
   }).refine(value => !value.fieldCompletionDate || !value.returnDate || value.fieldCompletionDate <= value.returnDate, {
     path: ['returnDate'],
     message: 'A desmobilização não pode ser anterior à conclusão de campo.'
@@ -200,23 +205,32 @@ function DemobilizationDatesForm({ workflow, mission, saving, onPatch }: {
   const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
+      mobilizationDate: project.mobilizationDate || mission?.mobilizationDate || '',
       fieldCompletionDate: workflow.fieldCompletionDate || '',
       returnDate: workflow.demobilizationDate || mission?.returnDate || ''
     }
   });
   useEffect(() => reset({
+    mobilizationDate: project.mobilizationDate || mission?.mobilizationDate || '',
     fieldCompletionDate: workflow.fieldCompletionDate || '',
     returnDate: workflow.demobilizationDate || mission?.returnDate || ''
-  }), [mission?.returnDate, reset, workflow.demobilizationDate, workflow.fieldCompletionDate]);
+  }), [mission?.mobilizationDate, mission?.returnDate, project.mobilizationDate, reset, workflow.demobilizationDate, workflow.fieldCompletionDate]);
   return (
     <form className="project-workflow-form" data-project-workflow-demobilization-dates noValidate onSubmit={handleSubmit(values => onPatch({
       action: 'demobilization',
       version: workflow.version,
+      mobilizationDate: values.mobilizationDate,
       fieldCompletionDate: values.fieldCompletionDate || null,
       returnDate: values.returnDate || null
     }))}>
       <h4>Datas efetivas</h4>
       <div className="project-workflow-form-grid">
+        <div className={fieldClass(errors.mobilizationDate)}>
+          <label htmlFor="workflow-mobilization-date">Mobilização no cronograma *</label>
+          <input id="workflow-mobilization-date" type="date" disabled={saving || !workflow.permissions.canEdit} aria-invalid={Boolean(errors.mobilizationDate)} {...register('mobilizationDate')} />
+          <span className="field-hint">Usa inicialmente a data da programação oficial e mantém o cronograma do projeto sincronizado.</span>
+          {errors.mobilizationDate ? <span className="field-error">{errors.mobilizationDate.message}</span> : null}
+        </div>
         <div className={fieldClass(errors.fieldCompletionDate)}>
           <label htmlFor="workflow-field-completion-date">Conclusão do campo</label>
           <input id="workflow-field-completion-date" type="date" disabled={saving || !workflow.permissions.canEdit} aria-invalid={Boolean(errors.fieldCompletionDate)} {...register('fieldCompletionDate')} />
@@ -526,7 +540,7 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
               {workflow.stage === 'PREPARATION' || workflow.stage === 'READY_TO_MOBILIZE' ? <ProjectWorkflowCategory title="Preparação para mobilização · D-15" description="Confirmações definitivas por frente responsável." status={`${workflow.preparationReadiness.completed}/${workflow.preparationReadiness.total} · ${workflow.preparationReadiness.percentage}%`} complete={workflow.preparationReadiness.percentage === 100} className="project-workflow-planning" data-project-workflow-d15><div className="project-workflow-planning-grid">{preparationSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></ProjectWorkflowCategory> : null}
               {['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage) ? <MobilizationGate workflow={workflow} /> : null}
               {workflow.stage === 'EXECUTION' ? <ProjectWorkflowCategory title="Dashboard de execução" description="Avanço, RDOs, relatórios técnicos e desvios da obra." status="Acompanhamento ativo"><ProjectExecutionDashboard projectId={workflow.projectId} /></ProjectWorkflowCategory> : null}
-              {workflow.stage === 'DEMOBILIZATION' ? <ProjectWorkflowCategory title="Desmobilização" description="Conclusão do campo, retorno da equipe e entrega dos ativos." status={`${workflow.demobilizationReadiness.completed}/${workflow.demobilizationReadiness.total} · ${workflow.demobilizationReadiness.percentage}%`} complete={workflow.demobilizationReadiness.percentage === 100 && Boolean(workflow.fieldCompletionDate && workflow.demobilizationDate)} className="project-workflow-planning" data-project-workflow-demobilization><DemobilizationDatesForm workflow={workflow} mission={detail.project.operationalMission} saving={saving} onPatch={onPatch} /><div className="project-workflow-planning-grid">{demobilizationSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></ProjectWorkflowCategory> : null}
+              {workflow.stage === 'DEMOBILIZATION' ? <ProjectWorkflowCategory title="Desmobilização" description="Conclusão do campo, retorno da equipe e entrega dos ativos." status={`${workflow.demobilizationReadiness.completed}/${workflow.demobilizationReadiness.total} · ${workflow.demobilizationReadiness.percentage}%`} complete={workflow.demobilizationReadiness.percentage === 100 && Boolean(workflow.fieldCompletionDate && workflow.demobilizationDate)} className="project-workflow-planning" data-project-workflow-demobilization><DemobilizationDatesForm workflow={workflow} project={detail.project} mission={detail.project.operationalMission} saving={saving} onPatch={onPatch} /><div className="project-workflow-planning-grid">{demobilizationSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></ProjectWorkflowCategory> : null}
               {['POST_JOB', 'FINISHED'].includes(workflow.stage) ? <ProjectWorkflowCategory title="Pós-job / fechamento técnico" description="Registre a experiência da obra e alimente a base histórica da Filtrovali." status={`${workflow.postJobReadiness.completed}/${workflow.postJobReadiness.total} · ${workflow.postJobReadiness.percentage}%`} complete={workflow.postJobReadiness.percentage === 100} className="project-workflow-planning" data-project-workflow-post-job><ProjectPostJobPanel workflow={workflow} saving={saving} onPatch={onPatch} /><div className="project-workflow-planning-grid">{postJobSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></ProjectWorkflowCategory> : null}
               {['FINAL_MEASUREMENT', 'FINISHED'].includes(workflow.stage) ? <ProjectWorkflowCategory title="Documentação / medição" description="Consolide os documentos técnicos, a medição e os valores de fechamento da obra." status={`${workflow.closeoutReadiness.completed}/${workflow.closeoutReadiness.total} · ${workflow.closeoutReadiness.percentage}%`} complete={workflow.closeoutReadiness.percentage === 100} className="project-workflow-planning" data-project-workflow-closeout><ProjectCloseoutPanel workflow={workflow} saving={saving} onPatch={onPatch} /><div className="project-workflow-planning-grid">{closeoutSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></ProjectWorkflowCategory> : null}
               {['FINAL_MEASUREMENT', 'FINISHED'].includes(workflow.stage) ? <ProjectWorkflowCategory title="Gate de encerramento" description="Valida escopo, documentos, medição, pós-job, ativos e pendências antes de encerrar." status={workflow.closureGate.ready ? '🟢 Pronto para encerrar' : `🔴 ${workflow.closureGate.blockers.length} bloqueio(s)`} complete={workflow.closureGate.ready} className={`project-workflow-closure-gate ${workflow.closureGate.ready ? 'is-ready' : 'is-blocked'}`} data-project-workflow-closure-gate><WorkflowChecklistSection title="Checklist final de encerramento" items={finalCloseoutChecklists} version={workflow.version} saving={saving} onPatch={onPatch} />{workflow.closureGate.blockers.length ? <details open><summary>Motivos do bloqueio</summary><ul>{workflow.closureGate.blockers.map(item => <li key={item.key}><strong>{item.label}:</strong> {item.reason}</li>)}</ul></details> : <p className="project-workflow-category-note">Todos os requisitos foram concluídos. O Líder ou gestor pode encerrar o projeto.</p>}</ProjectWorkflowCategory> : null}

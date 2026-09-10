@@ -45,6 +45,7 @@ const PROJECT_FIELDS = {
   name: true,
   clientName: true,
   location: true,
+  mobilizationDate: true,
   demobilizationDate: true
 };
 const POST_JOB_INCLUDE = {
@@ -574,6 +575,7 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
       name: project.name,
       clientName: project.clientName,
       location: project.location,
+      mobilizationDate: dateKey(project.mobilizationDate),
       demobilizationDate: dateKey(project.demobilizationDate),
       operationalMission: operationalMissionSummary(project)
     },
@@ -984,7 +986,7 @@ async function applyDemobilization(tx, workflow, payload, context, dependencies)
   }
   const project = await tx.project.findUnique({
     where: { id: workflow.projectId },
-    select: { id: true, demobilizationDate: true }
+    select: { id: true, mobilizationDate: true, demobilizationDate: true }
   });
   if (!project) throw notFound('Projeto não encontrado.');
   const fieldCompletionDate = Object.hasOwn(payload, 'fieldCompletionDate')
@@ -993,9 +995,28 @@ async function applyDemobilization(tx, workflow, payload, context, dependencies)
   const returnDate = Object.hasOwn(payload, 'returnDate')
     ? payload.returnDate
     : dateKey(project.demobilizationDate);
+  const mobilizationDate = Object.hasOwn(payload, 'mobilizationDate')
+    ? payload.mobilizationDate
+    : dateKey(project.mobilizationDate);
+  if (returnDate && payload.mobilizationDate === null) {
+    throw planningError('Informe a mobilização no cronograma antes da desmobilização.', {
+      code: 'PROJECT_MOBILIZATION_REQUIRED'
+    });
+  }
+  if (mobilizationDate && returnDate && returnDate < mobilizationDate) {
+    throw planningError('A desmobilização não pode ser anterior à mobilização.', {
+      code: 'INVALID_PROJECT_WORKFLOW_DEMOBILIZATION'
+    });
+  }
   if (fieldCompletionDate && returnDate && returnDate < fieldCompletionDate) {
     throw planningError('A desmobilização não pode ser anterior à conclusão de campo.', {
       code: 'INVALID_PROJECT_WORKFLOW_DEMOBILIZATION'
+    });
+  }
+  if (Object.hasOwn(payload, 'mobilizationDate')) {
+    await tx.project.update({
+      where: { id: workflow.projectId },
+      data: { mobilizationDate: payload.mobilizationDate ? utcDate(payload.mobilizationDate) : null }
     });
   }
   if (Object.hasOwn(payload, 'returnDate')) {

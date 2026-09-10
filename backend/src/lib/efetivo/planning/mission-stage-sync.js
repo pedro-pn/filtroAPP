@@ -117,7 +117,12 @@ export async function synchronizeOfficialMissionDemobilization(tx, projectId, re
     });
   }
   validateMissionChronology({ ...mission, returnDate });
-  await syncMissionDemobilization(tx, mission.project, returnDate);
+  await syncMissionDemobilization(
+    tx,
+    mission.project,
+    returnDate,
+    mission.project.mobilizationDate ? undefined : dateKey(mission.mobilizationDate)
+  );
   if (dateKey(mission.returnDate) === returnDate) return mission;
   const updated = await tx.efetivoMissionPlan.update({
     where: { id: mission.id },

@@ -378,10 +378,17 @@ export function makeProjectWorkflowSchemas(z) {
   const demobilization = z.object({
     action: z.literal('demobilization'),
     version,
+    mobilizationDate: dateOnly.nullable().optional(),
     fieldCompletionDate: dateOnly.nullable().optional(),
     returnDate: dateOnly.nullable().optional()
-  }).strict().refine(value => Object.hasOwn(value, 'fieldCompletionDate') || Object.hasOwn(value, 'returnDate'), {
+  }).strict().refine(value => Object.hasOwn(value, 'mobilizationDate') || Object.hasOwn(value, 'fieldCompletionDate') || Object.hasOwn(value, 'returnDate'), {
     message: 'Informe ao menos uma data para alterar.'
+  }).refine(value => !value.returnDate || value.mobilizationDate !== null, {
+    path: ['mobilizationDate'],
+    message: 'Informe a mobilização no cronograma antes da desmobilização.'
+  }).refine(value => !value.mobilizationDate || !value.returnDate || value.mobilizationDate <= value.returnDate, {
+    path: ['returnDate'],
+    message: 'A desmobilização não pode ser anterior à mobilização.'
   }).refine(value => !value.fieldCompletionDate || !value.returnDate || value.fieldCompletionDate <= value.returnDate, {
     path: ['returnDate'],
     message: 'A desmobilização não pode ser anterior à conclusão de campo.'

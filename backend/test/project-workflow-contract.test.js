@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
+import { z } from 'zod';
+
+import { makeProjectWorkflowSchemas } from '../../shared/schemas/project-workflow.js';
 
 test('router de gestão fica sob autenticação do Efetivo e valida todas as entradas com Zod', () => {
   const parent = fs.readFileSync(new URL('../src/routes/resources/efetivo.js', import.meta.url), 'utf8');
@@ -15,4 +18,17 @@ test('router de gestão fica sob autenticação do Efetivo e valida todas as ent
   assert.match(router, /getProjectCloseoutDashboard/);
   assert.match(router, /requireEfetivoManager/);
   assert.match(router, /requireEfetivoViewer/);
+});
+
+test('contrato de desmobilização recebe a mobilização do cronograma sem quebrar clientes anteriores', () => {
+  const { patch } = makeProjectWorkflowSchemas(z);
+  assert.equal(patch.safeParse({
+    action: 'demobilization', version: 1, mobilizationDate: '2026-09-10', returnDate: '2026-09-22'
+  }).success, true);
+  assert.equal(patch.safeParse({
+    action: 'demobilization', version: 1, returnDate: '2026-09-22'
+  }).success, true);
+  assert.equal(patch.safeParse({
+    action: 'demobilization', version: 1, mobilizationDate: null, returnDate: '2026-09-22'
+  }).success, false);
 });

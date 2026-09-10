@@ -51,6 +51,7 @@ export interface ProjectWorkflowProject {
   name: string;
   clientName: string;
   location: string;
+  mobilizationDate?: string | null;
   demobilizationDate?: string | null;
   operationalMission?: ProjectOperationalMissionSummary | null;
 }
@@ -433,7 +434,7 @@ export type ProjectWorkflowPatch =
   | { action: 'issue'; version: number; issueId: string; description: string; area: string; ownerName: string | null; requiredLeadTimeDays: number | null; dueDate: string | null; criticality: ProjectWorkflowCriticality; status: ProjectWorkflowIssueStatus }
   | { action: 'accept'; version: number }
   | { action: 'stage'; version: number; stage: ProjectWorkflowStage; reason?: string }
-  | { action: 'demobilization'; version: number; fieldCompletionDate?: string | null; returnDate?: string | null }
+  | { action: 'demobilization'; version: number; mobilizationDate?: string | null; fieldCompletionDate?: string | null; returnDate?: string | null }
   | { action: 'post_job'; version: number; meetingDate?: string | null; fieldLeaderFeedback?: string | null; teamFeedback?: string | null; problemsFound?: string | null; solutionsAdopted?: string | null; improvementOpportunities?: string | null; lessonsLearned?: string | null; equipmentFeedback?: string | null; planningFeedback?: string | null }
   | { action: 'measurement'; version: number; quantitiesSummary?: string | null; additionalServicesNote?: string | null; evidenceNote?: string | null; executedAmount?: number | null; measuredAmount?: number | null; approvedAmount?: number | null; preparedAt?: string | null; sentAt?: string | null; approvedAt?: string | null }
   | { action: 'authorize_mobilization'; version: number }

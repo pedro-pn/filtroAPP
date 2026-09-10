@@ -79,11 +79,14 @@ test('etapa do workflow possui projeção operacional única', () => {
 test('desmobilização atualiza retorno sem alterar equipe ou ciclos', async () => {
   const cycles = [{ id: 'cycle-1', mobilizationDate: new Date('2026-09-10T00:00:00Z') }];
   const allocations = [{ id: 'allocation-1', jobRoleId: 'role-1', deletedAt: null, cycles: [{ id: 'allocation-cycle-1' }] }];
-  const { database, state } = fakeDatabase(completeMission({ stage: 'FINAL_MEASUREMENT', cycles, allocations }));
+  const mission = completeMission({ stage: 'FINAL_MEASUREMENT', cycles, allocations });
+  mission.project.mobilizationDate = null;
+  const { database, state } = fakeDatabase(mission);
   const result = await synchronizeOfficialMissionDemobilization(database, 'project-1', '2026-09-22', { actorUserId: 'leader-1' });
   assert.equal(result.returnDate.toISOString().slice(0, 10), '2026-09-22');
   assert.deepEqual(state.mission.cycles, cycles);
   assert.deepEqual(state.mission.allocations, allocations);
+  assert.equal(state.projectUpdates[0].data.mobilizationDate.toISOString().slice(0, 10), '2026-09-10');
   assert.equal(state.projectUpdates[0].data.demobilizationDate.toISOString().slice(0, 10), '2026-09-22');
   assert.equal(state.audits.at(-1).action, 'MISSION_DEMOBILIZATION_UPDATE');
 });

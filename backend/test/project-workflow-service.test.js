@@ -16,7 +16,7 @@ import {
 
 function fakeDatabase() {
   const state = {
-    project: { id: 'project-1', code: 'P-001', name: 'Flushing', clientName: 'Cliente', location: 'Santos', demobilizationDate: null },
+    project: { id: 'project-1', code: 'P-001', name: 'Flushing', clientName: 'Cliente', location: 'Santos', mobilizationDate: null, startDate: null, demobilizationDate: null },
     workflow: null,
     checklists: [],
     answers: [],
@@ -565,7 +565,7 @@ test('desmobilização sincroniza etapa e datas sem perder os dados operacionais
   assert.equal(result.workflow.mobilizationAuthorization.authorized, false);
 
   result = await updateProjectWorkflow('project-1', {
-    action: 'demobilization', version: 5, fieldCompletionDate: '2026-09-20', returnDate: '2026-09-22'
+    action: 'demobilization', version: 5, mobilizationDate: '2026-09-10', fieldCompletionDate: '2026-09-20', returnDate: '2026-09-22'
   }, leader, {
     database,
     synchronizeOfficialMissionDemobilization: async (_tx, _projectId, returnDate) => {
@@ -574,6 +574,8 @@ test('desmobilização sincroniza etapa e datas sem perder os dados operacionais
   });
   assert.equal(result.workflow.fieldCompletionDate, '2026-09-20');
   assert.equal(result.workflow.demobilizationDate, '2026-09-22');
+  assert.equal(result.project.mobilizationDate, '2026-09-10');
+  assert.equal(state.project.mobilizationDate.toISOString().slice(0, 10), '2026-09-10');
   assert.equal(state.events.at(-1).action, 'WORKFLOW_DEMOBILIZATION');
 
   await assert.rejects(
