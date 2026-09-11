@@ -34,6 +34,10 @@ import {
 } from './rules.js';
 import { synchronizePostJobQualityRecord } from './post-job-quality.js';
 import { projectDocumentReadiness, projectDocumentRequirements } from './documents.js';
+import {
+  emptyProjectWorkflowResourcePlanning,
+  loadProjectWorkflowResourcePlanning
+} from './resource-planning.js';
 
 const PAGE_SIZE = 100;
 const SAO_PAULO_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
@@ -138,6 +142,14 @@ const WORKFLOW_INCLUDE = {
       }
     },
     orderBy: { type: 'asc' }
+  },
+  teamDemands: {
+    include: { jobRole: { select: { id: true, name: true, calendarColor: true } } },
+    orderBy: { jobRole: { order: 'asc' } }
+  },
+  equipmentCategoryPlans: {
+    include: { category: { select: { id: true, name: true, order: true } } },
+    orderBy: { category: { order: 'asc' } }
   },
   issues: { orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'asc' }] },
   events: {
@@ -339,7 +351,7 @@ async function loadProjectDocumentGateState(database, projectId) {
   return projectDocumentGateState(documents);
 }
 
-function decorateWorkflow(workflow, context, now, demobilizationDate = null, serviceTypes = [], relatedPostJobs = [], documents = []) {
+function decorateWorkflow(workflow, context, now, demobilizationDate = null, serviceTypes = [], relatedPostJobs = [], documents = [], resourcePlanning = null) {
   if (!workflow) return null;
   const documentState = projectDocumentGateState(documents);
   const workflowWithDocuments = { ...workflow, ...documentState };
@@ -375,7 +387,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     overdue: issue.status !== 'RESOLVED' && Boolean(issue.dueDate) && dateKey(issue.dueDate) < today
   }));
   const documentationReadiness = projectWorkflowDocumentationReadiness({ documentationCategories }, milestones, today);
-  const planningReadiness = projectWorkflowPlanningReadiness({ checklists });
+  const planningReadiness = projectWorkflowPlanningReadiness({ ...workflow, checklists });
   const preparationReadiness = projectWorkflowPreparationReadiness({ checklists });
   const demobilizationReadiness = projectWorkflowDemobilizationReadiness({ checklists });
   const postJobReadiness = projectWorkflowPostJobReadiness({ checklists });
@@ -412,6 +424,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     documentationCategories,
     documentRequirements: documentState.documentRequirements,
     documentationReadiness,
+    resourcePlanning: resourcePlanning || emptyProjectWorkflowResourcePlanning(workflow),
     planningReadiness,
     preparationReadiness,
     demobilizationReadiness,
@@ -562,6 +575,21 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
                 requirements: { select: { id: true, name: true, status: true, requestedAt: true, confirmedAt: true, archivedAt: true } }
               }
             },
+            teamDemands: {
+              select: {
+                id: true,
+                jobRoleId: true,
+                requiredCount: true,
+                jobRole: { select: { id: true, name: true, calendarColor: true } }
+              }
+            },
+            equipmentCategoryPlans: {
+              select: {
+                id: true,
+                categoryId: true,
+                category: { select: { id: true, name: true, order: true } }
+              }
+            },
             postJob: { select: { meetingDate: true, serviceTypes: true, qualityRecord: { select: { id: true, number: true, deletedAt: true } } } },
             measurement: { select: { executedAmount: true, measuredAmount: true, approvedAmount: true, preparedAt: true, sentAt: true, approvedAt: true } }
           }
@@ -660,6 +688,9 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
   if (!project) throw notFound('Projeto não encontrado ou indisponível no Efetivo.');
   const services = projectServiceTypes(project);
   const history = project.workflow ? await relatedPostJobs(database, project) : [];
+  const resourcePlanning = project.workflow?.stage === 'MOBILIZATION_PLANNING'
+    ? await loadProjectWorkflowResourcePlanning(database, project.workflow)
+    : emptyProjectWorkflowResourcePlanning(project.workflow || {});
   return {
     project: {
       id: project.id,
@@ -679,7 +710,8 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
       project.demobilizationDate,
       services,
       history,
-      project.documents || []
+      project.documents || [],
+      resourcePlanning
     ),
     permissions: publicPermissions(project.workflow, context)
   };
@@ -836,6 +868,62 @@ async function applyAnalysisContact(tx, workflow, payload) {
       analysisClientContactName: payload.made ? payload.contactName : null,
       analysisClientContactDate: payload.made && payload.contactDate ? utcDate(payload.contactDate) : null
     }
+  });
+}
+
+function assertPlanningStage(workflow) {
+  if (workflow.stage !== 'MOBILIZATION_PLANNING') {
+    throw planningError('A definição estruturada de recursos pertence ao Planejamento da mobilização.', {
+      statusCode: 409,
+      code: 'PROJECT_WORKFLOW_RESOURCE_PLANNING_STAGE_REQUIRED'
+    });
+  }
+}
+
+async function applyTeamPlan(tx, workflow, payload) {
+  assertPlanningStage(workflow);
+  await tx.projectWorkflowTeamDemand.deleteMany({ where: { projectId: workflow.projectId } });
+  if (payload.defined) {
+    const roleIds = payload.demands.map(item => item.jobRoleId);
+    const roles = await tx.jobRole.findMany({
+      where: { id: { in: roleIds }, isActive: true, isOperational: true },
+      select: { id: true }
+    });
+    if (roles.length !== roleIds.length) {
+      throw planningError('A equipe contém cargo inexistente, inativo ou não operacional.', {
+        code: 'PROJECT_WORKFLOW_TEAM_ROLE_INVALID'
+      });
+    }
+    await tx.projectWorkflowTeamDemand.createMany({
+      data: payload.demands.map(item => ({ projectId: workflow.projectId, ...item }))
+    });
+  }
+  await tx.projectWorkflow.update({
+    where: { projectId: workflow.projectId },
+    data: { teamPlanDefined: payload.defined }
+  });
+}
+
+async function applyEquipmentPlan(tx, workflow, payload) {
+  assertPlanningStage(workflow);
+  await tx.projectWorkflowEquipmentCategoryPlan.deleteMany({ where: { projectId: workflow.projectId } });
+  if (payload.defined) {
+    const categories = await tx.equipmentCategory.findMany({
+      where: { id: { in: payload.categoryIds }, isActive: true },
+      select: { id: true }
+    });
+    if (categories.length !== payload.categoryIds.length) {
+      throw planningError('A seleção contém categoria de equipamento inexistente ou inativa.', {
+        code: 'PROJECT_WORKFLOW_EQUIPMENT_CATEGORY_INVALID'
+      });
+    }
+    await tx.projectWorkflowEquipmentCategoryPlan.createMany({
+      data: payload.categoryIds.map(categoryId => ({ projectId: workflow.projectId, categoryId }))
+    });
+  }
+  await tx.projectWorkflow.update({
+    where: { projectId: workflow.projectId },
+    data: { equipmentPlanDefined: payload.defined }
   });
 }
 
@@ -1223,6 +1311,8 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'checklist') await applyChecklist(tx, workflow, payload, context);
     else if (payload.action === 'critical') await applyCriticalAnswer(tx, workflow, payload, context);
     else if (payload.action === 'analysis_contact') await applyAnalysisContact(tx, workflow, payload);
+    else if (payload.action === 'team_plan') await applyTeamPlan(tx, workflow, payload);
+    else if (payload.action === 'equipment_plan') await applyEquipmentPlan(tx, workflow, payload);
     else if (payload.action === 'documentation_category') await applyDocumentationCategory(tx, workflow, payload, context);
     else if (payload.action === 'documentation_requirement_create') await applyDocumentationRequirementCreate(tx, workflow, payload, context);
     else if (payload.action === 'documentation_requirement_update') await applyDocumentationRequirementUpdate(tx, workflow, payload, context);

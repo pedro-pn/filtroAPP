@@ -43,6 +43,12 @@ test('contrato exige justificativa para não aplicável, valida documentação e
   assert.equal(patch.safeParse({ action: 'analysis_contact', version: 1, made: true }).success, false);
   assert.equal(patch.safeParse({ action: 'analysis_contact', version: 1, made: true, contactName: 'Marina', contactDate: '2026-09-10' }).success, true);
   assert.equal(patch.safeParse({ action: 'analysis_contact', version: 1, made: false }).success, true);
+  assert.equal(patch.safeParse({ action: 'team_plan', version: 1, defined: true, demands: [] }).success, false);
+  assert.equal(patch.safeParse({ action: 'team_plan', version: 1, defined: true, demands: [{ jobRoleId: 'role-1', requiredCount: 3 }] }).success, true);
+  assert.equal(patch.safeParse({ action: 'team_plan', version: 1, defined: false, demands: [] }).success, true);
+  assert.equal(patch.safeParse({ action: 'equipment_plan', version: 1, defined: true, categoryIds: [] }).success, false);
+  assert.equal(patch.safeParse({ action: 'equipment_plan', version: 1, defined: true, categoryIds: ['category-1'] }).success, true);
+  assert.equal(patch.safeParse({ action: 'equipment_plan', version: 1, defined: false, categoryIds: [] }).success, true);
   assert.equal(patch.safeParse({ action: 'issue', version: 1, issueId: 'issue-1', description: 'Equipamento especial', ownerName: 'Leandro', requiredLeadTimeDays: 30, dueDate: '2026-10-10', criticality: 'HIGH', status: 'OPEN' }).success, true);
   assert.equal(patch.safeParse({ action: 'documentation_category', version: 1, type: 'EXAM', required: true }).success, true);
   assert.equal(patch.safeParse({ action: 'documentation_requirement_create', version: 1, type: 'EXAM', name: 'Audiometria' }).success, true);
@@ -117,9 +123,12 @@ test('análise exige todas as respostas e encaminhamento para cada resposta posi
     criticalAnswers: PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(question => ({ key: question.key, answer: question.key === 'SPECIAL_EQUIPMENT' })),
     issues: [{ sourceQuestion: 'SPECIAL_EQUIPMENT', area: 'Ativos', ownerName: null, requiredLeadTimeDays: null, dueDate: null }]
   };
-  assert.deepEqual(analysisGateIssues(workflow), ['Encaminhar a pendência: Providenciar equipamento especial']);
+  assert.deepEqual(analysisGateIssues(workflow), [
+    'Realizar e confirmar o contato inicial com o cliente',
+    'Encaminhar a pendência: Providenciar equipamento especial'
+  ]);
   workflow.issues[0] = { ...workflow.issues[0], ownerName: 'Leandro', requiredLeadTimeDays: 45, dueDate: new Date('2026-09-20T00:00:00Z') };
-  assert.deepEqual(analysisGateIssues(workflow), []);
+  assert.deepEqual(analysisGateIssues(workflow), ['Realizar e confirmar o contato inicial com o cliente']);
   workflow.analysisClientContactMade = true;
   assert.deepEqual(analysisGateIssues(workflow), ['Informar o nome do contato inicial com o cliente', 'Informar a data do contato inicial com o cliente']);
   workflow.analysisClientContactName = 'Marina';
@@ -173,11 +182,13 @@ test('documentação usa quatro decisões por tipo e acompanha itens nomeados co
 test('progresso D-30 é calculado no total e por frente', () => {
   const planning = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section.startsWith('D30_'));
   const result = projectWorkflowPlanningReadiness({
+    teamPlanDefined: true,
+    teamDemands: [{ jobRoleId: 'role-1', requiredCount: 2 }],
     checklists: planning.slice(0, 5).map(item => ({ key: item.key, status: 'DONE' }))
   });
-  assert.equal(result.total, 25);
-  assert.equal(result.completed, 5);
-  assert.equal(result.percentage, 20);
+  assert.equal(result.total, 13);
+  assert.equal(result.completed, 6);
+  assert.equal(result.percentage, 46);
   assert.deepEqual(result.sections.map(item => item.key), ['D30_TEAM', 'D30_EQUIPMENT', 'D30_MATERIALS', 'D30_LOGISTICS']);
 });
 
@@ -197,14 +208,20 @@ function readyMobilizationWorkflow(overrides = {}) {
 }
 
 test('planejamento completo libera Preparação e D-15 soma 39 confirmações', () => {
-  assert.equal(planningGateIssues({ checklists: [] }).length, 25);
-  assert.deepEqual(planningGateIssues({ checklists: completed('MOBILIZATION_PLANNING') }), []);
+  const structuredPlanning = {
+    teamPlanDefined: true,
+    teamDemands: [{ jobRoleId: 'role-1', requiredCount: 2 }],
+    equipmentPlanDefined: true,
+    equipmentCategoryPlans: [{ categoryId: 'category-1' }]
+  };
+  assert.equal(planningGateIssues({ checklists: [] }).length, 13);
+  assert.deepEqual(planningGateIssues({ ...structuredPlanning, checklists: completed('MOBILIZATION_PLANNING') }), []);
   const readiness = projectWorkflowPreparationReadiness({ checklists: completed('PREPARATION').slice(0, 20) });
   assert.equal(readiness.total, 39);
   assert.equal(readiness.completed, 20);
   assert.equal(readiness.sections.length, 7);
-  assert.equal(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', checklists: [] }, 'PREPARATION').length, 25);
-  assert.deepEqual(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', checklists: completed('MOBILIZATION_PLANNING') }, 'PREPARATION'), []);
+  assert.equal(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', checklists: [] }, 'PREPARATION').length, 13);
+  assert.deepEqual(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', ...structuredPlanning, checklists: completed('MOBILIZATION_PLANNING') }, 'PREPARATION'), []);
 });
 
 test('gate consolida nove frentes, pré-job e pendências críticas', () => {

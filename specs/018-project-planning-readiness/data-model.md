@@ -2,7 +2,9 @@
 
 ## Persistência reutilizada
 
-`ProjectWorkflowChecklist` continua armazenando `key`, `status`, `note`, autoria e datas. As novas chaves são compatíveis com a restrição única por gestão.
+`ProjectWorkflowChecklist` continua armazenando `key`, `status`, `note`, autoria e datas para materiais e logística. As antigas chaves genéricas de equipe e equipamentos foram substituídas na entrega 031.
+
+`ProjectWorkflowTeamDemand` armazena cargo e quantidade necessária. `ProjectWorkflowEquipmentCategoryPlan` armazena as categorias de equipamentos selecionadas. As decisões `teamPlanDefined` e `equipmentPlanDefined` permanecem nulas até uma resposta explícita.
 
 ## Catálogo compartilhado
 
@@ -21,4 +23,4 @@ O enum `ModuleRoleCode` recebe `EFETIVO_OPERATIONS`, `EFETIVO_ASSETS`, `EFETIVO_
 - `planningReadiness`: `completed`, `total`, `percentage`, `sections`.
 - `milestones`: `daysUntilMobilization`, lista D-90…D-1, `dueMilestones`, `nextMilestone`.
 
-Nenhuma nova tabela é necessária.
+As tabelas estruturadas da entrega 031 complementam a persistência reutilizada desta entrega.

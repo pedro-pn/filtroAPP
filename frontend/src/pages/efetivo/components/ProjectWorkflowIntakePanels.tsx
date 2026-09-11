@@ -96,11 +96,11 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
   saving: boolean;
   onPatch: PatchHandler;
 }) {
-  const [contactMade, setContactMade] = useState<boolean | null>(workflow.analysisClientContactMade);
+  const [contactMade, setContactMade] = useState<boolean>(workflow.analysisClientContactMade ?? false);
   const [contactName, setContactName] = useState(workflow.analysisClientContactName || '');
   const [contactDate, setContactDate] = useState(workflow.analysisClientContactDate || '');
   useEffect(() => {
-    setContactMade(workflow.analysisClientContactMade);
+    setContactMade(workflow.analysisClientContactMade ?? false);
     setContactName(workflow.analysisClientContactName || '');
     setContactDate(workflow.analysisClientContactDate || '');
   }, [workflow.analysisClientContactDate, workflow.analysisClientContactMade, workflow.analysisClientContactName]);
@@ -119,15 +119,15 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
       onPatch({ action: 'analysis_contact', version: workflow.version, made: false, contactName: null, contactDate: null });
     }
   };
-  const contactStatus = contactMade == null
-    ? 'Contato não respondido'
-    : contactMade ? contactName.trim() && contactDate ? 'Contato registrado' : 'Complete o contato' : 'Contato não realizado';
+  const contactStatus = contactMade
+    ? contactName.trim() && contactDate ? 'Contato registrado' : 'Complete o contato'
+    : 'Contato pendente';
   return (
     <ProjectWorkflowCategory
       title="Datas e contato inicial"
       description="As datas são recebidas do CRM. O contato operacional é registrado pelo Líder de Projetos e salvo automaticamente."
       status={contactStatus}
-      complete={contactMade === false || Boolean(contactMade && contactName.trim() && contactDate)}
+      complete={Boolean(contactMade && contactName.trim() && contactDate)}
       className="project-workflow-initial-analysis"
       data-project-workflow-initial-analysis
     >
@@ -136,7 +136,7 @@ export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }
         <div className="field-group"><label htmlFor="analysis-commercial-start-date">Início estimado</label><input id="analysis-commercial-start-date" type="date" value={workflow.commercialExpectedStartDate || ''} readOnly aria-readonly="true" /><small>{workflow.commercialExpectedStartDate ? 'Data recebida do CRM.' : 'Aguardando preenchimento pelo CRM.'}</small></div>
       </div>
       <article className="project-workflow-analysis-contact">
-        <header><div><strong>Contato inicial com o cliente realizado?</strong><p>Quando realizado, informe quem foi contatado e em qual data.</p></div><div className="project-workflow-documentation-choice"><Button type="button" variant={contactMade === true ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => chooseContact(true)}>Sim</Button><Button type="button" variant={contactMade === false ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => chooseContact(false)}>Não</Button></div></header>
+        <header><div><strong>Contato inicial com o cliente realizado?</strong><p>Esta confirmação exige “Sim”, nome e data. Enquanto estiver em “Não”, permanece pendente.</p></div><div className="project-workflow-documentation-choice"><Button type="button" variant={contactMade === true ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => chooseContact(true)}>Sim</Button><Button type="button" variant={contactMade === false ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => chooseContact(false)}>Não</Button></div></header>
         {contactMade === true ? <div className="project-workflow-analysis-contact-fields">
           <div className="field-group"><label htmlFor="analysis-client-contact-name">Nome do contato *</label><input id="analysis-client-contact-name" value={contactName} maxLength={160} disabled={saving || !workflow.permissions.canEdit} onChange={event => setContactName(event.target.value)} onBlur={() => saveContact()} /></div>
           <div className="field-group"><label htmlFor="analysis-client-contact-date">Data do contato *</label><input id="analysis-client-contact-date" type="date" value={contactDate} disabled={saving || !workflow.permissions.canEdit} onChange={event => { const value = event.target.value; setContactDate(value); saveContact(contactName, value); }} /></div>

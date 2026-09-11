@@ -25,6 +25,10 @@ function fakeDatabase() {
     documentationCategories: [],
     documentationRequirements: [],
     documentationHistory: [],
+    teamDemands: [],
+    equipmentCategoryPlans: [],
+    jobRoles: [{ id: 'role-1', name: 'Mecânico', calendarColor: '#2563EB', order: 1, isActive: true, isOperational: true }],
+    equipmentCategories: [{ id: 'category-1', name: 'Bombas', order: 1, isActive: true, supportsCalibration: false, maintenanceIntervalDays: null, equipment: [] }],
     events: [],
     postJob: null,
     measurement: null,
@@ -57,6 +61,8 @@ function fakeDatabase() {
         history: state.documentationHistory.filter(item => item.requirementId === requirement.id).map(item => ({ ...item, actor: users[item.actorUserId] || null })).reverse()
       }))
     })),
+    teamDemands: state.teamDemands.map(item => ({ ...item, jobRole: state.jobRoles.find(role => role.id === item.jobRoleId) })),
+    equipmentCategoryPlans: state.equipmentCategoryPlans.map(item => ({ ...item, category: state.equipmentCategories.find(category => category.id === item.categoryId) })),
     issues: state.issues.map(item => ({ ...item })),
     events: state.events.map(item => ({ ...item, actor: users[item.actorUserId] || null })).reverse(),
     postJob: state.postJob ? {
@@ -116,6 +122,8 @@ function fakeDatabase() {
           analysisClientContactMade: null,
           analysisClientContactName: null,
           analysisClientContactDate: null,
+          teamPlanDefined: null,
+          equipmentPlanDefined: null,
           fieldCompletionDate: null,
           closedAt: null,
           closedByUserId: null,
@@ -152,6 +160,32 @@ function fakeDatabase() {
         if (existing) Object.assign(existing, input.update);
         else state.answers.push({ id: `answer-${state.answers.length}`, ...input.create });
       }
+    },
+    projectWorkflowTeamDemand: {
+      deleteMany: async input => {
+        state.teamDemands = state.teamDemands.filter(item => item.projectId !== input.where.projectId);
+        return { count: 0 };
+      },
+      createMany: async input => {
+        state.teamDemands.push(...input.data.map((item, index) => ({ id: `team-demand-${index + 1}`, ...item })));
+        return { count: input.data.length };
+      }
+    },
+    projectWorkflowEquipmentCategoryPlan: {
+      deleteMany: async input => {
+        state.equipmentCategoryPlans = state.equipmentCategoryPlans.filter(item => item.projectId !== input.where.projectId);
+        return { count: 0 };
+      },
+      createMany: async input => {
+        state.equipmentCategoryPlans.push(...input.data.map((item, index) => ({ id: `equipment-plan-${index + 1}`, ...item })));
+        return { count: input.data.length };
+      }
+    },
+    jobRole: {
+      findMany: async input => state.jobRoles.filter(role => (!input.where?.id?.in || input.where.id.in.includes(role.id)) && role.isActive && role.isOperational)
+    },
+    equipmentCategory: {
+      findMany: async input => state.equipmentCategories.filter(category => (!input.where?.id?.in || input.where.id.in.includes(category.id)) && category.isActive)
     },
     projectWorkflowCommercialFact: {
       findUnique: async input => state.commercialFacts.find(item => item.projectId === input.where.projectId_key.projectId && item.key === input.where.projectId_key.key) || null,
@@ -309,7 +343,9 @@ test('análise bloqueia pendência sem responsável/prazo e libera após encamin
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
   state.workflow.stage = 'INITIAL_ANALYSIS';
   state.workflow.acceptedAt = new Date();
-  state.workflow.analysisClientContactMade = false;
+  state.workflow.analysisClientContactMade = true;
+  state.workflow.analysisClientContactName = 'Marina';
+  state.workflow.analysisClientContactDate = new Date('2026-09-10T00:00:00Z');
   state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.stage === 'INITIAL_ANALYSIS').map(item => ({ id: item.key, projectId: 'project-1', key: item.key, status: 'DONE' })));
   state.answers.push(...PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(item => ({ id: item.key, projectId: 'project-1', key: item.key, answer: item.key === 'SPECIAL_EQUIPMENT' })));
   state.issues.push({ id: 'issue-1', projectId: 'project-1', sourceQuestion: 'SPECIAL_EQUIPMENT', description: 'Equipamento', area: 'Ativos', ownerName: null, requiredLeadTimeDays: null, dueDate: null, criticality: 'HIGH', status: 'OPEN' });
@@ -500,20 +536,22 @@ test('áreas editam somente seus checklists operacionais e não obtêm poderes d
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
   state.workflow.stage = 'MOBILIZATION_PLANNING';
-  let detail = await updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D30_TEAM_QUANTITY_CONFIRMED', status: 'DONE' }, operations, { database });
+  let detail = await updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D30_LOGISTICS_VEHICLE_DEFINED', status: 'DONE' }, operations, { database });
   assert.equal(detail.workflow.planningReadiness.completed, 1);
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'D30_EQUIPMENT_LIST_DEFINED', status: 'DONE' }, operations, { database }),
+    updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'D30_MATERIALS_LIST_DEFINED', status: 'DONE' }, operations, { database }),
     error => error.code === 'PROJECT_WORKFLOW_CHECKLIST_EDIT_FORBIDDEN'
   );
-  const assetsDetail = await updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'D30_EQUIPMENT_LIST_DEFINED', status: 'DONE' }, assets, { database });
-  assert.equal(assetsDetail.workflow.planningReadiness.completed, 2);
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'WAITING_PLANNING' }, operations, { database }),
+    updateProjectWorkflow('project-1', { action: 'team_plan', version: 2, defined: true, demands: [{ jobRoleId: 'role-1', requiredCount: 2 }] }, operations, { database }),
     error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
   );
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'documentation_category', version: 3, type: 'EXAM', required: true }, administrative, { database }),
+    updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'WAITING_PLANNING' }, operations, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
+  );
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'documentation_category', version: 2, type: 'EXAM', required: true }, administrative, { database }),
     error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
   );
 });
@@ -546,7 +584,7 @@ test('checklist de outra etapa não pode ser antecipado por chamada direta', asy
   const { database } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D30_TEAM_QUANTITY_CONFIRMED', status: 'DONE' }, manager, { database }),
+    updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D30_LOGISTICS_VEHICLE_DEFINED', status: 'DONE' }, manager, { database }),
     error => error.code === 'PROJECT_WORKFLOW_CHECKLIST_STAGE_FORBIDDEN'
   );
 });
@@ -589,7 +627,11 @@ test('D-30 completo permite entrar em Preparação', async () => {
   state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS
     .filter(item => item.section.startsWith('D30_'))
     .map(item => ({ id: `check-${item.key}`, projectId: 'project-1', key: item.key, status: 'DONE' })));
-  const result = await updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'PREPARATION' }, leader, { database });
+  let detail = await updateProjectWorkflow('project-1', { action: 'team_plan', version: 1, defined: true, demands: [{ jobRoleId: 'role-1', requiredCount: 2 }] }, leader, { database });
+  assert.equal(detail.workflow.resourcePlanning.team.demands[0].hiringNeed, 2);
+  detail = await updateProjectWorkflow('project-1', { action: 'equipment_plan', version: detail.workflow.version, defined: true, categoryIds: ['category-1'] }, leader, { database });
+  assert.equal(detail.workflow.resourcePlanning.equipment.categories[0].name, 'Bombas');
+  const result = await updateProjectWorkflow('project-1', { action: 'stage', version: detail.workflow.version, stage: 'PREPARATION' }, leader, { database });
   assert.equal(result.workflow.stage, 'PREPARATION');
   assert.equal(result.workflow.preparationReadiness.total, 39);
 });

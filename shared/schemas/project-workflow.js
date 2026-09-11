@@ -80,22 +80,6 @@ export const PROJECT_WORKFLOW_CHECKLISTS = [
   checklist('ANALYSIS_RESPONSIBILITIES', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Responsabilidades Filtrovali e cliente identificadas'),
   checklist('ANALYSIS_COMMERCIAL_QUESTIONS', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Dúvidas comerciais levantadas e esclarecidas'),
 
-  checklist('D30_TEAM_QUANTITY_CONFIRMED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Quantidade de pessoas confirmada', ['efetivo:operations']),
-  checklist('D30_TEAM_ROLES_DEFINED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Funções definidas', ['efetivo:operations']),
-  checklist('D30_TEAM_PRELIMINARY_DEFINED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Equipe preliminar definida', ['efetivo:operations']),
-  checklist('D30_TEAM_AVAILABILITY_CHECKED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Disponibilidade verificada', ['efetivo:operations']),
-  checklist('D30_TEAM_HIRING_IDENTIFIED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Necessidade de contratação identificada', ['efetivo:operations']),
-  checklist('D30_TEAM_DOCUMENTS_CHECKED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Documentação da equipe conferida', ['efetivo:operations']),
-
-  checklist('D30_EQUIPMENT_LIST_DEFINED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Lista de equipamentos definida', ['efetivo:assets']),
-  checklist('D30_EQUIPMENT_LOCATION_CHECKED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Localização atual dos equipamentos verificada', ['efetivo:assets']),
-  checklist('D30_EQUIPMENT_AVAILABILITY_CONFIRMED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Disponibilidade para a data confirmada', ['efetivo:assets']),
-  checklist('D30_EQUIPMENT_OTHER_PROJECTS_IDENTIFIED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Equipamentos que estão em outras obras identificados', ['efetivo:assets']),
-  checklist('D30_EQUIPMENT_RETURN_CONFIRMED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Data prevista de retorno confirmada', ['efetivo:assets']),
-  checklist('D30_EQUIPMENT_MAINTENANCE_IDENTIFIED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Manutenções necessárias identificadas', ['efetivo:assets']),
-  checklist('D30_EQUIPMENT_CERTIFICATES_CHECKED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Calibrações e certificações verificadas', ['efetivo:assets']),
-  checklist('D30_EQUIPMENT_ACCESSORIES_DEFINED', 'MOBILIZATION_PLANNING', 'D30_EQUIPMENT', 'Acessórios necessários definidos', ['efetivo:assets']),
-
   checklist('D30_MATERIALS_LIST_DEFINED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Lista de insumos definida', ['efetivo:supplies']),
   checklist('D30_MATERIALS_QUANTITIES_DEFINED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Quantidades definidas', ['efetivo:supplies']),
   checklist('D30_MATERIALS_INVENTORY_CHECKED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Estoque consultado', ['efetivo:supplies']),
@@ -348,6 +332,35 @@ export function makeProjectWorkflowSchemas(z) {
     if (!value.contactName?.trim()) ctx.addIssue({ code: 'custom', path: ['contactName'], message: 'Informe o nome do contato.' });
     if (!value.contactDate) ctx.addIssue({ code: 'custom', path: ['contactDate'], message: 'Informe a data do contato.' });
   });
+  const teamPlan = z.object({
+    action: z.literal('team_plan'),
+    version,
+    defined: z.boolean(),
+    demands: z.array(z.object({
+      jobRoleId: id,
+      requiredCount: z.coerce.number().int().min(1, 'Informe ao menos uma pessoa.').max(1000, 'A quantidade deve ser de no máximo 1000 pessoas.')
+    }).strict()).max(100, 'Selecione no máximo 100 cargos.').default([])
+  }).strict().superRefine((value, ctx) => {
+    if (new Set(value.demands.map(item => item.jobRoleId)).size !== value.demands.length) {
+      ctx.addIssue({ code: 'custom', path: ['demands'], message: 'Cada cargo deve aparecer uma única vez.' });
+    }
+    if (value.defined && value.demands.length === 0) {
+      ctx.addIssue({ code: 'custom', path: ['demands'], message: 'Adicione ao menos um cargo para confirmar a equipe.' });
+    }
+  });
+  const equipmentPlan = z.object({
+    action: z.literal('equipment_plan'),
+    version,
+    defined: z.boolean(),
+    categoryIds: z.array(id).max(100, 'Selecione no máximo 100 categorias.').default([])
+  }).strict().superRefine((value, ctx) => {
+    if (new Set(value.categoryIds).size !== value.categoryIds.length) {
+      ctx.addIssue({ code: 'custom', path: ['categoryIds'], message: 'Cada categoria deve aparecer uma única vez.' });
+    }
+    if (value.defined && value.categoryIds.length === 0) {
+      ctx.addIssue({ code: 'custom', path: ['categoryIds'], message: 'Selecione ao menos uma categoria para confirmar os equipamentos.' });
+    }
+  });
   const documentationCategory = z.object({
     action: z.literal('documentation_category'),
     version,
@@ -482,7 +495,7 @@ export function makeProjectWorkflowSchemas(z) {
     start,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, critical, analysisContact, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
+    patch: z.discriminatedUnion('action', [settings, checklist, critical, analysisContact, teamPlan, equipmentPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

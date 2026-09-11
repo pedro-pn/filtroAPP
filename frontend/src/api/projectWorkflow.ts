@@ -133,6 +133,77 @@ export interface ProjectWorkflowPlanningReadiness {
   sections: Array<{ key: ProjectWorkflowChecklistSection; completed: number; total: number; percentage: number }>;
 }
 
+export interface ProjectWorkflowRolePlanningOption {
+  id: string;
+  name: string;
+  calendarColor: string;
+  order: number;
+  activeCount: number;
+  availableCount: number;
+}
+
+export interface ProjectWorkflowTeamDemand {
+  id: string;
+  jobRoleId: string;
+  jobRoleName: string;
+  calendarColor: string;
+  requiredCount: number;
+  availableCount: number;
+  hiringNeed: number;
+}
+
+export interface ProjectWorkflowEquipmentAssignment {
+  expectedReturnDate: string | null;
+}
+
+export interface ProjectWorkflowEquipmentPlanningItem {
+  id: string;
+  code: string;
+  name: string;
+  availabilityStatus: 'AVAILABLE' | 'EXPECTED_RETURN' | 'ALLOCATED';
+  availableAtMobilization: boolean;
+  assignments: ProjectWorkflowEquipmentAssignment[];
+  calibration: {
+    required: boolean;
+    status: 'NOT_REQUIRED' | 'MISSING' | 'VALID' | 'EXPIRED';
+    expiresAt: string | null;
+    valid: boolean;
+  };
+  maintenance: {
+    status: 'UPCOMING' | 'DUE_TODAY' | 'OVERDUE' | 'NO_HISTORY' | 'UNCONFIGURED';
+    lastMaintenanceDate: string | null;
+    nextMaintenanceDate: string | null;
+    valid: boolean;
+  };
+}
+
+export interface ProjectWorkflowEquipmentPlanningCategory {
+  id: string;
+  name: string;
+  order: number;
+  equipment: ProjectWorkflowEquipmentPlanningItem[];
+  totalCount: number;
+  availableCount: number;
+}
+
+export interface ProjectWorkflowResourcePlanning {
+  targetDate?: string | null;
+  team: {
+    defined: boolean | null;
+    demands: ProjectWorkflowTeamDemand[];
+    catalog: ProjectWorkflowRolePlanningOption[];
+    hiringRequired: boolean;
+    complianceSource: 'SOLIDES';
+    complianceStatus: 'AWAITING_INTEGRATION';
+  };
+  equipment: {
+    defined: boolean | null;
+    categoryIds: string[];
+    categories: ProjectWorkflowEquipmentPlanningCategory[];
+    catalog: ProjectWorkflowEquipmentPlanningCategory[];
+  };
+}
+
 export type ProjectWorkflowPreparationReadiness = ProjectWorkflowPlanningReadiness;
 export type ProjectWorkflowDemobilizationReadiness = ProjectWorkflowPlanningReadiness;
 export type ProjectWorkflowPostJobReadiness = ProjectWorkflowPlanningReadiness;
@@ -323,6 +394,8 @@ export interface ProjectWorkflow {
   analysisClientContactMade: boolean | null;
   analysisClientContactName: string | null;
   analysisClientContactDate: string | null;
+  teamPlanDefined: boolean | null;
+  equipmentPlanDefined: boolean | null;
   closedAt: string | null;
   closedBy: { id: string; name: string } | null;
   plannedMobilizationDate: string;
@@ -336,6 +409,7 @@ export interface ProjectWorkflow {
   documentationCategories: ProjectWorkflowDocumentationCategory[];
   documentRequirements: Record<'HANDOVER' | 'MOBILIZATION' | 'CLOSEOUT', ProjectDocumentRequirementSummary>;
   documentationReadiness: ProjectWorkflowDocumentationReadiness;
+  resourcePlanning: ProjectWorkflowResourcePlanning;
   planningReadiness: ProjectWorkflowPlanningReadiness;
   preparationReadiness: ProjectWorkflowPreparationReadiness;
   demobilizationReadiness: ProjectWorkflowDemobilizationReadiness;
@@ -491,6 +565,8 @@ export type ProjectWorkflowPatch =
   | { action: 'checklist'; version: number; key: string; status: ProjectWorkflowChecklistStatus; note?: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }
   | { action: 'analysis_contact'; version: number; made: boolean; contactName?: string | null; contactDate?: string | null }
+  | { action: 'team_plan'; version: number; defined: boolean; demands: Array<{ jobRoleId: string; requiredCount: number }> }
+  | { action: 'equipment_plan'; version: number; defined: boolean; categoryIds: string[] }
   | { action: 'documentation_category'; version: number; type: ProjectWorkflowDocumentationType; required: boolean }
   | { action: 'documentation_requirement_create'; version: number; type: ProjectWorkflowDocumentationType; name: string }
   | { action: 'documentation_requirement_update'; version: number; requirementId: string; name?: string; status?: ProjectWorkflowDocumentationStatus; requestedAt?: string | null; confirmedAt?: string | null }

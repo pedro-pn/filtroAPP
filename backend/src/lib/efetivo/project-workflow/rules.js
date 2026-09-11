@@ -159,11 +159,15 @@ export function projectWorkflowDocumentationReadiness(workflow, milestones, toda
 }
 
 export function projectWorkflowPlanningReadiness(workflow) {
-  const sectionKeys = ['D30_TEAM', 'D30_EQUIPMENT', 'D30_MATERIALS', 'D30_LOGISTICS'];
-  const sections = sectionKeys.map(key => {
+  const structuredSections = [
+    { key: 'D30_TEAM', complete: workflow?.teamPlanDefined === true && (workflow?.teamDemands || []).length > 0 },
+    { key: 'D30_EQUIPMENT', complete: workflow?.equipmentPlanDefined === true && (workflow?.equipmentCategoryPlans || []).length > 0 }
+  ].map(item => ({ key: item.key, completed: item.complete ? 1 : 0, total: 1, percentage: item.complete ? 100 : 0 }));
+  const checklistSections = ['D30_MATERIALS', 'D30_LOGISTICS'].map(key => {
     const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
     return { key, ...checklistProgress(workflow, definitions) };
   });
+  const sections = [...structuredSections, ...checklistSections];
   const completed = sections.reduce((sum, section) => sum + section.completed, 0);
   const total = sections.reduce((sum, section) => sum + section.total, 0);
   return {
@@ -421,9 +425,9 @@ export function postJobGateIssues(workflow) {
 
 export function analysisGateIssues(workflow) {
   const issues = incompleteChecklistLabels(workflow, 'INITIAL_ANALYSIS');
-  if (workflow.analysisClientContactMade == null) {
-    issues.push('Responder se o contato inicial com o cliente foi realizado');
-  } else if (workflow.analysisClientContactMade) {
+  if (workflow.analysisClientContactMade !== true) {
+    issues.push('Realizar e confirmar o contato inicial com o cliente');
+  } else {
     if (!workflow.analysisClientContactName?.trim()) issues.push('Informar o nome do contato inicial com o cliente');
     if (!workflow.analysisClientContactDate) issues.push('Informar a data do contato inicial com o cliente');
   }
@@ -444,9 +448,17 @@ export function analysisGateIssues(workflow) {
 }
 
 export function planningGateIssues(workflow) {
-  const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section.startsWith('D30_'));
+  const issues = [];
+  if (workflow?.teamPlanDefined !== true || !(workflow?.teamDemands || []).length) {
+    issues.push('Definir os cargos e as quantidades da equipe');
+  }
+  if (workflow?.equipmentPlanDefined !== true || !(workflow?.equipmentCategoryPlans || []).length) {
+    issues.push('Definir as categorias de equipamentos necessárias');
+  }
+  const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => ['D30_MATERIALS', 'D30_LOGISTICS'].includes(item.section));
   const byKey = new Map((workflow?.checklists || []).map(item => [item.key, item]));
-  return definitions.filter(item => !resolvedChecklist(byKey.get(item.key))).map(item => item.label);
+  issues.push(...definitions.filter(item => !resolvedChecklist(byKey.get(item.key))).map(item => item.label));
+  return issues;
 }
 
 export function allowedProjectWorkflowTransition(current, target) {

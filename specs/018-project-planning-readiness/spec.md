@@ -2,7 +2,7 @@
 
 **Feature Branch**: `feat/016-gestao-projetos-efetivo`  
 **Created**: 2026-09-09  
-**Status**: Implementada  
+**Status**: Implementada; equipe e equipamentos refinados pela entrega 031
 **Input**: Avançar a Gestão de Projetos com documentação antecipada, gatilhos relativos à mobilização e planejamento D-30 por área.
 
 ## User Scenarios & Testing
@@ -28,8 +28,8 @@ Ao entrar no planejamento, o Líder coordena quatro frentes: equipe, equipamento
 
 **Acceptance Scenarios**:
 
-1. A etapa de planejamento mostra apenas seus checklists D-30, agrupados por frente.
-2. Operações altera equipe e logística; Ativos altera equipamentos; Suprimentos altera materiais; permissões combinadas são aditivas.
+1. A etapa de planejamento mostra equipe e equipamentos em painéis estruturados e mantém materiais e logística em checklists D-30.
+2. Líder ou gestor define cargos, quantidades e categorias de equipamentos; Operações altera logística e Suprimentos altera materiais.
 3. Os papéis de área não assumem o projeto, trocam líder, respondem itens críticos nem avançam a etapa.
 4. “Aguardando planejamento” informa o próximo marco sem repetir o checklist da análise inicial.
 5. O quadro apresenta o avanço D-30 quando o projeto já está no planejamento.
@@ -64,10 +64,10 @@ O sistema calcula D-90, D-30, D-15, D-7 e D-1 a partir da mobilização planejad
 - **FR-002**: O sistema MUST incluir onze itens de documentação antecipada, disponíveis em qualquer etapa.
 - **FR-003**: O sistema MUST calcular a prontidão documental como `OK`, `IN_PROGRESS` ou `CRITICAL`, com contagens e motivos.
 - **FR-004**: `CRITICAL` MUST ocorrer quando há item pendente a até 15 dias da mobilização ou pendência documental crítica vencida.
-- **FR-005**: A etapa `MOBILIZATION_PLANNING` MUST conter os checklists D-30 de equipe, equipamentos, materiais e logística preliminar definidos nesta especificação.
+- **FR-005**: A etapa `MOBILIZATION_PLANNING` MUST conter planejamento estruturado de equipe e equipamentos e os checklists D-30 de materiais e logística preliminar.
 - **FR-006**: O sistema MUST calcular progresso total e por frente do planejamento D-30.
 - **FR-007**: Os papéis `efetivo:operations`, `efetivo:assets`, `efetivo:supplies` e `efetivo:administrative` MUST entrar no catálogo de acesso ao módulo.
-- **FR-008**: Cada papel de área MUST editar somente sua seção; administrador, gestor e Líder atual com acesso operacional MUST editar todas.
+- **FR-008**: Os papéis de área MUST editar somente os checklists de sua seção; administrador, gestor e Líder atual com acesso operacional MUST editar todos e as definições estruturadas.
 - **FR-009**: Papéis de área MUST NOT iniciar gestão, trocar Líder, responder itens críticos, gerir pendências gerais ou mudar etapa.
 - **FR-010**: O detalhe de cada checklist MUST informar se o usuário atual pode editá-lo.
 - **FR-011**: O sistema MUST derivar D-90, D-30, D-15, D-7 e D-1 da data planejada de mobilização.

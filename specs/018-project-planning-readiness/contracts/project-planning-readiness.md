@@ -8,12 +8,12 @@ Cada item normalizado acrescenta `section`, `areaRoles` e `canEdit`, preservando
 
 ```json
 {
-  "documentationReadiness": { "status": "IN_PROGRESS", "completed": 3, "total": 10, "blockers": [] },
+  "documentationReadiness": { "status": "IN_PROGRESS", "completed": 3, "total": 4, "blockers": [] },
   "planningReadiness": {
-    "completed": 5,
-    "total": 25,
-    "percentage": 20,
-    "sections": [{ "key": "D30_TEAM", "completed": 2, "total": 6 }]
+    "completed": 6,
+    "total": 13,
+    "percentage": 46,
+    "sections": [{ "key": "D30_TEAM", "completed": 1, "total": 1 }]
   }
 }
 ```
@@ -34,3 +34,5 @@ Sem data de mobilização, datas e próximo marco são `null` e as listas ficam 
 ## PATCH existente
 
 `{ action: "checklist", key, status, note?, version }` mantém o formato. A autorização passa a considerar `section` e `areaRoles` do catálogo; tentativas fora da responsabilidade retornam `403`.
+
+Equipe e equipamentos usam os contratos versionados `{ action: "team_plan", defined, demands, version }` e `{ action: "equipment_plan", defined, categoryIds, version }`, detalhados na entrega 031.

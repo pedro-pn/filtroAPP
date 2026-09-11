@@ -1993,6 +1993,46 @@
 .project-workflow-documentation-history summary { cursor: pointer; font-weight: 700; }
 .project-workflow-documentation-history ul { display: flex; flex-direction: column; gap: 5px; list-style: none; margin: 7px 0 0; padding: 0; }
 .project-workflow-documentation-history li { display: flex; flex-direction: column; }
+.project-workflow-resource-card { min-width: 0; }
+.project-workflow-resource-question { align-items: center; background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; min-width: 0; padding: 10px; }
+.project-workflow-resource-question > div:first-child { min-width: 0; }
+.project-workflow-resource-question p,
+.project-workflow-resource-empty { color: var(--mu); margin: 3px 0 0; overflow-wrap: anywhere; }
+.project-workflow-resource-editor { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.project-workflow-resource-add { align-items: end; display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) minmax(90px, .3fr) auto; min-width: 0; }
+.project-workflow-resource-add .field-group { margin: 0; min-width: 0; }
+.project-workflow-resource-add input,
+.project-workflow-resource-add select,
+.project-workflow-resource-summary input { box-sizing: border-box; max-width: 100%; min-width: 0; width: 100%; }
+.project-workflow-resource-summary { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.project-workflow-resource-summary > article { align-items: center; background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: grid; gap: 8px; grid-template-columns: 8px minmax(0, 1fr) minmax(72px, .2fr) auto; min-width: 0; padding: 9px; }
+.project-workflow-resource-summary > article:has(> div:last-child) { grid-template-columns: 8px minmax(0, 1fr); }
+.project-workflow-resource-summary article > div { display: flex; flex-direction: column; min-width: 0; }
+.project-workflow-resource-summary article span,
+.project-workflow-resource-summary article em { overflow-wrap: anywhere; }
+.project-workflow-resource-summary article div > span { color: var(--mu); font-size: 12px; }
+.project-workflow-resource-summary article em { color: var(--warning-text); font-size: 12px; font-style: normal; font-weight: 700; }
+.project-workflow-resource-color { align-self: stretch; border-radius: 999px; min-height: 28px; }
+.project-workflow-equipment-categories { border: 1px solid var(--br); border-radius: var(--rs); display: grid; gap: 7px; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; padding: 10px; }
+.project-workflow-equipment-categories legend { font-weight: 700; padding: 0 5px; }
+.project-workflow-equipment-categories label { align-items: start; background: var(--bg); border-radius: var(--rs); cursor: pointer; display: flex; gap: 8px; min-width: 0; padding: 8px; }
+.project-workflow-equipment-categories label > span { display: flex; flex-direction: column; min-width: 0; }
+.project-workflow-equipment-categories label small { color: var(--mu); overflow-wrap: anywhere; }
+.project-workflow-equipment-summary { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.project-workflow-equipment-summary > section { border: 1px solid var(--br); border-radius: var(--rs); min-width: 0; overflow: hidden; }
+.project-workflow-equipment-summary > section > header { align-items: center; background: var(--bg); display: flex; gap: 10px; justify-content: space-between; padding: 9px 10px; }
+.project-workflow-equipment-summary > section > header span { color: var(--mu); font-size: 12px; }
+.project-workflow-equipment-summary > section > div { display: flex; flex-direction: column; }
+.project-workflow-equipment-summary article { border-left: 3px solid var(--warning-border); display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 9px 10px; }
+.project-workflow-equipment-summary article + article { border-top: 1px solid var(--br); }
+.project-workflow-equipment-summary article.is-ready { border-left-color: var(--g); }
+.project-workflow-equipment-summary article > div { display: flex; flex-wrap: wrap; gap: 6px 12px; justify-content: space-between; min-width: 0; }
+.project-workflow-equipment-summary article > div span,
+.project-workflow-equipment-summary article small { color: var(--mu); overflow-wrap: anywhere; }
+.project-workflow-equipment-summary article ul { display: flex; flex-wrap: wrap; gap: 5px 14px; list-style: none; margin: 0; padding: 0; }
+.project-workflow-equipment-summary li { color: var(--warning-text); font-size: 12px; }
+.project-workflow-equipment-summary li.is-ready { color: var(--g); }
+.project-workflow-equipment-summary > section > p { color: var(--mu); margin: 0; padding: 10px; }
 .project-workflow-critical { align-items: center; border-top: 1px solid var(--br); display: flex; gap: 10px; justify-content: space-between; padding-top: 9px; }
 .project-workflow-critical > span { min-width: 0; overflow-wrap: anywhere; }
 .project-workflow-critical > div { display: flex; flex: 0 0 auto; gap: 6px; }
@@ -2233,6 +2273,9 @@
   .project-workflow-documentation-add,
   .project-workflow-analysis-dates,
   .project-workflow-analysis-contact-fields,
+  .project-workflow-resource-add,
+  .project-workflow-resource-summary > article,
+  .project-workflow-equipment-categories,
   .project-workflow-planning-grid,
   .project-post-job-grid,
   .project-post-job-history-list,

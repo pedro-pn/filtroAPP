@@ -890,6 +890,7 @@ model JobRole {
   collaborators               Collaborator[]               @relation("CollaboratorJobRole")
   collaboratorHistory         CollaboratorJobRoleHistory[]
   efetivoMissionDemands       EfetivoMissionDemand[]
+  projectWorkflowTeamDemands  ProjectWorkflowTeamDemand[]
   efetivoMissionAllocations   EfetivoMissionAllocation[]
   efetivoPlannedHires         EfetivoPlannedHire[]
   epiProfiles                 EpiCollaboratorProfile[]     @relation("EpiRoleOverride")
@@ -1040,6 +1041,8 @@ model ProjectWorkflow {
   analysisClientContactMade          Boolean?
   analysisClientContactName          String?
   analysisClientContactDate          DateTime?                              @db.Date
+  teamPlanDefined                    Boolean?
+  equipmentPlanDefined               Boolean?
   mobilizationAuthorizedAt           DateTime?
   mobilizationAuthorizationVersion   Int?
   fieldCompletionDate                DateTime?                              @db.Date
@@ -1057,6 +1060,8 @@ model ProjectWorkflow {
   issues                             ProjectWorkflowIssue[]
   commercialFacts                    ProjectWorkflowCommercialFact[]
   documentationCategories            ProjectWorkflowDocumentationCategory[]
+  teamDemands                        ProjectWorkflowTeamDemand[]
+  equipmentCategoryPlans             ProjectWorkflowEquipmentCategoryPlan[]
   events                             ProjectWorkflowEvent[]
   postJob                            ProjectWorkflowPostJob?
   measurement                        ProjectWorkflowMeasurement?
@@ -1064,6 +1069,33 @@ model ProjectWorkflow {
   @@index([stage, plannedMobilizationDate])
   @@index([leaderUserId])
   @@index([closedByUserId])
+}
+
+model ProjectWorkflowTeamDemand {
+  id            String          @id @default(cuid())
+  projectId     String
+  jobRoleId     String
+  requiredCount Int
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  workflow      ProjectWorkflow @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  jobRole       JobRole         @relation(fields: [jobRoleId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, jobRoleId])
+  @@index([jobRoleId])
+}
+
+model ProjectWorkflowEquipmentCategoryPlan {
+  id         String            @id @default(cuid())
+  projectId  String
+  categoryId String
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  workflow   ProjectWorkflow   @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  category   EquipmentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, categoryId])
+  @@index([categoryId])
 }
 
 model ProjectWorkflowDocumentationCategory {
@@ -2103,29 +2135,30 @@ model CalibrationNotificationLog {
 // === Módulo Equipamentos ===
 
 model EquipmentCategory {
-  id                      String              @id @default(cuid())
-  systemKey               String              @unique // slug imutável usado pelo RDO/romaneio
+  id                      String                                 @id @default(cuid())
+  systemKey               String                                 @unique // slug imutável usado pelo RDO/romaneio
   name                    String // rótulo editável (vira a aba)
   maintenanceProfileId    String?
   maintenanceIntervalDays Int?
-  showInMaintenance       Boolean             @default(true)
-  order                   Int                 @default(0)
-  fieldSchema             Json                @default("[]") // [{ key, label, type, required, options?, order, showInDashboard? }]
-  technicalSchema         Json                @default("[]") // dados técnicos: [{ key, label, type, group?, unit?, options?, repeatable?, itemSchema?, optionalPerEquipment?, showInDoc?, order }]
-  checklistEnabled        Boolean             @default(false)
-  checklistItems          Json                @default("[]") // pontos de checagem herdados pelos equipamentos da categoria
-  checklistDisplayMode    String              @default("AUTO") // AUTO | TAG | NAME para <<nomeoutag>>
-  technicalDocEnabled     Boolean             @default(false) // liga a aba "Dados Técnicos" (datasheet estruturado + geração DOCX→PDF)
+  showInMaintenance       Boolean                                @default(true)
+  order                   Int                                    @default(0)
+  fieldSchema             Json                                   @default("[]") // [{ key, label, type, required, options?, order, showInDashboard? }]
+  technicalSchema         Json                                   @default("[]") // dados técnicos: [{ key, label, type, group?, unit?, options?, repeatable?, itemSchema?, optionalPerEquipment?, showInDoc?, order }]
+  checklistEnabled        Boolean                                @default(false)
+  checklistItems          Json                                   @default("[]") // pontos de checagem herdados pelos equipamentos da categoria
+  checklistDisplayMode    String                                 @default("AUTO") // AUTO | TAG | NAME para <<nomeoutag>>
+  technicalDocEnabled     Boolean                                @default(false) // liga a aba "Dados Técnicos" (datasheet estruturado + geração DOCX→PDF)
   technicalTemplateId     String? // DOCX modelo da categoria (Etapa F); null = usa o modelo genérico
-  supportsCalibration     Boolean             @default(false)
-  supportsTechnicalDoc    Boolean             @default(true) // anexo PDF legado (mantido como histórico)
-  syncToRomaneio          Boolean             @default(false)
-  isSystemManaged         Boolean             @default(false) // categorias consumidas pelo RDO (não removíveis)
-  isActive                Boolean             @default(true)
-  createdAt               DateTime            @default(now())
-  updatedAt               DateTime            @updatedAt
-  maintenanceProfile      MaintenanceProfile? @relation("CategoryMaintenanceProfile", fields: [maintenanceProfileId], references: [id], onDelete: SetNull)
+  supportsCalibration     Boolean                                @default(false)
+  supportsTechnicalDoc    Boolean                                @default(true) // anexo PDF legado (mantido como histórico)
+  syncToRomaneio          Boolean                                @default(false)
+  isSystemManaged         Boolean                                @default(false) // categorias consumidas pelo RDO (não removíveis)
+  isActive                Boolean                                @default(true)
+  createdAt               DateTime                               @default(now())
+  updatedAt               DateTime                               @updatedAt
+  maintenanceProfile      MaintenanceProfile?                    @relation("CategoryMaintenanceProfile", fields: [maintenanceProfileId], references: [id], onDelete: SetNull)
   equipment               CompanyEquipment[]
+  projectWorkflowPlans    ProjectWorkflowEquipmentCategoryPlan[]
 
   @@index([maintenanceProfileId])
 }

@@ -200,10 +200,33 @@ test('análise inicial usa datas do CRM, contato estruturado e pendência sem ca
   assert.match(intake, /analysis_contact/);
   assert.match(intake, /Nome do contato/);
   assert.match(intake, /Data do contato/);
+  assert.match(intake, /workflow\.analysisClientContactMade \?\? false/);
+  assert.match(intake, /Enquanto estiver em “Não”, permanece pendente/);
   assert.doesNotMatch(schema, /ANALYSIS_TECHNICAL_PROPOSAL|ANALYSIS_COMMERCIAL_PROPOSAL|ANALYSIS_SCOPE|ANALYSIS_ASSUMPTIONS|ANALYSIS_DATES|ANALYSIS_CLIENT_CONTACT/);
   assert.doesNotMatch(modal, /issue-area-|errors\.area|register\('area'\)/);
   assert.match(styles, /\.project-workflow-check-item \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(styles, /\.project-workflow-check-controls \{[^}]*grid-template-columns: minmax\(130px, \.6fr\) minmax\(0, 1fr\)/);
+});
+
+test('D-30 define cargos e equipamentos com avisos de disponibilidade', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const planning = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowResourcePlanning.tsx', import.meta.url), 'utf8');
+  const schema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  assert.match(modal, /ProjectWorkflowTeamPlanningCard/);
+  assert.match(modal, /ProjectWorkflowEquipmentPlanningCard/);
+  assert.match(planning, /A equipe necessária para esta obra já foi definida/);
+  assert.match(planning, /Necessidade de contratação/);
+  assert.match(planning, /Confirmar equipe/);
+  assert.match(planning, /Os equipamentos necessários para esta obra já foram definidos/);
+  assert.match(planning, /Calibração válida/);
+  assert.match(planning, /Manutenção em dia/);
+  assert.match(planning, /Confirmar equipamentos/);
+  assert.match(schema, /action: z\.literal\('team_plan'\)/);
+  assert.match(schema, /action: z\.literal\('equipment_plan'\)/);
+  assert.doesNotMatch(schema, /D30_TEAM_QUANTITY_CONFIRMED|D30_EQUIPMENT_LIST_DEFINED/);
+  assert.match(styles, /project-workflow-resource-add/);
+  assert.match(styles, /project-workflow-equipment-summary/);
 });
 
 test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe', () => {
