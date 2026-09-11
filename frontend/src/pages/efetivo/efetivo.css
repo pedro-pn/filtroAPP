@@ -1850,7 +1850,7 @@
 .project-workflow-card > em { color: var(--g); font-size: 12px; font-style: normal; font-weight: 700; }
 .project-workflow-card > em.is-overdue,
 .project-workflow-overdue { color: var(--rd); }
-.project-workflow-card .project-workflow-commercial-badge { color: var(--rd); font-weight: 700; }
+.project-workflow-card .project-workflow-commercial-badge { color: var(--mu); font-weight: 700; }
 .project-workflow-card .project-workflow-commercial-badge.is-released { color: var(--g); }
 .project-workflow-card .project-workflow-documentation-badge,
 .project-workflow-card .project-workflow-deadline-alert { color: var(--rd); font-weight: 700; }
@@ -1910,7 +1910,7 @@
 .project-workflow-section > header span { color: var(--mu); }
 .project-workflow-section > header > div { min-width: 0; }
 .project-workflow-section > header p { color: var(--mu); margin: 3px 0 0; overflow-wrap: anywhere; }
-.project-workflow-commercial { border-left: 4px solid var(--rd); }
+.project-workflow-commercial { border-left: 4px solid var(--mu); }
 .project-workflow-commercial.is-released { border-left-color: var(--g); }
 .project-workflow-documentation { border-left: 4px solid var(--warning-border); }
 .project-workflow-documentation.is-ok { border-left-color: var(--g); }
@@ -1943,6 +1943,33 @@
 .project-workflow-check-item { align-items: start; border-top: 1px solid var(--br); display: grid; gap: 10px; grid-template-columns: minmax(180px, .9fr) minmax(0, 1.6fr); padding-top: 8px; }
 .project-workflow-check-controls { align-items: start; display: grid; gap: 6px; grid-template-columns: minmax(130px, .6fr) minmax(160px, 1fr) auto; min-width: 0; }
 .project-workflow-check-controls .field-group { margin: 0; }
+.project-workflow-autosave-label { align-self: center; color: var(--mu); white-space: nowrap; }
+.project-workflow-signal-list { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.project-workflow-signal { align-items: start; background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; gap: 10px; justify-content: space-between; padding: 10px; }
+.project-workflow-signal > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.project-workflow-signal > div > span { color: var(--mu); font-size: 12px; overflow-wrap: anywhere; }
+.project-workflow-signal-status { border: 1px solid currentColor; border-radius: 999px; color: var(--mu); flex: 0 0 auto; font-size: 11px; font-weight: 700; padding: 3px 7px; }
+.project-workflow-signal-status.is-confirmed { color: var(--g); }
+.project-workflow-documentation-types { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.project-workflow-documentation-type { border: 1px solid var(--br); border-radius: var(--rs); min-width: 0; overflow: hidden; }
+.project-workflow-documentation-type.is-required { border-left: 3px solid var(--warning-border); }
+.project-workflow-documentation-type.is-not-required { border-left: 3px solid var(--g); }
+.project-workflow-documentation-type > header { align-items: center; background: var(--bg); display: flex; gap: 10px; justify-content: space-between; padding: 10px; }
+.project-workflow-documentation-type h5,
+.project-workflow-documentation-type p { margin: 0; }
+.project-workflow-documentation-type header p { color: var(--mu); margin-top: 3px; }
+.project-workflow-documentation-choice { display: flex; flex: 0 0 auto; gap: 6px; }
+.project-workflow-documentation-items { display: flex; flex-direction: column; gap: 10px; padding: 10px; }
+.project-workflow-documentation-add { align-items: end; display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; }
+.project-workflow-documentation-add .field-group,
+.project-workflow-documentation-fields .field-group { margin: 0; }
+.project-workflow-documentation-requirement { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+.project-workflow-documentation-fields { display: grid; gap: 8px; grid-template-columns: minmax(170px, 1fr) minmax(170px, 1fr) minmax(145px, .7fr) minmax(145px, .7fr); }
+.project-workflow-documentation-requirement-footer { align-items: start; display: flex; gap: 10px; justify-content: space-between; }
+.project-workflow-documentation-history { color: var(--mu); font-size: 12px; }
+.project-workflow-documentation-history summary { cursor: pointer; font-weight: 700; }
+.project-workflow-documentation-history ul { display: flex; flex-direction: column; gap: 5px; list-style: none; margin: 7px 0 0; padding: 0; }
+.project-workflow-documentation-history li { display: flex; flex-direction: column; }
 .project-workflow-critical { align-items: center; border-top: 1px solid var(--br); display: flex; gap: 10px; justify-content: space-between; padding-top: 9px; }
 .project-workflow-critical > span { min-width: 0; overflow-wrap: anywhere; }
 .project-workflow-critical > div { display: flex; flex: 0 0 auto; gap: 6px; }
@@ -2177,6 +2204,10 @@
   .project-workflow-form-grid.compact,
   .project-workflow-commercial-list,
   .project-workflow-commercial-fields,
+  .project-workflow-signal-list,
+  .project-workflow-documentation-types,
+  .project-workflow-documentation-fields,
+  .project-workflow-documentation-add,
   .project-workflow-planning-grid,
   .project-post-job-grid,
   .project-post-job-history-list,

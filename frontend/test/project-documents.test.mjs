@@ -6,6 +6,7 @@ const api = fs.readFileSync(new URL('../src/api/projectDocuments.ts', import.met
 const form = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectDocumentForm.tsx', import.meta.url), 'utf8');
 const category = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectDocumentsCategory.tsx', import.meta.url), 'utf8');
 const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+const intake = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
 const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
 
 test('catálogo mantém URL do projeto, estados e histórico de versões no diálogo atual', () => {
@@ -45,8 +46,9 @@ test('documentos CRM, assinatura e projeções operacionais preservam suas orige
 test('documentos explícitos explicam bloqueios e invalidam a autorização na interface', () => {
   assert.match(category, /Documentos que bloqueiam o fluxo/);
   assert.match(category, /A autorização de mobilização precisa ser revalidada/);
-  assert.match(modal, /evidenceDocumentId/);
-  assert.match(modal, /Documento do projeto/);
+  assert.match(intake, /COMMERCIAL_PROPOSAL/);
+  assert.match(intake, /TECHNICAL_PROPOSAL/);
+  assert.match(intake, /Abrir anexo/);
   assert.match(styles, /project-document-requirement-blockers/);
   assert.match(styles, /@media \(max-width: 760px\)/);
   assert.match(styles, /project-document-form-body/);

@@ -5,6 +5,7 @@ import {
   PROJECT_WORKFLOW_CHECKLISTS,
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
+  makeProjectWorkflowCommercialFactSchema,
   makeProjectWorkflowSchemas,
   projectWorkflowMilestones
 } from '../../shared/schemas/project-workflow.js';
@@ -34,17 +35,22 @@ function completed(stage) {
   return PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.stage === stage).map(item => ({ key: item.key, status: 'DONE' }));
 }
 
-test('contrato exige justificativa para não aplicável e versão nas alterações', () => {
+test('contrato exige justificativa para não aplicável, valida documentação e exige versão', () => {
   const { patch } = makeProjectWorkflowSchemas(z);
-  assert.equal(patch.safeParse({ action: 'checklist', version: 1, key: 'HANDOVER_PROJECT_CREATED', status: 'NOT_APPLICABLE' }).success, false);
-  assert.equal(patch.safeParse({ action: 'checklist', version: 1, key: 'HANDOVER_PROJECT_CREATED', status: 'NOT_APPLICABLE', note: 'Documento incorporado à proposta.' }).success, true);
+  const commercialFact = makeProjectWorkflowCommercialFactSchema(z);
+  assert.equal(patch.safeParse({ action: 'checklist', version: 1, key: 'ANALYSIS_SCOPE', status: 'NOT_APPLICABLE' }).success, false);
+  assert.equal(patch.safeParse({ action: 'checklist', version: 1, key: 'ANALYSIS_SCOPE', status: 'NOT_APPLICABLE', note: 'Documento incorporado à proposta.' }).success, true);
+  assert.equal(patch.safeParse({ action: 'documentation_category', version: 1, type: 'EXAM', required: true }).success, true);
+  assert.equal(patch.safeParse({ action: 'documentation_requirement_create', version: 1, type: 'EXAM', name: 'Audiometria' }).success, true);
+  assert.equal(patch.safeParse({ action: 'documentation_requirement_update', version: 1, requirementId: 'req-1', status: 'CONFIRMED', requestedAt: '2026-09-10', confirmedAt: '2026-09-09' }).success, false);
   assert.equal(patch.safeParse({ action: 'accept' }).success, false);
-  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'CONTRACT_SIGNED', status: 'NOT_APPLICABLE' }).success, false);
-  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'CONTRACT_SIGNED', status: 'NOT_APPLICABLE', note: 'Contrato dispensado' }).success, true);
-  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'COMMERCIAL_PROPOSAL_CREATED', status: 'NOT_APPLICABLE', note: 'Sem proposta' }).success, false);
-  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'PURCHASE_ORDER_RECEIVED', status: 'CONFIRMED', reference: 'PO-1' }).success, false);
-  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'PURCHASE_ORDER_RECEIVED', status: 'CONFIRMED', reference: 'PO-1', occurredOn: '2026-09-09' }).success, true);
-  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'PURCHASE_ORDER_RECEIVED', status: 'PENDING', source: 'CRM' }).success, false);
+  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'CONTRACT_SIGNED', status: 'PENDING' }).success, false);
+  assert.equal(commercialFact.safeParse({ action: 'commercial_fact', version: 1, key: 'CONTRACT_SIGNED', status: 'NOT_APPLICABLE' }).success, false);
+  assert.equal(commercialFact.safeParse({ action: 'commercial_fact', version: 1, key: 'CONTRACT_SIGNED', status: 'NOT_APPLICABLE', note: 'Contrato dispensado' }).success, true);
+  assert.equal(commercialFact.safeParse({ action: 'commercial_fact', version: 1, key: 'COMMERCIAL_PROPOSAL_CREATED', status: 'NOT_APPLICABLE', note: 'Sem proposta' }).success, false);
+  assert.equal(commercialFact.safeParse({ action: 'commercial_fact', version: 1, key: 'PURCHASE_ORDER_RECEIVED', status: 'CONFIRMED', reference: 'PO-1' }).success, false);
+  assert.equal(commercialFact.safeParse({ action: 'commercial_fact', version: 1, key: 'PURCHASE_ORDER_RECEIVED', status: 'CONFIRMED', reference: 'PO-1', occurredOn: '2026-09-09' }).success, true);
+  assert.equal(commercialFact.safeParse({ action: 'commercial_fact', version: 1, key: 'PURCHASE_ORDER_RECEIVED', status: 'PENDING', source: 'CRM' }).success, false);
   assert.equal(patch.safeParse({ action: 'authorize_mobilization', version: 7 }).success, true);
   assert.equal(patch.safeParse({ action: 'authorize_mobilization' }).success, false);
   assert.equal(patch.safeParse({ action: 'demobilization', version: 7 }).success, false);
@@ -74,42 +80,30 @@ test('prontidão comercial exige os oito fatos completos conforme o catálogo', 
   const readiness = projectWorkflowCommercialReadiness({ commercialFacts: facts });
   assert.equal(readiness.status, 'NOT_RELEASED');
   assert.equal(readiness.resolvedCount, 7);
-  assert.deepEqual(readiness.blockedOperations, ['PURCHASE', 'HIRING', 'MOBILIZATION']);
+  assert.deepEqual(readiness.blockedOperations, []);
+  assert.equal(readiness.pendingSignals.length, 1);
   assert.deepEqual(commercialFactIssues(facts[0], facts[0]), ['Referência não informada']);
 });
 
-test('handover identifica somente itens ainda não concluídos', () => {
-  const checklists = completed('HANDOVER');
-  checklists.pop();
-  const issues = handoverGateIssues({ leaderUserId: 'leader-1', checklists });
-  assert.equal(issues.length, 1);
-  assert.match(issues[0], /Condições e premissas/);
+test('handover usa os dados comerciais como informação e exige somente líder e documento explicitamente obrigatório', () => {
+  assert.deepEqual(handoverGateIssues({ leaderUserId: 'leader-1', checklists: [] }), []);
+  assert.deepEqual(handoverGateIssues({ leaderUserId: null, checklists: [] }), ['Definir o Líder de Projetos']);
 });
 
-test('propostas comerciais válidas satisfazem os itens equivalentes do handover', () => {
-  const proposalKeys = new Set(['HANDOVER_COMMERCIAL_PROPOSAL', 'HANDOVER_TECHNICAL_PROPOSAL']);
-  const checklists = completed('HANDOVER').filter(item => !proposalKeys.has(item.key));
-  const commercialFacts = PROJECT_WORKFLOW_COMMERCIAL_FACTS
-    .filter(item => item.handoverChecklistKey)
-    .map(item => ({ ...item, status: 'CONFIRMED', reference: 'PROP-1', occurredOn: new Date('2026-09-09T00:00:00Z') }));
-  assert.deepEqual(handoverGateIssues({ leaderUserId: 'leader-1', checklists, commercialFacts }), []);
-  commercialFacts[0].reference = null;
-  assert.match(handoverGateIssues({ leaderUserId: 'leader-1', checklists, commercialFacts })[0], /Proposta comercial/);
+test('sinais comerciais incompletos não criam bloqueio no handover', () => {
+  assert.deepEqual(handoverGateIssues({ leaderUserId: 'leader-1', checklists: [], commercialFacts: [] }), []);
 });
 
-test('documento de proposta serve como evidência do handover sem confirmar fatos comerciais', () => {
-  const proposalKeys = new Set(['HANDOVER_COMMERCIAL_PROPOSAL', 'HANDOVER_TECHNICAL_PROPOSAL']);
-  const checklists = completed('HANDOVER').filter(item => !proposalKeys.has(item.key));
+test('documento de proposta aparece no handover sem confirmar os sinais comerciais', () => {
   const workflow = {
     leaderUserId: 'leader-1',
-    checklists,
-    commercialFacts: [],
-    documentEvidenceKeys: [...proposalKeys]
+    checklists: [],
+    commercialFacts: []
   };
   assert.deepEqual(handoverGateIssues(workflow), []);
   assert.equal(projectWorkflowCommercialReadiness(workflow).status, 'NOT_RELEASED');
-  const { patch } = makeProjectWorkflowSchemas(z);
-  assert.equal(patch.safeParse({ action: 'commercial_fact', version: 1, key: 'COMMERCIAL_PROPOSAL_CREATED', status: 'CONFIRMED', evidenceDocumentId: 'doc_1', occurredOn: '2026-09-10' }).success, true);
+  const commercialFact = makeProjectWorkflowCommercialFactSchema(z);
+  assert.equal(commercialFact.safeParse({ action: 'commercial_fact', version: 1, key: 'COMMERCIAL_PROPOSAL_CREATED', status: 'CONFIRMED', evidenceDocumentId: 'doc_1', occurredOn: '2026-09-10' }).success, true);
 });
 
 test('análise exige todas as respostas e encaminhamento para cada resposta positiva', () => {
@@ -147,20 +141,23 @@ test('marco D-30 usa datas civis e projetos curtos ficam imediatamente vencidos'
   assert.deepEqual(projectWorkflowMilestones(null, '2026-09-09').items, []);
 });
 
-test('documentação fica crítica perto da mobilização e OK quando resolvida', () => {
-  const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === 'ADVANCE_DOCUMENTATION');
+test('documentação usa quatro decisões por tipo e acompanha itens nomeados com datas', () => {
   const milestones = projectWorkflowMilestones('2026-09-20', '2026-09-09');
-  let readiness = projectWorkflowDocumentationReadiness({ checklists: [], issues: [] }, milestones, '2026-09-09');
+  let readiness = projectWorkflowDocumentationReadiness({ documentationCategories: [] }, milestones, '2026-09-09');
   assert.equal(readiness.status, 'CRITICAL');
-  assert.equal(readiness.total, 11);
-  const checklists = definitions.map(item => ({ key: item.key, status: 'DONE' }));
-  readiness = projectWorkflowDocumentationReadiness({ checklists, issues: [] }, milestones, '2026-09-09');
+  assert.equal(readiness.total, 4);
+  const documentationCategories = [
+    { type: 'DOCUMENT', required: false, requirements: [] },
+    { type: 'EXAM', required: true, requirements: [{ id: 'exam-1', name: 'Audiometria', status: 'REQUESTED', requestedAt: '2026-09-08', confirmedAt: null }] },
+    { type: 'TRAINING', required: false, requirements: [] },
+    { type: 'CERTIFICATION', required: false, requirements: [] }
+  ];
+  readiness = projectWorkflowDocumentationReadiness({ documentationCategories }, milestones, '2026-09-09');
+  assert.equal(readiness.completed, 3);
+  assert.match(readiness.blockers[0].label, /Audiometria/);
+  documentationCategories[1].requirements[0] = { ...documentationCategories[1].requirements[0], status: 'CONFIRMED', confirmedAt: '2026-09-09' };
+  readiness = projectWorkflowDocumentationReadiness({ documentationCategories }, milestones, '2026-09-09');
   assert.equal(readiness.status, 'OK');
-  readiness = projectWorkflowDocumentationReadiness({
-    checklists,
-    issues: [{ id: 'issue-1', status: 'OPEN', criticality: 'HIGH', area: 'Administrativo/RH', dueDate: '2026-09-08', description: 'ASO vencido' }]
-  }, projectWorkflowMilestones('2027-02-15', '2026-09-09'), '2026-09-09');
-  assert.equal(readiness.status, 'CRITICAL');
 });
 
 test('progresso D-30 é calculado no total e por frente', () => {
@@ -183,9 +180,10 @@ function readyMobilizationWorkflow(overrides = {}) {
     note: item.evidence === 'note' ? 'Condição definida' : null
   }));
   const readinessChecklists = PROJECT_WORKFLOW_CHECKLISTS
-    .filter(item => item.section === 'ADVANCE_DOCUMENTATION' || item.section.startsWith('D15_'))
+    .filter(item => item.section.startsWith('D15_'))
     .map(item => ({ key: item.key, status: 'DONE' }));
-  return { stage: 'PREPARATION', version: 10, checklists: readinessChecklists, commercialFacts, issues: [], ...overrides };
+  const documentationCategories = ['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'].map(type => ({ type, required: false, requirements: [] }));
+  return { stage: 'PREPARATION', version: 10, checklists: readinessChecklists, commercialFacts, documentationCategories, issues: [], ...overrides };
 }
 
 test('planejamento completo libera Preparação e D-15 soma 39 confirmações', () => {
@@ -206,6 +204,10 @@ test('gate consolida nove frentes, pré-job e pendências críticas', () => {
   assert.equal(gate.preJob.status, 'READY');
   assert.equal(gate.ready, true);
   assert.equal(gate.deadlineStatus, 'READY');
+  workflow.commercialFacts = [];
+  gate = projectWorkflowMobilizationGate(workflow, projectWorkflowMilestones('2026-09-20', '2026-09-09'), '2026-09-09');
+  assert.equal(gate.ready, true);
+  assert.equal(gate.fronts.find(item => item.key === 'COMMERCIAL').status, 'READY');
   workflow.checklists = workflow.checklists.filter(item => item.key !== 'D15_EQUIPMENT_TESTED');
   gate = projectWorkflowMobilizationGate(workflow, projectWorkflowMilestones('2026-09-10', '2026-09-09'), '2026-09-09');
   assert.equal(gate.ready, false);

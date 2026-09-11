@@ -22,6 +22,9 @@ function fakeDatabase() {
     answers: [],
     issues: [],
     commercialFacts: [],
+    documentationCategories: [],
+    documentationRequirements: [],
+    documentationHistory: [],
     events: [],
     postJob: null,
     measurement: null,
@@ -44,6 +47,16 @@ function fakeDatabase() {
     checklists: state.checklists.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     criticalAnswers: state.answers.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     commercialFacts: state.commercialFacts.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
+    documentationCategories: state.documentationCategories.map(category => ({
+      ...category,
+      updatedBy: users[category.updatedByUserId] || null,
+      requirements: state.documentationRequirements.filter(item => item.categoryId === category.id).map(requirement => ({
+        ...requirement,
+        createdBy: users[requirement.createdByUserId] || null,
+        updatedBy: users[requirement.updatedByUserId] || null,
+        history: state.documentationHistory.filter(item => item.requirementId === requirement.id).map(item => ({ ...item, actor: users[item.actorUserId] || null })).reverse()
+      }))
+    })),
     issues: state.issues.map(item => ({ ...item })),
     events: state.events.map(item => ({ ...item, actor: users[item.actorUserId] || null })).reverse(),
     postJob: state.postJob ? {
@@ -105,7 +118,7 @@ function fakeDatabase() {
           createdAt: new Date(),
           updatedAt: new Date()
         };
-        state.checklists.push(...input.data.checklists.create.map((item, index) => ({ id: `check-${index}`, projectId: state.project.id, ...item })));
+        state.checklists.push(...(input.data.checklists?.create || []).map((item, index) => ({ id: `check-${index}`, projectId: state.project.id, ...item })));
         return withRelations();
       },
       findUnique: async () => withRelations(),
@@ -142,6 +155,38 @@ function fakeDatabase() {
         const existing = state.commercialFacts.find(item => item.key === key);
         if (existing) Object.assign(existing, input.update, { updatedAt: new Date() });
         else state.commercialFacts.push({ id: `commercial-${state.commercialFacts.length + 1}`, createdAt: new Date(), updatedAt: new Date(), externalId: null, externalUrl: null, sourceVersion: null, sourceUpdatedAt: null, lastSyncedAt: null, ...input.create });
+      }
+    },
+    projectWorkflowDocumentationCategory: {
+      upsert: async input => {
+        const { projectId, type } = input.where.projectId_type;
+        let category = state.documentationCategories.find(item => item.projectId === projectId && item.type === type);
+        if (category) Object.assign(category, input.update, { updatedAt: new Date() });
+        else {
+          category = { id: `documentation-category-${state.documentationCategories.length + 1}`, projectId, type, required: null, createdAt: new Date(), updatedAt: new Date(), ...input.create };
+          state.documentationCategories.push(category);
+        }
+        return category;
+      }
+    },
+    projectWorkflowDocumentationRequirement: {
+      create: async input => {
+        const requirement = { id: `documentation-requirement-${state.documentationRequirements.length + 1}`, status: 'PENDING', requestedAt: null, confirmedAt: null, archivedAt: null, createdAt: new Date(), updatedAt: new Date(), ...input.data };
+        state.documentationRequirements.push(requirement);
+        return requirement;
+      },
+      findFirst: async input => state.documentationRequirements.find(item => item.id === input.where.id && state.documentationCategories.some(category => category.id === item.categoryId && category.projectId === input.where.category.projectId)) || null,
+      update: async input => {
+        const requirement = state.documentationRequirements.find(item => item.id === input.where.id);
+        Object.assign(requirement, input.data, { updatedAt: new Date() });
+        return requirement;
+      }
+    },
+    projectWorkflowDocumentationHistory: {
+      create: async input => {
+        const entry = { id: `documentation-history-${state.documentationHistory.length + 1}`, createdAt: new Date(), ...input.data };
+        state.documentationHistory.push(entry);
+        return entry;
       }
     },
     projectWorkflowIssue: {
@@ -203,18 +248,15 @@ test('gestor inicia handover sem programação de equipe e sem presumir aceite',
   }, manager, { database, now: new Date('2026-09-09T12:00:00Z') });
   assert.equal(result.workflow.stage, 'HANDOVER');
   assert.equal(result.workflow.acceptedAt, null);
-  assert.equal(result.workflow.handoverGate.ready, false);
-  assert.ok(result.workflow.handoverGate.issues.length > 0);
-  assert.equal(result.workflow.checklists.filter(item => item.status === 'DONE').length, 2);
+  assert.equal(result.workflow.handoverGate.ready, true);
+  assert.equal(result.workflow.handoverGate.issues.length, 0);
+  assert.equal(result.workflow.checklists.filter(item => item.stage === 'HANDOVER').length, 0);
   assert.equal(state.events[0].action, 'WORKFLOW_STARTED');
 });
 
-test('somente o líder designado aceita o handover completo', async () => {
+test('somente o líder designado aceita o handover informativo', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
-  for (const item of PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.stage === 'HANDOVER')) {
-    if (!state.checklists.some(answer => answer.key === item.key)) state.checklists.push({ id: `check-${item.key}`, projectId: 'project-1', key: item.key, status: 'DONE' });
-  }
   await assert.rejects(
     updateProjectWorkflow('project-1', { action: 'accept', version: 1 }, viewer, { database }),
     error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
@@ -231,6 +273,14 @@ test('resposta crítica positiva garante uma única pendência', async () => {
   await updateProjectWorkflow('project-1', { action: 'critical', version: 2, key: 'SPECIAL_EQUIPMENT', answer: true }, leader, { database });
   assert.equal(state.issues.length, 1);
   assert.equal(state.issues[0].area, 'Ativos');
+});
+
+test('requisito documental crítico usa os cards e não cria pendência genérica', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  const detail = await updateProjectWorkflow('project-1', { action: 'critical', version: 1, key: 'CLIENT_REQUIREMENTS', answer: true }, leader, { database });
+  assert.equal(state.issues.length, 0);
+  assert.equal(detail.workflow.criticalAnswers.find(item => item.key === 'CLIENT_REQUIREMENTS').answer, true);
 });
 
 test('análise bloqueia pendência sem responsável/prazo e libera após encaminhamento', async () => {
@@ -323,19 +373,15 @@ test('listagem preserva líder e equipe da programação operacional no card do 
   assert.equal(state.lastProjectFindManyInput.select.efetivoMissionPlans.select.allocations.select.collaborator.select.jobRole.select.name, true);
 });
 
-test('Comercial altera fatos manuais sem receber permissão operacional', async () => {
-  const { database, state } = fakeDatabase();
+test('Comercial consulta os sinais sem receber campos de edição ou permissão operacional', async () => {
+  const { database } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
-  const result = await updateProjectWorkflow('project-1', {
-    action: 'commercial_fact', version: 1, key: 'PURCHASE_ORDER_RECEIVED', status: 'CONFIRMED', reference: 'PO-123', occurredOn: '2026-09-09'
-  }, commercial, { database });
-  assert.equal(result.workflow.permissions.canEditCommercial, true);
+  const result = await getProjectWorkflow('project-1', commercial, { database });
+  assert.equal(result.workflow.permissions.canEditCommercial, false);
   assert.equal(result.workflow.permissions.canEdit, false);
-  assert.equal(result.workflow.commercialFacts.find(item => item.key === 'PURCHASE_ORDER_RECEIVED').reference, 'PO-123');
-  assert.equal(state.events.at(-1).action, 'WORKFLOW_COMMERCIAL_FACT');
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'HANDOVER_WHATSAPP_GROUP', status: 'DONE' }, commercial, { database }),
-    error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
+    updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'HANDOVER_WHATSAPP_GROUP', status: 'DONE' }, commercial, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_CHECKLIST_INVALID'
   );
   await assert.rejects(
     startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, commercial, { database }),
@@ -343,35 +389,39 @@ test('Comercial altera fatos manuais sem receber permissão operacional', async 
   );
 });
 
-test('Líder sem papel Comercial não altera a frente comercial e antigo líder comercial perde poderes operacionais', async () => {
+test('antigo líder com papel Comercial não mantém poderes operacionais', async () => {
   const { database } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
-  await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'commercial_fact', version: 1, key: 'CONTRACT_SIGNED', status: 'NOT_APPLICABLE', note: 'Dispensado' }, leader, { database }),
-    error => error.code === 'PROJECT_WORKFLOW_COMMERCIAL_EDIT_FORBIDDEN'
-  );
   const formerLeader = { actorUserId: 'leader-1', user: { id: 'leader-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:commercial'] } };
   await assert.rejects(
     updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'HANDOVER_WHATSAPP_GROUP', status: 'DONE' }, formerLeader, { database }),
-    error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
+    error => error.code === 'PROJECT_WORKFLOW_CHECKLIST_INVALID'
   );
 });
 
-test('fato CRM é somente leitura e conflito reverte versão e histórico', async () => {
+test('fato CRM é exposto como somente leitura', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
   state.commercialFacts.push({
     id: 'crm-fact', projectId: 'project-1', key: 'CONTRACT_SIGNED', status: 'CONFIRMED', source: 'CRM',
     reference: 'CTR-1', note: null, occurredOn: new Date('2026-09-01T00:00:00Z'), sourceVersion: 'v2', updatedAt: new Date()
   });
+  Object.assign(state.workflow, {
+    commercialExpectedStartDate: new Date('2026-10-01T00:00:00Z'),
+    commercialExpectedDurationDays: 30,
+    commercialWhatsappGroupCreated: true,
+    commercialParticipantsIncluded: true,
+    commercialClientContactName: 'Contato Cliente',
+    commercialAssumptions: 'Atendimento em turno administrativo.',
+    commercialSourceUpdatedAt: new Date('2026-09-01T12:00:00Z')
+  });
   const detail = await getProjectWorkflow('project-1', commercial, { database });
   const crmFact = detail.workflow.commercialFacts.find(item => item.key === 'CONTRACT_SIGNED');
   assert.equal(crmFact.readOnly, true);
   assert.equal(crmFact.sourceVersion, 'v2');
-  await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'commercial_fact', version: 1, key: 'CONTRACT_SIGNED', status: 'PENDING' }, commercial, { database }),
-    error => error.code === 'PROJECT_WORKFLOW_CRM_FACT_READ_ONLY' && error.statusCode === 409
-  );
+  assert.equal(detail.workflow.commercialExpectedStartDate, '2026-10-01');
+  assert.equal(detail.workflow.commercialExpectedDurationDays, 30);
+  assert.equal(detail.workflow.commercialWhatsappGroupCreated, true);
   assert.equal(state.workflow.version, 1);
   assert.equal(state.commercialFacts[0].status, 'CONFIRMED');
   assert.equal(state.events.length, 1);
@@ -388,49 +438,65 @@ test('papel Comercial não pode ser designado Líder nem aparece nos candidatos'
   assert.deepEqual(state.lastUserFindManyInput.where.OR[1].moduleRoles.some.role.in, ['EFETIVO_MANAGER', 'EFETIVO_VIEWER']);
 });
 
-test('oito fatos válidos liberam comercial sem mover a etapa', async () => {
-  const { database } = fakeDatabase();
-  let result = await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
-  for (const definition of PROJECT_WORKFLOW_COMMERCIAL_FACTS) {
-    result = await updateProjectWorkflow('project-1', {
-      action: 'commercial_fact',
-      version: result.workflow.version,
-      key: definition.key,
-      status: 'CONFIRMED',
-      occurredOn: '2026-09-09',
-      reference: definition.evidence === 'reference' ? 'REF-1' : null,
-      note: definition.evidence === 'note' ? 'Condição definida' : null
-    }, manager, { database });
-  }
+test('oito fatos recebidos do CRM completam a sinalização sem mover a etapa', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  state.commercialFacts.push(...PROJECT_WORKFLOW_COMMERCIAL_FACTS.map((definition, index) => ({
+    id: `crm-${index}`, projectId: 'project-1', key: definition.key, status: 'CONFIRMED', source: 'CRM',
+    occurredOn: new Date('2026-09-09T00:00:00Z'), reference: definition.evidence === 'reference' ? 'REF-1' : null,
+    note: definition.evidence === 'note' ? 'Condição definida' : null
+  })));
+  const result = await getProjectWorkflow('project-1', manager, { database });
   assert.equal(result.workflow.commercialReadiness.status, 'RELEASED');
   assert.equal(result.workflow.stage, 'HANDOVER');
   const list = await listProjectWorkflows({}, manager, { database });
   assert.equal(list.items[0].workflow.commercialReadiness.status, result.workflow.commercialReadiness.status);
 });
 
-test('áreas editam somente seus checklists e não obtêm poderes do Líder', async () => {
+test('áreas editam somente seus checklists operacionais e não obtêm poderes do Líder', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
-  let detail = await getProjectWorkflow('project-1', administrative, { database, now: new Date('2026-09-09T12:00:00Z') });
-  const documentItem = detail.workflow.checklists.find(item => item.key === 'DOCUMENT_CLIENT_REQUIREMENTS');
-  const handoverItem = detail.workflow.checklists.find(item => item.key === 'HANDOVER_WHATSAPP_GROUP');
-  assert.equal(documentItem.canEdit, true);
-  assert.equal(handoverItem.canEdit, false);
-  detail = await updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: documentItem.key, status: 'DONE' }, administrative, { database });
-  assert.equal(detail.workflow.documentationReadiness.completed, 1);
   state.workflow.stage = 'MOBILIZATION_PLANNING';
-  detail = await updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'D30_TEAM_QUANTITY_CONFIRMED', status: 'DONE' }, operations, { database });
+  let detail = await updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D30_TEAM_QUANTITY_CONFIRMED', status: 'DONE' }, operations, { database });
   assert.equal(detail.workflow.planningReadiness.completed, 1);
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'checklist', version: 3, key: 'D30_EQUIPMENT_LIST_DEFINED', status: 'DONE' }, operations, { database }),
+    updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'D30_EQUIPMENT_LIST_DEFINED', status: 'DONE' }, operations, { database }),
     error => error.code === 'PROJECT_WORKFLOW_CHECKLIST_EDIT_FORBIDDEN'
   );
-  const assetsDetail = await updateProjectWorkflow('project-1', { action: 'checklist', version: 3, key: 'D30_EQUIPMENT_LIST_DEFINED', status: 'DONE' }, assets, { database });
+  const assetsDetail = await updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'D30_EQUIPMENT_LIST_DEFINED', status: 'DONE' }, assets, { database });
   assert.equal(assetsDetail.workflow.planningReadiness.completed, 2);
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'stage', version: 4, stage: 'WAITING_PLANNING' }, operations, { database }),
+    updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'WAITING_PLANNING' }, operations, { database }),
     error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
   );
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'documentation_category', version: 3, type: 'EXAM', required: true }, administrative, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
+  );
+});
+
+test('Líder acompanha documentação nomeada com datas e histórico', async () => {
+  const { database, state } = fakeDatabase();
+  let detail = await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  detail = await updateProjectWorkflow('project-1', { action: 'documentation_category', version: detail.workflow.version, type: 'EXAM', required: true }, leader, { database });
+  detail = await updateProjectWorkflow('project-1', { action: 'documentation_requirement_create', version: detail.workflow.version, type: 'EXAM', name: 'Audiometria' }, leader, { database });
+  const item = detail.workflow.documentationCategories.find(category => category.type === 'EXAM').requirements[0];
+  assert.equal(item.status, 'PENDING');
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'documentation_requirement_update', version: detail.workflow.version, requirementId: item.id,
+    status: 'REQUESTED', requestedAt: '2026-09-10', confirmedAt: null
+  }, leader, { database });
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'documentation_requirement_update', version: detail.workflow.version, requirementId: item.id,
+    status: 'CONFIRMED', requestedAt: '2026-09-10', confirmedAt: '2026-09-11'
+  }, leader, { database });
+  const confirmed = detail.workflow.documentationCategories.find(category => category.type === 'EXAM').requirements[0];
+  assert.equal(confirmed.status, 'CONFIRMED');
+  assert.equal(confirmed.requestedAt, '2026-09-10');
+  assert.equal(confirmed.confirmedAt, '2026-09-11');
+  assert.equal(confirmed.history.length, 3);
+  assert.equal(state.documentationHistory.length, 3);
+  assert.equal(detail.workflow.documentationReadiness.completed, 1);
 });
 
 test('checklist de outra etapa não pode ser antecipado por chamada direta', async () => {
@@ -446,7 +512,7 @@ function makeStateReadyForMobilization(state) {
   state.workflow.stage = 'PREPARATION';
   state.workflow.acceptedAt = new Date('2026-09-01T12:00:00Z');
   state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS
-    .filter(item => item.section === 'ADVANCE_DOCUMENTATION' || item.section.startsWith('D15_'))
+    .filter(item => item.section.startsWith('D15_'))
     .filter(item => !state.checklists.some(existing => existing.key === item.key))
     .map(item => ({ id: `check-${item.key}`, projectId: 'project-1', key: item.key, status: 'DONE' })));
   state.commercialFacts.push(...PROJECT_WORKFLOW_COMMERCIAL_FACTS.map(item => ({
@@ -458,6 +524,14 @@ function makeStateReadyForMobilization(state) {
     occurredOn: new Date('2026-09-09T00:00:00Z'),
     reference: item.evidence === 'reference' ? 'REF-1' : null,
     note: item.evidence === 'note' ? 'Condição definida' : null
+  })));
+  state.documentationCategories.push(...['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'].map((type, index) => ({
+    id: `documentation-category-${index + 1}`,
+    projectId: 'project-1',
+    type,
+    required: false,
+    createdAt: new Date(),
+    updatedAt: new Date()
   })));
 }
 

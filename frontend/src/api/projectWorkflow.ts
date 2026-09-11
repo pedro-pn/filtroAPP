@@ -7,11 +7,13 @@ export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
 export type ProjectWorkflowCommercialFactStatus = 'PENDING' | 'CONFIRMED' | 'NOT_APPLICABLE';
 export type ProjectWorkflowCommercialFactSource = 'MANUAL' | 'CRM';
+export type ProjectWorkflowDocumentationType = 'DOCUMENT' | 'EXAM' | 'TRAINING' | 'CERTIFICATION';
+export type ProjectWorkflowDocumentationStatus = 'PENDING' | 'REQUESTED' | 'CONFIRMED';
 export type ProjectExecutionReportType = 'RTP' | 'RLQ' | 'RLR' | 'RCPU' | 'RLM' | 'RLF' | 'RLI';
 export type ProjectExecutionDeviationCategory = 'PRAZO' | 'ESCOPO' | 'CLIENTE' | 'EQUIPAMENTO' | 'PESSOAL' | 'MATERIAL' | 'SEGURANCA' | 'QUALIDADE' | 'COMERCIAL';
 export type ProjectExecutionImpact = 'ALTO' | 'MEDIO' | 'BAIXO';
 export type ProjectExecutionDeviationStatus = 'ABERTO' | 'EM_TRIAGEM' | 'EM_OBSERVACAO' | 'EM_ACAO' | 'FECHADO' | 'DIVULGADO';
-export type ProjectWorkflowChecklistSection = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'ADVANCE_DOCUMENTATION' | 'D30_TEAM' | 'D30_EQUIPMENT' | 'D30_MATERIALS' | 'D30_LOGISTICS' | 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS' | 'DEMOBILIZATION_FIELD' | 'DEMOBILIZATION_LOGISTICS' | 'DEMOBILIZATION_ASSETS' | 'POST_JOB_FEEDBACK' | 'POST_JOB_LEARNING' | 'CLOSEOUT_DOCUMENTATION' | 'CLOSEOUT_MEASUREMENT' | 'FINAL_CLOSEOUT';
+export type ProjectWorkflowChecklistSection = 'INITIAL_ANALYSIS' | 'D30_TEAM' | 'D30_EQUIPMENT' | 'D30_MATERIALS' | 'D30_LOGISTICS' | 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS' | 'DEMOBILIZATION_FIELD' | 'DEMOBILIZATION_LOGISTICS' | 'DEMOBILIZATION_ASSETS' | 'POST_JOB_FEEDBACK' | 'POST_JOB_LEARNING' | 'CLOSEOUT_DOCUMENTATION' | 'CLOSEOUT_MEASUREMENT' | 'FINAL_CLOSEOUT';
 
 export interface ProjectWorkflowPermissions {
   canInitialize: boolean;
@@ -51,6 +53,7 @@ export interface ProjectWorkflowProject {
   code: string;
   name: string;
   clientName: string;
+  clientEmailPrimary?: string;
   location: string;
   mobilizationDate?: string | null;
   demobilizationDate?: string | null;
@@ -85,6 +88,42 @@ export interface ProjectWorkflowDocumentationReadiness {
   completed: number;
   total: number;
   blockers: Array<{ key: string; label: string; reason: string }>;
+}
+
+export interface ProjectWorkflowDocumentationHistory {
+  id: string;
+  changes: {
+    before: null | { name: string; status: ProjectWorkflowDocumentationStatus; requestedAt: string | null; confirmedAt: string | null; archivedAt: string | null };
+    after: { name: string; status: ProjectWorkflowDocumentationStatus; requestedAt: string | null; confirmedAt: string | null; archivedAt: string | null };
+  };
+  createdAt: string;
+  actor: { id: string; name: string } | null;
+}
+
+export interface ProjectWorkflowDocumentationRequirement {
+  id: string;
+  name: string;
+  status: ProjectWorkflowDocumentationStatus;
+  requestedAt: string | null;
+  confirmedAt: string | null;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: { id: string; name: string } | null;
+  updatedBy: { id: string; name: string } | null;
+  history: ProjectWorkflowDocumentationHistory[];
+}
+
+export interface ProjectWorkflowDocumentationCategory {
+  id: string | null;
+  type: ProjectWorkflowDocumentationType;
+  label: string;
+  singularLabel: string;
+  nameLabel: string;
+  required: boolean | null;
+  updatedAt: string | null;
+  updatedBy: { id: string; name: string } | null;
+  requirements: ProjectWorkflowDocumentationRequirement[];
 }
 
 export interface ProjectWorkflowPlanningReadiness {
@@ -233,7 +272,6 @@ export interface ProjectWorkflowCommercialFact {
   label: string;
   allowNotApplicable: boolean;
   evidence: 'reference' | 'note';
-  handoverChecklistKey?: string;
   status: ProjectWorkflowCommercialFactStatus;
   source: ProjectWorkflowCommercialFactSource;
   evidenceDocumentId: string | null;
@@ -255,6 +293,7 @@ export interface ProjectWorkflowCommercialReadiness {
   resolvedCount: number;
   totalCount: number;
   blockers?: Array<{ key: string; label: string; reasons: string[] }>;
+  pendingSignals?: Array<{ key: string; label: string; reasons: string[] }>;
   blockedOperations: Array<'PURCHASE' | 'HIRING' | 'MOBILIZATION'>;
 }
 
@@ -270,6 +309,16 @@ export interface ProjectWorkflow {
   leaderUserId: string;
   leader: { id: string; name: string; isActive: boolean };
   acceptedAt: string | null;
+  commercialExpectedStartDate: string | null;
+  commercialExpectedDurationDays: number | null;
+  commercialWhatsappGroupCreated: boolean | null;
+  commercialWhatsappGroupUrl: string | null;
+  commercialParticipantsIncluded: boolean | null;
+  commercialClientContactName: string | null;
+  commercialClientContactPhone: string | null;
+  commercialClientContactEmail: string | null;
+  commercialAssumptions: string | null;
+  commercialSourceUpdatedAt: string | null;
   closedAt: string | null;
   closedBy: { id: string; name: string } | null;
   plannedMobilizationDate: string;
@@ -280,6 +329,7 @@ export interface ProjectWorkflow {
   criticalAnswers: ProjectWorkflowCriticalAnswer[];
   commercialFacts: ProjectWorkflowCommercialFact[];
   commercialReadiness: ProjectWorkflowCommercialReadiness;
+  documentationCategories: ProjectWorkflowDocumentationCategory[];
   documentRequirements: Record<'HANDOVER' | 'MOBILIZATION' | 'CLOSEOUT', ProjectDocumentRequirementSummary>;
   documentationReadiness: ProjectWorkflowDocumentationReadiness;
   planningReadiness: ProjectWorkflowPlanningReadiness;
@@ -436,14 +486,17 @@ export type ProjectWorkflowPatch =
   | { action: 'settings'; version: number; leaderUserId?: string; plannedMobilizationDate?: string }
   | { action: 'checklist'; version: number; key: string; status: ProjectWorkflowChecklistStatus; note?: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }
+  | { action: 'documentation_category'; version: number; type: ProjectWorkflowDocumentationType; required: boolean }
+  | { action: 'documentation_requirement_create'; version: number; type: ProjectWorkflowDocumentationType; name: string }
+  | { action: 'documentation_requirement_update'; version: number; requirementId: string; name?: string; status?: ProjectWorkflowDocumentationStatus; requestedAt?: string | null; confirmedAt?: string | null }
+  | { action: 'documentation_requirement_archive'; version: number; requirementId: string; archived: boolean }
   | { action: 'issue'; version: number; issueId: string; description: string; area: string; ownerName: string | null; requiredLeadTimeDays: number | null; dueDate: string | null; criticality: ProjectWorkflowCriticality; status: ProjectWorkflowIssueStatus }
   | { action: 'accept'; version: number }
   | { action: 'stage'; version: number; stage: ProjectWorkflowStage; reason?: string }
   | { action: 'demobilization'; version: number; mobilizationDate?: string | null; fieldCompletionDate?: string | null; returnDate?: string | null }
   | { action: 'post_job'; version: number; meetingDate?: string | null; fieldLeaderFeedback?: string | null; teamFeedback?: string | null; problemsFound?: string | null; solutionsAdopted?: string | null; improvementOpportunities?: string | null; lessonsLearned?: string | null; equipmentFeedback?: string | null; planningFeedback?: string | null }
   | { action: 'measurement'; version: number; quantitiesSummary?: string | null; additionalServicesNote?: string | null; evidenceNote?: string | null; executedAmount?: number | null; measuredAmount?: number | null; approvedAmount?: number | null; preparedAt?: string | null; sentAt?: string | null; approvedAt?: string | null }
-  | { action: 'authorize_mobilization'; version: number }
-  | { action: 'commercial_fact'; version: number; key: string; status: ProjectWorkflowCommercialFactStatus; evidenceDocumentId?: string | null; reference?: string | null; note?: string | null; occurredOn?: string | null };
+  | { action: 'authorize_mobilization'; version: number };
 
 const base = '/efetivo/project-workflow';
 

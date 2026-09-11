@@ -249,9 +249,9 @@ function ProjectCard({
           </small>
         ) : null}
         <small className={'project-workflow-commercial-badge is-' + workflow.commercialReadiness.status.toLowerCase()}>
-          Comercial: {workflow.commercialReadiness.status === 'RELEASED'
-            ? 'liberado'
-            : workflow.commercialReadiness.resolvedCount + '/' + workflow.commercialReadiness.totalCount}
+          Sinais comerciais: {workflow.commercialReadiness.status === 'RELEASED'
+            ? 'completos'
+            : workflow.commercialReadiness.resolvedCount + '/' + workflow.commercialReadiness.totalCount + ' recebidos'}
         </small>
         <small className={'project-workflow-documentation-badge is-' + workflow.documentationReadiness.status.toLowerCase()}>
           Documentação: {documentationLabel} · {workflow.documentationReadiness.completed}/{workflow.documentationReadiness.total}

@@ -9,8 +9,6 @@ import { makeProjectWorkflowSchemas } from '../../../../../shared/schemas/projec
 import type {
   ProjectWorkflowChecklist,
   ProjectWorkflowChecklistStatus,
-  ProjectWorkflowCommercialFact,
-  ProjectWorkflowCommercialFactStatus,
   ProjectWorkflowDetail,
   ProjectWorkflowIssue,
   ProjectWorkflowPatch,
@@ -27,10 +25,13 @@ import { ProjectPostJobPanel } from './ProjectPostJobPanel';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 import { ProjectDocumentsCategory } from './ProjectDocumentsCategory';
 import {
+  ProjectWorkflowCommercialSignals,
+  ProjectWorkflowDocumentationTracking,
+  ProjectWorkflowHandoverSignals
+} from './ProjectWorkflowIntakePanels';
+import {
   listProjectDocuments,
-  projectDocumentsQueryKey,
-  type ProjectDocument,
-  type ProjectDocumentType
+  projectDocumentsQueryKey
 } from '../../../api/projectDocuments';
 
 const sharedSchemas = makeProjectWorkflowSchemas(z);
@@ -93,34 +94,6 @@ function LegacyMissionStageForm({ mission, saving, canManage, onMove }: {
   );
 }
 
-function commercialFactSchema(item: ProjectWorkflowCommercialFact) {
-  return z.object({
-    status: z.enum(['PENDING', 'CONFIRMED', 'NOT_APPLICABLE']),
-    reference: z.string().trim().max(500, 'A referência deve ter no máximo 500 caracteres.'),
-    note: z.string().trim().max(1000, 'A observação deve ter no máximo 1000 caracteres.'),
-    occurredOn: z.string(),
-    evidenceDocumentId: z.string()
-  }).superRefine((value, ctx) => {
-    if (value.status === 'NOT_APPLICABLE') {
-      if (!item.allowNotApplicable) ctx.addIssue({ code: 'custom', path: ['status'], message: 'Este fato não aceita “não aplicável”.' });
-      if (!value.note) ctx.addIssue({ code: 'custom', path: ['note'], message: 'Justifique por que este fato não se aplica.' });
-    }
-    if (value.status !== 'CONFIRMED') return;
-    if (!value.occurredOn) ctx.addIssue({ code: 'custom', path: ['occurredOn'], message: 'Informe a data da confirmação.' });
-    if (item.evidence === 'reference' && !value.reference && !value.evidenceDocumentId) ctx.addIssue({ code: 'custom', path: ['reference'], message: 'Informe a referência ou selecione um documento.' });
-    if (item.evidence === 'note' && !value.note) ctx.addIssue({ code: 'custom', path: ['note'], message: 'Descreva a condição comercial definida.' });
-  });
-}
-type CommercialFactValues = { status: ProjectWorkflowCommercialFactStatus; evidenceDocumentId: string; reference: string; note: string; occurredOn: string };
-
-const commercialEvidenceTypes: Record<string, ProjectDocumentType[]> = {
-  COMMERCIAL_PROPOSAL_CREATED: ['COMMERCIAL_PROPOSAL'],
-  TECHNICAL_PROPOSAL_CREATED: ['TECHNICAL_PROPOSAL'],
-  PROPOSAL_ACCEPTED: ['COMMERCIAL_PROPOSAL', 'TECHNICAL_PROPOSAL'],
-  PURCHASE_ORDER_RECEIVED: ['PURCHASE_ORDER'],
-  CONTRACT_SIGNED: ['CONTRACT']
-};
-
 function fieldClass(error?: unknown) {
   return `field-group ${error ? 'field-invalid' : ''}`;
 }
@@ -148,8 +121,9 @@ function StartWorkflowForm({ detail, leaders, saving, onStart }: {
           {errors.leaderUserId ? <span className="field-error">{errors.leaderUserId.message}</span> : null}
         </div>
         <div className={fieldClass(errors.plannedMobilizationDate)}>
-          <label htmlFor="workflow-start-date">Previsão de mobilização *</label>
+          <label htmlFor="workflow-start-date">Mobilização operacional prevista *</label>
           <input id="workflow-start-date" type="date" disabled={saving} aria-invalid={Boolean(errors.plannedMobilizationDate)} {...register('plannedMobilizationDate')} />
+          <span className="field-hint">Data do planejamento usada nos marcos D-90, D-30 e D-15.</span>
           {errors.plannedMobilizationDate ? <span className="field-error">{errors.plannedMobilizationDate.message}</span> : null}
         </div>
       </div>
@@ -187,8 +161,9 @@ function WorkflowSettingsForm({ detail, leaders, saving, onPatch }: {
           {!workflow.permissions.canChangeLeader ? <span className="field-hint">Somente o gestor pode trocar o líder.</span> : null}
         </div>
         <div className={fieldClass(errors.plannedMobilizationDate)}>
-          <label htmlFor="workflow-date">Previsão de mobilização *</label>
+          <label htmlFor="workflow-date">Mobilização operacional prevista *</label>
           <input id="workflow-date" type="date" disabled={saving || !workflow.permissions.canEdit} aria-invalid={Boolean(errors.plannedMobilizationDate)} {...register('plannedMobilizationDate')} />
+          <span className="field-hint">Independente da previsão comercial recebida do CRM.</span>
           {errors.plannedMobilizationDate ? <span className="field-error">{errors.plannedMobilizationDate.message}</span> : null}
         </div>
       </div>
@@ -278,15 +253,18 @@ function ChecklistEditor({ item, version, saving, canEdit, onPatch }: {
     defaultValues: { status: item.status, note: item.note || '' }
   });
   useEffect(() => reset({ status: item.status, note: item.note || '' }), [item.note, item.status, reset]);
-  return (
-    <form className="project-workflow-check-item" noValidate onSubmit={handleSubmit(values => onPatch({
+  const save = handleSubmit(values => onPatch({
       action: 'checklist', version, key: item.key, status: values.status as ProjectWorkflowChecklistStatus, note: values.note || null
-    }))}>
+    }));
+  const statusField = register('status', { onChange: () => { queueMicrotask(() => void save()); } });
+  const noteField = register('note');
+  return (
+    <form className="project-workflow-check-item" noValidate onSubmit={event => { event.preventDefault(); void save(); }}>
       <span>{item.label}</span>
       <div className="project-workflow-check-controls">
-        <div className={fieldClass(errors.status)}><label className="sr-only" htmlFor={`workflow-status-${item.key}`}>Situação</label><select id={`workflow-status-${item.key}`} disabled={saving || !canEdit} {...register('status')}><option value="PENDING">Pendente</option><option value="DONE">Concluído</option><option value="NOT_APPLICABLE">Não se aplica</option></select></div>
-        <div className={fieldClass(errors.note)}><label className="sr-only" htmlFor={`workflow-note-${item.key}`}>Observação</label><input id={`workflow-note-${item.key}`} placeholder="Observação ou evidência" disabled={saving || !canEdit} aria-invalid={Boolean(errors.note)} {...register('note')} />{errors.note ? <span className="field-error">{errors.note.message}</span> : null}</div>
-        {canEdit ? <Button type="submit" variant="mini" disabled={saving || !isDirty}>Salvar</Button> : null}
+        <div className={fieldClass(errors.status)}><label className="sr-only" htmlFor={`workflow-status-${item.key}`}>Situação</label><select id={`workflow-status-${item.key}`} disabled={saving || !canEdit} {...statusField}><option value="PENDING">Pendente</option><option value="DONE">Concluído</option><option value="NOT_APPLICABLE">Não se aplica</option></select></div>
+        <div className={fieldClass(errors.note)}><label className="sr-only" htmlFor={`workflow-note-${item.key}`}>Observação</label><input id={`workflow-note-${item.key}`} placeholder="Observação ou evidência" disabled={saving || !canEdit} aria-invalid={Boolean(errors.note)} {...noteField} onBlur={event => { noteField.onBlur(event); if (isDirty) void save(); }} />{errors.note ? <span className="field-error">{errors.note.message}</span> : null}</div>
+        {canEdit ? <small className="project-workflow-autosave-label">Salvamento automático</small> : null}
       </div>
     </form>
   );
@@ -388,42 +366,6 @@ function ReopenProjectForm({ workflow, saving, onPatch }: {
   );
 }
 
-function CommercialFactEditor({ item, documents, version, saving, canEdit, onPatch }: {
-  item: ProjectWorkflowCommercialFact;
-  documents: ProjectDocument[];
-  version: number;
-  saving: boolean;
-  canEdit: boolean;
-  onPatch: (payload: ProjectWorkflowPatch) => void;
-}) {
-  const schema = commercialFactSchema(item);
-  const { register, handleSubmit, reset, watch, formState: { errors, isDirty } } = useForm<CommercialFactValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { status: item.status, evidenceDocumentId: item.evidenceDocumentId || '', reference: item.reference || '', note: item.note || '', occurredOn: item.occurredOn || '' }
-  });
-  useEffect(() => reset({ status: item.status, evidenceDocumentId: item.evidenceDocumentId || '', reference: item.reference || '', note: item.note || '', occurredOn: item.occurredOn || '' }), [item.evidenceDocumentId, item.note, item.occurredOn, item.reference, item.status, reset]);
-  const status = watch('status');
-  const readOnly = item.readOnly || !canEdit;
-  const eligibleDocuments = documents.filter(document => (commercialEvidenceTypes[item.key] || []).includes(document.type) && document.currentVersion && !document.archivedAt);
-  return (
-    <form className={`project-workflow-commercial-fact ${item.readOnly ? 'is-crm' : ''}`} noValidate onSubmit={handleSubmit(values => onPatch({
-      action: 'commercial_fact', version, key: item.key, status: values.status,
-      evidenceDocumentId: values.evidenceDocumentId || null, reference: values.reference || null, note: values.note || null, occurredOn: values.occurredOn || null
-    }))}>
-      <header><div><strong>{item.label}</strong><span>{item.source === 'CRM' ? 'Sincronizado pelo CRM' : 'Registro manual'}</span></div><span className={`project-workflow-fact-status is-${item.status.toLowerCase()}`}>{item.status === 'CONFIRMED' ? 'Confirmado' : item.status === 'NOT_APPLICABLE' ? 'Não aplicável' : 'Pendente'}</span></header>
-      <div className="project-workflow-commercial-fields">
-        <div className={fieldClass(errors.status)}><label htmlFor={`commercial-status-${item.key}`}>Situação *</label><select id={`commercial-status-${item.key}`} disabled={saving || readOnly} aria-invalid={Boolean(errors.status)} {...register('status')}><option value="PENDING">Pendente</option><option value="CONFIRMED">Confirmado</option>{item.allowNotApplicable ? <option value="NOT_APPLICABLE">Não aplicável</option> : null}</select>{errors.status ? <span className="field-error">{errors.status.message}</span> : null}</div>
-        <div className={fieldClass(errors.occurredOn)}><label htmlFor={`commercial-date-${item.key}`}>Data da confirmação {status === 'CONFIRMED' ? '*' : ''}</label><input id={`commercial-date-${item.key}`} type="date" disabled={saving || readOnly || status !== 'CONFIRMED'} aria-invalid={Boolean(errors.occurredOn)} {...register('occurredOn')} />{errors.occurredOn ? <span className="field-error">{errors.occurredOn.message}</span> : null}</div>
-        {item.evidence === 'reference' && eligibleDocuments.length ? <div className={fieldClass(errors.evidenceDocumentId)}><label htmlFor={`commercial-document-${item.key}`}>Documento do projeto</label><select id={`commercial-document-${item.key}`} disabled={saving || readOnly || status !== 'CONFIRMED'} {...register('evidenceDocumentId')}><option value="">Nenhum selecionado</option>{eligibleDocuments.map(document => <option value={document.id} key={document.id}>{document.title} · {document.currentVersion?.versionLabel || `versão ${document.currentVersion?.sequence}`}</option>)}</select></div> : null}
-        <div className={fieldClass(errors.reference)}><label htmlFor={`commercial-reference-${item.key}`}>Referência {status === 'CONFIRMED' && item.evidence === 'reference' ? '*' : ''}</label><input id={`commercial-reference-${item.key}`} placeholder="Número, revisão ou documento" disabled={saving || readOnly || status !== 'CONFIRMED'} aria-invalid={Boolean(errors.reference)} {...register('reference')} />{errors.reference ? <span className="field-error">{errors.reference.message}</span> : null}</div>
-        <div className={fieldClass(errors.note)}><label htmlFor={`commercial-note-${item.key}`}>{status === 'NOT_APPLICABLE' ? 'Justificativa' : 'Detalhe / observação'} {(status === 'NOT_APPLICABLE' || (status === 'CONFIRMED' && item.evidence === 'note')) ? '*' : ''}</label><input id={`commercial-note-${item.key}`} placeholder="Condição, premissa ou justificativa" disabled={saving || readOnly || status === 'PENDING'} aria-invalid={Boolean(errors.note)} {...register('note')} />{errors.note ? <span className="field-error">{errors.note.message}</span> : null}</div>
-      </div>
-      {item.source === 'CRM' ? <p className="project-workflow-source-detail">Fonte CRM{item.sourceVersion ? ` · versão ${item.sourceVersion}` : ''}{item.lastSyncedAt ? ` · sincronizado em ${new Date(item.lastSyncedAt).toLocaleString('pt-BR')}` : ''}{item.externalUrl ? <> · <a href={item.externalUrl} target="_blank" rel="noreferrer">Abrir na origem</a></> : null}</p> : null}
-      {canEdit && !item.readOnly ? <div className="project-workflow-inline-actions"><Button type="submit" variant="mini" disabled={saving || !isDirty}>Salvar fato comercial</Button></div> : null}
-    </form>
-  );
-}
-
 function IssueEditor({ issue, version, saving, canEdit, onPatch }: {
   issue: ProjectWorkflowIssue;
   version: number;
@@ -475,7 +417,6 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
   if (typeof document === 'undefined' || (!detail && !loading && !error)) return null;
   const workflow = detail?.workflow || null;
   const stageChecklists = workflow?.checklists.filter(item => item.section === workflow.stage) || [];
-  const documentationChecklists = workflow?.checklists.filter(item => item.section === 'ADVANCE_DOCUMENTATION') || [];
   const planningSections = [
     ['D30_TEAM', 'Equipe'],
     ['D30_EQUIPMENT', 'Equipamentos'],
@@ -512,9 +453,6 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
     : workflow.milestones.nextMilestone
       ? `${workflow.milestones.nextMilestone.label} · ${displayDateOnly(workflow.milestones.nextMilestone.date)}`
       : workflow.milestones.daysUntilMobilization == null ? 'Data não definida' : 'Marcos preventivos atingidos';
-  const documentationStatus = workflow?.documentationReadiness.status === 'OK'
-    ? '🟢 OK'
-    : workflow?.documentationReadiness.status === 'CRITICAL' ? '🔴 Crítica' : '🟡 Em andamento';
   const footerIssues = workflow?.stage === 'HANDOVER'
     ? (workflow.permissions.canAccept ? workflow.handoverGate.issues : [`Aguardando ${workflow.leader.name} assumir formalmente o projeto`])
     : workflow?.stage === 'DEMOBILIZATION'
@@ -557,12 +495,12 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
               {workflow.stage !== 'FINISHED' && workflow.mobilizationGate.deadlineStatus === 'ATTENTION' ? <section className="project-workflow-deadline-risk is-attention"><strong>🟡 D-7 atingido</strong><span>{workflow.mobilizationGate.blockers.length} bloqueio(s) ainda precisam ser resolvidos.</span></section> : null}
               {workflow.stage !== 'FINISHED' && workflow.mobilizationGate.deadlineStatus === 'RISK' ? <section className="project-workflow-deadline-risk is-risk"><strong>🔴 Risco de mobilização</strong><span>D-1 atingido com {workflow.mobilizationGate.blockers.length} bloqueio(s).</span></section> : null}
               <WorkflowSettingsForm detail={detail} leaders={leaders} saving={saving} onPatch={onPatch} />
-              <ProjectWorkflowCategory title="Liberação comercial e contratual" description="A análise e o planejamento podem continuar; pendências bloqueiam compra, contratação e mobilização." status={workflow.commercialReadiness.status === 'RELEASED' ? '🟢 Liberado' : `🔴 Não liberado · ${workflow.commercialReadiness.resolvedCount}/${workflow.commercialReadiness.totalCount}`} complete={workflow.commercialReadiness.status === 'RELEASED'} className={`project-workflow-commercial is-${workflow.commercialReadiness.status.toLowerCase()}`} data-project-workflow-commercial><div className="project-workflow-commercial-list">{workflow.commercialFacts.map(item => <CommercialFactEditor item={item} documents={projectDocuments.data?.documents || []} version={workflow.version} saving={saving} canEdit={workflow.permissions.canEditCommercial} onPatch={onPatch} key={item.key} />)}</div></ProjectWorkflowCategory>
+              <ProjectWorkflowCommercialSignals workflow={workflow} />
               <ProjectDocumentsCategory projectId={workflow.projectId} users={leaders} />
-              {workflow.stage === 'HANDOVER' ? <WorkflowChecklistSection title="Checklist do handover" items={stageChecklists} version={workflow.version} saving={saving} onPatch={onPatch} /> : null}
+              {workflow.stage === 'HANDOVER' ? <ProjectWorkflowHandoverSignals detail={detail} documents={projectDocuments.data?.documents || []} /> : null}
               {workflow.stage === 'INITIAL_ANALYSIS' ? <WorkflowChecklistSection title="Checklist da análise inicial" items={stageChecklists} version={workflow.version} saving={saving} onPatch={onPatch} /> : null}
               {workflow.stage === 'WAITING_PLANNING' ? <ProjectWorkflowCategory title="🕐 Aguardando D-30" description="A análise foi concluída. O sistema continua acompanhando itens críticos e documentação até o início do planejamento." status={workflow.milestones.d30Date ? displayDateOnly(workflow.milestones.d30Date) : 'Data não definida'} className="project-workflow-waiting"><p className="project-workflow-category-note">Itens críticos e documentação continuam monitorados nesta etapa.</p></ProjectWorkflowCategory> : null}
-              <WorkflowChecklistSection title="Documentação antecipada" description="Requisitos do cliente, exames, treinamentos, certificações e regularização da equipe." status={`${documentationStatus} · ${workflow.documentationReadiness.completed}/${workflow.documentationReadiness.total}`} items={documentationChecklists} version={workflow.version} saving={saving} onPatch={onPatch} className={`project-workflow-documentation is-${workflow.documentationReadiness.status.toLowerCase()}`} />
+              <ProjectWorkflowDocumentationTracking workflow={workflow} saving={saving} onPatch={onPatch} />
               {workflow.stage === 'MOBILIZATION_PLANNING' ? <ProjectWorkflowCategory title="Planejamento da mobilização · D-30" description="Previsões organizadas por área responsável." status={`${workflow.planningReadiness.completed}/${workflow.planningReadiness.total} · ${workflow.planningReadiness.percentage}%`} complete={workflow.planningReadiness.percentage === 100} className="project-workflow-planning" data-project-workflow-d30><div className="project-workflow-planning-grid">{planningSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></ProjectWorkflowCategory> : null}
               {workflow.stage === 'PREPARATION' || workflow.stage === 'READY_TO_MOBILIZE' ? <ProjectWorkflowCategory title="Preparação para mobilização · D-15" description="Confirmações definitivas por frente responsável." status={`${workflow.preparationReadiness.completed}/${workflow.preparationReadiness.total} · ${workflow.preparationReadiness.percentage}%`} complete={workflow.preparationReadiness.percentage === 100} className="project-workflow-planning" data-project-workflow-d15><div className="project-workflow-planning-grid">{preparationSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></ProjectWorkflowCategory> : null}
               {['PREPARATION', 'READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION'].includes(workflow.stage) ? <MobilizationGate workflow={workflow} /> : null}

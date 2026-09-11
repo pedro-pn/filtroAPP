@@ -4,7 +4,7 @@ import {
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
   projectWorkflowMilestones
 } from '../../../../../shared/schemas/project-workflow.js';
-import { canEditEfetivoChecklistArea, canEditEfetivoCommercial } from '../access.js';
+import { canEditEfetivoChecklistArea } from '../access.js';
 import { hasModuleRole } from '../../module-roles.js';
 import { efetivoProjectWhere } from '../project-visibility.js';
 import { conflictError, notFound, planningError } from '../planning/errors.js';
@@ -17,6 +17,7 @@ import {
   allowedProjectWorkflowTransition,
   handoverGateIssues,
   normalizeProjectWorkflowCommercialFacts,
+  normalizeProjectWorkflowDocumentation,
   projectWorkflowCommercialReadiness,
   projectWorkflowCloseoutReadiness,
   projectWorkflowClosureGate,
@@ -45,6 +46,7 @@ const PROJECT_FIELDS = {
   code: true,
   name: true,
   clientName: true,
+  clientEmailPrimary: true,
   location: true,
   mobilizationDate: true,
   demobilizationDate: true
@@ -79,13 +81,6 @@ const PROJECT_GATE_DOCUMENT_SELECT = {
       }
     }
   }
-};
-const COMMERCIAL_DOCUMENT_TYPES = {
-  COMMERCIAL_PROPOSAL_CREATED: ['COMMERCIAL_PROPOSAL'],
-  TECHNICAL_PROPOSAL_CREATED: ['TECHNICAL_PROPOSAL'],
-  PROPOSAL_ACCEPTED: ['COMMERCIAL_PROPOSAL', 'TECHNICAL_PROPOSAL'],
-  PURCHASE_ORDER_RECEIVED: ['PURCHASE_ORDER'],
-  CONTRACT_SIGNED: ['CONTRACT']
 };
 const OPERATIONAL_MISSION_QUERY = {
   where: { deletedAt: null, scheduleStatus: { not: 'CANCELLED' }, plan: { kind: 'OFFICIAL', status: 'ACTIVE' } },
@@ -129,6 +124,20 @@ const WORKFLOW_INCLUDE = {
   checklists: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
   criticalAnswers: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
   commercialFacts: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
+  documentationCategories: {
+    include: {
+      updatedBy: { select: { id: true, name: true } },
+      requirements: {
+        include: {
+          createdBy: { select: { id: true, name: true } },
+          updatedBy: { select: { id: true, name: true } },
+          history: { include: { actor: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } }
+        },
+        orderBy: { createdAt: 'asc' }
+      }
+    },
+    orderBy: { type: 'asc' }
+  },
   issues: { orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'asc' }] },
   events: {
     include: { actor: { select: { id: true, name: true } } },
@@ -270,10 +279,6 @@ export function canEditWorkflow(workflow, context) {
   );
 }
 
-function canEditCommercial(workflow, context) {
-  return Boolean(workflow && (contextIsManager(context) || canEditEfetivoCommercial(context.user)));
-}
-
 function checklistIsAvailable(workflow, definition) {
   if (definition?.stage == null || definition.stage === workflow?.stage) return true;
   return definition?.stage === 'PREPARATION' && workflow?.stage === 'READY_TO_MOBILIZE';
@@ -296,23 +301,32 @@ function publicPermissions(workflow, context) {
     canReopen: canManage && finished,
     canAccept: Boolean(workflow && isLeader && !workflow.acceptedAt && workflow.stage === 'HANDOVER'),
     canChangeLeader: Boolean(workflow && manager && !finished),
-    canEditCommercial: !finished && canEditCommercial(workflow, context),
+    canEditCommercial: false,
     canAuthorizeMobilization: Boolean(workflow && (manager || isLeader) && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(workflow.stage))
   };
 }
 
 function projectDocumentGateState(documents = []) {
   const activeDocuments = documents.filter(document => !document.archivedAt);
-  const evidenceKeys = new Set();
-  for (const document of activeDocuments) {
-    if (!projectDocumentReadiness(document).ready) continue;
-    if (document.type === 'COMMERCIAL_PROPOSAL') evidenceKeys.add('HANDOVER_COMMERCIAL_PROPOSAL');
-    if (document.type === 'TECHNICAL_PROPOSAL') evidenceKeys.add('HANDOVER_TECHNICAL_PROPOSAL');
-  }
   return {
-    documentRequirements: projectDocumentRequirements(activeDocuments),
-    documentEvidenceKeys: [...evidenceKeys]
+    documentRequirements: projectDocumentRequirements(activeDocuments)
   };
+}
+
+function publicDocumentationCategories(workflow) {
+  return normalizeProjectWorkflowDocumentation(workflow).map(category => ({
+    ...category,
+    requirements: category.requirements.map(requirement => ({
+      ...requirement,
+      requestedAt: dateKey(requirement.requestedAt),
+      confirmedAt: dateKey(requirement.confirmedAt),
+      history: (requirement.history || []).map(entry => ({
+        ...entry,
+        changes: entry.changes || {},
+        actor: entry.actor || null
+      }))
+    }))
+  }));
 }
 
 async function loadProjectDocumentGateState(database, projectId) {
@@ -353,12 +367,13 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     occurredOn: dateKey(fact.occurredOn)
   }));
   const commercialReadiness = projectWorkflowCommercialReadiness({ commercialFacts });
+  const documentationCategories = publicDocumentationCategories(workflow);
   const issues = (workflow.issues || []).map(issue => ({
     ...issue,
     dueDate: dateKey(issue.dueDate),
     overdue: issue.status !== 'RESOLVED' && Boolean(issue.dueDate) && dateKey(issue.dueDate) < today
   }));
-  const documentationReadiness = projectWorkflowDocumentationReadiness({ checklists, issues }, milestones, today);
+  const documentationReadiness = projectWorkflowDocumentationReadiness({ documentationCategories }, milestones, today);
   const planningReadiness = projectWorkflowPlanningReadiness({ checklists });
   const preparationReadiness = projectWorkflowPreparationReadiness({ checklists });
   const demobilizationReadiness = projectWorkflowDemobilizationReadiness({ checklists });
@@ -366,13 +381,13 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
   const closeoutReadiness = projectWorkflowCloseoutReadiness({ checklists });
   const closureReadiness = projectWorkflowClosureReadiness({ checklists });
   const closureGate = projectWorkflowClosureGate({ ...workflowWithDocuments, checklists, issues });
-  const mobilizationGate = projectWorkflowMobilizationGate({ ...workflowWithDocuments, checklists, commercialFacts, issues }, milestones, today);
+  const mobilizationGate = projectWorkflowMobilizationGate({ ...workflowWithDocuments, checklists, commercialFacts, documentationCategories, issues }, milestones, today);
   const mobilizationAuthorization = projectWorkflowMobilizationAuthorization(workflow, mobilizationGate);
   const permissions = publicPermissions(workflow, context);
   const transitionOptions = PROJECT_WORKFLOW_STAGES
     .filter(stage => allowedProjectWorkflowTransition(workflow.stage, stage))
     .map(stage => {
-      const gateIssues = projectWorkflowTransitionIssues({ ...workflowWithDocuments, checklists, commercialFacts, issues, demobilizationDate }, stage);
+      const gateIssues = projectWorkflowTransitionIssues({ ...workflowWithDocuments, checklists, commercialFacts, documentationCategories, issues, demobilizationDate }, stage);
       const hasPermission = workflow.stage === 'FINISHED' && stage === 'FINAL_MEASUREMENT'
         ? permissions.canReopen
         : permissions.canEdit;
@@ -384,12 +399,14 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
   return {
     ...workflow,
     plannedMobilizationDate: dateKey(workflow.plannedMobilizationDate),
+    commercialExpectedStartDate: dateKey(workflow.commercialExpectedStartDate),
     fieldCompletionDate: dateKey(workflow.fieldCompletionDate),
     demobilizationDate: dateKey(demobilizationDate),
     checklists,
     criticalAnswers,
     commercialFacts,
     commercialReadiness,
+    documentationCategories,
     documentRequirements: documentState.documentRequirements,
     documentationReadiness,
     planningReadiness,
@@ -531,8 +548,16 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
             leader: { select: { id: true, name: true, isActive: true } },
             closedBy: { select: { id: true, name: true } },
             checklists: { select: { key: true, status: true } },
-            issues: { select: { id: true, status: true, dueDate: true, criticality: true, area: true, description: true } },
+            issues: { select: { id: true, sourceQuestion: true, status: true, dueDate: true, criticality: true, area: true, description: true } },
             commercialFacts: { select: { key: true, status: true, source: true, evidenceDocumentId: true, reference: true, note: true, occurredOn: true } },
+            documentationCategories: {
+              select: {
+                id: true,
+                type: true,
+                required: true,
+                requirements: { select: { id: true, name: true, status: true, requestedAt: true, confirmedAt: true, archivedAt: true } }
+              }
+            },
             postJob: { select: { meetingDate: true, serviceTypes: true, qualityRecord: { select: { id: true, number: true, deletedAt: true } } } },
             measurement: { select: { executedAmount: true, measuredAmount: true, approvedAmount: true, preparedAt: true, sentAt: true, approvedAt: true } }
           }
@@ -637,6 +662,7 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
       code: project.code,
       name: project.name,
       clientName: project.clientName,
+      clientEmailPrimary: project.clientEmailPrimary,
       location: project.location,
       mobilizationDate: dateKey(project.mobilizationDate),
       demobilizationDate: dateKey(project.demobilizationDate),
@@ -669,14 +695,7 @@ export async function startProjectWorkflow(projectId, payload, context = {}, dep
         data: {
           projectId,
           leaderUserId: payload.leaderUserId,
-          plannedMobilizationDate: utcDate(payload.plannedMobilizationDate),
-          checklists: {
-            create: ['HANDOVER_PROJECT_CREATED', 'HANDOVER_LEADER_DEFINED'].map(key => ({
-              key,
-              status: 'DONE',
-              updatedByUserId: context.actorUserId || null
-            }))
-          }
+          plannedMobilizationDate: utcDate(payload.plannedMobilizationDate)
         }
       });
     } catch (error) {
@@ -706,15 +725,6 @@ function assertEditable(workflow, context) {
     throw planningError('A alteração é restrita ao gestor do Efetivo ou ao Líder de Projetos designado.', {
       statusCode: 403,
       code: 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
-    });
-  }
-}
-
-function assertCommercialEditable(workflow, context) {
-  if (!canEditCommercial(workflow, context)) {
-    throw planningError('A alteração da frente comercial é restrita ao Comercial ou ao gestor do Efetivo.', {
-      statusCode: 403,
-      code: 'PROJECT_WORKFLOW_COMMERCIAL_EDIT_FORBIDDEN'
     });
   }
 }
@@ -793,6 +803,7 @@ async function applyCriticalAnswer(tx, workflow, payload, context) {
   });
   if (!payload.answer) return;
   const question = PROJECT_WORKFLOW_CRITICAL_QUESTIONS.find(item => item.key === payload.key);
+  if (question.createsIssue === false) return;
   await tx.projectWorkflowIssue.upsert({
     where: { projectId_sourceQuestion: { projectId: workflow.projectId, sourceQuestion: payload.key } },
     create: {
@@ -805,6 +816,99 @@ async function applyCriticalAnswer(tx, workflow, payload, context) {
     },
     update: {}
   });
+}
+
+async function documentationRequirementForProject(tx, projectId, requirementId) {
+  const requirement = await tx.projectWorkflowDocumentationRequirement.findFirst({
+    where: { id: requirementId, category: { projectId } }
+  });
+  if (!requirement) throw notFound('Requisito documental não encontrado neste projeto.');
+  return requirement;
+}
+
+function documentationSnapshot(requirement) {
+  return {
+    name: requirement.name,
+    status: requirement.status,
+    requestedAt: dateKey(requirement.requestedAt),
+    confirmedAt: dateKey(requirement.confirmedAt),
+    archivedAt: requirement.archivedAt instanceof Date ? requirement.archivedAt.toISOString() : requirement.archivedAt || null
+  };
+}
+
+async function recordDocumentationHistory(tx, requirementId, actorUserId, before, after) {
+  await tx.projectWorkflowDocumentationHistory.create({
+    data: { requirementId, actorUserId: actorUserId || null, changes: { before, after } }
+  });
+}
+
+async function applyDocumentationCategory(tx, workflow, payload, context) {
+  await tx.projectWorkflowDocumentationCategory.upsert({
+    where: { projectId_type: { projectId: workflow.projectId, type: payload.type } },
+    create: { projectId: workflow.projectId, type: payload.type, required: payload.required, updatedByUserId: context.actorUserId || null },
+    update: { required: payload.required, updatedByUserId: context.actorUserId || null }
+  });
+}
+
+async function applyDocumentationRequirementCreate(tx, workflow, payload, context) {
+  const category = await tx.projectWorkflowDocumentationCategory.upsert({
+    where: { projectId_type: { projectId: workflow.projectId, type: payload.type } },
+    create: { projectId: workflow.projectId, type: payload.type, required: true, updatedByUserId: context.actorUserId || null },
+    update: { required: true, updatedByUserId: context.actorUserId || null }
+  });
+  const requirement = await tx.projectWorkflowDocumentationRequirement.create({
+    data: {
+      categoryId: category.id,
+      name: payload.name,
+      createdByUserId: context.actorUserId || null,
+      updatedByUserId: context.actorUserId || null
+    }
+  });
+  await recordDocumentationHistory(tx, requirement.id, context.actorUserId, null, documentationSnapshot(requirement));
+}
+
+async function applyDocumentationRequirementUpdate(tx, workflow, payload, context) {
+  const requirement = await documentationRequirementForProject(tx, workflow.projectId, payload.requirementId);
+  const before = documentationSnapshot(requirement);
+  const status = payload.status || requirement.status;
+  let requestedAt = Object.hasOwn(payload, 'requestedAt') ? payload.requestedAt : dateKey(requirement.requestedAt);
+  let confirmedAt = Object.hasOwn(payload, 'confirmedAt') ? payload.confirmedAt : dateKey(requirement.confirmedAt);
+  if (status === 'PENDING') {
+    requestedAt = null;
+    confirmedAt = null;
+  } else if (status === 'REQUESTED') {
+    confirmedAt = null;
+  }
+  if (status !== 'PENDING' && !requestedAt) {
+    throw planningError('Informe a data em que a solicitação foi feita.', { code: 'PROJECT_WORKFLOW_DOCUMENTATION_REQUEST_DATE_REQUIRED' });
+  }
+  if (status === 'CONFIRMED' && !confirmedAt) {
+    throw planningError('Informe a data da confirmação.', { code: 'PROJECT_WORKFLOW_DOCUMENTATION_CONFIRMATION_DATE_REQUIRED' });
+  }
+  if (requestedAt && confirmedAt && requestedAt > confirmedAt) {
+    throw planningError('A confirmação não pode ser anterior à solicitação.', { code: 'PROJECT_WORKFLOW_DOCUMENTATION_DATE_ORDER_INVALID' });
+  }
+  const updated = await tx.projectWorkflowDocumentationRequirement.update({
+    where: { id: requirement.id },
+    data: {
+      ...(payload.name ? { name: payload.name } : {}),
+      status,
+      requestedAt: requestedAt ? utcDate(requestedAt) : null,
+      confirmedAt: confirmedAt ? utcDate(confirmedAt) : null,
+      updatedByUserId: context.actorUserId || null
+    }
+  });
+  await recordDocumentationHistory(tx, requirement.id, context.actorUserId, before, documentationSnapshot(updated));
+}
+
+async function applyDocumentationRequirementArchive(tx, workflow, payload, context, now) {
+  const requirement = await documentationRequirementForProject(tx, workflow.projectId, payload.requirementId);
+  const before = documentationSnapshot(requirement);
+  const updated = await tx.projectWorkflowDocumentationRequirement.update({
+    where: { id: requirement.id },
+    data: { archivedAt: payload.archived ? now : null, updatedByUserId: context.actorUserId || null }
+  });
+  await recordDocumentationHistory(tx, requirement.id, context.actorUserId, before, documentationSnapshot(updated));
 }
 
 async function applyIssue(tx, workflow, payload) {
@@ -821,57 +925,6 @@ async function applyIssue(tx, workflow, payload) {
       criticality: payload.criticality,
       status: payload.status
     }
-  });
-}
-
-async function applyCommercialFact(tx, workflow, payload, context) {
-  const existing = await tx.projectWorkflowCommercialFact.findUnique({
-    where: { projectId_key: { projectId: workflow.projectId, key: payload.key } }
-  });
-  if (existing?.source === 'CRM') {
-    throw conflictError('Este fato é sincronizado pelo CRM e deve ser corrigido na origem.', [], 'PROJECT_WORKFLOW_CRM_FACT_READ_ONLY');
-  }
-  let evidenceDocumentId = null;
-  if (payload.status === 'CONFIRMED' && payload.evidenceDocumentId) {
-    const eligibleTypes = COMMERCIAL_DOCUMENT_TYPES[payload.key] || [];
-    const evidence = await tx.projectDocument.findFirst({
-      where: {
-        id: payload.evidenceDocumentId,
-        projectId: workflow.projectId,
-        archivedAt: null,
-        type: { in: eligibleTypes },
-        currentVersionId: { not: null }
-      },
-      select: PROJECT_GATE_DOCUMENT_SELECT
-    });
-    if (!evidence || !projectDocumentReadiness(evidence).ready) {
-      throw planningError('Selecione um documento vigente e compatível com este controle comercial.', {
-        code: 'PROJECT_WORKFLOW_COMMERCIAL_EVIDENCE_INVALID'
-      });
-    }
-    evidenceDocumentId = evidence.id;
-  }
-  const data = payload.status === 'PENDING'
-    ? { status: payload.status, evidenceDocumentId: null, reference: null, note: null, occurredOn: null }
-    : payload.status === 'NOT_APPLICABLE'
-      ? { status: payload.status, evidenceDocumentId: null, reference: null, note: payload.note || null, occurredOn: null }
-      : {
-          status: payload.status,
-          evidenceDocumentId,
-          reference: payload.reference || null,
-          note: payload.note || null,
-          occurredOn: utcDate(payload.occurredOn)
-        };
-  await tx.projectWorkflowCommercialFact.upsert({
-    where: { projectId_key: { projectId: workflow.projectId, key: payload.key } },
-    create: {
-      projectId: workflow.projectId,
-      key: payload.key,
-      source: 'MANUAL',
-      updatedByUserId: context.actorUserId || null,
-      ...data
-    },
-    update: { ...data, updatedByUserId: context.actorUserId || null }
   });
 }
 
@@ -1140,8 +1193,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
         code: 'PROJECT_WORKFLOW_FINISHED_READ_ONLY'
       });
     }
-    if (payload.action === 'commercial_fact') assertCommercialEditable(workflow, context);
-    else if (payload.action === 'checklist') assertChecklistEditable(workflow, payload.key, context);
+    if (payload.action === 'checklist') assertChecklistEditable(workflow, payload.key, context);
     else assertEditable(workflow, context);
     if (workflow.version !== payload.version) {
       throw conflictError('A gestão foi atualizada por outra pessoa. Recarregue os dados.', [], 'PROJECT_WORKFLOW_VERSION_CONFLICT');
@@ -1150,6 +1202,10 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     if (payload.action === 'settings') await applySettings(tx, workflow, payload, context);
     else if (payload.action === 'checklist') await applyChecklist(tx, workflow, payload, context);
     else if (payload.action === 'critical') await applyCriticalAnswer(tx, workflow, payload, context);
+    else if (payload.action === 'documentation_category') await applyDocumentationCategory(tx, workflow, payload, context);
+    else if (payload.action === 'documentation_requirement_create') await applyDocumentationRequirementCreate(tx, workflow, payload, context);
+    else if (payload.action === 'documentation_requirement_update') await applyDocumentationRequirementUpdate(tx, workflow, payload, context);
+    else if (payload.action === 'documentation_requirement_archive') await applyDocumentationRequirementArchive(tx, workflow, payload, context, now);
     else if (payload.action === 'issue') await applyIssue(tx, workflow, payload);
     else if (payload.action === 'accept') await applyAccept(tx, workflow, context, now);
     else if (payload.action === 'stage') await applyStage(tx, workflow, payload, now, context, dependencies);
@@ -1157,7 +1213,6 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'post_job') await applyPostJob(tx, workflow, payload, context, dependencies, now);
     else if (payload.action === 'measurement') await applyMeasurement(tx, workflow, payload, context);
     else if (payload.action === 'authorize_mobilization') await applyMobilizationAuthorization(tx, workflow, now);
-    else if (payload.action === 'commercial_fact') await applyCommercialFact(tx, workflow, payload, context);
     const eventData = { ...payload };
     delete eventData.version;
     await recordEvent(tx, projectId, context.actorUserId, `WORKFLOW_${payload.action.toUpperCase()}`, eventData);

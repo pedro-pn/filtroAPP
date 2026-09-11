@@ -98,6 +98,7 @@ function authorizedRomaneioWorkflow(projectId, overrides = {}) {
       reference: item.evidence === 'reference' ? 'PO-123' : null,
       note: item.evidence === 'note' ? 'Condição definida' : null
     })),
+    documentationCategories: ['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'].map(type => ({ type, required: false, requirements: [] })),
     issues: [],
     ...overrides
   };

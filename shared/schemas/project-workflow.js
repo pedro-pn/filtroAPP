@@ -29,9 +29,7 @@ export const PROJECT_WORKFLOW_STAGE_LABELS = {
 };
 
 export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
-  'HANDOVER',
   'INITIAL_ANALYSIS',
-  'ADVANCE_DOCUMENTATION',
   'D30_TEAM',
   'D30_EQUIPMENT',
   'D30_MATERIALS',
@@ -54,9 +52,7 @@ export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS = [
 ];
 
 export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
-  HANDOVER: 'Checklist do handover',
   INITIAL_ANALYSIS: 'Checklist da análise inicial',
-  ADVANCE_DOCUMENTATION: 'Documentação antecipada',
   D30_TEAM: 'Equipe',
   D30_EQUIPMENT: 'Equipamentos',
   D30_MATERIALS: 'Materiais e insumos',
@@ -81,17 +77,6 @@ export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
 const checklist = (key, stage, section, label, areaRoles = []) => ({ key, stage, section, label, areaRoles });
 
 export const PROJECT_WORKFLOW_CHECKLISTS = [
-  checklist('HANDOVER_PROJECT_CREATED', 'HANDOVER', 'HANDOVER', 'Projeto criado no sistema'),
-  checklist('HANDOVER_LEADER_DEFINED', 'HANDOVER', 'HANDOVER', 'Líder de Projetos definido'),
-  checklist('HANDOVER_WHATSAPP_GROUP', 'HANDOVER', 'HANDOVER', 'Grupo de WhatsApp criado pelo Comercial'),
-  checklist('HANDOVER_PROJECT_PARTICIPANTS', 'HANDOVER', 'HANDOVER', 'Áreas e demais envolvidos incluídos no grupo'),
-  checklist('HANDOVER_COMMERCIAL_PROPOSAL', 'HANDOVER', 'HANDOVER', 'Proposta comercial anexada'),
-  checklist('HANDOVER_TECHNICAL_PROPOSAL', 'HANDOVER', 'HANDOVER', 'Proposta técnica anexada'),
-  checklist('HANDOVER_SOURCE_DOCUMENTS', 'HANDOVER', 'HANDOVER', 'Documentos, desenhos e especificações da proposta anexados'),
-  checklist('HANDOVER_CLIENT_CONTACT', 'HANDOVER', 'HANDOVER', 'Contato responsável do cliente informado'),
-  checklist('HANDOVER_EXPECTED_START', 'HANDOVER', 'HANDOVER', 'Data prevista de início informada'),
-  checklist('HANDOVER_EXPECTED_DURATION', 'HANDOVER', 'HANDOVER', 'Prazo previsto informado'),
-  checklist('HANDOVER_RELEVANT_ASSUMPTIONS', 'HANDOVER', 'HANDOVER', 'Condições e premissas relevantes repassadas'),
   checklist('ANALYSIS_TECHNICAL_PROPOSAL', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Proposta técnica revisada'),
   checklist('ANALYSIS_COMMERCIAL_PROPOSAL', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Proposta comercial revisada'),
   checklist('ANALYSIS_SCOPE', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Escopo e quantitativos compreendidos'),
@@ -100,18 +85,6 @@ export const PROJECT_WORKFLOW_CHECKLISTS = [
   checklist('ANALYSIS_DATES', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Mobilização e início estimados'),
   checklist('ANALYSIS_COMMERCIAL_QUESTIONS', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Dúvidas comerciais levantadas e esclarecidas'),
   checklist('ANALYSIS_CLIENT_CONTACT', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Contato inicial com cliente realizado, quando necessário'),
-
-  checklist('DOCUMENT_CLIENT_REQUIREMENTS', null, 'ADVANCE_DOCUMENTATION', 'Requisitos documentais do cliente levantados', ['efetivo:administrative']),
-  checklist('DOCUMENT_STANDARD_VERIFIED', null, 'ADVANCE_DOCUMENTATION', 'Documentação padrão verificada', ['efetivo:administrative']),
-  checklist('DOCUMENT_EXAMS_IDENTIFIED', null, 'ADVANCE_DOCUMENTATION', 'Exames específicos identificados', ['efetivo:administrative']),
-  checklist('DOCUMENT_TRAININGS_IDENTIFIED', null, 'ADVANCE_DOCUMENTATION', 'Treinamentos específicos identificados', ['efetivo:administrative']),
-  checklist('DOCUMENT_CERTIFICATIONS_IDENTIFIED', null, 'ADVANCE_DOCUMENTATION', 'Certificações específicas identificadas', ['efetivo:administrative']),
-  checklist('DOCUMENT_LEAD_TIME_IDENTIFIED', null, 'ADVANCE_DOCUMENTATION', 'Prazo necessário para regularização identificado', ['efetivo:administrative']),
-  checklist('DOCUMENT_PEOPLE_QUANTITY_DEFINED', null, 'ADVANCE_DOCUMENTATION', 'Quantidade de pessoas necessária definida', ['efetivo:administrative']),
-  checklist('DOCUMENT_POTENTIAL_TEAM_DEFINED', null, 'ADVANCE_DOCUMENTATION', 'Grupo potencial de colaboradores definido com Operações', ['efetivo:administrative']),
-  checklist('DOCUMENT_EXAMS_REQUESTED', null, 'ADVANCE_DOCUMENTATION', 'Exames solicitados', ['efetivo:administrative']),
-  checklist('DOCUMENT_TRAININGS_REQUESTED', null, 'ADVANCE_DOCUMENTATION', 'Treinamentos solicitados', ['efetivo:administrative']),
-  checklist('DOCUMENT_REGULARIZED', null, 'ADVANCE_DOCUMENTATION', 'Documentações regularizadas', ['efetivo:administrative']),
 
   checklist('D30_TEAM_QUANTITY_CONFIRMED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Quantidade de pessoas confirmada', ['efetivo:operations']),
   checklist('D30_TEAM_ROLES_DEFINED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Funções definidas', ['efetivo:operations']),
@@ -274,8 +247,18 @@ export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS = [
     key: 'CLIENT_REQUIREMENTS',
     label: 'Existem treinamentos, exames ou documentos específicos do cliente?',
     area: 'Administrativo/RH',
-    issueDescription: 'Regularizar treinamentos, exames ou documentos específicos do cliente'
+    issueDescription: 'Regularizar treinamentos, exames ou documentos específicos do cliente',
+    createsIssue: false
   }
+];
+
+export const PROJECT_WORKFLOW_DOCUMENTATION_TYPES = ['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'];
+export const PROJECT_WORKFLOW_DOCUMENTATION_STATUSES = ['PENDING', 'REQUESTED', 'CONFIRMED'];
+export const PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS = [
+  { type: 'DOCUMENT', label: 'Documentos e cadastros', singularLabel: 'documento ou cadastro', nameLabel: 'Nome do documento ou cadastro' },
+  { type: 'EXAM', label: 'Exames', singularLabel: 'exame', nameLabel: 'Nome do exame' },
+  { type: 'TRAINING', label: 'Treinamentos', singularLabel: 'treinamento', nameLabel: 'Nome do treinamento' },
+  { type: 'CERTIFICATION', label: 'Certificações', singularLabel: 'certificação', nameLabel: 'Nome da certificação' }
 ];
 
 export const PROJECT_WORKFLOW_CHECKLIST_STATUSES = ['PENDING', 'DONE', 'NOT_APPLICABLE'];
@@ -285,8 +268,8 @@ export const PROJECT_WORKFLOW_CRITICALITIES = ['HIGH', 'MEDIUM', 'LOW'];
 export const PROJECT_WORKFLOW_COMMERCIAL_FACT_STATUSES = ['PENDING', 'CONFIRMED', 'NOT_APPLICABLE'];
 export const PROJECT_WORKFLOW_COMMERCIAL_FACT_SOURCES = ['MANUAL', 'CRM'];
 export const PROJECT_WORKFLOW_COMMERCIAL_FACTS = [
-  { key: 'COMMERCIAL_PROPOSAL_CREATED', label: 'Proposta comercial criada', allowNotApplicable: false, evidence: 'reference', handoverChecklistKey: 'HANDOVER_COMMERCIAL_PROPOSAL' },
-  { key: 'TECHNICAL_PROPOSAL_CREATED', label: 'Proposta técnica criada', allowNotApplicable: false, evidence: 'reference', handoverChecklistKey: 'HANDOVER_TECHNICAL_PROPOSAL' },
+  { key: 'COMMERCIAL_PROPOSAL_CREATED', label: 'Proposta comercial criada', allowNotApplicable: false, evidence: 'reference' },
+  { key: 'TECHNICAL_PROPOSAL_CREATED', label: 'Proposta técnica criada', allowNotApplicable: false, evidence: 'reference' },
   { key: 'PROPOSAL_ACCEPTED', label: 'Proposta aceita', allowNotApplicable: true, evidence: 'reference' },
   { key: 'PURCHASE_ORDER_RECEIVED', label: 'Pedido de compra recebido', allowNotApplicable: true, evidence: 'reference' },
   { key: 'CONTRACT_SIGNED', label: 'Contrato assinado', allowNotApplicable: true, evidence: 'reference' },
@@ -359,6 +342,40 @@ export function makeProjectWorkflowSchemas(z) {
     version,
     key: z.enum(PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(item => item.key)),
     answer: z.boolean()
+  }).strict();
+  const documentationCategory = z.object({
+    action: z.literal('documentation_category'),
+    version,
+    type: z.enum(PROJECT_WORKFLOW_DOCUMENTATION_TYPES),
+    required: z.boolean()
+  }).strict();
+  const documentationRequirementCreate = z.object({
+    action: z.literal('documentation_requirement_create'),
+    version,
+    type: z.enum(PROJECT_WORKFLOW_DOCUMENTATION_TYPES),
+    name: z.string().trim().min(1, 'Informe o nome.').max(240, 'O nome deve ter no máximo 240 caracteres.')
+  }).strict();
+  const documentationRequirementUpdate = z.object({
+    action: z.literal('documentation_requirement_update'),
+    version,
+    requirementId: id,
+    name: z.string().trim().min(1, 'Informe o nome.').max(240, 'O nome deve ter no máximo 240 caracteres.').optional(),
+    status: z.enum(PROJECT_WORKFLOW_DOCUMENTATION_STATUSES).optional(),
+    requestedAt: dateOnly.nullable().optional(),
+    confirmedAt: dateOnly.nullable().optional()
+  }).strict().superRefine((value, ctx) => {
+    if (!['name', 'status', 'requestedAt', 'confirmedAt'].some(key => Object.hasOwn(value, key))) {
+      ctx.addIssue({ code: 'custom', message: 'Informe ao menos uma alteração.' });
+    }
+    if (value.requestedAt && value.confirmedAt && value.requestedAt > value.confirmedAt) {
+      ctx.addIssue({ code: 'custom', path: ['confirmedAt'], message: 'A confirmação não pode ser anterior à solicitação.' });
+    }
+  });
+  const documentationRequirementArchive = z.object({
+    action: z.literal('documentation_requirement_archive'),
+    version,
+    requirementId: id,
+    archived: z.boolean()
   }).strict();
   const issue = z.object({
     action: z.literal('issue'),
@@ -457,12 +474,11 @@ export function makeProjectWorkflowSchemas(z) {
     }
   });
   const authorizeMobilization = z.object({ action: z.literal('authorize_mobilization'), version }).strict();
-  const commercialFact = makeProjectWorkflowCommercialFactSchema(z);
   return {
     start,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, critical, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization, commercialFact]),
+    patch: z.discriminatedUnion('action', [settings, checklist, critical, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

@@ -27,6 +27,7 @@ export function managedWorkflow(overrides = {}) {
       reference: item.evidence === 'reference' ? 'DOC-1' : null,
       note: item.evidence === 'note' ? 'Condição definida' : null
     })),
+    documentationCategories: ['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'].map(type => ({ type, required: false, requirements: [] })),
     issues: [],
     ...overrides
   };

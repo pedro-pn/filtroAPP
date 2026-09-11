@@ -142,23 +142,33 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
 
 test('detalhe mostra prontidão comercial e mantém ações de avanço no rodapé', () => {
   const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const intake = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
   const registry = fs.readFileSync(new URL('../../shared/modules/registry.json', import.meta.url), 'utf8');
-  assert.match(modal, /data-project-workflow-commercial/);
+  assert.match(intake, /data-project-workflow-commercial/);
   assert.match(modal, /project-workflow-modal-footer/);
   assert.match(modal, /Assumir e iniciar análise/);
-  assert.match(modal, /Sincronizado pelo CRM/);
-  assert.match(board, /Comercial:/);
+  assert.match(intake, /Sincronizado pelo CRM/);
+  assert.match(intake, /Nenhum item desta área gera pendência ou bloqueia/);
+  assert.doesNotMatch(intake, /Salvar fato comercial/);
+  assert.match(board, /Sinais comerciais:/);
   assert.match(registry, /efetivo:commercial/);
 });
 
 test('documentação antecipada, D-30 e papéis de área aparecem nas superfícies da gestão', () => {
   const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const intake = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
   const administration = fs.readFileSync(new URL('../src/pages/efetivo/components/AdministrationBoard.tsx', import.meta.url), 'utf8');
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
   const registry = fs.readFileSync(new URL('../../shared/modules/registry.json', import.meta.url), 'utf8');
-  assert.match(modal, /Documentação antecipada/);
+  assert.match(intake, /Documentação antecipada/);
+  assert.match(intake, /Data da solicitação/);
+  assert.match(intake, /Data da confirmação/);
+  assert.match(intake, /Histórico/);
+  assert.match(intake, /documentation_requirement_update/);
+  assert.match(modal, /Salvamento automático/);
+  assert.doesNotMatch(modal, />Salvar</);
   assert.match(modal, /data-project-workflow-d30/);
   assert.match(modal, /Aguardando D-30/);
   assert.doesNotMatch(modal, /item\.stage === \(workflow\.stage === 'HANDOVER'/);
@@ -220,14 +230,15 @@ test('etapa Em execução mostra painel operacional e desvios integrados', () =>
 
 test('Pós-job e categorias recolhíveis reduzem o volume do detalhe', () => {
   const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const intake = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
   const category = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowCategory.tsx', import.meta.url), 'utf8');
   const panel = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectPostJobPanel.tsx', import.meta.url), 'utf8');
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
   assert.match(category, /<details/);
   assert.match(category, /useState\(!complete\)/);
-  assert.match(modal, /Liberação comercial e contratual/);
-  assert.match(modal, /Documentação antecipada/);
+  assert.match(intake, /Liberação comercial e contratual/);
+  assert.match(intake, /Documentação antecipada/);
   assert.match(modal, /data-project-workflow-post-job/);
   assert.match(panel, /Lições aprendidas/);
   assert.match(panel, /Histórico relacionado/);

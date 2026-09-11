@@ -8,7 +8,7 @@ Decisões validadas em 11/09/2026 para orientar os próximos incrementos da Gest
 - O Nectar será a fonte oficial dos fatos comerciais e também receberá informações operacionais do FiltroAPP.
 - Integrações externas não movimentam o card automaticamente. Elas atualizam fatos, evidências, alertas e a prontidão das frentes afetadas.
 - Reservas e inconsistências vindas de Equipamentos ou Estoque geram avisos. Exceções podem ser tratadas manualmente, com responsável e justificativa, sem bloqueio técnico absoluto.
-- O checklist do workflow continua representando a confirmação humana, inclusive quando os dados de apoio vierem de outra plataforma.
+- Os checklists operacionais continuam representando confirmações humanas. Informações comerciais recebidas de outra plataforma aparecem como sinais de consulta.
 
 ## Integrações externas validadas
 

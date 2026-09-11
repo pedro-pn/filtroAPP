@@ -45,7 +45,7 @@ export const API_DATA_DOMAINS = Object.freeze([
       ...modelEntries(['EfetivoPlan', 'EfetivoMissionPlan', 'EfetivoMissionCycle', 'EfetivoMissionDemand', 'WorkforceHoliday'], 'PLANNED'),
       ...modelEntries(['EfetivoMissionAllocation', 'EfetivoAllocationCycle', 'EfetivoPlannedHire'], 'SENSITIVE'),
       ...modelEntries(['WorkforceCalendarState'], 'PROHIBITED'),
-      ...modelEntries(['EfetivoAuditEvent', 'ProjectWorkflow', 'ProjectWorkflowChecklist', 'ProjectWorkflowCriticalAnswer', 'ProjectWorkflowIssue', 'ProjectWorkflowCommercialFact', 'ProjectWorkflowEvent', 'ProjectWorkflowPostJob', 'ProjectWorkflowMeasurement', 'ProjectDocument', 'ProjectDocumentVersion'], 'RESERVED')
+      ...modelEntries(['EfetivoAuditEvent', 'ProjectWorkflow', 'ProjectWorkflowChecklist', 'ProjectWorkflowCriticalAnswer', 'ProjectWorkflowIssue', 'ProjectWorkflowCommercialFact', 'ProjectWorkflowDocumentationCategory', 'ProjectWorkflowDocumentationRequirement', 'ProjectWorkflowDocumentationHistory', 'ProjectWorkflowEvent', 'ProjectWorkflowPostJob', 'ProjectWorkflowMeasurement', 'ProjectDocument', 'ProjectDocumentVersion'], 'RESERVED')
     ],
     candidateScopes: ['efetivo.planos.read', 'efetivo.demandas.read', 'efetivo.alocacoes.read', 'efetivo.contratacoes.read', 'efetivo.feriados.read'], endpointFamilies: ['/efetivo/planos', '/efetivo/demandas', '/efetivo/alocacoes', '/efetivo/feriados'],
     excludedFields: ['salários', 'custos pessoais', 'observações livres', 'estado técnico', 'fatos comerciais', 'documentos e caminhos de arquivo', 'evento bruto', 'ator']

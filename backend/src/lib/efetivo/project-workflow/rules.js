@@ -1,7 +1,8 @@
 import {
   PROJECT_WORKFLOW_CHECKLISTS,
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
-  PROJECT_WORKFLOW_CRITICAL_QUESTIONS
+  PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
+  PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS
 } from '../../../../../shared/schemas/project-workflow.js';
 
 function answeredChecklistKeys(workflow, stage) {
@@ -9,14 +10,6 @@ function answeredChecklistKeys(workflow, stage) {
     .filter(item => item.status === 'DONE' || item.status === 'NOT_APPLICABLE')
     .filter(item => PROJECT_WORKFLOW_CHECKLISTS.some(definition => definition.key === item.key && definition.stage === stage))
     .map(item => item.key));
-  if (stage === 'HANDOVER') {
-    for (const key of workflow.documentEvidenceKeys || []) answered.add(key);
-    const factByKey = new Map((workflow.commercialFacts || []).map(item => [item.key, item]));
-    for (const definition of PROJECT_WORKFLOW_COMMERCIAL_FACTS) {
-      if (!definition.handoverChecklistKey) continue;
-      if (commercialFactIssues(definition, factByKey.get(definition.key)).length === 0) answered.add(definition.handoverChecklistKey);
-    }
-  }
   return answered;
 }
 
@@ -72,9 +65,30 @@ export function projectWorkflowCommercialReadiness(workflow) {
     status: blockers.length ? 'NOT_RELEASED' : 'RELEASED',
     resolvedCount: facts.length - blockers.length,
     totalCount: facts.length,
-    blockers,
-    blockedOperations: blockers.length ? ['PURCHASE', 'HIRING', 'MOBILIZATION'] : []
+    blockers: [],
+    pendingSignals: blockers,
+    blockedOperations: []
   };
+}
+
+export function normalizeProjectWorkflowDocumentation(workflow) {
+  const byType = new Map((workflow?.documentationCategories || []).map(item => [item.type, item]));
+  return PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS.map(definition => {
+    const category = byType.get(definition.type);
+    return {
+      id: null,
+      required: null,
+      updatedAt: null,
+      updatedBy: null,
+      requirements: [],
+      ...definition,
+      ...category,
+      requirements: (category?.requirements || []).map(requirement => ({
+        ...requirement,
+        history: requirement.history || []
+      }))
+    };
+  });
 }
 
 function resolvedChecklist(item) {
@@ -92,29 +106,45 @@ function checklistProgress(workflow, definitions) {
 }
 
 export function projectWorkflowDocumentationReadiness(workflow, milestones, today) {
-  const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === 'ADVANCE_DOCUMENTATION');
-  const byKey = new Map((workflow?.checklists || []).map(item => [item.key, item]));
-  const pending = definitions.filter(definition => !resolvedChecklist(byKey.get(definition.key)));
-  const criticalIssues = (workflow?.issues || []).filter(issue => {
-    if (issue.status === 'RESOLVED' || issue.criticality !== 'HIGH') return false;
-    const documentationArea = /administr|document|\brh\b/i.test(String(issue.area || ''));
-    const dueDate = issue.dueDate instanceof Date ? issue.dueDate.toISOString().slice(0, 10) : String(issue.dueDate || '').slice(0, 10);
-    return documentationArea && (issue.overdue === true || Boolean(dueDate && today && dueDate < today));
-  });
-  const urgentByDate = pending.length > 0
+  const categories = normalizeProjectWorkflowDocumentation(workflow);
+  const blockers = [];
+  let completed = 0;
+  for (const category of categories) {
+    const active = category.requirements.filter(item => !item.archivedAt);
+    if (category.required == null) {
+      blockers.push({ key: `DOCUMENTATION_${category.type}`, label: category.label, reason: 'Informar se este tipo é necessário' });
+      continue;
+    }
+    if (category.required === false) {
+      completed += 1;
+      continue;
+    }
+    if (!active.length) {
+      blockers.push({ key: `DOCUMENTATION_${category.type}`, label: category.label, reason: `Adicionar ao menos um ${category.singularLabel}` });
+      continue;
+    }
+    const pending = active.filter(item => item.status !== 'CONFIRMED' || !item.requestedAt || !item.confirmedAt);
+    if (!pending.length) {
+      completed += 1;
+      continue;
+    }
+    blockers.push(...pending.map(item => ({
+      key: `DOCUMENTATION_REQUIREMENT_${item.id}`,
+      label: item.name,
+      reason: item.status === 'PENDING' ? 'Solicitação pendente' : item.status === 'REQUESTED' ? 'Confirmação pendente' : 'Datas de acompanhamento incompletas'
+    })));
+  }
+  const urgentByDate = blockers.length > 0
     && milestones?.daysUntilMobilization != null
     && milestones.daysUntilMobilization <= 15;
-  const status = pending.length === 0 && criticalIssues.length === 0
+  const status = blockers.length === 0
     ? 'OK'
-    : urgentByDate || criticalIssues.length > 0 ? 'CRITICAL' : 'IN_PROGRESS';
+    : urgentByDate ? 'CRITICAL' : 'IN_PROGRESS';
   return {
     status,
-    completed: definitions.length - pending.length,
-    total: definitions.length,
-    blockers: [
-      ...pending.map(item => ({ key: item.key, label: item.label, reason: urgentByDate ? 'Pendente a até 15 dias da mobilização' : 'Pendente' })),
-      ...criticalIssues.map(issue => ({ key: issue.id, label: issue.description, reason: 'Pendência documental crítica vencida' }))
-    ]
+    completed,
+    total: categories.length,
+    blockers: blockers.map(item => ({ ...item, reason: urgentByDate ? `${item.reason} a até 15 dias da mobilização` : item.reason }))
   };
 }
 
@@ -276,17 +306,16 @@ export function projectWorkflowMobilizationGate(workflow, milestones = null, tod
   const commercialFront = {
     key: 'COMMERCIAL',
     label: 'Comercial',
-    status: commercial.status === 'RELEASED' ? 'READY' : 'BLOCKED',
+    status: 'READY',
     completed: commercial.resolvedCount,
     total: commercial.totalCount,
-    blockers: (commercial.blockers || []).map(item => ({ key: item.key, label: item.label, reason: item.reasons.join(' · ') }))
+    blockers: []
   };
   const teamDefinitions = checklistDefinitions({
     sections: ['D15_TEAM'],
     keys: ['D15_CLIENT_TEAM_RELEASED']
   });
   const documentDefinitions = checklistDefinitions({
-    sections: ['ADVANCE_DOCUMENTATION'],
     keys: [
       'D15_TEAM_INDIVIDUAL_DOCUMENTS_CHECKED',
       'D15_TEAM_EXAMS_RELEASED',
@@ -304,11 +333,11 @@ export function projectWorkflowMobilizationGate(workflow, milestones = null, tod
   const fronts = [
     commercialFront,
     readinessFromDefinitions(workflow, 'TEAM', 'Equipe', teamDefinitions),
-    readinessFromDefinitions(workflow, 'DOCUMENTATION', 'Documentação', documentDefinitions,
-      [
-        ...documentation.blockers.filter(item => !documentDefinitions.some(definition => definition.key === item.key)),
-        ...requiredDocumentBlockers
-      ]),
+    (() => {
+      const front = readinessFromDefinitions(workflow, 'DOCUMENTATION', 'Documentação', documentDefinitions,
+        [...documentation.blockers, ...requiredDocumentBlockers]);
+      return { ...front, completed: front.completed + documentation.completed, total: front.total + documentation.total };
+    })(),
     readinessFromDefinitions(workflow, 'EQUIPMENT', 'Equipamentos', checklistDefinitions({ sections: ['D15_EQUIPMENT'] })),
     readinessFromDefinitions(workflow, 'MATERIALS', 'Materiais', checklistDefinitions({ sections: ['D15_MATERIALS'] })),
     readinessFromDefinitions(workflow, 'QSMS', 'QSMS', checklistDefinitions({ sections: ['D15_QSMS'] })),
@@ -317,7 +346,7 @@ export function projectWorkflowMobilizationGate(workflow, milestones = null, tod
     readinessFromDefinitions(workflow, 'CLIENT', 'Cliente', checklistDefinitions({ sections: ['D15_CLIENT'] }))
   ];
   const preJob = readinessFromDefinitions(workflow, 'PRE_JOB', 'Pré-job', checklistDefinitions({ sections: ['D15_PRE_JOB'] }));
-  const criticalIssues = (workflow?.issues || []).filter(issue => issue.status !== 'RESOLVED' && issue.criticality === 'HIGH');
+  const criticalIssues = (workflow?.issues || []).filter(issue => issue.status !== 'RESOLVED' && issue.criticality === 'HIGH' && issue.sourceQuestion !== 'CLIENT_REQUIREMENTS');
   const rawBlockers = [
     ...fronts.flatMap(front => front.blockers.map(blocker => ({ ...blocker, front: front.key }))),
     ...preJob.blockers.map(blocker => ({ ...blocker, front: preJob.key })),
@@ -359,7 +388,7 @@ export function incompleteChecklistLabels(workflow, stage) {
 }
 
 export function handoverGateIssues(workflow) {
-  const issues = incompleteChecklistLabels(workflow, 'HANDOVER');
+  const issues = [];
   if (!workflow.leaderUserId) issues.push('Definir o Líder de Projetos');
   for (const blocker of workflow?.documentRequirements?.HANDOVER?.blockers || []) {
     issues.push(`${blocker.title}: ${blocker.reason}`);
@@ -389,7 +418,7 @@ export function analysisGateIssues(workflow) {
       issues.push(`Responder: ${question.label}`);
       continue;
     }
-    if (!answerByKey.get(question.key)) continue;
+    if (!answerByKey.get(question.key) || question.createsIssue === false) continue;
     const issue = issueByQuestion.get(question.key);
     if (!issue?.area || !issue?.ownerName || !issue?.requiredLeadTimeDays || !issue?.dueDate) {
       issues.push(`Encaminhar a pendência: ${question.issueDescription}`);
