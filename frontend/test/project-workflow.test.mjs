@@ -161,12 +161,18 @@ test('documentação antecipada, D-30 e papéis de área aparecem nas superfíci
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');
   const administration = fs.readFileSync(new URL('../src/pages/efetivo/components/AdministrationBoard.tsx', import.meta.url), 'utf8');
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  const sharedSchema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
   const registry = fs.readFileSync(new URL('../../shared/modules/registry.json', import.meta.url), 'utf8');
   assert.match(intake, /Documentação antecipada/);
   assert.match(intake, /Data da solicitação/);
   assert.match(intake, /Data da confirmação/);
   assert.match(intake, /Histórico/);
+  assert.match(intake, /É necessário \{category\.label\.toLocaleLowerCase\('pt-BR'\)\} para o projeto\?/);
   assert.match(intake, /documentation_requirement_update/);
+  assert.match(sharedSchema, /Documentos e cadastros adicionais/);
+  assert.match(sharedSchema, /Exames adicionais/);
+  assert.match(sharedSchema, /Treinamentos adicionais/);
+  assert.match(sharedSchema, /Certificações adicionais/);
   assert.match(modal, /Salvamento automático/);
   assert.doesNotMatch(modal, />Salvar</);
   assert.match(modal, /data-project-workflow-d30/);

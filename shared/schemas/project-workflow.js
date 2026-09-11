@@ -249,10 +249,10 @@ export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS = [
 export const PROJECT_WORKFLOW_DOCUMENTATION_TYPES = ['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'];
 export const PROJECT_WORKFLOW_DOCUMENTATION_STATUSES = ['PENDING', 'REQUESTED', 'CONFIRMED'];
 export const PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS = [
-  { type: 'DOCUMENT', label: 'Documentos e cadastros', singularLabel: 'documento ou cadastro', nameLabel: 'Nome do documento ou cadastro' },
-  { type: 'EXAM', label: 'Exames', singularLabel: 'exame', nameLabel: 'Nome do exame' },
-  { type: 'TRAINING', label: 'Treinamentos', singularLabel: 'treinamento', nameLabel: 'Nome do treinamento' },
-  { type: 'CERTIFICATION', label: 'Certificações', singularLabel: 'certificação', nameLabel: 'Nome da certificação' }
+  { type: 'DOCUMENT', label: 'Documentos e cadastros adicionais', singularLabel: 'documento ou cadastro adicional', nameLabel: 'Nome do documento ou cadastro adicional' },
+  { type: 'EXAM', label: 'Exames adicionais', singularLabel: 'exame adicional', nameLabel: 'Nome do exame adicional' },
+  { type: 'TRAINING', label: 'Treinamentos adicionais', singularLabel: 'treinamento adicional', nameLabel: 'Nome do treinamento adicional' },
+  { type: 'CERTIFICATION', label: 'Certificações adicionais', singularLabel: 'certificação adicional', nameLabel: 'Nome da certificação adicional' }
 ];
 
 export const PROJECT_WORKFLOW_CHECKLIST_STATUSES = ['PENDING', 'DONE', 'NOT_APPLICABLE'];
