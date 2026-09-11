@@ -21,6 +21,30 @@ import { HubModuleCard } from '../components/hub/HubModuleCard';
 import { AppIcon } from '../components/icons/AppIcon';
 import { Button } from '../components/ui/ds';
 import { roleHomePath } from '../auth/rolePath';
+import { canAccessOperationalModule } from '../auth/reportPermissions';
+import { canStartOperationalReportsNovelty, OPERATIONAL_REPORTS_NOVELTY_STORAGE_PREFIX } from '../utils/operationalReportsNovelty';
+import { markApiTokenPlaygroundNoveltySeen, shouldShowApiTokenPlaygroundNovelty } from './admin/apiTokenPlaygroundNovelty';
+function operationalNoveltySeen(userId: string) {
+  try {
+    return window.localStorage.getItem(
+      `${OPERATIONAL_REPORTS_NOVELTY_STORAGE_PREFIX}${userId}`
+    ) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markOperationalNoveltySeen(userId: string) {
+  try {
+    window.localStorage.setItem(
+      `${OPERATIONAL_REPORTS_NOVELTY_STORAGE_PREFIX}${userId}`,
+      '1'
+    );
+  } catch {
+    /* navegador sem armazenamento */
+  }
+}
+
 import { AppShell } from '../layout/AppShell';
 import { NAVIGATION_CHROME_ICONS } from '../layout/navigationIcons';
 import { createNavigationModel } from '../layout/navigationModel';
@@ -75,11 +99,13 @@ export function HubPage() {
   const [efetivoNoveltyActive, setEfetivoNoveltyActive] = useState(() =>
     shouldShowEfetivoHubNovelty(user)
   );
-  const shouldRedirect =
-    baseShouldRedirect &&
-    !acompNoveltyActive &&
-    !qualityNoveltyActive &&
-    !efetivoNoveltyActive;
+  const [operationalNoveltyActive, setOperationalNoveltyActive] = useState(() => {
+    const eligible = canAccessOperationalModule(user?.reportEmissionPermissions || []);
+    const seen = user ? operationalNoveltySeen(user.id) : false;
+    return canStartOperationalReportsNovelty({ user, eligible, seen });
+  });
+  const [apiTokenNoveltyActive, setApiTokenNoveltyActive] = useState(() => shouldShowApiTokenPlaygroundNovelty(user));
+  const shouldRedirect = baseShouldRedirect && !acompNoveltyActive && !qualityNoveltyActive && !efetivoNoveltyActive && !operationalNoveltyActive && !apiTokenNoveltyActive;
   const availableModuleCount = modules.filter(
     (module) => module.path && !module.disabled
   ).length;
@@ -90,6 +116,12 @@ export function HubPage() {
     );
     setQualityNoveltyActive(shouldShowQualidadeNovelty(user));
     setEfetivoNoveltyActive(shouldShowEfetivoHubNovelty(user));
+    setApiTokenNoveltyActive(shouldShowApiTokenPlaygroundNovelty(user));
+    const eligible = canAccessOperationalModule(user?.reportEmissionPermissions || []);
+    const seen = user ? operationalNoveltySeen(user.id) : false;
+    setOperationalNoveltyActive(
+      canStartOperationalReportsNovelty({ user, eligible, seen })
+    );
   }, [user]);
 
   const firstName = user?.name?.split(' ')[0] || 'Usuário';
@@ -191,7 +223,9 @@ export function HubPage() {
               const isNew =
                 (module.id === 'acompanhamento' && acompNoveltyActive) ||
                 (module.id === 'qualidade' && qualityNoveltyActive) ||
-                (module.id === 'efetivo' && efetivoNoveltyActive);
+                (module.id === 'efetivo' && efetivoNoveltyActive) ||
+                (module.id === 'maintenance-production' && operationalNoveltyActive) ||
+                (module.id === 'admin' && apiTokenNoveltyActive);
 
               return (
                 <HubModuleCard
@@ -210,6 +244,13 @@ export function HubPage() {
                           } else if (module.id === 'efetivo') {
                             markEfetivoHubNoveltySeen(user);
                             setEfetivoNoveltyActive(false);
+                          }
+                          if (module.id === 'maintenance-production' && user) {
+                            markOperationalNoveltySeen(user.id);
+                            setOperationalNoveltyActive(false);
+                          } else if (module.id === 'admin') {
+                            markApiTokenPlaygroundNoveltySeen(user);
+                            setApiTokenNoveltyActive(false);
                           }
                           navigate(path);
                         }
@@ -253,3 +294,4 @@ export function HubPage() {
     </AppShell>
   );
 }
+

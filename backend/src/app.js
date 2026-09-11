@@ -15,6 +15,7 @@ import { resolvePublicStockAttachment, stockAttachmentFileName } from './lib/est
 import { qualityAttachmentFileName, resolvePublicQualityAttachment } from './lib/qualidade/attachments.js';
 import { localizedZodErrorDetails, localizedZodIssues } from './lib/zod-error.js';
 import { requireAuth } from './middleware/auth.js';
+import { apiRequestContext, integrationApiBoundary } from './middleware/api-request-context.js';
 import { requestMetrics } from './middleware/request-metrics.js';
 import apiRouter from './routes/index.js';
 import {
@@ -30,10 +31,16 @@ const allowedOrigins = String(env.allowedOrigin || '')
   .filter(Boolean);
 
 export function sanitizedHttpErrorForObservability(error, req) {
-  const secret = String(req?.headers?.['x-signature-token'] || '').trim();
+  const secrets = [
+    String(req?.headers?.['x-signature-token'] || '').trim(),
+    String(req?.headers?.authorization || '').replace(/^Bearer\s+/i, '').trim()
+  ].filter(Boolean);
   const redact = value => {
-    const text = String(value || '');
-    return secret ? text.split(secret).join('[REDACTED]') : text;
+    let text = String(value || '');
+    for (const secret of secrets) text = text.split(secret).join('[REDACTED]');
+    return text
+      .replace(/fva_[A-Za-z0-9_-]{16}_[A-Za-z0-9_-]{20,}/g, '[REDACTED]')
+      .replace(/\bBearer\s+\S+/gi, 'Bearer [REDACTED]');
   };
   const sanitized = new Error(redact(error?.message || error || 'Erro HTTP'));
   sanitized.name = redact(error?.name || 'Error');
@@ -50,6 +57,12 @@ app.set('trust proxy', env.trustProxy);
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginResourcePolicy: false
+}));
+// Executa antes do CORS/body parser globais para que preflight, método e corpo
+// inválidos da API externa mantenham política fechada e envelope estável.
+app.use('/api/integracoes/v1', apiRequestContext(), integrationApiBoundary({
+  allowedOrigins: env.allowedOrigins,
+  requireHttps: env.nodeEnv === 'production'
 }));
 app.use(cors({
   origin(origin, callback) {

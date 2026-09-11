@@ -26,3 +26,12 @@ test('edição pré-seleciona colaboradores alocados sem duplicar IDs', async ()
   assert.deepEqual(team.toggleMissionCollaborator(['c2'], 'c1', true), ['c2', 'c1']);
   assert.deepEqual(team.toggleMissionCollaborator(['c2', 'c1'], 'c2', false), ['c1']);
 });
+
+test('filtro da seleção permite ativos, inativos e todos sem perder a equipe selecionada', async () => {
+  const team = await load('/src/utils/missionTeam.ts');
+  const people = [...collaborators, { id: 'c3', name: 'Pessoa desligada', role: 'Mantenedor I', jobRoleId: 'r2', isActive: false }];
+  assert.deepEqual(team.filterCollaboratorsByActivity(people, 'ACTIVE').map(person => person.id), ['c1', 'c2']);
+  assert.deepEqual(team.filterCollaboratorsByActivity(people, 'INACTIVE').map(person => person.id), ['c3']);
+  assert.deepEqual(team.filterCollaboratorsByActivity(people, 'ALL').map(person => person.id), ['c1', 'c2', 'c3']);
+  assert.deepEqual(team.toggleMissionCollaborator(['c1'], 'c3', true), ['c1', 'c3']);
+});

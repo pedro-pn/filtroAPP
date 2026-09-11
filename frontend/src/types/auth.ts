@@ -3,6 +3,7 @@ import type { PublicModuleRole } from '../modules/registry';
 export type UserRole = 'COLLABORATOR' | 'MANAGER' | 'COORDINATOR' | 'CLIENT';
 export type AccountType = 'ADMIN' | 'INTERNAL' | 'CLIENT';
 export type ModuleRole = PublicModuleRole;
+export type ReportEmissionPermission = 'SITE_RDO' | 'MAINTENANCE' | 'PRODUCTION';
 
 export interface AuthUser {
   id: string;
@@ -12,6 +13,7 @@ export interface AuthUser {
   role: UserRole;
   accountType: AccountType;
   moduleRoles: ModuleRole[];
+  reportEmissionPermissions: ReportEmissionPermission[];
   isActive: boolean;
   clientCnpj?: string | null;
   privacyPolicyAcceptedAt?: string | null;

@@ -1,4 +1,5 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { RotateCcw } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 import { uploadFiles, type UploadedFile } from '../../api/uploads';
 import { loadUploadAssetUrl } from '../../utils/uploadAssetUrl';
@@ -16,7 +17,7 @@ interface UploadFieldProps {
   onChange: (files: UploadedFile[]) => void;
 }
 
-type UploadValue = UploadedFile & {
+export type UploadPreviewFile = UploadedFile & {
   path?: string;
   storagePath?: string;
   dataUrl?: string;
@@ -28,12 +29,13 @@ type UploadValue = UploadedFile & {
   __previouslyAdded?: boolean;
 };
 
-interface UploadListItemProps {
+interface UploadPreviewListItemProps {
   disabled: boolean;
-  file: UploadValue;
+  file: UploadPreviewFile;
   index: number;
-  appearance: 'legacy' | 'design-system';
+  appearance?: 'legacy' | 'design-system';
   onRemove: (index: number) => void;
+  removed?: boolean;
 }
 
 function fileToDataUrl(file: File) {
@@ -45,7 +47,7 @@ function fileToDataUrl(file: File) {
   });
 }
 
-function rawFileUrl(file: UploadValue) {
+function rawFileUrl(file: UploadPreviewFile) {
   return file.url
     || file.path
     || file.storagePath
@@ -58,21 +60,21 @@ function rawFileUrl(file: UploadValue) {
     || '';
 }
 
-function isImageFile(file: UploadValue) {
+function isImageFile(file: UploadPreviewFile) {
   if ((file.mimeType || '').startsWith('image')) return true;
   const ext = (file.fileName || rawFileUrl(file)).split('.').pop()?.toLowerCase() || '';
   return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
 }
 
-function wasPreviouslyAdded(file: UploadValue) {
+function wasPreviouslyAdded(file: UploadPreviewFile) {
   return Boolean(file.previouslyAdded || file.__previouslyAdded);
 }
 
-function uploadFileKey(file: UploadValue) {
+function uploadFileKey(file: UploadPreviewFile) {
   return rawFileUrl(file) || `${file.fileName}-${file.mimeType || ''}`;
 }
 
-function UploadListItem({ disabled, file, index, appearance, onRemove }: UploadListItemProps) {
+export function UploadPreviewListItem({ disabled, file, index, appearance = 'legacy', onRemove, removed = false }: UploadPreviewListItemProps) {
   const [href, setHref] = useState('');
   const source = rawFileUrl(file);
 
@@ -100,7 +102,7 @@ function UploadListItem({ disabled, file, index, appearance, onRemove }: UploadL
   }, [source]);
 
   return (
-    <div className="upload-list-item">
+    <div className={`upload-list-item ${removed ? 'removed' : ''}`}>
       {href && isImageFile(file) ? (
         <a
           className="upload-list-preview"
@@ -130,9 +132,9 @@ function UploadListItem({ disabled, file, index, appearance, onRemove }: UploadL
         appearance === 'design-system' ? (
           <IconButton
             className="upload-remove-button"
-            icon={DS_ICONS.trash}
-            label={`Remover ${file.fileName}`}
-            variant="danger"
+            icon={removed ? RotateCcw : DS_ICONS.trash}
+            label={`${removed ? 'Restaurar' : 'Remover'} ${file.fileName}`}
+            variant={removed ? 'secondary' : 'danger'}
             size="sm"
             onClick={() => onRemove(index)}
           />
@@ -141,10 +143,10 @@ function UploadListItem({ disabled, file, index, appearance, onRemove }: UploadL
             className="upload-remove-button"
             type="button"
             onClick={() => onRemove(index)}
-            aria-label={`Remover ${file.fileName}`}
-            title="Remover"
+            aria-label={`${removed ? 'Restaurar' : 'Remover'} ${file.fileName}`}
+            title={removed ? 'Restaurar' : 'Remover'}
           >
-            X
+            {removed ? '↶' : 'X'}
           </button>
         )
       ) : null}
@@ -187,13 +189,13 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
     }
   }
 
-  function serverReference(file: UploadValue) {
+  function serverReference(file: UploadPreviewFile) {
     const raw = file.url || file.storagePath || file.path || file.publicUrl || file.source || file.src || file.href || '';
     return raw && !raw.startsWith('data:') ? raw : '';
   }
 
   function removeFile(index: number) {
-    const file = value[index] as UploadValue | undefined;
+    const file = value[index] as UploadPreviewFile | undefined;
     if (!file) return;
     const ref = serverReference(file);
     // A exclusão é global, mas só é efetivada ao SALVAR o relatório. Aqui apenas
@@ -208,7 +210,7 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
     onChange(value.filter((_, itemIndex) => itemIndex !== index));
   }
 
-  const hasPreviouslyAddedFiles = value.some(file => wasPreviouslyAdded(file as UploadValue));
+  const hasPreviouslyAddedFiles = value.some(file => wasPreviouslyAdded(file as UploadPreviewFile));
 
   function openPicker() {
     if (!disabled && !isUploading) inputRef.current?.click();
@@ -252,7 +254,7 @@ export function UploadField({ label, value, projectId, disabled = false, appeara
       {value.length ? (
         <div className="upload-list">
           {value.map((file, index) => (
-            <UploadListItem
+            <UploadPreviewListItem
               key={uploadFileKey(file)}
               disabled={disabled}
               file={file}

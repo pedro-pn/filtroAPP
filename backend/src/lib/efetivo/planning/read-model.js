@@ -7,6 +7,7 @@ import { buildVacationAlert } from './vacation-alerts.js';
 import { loadCorporateCalendar } from '../../calendar/corporate-calendar.js';
 import { missionEndsOnOrAfter } from './mission-period.js';
 import { missionCycles } from './allocation-period.js';
+import { efetivoProjectWhere } from '../project-visibility.js';
 
 const missionReadInclude = {
   project: { select: { id: true, code: true, name: true, clientName: true, location: true, mobilizationDate: true, demobilizationDate: true } },
@@ -31,6 +32,7 @@ export async function listPlanningProjects(filters = {}, dependencies = {}) {
     where: {
       isActive: true,
       deletedAt: null,
+      ...efetivoProjectWhere(),
       ...(filters.search ? {
         OR: [
           { code: { contains: filters.search, mode: 'insensitive' } },
@@ -99,6 +101,7 @@ export async function loadPlanningProjection({ date, planId = null }, dependenci
       where: {
         planId: plan.id,
         deletedAt: null,
+        project: efetivoProjectWhere(),
         mobilizationDate: { lte: utcDate(endDate) },
         ...missionEndsOnOrAfter(utcDate(startDate))
       },
@@ -249,7 +252,17 @@ export async function listPlanningCollaborators(filters, dependencies = {}) {
     committedByPerson.set(collaborator.id, personUtilization.committedPersonDays);
     availableByPerson.set(collaborator.id, personUtilization.availablePersonDays);
   }
-  return projection.collaborators.filter(item => {
+  const collaborators = [...projection.collaborators];
+  if (filters.includeInactive) {
+    const database = await resolvePlanningDatabase(dependencies.database);
+    const inactive = await database.collaborator.findMany({
+      where: { isActive: false },
+      select: { id: true, name: true, jobRoleId: true, jobRole: { select: { id: true, name: true } }, admissionDate: true, terminationDate: true, isActive: true }
+    });
+    const includedIds = new Set(collaborators.map(person => person.id));
+    collaborators.push(...inactive.filter(person => !includedIds.has(person.id)));
+  }
+  return collaborators.filter(item => {
     if (filters.jobRoleId && item.jobRoleId !== filters.jobRoleId) return false;
     return !filters.search || item.name.toLocaleLowerCase('pt-BR').includes(filters.search.toLocaleLowerCase('pt-BR'));
   }).map(collaborator => ({
@@ -278,6 +291,7 @@ export async function listPendingMissionProjects(filters = {}, dependencies = {}
     where: {
       isActive: true,
       deletedAt: null,
+      ...efetivoProjectWhere(),
       ...(plan ? { efetivoMissionPlans: { none: { planId: plan.id, deletedAt: null } } } : {})
     },
     select: {

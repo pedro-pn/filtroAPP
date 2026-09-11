@@ -6,6 +6,7 @@ import {
   buildPlannedRoleCounts,
   buildProjectAppropriationDays,
   buildProjectDetailCollaborator,
+  buildProjectReportHours,
   buildRecentReportDays
 } from '../src/lib/acompanhamento/project-detail.js';
 import { isSalaryCategory } from '../src/lib/acompanhamento/salary.js';
@@ -113,13 +114,47 @@ test('buildProjectDetailCollaborator separa apropriação financeira da jornada 
     diasApropriados: [],
     sobreposicaoHoras: 0,
     horasRelatoriosPorData: [
-      { data: '2026-07-16', horas: 8 },
-      { data: '2026-07-17', horas: 2.5 }
+      { data: '2026-07-16', horas: 8, relatorios: [] },
+      { data: '2026-07-17', horas: 2.5, relatorios: [] }
     ],
     custo: 212.5,
     custoHora: 50,
     custoDeslocamento: 75
   });
+});
+
+test('jornada sem apropriação conserva cada relatório-fonte e respeita a equipe do turno', () => {
+  const reports = [
+    {
+      id: 'rdo-7', projectId: 'p-5761', reportType: 'RDO', sequenceNumber: 7,
+      reportDate: '2026-02-18T12:00:00Z', daytimeWorkedMinutes: 605, nighttimeWorkedMinutes: 120,
+      specialConditions: { noturnoDetails: { collaboratorIds: ['night'] } }
+    },
+    {
+      id: 'rtp-2', projectId: 'p-5761', reportType: 'RTP', sequenceNumber: 2,
+      reportDate: '2026-02-18T12:00:00Z', daytimeWorkedMinutes: 60, nighttimeWorkedMinutes: 0
+    }
+  ];
+  const hours = buildProjectReportHours(reports, new Map([
+    ['rdo-7', ['aldo']], ['rtp-2', ['aldo']]
+  ]), '5761');
+  const aldo = buildProjectDetailCollaborator({ name: 'Aldo', ...hours.get('aldo') });
+  assert.equal(aldo.horasApropriadas, null);
+  assert.equal(aldo.custo, null);
+  assert.equal(aldo.horas, 11.1);
+  assert.deepEqual(aldo.horasRelatoriosPorData, [{
+    data: '2026-02-18', horas: 665 / 60,
+    relatorios: [
+      { id: 'rdo-7', tipo: 'RDO', numero: 7, projetoId: 'p-5761', projetoCodigo: '5761', horas: 605 / 60 },
+      { id: 'rtp-2', tipo: 'RTP', numero: 2, projetoId: 'p-5761', projetoCodigo: '5761', horas: 1 }
+    ]
+  }]);
+  const night = buildProjectDetailCollaborator({ ...hours.get('night') });
+  assert.equal(night.horas, 2);
+  assert.deepEqual(night.horasRelatoriosPorData[0].relatorios, [
+    { id: 'rdo-7', tipo: 'RDO', numero: 7, projetoId: 'p-5761', projetoCodigo: '5761', horas: 2 }
+  ]);
+  assert.equal(hours.has('absent'), false);
 });
 
 test('buildProjectAppropriationDays detalha horas analíticas, viagem e número do RDO', () => {

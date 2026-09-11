@@ -40,7 +40,7 @@ export function deriveSelectedMissionTeam(collaborators = [], scheduleStatus = '
   };
 }
 
-export async function resolveSelectedMissionTeam(tx, payload, planId, ignoredMissionId = null) {
+export async function resolveSelectedMissionTeam(tx, payload, planId, ignoredMissionId = null, { mission = null } = {}) {
   const collaboratorIds = payload.collaboratorIds || [];
   const uniqueIds = [...new Set(collaboratorIds)];
   if (uniqueIds.length !== collaboratorIds.length) {
@@ -107,7 +107,7 @@ export async function resolveSelectedMissionTeam(tx, payload, planId, ignoredMis
     mobilizationDate: payload.mobilizationDate,
     executionEndDate: payload.executionEndDate,
     returnDate: payload.returnDate,
-    cycles: currentAllocations[0]?.mission?.cycles || []
+    cycles: mission?.cycles ?? currentAllocations[0]?.mission?.cycles ?? []
   };
   const requestedPeriodByCollaboratorId = new Map((payload.allocationPeriods || [])
     .map(item => [item.collaboratorId, item]));
@@ -152,6 +152,7 @@ export async function resolveSelectedMissionTeam(tx, payload, planId, ignoredMis
         allocations: allocations.filter(allocation => allocation.collaboratorId === collaborator.id),
         ignoredMissionId,
         allowMissionOverlap: Boolean(teamAllocation?.allowMissionOverlap),
+        allowInactiveCollaborator: (payload.confirmedInactiveCollaboratorIds || []).includes(collaborator.id),
         requireCandidateMissionOverlapConfirmation: true
       });
     });

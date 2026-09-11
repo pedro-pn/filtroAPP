@@ -120,7 +120,7 @@ function ensureRoleCapacity(mission, allocation, period, ignoredCycleId = null) 
   }
 }
 
-async function validateCollaboratorPeriod(tx, mission, allocation, period) {
+async function validateCollaboratorPeriod(tx, mission, allocation, period, allowInactiveCollaborator = false) {
   await lockCollaborator(tx, allocation.collaboratorId);
   const data = await loadCollaboratorConflictData(tx, allocation.collaboratorId, period, mission.planId);
   if (!data.collaborator) throw notFound('Colaborador não encontrado.');
@@ -130,7 +130,8 @@ async function validateCollaboratorPeriod(tx, mission, allocation, period) {
     jobRoleId: allocation.jobRoleId,
     period,
     ignoredMissionId: mission.id,
-    allowMissionOverlap: allocation.allowMissionOverlap
+    allowMissionOverlap: allocation.allowMissionOverlap,
+    allowInactiveCollaborator
   }));
 }
 
@@ -152,10 +153,10 @@ function ensureIndividualCyclesInsideProject(mission, proposedCycles) {
   }
 }
 
-async function validateInheritedAllocationsForPeriod(tx, mission, period) {
+async function validateInheritedAllocationsForPeriod(tx, mission, period, allowInactiveCollaborator = false) {
   for (const allocation of mission.allocations || []) {
     if (allocation.deletedAt || allocation.cycles?.length) continue;
-    await validateCollaboratorPeriod(tx, mission, allocation, period);
+    await validateCollaboratorPeriod(tx, mission, allocation, period, allowInactiveCollaborator);
   }
 }
 
@@ -181,13 +182,13 @@ export async function createMissionCycle(missionId, payload, context = {}, depen
     const mission = await requireCycleMission(tx, missionId);
     await requireEditablePlan(tx, mission.planId, { actorUserId: context.actorUserId });
     const period = validateNewCycle(mission.cycles || [], payload, mission, `O projeto ${mission.project.code}`);
-    await validateInheritedAllocationsForPeriod(tx, mission, period);
+    await validateInheritedAllocationsForPeriod(tx, mission, period, payload.allowInactiveCollaborator === true);
     const cycle = await tx.efetivoMissionCycle.create({
       data: { missionId, ...storedCycle(payload), createdByUserId: context.actorUserId || null }
     });
     await finishCycleMutation(tx, mission, context, {
       action: 'MISSION_CYCLE_CREATE', entityType: 'MISSION_CYCLE', entityId: cycle.id,
-      summary: `Novo ciclo de mobilização criado para ${mission.project.code}.`, afterData: cycle
+      summary: `Novo ciclo de mobilização criado para ${mission.project.code}.`, afterData: { ...cycle, inactiveCollaboratorConfirmed: payload.allowInactiveCollaborator === true }
     });
     return cycle;
   });
@@ -203,11 +204,11 @@ export async function updateMissionCycle(missionId, cycleId, payload, context = 
     const period = validateUpdatedCycle(mission.cycles, existing, payload, mission, `O projeto ${mission.project.code}`);
     const proposedCycles = mission.cycles.map(cycle => cycle.id === cycleId ? { ...cycle, ...storedCycle(payload) } : cycle);
     ensureIndividualCyclesInsideProject(mission, proposedCycles);
-    await validateInheritedAllocationsForPeriod(tx, mission, period);
+    await validateInheritedAllocationsForPeriod(tx, mission, period, payload.allowInactiveCollaborator === true);
     const cycle = await tx.efetivoMissionCycle.update({ where: { id: cycleId }, data: storedCycle(payload) });
     await finishCycleMutation(tx, mission, context, {
       action: 'MISSION_CYCLE_UPDATE', entityType: 'MISSION_CYCLE', entityId: cycle.id,
-      summary: `Ciclo de mobilização atualizado para ${mission.project.code}.`, beforeData: existing, afterData: cycle
+      summary: `Ciclo de mobilização atualizado para ${mission.project.code}.`, beforeData: existing, afterData: { ...cycle, inactiveCollaboratorConfirmed: payload.allowInactiveCollaborator === true }
     });
     return cycle;
   });
@@ -224,13 +225,13 @@ export async function createAllocationCycle(missionId, allocationId, payload, co
     const period = validateNewCycle(allocation.cycles || [], payload, mission, label);
     ensureInsideProjectCycle(mission, period);
     ensureRoleCapacity(mission, allocation, period);
-    await validateCollaboratorPeriod(tx, mission, allocation, period);
+    await validateCollaboratorPeriod(tx, mission, allocation, period, payload.allowInactiveCollaborator === true);
     const cycle = await tx.efetivoAllocationCycle.create({
       data: { allocationId, ...storedCycle(payload), createdByUserId: context.actorUserId || null }
     });
     await finishCycleMutation(tx, mission, context, {
       action: 'ALLOCATION_CYCLE_CREATE', entityType: 'ALLOCATION_CYCLE', entityId: cycle.id,
-      summary: `Novo ciclo individual criado para ${label}.`, afterData: cycle
+      summary: `Novo ciclo individual criado para ${label}.`, afterData: { ...cycle, inactiveCollaboratorConfirmed: payload.allowInactiveCollaborator === true }
     });
     return cycle;
   });
@@ -277,11 +278,11 @@ export async function updateAllocationCycle(missionId, allocationId, cycleId, pa
     const period = validateUpdatedCycle(allocation.cycles, existing, payload, mission, label);
     ensureInsideProjectCycle(mission, period);
     ensureRoleCapacity(mission, allocation, period, cycleId);
-    await validateCollaboratorPeriod(tx, mission, allocation, period);
+    await validateCollaboratorPeriod(tx, mission, allocation, period, payload.allowInactiveCollaborator === true);
     const cycle = await tx.efetivoAllocationCycle.update({ where: { id: cycleId }, data: storedCycle(payload) });
     await finishCycleMutation(tx, mission, context, {
       action: 'ALLOCATION_CYCLE_UPDATE', entityType: 'ALLOCATION_CYCLE', entityId: cycle.id,
-      summary: `Ciclo individual atualizado para ${label}.`, beforeData: existing, afterData: cycle
+      summary: `Ciclo individual atualizado para ${label}.`, beforeData: existing, afterData: { ...cycle, inactiveCollaboratorConfirmed: payload.allowInactiveCollaborator === true }
     });
     return cycle;
   });

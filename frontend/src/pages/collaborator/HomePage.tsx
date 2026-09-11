@@ -14,6 +14,7 @@ import { useRdoStore } from '../../store/rdoStore';
 import type { ReportDraft } from '../../types/domain';
 import { collectOngoingServices } from '../../utils/ongoingServices';
 import { RdoAppShell } from '../RdoAppShell';
+import { SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
 
 const TEXT = {
   archived: 'Arquivados',
@@ -27,7 +28,7 @@ const TEXT = {
   newReport: 'Novo relatório',
   noDate: 'Sem data definida',
   remove: 'Remover',
-  resume: 'Retomar preenchimento',
+  resume: 'Retomar preenchimento'
 };
 
 function getGreeting(name: string) {
@@ -69,7 +70,11 @@ function asDdsThemes(value: unknown): { id: string; name: string; custom?: boole
   if (!Array.isArray(value)) return [];
   return value
     .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
-    .map(item => ({ id: asString(item.id), name: asString(item.name), ...(item.custom === true ? { custom: true } : {}) }))
+    .map(item => ({
+      id: asString(item.id),
+      name: asString(item.name),
+      ...(item.custom === true ? { custom: true } : {})
+    }))
     .filter(item => item.id && item.name);
 }
 
@@ -81,7 +86,7 @@ function asServices(value: unknown): RdoServiceDraft[] {
     .map(item => ({
       id: asString(item.id, `svc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
       type: asString(item.type, 'LIMPEZA'),
-      data: item.data && typeof item.data === 'object' && !Array.isArray(item.data) ? item.data as Record<string, unknown> : {}
+      data: item.data && typeof item.data === 'object' && !Array.isArray(item.data) ? (item.data as Record<string, unknown>) : {}
     }));
 }
 
@@ -105,6 +110,8 @@ export function HomePage() {
     { id: 'ongoing', label: 'Em andamento', href: rdoPath('/andamento'), active: false },
     { id: 'archived', label: 'Arquivados', href: rdoPath('/meus-relatorios/arquivados'), active: false }
   ], []);
+  const emissionPermissions = user?.reportEmissionPermissions || [];
+  const canEmitSite = emissionPermissions.includes('SITE_RDO');
 
   function handleNewReport() {
     reset();
@@ -145,7 +152,7 @@ export function HomePage() {
       services: asServices(payload.services)
     });
 
-    navigate(rdoPath('/relatorio/novo'));
+    navigate(rdoPath(SITE_RDO_DRAFT_FORM_PATH));
   }
 
   return (
@@ -158,7 +165,7 @@ export function HomePage() {
         <PageHeader
           title={getGreeting(user?.name || '')}
           description={getTodayLabel()}
-          actions={(
+          actions={canEmitSite ? (
             <Button
               variant="primary"
               iconLeft={<AppIcon icon={DS_ICONS.plus} size="sm" />}
@@ -166,10 +173,10 @@ export function HomePage() {
             >
               {TEXT.newReport}
             </Button>
-          )}
+          ) : undefined}
       />
-        <section className="rdo-role-action-grid" aria-label="Ações rápidas">
-          <Card className="rdo-role-action-card" variant="accent" accentTone="brand" padding="md" onClick={handleNewReport}>
+        {canEmitSite ? <section className="rdo-role-action-grid" aria-label="Ações rápidas">
+          <Card data-operational-new-report className="rdo-role-action-card" variant="accent" accentTone="brand" padding="md" onClick={handleNewReport}>
             <span className="rdo-role-action-card__icon"><AppIcon icon={DS_ICONS.fileText} size="lg" /></span>
             <div className="rdo-role-action-card__copy">
               <span className="home-action-title">{TEXT.newReport}</span>
@@ -196,15 +203,16 @@ export function HomePage() {
               <span className="home-action-subtitle">{ongoingServices.length} serviço(s) ativos</span>
             </div>
           </Card>
-        </section>
+        </section> : null}
 
-        <Card className="rdo-role-archive-link" padding="sm">
+        {canEmitSite ? <Card className="rdo-role-archive-link" padding="sm">
           <Button variant="ghost" size="sm" iconLeft={<AppIcon icon={DS_ICONS.archive} size="sm" />} onClick={() => navigate(rdoPath('/meus-relatorios/arquivados'))}>
             {TEXT.archived} — {TEXT.archivedSubtitle}
           </Button>
         </Card>
 
-        {draftsQuery.data?.length ? (
+        : null}
+        {canEmitSite && draftsQuery.data?.length ? (
           <Card className="rdo-role-drafts" title={TEXT.drafts} padding="md">
             <div className="rdo-role-draft-list">
               {draftsQuery.data.map(draft => (
@@ -239,3 +247,4 @@ export function HomePage() {
     </RdoAppShell>
   );
 }
+

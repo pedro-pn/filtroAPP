@@ -2,51 +2,34 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
-import {
-  createEquipmentAttachment,
-  createEquipmentPhoto,
-  createGeneratedEquipmentAttachment,
-  equipmentAttachmentsInclude,
-  removeEquipmentAttachments,
-  removeEquipmentAttachmentsByIds,
-  resolveEquipmentPhotoAssets,
-  serializeEquipmentAttachment,
-  withCurrentAttachments,
-  EquipmentAttachmentKinds
-} from '../../lib/equipment-attachments.js';
+import { createEquipmentAttachment, createEquipmentPhoto, createGeneratedEquipmentAttachment, equipmentAttachmentsInclude, removeEquipmentAttachments, removeEquipmentAttachmentsByIds, resolveEquipmentPhotoAssets, serializeEquipmentAttachment, withCurrentAttachments, EquipmentAttachmentKinds } from '../../lib/equipment-attachments.js';
 import { generateTechnicalDatasheetPdf } from '../../lib/equipment-technical-docx.js';
 import { notifyCalibrationUpdatedSafely } from '../../lib/calibration-reminders.js';
 import { normalizeFieldSchema, normalizeTechnicalSchema, slugifySystemKey } from '../../lib/equipment-categories.js';
 import { normalizeChecklistDisplayMode, normalizeChecklistItems } from '../../lib/equipamentos/equipment-checklist.js';
-import {
-  getEquipmentNotificationConfig,
-  listEquipmentNotificationRecipients,
-  normalizeEmail,
-  updateEquipmentNotificationConfig
-} from '../../lib/equipment-notifications.js';
+import { getEquipmentNotificationConfig, listEquipmentNotificationRecipients, normalizeEmail, updateEquipmentNotificationConfig } from '../../lib/equipment-notifications.js';
 import { getSlot, resolveRdoSlotMap } from '../../lib/rdo-equipment-slots.js';
 import { measurementCatalog } from '../../lib/equipment-units.js';
 import prisma from '../../lib/prisma.js';
-import {
-  clearEquipmentModuleCaches,
-  clearRomaneioCatalogDependentCaches
-} from '../../lib/resource-list-cache.js';
+import { clearEquipmentModuleCaches, clearRomaneioCatalogDependentCaches } from '../../lib/resource-list-cache.js';
 import { syncRomaneioCatalog } from '../../lib/romaneio-catalog.js';
-import {
-  requireAuth,
-  requireEquipamentosAccess,
-  requireEquipamentosManager
-} from '../../middleware/auth.js';
+import { requireAuth, requireEquipamentosAccess, requireEquipamentosManager } from '../../middleware/auth.js';
+import { maintenanceConfigSchema, maintenanceProfileSchema, maintenanceRecordInclude } from '../../lib/operational-reports/domain.js';
+import { serializeMaintenanceAttachment } from '../../lib/operational-reports/maintenance-attachments.js';
+import { hasModuleRole } from '../../lib/module-roles.js';
 
 const router = Router();
 router.use(requireAuth);
 router.use(requireEquipamentosAccess);
 
-const pdfUploadSchema = z.object({
-  fileName: z.string().min(1),
-  mimeType: z.string().optional(),
-  dataUrl: z.string().min(1)
-}).optional().nullable();
+const pdfUploadSchema = z
+  .object({
+    fileName: z.string().min(1),
+    mimeType: z.string().optional(),
+    dataUrl: z.string().min(1)
+  })
+  .optional()
+  .nullable();
 
 const imageUploadSchema = z.object({
   fileName: z.string().optional(),
@@ -71,6 +54,9 @@ const checklistItemsSchema = z.array(z.string().trim().min(1).max(300)).max(100)
 
 const categorySchema = z.object({
   name: z.string().trim().min(1),
+  maintenanceProfileId: z.string().trim().min(1).nullable().optional(),
+  maintenanceIntervalDays: z.number().int().min(1).max(3650).nullable().optional(),
+  showInMaintenance: z.boolean().optional(),
   order: z.number().int().optional(),
   fieldSchema: z.array(fieldDefinitionSchema).optional(),
   technicalSchema: z.array(technicalFieldSchema).optional(),
@@ -87,6 +73,8 @@ const equipmentSchema = z.object({
   code: z.string().trim().min(1),
   name: z.string().trim().min(1),
   categoryId: z.string().trim().min(1),
+  maintenanceProfileId: z.string().trim().min(1).nullable().optional(),
+  maintenanceProfileOverride: z.boolean().optional(),
   attributes: z.record(z.any()).optional(),
   technicalData: z.record(z.any()).optional(),
   technicalFieldOverrides: z.record(z.boolean()).optional(),
@@ -117,22 +105,14 @@ function hasTechnicalRecordContent(value) {
 }
 
 export function hasTechnicalRevisionBaseline(equipment) {
-  return Boolean(
-    equipment?.technicalUpdatedAt ||
-    Number(equipment?.technicalRevision || 0) > 0 ||
-    hasTechnicalRecordContent(equipment?.technicalData) ||
-    hasTechnicalRecordContent(equipment?.technicalFieldOverrides)
-  );
+  return Boolean(equipment?.technicalUpdatedAt || Number(equipment?.technicalRevision || 0) > 0 || hasTechnicalRecordContent(equipment?.technicalData) || hasTechnicalRecordContent(equipment?.technicalFieldOverrides));
 }
 
 export function technicalPayloadChanged(previous, fields, attachments = {}) {
   if (fields.technicalData !== undefined && stableTechnicalJson(fields.technicalData) !== stableTechnicalJson(previous?.technicalData)) {
     return true;
   }
-  if (
-    fields.technicalFieldOverrides !== undefined &&
-    stableTechnicalJson(fields.technicalFieldOverrides) !== stableTechnicalJson(previous?.technicalFieldOverrides)
-  ) {
+  if (fields.technicalFieldOverrides !== undefined && stableTechnicalJson(fields.technicalFieldOverrides) !== stableTechnicalJson(previous?.technicalFieldOverrides)) {
     return true;
   }
   if (Array.isArray(attachments.technicalPhotos) && attachments.technicalPhotos.length > 0) return true;
@@ -141,9 +121,7 @@ export function technicalPayloadChanged(previous, fields, attachments = {}) {
 }
 
 export function shouldIncrementTechnicalRevision(previous, fields, attachments = {}) {
-  return fields?.bumpRevision === true
-    && hasTechnicalRevisionBaseline(previous)
-    && technicalPayloadChanged(previous, fields, attachments);
+  return fields?.bumpRevision === true && hasTechnicalRevisionBaseline(previous) && technicalPayloadChanged(previous, fields, attachments);
 }
 
 async function uniqueSystemKey(name) {
@@ -151,7 +129,11 @@ async function uniqueSystemKey(name) {
   let candidate = base;
   let suffix = 1;
   // eslint-disable-next-line no-await-in-loop
-  while (await prisma.equipmentCategory.findUnique({ where: { systemKey: candidate } })) {
+  while (
+    await prisma.equipmentCategory.findUnique({
+      where: { systemKey: candidate }
+    })
+  ) {
     suffix += 1;
     candidate = `${base}_${suffix}`;
   }
@@ -197,13 +179,23 @@ async function importRomaneioEquipmentIntoCategory(category) {
       if (equipment && equipment.categoryId !== category.id) return false; // código já usado por outra categoria
       if (!equipment) {
         equipment = await tx.companyEquipment.create({
-          data: { code, name: item.name || code, categoryId: category.id, attributes: {} }
+          data: {
+            code,
+            name: item.name || code,
+            categoryId: category.id,
+            attributes: {}
+          }
         });
       }
       // Se já existe uma linha do romaneio gerenciada por este equipamento, a linha
       // atual é redundante (estado quebrado anterior) — remove para não duplicar.
       const managed = await tx.romaneioCatalogItem.findUnique({
-        where: { sourceType_sourceId: { sourceType: 'EQUIPAMENTOS', sourceId: equipment.id } },
+        where: {
+          sourceType_sourceId: {
+            sourceType: 'EQUIPAMENTOS',
+            sourceId: equipment.id
+          }
+        },
         select: { id: true }
       });
       if (managed && managed.id !== item.id) {
@@ -247,118 +239,455 @@ async function importRomaneioEquipmentIntoCategory(category) {
 }
 
 // Catálogo de grandezas/unidades para os campos `measure` do datasheet.
-router.get('/units-catalog', asyncHandler(async (_req, res) => {
-  res.json(measurementCatalog());
-}));
+router.get(
+  '/units-catalog',
+  asyncHandler(async (_req, res) => {
+    res.json(measurementCatalog());
+  })
+);
 
 // === Categorias ===
 
-router.get('/categories', asyncHandler(async (_req, res) => {
-  const categories = await prisma.equipmentCategory.findMany({
-    where: { isActive: true },
-    orderBy: [{ order: 'asc' }, { name: 'asc' }]
-  });
-  res.json(categories);
-}));
+router.get(
+  '/categories',
+  asyncHandler(async (_req, res) => {
+    const categories = await prisma.equipmentCategory.findMany({
+      where: { isActive: true },
+      orderBy: [{ order: 'asc' }, { name: 'asc' }]
+    });
+    res.json(categories);
+  })
+);
 
-router.post('/categories', requireEquipamentosManager, asyncHandler(async (req, res) => {
-  const data = categorySchema.parse(req.body);
-  const systemKey = await uniqueSystemKey(data.name);
-  const category = await prisma.equipmentCategory.create({
-    data: {
-      systemKey,
-      name: data.name,
-      order: data.order ?? 0,
-      fieldSchema: normalizeFieldSchema(data.fieldSchema),
-      technicalSchema: normalizeTechnicalSchema(data.technicalSchema),
-      checklistEnabled: data.checklistEnabled ?? false,
-      checklistDisplayMode: normalizeChecklistDisplayMode(data.checklistDisplayMode),
-      checklistItems: normalizeChecklistItems(data.checklistItems),
-      technicalDocEnabled: data.technicalDocEnabled ?? false,
-      supportsCalibration: data.supportsCalibration ?? false,
-      supportsTechnicalDoc: data.supportsTechnicalDoc ?? true,
-      syncToRomaneio: data.syncToRomaneio ?? false
+router.post(
+  '/categories',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const data = categorySchema.parse(req.body);
+    const systemKey = await uniqueSystemKey(data.name);
+    const category = await prisma.equipmentCategory.create({
+      data: {
+        systemKey,
+        name: data.name,
+        maintenanceProfileId: data.maintenanceProfileId || null,
+        maintenanceIntervalDays: data.maintenanceIntervalDays ?? null,
+        showInMaintenance: data.showInMaintenance ?? true,
+        order: data.order ?? 0,
+        fieldSchema: normalizeFieldSchema(data.fieldSchema),
+        technicalSchema: normalizeTechnicalSchema(data.technicalSchema),
+        checklistEnabled: data.checklistEnabled ?? false,
+        checklistDisplayMode: normalizeChecklistDisplayMode(data.checklistDisplayMode),
+        checklistItems: normalizeChecklistItems(data.checklistItems),
+        technicalDocEnabled: data.technicalDocEnabled ?? false,
+        supportsCalibration: data.supportsCalibration ?? false,
+        supportsTechnicalDoc: data.supportsTechnicalDoc ?? true,
+        syncToRomaneio: data.syncToRomaneio ?? false
+      }
+    });
+    const importedFromRomaneio = await importRomaneioEquipmentIntoCategory(category);
+    invalidateCaches();
+    if (category.syncToRomaneio) await syncRomaneioCatalog();
+    res.status(201).json({ ...category, importedFromRomaneio });
+  })
+);
+
+router.put(
+  '/categories/:id',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const data = categorySchema.partial().parse(req.body);
+    const payload = {
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.maintenanceProfileId !== undefined
+        ? { maintenanceProfileId: data.maintenanceProfileId || null }
+        : {}),
+      ...(data.maintenanceIntervalDays !== undefined
+        ? { maintenanceIntervalDays: data.maintenanceIntervalDays }
+        : {}),
+      ...(data.showInMaintenance !== undefined
+        ? { showInMaintenance: data.showInMaintenance }
+        : {}),
+      ...(data.order !== undefined ? { order: data.order } : {}),
+      ...(data.fieldSchema !== undefined ? { fieldSchema: normalizeFieldSchema(data.fieldSchema) } : {}),
+      ...(data.technicalSchema !== undefined ? { technicalSchema: normalizeTechnicalSchema(data.technicalSchema) } : {}),
+      ...(data.checklistEnabled !== undefined ? { checklistEnabled: data.checklistEnabled } : {}),
+      ...(data.checklistDisplayMode !== undefined
+        ? {
+            checklistDisplayMode: normalizeChecklistDisplayMode(data.checklistDisplayMode)
+          }
+        : {}),
+      ...(data.checklistItems !== undefined ? { checklistItems: normalizeChecklistItems(data.checklistItems) } : {}),
+      ...(data.technicalDocEnabled !== undefined ? { technicalDocEnabled: data.technicalDocEnabled } : {}),
+      ...(data.supportsCalibration !== undefined ? { supportsCalibration: data.supportsCalibration } : {}),
+      ...(data.supportsTechnicalDoc !== undefined ? { supportsTechnicalDoc: data.supportsTechnicalDoc } : {}),
+      ...(data.syncToRomaneio !== undefined ? { syncToRomaneio: data.syncToRomaneio } : {})
+    };
+    // Compara com o estado anterior: o front reenvia `name` em toda edição (inclusive ao
+    // mexer só nos Dados Técnicos), então só dispara a migração/sync do romaneio quando o
+    // nome REALMENTE muda ou o flag de sync é alterado — evita re-sincronizar à toa (e bater
+    // na colisão de chave natural do catálogo) a cada salvamento.
+    const previous = await prisma.equipmentCategory.findUnique({
+      where: { id: req.params.id },
+      select: { name: true, syncToRomaneio: true }
+    });
+    const category = await prisma.equipmentCategory.update({
+      where: { id: req.params.id },
+      data: payload
+    });
+    const nameChanged = data.name !== undefined && previous && data.name !== previous.name;
+    const syncChanged = data.syncToRomaneio !== undefined && previous && data.syncToRomaneio !== previous.syncToRomaneio;
+    // Ao mudar nome/sync, reaproveita equipamentos do romaneio que casem com a categoria
+    // (também recupera categorias importadas em estado anterior).
+    let importedFromRomaneio = 0;
+    if (nameChanged || syncChanged) {
+      importedFromRomaneio = await importRomaneioEquipmentIntoCategory(category);
     }
-  });
-  const importedFromRomaneio = await importRomaneioEquipmentIntoCategory(category);
-  invalidateCaches();
-  if (category.syncToRomaneio) await syncRomaneioCatalog();
-  res.status(201).json({ ...category, importedFromRomaneio });
-}));
+    invalidateCaches();
+    // A ordem das abas não afeta o romaneio; só ressincroniza quando muda nome ou flag de sync.
+    if (nameChanged || syncChanged) {
+      await syncRomaneioCatalog();
+    }
+    res.json({ ...category, importedFromRomaneio });
+  })
+);
 
-router.put('/categories/:id', requireEquipamentosManager, asyncHandler(async (req, res) => {
-  const data = categorySchema.partial().parse(req.body);
-  const payload = {
-    ...(data.name !== undefined ? { name: data.name } : {}),
-    ...(data.order !== undefined ? { order: data.order } : {}),
-    ...(data.fieldSchema !== undefined ? { fieldSchema: normalizeFieldSchema(data.fieldSchema) } : {}),
-    ...(data.technicalSchema !== undefined ? { technicalSchema: normalizeTechnicalSchema(data.technicalSchema) } : {}),
-    ...(data.checklistEnabled !== undefined ? { checklistEnabled: data.checklistEnabled } : {}),
-    ...(data.checklistDisplayMode !== undefined ? { checklistDisplayMode: normalizeChecklistDisplayMode(data.checklistDisplayMode) } : {}),
-    ...(data.checklistItems !== undefined ? { checklistItems: normalizeChecklistItems(data.checklistItems) } : {}),
-    ...(data.technicalDocEnabled !== undefined ? { technicalDocEnabled: data.technicalDocEnabled } : {}),
-    ...(data.supportsCalibration !== undefined ? { supportsCalibration: data.supportsCalibration } : {}),
-    ...(data.supportsTechnicalDoc !== undefined ? { supportsTechnicalDoc: data.supportsTechnicalDoc } : {}),
-    ...(data.syncToRomaneio !== undefined ? { syncToRomaneio: data.syncToRomaneio } : {})
+router.delete(
+  '/categories/:id',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const category = await prisma.equipmentCategory.findUnique({
+      where: { id: req.params.id },
+      include: { _count: { select: { equipment: true } } }
+    });
+    if (!category) return res.status(404).json({ error: 'Categoria não encontrada.' });
+    if (category._count.equipment > 0) {
+      return res.status(409).json({
+        error: 'Remova ou mova os equipamentos antes de excluir a categoria.'
+      });
+    }
+    // A proteção segue o VÍNCULO com o RDO (slot), não a origem (isSystemManaged):
+    // uma categoria só não pode ser excluída se algum slot de relatório a usa.
+    // Relatórios já criados não são afetados (guardam snapshot dos equipamentos).
+    const { map } = await resolveRdoSlotMap();
+    if (Object.values(map).flat().includes(category.id)) {
+      return res.status(409).json({
+        error: 'Categoria vinculada a um slot de relatório (RDO). Remova o vínculo na configuração antes de excluir.'
+      });
+    }
+    await prisma.equipmentCategory.update({
+      where: { id: req.params.id },
+      data: { isActive: false }
+    });
+    invalidateCaches();
+    res.status(204).end();
+  })
+);
+
+// === Configuração de manutenção ===
+
+function maintenanceSupervisorSummary(config) {
+  const collaborator = config?.supervisor || null;
+  const user = collaborator?.user || null;
+  const valid = Boolean(collaborator?.isActive && collaborator?.signatureImage && user?.isActive && user?.accountType === 'INTERNAL');
+  return {
+    id: collaborator?.id || null,
+    name: collaborator?.name || null,
+    userId: user?.id || null,
+    valid,
+    reason: valid ? null : 'Selecione um colaborador ativo, com conta interna ativa e assinatura cadastrada.'
   };
-  // Compara com o estado anterior: o front reenvia `name` em toda edição (inclusive ao
-  // mexer só nos Dados Técnicos), então só dispara a migração/sync do romaneio quando o
-  // nome REALMENTE muda ou o flag de sync é alterado — evita re-sincronizar à toa (e bater
-  // na colisão de chave natural do catálogo) a cada salvamento.
-  const previous = await prisma.equipmentCategory.findUnique({
-    where: { id: req.params.id },
-    select: { name: true, syncToRomaneio: true }
-  });
-  const category = await prisma.equipmentCategory.update({ where: { id: req.params.id }, data: payload });
-  const nameChanged = data.name !== undefined && previous && data.name !== previous.name;
-  const syncChanged = data.syncToRomaneio !== undefined && previous && data.syncToRomaneio !== previous.syncToRomaneio;
-  // Ao mudar nome/sync, reaproveita equipamentos do romaneio que casem com a categoria
-  // (também recupera categorias importadas em estado anterior).
-  let importedFromRomaneio = 0;
-  if (nameChanged || syncChanged) {
-    importedFromRomaneio = await importRomaneioEquipmentIntoCategory(category);
-  }
-  invalidateCaches();
-  // A ordem das abas não afeta o romaneio; só ressincroniza quando muda nome ou flag de sync.
-  if (nameChanged || syncChanged) {
-    await syncRomaneioCatalog();
-  }
-  res.json({ ...category, importedFromRomaneio });
-}));
+}
 
-router.delete('/categories/:id', requireEquipamentosManager, asyncHandler(async (req, res) => {
-  const category = await prisma.equipmentCategory.findUnique({
-    where: { id: req.params.id },
-    include: { _count: { select: { equipment: true } } }
-  });
-  if (!category) return res.status(404).json({ error: 'Categoria não encontrada.' });
-  if (category._count.equipment > 0) {
-    return res.status(409).json({ error: 'Remova ou mova os equipamentos antes de excluir a categoria.' });
+async function maintenanceProfileKey(name) {
+  const base = slugifySystemKey(name) || 'PERFIL';
+  let key = `MAINTENANCE_${base}`;
+  let suffix = 1;
+  while (await prisma.maintenanceProfile.findUnique({ where: { key } })) {
+    suffix += 1;
+    key = `MAINTENANCE_${base}_${suffix}`;
   }
-  // A proteção segue o VÍNCULO com o RDO (slot), não a origem (isSystemManaged):
-  // uma categoria só não pode ser excluída se algum slot de relatório a usa.
-  // Relatórios já criados não são afetados (guardam snapshot dos equipamentos).
-  const { map } = await resolveRdoSlotMap();
-  if (Object.values(map).flat().includes(category.id)) {
-    return res.status(409).json({ error: 'Categoria vinculada a um slot de relatório (RDO). Remova o vínculo na configuração antes de excluir.' });
-  }
-  await prisma.equipmentCategory.update({ where: { id: req.params.id }, data: { isActive: false } });
-  invalidateCaches();
-  res.status(204).end();
-}));
+  return key;
+}
+
+router.get(
+  '/maintenance/config',
+  asyncHandler(async (req, res) => {
+    const canManage = hasModuleRole(req.auth.user, 'equipamentos:manager');
+    const [config, profiles, candidates] = await Promise.all([
+      prisma.maintenanceConfiguration.findUnique({
+        where: { id: 'global' },
+        include: { supervisor: { include: { user: true } } }
+      }),
+      prisma.maintenanceProfile.findMany({
+        where: canManage ? {} : { isActive: true },
+        include: {
+          items: {
+            where: canManage ? {} : { isActive: true },
+            orderBy: { order: 'asc' }
+          }
+        },
+        orderBy: [{ order: 'asc' }, { name: 'asc' }]
+      }),
+      canManage
+        ? prisma.collaborator.findMany({
+            where: {
+              isActive: true,
+              signatureImage: { not: null },
+              user: { is: { isActive: true, accountType: 'INTERNAL' } }
+            },
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              user: { select: { id: true, email: true } }
+            },
+            orderBy: { name: 'asc' }
+          })
+        : Promise.resolve([])
+    ]);
+    res.json({
+      supervisor: maintenanceSupervisorSummary(config),
+      candidates,
+      profiles,
+      canManage
+    });
+  })
+);
+
+router.put(
+  '/maintenance/config',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const data = maintenanceConfigSchema.parse(req.body);
+    if (data.supervisorCollaboratorId) {
+      const candidate = await prisma.collaborator.findFirst({
+        where: {
+          id: data.supervisorCollaboratorId,
+          isActive: true,
+          signatureImage: { not: null },
+          user: { is: { isActive: true, accountType: 'INTERNAL' } }
+        },
+        select: { id: true }
+      });
+      if (!candidate) {
+        return res.status(400).json({
+          error: 'O supervisor precisa estar ativo, possuir conta interna ativa e assinatura cadastrada.'
+        });
+      }
+    }
+    const config = await prisma.maintenanceConfiguration.upsert({
+      where: { id: 'global' },
+      create: {
+        id: 'global',
+        supervisorCollaboratorId: data.supervisorCollaboratorId,
+        updatedByUserId: req.auth.user.id
+      },
+      update: {
+        supervisorCollaboratorId: data.supervisorCollaboratorId,
+        updatedByUserId: req.auth.user.id
+      },
+      include: { supervisor: { include: { user: true } } }
+    });
+    res.json({ supervisor: maintenanceSupervisorSummary(config) });
+  })
+);
+
+router.post(
+  '/maintenance/profiles',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const data = maintenanceProfileSchema.parse(req.body);
+    const items = data.items
+      .map((item, index) => ({ ...item, requestedOrder: item.order ?? index + 1, index }))
+      .sort((left, right) => left.requestedOrder - right.requestedOrder || left.index - right.index);
+    const profile = await prisma.maintenanceProfile.create({
+      data: {
+        key: await maintenanceProfileKey(data.name),
+        name: data.name,
+        order: data.order ?? 0,
+        isActive: data.isActive ?? true,
+        items: {
+          create: items.map((item, index) => ({
+            label: item.label,
+            order: index + 1,
+            isActive: item.isActive
+          }))
+        }
+      },
+      include: { items: { orderBy: { order: 'asc' } } }
+    });
+    res.status(201).json(profile);
+  })
+);
+
+router.put(
+  '/maintenance/profiles/:id',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const data = maintenanceProfileSchema.parse(req.body);
+    const profile = await prisma.$transaction(async tx => {
+      const existing = await tx.maintenanceProfile.findUniqueOrThrow({
+        where: { id: req.params.id },
+        include: { items: { orderBy: { order: 'asc' } } }
+      });
+      const existingIds = new Set(existing.items.map(item => item.id));
+      const requestedIds = data.items.map(item => item.id).filter(Boolean);
+      if (
+        new Set(requestedIds).size !== requestedIds.length ||
+        requestedIds.some(id => !existingIds.has(id))
+      ) {
+        const error = new Error('Um ou mais serviços não pertencem a este perfil.');
+        error.statusCode = 400;
+        throw error;
+      }
+
+      const orderedItems = data.items
+        .map((item, index) => ({ ...item, requestedOrder: item.order ?? index + 1, index }))
+        .sort((left, right) => left.requestedOrder - right.requestedOrder || left.index - right.index);
+      const omittedItems = existing.items.filter(item => !requestedIds.includes(item.id));
+
+      // Libera temporariamente a restrição única (perfil, ordem) antes do reordenamento.
+      await tx.maintenanceProfileItem.updateMany({
+        where: { profileId: req.params.id },
+        data: { order: { increment: 10000 } }
+      });
+
+      for (const [index, item] of orderedItems.entries()) {
+        const itemData = {
+          label: item.label,
+          order: index + 1,
+          isActive: item.isActive
+        };
+        if (item.id) {
+          await tx.maintenanceProfileItem.update({
+            where: { id: item.id },
+            data: itemData
+          });
+        } else {
+          await tx.maintenanceProfileItem.create({
+            data: { ...itemData, profileId: req.params.id }
+          });
+        }
+      }
+
+      for (const [index, item] of omittedItems.entries()) {
+        await tx.maintenanceProfileItem.update({
+          where: { id: item.id },
+          data: {
+            isActive: false,
+            order: orderedItems.length + index + 1
+          }
+        });
+      }
+
+      await tx.maintenanceProfile.update({
+        where: { id: req.params.id },
+        data: {
+          name: data.name,
+          order: data.order ?? 0,
+          isActive: data.isActive ?? true
+        }
+      });
+      return tx.maintenanceProfile.findUniqueOrThrow({
+        where: { id: req.params.id },
+        include: { items: { orderBy: { order: 'asc' } } }
+      });
+    });
+    res.json(profile);
+  })
+);
+
+router.delete(
+  '/maintenance/profiles/:id',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const profile = await prisma.maintenanceProfile.findUnique({
+      where: { id: req.params.id },
+      include: {
+        _count: {
+          select: {
+            categoryDefaults: true,
+            equipment: true,
+            maintenanceRecords: true
+          }
+        }
+      }
+    });
+    if (!profile) return res.status(404).json({ error: 'Perfil de manutenção não encontrado.' });
+    if (
+      profile._count.categoryDefaults ||
+      profile._count.equipment ||
+      profile._count.maintenanceRecords
+    ) {
+      const disabled = await prisma.maintenanceProfile.update({
+        where: { id: profile.id },
+        data: { isActive: false },
+        include: { items: { orderBy: { order: 'asc' } } }
+      });
+      return res.json(disabled);
+    }
+    await prisma.maintenanceProfile.delete({ where: { id: profile.id } });
+    return res.status(204).end();
+  })
+);
 
 // === Equipamentos ===
 
-router.get('/', asyncHandler(async (req, res) => {
-  const where = { isActive: true };
-  if (req.query.categoryId) where.categoryId = String(req.query.categoryId);
-  const items = await prisma.companyEquipment.findMany({
-    where,
-    orderBy: [{ code: 'asc' }],
-    include: equipmentAttachmentsInclude
-  });
-  res.json(items.map(withCurrentAttachments));
-}));
+router.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    const where = { isActive: true };
+    if (req.query.categoryId) where.categoryId = String(req.query.categoryId);
+    const items = await prisma.companyEquipment.findMany({
+      where,
+      orderBy: [{ code: 'asc' }],
+      include: {
+        ...equipmentAttachmentsInclude,
+        category: true,
+        maintenanceProfile: {
+          include: {
+            items: { where: { isActive: true }, orderBy: { order: 'asc' } }
+          }
+        }
+      }
+    });
+    res.json(items.map(withCurrentAttachments));
+  })
+);
+
+router.get(
+  '/:id/maintenance-history',
+  asyncHandler(async (req, res) => {
+    const equipment = await prisma.companyEquipment.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, code: true, name: true }
+    });
+    if (!equipment) return res.status(404).json({ error: 'Equipamento não encontrado.' });
+    const records = await prisma.maintenanceRecord.findMany({
+      where: { equipmentId: equipment.id, status: 'APPROVED' },
+      include: maintenanceRecordInclude,
+      orderBy: [{ maintenanceDate: 'desc' }, { createdAt: 'desc' }]
+    });
+    res.json({
+      equipment,
+      items: records.map(record => ({
+        id: record.id,
+        maintenanceDate: record.maintenanceDate.toISOString().slice(0, 10),
+        responsibleName: record.responsibleNameSnapshot,
+        profileName: record.profileNameSnapshot,
+        selectedServices: Array.isArray(record.selectedServices) ? record.selectedServices : [],
+        observations: record.observations,
+        thirdPartyServices: record.thirdPartyServices.map(item => ({
+          ...item,
+          serviceDate: item.serviceDate.toISOString().slice(0, 10)
+        })),
+        approvedAt: record.approvedAt,
+        supervisorName: record.supervisorNameSnapshot,
+        document: serializeMaintenanceAttachment(record.attachments.find(item => item.kind === 'DOCUMENT'))
+      }))
+    });
+  })
+);
 
 async function persistAttachments(equipmentId, { calibrationCertificate, technicalDoc, technicalPhotos, removeTechnicalPhotoIds }) {
   const created = {
@@ -423,165 +752,214 @@ async function regenerateCurrentTechnicalDoc(equipmentId) {
   }
 }
 
-router.post('/', requireEquipamentosManager, asyncHandler(async (req, res) => {
-  const data = equipmentSchema.parse(req.body);
-  const { calibrationCertificate, technicalDoc, technicalPhotos, ...fields } = data;
-  const startsWithTechnicalContent = Boolean(
-    hasTechnicalRecordContent(fields.technicalData) ||
-    hasTechnicalRecordContent(fields.technicalFieldOverrides) ||
-    (Array.isArray(technicalPhotos) && technicalPhotos.length > 0)
-  );
-  const baseData = {
-    code: fields.code,
-    name: fields.name,
-    categoryId: fields.categoryId,
-    attributes: fields.attributes ?? {},
-    technicalData: fields.technicalData ?? {},
-    technicalFieldOverrides: fields.technicalFieldOverrides ?? {},
-    checklistItems: fields.checklistItems == null ? null : normalizeChecklistItems(fields.checklistItems),
-    technicalRevision: 0,
-    technicalUpdatedAt: startsWithTechnicalContent ? new Date() : null,
-    hasCalibration: fields.hasCalibration ?? false,
-    calibratedAt: fields.hasCalibration && fields.calibratedAt ? new Date(fields.calibratedAt) : null,
-    expiresAt: fields.hasCalibration && fields.expiresAt ? new Date(fields.expiresAt) : null,
-    hasTechnicalDoc: fields.hasTechnicalDoc ?? false
-  };
-  // "Remover" é soft delete (isActive=false), então o código continua reservado.
-  // Reaproveita o registro removido com o mesmo código: reativa e reescreve (permite
-  // recriar/mover um equipamento excluído sem o erro de "código duplicado").
-  const existing = await prisma.companyEquipment.findUnique({
-    where: { code: fields.code },
-    select: { id: true, isActive: true }
-  });
-  if (existing && existing.isActive) {
-    return res.status(409).json({ error: 'Já existe um equipamento ativo com este código.' });
-  }
-  const item = existing
-    ? await prisma.companyEquipment.update({ where: { id: existing.id }, data: { ...baseData, isActive: true } })
-    : await prisma.companyEquipment.create({ data: baseData });
-  await persistAttachments(item.id, { calibrationCertificate, technicalDoc, technicalPhotos });
-  if (startsWithTechnicalContent) {
-    await regenerateCurrentTechnicalDoc(item.id);
-  }
-  invalidateCaches();
-  await syncRomaneioCatalog();
-  const fresh = await prisma.companyEquipment.findUnique({
-    where: { id: item.id },
-    include: equipmentAttachmentsInclude
-  });
-  res.status(201).json(withCurrentAttachments(fresh));
-}));
-
-router.put('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => {
-  const data = equipmentSchema.partial().parse(req.body);
-  const {
-    calibrationCertificate, technicalDoc, technicalPhotos, removeTechnicalPhotoIds,
-    removeCalibrationCertificate, removeTechnicalDoc, ...fields
-  } = data;
-  const previous = await prisma.companyEquipment.findUnique({
-    where: { id: req.params.id },
-    select: {
-      expiresAt: true,
-      technicalData: true,
-      technicalFieldOverrides: true,
-      technicalRevision: true,
-      technicalUpdatedAt: true
-    }
-  });
-  const technicalChanged = technicalPayloadChanged(previous, fields, { technicalPhotos, removeTechnicalPhotoIds });
-  const shouldBumpRevision = shouldIncrementTechnicalRevision(previous, fields, { technicalPhotos, removeTechnicalPhotoIds });
-  const payload = {
-    ...(fields.code !== undefined ? { code: fields.code } : {}),
-    ...(fields.name !== undefined ? { name: fields.name } : {}),
-    ...(fields.categoryId !== undefined ? { categoryId: fields.categoryId } : {}),
-    ...(fields.attributes !== undefined ? { attributes: fields.attributes } : {}),
-    ...(fields.technicalFieldOverrides !== undefined ? { technicalFieldOverrides: fields.technicalFieldOverrides } : {}),
-    ...(fields.checklistItems !== undefined ? {
-      checklistItems: fields.checklistItems === null ? null : normalizeChecklistItems(fields.checklistItems)
-    } : {}),
-    ...(fields.hasTechnicalDoc !== undefined ? { hasTechnicalDoc: fields.hasTechnicalDoc } : {})
-  };
-  // Após o primeiro preenchimento, alterações nos Dados Técnicos geram nova revisão.
-  // O primeiro preenchimento salva a linha-base como revisão 0.
-  if (fields.technicalData !== undefined) {
-    payload.technicalData = fields.technicalData;
-  }
-  if (technicalChanged) {
-    payload.technicalUpdatedAt = new Date();
-  }
-  if (shouldBumpRevision) {
-    payload.technicalRevision = { increment: 1 };
-  }
-  if (fields.hasCalibration !== undefined) {
-    payload.hasCalibration = fields.hasCalibration;
-    payload.calibratedAt = fields.hasCalibration && fields.calibratedAt ? new Date(fields.calibratedAt) : null;
-    payload.expiresAt = fields.hasCalibration && fields.expiresAt ? new Date(fields.expiresAt) : null;
-  } else {
-    if (fields.calibratedAt !== undefined) payload.calibratedAt = fields.calibratedAt ? new Date(fields.calibratedAt) : null;
-    if (fields.expiresAt !== undefined) payload.expiresAt = fields.expiresAt ? new Date(fields.expiresAt) : null;
-  }
-  const item = await prisma.companyEquipment.update({ where: { id: req.params.id }, data: payload });
-  const createdAttachments = await persistAttachments(item.id, { calibrationCertificate, technicalDoc, technicalPhotos, removeTechnicalPhotoIds });
-  if (removeCalibrationCertificate) {
-    await removeEquipmentAttachments(prisma, item.id, EquipmentAttachmentKinds.CALIBRATION_CERTIFICATE, {
-      exceptIds: [createdAttachments.calibrationCertificate?.id]
+router.post(
+  '/',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const data = equipmentSchema.parse(req.body);
+    const { calibrationCertificate, technicalDoc, technicalPhotos, ...fields } = data;
+    const startsWithTechnicalContent = Boolean(hasTechnicalRecordContent(fields.technicalData) || hasTechnicalRecordContent(fields.technicalFieldOverrides) || (Array.isArray(technicalPhotos) && technicalPhotos.length > 0));
+    const baseData = {
+      code: fields.code,
+      name: fields.name,
+      categoryId: fields.categoryId,
+      maintenanceProfileId: fields.maintenanceProfileId || null,
+      maintenanceProfileOverride:
+        fields.maintenanceProfileOverride ?? Boolean(fields.maintenanceProfileId),
+      attributes: fields.attributes ?? {},
+      technicalData: fields.technicalData ?? {},
+      technicalFieldOverrides: fields.technicalFieldOverrides ?? {},
+      checklistItems: fields.checklistItems == null ? null : normalizeChecklistItems(fields.checklistItems),
+      technicalRevision: 0,
+      technicalUpdatedAt: startsWithTechnicalContent ? new Date() : null,
+      hasCalibration: fields.hasCalibration ?? false,
+      calibratedAt: fields.hasCalibration && fields.calibratedAt ? new Date(fields.calibratedAt) : null,
+      expiresAt: fields.hasCalibration && fields.expiresAt ? new Date(fields.expiresAt) : null,
+      hasTechnicalDoc: fields.hasTechnicalDoc ?? false
+    };
+    // "Remover" é soft delete (isActive=false), então o código continua reservado.
+    // Reaproveita o registro removido com o mesmo código: reativa e reescreve (permite
+    // recriar/mover um equipamento excluído sem o erro de "código duplicado").
+    const existing = await prisma.companyEquipment.findUnique({
+      where: { code: fields.code },
+      select: { id: true, isActive: true }
     });
-  }
-  if (removeTechnicalDoc && !technicalDoc) {
-    await removeEquipmentAttachments(prisma, item.id, EquipmentAttachmentKinds.TECHNICAL_DOC);
-  }
-  // Gera o PDF da linha-base ou da nova revisão como datasheet atual. Quando há
-  // revisão nova, o PDF anterior continua e vira "arquivado" no histórico.
-  if (technicalChanged && (shouldBumpRevision || !hasTechnicalRevisionBaseline(previous))) {
-    await regenerateCurrentTechnicalDoc(item.id);
-  }
-  invalidateCaches();
-  await syncRomaneioCatalog();
-  const fresh = await prisma.companyEquipment.findUnique({
-    where: { id: item.id },
-    include: { ...equipmentAttachmentsInclude, category: { select: { name: true } } }
-  });
-  if (fresh?.hasCalibration) {
-    await notifyCalibrationUpdatedSafely({ equipment: fresh, previousExpiresAt: previous?.expiresAt });
-  }
-  res.json(withCurrentAttachments(fresh));
-}));
+    if (existing && existing.isActive) {
+      return res.status(409).json({ error: 'Já existe um equipamento ativo com este código.' });
+    }
+    const item = existing
+      ? await prisma.companyEquipment.update({
+          where: { id: existing.id },
+          data: { ...baseData, isActive: true }
+        })
+      : await prisma.companyEquipment.create({ data: baseData });
+    await persistAttachments(item.id, {
+      calibrationCertificate,
+      technicalDoc,
+      technicalPhotos
+    });
+    if (startsWithTechnicalContent) {
+      await regenerateCurrentTechnicalDoc(item.id);
+    }
+    invalidateCaches();
+    await syncRomaneioCatalog();
+    const fresh = await prisma.companyEquipment.findUnique({
+      where: { id: item.id },
+      include: equipmentAttachmentsInclude
+    });
+    res.status(201).json(withCurrentAttachments(fresh));
+  })
+);
+
+router.put(
+  '/:id',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const data = equipmentSchema.partial().parse(req.body);
+    const { calibrationCertificate, technicalDoc, technicalPhotos, removeTechnicalPhotoIds, removeCalibrationCertificate, removeTechnicalDoc, ...fields } = data;
+    const previous = await prisma.companyEquipment.findUnique({
+      where: { id: req.params.id },
+      select: {
+        expiresAt: true,
+        technicalData: true,
+        technicalFieldOverrides: true,
+        technicalRevision: true,
+        technicalUpdatedAt: true
+      }
+    });
+    const technicalChanged = technicalPayloadChanged(previous, fields, {
+      technicalPhotos,
+      removeTechnicalPhotoIds
+    });
+    const shouldBumpRevision = shouldIncrementTechnicalRevision(previous, fields, { technicalPhotos, removeTechnicalPhotoIds });
+    const payload = {
+      ...(fields.code !== undefined ? { code: fields.code } : {}),
+      ...(fields.name !== undefined ? { name: fields.name } : {}),
+      ...(fields.categoryId !== undefined ? { categoryId: fields.categoryId } : {}),
+      ...(fields.maintenanceProfileId !== undefined ? { maintenanceProfileId: fields.maintenanceProfileId || null } : {}),
+      ...(fields.maintenanceProfileOverride !== undefined
+        ? { maintenanceProfileOverride: fields.maintenanceProfileOverride }
+        : fields.maintenanceProfileId !== undefined
+          ? { maintenanceProfileOverride: true }
+          : {}),
+      ...(fields.attributes !== undefined ? { attributes: fields.attributes } : {}),
+      ...(fields.technicalFieldOverrides !== undefined ? { technicalFieldOverrides: fields.technicalFieldOverrides } : {}),
+      ...(fields.checklistItems !== undefined
+        ? {
+            checklistItems: fields.checklistItems === null ? null : normalizeChecklistItems(fields.checklistItems)
+          }
+        : {}),
+      ...(fields.hasTechnicalDoc !== undefined ? { hasTechnicalDoc: fields.hasTechnicalDoc } : {})
+    };
+    // Após o primeiro preenchimento, alterações nos Dados Técnicos geram nova revisão.
+    // O primeiro preenchimento salva a linha-base como revisão 0.
+    if (fields.technicalData !== undefined) {
+      payload.technicalData = fields.technicalData;
+    }
+    if (technicalChanged) {
+      payload.technicalUpdatedAt = new Date();
+    }
+    if (shouldBumpRevision) {
+      payload.technicalRevision = { increment: 1 };
+    }
+    if (fields.hasCalibration !== undefined) {
+      payload.hasCalibration = fields.hasCalibration;
+      payload.calibratedAt = fields.hasCalibration && fields.calibratedAt ? new Date(fields.calibratedAt) : null;
+      payload.expiresAt = fields.hasCalibration && fields.expiresAt ? new Date(fields.expiresAt) : null;
+    } else {
+      if (fields.calibratedAt !== undefined) payload.calibratedAt = fields.calibratedAt ? new Date(fields.calibratedAt) : null;
+      if (fields.expiresAt !== undefined) payload.expiresAt = fields.expiresAt ? new Date(fields.expiresAt) : null;
+    }
+    const item = await prisma.companyEquipment.update({
+      where: { id: req.params.id },
+      data: payload
+    });
+    const createdAttachments = await persistAttachments(item.id, {
+      calibrationCertificate,
+      technicalDoc,
+      technicalPhotos,
+      removeTechnicalPhotoIds
+    });
+    if (removeCalibrationCertificate) {
+      await removeEquipmentAttachments(prisma, item.id, EquipmentAttachmentKinds.CALIBRATION_CERTIFICATE, {
+        exceptIds: [createdAttachments.calibrationCertificate?.id]
+      });
+    }
+    if (removeTechnicalDoc && !technicalDoc) {
+      await removeEquipmentAttachments(prisma, item.id, EquipmentAttachmentKinds.TECHNICAL_DOC);
+    }
+    // Gera o PDF da linha-base ou da nova revisão como datasheet atual. Quando há
+    // revisão nova, o PDF anterior continua e vira "arquivado" no histórico.
+    if (technicalChanged && (shouldBumpRevision || !hasTechnicalRevisionBaseline(previous))) {
+      await regenerateCurrentTechnicalDoc(item.id);
+    }
+    invalidateCaches();
+    await syncRomaneioCatalog();
+    const fresh = await prisma.companyEquipment.findUnique({
+      where: { id: item.id },
+      include: {
+        ...equipmentAttachmentsInclude,
+        category: { select: { name: true } }
+      }
+    });
+    if (fresh?.hasCalibration) {
+      await notifyCalibrationUpdatedSafely({
+        equipment: fresh,
+        previousExpiresAt: previous?.expiresAt
+      });
+    }
+    res.json(withCurrentAttachments(fresh));
+  })
+);
 
 // Gera (ou regenera) o datasheet em PDF a partir dos Dados Técnicos preenchidos.
 // O PDF novo vira o atual; os anteriores permanecem no histórico.
-router.post('/:id/technical-doc', requireEquipamentosManager, asyncHandler(async (req, res) => {
-  const equipment = await prisma.companyEquipment.findUnique({
-    where: { id: req.params.id },
-    include: { category: true }
-  });
-  if (!equipment) {
-    return res.status(404).json({ error: 'Equipamento não encontrado.' });
-  }
-  if (!equipment.category?.technicalDocEnabled) {
-    return res.status(400).json({ error: 'A categoria deste equipamento não tem Dados Técnicos habilitados.' });
-  }
+router.post(
+  '/:id/technical-doc',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const equipment = await prisma.companyEquipment.findUnique({
+      where: { id: req.params.id },
+      include: { category: true }
+    });
+    if (!equipment) {
+      return res.status(404).json({ error: 'Equipamento não encontrado.' });
+    }
+    if (!equipment.category?.technicalDocEnabled) {
+      return res.status(400).json({
+        error: 'A categoria deste equipamento não tem Dados Técnicos habilitados.'
+      });
+    }
 
-  const photoAssets = await resolveEquipmentPhotoAssets(prisma, equipment.id);
-  const { bytes, fileName } = await generateTechnicalDatasheetPdf(equipment, equipment.category, photoAssets);
+    const photoAssets = await resolveEquipmentPhotoAssets(prisma, equipment.id);
+    const { bytes, fileName } = await generateTechnicalDatasheetPdf(equipment, equipment.category, photoAssets);
 
-  // Não apaga os datasheets anteriores: ficam ARQUIVADOS (histórico). O botão
-  // "Doc. técnica" serve sempre o mais recente; os antigos ficam em "arquivados".
-  const attachment = await createGeneratedEquipmentAttachment(prisma, {
-    equipmentId: equipment.id,
-    kind: EquipmentAttachmentKinds.TECHNICAL_DOC_GENERATED,
-    fileName,
-    bytes
-  });
-  invalidateCaches();
-  return res.status(201).json(serializeEquipmentAttachment(attachment));
-}));
+    // Não apaga os datasheets anteriores: ficam ARQUIVADOS (histórico). O botão
+    // "Doc. técnica" serve sempre o mais recente; os antigos ficam em "arquivados".
+    const attachment = await createGeneratedEquipmentAttachment(prisma, {
+      equipmentId: equipment.id,
+      kind: EquipmentAttachmentKinds.TECHNICAL_DOC_GENERATED,
+      fileName,
+      bytes
+    });
+    invalidateCaches();
+    return res.status(201).json(serializeEquipmentAttachment(attachment));
+  })
+);
 
-router.delete('/:id', requireEquipamentosManager, asyncHandler(async (req, res) => {
-  await prisma.companyEquipment.update({ where: { id: req.params.id }, data: { isActive: false } });
-  invalidateCaches();
-  await syncRomaneioCatalog();
-  res.status(204).end();
-}));
+router.delete(
+  '/:id',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    await prisma.companyEquipment.update({
+      where: { id: req.params.id },
+      data: { isActive: false }
+    });
+    invalidateCaches();
+    await syncRomaneioCatalog();
+    res.status(204).end();
+  })
+);
 
 // === Vínculo dos slots de equipamento do RDO com categorias ===
 
@@ -591,38 +969,46 @@ const slotMappingSchema = z.object({
   categoryId: z.string().trim().min(1).nullable().optional()
 });
 
-router.get('/rdo-slots', asyncHandler(async (_req, res) => {
-  const { slots } = await resolveRdoSlotMap();
-  res.json(slots);
-}));
+router.get(
+  '/rdo-slots',
+  asyncHandler(async (_req, res) => {
+    const { slots } = await resolveRdoSlotMap();
+    res.json(slots);
+  })
+);
 
-router.put('/rdo-slots/:slotKey', requireEquipamentosManager, asyncHandler(async (req, res) => {
-  const slot = getSlot(req.params.slotKey);
-  if (!slot) return res.status(404).json({ error: 'Slot de relatório não encontrado.' });
-  const parsed = slotMappingSchema.parse(req.body);
-  // Normaliza para lista (sem duplicados); aceita o legado categoryId.
-  const categoryIds = [...new Set([
-    ...(parsed.categoryIds || []),
-    ...(parsed.categoryId ? [parsed.categoryId] : [])
-  ])];
-  if (categoryIds.length) {
-    const valid = await prisma.equipmentCategory.findMany({
-      where: { id: { in: categoryIds }, isActive: true },
-      select: { id: true }
-    });
-    if (valid.length !== categoryIds.length) {
-      return res.status(400).json({ error: 'Categoria inválida.' });
+router.put(
+  '/rdo-slots/:slotKey',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const slot = getSlot(req.params.slotKey);
+    if (!slot) return res.status(404).json({ error: 'Slot de relatório não encontrado.' });
+    const parsed = slotMappingSchema.parse(req.body);
+    // Normaliza para lista (sem duplicados); aceita o legado categoryId.
+    const categoryIds = [...new Set([...(parsed.categoryIds || []), ...(parsed.categoryId ? [parsed.categoryId] : [])])];
+    if (categoryIds.length) {
+      const valid = await prisma.equipmentCategory.findMany({
+        where: { id: { in: categoryIds }, isActive: true },
+        select: { id: true }
+      });
+      if (valid.length !== categoryIds.length) {
+        return res.status(400).json({ error: 'Categoria inválida.' });
+      }
     }
-  }
-  await prisma.rdoEquipmentSlot.upsert({
-    where: { slotKey: slot.key },
-    create: { slotKey: slot.key, categoryIds, categoryId: categoryIds[0] || null },
-    update: { categoryIds, categoryId: categoryIds[0] || null }
-  });
-  invalidateCaches();
-  const { slots } = await resolveRdoSlotMap();
-  res.json(slots.find(item => item.key === slot.key));
-}));
+    await prisma.rdoEquipmentSlot.upsert({
+      where: { slotKey: slot.key },
+      create: {
+        slotKey: slot.key,
+        categoryIds,
+        categoryId: categoryIds[0] || null
+      },
+      update: { categoryIds, categoryId: categoryIds[0] || null }
+    });
+    invalidateCaches();
+    const { slots } = await resolveRdoSlotMap();
+    res.json(slots.find(item => item.key === slot.key));
+  })
+);
 
 // === Notificações de calibração (destinatários + configuração) ===
 
@@ -634,67 +1020,107 @@ const notificationConfigSchema = z.object({
   repeatGapDays: z.number().int().positive().optional()
 });
 
-const recipientSchema = z.object({
-  userId: z.string().trim().min(1).optional().nullable(),
-  email: z.string().trim().email().optional()
-}).refine(data => data.userId || data.email, { message: 'Informe uma conta ou um e-mail.' });
+const recipientSchema = z
+  .object({
+    userId: z.string().trim().min(1).optional().nullable(),
+    email: z.string().trim().email().optional()
+  })
+  .refine(data => data.userId || data.email, {
+    message: 'Informe uma conta ou um e-mail.'
+  });
 
-router.get('/notifications/config', asyncHandler(async (_req, res) => {
-  res.json(await getEquipmentNotificationConfig());
-}));
+router.get(
+  '/notifications/config',
+  asyncHandler(async (_req, res) => {
+    res.json(await getEquipmentNotificationConfig());
+  })
+);
 
-router.put('/notifications/config', requireEquipamentosManager, asyncHandler(async (req, res) => {
-  const data = notificationConfigSchema.parse(req.body);
-  res.json(await updateEquipmentNotificationConfig(prisma, data));
-}));
+router.put(
+  '/notifications/config',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const data = notificationConfigSchema.parse(req.body);
+    res.json(await updateEquipmentNotificationConfig(prisma, data));
+  })
+);
 
 // Contas internas elegíveis a receber notificações (para o seletor da UI).
-router.get('/notifications/accounts', asyncHandler(async (_req, res) => {
-  const users = await prisma.user.findMany({
-    where: { isActive: true, accountType: { in: ['ADMIN', 'INTERNAL'] } },
-    select: { id: true, name: true, email: true, username: true },
-    orderBy: { name: 'asc' }
-  });
-  res.json(users
-    .map(user => ({ id: user.id, name: user.name, email: normalizeEmail(user.email) || (user.username.includes('@') ? normalizeEmail(user.username) : '') }))
-    .filter(user => user.email));
-}));
+router.get(
+  '/notifications/accounts',
+  asyncHandler(async (_req, res) => {
+    const users = await prisma.user.findMany({
+      where: { isActive: true, accountType: { in: ['ADMIN', 'INTERNAL'] } },
+      select: { id: true, name: true, email: true, username: true },
+      orderBy: { name: 'asc' }
+    });
+    res.json(
+      users
+        .map(user => ({
+          id: user.id,
+          name: user.name,
+          email: normalizeEmail(user.email) || (user.username.includes('@') ? normalizeEmail(user.username) : '')
+        }))
+        .filter(user => user.email)
+    );
+  })
+);
 
-router.get('/notifications/recipients', asyncHandler(async (_req, res) => {
-  res.json(await listEquipmentNotificationRecipients());
-}));
+router.get(
+  '/notifications/recipients',
+  asyncHandler(async (_req, res) => {
+    res.json(await listEquipmentNotificationRecipients());
+  })
+);
 
-router.post('/notifications/recipients', requireEquipamentosManager, asyncHandler(async (req, res) => {
-  const data = recipientSchema.parse(req.body);
-  let email = data.email ? normalizeEmail(data.email) : '';
-  let userId = data.userId || null;
-  if (userId) {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, username: true, isActive: true } });
-    if (!user || !user.isActive) return res.status(400).json({ error: 'Conta inválida.' });
-    email = normalizeEmail(user.email) || (user.username.includes('@') ? normalizeEmail(user.username) : '');
-    if (!email) return res.status(400).json({ error: 'A conta não possui e-mail válido.' });
-  }
-  if (!email) return res.status(400).json({ error: 'Informe um e-mail válido.' });
-  const recipient = await prisma.equipmentNotificationRecipient.upsert({
-    where: { email },
-    create: { email, userId, isActive: true },
-    update: { userId, isActive: true }
-  });
-  res.status(201).json(recipient);
-}));
+router.post(
+  '/notifications/recipients',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const data = recipientSchema.parse(req.body);
+    let email = data.email ? normalizeEmail(data.email) : '';
+    let userId = data.userId || null;
+    if (userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true, username: true, isActive: true }
+      });
+      if (!user || !user.isActive) return res.status(400).json({ error: 'Conta inválida.' });
+      email = normalizeEmail(user.email) || (user.username.includes('@') ? normalizeEmail(user.username) : '');
+      if (!email) return res.status(400).json({ error: 'A conta não possui e-mail válido.' });
+    }
+    if (!email) return res.status(400).json({ error: 'Informe um e-mail válido.' });
+    const recipient = await prisma.equipmentNotificationRecipient.upsert({
+      where: { email },
+      create: { email, userId, isActive: true },
+      update: { userId, isActive: true }
+    });
+    res.status(201).json(recipient);
+  })
+);
 
-router.put('/notifications/recipients/:id', requireEquipamentosManager, asyncHandler(async (req, res) => {
-  const isActive = Boolean(req.body?.isActive);
-  const recipient = await prisma.equipmentNotificationRecipient.update({
-    where: { id: req.params.id },
-    data: { isActive }
-  });
-  res.json(recipient);
-}));
+router.put(
+  '/notifications/recipients/:id',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    const isActive = Boolean(req.body?.isActive);
+    const recipient = await prisma.equipmentNotificationRecipient.update({
+      where: { id: req.params.id },
+      data: { isActive }
+    });
+    res.json(recipient);
+  })
+);
 
-router.delete('/notifications/recipients/:id', requireEquipamentosManager, asyncHandler(async (req, res) => {
-  await prisma.equipmentNotificationRecipient.delete({ where: { id: req.params.id } });
-  res.status(204).end();
-}));
+router.delete(
+  '/notifications/recipients/:id',
+  requireEquipamentosManager,
+  asyncHandler(async (req, res) => {
+    await prisma.equipmentNotificationRecipient.delete({
+      where: { id: req.params.id }
+    });
+    res.status(204).end();
+  })
+);
 
 export default router;

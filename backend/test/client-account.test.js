@@ -21,7 +21,9 @@ function createPrismaMock(initialUsers = [], options = {}) {
     created: [],
     updated: [],
     updateMany: [],
-    projectFindFirst: []
+    projectFindFirst: [],
+    passwordResetTokenCreated: [],
+    passwordResetTokenDeleted: []
   };
 
   return {
@@ -78,6 +80,16 @@ function createPrismaMock(initialUsers = [], options = {}) {
         return { count };
       }
     },
+    passwordResetToken: {
+      create: async args => {
+        calls.passwordResetTokenCreated.push(args);
+        return { id: `token-${calls.passwordResetTokenCreated.length}`, ...args.data };
+      },
+      deleteMany: async args => {
+        calls.passwordResetTokenDeleted.push(args);
+        return { count: 0 };
+      }
+    },
     project: {
       findFirst: async args => {
         calls.projectFindFirst.push(args);
@@ -109,6 +121,9 @@ test('primary client account is created with email as the single login username'
   assert.equal(result.user.clientCnpj, '11222333000144');
   assert.equal(prisma.calls.created.length, 1);
   assert.equal(prisma.calls.created[0].data.username, 'cliente@example.com');
+  assert.equal(prisma.calls.passwordResetTokenCreated.length, 1);
+  assert.match(result.passwordSetup.url, /^\/reset-password\?token=.+&setup=1$/);
+  assert.equal(result.passwordSetup.expiresAt instanceof Date, true);
 });
 
 test('primary project reuses an existing cc/signer client account with the same email', async () => {
@@ -129,6 +144,7 @@ test('primary project reuses an existing cc/signer client account with the same 
   assert.equal(result.user.name, 'Cliente');
   assert.equal(result.user.passwordHash, 'existing-password-hash');
   assert.equal(prisma.calls.created.length, 0);
+  assert.equal(prisma.calls.passwordResetTokenCreated.length, 0);
   assert.equal(prisma.calls.updated.some(call => Object.hasOwn(call.data, 'passwordHash')), false);
 });
 

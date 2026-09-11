@@ -20,6 +20,7 @@ import './styles/variables.css';
 import './styles/foundation.css';
 import './styles/utilities.css';
 import './styles/legacy.css';
+import './styles/operational-reports.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,3 +64,4 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </ThemeProvider>
   </React.StrictMode>
 );
+

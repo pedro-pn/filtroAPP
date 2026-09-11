@@ -5,6 +5,7 @@ export const SEDE_COST_CENTERS = [
 ];
 
 export const SEDE_OMIE_CODES = SEDE_COST_CENTERS.map(center => center.code);
+export const SEDE_OPERATIONAL_CODES = ['5002', '5004'];
 
 export function isSedeCostCenterCode(value) {
   return SEDE_OMIE_CODES.includes(String(value ?? '').trim());

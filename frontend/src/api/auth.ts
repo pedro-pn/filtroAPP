@@ -40,8 +40,20 @@ export async function resetPassword(token: string, password: string) {
   return response.data;
 }
 
+export async function resendPasswordSetup(token: string) {
+  const response = await apiClient.post<{ ok: true; message: string }>('/auth/resend-password-setup', { token });
+  return response.data;
+}
+
 export async function getResetPasswordStatus(token: string) {
-  const response = await apiClient.get<{ valid: boolean; expired: boolean; used: boolean }>('/auth/reset-password-status', {
+  const response = await apiClient.get<{
+    valid: boolean;
+    expired: boolean;
+    used: boolean;
+    username: string | null;
+    name: string | null;
+    canRequestNewLink: boolean;
+  }>('/auth/reset-password-status', {
     params: { token }
   });
   return response.data;

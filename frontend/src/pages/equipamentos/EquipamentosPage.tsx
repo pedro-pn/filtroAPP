@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { driver } from 'driver.js';
 import type { DriveStep } from 'driver.js';
 
@@ -23,20 +23,22 @@ import { RdoSlotsConfig } from './RdoSlotsConfig';
 import { type ProjectSortDirection } from '../../utils/projectSort';
 import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { useUrlParamState } from '../../hooks/useUrlParamState';
+import { MaintenanceConfigPanel } from './MaintenanceConfigPanel';
+import { MaintenanceHistoryModal } from './MaintenanceHistoryModal';
 
-type ActiveTab = { kind: 'category'; id: string } | { kind: 'dashboard' } | { kind: 'config' } | { kind: 'notifications' };
-const EQUIPMENT_TAB_VALUES = new Set(['dashboard', 'config', 'notifications']);
+type ActiveTab = { kind: 'category'; id: string } | { kind: 'dashboard' } | { kind: 'config' } | { kind: 'maintenance' } | { kind: 'notifications' };
+const EQUIPMENT_TAB_VALUES = new Set(['dashboard', 'config', 'maintenance', 'notifications']);
 
 const EQUIPMENT_TUTORIAL_STORAGE_KEY_PREFIX = 'filtrovali-equipment-tutorial-done';
 
 function normalizeTutorialIdentity(value?: string | null) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .trim()
+    .toLowerCase();
 }
 
 function equipmentTutorialUserKey(user: ReturnType<typeof useAuth>['user'], isManager: boolean) {
-  const identity = normalizeTutorialIdentity(user?.email)
-    || normalizeTutorialIdentity(user?.username)
-    || normalizeTutorialIdentity(user?.id);
+  const identity = normalizeTutorialIdentity(user?.email) || normalizeTutorialIdentity(user?.username) || normalizeTutorialIdentity(user?.id);
   return identity ? `${isManager ? 'manager' : 'viewer'}:${identity}` : '';
 }
 
@@ -70,6 +72,7 @@ function parseEquipmentTabParam(value: string | null) {
 function activeTabFromParam(value: string): ActiveTab {
   if (value.startsWith('cat:')) return { kind: 'category', id: value.slice(4) };
   if (value === 'config') return { kind: 'config' };
+  if (value === 'maintenance') return { kind: 'maintenance' };
   if (value === 'notifications') return { kind: 'notifications' };
   return { kind: 'dashboard' };
 }
@@ -90,6 +93,7 @@ export function EquipamentosPage() {
   const location = useLocation();
   const { user, logout } = useAuth();
   const showToast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isManager = user?.accountType === 'ADMIN' || Boolean(user?.moduleRoles?.includes('equipamentos:manager'));
 
   const categoriesQuery = useEquipmentCategories();
@@ -98,16 +102,10 @@ export function EquipamentosPage() {
   const unitsCatalogQuery = useUnitsCatalog();
   const mutations = useEquipamentoMutations();
 
-  const categories = useMemo(
-    () => [...(categoriesQuery.data || [])].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)),
-    [categoriesQuery.data]
-  );
+  const categories = useMemo(() => [...(categoriesQuery.data || [])].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)), [categoriesQuery.data]);
   const equipment = useMemo(() => equipmentQuery.data || [], [equipmentQuery.data]);
   // Categorias atualmente vinculadas a algum slot de relatório (override ou padrão).
-  const rdoLinkedCategoryIds = useMemo(
-    () => new Set((rdoSlotsQuery.data || []).flatMap(slot => slot.categoryIds)),
-    [rdoSlotsQuery.data]
-  );
+  const rdoLinkedCategoryIds = useMemo(() => new Set((rdoSlotsQuery.data || []).flatMap(slot => slot.categoryIds)), [rdoSlotsQuery.data]);
 
   const [activeTabUrl, setActiveTabUrl] = useUrlParamState<string>({
     param: 'tab',
@@ -115,21 +113,38 @@ export function EquipamentosPage() {
     parse: parseEquipmentTabParam
   });
   const activeTab = activeTabFromParam(activeTabUrl);
-  const setActiveTab = useCallback((nextTab: ActiveTab) => {
-    setActiveTabUrl(activeTabParam(nextTab));
-  }, [setActiveTabUrl]);
-  const [equipmentForm, setEquipmentForm] = useState<{ category: EquipmentCategory; item: CompanyEquipment | null } | null>(null);
-  const [technicalForm, setTechnicalForm] = useState<{ category: EquipmentCategory; item: CompanyEquipment } | null>(null);
-  const [categoryForm, setCategoryForm] = useState<{ open: boolean; category: EquipmentCategory | null }>({ open: false, category: null });
+  const setActiveTab = useCallback(
+    (nextTab: ActiveTab) => {
+      setActiveTabUrl(activeTabParam(nextTab));
+    },
+    [setActiveTabUrl]
+  );
+  const [equipmentForm, setEquipmentForm] = useState<{
+    category: EquipmentCategory;
+    item: CompanyEquipment | null;
+  } | null>(null);
+  const [technicalForm, setTechnicalForm] = useState<{
+    category: EquipmentCategory;
+    item: CompanyEquipment;
+  } | null>(null);
+  const [categoryForm, setCategoryForm] = useState<{
+    open: boolean;
+    category: EquipmentCategory | null;
+  }>({ open: false, category: null });
   const [categorySearch, setCategorySearch] = useState('');
   const [equipmentSort, setEquipmentSort] = useState<ProjectSortDirection>('asc');
-  const [confirm, setConfirm] = useState<{ title: string; description?: string; highlight?: string; onConfirm: () => void } | null>(null);
+  const [confirm, setConfirm] = useState<{
+    title: string;
+    description?: string;
+    highlight?: string;
+    onConfirm: () => void;
+  } | null>(null);
   const tutorialStartedRef = useRef(false);
 
   const selectedCategory = activeTab.kind === 'category' ? categories.find(c => c.id === activeTab.id) || null : null;
   const activeTabKey = activeTab.kind === 'category' ? activeTab.id : activeTab.kind;
   useEffect(() => {
-    if (!isManager && (activeTab.kind === 'config' || activeTab.kind === 'notifications')) {
+    if (!isManager && (activeTab.kind === 'config' || activeTab.kind === 'maintenance' || activeTab.kind === 'notifications')) {
       setActiveTab({ kind: 'dashboard' });
     }
   }, [activeTab.kind, isManager, setActiveTab]);
@@ -139,17 +154,18 @@ export function EquipamentosPage() {
     }
   }, [activeTab.kind, categoriesQuery.isLoading, selectedCategory, setActiveTab]);
   // Limpa a busca ao trocar de aba/categoria.
-  useEffect(() => { setCategorySearch(''); }, [activeTabKey]);
+  useEffect(() => {
+    setCategorySearch('');
+  }, [activeTabKey]);
   const allCategoryEquipment = selectedCategory ? equipment.filter(item => item.categoryId === selectedCategory.id) : [];
   const categoryEquipment = (() => {
     const query = categorySearch.trim().toLowerCase();
-    const filtered = !query ? allCategoryEquipment : allCategoryEquipment.filter(item => {
-      const haystack = [item.code, item.name, ...Object.values(item.attributes || {}).map(value => String(value ?? ''))]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      return haystack.includes(query);
-    });
+    const filtered = !query
+      ? allCategoryEquipment
+      : allCategoryEquipment.filter(item => {
+          const haystack = [item.code, item.name, ...Object.values(item.attributes || {}).map(value => String(value ?? ''))].filter(Boolean).join(' ').toLowerCase();
+          return haystack.includes(query);
+        });
     const dir = equipmentSort === 'asc' ? 1 : -1;
     return [...filtered].sort((a, b) => a.code.localeCompare(b.code, 'pt-BR', { sensitivity: 'base' }) * dir);
   })();
@@ -157,22 +173,19 @@ export function EquipamentosPage() {
     const candidates = categories.map(category => {
       const items = equipment.filter(item => item.categoryId === category.id);
       const certificateItem = items.find(item => item.calibrationCertificate) || null;
-      const generatedTechnicalItem = category.technicalDocEnabled
-        ? items.find(item => item.technicalDocGenerated || item.technicalDoc) || null
-        : null;
-      const technicalItem = category.technicalDocEnabled
-        ? generatedTechnicalItem || items[0] || null
-        : null;
-      const score = (items.length ? 1 : 0)
-        + (certificateItem ? 8 : 0)
-        + (technicalItem ? 4 : 0)
-        + (generatedTechnicalItem ? 2 : 0)
-        + (category.technicalSchema?.length ? 1 : 0);
-      return { category, items, certificateItem, technicalItem, generatedTechnicalItem, score };
+      const generatedTechnicalItem = category.technicalDocEnabled ? items.find(item => item.technicalDocGenerated || item.technicalDoc) || null : null;
+      const technicalItem = category.technicalDocEnabled ? generatedTechnicalItem || items[0] || null : null;
+      const score = (items.length ? 1 : 0) + (certificateItem ? 8 : 0) + (technicalItem ? 4 : 0) + (generatedTechnicalItem ? 2 : 0) + (category.technicalSchema?.length ? 1 : 0);
+      return {
+        category,
+        items,
+        certificateItem,
+        technicalItem,
+        generatedTechnicalItem,
+        score
+      };
     });
-    return candidates
-      .filter(candidate => candidate.items.length > 0 || categories.length === 1)
-      .sort((a, b) => b.score - a.score || a.category.order - b.category.order || a.category.name.localeCompare(b.category.name))[0] || null;
+    return candidates.filter(candidate => candidate.items.length > 0 || categories.length === 1).sort((a, b) => b.score - a.score || a.category.order - b.category.order || a.category.name.localeCompare(b.category.name))[0] || null;
   }, [categories, equipment]);
   const tutorialReady = !categoriesQuery.isLoading && !equipmentQuery.isLoading;
   const tutorialUserKey = equipmentTutorialUserKey(user, isManager);
@@ -194,8 +207,7 @@ export function EquipamentosPage() {
         element: '[data-equip-dashboard]',
         popover: {
           title: 'Dashboard de equipamentos',
-          description:
-            'Esta visão reúne os equipamentos cadastrados e resume a situação de calibração: data calibrada, vencimento e status.',
+          description: 'Esta visão reúne os equipamentos cadastrados e resume a situação de calibração: data calibrada, vencimento e status.',
           side: 'bottom',
           align: 'start'
         }
@@ -204,8 +216,7 @@ export function EquipamentosPage() {
         element: '[data-equip-dashboard-filters]',
         popover: {
           title: 'Filtros do dashboard',
-          description:
-            'Use a busca, o filtro de categoria e o filtro de status para localizar equipamentos vencidos, a vencer, calibrados ou sem calibração.',
+          description: 'Use a busca, o filtro de categoria e o filtro de status para localizar equipamentos vencidos, a vencer, calibrados ou sem calibração.',
           side: 'bottom',
           align: 'start'
         }
@@ -214,8 +225,7 @@ export function EquipamentosPage() {
         element: '[data-equip-dashboard-table]',
         popover: {
           title: 'Informações exibidas',
-          description:
-            'A tabela mostra código, nome, categoria, data de calibração, vencimento e status. O CSV exporta exatamente a lista filtrada.',
+          description: 'A tabela mostra código, nome, categoria, data de calibração, vencimento e status. O CSV exporta exatamente a lista filtrada.',
           side: 'top',
           align: 'start'
         }
@@ -224,8 +234,7 @@ export function EquipamentosPage() {
         element: navSelector,
         popover: {
           title: 'Menu do módulo',
-          description:
-            'Use este menu para alternar entre o Dashboard e as categorias de equipamentos. Gestores também veem Configurações e Notificações.',
+          description: 'Use este menu para alternar entre o Dashboard e as categorias de equipamentos. Gestores também veem Configurações e Notificações.',
           side: 'right',
           align: 'start',
           onNextClick: (_element, _step, { driver: driverObj }) => {
@@ -245,8 +254,7 @@ export function EquipamentosPage() {
         element: '[data-equip-category-section]',
         popover: {
           title: `Categoria ${category.name}`,
-          description:
-            'Ao abrir uma categoria, os cards mostram os equipamentos daquela família, seus atributos principais e os documentos disponíveis.',
+          description: 'Ao abrir uma categoria, os cards mostram os equipamentos daquela família, seus atributos principais e os documentos disponíveis.',
           side: 'top',
           align: 'start'
         }
@@ -258,8 +266,7 @@ export function EquipamentosPage() {
         element: `[data-equip-item-id="${escapeCssSelectorValue(target.certificateItem.id)}"] [data-equip-cert-link]`,
         popover: {
           title: 'Certificado de calibração',
-          description:
-            'Quando o equipamento possui certificado, este link abre o PDF de calibração em uma nova aba.',
+          description: 'Quando o equipamento possui certificado, este link abre o PDF de calibração em uma nova aba.',
           side: 'top',
           align: 'start'
         }
@@ -271,8 +278,7 @@ export function EquipamentosPage() {
         element: `[data-equip-item-id="${escapeCssSelectorValue(target.technicalItem.id)}"] [data-equip-technical-doc-link]`,
         popover: {
           title: 'PDF dos dados técnicos',
-          description:
-            'Quando o datasheet já foi gerado, este botão baixa diretamente o PDF dos dados técnicos do equipamento.',
+          description: 'Quando o datasheet já foi gerado, este botão baixa diretamente o PDF dos dados técnicos do equipamento.',
           side: 'top',
           align: 'start'
         }
@@ -284,12 +290,14 @@ export function EquipamentosPage() {
         element: `[data-equip-item-id="${escapeCssSelectorValue(target.technicalItem.id)}"] [data-equip-technical-button]`,
         popover: {
           title: 'Dados técnicos',
-          description:
-            'Este botão abre os dados técnicos do equipamento. Quando houver datasheet gerado, ele também pode ser baixado em PDF.',
+          description: 'Este botão abre os dados técnicos do equipamento. Quando houver datasheet gerado, ele também pode ser baixado em PDF.',
           side: 'top',
           align: 'start',
           onNextClick: (_element, _step, { driver: driverObj }) => {
-            setTechnicalForm({ category, item: target.technicalItem as CompanyEquipment });
+            setTechnicalForm({
+              category,
+              item: target.technicalItem as CompanyEquipment
+            });
             window.setTimeout(() => driverObj.moveNext(), 180);
           }
         }
@@ -298,10 +306,7 @@ export function EquipamentosPage() {
         element: '[data-equip-technical-modal]',
         popover: {
           title: 'Janela de dados técnicos',
-          description:
-            isManager
-              ? 'Aqui o gestor revisa e atualiza os campos técnicos que alimentam o datasheet do equipamento.'
-              : 'Aqui o visualizador consulta os dados técnicos cadastrados para o equipamento.',
+          description: isManager ? 'Aqui o gestor revisa e atualiza os campos técnicos que alimentam o datasheet do equipamento.' : 'Aqui o visualizador consulta os dados técnicos cadastrados para o equipamento.',
           side: 'left',
           align: 'start'
         }
@@ -312,8 +317,7 @@ export function EquipamentosPage() {
             element: '[data-equip-technical-edit-fields]',
             popover: {
               title: 'Editar dados técnicos',
-              description:
-                'Gestores podem alterar valores, unidades, campos aplicáveis e fotos técnicas diretamente nestas seções.',
+              description: 'Gestores podem alterar valores, unidades, campos aplicáveis e fotos técnicas diretamente nestas seções.',
               side: 'right',
               align: 'start'
             }
@@ -323,8 +327,7 @@ export function EquipamentosPage() {
           element: '[data-equip-technical-save]',
           popover: {
             title: 'Salvar alterações',
-            description:
-              'Após revisar os campos, salve os dados técnicos. Sempre que algo muda, uma nova revisão é gerada automaticamente e o PDF da revisão anterior fica arquivado no histórico.',
+            description: 'Após revisar os campos, salve os dados técnicos. Sempre que algo muda, uma nova revisão é gerada automaticamente e o PDF da revisão anterior fica arquivado no histórico.',
             side: 'top',
             align: 'end'
           }
@@ -376,12 +379,7 @@ export function EquipamentosPage() {
     }
   }
 
-  function handleTechnicalSubmit(
-    technicalData: Record<string, unknown>,
-    technicalFieldOverrides: Record<string, boolean>,
-    photos: { add: ImageUpload[]; removeIds: string[] },
-    bumpRevision: boolean
-  ) {
+  function handleTechnicalSubmit(technicalData: Record<string, unknown>, technicalFieldOverrides: Record<string, boolean>, photos: { add: ImageUpload[]; removeIds: string[] }, bumpRevision: boolean) {
     if (!technicalForm) return;
     mutations.updateEquipment.mutate(
       {
@@ -395,7 +393,10 @@ export function EquipamentosPage() {
         }
       },
       {
-        onSuccess: () => { showToast('Dados técnicos salvos.', 'success'); setTechnicalForm(null); },
+        onSuccess: () => {
+          showToast('Dados técnicos salvos.', 'success');
+          setTechnicalForm(null);
+        },
         onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível salvar.', 'error')
       }
     );
@@ -405,19 +406,28 @@ export function EquipamentosPage() {
     const close = () => setCategoryForm({ open: false, category: null });
     const onError = (error: unknown) => showToast(error instanceof Error ? error.message : 'Não foi possível salvar.', 'error');
     if (categoryForm.category) {
-      mutations.updateCategory.mutate({ id: categoryForm.category.id, payload }, {
-        onSuccess: () => { showToast('Categoria salva.', 'success'); close(); },
-        onError
-      });
+      mutations.updateCategory.mutate(
+        { id: categoryForm.category.id, payload },
+        {
+          onSuccess: () => {
+            showToast('Categoria salva.', 'success');
+            close();
+          },
+          onError
+        }
+      );
     } else {
-      mutations.createCategory.mutate({ ...payload, order: categories.length }, {
-        onSuccess: created => {
-          const imported = created.importedFromRomaneio || 0;
-          showToast(imported > 0 ? `Categoria criada. ${imported} equipamento(s) importado(s) do romaneio.` : 'Categoria salva.', 'success');
-          close();
-        },
-        onError
-      });
+      mutations.createCategory.mutate(
+        { ...payload, order: categories.length },
+        {
+          onSuccess: created => {
+            const imported = created.importedFromRomaneio || 0;
+            showToast(imported > 0 ? `Categoria criada. ${imported} equipamento(s) importado(s) do romaneio.` : 'Categoria salva.', 'success');
+            close();
+          },
+          onError
+        }
+      );
     }
   }
 
@@ -426,10 +436,11 @@ export function EquipamentosPage() {
       title: 'Remover equipamento',
       description: 'O equipamento será removido do módulo.',
       highlight: [item.code, item.name].filter(Boolean).join(' — '),
-      onConfirm: () => mutations.removeEquipment.mutate(item.id, {
-        onSuccess: () => showToast('Equipamento removido.', 'success'),
-        onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível remover.', 'error')
-      })
+      onConfirm: () =>
+        mutations.removeEquipment.mutate(item.id, {
+          onSuccess: () => showToast('Equipamento removido.', 'success'),
+          onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível remover.', 'error')
+        })
     });
   }
 
@@ -438,10 +449,11 @@ export function EquipamentosPage() {
       title: 'Remover categoria',
       description: 'A categoria será removida do módulo.',
       highlight: category.name,
-      onConfirm: () => mutations.removeCategory.mutate(category.id, {
-        onSuccess: () => showToast('Categoria removida.', 'success'),
-        onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível remover.', 'error')
-      })
+      onConfirm: () =>
+        mutations.removeCategory.mutate(category.id, {
+          onSuccess: () => showToast('Categoria removida.', 'success'),
+          onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível remover.', 'error')
+        })
     });
   }
 
@@ -455,9 +467,23 @@ export function EquipamentosPage() {
         subtitle="Cadastro, calibração e documentação técnica"
         actions={
           <>
-            <button className="topbar-chip" type="button" onClick={startEquipmentTutorial}>Ver tutorial</button>
-            <button className="topbar-chip" type="button" onClick={() => navigate('/conta', { state: accountPageStateFromPath(location) })}>Conta</button>
-            <button className="topbar-chip" type="button" onClick={handleLogout}>Sair</button>
+            <button className="topbar-chip" type="button" onClick={startEquipmentTutorial}>
+              Ver tutorial
+            </button>
+            <button
+              className="topbar-chip"
+              type="button"
+              onClick={() =>
+                navigate('/conta', {
+                  state: accountPageStateFromPath(location)
+                })
+              }
+            >
+              Conta
+            </button>
+            <button className="topbar-chip" type="button" onClick={handleLogout}>
+              Sair
+            </button>
           </>
         }
       />
@@ -465,7 +491,9 @@ export function EquipamentosPage() {
         <div className="equip-layout">
           <nav className="equip-nav" aria-label="Áreas de Equipamentos" data-equip-nav>
             <button className={`equip-nav-item ${activeTab.kind === 'dashboard' ? 'active' : ''}`} type="button" aria-current={activeTab.kind === 'dashboard'} onClick={() => setActiveTab({ kind: 'dashboard' })} data-equip-nav-dashboard>
-              <span className="equip-nav-ico" aria-hidden="true">◧</span>
+              <span className="equip-nav-ico" aria-hidden="true">
+                ◧
+              </span>
               <span className="equip-nav-label">Dashboard</span>
             </button>
             {categories.length > 0 && <div className="equip-nav-group">Categorias</div>}
@@ -473,15 +501,7 @@ export function EquipamentosPage() {
               const selected = activeTab.kind === 'category' && activeTab.id === category.id;
               const count = equipment.filter(item => item.categoryId === category.id).length;
               return (
-                <button
-                  key={category.id}
-                  className={`equip-nav-item ${selected ? 'active' : ''}`}
-                  type="button"
-                  aria-current={selected}
-                  data-equip-category-nav
-                  data-equip-category-id={category.id}
-                  onClick={() => setActiveTab({ kind: 'category', id: category.id })}
-                >
+                <button key={category.id} className={`equip-nav-item ${selected ? 'active' : ''}`} type="button" aria-current={selected} data-equip-category-nav data-equip-category-id={category.id} onClick={() => setActiveTab({ kind: 'category', id: category.id })}>
                   <span className="equip-nav-label">{category.name}</span>
                   <span className="equip-nav-count">{count}</span>
                 </button>
@@ -490,11 +510,21 @@ export function EquipamentosPage() {
             {isManager && (
               <>
                 <button className={`equip-nav-item equip-nav-config ${activeTab.kind === 'config' ? 'active' : ''}`} type="button" aria-current={activeTab.kind === 'config'} onClick={() => setActiveTab({ kind: 'config' })}>
-                  <span className="equip-nav-ico" aria-hidden="true">⚙</span>
+                  <span className="equip-nav-ico" aria-hidden="true">
+                    ⚙
+                  </span>
                   <span className="equip-nav-label">Configurações</span>
                 </button>
+                <button className={`equip-nav-item ${activeTab.kind === 'maintenance' ? 'active' : ''}`} type="button" aria-current={activeTab.kind === 'maintenance'} onClick={() => setActiveTab({ kind: 'maintenance' })}>
+                  <span className="equip-nav-ico" aria-hidden="true">
+                    🔧
+                  </span>
+                  <span className="equip-nav-label">Manutenção</span>
+                </button>
                 <button className={`equip-nav-item ${activeTab.kind === 'notifications' ? 'active' : ''}`} type="button" aria-current={activeTab.kind === 'notifications'} onClick={() => setActiveTab({ kind: 'notifications' })}>
-                  <span className="equip-nav-ico" aria-hidden="true">✉</span>
+                  <span className="equip-nav-ico" aria-hidden="true">
+                    ✉
+                  </span>
                   <span className="equip-nav-label">Notificações</span>
                 </button>
               </>
@@ -502,7 +532,9 @@ export function EquipamentosPage() {
           </nav>
 
           <div className="equip-mobile-nav" data-equip-mobile-nav>
-            <label className="equip-mobile-nav-label" htmlFor="equip-section-select">Seção do módulo</label>
+            <label className="equip-mobile-nav-label" htmlFor="equip-section-select">
+              Seção do módulo
+            </label>
             <select
               id="equip-section-select"
               className="equip-nav-select"
@@ -511,6 +543,7 @@ export function EquipamentosPage() {
                 const value = event.target.value;
                 if (value === 'dashboard') setActiveTab({ kind: 'dashboard' });
                 else if (value === 'config') setActiveTab({ kind: 'config' });
+                else if (value === 'maintenance') setActiveTab({ kind: 'maintenance' });
                 else if (value === 'notifications') setActiveTab({ kind: 'notifications' });
                 else if (value.startsWith('cat:')) setActiveTab({ kind: 'category', id: value.slice(4) });
               }}
@@ -520,13 +553,18 @@ export function EquipamentosPage() {
                 <optgroup label="Categorias">
                   {categories.map(category => {
                     const count = equipment.filter(item => item.categoryId === category.id).length;
-                    return <option key={category.id} value={`cat:${category.id}`}>{category.name} ({count})</option>;
+                    return (
+                      <option key={category.id} value={`cat:${category.id}`}>
+                        {category.name} ({count})
+                      </option>
+                    );
                   })}
                 </optgroup>
               )}
               {isManager && (
                 <optgroup label="Gestão">
                   <option value="config">Configurações</option>
+                  <option value="maintenance">Manutenção</option>
                   <option value="notifications">Notificações</option>
                 </optgroup>
               )}
@@ -534,114 +572,114 @@ export function EquipamentosPage() {
           </div>
 
           <div className="equip-main">
-        {(categoriesQuery.isLoading || equipmentQuery.isLoading) && (
-          <section className="page-card"><p>Carregando…</p></section>
-        )}
+            {(categoriesQuery.isLoading || equipmentQuery.isLoading) && (
+              <section className="page-card">
+                <p>Carregando…</p>
+              </section>
+            )}
 
-        {activeTab.kind === 'dashboard' && (
-          <EquipmentDashboard categories={categories} equipment={equipment} />
-        )}
+            {activeTab.kind === 'dashboard' && <EquipmentDashboard categories={categories} equipment={equipment} />}
 
-        {activeTab.kind === 'category' && selectedCategory && (
-          <section className="page-card" data-equip-category-section>
-            <div className="admin-toolbar">
-              <div className="sec">{selectedCategory.name}</div>
-              <div className="equip-cat-tools">
-                <ProjectSortButton direction={equipmentSort} onToggle={() => setEquipmentSort(equipmentSort === 'asc' ? 'desc' : 'asc')} />
-                {isManager && (
-                  <button className="mini-btn" type="button" onClick={() => setEquipmentForm({ category: selectedCategory, item: null })}>+ Novo equipamento</button>
+            {activeTab.kind === 'category' && selectedCategory && (
+              <section className="page-card" data-equip-category-section>
+                <div className="admin-toolbar">
+                  <div className="sec">{selectedCategory.name}</div>
+                  <div className="equip-cat-tools">
+                    <ProjectSortButton direction={equipmentSort} onToggle={() => setEquipmentSort(equipmentSort === 'asc' ? 'desc' : 'asc')} />
+                    {isManager && (
+                      <button
+                        className="mini-btn"
+                        type="button"
+                        onClick={() =>
+                          setEquipmentForm({
+                            category: selectedCategory,
+                            item: null
+                          })
+                        }
+                      >
+                        + Novo equipamento
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {allCategoryEquipment.length > 0 && (
+                  <SearchBar
+                    value={categorySearch}
+                    onChange={setCategorySearch}
+                    placeholder={`Buscar em ${selectedCategory.name}… (código, nome, nº de série)`}
+                    ariaLabel={`Buscar equipamento em ${selectedCategory.name}`}
+                    count={{
+                      shown: categoryEquipment.length,
+                      total: allCategoryEquipment.length
+                    }}
+                  />
                 )}
-              </div>
-            </div>
-            {allCategoryEquipment.length > 0 && (
-              <SearchBar
-                value={categorySearch}
-                onChange={setCategorySearch}
-                placeholder={`Buscar em ${selectedCategory.name}… (código, nome, nº de série)`}
-                ariaLabel={`Buscar equipamento em ${selectedCategory.name}`}
-                count={{ shown: categoryEquipment.length, total: allCategoryEquipment.length }}
+                {allCategoryEquipment.length === 0 && <p className="rel-meta">Nenhum equipamento nesta categoria.</p>}
+                {allCategoryEquipment.length > 0 && categoryEquipment.length === 0 && <p className="rel-meta">Nenhum equipamento encontrado para “{categorySearch.trim()}”.</p>}
+                <div className="equip-grid">
+                  {categoryEquipment.map(item => (
+                    <EquipmentCard
+                      key={item.id}
+                      item={item}
+                      category={selectedCategory}
+                      isManager={isManager}
+                      onEdit={() => setEquipmentForm({ category: selectedCategory, item })}
+                      onRemove={() => handleRemoveEquipment(item)}
+                      onOpenTechnical={() => setTechnicalForm({ category: selectedCategory, item })}
+                      onOpenMaintenanceHistory={() => {
+                        const next = new URLSearchParams(searchParams);
+                        next.set('equipamento', item.id);
+                        setSearchParams(next, { replace: true });
+                      }}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {activeTab.kind === 'config' && isManager && (
+              <>
+                <CategoryManager categories={categories} rdoLinkedCategoryIds={rdoLinkedCategoryIds} onAdd={() => setCategoryForm({ open: true, category: null })} onEdit={category => setCategoryForm({ open: true, category })} onRemove={handleRemoveCategory} />
+                <RdoSlotsConfig categories={categories} />
+              </>
+            )}
+
+            {activeTab.kind === 'notifications' && isManager && <NotificationsConfig />}
+
+            {activeTab.kind === 'maintenance' && isManager && (
+              <MaintenanceConfigPanel
+                equipment={equipment}
+                categories={categories}
               />
             )}
-            {allCategoryEquipment.length === 0 && <p className="rel-meta">Nenhum equipamento nesta categoria.</p>}
-            {allCategoryEquipment.length > 0 && categoryEquipment.length === 0 && <p className="rel-meta">Nenhum equipamento encontrado para “{categorySearch.trim()}”.</p>}
-            <div className="equip-grid">
-              {categoryEquipment.map(item => (
-                <EquipmentCard
-                  key={item.id}
-                  item={item}
-                  category={selectedCategory}
-                  isManager={isManager}
-                  onEdit={() => setEquipmentForm({ category: selectedCategory, item })}
-                  onRemove={() => handleRemoveEquipment(item)}
-                  onOpenTechnical={() => setTechnicalForm({ category: selectedCategory, item })}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {activeTab.kind === 'config' && isManager && (
-          <>
-          <CategoryManager
-            categories={categories}
-            rdoLinkedCategoryIds={rdoLinkedCategoryIds}
-            onAdd={() => setCategoryForm({ open: true, category: null })}
-            onEdit={category => setCategoryForm({ open: true, category })}
-            onRemove={handleRemoveCategory}
-          />
-          <RdoSlotsConfig categories={categories} />
-          </>
-        )}
-
-        {activeTab.kind === 'notifications' && isManager && (
-          <NotificationsConfig />
-        )}
           </div>
         </div>
       </main>
 
-      {equipmentForm && (
-        <EquipmentFormModal
-          open
-          category={equipmentForm.category}
-          equipment={equipmentForm.item}
-          saving={savingEquipment}
-          isManager={isManager}
-          onClose={() => setEquipmentForm(null)}
-          onSubmit={handleEquipmentSubmit}
-        />
-      )}
+      {equipmentForm && <EquipmentFormModal open category={equipmentForm.category} equipment={equipmentForm.item} saving={savingEquipment} isManager={isManager} onClose={() => setEquipmentForm(null)} onSubmit={handleEquipmentSubmit} />}
 
-      {technicalForm && (
-        <TechnicalDataModal
-          open
-          category={technicalForm.category}
-          equipment={technicalForm.item}
-          unitsCatalog={unitsCatalogQuery.data || []}
-          saving={mutations.updateEquipment.isPending}
-          isManager={isManager}
-          onClose={() => setTechnicalForm(null)}
-          onSubmit={handleTechnicalSubmit}
-        />
-      )}
+      {technicalForm && <TechnicalDataModal open category={technicalForm.category} equipment={technicalForm.item} unitsCatalog={unitsCatalogQuery.data || []} saving={mutations.updateEquipment.isPending} isManager={isManager} onClose={() => setTechnicalForm(null)} onSubmit={handleTechnicalSubmit} />}
 
-      {categoryForm.open && (
-        <CategoryFormModal
-          open
-          category={categoryForm.category}
-          saving={savingCategory}
-          unitsCatalog={unitsCatalogQuery.data || []}
-          onClose={() => setCategoryForm({ open: false, category: null })}
-          onSubmit={handleCategorySubmit}
-        />
-      )}
+      {categoryForm.open && <CategoryFormModal open category={categoryForm.category} saving={savingCategory} unitsCatalog={unitsCatalogQuery.data || []} onClose={() => setCategoryForm({ open: false, category: null })} onSubmit={handleCategorySubmit} />}
+
+      <MaintenanceHistoryModal
+        equipmentId={searchParams.get('equipamento')}
+        onClose={() => {
+          const next = new URLSearchParams(searchParams);
+          next.delete('equipamento');
+          setSearchParams(next, { replace: true });
+        }}
+      />
 
       <ConfirmDialog
         open={!!confirm}
         title={confirm?.title || ''}
         description={confirm?.description}
         highlight={confirm?.highlight}
-        onConfirm={() => { confirm?.onConfirm(); setConfirm(null); }}
+        onConfirm={() => {
+          confirm?.onConfirm();
+          setConfirm(null);
+        }}
         onCancel={() => setConfirm(null)}
       />
     </Shell>

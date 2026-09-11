@@ -6,6 +6,29 @@ import {
   getReportPlanningContext
 } from '../api/reports';
 
+export function useReportWorkforceAvailability({
+  reportDate,
+  collaboratorIds,
+  enabled
+}: {
+  reportDate: string;
+  collaboratorIds: string[];
+  enabled: boolean;
+}) {
+  return useQuery({
+    queryKey: [
+      'workforce',
+      'report-availability',
+      reportDate,
+      [...collaboratorIds].sort().join(',')
+    ],
+    queryFn: () =>
+      checkReportWorkforceAvailability(collaboratorIds, reportDate),
+    enabled: Boolean(enabled && reportDate && collaboratorIds.length),
+    staleTime: 15_000
+  });
+}
+
 export function useReportWorkforcePlanning({
   projectId,
   reportDate,
@@ -29,20 +52,29 @@ export function useReportWorkforcePlanning({
     enabled: Boolean(enabled && projectId && reportDate),
     staleTime: 30_000
   });
-  const availability = useQuery({
-    queryKey: ['workforce', 'report-availability', reportDate, [...collaboratorIds].sort().join(',')],
-    queryFn: () => checkReportWorkforceAvailability(collaboratorIds, reportDate),
-    enabled: Boolean(enabled && reportDate && collaboratorIds.length),
-    staleTime: 15_000
+  const availability = useReportWorkforceAvailability({
+    reportDate,
+    collaboratorIds,
+    enabled
   });
   const workforceConflicts = availability.data?.conflicts || [];
   return {
     planningContext: planning.data || null,
     lastReportPrefill: lastReportPrefill.data || null,
     lastReportPrefillStatus: lastReportPrefill.isSuccess
-      ? (lastReportPrefill.data ? 'FOUND' as const : 'EMPTY' as const)
-      : (lastReportPrefill.isError ? 'ERROR' as const : 'PENDING' as const),
-    absenceConflicts: workforceConflicts.filter(conflict => conflict.policy === 'REQUIRE_JUSTIFICATION'),
-    serverHoliday: Boolean(availability.data?.holidays?.some(holiday => holiday.date === reportDate))
+      ? lastReportPrefill.data
+        ? ('FOUND' as const)
+        : ('EMPTY' as const)
+      : lastReportPrefill.isError
+        ? ('ERROR' as const)
+        : ('PENDING' as const),
+    absenceConflicts: workforceConflicts.filter(
+      (conflict) => conflict.policy === 'REQUIRE_JUSTIFICATION'
+    ),
+    serverHoliday: Boolean(
+      availability.data?.holidays?.some(
+        (holiday) => holiday.date === reportDate
+      )
+    )
   };
 }

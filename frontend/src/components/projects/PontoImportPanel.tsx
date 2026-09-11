@@ -196,6 +196,13 @@ export function PontoImportPanel() {
     queryClient.invalidateQueries({ queryKey: ['ponto-pontomais-sync-runs'] });
     queryClient.invalidateQueries({ queryKey: ['ponto-external-employees'] });
     queryClient.invalidateQueries({ queryKey: ['project-cards'] });
+    queryClient.invalidateQueries({ queryKey: ['project-detail'] });
+    queryClient.invalidateQueries({ queryKey: ['mission-group-detail'] });
+    queryClient.invalidateQueries({ queryKey: ['commercial-dashboard'] });
+    queryClient.invalidateQueries({ queryKey: ['sede-costs'] });
+    queryClient.invalidateQueries({ queryKey: ['ponto-pendencias-contagem'] });
+    queryClient.invalidateQueries({ queryKey: ['ponto-dias-sem-alocacao'] });
+    queryClient.invalidateQueries({ queryKey: ['ponto-auditoria-alocacao'] });
   };
 
   const linkMutation = useMutation({

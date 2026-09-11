@@ -85,7 +85,7 @@ export function NewReportSpecialConditions({
 
   function addDdsThemeById(id: string, shift: 'day' | 'night') {
     if (!id) return;
-    const theme = ddsThemes.find(item => item.id === id);
+    const theme = ddsThemes.find((item) => item.id === id);
     if (theme) addDdsTheme(shift, { id: theme.id, name: theme.name });
   }
 
@@ -93,14 +93,25 @@ export function NewReportSpecialConditions({
     const name = customThemeInputs[shift].trim();
     if (!name) return;
     const selected = shift === 'day' ? ddsDayThemes : ddsNightThemes;
-    setCustomThemeInputs(current => ({ ...current, [shift]: '' }));
-    if (selected.some(item => item.name.trim().toLowerCase() === name.toLowerCase())) return;
-    const existing = ddsThemes.find(item => item.name.trim().toLowerCase() === name.toLowerCase());
+    setCustomThemeInputs((current) => ({ ...current, [shift]: '' }));
+    if (
+      selected.some(
+        (item) => item.name.trim().toLowerCase() === name.toLowerCase()
+      )
+    )
+      return;
+    const existing = ddsThemes.find(
+      (item) => item.name.trim().toLowerCase() === name.toLowerCase()
+    );
     addDdsTheme(
       shift,
       existing
         ? { id: existing.id, name: existing.name }
-        : { id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name, custom: true }
+        : {
+            id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            name,
+            custom: true
+          }
     );
   }
 
@@ -125,7 +136,9 @@ export function NewReportSpecialConditions({
     const themes = isDay ? ddsDayThemes : ddsNightThemes;
     const startTarget = isDay ? 'header:ddsDayStart' : 'header:ddsNightStart';
     const endTarget = isDay ? 'header:ddsDayEnd' : 'header:ddsNightEnd';
-    const themesTarget = isDay ? 'header:ddsDayThemes' : 'header:ddsNightThemes';
+    const themesTarget = isDay
+      ? 'header:ddsDayThemes'
+      : 'header:ddsNightThemes';
     const customInput = customThemeInputs[shift];
 
     return (
@@ -159,8 +172,13 @@ export function NewReportSpecialConditions({
                 />
               </div>
             </div>
-            <div className="section-title" style={{ marginTop: 14 }}>Temas abordados <span style={{ color: 'var(--rd)' }}>*</span></div>
-            <div className={`colab-list ${invalidTarget === themesTarget ? 'field-invalid-panel' : ''}`} data-invalid-target={themesTarget}>
+            <div className="section-title" style={{ marginTop: 14 }}>
+              Temas abordados <span style={{ color: 'var(--rd)' }}>*</span>
+            </div>
+            <div
+              className={`colab-list ${invalidTarget === themesTarget ? 'field-invalid-panel' : ''}`}
+              data-invalid-target={themesTarget}
+            >
               {renderDdsThemeList(themes, shift)}
             </div>
             <div className="cadd">
@@ -175,8 +193,13 @@ export function NewReportSpecialConditions({
               <Input
                 value={customInput}
                 placeholder="Tema fora da lista? Digite aqui..."
-                onChange={event => setCustomThemeInputs(current => ({ ...current, [shift]: event.target.value }))}
-                onKeyDown={event => {
+                onChange={(event) =>
+                  setCustomThemeInputs((current) => ({
+                    ...current,
+                    [shift]: event.target.value
+                  }))
+                }
+                onKeyDown={(event) => {
                   if (event.key !== 'Enter') return;
                   event.preventDefault();
                   addCustomDdsTheme(shift);
@@ -249,3 +272,4 @@ export function NewReportSpecialConditions({
     </Card>
   );
 }
+

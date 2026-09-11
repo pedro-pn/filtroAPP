@@ -6,6 +6,7 @@ import { formatCnpj, normalizeCnpjInput } from '../../utils/formatCnpj';
 import { compareReportTypes, sortProjects, sortReportsInGroup } from '../../utils/projectSort';
 import { ProjectSortButton } from '../../utils/ProjectSortButton';
 import { manualReportMetadataFromFileName, reportDownloadFileName } from '../../utils/reportFileName';
+import { SITE_RDO_DRAFT_FORM_PATH } from '../../utils/reportDraft';
 import { matchesSearch, reportSearchParts } from '../../utils/search';
 import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import {
@@ -281,6 +282,11 @@ interface UserFormState {
   isActive: boolean;
 }
 
+interface ManualPasswordSetup {
+  username: string;
+  url: string;
+}
+
 const internalRoles: Array<Exclude<UserRole, 'CLIENT'>> = ['COLLABORATOR', 'COORDINATOR', 'MANAGER'];
 type UserRoleFilter = 'all' | Exclude<UserRole, 'CLIENT'>;
 type UserStatusFilter = 'all' | 'active' | 'inactive';
@@ -381,6 +387,10 @@ function asString(value: unknown, fallback = '') {
 
 function asBoolean(value: unknown) {
   return typeof value === 'boolean' ? value : false;
+}
+
+function absolutePasswordSetupUrl(url: string) {
+  return new URL(url, window.location.origin).href;
 }
 
 function hasActiveClientRejection(report: ReportSummary) {
@@ -1785,6 +1795,7 @@ export function GestorPage() {
   const [userRoleFilter, setUserRoleFilter] = useState<UserRoleFilter>('all');
   const [userStatusFilter, setUserStatusFilter] = useState<UserStatusFilter>('all');
   const [userSortMode, setUserSortMode] = useState<UserSortMode>('name-asc');
+  const [manualPasswordSetup, setManualPasswordSetup] = useState<ManualPasswordSetup | null>(null);
 
   const [returnReport, setReturnReport] = useState<ReportSummary | null>(null);
   const returnReportTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -2230,7 +2241,7 @@ export function GestorPage() {
       services: asServices(payload.services)
     });
 
-    navigate(rdoPath('/relatorio/novo'));
+    navigate(rdoPath(SITE_RDO_DRAFT_FORM_PATH));
   }
 
   function resetProjectForm() {
@@ -2324,6 +2335,7 @@ export function GestorPage() {
     setUserForm(emptyUserForm);
     setUserEditingId(null);
     setShowUserForm(true);
+    setManualPasswordSetup(null);
   }
 
   function handleCollaboratorSignatureFile(file: File | null) {
@@ -2743,15 +2755,31 @@ export function GestorPage() {
         });
         showToast('Usuário atualizado.', 'success');
       } else {
-        await userMutations.createUser.mutateAsync({
-          ...basePayload,
-          password: userForm.password.trim()
-        });
-        showToast('Usuário criado.', 'success');
+        const createdUser = await userMutations.createUser.mutateAsync(basePayload);
+        if (createdUser.passwordSetup.delivery === 'email') {
+          setManualPasswordSetup(null);
+          showToast(`Usuário criado. Enviamos para ${createdUser.email} o link para criar a senha.`, 'success');
+        } else {
+          setManualPasswordSetup({
+            username: createdUser.username,
+            url: absolutePasswordSetupUrl(createdUser.passwordSetup.url)
+          });
+          showToast('Usuário criado. Compartilhe o link para criação da senha.', 'success');
+        }
       }
       resetUserForm();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível salvar o usuário.', 'error');
+    }
+  }
+
+  async function copyManualPasswordSetup() {
+    if (!manualPasswordSetup) return;
+    try {
+      await navigator.clipboard.writeText(manualPasswordSetup.url);
+      showToast('Link copiado.', 'success');
+    } catch {
+      showToast('Não foi possível copiar automaticamente. Selecione o link e copie manualmente.', 'error');
     }
   }
 
@@ -5456,8 +5484,8 @@ export function GestorPage() {
                   ))}
               </Select>
             </Field>
-            <Field
-              label={editing ? 'Nova senha' : 'Senha'}
+            {editing ? <Field
+              label="Nova senha"
               helperText={editing ? 'Deixe em branco para manter a senha atual.' : undefined}
               id={`user-password${idSuffix}`}
               required={!editing}
@@ -5475,7 +5503,7 @@ export function GestorPage() {
                 }
                 required={!editing}
               />
-            </Field>
+            </Field> : <p className="field-hint">O usuário criará a própria senha por um link de uso único enviado por e-mail.</p>}
             <div className="rdo-user-form__actions">
               <Button
                 variant="secondary"
@@ -5632,6 +5660,23 @@ export function GestorPage() {
 
         {showInternal ? (
         <>
+          {manualPasswordSetup ? (
+            <Card>
+              <div className="section-title">Link para criar a senha</div>
+              <p className="placeholder-copy">
+                Usuário: <strong>{manualPasswordSetup.username}</strong>. O link é de uso único e expira em 7 dias.
+              </p>
+              <div className="field-group">
+                <label htmlFor="gestor-password-setup-link">Link para compartilhar</label>
+                <Input id="gestor-password-setup-link" value={manualPasswordSetup.url} readOnly onFocus={event => event.currentTarget.select()} />
+              </div>
+              <div className="admin-actions">
+                <Button variant="primary" type="button" onClick={() => void copyManualPasswordSetup()}>
+                  Copiar link
+                </Button>
+              </div>
+            </Card>
+          ) : null}
           {showUserForm && !userEditingId
             ? renderInternalUserForm('create')
             : null}

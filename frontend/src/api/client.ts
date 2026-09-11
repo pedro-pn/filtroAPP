@@ -8,14 +8,18 @@ export class ApiClientError extends Error {
   code?: string;
   conflicts?: unknown[];
   issues?: string[];
+  requestId?: string;
+  fields?: Array<{ path: string; message: string }>;
 
-  constructor(message: string, status?: number, details?: { code?: string; conflicts?: unknown[]; issues?: string[] }) {
+  constructor(message: string, status?: number, details?: { code?: string; conflicts?: unknown[]; issues?: string[]; requestId?: string; fields?: Array<{ path: string; message: string }> }) {
     super(message);
     this.name = 'ApiClientError';
     this.status = status;
     this.code = details?.code;
     this.conflicts = details?.conflicts;
     this.issues = details?.issues;
+    this.requestId = details?.requestId;
+    this.fields = details?.fields;
   }
 }
 

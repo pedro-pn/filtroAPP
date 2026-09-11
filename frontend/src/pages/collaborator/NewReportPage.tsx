@@ -1,5 +1,8 @@
+import { Shell } from '../../layout/Shell';
+import { TopBar } from '../../layout/TopBar';
+import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 
 import { useAuth } from '../../auth/AuthContext';
@@ -44,10 +47,12 @@ import { roleHomePath } from '../../auth/rolePath';
 import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
 import { sortProjects } from '../../utils/projectSort';
 import { autosaveDraftTargetId } from '../../utils/draftAutosave';
-import { handleHorizontalTabListKeyDown } from '../../utils/tabKeyboard';
 import { rdoWorkforceJustificationSchema } from '../../utils/rdoPlanningPrefill';
 import { hubModulesForUser } from '../hubModules';
 import './NewReportPage.css';
+import { calculateReportOvertimeSummary, formatReportMinutes as formatMinutes } from '../../utils/reportOvertime';
+import { canAccessReportSelection, normalizeReportSelection, resolveSiteReportSelection } from '../../auth/reportPermissions';
+import { OperationalReportFormPage } from './OperationalReportFormPage';
 
 const TEXT = {
   addService: 'Adicionar serviço',
@@ -79,7 +84,7 @@ const TEXT = {
   identification: 'Identificação',
   schedules: 'Horários',
   serviceOnly: 'Somente serviço',
-  serviceOnlyHint: 'Cria apenas relatórios de serviço, liberados diretamente para o cliente.',
+  serviceOnlyHint: 'Cria apenas relatórios de serviço, liberados diretamente para o cliente.'
 };
 
 const serviceTypeModalOptions = [
@@ -103,7 +108,7 @@ function stringArray(value: unknown) {
 function sameStringSet(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
   const bSet = new Set(b);
-  return a.every(item => bSet.has(item));
+  return a.every((item) => bSet.has(item));
 }
 
 function stringifyServiceKeyValue(value: unknown): string {
@@ -142,11 +147,7 @@ function firstServiceKeyPart(extra: Record<string, unknown>, names: string[]): s
 function serviceDisambiguatorParts(service: ReportServiceSummary) {
   const extra = service.extraData || {};
   const type = normalizeServiceType(service.serviceType || '');
-  const material = serviceKeyPart(service.material) || firstServiceKeyPart(extra, [
-    'Material da tubulação',
-    'Material da tubulacao',
-    'Material do equipamento'
-  ]);
+  const material = serviceKeyPart(service.material) || firstServiceKeyPart(extra, ['Material da tubulação', 'Material da tubulacao', 'Material do equipamento']);
   const parts = material ? [`material:${material}`] : [];
 
   if (type === 'filtragem' || type === 'flushing') {
@@ -191,27 +192,44 @@ function serviceDisambiguatorParts(service: ReportServiceSummary) {
   return parts;
 }
 
-function parseDurationToMinutes(value: string) {
-  const parts = String(value || '').split(':').map(part => Number(part));
-  if (parts.some(part => Number.isNaN(part))) return 0;
-  return (parts[0] || 0) * 60 + (parts[1] || 0);
-}
-
-function workedMinutes(start: string, end: string, breakValue: string) {
-  const startMinutes = parseDurationToMinutes(start);
-  const endMinutes = parseDurationToMinutes(end);
-  if (!start || !end) return 0;
-  const total = endMinutes >= startMinutes ? endMinutes - startMinutes : endMinutes + 24 * 60 - startMinutes;
-  return Math.max(0, total - parseDurationToMinutes(breakValue));
-}
-
-function formatMinutes(total: number) {
-  const hours = Math.floor(total / 60);
-  const minutes = total % 60;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-}
-
 export function NewReportPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const permissions = user?.reportEmissionPermissions || [];
+  const requested = searchParams.get('tipo');
+  const requestedSelection = normalizeReportSelection(requested);
+  const operationalSelection = requestedSelection && requestedSelection !== 'obra'
+    && canAccessReportSelection(permissions, requestedSelection)
+      ? requestedSelection
+      : null;
+  const selection = resolveSiteReportSelection(permissions);
+
+  if (!user) return null;
+  if (operationalSelection) {
+    return <OperationalReportFormPage mode={operationalSelection} />;
+  }
+  if (selection === 'obra') return <SiteRdoFormPage />;
+
+  return (
+    <Shell>
+      <TopBar title="Novo relatório" subtitle={user.name} showLogo />
+      <main className="page-scroll operational-empty-state">
+        <section className="page-card">
+          <div className="section-title">Emissão não autorizada</div>
+          <p className="placeholder-copy">
+            Sua conta não possui a permissão necessária para este relatório.
+          </p>
+          <button className="secondary-button" type="button" onClick={() => navigate('/modulos')}>
+            Voltar aos módulos
+          </button>
+        </section>
+      </main>
+    </Shell>
+  );
+}
+
+function SiteRdoFormPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -295,42 +313,38 @@ export function NewReportPage() {
     : 'U';
 
   const projects = useMemo(() => sortProjects(bootstrapQuery.data?.projects || [], 'asc'), [bootstrapQuery.data?.projects]);
-  const collaborators = (bootstrapQuery.data?.collaborators || []).filter(item => item.isActive);
-  const ddsThemesQuery = useQuery({ queryKey: ['dds-themes'], queryFn: () => listDdsThemes(), staleTime: 60_000 });
+  const collaborators = (bootstrapQuery.data?.collaborators || []).filter((item) => item.isActive);
+  const ddsThemesQuery = useQuery({
+    queryKey: ['dds-themes'],
+    queryFn: () => listDdsThemes(),
+    staleTime: 60_000
+  });
   const ddsThemes = ddsThemesQuery.data || [];
   const units = bootstrapQuery.data?.units || [];
   const manometers = bootstrapQuery.data?.manometers || [];
   const serviceCollaboratorOptions = useMemo(() => {
     const ids = Array.from(new Set([...collaboratorIds, ...nightCollaboratorIds]));
     return ids
-      .map(id => {
-        const collaborator = collaborators.find(item => item.id === id);
+      .map((id) => {
+        const collaborator = collaborators.find((item) => item.id === id);
         return collaborator ? { id: collaborator.id, name: collaborator.name } : null;
       })
       .filter((item): item is { id: string; name: string } => Boolean(item));
   }, [collaboratorIds, nightCollaboratorIds, collaborators]);
-  const serviceCollaboratorOptionIds = useMemo(
-    () => serviceCollaboratorOptions.map(item => item.id),
-    [serviceCollaboratorOptions]
-  );
+  const serviceCollaboratorOptionIds = useMemo(() => serviceCollaboratorOptions.map((item) => item.id), [serviceCollaboratorOptions]);
   const previousServiceCollaboratorOptionIdsRef = useRef<string[]>([]);
 
-  const selectedProject = useMemo(
-    () => (bootstrapQuery.data?.projects || []).find(project => project.id === projectId) || null,
-    [projectId, bootstrapQuery.data?.projects]
-  );
+  const selectedProject = useMemo(() => (bootstrapQuery.data?.projects || []).find((project) => project.id === projectId) || null, [projectId, bootstrapQuery.data?.projects]);
   const selectedProjectHasLeader = Boolean(selectedProject?.operatorId || selectedProject?.operator);
   const showProjectWithoutLeaderWarning = canCreateReportWithoutLeader && Boolean(selectedProject) && !selectedProjectHasLeader;
   const serviceOptions = useMemo(() => {
-    const allowed = effectiveServiceOnly
-      ? serviceTypeModalOptions.filter(option => serviceOnlySupportedTypes.has(option.type))
-      : serviceTypeModalOptions;
-    return allowed.filter(option => option.type !== 'inibicao' || selectedProject?.inhibitionServiceEnabled === true);
+    const allowed = effectiveServiceOnly ? serviceTypeModalOptions.filter((option) => serviceOnlySupportedTypes.has(option.type)) : serviceTypeModalOptions;
+    return allowed.filter((option) => option.type !== 'inibicao' || selectedProject?.inhibitionServiceEnabled === true);
   }, [effectiveServiceOnly, selectedProject?.inhibitionServiceEnabled]);
   const backPath = roleHomePath(user?.role);
 
   function handleProjectChange(nextProjectId: string) {
-    const nextProject = projects.find(project => project.id === nextProjectId) || null;
+    const nextProject = projects.find((project) => project.id === nextProjectId) || null;
     if ((projectId || '') !== nextProjectId) {
       setCollaborators([]);
       setNightCollaborators([]);
@@ -371,27 +385,10 @@ export function NewReportPage() {
     const reports = lastProjectReportQuery.data || [];
     const cutoff = reportDate ? new Date(`${reportDate}T23:59:59`) : new Date();
     const cutoffTime = Number.isNaN(cutoff.getTime()) ? Number.POSITIVE_INFINITY : cutoff.getTime();
-    return reports.filter(report => (
-      report.reportType === 'RDO'
-      && report.projectId === projectId
-      && !report.deletedAt
-      && new Date(report.reportDate || report.createdAt || 0).getTime() <= cutoffTime
-    )).sort(
-      (a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime()
-    );
+    return reports.filter((report) => report.reportType === 'RDO' && report.projectId === projectId && !report.deletedAt && new Date(report.reportDate || report.createdAt || 0).getTime() <= cutoffTime).sort((a, b) => new Date(b.reportDate).getTime() - new Date(a.reportDate).getTime());
   }, [lastProjectReportQuery.data, projectId, reportDate]);
   const lastReport = projectReports[0] || null;
-  const {
-    planningContext,
-    absenceConflicts,
-    serverHoliday,
-    collaboratorPrefillSource,
-    missionSuggestionCollaboratorIds,
-    canApplyMissionSuggestion,
-    markCollaboratorsTouched,
-    applyMissionSuggestion,
-    dismissMissionSuggestion
-  } = useReportWorkforcePrefill({
+  const { planningContext, absenceConflicts, serverHoliday, collaboratorPrefillSource, missionSuggestionCollaboratorIds, canApplyMissionSuggestion, markCollaboratorsTouched, applyMissionSuggestion, dismissMissionSuggestion } = useReportWorkforcePrefill({
     projectId,
     reportDate,
     collaboratorIds,
@@ -404,17 +401,9 @@ export function NewReportPage() {
   const duplicateReportForDate = useMemo(() => {
     if (effectiveServiceOnly || !projectId || !reportDate) return null;
     const selectedDate = reportDate.slice(0, 10);
-    return (lastProjectReportQuery.data || []).find(report => (
-      report.reportType === 'RDO'
-      && report.projectId === projectId
-      && !report.deletedAt
-      && String(report.reportDate || '').slice(0, 10) === selectedDate
-    )) || null;
+    return (lastProjectReportQuery.data || []).find((report) => report.reportType === 'RDO' && report.projectId === projectId && !report.deletedAt && String(report.reportDate || '').slice(0, 10) === selectedDate) || null;
   }, [effectiveServiceOnly, lastProjectReportQuery.data, projectId, reportDate]);
-  const isCheckingDuplicateReportDate = !effectiveServiceOnly
-    && !!projectId
-    && !!reportDate
-    && lastProjectReportQuery.isLoading;
+  const isCheckingDuplicateReportDate = !effectiveServiceOnly && !!projectId && !!reportDate && lastProjectReportQuery.isLoading;
 
   const serviceFinalized = useCallback((service: ReportServiceSummary) => {
     if (typeof service.finalized === 'boolean') return service.finalized;
@@ -444,38 +433,41 @@ export function NewReportPage() {
     return String(value || '');
   }, []);
 
-  const serviceSemanticKey = useCallback((report: ReportSummary, service: ReportServiceSummary) => {
-    const extra = service.extraData || {};
-    const base = [
-      report.projectId || '',
-      service.serviceType || '',
-      serviceEquipmentName(service).trim().toLowerCase(),
-      String(service.system || extra.Sistema || '').trim().toLowerCase()
-    ];
-    const step = serviceStepName(service).trim().toLowerCase();
-    return normalizeServiceType(service.serviceType || '') === 'inibicao'
-      ? [...base, step].join('||')
-      : [...base, ...serviceDisambiguatorParts(service)].join('||');
-  }, [serviceEquipmentName, serviceStepName]);
+  const serviceSemanticKey = useCallback(
+    (report: ReportSummary, service: ReportServiceSummary) => {
+      const extra = service.extraData || {};
+      const base = [
+        report.projectId || '',
+        service.serviceType || '',
+        serviceEquipmentName(service).trim().toLowerCase(),
+        String(service.system || extra.Sistema || '')
+          .trim()
+          .toLowerCase()
+      ];
+      const step = serviceStepName(service).trim().toLowerCase();
+      return normalizeServiceType(service.serviceType || '') === 'inibicao' ? [...base, step].join('||') : [...base, ...serviceDisambiguatorParts(service)].join('||');
+    },
+    [serviceEquipmentName, serviceStepName]
+  );
 
-  const serviceOngoingKeys = useCallback((report: ReportSummary, service: ReportServiceSummary) => {
-    const extra = service.extraData || {};
-    const semanticKey = serviceSemanticKey(report, service);
-    const explicitKeys = [
-      String(extra.__ongoingKey || '').trim(),
-      String(extra.__serviceLinkKey || '').trim(),
-      String(extra.__sourceServiceId || '').trim()
-    ].filter(Boolean);
-    const hasSemanticExplicitKey = explicitKeys.some(key => key.includes('||'));
+  const serviceOngoingKeys = useCallback(
+    (report: ReportSummary, service: ReportServiceSummary) => {
+      const extra = service.extraData || {};
+      const semanticKey = serviceSemanticKey(report, service);
+      const explicitKeys = [String(extra.__ongoingKey || '').trim(), String(extra.__serviceLinkKey || '').trim(), String(extra.__sourceServiceId || '').trim()].filter(Boolean);
+      const hasSemanticExplicitKey = explicitKeys.some((key) => key.includes('||'));
 
-    return Array.from(new Set([
-      ...(hasSemanticExplicitKey ? [semanticKey, ...explicitKeys] : [...explicitKeys, semanticKey])
-    ].filter(Boolean)));
-  }, [serviceSemanticKey]);
+      return Array.from(new Set([...(hasSemanticExplicitKey ? [semanticKey, ...explicitKeys] : [...explicitKeys, semanticKey])].filter(Boolean)));
+    },
+    [serviceSemanticKey]
+  );
 
-  const serviceOngoingKey = useCallback((report: ReportSummary, service: ReportServiceSummary) => {
-    return serviceOngoingKeys(report, service)[0] || service.id;
-  }, [serviceOngoingKeys]);
+  const serviceOngoingKey = useCallback(
+    (report: ReportSummary, service: ReportServiceSummary) => {
+      return serviceOngoingKeys(report, service)[0] || service.id;
+    },
+    [serviceOngoingKeys]
+  );
 
   function markPreviouslyAddedUploads(extra: Record<string, unknown>) {
     const groups = Array.isArray(extra.__uploads__) ? extra.__uploads__ : [];
@@ -483,50 +475,54 @@ export function NewReportPage() {
 
     return {
       ...extra,
-      __uploads__: groups.map(group => {
+      __uploads__: groups.map((group) => {
         if (!group || typeof group !== 'object' || Array.isArray(group)) return group;
         const record = group as { label?: unknown; files?: unknown };
-        const files = Array.isArray(record.files)
-          ? record.files.map(file => (
-            file && typeof file === 'object' && !Array.isArray(file)
-              ? { ...(file as UploadedFile), __previouslyAdded: true }
-              : file
-          ))
-          : record.files;
+        const files = Array.isArray(record.files) ? record.files.map((file) => (file && typeof file === 'object' && !Array.isArray(file) ? { ...(file as UploadedFile), __previouslyAdded: true } : file)) : record.files;
         return { ...record, files };
       })
     };
   }
 
   const pendingProjectServices = useMemo(() => {
-    const items = new Map<string, { key: string; keys: string[]; report: ReportSummary; service: ReportServiceSummary }>();
-    [...projectReports].reverse().forEach(report => {
-      (report.services || []).forEach(service => {
+    const items = new Map<
+      string,
+      {
+        key: string;
+        keys: string[];
+        report: ReportSummary;
+        service: ReportServiceSummary;
+      }
+    >();
+    [...projectReports].reverse().forEach((report) => {
+      (report.services || []).forEach((service) => {
         const keys = serviceOngoingKeys(report, service);
         if (serviceFinalized(service)) {
           for (const [itemKey, item] of items.entries()) {
-            if (item.keys.some(key => keys.includes(key))) items.delete(itemKey);
+            if (item.keys.some((key) => keys.includes(key))) items.delete(itemKey);
           }
           return;
         }
         for (const [itemKey, item] of items.entries()) {
-          if (item.keys.some(key => keys.includes(key))) items.delete(itemKey);
+          if (item.keys.some((key) => keys.includes(key))) items.delete(itemKey);
         }
         const key = serviceOngoingKey(report, service);
         items.set(key, { key, keys, report, service });
       });
     });
-    return Array.from(items.values()).sort(
-      (a, b) => new Date(b.report.reportDate).getTime() - new Date(a.report.reportDate).getTime()
-    );
+    return Array.from(items.values()).sort((a, b) => new Date(b.report.reportDate).getTime() - new Date(a.report.reportDate).getTime());
   }, [projectReports, serviceFinalized, serviceOngoingKey, serviceOngoingKeys]);
 
   const visiblePendingProjectServices = useMemo(() => {
-    const activeKeys = new Set(services.map(service => {
-      const data = service.data || {};
-      return String(data.__ongoingKey || data.__serviceLinkKey || data.__sourceServiceId || '').trim();
-    }).filter(Boolean));
-    return pendingProjectServices.filter(item => !activeKeys.has(item.key));
+    const activeKeys = new Set(
+      services
+        .map((service) => {
+          const data = service.data || {};
+          return String(data.__ongoingKey || data.__serviceLinkKey || data.__sourceServiceId || '').trim();
+        })
+        .filter(Boolean)
+    );
+    return pendingProjectServices.filter((item) => !activeKeys.has(item.key));
   }, [pendingProjectServices, services]);
 
   useEffect(() => {
@@ -537,9 +533,7 @@ export function NewReportPage() {
     if (!projectId || !noturno || nightCollaboratorIds.length > 0) return;
     const noturnoDetails = lastReport?.specialConditions?.noturnoDetails;
     if (!noturnoDetails || typeof noturnoDetails !== 'object' || Array.isArray(noturnoDetails)) return;
-    const ids = Array.isArray((noturnoDetails as Record<string, unknown>).collaboratorIds)
-      ? ((noturnoDetails as Record<string, unknown>).collaboratorIds as unknown[]).filter((id): id is string => typeof id === 'string')
-      : [];
+    const ids = Array.isArray((noturnoDetails as Record<string, unknown>).collaboratorIds) ? ((noturnoDetails as Record<string, unknown>).collaboratorIds as unknown[]).filter((id): id is string => typeof id === 'string') : [];
     if (ids.length) setNightCollaborators(ids);
   }, [projectId, noturno, nightCollaboratorIds.length, lastReport, setNightCollaborators]);
 
@@ -552,13 +546,9 @@ export function NewReportPage() {
     for (const service of services) {
       if (normalizeServiceType(service.type) === 'inibicao') continue;
       const selected = stringArray(service.data.serviceCollaboratorIds);
-      const selectedHadRemovedCollaborator = selected.some(id => !available.has(id));
+      const selectedHadRemovedCollaborator = selected.some((id) => !available.has(id));
       const selectedFollowedPreviousShift = previousIds.length > 0 && sameStringSet(selected, previousIds);
-      const nextSelected = !selected.length || selectedFollowedPreviousShift
-        ? serviceCollaboratorOptionIds
-        : selectedHadRemovedCollaborator
-          ? selected.filter(id => available.has(id))
-          : selected;
+      const nextSelected = !selected.length || selectedFollowedPreviousShift ? serviceCollaboratorOptionIds : selectedHadRemovedCollaborator ? selected.filter((id) => available.has(id)) : selected;
       const fallbackSelected = nextSelected.length ? nextSelected : serviceCollaboratorOptionIds;
       if (!sameStringSet(selected, fallbackSelected)) {
         updateService(service.id, { serviceCollaboratorIds: fallbackSelected });
@@ -567,47 +557,40 @@ export function NewReportPage() {
   }, [serviceCollaboratorOptionIds, services, updateService]);
 
   function continueService(service: ReportServiceSummary, ongoingKey: string) {
-      const extra = markPreviouslyAddedUploads(service.extraData || {});
-      const type = normalizeServiceType(service.serviceType);
-      const contadorUtilizado = firstIdFromField(extra['Contador utilizado'] || extra.contadorUtilizado);
-      const previousDesidratacaoUnit = firstIdFromField(
-        extra.desidratacaoUnit
-        || extra['Equipamento de desidratação']
-        || extra['Equipamento de desidratacao']
-        || extra['Equipamento de desidrataÃ§Ã£o']
-      );
-      const previousPressureTestedEquipment = type === 'pressao' ? pressureTestedEquipmentValue(extra) : '';
-      addService(type, {
-        ...extra,
-        __ongoingKey: ongoingKey,
-        __serviceLinkKey: String(extra.__serviceLinkKey || ongoingKey),
-        etapas: [],
-        customEtapa: '',
-        aprovadoCliente: type === 'inibicao' ? String(extra.aprovadoCliente || extra['Aprovado pelo cliente?'] || 'Sim') : 'Sim',
-        houveParticulas: contadorUtilizado ? 'Sim' : String(extra['Houve contagem de partículas?'] || extra.houveParticulas || 'Não'),
-        contadorUtilizado,
-        contagemInicialNas: type === 'inibicao' ? String(extra.contagemInicialNas || extra['Contagem inicial NAS'] || '') : '',
-        contagemFinalNas: type === 'inibicao' ? String(extra.contagemFinalNas || extra['Contagem final NAS'] || '') : '',
-        contagemInicialIso: type === 'inibicao' ? String(extra.contagemInicialIso || extra['Contagem inicial ISO'] || '') : '',
-        contagemFinalIso: type === 'inibicao' ? String(extra.contagemFinalIso || extra['Contagem final ISO'] || '') : '',
-        houveDesidratacao: type === 'inibicao' ? String(extra.houveDesidratacao || extra['Houve desidratação?'] || 'Não') : 'Não',
-        desidratacaoUnit: previousDesidratacaoUnit,
-        houveUmidade: String(extra['Houve análise de umidade?'] || extra.houveUmidade || 'Não'),
-        umidadeInicial: type === 'inibicao' ? String(extra.umidadeInicial || extra['Umidade inicial (ppm)'] || '') : '',
-        umidadeFinal: type === 'inibicao' ? String(extra.umidadeFinal || extra['Umidade final (ppm)'] || '') : '',
-        equipmentId: service.equipmentId || serviceEquipmentName(service),
-        system: service.system || String(extra.Sistema || ''),
-        equipamentoTestado: previousPressureTestedEquipment || extra.equipamentoTestado,
-        equipamentoTestadoOutro: String(extra.equipamentoTestadoOutro || extra['Outro equipamento testado'] || ''),
-        material: previousPressureTestedEquipment && previousPressureTestedEquipment !== 'tubulacao'
-          ? ''
-          : service.material || String(extra['Material da tubulação'] || extra['Material do equipamento'] || ''),
-        startTime: '',
-        endTime: '',
-        notes: '',
-        finalized: undefined,
-        _prefilled: true
-      });
+    const extra = markPreviouslyAddedUploads(service.extraData || {});
+    const type = normalizeServiceType(service.serviceType);
+    const contadorUtilizado = firstIdFromField(extra['Contador utilizado'] || extra.contadorUtilizado);
+    const previousDesidratacaoUnit = firstIdFromField(extra.desidratacaoUnit || extra['Equipamento de desidratação'] || extra['Equipamento de desidratacao'] || extra['Equipamento de desidrataÃ§Ã£o']);
+    const previousPressureTestedEquipment = type === 'pressao' ? pressureTestedEquipmentValue(extra) : '';
+    addService(type, {
+      ...extra,
+      __ongoingKey: ongoingKey,
+      __serviceLinkKey: String(extra.__serviceLinkKey || ongoingKey),
+      etapas: [],
+      customEtapa: '',
+      aprovadoCliente: type === 'inibicao' ? String(extra.aprovadoCliente || extra['Aprovado pelo cliente?'] || 'Sim') : 'Sim',
+      houveParticulas: contadorUtilizado ? 'Sim' : String(extra['Houve contagem de partículas?'] || extra.houveParticulas || 'Não'),
+      contadorUtilizado,
+      contagemInicialNas: type === 'inibicao' ? String(extra.contagemInicialNas || extra['Contagem inicial NAS'] || '') : '',
+      contagemFinalNas: type === 'inibicao' ? String(extra.contagemFinalNas || extra['Contagem final NAS'] || '') : '',
+      contagemInicialIso: type === 'inibicao' ? String(extra.contagemInicialIso || extra['Contagem inicial ISO'] || '') : '',
+      contagemFinalIso: type === 'inibicao' ? String(extra.contagemFinalIso || extra['Contagem final ISO'] || '') : '',
+      houveDesidratacao: type === 'inibicao' ? String(extra.houveDesidratacao || extra['Houve desidratação?'] || 'Não') : 'Não',
+      desidratacaoUnit: previousDesidratacaoUnit,
+      houveUmidade: String(extra['Houve análise de umidade?'] || extra.houveUmidade || 'Não'),
+      umidadeInicial: type === 'inibicao' ? String(extra.umidadeInicial || extra['Umidade inicial (ppm)'] || '') : '',
+      umidadeFinal: type === 'inibicao' ? String(extra.umidadeFinal || extra['Umidade final (ppm)'] || '') : '',
+      equipmentId: service.equipmentId || serviceEquipmentName(service),
+      system: service.system || String(extra.Sistema || ''),
+      equipamentoTestado: previousPressureTestedEquipment || extra.equipamentoTestado,
+      equipamentoTestadoOutro: String(extra.equipamentoTestadoOutro || extra['Outro equipamento testado'] || ''),
+      material: previousPressureTestedEquipment && previousPressureTestedEquipment !== 'tubulacao' ? '' : service.material || String(extra['Material da tubulação'] || extra['Material do equipamento'] || ''),
+      startTime: '',
+      endTime: '',
+      notes: '',
+      finalized: undefined,
+      _prefilled: true
+    });
   }
 
   function handleContinueServices() {
@@ -615,41 +598,22 @@ export function NewReportPage() {
     visiblePendingProjectServices.forEach(({ service, key }) => continueService(service, key));
   }
 
-  const expectedMinutes = useCallback(() => {
-    if (!selectedProject) return 0;
-    const date = new Date(`${reportDate}T00:00:00Z`);
-    if (Number.isNaN(date.getTime())) return parseDurationToMinutes(selectedProject.workdayHours || '09:00');
-    if (serverHoliday) return 0;
-    const dow = date.getUTCDay();
-    const weekdayBase = parseDurationToMinutes(selectedProject.workdayHours || '09:00');
-    const weekendBase = parseDurationToMinutes(selectedProject.weekendWorkdayHours || '08:00');
-    if (dow === 5) return weekendBase;
-    if (dow === 6) return selectedProject.includesSaturday ? weekendBase : 0;
-    if (dow === 0) return selectedProject.includesSunday ? weekendBase : 0;
-    return weekdayBase;
-  }, [reportDate, selectedProject, serverHoliday]);
-
-  const overtimeSummary = useMemo(() => {
-    const expected = expectedMinutes();
-    const daytimeWorkedMinutes = workedMinutes(arrivalTime, departureTime, lunchBreak);
-    const nighttimeWorkedMinutes = noturno ? workedMinutes(noturnoStart, noturnoEnd, noturnoInterval) : 0;
-    const daytimeOvertimeMinutes = expected === 0
-      ? daytimeWorkedMinutes
-      : Math.max(0, daytimeWorkedMinutes - expected > 30 ? daytimeWorkedMinutes - expected : 0);
-    const nighttimeOvertimeMinutes = expected === 0
-      ? nighttimeWorkedMinutes
-      : Math.max(0, nighttimeWorkedMinutes - expected > 30 ? nighttimeWorkedMinutes - expected : 0);
-
-    return {
-      expectedMinutes: expected,
-      daytimeWorkedMinutes,
-      nighttimeWorkedMinutes,
-      daytimeOvertimeMinutes,
-      nighttimeOvertimeMinutes,
-      totalOvertimeMinutes: daytimeOvertimeMinutes + nighttimeOvertimeMinutes,
-      isHoliday: serverHoliday
-    };
-  }, [arrivalTime, departureTime, expectedMinutes, lunchBreak, noturno, noturnoEnd, noturnoInterval, noturnoStart, serverHoliday]);
+  const overtimeSummary = useMemo(
+    () =>
+      calculateReportOvertimeSummary({
+        policy: selectedProject,
+        reportDate,
+        arrivalTime,
+        departureTime,
+        lunchBreak,
+        nightEnabled: noturno,
+        nightArrivalTime: noturnoStart,
+        nightDepartureTime: noturnoEnd,
+        nightBreak: noturnoInterval,
+        isHoliday: serverHoliday
+      }),
+    [arrivalTime, departureTime, lunchBreak, noturno, noturnoEnd, noturnoInterval, noturnoStart, reportDate, selectedProject, serverHoliday]
+  );
 
   const overtimeLines = [
     `Turno diurno: trabalhado ${formatMinutes(overtimeSummary.daytimeWorkedMinutes)} | extra ${formatMinutes(overtimeSummary.daytimeOvertimeMinutes)}`,
@@ -730,17 +694,8 @@ export function NewReportPage() {
     showToast(message, 'error');
     window.setTimeout(() => {
       const [serviceId] = target.split(':');
-      const selectors = target.includes(':')
-        ? [
-            `[data-invalid-target="${target}"]`,
-            `[data-service-id="${serviceId}"] .field-invalid input`,
-            `[data-service-id="${serviceId}"] .field-invalid select`,
-            `[data-service-id="${serviceId}"] .field-invalid textarea`,
-            `[data-service-id="${serviceId}"] .field-invalid`,
-            `[data-service-id="${serviceId}"]`
-          ]
-        : [`[data-invalid-target="${target}"]`];
-      const element = selectors.map(selector => document.querySelector(selector)).find(Boolean) as HTMLElement | null;
+      const selectors = target.includes(':') ? [`[data-invalid-target="${target}"]`, `[data-service-id="${serviceId}"] .field-invalid input`, `[data-service-id="${serviceId}"] .field-invalid select`, `[data-service-id="${serviceId}"] .field-invalid textarea`, `[data-service-id="${serviceId}"] .field-invalid`, `[data-service-id="${serviceId}"]`] : [`[data-invalid-target="${target}"]`];
+      const element = selectors.map((selector) => document.querySelector(selector)).find(Boolean) as HTMLElement | null;
       element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       if (element && typeof element.focus === 'function') element.focus({ preventScroll: true });
     }, 120);
@@ -752,7 +707,7 @@ export function NewReportPage() {
   }
 
   function hasStringItem(value: unknown) {
-    return Array.isArray(value) && value.some(item => typeof item === 'string' && item.trim());
+    return Array.isArray(value) && value.some((item) => typeof item === 'string' && item.trim());
   }
 
   function hasTextOrStringItem(value: unknown) {
@@ -760,20 +715,26 @@ export function NewReportPage() {
   }
 
   function hasValidTubes(value: unknown) {
-    return Array.isArray(value) && value.length > 0 && value.every(item => {
-      if (!item || typeof item !== 'object') return false;
-      const row = item as Record<string, unknown>;
-      return hasText(row.d) && hasText(row.c);
-    });
+    return (
+      Array.isArray(value) &&
+      value.length > 0 &&
+      value.every((item) => {
+        if (!item || typeof item !== 'object') return false;
+        const row = item as Record<string, unknown>;
+        return hasText(row.d) && hasText(row.c);
+      })
+    );
   }
 
   function isNoValue(value: unknown) {
     if (Array.isArray(value)) value = value[0];
-    return String(value || '')
-      .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '') === 'nao';
+    return (
+      String(value || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '') === 'nao'
+    );
   }
 
   function serviceRequiresTubes(type: string, data: Record<string, unknown>) {
@@ -816,10 +777,12 @@ export function NewReportPage() {
     if (!departureTime) return failRequired('Saída', 'header:departureTime', 0);
     if (!lunchBreak) return failRequired('Intervalo de almoço', 'header:lunchBreak', 0);
     if (!collaboratorIds.length) return failRequired('Colaboradores', 'header:collaborators', 0);
-    if (!rdoWorkforceJustificationSchema.safeParse({
-      requiresJustification: absenceConflicts.length > 0,
-      workforceJustification
-    }).success) {
+    if (
+      !rdoWorkforceJustificationSchema.safeParse({
+        requiresJustification: absenceConflicts.length > 0,
+        workforceJustification
+      }).success
+    ) {
       return failRequired('Justificativa de trabalho durante afastamento', 'header:workforceJustification', 0);
     }
     if (standby && !standbyDuration) return failRequired('Tempo total (standby)', 'header:standbyDuration', 0);
@@ -865,8 +828,7 @@ export function NewReportPage() {
       if (type === 'pressao' && pressureTestedEquipment === 'outro' && !hasText(data.equipamentoTestadoOutro)) {
         return failRequired('Outro equipamento testado', target('equipamentoTestadoOutro'), 1);
       }
-      const requiresMaterial = ['limpeza', 'mecanica', 'inibicao'].includes(type)
-        || (type === 'pressao' && pressureTestedEquipment === 'tubulacao');
+      const requiresMaterial = ['limpeza', 'mecanica', 'inibicao'].includes(type) || (type === 'pressao' && pressureTestedEquipment === 'tubulacao');
       if (requiresMaterial && !hasText(data.material)) {
         return failRequired(type === 'mecanica' ? 'Material do equipamento' : 'Material da tubulação', target('material'), 1);
       }
@@ -921,7 +883,7 @@ export function NewReportPage() {
     }
 
     setInvalidTarget(null);
-    setStep(current => Math.min(current + 1, steps.length - 1));
+    setStep((current) => Math.min(current + 1, steps.length - 1));
   }
 
   function buildResumoText() {
@@ -929,7 +891,11 @@ export function NewReportPage() {
     if (selectedProject) parts.push(`${selectedProject.code} — ${selectedProject.name}`);
     if (reportDate) {
       const d = new Date(`${reportDate}T00:00:00`);
-      const label = d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+      const label = d.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+      });
       parts.push(label.charAt(0).toUpperCase() + label.slice(1));
     }
     if (arrivalTime && departureTime) parts.push(`${arrivalTime} às ${departureTime}`);
@@ -937,7 +903,7 @@ export function NewReportPage() {
       parts.push(`${collaboratorIds.length} colaborador${collaboratorIds.length !== 1 ? 'es' : ''}`);
     }
     if (services.length) {
-      const types = services.map(s => serviceTypeLabels[normalizeServiceType(s.type)] || s.type);
+      const types = services.map((s) => serviceTypeLabels[normalizeServiceType(s.type)] || s.type);
       parts.push(types.join(', '));
     }
     return parts.join(' · ') || '—';
@@ -973,35 +939,7 @@ export function NewReportPage() {
       generalUploads,
       services
     };
-  }, [
-    projectId,
-    effectiveServiceOnly,
-    reportDate,
-    arrivalTime,
-    departureTime,
-    lunchBreak,
-    collaboratorIds,
-    nightCollaboratorIds,
-    standby,
-    noturno,
-    standbyDuration,
-    standbyMotivo,
-    noturnoStart,
-    noturnoEnd,
-    noturnoInterval,
-    ddsDay,
-    ddsDayStart,
-    ddsDayEnd,
-    ddsDayThemes,
-    ddsNight,
-    ddsNightStart,
-    ddsNightEnd,
-    ddsNightThemes,
-    overtimeReason,
-    dailyDescription,
-    generalUploads,
-    services
-  ]);
+  }, [projectId, effectiveServiceOnly, reportDate, arrivalTime, departureTime, lunchBreak, collaboratorIds, nightCollaboratorIds, standby, noturno, standbyDuration, standbyMotivo, noturnoStart, noturnoEnd, noturnoInterval, ddsDay, ddsDayStart, ddsDayEnd, ddsDayThemes, ddsNight, ddsNightStart, ddsNightEnd, ddsNightThemes, overtimeReason, dailyDescription, generalUploads, services]);
 
   const draftProjectDateKey = useCallback((draft: { projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) => {
     const payload = draft.payload || {};
@@ -1014,65 +952,50 @@ export function NewReportPage() {
   const matchingDraftIds = useCallback(() => {
     const key = projectId && reportDate ? `${projectId}|${reportDate.slice(0, 10)}|${effectiveServiceOnly ? 'service' : 'rdo'}` : '';
     if (!key) return [];
-    return (draftsQuery.data || []).filter(draft => draftProjectDateKey(draft) === key).map(draft => draft.id);
+    return (draftsQuery.data || []).filter((draft) => draftProjectDateKey(draft) === key).map((draft) => draft.id);
   }, [draftProjectDateKey, draftsQuery.data, effectiveServiceOnly, projectId, reportDate]);
 
-  const saveDraftNow = useCallback(async ({ notifyOnError = false } = {}) => {
-    if (!projectId || !reportDate) {
-      return true;
-    }
-
-    const payload = {
-      projectId,
-      reportDate,
-      title: selectedProject ? `${selectedProject.code} - ${selectedProject.name}` : 'Relatório em andamento',
-      payload: buildDraftPayload()
-    };
-    const sameProjectDateIds = matchingDraftIds();
-    const targetId = autosaveDraftTargetId(draftId, sameProjectDateIds);
-    const signature = JSON.stringify({ targetId: targetId || '', payload });
-    if (signature === lastAutoSaveSignatureRef.current) {
-      setDraftSaveStatus('saved');
-      return true;
-    }
-    lastAutoSaveSignatureRef.current = signature;
-    setDraftSaveStatus('saving');
-
-    try {
-      const saved = targetId
-        ? await updateDraftAsync({ id: targetId, payload })
-        : await createDraftAsync(payload);
-      if (draftId !== saved.id) setDraftId(saved.id);
-
-      await Promise.all(
-        sameProjectDateIds
-          .filter(id => id !== saved.id)
-          .map(id => removeDraftAsync(id).catch(() => undefined))
-      );
-      setDraftSaveStatus('saved');
-      return true;
-    } catch (error) {
-      lastAutoSaveSignatureRef.current = '';
-      setDraftSaveStatus('error');
-      console.error('Falha ao salvar rascunho de relatório.', error);
-      if (notifyOnError) {
-        showToast(error instanceof Error ? error.message : 'Não foi possível salvar o rascunho.', 'error');
+  const saveDraftNow = useCallback(
+    async ({ notifyOnError = false } = {}) => {
+      if (!projectId || !reportDate) {
+        return true;
       }
-      return false;
-    }
-  }, [
-    projectId,
-    reportDate,
-    draftId,
-    selectedProject,
-    buildDraftPayload,
-    matchingDraftIds,
-    updateDraftAsync,
-    createDraftAsync,
-    setDraftId,
-    removeDraftAsync,
-    showToast
-  ]);
+
+      const payload = {
+        projectId,
+        reportDate,
+        title: selectedProject ? `${selectedProject.code} - ${selectedProject.name}` : 'Relatório em andamento',
+        payload: buildDraftPayload()
+      };
+      const sameProjectDateIds = matchingDraftIds();
+      const targetId = autosaveDraftTargetId(draftId, sameProjectDateIds);
+      const signature = JSON.stringify({ targetId: targetId || '', payload });
+      if (signature === lastAutoSaveSignatureRef.current) {
+        setDraftSaveStatus('saved');
+        return true;
+      }
+      lastAutoSaveSignatureRef.current = signature;
+      setDraftSaveStatus('saving');
+
+      try {
+        const saved = targetId ? await updateDraftAsync({ id: targetId, payload }) : await createDraftAsync(payload);
+        if (draftId !== saved.id) setDraftId(saved.id);
+
+        await Promise.all(sameProjectDateIds.filter((id) => id !== saved.id).map((id) => removeDraftAsync(id).catch(() => undefined)));
+        setDraftSaveStatus('saved');
+        return true;
+      } catch (error) {
+        lastAutoSaveSignatureRef.current = '';
+        setDraftSaveStatus('error');
+        console.error('Falha ao salvar rascunho de relatório.', error);
+        if (notifyOnError) {
+          showToast(error instanceof Error ? error.message : 'Não foi possível salvar o rascunho.', 'error');
+        }
+        return false;
+      }
+    },
+    [projectId, reportDate, draftId, selectedProject, buildDraftPayload, matchingDraftIds, updateDraftAsync, createDraftAsync, setDraftId, removeDraftAsync, showToast]
+  );
 
   useEffect(() => {
     if (isSubmittingRef.current) return;
@@ -1101,11 +1024,7 @@ export function NewReportPage() {
     }
     const saved = await saveDraftNow({ notifyOnError: true });
     if (saved) navigate(backPath);
-  }, [
-    backPath,
-    navigate,
-    saveDraftNow
-  ]);
+  }, [backPath, navigate, saveDraftNow]);
 
   const handleLogout = useCallback(async () => {
     await logout();
@@ -1136,18 +1055,25 @@ export function NewReportPage() {
     try {
       const draftIdsToRemove = matchingDraftIds();
       if (draftId && !draftIdsToRemove.includes(draftId)) draftIdsToRemove.push(draftId);
-      const servicePayloads = services.map(service => buildReportServicePayload(
-        effectiveServiceOnly
-          ? { ...service, data: { ...service.data, finalized: true, aprovadoCliente: 'Sim' } }
-          : service,
-        {
-          collaboratorIds: Array.isArray(service.data.serviceCollaboratorIds)
-            ? service.data.serviceCollaboratorIds.filter((id): id is string => typeof id === 'string')
-            : [],
-          collaborators,
-          units
-        }
-      ));
+      const servicePayloads = services.map((service) =>
+        buildReportServicePayload(
+          effectiveServiceOnly
+            ? {
+                ...service,
+                data: {
+                  ...service.data,
+                  finalized: true,
+                  aprovadoCliente: 'Sim'
+                }
+              }
+            : service,
+          {
+            collaboratorIds: Array.isArray(service.data.serviceCollaboratorIds) ? service.data.serviceCollaboratorIds.filter((id): id is string => typeof id === 'string') : [],
+            collaborators,
+            units
+          }
+        )
+      );
 
       if (effectiveServiceOnly) {
         await reportMutations.createServiceOnlyReports.mutateAsync({
@@ -1200,12 +1126,14 @@ export function NewReportPage() {
             },
             overtimeSummary,
             workforceJustification: workforceJustification.trim() || null,
-            efetivoPlanningContext: planningContext ? {
-              missionId: planningContext.missionId,
-              missionVersion: planningContext.missionVersion,
-              planRevision: planningContext.planRevision,
-              calendarRevision: planningContext.calendarRevision
-            } : null
+            efetivoPlanningContext: planningContext
+              ? {
+                  missionId: planningContext.missionId,
+                  missionVersion: planningContext.missionVersion,
+                  planRevision: planningContext.planRevision,
+                  calendarRevision: planningContext.calendarRevision
+                }
+              : null
           },
           collaboratorIds,
           services: servicePayloads
@@ -1214,7 +1142,7 @@ export function NewReportPage() {
 
       // Relatório criado: efetiva a exclusão global das fotos removidas no editor.
       await flushStagedUploadDeletions();
-      await Promise.all(draftIdsToRemove.map(id => removeDraftAsync(id).catch(() => undefined)));
+      await Promise.all(draftIdsToRemove.map((id) => removeDraftAsync(id).catch(() => undefined)));
       setDraftId(null);
       lastAutoSaveSignatureRef.current = '';
 
@@ -1765,3 +1693,4 @@ export function NewReportPage() {
     </AppShell>
   );
 }
+

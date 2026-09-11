@@ -835,7 +835,7 @@ export async function listCommercialDashboard({ categoryCode = null, includeAdmi
       }
     }),
     prisma.project.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, managerOnly: false },
       select: {
         id: true,
         code: true,
@@ -1100,7 +1100,7 @@ export async function listCommercialPendencias() {
       _count: { _all: true }
     }),
     prisma.project.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, managerOnly: false },
       select: { id: true, code: true, contractCode: true, commercialProposalCode: true }
     }),
     prisma.projectAdditionalProposal.findMany({

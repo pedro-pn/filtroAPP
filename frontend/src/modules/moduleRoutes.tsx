@@ -3,6 +3,7 @@ import { Route } from 'react-router';
 import { RoleRoute } from '../auth/RoleRoute';
 import { AcompanhamentoPage } from '../pages/acompanhamento/AcompanhamentoPage';
 import { AdminAccountsPage } from '../pages/admin/AdminAccountsPage';
+import { AdminTokensPage } from '../pages/admin/AdminTokensPage';
 import { EpiPage } from '../pages/epi/EpiPage';
 import { EquipamentosPage } from '../pages/equipamentos/EquipamentosPage';
 import { EstoquePage } from '../pages/estoque/EstoquePage';
@@ -31,6 +32,9 @@ export const moduleRouteElements = (
   <>
     <Route element={<RoleRoute {...ADMIN_ACCOUNTS_ACCESS} />}>
       <Route path={moduleRoutePath('admin', 'accounts')} element={<AdminAccountsPage />} />
+    </Route>
+    <Route element={<RoleRoute allowedAccountTypes={['ADMIN']} />}>
+      <Route path="/admin/tokens" element={<AdminTokensPage />} />
     </Route>
 
     <Route element={<RoleRoute {...PRIVACY_ACCESS} />}>

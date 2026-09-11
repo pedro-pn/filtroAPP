@@ -1136,6 +1136,7 @@
 }
 .efetivo-allocation-add-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; grid-column: 1 / -1; justify-content: flex-end; }
 .efetivo-allocation-period-fields { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+.efetivo-allocation-add > .efetivo-allocation-period-fields { grid-column: 1 / -1; }
 .efetivo-allocation-period-list > article { align-items: center; display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) auto; }
 .efetivo-allocation-period-list > article > div:first-child { min-width: 0; }
 .efetivo-allocation-row-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }

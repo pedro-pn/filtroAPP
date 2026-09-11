@@ -326,6 +326,114 @@ test('POST /auth/reset-password rate limits by IP and token before token lookup'
   assert.equal(otherToken.statusCode, 400);
 });
 
+test('GET /auth/reset-password-status returns the username only for a valid token', async t => {
+  const originalFindUnique = prisma.passwordResetToken.findUnique;
+  prisma.passwordResetToken.findUnique = async () => ({
+    id: 'setup-token-row',
+    userId: 'user-password-setup',
+    usedAt: null,
+    expiresAt: new Date(Date.now() + 60_000),
+    user: {
+      id: 'user-password-setup',
+      username: 'usuario.sem.email',
+      name: 'Usuário sem e-mail',
+      email: 'usuario@example.com',
+      isActive: true
+    }
+  });
+  t.after(() => {
+    prisma.passwordResetToken.findUnique = originalFindUnique;
+  });
+
+  const response = await dispatchApp(
+    'GET',
+    '/api/auth/reset-password-status?token=setup_valid-password-setup-token',
+    undefined,
+    '198.51.100.42'
+  );
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json.valid, true);
+  assert.equal(response.json.username, 'usuario.sem.email');
+  assert.equal(response.json.name, 'Usuário sem e-mail');
+  assert.equal(response.json.canRequestNewLink, true);
+});
+
+test('POST /auth/resend-password-setup issues a new one-week link for the registered email', async t => {
+  const originals = {
+    setImmediate: global.setImmediate,
+    tokenFindUnique: prisma.passwordResetToken.findUnique,
+    tokenDeleteMany: prisma.passwordResetToken.deleteMany,
+    tokenCreate: prisma.passwordResetToken.create
+  };
+  const env = (await import('../src/config/env.js')).default;
+  const previousEnv = {
+    appUrl: env.appUrl,
+    smtpHost: env.smtpHost,
+    smtpPort: env.smtpPort,
+    smtpUser: env.smtpUser,
+    smtpPass: env.smtpPass,
+    smtpFrom: env.smtpFrom
+  };
+  const calls = [];
+  env.appUrl = 'https://app.example.com';
+  env.smtpHost = 'smtp.example.com';
+  env.smtpPort = 587;
+  env.smtpUser = 'user';
+  env.smtpPass = 'pass';
+  env.smtpFrom = 'noreply@example.com';
+  global.setImmediate = callback => {
+    calls.push(['setImmediate', callback]);
+    return {};
+  };
+  prisma.passwordResetToken.findUnique = async args => {
+    calls.push(['passwordResetToken.findUnique', args]);
+    return {
+      id: 'expired-setup-token',
+      userId: 'user-password-setup',
+      usedAt: null,
+      expiresAt: new Date(Date.now() - 60_000),
+      user: {
+        id: 'user-password-setup',
+        username: 'usuario@example.com',
+        name: 'Usuário com e-mail',
+        email: 'usuario@example.com',
+        role: 'COLLABORATOR',
+        accountType: 'INTERNAL',
+        isActive: true
+      }
+    };
+  };
+  prisma.passwordResetToken.deleteMany = async args => {
+    calls.push(['passwordResetToken.deleteMany', args]);
+    return { count: 1 };
+  };
+  prisma.passwordResetToken.create = async args => {
+    calls.push(['passwordResetToken.create', args]);
+    return { id: 'new-setup-token', ...args.data };
+  };
+  t.after(() => {
+    Object.assign(env, previousEnv);
+    global.setImmediate = originals.setImmediate;
+    prisma.passwordResetToken.findUnique = originals.tokenFindUnique;
+    prisma.passwordResetToken.deleteMany = originals.tokenDeleteMany;
+    prisma.passwordResetToken.create = originals.tokenCreate;
+  });
+
+  const startedAt = Date.now();
+  const response = await dispatchApp('POST', '/api/auth/resend-password-setup', {
+    token: 'setup_expired-password-setup-token'
+  }, '198.51.100.43');
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json.ok, true);
+  const tokenCreate = calls.find(([name]) => name === 'passwordResetToken.create')?.[1];
+  const durationMs = tokenCreate.data.expiresAt.getTime() - startedAt;
+  assert.ok(durationMs >= 7 * 24 * 60 * 60 * 1000 - 1_000);
+  assert.ok(durationMs <= 7 * 24 * 60 * 60 * 1000 + 1_000);
+  assert.equal(calls.some(([name]) => name === 'setImmediate'), true);
+});
+
 test('POST /auth/reset-password revokes existing user sessions after password reset', async t => {
   const originals = {
     tokenFindUnique: prisma.passwordResetToken.findUnique,

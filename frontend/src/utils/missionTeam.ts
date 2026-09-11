@@ -1,5 +1,11 @@
 import type { PlanningMission } from '../api/efetivoPlanning';
 
+export type CollaboratorActivityFilter = 'ACTIVE' | 'INACTIVE' | 'ALL';
+
+export function filterCollaboratorsByActivity<T extends { isActive?: boolean }>(people: T[], filter: CollaboratorActivityFilter): T[] {
+  return people.filter(person => filter === 'ALL' || (filter === 'INACTIVE' ? person.isActive === false : person.isActive !== false));
+}
+
 type MissionTeamCollaborator = {
   id: string;
   name: string;

@@ -411,21 +411,30 @@ export function buildEmailChangeConfirmationTemplate({ userName, email, confirmU
   };
 }
 
-export function buildClientWelcomeEmailTemplate({ clientName, cnpj, password, appUrl, projectCode, projectName }) {
+export function buildClientWelcomeEmailTemplate({
+  clientName,
+  username,
+  setupUrl,
+  expiresLabel,
+  projectCode,
+  projectName
+}) {
   const title = 'Acesso do cliente liberado';
   const intro = `A conta do cliente ${clientName} foi criada no sistema Filtrovali.`;
   const body = `
     <div style="background:#f8faf8;border:1px solid #d7dfda;border-radius:12px;padding:16px">
       <div style="font-size:14px;line-height:1.8">
         <div><strong>Projeto inicial:</strong> ${projectCode} - ${projectName}</div>
-        <div><strong>Usuário:</strong> ${cnpj}</div>
-        <div><strong>Senha inicial:</strong> ${password}</div>
+        <div><strong>Usuário:</strong> ${username}</div>
       </div>
     </div>
-    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+    <p style="font-size:14px;line-height:1.7;margin:16px 0">Crie sua senha pessoal para acessar o sistema:</p>
+    <p style="margin:0 0 16px"><a href="${setupUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Criar minha senha</a></p>
+    <p style="font-size:13px;line-height:1.7;margin:0 0 8px">Se preferir, copie e cole este link no navegador:</p>
+    <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0">${setupUrl}</p>
     ${privacyHtmlLine()}
   `;
-  const footer = 'Guarde estas informações com segurança. Depois do primeiro acesso, a senha pode ser alterada na área de conta.';
+  const footer = `Este link é de uso único e expira em ${expiresLabel}.`;
 
   return {
     subject: '[Filtrovali] Seu acesso foi criado',
@@ -433,18 +442,23 @@ export function buildClientWelcomeEmailTemplate({ clientName, cnpj, password, ap
       `A conta do cliente ${clientName} foi criada no sistema Filtrovali.`,
       '',
       `Projeto inicial: ${projectCode} - ${projectName}`,
-      `Usuário: ${cnpj}`,
-      `Senha inicial: ${password}`,
-      appUrl ? `Acesso: ${appUrl}` : '',
+      `Usuário: ${username}`,
       '',
-      'Depois do primeiro acesso, a senha pode ser alterada na área de conta.',
+      `Crie sua senha neste link: ${setupUrl}`,
+      `Este link é de uso único e expira em ${expiresLabel}.`,
       privacyTextLine()
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })
   };
 }
 
-export function buildInternalUserWelcomeEmailTemplate({ userName, username, password, roleLabel, appUrl }) {
+export function buildInternalUserWelcomeEmailTemplate({
+  userName,
+  username,
+  setupUrl,
+  expiresLabel,
+  roleLabel
+}) {
   const title = 'Acesso ao sistema liberado';
   const intro = `A conta de ${roleLabel} ${userName} foi criada no sistema Filtrovali.`;
   const body = `
@@ -452,13 +466,15 @@ export function buildInternalUserWelcomeEmailTemplate({ userName, username, pass
       <div style="font-size:14px;line-height:1.8">
         <div><strong>Perfil:</strong> ${roleLabel}</div>
         <div><strong>Usuário:</strong> ${username}</div>
-        <div><strong>Senha inicial:</strong> ${password}</div>
       </div>
     </div>
-    ${appUrl ? `<p style="font-size:14px;line-height:1.7;margin:16px 0 0">Acesse o sistema em: <a href="${appUrl}" style="color:#30503a">${appUrl}</a></p>` : ''}
+    <p style="font-size:14px;line-height:1.7;margin:16px 0">Crie sua senha pessoal para acessar o sistema:</p>
+    <p style="margin:0 0 16px"><a href="${setupUrl}" style="display:inline-block;background:#30503a;color:#fff;text-decoration:none;padding:12px 16px;border-radius:10px;font-weight:700">Criar minha senha</a></p>
+    <p style="font-size:13px;line-height:1.7;margin:0 0 8px">Se preferir, copie e cole este link no navegador:</p>
+    <p style="font-size:12px;line-height:1.7;word-break:break-all;margin:0">${setupUrl}</p>
     ${privacyHtmlLine()}
   `;
-  const footer = 'Guarde estas informações com segurança. Depois do primeiro acesso, a senha pode ser alterada na área de conta.';
+  const footer = `Este link é de uso único e expira em ${expiresLabel}.`;
 
   return {
     subject: '[Filtrovali] Seu acesso foi criado',
@@ -467,10 +483,9 @@ export function buildInternalUserWelcomeEmailTemplate({ userName, username, pass
       '',
       `Perfil: ${roleLabel}`,
       `Usuário: ${username}`,
-      `Senha inicial: ${password}`,
-      appUrl ? `Acesso: ${appUrl}` : '',
       '',
-      'Depois do primeiro acesso, a senha pode ser alterada na área de conta.',
+      `Crie sua senha neste link: ${setupUrl}`,
+      `Este link é de uso único e expira em ${expiresLabel}.`,
       privacyTextLine()
     ].filter(Boolean).join('\n'),
     html: wrapEmailHtml({ title, intro, body, footer })

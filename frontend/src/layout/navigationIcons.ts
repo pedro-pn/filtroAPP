@@ -29,6 +29,7 @@ import type { HubModuleId } from '../modules/registry';
 
 export const MODULE_NAVIGATION_ICONS = {
   rdo: ClipboardList,
+  'maintenance-production': Wrench,
   admin: UsersRound,
   equipamentos: Wrench,
   estoque: Boxes,
@@ -55,3 +56,4 @@ export const NAVIGATION_CHROME_ICONS = {
   search: Search,
   settings: Settings
 } as const;
+

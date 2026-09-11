@@ -4,9 +4,17 @@ import { z } from 'zod';
 
 import asyncHandler from '../../lib/async-handler.js';
 import env from '../../config/env.js';
+import {
+  ACCOUNT_PASSWORD_SETUP_EXPIRES_LABEL,
+  issueAccountPasswordSetup
+} from '../../lib/accounts/password-setup.js';
 import { createEmailChangeToken, createPasswordResetToken, createSession, hashToken, publicUser } from '../../lib/auth.js';
 import { normalizeCnpj } from '../../lib/cnpj.js';
-import { buildEmailChangeConfirmationTemplate, buildPasswordResetEmailTemplate } from '../../lib/email-templates.js';
+import {
+  buildEmailChangeConfirmationTemplate,
+  buildInternalUserWelcomeEmailTemplate,
+  buildPasswordResetEmailTemplate
+} from '../../lib/email-templates.js';
 import { getMissingMailerConfig, sendClientMail, sendMail } from '../../lib/mailer.js';
 import { createMemoryRateLimit } from '../../lib/rate-limit.js';
 import {
@@ -41,6 +49,9 @@ const forgotPasswordSchema = z.object({
 const resetPasswordSchema = z.object({
   token: z.string().min(1, 'Token obrigatório.'),
   password: z.string().min(6, 'A senha deve ter pelo menos 6 caracteres.')
+});
+const resendPasswordSetupSchema = z.object({
+  token: z.string().min(1, 'Token obrigatório.')
 });
 const emailChangeTokenSchema = z.object({
   token: z.string().min(1, 'Token obrigatório.')
@@ -134,6 +145,13 @@ const resetPasswordRateLimit = createMemoryRateLimit({
   max: 8,
   message: 'Muitas tentativas de redefinição de senha. Tente novamente mais tarde.',
   keyGenerator: req => `${authRateLimitIp(req)}:reset-password:${hashToken(String(req.body?.token || '').trim())}`
+});
+
+const resendPasswordSetupRateLimit = createMemoryRateLimit({
+  windowMs: AUTH_RATE_LIMIT_WINDOW_MS,
+  max: 5,
+  message: 'Muitas solicitações de novo link. Tente novamente mais tarde.',
+  keyGenerator: req => `${authRateLimitIp(req)}:resend-password-setup:${hashToken(String(req.body?.token || '').trim())}`
 });
 
 async function findPasswordResetToken(token) {
@@ -346,6 +364,52 @@ async function queuePasswordResetEmail({ user, emails }) {
   });
 }
 
+async function queueAccountPasswordSetupEmail(user) {
+  const missingMailerConfig = getMissingMailerConfig();
+  if (missingMailerConfig.length || !env.appUrl) {
+    console.warn('Novo convite de senha não enviado por falta de configuração SMTP/APP_URL.', {
+      missingMailerConfig,
+      hasAppUrl: !!env.appUrl
+    });
+    return false;
+  }
+
+  const passwordSetup = await issueAccountPasswordSetup({
+    userId: user.id,
+    prismaClient: prisma,
+    envConfig: env,
+    createToken: createPasswordResetToken
+  });
+  const roleLabels = {
+    MANAGER: 'gestor',
+    COLLABORATOR: 'colaborador',
+    COORDINATOR: 'coordenador',
+    CLIENT: 'cliente'
+  };
+  const template = buildInternalUserWelcomeEmailTemplate({
+    userName: user.name || user.username,
+    username: user.username,
+    setupUrl: passwordSetup.url,
+    expiresLabel: ACCOUNT_PASSWORD_SETUP_EXPIRES_LABEL,
+    roleLabel: roleLabels[user.role] || 'usuário'
+  });
+
+  setImmediate(() => {
+    const mailer = user.role === 'CLIENT' || user.accountType === 'CLIENT' ? sendClientMail : sendMail;
+    mailer({
+      to: user.email,
+      ...template
+    }).catch(error => {
+      console.error('Falha ao reenviar convite para definição de senha.', {
+        userId: user.id,
+        expiresAt: passwordSetup.expiresAt,
+        error: error?.message || error
+      });
+    });
+  });
+  return true;
+}
+
 async function queueEmailChangeConfirmationEmail({ user, email }) {
   const missingMailerConfig = getMissingMailerConfig();
   if (missingMailerConfig.length || !env.appUrl) {
@@ -540,7 +604,29 @@ router.get('/reset-password-status', asyncHandler(async (req, res) => {
   }
 
   const tokenRow = await findPasswordResetToken(token);
-  res.json(passwordResetTokenStatus(tokenRow));
+  const status = passwordResetTokenStatus(tokenRow);
+  res.json({
+    ...status,
+    username: status.valid ? tokenRow.user.username : null,
+    name: status.valid ? tokenRow.user.name : null,
+    canRequestNewLink: token.startsWith('setup_') && !!(tokenRow?.user?.isActive && tokenRow.user.email)
+  });
+}));
+
+router.post('/resend-password-setup', resendPasswordSetupRateLimit, asyncHandler(async (req, res) => {
+  const data = resendPasswordSetupSchema.parse(req.body);
+  const tokenRow = data.token.startsWith('setup_')
+    ? await findPasswordResetToken(data.token)
+    : null;
+
+  if (tokenRow?.user?.isActive && tokenRow.user.email) {
+    await queueAccountPasswordSetupEmail(tokenRow.user);
+  }
+
+  res.json({
+    ok: true,
+    message: 'Se a conta possuir um e-mail cadastrado, um novo link será enviado.'
+  });
 }));
 
 router.post('/reset-password', resetPasswordRateLimit, asyncHandler(async (req, res) => {

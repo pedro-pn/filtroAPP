@@ -96,6 +96,7 @@ import {
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import { resolveActualWorkforceContext } from '../../lib/workforce/actual-conflicts.js';
 import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-mission-context.js';
+import { assertReportTypeEmissionPermission } from '../../lib/operational-reports/permissions.js';
 
 const router = Router();
 const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
@@ -114,6 +115,14 @@ const DERIVED_SERVICE_REPORT_TYPES = new Set([
   ReportType.RLF,
   ReportType.RLI
 ]);
+const OPERATIONAL_REPORT_TYPES = new Set([ReportType.RDO_MAINTENANCE, ReportType.RDO_PRODUCTION]);
+function isOperationalReportType(reportType) { return OPERATIONAL_REPORT_TYPES.has(reportType); }
+function assertStandardReportType(reportType) {
+  if (!isOperationalReportType(reportType)) return;
+  const error = new Error('Use o fluxo próprio de relatórios internos para manutenção e produção.');
+  error.statusCode = 400;
+  throw error;
+}
 
 function reportDateUnchanged(existingReport, nextReportDate) {
   return Boolean(existingReport?.reportDate && reportDateKey(existingReport.reportDate) === reportDateKey(nextReportDate));
@@ -1740,7 +1749,7 @@ function assignClientReportProjectWhere(where, projectWhere = {}) {
 }
 
 function isReportUnavailable(report) {
-  return !!(report?.deletedAt || report?.project?.deletedAt);
+  return !!(report?.deletedAt || report?.project?.deletedAt || isOperationalReportType(report?.reportType));
 }
 
 function parseReportListPagination(query) {
@@ -5727,7 +5736,7 @@ async function createIndependentServiceReports(tx, project, data, managerUserId)
 // listagem (`GET /`) e os contadores (`POST /counts`) usem exatamente a mesma lógica de filtro
 // e visibilidade por papel — assim o total dos badges nunca diverge da lista paginada.
 async function buildReportListWhere(auth, query) {
-  const where = { deletedAt: null, project: activeReportProjectWhere() };
+  const where = { deletedAt: null, project: activeReportProjectWhere(), reportType: { notIn: [...OPERATIONAL_REPORT_TYPES] } };
   const statusFilter = parseReportStatusFilter(query);
   const searchTerm = parseReportSearchTerm(query);
   const usingReviewQueueFilter = applyReportReviewQueueFilter(where, query.reviewQueue);
@@ -5749,6 +5758,7 @@ async function buildReportListWhere(auth, query) {
       error.statusCode = 400;
       throw error;
     }
+    assertStandardReportType(reportType);
     where.reportType = reportType;
   }
 
@@ -5899,6 +5909,7 @@ router.post('/batch-download', requireAuth, requireRdoAccess, asyncHandler(async
   if (reports.length !== ids.length) {
     return res.status(404).json({ error: 'Um ou mais relatórios selecionados não foram encontrados.' });
   }
+  if (reports.some(report => isOperationalReportType(report.reportType))) return res.status(404).json({ error: 'Um ou mais relatórios selecionados não foram encontrados.' });
   await assertBatchAccess(req.auth, reports);
 
   const zip = new AdmZip();
@@ -5919,6 +5930,7 @@ router.post('/batch-download', requireAuth, requireRdoAccess, asyncHandler(async
 
 router.post('/manual-upload', requireAuth, requireRdoManager, asyncHandler(async (req, res) => {
   const data = manualReportUploadSchema.parse(req.body || {});
+  assertStandardReportType(data.reportType);
   const signed = data.signatureMode === 'SIGNED';
   const requiresSignature = data.signatureMode === 'REQUIRES_SIGNATURE';
   const allowsOptionalSignature = data.signatureMode === 'APPROVED';
@@ -6476,6 +6488,8 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode criar relatórios.` });
   }
   const data = schema.parse(req.body);
+  assertStandardReportType(data.reportType);
+  assertReportTypeEmissionPermission(req.auth.user, data.reportType);
   assertCompleteTubeRows(data.services);
   const reportStatus = req.auth.user.role === 'MANAGER' ? data.status : ReportStatus.PENDING;
   const collaboratorIds = uniqueIds(data.collaboratorIds);
@@ -6616,6 +6630,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     return res.status(403).json({ error: `A conta ${req.auth.user.role} não pode editar relatórios.` });
   }
   const data = updateSchema.parse(req.body);
+  assertStandardReportType(data.reportType);
   assertCompleteTubeRows(data.services);
   const collaboratorIds = uniqueIds(data.collaboratorIds);
   const existing = await prisma.report.findUniqueOrThrow({
@@ -6623,6 +6638,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
     include
   });
   if (isReportUnavailable(existing)) return res.status(404).json({ error: 'Relatório não encontrado.' });
+  assertReportTypeEmissionPermission(req.auth.user, existing.reportType);
   const isServiceOnlyReport = existing.specialConditions?.serviceOnly === true;
   const isDirectDerivedServiceReport = isDerivedServiceReport(existing);
   const manualUploadedReport = isManualUploadedReport(existing);

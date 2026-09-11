@@ -93,6 +93,8 @@ export function useEquipamentoMutations() {
       // O catálogo do romaneio é alimentado pelos equipamentos sincronizados:
       // ao criar/editar/remover um equipamento, a lista do romaneio deve refletir.
       queryClient.invalidateQueries({ queryKey: ['romaneio-catalog'] }),
+      queryClient.invalidateQueries({ queryKey: ['operational-reports', 'context'] }),
+      queryClient.invalidateQueries({ queryKey: ['operational-reports', 'maintenance-schedule'] }),
       queryClient.invalidateQueries({ queryKey: queryKeys.units }),
       queryClient.invalidateQueries({ queryKey: queryKeys.manometers }),
       queryClient.invalidateQueries({ queryKey: queryKeys.counters })

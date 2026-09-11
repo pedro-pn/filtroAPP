@@ -32,12 +32,16 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { SignatureValidationPage } from './pages/SignatureValidationPage';
 import { SurveyPage } from './pages/SurveyPage';
 import { AssinaturasPublicSignPage } from './pages/assinaturas/AssinaturasPublicSignPage';
+import { MaintenanceProductionPage } from './pages/MaintenanceProductionPage';
 
 const RDO_REPORT_WRITE_ACCESS = moduleRouteAccess('rdo', 'reportWrite');
 const RDO_COLLABORATOR_ACCESS = moduleRouteAccess('rdo', 'collaborator');
 const RDO_MANAGER_ACCESS = moduleRouteAccess('rdo', 'manager');
 const RDO_COORDINATOR_ACCESS = moduleRouteAccess('rdo', 'coordinator');
 const RDO_CLIENT_ACCESS = moduleRouteAccess('rdo', 'client');
+const MAINTENANCE_PRODUCTION_ACCESS = moduleRouteAccess(
+  'maintenance-production'
+);
 
 function ModuleAccessTracker() {
   const { user } = useAuth();
@@ -100,10 +104,25 @@ export default function App() {
           <Route path="/operacoes" element={<OperationsPage />} />
         </Route>
 
+        <Route element={<RoleRoute allowedAccountTypes={['ADMIN', 'INTERNAL']} />}>
+          <Route path="/rdo/relatorio/novo" element={<NewReportPage />} />
+          <Route path="/rdo/relatorios/novo" element={<NewReportPage />} />
+          <Route path="/rdo/relatorios-operacionais" element={<Navigate to="/manutencao-producao" replace />} />
+        </Route>
+
+        <Route element={<RoleRoute {...MAINTENANCE_PRODUCTION_ACCESS} />}>
+          <Route
+            path={moduleRoutePath('maintenance-production', 'index')}
+            element={<MaintenanceProductionPage />}
+          />
+          <Route
+            path={moduleRoutePath('maintenance-production', 'newReport')}
+            element={<NewReportPage />}
+          />
+        </Route>
+
         <Route element={<RoleRoute {...RDO_REPORT_WRITE_ACCESS} />}>
           <Route path={moduleRoutePath('rdo', 'root')} element={<RdoModuleRedirect />} />
-          <Route path={moduleRoutePath('rdo', 'newReport')} element={<NewReportPage />} />
-          <Route path={moduleRoutePath('rdo', 'newReportsAlias')} element={<NewReportPage />} />
           <Route path={moduleRoutePath('rdo', 'reportDetail')} element={<ReportDetailPage />} />
           <Route path={moduleRoutePath('rdo', 'newReport', { legacy: true })} element={<NewReportPage />} />
           <Route path={moduleRoutePath('rdo', 'newReportsAlias', { legacy: true })} element={<NewReportPage />} />
@@ -125,7 +144,12 @@ export default function App() {
           <Route path={moduleRoutePath('rdo', 'managerHome')} element={<GestorPage />} />
           <Route path={moduleRoutePath('rdo', 'managerReportDetail')} element={<ReportDetailPage />} />
           <Route path={moduleRoutePath('rdo', 'managerHome', { legacy: true })} element={<GestorPage />} />
-          <Route path={moduleRoutePath('rdo', 'managerReportDetail', { legacy: true })} element={<ReportDetailPage />} />
+          <Route
+            path={moduleRoutePath('rdo', 'managerReportDetail', {
+              legacy: true
+            })}
+            element={<ReportDetailPage />}
+          />
         </Route>
 
         {moduleRouteElements}
@@ -134,14 +158,24 @@ export default function App() {
           <Route path={moduleRoutePath('rdo', 'coordinatorHome')} element={<CoordinatorPage />} />
           <Route path={moduleRoutePath('rdo', 'coordinatorReportDetail')} element={<ReportDetailPage />} />
           <Route path={moduleRoutePath('rdo', 'coordinatorHome', { legacy: true })} element={<CoordinatorPage />} />
-          <Route path={moduleRoutePath('rdo', 'coordinatorReportDetail', { legacy: true })} element={<ReportDetailPage />} />
+          <Route
+            path={moduleRoutePath('rdo', 'coordinatorReportDetail', {
+              legacy: true
+            })}
+            element={<ReportDetailPage />}
+          />
         </Route>
 
         <Route element={<RoleRoute {...RDO_CLIENT_ACCESS} />}>
           <Route path={moduleRoutePath('rdo', 'clientHome')} element={<ClientPage />} />
           <Route path={moduleRoutePath('rdo', 'clientReportDetail')} element={<ReportDetailPage />} />
           <Route path={moduleRoutePath('rdo', 'clientHome', { legacy: true })} element={<ClientPage />} />
-          <Route path={moduleRoutePath('rdo', 'clientReportDetail', { legacy: true })} element={<ReportDetailPage />} />
+          <Route
+            path={moduleRoutePath('rdo', 'clientReportDetail', {
+              legacy: true
+            })}
+            element={<ReportDetailPage />}
+          />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

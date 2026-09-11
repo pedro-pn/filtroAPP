@@ -12,11 +12,12 @@ interface Props {
   onEdit: () => void;
   onRemove: () => void;
   onOpenTechnical?: () => void;
+  onOpenMaintenanceHistory?: () => void;
 }
 
 type DocKind = 'tech' | 'cert';
 
-export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onOpenTechnical }: Props) {
+export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onOpenTechnical, onOpenMaintenanceHistory }: Props) {
   const { updateEquipment } = useEquipamentoMutations();
   const showToast = useToast();
   const cardRef = useRef<HTMLElement | null>(null);
@@ -34,14 +35,24 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
     setDragging(false);
     if (!file) return;
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    if (!isPdf) { showToast('O documento deve ser um arquivo PDF.', 'error'); return; }
+    if (!isPdf) {
+      showToast('O documento deve ser um arquivo PDF.', 'error');
+      return;
+    }
     try {
-      const upload = { fileName: file.name, mimeType: 'application/pdf', dataUrl: await fileToDataUrl(file) };
+      const upload = {
+        fileName: file.name,
+        mimeType: 'application/pdf',
+        dataUrl: await fileToDataUrl(file)
+      };
       const payload = kind === 'tech' ? { technicalDoc: upload } : { calibrationCertificate: upload };
-      updateEquipment.mutate({ id: item.id, payload }, {
-        onSuccess: () => showToast(kind === 'tech' ? 'Documentação técnica enviada.' : 'Certificado de calibração enviado.', 'success'),
-        onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível enviar o documento.', 'error')
-      });
+      updateEquipment.mutate(
+        { id: item.id, payload },
+        {
+          onSuccess: () => showToast(kind === 'tech' ? 'Documentação técnica enviada.' : 'Certificado de calibração enviado.', 'success'),
+          onError: error => showToast(error instanceof Error ? error.message : 'Não foi possível enviar o documento.', 'error')
+        }
+      );
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Não foi possível ler o arquivo.', 'error');
     }
@@ -55,21 +66,21 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
     };
   }
 
-  const dragHandlers = droppable && !updateEquipment.isPending ? {
-    onDragOver: (event: DragEvent<HTMLElement>) => { event.preventDefault(); setDragging(true); },
-    onDragLeave: (event: DragEvent<HTMLElement>) => {
-      if (!cardRef.current?.contains(event.relatedTarget as Node)) setDragging(false);
-    }
-  } : {};
+  const dragHandlers =
+    droppable && !updateEquipment.isPending
+      ? {
+          onDragOver: (event: DragEvent<HTMLElement>) => {
+            event.preventDefault();
+            setDragging(true);
+          },
+          onDragLeave: (event: DragEvent<HTMLElement>) => {
+            if (!cardRef.current?.contains(event.relatedTarget as Node)) setDragging(false);
+          }
+        }
+      : {};
 
   return (
-    <article
-      ref={cardRef}
-      className={`report-card equip-card ${dragging ? 'equip-card-dragging' : ''}`}
-      data-equip-card
-      data-equip-item-id={item.id}
-      {...dragHandlers}
-    >
+    <article ref={cardRef} className={`report-card equip-card ${dragging ? 'equip-card-dragging' : ''}`} data-equip-card data-equip-item-id={item.id} {...dragHandlers}>
       {dragging && droppable && (
         <div className="equip-card-dropzones">
           {canTech && (
@@ -99,8 +110,14 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
         ))}
         {item.hasCalibration && (
           <>
-            <div><dt>Calibração</dt><dd>{formatDate(item.calibratedAt)}</dd></div>
-            <div><dt>Vencimento</dt><dd>{formatDate(item.expiresAt)}</dd></div>
+            <div>
+              <dt>Calibração</dt>
+              <dd>{formatDate(item.calibratedAt)}</dd>
+            </div>
+            <div>
+              <dt>Vencimento</dt>
+              <dd>{formatDate(item.expiresAt)}</dd>
+            </div>
           </>
         )}
       </dl>
@@ -109,28 +126,42 @@ export function EquipmentCard({ item, category, isManager, onEdit, onRemove, onO
           {item.calibrationCertificate && (
             <div className="equip-doc">
               <span className="equip-doc-title">Certificado de calibração</span>
-              <a className="mini-btn equip-doc-pdf" href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer" data-equip-cert-link>⤓ PDF</a>
+              <a className="mini-btn equip-doc-pdf" href={item.calibrationCertificate.publicUrl} target="_blank" rel="noreferrer" data-equip-cert-link>
+                ⤓ PDF
+              </a>
             </div>
           )}
           {currentDoc && (
             <div className="equip-doc">
               <span className="equip-doc-title">Dados técnicos</span>
-              <a className="mini-btn equip-doc-pdf" href={currentDoc.publicUrl} target="_blank" rel="noreferrer" data-equip-technical-doc-link>⤓ PDF</a>
+              <a className="mini-btn equip-doc-pdf" href={currentDoc.publicUrl} target="_blank" rel="noreferrer" data-equip-technical-doc-link>
+                ⤓ PDF
+              </a>
             </div>
           )}
         </div>
       )}
-      {(isManager || (category.technicalDocEnabled && onOpenTechnical)) && (
+      {(isManager || (category.technicalDocEnabled && onOpenTechnical) || onOpenMaintenanceHistory) && (
         <div className="report-card-actions">
+          {onOpenMaintenanceHistory ? (
+            <button className="mini-btn alt equip-maintenance-action" type="button" onClick={onOpenMaintenanceHistory}>
+              Manutenções
+            </button>
+          ) : null}
           {category.technicalDocEnabled && onOpenTechnical && (
             <button className="mini-btn alt equip-technical-action" type="button" onClick={onOpenTechnical} title={isManager ? 'Editar dados técnicos' : 'Ver dados técnicos'} data-equip-technical-button>
-              {isManager ? 'Dados' : 'Ver dados'}{item.technicalRevision > 0 ? ' ●' : ''}
+              {isManager ? 'Dados' : 'Ver dados'}
+              {item.technicalRevision > 0 ? ' ●' : ''}
             </button>
           )}
           {isManager && (
             <>
-              <button className="mini-btn alt" type="button" onClick={onEdit} title="Editar cadastro">Cadastro</button>
-              <button className="mini-btn danger" type="button" onClick={onRemove}>Remover</button>
+              <button className="mini-btn alt" type="button" onClick={onEdit} title="Editar cadastro">
+                Cadastro
+              </button>
+              <button className="mini-btn danger" type="button" onClick={onRemove}>
+                Remover
+              </button>
             </>
           )}
         </div>

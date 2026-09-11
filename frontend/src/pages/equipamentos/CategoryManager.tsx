@@ -238,7 +238,7 @@ export function CategoryManager({ categories, rdoLinkedCategoryIds, onAdd, onEdi
                 <span className="equip-badge equip-badge-ok" title="Categoria usada por algum relatório (RDO)">RDO</span>
               )}
             </div>
-            <div className="rel-meta">{category.fieldSchema.length} campo(s){category.supportsCalibration ? ' · calibração' : ''}{category.syncToRomaneio ? ' · romaneio' : ''}</div>
+            <div className="rel-meta">{category.fieldSchema.length} campo(s){category.supportsCalibration ? ' · calibração' : ''}{category.syncToRomaneio ? ' · romaneio' : ''}{category.showInMaintenance !== false ? ' · manutenção' : ' · fora da manutenção'}</div>
             {locked && (
               <div className="report-card-actions">
                 <button className="mini-btn alt" type="button" onClick={() => onEdit(category)}>Editar</button>

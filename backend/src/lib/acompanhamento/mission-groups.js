@@ -33,6 +33,15 @@ const groupInclude = {
   }
 };
 
+const visibleGroupInclude = {
+  members: {
+    ...groupInclude.members,
+    where: { project: { managerOnly: false } }
+  }
+};
+
+const visibleGroupWhere = { members: { some: { project: { managerOnly: false } } } };
+
 export class MissionGroupError extends Error {
   constructor(code, message) {
     super(message);
@@ -98,9 +107,9 @@ export async function listMissionGroups({ status = ACTIVE, db = null } = {}) {
   db = await getDb(db);
   const where = status === 'ALL' ? {} : { status };
   const groups = await db.acompanhamentoMissionGroup.findMany({
-    where,
+    where: { ...where, ...visibleGroupWhere },
     orderBy: { createdAt: 'desc' },
-    include: groupInclude
+    include: visibleGroupInclude
   });
   return groups.map(group => serializeMissionGroup(group));
 }
@@ -108,9 +117,9 @@ export async function listMissionGroups({ status = ACTIVE, db = null } = {}) {
 export async function loadActiveMissionGroups({ db = null } = {}) {
   db = await getDb(db);
   return db.acompanhamentoMissionGroup.findMany({
-    where: { status: ACTIVE },
+    where: { status: ACTIVE, ...visibleGroupWhere },
     orderBy: { createdAt: 'asc' },
-    include: groupInclude
+    include: visibleGroupInclude
   });
 }
 
@@ -118,9 +127,9 @@ export async function getActiveMissionGroup({ groupId, db = null } = {}) {
   db = await getDb(db);
   const group = await db.acompanhamentoMissionGroup.findUnique({
     where: { id: groupId },
-    include: groupInclude
+    include: visibleGroupInclude
   });
-  if (!group) {
+  if (!group || group.members.length === 0) {
     throw new MissionGroupError('GROUP_NOT_FOUND', 'Agrupamento não encontrado.');
   }
   if (group.status !== ACTIVE) {

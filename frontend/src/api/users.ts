@@ -1,5 +1,5 @@
 import { adminApiPath, apiClient } from './client';
-import type { AccountType, AuthUser, ModuleRole } from '../types/auth';
+import type { AccountType, AuthUser, ModuleRole, ReportEmissionPermission } from '../types/auth';
 import type { InternalUserSummary } from '../types/domain';
 
 export interface UserPayload {
@@ -10,6 +10,7 @@ export interface UserPayload {
   role: AuthUser['role'];
   accountType?: AccountType;
   moduleRoles?: ModuleRole[];
+  reportEmissionPermissions?: ReportEmissionPermission[];
   isActive?: boolean;
   collaboratorId?: string | null;
 }
@@ -22,6 +23,22 @@ export interface UserDeletionImpact {
   };
 }
 
+export type PasswordSetupResult =
+  | {
+      url: null;
+      expiresAt: string;
+      delivery: 'email';
+    }
+  | {
+      url: string;
+      expiresAt: string;
+      delivery: 'manual';
+    };
+
+export type CreatedUser = InternalUserSummary & {
+  passwordSetup: PasswordSetupResult;
+};
+
 export async function listUsers(group?: 'internal' | 'client') {
   const response = await apiClient.get<InternalUserSummary[]>(adminApiPath('/accounts'), {
     params: group ? { group } : undefined
@@ -30,7 +47,7 @@ export async function listUsers(group?: 'internal' | 'client') {
 }
 
 export async function createUser(payload: UserPayload) {
-  const response = await apiClient.post<InternalUserSummary>(adminApiPath('/accounts'), payload);
+  const response = await apiClient.post<CreatedUser>(adminApiPath('/accounts'), payload);
   return response.data;
 }
 
