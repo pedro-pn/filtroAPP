@@ -37,6 +37,7 @@ As decisões consolidadas para CRM, Omie, conformidade de colaboradores, equipam
 | Desenhos, especificações e anexos usados na proposta | Direta quando armazenados no CRM | Metadados, versão e endereço do documento | Consultar pelo projeto; evitar cópia de arquivo sem necessidade operacional |
 | Contato responsável do cliente | Direta | Contato, função, telefone e e-mail | Usar no handover e registrar contatos operacionais posteriores |
 | Valor, prazo vendido e data esperada pelo cliente | Direta | Condições vigentes da oportunidade/proposta | Mostrar como referência comercial e apontar divergência com o planejamento operacional |
+| Mobilização e início estimados na análise inicial | Direta | Datas comerciais vigentes da oportunidade/proposta | Exibir como datas somente para leitura; o contato operacional posterior continua sendo registrado pelo Líder |
 | Premissas, exclusões e responsabilidades contratuais | Direta se estruturadas no CRM; indireta se estiverem apenas no documento | Conteúdo comercial ou versão do documento que o contém | Líder confirma leitura, entendimento e impactos operacionais |
 | Líder de Projetos definido | Sem dependência | — | Gestor do Efetivo designa; troca de líder invalida o aceite anterior |
 | Grupo de comunicação e participantes internos | Direta | Situação do grupo, endereço e participantes incluídos | Exibir como informação do handover |

@@ -38,8 +38,12 @@ function completed(stage) {
 test('contrato exige justificativa para não aplicável, valida documentação e exige versão', () => {
   const { patch } = makeProjectWorkflowSchemas(z);
   const commercialFact = makeProjectWorkflowCommercialFactSchema(z);
-  assert.equal(patch.safeParse({ action: 'checklist', version: 1, key: 'ANALYSIS_SCOPE', status: 'NOT_APPLICABLE' }).success, false);
-  assert.equal(patch.safeParse({ action: 'checklist', version: 1, key: 'ANALYSIS_SCOPE', status: 'NOT_APPLICABLE', note: 'Documento incorporado à proposta.' }).success, true);
+  assert.equal(patch.safeParse({ action: 'checklist', version: 1, key: 'ANALYSIS_RESPONSIBILITIES', status: 'NOT_APPLICABLE' }).success, false);
+  assert.equal(patch.safeParse({ action: 'checklist', version: 1, key: 'ANALYSIS_RESPONSIBILITIES', status: 'NOT_APPLICABLE', note: 'Responsabilidades já definidas no contrato.' }).success, true);
+  assert.equal(patch.safeParse({ action: 'analysis_contact', version: 1, made: true }).success, false);
+  assert.equal(patch.safeParse({ action: 'analysis_contact', version: 1, made: true, contactName: 'Marina', contactDate: '2026-09-10' }).success, true);
+  assert.equal(patch.safeParse({ action: 'analysis_contact', version: 1, made: false }).success, true);
+  assert.equal(patch.safeParse({ action: 'issue', version: 1, issueId: 'issue-1', description: 'Equipamento especial', ownerName: 'Leandro', requiredLeadTimeDays: 30, dueDate: '2026-10-10', criticality: 'HIGH', status: 'OPEN' }).success, true);
   assert.equal(patch.safeParse({ action: 'documentation_category', version: 1, type: 'EXAM', required: true }).success, true);
   assert.equal(patch.safeParse({ action: 'documentation_requirement_create', version: 1, type: 'EXAM', name: 'Audiometria' }).success, true);
   assert.equal(patch.safeParse({ action: 'documentation_requirement_update', version: 1, requirementId: 'req-1', status: 'CONFIRMED', requestedAt: '2026-09-10', confirmedAt: '2026-09-09' }).success, false);
@@ -109,11 +113,17 @@ test('documento de proposta aparece no handover sem confirmar os sinais comercia
 test('análise exige todas as respostas e encaminhamento para cada resposta positiva', () => {
   const workflow = {
     checklists: completed('INITIAL_ANALYSIS'),
+    analysisClientContactMade: false,
     criticalAnswers: PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(question => ({ key: question.key, answer: question.key === 'SPECIAL_EQUIPMENT' })),
     issues: [{ sourceQuestion: 'SPECIAL_EQUIPMENT', area: 'Ativos', ownerName: null, requiredLeadTimeDays: null, dueDate: null }]
   };
   assert.deepEqual(analysisGateIssues(workflow), ['Encaminhar a pendência: Providenciar equipamento especial']);
   workflow.issues[0] = { ...workflow.issues[0], ownerName: 'Leandro', requiredLeadTimeDays: 45, dueDate: new Date('2026-09-20T00:00:00Z') };
+  assert.deepEqual(analysisGateIssues(workflow), []);
+  workflow.analysisClientContactMade = true;
+  assert.deepEqual(analysisGateIssues(workflow), ['Informar o nome do contato inicial com o cliente', 'Informar a data do contato inicial com o cliente']);
+  workflow.analysisClientContactName = 'Marina';
+  workflow.analysisClientContactDate = '2026-09-10';
   assert.deepEqual(analysisGateIssues(workflow), []);
 });
 

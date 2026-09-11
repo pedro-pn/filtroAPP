@@ -309,6 +309,7 @@ export interface ProjectWorkflow {
   leaderUserId: string;
   leader: { id: string; name: string; isActive: boolean };
   acceptedAt: string | null;
+  commercialExpectedMobilizationDate: string | null;
   commercialExpectedStartDate: string | null;
   commercialExpectedDurationDays: number | null;
   commercialWhatsappGroupCreated: boolean | null;
@@ -319,6 +320,9 @@ export interface ProjectWorkflow {
   commercialClientContactEmail: string | null;
   commercialAssumptions: string | null;
   commercialSourceUpdatedAt: string | null;
+  analysisClientContactMade: boolean | null;
+  analysisClientContactName: string | null;
+  analysisClientContactDate: string | null;
   closedAt: string | null;
   closedBy: { id: string; name: string } | null;
   plannedMobilizationDate: string;
@@ -486,11 +490,12 @@ export type ProjectWorkflowPatch =
   | { action: 'settings'; version: number; leaderUserId?: string; plannedMobilizationDate?: string }
   | { action: 'checklist'; version: number; key: string; status: ProjectWorkflowChecklistStatus; note?: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }
+  | { action: 'analysis_contact'; version: number; made: boolean; contactName?: string | null; contactDate?: string | null }
   | { action: 'documentation_category'; version: number; type: ProjectWorkflowDocumentationType; required: boolean }
   | { action: 'documentation_requirement_create'; version: number; type: ProjectWorkflowDocumentationType; name: string }
   | { action: 'documentation_requirement_update'; version: number; requirementId: string; name?: string; status?: ProjectWorkflowDocumentationStatus; requestedAt?: string | null; confirmedAt?: string | null }
   | { action: 'documentation_requirement_archive'; version: number; requirementId: string; archived: boolean }
-  | { action: 'issue'; version: number; issueId: string; description: string; area: string; ownerName: string | null; requiredLeadTimeDays: number | null; dueDate: string | null; criticality: ProjectWorkflowCriticality; status: ProjectWorkflowIssueStatus }
+  | { action: 'issue'; version: number; issueId: string; description: string; ownerName: string | null; requiredLeadTimeDays: number | null; dueDate: string | null; criticality: ProjectWorkflowCriticality; status: ProjectWorkflowIssueStatus }
   | { action: 'accept'; version: number }
   | { action: 'stage'; version: number; stage: ProjectWorkflowStage; reason?: string }
   | { action: 'demobilization'; version: number; mobilizationDate?: string | null; fieldCompletionDate?: string | null; returnDate?: string | null }

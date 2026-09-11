@@ -184,6 +184,22 @@ test('documentação antecipada, D-30 e papéis de área aparecem nas superfíci
   assert.match(registry, /efetivo:administrative/);
 });
 
+test('análise inicial usa datas do CRM, contato estruturado e pendência sem campo Área', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const intake = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowIntakePanels.tsx', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  const schema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
+  assert.match(intake, /Mobilização estimada/);
+  assert.match(intake, /Início estimado/);
+  assert.match(intake, /analysis_contact/);
+  assert.match(intake, /Nome do contato/);
+  assert.match(intake, /Data do contato/);
+  assert.doesNotMatch(schema, /ANALYSIS_TECHNICAL_PROPOSAL|ANALYSIS_COMMERCIAL_PROPOSAL|ANALYSIS_SCOPE|ANALYSIS_ASSUMPTIONS|ANALYSIS_DATES|ANALYSIS_CLIENT_CONTACT/);
+  assert.doesNotMatch(modal, /issue-area-|errors\.area|register\('area'\)/);
+  assert.match(styles, /\.project-workflow-check-item \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(styles, /\.project-workflow-check-controls \{[^}]*grid-template-columns: minmax\(130px, \.6fr\) minmax\(0, 1fr\)/);
+});
+
 test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe', () => {
   const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
   const board = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBoard.tsx', import.meta.url), 'utf8');

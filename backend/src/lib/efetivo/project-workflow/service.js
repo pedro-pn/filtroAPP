@@ -399,7 +399,9 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
   return {
     ...workflow,
     plannedMobilizationDate: dateKey(workflow.plannedMobilizationDate),
+    commercialExpectedMobilizationDate: dateKey(workflow.commercialExpectedMobilizationDate),
     commercialExpectedStartDate: dateKey(workflow.commercialExpectedStartDate),
+    analysisClientContactDate: dateKey(workflow.analysisClientContactDate),
     fieldCompletionDate: dateKey(workflow.fieldCompletionDate),
     demobilizationDate: dateKey(demobilizationDate),
     checklists,
@@ -818,6 +820,17 @@ async function applyCriticalAnswer(tx, workflow, payload, context) {
   });
 }
 
+async function applyAnalysisContact(tx, workflow, payload) {
+  await tx.projectWorkflow.update({
+    where: { projectId: workflow.projectId },
+    data: {
+      analysisClientContactMade: payload.made,
+      analysisClientContactName: payload.made ? payload.contactName : null,
+      analysisClientContactDate: payload.made && payload.contactDate ? utcDate(payload.contactDate) : null
+    }
+  });
+}
+
 async function documentationRequirementForProject(tx, projectId, requirementId) {
   const requirement = await tx.projectWorkflowDocumentationRequirement.findFirst({
     where: { id: requirementId, category: { projectId } }
@@ -918,7 +931,6 @@ async function applyIssue(tx, workflow, payload) {
     where: { id: issue.id },
     data: {
       description: payload.description,
-      area: payload.area,
       ownerName: payload.ownerName || null,
       requiredLeadTimeDays: payload.requiredLeadTimeDays,
       dueDate: payload.dueDate ? utcDate(payload.dueDate) : null,
@@ -1202,6 +1214,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     if (payload.action === 'settings') await applySettings(tx, workflow, payload, context);
     else if (payload.action === 'checklist') await applyChecklist(tx, workflow, payload, context);
     else if (payload.action === 'critical') await applyCriticalAnswer(tx, workflow, payload, context);
+    else if (payload.action === 'analysis_contact') await applyAnalysisContact(tx, workflow, payload);
     else if (payload.action === 'documentation_category') await applyDocumentationCategory(tx, workflow, payload, context);
     else if (payload.action === 'documentation_requirement_create') await applyDocumentationRequirementCreate(tx, workflow, payload, context);
     else if (payload.action === 'documentation_requirement_update') await applyDocumentationRequirementUpdate(tx, workflow, payload, context);

@@ -411,6 +411,12 @@ export function postJobGateIssues(workflow) {
 
 export function analysisGateIssues(workflow) {
   const issues = incompleteChecklistLabels(workflow, 'INITIAL_ANALYSIS');
+  if (workflow.analysisClientContactMade == null) {
+    issues.push('Responder se o contato inicial com o cliente foi realizado');
+  } else if (workflow.analysisClientContactMade) {
+    if (!workflow.analysisClientContactName?.trim()) issues.push('Informar o nome do contato inicial com o cliente');
+    if (!workflow.analysisClientContactDate) issues.push('Informar a data do contato inicial com o cliente');
+  }
   const answerByKey = new Map((workflow.criticalAnswers || []).map(item => [item.key, item.answer]));
   const issueByQuestion = new Map((workflow.issues || []).map(item => [item.sourceQuestion, item]));
   for (const question of PROJECT_WORKFLOW_CRITICAL_QUESTIONS) {

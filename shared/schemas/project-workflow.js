@@ -77,14 +77,8 @@ export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS = {
 const checklist = (key, stage, section, label, areaRoles = []) => ({ key, stage, section, label, areaRoles });
 
 export const PROJECT_WORKFLOW_CHECKLISTS = [
-  checklist('ANALYSIS_TECHNICAL_PROPOSAL', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Proposta técnica revisada'),
-  checklist('ANALYSIS_COMMERCIAL_PROPOSAL', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Proposta comercial revisada'),
-  checklist('ANALYSIS_SCOPE', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Escopo e quantitativos compreendidos'),
-  checklist('ANALYSIS_ASSUMPTIONS', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Premissas e exclusões identificadas'),
   checklist('ANALYSIS_RESPONSIBILITIES', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Responsabilidades Filtrovali e cliente identificadas'),
-  checklist('ANALYSIS_DATES', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Mobilização e início estimados'),
   checklist('ANALYSIS_COMMERCIAL_QUESTIONS', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Dúvidas comerciais levantadas e esclarecidas'),
-  checklist('ANALYSIS_CLIENT_CONTACT', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Contato inicial com cliente realizado, quando necessário'),
 
   checklist('D30_TEAM_QUANTITY_CONFIRMED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Quantidade de pessoas confirmada', ['efetivo:operations']),
   checklist('D30_TEAM_ROLES_DEFINED', 'MOBILIZATION_PLANNING', 'D30_TEAM', 'Funções definidas', ['efetivo:operations']),
@@ -343,6 +337,17 @@ export function makeProjectWorkflowSchemas(z) {
     key: z.enum(PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(item => item.key)),
     answer: z.boolean()
   }).strict();
+  const analysisContact = z.object({
+    action: z.literal('analysis_contact'),
+    version,
+    made: z.boolean(),
+    contactName: z.string().trim().max(160, 'O nome do contato deve ter no máximo 160 caracteres.').nullable().optional(),
+    contactDate: dateOnly.nullable().optional()
+  }).strict().superRefine((value, ctx) => {
+    if (!value.made) return;
+    if (!value.contactName?.trim()) ctx.addIssue({ code: 'custom', path: ['contactName'], message: 'Informe o nome do contato.' });
+    if (!value.contactDate) ctx.addIssue({ code: 'custom', path: ['contactDate'], message: 'Informe a data do contato.' });
+  });
   const documentationCategory = z.object({
     action: z.literal('documentation_category'),
     version,
@@ -382,7 +387,6 @@ export function makeProjectWorkflowSchemas(z) {
     version,
     issueId: id,
     description: z.string().trim().min(1, 'Informe a pendência.').max(500),
-    area: z.string().trim().min(1, 'Informe a área responsável.').max(120),
     ownerName: z.string().trim().max(160).nullable(),
     requiredLeadTimeDays: z.coerce.number().int().min(1, 'Informe ao menos um dia.').max(3650, 'O prazo necessário deve ter no máximo 3650 dias.').nullable(),
     dueDate: dateOnly.nullable(),
@@ -478,7 +482,7 @@ export function makeProjectWorkflowSchemas(z) {
     start,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, critical, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
+    patch: z.discriminatedUnion('action', [settings, checklist, critical, analysisContact, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

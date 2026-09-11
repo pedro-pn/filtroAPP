@@ -111,6 +111,11 @@ function fakeDatabase() {
           leaderUserId: input.data.leaderUserId,
           acceptedAt: null,
           plannedMobilizationDate: input.data.plannedMobilizationDate,
+          commercialExpectedMobilizationDate: null,
+          commercialExpectedStartDate: null,
+          analysisClientContactMade: null,
+          analysisClientContactName: null,
+          analysisClientContactDate: null,
           fieldCompletionDate: null,
           closedAt: null,
           closedByUserId: null,
@@ -288,6 +293,7 @@ test('análise bloqueia pendência sem responsável/prazo e libera após encamin
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
   state.workflow.stage = 'INITIAL_ANALYSIS';
   state.workflow.acceptedAt = new Date();
+  state.workflow.analysisClientContactMade = false;
   state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.stage === 'INITIAL_ANALYSIS').map(item => ({ id: item.key, projectId: 'project-1', key: item.key, status: 'DONE' })));
   state.answers.push(...PROJECT_WORKFLOW_CRITICAL_QUESTIONS.map(item => ({ id: item.key, projectId: 'project-1', key: item.key, answer: item.key === 'SPECIAL_EQUIPMENT' })));
   state.issues.push({ id: 'issue-1', projectId: 'project-1', sourceQuestion: 'SPECIAL_EQUIPMENT', description: 'Equipamento', area: 'Ativos', ownerName: null, requiredLeadTimeDays: null, dueDate: null, criticality: 'HIGH', status: 'OPEN' });
@@ -296,7 +302,7 @@ test('análise bloqueia pendência sem responsável/prazo e libera após encamin
     error => error.code === 'PROJECT_WORKFLOW_STAGE_BLOCKED'
   );
   const updated = await updateProjectWorkflow('project-1', {
-    action: 'issue', version: 1, issueId: 'issue-1', description: 'Providenciar equipamento', area: 'Ativos',
+    action: 'issue', version: 1, issueId: 'issue-1', description: 'Providenciar equipamento',
     ownerName: 'Leandro', requiredLeadTimeDays: 45, dueDate: '2026-09-20', criticality: 'HIGH', status: 'IN_PROGRESS'
   }, leader, { database });
   assert.equal(updated.workflow.transitionOptions.find(item => item.stage === 'WAITING_PLANNING').allowed, true);
@@ -407,6 +413,7 @@ test('fato CRM é exposto como somente leitura', async () => {
     reference: 'CTR-1', note: null, occurredOn: new Date('2026-09-01T00:00:00Z'), sourceVersion: 'v2', updatedAt: new Date()
   });
   Object.assign(state.workflow, {
+    commercialExpectedMobilizationDate: new Date('2026-09-29T00:00:00Z'),
     commercialExpectedStartDate: new Date('2026-10-01T00:00:00Z'),
     commercialExpectedDurationDays: 30,
     commercialWhatsappGroupCreated: true,
@@ -419,12 +426,32 @@ test('fato CRM é exposto como somente leitura', async () => {
   const crmFact = detail.workflow.commercialFacts.find(item => item.key === 'CONTRACT_SIGNED');
   assert.equal(crmFact.readOnly, true);
   assert.equal(crmFact.sourceVersion, 'v2');
+  assert.equal(detail.workflow.commercialExpectedMobilizationDate, '2026-09-29');
   assert.equal(detail.workflow.commercialExpectedStartDate, '2026-10-01');
   assert.equal(detail.workflow.commercialExpectedDurationDays, 30);
   assert.equal(detail.workflow.commercialWhatsappGroupCreated, true);
   assert.equal(state.workflow.version, 1);
   assert.equal(state.commercialFacts[0].status, 'CONFIRMED');
   assert.equal(state.events.length, 1);
+});
+
+test('Líder registra o contato inicial com nome e data sem editar as datas do CRM', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
+  state.workflow.stage = 'INITIAL_ANALYSIS';
+  let detail = await updateProjectWorkflow('project-1', {
+    action: 'analysis_contact', version: 1, made: true, contactName: 'Marina Souza', contactDate: '2026-09-11'
+  }, leader, { database });
+  assert.equal(detail.workflow.analysisClientContactMade, true);
+  assert.equal(detail.workflow.analysisClientContactName, 'Marina Souza');
+  assert.equal(detail.workflow.analysisClientContactDate, '2026-09-11');
+  assert.equal(state.events.at(-1).action, 'WORKFLOW_ANALYSIS_CONTACT');
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'analysis_contact', version: detail.workflow.version, made: false
+  }, leader, { database });
+  assert.equal(detail.workflow.analysisClientContactMade, false);
+  assert.equal(detail.workflow.analysisClientContactName, null);
+  assert.equal(detail.workflow.analysisClientContactDate, null);
 });
 
 test('papel Comercial não pode ser designado Líder nem aparece nos candidatos', async () => {

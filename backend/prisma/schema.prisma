@@ -1021,41 +1021,45 @@ model EfetivoPlan {
 }
 
 model ProjectWorkflow {
-  projectId                        String                                 @id
-  stage                            ProjectWorkflowStage                   @default(HANDOVER)
-  leaderUserId                     String
-  acceptedAt                       DateTime?
-  plannedMobilizationDate          DateTime                               @db.Date
-  commercialExpectedStartDate      DateTime?                              @db.Date
-  commercialExpectedDurationDays   Int?
-  commercialWhatsappGroupCreated   Boolean?
-  commercialWhatsappGroupUrl       String?
-  commercialParticipantsIncluded   Boolean?
-  commercialClientContactName      String?
-  commercialClientContactPhone     String?
-  commercialClientContactEmail     String?
-  commercialAssumptions            String?
-  commercialSourceUpdatedAt        DateTime?
-  mobilizationAuthorizedAt         DateTime?
-  mobilizationAuthorizationVersion Int?
-  fieldCompletionDate              DateTime?                              @db.Date
-  executionReportTargets           Json                                   @default("{}")
-  closedAt                         DateTime?
-  closedByUserId                   String?
-  version                          Int                                    @default(1)
-  createdAt                        DateTime                               @default(now())
-  updatedAt                        DateTime                               @updatedAt
-  project                          Project                                @relation(fields: [projectId], references: [id], onDelete: Restrict)
-  leader                           User                                   @relation("ProjectWorkflowLeader", fields: [leaderUserId], references: [id], onDelete: Restrict)
-  closedBy                         User?                                  @relation("ProjectWorkflowCloser", fields: [closedByUserId], references: [id], onDelete: SetNull)
-  checklists                       ProjectWorkflowChecklist[]
-  criticalAnswers                  ProjectWorkflowCriticalAnswer[]
-  issues                           ProjectWorkflowIssue[]
-  commercialFacts                  ProjectWorkflowCommercialFact[]
-  documentationCategories          ProjectWorkflowDocumentationCategory[]
-  events                           ProjectWorkflowEvent[]
-  postJob                          ProjectWorkflowPostJob?
-  measurement                      ProjectWorkflowMeasurement?
+  projectId                          String                                 @id
+  stage                              ProjectWorkflowStage                   @default(HANDOVER)
+  leaderUserId                       String
+  acceptedAt                         DateTime?
+  plannedMobilizationDate            DateTime                               @db.Date
+  commercialExpectedMobilizationDate DateTime?                              @db.Date
+  commercialExpectedStartDate        DateTime?                              @db.Date
+  commercialExpectedDurationDays     Int?
+  commercialWhatsappGroupCreated     Boolean?
+  commercialWhatsappGroupUrl         String?
+  commercialParticipantsIncluded     Boolean?
+  commercialClientContactName        String?
+  commercialClientContactPhone       String?
+  commercialClientContactEmail       String?
+  commercialAssumptions              String?
+  commercialSourceUpdatedAt          DateTime?
+  analysisClientContactMade          Boolean?
+  analysisClientContactName          String?
+  analysisClientContactDate          DateTime?                              @db.Date
+  mobilizationAuthorizedAt           DateTime?
+  mobilizationAuthorizationVersion   Int?
+  fieldCompletionDate                DateTime?                              @db.Date
+  executionReportTargets             Json                                   @default("{}")
+  closedAt                           DateTime?
+  closedByUserId                     String?
+  version                            Int                                    @default(1)
+  createdAt                          DateTime                               @default(now())
+  updatedAt                          DateTime                               @updatedAt
+  project                            Project                                @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  leader                             User                                   @relation("ProjectWorkflowLeader", fields: [leaderUserId], references: [id], onDelete: Restrict)
+  closedBy                           User?                                  @relation("ProjectWorkflowCloser", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  checklists                         ProjectWorkflowChecklist[]
+  criticalAnswers                    ProjectWorkflowCriticalAnswer[]
+  issues                             ProjectWorkflowIssue[]
+  commercialFacts                    ProjectWorkflowCommercialFact[]
+  documentationCategories            ProjectWorkflowDocumentationCategory[]
+  events                             ProjectWorkflowEvent[]
+  postJob                            ProjectWorkflowPostJob?
+  measurement                        ProjectWorkflowMeasurement?
 
   @@index([stage, plannedMobilizationDate])
   @@index([leaderUserId])

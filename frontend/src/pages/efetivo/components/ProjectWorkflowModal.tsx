@@ -27,7 +27,8 @@ import { ProjectDocumentsCategory } from './ProjectDocumentsCategory';
 import {
   ProjectWorkflowCommercialSignals,
   ProjectWorkflowDocumentationTracking,
-  ProjectWorkflowHandoverSignals
+  ProjectWorkflowHandoverSignals,
+  ProjectWorkflowInitialAnalysisData
 } from './ProjectWorkflowIntakePanels';
 import {
   listProjectDocuments,
@@ -50,7 +51,6 @@ const reopenSchema = z.object({
 type ReopenValues = z.infer<typeof reopenSchema>;
 const issueSchema = z.object({
   description: z.string().trim().min(1, 'Informe a pendência.').max(500),
-  area: z.string().trim().min(1, 'Informe a área.').max(120),
   ownerName: z.string().trim().min(1, 'Informe o responsável.').max(160),
   requiredLeadTimeDays: z.string().regex(/^\d+$/, 'Informe o prazo em dias.').refine(value => Number(value) >= 1 && Number(value) <= 3650, 'Informe um prazo entre 1 e 3650 dias.'),
   dueDate: z.string().min(1, 'Informe a data limite.'),
@@ -375,14 +375,13 @@ function IssueEditor({ issue, version, saving, canEdit, onPatch }: {
 }) {
   const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<IssueValues>({
     resolver: zodResolver(issueSchema),
-    defaultValues: { description: issue.description, area: issue.area, ownerName: issue.ownerName || '', requiredLeadTimeDays: issue.requiredLeadTimeDays ? String(issue.requiredLeadTimeDays) : '', dueDate: issue.dueDate || '', criticality: issue.criticality, status: issue.status }
+    defaultValues: { description: issue.description, ownerName: issue.ownerName || '', requiredLeadTimeDays: issue.requiredLeadTimeDays ? String(issue.requiredLeadTimeDays) : '', dueDate: issue.dueDate || '', criticality: issue.criticality, status: issue.status }
   });
-  useEffect(() => reset({ description: issue.description, area: issue.area, ownerName: issue.ownerName || '', requiredLeadTimeDays: issue.requiredLeadTimeDays ? String(issue.requiredLeadTimeDays) : '', dueDate: issue.dueDate || '', criticality: issue.criticality, status: issue.status }), [issue, reset]);
+  useEffect(() => reset({ description: issue.description, ownerName: issue.ownerName || '', requiredLeadTimeDays: issue.requiredLeadTimeDays ? String(issue.requiredLeadTimeDays) : '', dueDate: issue.dueDate || '', criticality: issue.criticality, status: issue.status }), [issue, reset]);
   return (
     <form className={`project-workflow-issue ${issue.overdue ? 'is-overdue' : ''}`} noValidate onSubmit={handleSubmit(values => onPatch({ action: 'issue', version, issueId: issue.id, ...values, requiredLeadTimeDays: Number(values.requiredLeadTimeDays) }))}>
       <div className={fieldClass(errors.description)}><label htmlFor={`issue-description-${issue.id}`}>Pendência *</label><input id={`issue-description-${issue.id}`} disabled={saving || !canEdit} aria-invalid={Boolean(errors.description)} {...register('description')} />{errors.description ? <span className="field-error">{errors.description.message}</span> : null}</div>
       <div className="project-workflow-form-grid compact">
-        <div className={fieldClass(errors.area)}><label htmlFor={`issue-area-${issue.id}`}>Área *</label><input id={`issue-area-${issue.id}`} disabled={saving || !canEdit} aria-invalid={Boolean(errors.area)} {...register('area')} />{errors.area ? <span className="field-error">{errors.area.message}</span> : null}</div>
         <div className={fieldClass(errors.ownerName)}><label htmlFor={`issue-owner-${issue.id}`}>Responsável *</label><input id={`issue-owner-${issue.id}`} disabled={saving || !canEdit} aria-invalid={Boolean(errors.ownerName)} {...register('ownerName')} />{errors.ownerName ? <span className="field-error">{errors.ownerName.message}</span> : null}</div>
         <div className={fieldClass(errors.requiredLeadTimeDays)}><label htmlFor={`issue-lead-time-${issue.id}`}>Prazo necessário (dias) *</label><input id={`issue-lead-time-${issue.id}`} type="number" min="1" max="3650" disabled={saving || !canEdit} aria-invalid={Boolean(errors.requiredLeadTimeDays)} {...register('requiredLeadTimeDays')} />{errors.requiredLeadTimeDays ? <span className="field-error">{errors.requiredLeadTimeDays.message}</span> : null}</div>
         <div className={fieldClass(errors.dueDate)}><label htmlFor={`issue-date-${issue.id}`}>Data limite *</label><input id={`issue-date-${issue.id}`} type="date" disabled={saving || !canEdit} aria-invalid={Boolean(errors.dueDate)} {...register('dueDate')} />{errors.dueDate ? <span className="field-error">{errors.dueDate.message}</span> : null}</div>
@@ -498,7 +497,7 @@ export function ProjectWorkflowModal({ detail, leaders, loading, error, saving, 
               <ProjectWorkflowCommercialSignals workflow={workflow} />
               <ProjectDocumentsCategory projectId={workflow.projectId} users={leaders} />
               {workflow.stage === 'HANDOVER' ? <ProjectWorkflowHandoverSignals detail={detail} documents={projectDocuments.data?.documents || []} /> : null}
-              {workflow.stage === 'INITIAL_ANALYSIS' ? <WorkflowChecklistSection title="Checklist da análise inicial" items={stageChecklists} version={workflow.version} saving={saving} onPatch={onPatch} /> : null}
+              {workflow.stage === 'INITIAL_ANALYSIS' ? <><ProjectWorkflowInitialAnalysisData workflow={workflow} saving={saving} onPatch={onPatch} /><WorkflowChecklistSection title="Entendimento da análise inicial" items={stageChecklists} version={workflow.version} saving={saving} onPatch={onPatch} /></> : null}
               {workflow.stage === 'WAITING_PLANNING' ? <ProjectWorkflowCategory title="🕐 Aguardando D-30" description="A análise foi concluída. O sistema continua acompanhando itens críticos e documentação até o início do planejamento." status={workflow.milestones.d30Date ? displayDateOnly(workflow.milestones.d30Date) : 'Data não definida'} className="project-workflow-waiting"><p className="project-workflow-category-note">Itens críticos e documentação continuam monitorados nesta etapa.</p></ProjectWorkflowCategory> : null}
               <ProjectWorkflowDocumentationTracking workflow={workflow} saving={saving} onPatch={onPatch} />
               {workflow.stage === 'MOBILIZATION_PLANNING' ? <ProjectWorkflowCategory title="Planejamento da mobilização · D-30" description="Previsões organizadas por área responsável." status={`${workflow.planningReadiness.completed}/${workflow.planningReadiness.total} · ${workflow.planningReadiness.percentage}%`} complete={workflow.planningReadiness.percentage === 100} className="project-workflow-planning" data-project-workflow-d30><div className="project-workflow-planning-grid">{planningSections.map(([section, title]) => <WorkflowChecklistSection title={title} items={workflow.checklists.filter(item => item.section === section)} version={workflow.version} saving={saving} onPatch={onPatch} key={section} />)}</div></ProjectWorkflowCategory> : null}

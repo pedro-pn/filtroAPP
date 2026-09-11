@@ -91,6 +91,62 @@ export function ProjectWorkflowCommercialSignals({ workflow }: { workflow: Proje
   );
 }
 
+export function ProjectWorkflowInitialAnalysisData({ workflow, saving, onPatch }: {
+  workflow: ProjectWorkflow;
+  saving: boolean;
+  onPatch: PatchHandler;
+}) {
+  const [contactMade, setContactMade] = useState<boolean | null>(workflow.analysisClientContactMade);
+  const [contactName, setContactName] = useState(workflow.analysisClientContactName || '');
+  const [contactDate, setContactDate] = useState(workflow.analysisClientContactDate || '');
+  useEffect(() => {
+    setContactMade(workflow.analysisClientContactMade);
+    setContactName(workflow.analysisClientContactName || '');
+    setContactDate(workflow.analysisClientContactDate || '');
+  }, [workflow.analysisClientContactDate, workflow.analysisClientContactMade, workflow.analysisClientContactName]);
+  const saveContact = (name = contactName, date = contactDate) => {
+    const normalizedName = name.trim();
+    if (contactMade !== true || !normalizedName || !date) return;
+    if (normalizedName === workflow.analysisClientContactName && date === workflow.analysisClientContactDate) return;
+    onPatch({ action: 'analysis_contact', version: workflow.version, made: true, contactName: normalizedName, contactDate: date });
+  };
+  const chooseContact = (made: boolean) => {
+    setContactMade(made);
+    if (made) return;
+    setContactName('');
+    setContactDate('');
+    if (workflow.analysisClientContactMade !== false) {
+      onPatch({ action: 'analysis_contact', version: workflow.version, made: false, contactName: null, contactDate: null });
+    }
+  };
+  const contactStatus = contactMade == null
+    ? 'Contato não respondido'
+    : contactMade ? contactName.trim() && contactDate ? 'Contato registrado' : 'Complete o contato' : 'Contato não realizado';
+  return (
+    <ProjectWorkflowCategory
+      title="Datas e contato inicial"
+      description="As datas são recebidas do CRM. O contato operacional é registrado pelo Líder de Projetos e salvo automaticamente."
+      status={contactStatus}
+      complete={contactMade === false || Boolean(contactMade && contactName.trim() && contactDate)}
+      className="project-workflow-initial-analysis"
+      data-project-workflow-initial-analysis
+    >
+      <div className="project-workflow-analysis-dates">
+        <div className="field-group"><label htmlFor="analysis-commercial-mobilization-date">Mobilização estimada</label><input id="analysis-commercial-mobilization-date" type="date" value={workflow.commercialExpectedMobilizationDate || ''} readOnly aria-readonly="true" /><small>{workflow.commercialExpectedMobilizationDate ? 'Data recebida do CRM.' : 'Aguardando preenchimento pelo CRM.'}</small></div>
+        <div className="field-group"><label htmlFor="analysis-commercial-start-date">Início estimado</label><input id="analysis-commercial-start-date" type="date" value={workflow.commercialExpectedStartDate || ''} readOnly aria-readonly="true" /><small>{workflow.commercialExpectedStartDate ? 'Data recebida do CRM.' : 'Aguardando preenchimento pelo CRM.'}</small></div>
+      </div>
+      <article className="project-workflow-analysis-contact">
+        <header><div><strong>Contato inicial com o cliente realizado?</strong><p>Quando realizado, informe quem foi contatado e em qual data.</p></div><div className="project-workflow-documentation-choice"><Button type="button" variant={contactMade === true ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => chooseContact(true)}>Sim</Button><Button type="button" variant={contactMade === false ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => chooseContact(false)}>Não</Button></div></header>
+        {contactMade === true ? <div className="project-workflow-analysis-contact-fields">
+          <div className="field-group"><label htmlFor="analysis-client-contact-name">Nome do contato *</label><input id="analysis-client-contact-name" value={contactName} maxLength={160} disabled={saving || !workflow.permissions.canEdit} onChange={event => setContactName(event.target.value)} onBlur={() => saveContact()} /></div>
+          <div className="field-group"><label htmlFor="analysis-client-contact-date">Data do contato *</label><input id="analysis-client-contact-date" type="date" value={contactDate} disabled={saving || !workflow.permissions.canEdit} onChange={event => { const value = event.target.value; setContactDate(value); saveContact(contactName, value); }} /></div>
+        </div> : null}
+        {contactMade === true && (!contactName.trim() || !contactDate) ? <small>Preencha nome e data para registrar o contato.</small> : null}
+      </article>
+    </ProjectWorkflowCategory>
+  );
+}
+
 function today() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 }
