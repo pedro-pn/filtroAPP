@@ -180,15 +180,25 @@ test('documentação usa quatro decisões por tipo e acompanha itens nomeados co
 });
 
 test('progresso D-30 é calculado no total e por frente', () => {
-  const planning = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section.startsWith('D30_'));
   const result = projectWorkflowPlanningReadiness({
     teamPlanDefined: true,
     teamDemands: [{ jobRoleId: 'role-1', requiredCount: 2 }],
-    checklists: planning.slice(0, 5).map(item => ({ key: item.key, status: 'DONE' }))
+    equipmentPlanDefined: true,
+    equipmentCategoryPlans: [{ categoryId: 'category-1' }],
+    supplyPlanDefined: true,
+    supplyPlan: [{ id: 'stock-1', requiredQuantity: 2 }],
+    logisticsPlan: {
+      vehicleRequired: false,
+      freightRequired: true,
+      lodgingRequired: true,
+      lodgingPeopleCount: 4,
+      lodgingExpectedDate: '2026-09-20',
+      lodgingRequested: false
+    }
   });
-  assert.equal(result.total, 13);
-  assert.equal(result.completed, 6);
-  assert.equal(result.percentage, 46);
+  assert.equal(result.total, 4);
+  assert.equal(result.completed, 4);
+  assert.equal(result.percentage, 100);
   assert.deepEqual(result.sections.map(item => item.key), ['D30_TEAM', 'D30_EQUIPMENT', 'D30_MATERIALS', 'D30_LOGISTICS']);
 });
 
@@ -212,16 +222,19 @@ test('planejamento completo libera Preparação e D-15 soma 39 confirmações', 
     teamPlanDefined: true,
     teamDemands: [{ jobRoleId: 'role-1', requiredCount: 2 }],
     equipmentPlanDefined: true,
-    equipmentCategoryPlans: [{ categoryId: 'category-1' }]
+    equipmentCategoryPlans: [{ categoryId: 'category-1' }],
+    supplyPlanDefined: true,
+    supplyPlan: [{ id: 'stock-1', requiredQuantity: 2 }],
+    logisticsPlan: { vehicleRequired: false, freightRequired: false, lodgingRequired: false }
   };
-  assert.equal(planningGateIssues({ checklists: [] }).length, 13);
-  assert.deepEqual(planningGateIssues({ ...structuredPlanning, checklists: completed('MOBILIZATION_PLANNING') }), []);
+  assert.equal(planningGateIssues({ checklists: [] }).length, 6);
+  assert.deepEqual(planningGateIssues(structuredPlanning), []);
   const readiness = projectWorkflowPreparationReadiness({ checklists: completed('PREPARATION').slice(0, 20) });
   assert.equal(readiness.total, 39);
   assert.equal(readiness.completed, 20);
   assert.equal(readiness.sections.length, 7);
-  assert.equal(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', checklists: [] }, 'PREPARATION').length, 13);
-  assert.deepEqual(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', ...structuredPlanning, checklists: completed('MOBILIZATION_PLANNING') }, 'PREPARATION'), []);
+  assert.equal(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', checklists: [] }, 'PREPARATION').length, 6);
+  assert.deepEqual(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', ...structuredPlanning }, 'PREPARATION'), []);
 });
 
 test('gate consolida nove frentes, pré-job e pendências críticas', () => {

@@ -159,15 +159,27 @@ export function projectWorkflowDocumentationReadiness(workflow, milestones, toda
 }
 
 export function projectWorkflowPlanningReadiness(workflow) {
+  const supplyPlan = Array.isArray(workflow?.supplyPlan) ? workflow.supplyPlan : [];
+  const logistics = workflow?.logisticsPlan && typeof workflow.logisticsPlan === 'object' && !Array.isArray(workflow.logisticsPlan)
+    ? workflow.logisticsPlan
+    : {};
+  const logisticsComplete = typeof logistics.vehicleRequired === 'boolean'
+    && typeof logistics.freightRequired === 'boolean'
+    && typeof logistics.lodgingRequired === 'boolean'
+    && (logistics.vehicleRequired === false || (Number(logistics.vehicleQuantity) > 0 && ['CARRO', 'CAMINHAO'].includes(logistics.vehicleType)))
+    && (logistics.lodgingRequired === false || (
+      Number(logistics.lodgingPeopleCount) > 0
+      && Boolean(logistics.lodgingExpectedDate)
+      && typeof logistics.lodgingRequested === 'boolean'
+      && (logistics.lodgingRequested === false || Boolean(logistics.lodgingRequestedAt))
+    ));
   const structuredSections = [
     { key: 'D30_TEAM', complete: workflow?.teamPlanDefined === true && (workflow?.teamDemands || []).length > 0 },
-    { key: 'D30_EQUIPMENT', complete: workflow?.equipmentPlanDefined === true && (workflow?.equipmentCategoryPlans || []).length > 0 }
+    { key: 'D30_EQUIPMENT', complete: workflow?.equipmentPlanDefined === true && (workflow?.equipmentCategoryPlans || []).length > 0 },
+    { key: 'D30_MATERIALS', complete: workflow?.supplyPlanDefined === true && supplyPlan.length > 0 },
+    { key: 'D30_LOGISTICS', complete: logisticsComplete }
   ].map(item => ({ key: item.key, completed: item.complete ? 1 : 0, total: 1, percentage: item.complete ? 100 : 0 }));
-  const checklistSections = ['D30_MATERIALS', 'D30_LOGISTICS'].map(key => {
-    const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
-    return { key, ...checklistProgress(workflow, definitions) };
-  });
-  const sections = [...structuredSections, ...checklistSections];
+  const sections = structuredSections;
   const completed = sections.reduce((sum, section) => sum + section.completed, 0);
   const total = sections.reduce((sum, section) => sum + section.total, 0);
   return {
@@ -453,11 +465,25 @@ export function planningGateIssues(workflow) {
     issues.push('Definir os cargos e as quantidades da equipe');
   }
   if (workflow?.equipmentPlanDefined !== true || !(workflow?.equipmentCategoryPlans || []).length) {
-    issues.push('Definir as categorias de equipamentos necessárias');
+    issues.push('Definir os equipamentos necessários');
   }
-  const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => ['D30_MATERIALS', 'D30_LOGISTICS'].includes(item.section));
-  const byKey = new Map((workflow?.checklists || []).map(item => [item.key, item]));
-  issues.push(...definitions.filter(item => !resolvedChecklist(byKey.get(item.key))).map(item => item.label));
+  if (workflow?.supplyPlanDefined !== true || !Array.isArray(workflow?.supplyPlan) || !workflow.supplyPlan.length) {
+    issues.push('Definir os insumos e as quantidades necessárias');
+  }
+  const logistics = workflow?.logisticsPlan && typeof workflow.logisticsPlan === 'object' && !Array.isArray(workflow.logisticsPlan)
+    ? workflow.logisticsPlan
+    : {};
+  if (typeof logistics.vehicleRequired !== 'boolean') issues.push('Informar se será necessário veículo');
+  if (logistics.vehicleRequired === true && !(Number(logistics.vehicleQuantity) > 0 && ['CARRO', 'CAMINHAO'].includes(logistics.vehicleType))) {
+    issues.push('Detalhar quantidade e tipo dos veículos');
+  }
+  if (typeof logistics.freightRequired !== 'boolean') issues.push('Informar se será necessário frete');
+  if (typeof logistics.lodgingRequired !== 'boolean') issues.push('Informar se será necessária hospedagem');
+  if (logistics.lodgingRequired === true) {
+    if (!(Number(logistics.lodgingPeopleCount) > 0 && logistics.lodgingExpectedDate)) issues.push('Detalhar pessoas e data prevista da hospedagem');
+    if (typeof logistics.lodgingRequested !== 'boolean') issues.push('Informar se a hospedagem já foi solicitada');
+    if (logistics.lodgingRequested === true && !logistics.lodgingRequestedAt) issues.push('Informar a data da solicitação da hospedagem');
+  }
   return issues;
 }
 

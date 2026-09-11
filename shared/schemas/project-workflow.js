@@ -80,19 +80,6 @@ export const PROJECT_WORKFLOW_CHECKLISTS = [
   checklist('ANALYSIS_RESPONSIBILITIES', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Responsabilidades Filtrovali e cliente identificadas'),
   checklist('ANALYSIS_COMMERCIAL_QUESTIONS', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Dúvidas comerciais levantadas e esclarecidas'),
 
-  checklist('D30_MATERIALS_LIST_DEFINED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Lista de insumos definida', ['efetivo:supplies']),
-  checklist('D30_MATERIALS_QUANTITIES_DEFINED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Quantidades definidas', ['efetivo:supplies']),
-  checklist('D30_MATERIALS_INVENTORY_CHECKED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Estoque consultado', ['efetivo:supplies']),
-  checklist('D30_MATERIALS_PURCHASES_IDENTIFIED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Necessidades de compra identificadas', ['efetivo:supplies']),
-  checklist('D30_MATERIALS_QUOTES_REQUESTED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Orçamentos solicitados', ['efetivo:supplies']),
-  checklist('D30_MATERIALS_PURCHASES_REQUESTED', 'MOBILIZATION_PLANNING', 'D30_MATERIALS', 'Compras solicitadas', ['efetivo:supplies']),
-
-  checklist('D30_LOGISTICS_VEHICLE_DEFINED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Necessidade de veículo definida', ['efetivo:operations']),
-  checklist('D30_LOGISTICS_FREIGHT_IDENTIFIED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Necessidade de frete identificada', ['efetivo:operations']),
-  checklist('D30_LOGISTICS_LODGING_DEFINED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Necessidade de hospedagem definida', ['efetivo:operations']),
-  checklist('D30_LOGISTICS_PEOPLE_DAYS_ESTIMATED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Quantidade de pessoas e dias estimada', ['efetivo:operations']),
-  checklist('D30_LOGISTICS_DEPARTURE_DEFINED', 'MOBILIZATION_PLANNING', 'D30_LOGISTICS', 'Data prevista de saída definida', ['efetivo:operations']),
-
   checklist('D15_TEAM_DEFINITIVE_CONFIRMED', 'PREPARATION', 'D15_TEAM', 'Equipe definitiva confirmada com o Gerente de Operações', ['efetivo:operations']),
   checklist('D15_TEAM_COLLABORATORS_NOTIFIED', 'PREPARATION', 'D15_TEAM', 'Colaboradores comunicados', ['efetivo:operations']),
   checklist('D15_TEAM_INDIVIDUAL_DOCUMENTS_CHECKED', 'PREPARATION', 'D15_TEAM', 'Documentação individual conferida', ['efetivo:administrative']),
@@ -368,6 +355,58 @@ export function makeProjectWorkflowSchemas(z) {
       ctx.addIssue({ code: 'custom', path: ['selections'], message: 'Selecione ao menos uma categoria e um equipamento para confirmar o planejamento.' });
     }
   });
+  const supplyPlan = z.object({
+    action: z.literal('supply_plan'),
+    version,
+    defined: z.boolean(),
+    items: z.array(z.object({
+      id: z.string().trim().min(1, 'Informe o insumo.').max(120),
+      stockItemId: id.nullable(),
+      type: z.enum(['FILTRO', 'PRODUTO_QUIMICO']),
+      name: z.string().trim().min(1, 'Informe o nome do insumo.').max(240),
+      unitLabel: z.string().trim().min(1, 'Informe a unidade.').max(30),
+      requiredQuantity: z.coerce.number().finite().positive('Informe uma quantidade maior que zero.').max(999999999, 'A quantidade excede o limite permitido.'),
+      requestedAt: dateOnly.nullable(),
+      purchasedAt: dateOnly.nullable()
+    }).strict()).max(500, 'Selecione no máximo 500 insumos.').default([])
+  }).strict().superRefine((value, ctx) => {
+    if (new Set(value.items.map(item => item.id)).size !== value.items.length) {
+      ctx.addIssue({ code: 'custom', path: ['items'], message: 'Cada insumo deve aparecer uma única vez.' });
+    }
+    const stockIds = value.items.map(item => item.stockItemId).filter(Boolean);
+    if (new Set(stockIds).size !== stockIds.length) {
+      ctx.addIssue({ code: 'custom', path: ['items'], message: 'Cada item do estoque deve aparecer uma única vez.' });
+    }
+    if (value.defined && value.items.length === 0) {
+      ctx.addIssue({ code: 'custom', path: ['items'], message: 'Selecione ou adicione ao menos um insumo para confirmar o planejamento.' });
+    }
+    value.items.forEach((item, index) => {
+      if (item.purchasedAt && !item.requestedAt) {
+        ctx.addIssue({ code: 'custom', path: ['items', index, 'requestedAt'], message: 'Informe a data da solicitação antes da compra.' });
+      }
+      if (item.requestedAt && item.purchasedAt && item.requestedAt > item.purchasedAt) {
+        ctx.addIssue({ code: 'custom', path: ['items', index, 'purchasedAt'], message: 'A compra não pode ser anterior à solicitação.' });
+      }
+    });
+  });
+  const logisticsPlan = z.object({
+    action: z.literal('logistics_plan'),
+    version,
+    vehicleRequired: z.boolean().nullable(),
+    vehicleQuantity: z.coerce.number().int().min(1, 'Informe ao menos um veículo.').max(100, 'A quantidade deve ser de no máximo 100 veículos.').nullable(),
+    vehicleType: z.enum(['CARRO', 'CAMINHAO']).nullable(),
+    freightRequired: z.boolean().nullable(),
+    lodgingRequired: z.boolean().nullable(),
+    lodgingPeopleCount: z.coerce.number().int().min(1, 'Informe ao menos uma pessoa.').max(1000, 'A quantidade deve ser de no máximo 1000 pessoas.').nullable(),
+    lodgingExpectedDate: dateOnly.nullable(),
+    lodgingRequested: z.boolean().nullable(),
+    lodgingRequestedAt: dateOnly.nullable(),
+    lodgingCompletedAt: dateOnly.nullable()
+  }).strict().superRefine((value, ctx) => {
+    if (value.lodgingRequestedAt && value.lodgingCompletedAt && value.lodgingRequestedAt > value.lodgingCompletedAt) {
+      ctx.addIssue({ code: 'custom', path: ['lodgingCompletedAt'], message: 'A conclusão não pode ser anterior à solicitação.' });
+    }
+  });
   const documentationCategory = z.object({
     action: z.literal('documentation_category'),
     version,
@@ -502,7 +541,7 @@ export function makeProjectWorkflowSchemas(z) {
     start,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, critical, analysisContact, teamPlan, equipmentPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
+    patch: z.discriminatedUnion('action', [settings, checklist, critical, analysisContact, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

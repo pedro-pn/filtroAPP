@@ -240,6 +240,32 @@ test('D-30 define cargos e equipamentos com avisos de disponibilidade', () => {
   assert.match(styles, /project-workflow-equipment-option\.is-selected/);
 });
 
+test('D-30 usa o Estoque nos insumos e salva a logística preliminar automaticamente', () => {
+  const modal = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowModal.tsx', import.meta.url), 'utf8');
+  const planning = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowSupplyLogisticsPlanning.tsx', import.meta.url), 'utf8');
+  const schema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  assert.match(modal, /ProjectWorkflowSupplyPlanningCard/);
+  assert.match(modal, /ProjectWorkflowLogisticsPlanningCard/);
+  assert.match(planning, /Itens disponíveis no Estoque/);
+  assert.match(planning, /Produtos químicos/);
+  assert.match(planning, /Filtros/);
+  assert.match(planning, /Data do pedido/);
+  assert.match(planning, /Data da compra/);
+  assert.match(planning, /Será necessário veículo/);
+  assert.match(planning, /Será necessário frete/);
+  assert.match(planning, /Será necessária hospedagem/);
+  assert.match(planning, /A hospedagem já foi solicitada/);
+  assert.match(planning, /Data da solicitação/);
+  assert.match(planning, /Data da conclusão/);
+  assert.match(planning, /onBlur=\{\(\) => save\(draft\)\}/);
+  assert.match(schema, /action: z\.literal\('supply_plan'\)/);
+  assert.match(schema, /action: z\.literal\('logistics_plan'\)/);
+  assert.doesNotMatch(schema, /D30_MATERIALS_LIST_DEFINED|D30_LOGISTICS_VEHICLE_DEFINED/);
+  assert.match(styles, /project-workflow-supply-draft/);
+  assert.match(styles, /project-workflow-logistics-fields/);
+});
+
 test('escolhas Sim e Não têm seleção acessível e cores semânticas', () => {
   const choice = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBooleanChoice.tsx', import.meta.url), 'utf8');
   const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');

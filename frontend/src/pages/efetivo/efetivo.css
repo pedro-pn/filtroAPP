@@ -2059,6 +2059,49 @@
 .project-workflow-equipment-summary li { color: var(--warning-text); font-size: 12px; }
 .project-workflow-equipment-summary li.is-ready { color: var(--g); }
 .project-workflow-equipment-summary > details > p { color: var(--mu); margin: 0; padding: 10px; }
+.project-workflow-custom-supply { background: var(--bg); border: 1px dashed var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px; }
+.project-workflow-supply-add { grid-template-columns: minmax(120px, .7fr) minmax(170px, 1.5fr) minmax(80px, .45fr) minmax(100px, .55fr) auto; }
+.project-workflow-supply-draft { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.project-workflow-supply-draft > article { background: var(--bg); border: 1px solid var(--br); border-left: 3px solid var(--g); border-radius: var(--rs); display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 9px; }
+.project-workflow-supply-draft > article.has-warning { border-left-color: var(--warning-border); }
+.project-workflow-supply-draft header { align-items: start; display: flex; gap: 8px; justify-content: space-between; min-width: 0; }
+.project-workflow-supply-draft header > div { display: flex; flex-direction: column; min-width: 0; }
+.project-workflow-supply-draft header span { color: var(--mu); font-size: 12px; overflow-wrap: anywhere; }
+.project-workflow-supply-fields,
+.project-workflow-purchase-tracking > div,
+.project-workflow-logistics-fields { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; }
+.project-workflow-supply-fields .field-group,
+.project-workflow-purchase-tracking .field-group,
+.project-workflow-logistics-fields .field-group { margin: 0; min-width: 0; }
+.project-workflow-supply-fields input,
+.project-workflow-purchase-tracking input,
+.project-workflow-logistics-fields input,
+.project-workflow-logistics-fields select { box-sizing: border-box; max-width: 100%; min-width: 0; width: 100%; }
+.project-workflow-purchase-tracking { background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: var(--rs); color: var(--warning-text); display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 8px; }
+.project-workflow-purchase-tracking p,
+.project-workflow-stock-ok { margin: 0; }
+.project-workflow-purchase-tracking small { font-weight: 700; }
+.project-workflow-stock-ok { color: var(--g); font-weight: 700; }
+.project-workflow-supply-summary { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.project-workflow-supply-summary details { border: 1px solid var(--br); border-radius: var(--rs); min-width: 0; overflow: hidden; }
+.project-workflow-supply-summary summary { align-items: center; background: var(--bg); cursor: pointer; display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) auto auto; list-style: none; padding: 8px 10px; }
+.project-workflow-supply-summary summary::-webkit-details-marker { display: none; }
+.project-workflow-supply-summary summary span { color: var(--mu); font-size: 12px; }
+.project-workflow-supply-summary summary span:last-child { font-size: 18px; line-height: 1; transform: rotate(-90deg); transition: transform .14s ease; }
+.project-workflow-supply-summary details[open] summary span:last-child { transform: rotate(0deg); }
+.project-workflow-supply-summary details > div { border-top: 1px solid var(--br); display: flex; flex-direction: column; }
+.project-workflow-supply-summary article { border-left: 3px solid var(--g); display: flex; flex-direction: column; gap: 4px; padding: 9px 10px; }
+.project-workflow-supply-summary article + article { border-top: 1px solid var(--br); }
+.project-workflow-supply-summary article.has-warning { border-left-color: var(--warning-border); }
+.project-workflow-supply-summary article span,
+.project-workflow-supply-summary article small { color: var(--mu); overflow-wrap: anywhere; }
+.project-workflow-supply-summary article.has-warning small { color: var(--warning-text); font-weight: 700; }
+.project-workflow-logistics-card > div:last-child { display: flex; flex-direction: column; gap: 9px; }
+.project-workflow-logistics-section,
+.project-workflow-logistics-details { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.project-workflow-logistics-section + .project-workflow-logistics-section { border-top: 1px solid var(--br); padding-top: 9px; }
+.project-workflow-logistics-fields { padding: 0 10px; }
+.project-workflow-logistics-issues { background: var(--warning-bg); border: 1px solid var(--warning-border); border-radius: var(--rs); color: var(--warning-text); margin: 0; padding: 8px 10px 8px 28px; }
 .project-workflow-critical { align-items: center; border-top: 1px solid var(--br); display: flex; gap: 10px; justify-content: space-between; padding-top: 9px; }
 .project-workflow-critical > span { min-width: 0; overflow-wrap: anywhere; }
 .project-workflow-critical > div { display: flex; flex: 0 0 auto; gap: 6px; }
@@ -2300,7 +2343,11 @@
   .project-workflow-analysis-dates,
   .project-workflow-analysis-contact-fields,
   .project-workflow-resource-add,
+  .project-workflow-supply-add,
   .project-workflow-resource-summary > article,
+  .project-workflow-supply-fields,
+  .project-workflow-purchase-tracking > div,
+  .project-workflow-logistics-fields,
   .project-workflow-equipment-options,
   .project-workflow-planning-grid,
   .project-post-job-grid,

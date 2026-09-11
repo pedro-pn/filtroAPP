@@ -1043,6 +1043,9 @@ model ProjectWorkflow {
   analysisClientContactDate          DateTime?                              @db.Date
   teamPlanDefined                    Boolean?
   equipmentPlanDefined               Boolean?
+  supplyPlanDefined                  Boolean?
+  supplyPlan                         Json                                   @default("[]")
+  logisticsPlan                      Json                                   @default("{}")
   mobilizationAuthorizedAt           DateTime?
   mobilizationAuthorizationVersion   Int?
   fieldCompletionDate                DateTime?                              @db.Date

@@ -1,4 +1,5 @@
 import { buildMaintenanceScheduleItem } from '../../operational-reports/domain.js';
+import { getItemBalances } from '../../estoque/stock-balance.js';
 import { calculateDailyCapacity } from '../planning/capacity.js';
 import { missionEndsOnOrAfter } from '../planning/mission-period.js';
 
@@ -155,10 +156,82 @@ function publicEquipmentPlanning(workflow, categoryCatalog) {
   };
 }
 
-export function emptyProjectWorkflowResourcePlanning(workflow = {}) {
+export function buildSupplyPlanning(workflow, catalog) {
+  const catalogById = new Map(catalog.map(item => [item.id, item]));
+  const storedItems = Array.isArray(workflow?.supplyPlan) ? workflow.supplyPlan : [];
+  const items = storedItems.map(item => {
+    const stockItem = item.stockItemId ? catalogById.get(item.stockItemId) : null;
+    const availableQuantity = stockItem?.balance ?? 0;
+    const requiredQuantity = Number(item.requiredQuantity || 0);
+    const shortageQuantity = stockItem ? Math.max(0, requiredQuantity - availableQuantity) : requiredQuantity;
+    const purchaseRequired = !stockItem || shortageQuantity > 0;
+    return {
+      id: item.id,
+      stockItemId: stockItem?.id || null,
+      type: stockItem?.type || item.type,
+      code: stockItem?.code || null,
+      name: stockItem?.name || item.name,
+      unitLabel: stockItem?.unitLabel || item.unitLabel,
+      requiredQuantity,
+      availableQuantity,
+      shortageQuantity,
+      purchaseRequired,
+      requestedAt: dateKey(item.requestedAt),
+      purchasedAt: dateKey(item.purchasedAt)
+    };
+  });
   return {
+    defined: workflow?.supplyPlanDefined ?? null,
+    items,
+    catalog,
+    purchasePendingCount: items.filter(item => item.purchaseRequired && !item.purchasedAt).length
+  };
+}
+
+export function buildLogisticsPlanning(workflow, targetDate = null) {
+  const plan = workflow?.logisticsPlan && typeof workflow.logisticsPlan === 'object' && !Array.isArray(workflow.logisticsPlan)
+    ? workflow.logisticsPlan
+    : {};
+  const vehicleRequired = typeof plan.vehicleRequired === 'boolean' ? plan.vehicleRequired : null;
+  const freightRequired = typeof plan.freightRequired === 'boolean' ? plan.freightRequired : null;
+  const lodgingRequired = typeof plan.lodgingRequired === 'boolean' ? plan.lodgingRequired : null;
+  const lodgingRequested = lodgingRequired && typeof plan.lodgingRequested === 'boolean' ? plan.lodgingRequested : null;
+  const result = {
+    vehicleRequired,
+    vehicleQuantity: vehicleRequired ? Number(plan.vehicleQuantity || 0) || null : null,
+    vehicleType: vehicleRequired && ['CARRO', 'CAMINHAO'].includes(plan.vehicleType) ? plan.vehicleType : null,
+    freightRequired,
+    lodgingRequired,
+    lodgingPeopleCount: lodgingRequired ? Number(plan.lodgingPeopleCount || 0) || null : null,
+    lodgingExpectedDate: lodgingRequired ? dateKey(plan.lodgingExpectedDate) || targetDate : null,
+    lodgingRequested,
+    lodgingRequestedAt: lodgingRequired && lodgingRequested ? dateKey(plan.lodgingRequestedAt) : null,
+    lodgingCompletedAt: lodgingRequired && lodgingRequested ? dateKey(plan.lodgingCompletedAt) : null
+  };
+  const issues = [];
+  if (vehicleRequired == null) issues.push('Informar se será necessário veículo');
+  if (vehicleRequired === true && (!result.vehicleQuantity || !result.vehicleType)) issues.push('Detalhar quantidade e tipo dos veículos');
+  if (freightRequired == null) issues.push('Informar se será necessário frete');
+  if (lodgingRequired == null) issues.push('Informar se será necessária hospedagem');
+  if (lodgingRequired === true && (!result.lodgingPeopleCount || !result.lodgingExpectedDate)) issues.push('Detalhar pessoas e data prevista da hospedagem');
+  if (lodgingRequired === true && lodgingRequested == null) issues.push('Informar se a hospedagem já foi solicitada');
+  if (lodgingRequired === true && lodgingRequested === true && !result.lodgingRequestedAt) issues.push('Informar a data da solicitação da hospedagem');
+  const warnings = [];
+  if (lodgingRequired === true && lodgingRequested === false) warnings.push('Hospedagem ainda não solicitada');
+  if (lodgingRequired === true && lodgingRequested === true && result.lodgingRequestedAt && !result.lodgingCompletedAt) {
+    warnings.push('Hospedagem solicitada e aguardando conclusão');
+  }
+  return { ...result, complete: issues.length === 0, issues, warnings };
+}
+
+export function emptyProjectWorkflowResourcePlanning(workflow = {}) {
+  const targetDate = dateKey(workflow.plannedMobilizationDate);
+  return {
+    targetDate,
     team: publicTeamPlanning(workflow, []),
-    equipment: publicEquipmentPlanning(workflow, [])
+    equipment: publicEquipmentPlanning(workflow, []),
+    supplies: buildSupplyPlanning(workflow, []),
+    logistics: buildLogisticsPlanning(workflow, targetDate)
   };
 }
 
@@ -275,17 +348,48 @@ async function loadEquipmentCatalog(database, targetDate, currentProjectId) {
   return buildEquipmentPlanningCatalog(categories, romaneios, targetDate, currentProjectId);
 }
 
+async function loadSupplyCatalog(database) {
+  if (!database.stockItem?.findMany) return [];
+  const items = await database.stockItem.findMany({
+    where: { isActive: true, type: { in: ['FILTRO', 'PRODUTO_QUIMICO'] } },
+    select: {
+      id: true,
+      type: true,
+      code: true,
+      name: true,
+      unitLabel: true,
+      category: { select: { name: true } }
+    },
+    orderBy: [{ type: 'asc' }, { name: 'asc' }]
+  });
+  const balances = database.stockMovement?.groupBy
+    ? await getItemBalances(database, items.map(item => item.id))
+    : new Map();
+  return items.map(item => ({
+    id: item.id,
+    type: item.type,
+    code: item.code,
+    name: item.name,
+    unitLabel: item.unitLabel,
+    categoryName: item.category?.name || null,
+    balance: Number(balances.get(item.id) || 0)
+  }));
+}
+
 export async function loadProjectWorkflowResourcePlanning(database, workflow) {
   if (!workflow) return emptyProjectWorkflowResourcePlanning();
   const targetDate = dateKey(workflow.plannedMobilizationDate);
   if (!targetDate) return emptyProjectWorkflowResourcePlanning(workflow);
-  const [teamCatalog, equipmentCatalog] = await Promise.all([
+  const [teamCatalog, equipmentCatalog, supplyCatalog] = await Promise.all([
     loadTeamCatalog(database, targetDate, workflow.projectId),
-    loadEquipmentCatalog(database, targetDate, workflow.projectId)
+    loadEquipmentCatalog(database, targetDate, workflow.projectId),
+    loadSupplyCatalog(database)
   ]);
   return {
     targetDate,
     team: publicTeamPlanning(workflow, teamCatalog),
-    equipment: publicEquipmentPlanning(workflow, equipmentCatalog)
+    equipment: publicEquipmentPlanning(workflow, equipmentCatalog),
+    supplies: buildSupplyPlanning(workflow, supplyCatalog),
+    logistics: buildLogisticsPlanning(workflow, targetDate)
   };
 }

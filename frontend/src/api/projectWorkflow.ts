@@ -22,6 +22,10 @@ export interface ProjectWorkflowPermissions {
   canAccept: boolean;
   canChangeLeader: boolean;
   canEditCommercial: boolean;
+  canEditTeamPlanning: boolean;
+  canEditEquipmentPlanning: boolean;
+  canEditSupplyPlanning: boolean;
+  canEditLogisticsPlanning: boolean;
   canAuthorizeMobilization: boolean;
 }
 
@@ -186,6 +190,49 @@ export interface ProjectWorkflowEquipmentPlanningCategory {
   availableCount: number;
 }
 
+export type ProjectWorkflowSupplyType = 'FILTRO' | 'PRODUTO_QUIMICO';
+
+export interface ProjectWorkflowSupplyCatalogItem {
+  id: string;
+  type: ProjectWorkflowSupplyType;
+  code: string;
+  name: string;
+  unitLabel: string;
+  categoryName: string | null;
+  balance: number;
+}
+
+export interface ProjectWorkflowSupplyPlanItem {
+  id: string;
+  stockItemId: string | null;
+  type: ProjectWorkflowSupplyType;
+  code: string | null;
+  name: string;
+  unitLabel: string;
+  requiredQuantity: number;
+  availableQuantity: number;
+  shortageQuantity: number;
+  purchaseRequired: boolean;
+  requestedAt: string | null;
+  purchasedAt: string | null;
+}
+
+export interface ProjectWorkflowLogisticsPlanning {
+  vehicleRequired: boolean | null;
+  vehicleQuantity: number | null;
+  vehicleType: 'CARRO' | 'CAMINHAO' | null;
+  freightRequired: boolean | null;
+  lodgingRequired: boolean | null;
+  lodgingPeopleCount: number | null;
+  lodgingExpectedDate: string | null;
+  lodgingRequested: boolean | null;
+  lodgingRequestedAt: string | null;
+  lodgingCompletedAt: string | null;
+  complete: boolean;
+  issues: string[];
+  warnings: string[];
+}
+
 export interface ProjectWorkflowResourcePlanning {
   targetDate?: string | null;
   team: {
@@ -204,6 +251,13 @@ export interface ProjectWorkflowResourcePlanning {
     categories: ProjectWorkflowEquipmentPlanningCategory[];
     catalog: ProjectWorkflowEquipmentPlanningCategory[];
   };
+  supplies: {
+    defined: boolean | null;
+    items: ProjectWorkflowSupplyPlanItem[];
+    catalog: ProjectWorkflowSupplyCatalogItem[];
+    purchasePendingCount: number;
+  };
+  logistics: ProjectWorkflowLogisticsPlanning;
 }
 
 export type ProjectWorkflowPreparationReadiness = ProjectWorkflowPlanningReadiness;
@@ -398,6 +452,7 @@ export interface ProjectWorkflow {
   analysisClientContactDate: string | null;
   teamPlanDefined: boolean | null;
   equipmentPlanDefined: boolean | null;
+  supplyPlanDefined: boolean | null;
   closedAt: string | null;
   closedBy: { id: string; name: string } | null;
   plannedMobilizationDate: string;
@@ -569,6 +624,8 @@ export type ProjectWorkflowPatch =
   | { action: 'analysis_contact'; version: number; made: boolean; contactName?: string | null; contactDate?: string | null }
   | { action: 'team_plan'; version: number; defined: boolean; demands: Array<{ jobRoleId: string; requiredCount: number }> }
   | { action: 'equipment_plan'; version: number; defined: boolean; selections: Array<{ categoryId: string; equipmentIds: string[] }> }
+  | { action: 'supply_plan'; version: number; defined: boolean; items: Array<{ id: string; stockItemId: string | null; type: ProjectWorkflowSupplyType; name: string; unitLabel: string; requiredQuantity: number; requestedAt: string | null; purchasedAt: string | null }> }
+  | { action: 'logistics_plan'; version: number; vehicleRequired: boolean | null; vehicleQuantity: number | null; vehicleType: 'CARRO' | 'CAMINHAO' | null; freightRequired: boolean | null; lodgingRequired: boolean | null; lodgingPeopleCount: number | null; lodgingExpectedDate: string | null; lodgingRequested: boolean | null; lodgingRequestedAt: string | null; lodgingCompletedAt: string | null }
   | { action: 'documentation_category'; version: number; type: ProjectWorkflowDocumentationType; required: boolean }
   | { action: 'documentation_requirement_create'; version: number; type: ProjectWorkflowDocumentationType; name: string }
   | { action: 'documentation_requirement_update'; version: number; requirementId: string; name?: string; status?: ProjectWorkflowDocumentationStatus; requestedAt?: string | null; confirmedAt?: string | null }

@@ -308,6 +308,7 @@ function publicPermissions(workflow, context) {
   const isLeader = Boolean(contextIsOperational(context) && context.actorUserId && workflow?.leaderUserId === context.actorUserId);
   const canManage = Boolean(workflow && (manager || isLeader));
   const finished = workflow?.stage === 'FINISHED';
+  const planning = workflow?.stage === 'MOBILIZATION_PLANNING' && !finished;
   return {
     canInitialize: manager && !workflow,
     canEdit: canManage && !finished,
@@ -315,6 +316,10 @@ function publicPermissions(workflow, context) {
     canAccept: Boolean(workflow && isLeader && !workflow.acceptedAt && workflow.stage === 'HANDOVER'),
     canChangeLeader: Boolean(workflow && manager && !finished),
     canEditCommercial: false,
+    canEditTeamPlanning: Boolean(planning && (canManage || canEditEfetivoChecklistArea(context.user, ['efetivo:operations']))),
+    canEditEquipmentPlanning: Boolean(planning && (canManage || canEditEfetivoChecklistArea(context.user, ['efetivo:assets']))),
+    canEditSupplyPlanning: Boolean(planning && (canManage || canEditEfetivoChecklistArea(context.user, ['efetivo:supplies']))),
+    canEditLogisticsPlanning: Boolean(planning && (canManage || canEditEfetivoChecklistArea(context.user, ['efetivo:operations']))),
     canAuthorizeMobilization: Boolean(workflow && (manager || isLeader) && ['READY_TO_MOBILIZE', 'MOBILIZATION', 'EXECUTION', 'DEMOBILIZATION'].includes(workflow.stage))
   };
 }
@@ -881,6 +886,22 @@ function assertPlanningStage(workflow) {
   }
 }
 
+function assertResourcePlanningEditable(workflow, action, context) {
+  assertPlanningStage(workflow);
+  const rolesByAction = {
+    team_plan: ['efetivo:operations'],
+    equipment_plan: ['efetivo:assets'],
+    supply_plan: ['efetivo:supplies'],
+    logistics_plan: ['efetivo:operations']
+  };
+  if (!canEditWorkflow(workflow, context) && !canEditEfetivoChecklistArea(context.user, rolesByAction[action] || [])) {
+    throw planningError('A alteração deste planejamento é restrita ao Líder, gestor ou área responsável.', {
+      statusCode: 403,
+      code: 'PROJECT_WORKFLOW_RESOURCE_PLANNING_EDIT_FORBIDDEN'
+    });
+  }
+}
+
 async function applyTeamPlan(tx, workflow, payload) {
   assertPlanningStage(workflow);
   await tx.projectWorkflowTeamDemand.deleteMany({ where: { projectId: workflow.projectId } });
@@ -941,6 +962,62 @@ async function applyEquipmentPlan(tx, workflow, payload) {
   await tx.projectWorkflow.update({
     where: { projectId: workflow.projectId },
     data: { equipmentPlanDefined: payload.defined }
+  });
+}
+
+async function applySupplyPlan(tx, workflow, payload) {
+  assertPlanningStage(workflow);
+  const stockIds = payload.items.map(item => item.stockItemId).filter(Boolean);
+  const stockItems = stockIds.length
+    ? await tx.stockItem.findMany({
+      where: { id: { in: stockIds }, isActive: true, type: { in: ['FILTRO', 'PRODUTO_QUIMICO'] } },
+      select: { id: true, type: true, name: true, unitLabel: true }
+    })
+    : [];
+  if (stockItems.length !== stockIds.length) {
+    throw planningError('A seleção contém item inexistente, inativo ou indisponível para planejamento.', {
+      code: 'PROJECT_WORKFLOW_SUPPLY_INVALID'
+    });
+  }
+  const stockById = new Map(stockItems.map(item => [item.id, item]));
+  const items = payload.defined ? payload.items.map(item => {
+    const stockItem = item.stockItemId ? stockById.get(item.stockItemId) : null;
+    return {
+      id: item.id,
+      stockItemId: stockItem?.id || null,
+      type: stockItem?.type || item.type,
+      name: stockItem?.name || item.name,
+      unitLabel: stockItem?.unitLabel || item.unitLabel,
+      requiredQuantity: item.requiredQuantity,
+      requestedAt: item.requestedAt || null,
+      purchasedAt: item.purchasedAt || null
+    };
+  }) : [];
+  await tx.projectWorkflow.update({
+    where: { projectId: workflow.projectId },
+    data: { supplyPlanDefined: payload.defined, supplyPlan: items }
+  });
+}
+
+async function applyLogisticsPlan(tx, workflow, payload) {
+  assertPlanningStage(workflow);
+  const lodgingRequired = payload.lodgingRequired === true;
+  const lodgingRequested = lodgingRequired && payload.lodgingRequested === true;
+  const logisticsPlan = {
+    vehicleRequired: payload.vehicleRequired,
+    vehicleQuantity: payload.vehicleRequired === true ? payload.vehicleQuantity : null,
+    vehicleType: payload.vehicleRequired === true ? payload.vehicleType : null,
+    freightRequired: payload.freightRequired,
+    lodgingRequired: payload.lodgingRequired,
+    lodgingPeopleCount: lodgingRequired ? payload.lodgingPeopleCount : null,
+    lodgingExpectedDate: lodgingRequired ? payload.lodgingExpectedDate || dateKey(workflow.plannedMobilizationDate) : null,
+    lodgingRequested: lodgingRequired ? payload.lodgingRequested : null,
+    lodgingRequestedAt: lodgingRequested ? payload.lodgingRequestedAt : null,
+    lodgingCompletedAt: lodgingRequested ? payload.lodgingCompletedAt : null
+  };
+  await tx.projectWorkflow.update({
+    where: { projectId: workflow.projectId },
+    data: { logisticsPlan }
   });
 }
 
@@ -1319,7 +1396,9 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
       });
     }
     if (payload.action === 'checklist') assertChecklistEditable(workflow, payload.key, context);
-    else assertEditable(workflow, context);
+    else if (['team_plan', 'equipment_plan', 'supply_plan', 'logistics_plan'].includes(payload.action)) {
+      assertResourcePlanningEditable(workflow, payload.action, context);
+    } else assertEditable(workflow, context);
     if (workflow.version !== payload.version) {
       throw conflictError('A gestão foi atualizada por outra pessoa. Recarregue os dados.', [], 'PROJECT_WORKFLOW_VERSION_CONFLICT');
     }
@@ -1330,6 +1409,8 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'analysis_contact') await applyAnalysisContact(tx, workflow, payload);
     else if (payload.action === 'team_plan') await applyTeamPlan(tx, workflow, payload);
     else if (payload.action === 'equipment_plan') await applyEquipmentPlan(tx, workflow, payload);
+    else if (payload.action === 'supply_plan') await applySupplyPlan(tx, workflow, payload);
+    else if (payload.action === 'logistics_plan') await applyLogisticsPlan(tx, workflow, payload);
     else if (payload.action === 'documentation_category') await applyDocumentationCategory(tx, workflow, payload, context);
     else if (payload.action === 'documentation_requirement_create') await applyDocumentationRequirementCreate(tx, workflow, payload, context);
     else if (payload.action === 'documentation_requirement_update') await applyDocumentationRequirementUpdate(tx, workflow, payload, context);

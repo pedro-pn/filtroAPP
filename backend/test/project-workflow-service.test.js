@@ -32,6 +32,14 @@ function fakeDatabase() {
       id: 'category-1', name: 'Bombas', order: 1, isActive: true, supportsCalibration: false, maintenanceIntervalDays: null,
       equipment: [{ id: 'equipment-1', code: 'B-01', name: 'Bomba 1', isActive: true, hasCalibration: false, expiresAt: null, maintenanceRecords: [] }]
     }],
+    stockItems: [
+      { id: 'stock-filter-1', type: 'FILTRO', code: 'F-001', name: 'Filtro 10 µm', unitLabel: 'un', isActive: true, category: { name: 'Filtros cartucho' } },
+      { id: 'stock-chemical-1', type: 'PRODUTO_QUIMICO', code: 'Q-001', name: 'Desengraxante', unitLabel: 'L', isActive: true, category: { name: 'Produtos químicos' } }
+    ],
+    stockMovements: [
+      { itemId: 'stock-filter-1', type: 'ENTRADA', quantity: 4 },
+      { itemId: 'stock-chemical-1', type: 'ENTRADA', quantity: 20 }
+    ],
     events: [],
     postJob: null,
     measurement: null,
@@ -127,6 +135,9 @@ function fakeDatabase() {
           analysisClientContactDate: null,
           teamPlanDefined: null,
           equipmentPlanDefined: null,
+          supplyPlanDefined: null,
+          supplyPlan: [],
+          logisticsPlan: {},
           fieldCompletionDate: null,
           closedAt: null,
           closedByUserId: null,
@@ -189,6 +200,23 @@ function fakeDatabase() {
     },
     equipmentCategory: {
       findMany: async input => state.equipmentCategories.filter(category => (!input.where?.id?.in || input.where.id.in.includes(category.id)) && category.isActive)
+    },
+    stockItem: {
+      findMany: async input => state.stockItems.filter(item => (
+        (!input.where?.id?.in || input.where.id.in.includes(item.id))
+        && item.isActive
+        && (!input.where?.type?.in || input.where.type.in.includes(item.type))
+      ))
+    },
+    stockMovement: {
+      groupBy: async input => {
+        const allowed = input.where?.itemId?.in || state.stockItems.map(item => item.id);
+        return state.stockMovements.filter(item => allowed.includes(item.itemId)).map(item => ({
+          itemId: item.itemId,
+          type: item.type,
+          _sum: { quantity: item.quantity }
+        }));
+      }
     },
     projectWorkflowCommercialFact: {
       findUnique: async input => state.commercialFacts.find(item => item.projectId === input.where.projectId_key.projectId && item.key === input.where.projectId_key.key) || null,
@@ -284,6 +312,7 @@ const viewer = { actorUserId: 'viewer-1', user: { id: 'viewer-1', accountType: '
 const commercial = { actorUserId: 'commercial-1', user: { id: 'commercial-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:commercial'] } };
 const operations = { actorUserId: 'operations-1', user: { id: 'operations-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:operations'] } };
 const assets = { actorUserId: 'assets-1', user: { id: 'assets-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:assets'] } };
+const supplies = { actorUserId: 'supplies-1', user: { id: 'supplies-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:supplies'] } };
 const administrative = { actorUserId: 'administrative-1', user: { id: 'administrative-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:administrative'] } };
 const qsms = { actorUserId: 'qsms-1', user: { id: 'qsms-1', accountType: 'INTERNAL', moduleRoles: ['efetivo:qsms'] } };
 
@@ -535,26 +564,34 @@ test('oito fatos recebidos do CRM completam a sinalização sem mover a etapa', 
   assert.equal(list.items[0].workflow.commercialReadiness.status, result.workflow.commercialReadiness.status);
 });
 
-test('áreas editam somente seus checklists operacionais e não obtêm poderes do Líder', async () => {
+test('áreas editam somente suas frentes do planejamento e não obtêm poderes do Líder', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
   state.workflow.stage = 'MOBILIZATION_PLANNING';
-  let detail = await updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D30_LOGISTICS_VEHICLE_DEFINED', status: 'DONE' }, operations, { database });
+  let detail = await updateProjectWorkflow('project-1', {
+    action: 'logistics_plan', version: 1,
+    vehicleRequired: false, vehicleQuantity: null, vehicleType: null,
+    freightRequired: false,
+    lodgingRequired: false, lodgingPeopleCount: null, lodgingExpectedDate: null,
+    lodgingRequested: null, lodgingRequestedAt: null, lodgingCompletedAt: null
+  }, operations, { database });
   assert.equal(detail.workflow.planningReadiness.completed, 1);
+  assert.equal(detail.workflow.permissions.canEditLogisticsPlanning, true);
+  detail = await updateProjectWorkflow('project-1', { action: 'team_plan', version: 2, defined: true, demands: [{ jobRoleId: 'role-1', requiredCount: 2 }] }, operations, { database });
+  assert.equal(detail.workflow.planningReadiness.completed, 2);
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'D30_MATERIALS_LIST_DEFINED', status: 'DONE' }, operations, { database }),
-    error => error.code === 'PROJECT_WORKFLOW_CHECKLIST_EDIT_FORBIDDEN'
+    updateProjectWorkflow('project-1', {
+      action: 'supply_plan', version: 3, defined: true,
+      items: [{ id: 'stock-stock-filter-1', stockItemId: 'stock-filter-1', type: 'FILTRO', name: 'Filtro 10 µm', unitLabel: 'un', requiredQuantity: 2, requestedAt: null, purchasedAt: null }]
+    }, operations, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_RESOURCE_PLANNING_EDIT_FORBIDDEN'
   );
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'team_plan', version: 2, defined: true, demands: [{ jobRoleId: 'role-1', requiredCount: 2 }] }, operations, { database }),
+    updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'WAITING_PLANNING' }, operations, { database }),
     error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
   );
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'WAITING_PLANNING' }, operations, { database }),
-    error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
-  );
-  await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'documentation_category', version: 2, type: 'EXAM', required: true }, administrative, { database }),
+    updateProjectWorkflow('project-1', { action: 'documentation_category', version: 3, type: 'EXAM', required: true }, administrative, { database }),
     error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
   );
 });
@@ -587,7 +624,7 @@ test('checklist de outra etapa não pode ser antecipado por chamada direta', asy
   const { database } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D30_LOGISTICS_VEHICLE_DEFINED', status: 'DONE' }, manager, { database }),
+    updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D15_TRAVEL_FREIGHT_REQUESTED', status: 'DONE' }, manager, { database }),
     error => error.code === 'PROJECT_WORKFLOW_CHECKLIST_STAGE_FORBIDDEN'
   );
 });
@@ -627,9 +664,6 @@ test('D-30 completo permite entrar em Preparação', async () => {
     updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'PREPARATION' }, leader, { database }),
     error => error.code === 'PROJECT_WORKFLOW_STAGE_BLOCKED'
   );
-  state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS
-    .filter(item => item.section.startsWith('D30_'))
-    .map(item => ({ id: `check-${item.key}`, projectId: 'project-1', key: item.key, status: 'DONE' })));
   let detail = await updateProjectWorkflow('project-1', { action: 'team_plan', version: 1, defined: true, demands: [{ jobRoleId: 'role-1', requiredCount: 2 }] }, leader, { database });
   assert.equal(detail.workflow.resourcePlanning.team.demands[0].hiringNeed, 2);
   await assert.rejects(
@@ -639,6 +673,29 @@ test('D-30 completo permite entrar em Preparação', async () => {
   detail = await updateProjectWorkflow('project-1', { action: 'equipment_plan', version: detail.workflow.version, defined: true, selections: [{ categoryId: 'category-1', equipmentIds: ['equipment-1'] }] }, leader, { database });
   assert.equal(detail.workflow.resourcePlanning.equipment.categories[0].name, 'Bombas');
   assert.deepEqual(detail.workflow.resourcePlanning.equipment.equipmentIds, ['equipment-1']);
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'supply_plan', version: detail.workflow.version, defined: true,
+    items: [
+      { id: 'stock-stock-filter-1', stockItemId: 'stock-filter-1', type: 'FILTRO', name: 'nome ignorado', unitLabel: 'kg', requiredQuantity: 6, requestedAt: '2026-09-10', purchasedAt: null },
+      { id: 'custom-chemical-1', stockItemId: null, type: 'PRODUTO_QUIMICO', name: 'Produto especial', unitLabel: 'L', requiredQuantity: 2, requestedAt: null, purchasedAt: null }
+    ]
+  }, supplies, { database });
+  assert.equal(detail.workflow.resourcePlanning.supplies.items[0].name, 'Filtro 10 µm');
+  assert.equal(detail.workflow.resourcePlanning.supplies.items[0].availableQuantity, 4);
+  assert.equal(detail.workflow.resourcePlanning.supplies.items[0].shortageQuantity, 2);
+  assert.equal(detail.workflow.resourcePlanning.supplies.items[1].stockItemId, null);
+  assert.equal(detail.workflow.resourcePlanning.supplies.items[1].purchaseRequired, true);
+  assert.equal(detail.workflow.resourcePlanning.supplies.purchasePendingCount, 2);
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'logistics_plan', version: detail.workflow.version,
+    vehicleRequired: true, vehicleQuantity: 1, vehicleType: 'CAMINHAO',
+    freightRequired: false,
+    lodgingRequired: true, lodgingPeopleCount: 4, lodgingExpectedDate: null,
+    lodgingRequested: false, lodgingRequestedAt: null, lodgingCompletedAt: null
+  }, operations, { database });
+  assert.equal(detail.workflow.resourcePlanning.logistics.lodgingExpectedDate, '2026-09-29');
+  assert.equal(detail.workflow.resourcePlanning.logistics.complete, true);
+  assert.deepEqual(detail.workflow.resourcePlanning.logistics.warnings, ['Hospedagem ainda não solicitada']);
   const result = await updateProjectWorkflow('project-1', { action: 'stage', version: detail.workflow.version, stage: 'PREPARATION' }, leader, { database });
   assert.equal(result.workflow.stage, 'PREPARATION');
   assert.equal(result.workflow.preparationReadiness.total, 39);

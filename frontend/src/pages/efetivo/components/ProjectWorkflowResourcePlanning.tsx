@@ -91,7 +91,7 @@ export function ProjectWorkflowTeamPlanningCard({ workflow, saving, onPatch }: {
     >
       <div className="project-workflow-resource-question">
         <div><strong>A equipe necessária para esta obra já foi definida?</strong><p>“Não” mantém esta frente pendente.</p></div>
-        <ProjectWorkflowBooleanChoice value={editing ? true : planning.defined} label="Equipe necessária definida?" disabled={saving || !workflow.permissions.canEdit} onSelect={value => value ? setEditing(true) : selectNo()} />
+        <ProjectWorkflowBooleanChoice value={editing ? true : planning.defined} label="Equipe necessária definida?" disabled={saving || !workflow.permissions.canEditTeamPlanning} onSelect={value => value ? setEditing(true) : selectNo()} />
       </div>
       {editing ? <div className="project-workflow-resource-editor">
         <div className="project-workflow-resource-add">
@@ -166,7 +166,7 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
     >
       <div className="project-workflow-resource-question">
         <div><strong>Os equipamentos necessários para esta obra já foram definidos?</strong><p>“Não” mantém esta frente pendente.</p></div>
-        <ProjectWorkflowBooleanChoice value={editing ? true : planning.defined} label="Equipamentos necessários definidos?" disabled={saving || !workflow.permissions.canEdit} onSelect={value => value ? setEditing(true) : selectNo()} />
+        <ProjectWorkflowBooleanChoice value={editing ? true : planning.defined} label="Equipamentos necessários definidos?" disabled={saving || !workflow.permissions.canEditEquipmentPlanning} onSelect={value => value ? setEditing(true) : selectNo()} />
       </div>
       {editing ? <div className="project-workflow-resource-editor">
         <fieldset className="project-workflow-equipment-categories"><legend>Categorias e equipamentos necessários</legend>{planning.catalog.map(category => {
