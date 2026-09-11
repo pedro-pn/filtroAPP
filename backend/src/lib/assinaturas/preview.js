@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createCanvas } from '@napi-rs/canvas';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
@@ -8,6 +9,10 @@ import env from '../../config/env.js';
 import { safeDocumentPathPart } from '../documents/storage.js';
 import { sourcePdfBuffer } from './document.js';
 import { signatureOperationLog } from './observability.js';
+
+const standardFontDataUrl = fileURLToPath(new URL('./standard_fonts/', import.meta.resolve('pdfjs-dist/package.json')));
+// Ignore previously cached previews that may contain missing system-font glyphs.
+const PREVIEW_VERSION = 'v2';
 
 function httpError(message, statusCode = 400) {
   const error = new Error(message);
@@ -29,7 +34,7 @@ export async function renderPage(document, pageNumber, { rootDir = env.uploadDir
     throw httpError('Página não encontrada.', 404);
   }
   const directory = previewDirectory(document.id, rootDir);
-  const targetPath = path.join(directory, `${number}.png`);
+  const targetPath = path.join(directory, `${number}.${PREVIEW_VERSION}.png`);
   try {
     const cached = await fs.readFile(targetPath);
     signatureOperationLog('preview.render', {
@@ -48,7 +53,9 @@ export async function renderPage(document, pageNumber, { rootDir = env.uploadDir
   const loadingTask = pdfjsLib.getDocument({
     data: new Uint8Array(bytes),
     disableWorker: true,
-    useSystemFonts: true,
+    // Use PDF.js font outlines instead of relying on fonts installed on the host.
+    useSystemFonts: false,
+    standardFontDataUrl,
     isEvalSupported: false,
     verbosity: pdfjsLib.VerbosityLevel.ERRORS
   });
