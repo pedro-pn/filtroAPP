@@ -219,6 +219,9 @@ test('D-30 define cargos e equipamentos com avisos de disponibilidade', () => {
   assert.match(planning, /Necessidade de contratação/);
   assert.match(planning, /Confirmar equipe/);
   assert.match(planning, /Os equipamentos necessários para esta obra já foram definidos/);
+  assert.match(planning, /Categorias e equipamentos necessários/);
+  assert.match(planning, /toggleEquipment/);
+  assert.match(planning, /equipmentIds/);
   assert.match(planning, /Calibração válida/);
   assert.match(planning, /Manutenção em dia/);
   assert.match(planning, /Confirmar equipamentos/);
@@ -227,6 +230,18 @@ test('D-30 define cargos e equipamentos com avisos de disponibilidade', () => {
   assert.doesNotMatch(schema, /D30_TEAM_QUANTITY_CONFIRMED|D30_EQUIPMENT_LIST_DEFINED/);
   assert.match(styles, /project-workflow-resource-add/);
   assert.match(styles, /project-workflow-equipment-summary/);
+  assert.match(styles, /project-workflow-equipment-option\.is-selected/);
+});
+
+test('escolhas Sim e Não têm seleção acessível e cores semânticas', () => {
+  const choice = fs.readFileSync(new URL('../src/pages/efetivo/components/ProjectWorkflowBooleanChoice.tsx', import.meta.url), 'utf8');
+  const styles = fs.readFileSync(new URL('../src/pages/efetivo/efetivo.css', import.meta.url), 'utf8');
+  assert.match(choice, /aria-pressed=\{value === true\}/);
+  assert.match(choice, /aria-pressed=\{value === false\}/);
+  assert.match(choice, /is-yes/);
+  assert.match(choice, /is-no/);
+  assert.match(styles, /project-workflow-choice-button\.is-selected\.is-yes[^}]*background: var\(--g\)/);
+  assert.match(styles, /project-workflow-choice-button\.is-selected\.is-no[^}]*background: var\(--rd\)/);
 });
 
 test('preparação D-15 e gate de mobilização aparecem no quadro e no detalhe', () => {

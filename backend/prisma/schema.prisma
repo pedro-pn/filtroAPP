@@ -1086,13 +1086,14 @@ model ProjectWorkflowTeamDemand {
 }
 
 model ProjectWorkflowEquipmentCategoryPlan {
-  id         String            @id @default(cuid())
-  projectId  String
-  categoryId String
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  workflow   ProjectWorkflow   @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
-  category   EquipmentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  id           String            @id @default(cuid())
+  projectId    String
+  categoryId   String
+  equipmentIds Json              @default("[]")
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  workflow     ProjectWorkflow   @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  category     EquipmentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
   @@unique([projectId, categoryId])
   @@index([categoryId])

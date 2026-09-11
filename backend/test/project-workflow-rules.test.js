@@ -46,9 +46,9 @@ test('contrato exige justificativa para não aplicável, valida documentação e
   assert.equal(patch.safeParse({ action: 'team_plan', version: 1, defined: true, demands: [] }).success, false);
   assert.equal(patch.safeParse({ action: 'team_plan', version: 1, defined: true, demands: [{ jobRoleId: 'role-1', requiredCount: 3 }] }).success, true);
   assert.equal(patch.safeParse({ action: 'team_plan', version: 1, defined: false, demands: [] }).success, true);
-  assert.equal(patch.safeParse({ action: 'equipment_plan', version: 1, defined: true, categoryIds: [] }).success, false);
-  assert.equal(patch.safeParse({ action: 'equipment_plan', version: 1, defined: true, categoryIds: ['category-1'] }).success, true);
-  assert.equal(patch.safeParse({ action: 'equipment_plan', version: 1, defined: false, categoryIds: [] }).success, true);
+  assert.equal(patch.safeParse({ action: 'equipment_plan', version: 1, defined: true, selections: [] }).success, false);
+  assert.equal(patch.safeParse({ action: 'equipment_plan', version: 1, defined: true, selections: [{ categoryId: 'category-1', equipmentIds: ['equipment-1'] }] }).success, true);
+  assert.equal(patch.safeParse({ action: 'equipment_plan', version: 1, defined: false, selections: [] }).success, true);
   assert.equal(patch.safeParse({ action: 'issue', version: 1, issueId: 'issue-1', description: 'Equipamento especial', ownerName: 'Leandro', requiredLeadTimeDays: 30, dueDate: '2026-10-10', criticality: 'HIGH', status: 'OPEN' }).success, true);
   assert.equal(patch.safeParse({ action: 'documentation_category', version: 1, type: 'EXAM', required: true }).success, true);
   assert.equal(patch.safeParse({ action: 'documentation_requirement_create', version: 1, type: 'EXAM', name: 'Audiometria' }).success, true);

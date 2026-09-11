@@ -84,4 +84,6 @@ test('planejamento vazio mantém decisões de Sim e Não sem assumir resposta', 
   assert.equal(planning.equipment.defined, false);
   assert.deepEqual(planning.team.demands, []);
   assert.deepEqual(planning.equipment.categoryIds, []);
+  assert.deepEqual(planning.equipment.equipmentIds, []);
+  assert.deepEqual(planning.equipment.selections, []);
 });

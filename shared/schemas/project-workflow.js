@@ -352,13 +352,20 @@ export function makeProjectWorkflowSchemas(z) {
     action: z.literal('equipment_plan'),
     version,
     defined: z.boolean(),
-    categoryIds: z.array(id).max(100, 'Selecione no máximo 100 categorias.').default([])
+    selections: z.array(z.object({
+      categoryId: id,
+      equipmentIds: z.array(id).min(1, 'Selecione ao menos um equipamento da categoria.').max(500, 'Selecione no máximo 500 equipamentos por categoria.')
+    }).strict()).max(100, 'Selecione no máximo 100 categorias.').default([])
   }).strict().superRefine((value, ctx) => {
-    if (new Set(value.categoryIds).size !== value.categoryIds.length) {
-      ctx.addIssue({ code: 'custom', path: ['categoryIds'], message: 'Cada categoria deve aparecer uma única vez.' });
+    if (new Set(value.selections.map(item => item.categoryId)).size !== value.selections.length) {
+      ctx.addIssue({ code: 'custom', path: ['selections'], message: 'Cada categoria deve aparecer uma única vez.' });
     }
-    if (value.defined && value.categoryIds.length === 0) {
-      ctx.addIssue({ code: 'custom', path: ['categoryIds'], message: 'Selecione ao menos uma categoria para confirmar os equipamentos.' });
+    const equipmentIds = value.selections.flatMap(item => item.equipmentIds);
+    if (new Set(equipmentIds).size !== equipmentIds.length) {
+      ctx.addIssue({ code: 'custom', path: ['selections'], message: 'Cada equipamento deve aparecer uma única vez.' });
+    }
+    if (value.defined && value.selections.length === 0) {
+      ctx.addIssue({ code: 'custom', path: ['selections'], message: 'Selecione ao menos uma categoria e um equipamento para confirmar o planejamento.' });
     }
   });
   const documentationCategory = z.object({

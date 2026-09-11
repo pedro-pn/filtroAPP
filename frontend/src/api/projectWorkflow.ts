@@ -199,6 +199,8 @@ export interface ProjectWorkflowResourcePlanning {
   equipment: {
     defined: boolean | null;
     categoryIds: string[];
+    equipmentIds: string[];
+    selections: Array<{ categoryId: string; equipmentIds: string[] }>;
     categories: ProjectWorkflowEquipmentPlanningCategory[];
     catalog: ProjectWorkflowEquipmentPlanningCategory[];
   };
@@ -566,7 +568,7 @@ export type ProjectWorkflowPatch =
   | { action: 'critical'; version: number; key: string; answer: boolean }
   | { action: 'analysis_contact'; version: number; made: boolean; contactName?: string | null; contactDate?: string | null }
   | { action: 'team_plan'; version: number; defined: boolean; demands: Array<{ jobRoleId: string; requiredCount: number }> }
-  | { action: 'equipment_plan'; version: number; defined: boolean; categoryIds: string[] }
+  | { action: 'equipment_plan'; version: number; defined: boolean; selections: Array<{ categoryId: string; equipmentIds: string[] }> }
   | { action: 'documentation_category'; version: number; type: ProjectWorkflowDocumentationType; required: boolean }
   | { action: 'documentation_requirement_create'; version: number; type: ProjectWorkflowDocumentationType; name: string }
   | { action: 'documentation_requirement_update'; version: number; requirementId: string; name?: string; status?: ProjectWorkflowDocumentationStatus; requestedAt?: string | null; confirmedAt?: string | null }

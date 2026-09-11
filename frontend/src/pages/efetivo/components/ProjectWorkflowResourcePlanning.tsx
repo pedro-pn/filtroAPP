@@ -7,10 +7,12 @@ import type {
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
 import { displayDateOnly } from '../../../utils/calendarGrid';
+import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 
 type PatchHandler = (payload: ProjectWorkflowPatch) => void;
 type TeamDraft = Array<{ jobRoleId: string; requiredCount: number }>;
+type EquipmentSelection = { categoryId: string; equipmentIds: string[] };
 
 function choiceStatus(defined: boolean | null, completeLabel: string, pendingLabel: string) {
   if (defined === true) return completeLabel;
@@ -89,10 +91,7 @@ export function ProjectWorkflowTeamPlanningCard({ workflow, saving, onPatch }: {
     >
       <div className="project-workflow-resource-question">
         <div><strong>A equipe necessária para esta obra já foi definida?</strong><p>“Não” mantém esta frente pendente.</p></div>
-        <div className="project-workflow-documentation-choice">
-          <Button type="button" variant={planning.defined === true ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => setEditing(true)}>Sim</Button>
-          <Button type="button" variant={planning.defined === false ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={selectNo}>Não</Button>
-        </div>
+        <ProjectWorkflowBooleanChoice value={editing ? true : planning.defined} label="Equipe necessária definida?" disabled={saving || !workflow.permissions.canEdit} onSelect={value => value ? setEditing(true) : selectNo()} />
       </div>
       {editing ? <div className="project-workflow-resource-editor">
         <div className="project-workflow-resource-add">
@@ -114,43 +113,77 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
   onPatch: PatchHandler;
 }) {
   const planning = workflow.resourcePlanning.equipment;
+  const persistedSelections = useMemo<EquipmentSelection[]>(() => planning.selections.map(selection => ({
+    categoryId: selection.categoryId,
+    equipmentIds: [...selection.equipmentIds]
+  })), [planning.selections]);
   const [editing, setEditing] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>(planning.categoryIds);
-  useEffect(() => setSelectedIds(planning.categoryIds), [planning.categoryIds]);
-  const selectedCategories = planning.catalog.filter(category => selectedIds.includes(category.id));
+  const [selections, setSelections] = useState<EquipmentSelection[]>(persistedSelections);
+  useEffect(() => setSelections(persistedSelections), [persistedSelections]);
+  const selectedCategoryIds = new Set(selections.map(selection => selection.categoryId));
+  const selectedEquipmentIds = new Set(selections.flatMap(selection => selection.equipmentIds));
+  const completeSelection = selections.length > 0 && selections.every(selection => selection.equipmentIds.length > 0);
+  const toggleCategory = (categoryId: string, selected: boolean) => {
+    setSelections(current => selected
+      ? current.some(item => item.categoryId === categoryId) ? current : [...current, { categoryId, equipmentIds: [] }]
+      : current.filter(item => item.categoryId !== categoryId));
+  };
+  const toggleEquipment = (categoryId: string, equipmentId: string, selected: boolean) => {
+    setSelections(current => current.map(selection => selection.categoryId !== categoryId ? selection : {
+      ...selection,
+      equipmentIds: selected
+        ? [...selection.equipmentIds, equipmentId]
+        : selection.equipmentIds.filter(id => id !== equipmentId)
+    }));
+  };
   const selectNo = () => {
     setEditing(false);
-    setSelectedIds([]);
+    setSelections([]);
     if (planning.defined !== false || planning.categoryIds.length) {
-      onPatch({ action: 'equipment_plan', version: workflow.version, defined: false, categoryIds: [] });
+      onPatch({ action: 'equipment_plan', version: workflow.version, defined: false, selections: [] });
     }
   };
   const confirm = () => {
-    if (!selectedIds.length) return;
+    if (!completeSelection) return;
     setEditing(false);
-    onPatch({ action: 'equipment_plan', version: workflow.version, defined: true, categoryIds: selectedIds });
+    onPatch({ action: 'equipment_plan', version: workflow.version, defined: true, selections });
   };
   return (
     <ProjectWorkflowCategory
       title="Equipamentos"
       description={`Consulte disponibilidade, calibração e manutenção para ${workflow.resourcePlanning.targetDate ? displayDateOnly(workflow.resourcePlanning.targetDate) : 'a mobilização prevista'}.`}
-      status={choiceStatus(planning.defined, `${planning.categoryIds.length} categoria(s) planejada(s)`, 'Pendente · equipamentos ainda não definidos')}
-      complete={planning.defined === true && planning.categoryIds.length > 0}
+      status={choiceStatus(planning.defined, `${planning.equipmentIds.length} equipamento(s) em ${planning.categoryIds.length} categoria(s)`, 'Pendente · equipamentos ainda não definidos')}
+      complete={planning.defined === true && planning.equipmentIds.length > 0}
       className="project-workflow-resource-card"
       data-project-workflow-equipment-plan
     >
       <div className="project-workflow-resource-question">
         <div><strong>Os equipamentos necessários para esta obra já foram definidos?</strong><p>“Não” mantém esta frente pendente.</p></div>
-        <div className="project-workflow-documentation-choice">
-          <Button type="button" variant={planning.defined === true ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={() => setEditing(true)}>Sim</Button>
-          <Button type="button" variant={planning.defined === false ? 'primary' : 'secondary'} disabled={saving || !workflow.permissions.canEdit} onClick={selectNo}>Não</Button>
-        </div>
+        <ProjectWorkflowBooleanChoice value={editing ? true : planning.defined} label="Equipamentos necessários definidos?" disabled={saving || !workflow.permissions.canEdit} onSelect={value => value ? setEditing(true) : selectNo()} />
       </div>
       {editing ? <div className="project-workflow-resource-editor">
-        <fieldset className="project-workflow-equipment-categories"><legend>Categorias necessárias</legend>{planning.catalog.map(category => <label key={category.id}><input type="checkbox" checked={selectedIds.includes(category.id)} disabled={saving} onChange={event => setSelectedIds(current => event.target.checked ? [...current, category.id] : current.filter(id => id !== category.id))} /><span><strong>{category.name}</strong><small>{category.availableCount}/{category.totalCount} disponível(is) na data</small></span></label>)}</fieldset>
+        <fieldset className="project-workflow-equipment-categories"><legend>Categorias e equipamentos necessários</legend>{planning.catalog.map(category => {
+          const categorySelected = selectedCategoryIds.has(category.id);
+          const categorySelection = selections.find(selection => selection.categoryId === category.id);
+          return <section className={`project-workflow-equipment-category${categorySelected ? ' is-expanded' : ''}`} key={category.id}>
+            <label className="project-workflow-equipment-category-toggle">
+              <input type="checkbox" checked={categorySelected} disabled={saving} onChange={event => toggleCategory(category.id, event.target.checked)} />
+              <span><strong>{category.name}</strong><small>{category.availableCount}/{category.totalCount} disponível(is) na data{categorySelected ? ` · ${categorySelection?.equipmentIds.length || 0} selecionado(s)` : ''}</small></span>
+              <span className="project-workflow-equipment-category-chevron" aria-hidden="true">⌄</span>
+            </label>
+            {categorySelected ? <div className="project-workflow-equipment-options">{category.equipment.length ? category.equipment.map(item => {
+              const selected = selectedEquipmentIds.has(item.id);
+              const ready = item.availableAtMobilization && item.calibration.valid && item.maintenance.valid;
+              return <label className={`project-workflow-equipment-option${selected ? ' is-selected' : ''}${ready ? ' is-ready' : ' has-warning'}`} key={item.id}>
+                <input type="checkbox" checked={selected} disabled={saving} onChange={event => toggleEquipment(category.id, item.id, event.target.checked)} />
+                <span><strong>{item.code} · {item.name}</strong><small>{availabilityLabel(item)}</small><small className={item.calibration.valid ? 'is-ready' : 'has-warning'}>{calibrationLabel(item)}</small><small className={item.maintenance.valid ? 'is-ready' : 'has-warning'}>{maintenanceLabel(item)}</small></span>
+              </label>;
+            }) : <p>Nenhum equipamento ativo cadastrado nesta categoria.</p>}</div> : null}
+          </section>;
+        })}</fieldset>
         {!planning.catalog.length ? <p className="project-workflow-resource-empty">Nenhuma categoria ativa foi encontrada no cadastro de equipamentos.</p> : null}
-        <EquipmentCategorySummary categories={selectedCategories} />
-        <div className="project-workflow-inline-actions"><Button type="button" variant="secondary" disabled={saving} onClick={() => { setEditing(false); setSelectedIds(planning.categoryIds); }}>Cancelar</Button><Button type="button" disabled={saving || !selectedIds.length} onClick={confirm}>Confirmar equipamentos</Button></div>
+        {selections.some(selection => selection.equipmentIds.length === 0) ? <p className="project-workflow-resource-warning">Selecione ao menos um equipamento em cada categoria aberta.</p> : null}
+        <div className="project-workflow-inline-actions"><Button type="button" variant="secondary" disabled={saving} onClick={() => { setEditing(false); setSelections(persistedSelections); }}>Cancelar</Button><Button type="button" disabled={saving || !completeSelection} onClick={confirm}>Confirmar equipamentos</Button></div>
       </div> : null}
       {!editing && planning.categories.length ? <EquipmentCategorySummary categories={planning.categories} /> : null}
     </ProjectWorkflowCategory>
@@ -159,5 +192,5 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
 
 function EquipmentCategorySummary({ categories }: { categories: ProjectWorkflow['resourcePlanning']['equipment']['categories'] }) {
   if (!categories.length) return null;
-  return <div className="project-workflow-equipment-summary">{categories.map(category => <section key={category.id}><header><strong>{category.name}</strong><span>{category.availableCount}/{category.totalCount} disponível(is)</span></header>{category.equipment.length ? <div>{category.equipment.map(item => <article className={item.availableAtMobilization && item.calibration.valid && item.maintenance.valid ? 'is-ready' : 'has-warning'} key={item.id}><div><strong>{item.code} · {item.name}</strong><span>{availabilityLabel(item)}</span></div><ul><li className={item.calibration.valid ? 'is-ready' : 'has-warning'}>{calibrationLabel(item)}</li><li className={item.maintenance.valid ? 'is-ready' : 'has-warning'}>{maintenanceLabel(item)}</li></ul>{item.assignments.length ? <small>Em uso em outra obra{item.assignments.some(assignment => assignment.expectedReturnDate) ? ` · retorno(s): ${item.assignments.filter(assignment => assignment.expectedReturnDate).map(assignment => displayDateOnly(assignment.expectedReturnDate!)).join(', ')}` : ''}</small> : null}</article>)}</div> : <p>Nenhum equipamento ativo cadastrado nesta categoria.</p>}</section>)}</div>;
+  return <div className="project-workflow-equipment-summary">{categories.map(category => <details key={category.id}><summary><strong>{category.name}</strong><span>{category.equipment.length} equipamento(s) selecionado(s)</span><span aria-hidden="true">⌄</span></summary>{category.equipment.length ? <div>{category.equipment.map(item => <article className={item.availableAtMobilization && item.calibration.valid && item.maintenance.valid ? 'is-ready' : 'has-warning'} key={item.id}><div><strong>{item.code} · {item.name}</strong><span>{availabilityLabel(item)}</span></div><ul><li className={item.calibration.valid ? 'is-ready' : 'has-warning'}>{calibrationLabel(item)}</li><li className={item.maintenance.valid ? 'is-ready' : 'has-warning'}>{maintenanceLabel(item)}</li></ul>{item.assignments.length ? <small>Em uso em outra obra{item.assignments.some(assignment => assignment.expectedReturnDate) ? ` · retorno(s): ${item.assignments.filter(assignment => assignment.expectedReturnDate).map(assignment => displayDateOnly(assignment.expectedReturnDate!)).join(', ')}` : ''}</small> : null}</article>)}</div> : <p>Nenhum equipamento selecionado.</p>}</details>)}</div>;
 }

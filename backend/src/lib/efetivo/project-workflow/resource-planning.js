@@ -129,11 +129,28 @@ function publicTeamPlanning(workflow, roleCatalog) {
 }
 
 function publicEquipmentPlanning(workflow, categoryCatalog) {
-  const selectedIds = new Set((workflow.equipmentCategoryPlans || []).map(item => item.categoryId));
+  const categoryById = new Map(categoryCatalog.map(category => [category.id, category]));
+  const selections = (workflow.equipmentCategoryPlans || []).map(plan => {
+    const category = categoryById.get(plan.categoryId);
+    const storedIds = Array.isArray(plan.equipmentIds) ? plan.equipmentIds : [];
+    const equipmentIds = storedIds.length ? storedIds : (category?.equipment || []).map(item => item.id);
+    const activeIds = new Set((category?.equipment || []).map(item => item.id));
+    return { categoryId: plan.categoryId, equipmentIds: equipmentIds.filter(id => activeIds.has(id)) };
+  });
+  const selectedIds = new Set(selections.map(item => item.categoryId));
+  const equipmentIds = selections.flatMap(item => item.equipmentIds);
+  const equipmentIdSet = new Set(equipmentIds);
   return {
     defined: workflow.equipmentPlanDefined ?? null,
     categoryIds: [...selectedIds],
-    categories: categoryCatalog.filter(category => selectedIds.has(category.id)),
+    equipmentIds,
+    selections,
+    categories: categoryCatalog
+      .filter(category => selectedIds.has(category.id))
+      .map(category => ({
+        ...category,
+        equipment: category.equipment.filter(item => equipmentIdSet.has(item.id))
+      })),
     catalog: categoryCatalog
   };
 }

@@ -587,6 +587,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
               select: {
                 id: true,
                 categoryId: true,
+                equipmentIds: true,
                 category: { select: { id: true, name: true, order: true } }
               }
             },
@@ -908,17 +909,33 @@ async function applyEquipmentPlan(tx, workflow, payload) {
   assertPlanningStage(workflow);
   await tx.projectWorkflowEquipmentCategoryPlan.deleteMany({ where: { projectId: workflow.projectId } });
   if (payload.defined) {
+    const categoryIds = payload.selections.map(item => item.categoryId);
     const categories = await tx.equipmentCategory.findMany({
-      where: { id: { in: payload.categoryIds }, isActive: true },
-      select: { id: true }
+      where: { id: { in: categoryIds }, isActive: true },
+      select: {
+        id: true,
+        equipment: {
+          where: { isActive: true },
+          select: { id: true }
+        }
+      }
     });
-    if (categories.length !== payload.categoryIds.length) {
+    if (categories.length !== categoryIds.length) {
       throw planningError('A seleção contém categoria de equipamento inexistente ou inativa.', {
         code: 'PROJECT_WORKFLOW_EQUIPMENT_CATEGORY_INVALID'
       });
     }
+    const categoryById = new Map(categories.map(category => [category.id, new Set(category.equipment.map(item => item.id))]));
+    const hasInvalidEquipment = payload.selections.some(selection => (
+      selection.equipmentIds.some(equipmentId => !categoryById.get(selection.categoryId)?.has(equipmentId))
+    ));
+    if (hasInvalidEquipment) {
+      throw planningError('A seleção contém equipamento inexistente, inativo ou pertencente a outra categoria.', {
+        code: 'PROJECT_WORKFLOW_EQUIPMENT_INVALID'
+      });
+    }
     await tx.projectWorkflowEquipmentCategoryPlan.createMany({
-      data: payload.categoryIds.map(categoryId => ({ projectId: workflow.projectId, categoryId }))
+      data: payload.selections.map(selection => ({ projectId: workflow.projectId, ...selection }))
     });
   }
   await tx.projectWorkflow.update({

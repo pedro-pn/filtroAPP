@@ -28,7 +28,10 @@ function fakeDatabase() {
     teamDemands: [],
     equipmentCategoryPlans: [],
     jobRoles: [{ id: 'role-1', name: 'Mecânico', calendarColor: '#2563EB', order: 1, isActive: true, isOperational: true }],
-    equipmentCategories: [{ id: 'category-1', name: 'Bombas', order: 1, isActive: true, supportsCalibration: false, maintenanceIntervalDays: null, equipment: [] }],
+    equipmentCategories: [{
+      id: 'category-1', name: 'Bombas', order: 1, isActive: true, supportsCalibration: false, maintenanceIntervalDays: null,
+      equipment: [{ id: 'equipment-1', code: 'B-01', name: 'Bomba 1', isActive: true, hasCalibration: false, expiresAt: null, maintenanceRecords: [] }]
+    }],
     events: [],
     postJob: null,
     measurement: null,
@@ -629,8 +632,13 @@ test('D-30 completo permite entrar em Preparação', async () => {
     .map(item => ({ id: `check-${item.key}`, projectId: 'project-1', key: item.key, status: 'DONE' })));
   let detail = await updateProjectWorkflow('project-1', { action: 'team_plan', version: 1, defined: true, demands: [{ jobRoleId: 'role-1', requiredCount: 2 }] }, leader, { database });
   assert.equal(detail.workflow.resourcePlanning.team.demands[0].hiringNeed, 2);
-  detail = await updateProjectWorkflow('project-1', { action: 'equipment_plan', version: detail.workflow.version, defined: true, categoryIds: ['category-1'] }, leader, { database });
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'equipment_plan', version: detail.workflow.version, defined: true, selections: [{ categoryId: 'category-1', equipmentIds: ['equipment-inexistente'] }] }, leader, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_EQUIPMENT_INVALID'
+  );
+  detail = await updateProjectWorkflow('project-1', { action: 'equipment_plan', version: detail.workflow.version, defined: true, selections: [{ categoryId: 'category-1', equipmentIds: ['equipment-1'] }] }, leader, { database });
   assert.equal(detail.workflow.resourcePlanning.equipment.categories[0].name, 'Bombas');
+  assert.deepEqual(detail.workflow.resourcePlanning.equipment.equipmentIds, ['equipment-1']);
   const result = await updateProjectWorkflow('project-1', { action: 'stage', version: detail.workflow.version, stage: 'PREPARATION' }, leader, { database });
   assert.equal(result.workflow.stage, 'PREPARATION');
   assert.equal(result.workflow.preparationReadiness.total, 39);
