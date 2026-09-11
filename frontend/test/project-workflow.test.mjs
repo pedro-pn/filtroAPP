@@ -176,6 +176,8 @@ test('documentação antecipada, D-30 e papéis de área aparecem nas superfíci
   assert.match(board, /Prazos atingidos:/);
   assert.match(administration, /EFETIVO_ADMINISTRATIVE/);
   assert.match(styles, /project-workflow-planning-grid/);
+  assert.match(styles, /\.project-workflow-documentation-fields \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.project-workflow-documentation-fields select \{[^}]*max-width: 100%[^}]*min-width: 0[^}]*width: 100%/);
   assert.match(registry, /efetivo:operations/);
   assert.match(registry, /efetivo:assets/);
   assert.match(registry, /efetivo:supplies/);
