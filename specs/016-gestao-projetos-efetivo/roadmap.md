@@ -8,9 +8,9 @@ Handover comercial → Análise inicial → Aguardando planejamento → Planejam
 
 Liberação comercial/contratual e documentação antecipada são frentes paralelas dentro do projeto. D-90/D-30/D-15/D-7/D-1 são marcos configuráveis, não colunas.
 
-A futura integração com CRM será a fonte dos fatos comerciais, enquanto o FiltroAPP continuará responsável pelas confirmações e decisões operacionais. A matriz detalhada de propriedade, contingência manual e impacto por entrega está em [crm-integration-dependencies.md](crm-integration-dependencies.md).
+A futura integração com o Nectar será a fonte dos fatos comerciais, enquanto o FiltroAPP continuará responsável pelas confirmações e decisões operacionais. A matriz detalhada de propriedade, contingência manual e impacto por entrega está em [crm-integration-dependencies.md](crm-integration-dependencies.md); as decisões validadas para todas as integrações estão em [integration-decisions.md](integration-decisions.md).
 
-## Estado de implementação em 10/09/2026
+## Estado de implementação em 11/09/2026
 
 - Entrega 016 concluída: registro mestre, quatro etapas iniciais, líder, aceite, checklists, itens críticos, pendências, auditoria e avanço explícito.
 - Entrega 017 concluída: liberação comercial manual preparada para CRM e papel Comercial restrito à sua frente.
@@ -25,7 +25,8 @@ A futura integração com CRM será a fonte dos fatos comerciais, enquanto o Fil
 - Entrega 026 concluída: Documentação / medição integra o Kanban com 14 controles, evidências dos RDOs e relatórios, quantitativos, extras, datas e valores de execução, medição e aprovação. Contrato e faturamento permanecem separados e usam as fontes atuais de orçamento/Omie, preparados para a futura origem comercial no CRM.
 - Entrega 027 concluída: Encerramento finaliza o Kanban único com dez confirmações finais, gate consolidado de 24 controles, aprovação estruturada da medição, pós-job e pendências zeradas. O encerramento registra autor/data, sincroniza a missão oficial, mantém a obra em modo de consulta e exige justificativa auditável para reabrir.
 - Entrega 028 concluída: catálogo versionado de documentos no diálogo do projeto, aceite por versão, requisitos explícitos por etapa, vínculo com Assinaturas, projeção dos RDOs/relatórios e adaptador interno preparado para documentos do futuro CRM. Propostas podem ser vinculadas como evidência sem confirmar fatos comerciais automaticamente.
-- O fluxo funcional planejado de Handover a Encerrado e o catálogo documental estão concluídos. Os próximos incrementos passam a ser integrações progressivas com equipamentos, estoque/Omie e o futuro CRM, além das automações de alertas descritas na Entrega 2.
+- Decisões de integração validadas: Nectar bidirecional por webhook e sincronização periódica; Omie somente consulta; conformidade de colaboradores fornecida por plataforma externa; reservas de equipamentos e estoque com avisos e exceções manuais; alertas inicialmente por e-mail; aprovações do cliente recebidas pelo Nectar; logística, hospedagem e QSMS mantidos no workflow.
+- O fluxo funcional planejado de Handover a Encerrado e o catálogo documental estão concluídos. Os próximos incrementos passam a ser o conector Nectar, a consulta externa de conformidade, as reservas assistidas de equipamentos/estoque e as automações de alertas por e-mail.
 
 ## Entrega 1 — Fundamentos e entrada em planejamento
 

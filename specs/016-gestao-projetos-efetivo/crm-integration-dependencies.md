@@ -2,11 +2,22 @@
 
 ## Decisão de arquitetura
 
-O `Project` continua sendo o registro mestre operacional no FiltroAPP. O CRM será a fonte oficial dos fatos comerciais que originam e alteram o projeto. A Gestão de Projetos não deve duplicar esses fatos como checkboxes independentes quando a integração estiver ativa.
+O `Project` continua sendo o registro mestre operacional no FiltroAPP. O Nectar será a fonte oficial dos fatos comerciais que originam e alteram o projeto. A Gestão de Projetos não deve duplicar esses fatos como checkboxes independentes quando a integração estiver ativa.
 
 O CRM informa fatos como “proposta criada”, “proposta aceita” e “pedido de compra recebido”. O FiltroAPP registra ações internas como “proposta revisada pelo Líder”, coordena as frentes operacionais e calcula os gates a partir dos fatos recebidos e das confirmações internas.
 
 Até a integração entrar em operação, os fatos comerciais poderão ser preenchidos pelo Comercial no FiltroAPP. Cada informação precisa guardar `source` (`MANUAL` ou `CRM`), referência externa, data da fonte e data da última sincronização para permitir a migração sem perder histórico.
+
+As decisões consolidadas para CRM, Omie, conformidade de colaboradores, equipamentos, estoque e alertas estão em [integration-decisions.md](integration-decisions.md).
+
+## Decisões validadas em 11/09/2026
+
+- O CRM será o Nectar.
+- A integração será bidirecional: o Nectar fornece fatos comerciais e recebe informações operacionais do projeto.
+- Serão usados webhook e sincronização periódica. O webhook atende eventos novos; a sincronização atende carga inicial, recuperação e reconciliação.
+- Aprovações do cliente serão recebidas pelo Nectar.
+- Omie permanece somente como fonte de consulta e não receberá solicitações ou pedidos de compra do FiltroAPP.
+- Alertas usarão e-mail inicialmente; WhatsApp permanece no radar.
 
 ## Base existente que pode ser reaproveitada
 
@@ -46,8 +57,12 @@ Até a integração entrar em operação, os fatos comerciais poderão ser preen
 | Planejamento, preparação e mobilização | Sem dependência, exceto gate comercial | — | Equipe, equipamentos, materiais, QSMS, hospedagem, logística e cliente |
 | Aditivos e propostas adicionais durante a execução | Direta | Nova proposta, versão, valor, escopo e aceite | Líder avalia impacto; Acompanhamento incorpora o valor aprovado |
 | RDOs, relatórios, desvios e avanço | Sem dependência | — | Relatórios, Acompanhamento e Qualidade |
-| Medição aprovada pelo cliente | Indireta ou integração futura própria | CRM pode registrar negociação ou aceite comercial | FiltroAPP controla quantitativos, evidências, envio e aprovação da medição |
+| Medição aprovada pelo cliente | Direta | Nectar registra negociação, aceite, versão, data e evidência | FiltroAPP controla quantitativos, evidências e envio e consolida a aprovação recebida |
 | Faturado e recebido | Sem dependência do CRM | — | Omie continua sendo a fonte oficial |
+
+## Retorno do FiltroAPP ao Nectar
+
+O contrato de saída será detalhado na especificação do conector. O conjunto inicial deve contemplar etapa atual do projeto, datas operacionais principais, situação dos gates, riscos ou pendências críticas, avanço e encerramento. A sincronização de retorno não transfere ao Nectar a propriedade sobre equipe, reservas, RDOs, relatórios, desvios ou decisões operacionais.
 
 ## Regras necessárias para não acoplar o módulo ao CRM
 
@@ -59,6 +74,8 @@ Até a integração entrar em operação, os fatos comerciais poderão ser preen
 6. Uma nova revisão de proposta, alteração de escopo, valor ou data deve revalidar somente os gates afetados e registrar o motivo no histórico.
 7. Falha de sincronização deve aparecer como estado próprio. Dados desatualizados não podem gerar uma nova liberação comercial automática.
 8. Documentos externos devem ser referenciados por metadados e versão. Cópia para o armazenamento do FiltroAPP ocorre apenas quando retenção, assinatura ou uso offline exigir.
+9. O webhook e a sincronização periódica usam a mesma regra de ordenação e idempotência.
+10. O retorno operacional ao Nectar precisa registrar versão e instante da origem para evitar atualização circular.
 
 ## Impacto na sequência de implementação
 
