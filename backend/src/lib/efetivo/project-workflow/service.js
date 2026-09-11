@@ -14,6 +14,7 @@ import {
   synchronizeOfficialMissionStage
 } from '../planning/mission-stage-sync.js';
 import {
+  activeProjectWorkflowIssues,
   allowedProjectWorkflowTransition,
   handoverGateIssues,
   normalizeProjectWorkflowCommercialFacts,
@@ -368,7 +369,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
   }));
   const commercialReadiness = projectWorkflowCommercialReadiness({ commercialFacts });
   const documentationCategories = publicDocumentationCategories(workflow);
-  const issues = (workflow.issues || []).map(issue => ({
+  const issues = activeProjectWorkflowIssues(workflow).map(issue => ({
     ...issue,
     dueDate: dateKey(issue.dueDate),
     overdue: issue.status !== 'RESOLVED' && Boolean(issue.dueDate) && dateKey(issue.dueDate) < today
@@ -550,6 +551,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
             leader: { select: { id: true, name: true, isActive: true } },
             closedBy: { select: { id: true, name: true } },
             checklists: { select: { key: true, status: true } },
+            criticalAnswers: { select: { key: true, answer: true } },
             issues: { select: { id: true, sourceQuestion: true, status: true, dueDate: true, criticality: true, area: true, description: true } },
             commercialFacts: { select: { key: true, status: true, source: true, evidenceDocumentId: true, reference: true, note: true, occurredOn: true } },
             documentationCategories: {
@@ -577,7 +579,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
       const workflow = project.workflow;
       const documentState = projectDocumentGateState(project.documents || []);
       const workflowWithDocuments = workflow ? { ...workflow, ...documentState } : null;
-      const issues = workflow?.issues || [];
+      const issues = workflow ? activeProjectWorkflowIssues(workflow) : [];
       const commercialReadiness = workflow ? projectWorkflowCommercialReadiness(workflowWithDocuments) : null;
       const milestones = workflow ? projectWorkflowMilestones(dateKey(workflow.plannedMobilizationDate), todayKey(now)) : null;
       const documentationReadiness = workflow ? projectWorkflowDocumentationReadiness(workflow, milestones, todayKey(now)) : null;
@@ -803,9 +805,15 @@ async function applyCriticalAnswer(tx, workflow, payload, context) {
     create: { projectId: workflow.projectId, key: payload.key, answer: payload.answer, updatedByUserId: context.actorUserId || null },
     update: { answer: payload.answer, updatedByUserId: context.actorUserId || null }
   });
-  if (!payload.answer) return;
   const question = PROJECT_WORKFLOW_CRITICAL_QUESTIONS.find(item => item.key === payload.key);
   if (question.createsIssue === false) return;
+  if (!payload.answer) {
+    await tx.projectWorkflowIssue.updateMany({
+      where: { projectId: workflow.projectId, sourceQuestion: payload.key },
+      data: { status: 'RESOLVED' }
+    });
+    return;
+  }
   await tx.projectWorkflowIssue.upsert({
     where: { projectId_sourceQuestion: { projectId: workflow.projectId, sourceQuestion: payload.key } },
     create: {
@@ -816,7 +824,7 @@ async function applyCriticalAnswer(tx, workflow, payload, context) {
       criticality: 'HIGH',
       status: 'OPEN'
     },
-    update: {}
+    update: { status: 'OPEN' }
   });
 }
 

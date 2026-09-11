@@ -224,10 +224,13 @@ test('gate consolida nove frentes, pré-job e pendências críticas', () => {
   assert.equal(gate.deadlineStatus, 'RISK');
   assert.match(gate.blockers.find(item => item.key === 'D15_EQUIPMENT_TESTED').label, /testados/);
   workflow.checklists.push({ key: 'D15_EQUIPMENT_TESTED', status: 'DONE' });
-  workflow.issues = [{ id: 'critical-1', status: 'OPEN', criticality: 'HIGH', area: 'Operações', description: 'Risco sem ação' }];
+  workflow.criticalAnswers = [{ key: 'SPECIAL_EQUIPMENT', answer: true }];
+  workflow.issues = [{ id: 'critical-1', sourceQuestion: 'SPECIAL_EQUIPMENT', status: 'OPEN', criticality: 'HIGH', area: 'Operações', description: 'Risco sem ação' }];
   gate = projectWorkflowMobilizationGate(workflow);
   assert.equal(gate.ready, false);
   assert.equal(gate.blockers.some(item => item.front === 'CRITICAL_ISSUES'), true);
+  workflow.criticalAnswers[0].answer = false;
+  assert.equal(projectWorkflowMobilizationGate(workflow).ready, true);
 });
 
 test('somente requisitos documentais explícitos participam dos gates', () => {
@@ -240,6 +243,10 @@ test('somente requisitos documentais explícitos participam dos gates', () => {
   assert.equal(blocked.ready, false);
   assert.equal(blocked.blockers.some(item => item.key === 'DOCUMENT_doc_1' && item.front === 'DOCUMENTATION'), true);
   assert.equal(projectWorkflowMobilizationGate(readyMobilizationWorkflow()).ready, true);
+  assert.equal(projectWorkflowMobilizationGate(readyMobilizationWorkflow({
+    criticalAnswers: [{ key: 'CLIENT_REQUIREMENTS', answer: true }],
+    issues: [{ id: 'legacy-documentation-issue', sourceQuestion: 'CLIENT_REQUIREMENTS', status: 'OPEN', criticality: 'HIGH', description: 'Pendência documental antiga' }]
+  })).ready, true);
 
   const handover = { leaderUserId: 'leader-1', checklists: completed('HANDOVER'), documentRequirements: { HANDOVER: { ready: false, blockers: [{ documentId: 'doc_2', title: 'Especificação', reason: 'Especificação não possui uma versão vigente.' }] } } };
   assert.match(handoverGateIssues(handover)[0], /Especificação não possui/);
@@ -376,6 +383,7 @@ test('Encerramento consolida os dez controles finais e dependências estruturada
   const workflow = {
     stage: 'FINAL_MEASUREMENT',
     checklists: completed('FINAL_MEASUREMENT'),
+    criticalAnswers: [],
     postJob: { meetingDate: new Date('2026-09-25T00:00:00Z') },
     measurement: { approvedAt: new Date('2026-09-30T00:00:00Z'), approvedAmount: 0 },
     issues: []
@@ -387,9 +395,11 @@ test('Encerramento consolida os dez controles finais e dependências estruturada
   assert.equal(gate.total, 24);
   assert.equal(gate.ready, true);
   assert.deepEqual(projectWorkflowTransitionIssues(workflow, 'FINISHED'), []);
-  workflow.issues.push({ id: 'issue-1', description: 'Aceite final', status: 'IN_PROGRESS' });
+  workflow.criticalAnswers.push({ key: 'SPECIAL_EQUIPMENT', answer: true });
+  workflow.issues.push({ id: 'issue-1', sourceQuestion: 'SPECIAL_EQUIPMENT', description: 'Aceite final', status: 'IN_PROGRESS' });
   assert.match(projectWorkflowTransitionIssues(workflow, 'FINISHED').at(-1), /pendência interna/i);
   workflow.issues = [];
+  workflow.criticalAnswers = [];
   workflow.measurement.approvedAt = null;
   assert.match(projectWorkflowTransitionIssues(workflow, 'FINISHED').join(' '), /data de aprovação/i);
   assert.equal(allowedProjectWorkflowTransition('FINAL_MEASUREMENT', 'FINISHED'), true);

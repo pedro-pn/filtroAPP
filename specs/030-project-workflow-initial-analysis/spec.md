@@ -14,6 +14,7 @@ Adequar a análise inicial ao uso operacional, removendo confirmações redundan
 6. Salvar a resposta e os dados do contato sem botão de salvamento.
 7. Remover o campo Área da edição de pendências, preservando internamente a área definida pela origem da pendência.
 8. Garantir que campos, seletores e ações dos demais checklists não ultrapassem a largura dos cards.
+9. Exibir e considerar uma pendência crítica somente enquanto a resposta do item crítico correspondente estiver em Sim. Ao mudar para Não, encerrar e ocultar a pendência; ao voltar para Sim, reabri-la sem duplicar o registro.
 
 ## Critérios de aceite
 
@@ -22,4 +23,5 @@ Adequar a análise inicial ao uso operacional, removendo confirmações redundan
 - A análise exige que o Líder responda se houve contato inicial.
 - Uma resposta positiva sem nome ou data é rejeitada.
 - A edição de pendência não permite alterar sua área de origem.
+- Respostas em Não não deixam pendências residuais no detalhe, nos contadores ou nos gates.
 - Os checklists permanecem legíveis no diálogo e em telas pequenas.

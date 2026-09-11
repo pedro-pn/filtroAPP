@@ -202,6 +202,11 @@ function fakeDatabase() {
         else state.issues.push({ id: `issue-${state.issues.length + 1}`, ownerName: null, requiredLeadTimeDays: null, dueDate: null, createdAt: new Date(), updatedAt: new Date(), ...input.create });
       },
       findFirst: async input => state.issues.find(item => item.id === input.where.id && item.projectId === input.where.projectId) || null,
+      updateMany: async input => {
+        const matches = state.issues.filter(item => item.projectId === input.where.projectId && item.sourceQuestion === input.where.sourceQuestion);
+        matches.forEach(item => Object.assign(item, input.data, { updatedAt: new Date() }));
+        return { count: matches.length };
+      },
       update: async input => {
         const issue = state.issues.find(item => item.id === input.where.id);
         Object.assign(issue, input.data, { updatedAt: new Date() });
@@ -271,13 +276,24 @@ test('somente o líder designado aceita o handover informativo', async () => {
   assert.equal(result.workflow.acceptedAt.toISOString(), '2026-09-10T10:00:00.000Z');
 });
 
-test('resposta crítica positiva garante uma única pendência', async () => {
+test('pendência só aparece enquanto o item crítico correspondente está em Sim', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
-  await updateProjectWorkflow('project-1', { action: 'critical', version: 1, key: 'SPECIAL_EQUIPMENT', answer: true }, leader, { database });
-  await updateProjectWorkflow('project-1', { action: 'critical', version: 2, key: 'SPECIAL_EQUIPMENT', answer: true }, leader, { database });
+  let detail = await updateProjectWorkflow('project-1', { action: 'critical', version: 1, key: 'SPECIAL_EQUIPMENT', answer: true }, leader, { database });
   assert.equal(state.issues.length, 1);
   assert.equal(state.issues[0].area, 'Ativos');
+  assert.equal(detail.workflow.issues.length, 1);
+  detail = await updateProjectWorkflow('project-1', { action: 'critical', version: 2, key: 'SPECIAL_EQUIPMENT', answer: false }, leader, { database });
+  assert.equal(detail.workflow.issues.length, 0);
+  assert.equal(state.issues[0].status, 'RESOLVED');
+  let list = await listProjectWorkflows({}, leader, { database });
+  assert.equal(list.items[0].workflow.issueCount, 0);
+  detail = await updateProjectWorkflow('project-1', { action: 'critical', version: 3, key: 'SPECIAL_EQUIPMENT', answer: true }, leader, { database });
+  assert.equal(state.issues.length, 1);
+  assert.equal(state.issues[0].status, 'OPEN');
+  assert.equal(detail.workflow.issues.length, 1);
+  list = await listProjectWorkflows({}, leader, { database });
+  assert.equal(list.items[0].workflow.issueCount, 1);
 });
 
 test('requisito documental crítico usa os cards e não cria pendência genérica', async () => {

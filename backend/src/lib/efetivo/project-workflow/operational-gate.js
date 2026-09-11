@@ -8,6 +8,7 @@ export const PROJECT_MOBILIZATION_NOT_AUTHORIZED = 'PROJECT_MOBILIZATION_NOT_AUT
 
 export const PROJECT_OPERATIONAL_GATE_INCLUDE = {
   checklists: { select: { key: true, status: true } },
+  criticalAnswers: { select: { key: true, answer: true } },
   issues: { select: { id: true, sourceQuestion: true, status: true, dueDate: true, criticality: true, area: true, description: true } },
   commercialFacts: { select: { key: true, status: true, source: true, reference: true, note: true, occurredOn: true } },
   documentationCategories: {

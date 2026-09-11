@@ -71,6 +71,16 @@ export function projectWorkflowCommercialReadiness(workflow) {
   };
 }
 
+export function activeProjectWorkflowIssues(workflow) {
+  const issueQuestionKeys = new Set(PROJECT_WORKFLOW_CRITICAL_QUESTIONS
+    .filter(item => item.createsIssue !== false)
+    .map(item => item.key));
+  const positiveAnswers = new Set((workflow?.criticalAnswers || [])
+    .filter(item => item.answer === true && issueQuestionKeys.has(item.key))
+    .map(item => item.key));
+  return (workflow?.issues || []).filter(issue => issue.sourceQuestion && positiveAnswers.has(issue.sourceQuestion));
+}
+
 export function normalizeProjectWorkflowDocumentation(workflow) {
   const byType = new Map((workflow?.documentationCategories || []).map(item => [item.type, item]));
   return PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS.map(definition => {
@@ -245,7 +255,7 @@ export function projectWorkflowClosureGate(workflow) {
   if (workflow?.measurement?.approvedAmount == null) {
     structuredBlockers.push({ key: 'MEASUREMENT_APPROVED_AMOUNT', label: 'Medição', reason: 'Informar o valor aprovado' });
   }
-  const openIssues = (workflow?.issues || []).filter(issue => issue.status !== 'RESOLVED');
+  const openIssues = activeProjectWorkflowIssues(workflow).filter(issue => issue.status !== 'RESOLVED');
   const issueBlockers = openIssues.map(issue => ({
     key: `ISSUE_${issue.id}`,
     label: issue.description,
@@ -346,7 +356,7 @@ export function projectWorkflowMobilizationGate(workflow, milestones = null, tod
     readinessFromDefinitions(workflow, 'CLIENT', 'Cliente', checklistDefinitions({ sections: ['D15_CLIENT'] }))
   ];
   const preJob = readinessFromDefinitions(workflow, 'PRE_JOB', 'Pré-job', checklistDefinitions({ sections: ['D15_PRE_JOB'] }));
-  const criticalIssues = (workflow?.issues || []).filter(issue => issue.status !== 'RESOLVED' && issue.criticality === 'HIGH' && issue.sourceQuestion !== 'CLIENT_REQUIREMENTS');
+  const criticalIssues = activeProjectWorkflowIssues(workflow).filter(issue => issue.status !== 'RESOLVED' && issue.criticality === 'HIGH');
   const rawBlockers = [
     ...fronts.flatMap(front => front.blockers.map(blocker => ({ ...blocker, front: front.key }))),
     ...preJob.blockers.map(blocker => ({ ...blocker, front: preJob.key })),
