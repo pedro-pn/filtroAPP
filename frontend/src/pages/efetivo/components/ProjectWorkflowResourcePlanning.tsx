@@ -96,10 +96,10 @@ export function ProjectWorkflowTeamPlanningCard({ workflow, saving, onPatch }: {
       {editing ? <div className="project-workflow-resource-editor">
         <div className="project-workflow-resource-add">
           <div className="field-group"><label htmlFor="workflow-team-role">Cargo</label><select id="workflow-team-role" value={jobRoleId} disabled={saving} onChange={event => setJobRoleId(event.target.value)}><option value="">Selecione um cargo</option>{availableRoles.map(role => <option value={role.id} key={role.id}>{role.name} · {role.availableCount} disponível(is)</option>)}</select></div>
-          <div className="field-group"><label htmlFor="workflow-team-quantity">Quantidade</label><input id="workflow-team-quantity" type="number" min="1" max="1000" value={requiredCount} disabled={saving} onChange={event => setRequiredCount(Math.max(1, Number(event.target.value) || 1))} /></div>
+          <div className="field-group"><label htmlFor="workflow-team-quantity">Quantidade</label><input id="workflow-team-quantity" type="number" min="1" max="1000" step="1" inputMode="numeric" value={requiredCount} disabled={saving} onChange={event => setRequiredCount(Math.max(1, Number(event.target.value) || 1))} /></div>
           <Button type="button" variant="secondary" disabled={saving || !jobRoleId} onClick={addRole}>Adicionar</Button>
         </div>
-        {draftSummary.length ? <div className="project-workflow-resource-summary">{draftSummary.map(item => <article key={item.jobRoleId}><span className="project-workflow-resource-color" style={{ background: item.role?.calendarColor || '#64748B' }} /><div><strong>{item.role?.name || 'Cargo indisponível'}</strong><span>{item.requiredCount} necessário(s) · {item.availableCount} disponível(is) na mobilização</span>{item.hiringNeed > 0 ? <em>⚠ Necessidade de contratação: {item.hiringNeed}</em> : null}</div><input aria-label={`Quantidade de ${item.role?.name || 'cargo'}`} type="number" min="1" max="1000" value={item.requiredCount} disabled={saving} onChange={event => setDraft(current => current.map(demand => demand.jobRoleId === item.jobRoleId ? { ...demand, requiredCount: Math.max(1, Number(event.target.value) || 1) } : demand))} /><Button type="button" variant="mini" disabled={saving} onClick={() => setDraft(current => current.filter(demand => demand.jobRoleId !== item.jobRoleId))}>Remover</Button></article>)}</div> : <p className="project-workflow-resource-empty">Adicione ao menos um cargo para confirmar a equipe.</p>}
+        {draftSummary.length ? <div className="project-workflow-resource-summary">{draftSummary.map(item => <article key={item.jobRoleId}><span className="project-workflow-resource-color" style={{ background: item.role?.calendarColor || '#64748B' }} /><div><strong>{item.role?.name || 'Cargo indisponível'}</strong><span>{item.requiredCount} necessário(s) · {item.availableCount} disponível(is) na mobilização</span>{item.hiringNeed > 0 ? <em>⚠ Necessidade de contratação: {item.hiringNeed}</em> : null}</div><div className="field-group project-workflow-resource-quantity"><label htmlFor={`workflow-team-quantity-${item.jobRoleId}`}>Quantidade</label><input id={`workflow-team-quantity-${item.jobRoleId}`} type="number" min="1" max="1000" step="1" inputMode="numeric" value={item.requiredCount} disabled={saving} onChange={event => setDraft(current => current.map(demand => demand.jobRoleId === item.jobRoleId ? { ...demand, requiredCount: Math.max(1, Number(event.target.value) || 1) } : demand))} /></div><Button type="button" variant="mini" disabled={saving} onClick={() => setDraft(current => current.filter(demand => demand.jobRoleId !== item.jobRoleId))}>Remover</Button></article>)}</div> : <p className="project-workflow-resource-empty">Adicione ao menos um cargo para confirmar a equipe.</p>}
         <div className="project-workflow-inline-actions"><Button type="button" variant="secondary" disabled={saving} onClick={() => { setEditing(false); setDraft(persistedDraft); }}>Cancelar</Button><Button type="button" disabled={saving || !draft.length} onClick={confirm}>Confirmar equipe</Button></div>
       </div> : null}
       {!editing && planning.demands.length ? <div className="project-workflow-resource-summary" aria-label="Resumo dos cargos planejados">{planning.demands.map(item => <article key={item.jobRoleId}><span className="project-workflow-resource-color" style={{ background: item.calendarColor }} /><div><strong>{item.jobRoleName}</strong><span>{item.requiredCount} necessário(s) · {item.availableCount} disponível(is) na mobilização</span>{item.hiringNeed > 0 ? <em>⚠ Necessidade de contratação: {item.hiringNeed}</em> : null}</div></article>)}</div> : null}
@@ -119,26 +119,33 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
   })), [planning.selections]);
   const [editing, setEditing] = useState(false);
   const [selections, setSelections] = useState<EquipmentSelection[]>(persistedSelections);
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
   useEffect(() => setSelections(persistedSelections), [persistedSelections]);
-  const selectedCategoryIds = new Set(selections.map(selection => selection.categoryId));
   const selectedEquipmentIds = new Set(selections.flatMap(selection => selection.equipmentIds));
-  const completeSelection = selections.length > 0 && selections.every(selection => selection.equipmentIds.length > 0);
-  const toggleCategory = (categoryId: string, selected: boolean) => {
-    setSelections(current => selected
-      ? current.some(item => item.categoryId === categoryId) ? current : [...current, { categoryId, equipmentIds: [] }]
-      : current.filter(item => item.categoryId !== categoryId));
+  const completeSelection = selectedEquipmentIds.size > 0;
+  const toggleCategory = (categoryId: string) => {
+    setExpandedCategoryIds(current => current.includes(categoryId)
+      ? current.filter(id => id !== categoryId)
+      : [...current, categoryId]);
   };
   const toggleEquipment = (categoryId: string, equipmentId: string, selected: boolean) => {
-    setSelections(current => current.map(selection => selection.categoryId !== categoryId ? selection : {
-      ...selection,
-      equipmentIds: selected
-        ? [...selection.equipmentIds, equipmentId]
-        : selection.equipmentIds.filter(id => id !== equipmentId)
-    }));
+    setSelections(current => {
+      const categorySelection = current.find(selection => selection.categoryId === categoryId);
+      if (selected) {
+        if (categorySelection) return current.map(selection => selection.categoryId === categoryId ? { ...selection, equipmentIds: [...selection.equipmentIds, equipmentId] } : selection);
+        return [...current, { categoryId, equipmentIds: [equipmentId] }];
+      }
+      if (!categorySelection) return current;
+      const equipmentIds = categorySelection.equipmentIds.filter(id => id !== equipmentId);
+      return equipmentIds.length
+        ? current.map(selection => selection.categoryId === categoryId ? { ...selection, equipmentIds } : selection)
+        : current.filter(selection => selection.categoryId !== categoryId);
+    });
   };
   const selectNo = () => {
     setEditing(false);
     setSelections([]);
+    setExpandedCategoryIds([]);
     if (planning.defined !== false || planning.categoryIds.length) {
       onPatch({ action: 'equipment_plan', version: workflow.version, defined: false, selections: [] });
     }
@@ -163,15 +170,14 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
       </div>
       {editing ? <div className="project-workflow-resource-editor">
         <fieldset className="project-workflow-equipment-categories"><legend>Categorias e equipamentos necessários</legend>{planning.catalog.map(category => {
-          const categorySelected = selectedCategoryIds.has(category.id);
+          const categoryExpanded = expandedCategoryIds.includes(category.id);
           const categorySelection = selections.find(selection => selection.categoryId === category.id);
-          return <section className={`project-workflow-equipment-category${categorySelected ? ' is-expanded' : ''}`} key={category.id}>
-            <label className="project-workflow-equipment-category-toggle">
-              <input type="checkbox" checked={categorySelected} disabled={saving} onChange={event => toggleCategory(category.id, event.target.checked)} />
-              <span><strong>{category.name}</strong><small>{category.availableCount}/{category.totalCount} disponível(is) na data{categorySelected ? ` · ${categorySelection?.equipmentIds.length || 0} selecionado(s)` : ''}</small></span>
+          return <section className={`project-workflow-equipment-category${categoryExpanded ? ' is-expanded' : ''}`} key={category.id}>
+            <button type="button" className="project-workflow-equipment-category-toggle" aria-expanded={categoryExpanded} disabled={saving} onClick={() => toggleCategory(category.id)}>
+              <span><strong>{category.name}</strong><small>{category.availableCount}/{category.totalCount} disponível(is) na data · {categorySelection?.equipmentIds.length || 0} selecionado(s)</small></span>
               <span className="project-workflow-equipment-category-chevron" aria-hidden="true">⌄</span>
-            </label>
-            {categorySelected ? <div className="project-workflow-equipment-options">{category.equipment.length ? category.equipment.map(item => {
+            </button>
+            {categoryExpanded ? <div className="project-workflow-equipment-options">{category.equipment.length ? category.equipment.map(item => {
               const selected = selectedEquipmentIds.has(item.id);
               const ready = item.availableAtMobilization && item.calibration.valid && item.maintenance.valid;
               return <label className={`project-workflow-equipment-option${selected ? ' is-selected' : ''}${ready ? ' is-ready' : ' has-warning'}`} key={item.id}>
@@ -182,8 +188,8 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
           </section>;
         })}</fieldset>
         {!planning.catalog.length ? <p className="project-workflow-resource-empty">Nenhuma categoria ativa foi encontrada no cadastro de equipamentos.</p> : null}
-        {selections.some(selection => selection.equipmentIds.length === 0) ? <p className="project-workflow-resource-warning">Selecione ao menos um equipamento em cada categoria aberta.</p> : null}
-        <div className="project-workflow-inline-actions"><Button type="button" variant="secondary" disabled={saving} onClick={() => { setEditing(false); setSelections(persistedSelections); }}>Cancelar</Button><Button type="button" disabled={saving || !completeSelection} onClick={confirm}>Confirmar equipamentos</Button></div>
+        {!completeSelection ? <p className="project-workflow-resource-warning">Selecione ao menos um equipamento para confirmar o planejamento.</p> : null}
+        <div className="project-workflow-inline-actions"><Button type="button" variant="secondary" disabled={saving} onClick={() => { setEditing(false); setSelections(persistedSelections); setExpandedCategoryIds([]); }}>Cancelar</Button><Button type="button" disabled={saving || !completeSelection} onClick={confirm}>Confirmar equipamentos</Button></div>
       </div> : null}
       {!editing && planning.categories.length ? <EquipmentCategorySummary categories={planning.categories} /> : null}
     </ProjectWorkflowCategory>

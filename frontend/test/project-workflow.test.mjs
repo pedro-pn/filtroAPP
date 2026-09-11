@@ -222,6 +222,13 @@ test('D-30 define cargos e equipamentos com avisos de disponibilidade', () => {
   assert.match(planning, /Categorias e equipamentos necessários/);
   assert.match(planning, /toggleEquipment/);
   assert.match(planning, /equipmentIds/);
+  assert.match(planning, /aria-expanded=\{categoryExpanded\}/);
+  assert.match(planning, /project-workflow-equipment-category-toggle/);
+  assert.doesNotMatch(planning, /checked=\{categorySelected\}/);
+  assert.match(planning, /field-group project-workflow-resource-quantity/);
+  const categoryToggle = planning.slice(planning.indexOf('const toggleCategory'), planning.indexOf('const toggleEquipment'));
+  assert.match(categoryToggle, /setExpandedCategoryIds/);
+  assert.doesNotMatch(categoryToggle, /setSelections/);
   assert.match(planning, /Calibração válida/);
   assert.match(planning, /Manutenção em dia/);
   assert.match(planning, /Confirmar equipamentos/);

@@ -2012,6 +2012,8 @@
 .project-workflow-resource-summary > article { align-items: center; background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: grid; gap: 8px; grid-template-columns: 8px minmax(0, 1fr) minmax(72px, .2fr) auto; min-width: 0; padding: 9px; }
 .project-workflow-resource-summary > article:has(> div:last-child) { grid-template-columns: 8px minmax(0, 1fr); }
 .project-workflow-resource-summary article > div { display: flex; flex-direction: column; min-width: 0; }
+.project-workflow-resource-summary article > .project-workflow-resource-quantity { gap: 5px; }
+.project-workflow-resource-summary article > .project-workflow-resource-quantity label { color: var(--mu); font-size: 11px; font-weight: 700; }
 .project-workflow-resource-summary article span,
 .project-workflow-resource-summary article em { overflow-wrap: anywhere; }
 .project-workflow-resource-summary article div > span { color: var(--mu); font-size: 12px; }
@@ -2021,8 +2023,9 @@
 .project-workflow-equipment-categories legend { font-weight: 700; padding: 0 5px; }
 .project-workflow-equipment-category { border: 1px solid var(--br); border-radius: var(--rs); min-width: 0; overflow: hidden; }
 .project-workflow-equipment-category.is-expanded { border-color: color-mix(in srgb, var(--g) 42%, var(--br)); }
-.project-workflow-equipment-category-toggle { align-items: center; background: var(--bg); cursor: pointer; display: grid; gap: 9px; grid-template-columns: auto minmax(0, 1fr) auto; min-width: 0; padding: 8px 10px; }
-.project-workflow-equipment-category-toggle > input,
+.project-workflow-equipment-category-toggle { align-items: center; background: var(--bg); border: 0; color: var(--tx); cursor: pointer; display: grid; font: inherit; gap: 9px; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; padding: 8px 10px; text-align: left; width: 100%; }
+.project-workflow-equipment-category-toggle:focus-visible { outline: 3px solid rgba(9, 90, 44, .24); outline-offset: -3px; }
+.project-workflow-equipment-category-toggle:disabled { cursor: wait; opacity: .7; }
 .project-workflow-equipment-option > input { accent-color: var(--g); height: 17px; margin: 0; width: 17px; }
 .project-workflow-equipment-category-toggle > span:not(.project-workflow-equipment-category-chevron),
 .project-workflow-equipment-option > span { display: flex; flex-direction: column; min-width: 0; }
