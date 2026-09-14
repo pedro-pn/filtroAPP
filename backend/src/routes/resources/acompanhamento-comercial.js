@@ -36,7 +36,7 @@ import { listSedeCosts } from '../../lib/acompanhamento/sede-costs.js';
 import { listSedeOperationalMetrics } from '../../lib/acompanhamento/sede-operational-metrics.js';
 import prisma from '../../lib/prisma.js';
 import { canViewAcompanhamentoLaborCosts, requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth } from '../../middleware/auth.js';
-import { saveSystemAlias } from '../../lib/acompanhamento/project-systems.js';
+import { projectSystemScopeInclude, projectSystemWithMeasurements, saveSystemAlias } from '../../lib/acompanhamento/project-systems.js';
 import { assertHistoricalProject } from '../../lib/reports/historical-services-store.js';
 import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
 
@@ -704,7 +704,10 @@ router.put(
 
 router.get('/projetos/:projectId/sistemas', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
   await assertHistoricalProject(prisma, req.params.projectId);
-  res.json(await prisma.projectServiceSystem.findMany({ where: { projectId: req.params.projectId }, orderBy: [{ equipment: 'asc' }, { name: 'asc' }] }));
+  const systems = await prisma.projectServiceSystem.findMany({
+    where: { projectId: req.params.projectId }, orderBy: [{ equipment: 'asc' }, { name: 'asc' }], include: projectSystemScopeInclude
+  });
+  res.json(systems.map(projectSystemWithMeasurements));
 }));
 
 router.put('/projetos/:projectId/sistemas/:id/alias', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {

@@ -1,4 +1,18 @@
 import { historicalError } from '../reports/historical-services.js';
+import { normalizeRdoServiceType } from './service-types.js';
+
+export const projectSystemScopeInclude = {
+  plannedRows: { select: { systemType: true, service: { select: { serviceType: true } } } }
+};
+
+// Mantém o cadastro completo para revisar/remover aliases antigos, mas só as metas
+// atuais habilitam um sistema como destino de novas equivalências daquele serviço.
+export function projectSystemWithMeasurements({ plannedRows = [], ...system }) {
+  return { ...system, measurements: plannedRows.map(row => ({
+    serviceType: normalizeRdoServiceType(row.service.serviceType) ?? row.service.serviceType,
+    systemType: row.systemType
+  })) };
+}
 
 // Deliberadamente conservador: não equipara UG 1/UG 01, RV/regulador, nem nomes compostos.
 // Essas correspondências só passam a valer após confirmação explícita de um alias.
@@ -53,9 +67,12 @@ export async function assertReportProjectSystems(client, projectId, services = [
 
 export async function saveSystemAlias(client, { projectId, id, equipment, system, serviceType, revision, remove = false }) {
   return client.$transaction(async tx => {
-    const systems = await tx.projectServiceSystem.findMany({ where: { projectId } });
+    const systems = await tx.projectServiceSystem.findMany({ where: { projectId }, include: projectSystemScopeInclude });
     const target = systems.find(item => item.id === id);
     if (!target) throw historicalError('Sistema não encontrado neste projeto.', 404);
+    if (!remove && !projectSystemWithMeasurements(target).measurements.some(row => row.serviceType === serviceType)) {
+      throw historicalError('O sistema selecionado não está cadastrado para este tipo de serviço no escopo atual. Salve o escopo e selecione um sistema do mesmo serviço.');
+    }
     const alias = { equipment: equipment.trim(), system: system.trim(), serviceType };
     const same = item => systemNameKey(item.equipment) === systemNameKey(alias.equipment)
       && systemNameKey(item.system) === systemNameKey(alias.system) && item.serviceType === serviceType;
@@ -69,6 +86,6 @@ export async function saveSystemAlias(client, { projectId, id, equipment, system
     if (!remove) aliases.push(alias);
     const result = await tx.projectServiceSystem.updateMany({ where: { id, projectId, revision }, data: { aliases, revision: { increment: 1 } } });
     if (result.count !== 1) throw historicalError('O cadastro mudou. Atualize a lista antes de salvar.', 409);
-    return tx.projectServiceSystem.findUnique({ where: { id } });
+    return projectSystemWithMeasurements(await tx.projectServiceSystem.findUnique({ where: { id }, include: projectSystemScopeInclude }));
   }, { isolationLevel: 'Serializable' });
 }

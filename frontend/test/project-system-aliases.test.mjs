@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const alias = { equipment: 'UG 01', system: 'RV', serviceType: 'LIMPEZA_QUIMICA' };
-const target = { id: 's1', projectId: 'p', equipment: 'Unidade Geradora 01', name: 'Regulador de velocidade', revision: 1, aliases: [] };
+const target = { id: 's1', projectId: 'p', equipment: 'Unidade Geradora 01', name: 'Regulador de velocidade', revision: 1, aliases: [], measurements: [{ serviceType: 'LIMPEZA_QUIMICA', systemType: 'TUBULACAO' }] };
 const measurement = { ...alias, systemType: 'TUBULACAO', unit: 'M', quantity: 40, diameter: '3', diameterUnit: 'pol' };
 const updated = { ...target, revision: 2, aliases: [alias] };
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -47,6 +47,37 @@ test('confirmed names leave the name queue while incompatible measurements remai
     assert.match(html, /role="status" aria-live="polite"/);
     client.setQueryData(['project-progress', 'p'], { pendingMeasurements: [] });
     assert.doesNotMatch(render(), /Confirmar equivalência de nome|Medições com nome identificado/);
+  } finally { client.clear(); await server.close(); }
+});
+
+test('equivalence choices are restricted to the pending service in the current scope', async () => {
+  const server = await createServer({ configFile: false, root: new URL('..', import.meta.url).pathname,
+    esbuild: { jsx: 'automatic' }, server: { middlewareMode: true, hmr: false }, optimizeDeps: { noDiscovery: true }, appType: 'custom' });
+  const client = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
+  try {
+    const { projectSystemAliasTargets } = await server.ssrLoadModule('/src/utils/projectSystemAliases.ts');
+    const { ProjectSystemAliases } = await server.ssrLoadModule('/src/components/projects/ProjectSystemAliases.tsx');
+    const { ToastProvider } = await server.ssrLoadModule('/src/components/ui/Toast.tsx');
+    const types = ['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM'];
+    const registry = types.map((serviceType, index) => ({ ...target, id: `only-${index}`, name: `Sistema ${serviceType}`,
+      measurements: [{ serviceType, systemType: serviceType === 'FILTRAGEM' ? 'OLEO' : 'TUBULACAO' }] }));
+    const shared = { ...target, id: 'shared', name: 'Sistema compartilhado', measurements: [registry[0].measurements[0], registry[3].measurements[0]] };
+    registry.push(shared, { ...target, id: 'old', measurements: [] }, { ...target, id: 'unknown', measurements: undefined });
+    const render = () => renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(ToastProvider, null, createElement(ProjectSystemAliases, { projectId: 'p' }))));
+    client.setQueryData(['project-systems', 'scope', 'p'], registry);
+    for (const [index, serviceType] of types.entries()) {
+      const expected = [`only-${index}`, ...([0, 3].includes(index) ? ['shared'] : [])];
+      assert.deepEqual(projectSystemAliasTargets(registry, serviceType).map(system => system.id), expected);
+      client.setQueryData(['project-progress', 'p'], { pendingMeasurements: [{ ...measurement, serviceType }] });
+      const select = render().match(/<select\b[^>]*>[\s\S]*?<\/select>/)[0];
+      assert.deepEqual([...select.matchAll(/<option value="([^"]+)"/g)].map(match => match[1]), expected);
+    }
+    client.setQueryData(['project-systems', 'scope', 'p'], [target]); // só limpeza, pendência de filtragem
+    const html = render();
+    assert.match(html, /Nenhum sistema cadastrado para Filtragem no escopo atual/);
+    assert.match(html, /<select[^>]*disabled=""/);
+    assert.match(html, /<button[^>]*disabled=""[^>]*>Confirmar equivalência de nome/);
+    assert.equal(projectSystemAliasTargets([], 'FILTRAGEM').length, 0);
   } finally { client.clear(); await server.close(); }
 });
 

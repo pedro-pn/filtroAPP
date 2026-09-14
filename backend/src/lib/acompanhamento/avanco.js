@@ -20,20 +20,9 @@ import { loadHistoricalRealizedServices } from '../reports/historical-services-s
 import { buildSystemProgress, diameterKey } from './system-progress.js';
 import { withScopeGroups } from './scope-groups.js';
 import { cleaningSystemQuantity, isSystemCleaning } from '../reports/cleaning-measurement.js';
+import { normalizeRdoServiceType } from './service-types.js';
 
-// Normaliza o serviceType do RDO (vários formatos: 'limpeza', 'LIMPEZA', 'Limpeza química'...) para
-// o código canônico usado no escopo previsto. Retorna null quando não há equivalente no previsto.
-export function normalizeRdoServiceType(raw) {
-  const key = String(raw ?? '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
-    .toLowerCase().replace(/[^a-z]/g, ''); // só letras
-  if (!key) return null;
-  if (key.startsWith('limpezaquimica') || key === 'limpeza') return 'LIMPEZA_QUIMICA';
-  if (key.startsWith('testedepressao') || key === 'pressao') return 'TESTE_PRESSAO';
-  if (key.startsWith('flushing')) return 'FLUSHING';
-  if (key.startsWith('filtragem') || key.startsWith('unidadedefiltragem')) return 'FILTRAGEM';
-  return null; // mecânica, inibição etc. não têm previsto — fora do avanço
-}
+export { normalizeRdoServiceType } from './service-types.js';
 
 // Parser numérico tolerante (os campos do RDO vêm como texto: "1.234,56", "1234.56", "50").
 function num(value) {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { addRealizedService, buildProgress, buildProgressHistory, buildRequiredWeeklyProgress } from '../src/lib/acompanhamento/avanco.js';
-import { assertReportProjectSystems, resolvePlannedSystem, resolveProjectSystem, saveSystemAlias } from '../src/lib/acompanhamento/project-systems.js';
+import { assertReportProjectSystems, projectSystemWithMeasurements, resolvePlannedSystem, resolveProjectSystem, saveSystemAlias } from '../src/lib/acompanhamento/project-systems.js';
 import { diameterKey } from '../src/lib/acompanhamento/system-progress.js';
 import { combineProgressBreakdowns } from '../src/lib/acompanhamento/progress-groups.js';
 import { historicalReportsAsServices, historicalFingerprint, parseHistoricalServicesCsv } from '../src/lib/reports/historical-services.js';
@@ -144,9 +144,43 @@ test('report canonical ID is optional but, when present, must belong to project 
 });
 
 test('alias assignment conflicts with canonical owner and checks optimistic revision', async () => {
-  const client = { projectServiceSystem: { findMany: async () => registry, updateMany: async () => ({ count: 0 }) }, $transaction: async fn => fn(client) };
+  const client = { projectServiceSystem: { findMany: async () => registry.map(item => ({ ...item, plannedRows: [{ systemType: 'TUBULACAO', service: { serviceType: 'LIMPEZA_QUIMICA' } }] })), updateMany: async () => ({ count: 0 }) }, $transaction: async fn => fn(client) };
   await assert.rejects(saveSystemAlias(client, { projectId: 'p', id: registry[0].id, equipment: registry[1].equipment, system: registry[1].name, serviceType: 'LIMPEZA_QUIMICA', revision: 1 }), /outro sistema/);
   await assert.rejects(saveSystemAlias(client, { projectId: 'p', id: registry[0].id, equipment: 'UG01', system: 'RV', serviceType: 'LIMPEZA_QUIMICA', revision: 1 }), /cadastro mudou/);
+});
+
+test('aliases require the same service in the current scope; shared systems work and obsolete aliases can be removed', async () => {
+  const types = ['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM'];
+  let target = { ...registry[0], plannedRows: [] };
+  let writes = 0;
+  const client = { projectServiceSystem: {
+    findMany: async query => { assert.ok(query.include.plannedRows); return [target]; },
+    findUnique: async query => { assert.ok(query.include.plannedRows); return target; },
+    updateMany: async ({ data }) => { writes++; target = { ...target, aliases: data.aliases, revision: target.revision + 1 }; return { count: 1 }; }
+  }, $transaction: async fn => fn(client) };
+  const input = { projectId: 'p', id: target.id, equipment: 'UG01', system: 'RV', revision: 1 };
+  for (const plannedType of types) {
+    target = { ...target, plannedRows: [{ systemType: 'TUBULACAO', service: { serviceType: plannedType } }] };
+    for (const serviceType of types.filter(type => type !== plannedType)) {
+      const before = structuredClone(target), previousWrites = writes;
+      await assert.rejects(saveSystemAlias(client, { ...input, serviceType }), error => error.statusCode === 400 && /tipo de serviço no escopo atual/.test(error.message));
+      assert.deepEqual(target, before);
+      assert.equal(writes, previousWrites);
+    }
+    const saved = await saveSystemAlias(client, { ...input, serviceType: plannedType });
+    assert.deepEqual(saved.measurements, [{ serviceType: plannedType, systemType: 'TUBULACAO' }]);
+    assert.equal(saved.plannedRows, undefined);
+  }
+  target.plannedRows = ['Limpeza química', 'Filtragem de óleo'].map(serviceType => ({ systemType: 'OLEO', service: { serviceType } }));
+  for (const serviceType of ['LIMPEZA_QUIMICA', 'FILTRAGEM']) {
+    assert.equal((await saveSystemAlias(client, { ...input, serviceType })).measurements.length, 2);
+  }
+  target.plannedRows = [];
+  await assert.rejects(saveSystemAlias(client, { ...input, serviceType: 'FILTRAGEM' }), /escopo atual/);
+  const removed = await saveSystemAlias(client, { ...input, serviceType: 'FILTRAGEM', remove: true });
+  assert.ok(!removed.aliases.some(alias => alias.serviceType === 'FILTRAGEM'));
+  assert.deepEqual(removed.measurements, []);
+  assert.deepEqual(projectSystemWithMeasurements(registry[0]).measurements, []);
 });
 
 test('per-item linking preserves data and fingerprint, refuses stale revisions and foreign targets; CSV edits preserve unchanged links', async () => {

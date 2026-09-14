@@ -6,6 +6,10 @@ export const projectSystemAliasKey = (alias: ProjectSystemAlias) => JSON.stringi
   systemNameKey(alias.equipment), systemNameKey(alias.system), alias.serviceType
 ]);
 
+export function projectSystemAliasTargets(systems: ProjectSystem[], serviceType: string) {
+  return systems.filter(system => system.measurements?.some(measurement => measurement.serviceType === serviceType));
+}
+
 // Uma medição pode continuar pendente por falta de meta/bitola, mesmo com o nome resolvido.
 // O cadastro também permite reconhecer aliases cujo destino foi retirado do escopo atual.
 export function pendingMeasurementSystem(systems: ProjectSystem[], item: PendingSystemMeasurement) {

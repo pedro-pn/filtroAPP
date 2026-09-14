@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { listProjectSystems, saveProjectSystemAlias, type ProjectSystem, type ProjectSystemAlias } from '../../api/projectSystems';
 import { getProjectProgress } from '../../api/acompanhamentoComercial';
-import { pendingMeasurementSystem, projectSystemAliasKey } from '../../utils/projectSystemAliases';
+import { pendingMeasurementSystem, projectSystemAliasKey, projectSystemAliasTargets } from '../../utils/projectSystemAliases';
 import { useToast } from '../ui/ToastContext';
 
 const labels: Record<string, string> = { LIMPEZA_QUIMICA: 'Limpeza química', TESTE_PRESSAO: 'Teste de pressão', FILTRAGEM: 'Filtragem', FLUSHING: 'Flushing' };
@@ -74,17 +74,20 @@ export function ProjectSystemAliases({ projectId }: { projectId: string }) {
       <p role="alert">{error || 'Não foi possível carregar as correspondências.'}</p>
       <button type="button" className="mini-btn alt" disabled={Boolean(busy)} onClick={() => void retryRefresh()}>Atualizar lista</button>
     </div> : null}
-    {loading ? <p>Carregando correspondências…</p> : pending.length === 0 ? (!unavailable && !busy && <p>Nenhuma correspondência de nome pendente no escopo salvo.</p>) : pending.map(([key, item]) => <div key={key} className="field-group" style={{ margin: '12px 0' }}>
+    {loading ? <p>Carregando correspondências…</p> : pending.length === 0 ? (!unavailable && !busy && <p>Nenhuma correspondência de nome pendente no escopo salvo.</p>) : pending.map(([key, item]) => {
+      const candidates = projectSystemAliasTargets(systems.data ?? [], item.serviceType);
+      const target = candidates.find(system => system.id === selected[key]);
+      return <div key={key} className="field-group" style={{ margin: '12px 0' }}>
       <label>{item.equipment} · {item.system} · {labels[item.serviceType] || item.serviceType}</label>
-      <select aria-label={`Sistema correspondente a ${item.equipment} · ${item.system}`} disabled={Boolean(busy) || unavailable} value={selected[key] || ''} onChange={event => setSelected(previous => ({ ...previous, [key]: event.target.value }))}>
+      <select aria-label={`Sistema correspondente a ${item.equipment} · ${item.system}`} disabled={Boolean(busy) || unavailable || candidates.length === 0} value={target?.id || ''} onChange={event => setSelected(previous => ({ ...previous, [key]: event.target.value }))}>
         <option value="">Manter pendente — selecionar após conferência</option>
-        {systems.data?.map(system => <option key={system.id} value={system.id}>{system.equipment} · {system.name}</option>)}
+        {candidates.map(system => <option key={system.id} value={system.id}>{system.equipment} · {system.name}</option>)}
       </select>
-      <button type="button" className="mini-btn" disabled={Boolean(busy) || unavailable || !selected[key]} onClick={() => {
-        const target = systems.data?.find(system => system.id === selected[key]);
+      {candidates.length === 0 ? <small className="muted">Nenhum sistema cadastrado para {labels[item.serviceType] || item.serviceType} no escopo atual. Cadastre e salve um sistema desse serviço no cronograma para vincular.</small> : null}
+      <button type="button" className="mini-btn" disabled={Boolean(busy) || unavailable || !target} onClick={() => {
         if (target) void save(target, { equipment: item.equipment, system: item.system, serviceType: item.serviceType });
       }}>{busy === `save:${selected[key]}:${key}` ? 'Confirmando…' : 'Confirmar equivalência de nome'}</button>
-    </div>)}
+    </div>; })}
     {!loading && !busy && !unavailable && withoutScope.length > 0 ? <div>
       <p>Medições com nome identificado, mas sem meta compatível no escopo salvo:</p>
       <p className="placeholder-copy">Não é necessário confirmar o nome novamente. Confira o equipamento/sistema, serviço, tipo de medição e diâmetro cadastrados no escopo. Essas quantidades ainda não entram no avanço.</p>
