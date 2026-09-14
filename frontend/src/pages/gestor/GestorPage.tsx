@@ -52,6 +52,7 @@ import {
   type ManualReportCollaboratorReplicationPrompt
 } from './manualReportCollaboratorReplication';
 import { ManualReportUploadFileCard } from './ManualReportUploadFileCard';
+import { LegacyReportsUploadModal } from './LegacyReportsUploadModal';
 import { CollaboratorForm, type CollaboratorFormState } from './CollaboratorForm';
 import { CollaboratorJobRoleHistoryEditor } from './CollaboratorJobRoleHistoryEditor';
 import {
@@ -955,6 +956,7 @@ function renderProjectCard(
     onEdit: (project: Project) => void;
     onToggleArchive: (project: Project) => void;
     onRemove?: (project: Project) => void;
+    onUploadOldReports?: (project: Project) => void;
     detailsExpanded: boolean;
     onToggleDetails: (project: Project) => void;
     reportSectionExpanded?: boolean;
@@ -1060,6 +1062,9 @@ function renderProjectCard(
         </div>
       ) : null}
       <div className="admin-actions">
+        {options.onUploadOldReports && !pendingRegistration ? (
+          <button className="mini-btn alt" type="button" onClick={() => options.onUploadOldReports?.(project)}>Upload de relatórios antigos</button>
+        ) : null}
         <button className="mini-btn alt" type="button" onClick={() => options.onToggleDetails(project)}>
           {options.detailsExpanded ? 'Ocultar detalhes' : 'Mostrar detalhes'}
         </button>
@@ -2669,6 +2674,7 @@ export function GestorPage() {
   }
 
   function renderManualReportModal() {
+    if (!manualReportModalOpen) return null;
     const replacing = Boolean(manualReportTarget);
     const submitting = manualReportSubmitting || reportMutations.uploadManualReport.isPending || reportMutations.replaceManualReportPdf.isPending;
     const serviceReportSelected = manualReportForm.reportType !== 'RDO';
@@ -2677,16 +2683,15 @@ export function GestorPage() {
       : manualReportUploadListLabel(manualReportForm.files);
 
     return (
-      <Modal
-        open={manualReportModalOpen}
+      <LegacyReportsUploadModal
+        replacing={replacing}
+        submitting={submitting}
+        projects={manualReportProjectOptions}
+        projectId={manualReportForm.projectId}
+        onProjectChange={projectId => setManualReportForm(current => ({ ...current, projectId }))}
         onClose={closeManualReportModal}
-        ariaLabelledBy="manual-report-upload-title"
-        panelClassName="modal-card manual-report-modal"
       >
         <form className="admin-form admin-form-grid manual-report-form" onSubmit={handleManualReportSubmit}>
-          <div className="section-title" id="manual-report-upload-title">
-            {replacing ? 'Editar relatório manual' : 'Upload de relatório antigo'}
-          </div>
           <div className="field-group">
             <label htmlFor="manual-report-project">Projeto</label>
             <select
@@ -2836,7 +2841,7 @@ export function GestorPage() {
             </button>
           </div>
         </form>
-      </Modal>
+      </LegacyReportsUploadModal>
     );
   }
 
@@ -3162,6 +3167,7 @@ export function GestorPage() {
         setProjectForm(projectToForm(item));
       },
       onToggleArchive: handleProjectToggleArchive,
+      onUploadOldReports: project => openManualReportUpload(project.id),
       onRemove: handleProjectRemove,
       detailsExpanded: projectDetailsExpanded(project.id),
       onToggleDetails: toggleProjectDetails,
@@ -3406,6 +3412,7 @@ export function GestorPage() {
                   setProjectForm(projectToForm(item));
                 },
                 onToggleArchive: handleProjectToggleArchive,
+                onUploadOldReports: project => openManualReportUpload(project.id),
                 onRemove: handleProjectRemove,
                 detailsExpanded: projectDetailsExpanded(project.id),
                 onToggleDetails: toggleProjectDetails,
@@ -4171,7 +4178,7 @@ export function GestorPage() {
         <div className="admin-section-head">
           <div className="section-title">Resumo</div>
           <button className="mini-btn" type="button" onClick={() => openManualReportUpload()}>
-            Upload PDF antigo
+            Upload de relatórios antigos
           </button>
         </div>
         <div className="stats-grid stats-grid-compact">

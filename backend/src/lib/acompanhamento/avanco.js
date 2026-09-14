@@ -15,6 +15,7 @@
  */
 
 import prisma from '../prisma.js';
+import { loadHistoricalRealizedServices } from '../reports/historical-services-store.js';
 
 // Normaliza o serviceType do RDO (vários formatos: 'limpeza', 'LIMPEZA', 'Limpeza química'...) para
 // o código canônico usado no escopo previsto. Retorna null quando não há equivalente no previsto.
@@ -376,7 +377,7 @@ async function aggregateRealized(projectIds) {
   const byProject = new Map(); // projectId -> Map<serviceType, {tubulacaoM, oleoL}>
   if (projectIds.length === 0) return byProject;
 
-  const services = await prisma.reportService.findMany({
+  const [nativeServices, historicalServices] = await Promise.all([prisma.reportService.findMany({
     where: realizedReportWhere(projectIds),
     select: {
       finalized: true,
@@ -384,9 +385,9 @@ async function aggregateRealized(projectIds) {
       extraData: true,
       report: { select: { projectId: true, reportType: true, specialConditions: true } }
     }
-  });
+  }), loadHistoricalRealizedServices(prisma, projectIds)]);
 
-  for (const svc of services) {
+  for (const svc of [...nativeServices, ...historicalServices]) {
     if (!isServiceFinalized(svc)) continue; // só serviços finalizados entram no avanço
     if (!isRealizedSourceReport(svc.report)) continue;
     const canonical = normalizeRdoServiceType(svc.serviceType);
@@ -449,7 +450,7 @@ export async function computeProgressHistoryForProjects(projectIds) {
   const result = new Map();
   if (!projectIds || projectIds.length === 0) return result;
 
-  const [plannedServices, projects, reportServices, manualProgressHistory] = await Promise.all([
+  const [plannedServices, projects, reportServices, manualProgressHistory, historicalServices] = await Promise.all([
     prisma.projectPlannedService.findMany({
       where: { projectId: { in: projectIds } },
       orderBy: [{ order: 'asc' }],
@@ -477,7 +478,8 @@ export async function computeProgressHistoryForProjects(projectIds) {
       where: { projectId: { in: projectIds } },
       select: { projectId: true, progressPct: true, recordedAt: true },
       orderBy: [{ recordedAt: 'asc' }, { createdAt: 'asc' }]
-    })
+    }),
+    loadHistoricalRealizedServices(prisma, projectIds)
   ]);
 
   const plannedByProject = new Map();
@@ -488,7 +490,7 @@ export async function computeProgressHistoryForProjects(projectIds) {
 
   const projectById = new Map(projects.map(project => [project.id, project]));
   const servicesByProject = new Map();
-  for (const service of reportServices) {
+  for (const service of [...reportServices, ...historicalServices]) {
     const projectId = service.report?.projectId;
     if (!projectId) continue;
     if (!servicesByProject.has(projectId)) servicesByProject.set(projectId, []);

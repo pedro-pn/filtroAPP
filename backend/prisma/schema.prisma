@@ -843,6 +843,7 @@ model Project {
   reportSequences            ProjectReportSeq[]
   authorizedUsers            ProjectAuthorizedUser[]
   reports                    Report[]
+  historicalServiceReports   HistoricalServiceReport[]
   drafts                     ReportDraft[]
   surveys                    SatisfactionSurvey[]
   romaneios                  Romaneio[]
@@ -1370,6 +1371,28 @@ model ReportCollaborator {
 
   @@id([reportId, collaboratorId])
   @@index([jobRoleIdSnapshot])
+}
+
+// Quantitativos finais transcritos de relatórios antigos. O documento de origem é
+// identificado por projeto/tipo/número, mesmo quando seu PDF ainda não foi enviado.
+model HistoricalServiceReport {
+  id              String     @id @default(cuid())
+  projectId       String
+  reportType      ReportType
+  sequenceNumber  Int
+  reportDate      DateTime
+  items           Json
+  fingerprint     String
+  sourceFileName  String?
+  createdByUserId String?
+  updatedByUserId String?
+  revision        Int        @default(1)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  project         Project    @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, reportType, sequenceNumber])
+  @@index([projectId, reportDate])
 }
 
 model ReportService {

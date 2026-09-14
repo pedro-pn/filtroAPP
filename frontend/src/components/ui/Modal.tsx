@@ -10,6 +10,12 @@ const focusableSelector = [
   '[tabindex]:not([tabindex="-1"])'
 ].join(',');
 
+function visibleFocusableElements(panel: HTMLElement) {
+  return Array.from(panel.querySelectorAll<HTMLElement>(focusableSelector))
+    .filter(element => !element.matches(':disabled') && element.tabIndex !== -1
+      && !element.closest('[hidden], [inert]') && element.getClientRects().length > 0);
+}
+
 interface ModalProps {
   open: boolean;
   children: ReactNode;
@@ -40,7 +46,7 @@ export function Modal({
     if (!open) return;
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const panel = panelRef.current;
-    const focusable = panel ? Array.from(panel.querySelectorAll<HTMLElement>(focusableSelector)) : [];
+    const focusable = panel ? visibleFocusableElements(panel) : [];
     window.setTimeout(() => {
       (focusable[0] || panel)?.focus();
     }, 0);
@@ -62,8 +68,7 @@ export function Modal({
     if (event.key !== 'Tab') return;
     const panel = panelRef.current;
     if (!panel) return;
-    const focusable = Array.from(panel.querySelectorAll<HTMLElement>(focusableSelector))
-      .filter(element => !element.hasAttribute('disabled') && element.tabIndex !== -1);
+    const focusable = visibleFocusableElements(panel);
 
     if (!focusable.length) {
       event.preventDefault();
