@@ -43,6 +43,7 @@ import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
 import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import type { AuthUser } from '../../types/auth';
+import { groupServicesByScope } from '../../utils/plannedScopeGroups';
 
 const SERVICE_LABELS: Record<string, string> = {
   LIMPEZA_QUIMICA: 'Limpeza química',
@@ -454,7 +455,9 @@ function weeklyTargetText(
 
 function RequiredWeeklyProgressCard({ target }: { target?: RequiredWeeklyProgress }) {
   if (!target) return null;
-  const measurableServices = target.services.filter(service => service.systems.some(system => system.plannedQty != null));
+  const scopeGroups = (target.scopeGroups ?? [{ scopeName: null, services: target.services }])
+    .map(group => ({ ...group, services: group.services.filter(service => service.systems.some(system => system.plannedQty != null)) }))
+    .filter(group => group.services.length > 0);
   return (
     <div className="acp-weekly-target" data-acp-weekly-progress-target>
       <div className="acp-weekly-target-head">
@@ -464,9 +467,11 @@ function RequiredWeeklyProgressCard({ target }: { target?: RequiredWeeklyProgres
         </div>
         <strong>{weeklyTargetText(target.status, target.remainingPctPoints, target.requiredPctPointsPerWeek, ' p.p.')}</strong>
       </div>
-      {measurableServices.length > 0 ? (
-        <div className="acp-weekly-target-services">
-          {measurableServices.map(service => (
+      {scopeGroups.length > 0 ? (
+        <div className="acp-weekly-target-services" role="region" aria-label="Serviços e sistemas do ritmo necessário" tabIndex={0}>
+          {scopeGroups.map(group => <section key={group.scopeName ?? ''}>
+            {target.scopeGroups ? <h3 className="acp-scope-group-title">Escopo: {group.scopeName || 'Sem escopo definido'}</h3> : null}
+          {group.services.map(service => (
             <div className="acp-weekly-target-service" key={service.serviceType}>
               <div className="acp-weekly-target-service-head">
                 <strong>{SERVICE_LABELS[service.serviceType] ?? service.serviceType}</strong>
@@ -475,7 +480,7 @@ function RequiredWeeklyProgressCard({ target }: { target?: RequiredWeeklyProgres
               {service.systems.filter(system => system.plannedQty != null).map(system => {
                 const unit = system.unit ? ` ${UNIT_LABELS[system.unit] ?? system.unit}` : '';
                 return (
-                  <div className="acp-weekly-target-system" key={`${system.systemType}:${system.unit ?? ''}`}>
+                  <div className="acp-weekly-target-system" key={`${system.projectSystemId ?? ''}:${system.systemType}:${system.unit ?? ''}:${system.diameter ?? ''}:${system.diameterUnit ?? ''}`}>
                     <div>
                       <span>{system.projectSystemId ? `${system.equipment} · ${system.systemName} · ` : ''}{SYSTEM_LABELS[system.systemType] ?? system.systemType}{system.diameter ? ` · ${system.diameter} ${system.diameterUnit || 'pol'}` : ''}</span>
                       <small>{fmtQuantity(system.realizedQty, system.unit)} / {fmtQuantity(system.plannedQty, system.unit)}</small>
@@ -486,6 +491,7 @@ function RequiredWeeklyProgressCard({ target }: { target?: RequiredWeeklyProgres
               })}
             </div>
           ))}
+          </section>)}
         </div>
       ) : null}
     </div>
@@ -557,7 +563,9 @@ function PlannedScopeView({ scope }: { scope?: PlannedScope }) {
   }
   return (
     <div className="acp-det-scope">
-      {scope.services.map((svc, i) => (
+      {groupServicesByScope(scope.services).map(group => <section key={group.scopeName ?? ''}>
+        {scope.services.some(service => service.scopeName) ? <h3 className="acp-scope-group-title">Escopo: {group.scopeName || 'Sem escopo definido'}</h3> : null}
+      {group.services.map((svc, i) => (
         <div className="acp-det-scope-svc" key={i}>
           <div className="acp-det-scope-head">
             <span>{SERVICE_LABELS[svc.serviceType] ?? svc.serviceType}</span>
@@ -574,6 +582,7 @@ function PlannedScopeView({ scope }: { scope?: PlannedScope }) {
           </ul>
         </div>
       ))}
+      </section>)}
     </div>
   );
 }

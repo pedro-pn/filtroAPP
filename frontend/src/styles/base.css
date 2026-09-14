@@ -3070,6 +3070,11 @@ a {
 .acp-scope .num-unit select { width: auto; flex: 0 0 auto; }
 
 /* Serviços previstos: cada serviço é um cartão com seus sistemas */
+.acp-scope-groups { display: grid; gap: 16px; }
+.acp-scope-group { border: 1px solid var(--br); border-radius: var(--r); padding: 12px; min-width: 0; }
+.acp-scope-group-name { margin-bottom: 12px; }
+.acp-svc-move { max-width: 360px; margin-top: 10px; }
+.acp-scope-group-title { margin: 0 0 10px; font-size: 13px; color: var(--tx); overflow-wrap: anywhere; }
 .acp-svc-list { display: flex; flex-direction: column; gap: 10px; }
 .acp-svc-card {
   border: 1px solid var(--br);
@@ -3914,7 +3919,19 @@ a {
 .acp-weekly-target-head > div > strong { font-size: 13px; }
 .acp-weekly-target-head span { color: var(--mu); font-size: 11px; }
 .acp-weekly-target-head > strong { color: var(--g); font-size: 13px; text-align: right; }
-.acp-weekly-target-services { display: flex; flex-direction: column; gap: 8px; }
+.acp-weekly-target-services {
+  display: flex; flex-direction: column; gap: 8px;
+  max-height: min(420px, 55vh);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  padding-right: 4px;
+}
+.acp-weekly-target-services:focus-visible { outline: 2px solid var(--g); outline-offset: 3px; }
+.acp-weekly-target-services > * { flex-shrink: 0; }
+@media print {
+  .acp-weekly-target-services { max-height: none; overflow: visible; }
+}
 .acp-weekly-target-service {
   border-top: 1px solid var(--br);
   padding-top: 8px;

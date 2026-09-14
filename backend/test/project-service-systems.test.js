@@ -35,6 +35,35 @@ test('confirmed alias is scoped by equipment and service; competing aliases neve
   assert.equal(resolveProjectSystem([system, { ...system, id: 'conflict' }], { equipment: 'UG 01', system: 'RV', serviceType: 'LIMPEZA_QUIMICA' }), null);
 });
 
+test('pending measurements distinguish an unknown name from an identified system missing the planned diameter', () => {
+  const alias = { equipment: 'UG 01', system: 'RV', serviceType: 'LIMPEZA_QUIMICA' };
+  const reports = [service(alias.equipment, alias.system, 30), service(alias.equipment, alias.system, 40, { tubes: [{ d: '3', unit: 'pol', c: 40 }] })];
+  const before = calc(scope([row(registry[0])]), reports);
+  assert.equal(before.pendingMeasurements.length, 2);
+  assert.ok(before.pendingMeasurements.every(item => item.matchedSystem === null));
+  const system = { ...registry[0], aliases: [alias] };
+  const after = calc(scope([row(system)]), reports);
+  assert.equal(after.progressPct, 30);
+  assert.equal(after.pendingMeasurements.length, 1);
+  assert.equal(after.pendingMeasurements[0].diameter, '3');
+  assert.equal(after.pendingMeasurements[0].quantity, 40);
+  assert.deepEqual(after.pendingMeasurements[0].matchedSystem, { id: system.id, equipment: system.equipment, name: system.name });
+  assert.equal(after.pendingMeasurements[0].projectSystemId, null);
+  assert.deepEqual(calc(scope([row(system), row(system, 100, '3')]), reports).pendingMeasurements, []);
+});
+
+test('pending measurements retain independent manual system assignments even when their original names are identical', () => {
+  const reports = registry.slice(0, 2).map((system, index) => service('UG antiga', 'Sistema antigo', 0, {
+    __projectSystemId: system.id, tubes: [{ d: '3', unit: 'pol', c: 20 + index }]
+  }));
+  const result = calc(scope(registry.slice(0, 2).map(system => row(system))), reports);
+  assert.equal(result.pendingMeasurements.length, 2);
+  assert.deepEqual(result.pendingMeasurements.map(item => item.projectSystemId), registry.slice(0, 2).map(system => system.id));
+  assert.deepEqual(result.pendingMeasurements.map(item => item.matchedSystem.id), registry.slice(0, 2).map(system => system.id));
+  assert.deepEqual(result.pendingMeasurements.map(item => item.quantity), [20, 21]);
+  assert.equal(result.progressPct, 0);
+});
+
 test('diameters, wildcard rows and repeated planned rows cannot consume a measurement twice', () => {
   const result = calc(scope([row(registry[0], 20), row(registry[0], 30), row(registry[0], 100, ''), row(registry[0], 50, '2', 'mm')]), [service(registry[0].equipment)]);
   assert.deepEqual(result.services[0].systems.map(item => item.realizedQty), [50, 0, 0]);

@@ -133,4 +133,23 @@ test('project systems HTTP + PostgreSQL: scope, all UGs, permissions, aliases, h
   const finalProgress = (await request(progressPath)).data;
   assert.deepEqual(finalProgress.services[0].systems.filter(row => row.systemType === 'TUBULACAO').map(row => row.realizedQty), [0, 50, 0]);
   assert.equal((await computeProgressHistoryForProjects([projectIds[0]])).get(projectIds[0]).at(-1).progressPct, finalProgress.progressPct);
+  const namedScope = { ...unitScope, services: unitScope.services[0].systems.map((system, index) => ({
+    serviceType: 'LIMPEZA_QUIMICA', weight: 25, scopeName: `Escopo ${index + 1}`, systems: [system]
+  })) };
+  const namedSaved = await request(scopePath, 'PUT', namedScope);
+  assert.equal(namedSaved.status, 200, JSON.stringify(namedSaved.data));
+  assert.deepEqual(namedSaved.data.services.map(item => item.scopeName), namedScope.services.map(item => item.scopeName));
+  assert.deepEqual((await request(scopePath)).data.services.map(item => item.scopeName), namedScope.services.map(item => item.scopeName));
+  const groupedProgress = (await request(progressPath)).data;
+  assert.equal(groupedProgress.progressPct, finalProgress.progressPct);
+  assert.equal(groupedProgress.scopeGroups.length, 4);
+  const conflictScope = structuredClone(namedScope);
+  conflictScope.services.push({ ...conflictScope.services[0], scopeName: 'Duplicado em outro escopo' });
+  const conflict = await request(scopePath, 'PUT', conflictScope);
+  assert.equal(conflict.status, 400);
+  assert.match(conflict.data.error, /único escopo/);
+  assert.deepEqual((await request(scopePath)).data, namedSaved.data); // invalid grouping never overwrites saved scope
+  const longName = structuredClone(namedScope); longName.services[0].scopeName = 'a'.repeat(181);
+  assert.equal((await request(scopePath, 'PUT', longName)).status, 400);
+  assert.ok((await request(suggestionsPath, 'GET', undefined, tokens[1])).data.every(item => item.scopeName === undefined));
 });

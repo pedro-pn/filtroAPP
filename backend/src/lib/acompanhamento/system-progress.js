@@ -38,10 +38,12 @@ export function buildSystemProgress(plannedServices, realizedByType, normalizeSe
       if (row.quantity != null && Number.isFinite(Number(row.quantity))) bucket.plannedQty = (bucket.plannedQty ?? 0) + Number(row.quantity);
     }
   }
-  const addPending = (type, measurement) => {
-    const key = JSON.stringify([type, measurement.equipment, measurement.system, measurement.systemType, measurement.bitola]);
+  const addPending = (type, measurement, match) => {
+    const key = JSON.stringify([type, measurement.equipment, measurement.system, measurement.systemType, measurement.bitola, measurement.projectSystemId || null, match?.id || null]);
     if (!pending.has(key)) pending.set(key, {
       serviceType: type, equipment: measurement.equipment || 'Não informado', system: measurement.system || 'Não informado',
+      projectSystemId: measurement.projectSystemId || null,
+      matchedSystem: match ? { id: match.id, equipment: match.equipment, name: match.name } : null,
       systemType: measurement.systemType, unit: { TUBULACAO: 'M', OLEO: 'L', SISTEMA: 'UN' }[measurement.systemType],
       diameter: measurement.diameter || null, diameterUnit: measurement.diameterUnit || null, quantity: 0
     });
@@ -61,7 +63,7 @@ export function buildSystemProgress(plannedServices, realizedByType, normalizeSe
       const bucket = candidates.find(row => row.bitola && row.bitola === measurement.bitola)
         ?? candidates.find(row => !row.bitola);
       if (bucket) bucket.realizedQty += measurement.quantity;
-      else addPending(service.serviceType, measurement);
+      else addPending(service.serviceType, measurement, match);
     }
     const metrics = new Map();
     const systems = rows.map(({ bitola: _bitola, ...row }) => {

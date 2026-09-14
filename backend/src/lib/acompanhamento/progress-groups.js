@@ -97,6 +97,19 @@ export function combineProgressBreakdowns(progresses = []) {
     progressPct,
     progressMethod: progressPct !== null ? 'GROUP_SCOPE' : null,
     ...(scoped.some(progress => progress.pendingMeasurements) ? { pendingMeasurements: scoped.flatMap(progress => progress.pendingMeasurements ?? []) } : {}),
+    ...(scoped.some(progress => progress.scopeGroups) ? { scopeGroups: combineScopeGroups(scoped) } : {}),
     services
   };
+}
+
+function combineScopeGroups(progresses) {
+  const groups = new Map();
+  for (const progress of progresses) {
+    for (const group of progress.scopeGroups ?? [{ scopeName: null, services: progress.services }]) {
+      if (!groups.has(group.scopeName)) groups.set(group.scopeName, []);
+      // Somente a projeção do grupo: não propaga scopeGroups para a agregação recursiva.
+      groups.get(group.scopeName).push({ hasScope: true, services: group.services });
+    }
+  }
+  return [...groups].map(([scopeName, items]) => ({ scopeName, services: combineProgressBreakdowns(items)?.services ?? [] }));
 }

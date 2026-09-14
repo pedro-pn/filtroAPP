@@ -2853,6 +2853,7 @@ model ProjectPlannedService {
   id          String                        @id @default(cuid())
   projectId   String
   serviceType String // LIMPEZA_QUIMICA | TESTE_PRESSAO | FLUSHING | FILTRAGEM | (livre)
+  scopeName   String?                       @db.VarChar(180) // agrupamento visual exclusivo do Acompanhamento
   weight      Decimal                       @default(1) @db.Decimal(6, 2) // peso do serviço no avanço do projeto (D-3)
   note        String?
   order       Int                           @default(0)

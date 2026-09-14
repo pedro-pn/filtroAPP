@@ -461,6 +461,7 @@ export interface PlannedServiceSystem {
 export interface PlannedService {
   id?: string;
   serviceType: string;
+  scopeName?: string | null;
   weight?: string | number | null;
   note?: string | null;
   systems: PlannedServiceSystem[];
@@ -519,11 +520,14 @@ export interface ProjectProgress {
   progressPct: number | null;
   services: ProgressService[];
   pendingMeasurements?: PendingSystemMeasurement[];
+  scopeGroups?: Array<{ scopeName: string | null; services: ProgressService[] }>;
 }
 
 export interface PendingSystemMeasurement {
   serviceType: string; equipment: string; system: string; systemType: string;
   unit: string; diameter: string | null; diameterUnit: string | null; quantity: number;
+  projectSystemId?: string | null;
+  matchedSystem?: { id: string; equipment: string; name: string } | null;
 }
 
 export type RequiredWeeklyProgressStatus = 'REQUIRED' | 'COMPLETED' | 'DUE_TODAY' | 'OVERDUE' | 'UNAVAILABLE';
@@ -548,6 +552,7 @@ export interface RequiredWeeklyProgress {
     executionPct: number | null;
     systems: RequiredWeeklyProgressSystem[];
   }>;
+  scopeGroups?: Array<{ scopeName: string | null; services: RequiredWeeklyProgress['services'] }>;
 }
 
 export async function getProjectProgress(projectId: string): Promise<ProjectProgress> {

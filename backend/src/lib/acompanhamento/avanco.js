@@ -18,6 +18,7 @@
 import prisma from '../prisma.js';
 import { loadHistoricalRealizedServices } from '../reports/historical-services-store.js';
 import { buildSystemProgress, diameterKey } from './system-progress.js';
+import { withScopeGroups } from './scope-groups.js';
 import { cleaningSystemQuantity, isSystemCleaning } from '../reports/cleaning-measurement.js';
 
 // Normaliza o serviceType do RDO (vários formatos: 'limpeza', 'LIMPEZA', 'Limpeza química'...) para
@@ -200,7 +201,7 @@ export function compactWeeklyProgressHistory(points = [], { startDate = null } =
 // realizedByType: Map<serviceTypeCanônico, {tubulacaoM, oleoL}>.
 export function buildProgress(plannedServices, realizedByType) {
   if (plannedServices.some(service => service.systems?.some(row => row.projectSystemId))) {
-    return buildSystemProgress(plannedServices, realizedByType, normalizeRdoServiceType);
+    return withScopeGroups(buildSystemProgress(plannedServices, realizedByType, normalizeRdoServiceType), plannedServices, normalizeRdoServiceType);
   }
   const groupedServices = new Map();
   for (const svc of plannedServices) {
@@ -262,11 +263,11 @@ export function buildProgress(plannedServices, realizedByType) {
     ? round(weighted.reduce((sum, s) => sum + s.weight * s.executionPct, 0) / totalWeight)
     : null;
 
-  return {
+  return withScopeGroups({
     hasScope: services.some(s => s.systems.some(sys => sys.plannedQty && sys.plannedQty > 0)),
     progressPct,
     services
-  };
+  }, plannedServices, normalizeRdoServiceType);
 }
 
 function weeklyTargetStatus(remaining, remainingDays) {
@@ -307,7 +308,7 @@ export function buildRequiredWeeklyProgress(progress, {
     ? round(remainingPctPoints / (remainingDays / 7), 2)
     : null;
 
-  const services = (progress?.services ?? []).map(service => ({
+  const weeklyServices = input => (input ?? []).map(service => ({
     serviceType: service.serviceType,
     executionPct: service.executionPct,
     systems: (service.systems ?? []).map(system => {
@@ -336,13 +337,15 @@ export function buildRequiredWeeklyProgress(progress, {
       };
     })
   }));
+  const services = weeklyServices(progress?.services);
 
   return {
     status,
     remainingDays,
     remainingPctPoints,
     requiredPctPointsPerWeek,
-    services
+    services,
+    ...(progress?.scopeGroups ? { scopeGroups: progress.scopeGroups.map(group => ({ scopeName: group.scopeName, services: weeklyServices(group.services) })) } : {})
   };
 }
 
