@@ -1,4 +1,5 @@
 import type { Collaborator, Equipment, ReportServiceInput, Unit } from '../types/domain';
+import { cleaningSystemQuantity } from './cleaningMeasurement';
 
 export const serviceTypeMap: Record<string, string> = {
   LIMPEZA: 'limpeza',
@@ -138,7 +139,7 @@ function commonExtraData(
   const collaboratorIds = options.collaboratorIds || [];
   const pressureTestedEquipment = type === 'pressao' ? pressureTestedEquipmentValue(data) : '';
   const includeMaterial = type !== 'flushing' && !(type === 'pressao' && pressureTestedEquipment !== 'tubulacao');
-  const tubes = type === 'flushing' && flushingTubulacaoLabel(data) === 'Não'
+  const tubes = (type === 'flushing' && flushingTubulacaoLabel(data) === 'Não') || (type === 'limpeza' && limpezaTubulacaoLabel(data) === 'Não')
     ? []
     : (Array.isArray(data.tubes) ? data.tubes : []);
 
@@ -185,6 +186,11 @@ export function buildReportServicePayload(
   if (type === 'limpeza') {
     const unitIds = ids(data.ulq);
     extraData['Limpeza de tubulação?'] = limpezaTubulacaoLabel(data);
+    extraData.limpezaTubulacao = limpezaTubulacaoLabel(data);
+    extraData.tubes = extraData['Diâmetros e comprimentos'];
+    const quantity = limpezaTubulacaoLabel(data) === 'Não' ? cleaningSystemQuantity(data) : null;
+    extraData.quantidadeSistemas = quantity;
+    extraData['Quantidade de sistemas (un)'] = quantity;
     extraData['Método de limpeza'] = getStrings(data.metodos);
     extraData['Local de limpeza'] = getStrings(data.local);
     extraData['Tipo de inspeção'] = getStrings(data.tipoInspecao);

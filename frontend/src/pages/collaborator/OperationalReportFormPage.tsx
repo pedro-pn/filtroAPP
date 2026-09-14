@@ -112,7 +112,8 @@ function emptyChemicalCleaning() {
 }
 
 function defaultValues(
-  kind: 'MAINTENANCE' | 'PRODUCTION'
+  kind: 'MAINTENANCE' | 'PRODUCTION',
+  standalone = false
 ): OperationalReportFormValues {
   return {
     kind,
@@ -130,7 +131,7 @@ function defaultValues(
     },
     overtimeReason: '',
     dailyDescription: '',
-    maintenanceRecords: kind === 'MAINTENANCE' ? [emptyMaintenance()] : [],
+    maintenanceRecords: standalone ? [emptyMaintenance()] : [],
     chemicalCleanings: kind === 'PRODUCTION' ? [emptyChemicalCleaning()] : []
   };
 }
@@ -600,7 +601,7 @@ export function OperationalReportFormPage({
         ? standaloneOperationalReportFormSchema
         : operationalReportFormSchema
     ),
-    defaultValues: defaultValues(kind),
+    defaultValues: defaultValues(kind, standalone),
     mode: 'onTouched'
   });
   const {
@@ -1206,7 +1207,9 @@ export function OperationalReportFormPage({
                     <div>
                       <div className="section-title">Manutenções</div>
                       <div className="form-hint">
-                        Cada cartão representa um equipamento.
+                        {standalone
+                          ? 'Cada cartão representa um equipamento.'
+                          : 'Adicione uma manutenção apenas quando houver serviços em equipamentos.'}
                       </div>
                     </div>
                     {!standalone ? (
@@ -1220,11 +1223,16 @@ export function OperationalReportFormPage({
                       </Button>
                     ) : null}
                   </div>
+                  {maintenanceFields.fields.length === 0 ? (
+                    <div className="form-hint">
+                      Nenhuma manutenção adicionada. Você pode continuar sem adicionar.
+                    </div>
+                  ) : null}
                   {maintenanceFields.fields.map((field, index) => (
                     <div key={field.id}>
                       <div className="operational-card-head">
                         <strong>Manutenção {index + 1}</strong>
-                        {!standalone && maintenanceFields.fields.length > 1 ? (
+                        {!standalone ? (
                           <Button
                             variant="mini"
                             className="danger"

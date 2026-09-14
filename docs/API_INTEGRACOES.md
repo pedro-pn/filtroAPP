@@ -53,7 +53,7 @@ Os caminhos abaixo usam a mesma base `/api/integracoes/v1`, autenticação Beare
 | Categorias de equipamentos | `/equipamentos/categorias` | `equipamentos.categorias.read` |
 | Itens e categorias de estoque | `/estoque/itens`, `/estoque/categorias` | `estoque.itens.read` |
 
-Essas permissões-base são minimizadas: relatórios trazem identificação, tipo, datas e horas; colaboradores trazem código/nome/cargo/ativo; equipamentos e estoque trazem cadastros. Arquivos e custos exigem permissões adicionais descritas abaixo. Consulte os campos exatos em [Contrato operacional](../specs/015-api-token-playground/contracts/operational-read.md).
+As permissões-base de relatórios incluem número, código/nome do projeto, tipo, datas, horas, descrição diária e motivo de horas extras; colaboradores trazem código/nome/cargo/ativo; equipamentos e estoque trazem cadastros. Arquivos e custos exigem permissões adicionais descritas abaixo. Consulte os campos exatos em [Contrato operacional](../specs/015-api-token-playground/contracts/operational-read.md).
 
 Exemplo com uma credencial que contenha `rdo.relatorios.read`:
 
@@ -64,7 +64,44 @@ curl --fail-with-body \
   "https://seu-dominio/api/integracoes/v1/rdo/relatorios?limit=20"
 ```
 
-No modo de projetos selecionados, relatórios/produção respeitam o projeto; colaboradores são limitados à equipe de relatórios aprovados desses projetos. Manutenções avulsas só aparecem em `ALL`. Cargos, segmentos, DDS, perfis, equipamentos e itens/categorias de estoque são cadastros globais compartilhados e não aceitam `projectId`.
+No modo de projetos selecionados, relatórios/produção respeitam o projeto; colaboradores são limitados à equipe de relatórios aprovados desses projetos. Manutenções avulsas só aparecem em `ALL`. Cargos, segmentos, DDS, perfis, equipamentos e itens/categorias de estoque são cadastros globais compartilhados e não aceitam filtros de projeto.
+
+Toda coleção vinculada a projeto aceita `projectCode`, que é o filtro recomendado para integrações, e `projectId`, mantido para compatibilidade. O código é texto e preserva zeros à esquerda. Não envie os dois filtros juntos. Em tokens com projetos selecionados, ambos continuam sujeitos ao recorte da credencial.
+
+```bash
+curl --fail-with-body --get \
+  -H "Authorization: Bearer $FILTRO_API_TOKEN" \
+  -H "Accept: application/json" \
+  --data-urlencode "projectCode=05776" \
+  --data-urlencode "limit=100" \
+  "https://seu-dominio/api/integracoes/v1/rdo/servicos"
+```
+
+### Receita: consultar os RCPUs de um projeto
+
+Para listar somente os relatórios RCPU aprovados do projeto de código `5800`, a operação é `operational.Report.list`, exige `rdo.relatorios.read` e usa esta URI:
+
+```http
+GET /api/integracoes/v1/rdo/relatorios?projectCode=5800&reportType=RCPU&limit=100
+```
+
+```bash
+curl --fail-with-body --get \
+  -H "Authorization: Bearer $FILTRO_API_TOKEN" \
+  -H "Accept: application/json" \
+  --data-urlencode "projectCode=5800" \
+  --data-urlencode "reportType=RCPU" \
+  --data-urlencode "limit=100" \
+  "https://seu-dominio/api/integracoes/v1/rdo/relatorios"
+```
+
+Se o objetivo for consultar os **serviços registrados dentro desses RCPUs**, use `operational.ReportService.list`. Essa operação exige `rdo.relatorios.read` e `rdo.servicos.read`:
+
+```http
+GET /api/integracoes/v1/rdo/servicos?projectCode=5800&reportType=RCPU&limit=100
+```
+
+`reportType` aceita `RDO`, `RDO_MAINTENANCE`, `RDO_PRODUCTION`, `RTP`, `RLQ`, `RCPU`, `RLM`, `RLF` e `RLI`. Para consultar mais de um tipo, separe os códigos por vírgula, por exemplo `reportType=RCPU,RTP`.
 
 Tokens existentes não ganham permissões: gere um novo token com os escopos necessários no catálogo unificado. Os demais candidatos continuam desabilitados.
 
@@ -80,7 +117,7 @@ Foram acrescentadas 16 permissões específicas (13 consultas e 3 downloads). Ca
 
 O [contrato da expansão](../specs/015-api-token-playground/contracts/operational-expanded-read.md) lista as permissões e os dados de cada operação. Assinaturas expõem situação/papel/datas, não nomes, imagens ou provas. Auditoria expõe ação/transição e data, não atores ou observações. `estoque.custos.read` requer também `estoque.movimentos.read` e `estoque.itens.read`; custos/quantidades decimais são strings, sem perda de precisão. Documentos de estoque são globais; lotes com projeto selecionado exigem movimento no projeto, mas não representam saldo por projeto.
 
-Filtros por `reportId`, `maintenanceId` e `itemId` estão disponíveis apenas onde indicados no catálogo. As coleções sem `updatedAt` aceitam `createdSince`, que detecta somente criações. Equipe não possui timestamp: ordena por `(reportId,collaboratorId)` e exige leitura completa para reconciliação. Não envie `updatedSince` nessas operações.
+Filtros por `projectCode`/`projectId`, `reportType`, `reportId`, `maintenanceId` e `itemId` estão disponíveis apenas onde indicados no catálogo. As coleções sem `updatedAt` aceitam `createdSince`, que detecta somente criações. Equipe não possui timestamp: ordena por `(reportId,collaboratorId)` e exige leitura completa para reconciliação. Não envie `updatedSince` nessas operações.
 
 ```bash
 # Escopos: estoque.itens.read + estoque.movimentos.read
@@ -104,6 +141,55 @@ curl --fail \
 ```
 
 Arquivos sem armazenamento local válido, com pasta de outro projeto, com links simbólicos ou fora das pastas gerenciadas retornam 404. Anexos legados de RDO fora da pasta atual do projeto não são liberados por fallback. Documentos legados de estoque em `Estoque/FISPQ` são suportados sem expor seu token.
+
+### Identificação e dados técnicos de RDO e serviços
+
+`GET /rdo/relatorios` retorna `sequenceNumber` (número salvo no relatório), `reportNumber` (por exemplo, `RDO 27` ou `RLQ 3`), `projectCode` (número/código do projeto, preservado como texto), `projectName`, `dailyDescription` e `overtimeReason`, além dos campos já existentes. Um relatório ainda sem sequência tem os dois campos de numeração nulos. O número é contextualizado pelo projeto e pelo tipo de relatório.
+
+`GET /rdo/servicos` inclui `reportId`, `reportNumber`, `reportSequenceNumber`, `reportType`, `reportDate`, `projectId`, `projectCode`, `projectName`, `equipmentName` e `equipmentCode`, além do tipo de serviço, sistema, material, horários e conclusão. O relatório associado pode ser um RDO ou um relatório técnico derivado (RLQ, RTP, RCPU, RLM, RLF ou RLI); filtre com `reportType=RCPU`, por exemplo, para evitar misturar registros diários e consolidações.
+
+O objeto `serviceData` contém os campos técnicos preenchidos no formulário:
+
+| Dados | Campos |
+|---|---|
+| Medidas | `tubes[]`: `diameter`, `diameterUnit`, `length`, `lengthUnit` |
+| Aprovação e descrição | `clientApproved`, `stages`, `drawingsTags`, `notes` |
+| Limpeza | `cleaningPiping`, `cleaningMethods`, `cleaningLocations`, `inspectionTypes`, `cleaningUnits` |
+| Teste de pressão | `testedEquipment`, `testedEquipmentOther`, `workingPressure`, `testPressure`, `testFluid`, `testOil`, `hydrostaticUnits`, `manometers` |
+| Flushing e filtragem | `flushingPiping`, `flushingType`, `oilType`, `oilVolume`, `flushingUnits`, `filtrationUnits` |
+| Partículas e umidade | `particleCounting`, `particleCounters`, `initialNas`, `finalNas`, `initialIso`, `finalIso`, `dehydration`, `dehydrationUnits`, `moistureAnalysis`, `initialMoisturePpm`, `finalMoisturePpm` |
+| Inibição | `vessel`, `lines`, `steps`, `reportTypes` |
+| Equipe do serviço | `collaborators[]`: `id`, `name`; requer também `rdo.equipe.read`, caso contrário retorna `null` |
+
+Pressões e volume são objetos `{ value, unit }`. Unidades, manômetros e contadores retornam listas de `{ id, code, name }`; códigos/nomes registrados no relatório são preservados e os dados faltantes são resolvidos no cadastro. Referências antigas sem cadastro correspondente mantêm o identificador e os rótulos salvos, deixando os demais campos nulos. O equipamento atendido usa o nome informado no relatório; `equipmentCode` é nulo quando não existe vínculo com o cadastro de equipamentos de serviço.
+
+`totalLengthMeters`, na raiz do serviço, soma os comprimentos em metros com precisão decimal e retorna texto. As medidas originais em `serviceData.tubes` mantêm os valores e unidades preenchidos, inclusive vírgulas e diâmetros fracionários. Sem medidas ou com algum comprimento/unidade inválido, o total é `null`, em vez de um total parcial. Campos não preenchidos são `null` ou listas vazias.
+
+Exemplo parcial de um item de `/rdo/servicos`:
+
+```json
+{
+  "reportNumber": "RDO 27",
+  "reportSequenceNumber": 27,
+  "reportType": "RDO",
+  "projectCode": "05776",
+  "projectName": "Projeto demonstrativo",
+  "equipmentName": "Bomba principal",
+  "system": "Hidráulico",
+  "material": "Aço inox",
+  "totalLengthMeters": "1.5",
+  "serviceData": {
+    "tubes": [{ "diameter": "1 1/2", "diameterUnit": "pol", "length": "150", "lengthUnit": "cm" }],
+    "testPressure": { "value": "15", "unit": "bar" },
+    "stages": ["Execução do teste"],
+    "notes": "Sem vazamentos."
+  }
+}
+```
+
+A ampliação usa as permissões existentes `rdo.relatorios.read` e `rdo.servicos.read`, incluindo dados de relatórios já salvos. O catálogo e o Playground mostram os novos campos. Os textos operacionais preenchidos passam a fazer parte dessas projeções; metadados/arquivos de fotos e anexos continuam nos endpoints e permissões próprios. O JSON interno, chaves de continuação, caminhos, tokens e assinaturas não são devolvidos.
+
+A paginação continua usando `updatedAt` do registro consultado. Renumeração do relatório, alteração do nome do projeto ou de um equipamento relacionado não necessariamente atualiza o serviço; para refletir essas mudanças de contexto, faça reconciliação completa periódica.
 
 ### Como percorrer páginas
 

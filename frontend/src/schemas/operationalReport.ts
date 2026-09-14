@@ -103,13 +103,6 @@ export const operationalReportFormSchema = z
         });
       }
     }
-    if (value.kind === 'MAINTENANCE' && !value.maintenanceRecords.length) {
-      context.addIssue({
-        code: 'custom',
-        path: ['maintenanceRecords'],
-        message: 'Adicione ao menos uma manutenção.'
-      });
-    }
     if (value.kind === 'MAINTENANCE' && !value.dailyDescription) {
       context.addIssue({
         code: 'custom',

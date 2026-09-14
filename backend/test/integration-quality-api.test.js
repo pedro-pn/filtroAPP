@@ -29,6 +29,19 @@ test('full/incremental query fixes snapshot, orders by updatedAt/id and emits a 
   assert.equal(result.page.snapshotAt, '2026-09-04T12:00:00.000Z');
 });
 
+test('projectCode filters by the public project code and respects the credential project set', async () => {
+  const client = clientWithRows([makeRow('a', '2026-09-03Z')]);
+  await listIntegrationQualityRecords(client, { limit: 10, projectCode: '05776' }, {
+    cursorKey: key, snapshotAt: new Date('2026-09-04T12:00:00Z'), scopes: new Set(['qualidade.registros.read']),
+    projectAccessMode: 'SELECTED', projectIds: new Set(['p1']), projectCodes: new Set(['05776'])
+  });
+  assert.deepEqual(clientWithRows.lastArgs.where.project, { code: '05776' });
+  await assert.rejects(() => listIntegrationQualityRecords(client, { limit: 10, projectCode: '9999' }, {
+    cursorKey: key, scopes: new Set(['qualidade.registros.read']), projectAccessMode: 'SELECTED',
+    projectIds: new Set(['p1']), projectCodes: new Set(['05776'])
+  }), error => error.code === 'PROJECT_NOT_ALLOWED');
+});
+
 test('cursor tampering, changed filters and page limits are rejected', async () => {
   const client = clientWithRows([]);
   const payload = { operationId: 'quality.records.list', version: 1, filters: { projectId: 'p1' }, position: { updatedAt: '2026-09-03T00:00:00.000Z', id: 'a' }, snapshotAt: '2026-09-04T00:00:00.000Z' };

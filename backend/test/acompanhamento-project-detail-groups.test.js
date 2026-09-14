@@ -357,3 +357,14 @@ test('groupProjectDetails compares grouped client by CNPJ and recalculates physi
   assert.equal(result.avancoMethod, 'GROUP_SCOPE');
   assert.equal(result.avancoPct, 70);
 });
+
+test('grouped planned scope preserves the umbrella name instead of merging equal service types across scopes', () => {
+  const g = group();
+  const result = groupProjectDetails(g, g.members.map((member, index) => ({
+    projectId: member.projectId, member, detail: detail({ code: member.project.code }),
+    plannedScope: { services: [{ scopeName: index === 0 ? 'Principal' : 'Adicional', serviceType: 'LIMPEZA_QUIMICA', weight: 100,
+      systems: [{ systemType: 'TUBULACAO', unit: 'M', quantity: 100 }] }], normalHours: [], overtime: [] }
+  })));
+  assert.deepEqual(result.plannedScope.services.map(service => service.scopeName), ['Principal', 'Adicional']);
+  assert.deepEqual(result.plannedScope.services.map(service => service.systems[0].quantity), [100, 100]);
+});

@@ -18,6 +18,12 @@ interface Props {
   disabled?: boolean;
   required?: boolean;
   error?: string;
+  allowCustomValue?: boolean;
+  hideLabel?: boolean;
+  inputClassName?: string;
+  maxLength?: number;
+  toggleLabel?: string;
+  variant?: 'default' | 'select';
 }
 
 export function SearchCombobox({
@@ -31,7 +37,13 @@ export function SearchCombobox({
   loading = false,
   disabled = false,
   required = false,
-  error
+  error,
+  allowCustomValue = false,
+  hideLabel = false,
+  inputClassName,
+  maxLength,
+  toggleLabel,
+  variant = 'default'
 }: Props) {
   const generatedId = useId();
   const inputId = id || `combobox-${generatedId}`;
@@ -39,9 +51,10 @@ export function SearchCombobox({
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const clearedByTyping = useRef(false);
   const selected = options.find(option => option.value === value);
-  const [query, setQuery] = useState(selected?.label || '');
+  const [query, setQuery] = useState(selected?.label || (allowCustomValue ? value : ''));
   const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [showAllOptions, setShowAllOptions] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(allowCustomValue ? -1 : 0);
 
   useEffect(() => {
     // Clearing a selected value while typing must not erase the new search.
@@ -50,8 +63,8 @@ export function SearchCombobox({
       return;
     }
     clearedByTyping.current = false;
-    setQuery(selected?.label || '');
-  }, [value, selected?.label]);
+    setQuery(selected?.label || (allowCustomValue ? value : ''));
+  }, [value, selected?.label, allowCustomValue]);
   useEffect(() => {
     const close = (event: MouseEvent) => {
       if (!wrapperRef.current?.contains(event.target as Node)) setOpen(false);
@@ -61,24 +74,31 @@ export function SearchCombobox({
   }, []);
 
   const filtered = useMemo(() => {
+    if (allowCustomValue && showAllOptions) return options;
     const normalized = query.trim().toLocaleLowerCase('pt-BR');
     if (!normalized || selected?.label === query) return options;
     return options.filter(option => `${option.label} ${option.description || ''}`.toLocaleLowerCase('pt-BR').includes(normalized));
-  }, [options, query, selected?.label]);
+  }, [options, query, selected?.label, allowCustomValue, showAllOptions]);
 
   function choose(option: SearchComboboxOption) {
     onChange(option.value);
     setQuery(option.label);
     setOpen(false);
+    setShowAllOptions(false);
   }
 
   return (
-    <div ref={wrapperRef} className={`field-group app-combobox ${error ? 'field-invalid' : ''}`}>
-      <label htmlFor={inputId}>{label}{required ? ' *' : ''}</label>
+    <div ref={wrapperRef} className={`field-group app-combobox ${variant === 'select' ? 'app-combobox-select' : ''} ${error ? 'field-invalid' : ''}`}
+      onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
+      {!hideLabel ? <label htmlFor={inputId}>{label}{required ? ' *' : ''}</label> : null}
       <div className="app-combobox-control">
         <input
           id={inputId}
+          type="text"
           role="combobox"
+          aria-label={hideLabel ? label : undefined}
+          className={inputClassName}
+          maxLength={maxLength}
           autoComplete="off"
           value={query}
           placeholder={placeholder}
@@ -88,21 +108,23 @@ export function SearchCombobox({
           aria-controls={listId}
           aria-autocomplete="list"
           aria-activedescendant={open && filtered[activeIndex] ? `${inputId}-option-${activeIndex}` : undefined}
-          onFocus={() => setOpen(true)}
+          onFocus={() => { setOpen(true); if (allowCustomValue) { setShowAllOptions(true); setActiveIndex(-1); } }}
           onChange={event => {
             setQuery(event.target.value);
-            if (value) {
+            setShowAllOptions(false);
+            if (allowCustomValue) onChange(event.target.value);
+            else if (value) {
               clearedByTyping.current = true;
               onChange('');
             }
-            setActiveIndex(0);
+            setActiveIndex(allowCustomValue ? -1 : 0);
             setOpen(true);
           }}
           onKeyDown={event => {
             if (event.key === 'ArrowDown') {
               event.preventDefault();
               setOpen(true);
-              setActiveIndex(index => Math.min(filtered.length - 1, index + 1));
+              setActiveIndex(index => open ? Math.min(filtered.length - 1, index + 1) : 0);
             } else if (event.key === 'ArrowUp') {
               event.preventDefault();
               setActiveIndex(index => Math.max(0, index - 1));
@@ -111,13 +133,15 @@ export function SearchCombobox({
               choose(filtered[activeIndex]);
             } else if (event.key === 'Escape') {
               setOpen(false);
-              setQuery(selected?.label || '');
+              setQuery(selected?.label || (allowCustomValue ? value : ''));
             }
           }}
         />
-        <button type="button" tabIndex={-1} disabled={disabled} aria-label={open ? 'Fechar opções' : 'Abrir opções'} onClick={() => setOpen(current => !current)}>⌄</button>
+        <button type="button" tabIndex={-1} disabled={disabled} aria-label={toggleLabel || (open ? 'Fechar opções' : 'Abrir opções')}
+          aria-expanded={open} aria-controls={listId} onMouseDown={event => event.preventDefault()}
+          onClick={() => { setActiveIndex(allowCustomValue ? -1 : 0); setShowAllOptions(true); setOpen(current => !current); }}>{variant === 'select' ? null : '⌄'}</button>
       </div>
-      {open ? (
+      {open && !disabled ? (
         <div id={listId} className="app-combobox-list" role="listbox">
           {loading ? <span className="app-combobox-empty">Carregando…</span>
             : filtered.length === 0 ? <span className="app-combobox-empty">{emptyText}</span>
@@ -126,6 +150,7 @@ export function SearchCombobox({
                 id={`${inputId}-option-${index}`}
                 type="button"
                 role="option"
+                tabIndex={-1}
                 aria-selected={option.value === value}
                 className={index === activeIndex ? 'active' : ''}
                 key={option.value}

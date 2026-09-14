@@ -10,6 +10,7 @@ export type ApiPlaygroundParameters = PlaygroundParameterValues;
 const ids: Record<string, string> = {
   id: 'playground-record-id',
   projectId: 'playground-project',
+  projectCode: 'playground-project-code',
   createdSince: 'playground-created',
   updatedSince: 'playground-updated'
 };
@@ -102,6 +103,15 @@ export function ApiOperationParameters({
     );
   }
   const fields = operation?.parameters || [];
+  const uriExample = operation?.queryParams.includes('projectCode')
+    ? operation.queryParams.includes('reportType')
+      ? '?projectCode=5800&reportType=RCPU'
+      : '?projectCode=05776&limit=20'
+    : operation?.queryParams.includes('limit')
+      ? '?limit=20'
+      : operation?.queryParams.includes('includeDeleted')
+        ? '?includeDeleted=true'
+        : null;
   return (
     <section className="page-card api-playground-section">
       <h3>2. Informe os parâmetros</h3>
@@ -120,6 +130,14 @@ export function ApiOperationParameters({
               filtros opcionais para restringir a consulta.
             </p>
           )}
+          {operation.queryParams.length ? (
+            <p className="api-safe-note">
+              Na URI, o primeiro filtro começa com ? e os demais são ligados por
+              &amp;. {uriExample ? <>Exemplo desta operação: <code>{uriExample}</code>. </> : null}
+              Codifique valores especiais na URL; o cURL gerado abaixo já mostra
+              a URI resultante.
+            </p>
+          ) : null}
           {operation.responseKind === 'DOWNLOAD_CHECK' ? (
             <p className="api-safe-note">
               O teste verifica permissão e disponibilidade do arquivo, sem
@@ -132,7 +150,7 @@ export function ApiOperationParameters({
           </div>
           {fields.some((field) => field.advanced) ? (
             <details>
-              <summary>Paginação e snapshot</summary>
+              <summary>Paginação e filtros avançados</summary>
               <div className="api-form-grid">
                 {fields.filter((field) => field.advanced).map(renderField)}
               </div>

@@ -14,7 +14,11 @@ export function makePlaygroundParameterSchema(z, parameters, { maxPageSize = 20,
     shape[field.name] = z.preprocess(value => value === '' || value === undefined || (typeof value === 'string' && !value.trim()) ? undefined : value,
       field.required ? schema : schema.optional());
   }
-  return z.object(shape).strict();
+  return z.object(shape).strict().superRefine((value, ctx) => {
+    if (shape.projectId && shape.projectCode && value.projectId && value.projectCode) {
+      ctx.addIssue({ code: 'custom', path: ['projectCode'], message: 'Informe o código ou o ID interno do projeto, não ambos.' });
+    }
+  });
 }
 
 export function playgroundParameterDefaults(operation, maxPageSize = 20, scopeCode = '', grantedScopes = []) {

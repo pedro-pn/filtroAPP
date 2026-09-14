@@ -512,6 +512,75 @@ test('manutenção e produção possuem módulo próprio com abas e histórico r
   assert.match(newReport, /resolveSiteReportSelection/);
 });
 
+test('relatório de manutenção aceita nenhum cartão e valida os cartões adicionados', async () => {
+  const {
+    operationalReportFormSchema,
+    standaloneOperationalReportFormSchema
+  } = await loadOperationalReportSchema();
+  const values = {
+    kind: 'MAINTENANCE',
+    reportDate: '2026-09-09',
+    arrivalTime: '07:00',
+    departureTime: '17:00',
+    lunchBreak: '01:00:00',
+    collaboratorIds: ['collaborator-1'],
+    nightShift: {
+      enabled: false,
+      arrivalTime: '',
+      departureTime: '',
+      breakTime: '01:00:00',
+      collaboratorIds: []
+    },
+    dailyDescription: 'Organização da oficina',
+    maintenanceRecords: [],
+    chemicalCleanings: []
+  };
+  const card = {
+    equipmentId: 'equipment-1',
+    selectedServiceIds: ['service-1'],
+    thirdPartyServices: [],
+    photos: []
+  };
+
+  assert.equal(operationalReportFormSchema.safeParse(values).success, true);
+  assert.equal(
+    operationalReportFormSchema.safeParse({
+      ...values,
+      dailyDescription: ''
+    }).success,
+    false
+  );
+  assert.equal(
+    operationalReportFormSchema.safeParse({
+      ...values,
+      kind: 'PRODUCTION'
+    }).success,
+    false
+  );
+  assert.equal(
+    standaloneOperationalReportFormSchema.safeParse(values).success,
+    false
+  );
+  for (const schema of [
+    operationalReportFormSchema,
+    standaloneOperationalReportFormSchema
+  ]) {
+    assert.equal(
+      schema.safeParse({ ...values, maintenanceRecords: [card] }).success,
+      true
+    );
+    for (const invalidCard of [
+      { ...card, equipmentId: '' },
+      { ...card, selectedServiceIds: [] }
+    ]) {
+      assert.equal(
+        schema.safeParse({ ...values, maintenanceRecords: [invalidCard] }).success,
+        false
+      );
+    }
+  }
+});
+
 test('intervalos compartilhados preservam segundos e a validação aceita HH:mm:ss', async () => {
   const shared = await readFile(
     new URL('../src/components/reports/ReportCoreFields.tsx', import.meta.url),

@@ -94,6 +94,10 @@ test('operational response allowlists, query parameters and scope guards match e
     assert.equal(schema.additionalProperties, false);
     assert.deepEqual(Object.keys(schema.properties).sort(), Object.keys(resource.fields).sort());
     assert.deepEqual([...schema.required].sort(), Object.keys(resource.fields).sort());
+    for (const [field, fieldSchema] of Object.entries(resource.fieldSchemas || {})) {
+      assert.deepEqual(schema.properties[field], fieldSchema, `${resource.model}.${field} nested contract`);
+    }
+    assert.deepEqual(operation['x-optional-scopes'] || [], resource.optionalScopes || []);
   }
 });
 

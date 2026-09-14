@@ -843,6 +843,7 @@ model Project {
   reportSequences            ProjectReportSeq[]
   authorizedUsers            ProjectAuthorizedUser[]
   reports                    Report[]
+  historicalServiceReports   HistoricalServiceReport[]
   drafts                     ReportDraft[]
   surveys                    SatisfactionSurvey[]
   romaneios                  Romaneio[]
@@ -851,6 +852,7 @@ model Project {
   omiePurchases              OmiePurchase[]
   omieReceivables            OmieReceivable[]
   plannedServices            ProjectPlannedService[]
+  serviceSystems             ProjectServiceSystem[]
   plannedNormalHours         ProjectPlannedNormalHours[]
   plannedOvertime            ProjectPlannedOvertime[]
   stockMovements             StockMovement[]
@@ -1370,6 +1372,28 @@ model ReportCollaborator {
 
   @@id([reportId, collaboratorId])
   @@index([jobRoleIdSnapshot])
+}
+
+// Quantitativos finais transcritos de relatórios antigos. O documento de origem é
+// identificado por projeto/tipo/número, mesmo quando seu PDF ainda não foi enviado.
+model HistoricalServiceReport {
+  id              String     @id @default(cuid())
+  projectId       String
+  reportType      ReportType
+  sequenceNumber  Int
+  reportDate      DateTime
+  items           Json
+  fingerprint     String
+  sourceFileName  String?
+  createdByUserId String?
+  updatedByUserId String?
+  revision        Int        @default(1)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  project         Project    @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, reportType, sequenceNumber])
+  @@index([projectId, reportDate])
 }
 
 model ReportService {
@@ -2829,6 +2853,7 @@ model ProjectPlannedService {
   id          String                        @id @default(cuid())
   projectId   String
   serviceType String // LIMPEZA_QUIMICA | TESTE_PRESSAO | FLUSHING | FILTRAGEM | (livre)
+  scopeName   String?                       @db.VarChar(180) // agrupamento visual exclusivo do Acompanhamento
   weight      Decimal                       @default(1) @db.Decimal(6, 2) // peso do serviço no avanço do projeto (D-3)
   note        String?
   order       Int                           @default(0)
@@ -2844,7 +2869,8 @@ model ProjectPlannedService {
 model ProjectPlannedServiceSystem {
   id           String                @id @default(cuid())
   serviceId    String
-  systemType   String // TUBULACAO | OLEO
+  projectSystemId String?
+  systemType   String // TUBULACAO | OLEO | SISTEMA (limpeza por UN)
   description  String?
   diameter     String?
   diameterUnit String?
@@ -2852,8 +2878,31 @@ model ProjectPlannedServiceSystem {
   unit         PlannedMeasureUnit? // unidade do sistema (TUBULACAO=M, OLEO=L)
   order        Int                   @default(0)
   service      ProjectPlannedService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  projectSystem ProjectServiceSystem? @relation(fields: [projectSystemId], references: [id], onDelete: Restrict)
+
+  @@index([projectSystemId])
 
   @@index([serviceId])
+}
+
+// Equipamento/UG e sistema DO CLIENTE, sem vínculo com o cadastro de Equipment.
+// Identidade estável: salvar novamente o cronograma não recria este cadastro.
+model ProjectServiceSystem {
+  id           String @id @default(cuid())
+  projectId    String
+  equipment    String
+  name         String
+  equipmentKey String
+  nameKey      String
+  aliases      Json @default("[]")
+  revision     Int @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  plannedRows  ProjectPlannedServiceSystem[]
+
+  @@unique([projectId, equipmentKey, nameKey])
+  @@index([projectId])
 }
 
 // Previsão de horas normais vendidas: por cargo e total de horas previstas.
@@ -2993,10 +3042,29 @@ model OmieReceivable {
   @@index([dataEmissao])
 }
 
+// Histórico fiscal validado, separado dos títulos/parcelas de contas a receber.
+// O vínculo usa o código Omie atual para acompanhar remapeamentos de projetos.
+model OmieInvoice {
+  id               String   @id
+  source           String // NFSE | NFE
+  codigoProjeto    String
+  numero           String
+  serie            String?
+  dataEmissao      DateTime
+  valor            Decimal  @db.Decimal(14, 2)
+  clienteNome      String?
+  clienteCnpj      String?
+  receiptStatus    String // RECEIVED | PARTIAL | OVERDUE | OPEN | UNKNOWN
+  installmentCount Int      @default(0)
+  syncedAt         DateTime @default(now())
+
+  @@index([codigoProjeto, dataEmissao])
+}
+
 model IntegrationSyncRun {
   id             String    @id @default(cuid())
   integration    String // 'OMIE'
-  scope          String? // projects | categories | purchases
+  scope          String? // projects | categories | purchases | receivables | invoices
   status         String    @default("RUNNING") // RUNNING | SUCCESS | ERROR
   recordsRead    Int       @default(0)
   recordsWritten Int       @default(0)

@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { makeOperationalReadQuerySchema } from '../../../../shared/schemas/integration-api.js';
 import { IntegrationApiError } from '../../middleware/api-request-context.js';
 import { createSignedCursor, readSignedCursor, stableJson } from './cursor.js';
-import { getOperationalResource, serializeOperationalResource } from './operational-resources.js';
+import { getOperationalResource } from './operational-resources.js';
+import { enrichOperationalRows, serializeOperationalResource } from './operational-serialization.js';
 import { reportAttachmentWhere } from './extended-operational-resources.js';
 
 const querySchema = makeOperationalReadQuerySchema(z);
@@ -21,7 +22,8 @@ export function prepareOperationalQuery(operationId, input, context) {
   if (query.limit > max) throw new IntegrationApiError(400, 'INVALID_LIMIT', `O limite por página deve estar entre 1 e ${max}.`);
   if (!['ALL', 'SELECTED'].includes(context.projectAccessMode)
     || (context.projectAccessMode === 'SELECTED' && !context.projectIds?.size)
-    || (query.projectId && context.projectAccessMode === 'SELECTED' && !context.projectIds.has(query.projectId))) {
+    || (query.projectId && context.projectAccessMode === 'SELECTED' && !context.projectIds.has(query.projectId))
+    || (query.projectCode && context.projectAccessMode === 'SELECTED' && !context.projectCodes?.has(query.projectCode))) {
     throw new IntegrationApiError(403, 'PROJECT_NOT_ALLOWED', 'O projeto solicitado não está autorizado.');
   }
   return { resource, query };
@@ -29,35 +31,63 @@ export function prepareOperationalQuery(operationId, input, context) {
 
 function projectWhere(resource, query, context) {
   const ids = query.projectId ? [query.projectId] : context.projectAccessMode === 'SELECTED' ? [...context.projectIds] : null;
-  if (!ids || resource.projectPolicy === 'GLOBAL') return {};
-  const projectId = { in: ids };
+  const code = query.projectCode;
+  if ((!ids && !code) || resource.projectPolicy === 'GLOBAL') return {};
+  const projectId = ids ? { in: ids } : null;
+  const direct = {
+    ...(projectId ? { projectId } : {}),
+    ...(code ? { project: { code } } : {})
+  };
+  const report = {
+    ...(projectId ? { projectId } : {}),
+    ...(code ? { project: { code } } : {})
+  };
   switch (resource.projectPolicy) {
-    case 'SELF': return { id: projectId };
-    case 'DIRECT': return { projectId };
-    case 'REPORT': return { report: { projectId },
-      ...(['ReportSignature', 'ReportAuditLog'].includes(resource.model) ? { OR: [{ versionId: null }, { version: { report: { projectId } } }] } : {}) };
-    case 'MAINTENANCE': return { maintenance: { report: { projectId } } };
-    case 'STOCK_BATCH': return { movements: { some: { projectId, project: { deletedAt: null } } } };
-    case 'REPORT_ATTACHMENT': return reportAttachmentWhere({ projectId });
-    case 'COLLABORATOR_REPORT': return { reportLinks: { some: { report: { projectId, status: 'APPROVED', deletedAt: null, project: { deletedAt: null } } } } };
+    case 'SELF': return { ...(projectId ? { id: projectId } : {}), ...(code ? { code } : {}) };
+    case 'DIRECT': return direct;
+    case 'REPORT': return { report,
+      ...(['ReportSignature', 'ReportAuditLog'].includes(resource.model) ? { OR: [{ versionId: null }, { version: { report } }] } : {}) };
+    case 'MAINTENANCE': return { maintenance: { report } };
+    case 'STOCK_BATCH': return { movements: { some: {
+      ...(projectId ? { projectId } : {}), project: { deletedAt: null, ...(code ? { code } : {}) }
+    } } };
+    case 'REPORT_ATTACHMENT': return reportAttachmentWhere(report);
+    case 'COLLABORATOR_REPORT': return { reportLinks: { some: { report: {
+      ...(projectId ? { projectId } : {}), status: 'APPROVED', deletedAt: null,
+      project: { deletedAt: null, ...(code ? { code } : {}) }
+    } } } };
     default: throw new IntegrationApiError(403, 'PROJECT_NOT_ALLOWED', 'Política de projeto indisponível.');
   }
 }
 
 export function operationalVisibilityWhere(resource, query, context) {
   return { AND: [resource.where, projectWhere(resource, query, context),
-    ...resource.filterFields.filter(field => query[field]).map(field => field === 'reportId' && resource.projectPolicy === 'REPORT_ATTACHMENT'
-      ? { OR: [{ reportId: query[field] }, { reportService: { reportId: query[field] } }] } : { [field]: query[field] })
+    ...resource.filterFields.filter(field => query[field]).map(field => {
+      if (field === 'reportId' && resource.projectPolicy === 'REPORT_ATTACHMENT') {
+        return { OR: [{ reportId: query[field] }, { reportService: { reportId: query[field] } }] };
+      }
+      if (field === 'reportType') {
+        const reportType = { in: query[field] };
+        if (resource.projectPolicy === 'REPORT_ATTACHMENT') {
+          return { OR: [{ report: { reportType } }, { reportService: { report: { reportType } } }] };
+        }
+        if (resource.projectPolicy === 'REPORT') return { report: { reportType } };
+        return { reportType };
+      }
+      return { [field]: query[field] };
+    })
   ] };
 }
 
 export async function listOperationalResources(client, operationId, input, context) {
   const { resource, query } = prepareOperationalQuery(operationId, input, context);
   const filters = {
+    ...(query.projectCode ? { projectCode: query.projectCode } : {}),
     ...(query.projectId ? { projectId: query.projectId } : {}),
     ...(query.updatedSince ? { updatedSince: new Date(query.updatedSince).toISOString() } : {}),
     ...(query.createdSince ? { createdSince: new Date(query.createdSince).toISOString() } : {}),
-    ...Object.fromEntries(resource.filterFields.filter(field => query[field]).map(field => [field, query[field]])),
+    ...Object.fromEntries(resource.filterFields.filter(field => query[field])
+      .map(field => [field, Array.isArray(query[field]) ? [...query[field]].sort() : query[field]])),
     ...(query.active !== undefined ? { active: query.active } : {}),
     policyFingerprint: createHash('sha256').update(stableJson({
       projectAccessMode: context.projectAccessMode,
@@ -101,6 +131,7 @@ export async function listOperationalResources(client, operationId, input, conte
     version: 1, operationId, filters, snapshotAt: snapshotAt.toISOString(),
     position: Object.fromEntries(orderFields.map(field => [field, field === timestamp ? new Date(last[field]).toISOString() : last[field]]))
   } }) : null;
-  return { items: pageRows.map(row => serializeOperationalResource(resource, row)),
+  const outputRows = await enrichOperationalRows(client, resource, pageRows, context);
+  return { items: outputRows.map(row => serializeOperationalResource(resource, row, context)),
     page: { limit: query.limit, hasMore, nextCursor, snapshotAt: snapshotAt.toISOString() } };
 }

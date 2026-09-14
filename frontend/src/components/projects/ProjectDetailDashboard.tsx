@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
@@ -36,11 +37,13 @@ import { ProjectQualityDeviationsNovelty } from './ProjectQualityDeviationsNovel
 import { ProjectProgressHistoryNovelty } from './ProjectProgressHistoryNovelty';
 import { ProjectReportsDialog } from './ProjectReportsDialog';
 import { ProjectRomaneiosDialog } from './ProjectRomaneiosDialog';
+import { ProjectInvoicesSection } from './ProjectInvoicesSection';
 import { ProjectStandbyHistoryDialog } from './ProjectStandbyHistoryDialog';
 import { ProjectStandbyHistoryNovelty } from './ProjectStandbyHistoryNovelty';
 import { ProjectWeeklyTargetNovelty } from './ProjectWeeklyTargetNovelty';
 import { acompanhamentoRefreshQueryOptions } from './acompanhamentoRefresh';
 import type { AuthUser } from '../../types/auth';
+import { groupServicesByScope } from '../../utils/plannedScopeGroups';
 
 const SERVICE_LABELS: Record<string, string> = {
   LIMPEZA_QUIMICA: 'Limpeza química',
@@ -48,7 +51,7 @@ const SERVICE_LABELS: Record<string, string> = {
   FLUSHING: 'Flushing',
   FILTRAGEM: 'Filtragem'
 };
-const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo' };
+const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo', SISTEMA: 'Sistemas completos' };
 const UNIT_LABELS: Record<string, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
 const QUALITY_IMPACT_LABELS: Record<string, string> = { ALTO: 'Alto', MEDIO: 'Médio', BAIXO: 'Baixo' };
 const QUALITY_STATUS_LABELS: Record<string, string> = {
@@ -452,7 +455,9 @@ function weeklyTargetText(
 
 function RequiredWeeklyProgressCard({ target }: { target?: RequiredWeeklyProgress }) {
   if (!target) return null;
-  const measurableServices = target.services.filter(service => service.systems.some(system => system.plannedQty != null));
+  const scopeGroups = (target.scopeGroups ?? [{ scopeName: null, services: target.services }])
+    .map(group => ({ ...group, services: group.services.filter(service => service.systems.some(system => system.plannedQty != null)) }))
+    .filter(group => group.services.length > 0);
   return (
     <div className="acp-weekly-target" data-acp-weekly-progress-target>
       <div className="acp-weekly-target-head">
@@ -462,9 +467,11 @@ function RequiredWeeklyProgressCard({ target }: { target?: RequiredWeeklyProgres
         </div>
         <strong>{weeklyTargetText(target.status, target.remainingPctPoints, target.requiredPctPointsPerWeek, ' p.p.')}</strong>
       </div>
-      {measurableServices.length > 0 ? (
-        <div className="acp-weekly-target-services">
-          {measurableServices.map(service => (
+      {scopeGroups.length > 0 ? (
+        <div className="acp-weekly-target-services" role="region" aria-label="Serviços e sistemas do ritmo necessário" tabIndex={0}>
+          {scopeGroups.map(group => <section key={group.scopeName ?? ''}>
+            {target.scopeGroups ? <h3 className="acp-scope-group-title">Escopo: {group.scopeName || 'Sem escopo definido'}</h3> : null}
+          {group.services.map(service => (
             <div className="acp-weekly-target-service" key={service.serviceType}>
               <div className="acp-weekly-target-service-head">
                 <strong>{SERVICE_LABELS[service.serviceType] ?? service.serviceType}</strong>
@@ -473,9 +480,9 @@ function RequiredWeeklyProgressCard({ target }: { target?: RequiredWeeklyProgres
               {service.systems.filter(system => system.plannedQty != null).map(system => {
                 const unit = system.unit ? ` ${UNIT_LABELS[system.unit] ?? system.unit}` : '';
                 return (
-                  <div className="acp-weekly-target-system" key={`${system.systemType}:${system.unit ?? ''}`}>
+                  <div className="acp-weekly-target-system" key={`${system.projectSystemId ?? ''}:${system.systemType}:${system.unit ?? ''}:${system.diameter ?? ''}:${system.diameterUnit ?? ''}`}>
                     <div>
-                      <span>{SYSTEM_LABELS[system.systemType] ?? system.systemType}</span>
+                      <span>{system.projectSystemId ? `${system.equipment} · ${system.systemName} · ` : ''}{SYSTEM_LABELS[system.systemType] ?? system.systemType}{system.diameter ? ` · ${system.diameter} ${system.diameterUnit || 'pol'}` : ''}</span>
                       <small>{fmtQuantity(system.realizedQty, system.unit)} / {fmtQuantity(system.plannedQty, system.unit)}</small>
                     </div>
                     <strong>{weeklyTargetText(system.status, system.remainingQty, system.requiredQtyPerWeek, unit)}</strong>
@@ -484,6 +491,7 @@ function RequiredWeeklyProgressCard({ target }: { target?: RequiredWeeklyProgres
               })}
             </div>
           ))}
+          </section>)}
         </div>
       ) : null}
     </div>
@@ -555,7 +563,9 @@ function PlannedScopeView({ scope }: { scope?: PlannedScope }) {
   }
   return (
     <div className="acp-det-scope">
-      {scope.services.map((svc, i) => (
+      {groupServicesByScope(scope.services).map(group => <section key={group.scopeName ?? ''}>
+        {scope.services.some(service => service.scopeName) ? <h3 className="acp-scope-group-title">Escopo: {group.scopeName || 'Sem escopo definido'}</h3> : null}
+      {group.services.map((svc, i) => (
         <div className="acp-det-scope-svc" key={i}>
           <div className="acp-det-scope-head">
             <span>{SERVICE_LABELS[svc.serviceType] ?? svc.serviceType}</span>
@@ -566,12 +576,13 @@ function PlannedScopeView({ scope }: { scope?: PlannedScope }) {
           <ul>
             {svc.systems.map((sys, j) => (
               <li key={j}>
-                {SYSTEM_LABELS[sys.systemType] ?? sys.systemType}: {sys.quantity ?? '—'} {sys.unit ? UNIT_LABELS[sys.unit] ?? '' : ''}
+                {sys.projectSystemId ? `${sys.equipment} · ${sys.systemName} · ` : ''}{SYSTEM_LABELS[sys.systemType] ?? sys.systemType}{sys.diameter ? ` · ${sys.diameter} ${sys.diameterUnit || 'pol'}` : ''}: {sys.quantity ?? '—'} {sys.unit ? UNIT_LABELS[sys.unit] ?? '' : ''}{sys.description ? ` — ${sys.description}` : ''}
               </li>
             ))}
           </ul>
         </div>
       ))}
+      </section>)}
     </div>
   );
 }
@@ -1135,6 +1146,10 @@ export function ProjectDetailDashboard({
             </div>
             <RequiredWeeklyProgressCard target={data.requiredWeeklyProgress} />
             <ProgressHistoryChart points={data.progressHistory} />
+            {!isGroup && projectId ? <details style={{ marginTop: 12 }}>
+              <summary>Previsto × realizado por UG e sistema</summary>
+              <ProjectProgressBreakdown projectId={projectId} />
+            </details> : null}
 
             <div className="acp-det-two">
               <div className="acp-det-standby-kpi">
@@ -1203,6 +1218,8 @@ export function ProjectDetailDashboard({
           </div>
         </div>
       </div>
+
+      <ProjectInvoicesSection key={groupId || projectId} projectId={projectId} groupId={groupId} />
 
       {!isGroup ? (
         <div className="page-card acp-det-block quality-deviations" data-quality-project-deviations>

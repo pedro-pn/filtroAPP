@@ -12,19 +12,31 @@ test('every implemented scope and operation is testable with complete typed para
     assert.ok(operation.domain);
     assert.ok(['JSON', 'DOWNLOAD_CHECK'].includes(operation.responseKind));
     assert.deepEqual(operation.parameters.map(p => `${p.in}:${p.name}`).sort(), [...operation.queryParams.map(p => `query:${p}`), ...operation.pathParams.map(p => `path:${p}`)].sort());
-    for (const param of operation.parameters) assert.ok(param.label && param.type);
+    for (const param of operation.parameters) {
+      assert.ok(param.label && param.type);
+      if (param.in === 'query') assert.match(param.help, /Na URI:/);
+    }
   }
+  for (const operation of operations.filter(item => item.queryParams.includes('projectId'))) {
+    assert.ok(operation.queryParams.includes('projectCode'), operation.operationId);
+  }
+  const reportType = operations.find(item => item.operationId === 'operational.Report.list')
+    .parameters.find(parameter => parameter.name === 'reportType');
+  assert.deepEqual(reportType.options, ['RDO', 'RDO_MAINTENANCE', 'RDO_PRODUCTION', 'RTP', 'RLQ', 'RCPU', 'RLM', 'RLF', 'RLI']);
+  assert.match(reportType.help, /reportType=RCPU/);
   assert.equal(operations.filter(op => op.responseKind === 'DOWNLOAD_CHECK').length, 4);
 });
 
 test('playground accepts only allowlisted operationId, pathParams and query keys', () => {
-  assert.deepEqual(validatePlaygroundRequest({ operationId: 'quality.records.list', query: { limit: 10, projectId: 'p1' }, pathParams: {} }).operationId, 'quality.records.list');
+  assert.deepEqual(validatePlaygroundRequest({ operationId: 'quality.records.list', query: { limit: 10, projectCode: '05776' }, pathParams: {} }).operationId, 'quality.records.list');
   for (const input of [
     { operationId: 'quality.records.list', query: {}, url: 'https://attacker.invalid' },
     { operationId: 'quality.records.list', query: {}, method: 'DELETE' },
     { operationId: 'quality.records.list', query: {}, headers: { authorization: 'secret' } },
     { operationId: 'quality.records.list', query: {}, body: { raw: true } },
     { operationId: 'quality.records.list', query: { arbitrary: 'x' } },
+    { operationId: 'quality.records.list', query: { projectCode: '05776', projectId: 'p1' } },
+    { operationId: 'operational.Report.list', query: { reportType: 'INVALID' } },
     { operationId: 'unknown.operation', query: {} }
   ]) assert.throws(() => validatePlaygroundRequest(input));
 });

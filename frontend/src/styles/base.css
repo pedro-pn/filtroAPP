@@ -3070,6 +3070,11 @@ a {
 .acp-scope .num-unit select { width: auto; flex: 0 0 auto; }
 
 /* Serviços previstos: cada serviço é um cartão com seus sistemas */
+.acp-scope-groups { display: grid; gap: 16px; }
+.acp-scope-group { border: 1px solid var(--br); border-radius: var(--r); padding: 12px; min-width: 0; }
+.acp-scope-group-name { margin-bottom: 12px; }
+.acp-svc-move { max-width: 360px; margin-top: 10px; }
+.acp-scope-group-title { margin: 0 0 10px; font-size: 13px; color: var(--tx); overflow-wrap: anywhere; }
 .acp-svc-list { display: flex; flex-direction: column; gap: 10px; }
 .acp-svc-card {
   border: 1px solid var(--br);
@@ -3077,10 +3082,10 @@ a {
   padding: 10px 12px;
   background: var(--bg);
 }
-.acp-svc-head { display: flex; align-items: end; gap: 10px; }
-.acp-svc-head .acp-svc-type-fg { flex: 1 1 auto; max-width: 320px; }
+.acp-svc-head { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.acp-svc-head .acp-svc-type-fg { flex: 1 1 180px; min-width: 0; max-width: 320px; }
 .acp-svc-head .acp-svc-weight-fg { flex: 0 0 110px; }
-.acp-svc-head .mini-btn { margin-left: auto; }
+.acp-svc-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-left: auto; }
 .acp-sys-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .acp-sys-row {
   display: grid;
@@ -3132,6 +3137,7 @@ a {
   .acp-sys-del { justify-self: start; }
 }
 @media (max-width: 560px) {
+  .acp-svc-actions { flex-basis: 100%; }
   .acp-sys-row,
   .acp-sys-row.oil { grid-template-columns: 1fr; }
 }
@@ -3852,6 +3858,34 @@ a {
 @media (max-width: 980px) { .acp-det-cols { grid-template-columns: 1fr; } }
 .acp-det-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .acp-det-block { display: flex; flex-direction: column; gap: 10px; }
+.acp-invoices { min-width: 0; }
+.acp-invoices-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.acp-invoices-head h3 { margin: 0 0 4px; }
+.acp-invoices-head p, .acp-invoices p { margin: 0; font-size: 12px; color: var(--mu); }
+.acp-invoices-total { display: grid; gap: 4px; text-align: right; flex-shrink: 0; }
+.acp-invoices-total span { font-size: 12px; color: var(--mu); }
+.acp-invoices-total strong { font-size: 22px; color: var(--g); }
+.acp-invoices-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+.acp-invoices-table th { text-align: left; color: var(--mu); font-weight: 500; }
+.acp-invoices-table th, .acp-invoices-table td { padding: 10px 8px; border-bottom: 1px solid var(--br); vertical-align: top; overflow-wrap: anywhere; }
+.acp-invoices-table th:first-child, .acp-invoices-table td:first-child { padding-left: 0; }
+.acp-invoices-table small { display: block; color: var(--mu); margin-top: 3px; font-size: 11px; }
+.acp-invoices-table .acp-invoices-different { color: var(--mu); font-style: italic; }
+.acp-invoices-amount { font-variant-numeric: tabular-nums; font-weight: 600; }
+.acp-invoices-feedback, .acp-invoices-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; }
+.acp-invoices-notice { padding: 9px 12px; border: 1px solid var(--br); border-radius: var(--rs); }
+.acp-invoices-foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; font-size: 11px; color: var(--mu); }
+@media (max-width: 760px) {
+  .acp-invoices-head { flex-direction: column; gap: 10px; }
+  .acp-invoices-total { text-align: left; }
+  .acp-invoices-table, .acp-invoices-table tbody { display: block; }
+  .acp-invoices-table thead { display: none; }
+  .acp-invoices-table tr { display: block; padding: 8px 0; border-top: 1px solid var(--br); }
+  .acp-invoices-table td, .acp-invoices-table td:first-child { display: grid; grid-template-columns: minmax(88px, 30%) minmax(0, 1fr); gap: 3px 8px; border: 0; padding: 5px 0; }
+  .acp-invoices-table td::before { content: attr(data-label); color: var(--mu); font-weight: 400; }
+  .acp-invoices-table td small { grid-column: 2; }
+  .acp-invoices-table .badge { justify-self: start; }
+}
 .acp-det-planning { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
 .acp-det-planning > div:first-child { display: grid; gap: 5px; }
 .acp-det-planning p { margin: 0; }
@@ -3885,7 +3919,19 @@ a {
 .acp-weekly-target-head > div > strong { font-size: 13px; }
 .acp-weekly-target-head span { color: var(--mu); font-size: 11px; }
 .acp-weekly-target-head > strong { color: var(--g); font-size: 13px; text-align: right; }
-.acp-weekly-target-services { display: flex; flex-direction: column; gap: 8px; }
+.acp-weekly-target-services {
+  display: flex; flex-direction: column; gap: 8px;
+  max-height: min(420px, 55vh);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  padding-right: 4px;
+}
+.acp-weekly-target-services:focus-visible { outline: 2px solid var(--g); outline-offset: 3px; }
+.acp-weekly-target-services > * { flex-shrink: 0; }
+@media print {
+  .acp-weekly-target-services { max-height: none; overflow: visible; }
+}
 .acp-weekly-target-service {
   border-top: 1px solid var(--br);
   padding-top: 8px;
@@ -8530,6 +8576,11 @@ select {
   border-radius: var(--rs);
   padding: 8px 30px 8px 10px;
   background-color: #fafafa;
+  color: var(--tx);
+}
+
+select,
+.app-combobox-select .app-combobox-control > button {
   background-image:
     linear-gradient(45deg, transparent 50%, var(--mu) 50%),
     linear-gradient(135deg, var(--mu) 50%, transparent 50%);
@@ -8540,7 +8591,6 @@ select {
     6px 6px,
     6px 6px;
   background-repeat: no-repeat;
-  color: var(--tx);
 }
 
 select:focus {
@@ -14993,6 +15043,60 @@ body.app-reorder-touching {
 
 .app-combobox-empty {
   padding: 12px;
+}
+
+/* Sugestões editáveis com o mesmo campo e seta dos selects dos relatórios. */
+.app-combobox-select {
+  min-width: 0;
+}
+
+.app-combobox-select .app-combobox-control input {
+  padding-right: 30px;
+}
+
+.app-combobox-select .app-combobox-control > button {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 30px;
+  padding: 0;
+  border-radius: 0 var(--rs) var(--rs) 0;
+  /* Não usar background shorthand: preserva a seta compartilhada com select. */
+  background-color: transparent;
+}
+
+.app-combobox-select .app-combobox-control > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.app-combobox-select .app-combobox-list {
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.app-combobox-select .app-combobox-list button {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 4px;
+  font-size: inherit;
+  overflow-wrap: anywhere;
+}
+
+.app-combobox-select .app-combobox-list strong {
+  font-weight: 400;
+}
+
+.app-combobox-select .app-combobox-list button.active,
+.app-combobox-select .app-combobox-list button:hover {
+  background: var(--bg);
+}
+
+.app-combobox-select .app-combobox-empty {
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* === Auditoria da alocação diária do ponto === */

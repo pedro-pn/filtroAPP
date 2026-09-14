@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ProjectSystemInput } from '../../components/projects/ProjectSystemInput';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 
@@ -28,6 +29,7 @@ import type { UploadedFile } from '../../api/uploads';
 import type { ReportSummary } from '../../types/domain';
 import { roleHomePath } from '../../auth/rolePath';
 import { buildReportServicePayload, normalizeServiceType } from '../../utils/reportServicePayload';
+import { cleaningSystemQuantity, isSystemCleaning } from '../../utils/cleaningMeasurement';
 import { sortProjects } from '../../utils/projectSort';
 import { autosaveDraftTargetId } from '../../utils/draftAutosave';
 import { rdoWorkforceJustificationSchema } from '../../utils/rdoPlanningPrefill';
@@ -214,6 +216,7 @@ function SiteRdoFormPage() {
     ddsNightEnd,
     ddsNightThemes,
     overtimeReason,
+    workforceJustification,
     dailyDescription,
     generalUploads,
     services,
@@ -235,7 +238,6 @@ function SiteRdoFormPage() {
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [invalidTarget, setInvalidTarget] = useState<string | null>(null);
   const [ddsNoveltyActive, setDdsNoveltyActive] = useState(true);
-  const [workforceJustification, setWorkforceJustification] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftSaveStatus, setDraftSaveStatus] = useState<DraftSaveStatusValue>('idle');
   const canCreateServiceOnly = user?.role === 'MANAGER';
@@ -279,7 +281,7 @@ function SiteRdoFormPage() {
     if ((projectId || '') !== nextProjectId) {
       setCollaborators([]);
       setNightCollaborators([]);
-      setWorkforceJustification('');
+      setHeaderField('workforceJustification', '');
       previousServiceCollaboratorOptionIdsRef.current = [];
       for (const service of services) {
         if (normalizeServiceType(service.type) === 'inibicao') continue;
@@ -712,6 +714,7 @@ function SiteRdoFormPage() {
       }
 
       if (type === 'limpeza') {
+        if (isSystemCleaning(data) && cleaningSystemQuantity(data) === null) return failRequired('Quantidade inteira positiva de sistemas (unidades)', target('quantidadeSistemas'), 1);
         if (!hasStringItem(data.metodos)) return failRequired('Método de limpeza', target('metodos'), 1);
         if (!hasTextOrStringItem(data.ulq)) return failRequired('Unidade de Limpeza Química', target('ulq'), 1);
         if (!hasStringItem(data.local)) return failRequired('Local de limpeza', target('local'), 1);
@@ -810,11 +813,12 @@ function SiteRdoFormPage() {
       ddsNightEnd,
       ddsNightThemes,
       overtimeReason,
+      workforceJustification,
       dailyDescription,
       generalUploads,
       services
     };
-  }, [projectId, effectiveServiceOnly, reportDate, arrivalTime, departureTime, lunchBreak, collaboratorIds, nightCollaboratorIds, standby, noturno, standbyDuration, standbyMotivo, noturnoStart, noturnoEnd, noturnoInterval, ddsDay, ddsDayStart, ddsDayEnd, ddsDayThemes, ddsNight, ddsNightStart, ddsNightEnd, ddsNightThemes, overtimeReason, dailyDescription, generalUploads, services]);
+  }, [projectId, effectiveServiceOnly, reportDate, arrivalTime, departureTime, lunchBreak, collaboratorIds, nightCollaboratorIds, standby, noturno, standbyDuration, standbyMotivo, noturnoStart, noturnoEnd, noturnoInterval, ddsDay, ddsDayStart, ddsDayEnd, ddsDayThemes, ddsNight, ddsNightStart, ddsNightEnd, ddsNightThemes, overtimeReason, workforceJustification, dailyDescription, generalUploads, services]);
 
   const draftProjectDateKey = useCallback((draft: { projectId?: string | null; reportDate?: string | null; payload?: Record<string, unknown> }) => {
     const payload = draft.payload || {};
@@ -1175,7 +1179,7 @@ function SiteRdoFormPage() {
                 invalid={invalidTarget === 'header:workforceJustification'}
                 onApplyMissionSuggestion={applyMissionSuggestion}
                 onDismissMissionSuggestion={dismissMissionSuggestion}
-                onJustificationChange={setWorkforceJustification}
+                onJustificationChange={value => setHeaderField('workforceJustification', value)}
               />
             </ReportCollaboratorsCard>
 
@@ -1277,15 +1281,9 @@ function SiteRdoFormPage() {
                               Equipamento(s) <span style={{ color: 'var(--rd)' }}>*</span>
                               {service.data._prefilled && service.data.equipmentId ? <span className="pre-badge">pré-preenchido</span> : null}
                             </label>
-                            <input
+                            <ProjectSystemInput projectId={projectId} data={service.data} serviceType={service.type} field="equipmentId"
                               className={service.data._prefilled && service.data.equipmentId ? 'pre' : ''}
-                              value={typeof service.data.equipmentId === 'string' ? service.data.equipmentId : ''}
-                              placeholder="Informar equipamento do cliente..."
-                              onChange={(event) =>
-                                updateService(service.id, {
-                                  equipmentId: event.target.value
-                                })
-                              }
+                              onChange={patch => updateService(service.id, patch)}
                             />
                           </div>
                         ) : null}
@@ -1295,14 +1293,9 @@ function SiteRdoFormPage() {
                               Sistema <span style={{ color: 'var(--rd)' }}>*</span>
                               {service.data._prefilled && service.data.system ? <span className="pre-badge">pré-preenchido</span> : null}
                             </label>
-                            <input
+                            <ProjectSystemInput projectId={projectId} data={service.data} serviceType={service.type} field="system"
                               className={service.data._prefilled && service.data.system ? 'pre' : ''}
-                              value={typeof service.data.system === 'string' ? service.data.system : ''}
-                              onChange={(event) =>
-                                updateService(service.id, {
-                                  system: event.target.value
-                                })
-                              }
+                              onChange={patch => updateService(service.id, patch)}
                             />
                           </div>
                         ) : null}
