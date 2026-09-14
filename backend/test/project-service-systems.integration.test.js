@@ -152,4 +152,35 @@ test('project systems HTTP + PostgreSQL: scope, all UGs, permissions, aliases, h
   const longName = structuredClone(namedScope); longName.services[0].scopeName = 'a'.repeat(181);
   assert.equal((await request(scopePath, 'PUT', longName)).status, 400);
   assert.ok((await request(suggestionsPath, 'GET', undefined, tokens[1])).data.every(item => item.scopeName === undefined));
+
+  // O mesmo cadastro pode ter metas de vários serviços, mas um alias nunca pode
+  // escolher um serviço que não pertença ao destino no escopo salvo.
+  const serviceScope = structuredClone(namedScope);
+  serviceScope.services.push({ serviceType: 'FILTRAGEM', weight: 1, systems: [
+    { equipment: 'Unidade Geradora 01', systemName: 'Regulador de velocidade', systemType: 'OLEO', quantity: 100, unit: 'L' },
+    { equipment: 'Unidade Geradora 01', systemName: 'Óleo de lubrificação', systemType: 'OLEO', quantity: 100, unit: 'L' }
+  ] });
+  assert.equal((await request(scopePath, 'PUT', serviceScope)).status, 200);
+  const registry = (await request(systemsPath)).data;
+  const shared = registry.find(item => item.id === ids[0]);
+  assert.deepEqual(shared.measurements.map(item => item.serviceType).sort(), ['FILTRAGEM', 'LIMPEZA_QUIMICA']);
+  const cleaningOnly = registry.find(item => item.id === ids[1]);
+  const oilOnly = registry.find(item => item.name === 'Óleo de lubrificação');
+  for (const [target, serviceType] of [[cleaningOnly, 'FILTRAGEM'], [oilOnly, 'LIMPEZA_QUIMICA']]) {
+    const rejected = await request(`${systemsPath}/${target.id}/alias`, 'PUT', { ...alias, serviceType, revision: target.revision });
+    assert.equal(rejected.status, 400, JSON.stringify(rejected.data));
+    assert.match(rejected.data.error, /tipo de serviço no escopo atual/);
+    assert.deepEqual((await request(systemsPath)).data.find(item => item.id === target.id), target);
+  }
+  const sharedAlias = await request(`${systemsPath}/${shared.id}/alias`, 'PUT', { ...alias, serviceType: 'FILTRAGEM', revision: shared.revision });
+  assert.equal(sharedAlias.status, 200, JSON.stringify(sharedAlias.data));
+  assert.deepEqual(sharedAlias.data.measurements, shared.measurements); // resposta de save preserva os filtros do cache
+  assert.equal(sharedAlias.data.plannedRows, undefined);
+  assert.equal((await request(scopePath, 'PUT', { services: [] })).status, 200);
+  const obsolete = (await request(systemsPath)).data.find(item => item.id === shared.id);
+  assert.deepEqual(obsolete.measurements, []);
+  assert.equal((await request(`${systemsPath}/${shared.id}/alias`, 'PUT', { ...alias, serviceType: 'FILTRAGEM', revision: obsolete.revision })).status, 400);
+  const removedAlias = await request(`${systemsPath}/${shared.id}/alias`, 'PUT', { ...alias, serviceType: 'FILTRAGEM', revision: obsolete.revision, remove: true });
+  assert.equal(removedAlias.status, 200, JSON.stringify(removedAlias.data));
+  assert.ok(!removedAlias.data.aliases.some(item => item.serviceType === 'FILTRAGEM'));
 });
