@@ -36,6 +36,9 @@ import { listSedeCosts } from '../../lib/acompanhamento/sede-costs.js';
 import { listSedeOperationalMetrics } from '../../lib/acompanhamento/sede-operational-metrics.js';
 import prisma from '../../lib/prisma.js';
 import { canViewAcompanhamentoLaborCosts, requireAcompanhamentoAccess, requireAcompanhamentoManager, requireAuth } from '../../middleware/auth.js';
+import { saveSystemAlias } from '../../lib/acompanhamento/project-systems.js';
+import { assertHistoricalProject } from '../../lib/reports/historical-services-store.js';
+import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
 
 const router = Router();
 
@@ -635,22 +638,24 @@ router.delete(
 
 // === Escopo previsto: quantitativo de serviços vendidos + previsão de horas (manual) ===
 
-// Só tubulação (m) e óleo (L): são os quantitativos que o RDO registra como realizado, para o
-// previsto poder entrar no cálculo de avanço. Tanques e peso (kg/t) não têm fonte no RDO.
+// Quantitativos com fonte no RDO: tubulação (m), óleo (L) e limpeza de sistemas completos (un).
 const plannedSystemSchema = z.object({
-  systemType: z.enum(['TUBULACAO', 'OLEO']),
+  projectSystemId: z.string().max(100).nullable().optional(),
+  equipment: z.string().trim().max(180).nullable().optional(),
+  systemName: z.string().trim().max(180).nullable().optional(),
+  systemType: z.enum(['TUBULACAO', 'OLEO', 'SISTEMA']),
   description: z.string().trim().max(180).nullable().optional(),
   diameter: z.string().trim().max(40).nullable().optional(),
   diameterUnit: z.enum(['pol', 'mm']).nullable().optional(),
   quantity: z.number().nonnegative().nullable().optional(),
-  unit: z.enum(['M', 'L']).nullable().optional()
+  unit: z.enum(['M', 'L', 'UN']).nullable().optional()
 });
 
 const plannedServiceSchema = z.object({
   serviceType: z.string().trim().min(1).max(60),
   weight: z.number().nonnegative().max(100).optional(), // peso do serviço no avanço, em % (0–100)
   note: z.string().max(300).nullable().optional(),
-  systems: z.array(plannedSystemSchema).max(20).default([])
+  systems: z.array(plannedSystemSchema).max(500).default([])
 });
 
 const plannedHoursSchema = z.object({
@@ -683,17 +688,35 @@ router.get(
 router.put(
   '/projetos/:projectId/escopo-previsto',
   requireAuth,
-  requireAcompanhamentoAccess,
+  requireAcompanhamentoManager,
   asyncHandler(async (req, res) => {
     const data = plannedScopeSchema.parse(req.body);
     try {
       const scope = await setPlannedScope(req.params.projectId, data);
+      statisticsProjectsCache.clear();
       res.json(scope);
     } catch (error) {
       res.status(400).json({ error: error.message });
     }
   })
 );
+
+router.get('/projetos/:projectId/sistemas', requireAuth, requireAcompanhamentoAccess, asyncHandler(async (req, res) => {
+  await assertHistoricalProject(prisma, req.params.projectId);
+  res.json(await prisma.projectServiceSystem.findMany({ where: { projectId: req.params.projectId }, orderBy: [{ equipment: 'asc' }, { name: 'asc' }] }));
+}));
+
+router.put('/projetos/:projectId/sistemas/:id/alias', requireAuth, requireAcompanhamentoManager, asyncHandler(async (req, res) => {
+  const data = z.object({
+    equipment: z.string().trim().min(1).max(180), system: z.string().trim().min(1).max(180),
+    serviceType: z.enum(['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM']),
+    revision: z.number().int().positive(), remove: z.boolean().optional()
+  }).parse(req.body);
+  await assertHistoricalProject(prisma, req.params.projectId);
+  const item = await saveSystemAlias(prisma, { ...data, ...req.params });
+  statisticsProjectsCache.clear();
+  res.json(item);
+}));
 
 // Dashboard detalhado de um projeto (aberto ao clicar no card da aba Projetos).
 router.get(

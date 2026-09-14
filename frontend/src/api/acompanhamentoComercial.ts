@@ -443,10 +443,13 @@ export async function setProjectSchedule(projectId: string, payload: ProjectSche
 // --- Escopo previsto: quantitativo de serviços vendidos + previsão de hora extra ---
 
 export type PlannedMeasureUnit = 'M' | 'KG' | 'T' | 'UN' | 'L';
-export type PlannedSystemType = 'TUBULACAO' | 'OLEO';
+export type PlannedSystemType = 'TUBULACAO' | 'OLEO' | 'SISTEMA';
 export type PlannedDiameterUnit = 'pol' | 'mm';
 
 export interface PlannedServiceSystem {
+  projectSystemId?: string | null;
+  equipment?: string | null;
+  systemName?: string | null;
   systemType: PlannedSystemType;
   description?: string | null;
   diameter?: string | null;
@@ -489,7 +492,14 @@ export async function setPlannedScope(projectId: string, payload: PlannedScope):
 
 // --- Avanço físico (RDO ponderado por serviço) ---
 
-export interface ProgressSystem {
+export interface ProgressSystemIdentity {
+  projectSystemId?: string | null;
+  equipment?: string | null;
+  systemName?: string | null;
+  diameter?: string | null;
+  diameterUnit?: string | null;
+}
+export interface ProgressSystem extends ProgressSystemIdentity {
   systemType: PlannedSystemType;
   unit: PlannedMeasureUnit | null;
   plannedQty: number | null;
@@ -508,11 +518,17 @@ export interface ProjectProgress {
   hasScope: boolean;
   progressPct: number | null;
   services: ProgressService[];
+  pendingMeasurements?: PendingSystemMeasurement[];
+}
+
+export interface PendingSystemMeasurement {
+  serviceType: string; equipment: string; system: string; systemType: string;
+  unit: string; diameter: string | null; diameterUnit: string | null; quantity: number;
 }
 
 export type RequiredWeeklyProgressStatus = 'REQUIRED' | 'COMPLETED' | 'DUE_TODAY' | 'OVERDUE' | 'UNAVAILABLE';
 
-export interface RequiredWeeklyProgressSystem {
+export interface RequiredWeeklyProgressSystem extends ProgressSystemIdentity {
   systemType: PlannedSystemType;
   unit: PlannedMeasureUnit | null;
   plannedQty: number | null;

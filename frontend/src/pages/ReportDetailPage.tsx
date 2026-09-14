@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { ProjectSystemInput } from '../components/projects/ProjectSystemInput';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { listDdsThemes } from '../api/ddsThemes';
@@ -1114,22 +1115,19 @@ function ManagerRdoEditor({ report }: { report: ReportSummary }) {
                   {normalizeServiceType(service.type) !== 'inibicao' ? (
                   <div className="field-group">
                     <label htmlFor={`service-equipment-${service.id}`}>Equipamento(s)</label>
-                    <input
+                    <ProjectSystemInput projectId={form.projectId} data={service.data} serviceType={service.type} field="equipmentId"
                       id={`service-equipment-${service.id}`}
-                      value={getString(service.data.equipmentId)}
                       disabled={readOnly || manualReport}
-                      placeholder="Informar equipamento do cliente..."
-                      onChange={event => updateService(service.id, { data: { equipmentId: event.target.value } })}
+                      onChange={patch => updateService(service.id, { data: patch })}
                     />
                   </div>
                   ) : null}
                   {normalizeServiceType(service.type) !== 'inibicao' ? (
                     <div className="field-group">
                       <label>Sistema</label>
-                      <input
-                        value={getString(service.data.system)}
+                      <ProjectSystemInput projectId={form.projectId} data={service.data} serviceType={service.type} field="system"
                         disabled={readOnly || manualReport}
-                        onChange={event => updateService(service.id, { data: { system: event.target.value } })}
+                        onChange={patch => updateService(service.id, { data: patch })}
                       />
                     </div>
                   ) : null}

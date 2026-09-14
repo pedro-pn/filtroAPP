@@ -14,6 +14,10 @@ test('manual form round-trips equipment names, quotes, fractions and decimal qua
     const parsed = parseHistoricalServicesCsv(historicalFormCsv(historicalReportForm(report)));
     assert.deepEqual(parsed.errors, []);
     assert.deepEqual(parsed.reports[0].items, report.items);
+    const mmReport = { ...report, items: [{ ...report.items[0], diameter: '50', diameterUnit: 'mm' }] };
+    const mmRoundTrip = parseHistoricalServicesCsv(historicalFormCsv(historicalReportForm(mmReport)));
+    assert.deepEqual(mmRoundTrip.errors, []);
+    assert.deepEqual(mmRoundTrip.reports[0].items, mmReport.items);
     assert.deepEqual(historicalTotals([...report.items, { serviceType: 'filtragem', quantity: 5000, unit: 'L' }]), [
       { serviceType: 'limpeza', unit: 'm', quantity: 80.125 }, { serviceType: 'filtragem', unit: 'L', quantity: 5000 }
     ]);

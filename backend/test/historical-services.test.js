@@ -25,7 +25,8 @@ test('groups final measurements by source report with free customer equipment, n
 test('template covers chemical cleaning, pressure tests, filtration and flushing with correct source types', () => {
   const parsed = parseHistoricalServicesCsv(HISTORICAL_CSV_TEMPLATE);
   assert.deepEqual(parsed.errors, []);
-  assert.equal(parsed.reports.length, 4);
+  assert.equal(parsed.reports.length, 5);
+  assert.equal(parsed.reports.find(report => report.items[0].unit === 'UN').items[0].quantity, 1);
   assert.equal(parsed.reports.find(report => report.items[0].serviceType === 'flushing').reportType, 'RCPU');
   assert.equal(parsed.reports.find(report => report.items[0].serviceType === 'filtragem').items[0].quantity, 5000);
 });

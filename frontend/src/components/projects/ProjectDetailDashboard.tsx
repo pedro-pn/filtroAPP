@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ProjectProgressBreakdown } from './ProjectProgressBreakdown';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { Controller, useForm, type Resolver } from 'react-hook-form';
@@ -49,7 +50,7 @@ const SERVICE_LABELS: Record<string, string> = {
   FLUSHING: 'Flushing',
   FILTRAGEM: 'Filtragem'
 };
-const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo' };
+const SYSTEM_LABELS: Record<string, string> = { TUBULACAO: 'Tubulações', OLEO: 'Óleo', SISTEMA: 'Sistemas completos' };
 const UNIT_LABELS: Record<string, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
 const QUALITY_IMPACT_LABELS: Record<string, string> = { ALTO: 'Alto', MEDIO: 'Médio', BAIXO: 'Baixo' };
 const QUALITY_STATUS_LABELS: Record<string, string> = {
@@ -476,7 +477,7 @@ function RequiredWeeklyProgressCard({ target }: { target?: RequiredWeeklyProgres
                 return (
                   <div className="acp-weekly-target-system" key={`${system.systemType}:${system.unit ?? ''}`}>
                     <div>
-                      <span>{SYSTEM_LABELS[system.systemType] ?? system.systemType}</span>
+                      <span>{system.projectSystemId ? `${system.equipment} · ${system.systemName} · ` : ''}{SYSTEM_LABELS[system.systemType] ?? system.systemType}{system.diameter ? ` · ${system.diameter} ${system.diameterUnit || 'pol'}` : ''}</span>
                       <small>{fmtQuantity(system.realizedQty, system.unit)} / {fmtQuantity(system.plannedQty, system.unit)}</small>
                     </div>
                     <strong>{weeklyTargetText(system.status, system.remainingQty, system.requiredQtyPerWeek, unit)}</strong>
@@ -567,7 +568,7 @@ function PlannedScopeView({ scope }: { scope?: PlannedScope }) {
           <ul>
             {svc.systems.map((sys, j) => (
               <li key={j}>
-                {SYSTEM_LABELS[sys.systemType] ?? sys.systemType}: {sys.quantity ?? '—'} {sys.unit ? UNIT_LABELS[sys.unit] ?? '' : ''}
+                {sys.projectSystemId ? `${sys.equipment} · ${sys.systemName} · ` : ''}{SYSTEM_LABELS[sys.systemType] ?? sys.systemType}{sys.diameter ? ` · ${sys.diameter} ${sys.diameterUnit || 'pol'}` : ''}: {sys.quantity ?? '—'} {sys.unit ? UNIT_LABELS[sys.unit] ?? '' : ''}{sys.description ? ` — ${sys.description}` : ''}
               </li>
             ))}
           </ul>
@@ -1136,6 +1137,10 @@ export function ProjectDetailDashboard({
             </div>
             <RequiredWeeklyProgressCard target={data.requiredWeeklyProgress} />
             <ProgressHistoryChart points={data.progressHistory} />
+            {!isGroup && projectId ? <details style={{ marginTop: 12 }}>
+              <summary>Previsto × realizado por UG e sistema</summary>
+              <ProjectProgressBreakdown projectId={projectId} />
+            </details> : null}
 
             <div className="acp-det-two">
               <div className="acp-det-standby-kpi">

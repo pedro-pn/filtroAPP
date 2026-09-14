@@ -16,12 +16,12 @@ export function newHistoricalItem(serviceType: HistoricalServiceType = 'limpeza'
 export function historicalReportForm(report?: HistoricalServiceReport): HistoricalReportForm {
   return report ? {
     reportType: report.reportType, sequenceNumber: String(report.sequenceNumber), reportDate: report.reportDate.slice(0, 10),
-    items: report.items.map(item => ({ ...item, quantity: String(item.quantity).replace('.', ',') }))
+    items: report.items.map(item => ({ ...item, diameter: item.diameterUnit === 'mm' ? `${item.diameter} mm` : item.diameter, quantity: String(item.quantity).replace('.', ',') }))
   } : { reportType: 'RLQ', sequenceNumber: '', reportDate: '', items: [newHistoricalItem()] };
 }
 const csvCell = (value: string) => `"${value.replaceAll('"', '""')}"`;
 export function historicalFormCsv(form: HistoricalReportForm) {
-  return 'Relatorio;Numero;Data;Servico;Equipamento do cliente;Sistema;Diametro (pol);Quantidade;Unidade\r\n'
+  return 'Relatorio;Numero;Data;Servico;Equipamento do cliente;Sistema;Diametro;Quantidade;Unidade\r\n'
     + form.items.map(item => [form.reportType, form.sequenceNumber, form.reportDate,
       historicalServiceLabels[item.serviceType], item.equipment, item.system, item.diameter, item.quantity, item.unit
     ].map(csvCell).join(';')).join('\r\n');

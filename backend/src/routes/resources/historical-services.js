@@ -6,7 +6,7 @@ import { requireAuth, requireModuleRole } from '../../middleware/auth.js';
 import { statisticsProjectsCache } from '../../lib/resource-list-cache.js';
 import { HISTORICAL_CSV_TEMPLATE, historicalError } from '../../lib/reports/historical-services.js';
 import {
-  previewHistoricalImport, commitHistoricalImport, listHistoricalReports, updateHistoricalReport
+  previewHistoricalImport, commitHistoricalImport, listHistoricalReports, updateHistoricalReport, linkHistoricalMeasurement
 } from '../../lib/reports/historical-services-store.js';
 
 export function createHistoricalServicesRouter(client = prisma) {
@@ -42,6 +42,13 @@ export function createHistoricalServicesRouter(client = prisma) {
   router.put('/:projectId/:id', handle(async (req, res) => {
     const data = input.extend({ revision: z.number().int().positive() }).parse(req.body);
     const item = await updateHistoricalReport(client, { ...data, ...req.params, userId: req.auth.user.id });
+    statisticsProjectsCache.clear();
+    res.json(item);
+  }));
+  router.put('/:projectId/:id/items/:itemIndex/system', handle(async (req, res) => {
+    const { projectSystemId, revision } = z.object({ projectSystemId: z.string().max(100).nullable(), revision: z.number().int().positive() }).parse(req.body);
+    const itemIndex = z.coerce.number().int().nonnegative().max(1999).parse(req.params.itemIndex);
+    const item = await linkHistoricalMeasurement(client, { ...req.params, itemIndex, projectSystemId, revision, userId: req.auth.user.id });
     statisticsProjectsCache.clear();
     res.json(item);
   }));

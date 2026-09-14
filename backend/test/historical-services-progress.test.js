@@ -5,7 +5,7 @@ import { computeProgressForProjects, computeProgressHistoryForProjects } from '.
 import { HISTORICAL_CSV_TEMPLATE, parseHistoricalServicesCsv } from '../src/lib/reports/historical-services.js';
 
 function fixture(t) {
-  const csv = HISTORICAL_CSV_TEMPLATE
+  const csv = HISTORICAL_CSV_TEMPLATE.split('\r\n').filter(line => !line.endsWith(';UN')).join('\r\n')
     .replace(';2;35;m', ";2';3500;cm")
     .replace(';5000;L', ';5000000;mL')
     .replace('02/01/2026', '09/01/2026')

@@ -11,6 +11,8 @@ import {
 } from '../../api/acompanhamentoComercial';
 import { listJobRoles } from '../../api/jobRoles';
 import { HelpTip } from '../ui/HelpTip';
+import { ProjectSystemInput } from './ProjectSystemInput';
+import { ProjectSystemAliases } from './ProjectSystemAliases';
 import { useToast } from '../ui/ToastContext';
 
 // Tipos de serviço conhecidos (alinhados ao backend) + rótulos exibidos.
@@ -23,15 +25,16 @@ const SERVICE_TYPES: Array<{ value: string; label: string }> = [
 
 const SYSTEM_LABELS: Record<PlannedSystemType, string> = {
   TUBULACAO: 'Tubulações',
-  OLEO: 'Óleo'
+  OLEO: 'Óleo',
+  SISTEMA: 'Sistemas completos (unidades)'
 };
 
 // Unidade única de cada sistema — escolhida para casar com o que o RDO registra como realizado:
-// tubulação por comprimento (m, soma de tubes[].c) e óleo por volume (L, volumeOleo). Por isso não
-// há peso (kg/t) nem tanques aqui: o RDO não captura esses quantitativos.
+// tubulação por comprimento (m), óleo por volume (L) e limpeza de sistemas completos por unidades.
 const SYSTEM_UNIT: Record<PlannedSystemType, PlannedMeasureUnit> = {
   TUBULACAO: 'M',
-  OLEO: 'L'
+  OLEO: 'L',
+  SISTEMA: 'UN'
 };
 const UNIT_LABELS: Record<PlannedMeasureUnit, string> = { M: 'm', KG: 'kg', T: 't', UN: 'un', L: 'L' };
 const DIAMETER_UNIT_LABELS: Record<PlannedDiameterUnit, string> = { pol: 'pol', mm: 'mm' };
@@ -62,7 +65,7 @@ const COMMON_INCH_DIAMETERS = [
 
 // Tipos de sistema permitidos por serviço (alinhados ao que cada serviço registra no RDO).
 const SERVICE_SYSTEMS: Record<string, PlannedSystemType[]> = {
-  LIMPEZA_QUIMICA: ['TUBULACAO'],
+  LIMPEZA_QUIMICA: ['TUBULACAO', 'SISTEMA'],
   TESTE_PRESSAO: ['TUBULACAO'],
   FLUSHING: ['TUBULACAO', 'OLEO'],
   FILTRAGEM: ['OLEO']
@@ -75,6 +78,9 @@ const allowedSystems = (serviceType: string) => SERVICE_SYSTEMS[serviceType] ?? 
 // A unidade é derivada do systemType (SYSTEM_UNIT), não editável.
 interface SystemRow {
   key: string;
+  projectSystemId: string | null;
+  equipment: string;
+  systemName: string;
   systemType: PlannedSystemType;
   description: string;
   diameter: string;
@@ -154,6 +160,8 @@ function fromScope(scope: PlannedScope): { services: ServiceRow[]; normalHours: 
         .filter(sys => allowed.includes(sys.systemType))
         .map(sys => ({
           key: nextKey(),
+          projectSystemId: sys.projectSystemId || null,
+          equipment: toStr(sys.equipment), systemName: toStr(sys.systemName),
           systemType: sys.systemType,
           description: toStr(sys.description),
           diameter: sys.systemType === 'TUBULACAO' ? toStr(sys.diameter) : '',
@@ -183,6 +191,7 @@ function normalize(services: ServiceRow[], normalHours: HoursRow[], overtime: Ho
       serviceType: s.serviceType,
       weight: s.weight,
       systems: s.systems.map(sys => ({
+        projectSystemId: sys.projectSystemId, equipment: sys.equipment.trim(), systemName: sys.systemName.trim(),
         systemType: sys.systemType,
         description: sys.description.trim(),
         diameter: sys.systemType === 'TUBULACAO' ? sys.diameter.trim() : '',
@@ -247,16 +256,24 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       queryClient.invalidateQueries({ queryKey: ['project-cards'] });
       queryClient.invalidateQueries({ queryKey: ['project-detail', projectId] });
       queryClient.invalidateQueries({ queryKey: ['project-progress', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['project-systems'] });
     },
-    onError: () => showToast('Não foi possível salvar o escopo previsto.')
+    onError: (error: Error) => showToast(error.message || 'Não foi possível salvar o escopo previsto.')
   });
 
   function save() {
+    if (services.some(service => service.systems.some(row => row.systemType === 'SISTEMA' && (
+      !row.equipment.trim() || !row.systemName.trim() || !Number.isSafeInteger(toNum(row.quantity)) || (toNum(row.quantity) ?? 0) <= 0
+    )))) {
+      showToast('Sistemas por unidade exigem equipamento/UG, nome do sistema e quantidade inteira positiva.');
+      return;
+    }
     const payload: PlannedScope = {
       services: services.map(s => ({
         serviceType: s.serviceType,
         weight: toNum(s.weight) ?? 0,
         systems: s.systems.map(sys => ({
+          projectSystemId: sys.projectSystemId, equipment: sys.equipment.trim() || null, systemName: sys.systemName.trim() || null,
           systemType: sys.systemType,
           description: sys.description.trim() || null,
           diameter: sys.systemType === 'TUBULACAO' ? (sys.diameter.trim() || null) : null,
@@ -325,7 +342,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
         ...s,
         systems: [
           ...s.systems,
-          { key: nextKey(), systemType: next, description: '', diameter: '', diameterUnit: 'pol', quantity: '' }
+          { key: nextKey(), projectSystemId: null, equipment: s.systems.at(-1)?.equipment || '', systemName: '', systemType: next, description: '', diameter: '', diameterUnit: 'pol', quantity: '' }
         ]
       };
     }));
@@ -341,6 +358,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                 ? {
                     ...sys,
                     systemType,
+                    quantity: sys.systemType === systemType ? sys.quantity : '',
                     diameter: systemType === 'TUBULACAO' ? sys.diameter : '',
                     diameterUnit: systemType === 'TUBULACAO' && sys.diameterUnit === 'mm' ? 'mm' : 'pol'
                   }
@@ -415,9 +433,23 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                       ? [sys.diameter, ...COMMON_INCH_DIAMETERS]
                       : COMMON_INCH_DIAMETERS;
                     return (
-                      <div className={`acp-sys-row ${isTube ? 'tube' : 'oil'}`} key={sys.key}>
+                      <div key={sys.key}>
+                      <div className="acp-system-identity" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, padding: '8px 0' }}>
+                        {(['equipmentId', 'system'] as const).map(field => <div className="field-group" key={field}>
+                          <label>{field === 'equipmentId' ? 'Equipamento do cliente / UG' : 'Sistema do cliente'}</label>
+                          <ProjectSystemInput projectId={projectId} source="scope" field={field}
+                            data={{ equipmentId: sys.equipment, system: sys.systemName, __projectSystemId: sys.projectSystemId }}
+                            suggestions={services.flatMap(s => s.systems).filter(row => row.equipment && row.systemName).map(row => ({ id: row.projectSystemId || '', projectId, equipment: row.equipment, name: row.systemName, revision: 1 }))}
+                            onChange={patch => changeSystem(svc.key, sys.key, {
+                              ...(typeof patch.equipmentId === 'string' ? { equipment: patch.equipmentId } : {}),
+                              ...(typeof patch.system === 'string' ? { systemName: patch.system } : {}),
+                              projectSystemId: typeof patch.__projectSystemId === 'string' ? patch.__projectSystemId : null
+                            })} />
+                        </div>)}
+                      </div>
+                      <div className={`acp-sys-row ${isTube ? 'tube' : 'oil'}`}>
                         <div className="field-group">
-                          <label>Sistema <HelpTip icon help="O que será medido neste serviço: tubulação (em metros) ou óleo (em litros)." /></label>
+                          <label>Tipo de medição <HelpTip icon help="Tubulação em metros, óleo em litros ou limpeza de sistemas completos em unidades." /></label>
                           <select
                             value={sys.systemType}
                             onChange={e => changeSystemType(svc.key, sys.key, e.target.value as PlannedSystemType)}
@@ -426,7 +458,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                           </select>
                         </div>
                         <div className="field-group acp-sys-desc">
-                          <label>Descrição do sistema</label>
+                          <label>Detalhes / trecho (opcional)</label>
                           <input
                             type="text"
                             maxLength={180}
@@ -472,11 +504,11 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                         ) : null}
                         <div className="field-group">
                           <label>
-                            {isTube ? 'Comprimento (m)' : 'Litros de óleo (L)'} <HelpTip icon help="Quantitativo vendido/previsto deste sistema. É o denominador do avanço (realizado ÷ previsto)." />
+                            {isTube ? 'Comprimento (m)' : sys.systemType === 'SISTEMA' ? 'Quantidade prevista (unidades)' : 'Litros de óleo (L)'} <HelpTip icon help="Quantitativo vendido/previsto deste sistema. É o denominador do avanço (realizado ÷ previsto)." />
                           </label>
                           <div className="num-unit">
                             <input
-                              type="number" min="0" step="any" inputMode="decimal" placeholder="0"
+                              type="number" min={sys.systemType === 'SISTEMA' ? '1' : '0'} step={sys.systemType === 'SISTEMA' ? '1' : 'any'} inputMode={sys.systemType === 'SISTEMA' ? 'numeric' : 'decimal'} placeholder="0"
                               value={sys.quantity}
                               onChange={e => changeSystem(svc.key, sys.key, { quantity: e.target.value })}
                             />
@@ -484,6 +516,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                           </div>
                         </div>
                         <button type="button" className="mini-btn alt acp-sys-del" onClick={() => removeSystem(svc.key, sys.key)} aria-label="Remover sistema">✕</button>
+                      </div>
                       </div>
                     );
                   })}
@@ -512,6 +545,8 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
         </div>
       ) : null}
 
+      <p className="placeholder-copy">Preencha uma linha por equipamento/UG, sistema e bitola. Deixe os dois nomes vazios somente para uma meta global. Não repita um total agrupado em cada UG.</p>
+      <ProjectSystemAliases projectId={projectId} />
       {beforeOvertime}
 
       <div className="sec" style={{ marginTop: 18 }}>Previsão de horas normais</div>

@@ -94,6 +94,8 @@ import {
   updateManualReportOperationalData
 } from '../../lib/reports/manual-operational-data.js';
 import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middleware/auth.js';
+import { createProjectSystemsRouter } from './project-systems.js';
+import { assertReportServicesProject } from '../../lib/reports/service-project-validation.js';
 import { resolveActualWorkforceContext } from '../../lib/workforce/actual-conflicts.js';
 import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-mission-context.js';
 import { assertReportTypeEmissionPermission } from '../../lib/operational-reports/permissions.js';
@@ -3510,14 +3512,6 @@ export function assertCompleteTubeRows(services) {
   throw error;
 }
 
-function assertProjectAllowsInhibition(project, services) {
-  const hasInhibition = (services || []).some(service => service.serviceType === 'inibicao');
-  if (!hasInhibition || project?.inhibitionServiceEnabled) return;
-  const error = new Error('Serviço de inibição não está habilitado para este projeto.');
-  error.statusCode = 400;
-  throw error;
-}
-
 export const serviceSchema = z.object({
   serviceType: z.string().min(1),
   equipmentId: z.string().nullable().optional(),
@@ -5789,6 +5783,8 @@ async function buildReportListWhere(auth, query) {
 }
 
 router.use('/historical-services', historicalServicesRouter);
+
+router.use('/project-systems', createProjectSystemsRouter(prisma, collaboratorCanAccessProject));
 router.get('/planning-context', requireAuth, requireRdoAccess, asyncHandler(reportPlanningContextHandler));
 router.get('/collaborator-prefill', requireAuth, requireRdoAccess, asyncHandler(reportCollaboratorPrefillHandler));
 
@@ -6468,7 +6464,7 @@ router.post('/service-only', requireAuth, requireRdoAccess, asyncHandler(async (
       include: { operator: { include: { jobRole: true } }, authorizedUsers: true }
     });
     assertProjectReadyForReports(project);
-    assertProjectAllowsInhibition(project, data.services);
+    await assertReportServicesProject(tx, project, data.services);
 
     return createIndependentServiceReports(tx, project, {
       ...data,
@@ -6503,7 +6499,7 @@ router.post('/', requireAuth, requireRdoAccess, asyncHandler(async (req, res) =>
       include: { operator: { include: { jobRole: true } }, authorizedUsers: true }
     });
     assertProjectReadyForReports(project);
-    assertProjectAllowsInhibition(project, data.services);
+    await assertReportServicesProject(tx, project, data.services);
     if (project.managerOnly && req.auth.user.role !== 'MANAGER') {
       const error = new Error('Este projeto é visível somente para o gestor.');
       error.statusCode = 403;
@@ -6719,7 +6715,7 @@ router.put('/:id', requireAuth, requireRdoAccess, asyncHandler(async (req, res) 
       include: { operator: { include: { jobRole: true } }, authorizedUsers: true }
     });
     assertProjectReadyForReports(project);
-    assertProjectAllowsInhibition(project, data.services);
+    await assertReportServicesProject(tx, project, data.services);
     if (!manualUploadedReport) {
       await assertUniqueReportDate(tx, {
         projectId: data.projectId,

@@ -852,6 +852,7 @@ model Project {
   omiePurchases              OmiePurchase[]
   omieReceivables            OmieReceivable[]
   plannedServices            ProjectPlannedService[]
+  serviceSystems             ProjectServiceSystem[]
   plannedNormalHours         ProjectPlannedNormalHours[]
   plannedOvertime            ProjectPlannedOvertime[]
   stockMovements             StockMovement[]
@@ -2867,7 +2868,8 @@ model ProjectPlannedService {
 model ProjectPlannedServiceSystem {
   id           String                @id @default(cuid())
   serviceId    String
-  systemType   String // TUBULACAO | OLEO
+  projectSystemId String?
+  systemType   String // TUBULACAO | OLEO | SISTEMA (limpeza por UN)
   description  String?
   diameter     String?
   diameterUnit String?
@@ -2875,8 +2877,31 @@ model ProjectPlannedServiceSystem {
   unit         PlannedMeasureUnit? // unidade do sistema (TUBULACAO=M, OLEO=L)
   order        Int                   @default(0)
   service      ProjectPlannedService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  projectSystem ProjectServiceSystem? @relation(fields: [projectSystemId], references: [id], onDelete: Restrict)
+
+  @@index([projectSystemId])
 
   @@index([serviceId])
+}
+
+// Equipamento/UG e sistema DO CLIENTE, sem vínculo com o cadastro de Equipment.
+// Identidade estável: salvar novamente o cronograma não recria este cadastro.
+model ProjectServiceSystem {
+  id           String @id @default(cuid())
+  projectId    String
+  equipment    String
+  name         String
+  equipmentKey String
+  nameKey      String
+  aliases      Json @default("[]")
+  revision     Int @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  plannedRows  ProjectPlannedServiceSystem[]
+
+  @@unique([projectId, equipmentKey, nameKey])
+  @@index([projectId])
 }
 
 // Previsão de horas normais vendidas: por cargo e total de horas previstas.
