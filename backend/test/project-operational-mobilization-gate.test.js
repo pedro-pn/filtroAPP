@@ -6,11 +6,13 @@ import {
   PROJECT_WORKFLOW_CHECKLISTS,
   PROJECT_WORKFLOW_CLIENT_RELEASES,
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
+  PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS,
   PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS
 } from '../../shared/schemas/project-workflow.js';
 import {
   assertProjectMobilizationAuthorized,
-  projectOperationalMobilizationDecision
+  projectOperationalMobilizationDecision,
+  PROJECT_OPERATIONAL_GATE_INCLUDE
 } from '../src/lib/efetivo/project-workflow/operational-gate.js';
 
 export function managedWorkflow(overrides = {}) {
@@ -37,6 +39,16 @@ export function managedWorkflow(overrides = {}) {
     clientReleases: {
       attendance: { date: '2026-09-15', confirmed: true },
       items: PROJECT_WORKFLOW_CLIENT_RELEASES.map(item => ({ ...item, requested: true, requestedAt: '2026-09-09', requestedTo: 'Portaria', completed: true, completedAt: '2026-09-10' }))
+    },
+    preparationResources: {
+      equipment: {
+        defined: true,
+        items: [{ id: 'equipment-1', name: 'Bomba 1', checks: PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS.EQUIPMENT.map(item => ({ ...item, status: 'DONE' })) }]
+      },
+      materials: {
+        defined: true,
+        items: [{ id: 'material-1', name: 'Filtro 10 µm', checks: PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS.MATERIAL.map(item => ({ ...item, status: 'DONE' })) }]
+      }
     },
     issues: [],
     ...overrides
@@ -68,6 +80,21 @@ test('autorização vigente também libera operações durante a execução', as
   const decision = await assertProjectMobilizationAuthorized(database(managedWorkflow({ stage: 'EXECUTION' })), 'project-1');
   assert.equal(decision.status, 'AUTHORIZED');
   assert.equal(decision.allowed, true);
+});
+
+test('consulta operacional reconstrói as conferências individuais persistidas', async () => {
+  const workflow = managedWorkflow();
+  delete workflow.preparationResources;
+  workflow.equipmentCategoryPlans = [{ equipmentIds: ['equipment-1'] }];
+  workflow.supplyPlan = [{ id: 'material-1', name: 'Filtro 10 µm' }];
+  workflow.preparationItemChecks = [
+    ...PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS.EQUIPMENT.map(item => ({ itemType: 'EQUIPMENT', itemId: 'equipment-1', key: item.key, status: 'DONE' })),
+    ...PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS.MATERIAL.map(item => ({ itemType: 'MATERIAL', itemId: 'material-1', key: item.key, status: 'DONE' }))
+  ];
+  const decision = await assertProjectMobilizationAuthorized(database(workflow), 'project-1');
+  assert.equal(decision.allowed, true);
+  assert.ok(PROJECT_OPERATIONAL_GATE_INCLUDE.preparationItemChecks);
+  assert.ok(PROJECT_OPERATIONAL_GATE_INCLUDE.equipmentCategoryPlans);
 });
 
 test('desmobilização encerra a autorização para novas saídas operacionais', async () => {

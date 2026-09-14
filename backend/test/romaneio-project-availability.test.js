@@ -6,6 +6,7 @@ import {
   PROJECT_WORKFLOW_CHECKLISTS,
   PROJECT_WORKFLOW_CLIENT_RELEASES,
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
+  PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS,
   PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS
 } from '../../shared/schemas/project-workflow.js';
 import {
@@ -35,6 +36,10 @@ function authorizedWorkflow(overrides = {}) {
     clientReleases: {
       attendance: { date: '2026-09-15', confirmed: true },
       items: PROJECT_WORKFLOW_CLIENT_RELEASES.map(item => ({ ...item, requested: true, requestedAt: '2026-09-09', requestedTo: 'Portaria', completed: true, completedAt: '2026-09-10' }))
+    },
+    preparationResources: {
+      equipment: { defined: true, items: [{ id: 'equipment-1', name: 'Bomba 1', checks: PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS.EQUIPMENT.map(item => ({ ...item, status: 'DONE' })) }] },
+      materials: { defined: true, items: [{ id: 'material-1', name: 'Filtro', checks: PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS.MATERIAL.map(item => ({ ...item, status: 'DONE' })) }] }
     },
     issues: [],
     ...overrides

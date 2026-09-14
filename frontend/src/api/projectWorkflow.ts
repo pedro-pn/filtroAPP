@@ -4,6 +4,8 @@ import type { ProjectDocumentRequirementSummary } from './projectDocuments';
 export type ProjectWorkflowStage = 'HANDOVER' | 'INITIAL_ANALYSIS' | 'WAITING_PLANNING' | 'MOBILIZATION_PLANNING' | 'PREPARATION' | 'READY_TO_MOBILIZE' | 'MOBILIZATION' | 'EXECUTION' | 'DEMOBILIZATION' | 'POST_JOB' | 'FINAL_MEASUREMENT' | 'FINISHED';
 export type ProjectWorkflowChecklistStatus = 'PENDING' | 'DONE' | 'NOT_APPLICABLE';
 export type ProjectWorkflowTeamMemberCheckKey = 'NOTIFIED' | 'DOCUMENTS_CHECKED' | 'EXAMS_RELEASED' | 'TRAININGS_RELEASED';
+export type ProjectWorkflowPreparationItemType = 'EQUIPMENT' | 'MATERIAL';
+export type ProjectWorkflowPreparationItemCheckKey = 'TESTED' | 'ACCESSORIES_SEPARATED' | 'SEPARATED';
 export type ProjectWorkflowClientReleaseKey = 'CUSTOMER_REGISTRATION' | 'DOCUMENTS_SENT' | 'INTEGRATION_REQUEST';
 export type ProjectWorkflowIssueStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 export type ProjectWorkflowCriticality = 'HIGH' | 'MEDIUM' | 'LOW';
@@ -240,6 +242,26 @@ export interface ProjectWorkflowEquipmentPlanningCategory {
   availableCount: number;
 }
 
+export interface ProjectWorkflowPreparationItemCheck {
+  key: ProjectWorkflowPreparationItemCheckKey;
+  label: string;
+  status: 'PENDING' | 'DONE';
+  updatedAt: string | null;
+  updatedBy: { id: string; name: string } | null;
+  canEdit: boolean;
+}
+
+export interface ProjectWorkflowPreparationEquipmentItem extends Omit<ProjectWorkflowEquipmentPlanningItem, 'code' | 'availabilityStatus' | 'availableAtMobilization' | 'calibration' | 'maintenance'> {
+  code: string | null;
+  categoryId: string;
+  categoryName: string;
+  availabilityStatus: ProjectWorkflowEquipmentPlanningItem['availabilityStatus'] | null;
+  availableAtMobilization: boolean | null;
+  calibration: ProjectWorkflowEquipmentPlanningItem['calibration'] | null;
+  maintenance: ProjectWorkflowEquipmentPlanningItem['maintenance'] | null;
+  checks: ProjectWorkflowPreparationItemCheck[];
+}
+
 export type ProjectWorkflowSupplyType = 'FILTRO' | 'PRODUTO_QUIMICO';
 
 export interface ProjectWorkflowSupplyCatalogItem {
@@ -265,6 +287,20 @@ export interface ProjectWorkflowSupplyPlanItem {
   purchaseRequired: boolean;
   requestedAt: string | null;
   purchasedAt: string | null;
+}
+
+export interface ProjectWorkflowPreparationResources {
+  equipment: {
+    defined: boolean;
+    items: ProjectWorkflowPreparationEquipmentItem[];
+  };
+  materials: {
+    defined: boolean;
+    items: Array<ProjectWorkflowSupplyPlanItem & {
+      availableInStock: boolean;
+      checks: ProjectWorkflowPreparationItemCheck[];
+    }>;
+  };
 }
 
 export interface ProjectWorkflowLogisticsPlanning {
@@ -515,6 +551,7 @@ export interface ProjectWorkflow {
   commercialReadiness: ProjectWorkflowCommercialReadiness;
   documentationCategories: ProjectWorkflowDocumentationCategory[];
   teamPreparation: ProjectWorkflowTeamPreparation;
+  preparationResources: ProjectWorkflowPreparationResources;
   clientReleases: ProjectWorkflowClientReleases;
   documentRequirements: Record<'HANDOVER' | 'MOBILIZATION' | 'CLOSEOUT', ProjectDocumentRequirementSummary>;
   documentationReadiness: ProjectWorkflowDocumentationReadiness;
@@ -673,6 +710,7 @@ export type ProjectWorkflowPatch =
   | { action: 'settings'; version: number; leaderUserId?: string; plannedMobilizationDate?: string }
   | { action: 'checklist'; version: number; key: string; status: ProjectWorkflowChecklistStatus; note?: string | null }
   | { action: 'team_member_check'; version: number; collaboratorId: string; key: ProjectWorkflowTeamMemberCheckKey; status: 'PENDING' | 'DONE' }
+  | { action: 'preparation_item_check'; version: number; itemType: ProjectWorkflowPreparationItemType; itemId: string; key: ProjectWorkflowPreparationItemCheckKey; status: 'PENDING' | 'DONE' }
   | { action: 'client_attendance'; version: number; attendanceDate: string }
   | { action: 'client_release'; version: number; key: ProjectWorkflowClientReleaseKey; requested: boolean; requestedAt: string | null; requestedTo: string | null; completed: boolean; completedAt: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }

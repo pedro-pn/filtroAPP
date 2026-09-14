@@ -1,6 +1,7 @@
 import { planningError } from '../planning/errors.js';
 import {
   PROJECT_WORKFLOW_CLIENT_RELEASES,
+  PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS,
   PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS
 } from '../../../../../shared/schemas/project-workflow.js';
 import {
@@ -13,6 +14,13 @@ export const PROJECT_MOBILIZATION_NOT_AUTHORIZED = 'PROJECT_MOBILIZATION_NOT_AUT
 export const PROJECT_OPERATIONAL_GATE_INCLUDE = {
   checklists: { select: { key: true, status: true } },
   teamMemberChecks: { select: { collaboratorId: true, key: true, status: true } },
+  preparationItemChecks: { select: { itemType: true, itemId: true, key: true, status: true } },
+  equipmentCategoryPlans: {
+    select: {
+      equipmentIds: true,
+      category: { select: { equipment: { where: { isActive: true }, select: { id: true } } } }
+    }
+  },
   clientReleases: { select: { key: true, attendanceDate: true, attendanceConfirmedAt: true, requested: true, requestedAt: true, requestedTo: true, completed: true, completedAt: true } },
   criticalAnswers: { select: { key: true, answer: true } },
   issues: { select: { id: true, sourceQuestion: true, status: true, dueDate: true, criticality: true, area: true, description: true } },
@@ -82,7 +90,39 @@ function workflowWithPreparationData(workflow, mission = null) {
           })
         };
       })();
-  return { ...workflow, teamPreparation, clientReleases };
+  const preparationResources = workflow.preparationResources?.equipment
+    ? workflow.preparationResources
+    : (() => {
+        const records = new Map((workflow.preparationItemChecks || []).map(item => [
+          `${item.itemType}:${item.itemId}:${item.key}`,
+          item
+        ]));
+        const checksFor = (itemType, itemId) => PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS[itemType].map(definition => ({
+          key: definition.key,
+          label: definition.label,
+          status: records.get(`${itemType}:${itemId}:${definition.key}`)?.status || 'PENDING'
+        }));
+        const equipmentIds = [...new Set((workflow.equipmentCategoryPlans || []).flatMap(plan => {
+          const storedIds = Array.isArray(plan.equipmentIds) ? plan.equipmentIds : [];
+          return storedIds.length ? storedIds : (plan.category?.equipment || []).map(item => item.id);
+        }))];
+        const materialIds = Array.isArray(workflow.supplyPlan) ? workflow.supplyPlan.map(item => item.id) : [];
+        return {
+          equipment: {
+            defined: equipmentIds.length > 0,
+            items: equipmentIds.map(id => ({ id, name: 'Equipamento reservado', checks: checksFor('EQUIPMENT', id) }))
+          },
+          materials: {
+            defined: materialIds.length > 0,
+            items: materialIds.map(id => ({
+              id,
+              name: workflow.supplyPlan.find(item => item.id === id)?.name || 'Material programado',
+              checks: checksFor('MATERIAL', id)
+            }))
+          }
+        };
+      })();
+  return { ...workflow, teamPreparation, clientReleases, preparationResources };
 }
 
 function authorizationInstruction(status) {

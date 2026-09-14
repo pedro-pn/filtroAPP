@@ -6,6 +6,7 @@ import {
   PROJECT_WORKFLOW_CLIENT_RELEASES,
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
+  PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS,
   PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS,
   makeProjectWorkflowCommercialFactSchema,
   makeProjectWorkflowSchemas,
@@ -47,6 +48,9 @@ test('contrato exige justificativa para não aplicável, valida documentação e
   assert.equal(patch.safeParse({ action: 'analysis_contact', version: 1, made: false }).success, true);
   assert.equal(patch.safeParse({ action: 'team_member_check', version: 1, collaboratorId: 'collaborator-1', key: 'EXAMS_RELEASED', status: 'DONE' }).success, true);
   assert.equal(patch.safeParse({ action: 'team_member_check', version: 1, collaboratorId: 'collaborator-1', key: 'EXAMS_RELEASED', status: 'NOT_APPLICABLE' }).success, false);
+  assert.equal(patch.safeParse({ action: 'preparation_item_check', version: 1, itemType: 'EQUIPMENT', itemId: 'equipment-1', key: 'TESTED', status: 'DONE' }).success, true);
+  assert.equal(patch.safeParse({ action: 'preparation_item_check', version: 1, itemType: 'MATERIAL', itemId: 'material-1', key: 'TESTED', status: 'DONE' }).success, false);
+  assert.equal(patch.safeParse({ action: 'preparation_item_check', version: 1, itemType: 'MATERIAL', itemId: 'material-1', key: 'SEPARATED', status: 'DONE' }).success, true);
   assert.equal(patch.safeParse({ action: 'client_attendance', version: 1, attendanceDate: '2026-09-20' }).success, true);
   assert.equal(patch.safeParse({ action: 'client_release', version: 1, key: 'CUSTOMER_REGISTRATION', requested: true, requestedAt: '2026-09-10', requestedTo: 'Portaria', completed: false, completedAt: null }).success, true);
   assert.equal(patch.safeParse({ action: 'client_release', version: 1, key: 'CUSTOMER_REGISTRATION', requested: false, requestedAt: null, requestedTo: null, completed: true, completedAt: '2026-09-10' }).success, false);
@@ -240,7 +244,26 @@ function readyMobilizationWorkflow(overrides = {}) {
       completedAt: '2026-09-10'
     }))
   };
-  return { stage: 'PREPARATION', version: 10, checklists: readinessChecklists, commercialFacts, documentationCategories, teamPreparation, clientReleases, issues: [], ...overrides };
+  const preparationResources = {
+    equipment: {
+      defined: true,
+      items: [{
+        id: 'equipment-1',
+        code: 'B-01',
+        name: 'Bomba 1',
+        checks: PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS.EQUIPMENT.map(item => ({ ...item, status: 'DONE' }))
+      }]
+    },
+    materials: {
+      defined: true,
+      items: [{
+        id: 'material-1',
+        name: 'Filtro 10 µm',
+        checks: PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS.MATERIAL.map(item => ({ ...item, status: 'DONE' }))
+      }]
+    }
+  };
+  return { stage: 'PREPARATION', version: 10, checklists: readinessChecklists, commercialFacts, documentationCategories, teamPreparation, clientReleases, preparationResources, issues: [], ...overrides };
 }
 
 test('planejamento completo libera Preparação e D-15 acompanha equipe nominal e cliente', () => {
@@ -257,11 +280,11 @@ test('planejamento completo libera Preparação e D-15 acompanha equipe nominal 
   assert.deepEqual(planningGateIssues(structuredPlanning), []);
   const prepared = readyMobilizationWorkflow();
   const readiness = projectWorkflowPreparationReadiness(prepared);
-  assert.equal(readiness.total, 40);
-  assert.equal(readiness.completed, 40);
+  assert.ok(readiness.total > 0);
+  assert.equal(readiness.completed, readiness.total);
   assert.equal(readiness.sections.length, 7);
   prepared.teamPreparation.members[0].checks[0].status = 'PENDING';
-  assert.equal(projectWorkflowPreparationReadiness(prepared).completed, 39);
+  assert.equal(projectWorkflowPreparationReadiness(prepared).completed, readiness.total - 1);
   assert.equal(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', checklists: [] }, 'PREPARATION').length, 6);
   assert.deepEqual(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', ...structuredPlanning }, 'PREPARATION'), []);
 });
@@ -277,12 +300,12 @@ test('gate consolida nove frentes, pré-job e pendências críticas', () => {
   gate = projectWorkflowMobilizationGate(workflow, projectWorkflowMilestones('2026-09-20', '2026-09-09'), '2026-09-09');
   assert.equal(gate.ready, true);
   assert.equal(gate.fronts.find(item => item.key === 'COMMERCIAL').status, 'READY');
-  workflow.checklists = workflow.checklists.filter(item => item.key !== 'D15_EQUIPMENT_TESTED');
+  workflow.preparationResources.equipment.items[0].checks.find(item => item.key === 'TESTED').status = 'PENDING';
   gate = projectWorkflowMobilizationGate(workflow, projectWorkflowMilestones('2026-09-10', '2026-09-09'), '2026-09-09');
   assert.equal(gate.ready, false);
   assert.equal(gate.deadlineStatus, 'RISK');
-  assert.match(gate.blockers.find(item => item.key === 'D15_EQUIPMENT_TESTED').label, /testados/);
-  workflow.checklists.push({ key: 'D15_EQUIPMENT_TESTED', status: 'DONE' });
+  assert.match(gate.blockers.find(item => item.key === 'EQUIPMENT_equipment-1_TESTED').label, /Bomba 1/);
+  workflow.preparationResources.equipment.items[0].checks.find(item => item.key === 'TESTED').status = 'DONE';
   workflow.criticalAnswers = [{ key: 'SPECIAL_EQUIPMENT', answer: true }];
   workflow.issues = [{ id: 'critical-1', sourceQuestion: 'SPECIAL_EQUIPMENT', status: 'OPEN', criticality: 'HIGH', area: 'Operações', description: 'Risco sem ação' }];
   gate = projectWorkflowMobilizationGate(workflow);

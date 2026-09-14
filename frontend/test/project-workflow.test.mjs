@@ -164,6 +164,8 @@ test('Preparação acompanha equipe nominal e liberações do cliente com salvam
   const schema = fs.readFileSync(new URL('../../shared/schemas/project-workflow.js', import.meta.url), 'utf8');
   assert.match(modal, /ProjectWorkflowDefinitiveTeam/);
   assert.match(modal, /ProjectWorkflowClientReleasesPanel/);
+  assert.match(modal, /ProjectWorkflowEquipmentPreparation/);
+  assert.match(modal, /ProjectWorkflowMaterialsPreparation/);
   assert.match(panel, /Aguardando definição da equipe/);
   assert.match(schema, /Colaborador informado/);
   assert.match(schema, /EXAMS_RELEASED/);
@@ -173,6 +175,12 @@ test('Preparação acompanha equipe nominal e liberações do cliente com salvam
   assert.match(panel, /Data da solicitação/);
   assert.match(panel, /Solicitado para quem/);
   assert.match(panel, /Data da conclusão/);
+  assert.match(panel, /Na sede e disponível na data necessária/);
+  assert.match(panel, /Manutenção em dia/);
+  assert.match(panel, /Certificados e calibração válidos/);
+  assert.match(schema, /Material separado/);
+  assert.match(panel, /Disponível em estoque/);
+  assert.match(panel, /preparation_item_check/);
   assert.doesNotMatch(schema, /D15_CLIENT_TEAM_RELEASED/);
   assert.doesNotMatch(schema, /D15_TEAM_DEFINITIVE_CONFIRMED/);
 });

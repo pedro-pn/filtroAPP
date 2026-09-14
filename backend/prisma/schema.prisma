@@ -1061,6 +1061,7 @@ model ProjectWorkflow {
   closedBy                           User?                                  @relation("ProjectWorkflowCloser", fields: [closedByUserId], references: [id], onDelete: SetNull)
   checklists                         ProjectWorkflowChecklist[]
   teamMemberChecks                   ProjectWorkflowTeamMemberCheck[]
+  preparationItemChecks              ProjectWorkflowPreparationItemCheck[]
   clientReleases                     ProjectWorkflowClientRelease[]
   criticalAnswers                    ProjectWorkflowCriticalAnswer[]
   issues                             ProjectWorkflowIssue[]
@@ -1291,6 +1292,24 @@ model ProjectWorkflowTeamMemberCheck {
   @@index([collaboratorId])
   @@index([updatedByUserId])
   @@index([source, sourceUpdatedAt])
+}
+
+model ProjectWorkflowPreparationItemCheck {
+  id              String                         @id @default(cuid())
+  projectId       String
+  itemType        String
+  itemId          String
+  key             String
+  status          ProjectWorkflowChecklistStatus @default(PENDING)
+  updatedByUserId String?
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+  workflow        ProjectWorkflow                @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
+  updatedBy       User?                          @relation("ProjectWorkflowPreparationItemCheckUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, itemType, itemId, key])
+  @@index([projectId, itemType, itemId])
+  @@index([updatedByUserId])
 }
 
 model ProjectWorkflowClientRelease {
@@ -2469,6 +2488,7 @@ model User {
   closedProjectWorkflows               ProjectWorkflow[]                   @relation("ProjectWorkflowCloser")
   updatedProjectWorkflowChecklists     ProjectWorkflowChecklist[]           @relation("ProjectWorkflowChecklistUpdater")
   updatedProjectWorkflowTeamChecks     ProjectWorkflowTeamMemberCheck[]     @relation("ProjectWorkflowTeamMemberCheckUpdater")
+  updatedProjectWorkflowPreparationItemChecks ProjectWorkflowPreparationItemCheck[] @relation("ProjectWorkflowPreparationItemCheckUpdater")
   updatedProjectWorkflowClientReleases ProjectWorkflowClientRelease[]       @relation("ProjectWorkflowClientReleaseUpdater")
   updatedProjectWorkflowCriticalAnswers ProjectWorkflowCriticalAnswer[]      @relation("ProjectWorkflowCriticalAnswerUpdater")
   updatedProjectWorkflowCommercialFacts ProjectWorkflowCommercialFact[]     @relation("ProjectWorkflowCommercialFactUpdater")

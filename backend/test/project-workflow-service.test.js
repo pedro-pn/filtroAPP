@@ -6,6 +6,7 @@ import {
   PROJECT_WORKFLOW_CHECKLISTS,
   PROJECT_WORKFLOW_CLIENT_RELEASES,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
+  PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS,
   PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS
 } from '../../shared/schemas/project-workflow.js';
 import {
@@ -22,6 +23,7 @@ function fakeDatabase() {
     workflow: null,
     checklists: [],
     teamMemberChecks: [],
+    preparationItemChecks: [],
     clientReleases: [],
     answers: [],
     issues: [],
@@ -65,6 +67,7 @@ function fakeDatabase() {
     closedBy: users[state.workflow.closedByUserId] || null,
     checklists: state.checklists.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     teamMemberChecks: state.teamMemberChecks.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
+    preparationItemChecks: state.preparationItemChecks.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     clientReleases: state.clientReleases.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     criticalAnswers: state.answers.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
     commercialFacts: state.commercialFacts.map(item => ({ ...item, updatedBy: users[item.updatedByUserId] || null })),
@@ -179,6 +182,21 @@ function fakeDatabase() {
         const existing = state.teamMemberChecks.find(item => item.projectId === key.projectId && item.collaboratorId === key.collaboratorId && item.key === key.key);
         if (existing) Object.assign(existing, input.update, { updatedAt: new Date() });
         else state.teamMemberChecks.push({ id: `team-check-${state.teamMemberChecks.length + 1}`, createdAt: new Date(), updatedAt: new Date(), sourceRecordId: null, sourceUpdatedAt: null, ...input.create });
+      }
+    },
+    projectWorkflowPreparationItemCheck: {
+      deleteMany: async input => {
+        const previousLength = state.preparationItemChecks.length;
+        state.preparationItemChecks = state.preparationItemChecks.filter(item => (
+          item.projectId !== input.where.projectId || item.itemType !== input.where.itemType
+        ));
+        return { count: previousLength - state.preparationItemChecks.length };
+      },
+      upsert: async input => {
+        const key = input.where.projectId_itemType_itemId_key;
+        const existing = state.preparationItemChecks.find(item => item.projectId === key.projectId && item.itemType === key.itemType && item.itemId === key.itemId && item.key === key.key);
+        if (existing) Object.assign(existing, input.update, { updatedAt: new Date() });
+        else state.preparationItemChecks.push({ id: `preparation-item-check-${state.preparationItemChecks.length + 1}`, createdAt: new Date(), updatedAt: new Date(), ...input.create });
       }
     },
     projectWorkflowClientRelease: {
@@ -654,6 +672,46 @@ test('checklist de outra etapa não pode ser antecipado por chamada direta', asy
 function makeStateReadyForMobilization(state) {
   state.workflow.stage = 'PREPARATION';
   state.workflow.acceptedAt = new Date('2026-09-01T12:00:00Z');
+  state.workflow.equipmentPlanDefined = true;
+  state.workflow.supplyPlanDefined = true;
+  state.workflow.supplyPlan = [{
+    id: 'stock-stock-filter-1',
+    stockItemId: 'stock-filter-1',
+    type: 'FILTRO',
+    name: 'Filtro 10 µm',
+    unitLabel: 'un',
+    requiredQuantity: 2,
+    requestedAt: null,
+    purchasedAt: null
+  }];
+  state.equipmentCategoryPlans.push({
+    id: 'equipment-plan-ready',
+    projectId: 'project-1',
+    categoryId: 'category-1',
+    equipmentIds: ['equipment-1']
+  });
+  state.preparationItemChecks.push(
+    ...PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS.EQUIPMENT.map(item => ({
+      id: `preparation-equipment-${item.key}`,
+      projectId: 'project-1',
+      itemType: 'EQUIPMENT',
+      itemId: 'equipment-1',
+      key: item.key,
+      status: 'DONE',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })),
+    ...PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS.MATERIAL.map(item => ({
+      id: `preparation-material-${item.key}`,
+      projectId: 'project-1',
+      itemType: 'MATERIAL',
+      itemId: 'stock-stock-filter-1',
+      key: item.key,
+      status: 'DONE',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }))
+  );
   state.checklists.push(...PROJECT_WORKFLOW_CHECKLISTS
     .filter(item => item.section.startsWith('D15_'))
     .filter(item => !state.checklists.some(existing => existing.key === item.key))
@@ -777,7 +835,13 @@ test('D-30 completo permite entrar em Preparação', async () => {
   assert.deepEqual(detail.workflow.resourcePlanning.logistics.warnings, ['Hospedagem ainda não solicitada']);
   const result = await updateProjectWorkflow('project-1', { action: 'stage', version: detail.workflow.version, stage: 'PREPARATION' }, leader, { database });
   assert.equal(result.workflow.stage, 'PREPARATION');
-  assert.equal(result.workflow.preparationReadiness.total, 37);
+  assert.ok(result.workflow.preparationReadiness.total > 0);
+  assert.equal(result.workflow.preparationResources.equipment.items.length, 1);
+  assert.equal(result.workflow.preparationResources.materials.items.length, 2);
+  assert.equal(result.workflow.preparationResources.equipment.items[0].availabilityStatus, 'AVAILABLE');
+  assert.equal(result.workflow.preparationResources.equipment.items[0].maintenance.status, 'UNCONFIGURED');
+  assert.equal(result.workflow.preparationResources.equipment.items[0].calibration.status, 'NOT_REQUIRED');
+  assert.equal(result.workflow.preparationResources.materials.items[0].availableInStock, false);
 });
 
 test('QSMS edita sua frente sem avançar a etapa', async () => {
@@ -787,8 +851,8 @@ test('QSMS edita sua frente sem avançar a etapa', async () => {
   const result = await updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D15_QSMS_REQUIREMENTS_CHECKED', status: 'DONE' }, qsms, { database });
   assert.equal(result.workflow.preparationReadiness.completed, 1);
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'D15_EQUIPMENT_TESTED', status: 'DONE' }, qsms, { database }),
-    error => error.code === 'PROJECT_WORKFLOW_CHECKLIST_EDIT_FORBIDDEN'
+    updateProjectWorkflow('project-1', { action: 'preparation_item_check', version: 2, itemType: 'EQUIPMENT', itemId: 'equipment-1', key: 'TESTED', status: 'DONE' }, qsms, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_PREPARATION_EDIT_FORBIDDEN'
   );
   await assert.rejects(
     updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'MOBILIZATION_PLANNING' }, qsms, { database }),
@@ -820,6 +884,11 @@ test('preparação acompanha equipe por colaborador e liberações do cliente co
   const registration = result.workflow.clientReleases.items.find(item => item.key === 'CUSTOMER_REGISTRATION');
   assert.equal(registration.requestedTo, 'Portaria da unidade');
   assert.equal(registration.completed, false);
+  result = await updateProjectWorkflow('project-1', {
+    action: 'preparation_item_check', version: 5, itemType: 'MATERIAL', itemId: 'stock-stock-filter-1', key: 'SEPARATED', status: 'PENDING'
+  }, supplies, { database });
+  assert.equal(result.workflow.preparationResources.materials.items[0].checks[0].status, 'PENDING');
+  assert.equal(result.workflow.mobilizationGate.fronts.find(item => item.key === 'MATERIALS').status, 'BLOCKED');
 });
 
 test('gate verde emite autorização versionada e alteração posterior a suspende', async () => {
@@ -833,10 +902,10 @@ test('gate verde emite autorização versionada e alteração posterior a suspen
   assert.equal(result.workflow.stage, 'READY_TO_MOBILIZE');
   assert.equal(result.workflow.mobilizationAuthorization.status, 'AUTHORIZED');
   assert.equal(result.workflow.mobilizationAuthorization.authorizedVersion, 2);
-  result = await updateProjectWorkflow('project-1', { action: 'checklist', version: 2, key: 'D15_EQUIPMENT_TESTED', status: 'PENDING' }, assets, { database });
+  result = await updateProjectWorkflow('project-1', { action: 'preparation_item_check', version: 2, itemType: 'EQUIPMENT', itemId: 'equipment-1', key: 'TESTED', status: 'PENDING' }, assets, { database });
   assert.equal(result.workflow.mobilizationAuthorization.status, 'SUSPENDED');
   assert.equal(result.workflow.mobilizationGate.ready, false);
-  result = await updateProjectWorkflow('project-1', { action: 'checklist', version: 3, key: 'D15_EQUIPMENT_TESTED', status: 'DONE' }, assets, { database });
+  result = await updateProjectWorkflow('project-1', { action: 'preparation_item_check', version: 3, itemType: 'EQUIPMENT', itemId: 'equipment-1', key: 'TESTED', status: 'DONE' }, assets, { database });
   assert.equal(result.workflow.mobilizationGate.ready, true);
   assert.equal(result.workflow.mobilizationAuthorization.status, 'SUSPENDED');
   result = await updateProjectWorkflow('project-1', { action: 'authorize_mobilization', version: 4 }, leader, {
@@ -1085,7 +1154,7 @@ test('gate bloqueado impede autorização e papel de área não pode revalidar',
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-10' }, manager, { database });
   makeStateReadyForMobilization(state);
-  state.checklists = state.checklists.filter(item => item.key !== 'D15_MATERIALS_FILTERS_SEPARATED');
+  state.preparationItemChecks = state.preparationItemChecks.filter(item => !(item.itemType === 'MATERIAL' && item.key === 'SEPARATED'));
   await assert.rejects(
     updateProjectWorkflow('project-1', { action: 'stage', version: 1, stage: 'READY_TO_MOBILIZE' }, leader, { database }),
     error => error.code === 'PROJECT_WORKFLOW_STAGE_BLOCKED'

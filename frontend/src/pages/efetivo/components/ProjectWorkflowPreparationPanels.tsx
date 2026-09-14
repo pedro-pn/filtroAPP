@@ -6,12 +6,156 @@ import type {
   ProjectWorkflowPatch
 } from '../../../api/projectWorkflow';
 import { Button } from '../../../components/ui/Button';
-import { todayDateOnly } from '../../../utils/calendarGrid';
+import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 
-function sectionProgress(workflow: ProjectWorkflow, key: 'D15_TEAM' | 'D15_CLIENT') {
+function sectionProgress(workflow: ProjectWorkflow, key: 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS') {
   return workflow.preparationReadiness.sections.find(section => section.key === key)
     || { completed: 0, total: 0, percentage: 0 };
+}
+
+function PreparationChecks({ workflow, itemType, itemId, checks, saving, onPatch }: {
+  workflow: ProjectWorkflow;
+  itemType: 'EQUIPMENT' | 'MATERIAL';
+  itemId: string;
+  checks: ProjectWorkflow['preparationResources']['equipment']['items'][number]['checks'];
+  saving: boolean;
+  onPatch: (payload: ProjectWorkflowPatch) => void;
+}) {
+  return (
+    <div className="project-workflow-preparation-resource-checks">
+      {checks.map(check => (
+        <label className={`project-workflow-member-check${check.status === 'DONE' ? ' is-done' : ''}`} key={check.key}>
+          <input
+            type="checkbox"
+            checked={check.status === 'DONE'}
+            disabled={saving || !check.canEdit}
+            onChange={event => onPatch({
+              action: 'preparation_item_check',
+              version: workflow.version,
+              itemType,
+              itemId,
+              key: check.key,
+              status: event.target.checked ? 'DONE' : 'PENDING'
+            })}
+          />
+          <span>{check.label}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function equipmentAvailability(item: ProjectWorkflow['preparationResources']['equipment']['items'][number]) {
+  if (item.availabilityStatus === 'AVAILABLE') return { ready: true, text: 'Na sede e disponível na data necessária' };
+  if (item.availabilityStatus === 'EXPECTED_RETURN') return { ready: true, text: 'Retorno previsto antes da mobilização' };
+  if (item.availabilityStatus === 'ALLOCATED') return { ready: false, text: 'Indisponível na data necessária' };
+  return { ready: false, text: 'Disponibilidade não verificada' };
+}
+
+function equipmentMaintenance(item: ProjectWorkflow['preparationResources']['equipment']['items'][number]) {
+  const maintenance = item.maintenance;
+  if (!maintenance) return { ready: false, text: 'Manutenção não verificada' };
+  const last = maintenance.lastMaintenanceDate ? ` · última em ${displayDateOnly(maintenance.lastMaintenanceDate)}` : '';
+  if (maintenance.status === 'UPCOMING') return { ready: true, text: `Manutenção em dia${last}` };
+  if (maintenance.status === 'DUE_TODAY') return { ready: true, text: `Manutenção vence na data prevista${last}` };
+  if (maintenance.status === 'OVERDUE') return { ready: false, text: `Manutenção vencida${last}` };
+  if (maintenance.status === 'NO_HISTORY') return { ready: false, text: 'Sem histórico de manutenção' };
+  return { ready: false, text: 'Periodicidade de manutenção não configurada' };
+}
+
+function equipmentCalibration(item: ProjectWorkflow['preparationResources']['equipment']['items'][number]) {
+  const calibration = item.calibration;
+  if (!calibration) return { ready: false, text: 'Certificados e calibração não verificados' };
+  if (calibration.status === 'NOT_REQUIRED') return { ready: true, text: 'Certificados e calibração não aplicáveis' };
+  if (calibration.status === 'VALID') return { ready: true, text: `Certificados e calibração válidos até ${displayDateOnly(calibration.expiresAt)}` };
+  if (calibration.status === 'EXPIRED') return { ready: false, text: `Certificados ou calibração vencidos em ${displayDateOnly(calibration.expiresAt)}` };
+  return { ready: false, text: 'Certificados ou calibração não informados' };
+}
+
+export function ProjectWorkflowEquipmentPreparation({ workflow, saving, onPatch }: {
+  workflow: ProjectWorkflow;
+  saving: boolean;
+  onPatch: (payload: ProjectWorkflowPatch) => void;
+}) {
+  const progress = sectionProgress(workflow, 'D15_EQUIPMENT');
+  const items = workflow.preparationResources.equipment.items;
+  const complete = items.length > 0 && progress.percentage === 100;
+  return (
+    <ProjectWorkflowCategory
+      title="Equipamentos reservados"
+      description="Condições previstas para a mobilização e conferências de preparação por equipamento."
+      status={items.length ? `${progress.completed}/${progress.total}` : 'Pendente'}
+      complete={complete}
+      className="project-workflow-preparation-resources"
+      data-project-workflow-preparation-equipment
+    >
+      {!items.length ? <p className="project-workflow-category-note">Nenhum equipamento foi reservado no planejamento D-30.</p> : (
+        <div className="project-workflow-preparation-resource-list">
+          {items.map(item => {
+            const statuses = [equipmentAvailability(item), equipmentMaintenance(item), equipmentCalibration(item)];
+            return (
+              <article className="project-workflow-preparation-resource" key={item.id}>
+                <header>
+                  <div><strong>{item.code ? `${item.code} · ` : ''}{item.name}</strong><span>{item.categoryName}</span></div>
+                  <span>{item.checks.filter(check => check.status === 'DONE').length}/{item.checks.length}</span>
+                </header>
+                <ul className="project-workflow-preparation-resource-statuses">
+                  {statuses.map(status => <li className={status.ready ? 'is-ready' : 'has-warning'} key={status.text}>{status.ready ? '●' : '▲'} {status.text}</li>)}
+                </ul>
+                <PreparationChecks workflow={workflow} itemType="EQUIPMENT" itemId={item.id} checks={item.checks} saving={saving} onPatch={onPatch} />
+              </article>
+            );
+          })}
+        </div>
+      )}
+      <small className="project-workflow-integration-note">Disponibilidade, manutenção e calibração são consultadas no cadastro de ativos e sinalizam riscos; as conferências são registradas individualmente.</small>
+    </ProjectWorkflowCategory>
+  );
+}
+
+export function ProjectWorkflowMaterialsPreparation({ workflow, saving, onPatch }: {
+  workflow: ProjectWorkflow;
+  saving: boolean;
+  onPatch: (payload: ProjectWorkflowPatch) => void;
+}) {
+  const progress = sectionProgress(workflow, 'D15_MATERIALS');
+  const items = workflow.preparationResources.materials.items;
+  const complete = items.length > 0 && progress.percentage === 100;
+  return (
+    <ProjectWorkflowCategory
+      title="Materiais e insumos programados"
+      description="Saldo atual do estoque e separação individual do que foi definido no planejamento D-30."
+      status={items.length ? `${progress.completed}/${progress.total}` : 'Pendente'}
+      complete={complete}
+      className="project-workflow-preparation-resources"
+      data-project-workflow-preparation-materials
+    >
+      {!items.length ? <p className="project-workflow-category-note">Nenhum material ou insumo foi programado no planejamento D-30.</p> : (
+        <div className="project-workflow-preparation-resource-list">
+          {items.map(item => (
+            <article className="project-workflow-preparation-resource" key={item.id}>
+              <header>
+                <div><strong>{item.code ? `${item.code} · ` : ''}{item.name}</strong><span>{item.type === 'FILTRO' ? 'Filtro' : 'Produto químico'}</span></div>
+                <span>{item.checks.filter(check => check.status === 'DONE').length}/{item.checks.length}</span>
+              </header>
+              <div className="project-workflow-preparation-stock">
+                <span>Programado: <strong>{item.requiredQuantity} {item.unitLabel}</strong></span>
+                <span>Estoque atual: <strong>{item.availableQuantity} {item.unitLabel}</strong></span>
+                {!item.stockItemId
+                  ? <strong className="has-warning">Não cadastrado no estoque</strong>
+                  : item.availableInStock
+                    ? <strong className="is-ready">● Disponível em estoque</strong>
+                    : <strong className="has-warning">▲ Estoque insuficiente · faltam {item.shortageQuantity} {item.unitLabel}</strong>}
+              </div>
+              {item.purchaseRequired && (item.requestedAt || item.purchasedAt) ? <small className="project-workflow-preparation-purchase">Pedido: {item.requestedAt ? displayDateOnly(item.requestedAt) : 'não informado'} · Compra: {item.purchasedAt ? displayDateOnly(item.purchasedAt) : 'pendente'}</small> : null}
+              <PreparationChecks workflow={workflow} itemType="MATERIAL" itemId={item.id} checks={item.checks} saving={saving} onPatch={onPatch} />
+            </article>
+          ))}
+        </div>
+      )}
+    </ProjectWorkflowCategory>
+  );
 }
 
 export function ProjectWorkflowDefinitiveTeam({ workflow, saving, onPatch, onOpenTeamProgramming }: {

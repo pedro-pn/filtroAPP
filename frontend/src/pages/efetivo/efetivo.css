@@ -1960,6 +1960,26 @@
 .project-workflow-release-toggle span { min-width: 0; overflow-wrap: anywhere; }
 .project-workflow-member-check small { color: var(--g); margin-left: auto; }
 .project-workflow-integration-note { color: var(--mu); overflow-wrap: anywhere; }
+.project-workflow-preparation-resource-list { display: grid; gap: 8px; min-width: 0; }
+.project-workflow-preparation-resource { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px; }
+.project-workflow-preparation-resource > header { align-items: start; display: flex; gap: 8px; justify-content: space-between; min-width: 0; }
+.project-workflow-preparation-resource > header > div { display: flex; flex-direction: column; min-width: 0; }
+.project-workflow-preparation-resource > header strong,
+.project-workflow-preparation-resource > header span { overflow-wrap: anywhere; }
+.project-workflow-preparation-resource > header > div > span,
+.project-workflow-preparation-resource > header > span { color: var(--mu); font-size: 12px; }
+.project-workflow-preparation-resource > header > span { flex: 0 0 auto; font-weight: 700; }
+.project-workflow-preparation-resource-statuses { display: grid; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.project-workflow-preparation-resource-statuses li { color: var(--mu); font-size: 12px; overflow-wrap: anywhere; }
+.project-workflow-preparation-resource-statuses li.is-ready,
+.project-workflow-preparation-stock .is-ready { color: var(--g); }
+.project-workflow-preparation-resource-statuses li.has-warning,
+.project-workflow-preparation-stock .has-warning { color: var(--warning-text); }
+.project-workflow-preparation-resource-checks { display: grid; gap: 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; }
+.project-workflow-preparation-stock { align-items: center; display: flex; flex-wrap: wrap; gap: 5px 12px; }
+.project-workflow-preparation-stock > span { color: var(--mu); font-size: 12px; }
+.project-workflow-preparation-stock > strong { font-size: 12px; }
+.project-workflow-preparation-purchase { color: var(--mu); overflow-wrap: anywhere; }
 .project-workflow-client-attendance,
 .project-workflow-client-release { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 9px; min-width: 0; padding: 10px; }
 .project-workflow-client-attendance.is-complete,
@@ -2401,6 +2421,7 @@
   .project-workflow-initial-team,
   .project-workflow-initial-team > ul,
   .project-workflow-team-member-checks,
+  .project-workflow-preparation-resource-checks,
   .project-workflow-client-attendance-fields,
   .project-workflow-client-release-fields,
   .project-post-job-grid,

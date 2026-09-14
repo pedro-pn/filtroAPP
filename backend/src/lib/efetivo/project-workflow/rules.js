@@ -3,7 +3,8 @@ import {
   PROJECT_WORKFLOW_CLIENT_RELEASES,
   PROJECT_WORKFLOW_COMMERCIAL_FACTS,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
-  PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS
+  PROJECT_WORKFLOW_DOCUMENTATION_DEFINITIONS,
+  PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS
 } from '../../../../../shared/schemas/project-workflow.js';
 
 function answeredChecklistKeys(workflow, stage) {
@@ -148,6 +149,56 @@ function teamMemberProgress(workflow, keys, { requireTeam = true } = {}) {
   };
 }
 
+function preparationItems(workflow, itemType) {
+  const publicItems = itemType === 'EQUIPMENT'
+    ? workflow?.preparationResources?.equipment?.items
+    : workflow?.preparationResources?.materials?.items;
+  if (publicItems?.length) return publicItems;
+  const records = new Map((workflow?.preparationItemChecks || []).map(item => [
+    `${item.itemType}:${item.itemId}:${item.key}`,
+    item
+  ]));
+  const definitions = PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS[itemType];
+  const ids = itemType === 'EQUIPMENT'
+    ? (workflow?.equipmentCategoryPlans || []).flatMap(plan => Array.isArray(plan.equipmentIds) ? plan.equipmentIds : [])
+    : (Array.isArray(workflow?.supplyPlan) ? workflow.supplyPlan.map(item => item.id) : []);
+  return [...new Set(ids)].map(id => ({
+    id,
+    name: itemType === 'EQUIPMENT' ? 'Equipamento reservado' : workflow.supplyPlan.find(item => item.id === id)?.name || 'Material programado',
+    checks: definitions.map(definition => ({
+      key: definition.key,
+      label: definition.label,
+      status: records.get(`${itemType}:${id}:${definition.key}`)?.status || 'PENDING'
+    }))
+  }));
+}
+
+function preparationItemProgress(workflow, itemType) {
+  const items = preparationItems(workflow, itemType);
+  const sectionLabel = itemType === 'EQUIPMENT' ? 'Equipamentos reservados' : 'Materiais programados';
+  if (!items.length) {
+    return {
+      completed: 0,
+      total: 1,
+      percentage: 0,
+      blockers: [{ key: `${itemType}_DEFINITION`, label: sectionLabel, reason: 'Nenhum item foi definido no planejamento D-30' }]
+    };
+  }
+  const entries = items.flatMap(item => (item.checks || []).map(check => ({ item, check })));
+  const completed = entries.filter(({ check }) => resolvedChecklist(check)).length;
+  const blockers = entries.filter(({ check }) => !resolvedChecklist(check)).map(({ item, check }) => ({
+    key: `${itemType}_${item.id}_${check.key}`,
+    label: item.code ? `${item.code} · ${item.name}` : item.name,
+    reason: `${check.label} pendente`
+  }));
+  return {
+    completed,
+    total: entries.length,
+    percentage: entries.length ? Math.round((completed / entries.length) * 100) : 0,
+    blockers
+  };
+}
+
 function clientReleaseProgress(workflow) {
   const attendance = workflow?.clientReleases?.attendance || {};
   const providedItems = new Map((workflow?.clientReleases?.items || []).map(item => [item.key, item]));
@@ -272,6 +323,8 @@ export function projectWorkflowPreparationReadiness(workflow) {
   const sections = sectionKeys.map(key => {
     if (key === 'D15_TEAM') return { key, ...teamMemberProgress(workflow, ['NOTIFIED', 'DOCUMENTS_CHECKED', 'EXAMS_RELEASED', 'TRAININGS_RELEASED']) };
     if (key === 'D15_CLIENT') return { key, ...clientReleaseProgress(workflow) };
+    if (key === 'D15_EQUIPMENT') return { key, ...preparationItemProgress(workflow, 'EQUIPMENT') };
+    if (key === 'D15_MATERIALS') return { key, ...preparationItemProgress(workflow, 'MATERIAL') };
     const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
     return { key, ...checklistProgress(workflow, definitions) };
   });
@@ -419,6 +472,8 @@ export function projectWorkflowMobilizationGate(workflow, milestones = null, tod
   const teamProgress = teamMemberProgress(workflow, ['NOTIFIED']);
   const memberDocumentProgress = teamMemberProgress(workflow, ['DOCUMENTS_CHECKED', 'EXAMS_RELEASED', 'TRAININGS_RELEASED'], { requireTeam: false });
   const clientProgress = clientReleaseProgress(workflow);
+  const equipmentProgress = preparationItemProgress(workflow, 'EQUIPMENT');
+  const materialProgress = preparationItemProgress(workflow, 'MATERIAL');
   const requiredDocumentBlockers = (workflow?.documentRequirements?.MOBILIZATION?.blockers || []).map(item => ({
     key: `DOCUMENT_${item.documentId}`,
     label: item.title,
@@ -438,8 +493,8 @@ export function projectWorkflowMobilizationGate(workflow, milestones = null, tod
         blockers
       };
     })(),
-    readinessFromDefinitions(workflow, 'EQUIPMENT', 'Equipamentos', checklistDefinitions({ sections: ['D15_EQUIPMENT'] })),
-    readinessFromDefinitions(workflow, 'MATERIALS', 'Materiais', checklistDefinitions({ sections: ['D15_MATERIALS'] })),
+    { key: 'EQUIPMENT', label: 'Equipamentos', status: equipmentProgress.blockers.length ? 'BLOCKED' : 'READY', ...equipmentProgress },
+    { key: 'MATERIALS', label: 'Materiais', status: materialProgress.blockers.length ? 'BLOCKED' : 'READY', ...materialProgress },
     readinessFromDefinitions(workflow, 'QSMS', 'QSMS', checklistDefinitions({ sections: ['D15_QSMS'] })),
     readinessFromDefinitions(workflow, 'LODGING', 'Hospedagem', checklistDefinitions({ keys: ['D15_TRAVEL_LODGING_REQUESTED', 'D15_TRAVEL_LODGING_CONFIRMED'] })),
     readinessFromDefinitions(workflow, 'LOGISTICS', 'Logística', checklistDefinitions({ keys: ['D15_TRAVEL_TEAM_TRANSPORT_DEFINED', 'D15_TRAVEL_FREIGHT_REQUESTED', 'D15_TRAVEL_COMPANY_TRUCK_RESERVED', 'D15_TRAVEL_DEPARTURE_CONFIRMED'] })),

@@ -81,6 +81,16 @@ export const PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS = [
   { key: 'TRAININGS_RELEASED', label: 'Treinamentos liberados', areaRoles: ['efetivo:administrative'] }
 ];
 
+export const PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS = {
+  EQUIPMENT: [
+    { key: 'TESTED', label: 'Equipamento testado', areaRoles: ['efetivo:assets'] },
+    { key: 'ACCESSORIES_SEPARATED', label: 'Acessórios separados', areaRoles: ['efetivo:assets'] }
+  ],
+  MATERIAL: [
+    { key: 'SEPARATED', label: 'Material separado', areaRoles: ['efetivo:supplies'] }
+  ]
+};
+
 export const PROJECT_WORKFLOW_CLIENT_RELEASE_KEYS = [
   'CUSTOMER_REGISTRATION',
   'DOCUMENTS_SENT',
@@ -98,21 +108,6 @@ const checklist = (key, stage, section, label, areaRoles = []) => ({ key, stage,
 export const PROJECT_WORKFLOW_CHECKLISTS = [
   checklist('ANALYSIS_RESPONSIBILITIES', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Responsabilidades Filtrovali e cliente identificadas'),
   checklist('ANALYSIS_COMMERCIAL_QUESTIONS', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Dúvidas comerciais levantadas e esclarecidas'),
-
-  checklist('D15_EQUIPMENT_RESERVED', 'PREPARATION', 'D15_EQUIPMENT', 'Equipamentos definitivamente reservados', ['efetivo:assets']),
-  checklist('D15_EQUIPMENT_AVAILABLE_AT_BASE', 'PREPARATION', 'D15_EQUIPMENT', 'Equipamentos disponíveis na sede na data necessária', ['efetivo:assets']),
-  checklist('D15_EQUIPMENT_MAINTENANCE_DONE', 'PREPARATION', 'D15_EQUIPMENT', 'Manutenção realizada', ['efetivo:assets']),
-  checklist('D15_EQUIPMENT_TESTED', 'PREPARATION', 'D15_EQUIPMENT', 'Equipamentos testados', ['efetivo:assets']),
-  checklist('D15_EQUIPMENT_CERTIFICATES_VALID', 'PREPARATION', 'D15_EQUIPMENT', 'Certificados e calibrações válidos', ['efetivo:assets']),
-  checklist('D15_EQUIPMENT_ACCESSORIES_SEPARATED', 'PREPARATION', 'D15_EQUIPMENT', 'Acessórios separados', ['efetivo:assets']),
-  checklist('D15_EQUIPMENT_PRE_MOBILIZATION_CHECKED', 'PREPARATION', 'D15_EQUIPMENT', 'Checklist pré-mobilização realizado', ['efetivo:assets']),
-
-  checklist('D15_MATERIALS_SUPPLIES_RECEIVED', 'PREPARATION', 'D15_MATERIALS', 'Insumos recebidos', ['efetivo:supplies']),
-  checklist('D15_MATERIALS_QUANTITIES_CHECKED', 'PREPARATION', 'D15_MATERIALS', 'Quantidades conferidas', ['efetivo:supplies']),
-  checklist('D15_MATERIALS_SEPARATED', 'PREPARATION', 'D15_MATERIALS', 'Materiais separados', ['efetivo:supplies']),
-  checklist('D15_MATERIALS_CHEMICALS_SEPARATED', 'PREPARATION', 'D15_MATERIALS', 'Produtos químicos separados', ['efetivo:supplies']),
-  checklist('D15_MATERIALS_FILTERS_SEPARATED', 'PREPARATION', 'D15_MATERIALS', 'Filtros separados', ['efetivo:supplies']),
-  checklist('D15_MATERIALS_CONSUMABLES_SEPARATED', 'PREPARATION', 'D15_MATERIALS', 'Consumíveis separados', ['efetivo:supplies']),
 
   checklist('D15_PRE_JOB_SCHEDULED', 'PREPARATION', 'D15_PRE_JOB', 'Pré-job agendado', ['efetivo:operations']),
   checklist('D15_PRE_JOB_SCOPE_PRESENTED', 'PREPARATION', 'D15_PRE_JOB', 'Escopo apresentado à equipe', ['efetivo:operations']),
@@ -316,6 +311,18 @@ export function makeProjectWorkflowSchemas(z) {
     key: z.enum(PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.map(item => item.key)),
     status: z.enum(['PENDING', 'DONE'])
   }).strict();
+  const preparationItemCheck = z.object({
+    action: z.literal('preparation_item_check'),
+    version,
+    itemType: z.enum(['EQUIPMENT', 'MATERIAL']),
+    itemId: z.string().trim().min(1).max(120),
+    key: z.enum([...new Set(Object.values(PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS).flatMap(items => items.map(item => item.key)))]),
+    status: z.enum(['PENDING', 'DONE'])
+  }).strict().superRefine((value, ctx) => {
+    if (!PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS[value.itemType].some(item => item.key === value.key)) {
+      ctx.addIssue({ code: 'custom', path: ['key'], message: 'O controle não pertence a este tipo de item.' });
+    }
+  });
   const clientAttendance = z.object({
     action: z.literal('client_attendance'),
     version,
@@ -577,7 +584,7 @@ export function makeProjectWorkflowSchemas(z) {
     start,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, clientAttendance, clientRelease, critical, analysisContact, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
+    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, critical, analysisContact, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

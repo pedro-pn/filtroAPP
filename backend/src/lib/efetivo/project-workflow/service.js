@@ -3,6 +3,7 @@ import {
   PROJECT_WORKFLOW_CLIENT_RELEASES,
   PROJECT_WORKFLOW_STAGES,
   PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS,
+  PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS,
   PROJECT_WORKFLOW_CRITICAL_QUESTIONS,
   projectWorkflowMilestones
 } from '../../../../../shared/schemas/project-workflow.js';
@@ -130,6 +131,7 @@ const WORKFLOW_INCLUDE = {
   closedBy: { select: { id: true, name: true } },
   checklists: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
   teamMemberChecks: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: [{ collaboratorId: 'asc' }, { key: 'asc' }] },
+  preparationItemChecks: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: [{ itemType: 'asc' }, { itemId: 'asc' }, { key: 'asc' }] },
   clientReleases: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
   criticalAnswers: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
   commercialFacts: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { key: 'asc' } },
@@ -343,6 +345,64 @@ function publicTeamPreparation(workflow, mission, context) {
   return { defined: members.length > 0, members };
 }
 
+function publicPreparationResources(workflow, resourcePlanning, context) {
+  const records = new Map((workflow?.preparationItemChecks || []).map(item => [
+    `${item.itemType}:${item.itemId}:${item.key}`,
+    item
+  ]));
+  const checksFor = (itemType, itemId) => PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS[itemType].map(definition => {
+    const record = records.get(`${itemType}:${itemId}:${definition.key}`);
+    return {
+      key: definition.key,
+      label: definition.label,
+      status: record?.status || 'PENDING',
+      updatedAt: record?.updatedAt || null,
+      updatedBy: record?.updatedBy || null,
+      canEdit: canEditPreparationArea(workflow, definition.areaRoles, context)
+    };
+  });
+  const detailedEquipment = (resourcePlanning?.equipment?.categories || []).flatMap(category => (
+    category.equipment.map(item => ({
+      ...item,
+      categoryId: category.id,
+      categoryName: category.name,
+      checks: checksFor('EQUIPMENT', item.id)
+    }))
+  ));
+  const detailedEquipmentIds = new Set(detailedEquipment.map(item => item.id));
+  const equipment = [
+    ...detailedEquipment,
+    ...(workflow?.equipmentCategoryPlans || []).flatMap(plan => {
+      const storedIds = Array.isArray(plan.equipmentIds) ? plan.equipmentIds : [];
+      const equipmentIds = storedIds.length
+        ? storedIds
+        : (plan.category?.equipment || []).map(item => item.id);
+      return equipmentIds.filter(id => !detailedEquipmentIds.has(id)).map(id => ({
+        id,
+        code: null,
+        name: 'Equipamento reservado',
+        categoryId: plan.categoryId,
+        categoryName: plan.category?.name || 'Categoria não informada',
+        availabilityStatus: null,
+        availableAtMobilization: null,
+        assignments: [],
+        calibration: null,
+        maintenance: null,
+        checks: checksFor('EQUIPMENT', id)
+      }));
+    })
+  ];
+  const materials = (resourcePlanning?.supplies?.items || []).map(item => ({
+    ...item,
+    availableInStock: Boolean(item.stockItemId && item.availableQuantity >= item.requiredQuantity),
+    checks: checksFor('MATERIAL', item.id)
+  }));
+  return {
+    equipment: { defined: equipment.length > 0, items: equipment },
+    materials: { defined: materials.length > 0, items: materials }
+  };
+}
+
 function publicClientReleases(workflow, context) {
   const recordByKey = new Map((workflow?.clientReleases || []).map(item => [item.key, item]));
   const attendance = recordByKey.get('ATTENDANCE_CONFIRMATION');
@@ -470,20 +530,32 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
   const documentationReadiness = projectWorkflowDocumentationReadiness({ documentationCategories }, milestones, today);
   const teamPreparation = publicTeamPreparation(workflow, operationalMission, context);
   const clientReleases = publicClientReleases(workflow, context);
+  const normalizedResourcePlanning = resourcePlanning || emptyProjectWorkflowResourcePlanning(workflow);
+  const preparationResources = publicPreparationResources(workflow, normalizedResourcePlanning, context);
   const planningReadiness = projectWorkflowPlanningReadiness({ ...workflow, checklists });
-  const preparationReadiness = projectWorkflowPreparationReadiness({ checklists, teamPreparation, clientReleases });
+  const preparationReadiness = projectWorkflowPreparationReadiness({ checklists, teamPreparation, clientReleases, preparationResources });
   const demobilizationReadiness = projectWorkflowDemobilizationReadiness({ checklists });
   const postJobReadiness = projectWorkflowPostJobReadiness({ checklists });
   const closeoutReadiness = projectWorkflowCloseoutReadiness({ checklists });
   const closureReadiness = projectWorkflowClosureReadiness({ checklists });
   const closureGate = projectWorkflowClosureGate({ ...workflowWithDocuments, checklists, issues });
-  const mobilizationGate = projectWorkflowMobilizationGate({ ...workflowWithDocuments, checklists, commercialFacts, documentationCategories, teamPreparation, clientReleases, issues }, milestones, today);
+  const mobilizationGate = projectWorkflowMobilizationGate({ ...workflowWithDocuments, checklists, commercialFacts, documentationCategories, teamPreparation, clientReleases, preparationResources, issues }, milestones, today);
   const mobilizationAuthorization = projectWorkflowMobilizationAuthorization(workflow, mobilizationGate);
   const permissions = publicPermissions(workflow, context);
   const transitionOptions = PROJECT_WORKFLOW_STAGES
     .filter(stage => allowedProjectWorkflowTransition(workflow.stage, stage))
     .map(stage => {
-      const gateIssues = projectWorkflowTransitionIssues({ ...workflowWithDocuments, checklists, commercialFacts, documentationCategories, issues, demobilizationDate }, stage);
+      const gateIssues = projectWorkflowTransitionIssues({
+        ...workflowWithDocuments,
+        checklists,
+        commercialFacts,
+        documentationCategories,
+        teamPreparation,
+        clientReleases,
+        preparationResources,
+        issues,
+        demobilizationDate
+      }, stage);
       const hasPermission = workflow.stage === 'FINISHED' && stage === 'FINAL_MEASUREMENT'
         ? permissions.canReopen
         : permissions.canEdit;
@@ -506,10 +578,11 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     commercialReadiness,
     documentationCategories,
     teamPreparation,
+    preparationResources,
     clientReleases,
     documentRequirements: documentState.documentRequirements,
     documentationReadiness,
-    resourcePlanning: resourcePlanning || emptyProjectWorkflowResourcePlanning(workflow),
+    resourcePlanning: normalizedResourcePlanning,
     planningReadiness,
     preparationReadiness,
     demobilizationReadiness,
@@ -650,6 +723,7 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
             closedBy: { select: { id: true, name: true } },
             checklists: { select: { key: true, status: true } },
             teamMemberChecks: { select: { collaboratorId: true, key: true, status: true, source: true, sourceUpdatedAt: true } },
+            preparationItemChecks: { select: { itemType: true, itemId: true, key: true, status: true } },
             clientReleases: { select: { key: true, attendanceDate: true, attendanceConfirmedAt: true, requested: true, requestedAt: true, requestedTo: true, completed: true, completedAt: true, source: true, sourceUpdatedAt: true } },
             criticalAnswers: { select: { key: true, answer: true } },
             issues: { select: { id: true, sourceQuestion: true, status: true, dueDate: true, criticality: true, area: true, description: true } },
@@ -675,7 +749,14 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
                 id: true,
                 categoryId: true,
                 equipmentIds: true,
-                category: { select: { id: true, name: true, order: true } }
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                    order: true,
+                    equipment: { where: { isActive: true }, select: { id: true } }
+                  }
+                }
               }
             },
             postJob: { select: { meetingDate: true, serviceTypes: true, qualityRecord: { select: { id: true, number: true, deletedAt: true } } } },
@@ -702,14 +783,17 @@ export async function listProjectWorkflows(filters = {}, context = {}, dependenc
       const mission = operationalMissionSummary(project);
       const teamPreparation = workflow ? publicTeamPreparation(workflow, mission, context) : null;
       const clientReleases = workflow ? publicClientReleases(workflow, context) : null;
+      const preparationResources = workflow
+        ? publicPreparationResources(workflow, emptyProjectWorkflowResourcePlanning(workflow), context)
+        : null;
       const planningReadiness = workflow ? projectWorkflowPlanningReadiness(workflow) : null;
-      const preparationReadiness = workflow ? projectWorkflowPreparationReadiness({ ...workflow, teamPreparation, clientReleases }) : null;
+      const preparationReadiness = workflow ? projectWorkflowPreparationReadiness({ ...workflow, teamPreparation, clientReleases, preparationResources }) : null;
       const demobilizationReadiness = workflow ? projectWorkflowDemobilizationReadiness(workflow) : null;
       const postJobReadiness = workflow ? projectWorkflowPostJobReadiness(workflow) : null;
       const closeoutReadiness = workflow ? projectWorkflowCloseoutReadiness(workflow) : null;
       const closureReadiness = workflow ? projectWorkflowClosureReadiness(workflow) : null;
       const closureGate = workflow ? projectWorkflowClosureGate(workflowWithDocuments) : null;
-      const mobilizationGate = workflow ? projectWorkflowMobilizationGate({ ...workflowWithDocuments, teamPreparation, clientReleases }, milestones, todayKey(now)) : null;
+      const mobilizationGate = workflow ? projectWorkflowMobilizationGate({ ...workflowWithDocuments, teamPreparation, clientReleases, preparationResources }, milestones, todayKey(now)) : null;
       const mobilizationAuthorization = workflow ? projectWorkflowMobilizationAuthorization(workflow, mobilizationGate) : null;
       return {
         id: project.id,
@@ -779,7 +863,7 @@ export async function getProjectWorkflow(projectId, context = {}, dependencies =
   if (!project) throw notFound('Projeto não encontrado ou indisponível no Efetivo.');
   const services = projectServiceTypes(project);
   const history = project.workflow ? await relatedPostJobs(database, project) : [];
-  const resourcePlanning = project.workflow?.stage === 'MOBILIZATION_PLANNING'
+  const resourcePlanning = ['MOBILIZATION_PLANNING', 'PREPARATION', 'READY_TO_MOBILIZE'].includes(project.workflow?.stage)
     ? await loadProjectWorkflowResourcePlanning(database, project.workflow)
     : emptyProjectWorkflowResourcePlanning(project.workflow || {});
   return {
@@ -851,9 +935,13 @@ async function loadWorkflowForMutation(tx, projectId, context) {
     select: OPERATIONAL_MISSION_QUERY.select
   });
   const missionSummary = operationalMissionSummary({ efetivoMissionPlans: mission ? [mission] : [] });
+  const resourcePlanning = ['PREPARATION', 'READY_TO_MOBILIZE'].includes(workflow.stage)
+    ? await loadProjectWorkflowResourcePlanning(tx, workflow)
+    : emptyProjectWorkflowResourcePlanning(workflow);
   Object.assign(workflow, {
     teamPreparation: publicTeamPreparation(workflow, missionSummary, context),
-    clientReleases: publicClientReleases(workflow, context)
+    clientReleases: publicClientReleases(workflow, context),
+    preparationResources: publicPreparationResources(workflow, resourcePlanning, context)
   });
   return workflow;
 }
@@ -991,6 +1079,60 @@ async function applyTeamMemberCheck(tx, workflow, payload, context) {
       source: 'MANUAL',
       sourceRecordId: null,
       sourceUpdatedAt: null,
+      updatedByUserId: context.actorUserId || null
+    }
+  });
+}
+
+async function applyPreparationItemCheck(tx, workflow, payload, context) {
+  const definitions = PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS[payload.itemType] || [];
+  if (!definitions.some(item => item.key === payload.key)) {
+    throw planningError('O controle não pertence a este tipo de item.', {
+      statusCode: 400,
+      code: 'PROJECT_WORKFLOW_PREPARATION_ITEM_CHECK_INVALID'
+    });
+  }
+  let selected = false;
+  if (payload.itemType === 'MATERIAL') {
+    selected = Array.isArray(workflow.supplyPlan) && workflow.supplyPlan.some(item => item.id === payload.itemId);
+  } else {
+    const plans = workflow.equipmentCategoryPlans || [];
+    selected = plans.some(plan => Array.isArray(plan.equipmentIds) && plan.equipmentIds.includes(payload.itemId));
+    const legacyCategoryIds = plans
+      .filter(plan => !Array.isArray(plan.equipmentIds) || plan.equipmentIds.length === 0)
+      .map(plan => plan.categoryId);
+    if (!selected && legacyCategoryIds.length && tx.companyEquipment?.findFirst) {
+      selected = Boolean(await tx.companyEquipment.findFirst({
+        where: { id: payload.itemId, isActive: true, categoryId: { in: legacyCategoryIds } },
+        select: { id: true }
+      }));
+    }
+  }
+  if (!selected) {
+    throw planningError('O item não pertence ao planejamento atual do projeto.', {
+      statusCode: 409,
+      code: 'PROJECT_WORKFLOW_PREPARATION_ITEM_INVALID'
+    });
+  }
+  await tx.projectWorkflowPreparationItemCheck.upsert({
+    where: {
+      projectId_itemType_itemId_key: {
+        projectId: workflow.projectId,
+        itemType: payload.itemType,
+        itemId: payload.itemId,
+        key: payload.key
+      }
+    },
+    create: {
+      projectId: workflow.projectId,
+      itemType: payload.itemType,
+      itemId: payload.itemId,
+      key: payload.key,
+      status: payload.status,
+      updatedByUserId: context.actorUserId || null
+    },
+    update: {
+      status: payload.status,
       updatedByUserId: context.actorUserId || null
     }
   });
@@ -1138,6 +1280,7 @@ async function applyTeamPlan(tx, workflow, payload) {
 async function applyEquipmentPlan(tx, workflow, payload) {
   assertPlanningStage(workflow);
   await tx.projectWorkflowEquipmentCategoryPlan.deleteMany({ where: { projectId: workflow.projectId } });
+  await tx.projectWorkflowPreparationItemCheck.deleteMany({ where: { projectId: workflow.projectId, itemType: 'EQUIPMENT' } });
   if (payload.defined) {
     const categoryIds = payload.selections.map(item => item.categoryId);
     const categories = await tx.equipmentCategory.findMany({
@@ -1176,6 +1319,7 @@ async function applyEquipmentPlan(tx, workflow, payload) {
 
 async function applySupplyPlan(tx, workflow, payload) {
   assertPlanningStage(workflow);
+  await tx.projectWorkflowPreparationItemCheck.deleteMany({ where: { projectId: workflow.projectId, itemType: 'MATERIAL' } });
   const stockIds = payload.items.map(item => item.stockItemId).filter(Boolean);
   const stockItems = stockIds.length
     ? await tx.stockItem.findMany({
@@ -1608,6 +1752,9 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'team_member_check') {
       const definition = PROJECT_WORKFLOW_TEAM_MEMBER_CHECKS.find(item => item.key === payload.key);
       assertPreparationAreaEditable(workflow, definition?.areaRoles || [], context);
+    } else if (payload.action === 'preparation_item_check') {
+      const definition = PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS[payload.itemType]?.find(item => item.key === payload.key);
+      assertPreparationAreaEditable(workflow, definition?.areaRoles || [], context);
     } else if (payload.action === 'client_attendance') {
       assertPreparationAreaEditable(workflow, ['efetivo:operations'], context);
     } else if (payload.action === 'client_release') {
@@ -1624,6 +1771,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     if (payload.action === 'settings') await applySettings(tx, workflow, payload, context);
     else if (payload.action === 'checklist') await applyChecklist(tx, workflow, payload, context);
     else if (payload.action === 'team_member_check') await applyTeamMemberCheck(tx, workflow, payload, context);
+    else if (payload.action === 'preparation_item_check') await applyPreparationItemCheck(tx, workflow, payload, context);
     else if (payload.action === 'client_attendance') await applyClientAttendance(tx, workflow, payload, context, now);
     else if (payload.action === 'client_release') await applyClientRelease(tx, workflow, payload, context);
     else if (payload.action === 'critical') await applyCriticalAnswer(tx, workflow, payload, context);

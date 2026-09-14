@@ -3,6 +3,10 @@ export const PROJECT_WORKFLOW_STAGE_LABELS: Readonly<Record<(typeof PROJECT_WORK
 export const PROJECT_WORKFLOW_CHECKLIST_SECTIONS: readonly ['INITIAL_ANALYSIS', 'D30_TEAM', 'D30_EQUIPMENT', 'D30_MATERIALS', 'D30_LOGISTICS', 'D15_TEAM', 'D15_CLIENT', 'D15_EQUIPMENT', 'D15_MATERIALS', 'D15_PRE_JOB', 'D15_TRAVEL', 'D15_QSMS', 'DEMOBILIZATION_FIELD', 'DEMOBILIZATION_LOGISTICS', 'DEMOBILIZATION_ASSETS', 'POST_JOB_FEEDBACK', 'POST_JOB_LEARNING', 'CLOSEOUT_DOCUMENTATION', 'CLOSEOUT_MEASUREMENT', 'FINAL_CLOSEOUT'];
 export const PROJECT_WORKFLOW_CHECKLIST_SECTION_LABELS: Readonly<Record<(typeof PROJECT_WORKFLOW_CHECKLIST_SECTIONS)[number], string>>;
 export const PROJECT_WORKFLOW_CHECKLISTS: ReadonlyArray<{ key: string; stage: (typeof PROJECT_WORKFLOW_STAGES)[number] | null; section: (typeof PROJECT_WORKFLOW_CHECKLIST_SECTIONS)[number]; label: string; areaRoles: string[] }>;
+export const PROJECT_WORKFLOW_PREPARATION_ITEM_CHECKS: Readonly<{
+  EQUIPMENT: ReadonlyArray<{ key: 'TESTED' | 'ACCESSORIES_SEPARATED'; label: string; areaRoles: string[] }>;
+  MATERIAL: ReadonlyArray<{ key: 'SEPARATED'; label: string; areaRoles: string[] }>;
+}>;
 export const PROJECT_WORKFLOW_CRITICAL_QUESTIONS: ReadonlyArray<{ key: string; label: string; area: string; issueDescription: string; createsIssue?: boolean }>;
 export const PROJECT_WORKFLOW_DOCUMENTATION_TYPES: readonly ['DOCUMENT', 'EXAM', 'TRAINING', 'CERTIFICATION'];
 export const PROJECT_WORKFLOW_DOCUMENTATION_STATUSES: readonly ['PENDING', 'REQUESTED', 'CONFIRMED'];
