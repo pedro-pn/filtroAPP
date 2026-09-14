@@ -306,6 +306,7 @@ function combinePlannedServices(scopes) {
       }
       for (const system of service.systems ?? []) {
         const systemKey = [
+          system.projectSystemId ?? '',
           system.systemType ?? '',
           system.description ?? '',
           system.diameter ?? '',
@@ -313,6 +314,7 @@ function combinePlannedServices(scopes) {
           system.unit ?? ''
         ].join('|');
         const current = existing.systems.get(systemKey) ?? {
+          ...(system.projectSystemId ? { projectSystemId: system.projectSystemId, equipment: system.equipment, systemName: system.systemName } : {}),
           systemType: system.systemType,
           description: system.description ?? null,
           diameter: system.diameter ?? null,
@@ -338,6 +340,7 @@ function combinePlannedServices(scopes) {
       weight: service.weightCount > 0 ? round1(service.weightSum / service.weightCount) : null,
       note: null,
       systems: Array.from(service.systems.values()).map(system => ({
+        ...(system.projectSystemId ? { projectSystemId: system.projectSystemId, equipment: system.equipment, systemName: system.systemName } : {}),
         systemType: system.systemType,
         description: system.description,
         diameter: system.diameter,

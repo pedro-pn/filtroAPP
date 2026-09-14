@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
   buildHistoricalPreview, historicalError, historicalReportKey,
-  parseHistoricalServicesCsv, sourceReportConflict, historicalReportsAsServices
+  parseHistoricalServicesCsv, sourceReportConflict, historicalReportsAsServices, historicalFingerprint
 } from './historical-services.js';
 
 export const historicalSourceSelect = {
@@ -90,15 +90,41 @@ export async function updateHistoricalReport(client, { projectId, id, csv, revis
     const target = sources.find(source => historicalReportKey(source) === historicalReportKey(report));
     const conflict = sourceReportConflict(target, report);
     if (conflict) throw historicalError(conflict, 409);
+    // Conserve o vínculo de uma medição inalterada, mesmo após reordenar linhas. Alterações de
+    // quantidade/nome/unidade exigem nova conferência; o fingerprint nunca inclui o vínculo.
+    const key = item => historicalFingerprint({ ...report, items: [item] });
+    const links = new Map(current.items.filter(item => item.projectSystemId).map(item => [key(item), item.projectSystemId]));
+    const items = report.items.map(item => links.has(key(item)) ? { ...item, projectSystemId: links.get(key(item)) } : item);
     const result = await tx.historicalServiceReport.updateMany({
       where: { id, projectId, revision },
       data: {
         reportType: report.reportType, sequenceNumber: report.sequenceNumber,
-        reportDate: new Date(`${report.reportDate}T00:00:00.000Z`), items: report.items,
+        reportDate: new Date(`${report.reportDate}T00:00:00.000Z`), items,
         fingerprint: report.fingerprint, updatedByUserId: userId, revision: { increment: 1 }
       }
     });
     if (result.count !== 1) throw historicalError('Este lançamento foi alterado por outra pessoa. Reabra a edição.', 409);
+    return tx.historicalServiceReport.findUnique({ where: { id } });
+  }, { isolationLevel: 'Serializable' });
+}
+
+export async function linkHistoricalMeasurement(client, { projectId, id, itemIndex, projectSystemId, revision, userId }) {
+  return client.$transaction(async tx => {
+    await assertHistoricalProject(tx, projectId);
+    const current = await tx.historicalServiceReport.findFirst({ where: { id, projectId } });
+    if (!current || !current.items[itemIndex]) throw historicalError('Medição não encontrada.', 404);
+    if (projectSystemId && !await tx.projectServiceSystem.findFirst({ where: { id: projectSystemId, projectId } })) {
+      throw historicalError('Selecione um sistema deste projeto.');
+    }
+    const items = current.items.map((item, index) => {
+      if (index !== itemIndex) return item;
+      const { projectSystemId: _previous, ...original } = item;
+      return projectSystemId ? { ...original, projectSystemId } : original;
+    });
+    const result = await tx.historicalServiceReport.updateMany({ where: { id, projectId, revision }, data: {
+      items, updatedByUserId: userId, revision: { increment: 1 }
+    } });
+    if (result.count !== 1) throw historicalError('O lançamento mudou. Atualize a lista antes de associar.', 409);
     return tx.historicalServiceReport.findUnique({ where: { id } });
   }, { isolationLevel: 'Serializable' });
 }

@@ -3,6 +3,7 @@ import { inhibitionSystemValue, type InhibitionOptions } from '../../api/inhibit
 import type { Manometer, ParticleCounter, Unit } from '../../types/domain';
 import type { UploadedFile } from '../../api/uploads';
 import { UploadField } from '../ui/UploadField';
+import { cleaningModePatch } from '../../utils/cleaningMeasurement';
 
 const etapasPorTipo: Record<string, string[]> = {
   LIMPEZA: [
@@ -1003,7 +1004,7 @@ export function ServiceFields({
 
     return (
       <>
-        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
+        <MaterialField data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} label={limpezaTubulacao === 'Não' ? 'Material do sistema' : 'Material da tubulação'} />
         <div className={fieldClass(invalidKey, 'metodos')}>
           <label>Método de limpeza {requiredMark()}</label>
           <div className="rdo-check-grid">
@@ -1037,7 +1038,7 @@ export function ServiceFields({
                   name={`limpeza-tubulacao-${groupKey}`}
                   checked={limpezaTubulacao === label}
                   disabled={disabled}
-                  onChange={() => onChange({ limpezaTubulacao: label, 'Limpeza de tubulação?': label })}
+                  onChange={() => onChange(cleaningModePatch(label as 'Sim' | 'Não'))}
                 />
                 <span>{label}</span>
               </label>
@@ -1046,7 +1047,13 @@ export function ServiceFields({
         </div>
         {limpezaTubulacao === 'Sim' ? (
           <TubesBlock data={data} onChange={onChange} disabled={disabled} invalidKey={invalidKey} groupKey={groupKey} />
-        ) : null}
+        ) : <div className={fieldClass(invalidKey, 'quantidadeSistemas')}>
+          <label htmlFor={`cleaning-quantity-${groupKey}`}>Quantidade executada (unidades) {requiredMark()}</label>
+          <input id={`cleaning-quantity-${groupKey}`} type="number" min="1" max="999999999999" step="1" inputMode="numeric" disabled={disabled}
+            value={String(data.quantidadeSistemas ?? data['Quantidade de sistemas (un)'] ?? '')}
+            onChange={event => onChange({ quantidadeSistemas: event.target.value })} />
+          <small className="muted">Informe unidades inteiras. Entra no avanço quando o serviço estiver finalizado.</small>
+        </div>}
         {hideFinalization ? null : (
           <FinalizadoAprovadoBlock data={data} onChange={onChange} disabled={disabled} groupKey={groupKey} invalidKey={invalidKey} />
         )}

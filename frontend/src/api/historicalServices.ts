@@ -6,8 +6,10 @@ export interface HistoricalMeasurement {
   equipment: string;
   system: string;
   diameter: string;
+  diameterUnit?: 'pol' | 'mm';
+  projectSystemId?: string | null;
   quantity: number;
-  unit: 'cm' | 'm' | 'L' | 'mL';
+  unit: 'cm' | 'm' | 'L' | 'mL' | 'UN';
 }
 export interface HistoricalServiceReport {
   id: string;
@@ -47,4 +49,7 @@ export async function updateHistoricalServices(projectId: string, id: string, cs
 }
 export async function downloadHistoricalTemplate() {
   return (await apiClient.get<Blob>(`${base}/template`, { responseType: 'blob' })).data;
+}
+export async function linkHistoricalSystem(projectId: string, reportId: string, itemIndex: number, projectSystemId: string | null, revision: number) {
+  return (await apiClient.put<HistoricalServiceReport>(`${base}/${encodeURIComponent(projectId)}/${encodeURIComponent(reportId)}/items/${itemIndex}/system`, { projectSystemId, revision })).data;
 }

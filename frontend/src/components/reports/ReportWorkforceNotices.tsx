@@ -64,7 +64,7 @@ export function ReportWorkforceNotices({
         </div>
       ) : null}
       {absenceConflictCount ? (
-        <div className={`field-group ${invalid ? 'field-invalid' : ''}`} data-invalid-target="header:workforceJustification" style={{ marginTop: 12 }}>
+        <div className={`field-group ${invalid ? 'field-invalid' : ''}`} data-invalid-target="header:workforceJustification" style={{ marginTop: 12, marginBottom: 20 }}>
           <label htmlFor="rdo-workforce-justification">
             Justificativa de trabalho durante afastamento <span style={{ color: 'var(--rd)' }}>*</span>
           </label>

@@ -8558,6 +8558,11 @@ select {
   border-radius: var(--rs);
   padding: 8px 30px 8px 10px;
   background-color: #fafafa;
+  color: var(--tx);
+}
+
+select,
+.app-combobox-select .app-combobox-control > button {
   background-image:
     linear-gradient(45deg, transparent 50%, var(--mu) 50%),
     linear-gradient(135deg, var(--mu) 50%, transparent 50%);
@@ -8568,7 +8573,6 @@ select {
     6px 6px,
     6px 6px;
   background-repeat: no-repeat;
-  color: var(--tx);
 }
 
 select:focus {
@@ -15021,6 +15025,60 @@ body.app-reorder-touching {
 
 .app-combobox-empty {
   padding: 12px;
+}
+
+/* Sugestões editáveis com o mesmo campo e seta dos selects dos relatórios. */
+.app-combobox-select {
+  min-width: 0;
+}
+
+.app-combobox-select .app-combobox-control input {
+  padding-right: 30px;
+}
+
+.app-combobox-select .app-combobox-control > button {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 30px;
+  padding: 0;
+  border-radius: 0 var(--rs) var(--rs) 0;
+  /* Não usar background shorthand: preserva a seta compartilhada com select. */
+  background-color: transparent;
+}
+
+.app-combobox-select .app-combobox-control > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.app-combobox-select .app-combobox-list {
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.app-combobox-select .app-combobox-list button {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 4px;
+  font-size: inherit;
+  overflow-wrap: anywhere;
+}
+
+.app-combobox-select .app-combobox-list strong {
+  font-weight: 400;
+}
+
+.app-combobox-select .app-combobox-list button.active,
+.app-combobox-select .app-combobox-list button:hover {
+  background: var(--bg);
+}
+
+.app-combobox-select .app-combobox-empty {
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* === Auditoria da alocação diária do ponto === */

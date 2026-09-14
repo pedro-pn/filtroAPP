@@ -137,6 +137,7 @@ export function HomePage() {
       ddsNightEnd: asString(payload.ddsNightEnd),
       ddsNightThemes: asDdsThemes(payload.ddsNightThemes),
       overtimeReason: asString(payload.overtimeReason),
+      workforceJustification: asString(payload.workforceJustification),
       dailyDescription: asString(payload.dailyDescription),
       generalUploads: Array.isArray(payload.generalUploads) ? payload.generalUploads : [],
       services: asServices(payload.services)

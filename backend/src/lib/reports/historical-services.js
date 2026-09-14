@@ -12,7 +12,7 @@ const aliases = {
   tiporelatorio: 'relatorio', numerorelatorio: 'numero', nrelatorio: 'numero',
   datadorelatorio: 'data', datarelatorio: 'data', tiposervico: 'servico',
   equipamentodocliente: 'equipamento', equipamentocliente: 'equipamento',
-  diametropol: 'diametro', diametropolegadas: 'diametro',
+  diametropol: 'diametro', diametropolegadas: 'diametro', diametromm: 'diametro',
   unidadediametro: 'unidadeDiametro', unidadedodiametro: 'unidadeDiametro', diametrounidade: 'unidadeDiametro'
 };
 const key = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -111,23 +111,37 @@ export function normalizeHistoricalRow(row) {
   const system = String(row.sistema ?? '').trim();
   if (!equipment || !system || equipment.length > 180 || system.length > 180) throw historicalError('Informe equipamento do cliente e sistema, com até 180 caracteres cada.');
   const unitKey = String(row.unidade ?? '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const unit = ({ m: 'm', metro: 'm', metros: 'm', cm: 'cm', centimetro: 'cm', centimetros: 'cm', l: 'L', litro: 'L', litros: 'L', ml: 'mL', mililitro: 'mL', mililitros: 'mL' })[unitKey];
+  const unit = ({ m: 'm', metro: 'm', metros: 'm', cm: 'cm', centimetro: 'cm', centimetros: 'cm', l: 'L', litro: 'L', litros: 'L', ml: 'mL', mililitro: 'mL', mililitros: 'mL', un: 'UN', unidade: 'UN', unidades: 'UN' })[unitKey];
   const isLength = unit === 'm' || unit === 'cm';
-  if (!unit || (serviceType === 'filtragem' && isLength) || (['limpeza', 'pressao'].includes(serviceType) && !isLength)) throw historicalError('Unidade incompatível: use cm ou m para tubulação e L ou mL para óleo.');
+  const allowedUnits = { limpeza: ['m', 'cm', 'UN'], pressao: ['m', 'cm'], filtragem: ['L', 'mL'], flushing: ['m', 'cm', 'L', 'mL'] };
+  if (!allowedUnits[serviceType].includes(unit)) throw historicalError('Unidade incompatível: use cm ou m para tubulação, L ou mL para óleo e UN para limpeza química de sistemas completos.');
+  const quantity = positiveNumber(row.quantidade);
+  if (unit === 'UN' && (!Number.isSafeInteger(quantity) || quantity > 999999999999)) throw historicalError('A quantidade em unidades deve ser um número inteiro positivo de até 999999999999.');
   const diameterUnit = String(row.unidadeDiametro ?? '').trim();
-  if (diameterUnit && !/^(?:pol|polegadas?|["'″′”“’]{1,2})$/i.test(diameterUnit)) throw historicalError('Unidade de diâmetro inválida. Use pol ou apóstrofo (\').');
-  let diameter = String(row.diametro ?? '').trim().replace(/(?:["'″′”“’]{1,2}|\s*pol(?:egadas?)?)$/i, '').trim().replace(/\s+/g, ' ');
+  if (diameterUnit && !/^(?:mm|pol|polegadas?|["'″′”“’]{1,2})$/i.test(diameterUnit)) throw historicalError('Unidade de diâmetro inválida. Use mm, pol ou apóstrofo (\').');
+  const rawDiameter = String(row.diametro ?? '').trim();
+  const suffix = /(?:mm|pol(?:egadas?)?|["'″′”“’]{1,2})$/i.exec(rawDiameter)?.[0];
+  const suffixUnit = suffix ? (suffix.toLowerCase() === 'mm' ? 'mm' : 'pol') : null;
+  const explicitUnit = diameterUnit ? (diameterUnit.toLowerCase() === 'mm' ? 'mm' : 'pol') : null;
+  if (explicitUnit && suffixUnit && explicitUnit !== suffixUnit) throw historicalError('A unidade do diâmetro diverge da unidade escrita na medida.');
+  const normalizedDiameterUnit = explicitUnit || suffixUnit || 'pol';
+  if (isLength && row.diameterHeaderUnit && (explicitUnit || suffixUnit) && row.diameterHeaderUnit !== normalizedDiameterUnit) {
+    throw historicalError('O diâmetro diverge da unidade indicada no cabeçalho. Use Diametro e uma unidade explícita para misturar pol e mm.');
+  }
+  const effectiveDiameterUnit = explicitUnit || suffixUnit || row.diameterHeaderUnit || 'pol';
+  let diameter = rawDiameter.replace(/(?:["'″′”“’]{1,2}|\s*(?:pol(?:egadas?)?|mm))$/i, '').trim().replace(/\s+/g, ' ');
   if (isLength) {
-    if (diameter.length > 30 || !/^(?:\d+(?:[.,]\d+)?|(?:\d+ )?\d+\/\d+)$/.test(diameter)) throw historicalError('Informe o diâmetro em polegadas, como 2 ou 1 1/2.');
+    if (diameter.length > 30 || !/^(?:\d+(?:[.,]\d+)?|(?:\d+ )?\d+\/\d+)$/.test(diameter)) throw historicalError('Informe um diâmetro válido, como 2 pol, 1 1/2 pol ou 50 mm.');
+    if (effectiveDiameterUnit === 'mm' && diameter.includes('/')) throw historicalError('Em mm, informe o diâmetro decimal, sem fração.');
     if (diameter.includes('/')) {
       const parts = /^(?:(\d+) )?(\d+)\/(\d+)$/.exec(diameter);
       if (Number(parts[3]) === 0 || Number(parts[2]) === 0) throw historicalError('Fração de diâmetro inválida.');
     } else if (Number(diameter.replace(',', '.')) <= 0) throw historicalError('O diâmetro deve ser maior que zero.');
     diameter = diameter.replace(',', '.');
-  } else if (diameter || diameterUnit) throw historicalError('Deixe o diâmetro e sua unidade vazios para quantidades de óleo.');
+  } else if (diameter || diameterUnit) throw historicalError('Deixe o diâmetro e sua unidade vazios para óleo ou sistemas completos.');
   return {
     reportType, sequenceNumber, reportDate: dateValue(row.data),
-    item: { serviceType, equipment, system, diameter, quantity: positiveNumber(row.quantidade), unit }
+    item: { serviceType, equipment, system, diameter, ...(isLength && effectiveDiameterUnit === 'mm' ? { diameterUnit: 'mm' } : {}), quantity, unit }
   };
 }
 
@@ -135,6 +149,7 @@ export function historicalFingerprint(report) {
   const items = report.items.map(item => ({
     serviceType: item.serviceType, equipment: item.equipment, system: item.system,
     diameter: item.diameter,
+    ...(item.diameterUnit === 'mm' ? { diameterUnit: 'mm' } : {}),
     quantity: item.unit === 'cm' ? item.quantity / 100 : item.unit === 'mL' ? item.quantity / 1000 : item.quantity,
     unit: item.unit === 'cm' ? 'm' : item.unit === 'mL' ? 'L' : item.unit
   })).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
@@ -145,6 +160,8 @@ export function parseHistoricalServicesCsv(csv) {
   const [header, ...rows] = readHistoricalCsv(csv);
   if (!header || !rows.length) throw historicalError('O CSV deve conter cabeçalho e ao menos uma medição.');
   const headers = header.cells.map(value => aliases[key(value)] ?? key(value));
+  const diameterHeaderUnit = header.cells.some(value => key(value) === 'diametromm') ? 'mm'
+    : header.cells.some(value => ['diametropol', 'diametropolegadas'].includes(key(value))) ? 'pol' : null;
   if (new Set(headers).size !== headers.length) throw historicalError('Há colunas repetidas no cabeçalho.');
   const missing = columns.filter(column => !headers.includes(column));
   if (missing.length) throw historicalError(`Colunas ausentes: ${missing.join(', ')}. Baixe o modelo CSV.`);
@@ -152,12 +169,12 @@ export function parseHistoricalServicesCsv(csv) {
   for (const { line, cells } of rows) {
     try {
       if (cells.length !== headers.length) throw historicalError('Quantidade de colunas diferente do cabeçalho. Confira o separador e as aspas.');
-      const row = normalizeHistoricalRow(Object.fromEntries(headers.map((header, index) => [header, cells[index]])));
+      const row = normalizeHistoricalRow({ ...Object.fromEntries(headers.map((header, index) => [header, cells[index]])), diameterHeaderUnit });
       const reportKey = historicalReportKey(row);
       let report = reports.get(reportKey);
       if (report && report.reportDate !== row.reportDate) throw historicalError(`${reportKey}: todas as linhas do relatório devem ter a mesma data.`);
-      const baseUnit = ['m', 'cm'].includes(row.item.unit) ? 'm' : 'L';
-      const itemKey = JSON.stringify([reportKey, row.item.serviceType, row.item.equipment, row.item.system, row.item.diameter, baseUnit]);
+      const baseUnit = ['m', 'cm'].includes(row.item.unit) ? 'm' : row.item.unit === 'UN' ? 'UN' : 'L';
+      const itemKey = JSON.stringify([reportKey, row.item.serviceType, row.item.equipment, row.item.system, row.item.diameter, row.item.diameterUnit || 'pol', baseUnit]);
       if (seenItems.has(itemKey)) throw historicalError('Medição repetida no mesmo relatório. Consolide a quantidade em uma única linha.');
       seenItems.add(itemKey);
       if (!report) {
@@ -209,23 +226,27 @@ export function historicalReportsAsServices(history, sources = []) {
   })).flatMap(report => {
     const groups = new Map();
     for (const item of report.items) {
-      const groupKey = JSON.stringify([item.serviceType, item.equipment, item.system]);
+      const groupKey = JSON.stringify([item.serviceType, item.equipment, item.system, item.projectSystemId || null, item.unit === 'UN']);
       if (!groups.has(groupKey)) groups.set(groupKey, {
         serviceType: item.serviceType, finalized: true, system: item.system,
-        extraData: { tubes: [], volumeOleo: 0, volumeOleoUnit: 'L' },
+        extraData: { equipmentId: item.equipment, system: item.system, ...(item.projectSystemId ? { __projectSystemId: item.projectSystemId } : {}), tubes: [], volumeOleo: 0, volumeOleoUnit: 'L' },
         report: { projectId: report.projectId, reportType: report.reportType, reportDate: report.reportDate, specialConditions: {} }
       });
       const service = groups.get(groupKey);
-      if (item.unit === 'm' || item.unit === 'cm') service.extraData.tubes.push({ d: item.diameter, unit: 'pol', c: item.quantity, lengthUnit: item.unit });
+      if (item.unit === 'UN') {
+        service.extraData.limpezaTubulacao = 'Não';
+        service.extraData.quantidadeSistemas = (service.extraData.quantidadeSistemas ?? 0) + item.quantity;
+      } else if (item.unit === 'm' || item.unit === 'cm') service.extraData.tubes.push({ d: item.diameter, unit: item.diameterUnit || 'pol', c: item.quantity, lengthUnit: item.unit });
       else service.extraData.volumeOleo += item.unit === 'mL' ? item.quantity / 1000 : item.quantity;
     }
     return [...groups.values()];
   });
 }
 
-export const HISTORICAL_CSV_TEMPLATE = '\uFEFFRelatorio;Numero;Data;Servico;Equipamento do cliente;Sistema;Diametro (pol);Quantidade;Unidade\r\n'
+export const HISTORICAL_CSV_TEMPLATE = '\uFEFFRelatorio;Numero;Data;Servico;Equipamento do cliente;Sistema;Diametro;Quantidade;Unidade\r\n'
   + 'RLQ;001;01/01/2026;Limpeza química;Unidade Geradora 01;Kaplan;2;35;m\r\n'
   + 'RLQ;001;01/01/2026;Limpeza química;Unidade Geradora 01;Kaplan;3;45;m\r\n'
+  + 'RLQ;002;02/01/2026;Limpeza química;Unidade Geradora 01;Mancal escora;;1;UN\r\n'
   + 'RCPU;001;02/01/2026;Filtragem de óleo;Unidade Geradora 01;Kaplan;;5000;L\r\n'
   + 'RTP;001;03/01/2026;Teste de pressão;Unidade Geradora 01;Kaplan;2;35;m\r\n'
   + 'RCPU;002;04/01/2026;Flushing;Unidade Geradora 01;Kaplan;3;45;m\r\n';

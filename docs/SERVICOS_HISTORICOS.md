@@ -9,9 +9,10 @@ Cada linha representa uma medição final de um relatório emitido. As linhas s�
 Cabeçalho do modelo:
 
 ```csv
-Relatorio;Numero;Data;Servico;Equipamento do cliente;Sistema;Diametro (pol);Quantidade;Unidade
+Relatorio;Numero;Data;Servico;Equipamento do cliente;Sistema;Diametro;Quantidade;Unidade
 RLQ;001;01/01/2026;Limpeza química;Unidade Geradora 01;Kaplan;2';3500;cm
 RLQ;001;01/01/2026;Limpeza química;Unidade Geradora 01;Kaplan;3pol;45;m
+RLQ;002;02/01/2026;Limpeza química;Unidade Geradora 01;Mancal de escora;;1;UN
 RCPU;001;02/01/2026;Filtragem de óleo;Unidade Geradora 01;Kaplan;;5000000;mL
 RTP;001;03/01/2026;Teste de pressão;Unidade Geradora 01;Kaplan;2;35;m
 RCPU;002;04/01/2026;Flushing;Unidade Geradora 01;Kaplan;3;45;m
@@ -19,9 +20,9 @@ RCPU;002;04/01/2026;Flushing;Unidade Geradora 01;Kaplan;3;45;m
 
 - Relatórios: RLQ para limpeza química; RTP para teste de pressão; RCPU para filtragem de óleo ou flushing, seguindo os tipos existentes no app.
 - Datas: DD/MM/AAAA ou AAAA-MM-DD. Todas as linhas do mesmo relatório devem ter a mesma data.
-- Diâmetros: em polegadas, como `2`, `2pol`, `2'`, `2"` ou `1 1/2`. Também é aceita uma coluna opcional **Unidade do diâmetro**, com `pol`, `'` ou `"`. No Excel, use formato Texto para preservar frações. Aspas duplas literais precisam do escape normal do CSV, feito pelo próprio Excel ao salvar.
+- Diâmetros: polegadas (`2`, `2pol`, `2'`, `2"`, `1 1/2`) ou milímetros (`50 mm`). Sem unidade, o padrão é polegadas. A coluna opcional **Unidade do diâmetro** aceita `pol`, `'`, `"` e `mm`. Unidades na medida, coluna e cabeçalho devem concordar; use o cabeçalho genérico `Diametro` quando misturar unidades. No Excel, use formato Texto para preservar frações. Aspas duplas literais precisam do escape normal do CSV.
 - Comprimentos: `cm` ou `m`. Volumes: `L` ou `mL`. A unidade original fica visível e os totais são convertidos para metros/litros.
-- Limpeza e teste de pressão usam comprimento; filtragem usa volume; flushing aceita ambos. Deixe o diâmetro vazio nas linhas de volume.
+- Limpeza usa comprimento ou unidades de sistemas completos; teste de pressão usa comprimento; filtragem usa volume; flushing aceita comprimento e volume. Para limpeza por unidade, use `UN`, `unidade` ou `unidades`, nome do sistema e quantidade inteira positiva. Deixe o diâmetro e sua unidade vazios nas linhas de volume ou unidades.
 - Quantidade positiva, sem unidade na célula; aceita vírgula decimal (`35,5`, `1.234,5`) ou ponto decimal (`35.5`). Não use separador de milhar sem vírgula decimal: `3500` é preferível a `3.500`.
 - Uma medição por relatório/serviço/equipamento/sistema/diâmetro. Linhas repetidas são rejeitadas; consolide sua quantidade.
 - Separador ponto e vírgula ou vírgula, campos entre aspas, UTF-8 com/sem BOM e arquivos do Excel em Windows-1252. Limites: 500 KB, 2.000 linhas e 500 relatórios por lote.
@@ -36,11 +37,11 @@ Se existir um relatório no app com o mesmo projeto/tipo/número, ele aparece co
 
 ## Reflexo no Acompanhamento
 
-As medições históricas entram no **realizado dos serviços**, no cálculo do **percentual de avanço** e na **curva histórica semanal** do Acompanhamento. Cada medição é considerada finalizada na data do relatório informada no CSV, não na data em que foi importada. Comprimentos são somados em metros e volumes em litros.
+As medições históricas entram no **realizado dos serviços**, no cálculo do **percentual de avanço** e na **curva histórica semanal** do Acompanhamento. Cada medição é considerada finalizada na data do relatório informada no CSV, não na data em que foi importada. Comprimentos são somados em metros, volumes em litros e sistemas completos em unidades, sempre separadamente.
 
 Para calcular o percentual, o projeto precisa ter **escopo previsto com quantidades**: por exemplo, 1.000 m de limpeza química previstos e 569,12 m realizados representam 56,9% nesse serviço. O avanço geral respeita os pesos dos serviços cadastrados. Sem quantidades previstas, a importação não inventa metas: o módulo mantém o avanço manual, quando existir, ou fica sem percentual calculável. Cadastrar as metas depois permite aproveitar também as medições já importadas.
 
-O cálculo atual é agregado por tipo de serviço e medida (tubulação em m / óleo em L). Equipamento do cliente, nome do sistema e diâmetro ficam no detalhamento da aba **Serviços históricos**, mas não criam automaticamente metas nem curvas separadas por equipamento/sistema/diâmetro no Acompanhamento. A importação de medições não lança horas, custos ou uso dos equipamentos da empresa.
+Escopos globais antigos mantêm o cálculo agregado por tipo de serviço e medida. Ao cadastrar metas por equipamento/UG e sistema no cronograma, o cálculo separa esses sistemas e suas bitolas. Nomes exatos ou equivalências confirmadas permitem aproveitar os históricos; também é possível vincular uma medição individual sem mudar seu texto original. Pendências não avançam automaticamente outro sistema. Veja [o fluxo de padronização e o guia das UGs do projeto 5719](SISTEMAS_DO_CLIENTE.md). A importação não cria metas, horas, custos ou uso de equipamentos da empresa.
 
 Um relatório histórico em conflito com uma fonte nativa não entra novamente no realizado. Após importar ou editar, reabra/atualize o Acompanhamento para consultar os dados atualizados. Importar somente o PDF, sem informar medições, não acrescenta quantitativos ao avanço.
 
