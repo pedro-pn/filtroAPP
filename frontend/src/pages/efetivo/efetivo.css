@@ -2060,7 +2060,8 @@
 .project-workflow-equipment-summary li.is-ready { color: var(--g); }
 .project-workflow-equipment-summary > details > p { color: var(--mu); margin: 0; padding: 10px; }
 .project-workflow-custom-supply { background: var(--bg); border: 1px dashed var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 10px; }
-.project-workflow-supply-add { grid-template-columns: minmax(120px, .7fr) minmax(170px, 1.5fr) minmax(80px, .45fr) minmax(100px, .55fr) auto; }
+.project-workflow-supply-add { grid-template-columns: minmax(0, .7fr) minmax(0, 1.5fr) minmax(0, .45fr) minmax(0, .55fr); }
+.project-workflow-supply-add > .secondary-button { grid-column: 1 / -1; justify-self: end; max-width: 100%; }
 .project-workflow-supply-draft { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .project-workflow-supply-draft > article { background: var(--bg); border: 1px solid var(--br); border-left: 3px solid var(--g); border-radius: var(--rs); display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 9px; }
 .project-workflow-supply-draft > article.has-warning { border-left-color: var(--warning-border); }
