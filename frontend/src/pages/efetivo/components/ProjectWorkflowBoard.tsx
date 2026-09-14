@@ -522,13 +522,16 @@ export function ProjectWorkflowBoard({
       ? updatePlanningMission(mission.id, mission.version, payload)
       : createPlanningMission(payload),
     onSuccess: async (_, variables) => {
-      await refreshMissionPlanningQueries(queryClient, async () => {
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['project-workflows'] }),
-          queryClient.invalidateQueries({ queryKey: ['project-workflow', variables.payload.projectId] })
-        ]);
-      });
-      await queryClient.invalidateQueries({ queryKey: ['commercial-revisions', variables.payload.projectId] });
+      const projectId = variables.payload.projectId;
+      await refreshMissionPlanningQueries(queryClient);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['project-workflows'] }),
+        queryClient.fetchQuery({
+          queryKey: ['project-workflow', projectId],
+          queryFn: () => getProjectWorkflow(projectId)
+        }),
+        queryClient.invalidateQueries({ queryKey: ['commercial-revisions', projectId] })
+      ]);
       setMissionFormProjectId(null);
       toast(variables.mission ? 'Equipe inicial atualizada.' : 'Equipe inicial definida.', 'success');
     },
