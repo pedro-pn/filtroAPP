@@ -319,6 +319,20 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     ));
   }
 
+  function duplicateService(key: string) {
+    const source = services.find(s => s.key === key);
+    if (!source) return;
+    const copy: ServiceRow = {
+      ...source,
+      key: nextKey(),
+      systems: source.systems.map(sys => ({ ...sys, key: nextKey() }))
+    };
+    // A cópia mantém o peso preenchido, sem redistribuir os pesos dos serviços existentes.
+    // O aviso da soma continua orientando o ajuste manual para 100%.
+    touchedWeights.current.add(copy.key);
+    setServices(prev => prev.flatMap(s => s.key === key ? [s, copy] : [s]));
+  }
+
   // Remove um serviço e deixa os não editados reabsorverem o que sobra.
   function removeService(key: string) {
     touchedWeights.current.delete(key);
@@ -408,7 +422,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                   </select>
                 </div>
                 <div className="field-group acp-svc-weight-fg">
-                  <label htmlFor={`scope-weight-${svc.key}`}>Peso <HelpTip icon help="Quanto este serviço representa do avanço da obra (%). Ao adicionar serviços, eles dividem 100% igualmente. Quando você digita um valor, ele fica fixo e só os que você ainda não mexeu se ajustam — assim dá para definir os três manualmente (ex.: 10, 30, 60). O ideal é somar 100%." /></label>
+                  <label htmlFor={`scope-weight-${svc.key}`}>Peso <HelpTip icon help="Quanto este serviço representa do avanço da obra (%). Ao adicionar serviços, eles dividem 100% igualmente. Quando você digita um valor, ele fica fixo e só os que você ainda não mexeu se ajustam — assim dá para definir os três manualmente (ex.: 10, 30, 60). Ao duplicar, o peso é copiado sem alterar os demais. O ideal é somar 100%." /></label>
                   <div className="acp-pct-field">
                     <input
                       id={`scope-weight-${svc.key}`}
@@ -419,9 +433,14 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                     <span className="acp-pct-suffix">%</span>
                   </div>
                 </div>
-                <button type="button" className="mini-btn alt" onClick={() => removeService(svc.key)}>
-                  Remover serviço
-                </button>
+                <div className="acp-svc-actions">
+                  <button type="button" className="mini-btn alt" onClick={() => duplicateService(svc.key)}>
+                    Duplicar serviço
+                  </button>
+                  <button type="button" className="mini-btn alt" onClick={() => removeService(svc.key)}>
+                    Remover serviço
+                  </button>
+                </div>
               </div>
 
               {svc.systems.length === 0 ? (
