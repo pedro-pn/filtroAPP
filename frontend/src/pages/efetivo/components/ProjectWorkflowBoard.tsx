@@ -533,6 +533,7 @@ export function ProjectWorkflowBoard({
         queryClient.invalidateQueries({ queryKey: ['commercial-revisions', projectId] })
       ]);
       setMissionFormProjectId(null);
+      onProjectSelect(projectId);
       toast(variables.mission ? 'Equipe inicial atualizada.' : 'Equipe inicial definida.', 'success');
     },
     onError: (error: Error) => toast(error.message, 'error')
