@@ -52,7 +52,9 @@ export function ProjectProgressBreakdown({ projectId }: { projectId: string }) {
         <strong>{fmtPct(data.progressPct)}</strong>
       </div>
       <div className="acp-progress-list">
-        {data.services.map((svc, i) => (
+        {(data.scopeGroups ?? [{ scopeName: null, services: data.services }]).map(group => <section key={group.scopeName ?? ''} className={data.scopeGroups ? 'acp-scope-group' : undefined}>
+          {data.scopeGroups ? <h3 className="acp-scope-group-title">Escopo: {group.scopeName || 'Sem escopo definido'}</h3> : null}
+        {group.services.map((svc, i) => (
           <div className="acp-progress-svc" key={i}>
             <div className="acp-progress-svc-head">
               <span>{SERVICE_LABELS[svc.serviceType] ?? svc.serviceType}</span>
@@ -63,6 +65,7 @@ export function ProjectProgressBreakdown({ projectId }: { projectId: string }) {
             </ul>
           </div>
         ))}
+        </section>)}
       </div>
       {data.pendingMeasurements?.length ? <details className="acp-progress-svc" open>
         <summary>Medições sem correspondência no escopo ({data.pendingMeasurements!.length})</summary>

@@ -1,5 +1,6 @@
 import { forwardRef, type ReactNode, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
 
 import {
   getPlannedScope,
@@ -89,6 +90,8 @@ interface SystemRow {
 }
 interface ServiceRow {
   key: string;
+  scopeKey: string;
+  scopeName: string;
   serviceType: string;
   weight: string;
   systems: SystemRow[];
@@ -149,11 +152,15 @@ function rescaleTo100(services: ServiceRow[]): ServiceRow[] {
 }
 
 function fromScope(scope: PlannedScope): { services: ServiceRow[]; normalHours: HoursRow[]; overtime: HoursRow[] } {
+  const scopeKeys = new Map<string, string>();
   const services = scope.services.map(s => {
+    const scopeName = s.scopeName?.trim() || '';
+    if (!scopeKeys.has(scopeName)) scopeKeys.set(scopeName, nextKey());
     const serviceType = s.serviceType || 'LIMPEZA_QUIMICA';
     const allowed = allowedSystems(serviceType);
     return {
       key: nextKey(),
+      scopeKey: scopeKeys.get(scopeName)!, scopeName,
       serviceType,
       weight: s.weight === null || s.weight === undefined ? '' : toStr(s.weight),
       systems: (s.systems ?? [])
@@ -188,6 +195,7 @@ function fromScope(scope: PlannedScope): { services: ServiceRow[]; normalHours: 
 function normalize(services: ServiceRow[], normalHours: HoursRow[], overtime: HoursRow[]) {
   return JSON.stringify({
     services: services.map(s => ({
+      scopeName: (s.scopeName ?? '').trim(),
       serviceType: s.serviceType,
       weight: s.weight,
       systems: s.systems.map(sys => ({
@@ -240,6 +248,14 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   }, [data]);
 
   const dirty = useMemo(() => normalize(services, normalHours, overtime) !== baseline, [services, normalHours, overtime, baseline]);
+  const scopeGroups = useMemo(() => {
+    const groups = new Map<string, { key: string; name: string; services: ServiceRow[] }>();
+    for (const service of services) {
+      if (!groups.has(service.scopeKey)) groups.set(service.scopeKey, { key: service.scopeKey, name: service.scopeName, services: [] });
+      groups.get(service.scopeKey)!.services.push(service);
+    }
+    return [...groups.values()];
+  }, [services]);
 
   // Handle estável que sempre chama o save mais recente (só quando há mudança).
   const runSave = useRef<() => void>(() => {});
@@ -258,10 +274,21 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       queryClient.invalidateQueries({ queryKey: ['project-progress', projectId] });
       queryClient.invalidateQueries({ queryKey: ['project-systems'] });
     },
-    onError: (error: Error) => showToast(error.message || 'Não foi possível salvar o escopo previsto.')
+    onError: (error: Error) => showToast(
+      (axios.isAxiosError<{ error?: string }>(error) ? error.response?.data?.error : null) || error.message || 'Não foi possível salvar o escopo previsto.', 'error'
+    )
   });
 
   function save() {
+    const names = new Set<string>();
+    for (const group of scopeGroups) {
+      const name = group.name.trim();
+      if (names.has(name)) {
+        showToast('Há escopos com o mesmo nome ou mais de um sem nome. Renomeie-os ou mova os serviços para um único escopo.', 'error');
+        return;
+      }
+      names.add(name);
+    }
     if (services.some(service => service.systems.some(row => row.systemType === 'SISTEMA' && (
       !row.equipment.trim() || !row.systemName.trim() || !Number.isSafeInteger(toNum(row.quantity)) || (toNum(row.quantity) ?? 0) <= 0
     )))) {
@@ -270,6 +297,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
     }
     const payload: PlannedScope = {
       services: services.map(s => ({
+        scopeName: s.scopeName.trim() || null,
         serviceType: s.serviceType,
         weight: toNum(s.weight) ?? 0,
         systems: s.systems.map(sys => ({
@@ -312,11 +340,30 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
 
   // Adiciona um serviço (não editado): os não editados dividem igualmente o que sobra dos fixos.
   // Sem nenhum fixo, dá a divisão igual clássica (1→100, 2→50/50, 3→34/33/33…).
-  function addService() {
+  function addService(scopeKey?: string) {
+    const group = scopeGroups.find(item => item.key === scopeKey) ?? scopeGroups.at(-1);
     setServices(prev => rebalanceUntouched(
-      [...prev, { key: nextKey(), serviceType: 'LIMPEZA_QUIMICA', weight: '', systems: [] } as ServiceRow],
+      [...prev, { key: nextKey(), scopeKey: group?.key ?? nextKey(), scopeName: group?.name ?? '', serviceType: 'LIMPEZA_QUIMICA', weight: '', systems: [] } as ServiceRow],
       touchedWeights.current
     ));
+  }
+
+  function addScope() {
+    const scopeKey = nextKey();
+    setServices(prev => rebalanceUntouched(
+      [...prev, { key: nextKey(), scopeKey, scopeName: '', serviceType: 'LIMPEZA_QUIMICA', weight: '', systems: [] }],
+      touchedWeights.current
+    ));
+  }
+
+  function changeScopeName(scopeKey: string, name: string) {
+    setServices(prev => prev.map(service => service.scopeKey === scopeKey ? { ...service, scopeName: name } : service));
+  }
+
+  function moveService(key: string, scopeKey: string) {
+    const group = scopeGroups.find(item => item.key === scopeKey);
+    if (!group) return;
+    setServices(prev => prev.map(service => service.key === key ? { ...service, scopeKey, scopeName: group.name } : service));
   }
 
   function duplicateService(key: string) {
@@ -411,8 +458,15 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
       {services.length === 0 ? (
         <div className="placeholder-copy">Nenhum serviço previsto.</div>
       ) : (
-        <div className="acp-svc-list">
-          {services.map(svc => (
+        <div className="acp-scope-groups">
+          {scopeGroups.map(group => <section className="acp-scope-group" key={group.key}>
+            <div className="field-group acp-scope-group-name">
+              <label htmlFor={`scope-name-${group.key}`}>Escopo <HelpTip icon help="Nome livre para organizar os serviços no cronograma, no avanço e no ritmo necessário. Não é usado nos relatórios nem altera o cálculo geral." /></label>
+              <input id={`scope-name-${group.key}`} type="text" maxLength={180} placeholder="Ex.: Unidade Geradora 01 — serviços contratados" value={group.name} onChange={event => changeScopeName(group.key, event.target.value)} />
+              {!group.name.trim() ? <small>Sem escopo definido — os serviços existentes foram preservados.</small> : null}
+            </div>
+            <div className="acp-svc-list">
+          {group.services.map(svc => (
             <div className="acp-svc-card" key={svc.key}>
               <div className="acp-svc-head">
                 <div className="field-group acp-svc-type-fg">
@@ -443,6 +497,12 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                 </div>
               </div>
 
+              {scopeGroups.length > 1 ? <div className="field-group acp-svc-move">
+                <label htmlFor={`scope-move-${svc.key}`}>Mover serviço para outro escopo</label>
+                <select id={`scope-move-${svc.key}`} value={svc.scopeKey} onChange={event => moveService(svc.key, event.target.value)}>
+                  {scopeGroups.map((item, index) => <option key={item.key} value={item.key}>{item.name.trim() || `Sem escopo definido (${index + 1})`}</option>)}
+                </select>
+              </div> : null}
               {svc.systems.length === 0 ? (
                 <div className="placeholder-copy" style={{ margin: '4px 0' }}>Nenhum sistema adicionado.</div>
               ) : (
@@ -551,15 +611,18 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
               </button>
             </div>
           ))}
+            </div>
+            <button type="button" className="mini-btn acp-add-sys" onClick={() => addService(group.key)}>+ Adicionar serviço</button>
+          </section>)}
         </div>
       )}
       <button
         type="button"
         className="mini-btn"
         style={{ marginTop: 8 }}
-        onClick={addService}
+        onClick={addScope}
       >
-        + Adicionar serviço
+        + Adicionar escopo
       </button>
       {services.length > 0 ? (
         <div className={`acp-weight-sum ${Math.round(weightSum) === 100 ? 'ok' : 'warn'}`}>

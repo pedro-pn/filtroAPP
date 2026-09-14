@@ -10,6 +10,7 @@
 import prisma from '../prisma.js';
 import { resolvePlannedSystem } from './project-systems.js';
 import { normalizeRdoServiceType } from './avanco.js';
+import { assertDistinctScopeMeasurements } from './scope-groups.js';
 
 // Tipos de serviço conhecidos (rótulos no front). Texto livre também é aceito.
 export const PLANNED_SERVICE_TYPES = ['LIMPEZA_QUIMICA', 'TESTE_PRESSAO', 'FLUSHING', 'FILTRAGEM'];
@@ -52,6 +53,7 @@ export async function getPlannedScope(projectId) {
     services: services.map(s => ({
       id: s.id,
       serviceType: s.serviceType,
+      scopeName: s.scopeName ?? null,
       weight: s.weight,
       note: s.note,
       systems: s.systems.map(sys => ({
@@ -85,6 +87,7 @@ export async function getPlannedScope(projectId) {
 
 // Substitui todo o escopo previsto do projeto pelos conjuntos informados (já validados pela rota).
 export async function setPlannedScope(projectId, { services = [], normalHours = [], overtime = [] } = {}) {
+  assertDistinctScopeMeasurements(services, normalizeRdoServiceType);
   const modes = new Map();
   for (const service of services) for (const row of service.systems ?? []) {
     if (row.systemType === 'SISTEMA' && (normalizeRdoServiceType(service.serviceType) !== 'LIMPEZA_QUIMICA'
@@ -133,6 +136,7 @@ export async function setPlannedScope(projectId, { services = [], normalHours = 
         data: {
           projectId,
           serviceType: s.serviceType,
+          scopeName: text(s.scopeName),
           weight: num(s.weight) ?? 1,
           note: s.note?.trim() || null,
           order: index,

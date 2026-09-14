@@ -292,9 +292,12 @@ function combinePlannedServices(scopes) {
   const byService = new Map();
   for (const scope of scopes) {
     for (const service of scope?.services ?? []) {
-      const key = service.serviceType || 'SERVICO';
+      const serviceType = service.serviceType || 'SERVICO';
+      const scopeName = service.scopeName?.trim() || null;
+      const key = JSON.stringify([scopeName, serviceType]);
       const existing = byService.get(key) ?? {
-        serviceType: key,
+        serviceType,
+        scopeName,
         weightSum: 0,
         weightCount: 0,
         systems: new Map()
@@ -337,6 +340,7 @@ function combinePlannedServices(scopes) {
   return Array.from(byService.values())
     .map(service => ({
       serviceType: service.serviceType,
+      ...(service.scopeName ? { scopeName: service.scopeName } : {}),
       weight: service.weightCount > 0 ? round1(service.weightSum / service.weightCount) : null,
       note: null,
       systems: Array.from(service.systems.values()).map(system => ({
