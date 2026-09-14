@@ -408,9 +408,10 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                   </select>
                 </div>
                 <div className="field-group acp-svc-weight-fg">
-                  <label>Peso <HelpTip icon help="Quanto este serviço representa do avanço da obra (%). Ao adicionar serviços, eles dividem 100% igualmente. Quando você digita um valor, ele fica fixo e só os que você ainda não mexeu se ajustam — assim dá para definir os três manualmente (ex.: 10, 30, 60). O ideal é somar 100%." /></label>
+                  <label htmlFor={`scope-weight-${svc.key}`}>Peso <HelpTip icon help="Quanto este serviço representa do avanço da obra (%). Ao adicionar serviços, eles dividem 100% igualmente. Quando você digita um valor, ele fica fixo e só os que você ainda não mexeu se ajustam — assim dá para definir os três manualmente (ex.: 10, 30, 60). O ideal é somar 100%." /></label>
                   <div className="acp-pct-field">
                     <input
+                      id={`scope-weight-${svc.key}`}
                       type="number" min="0" max="100" step="1" inputMode="numeric" placeholder="0"
                       value={svc.weight}
                       onChange={e => changeWeight(svc.key, e.target.value)}
@@ -468,10 +469,11 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                         </div>
                         {isTube ? (
                           <div className="field-group acp-sys-diameter">
-                            <label>Diâmetro <HelpTip icon help="Mesmo padrão do RDO: polegadas por seleção comum ou milímetros digitados." /></label>
+                            <label htmlFor={`scope-diameter-${sys.key}`}>Diâmetro <HelpTip icon help="Mesmo padrão do RDO: polegadas por seleção comum ou milímetros digitados." /></label>
                             <div className="num-unit acp-diameter-field">
                               {sys.diameterUnit === 'pol' ? (
                                 <select
+                                  id={`scope-diameter-${sys.key}`}
                                   value={sys.diameter}
                                   onChange={e => changeSystem(svc.key, sys.key, { diameter: e.target.value })}
                                   aria-label="Diâmetro em polegadas"
@@ -481,6 +483,7 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                                 </select>
                               ) : (
                                 <input
+                                  id={`scope-diameter-${sys.key}`}
                                   type="number"
                                   min="0"
                                   step="any"
@@ -503,11 +506,12 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                           </div>
                         ) : null}
                         <div className="field-group">
-                          <label>
+                          <label htmlFor={`scope-quantity-${sys.key}`}>
                             {isTube ? 'Comprimento (m)' : sys.systemType === 'SISTEMA' ? 'Quantidade prevista (unidades)' : 'Litros de óleo (L)'} <HelpTip icon help="Quantitativo vendido/previsto deste sistema. É o denominador do avanço (realizado ÷ previsto)." />
                           </label>
                           <div className="num-unit">
                             <input
+                              id={`scope-quantity-${sys.key}`}
                               type="number" min={sys.systemType === 'SISTEMA' ? '1' : '0'} step={sys.systemType === 'SISTEMA' ? '1' : 'any'} inputMode={sys.systemType === 'SISTEMA' ? 'numeric' : 'decimal'} placeholder="0"
                               value={sys.quantity}
                               onChange={e => changeSystem(svc.key, sys.key, { quantity: e.target.value })}
@@ -568,8 +572,9 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                 </select>
               </div>
               <div className="field-group">
-                <label>Horas previstas <HelpTip icon help="Total de horas normais previstas (vendidas). Não multiplica por colaborador." /></label>
+                <label htmlFor={`scope-normal-hours-${row.key}`}>Horas previstas <HelpTip icon help="Total de horas normais previstas (vendidas). Não multiplica por colaborador." /></label>
                 <input
+                  id={`scope-normal-hours-${row.key}`}
                   type="number" min="0" step="any" inputMode="decimal" placeholder="0"
                   value={row.hours}
                   onChange={e => updateRow(setNormalHours, row.key, { hours: e.target.value })}
@@ -608,8 +613,9 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
                 </select>
               </div>
               <div className="field-group">
-                <label>Horas previstas <HelpTip icon help="Total de horas extras previstas (vendidas). Não multiplica por colaborador." /></label>
+                <label htmlFor={`scope-overtime-hours-${row.key}`}>Horas previstas <HelpTip icon help="Total de horas extras previstas (vendidas). Não multiplica por colaborador." /></label>
                 <input
+                  id={`scope-overtime-hours-${row.key}`}
                   type="number" min="0" step="any" inputMode="decimal" placeholder="0"
                   value={row.hours}
                   onChange={e => updateRow(setOvertime, row.key, { hours: e.target.value })}
