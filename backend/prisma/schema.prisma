@@ -1047,6 +1047,9 @@ model ProjectWorkflow {
   supplyPlanDefined                  Boolean?
   supplyPlan                         Json                                   @default("[]")
   logisticsPlan                      Json                                   @default("{}")
+  travelPlan                         Json                                   @default("{}")
+  preJobScheduledDate                DateTime?                              @db.Date
+  preJobCompletedDate                DateTime?                              @db.Date
   mobilizationAuthorizedAt           DateTime?
   mobilizationAuthorizationVersion   Int?
   fieldCompletionDate                DateTime?                              @db.Date

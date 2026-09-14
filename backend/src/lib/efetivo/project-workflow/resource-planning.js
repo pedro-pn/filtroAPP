@@ -1,4 +1,7 @@
-import { buildMaintenanceScheduleItem } from '../../operational-reports/domain.js';
+import {
+  buildMaintenanceScheduleItem,
+  resolveEffectiveMaintenanceProfile
+} from '../../operational-reports/domain.js';
 import { getItemBalances } from '../../estoque/stock-balance.js';
 import { calculateDailyCapacity } from '../planning/capacity.js';
 import { missionEndsOnOrAfter } from '../planning/mission-period.js';
@@ -21,9 +24,21 @@ function calibrationState(equipment, category, targetDate) {
 }
 
 function maintenanceState(equipment, category, targetDate) {
+  const profile = resolveEffectiveMaintenanceProfile({ ...equipment, category });
+  const required = category.showInMaintenance !== false && profile?.isActive === true;
+  if (!required) {
+    return {
+      required: false,
+      status: 'NOT_REQUIRED',
+      lastMaintenanceDate: null,
+      nextMaintenanceDate: null,
+      valid: true
+    };
+  }
   const schedule = buildMaintenanceScheduleItem({ ...equipment, category }, targetDate);
   const valid = ['UPCOMING', 'DUE_TODAY'].includes(schedule.status);
   return {
+    required: true,
     status: schedule.status,
     lastMaintenanceDate: schedule.lastMaintenanceDate,
     nextMaintenanceDate: schedule.nextMaintenanceDate,
@@ -303,7 +318,9 @@ async function loadEquipmentCatalog(database, targetDate, currentProjectId) {
       name: true,
       order: true,
       supportsCalibration: true,
+      showInMaintenance: true,
       maintenanceIntervalDays: true,
+      maintenanceProfile: { select: { isActive: true } },
       equipment: {
         where: { isActive: true },
         select: {
@@ -312,6 +329,8 @@ async function loadEquipmentCatalog(database, targetDate, currentProjectId) {
           name: true,
           hasCalibration: true,
           expiresAt: true,
+          maintenanceProfileOverride: true,
+          maintenanceProfile: { select: { isActive: true } },
           maintenanceRecords: {
             where: { status: 'APPROVED' },
             orderBy: [{ maintenanceDate: 'desc' }, { createdAt: 'desc' }],

@@ -109,22 +109,6 @@ export const PROJECT_WORKFLOW_CHECKLISTS = [
   checklist('ANALYSIS_RESPONSIBILITIES', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Responsabilidades Filtrovali e cliente identificadas'),
   checklist('ANALYSIS_COMMERCIAL_QUESTIONS', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Dúvidas comerciais levantadas e esclarecidas'),
 
-  checklist('D15_PRE_JOB_SCHEDULED', 'PREPARATION', 'D15_PRE_JOB', 'Pré-job agendado', ['efetivo:operations']),
-  checklist('D15_PRE_JOB_SCOPE_PRESENTED', 'PREPARATION', 'D15_PRE_JOB', 'Escopo apresentado à equipe', ['efetivo:operations']),
-  checklist('D15_PRE_JOB_PROPOSAL_REVIEWED', 'PREPARATION', 'D15_PRE_JOB', 'Proposta técnica e escopo revisados com a equipe', ['efetivo:operations']),
-  checklist('D15_PRE_JOB_RESPONSIBILITIES_EXPLAINED', 'PREPARATION', 'D15_PRE_JOB', 'Responsabilidades explicadas', ['efetivo:operations']),
-  checklist('D15_PRE_JOB_CRITICAL_POINTS_EXPLAINED', 'PREPARATION', 'D15_PRE_JOB', 'Pontos críticos explicados', ['efetivo:operations']),
-  checklist('D15_PRE_JOB_SCHEDULE_PRESENTED', 'PREPARATION', 'D15_PRE_JOB', 'Cronograma apresentado', ['efetivo:operations']),
-  checklist('D15_PRE_JOB_RISKS_PRESENTED', 'PREPARATION', 'D15_PRE_JOB', 'Riscos e particularidades apresentados', ['efetivo:operations', 'efetivo:qsms']),
-  checklist('D15_PRE_JOB_FIELD_LEAD_DEFINED', 'PREPARATION', 'D15_PRE_JOB', 'Responsável de campo definido', ['efetivo:operations']),
-
-  checklist('D15_TRAVEL_LODGING_REQUESTED', 'PREPARATION', 'D15_TRAVEL', 'Hospedagem solicitada ao Administrativo', ['efetivo:administrative']),
-  checklist('D15_TRAVEL_LODGING_CONFIRMED', 'PREPARATION', 'D15_TRAVEL', 'Hospedagem confirmada', ['efetivo:administrative']),
-  checklist('D15_TRAVEL_TEAM_TRANSPORT_DEFINED', 'PREPARATION', 'D15_TRAVEL', 'Transporte da equipe definido', ['efetivo:operations']),
-  checklist('D15_TRAVEL_FREIGHT_REQUESTED', 'PREPARATION', 'D15_TRAVEL', 'Frete solicitado', ['efetivo:operations']),
-  checklist('D15_TRAVEL_COMPANY_TRUCK_RESERVED', 'PREPARATION', 'D15_TRAVEL', 'Caminhão próprio reservado, quando aplicável', ['efetivo:operations']),
-  checklist('D15_TRAVEL_DEPARTURE_CONFIRMED', 'PREPARATION', 'D15_TRAVEL', 'Data e hora da saída confirmadas', ['efetivo:operations']),
-
   checklist('D15_QSMS_REQUIREMENTS_CHECKED', 'PREPARATION', 'D15_QSMS', 'Requisitos de QSMS verificados', ['efetivo:qsms']),
   checklist('D15_QSMS_RELEASE_CONFIRMED', 'PREPARATION', 'D15_QSMS', 'Liberação de QSMS confirmada, quando aplicável', ['efetivo:qsms']),
 
@@ -343,6 +327,39 @@ export function makeProjectWorkflowSchemas(z) {
     }
     if (value.requestedAt && value.completedAt && value.requestedAt > value.completedAt) {
       ctx.addIssue({ code: 'custom', path: ['completedAt'], message: 'A conclusão não pode ser anterior à solicitação.' });
+    }
+  });
+  const preJob = z.object({
+    action: z.literal('pre_job'),
+    version,
+    scheduledDate: dateOnly.nullable().optional(),
+    completedDate: dateOnly.nullable().optional()
+  }).strict().superRefine((value, ctx) => {
+    if (!Object.hasOwn(value, 'scheduledDate') && !Object.hasOwn(value, 'completedDate')) {
+      ctx.addIssue({ code: 'custom', message: 'Informe ao menos uma data do pré-job.' });
+    }
+    if (value.scheduledDate && value.completedDate && value.scheduledDate > value.completedDate) {
+      ctx.addIssue({ code: 'custom', path: ['completedDate'], message: 'A realização não pode ser anterior ao agendamento.' });
+    }
+  });
+  const travel = z.object({
+    action: z.literal('travel'),
+    version,
+    lodgingRequestedDate: dateOnly.nullable().optional(),
+    lodgingConfirmedDate: dateOnly.nullable().optional(),
+    teamTransportDefined: z.boolean().nullable().optional(),
+    teamTransportDescription: z.string().trim().max(1000, 'A descrição deve ter no máximo 1000 caracteres.').nullable().optional(),
+    freightDefined: z.boolean().nullable().optional(),
+    freightType: z.enum(['OWN', 'THIRD_PARTY']).nullable().optional(),
+    freightDepartureDate: dateOnly.nullable().optional(),
+    freightDepartureTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Informe um horário válido.').nullable().optional()
+  }).strict().superRefine((value, ctx) => {
+    const fields = ['lodgingRequestedDate', 'lodgingConfirmedDate', 'teamTransportDefined', 'teamTransportDescription', 'freightDefined', 'freightType', 'freightDepartureDate', 'freightDepartureTime'];
+    if (!fields.some(key => Object.hasOwn(value, key))) {
+      ctx.addIssue({ code: 'custom', message: 'Informe ao menos uma alteração de viagem e logística.' });
+    }
+    if (value.lodgingRequestedDate && value.lodgingConfirmedDate && value.lodgingRequestedDate > value.lodgingConfirmedDate) {
+      ctx.addIssue({ code: 'custom', path: ['lodgingConfirmedDate'], message: 'A confirmação não pode ser anterior à solicitação.' });
     }
   });
   const critical = z.object({
@@ -584,7 +601,7 @@ export function makeProjectWorkflowSchemas(z) {
     start,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, critical, analysisContact, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
+    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, travel, critical, analysisContact, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

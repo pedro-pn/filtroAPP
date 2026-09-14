@@ -8,8 +8,9 @@ import type {
 import { Button } from '../../../components/ui/Button';
 import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
+import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 
-function sectionProgress(workflow: ProjectWorkflow, key: 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS') {
+function sectionProgress(workflow: ProjectWorkflow, key: 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL') {
   return workflow.preparationReadiness.sections.find(section => section.key === key)
     || { completed: 0, total: 0, percentage: 0 };
 }
@@ -56,6 +57,7 @@ function equipmentAvailability(item: ProjectWorkflow['preparationResources']['eq
 function equipmentMaintenance(item: ProjectWorkflow['preparationResources']['equipment']['items'][number]) {
   const maintenance = item.maintenance;
   if (!maintenance) return { ready: false, text: 'Manutenção não verificada' };
+  if (!maintenance.required) return null;
   const last = maintenance.lastMaintenanceDate ? ` · última em ${displayDateOnly(maintenance.lastMaintenanceDate)}` : '';
   if (maintenance.status === 'UPCOMING') return { ready: true, text: `Manutenção em dia${last}` };
   if (maintenance.status === 'DUE_TODAY') return { ready: true, text: `Manutenção vence na data prevista${last}` };
@@ -93,7 +95,7 @@ export function ProjectWorkflowEquipmentPreparation({ workflow, saving, onPatch 
       {!items.length ? <p className="project-workflow-category-note">Nenhum equipamento foi reservado no planejamento D-30.</p> : (
         <div className="project-workflow-preparation-resource-list">
           {items.map(item => {
-            const statuses = [equipmentAvailability(item), equipmentMaintenance(item), equipmentCalibration(item)];
+            const statuses = [equipmentAvailability(item), equipmentMaintenance(item), equipmentCalibration(item)].filter(status => status !== null);
             return (
               <article className="project-workflow-preparation-resource" key={item.id}>
                 <header>
@@ -110,6 +112,167 @@ export function ProjectWorkflowEquipmentPreparation({ workflow, saving, onPatch 
         </div>
       )}
       <small className="project-workflow-integration-note">Disponibilidade, manutenção e calibração são consultadas no cadastro de ativos e sinalizam riscos; as conferências são registradas individualmente.</small>
+    </ProjectWorkflowCategory>
+  );
+}
+
+export function ProjectWorkflowPreJobPanel({ workflow, saving, onPatch }: {
+  workflow: ProjectWorkflow;
+  saving: boolean;
+  onPatch: (payload: ProjectWorkflowPatch) => void;
+}) {
+  const progress = sectionProgress(workflow, 'D15_PRE_JOB');
+  const complete = progress.total > 0 && progress.percentage === 100;
+  return (
+    <ProjectWorkflowCategory
+      title="Pré-job"
+      description="Registre as datas de agendamento e realização. Cada alteração é salva automaticamente."
+      status={`${progress.completed}/${progress.total}`}
+      complete={complete}
+      data-project-workflow-pre-job
+    >
+      <div className="project-workflow-form-grid compact">
+        <div className="field-group">
+          <label htmlFor="workflow-pre-job-scheduled-date">Agendado</label>
+          <input
+            id="workflow-pre-job-scheduled-date"
+            type="date"
+            value={workflow.preJob.scheduledDate || ''}
+            disabled={saving || !workflow.preJob.canEdit}
+            onChange={event => onPatch({
+              action: 'pre_job',
+              version: workflow.version,
+              scheduledDate: event.target.value || null
+            })}
+          />
+        </div>
+        <div className="field-group">
+          <label htmlFor="workflow-pre-job-completed-date">Realizado</label>
+          <input
+            id="workflow-pre-job-completed-date"
+            type="date"
+            min={workflow.preJob.scheduledDate || undefined}
+            value={workflow.preJob.completedDate || ''}
+            disabled={saving || !workflow.preJob.canEdit}
+            onChange={event => onPatch({
+              action: 'pre_job',
+              version: workflow.version,
+              completedDate: event.target.value || null
+            })}
+          />
+        </div>
+      </div>
+      {workflow.preJob.canEdit ? <small className="project-workflow-autosave-label">Salvamento automático</small> : null}
+    </ProjectWorkflowCategory>
+  );
+}
+
+export function ProjectWorkflowTravelPanel({ workflow, saving, onPatch }: {
+  workflow: ProjectWorkflow;
+  saving: boolean;
+  onPatch: (payload: ProjectWorkflowPatch) => void;
+}) {
+  const travel = workflow.travel;
+  const progress = sectionProgress(workflow, 'D15_TRAVEL');
+  const complete = progress.total > 0 && progress.percentage === 100;
+  const [transportDescription, setTransportDescription] = useState(travel.teamTransportDescription || '');
+  useEffect(() => setTransportDescription(travel.teamTransportDescription || ''), [travel.teamTransportDescription]);
+  return (
+    <ProjectWorkflowCategory
+      title="Viagem e logística"
+      description="Confirme hospedagem, transporte da equipe e frete para a saída."
+      status={`${progress.completed}/${progress.total}`}
+      complete={complete}
+      data-project-workflow-travel
+    >
+      <div className="project-workflow-preparation-resource-list">
+        <article className="project-workflow-client-release">
+          <header><strong>Hospedagem</strong><span>{travel.lodgingRequired ? 'Necessária' : 'Não necessária'}</span></header>
+          {travel.lodgingRequired ? (
+            <div className="project-workflow-form-grid compact">
+              <div className="field-group">
+                <label htmlFor="workflow-lodging-requested-date">Hospedagem solicitada</label>
+                <input id="workflow-lodging-requested-date" type="date" value={travel.lodgingRequestedDate || ''} disabled={saving || !travel.canEditLodging} onChange={event => onPatch({ action: 'travel', version: workflow.version, lodgingRequestedDate: event.target.value || null })} />
+              </div>
+              <div className="field-group">
+                <label htmlFor="workflow-lodging-confirmed-date">Hospedagem confirmada</label>
+                <input id="workflow-lodging-confirmed-date" type="date" min={travel.lodgingRequestedDate || undefined} value={travel.lodgingConfirmedDate || ''} disabled={saving || !travel.canEditLodging} onChange={event => onPatch({ action: 'travel', version: workflow.version, lodgingConfirmedDate: event.target.value || null })} />
+              </div>
+            </div>
+          ) : <p className="project-workflow-category-note">O planejamento D-30 informa que não haverá hospedagem.</p>}
+        </article>
+
+        <article className="project-workflow-client-release">
+          <header><strong>Transporte da equipe definido</strong><span>{travel.teamTransportDefined === null ? 'Pendente' : travel.teamTransportDefined ? 'Sim' : 'Não'}</span></header>
+          <ProjectWorkflowBooleanChoice
+            value={travel.teamTransportDefined}
+            label="Transporte da equipe definido"
+            disabled={saving || !travel.canEditLogistics}
+            onSelect={value => onPatch({
+              action: 'travel',
+              version: workflow.version,
+              teamTransportDefined: value,
+              ...(value ? {} : { teamTransportDescription: null })
+            })}
+          />
+          {travel.teamTransportDefined ? (
+            <div className="field-group">
+              <label htmlFor="workflow-team-transport-description">Descrição do transporte</label>
+              <textarea
+                id="workflow-team-transport-description"
+                value={transportDescription}
+                disabled={saving || !travel.canEditLogistics}
+                placeholder="Descreva como será feito o transporte da equipe"
+                onChange={event => setTransportDescription(event.target.value)}
+                onBlur={() => {
+                  const normalized = transportDescription.trim();
+                  if (normalized !== (travel.teamTransportDescription || '')) {
+                    onPatch({ action: 'travel', version: workflow.version, teamTransportDescription: normalized || null });
+                  }
+                }}
+              />
+            </div>
+          ) : null}
+        </article>
+
+        <article className="project-workflow-client-release">
+          <header><strong>Frete</strong><span>{!travel.freightRequired ? 'Não necessário' : travel.freightDefined === null ? 'Pendente' : travel.freightDefined ? 'Definido' : 'Não definido'}</span></header>
+          {travel.freightRequired ? <ProjectWorkflowBooleanChoice
+            value={travel.freightDefined}
+            label="Definição do frete"
+            yesLabel="Definido"
+            noLabel="Não definido"
+            disabled={saving || !travel.canEditLogistics}
+            onSelect={value => onPatch({
+              action: 'travel',
+              version: workflow.version,
+              freightDefined: value,
+              ...(value ? {} : { freightType: null, freightDepartureDate: null, freightDepartureTime: null })
+            })}
+          /> : <p className="project-workflow-category-note">O planejamento D-30 informa que não haverá frete.</p>}
+          {travel.freightRequired && travel.freightDefined ? (
+            <div className="project-workflow-form-grid compact">
+              <div className="field-group">
+                <label htmlFor="workflow-freight-type">Tipo de frete</label>
+                <select id="workflow-freight-type" value={travel.freightType || ''} disabled={saving || !travel.canEditLogistics} onChange={event => onPatch({ action: 'travel', version: workflow.version, freightType: event.target.value ? event.target.value as 'OWN' | 'THIRD_PARTY' : null })}>
+                  <option value="">Selecione</option>
+                  <option value="OWN">Próprio</option>
+                  <option value="THIRD_PARTY">Terceiro</option>
+                </select>
+              </div>
+              <div className="field-group">
+                <label htmlFor="workflow-freight-departure-date">Data de saída</label>
+                <input id="workflow-freight-departure-date" type="date" value={travel.freightDepartureDate || ''} disabled={saving || !travel.canEditLogistics} onChange={event => onPatch({ action: 'travel', version: workflow.version, freightDepartureDate: event.target.value || null })} />
+              </div>
+              <div className="field-group">
+                <label htmlFor="workflow-freight-departure-time">Horário de saída</label>
+                <input id="workflow-freight-departure-time" type="time" value={travel.freightDepartureTime || ''} disabled={saving || !travel.canEditLogistics} onChange={event => onPatch({ action: 'travel', version: workflow.version, freightDepartureTime: event.target.value || null })} />
+              </div>
+            </div>
+          ) : null}
+        </article>
+      </div>
+      {(travel.canEditLodging || travel.canEditLogistics) ? <small className="project-workflow-autosave-label">Salvamento automático</small> : null}
     </ProjectWorkflowCategory>
   );
 }

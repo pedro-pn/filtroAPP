@@ -22,6 +22,19 @@ function authorizedWorkflow(overrides = {}) {
     version: 3,
     mobilizationAuthorizedAt: new Date('2026-09-09T12:00:00.000Z'),
     mobilizationAuthorizationVersion: 3,
+    preJobScheduledDate: new Date('2026-09-09T00:00:00.000Z'),
+    preJobCompletedDate: new Date('2026-09-10T00:00:00.000Z'),
+    logisticsPlan: { lodgingRequired: true, freightRequired: false },
+    travelPlan: {
+      lodgingRequestedDate: '2026-09-09',
+      lodgingConfirmedDate: '2026-09-10',
+      teamTransportDefined: true,
+      teamTransportDescription: 'Van própria.',
+      freightDefined: false,
+      freightType: null,
+      freightDepartureDate: null,
+      freightDepartureTime: null
+    },
     checklists: PROJECT_WORKFLOW_CHECKLISTS.map(item => ({ key: item.key, status: 'DONE' })),
     commercialFacts: PROJECT_WORKFLOW_COMMERCIAL_FACTS.map(item => ({
       key: item.key,

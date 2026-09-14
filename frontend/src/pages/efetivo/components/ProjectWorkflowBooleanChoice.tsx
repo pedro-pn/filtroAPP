@@ -1,9 +1,11 @@
 import { Button } from '../../../components/ui/Button';
 
-export function ProjectWorkflowBooleanChoice({ value, disabled, label, onSelect }: {
+export function ProjectWorkflowBooleanChoice({ value, disabled, label, yesLabel = 'Sim', noLabel = 'Não', onSelect }: {
   value: boolean | null;
   disabled: boolean;
   label: string;
+  yesLabel?: string;
+  noLabel?: string;
   onSelect: (value: boolean) => void;
 }) {
   return (
@@ -16,7 +18,7 @@ export function ProjectWorkflowBooleanChoice({ value, disabled, label, onSelect 
         disabled={disabled}
         onClick={() => onSelect(true)}
       >
-        Sim
+        {yesLabel}
       </Button>
       <Button
         type="button"
@@ -26,7 +28,7 @@ export function ProjectWorkflowBooleanChoice({ value, disabled, label, onSelect 
         disabled={disabled}
         onClick={() => onSelect(false)}
       >
-        Não
+        {noLabel}
       </Button>
     </div>
   );

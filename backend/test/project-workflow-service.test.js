@@ -147,6 +147,9 @@ function fakeDatabase() {
           supplyPlanDefined: null,
           supplyPlan: [],
           logisticsPlan: {},
+          travelPlan: {},
+          preJobScheduledDate: null,
+          preJobCompletedDate: null,
           fieldCompletionDate: null,
           closedAt: null,
           closedByUserId: null,
@@ -664,7 +667,7 @@ test('checklist de outra etapa não pode ser antecipado por chamada direta', asy
   const { database } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D15_TRAVEL_FREIGHT_REQUESTED', status: 'DONE' }, manager, { database }),
+    updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D15_QSMS_REQUIREMENTS_CHECKED', status: 'DONE' }, manager, { database }),
     error => error.code === 'PROJECT_WORKFLOW_CHECKLIST_STAGE_FORBIDDEN'
   );
 });
@@ -674,6 +677,19 @@ function makeStateReadyForMobilization(state) {
   state.workflow.acceptedAt = new Date('2026-09-01T12:00:00Z');
   state.workflow.equipmentPlanDefined = true;
   state.workflow.supplyPlanDefined = true;
+  state.workflow.logisticsPlan = { lodgingRequired: true, freightRequired: false };
+  state.workflow.preJobScheduledDate = new Date('2026-09-09T00:00:00Z');
+  state.workflow.preJobCompletedDate = new Date('2026-09-10T00:00:00Z');
+  state.workflow.travelPlan = {
+    lodgingRequestedDate: '2026-09-09',
+    lodgingConfirmedDate: '2026-09-10',
+    teamTransportDefined: true,
+    teamTransportDescription: 'Van própria.',
+    freightDefined: false,
+    freightType: null,
+    freightDepartureDate: null,
+    freightDepartureTime: null
+  };
   state.workflow.supplyPlan = [{
     id: 'stock-stock-filter-1',
     stockItemId: 'stock-filter-1',
@@ -839,7 +855,7 @@ test('D-30 completo permite entrar em Preparação', async () => {
   assert.equal(result.workflow.preparationResources.equipment.items.length, 1);
   assert.equal(result.workflow.preparationResources.materials.items.length, 2);
   assert.equal(result.workflow.preparationResources.equipment.items[0].availabilityStatus, 'AVAILABLE');
-  assert.equal(result.workflow.preparationResources.equipment.items[0].maintenance.status, 'UNCONFIGURED');
+  assert.equal(result.workflow.preparationResources.equipment.items[0].maintenance.status, 'NOT_REQUIRED');
   assert.equal(result.workflow.preparationResources.equipment.items[0].calibration.status, 'NOT_REQUIRED');
   assert.equal(result.workflow.preparationResources.materials.items[0].availableInStock, false);
 });
@@ -889,6 +905,43 @@ test('preparação acompanha equipe por colaborador e liberações do cliente co
   }, supplies, { database });
   assert.equal(result.workflow.preparationResources.materials.items[0].checks[0].status, 'PENDING');
   assert.equal(result.workflow.mobilizationGate.fronts.find(item => item.key === 'MATERIALS').status, 'BLOCKED');
+});
+
+test('preparação registra pré-job e viagem em campos estruturados com salvamento por área', async () => {
+  const { database, state } = fakeDatabase();
+  await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
+  state.workflow.stage = 'PREPARATION';
+  state.workflow.logisticsPlan = { lodgingRequired: true };
+
+  let detail = await updateProjectWorkflow('project-1', {
+    action: 'pre_job', version: 1, scheduledDate: '2026-09-12'
+  }, operations, { database });
+  assert.equal(detail.workflow.preJob.scheduledDate, '2026-09-12');
+  assert.equal(detail.workflow.preJob.completedDate, null);
+
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'pre_job', version: 2, completedDate: '2026-09-13'
+  }, operations, { database });
+  assert.equal(detail.workflow.preJob.completedDate, '2026-09-13');
+
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'travel', version: 3, lodgingRequestedDate: '2026-09-12'
+  }, administrative, { database });
+  assert.equal(detail.workflow.travel.lodgingRequestedDate, '2026-09-12');
+
+  await assert.rejects(
+    updateProjectWorkflow('project-1', { action: 'travel', version: 4, freightDefined: false }, administrative, { database }),
+    error => error.code === 'PROJECT_WORKFLOW_PREPARATION_EDIT_FORBIDDEN'
+  );
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'travel', version: 4, teamTransportDefined: true
+  }, operations, { database });
+  detail = await updateProjectWorkflow('project-1', {
+    action: 'travel', version: 5, teamTransportDescription: 'Van própria com saída da sede.', freightDefined: false
+  }, operations, { database });
+  assert.equal(detail.workflow.travel.teamTransportDescription, 'Van própria com saída da sede.');
+  assert.equal(detail.workflow.travel.freightDefined, false);
+  assert.equal(state.events.at(-1).action, 'WORKFLOW_TRAVEL');
 });
 
 test('gate verde emite autorização versionada e alteração posterior a suspende', async () => {

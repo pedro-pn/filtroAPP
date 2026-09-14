@@ -243,6 +243,96 @@ function clientReleaseProgress(workflow) {
   };
 }
 
+function preJobProgress(workflow) {
+  const scheduled = Boolean(workflow?.preJobScheduledDate);
+  const completed = Boolean(workflow?.preJobCompletedDate);
+  const blockers = [];
+  if (!scheduled) blockers.push({ key: 'PRE_JOB_SCHEDULED', label: 'Pré-job', reason: 'Informar a data do agendamento' });
+  if (!completed) blockers.push({ key: 'PRE_JOB_COMPLETED', label: 'Pré-job', reason: 'Informar a data da realização' });
+  const completedCount = Number(scheduled) + Number(completed);
+  return {
+    key: 'PRE_JOB',
+    label: 'Pré-job',
+    status: blockers.length ? 'BLOCKED' : 'READY',
+    completed: completedCount,
+    total: 2,
+    percentage: completedCount * 50,
+    blockers
+  };
+}
+
+function travelProgress(workflow) {
+  const travel = workflow?.travel && typeof workflow.travel === 'object'
+    ? workflow.travel
+    : workflow?.travelPlan && typeof workflow.travelPlan === 'object' && !Array.isArray(workflow.travelPlan)
+      ? workflow.travelPlan
+      : {};
+  const lodgingRequired = workflow?.logisticsPlan?.lodgingRequired !== false;
+  const freightRequired = workflow?.logisticsPlan?.freightRequired !== false;
+  const lodgingBlockers = [];
+  let lodgingCompleted = 0;
+  if (lodgingRequired) {
+    if (travel.lodgingRequestedDate) lodgingCompleted += 1;
+    else lodgingBlockers.push({ key: 'TRAVEL_LODGING_REQUESTED', label: 'Hospedagem', reason: 'Informar a data da solicitação' });
+    if (travel.lodgingConfirmedDate) lodgingCompleted += 1;
+    else lodgingBlockers.push({ key: 'TRAVEL_LODGING_CONFIRMED', label: 'Hospedagem', reason: 'Informar a data da confirmação' });
+  }
+  const lodging = {
+    key: 'LODGING',
+    label: 'Hospedagem',
+    status: lodgingBlockers.length ? 'BLOCKED' : 'READY',
+    completed: lodgingCompleted,
+    total: lodgingRequired ? 2 : 0,
+    blockers: lodgingBlockers
+  };
+
+  const logisticsBlockers = [];
+  let logisticsCompleted = 0;
+  const transportComplete = travel.teamTransportDefined === true
+    && Boolean(travel.teamTransportDescription?.trim());
+  if (transportComplete) logisticsCompleted += 1;
+  else logisticsBlockers.push({
+    key: 'TRAVEL_TEAM_TRANSPORT',
+    label: 'Transporte da equipe',
+    reason: travel.teamTransportDefined == null
+      ? 'Definir Sim ou Não'
+      : travel.teamTransportDefined === false
+        ? 'Definir o transporte da equipe'
+        : 'Descrever o transporte definido'
+  });
+  if (freightRequired) {
+    const freightComplete = travel.freightDefined === true && Boolean(
+      travel.freightType && travel.freightDepartureDate && travel.freightDepartureTime
+    );
+    if (freightComplete) logisticsCompleted += 1;
+    else logisticsBlockers.push({
+      key: 'TRAVEL_FREIGHT',
+      label: 'Frete',
+      reason: travel.freightDefined !== true
+        ? 'Definir o frete'
+        : 'Informar tipo, data e horário de saída'
+    });
+  }
+  const logistics = {
+    key: 'LOGISTICS',
+    label: 'Logística',
+    status: logisticsBlockers.length ? 'BLOCKED' : 'READY',
+    completed: logisticsCompleted,
+    total: freightRequired ? 2 : 1,
+    blockers: logisticsBlockers
+  };
+  const completed = lodging.completed + logistics.completed;
+  const total = lodging.total + logistics.total;
+  return {
+    completed,
+    total,
+    percentage: total ? Math.round((completed / total) * 100) : 100,
+    blockers: [...lodging.blockers, ...logistics.blockers],
+    lodging,
+    logistics
+  };
+}
+
 export function projectWorkflowDocumentationReadiness(workflow, milestones, today) {
   const categories = normalizeProjectWorkflowDocumentation(workflow);
   const blockers = [];
@@ -325,6 +415,11 @@ export function projectWorkflowPreparationReadiness(workflow) {
     if (key === 'D15_CLIENT') return { key, ...clientReleaseProgress(workflow) };
     if (key === 'D15_EQUIPMENT') return { key, ...preparationItemProgress(workflow, 'EQUIPMENT') };
     if (key === 'D15_MATERIALS') return { key, ...preparationItemProgress(workflow, 'MATERIAL') };
+    if (key === 'D15_PRE_JOB') return { key, ...preJobProgress(workflow) };
+    if (key === 'D15_TRAVEL') {
+      const travel = travelProgress(workflow);
+      return { key, completed: travel.completed, total: travel.total, percentage: travel.percentage };
+    }
     const definitions = PROJECT_WORKFLOW_CHECKLISTS.filter(item => item.section === key);
     return { key, ...checklistProgress(workflow, definitions) };
   });
@@ -474,6 +569,7 @@ export function projectWorkflowMobilizationGate(workflow, milestones = null, tod
   const clientProgress = clientReleaseProgress(workflow);
   const equipmentProgress = preparationItemProgress(workflow, 'EQUIPMENT');
   const materialProgress = preparationItemProgress(workflow, 'MATERIAL');
+  const travel = travelProgress(workflow);
   const requiredDocumentBlockers = (workflow?.documentRequirements?.MOBILIZATION?.blockers || []).map(item => ({
     key: `DOCUMENT_${item.documentId}`,
     label: item.title,
@@ -496,11 +592,11 @@ export function projectWorkflowMobilizationGate(workflow, milestones = null, tod
     { key: 'EQUIPMENT', label: 'Equipamentos', status: equipmentProgress.blockers.length ? 'BLOCKED' : 'READY', ...equipmentProgress },
     { key: 'MATERIALS', label: 'Materiais', status: materialProgress.blockers.length ? 'BLOCKED' : 'READY', ...materialProgress },
     readinessFromDefinitions(workflow, 'QSMS', 'QSMS', checklistDefinitions({ sections: ['D15_QSMS'] })),
-    readinessFromDefinitions(workflow, 'LODGING', 'Hospedagem', checklistDefinitions({ keys: ['D15_TRAVEL_LODGING_REQUESTED', 'D15_TRAVEL_LODGING_CONFIRMED'] })),
-    readinessFromDefinitions(workflow, 'LOGISTICS', 'Logística', checklistDefinitions({ keys: ['D15_TRAVEL_TEAM_TRANSPORT_DEFINED', 'D15_TRAVEL_FREIGHT_REQUESTED', 'D15_TRAVEL_COMPANY_TRUCK_RESERVED', 'D15_TRAVEL_DEPARTURE_CONFIRMED'] })),
+    travel.lodging,
+    travel.logistics,
     { key: 'CLIENT', label: 'Cliente', status: clientProgress.blockers.length ? 'BLOCKED' : 'READY', ...clientProgress }
   ];
-  const preJob = readinessFromDefinitions(workflow, 'PRE_JOB', 'Pré-job', checklistDefinitions({ sections: ['D15_PRE_JOB'] }));
+  const preJob = preJobProgress(workflow);
   const criticalIssues = activeProjectWorkflowIssues(workflow).filter(issue => issue.status !== 'RESOLVED' && issue.criticality === 'HIGH');
   const rawBlockers = [
     ...fronts.flatMap(front => front.blockers.map(blocker => ({ ...blocker, front: front.key }))),

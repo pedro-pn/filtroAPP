@@ -439,6 +439,34 @@ function publicClientReleases(workflow, context) {
   };
 }
 
+function publicPreJob(workflow, context) {
+  return {
+    scheduledDate: dateKey(workflow?.preJobScheduledDate),
+    completedDate: dateKey(workflow?.preJobCompletedDate),
+    canEdit: canEditPreparationArea(workflow, ['efetivo:operations'], context)
+  };
+}
+
+function publicTravel(workflow, context) {
+  const plan = workflow?.travelPlan && typeof workflow.travelPlan === 'object' && !Array.isArray(workflow.travelPlan)
+    ? workflow.travelPlan
+    : {};
+  return {
+    lodgingRequestedDate: plan.lodgingRequestedDate || null,
+    lodgingConfirmedDate: plan.lodgingConfirmedDate || null,
+    teamTransportDefined: typeof plan.teamTransportDefined === 'boolean' ? plan.teamTransportDefined : null,
+    teamTransportDescription: plan.teamTransportDescription || null,
+    freightDefined: typeof plan.freightDefined === 'boolean' ? plan.freightDefined : null,
+    freightType: ['OWN', 'THIRD_PARTY'].includes(plan.freightType) ? plan.freightType : null,
+    freightDepartureDate: plan.freightDepartureDate || null,
+    freightDepartureTime: plan.freightDepartureTime || null,
+    lodgingRequired: workflow?.logisticsPlan?.lodgingRequired !== false,
+    freightRequired: workflow?.logisticsPlan?.freightRequired !== false,
+    canEditLodging: canEditPreparationArea(workflow, ['efetivo:administrative'], context),
+    canEditLogistics: canEditPreparationArea(workflow, ['efetivo:operations'], context)
+  };
+}
+
 function publicPermissions(workflow, context) {
   const manager = contextIsManager(context);
   const isLeader = Boolean(contextIsOperational(context) && context.actorUserId && workflow?.leaderUserId === context.actorUserId);
@@ -533,7 +561,9 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
   const normalizedResourcePlanning = resourcePlanning || emptyProjectWorkflowResourcePlanning(workflow);
   const preparationResources = publicPreparationResources(workflow, normalizedResourcePlanning, context);
   const planningReadiness = projectWorkflowPlanningReadiness({ ...workflow, checklists });
-  const preparationReadiness = projectWorkflowPreparationReadiness({ checklists, teamPreparation, clientReleases, preparationResources });
+  const preJob = publicPreJob(workflow, context);
+  const travel = publicTravel(workflow, context);
+  const preparationReadiness = projectWorkflowPreparationReadiness({ ...workflow, checklists, teamPreparation, clientReleases, preparationResources, travel });
   const demobilizationReadiness = projectWorkflowDemobilizationReadiness({ checklists });
   const postJobReadiness = projectWorkflowPostJobReadiness({ checklists });
   const closeoutReadiness = projectWorkflowCloseoutReadiness({ checklists });
@@ -580,6 +610,8 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     teamPreparation,
     preparationResources,
     clientReleases,
+    preJob,
+    travel,
     documentRequirements: documentState.documentRequirements,
     documentationReadiness,
     resourcePlanning: normalizedResourcePlanning,
@@ -1034,6 +1066,47 @@ async function applyChecklist(tx, workflow, payload, context) {
       updatedByUserId: context.actorUserId || null
     }
   });
+}
+
+async function applyPreJob(tx, workflow, payload) {
+  const scheduledDate = Object.hasOwn(payload, 'scheduledDate')
+    ? payload.scheduledDate
+    : dateKey(workflow.preJobScheduledDate);
+  const completedDate = Object.hasOwn(payload, 'completedDate')
+    ? payload.completedDate
+    : dateKey(workflow.preJobCompletedDate);
+  if (scheduledDate && completedDate && completedDate < scheduledDate) {
+    throw planningError('A realização do pré-job não pode ser anterior ao agendamento.', {
+      code: 'PROJECT_WORKFLOW_PRE_JOB_DATE_INVALID'
+    });
+  }
+  const data = {};
+  if (Object.hasOwn(payload, 'scheduledDate')) data.preJobScheduledDate = payload.scheduledDate ? utcDate(payload.scheduledDate) : null;
+  if (Object.hasOwn(payload, 'completedDate')) data.preJobCompletedDate = payload.completedDate ? utcDate(payload.completedDate) : null;
+  await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data });
+}
+
+async function applyTravel(tx, workflow, payload) {
+  const previous = workflow?.travelPlan && typeof workflow.travelPlan === 'object' && !Array.isArray(workflow.travelPlan)
+    ? workflow.travelPlan
+    : {};
+  const fields = ['lodgingRequestedDate', 'lodgingConfirmedDate', 'teamTransportDefined', 'teamTransportDescription', 'freightDefined', 'freightType', 'freightDepartureDate', 'freightDepartureTime'];
+  const plan = { ...previous };
+  for (const field of fields) {
+    if (Object.hasOwn(payload, field)) plan[field] = payload[field];
+  }
+  if (plan.teamTransportDefined === false) plan.teamTransportDescription = null;
+  if (plan.freightDefined === false) {
+    plan.freightType = null;
+    plan.freightDepartureDate = null;
+    plan.freightDepartureTime = null;
+  }
+  if (plan.lodgingRequestedDate && plan.lodgingConfirmedDate && plan.lodgingConfirmedDate < plan.lodgingRequestedDate) {
+    throw planningError('A confirmação da hospedagem não pode ser anterior à solicitação.', {
+      code: 'PROJECT_WORKFLOW_LODGING_DATE_INVALID'
+    });
+  }
+  await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data: { travelPlan: plan } });
 }
 
 async function applyTeamMemberCheck(tx, workflow, payload, context) {
@@ -1760,6 +1833,17 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     } else if (payload.action === 'client_release') {
       const definition = PROJECT_WORKFLOW_CLIENT_RELEASES.find(item => item.key === payload.key);
       assertPreparationAreaEditable(workflow, definition?.areaRoles || [], context);
+    } else if (payload.action === 'pre_job') {
+      assertPreparationAreaEditable(workflow, ['efetivo:operations'], context);
+    } else if (payload.action === 'travel') {
+      const lodgingFields = ['lodgingRequestedDate', 'lodgingConfirmedDate'];
+      const logisticsFields = ['teamTransportDefined', 'teamTransportDescription', 'freightDefined', 'freightType', 'freightDepartureDate', 'freightDepartureTime'];
+      if (lodgingFields.some(field => Object.hasOwn(payload, field))) {
+        assertPreparationAreaEditable(workflow, ['efetivo:administrative'], context);
+      }
+      if (logisticsFields.some(field => Object.hasOwn(payload, field))) {
+        assertPreparationAreaEditable(workflow, ['efetivo:operations'], context);
+      }
     }
     else if (['team_plan', 'equipment_plan', 'supply_plan', 'logistics_plan'].includes(payload.action)) {
       assertResourcePlanningEditable(workflow, payload.action, context);
@@ -1774,6 +1858,8 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'preparation_item_check') await applyPreparationItemCheck(tx, workflow, payload, context);
     else if (payload.action === 'client_attendance') await applyClientAttendance(tx, workflow, payload, context, now);
     else if (payload.action === 'client_release') await applyClientRelease(tx, workflow, payload, context);
+    else if (payload.action === 'pre_job') await applyPreJob(tx, workflow, payload);
+    else if (payload.action === 'travel') await applyTravel(tx, workflow, payload);
     else if (payload.action === 'critical') await applyCriticalAnswer(tx, workflow, payload, context);
     else if (payload.action === 'analysis_contact') await applyAnalysisContact(tx, workflow, payload);
     else if (payload.action === 'team_plan') await applyTeamPlan(tx, workflow, payload);

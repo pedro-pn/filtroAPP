@@ -226,7 +226,8 @@ export interface ProjectWorkflowEquipmentPlanningItem {
     valid: boolean;
   };
   maintenance: {
-    status: 'UPCOMING' | 'DUE_TODAY' | 'OVERDUE' | 'NO_HISTORY' | 'UNCONFIGURED';
+    required: boolean;
+    status: 'NOT_REQUIRED' | 'UPCOMING' | 'DUE_TODAY' | 'OVERDUE' | 'NO_HISTORY' | 'UNCONFIGURED';
     lastMaintenanceDate: string | null;
     nextMaintenanceDate: string | null;
     valid: boolean;
@@ -536,6 +537,25 @@ export interface ProjectWorkflow {
   analysisClientContactMade: boolean | null;
   analysisClientContactName: string | null;
   analysisClientContactDate: string | null;
+  preJob: {
+    scheduledDate: string | null;
+    completedDate: string | null;
+    canEdit: boolean;
+  };
+  travel: {
+    lodgingRequestedDate: string | null;
+    lodgingConfirmedDate: string | null;
+    teamTransportDefined: boolean | null;
+    teamTransportDescription: string | null;
+    freightDefined: boolean | null;
+    freightType: 'OWN' | 'THIRD_PARTY' | null;
+    freightDepartureDate: string | null;
+    freightDepartureTime: string | null;
+    lodgingRequired: boolean;
+    freightRequired: boolean;
+    canEditLodging: boolean;
+    canEditLogistics: boolean;
+  };
   teamPlanDefined: boolean | null;
   equipmentPlanDefined: boolean | null;
   supplyPlanDefined: boolean | null;
@@ -713,6 +733,8 @@ export type ProjectWorkflowPatch =
   | { action: 'preparation_item_check'; version: number; itemType: ProjectWorkflowPreparationItemType; itemId: string; key: ProjectWorkflowPreparationItemCheckKey; status: 'PENDING' | 'DONE' }
   | { action: 'client_attendance'; version: number; attendanceDate: string }
   | { action: 'client_release'; version: number; key: ProjectWorkflowClientReleaseKey; requested: boolean; requestedAt: string | null; requestedTo: string | null; completed: boolean; completedAt: string | null }
+  | { action: 'pre_job'; version: number; scheduledDate?: string | null; completedDate?: string | null }
+  | { action: 'travel'; version: number; lodgingRequestedDate?: string | null; lodgingConfirmedDate?: string | null; teamTransportDefined?: boolean | null; teamTransportDescription?: string | null; freightDefined?: boolean | null; freightType?: 'OWN' | 'THIRD_PARTY' | null; freightDepartureDate?: string | null; freightDepartureTime?: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }
   | { action: 'analysis_contact'; version: number; made: boolean; contactName?: string | null; contactDate?: string | null }
   | { action: 'team_plan'; version: number; defined: boolean; demands: Array<{ jobRoleId: string; requiredCount: number }> }

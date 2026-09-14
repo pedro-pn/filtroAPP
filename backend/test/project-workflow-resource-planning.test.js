@@ -37,7 +37,9 @@ test('catálogo antecipa disponibilidade, calibração e manutenção na mobiliz
     name: 'Bombas',
     order: 1,
     supportsCalibration: true,
+    showInMaintenance: true,
     maintenanceIntervalDays: 30,
+    maintenanceProfile: { isActive: true },
     equipment: [
       {
         id: 'equipment-1', code: 'B-01', name: 'Bomba 1', hasCalibration: true,
@@ -52,6 +54,10 @@ test('catálogo antecipa disponibilidade, calibração e manutenção na mobiliz
       {
         id: 'equipment-3', code: 'B-03', name: 'Bomba 3', hasCalibration: false,
         expiresAt: null, maintenanceRecords: []
+      },
+      {
+        id: 'equipment-4', code: 'AAO-01', name: 'Analisador de água', hasCalibration: false,
+        expiresAt: null, maintenanceProfileOverride: true, maintenanceProfile: null, maintenanceRecords: []
       }
     ]
   }];
@@ -59,7 +65,7 @@ test('catálogo antecipa disponibilidade, calibração e manutenção na mobiliz
     movement({ equipmentId: 'equipment-2', projectId: 'project-b', date: '2026-09-01', demobilizationDate: new Date('2026-09-18T00:00:00Z') }),
     movement({ equipmentId: 'equipment-3', projectId: 'project-c', date: '2026-09-01' })
   ], '2026-09-20');
-  assert.equal(catalog[0].availableCount, 2);
+  assert.equal(catalog[0].availableCount, 3);
   assert.equal(catalog[0].equipment[0].availabilityStatus, 'AVAILABLE');
   assert.equal(catalog[0].equipment[0].calibration.status, 'VALID');
   assert.equal(catalog[0].equipment[0].maintenance.status, 'UPCOMING');
@@ -69,6 +75,9 @@ test('catálogo antecipa disponibilidade, calibração e manutenção na mobiliz
   assert.equal(catalog[0].equipment[2].availabilityStatus, 'ALLOCATED');
   assert.equal(catalog[0].equipment[2].calibration.status, 'MISSING');
   assert.equal(catalog[0].equipment[2].maintenance.status, 'NO_HISTORY');
+  assert.equal(catalog[0].equipment[3].maintenance.required, false);
+  assert.equal(catalog[0].equipment[3].maintenance.status, 'NOT_REQUIRED');
+  assert.equal(catalog[0].equipment[3].maintenance.valid, true);
   const ownProjectCatalog = buildEquipmentPlanningCatalog(categories, [
     movement({ equipmentId: 'equipment-3', projectId: 'project-c', date: '2026-09-01' })
   ], '2026-09-20', 'project-c');

@@ -54,6 +54,11 @@ test('contrato exige justificativa para não aplicável, valida documentação e
   assert.equal(patch.safeParse({ action: 'client_attendance', version: 1, attendanceDate: '2026-09-20' }).success, true);
   assert.equal(patch.safeParse({ action: 'client_release', version: 1, key: 'CUSTOMER_REGISTRATION', requested: true, requestedAt: '2026-09-10', requestedTo: 'Portaria', completed: false, completedAt: null }).success, true);
   assert.equal(patch.safeParse({ action: 'client_release', version: 1, key: 'CUSTOMER_REGISTRATION', requested: false, requestedAt: null, requestedTo: null, completed: true, completedAt: '2026-09-10' }).success, false);
+  assert.equal(patch.safeParse({ action: 'pre_job', version: 1 }).success, false);
+  assert.equal(patch.safeParse({ action: 'pre_job', version: 1, scheduledDate: '2026-09-10' }).success, true);
+  assert.equal(patch.safeParse({ action: 'pre_job', version: 1, scheduledDate: '2026-09-10', completedDate: '2026-09-09' }).success, false);
+  assert.equal(patch.safeParse({ action: 'travel', version: 1, freightDepartureTime: '25:00' }).success, false);
+  assert.equal(patch.safeParse({ action: 'travel', version: 1, freightDefined: true }).success, true);
   assert.equal(patch.safeParse({ action: 'team_plan', version: 1, defined: true, demands: [] }).success, false);
   assert.equal(patch.safeParse({ action: 'team_plan', version: 1, defined: true, demands: [{ jobRoleId: 'role-1', requiredCount: 3 }] }).success, true);
   assert.equal(patch.safeParse({ action: 'team_plan', version: 1, defined: false, demands: [] }).success, true);
@@ -263,7 +268,31 @@ function readyMobilizationWorkflow(overrides = {}) {
       }]
     }
   };
-  return { stage: 'PREPARATION', version: 10, checklists: readinessChecklists, commercialFacts, documentationCategories, teamPreparation, clientReleases, preparationResources, issues: [], ...overrides };
+  return {
+    stage: 'PREPARATION',
+    version: 10,
+    checklists: readinessChecklists,
+    commercialFacts,
+    documentationCategories,
+    teamPreparation,
+    clientReleases,
+    preparationResources,
+    logisticsPlan: { lodgingRequired: true },
+    preJobScheduledDate: '2026-09-09',
+    preJobCompletedDate: '2026-09-10',
+    travelPlan: {
+      lodgingRequestedDate: '2026-09-09',
+      lodgingConfirmedDate: '2026-09-10',
+      teamTransportDefined: true,
+      teamTransportDescription: 'Van própria com saída da sede.',
+      freightDefined: true,
+      freightType: 'THIRD_PARTY',
+      freightDepartureDate: '2026-09-19',
+      freightDepartureTime: '07:30'
+    },
+    issues: [],
+    ...overrides
+  };
 }
 
 test('planejamento completo libera Preparação e D-15 acompanha equipe nominal e cliente', () => {
@@ -313,6 +342,29 @@ test('gate consolida nove frentes, pré-job e pendências críticas', () => {
   assert.equal(gate.blockers.some(item => item.front === 'CRITICAL_ISSUES'), true);
   workflow.criticalAnswers[0].answer = false;
   assert.equal(projectWorkflowMobilizationGate(workflow).ready, true);
+  workflow.preJobCompletedDate = null;
+  gate = projectWorkflowMobilizationGate(workflow);
+  assert.equal(gate.ready, false);
+  assert.equal(gate.blockers.some(item => item.key === 'PRE_JOB_COMPLETED'), true);
+  workflow.preJobCompletedDate = '2026-09-10';
+  workflow.travelPlan.teamTransportDefined = false;
+  gate = projectWorkflowMobilizationGate(workflow);
+  assert.equal(gate.ready, false);
+  assert.equal(gate.blockers.some(item => item.key === 'TRAVEL_TEAM_TRANSPORT'), true);
+});
+
+test('hospedagem e frete dispensados no D-30 não criam campos obrigatórios no D-15', () => {
+  const workflow = readyMobilizationWorkflow({
+    logisticsPlan: { lodgingRequired: false, freightRequired: false },
+    travelPlan: {
+      teamTransportDefined: true,
+      teamTransportDescription: 'Carro da empresa.'
+    }
+  });
+  const gate = projectWorkflowMobilizationGate(workflow);
+  assert.equal(gate.fronts.find(item => item.key === 'LODGING').status, 'READY');
+  assert.equal(gate.fronts.find(item => item.key === 'LOGISTICS').status, 'READY');
+  assert.equal(gate.ready, true);
 });
 
 test('somente requisitos documentais explícitos participam dos gates', () => {

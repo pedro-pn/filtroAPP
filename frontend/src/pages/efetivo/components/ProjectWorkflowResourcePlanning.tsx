@@ -34,6 +34,7 @@ function calibrationLabel(item: ProjectWorkflowEquipmentPlanningItem) {
 }
 
 function maintenanceLabel(item: ProjectWorkflowEquipmentPlanningItem) {
+  if (item.maintenance.status === 'NOT_REQUIRED') return null;
   if (item.maintenance.status === 'UPCOMING') return `Manutenção em dia${item.maintenance.nextMaintenanceDate ? ` até ${displayDateOnly(item.maintenance.nextMaintenanceDate)}` : ''}`;
   if (item.maintenance.status === 'DUE_TODAY') return 'Manutenção prevista para a mobilização';
   if (item.maintenance.status === 'OVERDUE') return `Manutenção vencida${item.maintenance.nextMaintenanceDate ? ` em ${displayDateOnly(item.maintenance.nextMaintenanceDate)}` : ''}`;
@@ -182,7 +183,7 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
               const ready = item.availableAtMobilization && item.calibration.valid && item.maintenance.valid;
               return <label className={`project-workflow-equipment-option${selected ? ' is-selected' : ''}${ready ? ' is-ready' : ' has-warning'}`} key={item.id}>
                 <input type="checkbox" checked={selected} disabled={saving} onChange={event => toggleEquipment(category.id, item.id, event.target.checked)} />
-                <span><strong>{item.code} · {item.name}</strong><small>{availabilityLabel(item)}</small><small className={item.calibration.valid ? 'is-ready' : 'has-warning'}>{calibrationLabel(item)}</small><small className={item.maintenance.valid ? 'is-ready' : 'has-warning'}>{maintenanceLabel(item)}</small></span>
+                <span><strong>{item.code} · {item.name}</strong><small>{availabilityLabel(item)}</small><small className={item.calibration.valid ? 'is-ready' : 'has-warning'}>{calibrationLabel(item)}</small>{item.maintenance.required ? <small className={item.maintenance.valid ? 'is-ready' : 'has-warning'}>{maintenanceLabel(item)}</small> : null}</span>
               </label>;
             }) : <p>Nenhum equipamento ativo cadastrado nesta categoria.</p>}</div> : null}
           </section>;
@@ -198,5 +199,5 @@ export function ProjectWorkflowEquipmentPlanningCard({ workflow, saving, onPatch
 
 function EquipmentCategorySummary({ categories }: { categories: ProjectWorkflow['resourcePlanning']['equipment']['categories'] }) {
   if (!categories.length) return null;
-  return <div className="project-workflow-equipment-summary">{categories.map(category => <details key={category.id}><summary><strong>{category.name}</strong><span>{category.equipment.length} equipamento(s) selecionado(s)</span><span aria-hidden="true">⌄</span></summary>{category.equipment.length ? <div>{category.equipment.map(item => <article className={item.availableAtMobilization && item.calibration.valid && item.maintenance.valid ? 'is-ready' : 'has-warning'} key={item.id}><div><strong>{item.code} · {item.name}</strong><span>{availabilityLabel(item)}</span></div><ul><li className={item.calibration.valid ? 'is-ready' : 'has-warning'}>{calibrationLabel(item)}</li><li className={item.maintenance.valid ? 'is-ready' : 'has-warning'}>{maintenanceLabel(item)}</li></ul>{item.assignments.length ? <small>Em uso em outra obra{item.assignments.some(assignment => assignment.expectedReturnDate) ? ` · retorno(s): ${item.assignments.filter(assignment => assignment.expectedReturnDate).map(assignment => displayDateOnly(assignment.expectedReturnDate!)).join(', ')}` : ''}</small> : null}</article>)}</div> : <p>Nenhum equipamento selecionado.</p>}</details>)}</div>;
+  return <div className="project-workflow-equipment-summary">{categories.map(category => <details key={category.id}><summary><strong>{category.name}</strong><span>{category.equipment.length} equipamento(s) selecionado(s)</span><span aria-hidden="true">⌄</span></summary>{category.equipment.length ? <div>{category.equipment.map(item => <article className={item.availableAtMobilization && item.calibration.valid && item.maintenance.valid ? 'is-ready' : 'has-warning'} key={item.id}><div><strong>{item.code} · {item.name}</strong><span>{availabilityLabel(item)}</span></div><ul><li className={item.calibration.valid ? 'is-ready' : 'has-warning'}>{calibrationLabel(item)}</li>{item.maintenance.required ? <li className={item.maintenance.valid ? 'is-ready' : 'has-warning'}>{maintenanceLabel(item)}</li> : null}</ul>{item.assignments.length ? <small>Em uso em outra obra{item.assignments.some(assignment => assignment.expectedReturnDate) ? ` · retorno(s): ${item.assignments.filter(assignment => assignment.expectedReturnDate).map(assignment => displayDateOnly(assignment.expectedReturnDate!)).join(', ')}` : ''}</small> : null}</article>)}</div> : <p>Nenhum equipamento selecionado.</p>}</details>)}</div>;
 }
