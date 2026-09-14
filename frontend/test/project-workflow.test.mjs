@@ -4,6 +4,8 @@ import test from 'node:test';
 
 import {
   cloneProjectKanbanColumns,
+  canDefineInitialProjectTeam,
+  canManageProjectTeamCycles,
   moveProjectInColumns,
   projectKanbanStage,
   projectStageInColumns,
@@ -11,6 +13,16 @@ import {
   projectWorkflowStageOptions,
   projectWorkflowsToColumns
 } from '../src/utils/projectWorkflow.ts';
+
+test('equipe inicial pertence à preparação e ciclos ficam disponíveis somente em execução', () => {
+  assert.equal(canDefineInitialProjectTeam('MOBILIZATION_PLANNING'), false);
+  assert.equal(canDefineInitialProjectTeam('PREPARATION'), true);
+  assert.equal(canDefineInitialProjectTeam('READY_TO_MOBILIZE'), true);
+  assert.equal(canDefineInitialProjectTeam('MOBILIZATION'), false);
+  assert.equal(canManageProjectTeamCycles('MOBILIZATION'), false);
+  assert.equal(canManageProjectTeamCycles('EXECUTION'), true);
+  assert.equal(canManageProjectTeamCycles('DEMOBILIZATION'), false);
+});
 
 test('projetos sem gestão entram visualmente no Handover', () => {
   const project = { id: 'p1', code: 'P1', name: 'Projeto', clientName: 'Cliente', location: '', workflow: null, permissions: { canInitialize: true } };
@@ -116,9 +128,14 @@ test('Evolução apresenta um único Kanban e persiste o projeto na URL', () => 
   assert.match(board, /Ver líder e equipe/);
   assert.match(board, /Equipe e ciclos/);
   assert.match(board, /MissionAllocationModal/);
-  assert.match(board, /Programar equipe/);
+  assert.match(board, /Definir equipe inicial/);
+  assert.match(board, /Editar equipe inicial/);
   assert.match(board, /MissionFormModal/);
   assert.match(board, /createPlanningMission/);
+  assert.match(board, /updatePlanningMission/);
+  assert.match(modal, /primeiro ciclo/);
+  assert.match(board, /mission && teamCyclesAvailable/);
+  assert.match(board, /canManageProjectTeamCycles\(stage\)/);
   assert.doesNotMatch(board, /section=missoes/);
   assert.match(board, /projectWorkflowErrorIssues/);
   const dragStart = board.slice(board.indexOf('function onCardDragStart'), board.indexOf('function onCardDragEnd'));

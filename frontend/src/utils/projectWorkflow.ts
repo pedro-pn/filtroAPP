@@ -15,6 +15,14 @@ export const PROJECT_KANBAN_STAGE_LABELS: Record<ProjectKanbanStage, string> = {
 };
 export type ProjectKanbanColumns = Record<ProjectKanbanStage, ProjectWorkflowSummary[]>;
 
+export function canDefineInitialProjectTeam(stage: ProjectKanbanStage) {
+  return stage === 'PREPARATION' || stage === 'READY_TO_MOBILIZE';
+}
+
+export function canManageProjectTeamCycles(stage: ProjectKanbanStage) {
+  return stage === 'EXECUTION';
+}
+
 export function projectKanbanStage(item: ProjectWorkflowSummary): ProjectKanbanStage {
   if (item.workflow) return item.workflow.stage;
   const legacyStage = item.operationalMission?.stage;

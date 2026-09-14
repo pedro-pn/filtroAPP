@@ -1928,6 +1928,14 @@
 .project-workflow-planning > header p { color: var(--mu); margin-top: 3px; }
 .project-workflow-planning-grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); min-width: 0; }
 .project-workflow-planning-grid > * { min-width: 0; }
+.project-workflow-initial-team { align-items: start; background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: grid; gap: 9px 12px; grid-template-columns: minmax(0, 1fr) auto; min-width: 0; padding: 10px; }
+.project-workflow-initial-team > div { min-width: 0; }
+.project-workflow-initial-team p { color: var(--mu); margin: 3px 0 0; overflow-wrap: anywhere; }
+.project-workflow-initial-team > ul { display: grid; gap: 6px; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); list-style: none; margin: 0; padding: 0; }
+.project-workflow-initial-team li { background: var(--wh); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; min-width: 0; padding: 7px 9px; }
+.project-workflow-initial-team li strong,
+.project-workflow-initial-team li span { overflow-wrap: anywhere; }
+.project-workflow-initial-team li span { color: var(--mu); font-size: 12px; }
 .project-workflow-waiting { background: var(--bg); }
 .project-workflow-commercial-list { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .project-workflow-commercial-fact { background: var(--bg); border: 1px solid var(--br); border-radius: var(--rs); display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 10px; }
@@ -2351,6 +2359,8 @@
   .project-workflow-logistics-fields,
   .project-workflow-equipment-options,
   .project-workflow-planning-grid,
+  .project-workflow-initial-team,
+  .project-workflow-initial-team > ul,
   .project-post-job-grid,
   .project-post-job-history-list,
   .project-closeout-financial,
