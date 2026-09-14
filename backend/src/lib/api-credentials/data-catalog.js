@@ -1,7 +1,7 @@
 import { OPERATIONAL_RESOURCES } from './operational-resources.js';
 import { OPERATIONAL_DOWNLOADS } from './extended-operational-resources.js';
 
-export const DATA_CATALOG_VERSION = '2026-09-09';
+export const DATA_CATALOG_VERSION = '2026-09-14';
 const publishedModels = new Set(OPERATIONAL_RESOURCES.map(item => item.model));
 const publishedScopes = new Set([...OPERATIONAL_RESOURCES, ...OPERATIONAL_DOWNLOADS].map(item => item.scope));
 
@@ -60,7 +60,7 @@ export const API_DATA_DOMAINS = Object.freeze([
     models: [
       ...modelEntries(['DdsTheme', 'Report', 'ReportVersion', 'ReportCollaborator', 'ReportService'], 'PLANNED'),
       ...modelEntries(['ClientReportReview', 'ReportSignature', 'ReportAuditLog', 'ReportAttachment'], 'SENSITIVE'),
-      ...modelEntries(['ReportApprovalPostProcessingJob', 'ReportDraft'], 'RESERVED'), ...modelEntries(['ProjectReportSeq'], 'PROHIBITED')
+      ...modelEntries(['ReportApprovalPostProcessingJob', 'ReportDraft', 'HistoricalServiceReport'], 'RESERVED'), ...modelEntries(['ProjectReportSeq'], 'PROHIBITED')
     ],
     candidateScopes: ['rdo.relatorios.read', 'rdo.versoes.read', 'rdo.equipe.read', 'rdo.servicos.read', 'rdo.dds.read', 'rdo.anexos.metadata.read', 'rdo.anexos.download', 'rdo.assinaturas.read', 'rdo.auditoria.read'], endpointFamilies: ['/rdo/relatorios', '/rdo/versoes', '/rdo/servicos'],
     excludedFields: ['controle interno de sequências', 'jobs/payloads', 'rascunhos', 'caminho/token de arquivo', 'imagem de assinatura', 'IP', 'user-agent']
