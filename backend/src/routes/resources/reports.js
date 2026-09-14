@@ -97,6 +97,7 @@ import { RDO_ACCESS_ROLES, requireAuth, requireModuleRole } from '../../middlewa
 import { resolveActualWorkforceContext } from '../../lib/workforce/actual-conflicts.js';
 import { getOfficialMissionContext } from '../../lib/efetivo/planning/official-mission-context.js';
 import { assertReportTypeEmissionPermission } from '../../lib/operational-reports/permissions.js';
+import historicalServicesRouter from './historical-services.js';
 
 const router = Router();
 const requireRdoAccess = requireModuleRole(...RDO_ACCESS_ROLES);
@@ -5787,6 +5788,7 @@ async function buildReportListWhere(auth, query) {
   return { where, searchTerm };
 }
 
+router.use('/historical-services', historicalServicesRouter);
 router.get('/planning-context', requireAuth, requireRdoAccess, asyncHandler(reportPlanningContextHandler));
 router.get('/collaborator-prefill', requireAuth, requireRdoAccess, asyncHandler(reportCollaboratorPrefillHandler));
 
