@@ -336,8 +336,8 @@ export const ProjectPlannedScopeEditor = forwardRef<ScopeEditorHandle, {
   function addSystem(serviceKey: string) {
     setServices(prev => prev.map(s => {
       if (s.key !== serviceKey) return s;
-      const used = new Set(s.systems.map(sys => sys.systemType));
-      const next = allowedSystems(s.serviceType).find(t => !used.has(t)) ?? allowedSystems(s.serviceType)[0];
+      // A primeira modalidade é a padrão; não alternar conforme as linhas já existentes.
+      const next = allowedSystems(s.serviceType)[0];
       return {
         ...s,
         systems: [
