@@ -10,7 +10,7 @@ import { displayDateOnly, todayDateOnly } from '../../../utils/calendarGrid';
 import { ProjectWorkflowCategory } from './ProjectWorkflowCategory';
 import { ProjectWorkflowBooleanChoice } from './ProjectWorkflowBooleanChoice';
 
-function sectionProgress(workflow: ProjectWorkflow, key: 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL') {
+function sectionProgress(workflow: ProjectWorkflow, key: 'D15_TEAM' | 'D15_CLIENT' | 'D15_EQUIPMENT' | 'D15_MATERIALS' | 'D15_PRE_JOB' | 'D15_TRAVEL' | 'D15_QSMS') {
   return workflow.preparationReadiness.sections.find(section => section.key === key)
     || { completed: 0, total: 0, percentage: 0 };
 }
@@ -163,6 +163,64 @@ export function ProjectWorkflowPreJobPanel({ workflow, saving, onPatch }: {
         </div>
       </div>
       {workflow.preJob.canEdit ? <small className="project-workflow-autosave-label">Salvamento automático</small> : null}
+    </ProjectWorkflowCategory>
+  );
+}
+
+export function ProjectWorkflowQsmsPanel({ workflow, saving, onPatch }: {
+  workflow: ProjectWorkflow;
+  saving: boolean;
+  onPatch: (payload: ProjectWorkflowPatch) => void;
+}) {
+  const progress = sectionProgress(workflow, 'D15_QSMS');
+  const qsms = workflow.qsms;
+  const complete = progress.total > 0 && progress.percentage === 100;
+  const [verificationNote, setVerificationNote] = useState(qsms.verificationNote || '');
+  useEffect(() => setVerificationNote(qsms.verificationNote || ''), [qsms.verificationNote]);
+  const status = qsms.verified === null
+    ? 'Pendente'
+    : qsms.verified ? (qsms.verificationNote ? 'Verificado' : 'Registro pendente') : 'Não verificado';
+  return (
+    <ProjectWorkflowCategory
+      title="QSMS"
+      description="Confirme a verificação e registre o que foi verificado para o projeto."
+      status={status}
+      complete={complete}
+      data-project-workflow-qsms
+    >
+      <article className="project-workflow-client-release">
+        <header><strong>Foi verificado?</strong><span>{status}</span></header>
+        <ProjectWorkflowBooleanChoice
+          value={qsms.verified}
+          label="QSMS verificado"
+          disabled={saving || !qsms.canEdit}
+          onSelect={verified => onPatch({
+            action: 'qsms',
+            version: workflow.version,
+            verified,
+            ...(verified ? {} : { verificationNote: null })
+          })}
+        />
+        {qsms.verified ? (
+          <div className="field-group">
+            <label htmlFor="workflow-qsms-verification-note">O que foi verificado?</label>
+            <textarea
+              id="workflow-qsms-verification-note"
+              value={verificationNote}
+              disabled={saving || !qsms.canEdit}
+              placeholder="Registre os requisitos, documentos ou condições verificados"
+              onChange={event => setVerificationNote(event.target.value)}
+              onBlur={() => {
+                const normalized = verificationNote.trim();
+                if (normalized !== (qsms.verificationNote || '')) {
+                  onPatch({ action: 'qsms', version: workflow.version, verificationNote: normalized || null });
+                }
+              }}
+            />
+          </div>
+        ) : null}
+      </article>
+      {qsms.canEdit ? <small className="project-workflow-autosave-label">Salvamento automático</small> : null}
     </ProjectWorkflowCategory>
   );
 }

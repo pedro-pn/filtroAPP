@@ -542,6 +542,11 @@ export interface ProjectWorkflow {
     completedDate: string | null;
     canEdit: boolean;
   };
+  qsms: {
+    verified: boolean | null;
+    verificationNote: string | null;
+    canEdit: boolean;
+  };
   travel: {
     lodgingRequestedDate: string | null;
     lodgingConfirmedDate: string | null;
@@ -734,6 +739,7 @@ export type ProjectWorkflowPatch =
   | { action: 'client_attendance'; version: number; attendanceDate: string }
   | { action: 'client_release'; version: number; key: ProjectWorkflowClientReleaseKey; requested: boolean; requestedAt: string | null; requestedTo: string | null; completed: boolean; completedAt: string | null }
   | { action: 'pre_job'; version: number; scheduledDate?: string | null; completedDate?: string | null }
+  | { action: 'qsms'; version: number; verified?: boolean | null; verificationNote?: string | null }
   | { action: 'travel'; version: number; lodgingRequestedDate?: string | null; lodgingConfirmedDate?: string | null; teamTransportDefined?: boolean | null; teamTransportDescription?: string | null; freightDefined?: boolean | null; freightType?: 'OWN' | 'THIRD_PARTY' | null; freightDepartureDate?: string | null; freightDepartureTime?: string | null }
   | { action: 'critical'; version: number; key: string; answer: boolean }
   | { action: 'analysis_contact'; version: number; made: boolean; contactName?: string | null; contactDate?: string | null }

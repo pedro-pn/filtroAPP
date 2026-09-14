@@ -94,6 +94,8 @@ function authorizedRomaneioWorkflow(projectId, overrides = {}) {
     mobilizationAuthorizationVersion: 2,
     preJobScheduledDate: new Date('2026-09-09T00:00:00.000Z'),
     preJobCompletedDate: new Date('2026-09-10T00:00:00.000Z'),
+    qsmsVerified: true,
+    qsmsVerificationNote: 'APR e requisitos específicos do cliente verificados.',
     logisticsPlan: { lodgingRequired: false, freightRequired: false },
     travelPlan: {
       teamTransportDefined: true,

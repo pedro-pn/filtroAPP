@@ -24,6 +24,8 @@ function authorizedWorkflow(overrides = {}) {
     mobilizationAuthorizationVersion: 3,
     preJobScheduledDate: new Date('2026-09-09T00:00:00.000Z'),
     preJobCompletedDate: new Date('2026-09-10T00:00:00.000Z'),
+    qsmsVerified: true,
+    qsmsVerificationNote: 'APR e requisitos específicos do cliente verificados.',
     logisticsPlan: { lodgingRequired: true, freightRequired: false },
     travelPlan: {
       lodgingRequestedDate: '2026-09-09',

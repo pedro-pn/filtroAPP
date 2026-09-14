@@ -1050,6 +1050,8 @@ model ProjectWorkflow {
   travelPlan                         Json                                   @default("{}")
   preJobScheduledDate                DateTime?                              @db.Date
   preJobCompletedDate                DateTime?                              @db.Date
+  qsmsVerified                       Boolean?
+  qsmsVerificationNote               String?
   mobilizationAuthorizedAt           DateTime?
   mobilizationAuthorizationVersion   Int?
   fieldCompletionDate                DateTime?                              @db.Date

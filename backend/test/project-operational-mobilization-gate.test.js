@@ -24,6 +24,8 @@ export function managedWorkflow(overrides = {}) {
     mobilizationAuthorizationVersion: 7,
     preJobScheduledDate: new Date('2026-09-09T00:00:00.000Z'),
     preJobCompletedDate: new Date('2026-09-10T00:00:00.000Z'),
+    qsmsVerified: true,
+    qsmsVerificationNote: 'APR e requisitos específicos do cliente verificados.',
     logisticsPlan: { lodgingRequired: true },
     travelPlan: {
       lodgingRequestedDate: '2026-09-09',
@@ -135,13 +137,13 @@ test('gate incompleto informa os bloqueios sem aceitar data histórica', async (
   const workflow = managedWorkflow({
     stage: 'PREPARATION',
     version: 9,
-    checklists: managedWorkflow().checklists.filter(item => item.key !== 'D15_QSMS_RELEASE_CONFIRMED')
+    qsmsVerificationNote: null
   });
   const decision = await projectOperationalMobilizationDecision(database(workflow), 'project-1');
   assert.equal(decision.status, 'BLOCKED');
   assert.equal(decision.allowed, false);
   assert.equal(decision.authorizationStatus, 'SUSPENDED');
-  assert.ok(decision.blockers.some(item => item.key === 'D15_QSMS_RELEASE_CONFIRMED'));
+  assert.ok(decision.blockers.some(item => item.key === 'QSMS_VERIFICATION_NOTE'));
 });
 
 test('romaneio valida saída antes de gerar arquivos e preserva entrada', () => {

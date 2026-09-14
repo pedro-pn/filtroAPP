@@ -150,6 +150,8 @@ function fakeDatabase() {
           travelPlan: {},
           preJobScheduledDate: null,
           preJobCompletedDate: null,
+          qsmsVerified: null,
+          qsmsVerificationNote: null,
           fieldCompletionDate: null,
           closedAt: null,
           closedByUserId: null,
@@ -667,7 +669,7 @@ test('checklist de outra etapa não pode ser antecipado por chamada direta', asy
   const { database } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2027-02-15' }, manager, { database });
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D15_QSMS_REQUIREMENTS_CHECKED', status: 'DONE' }, manager, { database }),
+    updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'DEMOB_FIELD_SCOPE_COMPLETED', status: 'DONE' }, manager, { database }),
     error => error.code === 'PROJECT_WORKFLOW_CHECKLIST_STAGE_FORBIDDEN'
   );
 });
@@ -680,6 +682,8 @@ function makeStateReadyForMobilization(state) {
   state.workflow.logisticsPlan = { lodgingRequired: true, freightRequired: false };
   state.workflow.preJobScheduledDate = new Date('2026-09-09T00:00:00Z');
   state.workflow.preJobCompletedDate = new Date('2026-09-10T00:00:00Z');
+  state.workflow.qsmsVerified = true;
+  state.workflow.qsmsVerificationNote = 'APR e requisitos específicos do cliente verificados.';
   state.workflow.travelPlan = {
     lodgingRequestedDate: '2026-09-09',
     lodgingConfirmedDate: '2026-09-10',
@@ -864,14 +868,18 @@ test('QSMS edita sua frente sem avançar a etapa', async () => {
   const { database, state } = fakeDatabase();
   await startProjectWorkflow('project-1', { leaderUserId: 'leader-1', plannedMobilizationDate: '2026-09-29' }, manager, { database });
   state.workflow.stage = 'PREPARATION';
-  const result = await updateProjectWorkflow('project-1', { action: 'checklist', version: 1, key: 'D15_QSMS_REQUIREMENTS_CHECKED', status: 'DONE' }, qsms, { database });
+  let result = await updateProjectWorkflow('project-1', { action: 'qsms', version: 1, verified: true }, qsms, { database });
+  assert.equal(result.workflow.qsms.verified, true);
+  assert.equal(result.workflow.preparationReadiness.completed, 0);
+  result = await updateProjectWorkflow('project-1', { action: 'qsms', version: 2, verificationNote: 'APR e documentação de segurança.' }, qsms, { database });
+  assert.equal(result.workflow.qsms.verificationNote, 'APR e documentação de segurança.');
   assert.equal(result.workflow.preparationReadiness.completed, 1);
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'preparation_item_check', version: 2, itemType: 'EQUIPMENT', itemId: 'equipment-1', key: 'TESTED', status: 'DONE' }, qsms, { database }),
+    updateProjectWorkflow('project-1', { action: 'preparation_item_check', version: 3, itemType: 'EQUIPMENT', itemId: 'equipment-1', key: 'TESTED', status: 'DONE' }, qsms, { database }),
     error => error.code === 'PROJECT_WORKFLOW_PREPARATION_EDIT_FORBIDDEN'
   );
   await assert.rejects(
-    updateProjectWorkflow('project-1', { action: 'stage', version: 2, stage: 'MOBILIZATION_PLANNING' }, qsms, { database }),
+    updateProjectWorkflow('project-1', { action: 'stage', version: 3, stage: 'MOBILIZATION_PLANNING' }, qsms, { database }),
     error => error.code === 'PROJECT_WORKFLOW_EDIT_FORBIDDEN'
   );
 });

@@ -447,6 +447,14 @@ function publicPreJob(workflow, context) {
   };
 }
 
+function publicQsms(workflow, context) {
+  return {
+    verified: typeof workflow?.qsmsVerified === 'boolean' ? workflow.qsmsVerified : null,
+    verificationNote: workflow?.qsmsVerificationNote || null,
+    canEdit: canEditPreparationArea(workflow, ['efetivo:qsms'], context)
+  };
+}
+
 function publicTravel(workflow, context) {
   const plan = workflow?.travelPlan && typeof workflow.travelPlan === 'object' && !Array.isArray(workflow.travelPlan)
     ? workflow.travelPlan
@@ -562,14 +570,15 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
   const preparationResources = publicPreparationResources(workflow, normalizedResourcePlanning, context);
   const planningReadiness = projectWorkflowPlanningReadiness({ ...workflow, checklists });
   const preJob = publicPreJob(workflow, context);
+  const qsms = publicQsms(workflow, context);
   const travel = publicTravel(workflow, context);
-  const preparationReadiness = projectWorkflowPreparationReadiness({ ...workflow, checklists, teamPreparation, clientReleases, preparationResources, travel });
+  const preparationReadiness = projectWorkflowPreparationReadiness({ ...workflow, checklists, teamPreparation, clientReleases, preparationResources, qsms, travel });
   const demobilizationReadiness = projectWorkflowDemobilizationReadiness({ checklists });
   const postJobReadiness = projectWorkflowPostJobReadiness({ checklists });
   const closeoutReadiness = projectWorkflowCloseoutReadiness({ checklists });
   const closureReadiness = projectWorkflowClosureReadiness({ checklists });
   const closureGate = projectWorkflowClosureGate({ ...workflowWithDocuments, checklists, issues });
-  const mobilizationGate = projectWorkflowMobilizationGate({ ...workflowWithDocuments, checklists, commercialFacts, documentationCategories, teamPreparation, clientReleases, preparationResources, issues }, milestones, today);
+  const mobilizationGate = projectWorkflowMobilizationGate({ ...workflowWithDocuments, checklists, commercialFacts, documentationCategories, teamPreparation, clientReleases, preparationResources, qsms, issues }, milestones, today);
   const mobilizationAuthorization = projectWorkflowMobilizationAuthorization(workflow, mobilizationGate);
   const permissions = publicPermissions(workflow, context);
   const transitionOptions = PROJECT_WORKFLOW_STAGES
@@ -583,6 +592,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
         teamPreparation,
         clientReleases,
         preparationResources,
+        qsms,
         issues,
         demobilizationDate
       }, stage);
@@ -611,6 +621,7 @@ function decorateWorkflow(workflow, context, now, demobilizationDate = null, ser
     preparationResources,
     clientReleases,
     preJob,
+    qsms,
     travel,
     documentRequirements: documentState.documentRequirements,
     documentationReadiness,
@@ -1083,6 +1094,14 @@ async function applyPreJob(tx, workflow, payload) {
   const data = {};
   if (Object.hasOwn(payload, 'scheduledDate')) data.preJobScheduledDate = payload.scheduledDate ? utcDate(payload.scheduledDate) : null;
   if (Object.hasOwn(payload, 'completedDate')) data.preJobCompletedDate = payload.completedDate ? utcDate(payload.completedDate) : null;
+  await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data });
+}
+
+async function applyQsms(tx, workflow, payload) {
+  const data = {};
+  if (Object.hasOwn(payload, 'verified')) data.qsmsVerified = payload.verified;
+  if (Object.hasOwn(payload, 'verificationNote')) data.qsmsVerificationNote = payload.verificationNote || null;
+  if (Object.hasOwn(payload, 'verified') && payload.verified !== true) data.qsmsVerificationNote = null;
   await tx.projectWorkflow.update({ where: { projectId: workflow.projectId }, data });
 }
 
@@ -1835,6 +1854,8 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
       assertPreparationAreaEditable(workflow, definition?.areaRoles || [], context);
     } else if (payload.action === 'pre_job') {
       assertPreparationAreaEditable(workflow, ['efetivo:operations'], context);
+    } else if (payload.action === 'qsms') {
+      assertPreparationAreaEditable(workflow, ['efetivo:qsms'], context);
     } else if (payload.action === 'travel') {
       const lodgingFields = ['lodgingRequestedDate', 'lodgingConfirmedDate'];
       const logisticsFields = ['teamTransportDefined', 'teamTransportDescription', 'freightDefined', 'freightType', 'freightDepartureDate', 'freightDepartureTime'];
@@ -1859,6 +1880,7 @@ export async function updateProjectWorkflow(projectId, payload, context = {}, de
     else if (payload.action === 'client_attendance') await applyClientAttendance(tx, workflow, payload, context, now);
     else if (payload.action === 'client_release') await applyClientRelease(tx, workflow, payload, context);
     else if (payload.action === 'pre_job') await applyPreJob(tx, workflow, payload);
+    else if (payload.action === 'qsms') await applyQsms(tx, workflow, payload);
     else if (payload.action === 'travel') await applyTravel(tx, workflow, payload);
     else if (payload.action === 'critical') await applyCriticalAnswer(tx, workflow, payload, context);
     else if (payload.action === 'analysis_contact') await applyAnalysisContact(tx, workflow, payload);

@@ -9,7 +9,7 @@
   "allowed": false,
   "status": "BLOCKED",
   "authorizationStatus": "SUSPENDED",
-  "blockers": [{ "key": "D15_QSMS_RELEASE_CONFIRMED", "label": "Liberação de QSMS confirmada", "reason": "Pendente" }]
+  "blockers": [{ "key": "QSMS_VERIFICATION_NOTE", "label": "QSMS", "reason": "Registrar o que foi verificado" }]
 }
 ```
 

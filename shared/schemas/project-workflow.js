@@ -109,9 +109,6 @@ export const PROJECT_WORKFLOW_CHECKLISTS = [
   checklist('ANALYSIS_RESPONSIBILITIES', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Responsabilidades Filtrovali e cliente identificadas'),
   checklist('ANALYSIS_COMMERCIAL_QUESTIONS', 'INITIAL_ANALYSIS', 'INITIAL_ANALYSIS', 'Dúvidas comerciais levantadas e esclarecidas'),
 
-  checklist('D15_QSMS_REQUIREMENTS_CHECKED', 'PREPARATION', 'D15_QSMS', 'Requisitos de QSMS verificados', ['efetivo:qsms']),
-  checklist('D15_QSMS_RELEASE_CONFIRMED', 'PREPARATION', 'D15_QSMS', 'Liberação de QSMS confirmada, quando aplicável', ['efetivo:qsms']),
-
   checklist('DEMOB_FIELD_SCOPE_COMPLETED', 'DEMOBILIZATION', 'DEMOBILIZATION_FIELD', 'Escopo de campo concluído', ['efetivo:operations']),
   checklist('DEMOB_FIELD_CLIENT_CONFIRMED', 'DEMOBILIZATION', 'DEMOBILIZATION_FIELD', 'Cliente confirmou a conclusão', ['efetivo:operations']),
   checklist('DEMOB_FIELD_QUANTITIES_CHECKED', 'DEMOBILIZATION', 'DEMOBILIZATION_FIELD', 'Quantitativos conferidos', ['efetivo:operations']),
@@ -340,6 +337,16 @@ export function makeProjectWorkflowSchemas(z) {
     }
     if (value.scheduledDate && value.completedDate && value.scheduledDate > value.completedDate) {
       ctx.addIssue({ code: 'custom', path: ['completedDate'], message: 'A realização não pode ser anterior ao agendamento.' });
+    }
+  });
+  const qsms = z.object({
+    action: z.literal('qsms'),
+    version,
+    verified: z.boolean().nullable().optional(),
+    verificationNote: z.string().trim().max(2000, 'O registro deve ter no máximo 2000 caracteres.').nullable().optional()
+  }).strict().superRefine((value, ctx) => {
+    if (!Object.hasOwn(value, 'verified') && !Object.hasOwn(value, 'verificationNote')) {
+      ctx.addIssue({ code: 'custom', message: 'Informe ao menos uma alteração do QSMS.' });
     }
   });
   const travel = z.object({
@@ -601,7 +608,7 @@ export function makeProjectWorkflowSchemas(z) {
     start,
     postJob,
     measurement,
-    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, travel, critical, analysisContact, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
+    patch: z.discriminatedUnion('action', [settings, checklist, teamMemberCheck, preparationItemCheck, clientAttendance, clientRelease, preJob, qsms, travel, critical, analysisContact, teamPlan, equipmentPlan, supplyPlan, logisticsPlan, documentationCategory, documentationRequirementCreate, documentationRequirementUpdate, documentationRequirementArchive, issue, accept, stage, demobilization, postJob, measurement, authorizeMobilization]),
     list: z.object({
       search: z.string().trim().max(120).optional(),
       page: z.coerce.number().int().min(1).default(1)

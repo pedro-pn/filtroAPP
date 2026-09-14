@@ -168,6 +168,7 @@ test('Preparação acompanha equipe nominal e liberações do cliente com salvam
   assert.match(modal, /ProjectWorkflowMaterialsPreparation/);
   assert.match(modal, /ProjectWorkflowPreJobPanel/);
   assert.match(modal, /ProjectWorkflowTravelPanel/);
+  assert.match(modal, /ProjectWorkflowQsmsPanel/);
   assert.match(panel, /Aguardando definição da equipe/);
   assert.match(schema, /Colaborador informado/);
   assert.match(schema, /EXAMS_RELEASED/);
@@ -192,8 +193,12 @@ test('Preparação acompanha equipe nominal e liberações do cliente com salvam
   assert.match(panel, /Frete/);
   assert.match(panel, /Próprio/);
   assert.match(panel, /Terceiro/);
+  assert.match(panel, /Foi verificado\?/);
+  assert.match(panel, /O que foi verificado\?/);
+  assert.match(panel, /action: 'qsms'/);
   assert.doesNotMatch(schema, /checklist\('D15_PRE_JOB_/);
   assert.doesNotMatch(schema, /checklist\('D15_TRAVEL_/);
+  assert.doesNotMatch(schema, /checklist\('D15_QSMS_/);
   assert.doesNotMatch(schema, /D15_CLIENT_TEAM_RELEASED/);
   assert.doesNotMatch(schema, /D15_TEAM_DEFINITIVE_CONFIRMED/);
 });

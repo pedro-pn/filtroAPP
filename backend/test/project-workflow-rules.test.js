@@ -57,6 +57,10 @@ test('contrato exige justificativa para não aplicável, valida documentação e
   assert.equal(patch.safeParse({ action: 'pre_job', version: 1 }).success, false);
   assert.equal(patch.safeParse({ action: 'pre_job', version: 1, scheduledDate: '2026-09-10' }).success, true);
   assert.equal(patch.safeParse({ action: 'pre_job', version: 1, scheduledDate: '2026-09-10', completedDate: '2026-09-09' }).success, false);
+  assert.equal(patch.safeParse({ action: 'qsms', version: 1 }).success, false);
+  assert.equal(patch.safeParse({ action: 'qsms', version: 1, verified: true }).success, true);
+  assert.equal(patch.safeParse({ action: 'qsms', version: 1, verificationNote: 'APR e requisitos do cliente.' }).success, true);
+  assert.equal(patch.safeParse({ action: 'qsms', version: 1, verificationNote: 'x'.repeat(2001) }).success, false);
   assert.equal(patch.safeParse({ action: 'travel', version: 1, freightDepartureTime: '25:00' }).success, false);
   assert.equal(patch.safeParse({ action: 'travel', version: 1, freightDefined: true }).success, true);
   assert.equal(patch.safeParse({ action: 'team_plan', version: 1, defined: true, demands: [] }).success, false);
@@ -280,6 +284,8 @@ function readyMobilizationWorkflow(overrides = {}) {
     logisticsPlan: { lodgingRequired: true },
     preJobScheduledDate: '2026-09-09',
     preJobCompletedDate: '2026-09-10',
+    qsmsVerified: true,
+    qsmsVerificationNote: 'APR e requisitos específicos do cliente verificados.',
     travelPlan: {
       lodgingRequestedDate: '2026-09-09',
       lodgingConfirmedDate: '2026-09-10',
@@ -318,6 +324,21 @@ test('planejamento completo libera Preparação e D-15 acompanha equipe nominal 
   assert.deepEqual(projectWorkflowTransitionIssues({ stage: 'MOBILIZATION_PLANNING', ...structuredPlanning }, 'PREPARATION'), []);
 });
 
+test('QSMS começa sem resposta e exige o registro da verificação', () => {
+  const workflow = readyMobilizationWorkflow({ qsmsVerified: null, qsmsVerificationNote: null });
+  let qsms = projectWorkflowPreparationReadiness(workflow).sections.find(item => item.key === 'D15_QSMS');
+  assert.equal(qsms.completed, 0);
+  assert.ok(projectWorkflowMobilizationGate(workflow).blockers.some(item => item.key === 'QSMS_VERIFIED'));
+  workflow.qsmsVerified = false;
+  assert.equal(projectWorkflowMobilizationGate(workflow).fronts.find(item => item.key === 'QSMS').status, 'BLOCKED');
+  workflow.qsmsVerified = true;
+  assert.ok(projectWorkflowMobilizationGate(workflow).blockers.some(item => item.key === 'QSMS_VERIFICATION_NOTE'));
+  workflow.qsmsVerificationNote = 'APR, documentação e requisitos do cliente.';
+  qsms = projectWorkflowPreparationReadiness(workflow).sections.find(item => item.key === 'D15_QSMS');
+  assert.equal(qsms.completed, 1);
+  assert.equal(projectWorkflowMobilizationGate(workflow).fronts.find(item => item.key === 'QSMS').status, 'READY');
+});
+
 test('gate consolida nove frentes, pré-job e pendências críticas', () => {
   const workflow = readyMobilizationWorkflow();
   let gate = projectWorkflowMobilizationGate(workflow, projectWorkflowMilestones('2026-09-20', '2026-09-09'), '2026-09-09');
@@ -347,6 +368,11 @@ test('gate consolida nove frentes, pré-job e pendências críticas', () => {
   assert.equal(gate.ready, false);
   assert.equal(gate.blockers.some(item => item.key === 'PRE_JOB_COMPLETED'), true);
   workflow.preJobCompletedDate = '2026-09-10';
+  workflow.qsmsVerificationNote = null;
+  gate = projectWorkflowMobilizationGate(workflow);
+  assert.equal(gate.ready, false);
+  assert.equal(gate.blockers.some(item => item.key === 'QSMS_VERIFICATION_NOTE'), true);
+  workflow.qsmsVerificationNote = 'APR e requisitos específicos do cliente verificados.';
   workflow.travelPlan.teamTransportDefined = false;
   gate = projectWorkflowMobilizationGate(workflow);
   assert.equal(gate.ready, false);

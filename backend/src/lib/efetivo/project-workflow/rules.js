@@ -261,6 +261,35 @@ function preJobProgress(workflow) {
   };
 }
 
+function qsmsProgress(workflow) {
+  const qsms = workflow?.qsms && typeof workflow.qsms === 'object'
+    ? workflow.qsms
+    : {};
+  const verified = typeof qsms.verified === 'boolean'
+    ? qsms.verified
+    : typeof workflow?.qsmsVerified === 'boolean' ? workflow.qsmsVerified : null;
+  const verificationNote = typeof qsms.verificationNote === 'string'
+    ? qsms.verificationNote.trim()
+    : typeof workflow?.qsmsVerificationNote === 'string' ? workflow.qsmsVerificationNote.trim() : '';
+  let blocker = null;
+  if (verified === null) {
+    blocker = { key: 'QSMS_VERIFIED', label: 'QSMS', reason: 'Informar se o QSMS foi verificado' };
+  } else if (!verified) {
+    blocker = { key: 'QSMS_VERIFIED', label: 'QSMS', reason: 'Realizar a verificação de QSMS' };
+  } else if (!verificationNote) {
+    blocker = { key: 'QSMS_VERIFICATION_NOTE', label: 'QSMS', reason: 'Registrar o que foi verificado' };
+  }
+  return {
+    key: 'QSMS',
+    label: 'QSMS',
+    status: blocker ? 'BLOCKED' : 'READY',
+    completed: blocker ? 0 : 1,
+    total: 1,
+    percentage: blocker ? 0 : 100,
+    blockers: blocker ? [blocker] : []
+  };
+}
+
 function travelProgress(workflow) {
   const travel = workflow?.travel && typeof workflow.travel === 'object'
     ? workflow.travel
@@ -415,7 +444,8 @@ export function projectWorkflowPreparationReadiness(workflow) {
     if (key === 'D15_CLIENT') return { key, ...clientReleaseProgress(workflow) };
     if (key === 'D15_EQUIPMENT') return { key, ...preparationItemProgress(workflow, 'EQUIPMENT') };
     if (key === 'D15_MATERIALS') return { key, ...preparationItemProgress(workflow, 'MATERIAL') };
-    if (key === 'D15_PRE_JOB') return { key, ...preJobProgress(workflow) };
+    if (key === 'D15_PRE_JOB') return { ...preJobProgress(workflow), key };
+    if (key === 'D15_QSMS') return { ...qsmsProgress(workflow), key };
     if (key === 'D15_TRAVEL') {
       const travel = travelProgress(workflow);
       return { key, completed: travel.completed, total: travel.total, percentage: travel.percentage };
@@ -591,7 +621,7 @@ export function projectWorkflowMobilizationGate(workflow, milestones = null, tod
     })(),
     { key: 'EQUIPMENT', label: 'Equipamentos', status: equipmentProgress.blockers.length ? 'BLOCKED' : 'READY', ...equipmentProgress },
     { key: 'MATERIALS', label: 'Materiais', status: materialProgress.blockers.length ? 'BLOCKED' : 'READY', ...materialProgress },
-    readinessFromDefinitions(workflow, 'QSMS', 'QSMS', checklistDefinitions({ sections: ['D15_QSMS'] })),
+    qsmsProgress(workflow),
     travel.lodging,
     travel.logistics,
     { key: 'CLIENT', label: 'Cliente', status: clientProgress.blockers.length ? 'BLOCKED' : 'READY', ...clientProgress }
